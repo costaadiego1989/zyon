@@ -10,9 +10,9 @@ const action = <T extends string, S extends z.ZodType>(tool: T, args: S) => z.st
 export const storefrontUiActionSchema = z.discriminatedUnion("tool", [
   action("add_catalog_items", z.strictObject({ lines: z.array(tools.add_item_to_cart.pick({ variantId: true, quantity: true })).min(1).max(30) })),
   action("get_product_details", tools.get_product_details),
-  action("search_products", tools.search_products.pick({ query: true, categoryId: true, cursor: true }).extend({ query: tools.search_products.shape.query.default("*") })),
+  action("search_products", tools.search_products.pick({ query: true, categoryId: true, cursor: true, criteria: true }).extend({ query: tools.search_products.shape.query.default("*") })),
   action("list_categories", empty),
-  action("get_reviews", tools.get_reviews.pick({ productId: true, cursor: true })),
+  action("get_reviews", tools.get_reviews.pick({ productId: true, cursor: true, filter: true })),
   action("get_similar_products", tools.get_similar_products.pick({ productId: true })),
   action("compare_products", tools.get_product_details),
   action("get_daily_deals", empty),

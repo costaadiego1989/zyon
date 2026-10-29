@@ -38,6 +38,10 @@ export interface SearchProductsInput {
   categoryId?: string;
   minPriceCents?: number;
   maxPriceCents?: number;
+  minRating?: number;
+  currency?: "BRL";
+  attributes?: Array<{ name: string; value: string; operator: "equals" | "not_equals" }>;
+  sortBy?: "price_asc" | "price_desc" | "rating" | "newest";
   inStockOnly?: boolean;
   isActiveOnly?: boolean;
   status?: "all" | "active" | "inactive";

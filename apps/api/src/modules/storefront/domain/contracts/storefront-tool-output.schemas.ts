@@ -3,6 +3,7 @@ import type { StorefrontToolName } from "./storefront-tool.schemas.js";
 import type { ToolResult } from "../tools/types.js";
 import { commercialNoticesSchema } from "./commercial-notice.schemas.js";
 import { storefrontShippingReferenceResultSchema } from "./storefront-shipping-reference.schemas.js";
+import { shoppingSearchEvidenceSchema } from "./shopping-search-plan.schemas.js";
 
 export const STOREFRONT_TOOL_OUTPUT_VERSION = 1;
 const id = z.string().min(1).max(191);
@@ -67,6 +68,7 @@ const shippingOutput = z.unknown().transform((raw, ctx) => {
 /** Success payloads for every native tool. No unknown/passthrough result schema. */
 export const storefrontToolOutputSchemas = {
   search_products: z.object({ products: list(pricedProduct), nextCursor: text.nullable().optional(), query: text.optional(), categoryId: id.optional(),
+    searchEvidence: shoppingSearchEvidenceSchema.optional(),
     source: z.enum(["mixed", "marketplace", "local"]).optional(), note: text.optional() }),
   get_product_details: z.object({ product: product.refine(value => value.price !== undefined
     || value.variants?.some(item => item.isActive !== false && item.basePriceInCents !== undefined)), ...suggestions }),

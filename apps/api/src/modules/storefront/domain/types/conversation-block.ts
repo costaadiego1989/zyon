@@ -1,5 +1,6 @@
 import type { CommercialNotice, CrossSellDisplayMode } from "@zyon/shared-types";
 import type { PublicServiceSchedule } from "../../../catalog/domain/services/service-schedule.js";
+import type { ShoppingSearchPlan } from "../contracts/shopping-search-plan.schemas.js";
 export interface ProductCardBlock {
   type: "product_card";
   data: {
@@ -44,6 +45,7 @@ export interface ProductCarouselBlock {
     merchantId?: string;
     query?: string;
     categoryId?: string;
+    criteria?: ShoppingSearchPlan;
   };
 }
 

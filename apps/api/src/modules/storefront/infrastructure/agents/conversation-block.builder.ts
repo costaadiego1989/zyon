@@ -16,6 +16,7 @@ export interface BuildBlocksInput {
 export interface BuildBlocksResult {
   blocks: ConversationBlock[];
   finalContent: string;
+  canonicalReadMessage?: true;
 }
 
 /** A rating is only meaningful when it comes with actual product reviews. */
@@ -138,6 +139,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           merchantId: input.merchantId,
           query: searchData.query,
           categoryId: searchData.categoryId,
+          criteria: searchData.searchEvidence?.appliedPlan,
         }
       });
     }
@@ -388,6 +390,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           productId: reviewsData.productId ?? "",
           productName: reviewsData.productName ?? "",
           nextCursor: reviewsData.nextCursor,
+          filter: reviewsData.filter,
           averageRating: reviewsData.averageRating ?? 0,
           totalReviews: reviewsData.totalCount ?? reviewsData.reviews.length,
           reviews: reviewsData.reviews.map((r: any) => ({
@@ -500,6 +503,15 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   // Keep the rejected model text discarded and describe only published blocks.
   // Writes and unknown outcomes retain their existing terminal handling.
   const readTools = new Set(["search_products", "get_product_details", "compare_products", "get_product_availability", "get_similar_products", "get_daily_deals", "list_categories", "get_cart", "get_reviews", "get_product_questions", "get_wishlist", "get_faq", "get_store_policies", "get_buyer_profile"]);
+  const canonicalSearch = storefrontToolOutputSchemas.search_products.safeParse(toolResults.search_products);
+  const onlyReads = Object.keys(toolResults).length > 0 && Object.keys(toolResults).every(name => readTools.has(name));
+  let canonicalReadMessage: true | undefined;
+  // A declared limit/unknown criterion must survive even a fluent model reply.
+  // The evidence is emitted by the shared canonical handler, never by the LLM.
+  if (onlyReads && canonicalSearch.success && canonicalSearch.data.searchEvidence && !skipProductCarousel) {
+    finalContent = canonicalSearch.data.searchEvidence.message;
+    canonicalReadMessage = true;
+  }
   if ((!finalContent || finalContent === STOREFRONT_CONTRACT_FALLBACK) && Object.keys(toolResults).every(name => readTools.has(name))) {
     const policy = storefrontToolOutputSchemas.get_store_policies.safeParse(toolResults.get_store_policies);
     if (policy.success && policy.data.configured === false && "message" in policy.data && policy.data.message)
@@ -507,6 +519,17 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     if (blocks.some(block => block.type === "product_comparison")) finalContent = "Confira a comparação dos produtos selecionados.";
     else if (blocks.some(block => block.type === "product_card")) finalContent = "Veja os detalhes publicados deste produto.";
     else if (blocks.some(block => block.type === "product_carousel" && block.data.products.length)) finalContent = "Encontrei estas opções no catálogo da loja.";
+    else if (canonicalSearch.success && !canonicalSearch.data.products.length)
+      finalContent = "🔎 Não encontrei produtos para essa consulta. Podemos ajustar o nome ou os critérios?";
+    else {
+      const reviews = storefrontToolOutputSchemas.get_reviews.safeParse(toolResults.get_reviews);
+      if (reviews.success) {
+        finalContent = reviews.data.reviews.length
+          ? "⭐ Confira as avaliações publicadas para essa seleção."
+          : "⭐ Não há avaliações publicadas para essa seleção. Não consigo confirmar uma nota a partir de avaliações ausentes.";
+        canonicalReadMessage = true;
+      }
+    }
   }
-  return { blocks, finalContent };
+  return { blocks, finalContent, ...(canonicalReadMessage ? { canonicalReadMessage } : {}) };
 }

@@ -60,6 +60,10 @@ export function createSalesSearchPolicy(userMessage: string,
           ? { ok: false, error: "similar_product_requires_confirmation" } : tool.execute(args),
       } : {
         name: tool.name, execute: async args => {
+          // A typed general criteria plan already separates product purpose,
+          // hard requirements and preferences. Do not concatenate them back
+          // into the lexical query or relax them in synonym searches.
+          if (args.criteria !== undefined) return tool.execute(args);
           if (relatedLabels && lastResult) return lastResult;
           if (searches >= 3) {
             terminal = true;

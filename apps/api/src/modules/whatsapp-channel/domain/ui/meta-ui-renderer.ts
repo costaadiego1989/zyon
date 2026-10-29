@@ -131,7 +131,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         break;
       case "product_carousel": case "marketplace_products": case "cross_sell":
         items(d.products ?? d.items).forEach(productChoice);
-        if (d.nextCursor) add("Mais produtos", tool("search_products", { query: d.query || "*", categoryId: d.categoryId, cursor: d.nextCursor }));
+        if (d.nextCursor) add("Mais produtos", tool("search_products", { query: d.query || "*", categoryId: d.categoryId, cursor: d.nextCursor, ...(d.criteria ? { criteria: d.criteria } : {}) }));
         break;
       case "product_card": {
         if (d.sellerName) { const seller = `Vendido por: ${value(d.sellerName)}`; text.push(seller); selectionText.push(seller); }

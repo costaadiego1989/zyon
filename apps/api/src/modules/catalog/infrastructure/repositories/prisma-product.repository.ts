@@ -10,6 +10,8 @@ import { ProductEntity, ProductVariantProps } from "../../domain/entities/produc
 import { productInputError } from "../../domain/services/product-input-validation.js";
 import { lockCatalogMerchant, syncCatalogStockLedger } from "../../../../shared/persistence/catalog-stock-ledger.js";
 import { searchAvailableCatalog } from "./catalog-availability-search.js";
+import { matchesCatalogVariant } from "../../domain/services/catalog-search-criteria.js";
+import { readPublicProductRatingStats } from "./public-product-reviews.reader.js";
 
 /**
  * Normalize text for accent- and case-insensitive matching.
@@ -107,7 +109,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     });
 
     if (!product) return null;
-    return this.toEntity(product);
+    return (await this.withPublicRatings(merchantId, [this.toEntity(product)]))[0];
   }
 
   async findExistingVariantSkus(
@@ -131,9 +133,19 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   }
 
   async search(input: SearchProductsInput): Promise<SearchProductsResult> {
-    if (input.inStockOnly || input.queryMode === "contextual") {
-      const { rows, total, nextCursor } = await searchAvailableCatalog(this.prisma, input);
-      return { products: rows.map(p => this.toEntity(p)), total, nextCursor };
+    if (input.inStockOnly || input.queryMode === "contextual" || input.minPriceCents !== undefined
+      || input.maxPriceCents !== undefined || input.minRating !== undefined || input.attributes?.length || input.sortBy) {
+      const { rows, total, nextCursor, publicRatings } = await searchAvailableCatalog(this.prisma, input);
+      const products = rows.map(raw => {
+        const product = this.toEntity(raw);
+        return new ProductEntity({ ...product,
+          variants: product.variants.filter(variant => matchesCatalogVariant(variant, input, product.type))
+            .sort((left, right) => left.basePriceInCents - right.basePriceInCents || left.id.localeCompare(right.id)),
+          averageRating: publicRatings.get(product.id)?.averageRating,
+          reviewCount: publicRatings.get(product.id)?.reviewCount ?? 0,
+        });
+      });
+      return { products, total, nextCursor };
     }
     const where: Prisma.ProductWhereInput = {
       merchantId: input.merchantId,
@@ -232,7 +244,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       inactive: await this.prisma.product.count({ where: { ...where, ...(where.isActive === true ? { id: { in: [] } } : { isActive: false }) } }),
     };
 
-    return { products: entities, nextCursor, total, ...(totals ? { totals } : {}) };
+    return { products: await this.withPublicRatings(input.merchantId, entities), nextCursor, total, ...(totals ? { totals } : {}) };
   }
 
   async update(
@@ -397,6 +409,13 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     });
 
     return { productId: variant.productId };
+  }
+
+  private async withPublicRatings(merchantId: string, products: ProductEntity[]): Promise<ProductEntity[]> {
+    const stats = await readPublicProductRatingStats(this.prisma, merchantId, products.map(product => product.id));
+    return products.map(product => new ProductEntity({ ...product,
+      averageRating: stats.get(product.id)?.averageRating, reviewCount: stats.get(product.id)?.reviewCount ?? 0,
+    }));
   }
 
   private toEntity(raw: any): ProductEntity {

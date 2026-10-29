@@ -17,6 +17,8 @@ import { productGallery } from "../product-gallery.js";
 import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
 import { contextualProductQuery, contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
 import { salesSearchMaxPrice } from "../../domain/services/sales-search-policy.js";
+import { shoppingSearchPlanSchema } from "../../domain/contracts/shopping-search-plan.schemas.js";
+import { shoppingSearchEvidence } from "../../application/services/shopping-search-evidence.js";
 
 import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
@@ -36,10 +38,22 @@ export interface ProductHandlerDeps {
 export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "searchProducts" | "getProductDetails" | "compareProducts" | "getProductAvailability" | "getSimilarProducts" | "getDailyDeals" | "listCategories"> {
   return {
     searchProducts: async (args) => {
+      const parsedPlan = args.criteria === undefined ? undefined : shoppingSearchPlanSchema.safeParse(args.criteria);
+      if (parsedPlan && !parsedPlan.success) return { error: "shopping_search_plan_invalid" };
+      const plan = parsedPlan?.success ? parsedPlan.data : undefined;
+      // Declared, unsupported requirements must never degrade into broad matches.
+      if (plan && (plan.delivery || plan.unsupportedCriteria.length)) return {
+        products: [], nextCursor: null, query: plan.query, searchEvidence: shoppingSearchEvidence(plan, 0),
+      };
+      if (args.sortBy === "best_sellers" || args.sortBy === "discount") {
+        const unavailable = shoppingSearchPlanSchema.parse({ version: 1, query: plan?.query ?? args.query ?? "*",
+          unsupportedCriteria: [args.sortBy === "best_sellers" ? "mais vendidos" : "maior desconto"] });
+        return { products: [], nextCursor: null, query: unavailable.query, searchEvidence: shoppingSearchEvidence(unavailable, 0) };
+      }
       // The buyer's explicit ceiling is authoritative, including its currency
       // conversion. A model sending 100 for R$100 must not silently mean R$1.
-      const maxPrice = salesSearchMaxPrice(ctx.userMessage ?? "") ?? args.maxPrice;
-      const query = contextualProductQuery(args.query, ctx.userMessage);
+      const maxPrice = plan ? plan.maxPriceCents : salesSearchMaxPrice(ctx.userMessage ?? "") ?? args.maxPrice;
+      const query = plan ? plan.query : contextualProductQuery(args.query, ctx.userMessage);
       const contextual = !!query && contextualSearchGroups(query).length > 0;
       const result = await deps.productRepo.search({
         merchantId: ctx.merchantId,
@@ -47,7 +61,11 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         queryMode: contextual ? "contextual" : undefined,
         categoryId: args.categoryId,
         maxPriceCents: maxPrice,
-        inStockOnly: args.inStockOnly,
+        ...((plan?.minPriceCents ?? args.minPrice) !== undefined ? { minPriceCents: plan?.minPriceCents ?? args.minPrice } : {}),
+        ...((plan?.minRating ?? args.minRating) !== undefined ? { minRating: plan?.minRating ?? args.minRating } : {}),
+        ...((plan?.sortBy ?? args.sortBy) ? { sortBy: plan?.sortBy ?? args.sortBy } : {}),
+        ...(plan ? { attributes: plan.attributes.filter(item => item.priority === "required").map(({ priority: _priority, ...item }) => item), currency: "BRL" as const } : {}),
+        inStockOnly: plan ? true : args.inStockOnly,
         isActiveOnly: true,
         cursor: args.cursor,
         limit: Math.min(args.limit ?? 10, 20)
@@ -85,7 +103,8 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       }));
 
       const federatedSearch = deps.searchFederatedProducts;
-      const shouldSearchMarketplace = localProducts.length === 0 && federatedSearch && query && query !== "*";
+      const shouldSearchMarketplace = !plan && args.minPrice === undefined && args.minRating === undefined && !args.sortBy
+        && localProducts.length === 0 && federatedSearch && query && query !== "*";
       if (shouldSearchMarketplace && federatedSearch) {
         try {
           const marketplaceResult = await federatedSearch.execute({
@@ -135,6 +154,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       return {
         products: localProducts,
         nextCursor: result.nextCursor, query, categoryId: args.categoryId,
+        ...(plan ? { searchEvidence: shoppingSearchEvidence(plan, localProducts.length) } : {}),
         ...(contextual && !localProducts.length ? { note: "Não encontrei produtos correspondentes. Pode detalhar o que procura?" } : {}),
       };
     },

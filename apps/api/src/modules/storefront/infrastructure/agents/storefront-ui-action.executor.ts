@@ -8,6 +8,7 @@ import { validateStorefrontToolOutput, StorefrontToolOutputError } from "../../d
 import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
 import type { StorefrontToolName } from "../../domain/contracts/storefront-tool.schemas.js";
 import { StorefrontToolOutcomeUnknownError } from "../../domain/errors/store-tool-outcome-unknown.error.js";
+import type { ShoppingSearchPlan } from "../../domain/contracts/shopping-search-plan.schemas.js";
 
 export async function executeStorefrontUiAction(handlers: StoreToolHandlers, action: StorefrontUiAction, merchantId: string, cartId: string) {
   try {
@@ -41,9 +42,9 @@ async function executeAction(handlers: StoreToolHandlers, action: StorefrontUiAc
       break;
     }
     case "get_product_details": result = await validated("get_product_details", handlers.getProductDetails({ productId: str("productId") })); message = "Aqui estão os detalhes do produto:"; break;
-    case "search_products": result = await validated("search_products", handlers.searchProducts({ query: str("query") || "*", categoryId: str("categoryId") || undefined, cursor: str("cursor") || undefined })); message = result.products?.length ? "Estes são os produtos disponíveis:" : "Não encontrei produtos para essa seleção. Tente outro nome ou categoria."; break;
+    case "search_products": result = await validated("search_products", handlers.searchProducts({ query: str("query") || "*", categoryId: str("categoryId") || undefined, cursor: str("cursor") || undefined, ...(a.criteria ? { criteria: a.criteria as ShoppingSearchPlan } : {}) })); message = result.products?.length ? "Estes são os produtos disponíveis:" : "Não encontrei produtos para essa seleção. Tente outro nome ou categoria."; break;
     case "list_categories": result = await validated("list_categories", handlers.listCategories()); message = result.categories?.length ? "Escolha uma categoria:" : "A loja ainda não cadastrou categorias. Você pode consultar os produtos."; break;
-    case "get_reviews": result = await validated("get_reviews", handlers.getReviews({ productId: str("productId"), cursor: str("cursor") || undefined })); message = result.reviews?.length ? "Veja as avaliações:" : "Este produto ainda não tem avaliações publicadas."; break;
+    case "get_reviews": result = await validated("get_reviews", handlers.getReviews({ productId: str("productId"), cursor: str("cursor") || undefined, ...(a.filter ? { filter: a.filter as "positive" | "negative" | "recent" } : {}) })); message = result.reviews?.length ? "Veja as avaliações:" : "Este produto ainda não tem avaliações publicadas."; break;
     case "get_similar_products": result = await validated("get_similar_products", handlers.getSimilarProducts({ productId: str("productId") })); message = result.products?.length ? "Veja os produtos semelhantes:" : "Não encontrei produtos semelhantes disponíveis nesta loja."; break;
     case "compare_products": result = await validated("compare_products", handlers.compareProducts({ productId: str("productId"), includeSimilar: true })); message = result.comparison?.length >= 2 ? "Compare os produtos:" : "Qual outro produto desta loja você quer comparar? Informe o nome."; break;
     case "get_daily_deals": result = await validated("get_daily_deals", handlers.getDailyDeals({})); message = result.deals?.length ? "Confira as ofertas disponíveis:" : "No momento não há ofertas ativas. Posso mostrar os produtos da loja?"; break;

@@ -34,6 +34,18 @@ export interface PublicProductReviewsInput {
   limit?: number;
 }
 
+/** One bounded aggregate for cards and search projections, using exactly the
+ * visibility rules used by the public review list and numeric search filter. */
+export async function readPublicProductRatingStats(prisma: Pick<PrismaClient, "$queryRaw">, merchantId: string, productIds: string[]) {
+  if (!productIds.length) return new Map<string, { averageRating?: number; reviewCount: number }>();
+  const rows = await prisma.$queryRaw<Array<{ product_id: string; average_rating: number; review_count: number }>>(Prisma.sql`
+    SELECT product_id, AVG(rating)::double precision AS average_rating, COUNT(*)::integer AS review_count
+    FROM (${publicProductReviewsSql(merchantId)}) public_reviews
+    WHERE product_id = ANY(${productIds}::text[]) GROUP BY product_id
+  `);
+  return new Map(rows.map(row => [row.product_id, { averageRating: row.average_rating, reviewCount: row.review_count }]));
+}
+
 export async function readPublicProductReviews(prisma: Pick<PrismaClient, "$queryRaw">, input: PublicProductReviewsInput) {
   const limit = Math.max(1, Math.min(20, Math.floor(Number(input.limit) || 10)));
   const cursor = input.cursor ?? null;

@@ -43,6 +43,7 @@ import { isStorefrontDomainAllowed, STOREFRONT_OUT_OF_SCOPE_MESSAGE, STOREFRONT_
 import { storefrontPreparedContextSchema } from "../../domain/contracts/storefront-conversation.schemas.js";
 import type { OneBuyClickConversationContext } from "../../domain/ports/conversation.port.js";
 import { reviewStorefrontReply, type StorefrontReviewBudget } from "../copy/storefront-semantic-review.js";
+import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 
 export interface StorefrontAgentCallbacks {
   onToken?: (token: string) => void;
@@ -343,6 +344,17 @@ export class StorefrontLangGraphAgent {
     }));
 
     let finalContent = "";
+    let canonicalSearchComplete = false;
+    const captureCanonicalSearch = (name: string): boolean => {
+      if (name !== "search_products") return false;
+      const parsed = storefrontToolOutputSchemas.search_products.safeParse(toolResults.search_products);
+      if (!parsed.success || !parsed.data.searchEvidence) return false;
+      // The validated plan has one authoritative result. Do not ask the model
+      // to relax requirements or narrate a second, conflicting catalog search.
+      canonicalSearchComplete = true;
+      finalContent = parsed.data.searchEvidence.message;
+      return true;
+    };
     let loops = 0;
     const openRouterTools = turnTools.map((t) => ({
       type: "function" as const,
@@ -402,11 +414,11 @@ export class StorefrontLangGraphAgent {
                 name: tc.name,
                 tool_call_id: tc.id
               });
-              if (discoveryQuestion || cartPolicy.mutationOutcome) break;
+              if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name)) break;
             }
           }
           groundProductResponse(messages, toolResults);
-          if (cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
+          if (canonicalSearchComplete || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
           continue; // loop back to LLM with tool results
         }
 
@@ -440,7 +452,7 @@ export class StorefrontLangGraphAgent {
               if (execTool) {
                 const toolResult = await this.executeObservedTool(execTool, tc.args);
                 toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
-                if (cartPolicy.mutationOutcome) break;
+                if (cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name)) break;
               }
             }
             // Get final text after tool execution
@@ -458,7 +470,7 @@ export class StorefrontLangGraphAgent {
               messages.push({ role: "tool", content: JSON.stringify(result), name: tc.name, tool_call_id: tc.id });
             }
             groundProductResponse(messages, toolResults);
-            if (!cartPolicy.terminal) {
+            if (!canonicalSearchComplete && !cartPolicy.terminal) {
               const finalResult = await observeStorefrontChat(this.provider, { messages, responseFormat: this.responseFormat, temperature: 0.3, maxTokens: 500, model: this.strongModel }, "primary", "final");
               finalContent = this.decodeResponse(finalResult);
               totalPromptTokens += finalResult.usage.promptTokens;
@@ -520,17 +532,17 @@ export class StorefrontLangGraphAgent {
                   const toolResult = await this.executeObservedTool(execTool, tc.args);
                   toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
                   fbMessages.push({ role: "tool", content: JSON.stringify(toolResult.ok ? toolResult.data : { error: toolResult.error }), name: tc.name, tool_call_id: tc.id });
-                  if (discoveryQuestion || cartPolicy.mutationOutcome) break;
+                  if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name)) break;
                 }
               }
               groundProductResponse(fbMessages, toolResults);
-              if (cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
+              if (canonicalSearchComplete || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
               continue;
             }
             fbFinalContent = this.decodeResponse(fbResult);
             break;
           }
-          finalContent = fbFinalContent;
+          if (!canonicalSearchComplete) finalContent = fbFinalContent;
           this.logger.log("agent.fallback_provider.success");
         } catch (fbErr) {
           this.logger.error("agent.fallback_provider.failed", { reason: "provider_or_tool_error" });
@@ -628,7 +640,7 @@ export class StorefrontLangGraphAgent {
 
     // The fixed contract fallback is server-owned, not generated candidate prose.
     // A textual refusal never revokes/duplicates an already committed tool effect.
-    if (validation.safe && !mutationOutcome && messageToValidate !== STOREFRONT_MODEL_FALLBACK) {
+    if (validation.safe && !mutationOutcome && !built.canonicalReadMessage && messageToValidate !== STOREFRONT_MODEL_FALLBACK) {
       const productReferences: string[] = [];
       const addReference = (value: unknown) => { if (typeof value === "string" && value.trim() && productReferences.length < 12)
         productReferences.push(value.slice(0, 160)); };

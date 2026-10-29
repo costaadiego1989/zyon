@@ -1,4 +1,5 @@
 import { callStorefrontTool } from "./call-storefront-tool.js";
+import type { ShoppingSearchPlan } from "../contracts/shopping-search-plan.schemas.js";
 
 export interface ToolDefinition {
   name: string;
@@ -25,6 +26,10 @@ export interface StoreToolHandlers {
     query: string;
     categoryId?: string;
     maxPrice?: number;
+    minPrice?: number;
+    minRating?: number;
+    sortBy?: "price_asc" | "price_desc" | "rating" | "best_sellers" | "newest" | "discount";
+    criteria?: ShoppingSearchPlan;
     inStockOnly?: boolean;
     limit?: number;
     cursor?: string;

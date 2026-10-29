@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { storefrontCartLineSelectorShape } from "./storefront-cart-line-selector.schemas.js";
+import { shoppingSearchPlanSchema } from "./shopping-search-plan.schemas.js";
 
 export const STOREFRONT_TOOL_CONTRACT_VERSION = 1;
 const id = z.string().min(1).max(191);
@@ -17,6 +18,8 @@ const limit = z.number().int().min(1).max(100).optional();
 export const storefrontToolArgumentSchemas = {
   search_products: z.strictObject({
     query: z.string().max(1000), categoryId: id.optional(), cursor, maxPrice: z.number().nonnegative().optional(),
+    criteria: shoppingSearchPlanSchema.optional(),
+    minPrice: z.number().int().nonnegative().optional(), minRating: z.number().min(1).max(5).optional(),
     inStockOnly: z.boolean().optional(), limit: z.number().int().min(1).max(20).optional(),
     sortBy: z.enum(["price_asc", "price_desc", "rating", "best_sellers", "newest", "discount"]).optional(),
   }),

@@ -4,7 +4,7 @@ import { wrapHandler } from "../types.js";
 export const SEARCH_PRODUCTS: ToolDefinition = {
   name: "search_products",
   description:
-    "Search the merchant's product catalog. Use empty query or '*' to list all/featured products. Use categoryId to filter by category. Returns matching products with 'id' (use this ID for add_item_to_cart variantId), name, price, image, variants, and stock status.",
+    "Read-only search of this merchant's canonical catalog. For natural-language criteria ALWAYS include criteria version 1: query contains ONLY product/name/purpose or '*'; put price interval (integer cents), minimum rating, structured variant attributes (required vs preferred), delivery requirements and unsupported criteria in separate fields. Do not put filter instructions or 'do not change my cart' in the query. Never omit a buyer requirement or claim unsupported delivery/sales/discount filters were verified. Returns product IDs (NOT variant IDs); only an explicit buyer action can add a returned variant to cart.",
   parameters: {
     type: "object",
     properties: {
