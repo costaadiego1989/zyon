@@ -43,6 +43,18 @@ test("WhatsApp presentation changes prose format, preserving the JSON contract a
  assert.match(JSON.parse(buildStoreSystemPrompt({})).operatingInstructions,/Não use markdown nem tabelas/);
 });
 
+test("rejected policy narration preserves a confirmed unpublished-policy response, never a failed read or unknown write", () => {
+ const base={merchantId:"merchant-a",userMessage:"Trocas e Devoluções",finalContent:STOREFRONT_CONTRACT_FALLBACK};
+ const policy={configured:false,policy:null,message:"A loja ainda não publicou essa política. Consulte o atendimento da loja."};
+ assert.equal(buildConversationBlocks({...base,toolResults:{get_store_policies:policy}}).finalContent,policy.message);
+ assert.equal(buildConversationBlocks({...base,toolResults:{get_store_policies:{configured:false,policies:{},message:policy.message}}}).finalContent,policy.message);
+ for(const toolResults of [
+  {get_store_policies:{error:"provider_failed"}},
+  {get_store_policies:{configured:false,message:policy.message}},
+  {get_store_policies:policy,apply_coupon:{error:"storefront_tool_outcome_unknown"}},
+ ]) assert.equal(buildConversationBlocks({...base,toolResults}).finalContent,STOREFRONT_CONTRACT_FALLBACK);
+});
+
 test("only a whole coupon command can reach canonical admission, never attachments or mixed instructions", async () => {
  const calls:any[]=[];const deps={applyCoupon:async(args:any)=>{calls.push(args);return{applied:false,reason:"cart_empty",discount:0}}};
  const input={merchantId:"merchant-a",sessionId:"conversation-a",cartId:"cart-a",storeCategory:"others",history:[],userMessage:"Aplicar cupom TESTE10"};
