@@ -28,6 +28,14 @@ test("contextual navigation uses tenant-authorized handlers for recommendations,
   assert.deepEqual(calls, [["similar", { productId: "p1" }], ["compare", { productId: "p1", includeSimilar: true }], ["deals"]]);
 });
 
+test("wishlist sharing formats only the authenticated owner's current public product data and makes no write", async () => {
+  let reads = 0;
+  const result = await executeStorefrontUiAction({ getWishlist: async () => { reads++; return { items: [{ id: "p1", name: "Protetor", price: 9990, inStock: true }], message: "Lista" }; } } as any,
+    { tool: "get_wishlist", args: { share: true } }, "merchant", "cart");
+  assert.equal(reads, 1); assert.match(result.message, /encaminhe esta mensagem/);
+  assert.match(result.message, /Protetor.*99,90/); assert.doesNotMatch(result.message, /https?:|ownerKey|buyerId/);
+});
+
 for (const [tool, handler, payload, expected] of [
   ["get_daily_deals", "getDailyDeals", { deals: [] }, /não há ofertas ativas/],
   ["get_reviews", "getReviews", { reviews: [], totalCount: 0, averageRating: 0 }, /não tem avaliações publicadas/],

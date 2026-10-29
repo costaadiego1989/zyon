@@ -171,6 +171,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
       // length is a trusted integer, safe to inline in the cast.
       const dim = queryEmbedding.length;
       let results: KnowledgeChunkRow[] = [];
+      let useJsonFallback = false;
       try {
         results = await this.prisma.$queryRawUnsafe<KnowledgeChunkRow[]>(
           `SELECT
@@ -185,7 +186,13 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
           merchantId,
           limit,
         );
+        // A working pgvector column may contain no vectors of the active model:
+        // legacy/fallback chunks still live in the JSON embedding column.
+        useJsonFallback = !results.some(row => row.merchant_id === merchantId && Number.isFinite(row.similarity) && (row.similarity ?? 0) >= threshold);
       } catch {
+        useJsonFallback = true;
+      }
+      if (useJsonFallback) {
         // pgvector not available, fall back to base64 + JS cosine similarity
         this.logger.debug("pgvector unavailable, using base64 cosine fallback");
         const allChunks = await this.prisma.$queryRaw<KnowledgeChunkRow[]>`
@@ -200,6 +207,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
           .map((chunk): KnowledgeChunkRow | null => {
             try {
               const chunkEmbedding = JSON.parse(chunk.embedding ?? "") as number[];
+              if (chunkEmbedding.length !== queryEmbedding.length || chunkEmbedding.some(value => !Number.isFinite(value))) return null;
               const similarity = this.cosineSimilarity(queryEmbedding, chunkEmbedding);
               return { ...chunk, similarity };
             } catch {
@@ -211,7 +219,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
           .slice(0, limit);
       }
 
-      return results.map((row): KnowledgeChunk => ({
+      return results.filter(row => row.merchant_id === merchantId && Number.isFinite(row.similarity) && (row.similarity ?? 0) >= threshold).map((row): KnowledgeChunk => ({
         id: row.id,
         merchantId: row.merchant_id,
         sourceType: row.source_type as KnowledgeChunk["sourceType"],

@@ -56,9 +56,14 @@ async function executeAction(handlers: StoreToolHandlers, action: StorefrontUiAc
       break;
     }
     case "get_cart": result = await validated("get_cart", handlers.getCart({ cartId })); message = "Este é o seu carrinho:"; break;
-    case "get_wishlist": result = await validated("get_wishlist", handlers.getWishlist()); message = result.items?.length ? "Sua lista de desejos:" : "Sua lista de desejos está vazia. Escolha um produto para salvar."; break;
+    case "get_wishlist": {
+      result = await validated("get_wishlist", handlers.getWishlist());
+      message = result.items?.length ? "Sua lista de desejos:" : "Sua lista de desejos está vazia. Escolha um produto para salvar.";
+      if (a.share === true && result.items?.length) message = "Para compartilhar, encaminhe esta mensagem:\n\n" + result.items.slice(0, 10).map((item: { name: string; price: number }) => `${item.name.replace(/\s+/g, " ").slice(0, 180)} — ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.price / 100)}`).join("\n") + (result.items.length > 10 ? `\nMais ${result.items.length - 10} itens disponíveis na sua lista.` : "") + "\n\nPreços sujeitos à confirmação na loja.";
+      break;
+    }
     case "add_to_wishlist": result = await validated("add_to_wishlist", handlers.addToWishlist({ productId: str("productId") })); message = "Confira sua lista de desejos:"; break;
-    case "remove_from_wishlist": result = await validated("remove_from_wishlist", handlers.removeFromWishlist({ productId: str("productId") })); message = "Confira sua lista de desejos:"; break;
+    case "remove_from_wishlist": result = await validated("remove_from_wishlist", handlers.removeFromWishlist({ productId: str("productId") })); message = result.items?.length ? "Produto removido. Confira sua lista de desejos:" : "Produto removido. Sua lista de desejos está vazia."; break;
     case "remove_cart_item": result = await validated("remove_cart_item", handlers.removeCartItem({ cartId, variantId: str("variantId") })); message = "Confira seu carrinho atualizado:"; break;
     case "update_cart_item": {
       const quantity = a.quantity as number;

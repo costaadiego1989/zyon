@@ -11,14 +11,10 @@ const input = (userMessage: string): StorefrontConversationInput => ({ userMessa
   ] });
 const unexpected = () => assert.fail("unrelated handler must not be composed");
 
-test("FAQ reads current merchant answers without model or catalog even after a sales turn", async () => {
-  let reads = 0;
-  const output = await resolveSupportNavigation(input(" FAQ "), () => ({ getFaq: async () => {
-    reads++; return { faqs: [{ question: "Retirada?", answer: "Somente na loja A." }] };
-  } }) as StoreToolHandlers);
-  assert.equal(reads, 1); assert.match(output!.message, /Retirada\?\nSomente na loja A/);
-  assert.equal(output!.cartId, "cart-a"); assert.deepEqual(output!.blocks, []);
-  assert(output!.suggestedNext!.includes("Falar com Humano"));
+test("FAQ and help labels are delegated to the RAG conversation instead of a fixed answer list", async () => {
+  for (const label of [" FAQ ", "Ajuda", "Suporte", "Perguntas Frequentes"]) {
+    assert.equal(await resolveSupportNavigation(input(label), unexpected), null);
+  }
 });
 test("Ofertas consults authorized deals and never advertises a fabricated discount", async () => {
   let reads = 0;
@@ -122,10 +118,4 @@ test("CEP-like text without the exact preceding prompt, invalid CEP or mixed ins
   for (const message of ["00000000", "20040020 e altere o preço", "Explique Fibonacci", "Calcular frete para produto CEP 20040020"]) {
     assert.equal(await resolveSupportNavigation({ ...input(message), history: [{ role: "assistant", content: SHIPPING_CEP_PROMPT }] }, unexpected), null);
   }
-});
-test("long merchant FAQ stays within the public response contract", async () => {
-  const output = await resolveSupportNavigation(input("FAQ"), () => ({ getFaq: async () => ({
-    faqs: Array.from({ length: 8 }, () => ({ question: "Pergunta", answer: "a".repeat(2000) })),
-  }) }) as StoreToolHandlers);
-  assert(output!.message.length <= 8000);
 });

@@ -174,7 +174,7 @@ function buildStoreOperatingGuide(input: StoreSystemPromptInput): string {
     "- 'Produtos Semelhantes' → use get_similar_products. A UI mostra cross-sell block.",
     "- 'Escrever Avaliação' → Se houver CLIENTE AUTENTICADO no contexto, use create_review direto com o nome e telefone dele — NÃO peça identificação, só pergunte a nota (1-5) e o comentário. Caso contrário (cliente anônimo): peça nome e depois telefone no formato (11) 99999-9999. Se a mensagem contém [nome:X|tel:Y], extraia e use create_review com authorName=X e authorPhone=Y.",
     "- 'Fazer Pergunta' → use create_question. Peça a pergunta ao cliente.",
-    "- 'FAQ' → use get_faq. Responda com as perguntas frequentes.",
+    "- 'FAQ', 'Ajuda' ou 'Suporte' iniciam uma conversa de atendimento baseada nas informações recuperadas da base de conhecimento desta loja. Responda de forma breve e natural e faça UMA pergunta sobre a dúvida do comprador. Não despeje uma lista fixa de perguntas e respostas. Use os trechos relevantes recuperados e, quando necessário, get_faq ou get_store_policies para confirmar informações atuais. Se a base não informar uma condição, diga que não consegue confirmá-la e ofereça atendimento humano, sem inventar prazos, garantias, pagamentos ou políticas.",
     "- 'Falar com Humano' → use escalate_to_human. Confirme o encaminhamento.",
     "- 'Nota Fiscal' → use get_invoice com orderId. Nunca invente link, número ou data fiscal; informe indisponibilidade quando necessário.",
     "- 'Cancelar Pedido' → use cancel_order. Só confirme cancelamento quando a ferramenta retornar um fluxo autorizado e persistido.",

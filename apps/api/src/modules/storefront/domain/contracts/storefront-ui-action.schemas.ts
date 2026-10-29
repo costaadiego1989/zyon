@@ -17,7 +17,7 @@ export const storefrontUiActionSchema = z.discriminatedUnion("tool", [
   action("compare_products", tools.get_product_details),
   action("get_daily_deals", empty),
   action("add_item_to_cart", tools.add_item_to_cart.omit({ cartId: true }).extend({ quantity: tools.add_item_to_cart.shape.quantity.default(1) })),
-  action("get_cart", empty), action("get_wishlist", empty),
+  action("get_cart", empty), action("get_wishlist", z.strictObject({ share: z.boolean().optional() })),
   action("add_to_wishlist", tools.add_to_wishlist), action("remove_from_wishlist", tools.remove_from_wishlist),
   action("remove_cart_item", tools.remove_cart_item.omit({ cartId: true })),
   action("update_cart_item", tools.update_cart_item.omit({ cartId: true })),

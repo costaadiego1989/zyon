@@ -11,7 +11,15 @@ export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversa
   if (state.stage !== "store") return;
   if (key === "categorias") return tool("list_categories");
   if (key === "ofertas") return tool("get_daily_deals");
-  if (key === "lista de desejos") return tool("get_wishlist");
+  if (["lista de desejos", "ver lista"].includes(key)) return tool("get_wishlist");
+  const wishlist = state.view?.blocks.find(block => block.type === "wishlist");
+  if (wishlist) {
+    const entries = (wishlist.data as { items?: Array<{ id?: string }> }).items ?? [];
+    if (key === "compartilhar") return tool("get_wishlist", { share: true });
+    if (key === "remover item" && entries.length === 1 && entries[0]?.id) return tool("remove_from_wishlist", { productId: entries[0].id });
+    if (["mover para carrinho", "escolher para comprar"].includes(key)) return entries.length === 1 && entries[0]?.id
+      ? tool("get_product_details", { productId: entries[0].id }) : tool("get_wishlist");
+  }
   if (!state.selectedProductId) return;
   const args = { productId: state.selectedProductId };
   if (["mais informacoes", "adicionar ao carrinho"].includes(key)) return tool("get_product_details", args);

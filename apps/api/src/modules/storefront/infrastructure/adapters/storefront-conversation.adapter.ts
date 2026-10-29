@@ -13,6 +13,7 @@ import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import { ensureProductDiscovery } from "../agents/product-discovery-fallback.js";
 import { resolveNativeShippingReference } from "../agents/native-shipping-reference.js";
+import { knowledgeHelpNavigation } from "../shortcuts/knowledge-help-navigation.js";
 import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/index.js";
 import { STOREFRONT_SHIPPING_REFERENCE, type StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
@@ -182,6 +183,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   private async replyTurn(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
     // The decision and every later shortcut/RAG/port must use the same input.
     input = structuredClone(input);
+    const helpNavigation = !input.attachmentContext && !input.uiAction ? knowledgeHelpNavigation(input.userMessage) : undefined;
+    if (helpNavigation) input.userMessage = helpNavigation;
     const ctx: ToolRequestContext = {
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,

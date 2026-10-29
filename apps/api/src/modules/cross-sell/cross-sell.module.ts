@@ -30,6 +30,7 @@ import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.modu
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
+import { CrossSellOfferAuditHandler } from "./infrastructure/event-handlers/cross-sell-offer-audit.handler.js";
 
 @Global()
 @Module({
@@ -81,6 +82,7 @@ import { CatalogModule } from "../catalog/catalog.module.js";
     AcceptCrossSellFromWidgetUseCase,
     NormalCheckoutCrossSellUseCase,
     DeclineCrossSellSuggestionUseCase,
+    CrossSellOfferAuditHandler,
     CheckoutCrossSellRecommender,
     // Application services
     {

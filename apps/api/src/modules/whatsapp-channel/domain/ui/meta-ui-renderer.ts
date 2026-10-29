@@ -91,7 +91,10 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
       case "checkout_price_review": text.push("Os valores do pedido mudaram. Confira e confirme o novo total no checkout seguro."); break;
       case "lead_capture": text.push("Informe seus dados para continuar. Você também pode usar o formulário no checkout seguro."); break;
       case "order_summary": text.push(items(d.items).map(i => `${value(i.quantity)}× ${value(i.name)} — ${money(i.line_total ?? i.price)}`).join("\n")); break;
-      case "product_carousel": case "marketplace_products": case "cross_sell": case "wishlist":
+      case "wishlist":
+        items(d.items).forEach(p => { productChoice(p); if (p.id) add(`Remover: ${value(p.name)}`, tool("remove_from_wishlist", { productId: p.id })); });
+        break;
+      case "product_carousel": case "marketplace_products": case "cross_sell":
         items(d.products ?? d.items).forEach(productChoice);
         if (d.nextCursor) add("Mais produtos", tool("search_products", { query: d.query || "*", categoryId: d.categoryId, cursor: d.nextCursor }));
         break;
@@ -229,6 +232,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
     }
   }
   response.quickReplies.forEach(label => {
+    if (/^remover item$/i.test(label.trim()) && response.blocks.some(block => block.type === "wishlist")) return;
     // The complete public description is already in this view. Reopening it
     // under "Mais informações" repeats the same content instead of adding detail.
     if (/^mais informa[cç][oõ]es$/i.test(label.trim()) && response.blocks.some(b => b.type === "product_card")) return;
@@ -236,7 +240,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
     if (/^adicionar.*carrinho$/i.test(label) && response.blocks.some(b => b.type === "product_card")) return;
     if (/^finalizar compra$/i.test(label) && response.blocks.some(b => b.type === "cart_summary" && !items(object(b.data).items).length)) return;
     if (/^tenho um cupom de desconto$/i.test(label.trim()) && view.choices.some(c => c.label === "Usar cupom")) return;
-    add(/^tenho um cupom de desconto$/i.test(label.trim()) ? "Usar cupom" : label, metaStoreQuickReplyAction(label, response.state) ?? { kind: "message", message: label });
+    const presentedLabel = /^mover para carrinho$/i.test(label.trim()) && response.blocks.some(block => block.type === "wishlist") ? "Escolher para comprar" : label;
+    add(/^tenho um cupom de desconto$/i.test(label.trim()) ? "Usar cupom" : presentedLabel, metaStoreQuickReplyAction(label, { ...response.state, view }) ?? { kind: "message", message: label });
   });
   const seen = new Set<string>();
   view.choices = view.choices.filter(c => { const key = actionKey(c.action); if (!c.label.trim() || seen.has(key)) return false; seen.add(key); return true; });

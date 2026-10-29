@@ -10,9 +10,9 @@ export const SUPPORT_REPORT_PROMPT = "Descreva o problema com a loja ou seu pedi
 
 const SUPPORT_REPLIES = ["FAQ", "Falar com Humano", "Reportar Problema", "Status do Pedido", "Voltar ao Início"];
 const ACTIONS = new Map([
-  ["meus dados", "profile"], ["faq", "faq"], ["falar com humano", "human"],
+  ["meus dados", "profile"], ["falar com humano", "human"],
   ["reportar problema", "report"], ["status do pedido", "order"], ["rastrear pedido", "order"],
-  ["suporte", "support"], ["voltar ao início", "home"],
+  ["voltar ao início", "home"],
   ["ofertas", "deals"], ["ofertas do dia", "deals"],
   ["encontrar produto", "find"], ["selecionar produto", "select"],
   ["filtrar produtos", "filter"], ["tirar dúvidas", "questions"],
@@ -44,7 +44,6 @@ export async function resolveSupportNavigation(
     return await resolveNativeShippingReference({ ...input, userMessage: `Calcular frete para seu carrinho CEP ${pendingCep.data}` }, getHandlers().quoteShipping) ?? null;
   }
   if (action === "home") return output("Como posso ajudar você nesta loja?", ["Ver Produtos", "Categorias", "Meus Dados", "Suporte"]);
-  if (action === "support") return output("Escolha como posso ajudar com o atendimento desta loja.");
   if (action === "order") return output(input.buyerContext?.globalUserId
     ? "Qual é o número do pedido que você quer consultar?"
     : "Para consultar o status do seu pedido, entre na sua conta em Meus Dados e abra Pedidos ou Rastreio.",
@@ -71,13 +70,6 @@ export async function resolveSupportNavigation(
     if (action === "profile") {
       const checked = await callStorefrontTool("get_buyer_profile", {}, () => handlers.getBuyerProfile());
       return output(checked.ok ? (checked.data as { message: string }).message : "Não consegui consultar seu perfil agora. Tente novamente em Meus Dados.");
-    }
-    if (action === "faq") {
-      const checked = await callStorefrontTool("get_faq", {}, () => handlers.getFaq({}));
-      if (!checked.ok) return output("Não consegui consultar as perguntas frequentes agora. Tente novamente ou fale com o atendimento.");
-      const faqs = (checked.data as { faqs: Array<{ question: string; answer: string }> }).faqs.slice(0, 8);
-      return output(faqs.length ? "Perguntas frequentes desta loja:\n\n" + faqs.map(faq => `${faq.question}\n${faq.answer}`).join("\n\n")
-        : "A loja ainda não cadastrou perguntas frequentes. Você pode falar com o atendimento.");
     }
     const reason = reporting ? input.userMessage.trim() : "Solicitação de atendimento humano";
     const checked = await callStorefrontTool("escalate_to_human", { reason }, () => handlers.escalateToHuman({ reason }));

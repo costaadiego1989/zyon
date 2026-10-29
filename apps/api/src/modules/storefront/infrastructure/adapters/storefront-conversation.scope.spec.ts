@@ -4,6 +4,7 @@ import { StorefrontConversationAdapter } from "./storefront-conversation.adapter
 import { StorefrontLangGraphAgent, type StorefrontAgentResult } from "../agents/store-langgraph-agent.js";
 import type { StorefrontConversationInput } from "../../domain/ports/conversation.port.js";
 import { STOREFRONT_OUT_OF_SCOPE_MESSAGE, STOREFRONT_SCOPE_CLARIFICATION_MESSAGE } from "../../domain/services/storefront-conversation-scope.js";
+import { knowledgeHelpNavigation } from "../shortcuts/knowledge-help-navigation.js";
 
 const input = (userMessage = "Explique Fibonacci"): StorefrontConversationInput => ({ merchantId: "synthetic-store",
   sessionId: "synthetic-conversation", cartId: "synthetic-cart", storeCategory: "others", userMessage,
@@ -52,20 +53,19 @@ function fixture(t: TestContext, structured: boolean) {
 }
 
 // Explicit prepare double proves adapter ordering, NOT semantic accuracy.
-test("support navigation executes current store FAQ before semantic classification and sales ports", async t => {
+test("FAQ starts an admitted, tenant-scoped RAG conversation without dumping a hardcoded answer list", async t => {
   const f = fixture(t, true);
-  f.setAgent({ async prepare() { assert.fail("FAQ is a complete application action"); } });
-  Object.defineProperty(f.adapter, "handlerDeps", { value: { prisma: {
-    supportSetting: { findUnique: async (args: any) => {
-      assert.deepEqual(args.where, { merchantId: "synthetic-store" });
-      f.calls.push("faq"); return { faqItems: [{ question: "Retirada", answer: "No balcão da loja." }] };
-    } },
-  } } });
-  const output = await f.adapter.reply(input("FAQ"), async () => {
-    assert.fail("support navigation must not resolve deferred media or one-click context");
-  });
-  assert.match(output.message, /No balcão da loja/); assert.deepEqual(output.blocks, []);
-  assert.deepEqual(f.calls, ["faq"]);
+  Object.defineProperty(f.adapter, "cartRepo", { value: { getOrCreate: async () => ({ merchantId: "synthetic-store", sessionId: "synthetic-cart", items: [], total: 0 }) } });
+  f.setAgent({ async prepare(value: StorefrontConversationInput) {
+    f.calls.push("prepare"); assert.equal(value.userMessage, knowledgeHelpNavigation("FAQ"));
+    return { allowed: true, run: async (context: unknown) => {
+      f.calls.push("prepared-run"); assert.deepEqual(context, { knowledgeContext: "• synthetic merchant policy" });
+      return result("Posso consultar as informações desta loja. Qual é sua dúvida?");
+    } };
+  } });
+  const output = await f.adapter.reply({ ...input("FAQ"), oneBuyClick: undefined });
+  assert.match(output.message, /Qual é sua dúvida/); assert.deepEqual(output.blocks, []);
+  assert.deepEqual(f.calls, ["prepare", "telemetry", "knowledge", "prepared-run"]);
 });
 
 for (const structured of [false, true]) for (const domain of ["OUT_OF_SCOPE", "UNCLEAR"] as const) {

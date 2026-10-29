@@ -20,6 +20,24 @@ for (const [label, tool] of [
   assert.deepEqual(view.choices[0].action, action);
 });
 
+test("wishlist navigation exposes bound removal and read actions without guessing a variant or using the sales model", () => {
+  const current = state();
+  const view = buildMetaUiView({ agentMessage: "Sua lista", quickReplies: ["Ver Lista", "Compartilhar", "Mover para Carrinho", "Remover Item"],
+    blocks: [{ type: "wishlist", data: { items: [{ id: "owned-product", name: "Favorito", price: 9990, inStock: true }] } }], state: current });
+  const bound = { ...current, view };
+  assert.deepEqual(resolveMetaStoreTextAction("Ver Lista", bound), { kind: "tool", tool: "get_wishlist", args: {} });
+  assert.deepEqual(resolveMetaStoreTextAction("Compartilhar", bound), { kind: "tool", tool: "get_wishlist", args: { share: true } });
+  assert.deepEqual(resolveMetaStoreTextAction("Remover Item", bound), { kind: "tool", tool: "remove_from_wishlist", args: { productId: "owned-product" } });
+  assert.deepEqual(resolveMetaStoreTextAction("Escolher para comprar", bound), { kind: "tool", tool: "get_product_details", args: { productId: "owned-product" } });
+  assert(view.choices.some(choice => choice.action.kind === "tool" && choice.action.tool === "remove_from_wishlist" && choice.action.args.productId === "owned-product"));
+  assert(!view.choices.some(choice => choice.action.kind === "tool" && choice.action.tool === "add_item_to_cart"));
+});
+
+test("ambiguous wishlist removal requires a per-product native choice", () => {
+  const current = { ...state(), view: { title: "Lista", body: "", media: [], choices: [], quickReplies: [], blocks: [{ type: "wishlist", data: { items: [{ id: "p1" }, { id: "p2" }] } }] } } as any;
+  assert.equal(metaStoreQuickReplyAction("Remover Item", current), undefined);
+});
+
 test("typed add keeps the selected variant, options and slot from the current authorized view", () => {
   const current = state();
   const action = { kind: "tool" as const, tool: "add_item_to_cart", args: { variantId: "50ml", quantity: 1, selectedOptionItemIds: ["gift"], selectedServiceSlotId: "future" } };
