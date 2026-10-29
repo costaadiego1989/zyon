@@ -1,0 +1,402 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
+import type { CompletedOrderStatus } from "@zyon/shared-types";
+import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
+import {
+  COMMERCE_ORDER_PORT,
+  type CommerceOrderPort,
+} from "../../commerce/domain/ports/commerce-order.port.js";
+import {
+  ORDER_REPOSITORY,
+  type OrderRepository,
+} from "../../checkout/domain/ports/order.repository.port.js";
+import { TenantWebhookPublisher } from "../../integrations/application/integrations.use-cases.js";
+import {
+  OPERATIONS_READ_REPOSITORY,
+  type OperationsReadRepository,
+} from "../domain/ports/operations-read.repository.port.js";
+import {
+  DOMAIN_EVENT_BUS,
+  type DomainEventBus,
+} from "../../../shared/events/domain-event-bus.port.js";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { hasMarketplaceFulfillmentFunding } from "../../fulfillment/infrastructure/repositories/marketplace-fulfillment-guard.js";
+
+@Injectable()
+export class CancelOrderUseCase {
+  private readonly logger = new Logger(CancelOrderUseCase.name);
+
+  constructor(
+    @Inject(OPERATIONS_READ_REPOSITORY)
+    private readonly readRepository: OperationsReadRepository,
+    @Inject(ORDER_REPOSITORY)
+    private readonly orders: OrderRepository,
+    @Inject(COMMERCE_ORDER_PORT)
+    private readonly commerce: CommerceOrderPort,
+    private readonly webhooks: TenantWebhookPublisher,
+    @Inject(PRISMA_CLIENT)
+    private readonly prisma: PrismaClient,
+  ) {}
+
+  async execute(input: {
+    merchantId: string;
+    orderId: string;
+    reason: string;
+    notifyCustomer?: boolean;
+    restock?: boolean;
+  }) {
+    const merchantId = required(input.merchantId, "merchant_id");
+    const orderId = required(input.orderId, "order_id");
+    const reason = required(input.reason, "cancellation_reason").slice(0, 500);
+    const order = await this.readRepository.getOrder(merchantId, orderId);
+    if (!order) throw new NotFoundException("order_not_found");
+
+    // C2 fix: idempotency guard — if already cancelled, return cached result
+    if (order.status === "cancelled") {
+      return cancellationResponse(order, true, false, null);
+    }
+
+    if (!CANCELLABLE_ORDER_STATUSES.has(order.status)) {
+      throw new BadRequestException("order_cancellation_not_allowed");
+    }
+
+    // A generic commerce cancellation can restock and overwrite delivery. The
+    // marketplace journal owns that decision and races with this legacy path.
+    if (await hasMarketplaceFulfillmentFunding(this.prisma, {
+      merchantId, orderId: order.externalOrderId, sessionId: order.sessionId,
+    })) throw new ConflictException("marketplace_cancellation_journal_required");
+
+    // The provider action is irreversible from this service's perspective.
+    // Keep the local order retryable until the provider confirms cancellation.
+    let providerCancellationRequested = false;
+    if (order.commerceOrderId) {
+      if (!this.commerce.cancelOrder) {
+        throw new BadRequestException(
+          "commerce_order_cancellation_not_supported",
+        );
+      }
+      try {
+        await this.commerce.cancelOrder({
+          merchantId,
+          commerceOrderId: order.commerceOrderId,
+          reason,
+          notifyCustomer: input.notifyCustomer,
+          restock: input.restock,
+        });
+        providerCancellationRequested = true;
+      } catch (error) {
+        const providerError = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `[CancelOrder] provider cancellation failed for order=${orderId}: ${providerError}`,
+        );
+        await this.webhooks.publish({
+          merchantId,
+          eventType: "order.cancellation_provider_failed",
+          data: {
+            order_id: orderId,
+            external_order_id: order.externalOrderId,
+            commerce_order_id: order.commerceOrderId,
+            error: providerError,
+          },
+        });
+        throw new ServiceUnavailableException("commerce_order_cancellation_retry_required");
+      }
+    }
+
+    const cancelledAt = new Date().toISOString();
+    const cancelled = await this.orders.cancelCompletedOrder({
+      merchantId,
+      sessionId: order.sessionId,
+      externalOrderId: order.externalOrderId,
+      reason,
+      cancelledAt,
+    });
+    if (!cancelled) throw new NotFoundException("order_not_found");
+
+    // A concurrent request may have completed cancellation after the provider
+    // accepted it. Preserve the completed order as the idempotent result.
+    if (cancelled.idempotent) {
+      return cancellationResponse(
+        { ...order, status: "cancelled", cancelledAt: cancelled.order.cancelledAt, cancellationReason: cancelled.order.cancellationReason },
+        true,
+        providerCancellationRequested,
+        null,
+      );
+    }
+
+    // M1 fix: emit audit-grade webhook for cancellation (who/why/when)
+    await this.webhooks.publish({
+      merchantId,
+      eventType: "order.cancelled",
+      occurredAt: cancelled.order.cancelledAt,
+      data: {
+        order: {
+          id: order.id,
+          external_order_id: order.externalOrderId,
+          session_id: order.sessionId,
+          status: "cancelled",
+          cancellation_reason: reason,
+          cancelled_at: cancelled.order.cancelledAt,
+        },
+      },
+    });
+
+    return cancellationResponse(
+      {
+        ...order,
+        status: "cancelled",
+        cancelledAt: cancelled.order.cancelledAt,
+        cancellationReason: cancelled.order.cancellationReason,
+      },
+      false,
+      providerCancellationRequested,
+      null,
+    );
+  }
+}
+
+@Injectable()
+export class UpdateOrderStatusUseCase {
+  constructor(
+    @Inject(OPERATIONS_READ_REPOSITORY)
+    private readonly readRepository: OperationsReadRepository,
+    @Inject(ORDER_REPOSITORY)
+    private readonly orders: OrderRepository,
+    private readonly webhooks: TenantWebhookPublisher,
+    @Inject(DOMAIN_EVENT_BUS)
+    private readonly eventBus: DomainEventBus,
+    @Inject(PRISMA_CLIENT)
+    private readonly prisma: PrismaClient,
+  ) {}
+
+  async execute(input: {
+    merchantId: string;
+    orderId: string;
+    status: string;
+  }) {
+    const merchantId = required(input.merchantId, "merchant_id");
+    const orderId = required(input.orderId, "order_id");
+    const status = normalizeOrderStatus(input.status);
+    if (status === "cancelled") {
+      throw new BadRequestException("use_order_cancel_endpoint");
+    }
+    const order = await this.readRepository.getOrder(merchantId, orderId);
+    if (!order) throw new NotFoundException("order_not_found");
+
+    // Status updates are delivered at-least-once by dashboard retries and
+    // integrations. A repeated target must not emit another webhook or buyer
+    // notification after the first successful transition.
+    if (order.status === status) {
+      return {
+        id: order.id,
+        external_order_id: order.externalOrderId,
+        status,
+        changed: false,
+      };
+    }
+
+    if (order.fulfillment?.units.length) throw new ConflictException("use_order_fulfillment_endpoint");
+
+    if (!canTransitionOrderStatus(order.status, status)) {
+      throw new BadRequestException("order_status_transition_invalid");
+    }
+
+    if ((status === "shipped" || status === "delivered" || status === "returned") &&
+        await hasMarketplaceFulfillmentFunding(this.prisma, {
+          merchantId, orderId: order.externalOrderId, sessionId: order.sessionId,
+        })) throw new ConflictException(status === "returned" ? "marketplace_return_workflow_required" : "marketplace_delivery_proof_required");
+
+    const updated = await this.orders.updateCompletedOrderStatus({
+      merchantId,
+      sessionId: order.sessionId,
+      externalOrderId: order.externalOrderId,
+      status,
+    });
+    if (!updated) throw new NotFoundException("order_not_found");
+
+    await this.webhooks.publish({
+      merchantId,
+      eventType: "order.approved",
+      data: {
+        order: {
+          id: order.id,
+          external_order_id: order.externalOrderId,
+          session_id: order.sessionId,
+          status,
+        },
+      },
+    });
+
+    // Emit domain events for notification system (email via Resend, WhatsApp)
+    const customerData = order.customer as { email?: string; full_name?: string; phone?: string } | null;
+    const buyerEmail = customerData?.email ?? "";
+    const buyerName = customerData?.full_name;
+    const buyerPhone = customerData?.phone;
+
+    // Get globalUserId from session
+    let globalUserId: string | undefined;
+    try {
+      const session = await this.prisma.checkoutSession.findUnique({
+        where: { merchantId_sessionId: { merchantId, sessionId: order.sessionId } },
+        select: { globalUserId: true },
+      });
+      globalUserId = session?.globalUserId;
+    } catch {
+      // silently fail, globalUserId is optional
+    }
+
+    if (status === "shipped") {
+      await this.eventBus.publish({
+        eventType: "order.shipped",
+        merchantId,
+        payload: {
+          type: "ORDER_SHIPPED",
+          merchantId,
+          orderId: order.id,
+          buyerEmail,
+          buyerName,
+          buyerPhone,
+          trackingNumber: order.trackingCode,
+        },
+      });
+    } else if (status === "delivered") {
+      await this.eventBus.publish({
+        eventType: "order.delivered",
+        merchantId,
+        payload: {
+          type: "ORDER_DELIVERED",
+          merchantId,
+          orderId: order.id,
+          buyerEmail,
+          buyerName,
+          buyerPhone,
+          globalUserId,
+        },
+      });
+    }
+
+    return {
+      id: order.id,
+      external_order_id: order.externalOrderId,
+      status,
+      changed: order.status !== status,
+    };
+  }
+}
+
+@Injectable()
+export class CreateOrderFromPaymentUseCase {
+  constructor(
+    @Inject(OPERATIONS_READ_REPOSITORY)
+    private readonly readRepository: OperationsReadRepository,
+    private readonly completeOrder: CompleteOrderUseCase,
+  ) {}
+
+  async execute(input: { merchantId: string; paymentId: string }) {
+    const merchantId = required(input.merchantId, "merchant_id");
+    const paymentId = required(input.paymentId, "payment_id");
+    const payment = await this.readRepository.getPayment(
+      merchantId,
+      paymentId,
+    );
+    if (!payment) throw new NotFoundException("payment_not_found");
+    if (payment.status !== "approved") {
+      throw new ConflictException("payment_not_approved");
+    }
+    if (!payment.providerReference) {
+      throw new ConflictException("payment_provider_reference_missing");
+    }
+
+    const existing = await this.readRepository.getOrderByExternalId(
+      merchantId,
+      payment.providerReference,
+    );
+    if (existing) return { order: existing, idempotent: true };
+
+    const completion = await this.completeOrder.execute({
+      merchant_id: merchantId,
+      session_id: payment.sessionId,
+      external_order_id: payment.providerReference,
+      order_total:
+        (payment.approvedAmountMinor ?? payment.amountMinor) / 100,
+      currency: payment.currency as Parameters<
+        CompleteOrderUseCase["execute"]
+      >[0]["currency"],
+      accepted_offer_id: payment.acceptedOfferId,
+    });
+    const order = await this.readRepository.getOrderByExternalId(
+      merchantId,
+      payment.providerReference,
+    );
+    if (!order) throw new NotFoundException("order_not_found_after_creation");
+    return { order, idempotent: completion.idempotent };
+  }
+}
+
+const ORDER_STATUS_TRANSITIONS: Record<CompletedOrderStatus, CompletedOrderStatus[]> = {
+  pending: ["processing", "paid"],
+  processing: ["paid"],
+  approved: ["paid", "shipped"],
+  paid: ["shipped"],
+  shipped: ["delivered", "returned"],
+  delivered: [],
+  cancelled: [],
+  returned: [],
+};
+
+const CANCELLABLE_ORDER_STATUSES = new Set(["pending", "processing", "approved", "paid"]);
+
+function canTransitionOrderStatus(from: string, to: CompletedOrderStatus): boolean {
+  if (from === to) return true;
+  const allowed = ORDER_STATUS_TRANSITIONS[from as CompletedOrderStatus];
+  return allowed ? allowed.includes(to) : false;
+}
+
+function normalizeOrderStatus(value: string): CompletedOrderStatus {
+  const status = required(value, "status") as CompletedOrderStatus;
+  if (!Object.prototype.hasOwnProperty.call(ORDER_STATUS_TRANSITIONS, status)) {
+    throw new BadRequestException("order_status_invalid");
+  }
+  return status;
+}
+
+function cancellationResponse(
+  order: {
+    id: string;
+    externalOrderId: string;
+    status: string;
+    cancelledAt?: string;
+    cancellationReason?: string;
+    paymentStatus?: string;
+  },
+  idempotent: boolean,
+  providerCancellationRequested: boolean,
+  providerError: string | null,
+) {
+  return {
+    id: order.id,
+    external_order_id: order.externalOrderId,
+    status: order.status,
+    cancelled_at: order.cancelledAt ?? null,
+    cancellation_reason: order.cancellationReason ?? null,
+    idempotent,
+    provider_cancellation_requested: providerCancellationRequested,
+    provider_error: providerError ? { message: providerError } : null,
+    payment_action_required:
+      order.paymentStatus === "approved" ? "refund_separately" : null,
+  };
+}
+
+function required(value: string, code: string): string {
+  const normalized = value?.trim();
+  if (!normalized) throw new BadRequestException(`${code}_required`);
+  return normalized;
+}

@@ -1,0 +1,654 @@
+import { QuoteShippingUseCase } from "../../shipping/application/use-cases/quote-shipping.use-case.js";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { assertCartStock } from "../../catalog/application/services/cart-stock-authority.js";
+import {
+  BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+  Optional
+, Logger} from "@nestjs/common";
+import { createHash } from "node:crypto";
+import { ZodError } from "zod";
+import { requiresPhysicalDelivery } from "../../checkout/domain/services/cart-fulfillment.js";
+import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
+import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
+import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
+import { isPaymentCreationRejectionCode, PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
+import type { PaymentAmountBreakdown } from "../domain/payment-amount.js";
+import { paymentReviewFingerprint } from "../domain/payment-amount.js";
+import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
+import { OFFER_REPOSITORY, type OfferRepository } from "../../checkout/domain/ports/offer.repository.port.js";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
+import {
+  PAYMENT_REPOSITORY,
+  type PaymentRepository
+} from "../domain/ports/payment-repository.port.js";
+import type { CreateProviderPaymentInput, CreateProviderPaymentOutput, PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
+import { PAYMENT_PROVIDER_PORT } from "../domain/ports/payment-provider.port.js";
+import type { CheckoutSession, CurrencyCode } from "@zyon/shared-types";
+import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../buyer-account/domain/ports/buyer-account-repository.port.js";
+import { isStripeConfigured, readBuyerServiceFeeCents } from "../infrastructure/stripe-env.js";
+import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
+import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { ValidateCartForPaymentUseCase } from "../../commerce/application/validate-cart-for-payment.use-case.js";
+import { SyncPendingOrderUseCase } from "../../commerce/application/sync-pending-order.use-case.js";
+import {
+  PAYMENT_PLATFORM_REPOSITORY,
+  type PaymentPlatformRepository,
+} from "../domain/ports/payment-platform-repository.port.js";
+import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
+import { OrderQuotaService } from "./services/order-quota.service.js";
+import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
+import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
+import { resolveCheckoutPaymentCapabilities } from "../domain/checkout-payment-routing.js";
+import { parseStorefrontCouponPaymentScope, type StorefrontCouponPaymentScope } from "../domain/storefront-coupon-payment-scope.js";
+import { stripeConnectionAllowsCharges } from "../domain/stripe-charge-capability.js";
+import { hasMarketplaceCheckout } from "../../checkout/infrastructure/marketplace-checkout-scope.js";
+import { CreateMarketplacePaymentService } from "./create-marketplace-payment.service.js";
+import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
+import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../shared/bookings/service-slot-holds.service.js";
+
+export type CreatePaymentIntentRequest = {
+  merchant_id: string;
+  session_id: string;
+  idempotency_key: string;
+  method?: PaymentMethod;
+  accepted_offer_id?: string;
+  confirmed_cart_fingerprint?: string;
+  /**
+   * Crypto-only: buyer-selected chain (e.g. "polygon" or "base"). Harmless for
+   * non-crypto methods. Threaded into the crypto provider so the buyer-driven
+   * selection in the widget survives to the quote that renders the wallet.
+   */
+  preferred_chain?: "polygon" | "base";
+  credit_card?: {
+    holderName: string;
+    number: string;
+    expiryMonth: string;
+    expiryYear: string;
+    ccv: string;
+  };
+  remote_ip?: string;
+};
+
+export type CreatePaymentIntentResponseBody = Omit<PaymentIntentSnapshot, "creation" | "version">;
+
+function publicPayment(snapshot: PaymentIntentSnapshot): CreatePaymentIntentResponseBody {
+  const rejection = snapshot.creation?.reason;
+  if (snapshot.status === "failed" && isPaymentCreationRejectionCode(rejection)) {
+    throw new ConflictException(rejection);
+  }
+  if (snapshot.status === "pending" && !snapshot.providerPaymentId) {
+    throw new BadGatewayException("payment_creation_uncertain");
+  }
+  if (snapshot.method === "pix" && snapshot.status === "requires_action" &&
+    !snapshot.buyerFacing?.qrCodeCopyPaste?.trim()) {
+    throw new BadGatewayException("payment_creation_uncertain");
+  }
+  const { creation: _creation, version: _version, ...publicFields } = snapshot;
+  return publicFields;
+}
+
+function assertSameRequest(snapshot: PaymentIntentSnapshot, body: CreatePaymentIntentRequest, session: CheckoutSession): void {
+  if ((body.method && body.method !== snapshot.method) ||
+    normalizeAcceptedOfferId(body) !== snapshot.acceptedOfferId ||
+    (snapshot.amountBreakdown?.cartFingerprint && snapshot.amountBreakdown.cartFingerprint !== paymentCartFingerprint(session))) {
+    throw new ConflictException("payment_idempotency_input_mismatch");
+  }
+  if (!snapshot.amountBreakdown?.cartFingerprint && snapshot.status === "pending" && !snapshot.providerPaymentId) {
+    throw new ConflictException("payment_creation_manual_review_required");
+  }
+}
+
+function resolveAsaasCustomerIdFromSession(session: CheckoutSession): string | undefined {
+  const cid = session.customer?.asaasCustomerId;
+  const trimmed = typeof cid === "string" ? cid.trim() : "";
+  return trimmed || undefined;
+}
+
+function resolveAsaasCustomerForProvider(asaasCustomer: string | undefined): string {
+  const resolved = asaasCustomer?.trim();
+  if (resolved) return resolved;
+  throw new BadRequestException("asaas_customer_id_missing_on_buyer_session");
+}
+
+function assertCheckoutReadyForPayment(session: CheckoutSession): void {
+  if (session.cart.items.length > 0 && requiresPhysicalDelivery(session.cart) && !session.shipping) {
+    throw new BadRequestException("shipping_method_required_before_payment");
+  }
+}
+
+function normalizeAcceptedOfferId(input: CreatePaymentIntentRequest): string | undefined {
+  return typeof input.accepted_offer_id === "string"
+    ? input.accepted_offer_id.trim() || undefined
+    : undefined;
+}
+
+function commerceCartRefFrom(session: CheckoutSession): string | undefined {
+  const ref = session.cart.commerceCartRef?.trim();
+  return ref || undefined;
+}
+
+function paymentDescription(storeName: string | undefined, session: CheckoutSession): string {
+  const clean = (value: string) => value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const store = clean(storeName ?? "") || "Loja";
+  const items = session.cart.items.map(item => `${item.quantity}x ${clean(item.name) || "Produto"}`).join(", ");
+  return `${store} — ${items || "Compra na loja"}`.slice(0, 256);
+}
+
+/**
+ * Stable provider idempotency key from the local idempotency tuple. Survives
+ * client retries (the local intent id is random per attempt), so the provider
+ * dedupes a re-issued charge instead of creating a second live charge
+ * (ADR 0001 #6).
+ */
+function deriveProviderIdempotencyKey(merchantId: string, sessionId: string, idempotencyKey: string): string {
+  return createHash("sha256").update(`${merchantId}\0${sessionId}\0${idempotencyKey}`).digest("hex");
+}
+
+function plannedProviderName(input: { provider?: string }, method: PaymentMethod, options: {
+  isStripeCard: boolean;
+  usesMercadoPago: boolean;
+}): string {
+  if (input.provider?.trim()) return input.provider.trim();
+  if (method === "crypto") return "crypto";
+  if (options.isStripeCard) return "stripe";
+  if (options.usesMercadoPago) return "mercadopago";
+  return "asaas";
+}
+
+function settlementPlanForCreation(input: {
+  merchantId: string;
+  intent: PaymentIntentEntity;
+  providerInput: { provider?: string; providerIdempotencyKey?: string; platformFeeCents?: number };
+  method: PaymentMethod;
+  isStripeCard: boolean;
+  usesMercadoPago: boolean;
+}): PlannedPaymentSettlement {
+  const snapshot = input.intent.snapshot();
+  const plannedGrossCents = snapshot.amountCents;
+  const plannedPlatformFeeCents = input.providerInput.platformFeeCents ?? snapshot.amountBreakdown?.platformFeeCents ?? 0;
+  const plannedMerchantNetCents = plannedGrossCents - plannedPlatformFeeCents;
+  if (!Number.isSafeInteger(plannedPlatformFeeCents) || plannedPlatformFeeCents < 0 || plannedMerchantNetCents < 0) {
+    throw new BadRequestException("payment_settlement_plan_invalid");
+  }
+  return {
+    merchantId: input.merchantId,
+    paymentIntentId: snapshot.id,
+    provider: plannedProviderName(input.providerInput, input.method, input),
+    currency: snapshot.currency,
+    providerReference: input.providerInput.providerIdempotencyKey,
+    plannedGrossCents,
+    plannedPlatformFeeCents,
+    plannedMerchantNetCents,
+    // Provider fees are not known at payment creation. A webhook/reconciliation
+    // must append them later; this planned snapshot never asserts a settlement.
+    plannedProviderFeeCents: 0,
+    occurredAt: new Date(),
+    entries: [
+      ...(plannedPlatformFeeCents > 0 ? [{
+        entryKey: "platform_fee" as const,
+        entryType: "platform_fee" as const,
+        direction: "credit" as const,
+        recipientType: "platform" as const,
+        plannedAmountCents: plannedPlatformFeeCents,
+      }] : []),
+      ...(plannedMerchantNetCents > 0 ? [{
+        entryKey: "merchant_payout" as const,
+        entryType: "merchant_payout" as const,
+        direction: "credit" as const,
+        recipientType: "merchant" as const,
+        recipientReference: input.merchantId,
+        plannedAmountCents: plannedMerchantNetCents,
+      }] : []),
+    ],
+  };
+}
+
+function providerErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split(":")[0]?.trim() || "payment_provider_request_failed";
+}
+
+function normalizeProviderException(error: unknown): Error {
+  const code = providerErrorCode(error);
+  switch (code) {
+    case "payment_provider_not_configured":
+    case "payment_provider_not_configured_for_customer_creation":
+    case "asaas_connection_not_active":
+      return new ConflictException(code);
+    case "stripe_raw_card_forbidden":
+    case "stripe_client_secret_missing":
+    case "asaas_payment_missing_id":
+    case "asaas_customer_missing_id":
+    case "asaas_tokenize_missing_token":
+      return new BadGatewayException(code);
+    case "asaas_customer_create_failed":
+    case "asaas_payment_create_failed":
+    case "asaas_tokenize_failed":
+      return new BadGatewayException(code);
+    default:
+      return new BadGatewayException("payment_provider_request_failed");
+  }
+}
+
+@Injectable()
+export class CreatePaymentIntentUseCase {
+  private readonly logger = new Logger(CreatePaymentIntentUseCase.name);
+
+  constructor(
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout: CheckoutSessionRepository,
+    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
+    @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
+    @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
+    @Optional() @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment?: CheckoutPaymentPort,
+    @Optional() private readonly validateCommerceCart?: ValidateCartForPaymentUseCase,
+    @Optional() private readonly syncPendingCommerceOrder?: SyncPendingOrderUseCase,
+    @Optional() @Inject(PAYMENT_PLATFORM_REPOSITORY)
+    private readonly platformConnections?: PaymentPlatformRepository,
+    @Optional() @Inject(OFFER_REPOSITORY)
+    private readonly offers?: OfferRepository,
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY)
+    private readonly buyerAccount?: BuyerAccountRepository,
+    @Optional() private readonly billingMetering?: BillingPlanMeteringService,
+    private readonly orderQuota?: OrderQuotaService,
+    @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Inject(CreateMarketplacePaymentService) private readonly marketplacePayments?: CreateMarketplacePaymentService,
+    @Optional() private readonly benefits?: CheckoutBenefitsService,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() private readonly shippingQuotes?: QuoteShippingUseCase,
+  ) { }
+
+  async execute(body: CreatePaymentIntentRequest, context?: {
+    marketplaceSurface: "embed" | "v1"; storefrontCouponScope?: StorefrontCouponPaymentScope;
+  }): Promise<CreatePaymentIntentResponseBody> {
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new BadRequestException("payment_intent_scope_invalid");
+    if (["storefrontCouponScope", "couponAuthority", "coupon_authority", "_storefrontCouponBinding"]
+      .some(key => Object.hasOwn(body, key))) throw new BadRequestException("payment_coupon_authority_conflict");
+    const storefrontCouponScope = context?.storefrontCouponScope === undefined ? undefined
+      : parseStorefrontCouponPaymentScope(context.storefrontCouponScope);
+    const merchantId = body.merchant_id.trim();
+    const sessionId = body.session_id.trim();
+    const idempotencyKey = body.idempotency_key.trim();
+    if (!merchantId || !sessionId || !idempotencyKey) throw new BadRequestException("payment_intent_scope_invalid");
+    if (storefrontCouponScope && (context?.marketplaceSurface !== "embed"
+      || storefrontCouponScope.merchantId !== merchantId || storefrontCouponScope.checkoutSessionId !== sessionId)) {
+      throw new BadRequestException("payment_coupon_authority_conflict");
+    }
+    if (!["pix", "card", "crypto"].includes(body.method ?? "pix")) {
+      throw new BadRequestException("payment_method_not_supported");
+    }
+
+    let session = await this.checkout.getSession(merchantId, sessionId);
+    if (!session) throw new NotFoundException("checkout_session_not_found");
+    if (storefrontCouponScope && (session.globalUserId !== storefrontCouponScope.buyerId
+      || session.cart.cart_ref !== storefrontCouponScope.cartId)) throw new BadRequestException("payment_coupon_authority_conflict");
+    // Check the persisted scope before either legacy creation or retry. A
+    // stale snapshot can omit line markers or the original storefront cart.
+    if (!this.prisma) throw new ServiceUnavailableException("marketplace_checkout_scope_unavailable");
+    if (await hasMarketplaceCheckout(this.prisma, { merchantId, sessionId, session })) {
+      if (!context || !["embed", "v1"].includes(context.marketplaceSurface)) throw new ServiceUnavailableException("marketplace_checkout_not_ready");
+      if (!this.marketplacePayments) throw new ServiceUnavailableException("marketplace_checkout_not_ready");
+      return this.marketplacePayments.executePublic({ ...body, merchant_id: merchantId, session_id: sessionId, idempotency_key: idempotencyKey });
+    }
+    assertCheckoutReadyForPayment(session);
+
+    const sessionAttempts = await this.payments.listForSession?.(merchantId, sessionId) ?? [];
+    if (sessionAttempts.some(row => ["pending", "requires_action"].includes(row.status) &&
+        ["in_flight", "uncertain"].includes(row.snapshot().creation?.cancellation?.state ?? ""))) {
+      throw new ConflictException("payment_cancellation_pending");
+    }
+
+    const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
+    if (existing) {
+      assertSameRequest(existing.snapshot(), body, session);
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(existing, () => this.assertStock(session!)));
+    }
+    if (requiresPhysicalDelivery(session.cart)) await this.shippingQuotes?.assertSelection(session);
+
+
+    // An existing idempotency key is an admission made before a later block.
+    // Only a brand-new provider/payment attempt must pass the commercial gate.
+    const standaloneNormalLine=session.cart.source!=="storefront"&&session.cart.items.some(item=>item.crossSellIntent!==undefined);
+    if(this.checkout.readVerifiedNormalBuyerIdentity){
+      if(!Number.isSafeInteger(session.persistenceVersion))throw new ConflictException("cross_sell_quote_review_required");
+      try{
+        const buyer=await this.checkout.readVerifiedNormalBuyerIdentity({merchantId,sessionId},
+          {expectedVersion:session.persistenceVersion!,expectedBuyerId:session.globalUserId});
+        if(buyer!==undefined&&buyer!==session.globalUserId||standaloneNormalLine&&buyer===undefined)
+          throw new ConflictException("cross_sell_quote_review_required");
+      }catch(error){
+        if(error instanceof ZodError||error instanceof Error&&error.message==="checkout_buyer_identity_review_required")
+          throw new ConflictException("cross_sell_quote_review_required");
+        throw error;
+      }
+    }else if(standaloneNormalLine)throw new ConflictException("cross_sell_quote_review_required");
+    // This read is not a lease: real admission/FIRST SEND still revalidate all
+    // canonical financial sources in the journal transaction. It prevents a
+    // known detached/unverified normal buyer from reaching external preparation.
+    await this.checkout.assertCouponBindingCommandAllowed?.(merchantId, sessionId);
+    if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
+    await assertCartStock(this.prisma, merchantId, session.cart.items);
+    await this.orderQuota?.assertCanAcceptNewSales(merchantId);
+    if (sessionSlotRequests(session).length && !this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
+    await this.serviceSlots?.assertBeforePayment(session);
+
+    const method: PaymentMethod = body.method ?? "pix";
+    // Interactive and quick-purchase intents share this server guard.
+    // Explicitly accepted offers and price-review confirmations keep their quote.
+    if (this.benefits && !body.accepted_offer_id && !body.confirmed_cart_fingerprint) {
+      session = await this.benefits.prepare(merchantId, sessionId, method);
+      assertCheckoutReadyForPayment(session);
+    }
+
+    const acceptedOfferId = await this.validateAcceptedOffer(body, merchantId, sessionId);
+    const commerceOrderId = await this.ensurePendingCommerceOrder(merchantId, sessionId, session);
+
+    const itemsSubtotalCents = session.cart.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
+    const shippingCents = requiresPhysicalDelivery(session.cart) ? Math.round((session.shipping?.customerPrice ?? 0) * 100) : 0;
+    const discountCents = Math.round((session.cart.currentDiscount ?? 0) * 100);
+    const orderAmountCents = itemsSubtotalCents + shippingCents - discountCents;
+    if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
+
+    // The route is selected by the merchant, then resolved again here. This
+    // endpoint is the authority: a client cannot switch an order to a gateway
+    // merely by changing a browser request.
+    const merchant = await this.merchants.getProfile(merchantId);
+    // This is a direct store purchase. The connected provider manages its
+    // payout to the merchant; legacy retention settings must not disable a
+    // payment method or redirect this charge into the platform's account.
+    // Marketplace purchases are delegated above. Existing intents retain
+    // their immutable creation/account snapshot in the retry path above.
+    const [asaasConnection, mercadoPagoConnection, stripeConnection] = await Promise.all([
+      this.platformConnections?.getConnection(merchantId, "asaas"),
+      this.platformConnections?.getConnection(merchantId, "mercadopago"),
+      this.platformConnections?.getConnection(merchantId, "stripe"),
+    ]);
+    const asaasActive = !this.platformConnections || asaasConnection?.status === "active";
+    const mercadoPagoActive = mercadoPagoConnection?.status === "active";
+    const stripeCardActive =
+      isStripeConfigured() &&
+      (!this.platformConnections || stripeConnectionAllowsCharges(stripeConnection));
+    const mercadoPagoWebhookConfigured = Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim());
+    const routes = resolveCheckoutPaymentCapabilities(
+      merchant?.storeSettings?.paymentRouting,
+      {
+        asaas: asaasActive,
+        mercadoPagoPix: mercadoPagoActive && mercadoPagoWebhookConfigured,
+        mercadoPagoHostedCard: mercadoPagoActive && mercadoPagoWebhookConfigured,
+        stripeCard: stripeCardActive,
+        // Asaas returns its HTTPS invoice page for card collection. Raw card
+        // data remains prohibited in this API.
+        // Card via Asaas needs a verified merchant connection. The legacy
+        // no-repository fallback remains limited to its existing Pix/boleto
+        // behavior and must not claim an unverified hosted-card rail.
+        asaasHostedCard: asaasConnection?.status === "active",
+      },
+    );
+    const selectedProvider = method === "crypto" ? "crypto" : routes.providers?.[method];
+    if (!selectedProvider) {
+      if (method === "pix" && merchant?.storeSettings?.paymentRouting?.pix === "mercadopago" && mercadoPagoActive && !mercadoPagoWebhookConfigured) {
+        throw new BadRequestException("mercadopago_webhook_not_configured");
+      }
+      // Preserve the stable Stripe error for legacy clients that have not set
+      // a merchant card preference. Explicit Asaas and Mercado Pago choices
+      // are handled above and never fall back to this message.
+      throw new BadRequestException(method === "card" ? "stripe_card_not_available" : "payment_provider_not_configured");
+    }
+    const isStripeCard = method === "card" && selectedProvider === "stripe";
+    const usesMercadoPago = selectedProvider === "mercadopago";
+    const usesAsaas = selectedProvider === "asaas";
+    const mercadoPagoPayerEmail = session.customer?.email?.trim();
+    const mercadoPagoPayerCpf = session.customer?.cpf?.replace(/\D/g, "");
+    if (usesMercadoPago && !mercadoPagoPayerEmail) {
+      throw new BadRequestException("mercadopago_payer_email_required");
+    }
+    let stripeConnectAccountId: string | undefined;
+
+    // Modelo iFood — DOIS fees:
+    // 1) Buyer service fee (R$0,99 fixo, todos métodos): somado ao amount que o
+    //    comprador paga. Receita da plataforma.
+    // 2) Merchant transaction fee (fixo por plano): sai do repasse (payment-hold),
+    //    NÃO soma ao amount. É retido no split do provedor ao liquidar o pagamento.
+    const buyerServiceFeeCents = readBuyerServiceFeeCents();
+    const merchantFeeCents = this.billingMetering
+      ? merchantTransactionFeeCentsFor(await this.billingMetering.getSubscription(merchantId))
+      : 0;
+
+    // application_fee (Stripe Connect): a Zyon retém buyer fee + merchant fee do
+    // split; o merchant recebe orderAmount − merchantFee. Cap ao valor cobrado.
+    let stripeApplicationFeeCents = 0;
+    let mercadoPagoPlatformFeeCents = 0;
+
+    if (isStripeCard) {
+      stripeConnectAccountId = await this.merchants.getStripeConnectAccountId(merchantId);
+      stripeConnectAccountId =
+        stripeConnection?.externalAccountId ?? stripeConnectAccountId;
+      if (!stripeConnectAccountId) {
+        throw new BadRequestException("stripe_connect_not_configured");
+      }
+      stripeApplicationFeeCents = buyerServiceFeeCents + merchantFeeCents;
+    }
+
+    // Buyer paga o total do pedido + a taxa de serviço, em qualquer método.
+    const amountCents = orderAmountCents + buyerServiceFeeCents;
+    // Guard: application_fee nunca pode exceder o total cobrado (Stripe recusa).
+    if (isStripeCard) {
+      stripeApplicationFeeCents = assertProviderFeeCap(stripeApplicationFeeCents, amountCents);
+    }
+    if (usesMercadoPago) {
+      mercadoPagoPlatformFeeCents = assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents);
+    }
+    const amountBreakdown: PaymentAmountBreakdown = {
+      version: 1, currency: session.cart.currency.toUpperCase(),
+      cartFingerprint: paymentCartFingerprint(session),
+      itemsSubtotalCents,
+      discountCents,
+      shippingCents,
+      platformFeeCents: buyerServiceFeeCents, totalCents: amountCents,
+      ...(typeof body.confirmed_cart_fingerprint === "string" && /^[a-f0-9]{64}$/.test(body.confirmed_cart_fingerprint)
+        ? { confirmedCartFingerprint: body.confirmed_cart_fingerprint } : {}),
+    };
+    let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
+
+    // Validate the exact Asaas route and required split wallet before creating
+    // a provider customer. `preparePayment` is a local, no-network preflight;
+    // this avoids orphan customers when a seller integration is misconfigured.
+    if (usesAsaas && this.provider.preparePayment) {
+      await this.provider.preparePayment({
+        provider: "asaas",
+        merchantId,
+        sessionId,
+        intentId: `preflight_${sessionId}`,
+        providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
+        amountCents,
+        currency: session.cart.currency.toUpperCase(),
+        method,
+        platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents),
+      });
+    }
+
+    if (usesAsaas && !asaasCustomer) {
+      let customer = session.customer;
+
+      // Hydrate customer from buyer-account if session is missing required fields
+      if ((!customer?.fullName || !customer?.email || !customer?.cpf || !customer?.asaasCustomerId) && session.globalUserId && this.buyerAccount) {
+        const account = await this.buyerAccount.findByGlobalUserId(session.globalUserId).catch(() => null);
+        if (account) {
+          customer = {
+            ...customer,
+            fullName: customer?.fullName || account.displayName || undefined,
+            email: customer?.email || account.email || undefined,
+            phone: customer?.phone || account.phone || undefined,
+            cpf: customer?.cpf || (account as any).cpf || undefined,
+            asaasCustomerId: customer?.asaasCustomerId || (account as any).asaasCustomerId || undefined,
+          };
+          // Persist hydrated customer to session for future use
+          const hydrated: CheckoutSession = { ...session, customer, updatedAt: new Date().toISOString() };
+          await this.checkout.saveSession(hydrated);
+          session = hydrated;
+        }
+      }
+
+      if (!customer?.fullName || !customer?.email || !customer?.cpf) {
+        throw new BadRequestException("asaas_customer_data_incomplete");
+      }
+      if (!this.provider.createCustomer) {
+        throw new BadRequestException("asaas_customer_id_missing_on_buyer_session");
+      }
+      try {
+        asaasCustomer = await this.provider.createCustomer({
+          merchantId,
+          name: customer.fullName,
+          email: customer.email,
+          cpfCnpj: customer.cpf,
+          phone: customer.phone ?? undefined,
+        });
+      } catch (error) {
+        this.logger.error(`payment.customer_create_failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw normalizeProviderException(error);
+      }
+      const updatedSession: CheckoutSession = {
+        ...session,
+        customer: { ...session.customer!, asaasCustomerId: asaasCustomer },
+        updatedAt: new Date().toISOString()
+      };
+      await this.checkout.saveSession(updatedSession);
+    }
+
+    const intent = PaymentIntentEntity.create({
+      merchantId,
+      sessionId,
+      idempotencyKey,
+      amountCents,
+      currency: session.cart.currency.toUpperCase(),
+      method,
+      acceptedOfferId,
+      commerceOrderId,
+      amountBreakdown
+    });
+
+    if (body.credit_card) throw new BadRequestException("raw_card_forbidden");
+    let providerInput: CreateProviderPaymentInput = {
+      merchantId, sessionId, intentId: intent.id,
+      providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
+      amountCents, currency: intent.snapshot().currency, method,
+      description: paymentDescription(merchant?.name === merchantId ? undefined : merchant?.name, session),
+        ...(isStripeCard ? {
+          provider: "stripe" as const,
+          stripeConnectAccountId, stripeChargeMode: "direct_v2" as const,
+          platformFeeCents: stripeApplicationFeeCents,
+        }
+        : usesMercadoPago ? {
+            provider: "mercadopago" as const,
+            platformFeeCents: mercadoPagoPlatformFeeCents,
+            payerEmail: mercadoPagoPayerEmail,
+            payerName: session.customer?.fullName?.trim(),
+            ...(mercadoPagoPayerCpf?.length === 11
+              ? { payerIdentification: { type: "CPF" as const, number: mercadoPagoPayerCpf } }
+              : {}),
+          }
+          : usesAsaas ? {
+              provider: "asaas" as const,
+              asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer),
+              platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents),
+            }
+            : { provider: "crypto" as const, platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) }),
+    };
+    try {
+      if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput);
+    } catch (error) {
+      if (error instanceof PaymentCreationRejectedError) throw new ConflictException(error.code);
+      throw error;
+    }
+    intent.prepareCreation(providerInput);
+    const settlementPlan = settlementPlanForCreation({
+      merchantId,
+      intent,
+      providerInput,
+      method,
+      isStripeCard,
+      usesMercadoPago,
+    });
+    try { await this.payments.saveIntentWithSettlementPlan({ intent, settlementPlan,
+      ...(storefrontCouponScope ? { storefrontCouponScope } : {}) }); }
+    catch (error) {
+      if (error instanceof Error && (/^INCENTIVE_PAYMENT_(AUTHORITY_CHANGED|POLICY_CHANGED|MARGIN_CHANGED|CART_CHANGED|REVIEW_REQUIRED)$/.test(error.message)
+        || error.message === "INCENTIVE_PROGRESSIVE_REVIEW_REQUIRED")) {
+        const progressed = error.message === "INCENTIVE_PROGRESSIVE_REVIEW_REQUIRED";
+        const revised = progressed ? await this.checkout.getSession(merchantId, sessionId)
+          : await this.checkout.reviseIncentiveForPaymentReview?.(merchantId, sessionId);
+        if (revised) {
+          const subtotal = Math.round(revised.cart.total * 100), discount = Math.round((revised.cart.currentDiscount ?? 0) * 100);
+          const shipping = requiresPhysicalDelivery(revised.cart) ? Math.round((revised.shipping?.customerPrice ?? 0) * 100) : 0, orderTotal = subtotal - discount + shipping;
+          throw new ConflictException({ code: "checkout_review_required",
+          message: progressed ? "Seu desconto aumentou. Confira o novo total e confirme o pedido novamente antes de pagar."
+            : "O desconto deixou de estar disponível. Confira o novo total e confirme o pedido novamente antes de pagar.",
+          review: { cart: revised.cart, shipping: revised.shipping, currency: revised.cart.currency,
+            order_total_cents: orderTotal, service_fee_cents: buyerServiceFeeCents, total_to_pay_cents: orderTotal + buyerServiceFeeCents,
+            confirmation_fingerprint: paymentReviewFingerprint({ version: 1, currency: revised.cart.currency,
+              cartFingerprint: paymentCartFingerprint(revised), itemsSubtotalCents: subtotal, discountCents: discount,
+              shippingCents: shipping, platformFeeCents: buyerServiceFeeCents, totalCents: orderTotal + buyerServiceFeeCents }) } });
+        }
+        throw new ConflictException({ code: "checkout_review_required", message: "O benefício mudou. Revise o pedido antes de pagar." });
+      }
+      if (!(error instanceof PaymentIntentConflictError)) throw error;
+      const winner = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
+      if (!winner) throw new ConflictException("payment_creation_concurrent_change");
+      assertSameRequest(winner.snapshot(), { ...body, method }, session);
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(winner, () => this.assertStock(session)));
+    }
+    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(intent, () => this.assertStock(session)));
+  }
+
+  private async assertStock(session: CheckoutSession): Promise<void> {
+    if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
+    await assertCartStock(this.prisma, session.merchantId, session.cart.items);
+  }
+
+  private async validateAcceptedOffer(
+    body: CreatePaymentIntentRequest,
+    merchantId: string,
+    sessionId: string
+  ): Promise<string | undefined> {
+    const offerId = normalizeAcceptedOfferId(body);
+    if (!offerId) return undefined;
+    const accepted = await this.offers?.getAcceptedOffer(merchantId, sessionId, offerId);
+    if (!accepted || Date.parse(accepted.expiresAt) <= Date.now()) {
+      throw new BadRequestException("accepted_offer_invalid");
+    }
+    return offerId;
+  }
+
+  private async ensurePendingCommerceOrder(
+    merchantId: string,
+    sessionId: string,
+    session: CheckoutSession
+  ): Promise<string | undefined> {
+    const commerceCartRef = commerceCartRefFrom(session);
+    if (!commerceCartRef) return undefined;
+    if (!this.validateCommerceCart || !this.syncPendingCommerceOrder) {
+      throw new BadRequestException("commerce_sync_not_configured");
+    }
+
+    const { trustedCart } = await this.validateCommerceCart.execute({
+      merchantId,
+      commerceCartRef,
+      clientReportedTotalCents: Math.round(session.cart.total * 100)
+    });
+    const { commerceOrderId } = await this.syncPendingCommerceOrder.execute({
+      merchantId,
+      sessionId,
+      cart: trustedCart
+    });
+    return commerceOrderId;
+  }
+
+}

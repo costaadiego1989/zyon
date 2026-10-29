@@ -1,0 +1,163 @@
+import { ConflictException, Inject, Injectable } from "@nestjs/common";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { MetaUiView, StoreUiAction } from "../../domain/ui/meta-ui.types.js";
+import {
+  INBOX_LEASE_MS, INBOX_MAX_ATTEMPTS,
+  type WhatsAppInboxClaim, type WhatsAppInboxEvent, type WhatsAppWebhookInbox,
+} from "../../domain/ports/whatsapp-webhook-inbox.port.js";
+
+interface ClaimRow {
+  id: string; dedup_key: string; event_id: string; kind: "message" | "status";
+  merchant_id: string; config_id: string; device_id: string; stream_key: string;
+  payload: WhatsAppInboxEvent["payload"]; payload_hash: string; lease_token: string; attempts: number;
+  response_state?: Record<string, unknown>;
+}
+
+@Injectable()
+export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
+  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+
+  async findPriorSelection(claim: WhatsAppInboxClaim, sessionId: string, selectionId: string) {
+    if (!/^zyon:[a-f0-9]{32}$/.test(selectionId)) return null;
+    const rows = await this.prisma.$queryRaw<Array<{ response_state: any }>>(Prisma.sql`
+      SELECT response_state FROM whatsapp_webhook_inbox
+      WHERE merchant_id = ${claim.merchantId} AND config_id = ${claim.configId}
+        AND device_id = ${claim.deviceId} AND stream_key = ${claim.streamKey}
+        AND kind = 'message' AND id <> ${claim.id} AND created_at >= NOW() - INTERVAL '24 hours'
+        AND response_state->>'sessionId' = ${sessionId}
+        AND response_state->>'phase' IN ('prepared', 'dispatching', 'complete')
+        AND response_state->'state'->'selections' ? ${selectionId}
+      ORDER BY created_at DESC, id DESC LIMIT 1
+    `);
+    const saved = rows[0]?.response_state;
+    const action = saved?.state?.selections?.[selectionId] as StoreUiAction | undefined;
+    return action ? { action, view: saved.state.view as MetaUiView | undefined,
+      previousView: saved.state.previousViews?.at(-1) as MetaUiView | undefined, page: saved.state.page as number | undefined } : null;
+  }
+
+  async accept(events: WhatsAppInboxEvent[]): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      // Sort to give concurrent overlapping status batches the same lock order.
+      for (const event of [...events].sort((a, b) => a.dedupKey.localeCompare(b.dedupKey))) {
+        const inserted = await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "whatsapp_webhook_inbox"
+            ("id", "dedup_key", "event_id", "kind", "merchant_id", "config_id", "device_id",
+             "stream_key", "payload", "payload_hash")
+          VALUES (${randomUUID()}, ${event.dedupKey}, ${event.eventId}, ${event.kind},
+            ${event.merchantId}, ${event.configId}, ${event.deviceId}, ${event.streamKey},
+            ${JSON.stringify(event.payload)}::jsonb, ${event.payloadHash})
+          ON CONFLICT ("dedup_key") DO NOTHING
+        `);
+        if (inserted === 0) {
+          const rows = await tx.$queryRaw<Array<{ payload_hash: string }>>(Prisma.sql`
+            SELECT "payload_hash" FROM "whatsapp_webhook_inbox" WHERE "dedup_key" = ${event.dedupKey}
+          `);
+          if (rows[0]?.payload_hash !== event.payloadHash) {
+            throw new ConflictException("webhook_event_payload_conflict");
+          }
+        }
+      }
+    });
+  }
+
+  async claimNext(): Promise<WhatsAppInboxClaim | null> {
+    return this.prisma.$transaction(async (tx) => {
+      // A crash on the final attempt must also reach the durable dead-letter state.
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "whatsapp_webhook_inbox" SET "status" = 'dead', "lease_token" = NULL,
+          "lease_expires_at" = NULL, "last_error" = 'lease_expired_attempts_exhausted', "updated_at" = NOW()
+        WHERE "status" = 'processing' AND "lease_expires_at" <= NOW() AND "attempts" >= ${INBOX_MAX_ATTEMPTS}
+      `);
+      const rows = await tx.$queryRaw<ClaimRow[]>(Prisma.sql`
+        WITH candidate AS (
+          SELECT candidate."id" FROM "whatsapp_webhook_inbox" AS candidate
+          WHERE candidate."attempts" < ${INBOX_MAX_ATTEMPTS}
+            AND ((candidate."status" = 'pending' AND candidate."available_at" <= NOW())
+              OR (candidate."status" = 'processing' AND candidate."lease_expires_at" <= NOW()))
+            AND NOT EXISTS (
+              SELECT 1 FROM "whatsapp_webhook_inbox" AS earlier
+              WHERE earlier."stream_key" = candidate."stream_key"
+                AND earlier."status" IN ('pending', 'processing', 'blocked')
+                AND (earlier."created_at", earlier."id") < (candidate."created_at", candidate."id")
+            )
+          ORDER BY candidate."created_at", candidate."id"
+          LIMIT 1 FOR UPDATE OF candidate SKIP LOCKED
+        )
+        UPDATE "whatsapp_webhook_inbox" AS event
+          SET "status" = 'processing', "lease_token" = ${randomUUID()},
+            "lease_expires_at" = NOW() + ${INBOX_LEASE_MS} * INTERVAL '1 millisecond',
+            "attempts" = "attempts" + 1, "updated_at" = NOW()
+          FROM candidate WHERE event."id" = candidate."id" RETURNING event.*
+      `);
+      const row = rows[0];
+      return row ? {
+        id: row.id, dedupKey: row.dedup_key, eventId: row.event_id, kind: row.kind,
+        merchantId: row.merchant_id, configId: row.config_id, deviceId: row.device_id,
+        streamKey: row.stream_key, payload: row.payload, payloadHash: row.payload_hash,
+        leaseToken: row.lease_token, attempts: row.attempts,
+        responseState: row.response_state ?? undefined,
+      } : null;
+    });
+  }
+
+  async renew(claim: WhatsAppInboxClaim): Promise<boolean> {
+    return (await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE "whatsapp_webhook_inbox" SET
+        "lease_expires_at" = NOW() + ${INBOX_LEASE_MS} * INTERVAL '1 millisecond', "updated_at" = NOW()
+      WHERE "id" = ${claim.id} AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken}
+        AND "lease_expires_at" > NOW()
+    `)) === 1;
+  }
+
+  async saveResponse(claim: WhatsAppInboxClaim, response: Record<string, unknown>): Promise<boolean> {
+    return this.prisma.$transaction(async tx => {
+      // Receipts can arrive while Graph's response is still in flight. Never
+      // overwrite their durable acceptance proof with the worker's older copy.
+      const rows = await tx.$queryRaw<Array<{ response_state: Record<string, any> | null }>>(Prisma.sql`
+        SELECT "response_state" FROM "whatsapp_webhook_inbox"
+        WHERE "id" = ${claim.id} AND "merchant_id" = ${claim.merchantId}
+          AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken} AND "lease_expires_at" > NOW()
+        FOR UPDATE
+      `);
+      if (!rows.length) return false;
+      const previous = rows[0].response_state ?? {};
+      const sent = new Map<number, unknown>();
+      for (const item of [...((response.sent as any[]) ?? []), ...(previous.sent ?? [])]) sent.set(item.index, item);
+      const merged: Record<string, unknown> = { ...response, ...(previous.receipts ? { receipts: previous.receipts } : {}),
+        ...(response.presentation ? { sent: [...sent.values()] } : {}) };
+      if (response.phase === "dispatching" && sent.has(Number(response.dispatchingIndex))) merged.phase = "prepared";
+      return (await tx.$executeRaw(Prisma.sql`
+        UPDATE "whatsapp_webhook_inbox" SET "response_state" = ${JSON.stringify(merged)}::jsonb, "updated_at" = NOW()
+        WHERE "id" = ${claim.id} AND "merchant_id" = ${claim.merchantId}
+          AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken} AND "lease_expires_at" > NOW()
+      `)) === 1;
+    });
+  }
+
+  async complete(claim: WhatsAppInboxClaim): Promise<boolean> {
+    return (await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE "whatsapp_webhook_inbox" SET "status" = 'processed', "processed_at" = NOW(),
+        "lease_token" = NULL, "lease_expires_at" = NULL, "last_error" = NULL, "updated_at" = NOW()
+      WHERE "id" = ${claim.id} AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken}
+        AND "lease_expires_at" > NOW()
+    `)) === 1;
+  }
+
+  async fail(claim: WhatsAppInboxClaim, errorCode: string): Promise<boolean> {
+    const dead = claim.attempts >= INBOX_MAX_ATTEMPTS || ["whatsapp_turn_result_unknown", "whatsapp_send_result_unknown", "whatsapp_service_window_expired"].includes(errorCode);
+    const blocked = errorCode === "whatsapp_delivery_requires_reconciliation";
+    const backoffMs = Math.min(30 * 60_000, 5_000 * 2 ** (claim.attempts - 1));
+    return (await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE "whatsapp_webhook_inbox" SET "status" = CASE
+          WHEN ${errorCode === "whatsapp_send_result_unknown"} AND "response_state"->>'phase' = 'prepared'
+            AND "response_state" ? 'receipts' THEN 'pending'
+          ELSE ${blocked ? "blocked" : dead ? "dead" : "pending"} END,
+        "available_at" = NOW() + ${backoffMs} * INTERVAL '1 millisecond',
+        "lease_token" = NULL, "lease_expires_at" = NULL, "last_error" = ${errorCode}, "updated_at" = NOW()
+      WHERE "id" = ${claim.id} AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken}
+        AND "lease_expires_at" > NOW()
+    `)) === 1;
+  }
+}

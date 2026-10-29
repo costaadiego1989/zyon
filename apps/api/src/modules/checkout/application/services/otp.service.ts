@@ -1,0 +1,187 @@
+import { Injectable } from "@nestjs/common";
+import { randomInt } from "node:crypto";
+import type { CustomerHints } from "@zyon/shared-types";
+import { verifyCheckoutEmailOtp } from "../../domain/services/checkout-email-otp.js";
+import {
+  extractEmail,
+  extractOtp,
+  extractPhone,
+  extractCpf,
+  extractCep,
+  isBrazilianMobilePhone
+} from "../../domain/services/customer-extraction.service.js";
+
+export class OtpValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OtpValidationError";
+  }
+}
+
+export class OtpDeliveryError extends OtpValidationError {
+  constructor() {
+    super("Não foi possível enviar o código de confirmação agora. Tente novamente em alguns instantes.");
+  }
+}
+
+/**
+ * Handles OTP generation, validation, and resend logic for email and phone.
+ * Extracted from CheckoutCustomerService to satisfy SRP.
+ *
+ * Single responsibility: OTP lifecycle (generate, validate, resend).
+ * Does NOT handle buyer recognition, persistence, or email capture notifications.
+ */
+@Injectable()
+export class OtpService {
+
+  /**
+   * Generate a 6-digit OTP code using crypto-secure random.
+   */
+  generateCode(): string {
+    return randomInt(100000, 1000000).toString();
+  }
+
+  /**
+   * Determine if user is requesting an email OTP resend.
+   */
+  isEmailResendRequest(userMessage: string): boolean {
+    return /reenviar.*(c[oó]digo|email|e-mail)/i.test(userMessage);
+  }
+
+  /**
+   * Determine if user is requesting an SMS OTP resend.
+   */
+  isSmsResendRequest(userMessage: string): boolean {
+    return /reenviar.*(c[oó]digo|sms|celular)/i.test(userMessage);
+  }
+
+  /**
+   * Process email OTP flow: resend, generation, or validation.
+   * Returns a patch to be merged into the customer hints, or null if no OTP action.
+   * Throws OtpValidationError on invalid code attempt.
+   */
+  processEmailOtp(
+    userMessage: string,
+    existing: CustomerHints | undefined,
+    currentEmail: string | undefined,
+    isNewEmail: boolean
+  ): Partial<CustomerHints> | null {
+    if (!currentEmail || existing?.email_verified) return null;
+
+    const resendEmail = this.isEmailResendRequest(userMessage);
+
+    // Resend flow
+    if (resendEmail && existing?.otp_code) {
+      const code = this.generateCode();
+      return { otp_code: code, otp_expires_at: this.emailCodeDeadline() };
+    }
+
+    // Generation flow: trigger on new email or kickoff intent
+    if (!existing?.otp_code) {
+      const kickoff = /iniciar\s+cadastro|come[cç]ar\s+cadastro|quero\s+cadastrar/i.test(userMessage.trim());
+      if (isNewEmail || kickoff || resendEmail) {
+        const code = this.generateCode();
+        return { otp_code: code, otp_expires_at: this.emailCodeDeadline(), email: currentEmail.toLowerCase() };
+      }
+      return null;
+    }
+
+    // Validation flow
+    if (existing.otp_code && !resendEmail) {
+      const extracted = extractOtp(userMessage);
+      const verification = extracted ? verifyCheckoutEmailOtp({ code: extracted, challenge: existing.otp_code,
+        expiresAt: existing.otp_expires_at, nowMilliseconds: Date.now() }) : "invalid";
+      if (extracted && (extracted === existing.otp_code || this.looksLikeOtpAttempt(userMessage))) {
+        if (verification === "expired") throw new OtpValidationError(
+          "Esse código de confirmação expirou. Peça para reenviar o código e use o novo código para continuar."
+        );
+      }
+      if (verification === "verified") {
+        return {
+          email_verified: true,
+          otp_code: "",
+          otp_expires_at: "",
+          email: currentEmail.toLowerCase()
+        };
+      } else if (extracted && this.looksLikeOtpAttempt(userMessage)) {
+        throw new OtpValidationError(
+          "Código de verificação inválido. Por favor, confira o código enviado para o seu e-mail e tente novamente."
+        );
+      }
+    }
+
+    return null;
+  }
+
+  private emailCodeDeadline(): string {
+    return new Date(Date.now() + 10 * 60_000).toISOString();
+  }
+
+  /**
+   * Process phone OTP flow: resend, generation, or validation.
+   * Returns a patch to be merged into the customer hints, or null if no action.
+   * Throws OtpValidationError on invalid code attempt or invalid phone format.
+   */
+  processPhoneOtp(
+    userMessage: string,
+    existing: CustomerHints | undefined,
+    currentPhone: string | undefined,
+    isNewPhone: boolean
+  ): Partial<CustomerHints> | null {
+    if (!currentPhone || existing?.phone_verified) return null;
+
+    const resendSms = this.isSmsResendRequest(userMessage);
+
+    // Resend flow
+    if (resendSms && existing?.phone_otp_code) {
+      const code = this.generateCode();
+      return { phone_otp_code: code };
+    }
+
+    // Generation flow
+    if (!existing?.phone_otp_code && isNewPhone) {
+      const code = this.generateCode();
+      return { phone_otp_code: code };
+    }
+
+    // Validation flow
+    if (existing?.phone_otp_code && !resendSms) {
+      const extracted = extractOtp(userMessage);
+      if (extracted === existing.phone_otp_code) {
+        return {
+          phone_verified: true,
+          phone_otp_code: ""
+        };
+      } else if (extracted && this.looksLikeOtpAttempt(userMessage)) {
+        throw new OtpValidationError(
+          "Código de verificação do celular inválido. Por favor, confira o código enviado por SMS e tente novamente."
+        );
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate that a phone number is a valid Brazilian mobile.
+   * Throws OtpValidationError if invalid.
+   */
+  validateBrazilianMobilePhone(phone: string): void {
+    if (!isBrazilianMobilePhone(phone)) {
+      throw new OtpValidationError(
+        "Informe um celular com DDD (ex: 11 98888-7777) para contato sobre o pedido."
+      );
+    }
+  }
+
+  /**
+   * Heuristic: does the message look like an OTP attempt?
+   */
+  private looksLikeOtpAttempt(userMessage: string): boolean {
+    const text = userMessage.trim();
+    const digits = text.replace(/\D/g, "");
+    if (/(?:otp|c[oó]digo|code)/i.test(text)) return true;
+    if (digits.length < 4 || digits.length > 6) return false;
+    return !extractCpf(text) && !extractPhone(text) && !extractCep(text);
+  }
+}

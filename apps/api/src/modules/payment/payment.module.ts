@@ -1,0 +1,426 @@
+import { ShippingQuotesModule } from "../shipping/shipping-quotes.module.js";
+import { PrepareMarketplaceCheckoutService } from "./application/prepare-marketplace-checkout.service.js";
+import { CreateMarketplacePaymentService } from "./application/create-marketplace-payment.service.js";
+import { MarketplacePublicPaymentAdmissionService } from "./application/marketplace-public-payment-admission.service.js";
+import { GetMarketplacePaymentCapabilityService } from "./application/get-marketplace-payment-capability.service.js";
+import { GetCurrentMarketplacePaymentService } from "./application/get-current-marketplace-payment.service.js";
+import { MarketplacePaymentResumeService } from "./application/marketplace-payment-resume.service.js";
+import { CancelPaymentIntentUseCase } from "./application/cancel-payment-intent.use-case.js";
+import { forwardRef, Module } from "@nestjs/common";
+import { BillingPromotionsModule } from "../billing-promotions/billing-promotions.module.js";
+import type { PrismaClient } from "@prisma/client";
+import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
+import { CheckoutModule } from "../checkout/checkout.module.js";
+import { CommerceModule } from "../commerce/commerce.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
+import { IntegrationsModule } from "../integrations/integrations.module.js";
+import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { MarketplaceModule } from "../marketplace/marketplace.module.js";
+import { PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
+import { CancelCheckoutPaymentUseCase } from "./application/cancel-checkout-payment.use-case.js";
+import { RefundPaymentService } from "./application/services/refund-payment.service.js";
+import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-payment.use-case.js";
+import { ConfirmStripePaymentUseCase } from "./application/confirm-stripe-payment.use-case.js";
+import { GetPaymentIntentStatusUseCase } from "./application/get-payment-intent-status.use-case.js";
+import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
+import { HandleAsaasTransferWebhookUseCase } from "./application/handle-asaas-transfer-webhook.use-case.js";
+import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
+import { HandleMercadoPagoWebhookUseCase } from "./application/handle-mercadopago-webhook.use-case.js";
+import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
+import {
+  ChargebackPaymentHoldUseCase,
+  CreatePaymentHoldUseCase,
+  MakePaymentHoldsPayoutReadyUseCase,
+  RefundPaymentHoldUseCase,
+} from "./application/payment-hold.use-cases.js";
+import { PaymentHoldLifecycleService } from "./application/payment-hold-lifecycle.service.js";
+import { SubmitReadyPaymentHoldsUseCase } from "./application/payment-hold-payout.use-case.js";
+import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
+import { PAYMENT_SETTLEMENT_LEDGER } from "./domain/ports/payment-settlement-ledger.port.js";
+import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
+import { PAYMENT_PAYOUT_PROVIDER } from "./domain/ports/payment-payout-provider.port.js";
+import { RETAINED_MERCHANT_PAYMENT_PROVIDER } from "./domain/ports/retained-merchant-payment.port.js";
+import { RetainedMerchantPaymentAdapter } from "./infrastructure/retained-merchant-payment.adapter.js";
+import { ScheduledMerchantSplitService } from "./application/scheduled-merchant-split.service.js";
+import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
+import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
+import { createNormalCrossSellPaymentAdmission } from "./infrastructure/prisma-normal-cross-sell-payment-admission.js";
+import { readNormalCheckoutCrossSellAuthority } from "../cross-sell/infrastructure/repositories/prisma-normal-checkout-cross-sell.authority.js";
+import { projectNormalCrossSellCart } from "../cross-sell/infrastructure/repositories/prisma-normal-checkout-cross-sell.adapter.js";
+import { captureStorefrontCouponForPayment } from "../coupons/infrastructure/repositories/prisma-storefront-coupon-admission.js";
+import { PrismaPaymentSettlementLedgerRepository } from "./infrastructure/prisma-payment-settlement-ledger.repository.js";
+import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
+import { AsaasPayoutAdapter } from "./infrastructure/asaas-payout.adapter.js";
+import { StripePaymentAdapter } from "./infrastructure/stripe-payment.adapter.js";
+import { MercadoPagoPaymentAdapter } from "./infrastructure/mercadopago-payment.adapter.js";
+import { resolvePaymentProvider } from "./infrastructure/e2e-payment-provider.js";
+import { EvmCryptoPaymentAdapter } from "./infrastructure/evm-crypto-payment.adapter.js";
+import { CheckoutPaymentAdapter } from "./infrastructure/checkout-payment.adapter.js";
+import { PaymentHttpController } from "./presentation/http/payment.controller.js";
+import { PaymentChargebacksController } from "./presentation/http/payment-chargebacks.controller.js";
+import { CryptoPaymentController } from "./presentation/http/crypto-payment.controller.js";
+import { CryptoQuoteController } from "./presentation/http/crypto-quote.controller.js";
+import { CryptoQuoteService } from "./infrastructure/crypto-quote.service.js";
+import { StripePaymentController } from "./presentation/http/stripe-payment.controller.js";
+import { AsaasWebhookController } from "./presentation/http/asaas-webhook.controller.js";
+import { AsaasBillingWebhookController } from "./presentation/http/asaas-billing-webhook.controller.js";
+import { StripeWebhookController } from "./presentation/http/stripe-webhook.controller.js";
+import { MercadoPagoWebhookController } from "./presentation/http/mercadopago-webhook.controller.js";
+import { CRYPTO_VERIFIER } from "./domain/ports/crypto-verifier.port.js";
+import { EvmCryptoVerifier } from "./infrastructure/evm-crypto-verifier.js";
+import { BullMqCryptoVerifyQueue, BullMqCryptoVerifyWorker } from "./infrastructure/bullmq-crypto-verify.queue.js";
+import { HttpClientService } from "../../shared/http/http-client.service.js";
+import { readAsaasConnection, isAsaasConfigured, readAsaasPlatformMerchantId } from "./infrastructure/asaas-env.js";
+import { readStripeConnection, isStripeConfigured } from "./infrastructure/stripe-env.js";
+import { ReconcilePaymentIntentsScheduler, ReconcilePaymentIntentsWorker } from "./infrastructure/reconciliation-payment-intents.job.js";
+import { PaymentHoldPayoutReadinessJob } from "./infrastructure/payment-hold-release.job.js";
+import { PaymentEventPublisher } from "./infrastructure/payment-event-publisher.js";
+import { PaymentWebSocketGateway } from "./infrastructure/payment-ws.gateway.js";
+import { readMercadoPagoConnection, isMercadoPagoConfigured } from "./infrastructure/mercadopago-env.js";
+import {
+  ASAAS_PLATFORM_PORT,
+  BILLING_CONFIG_PORT,
+  PAYMENT_PLATFORM_ENVIRONMENT,
+  STRIPE_PLATFORM_PORT,
+} from "./domain/ports/payment-platform-provider.port.js";
+import { PAYMENT_PLATFORM_REPOSITORY } from "./domain/ports/payment-platform-repository.port.js";
+import { PrismaPaymentPlatformRepository } from "./infrastructure/prisma-payment-platform.repository.js";
+import { StripePlatformAdapter } from "./infrastructure/stripe-platform.adapter.js";
+import { BILLING_ADMIN_NOTICE_PORT } from "./domain/ports/billing-admin-notice.port.js";
+import { PrismaBillingAdminNoticePublisher } from "./infrastructure/prisma-billing-admin-notice.publisher.js";
+import { AsaasPlatformAdapter } from "./infrastructure/asaas-platform.adapter.js";
+import { EnvironmentBillingConfig } from "./infrastructure/billing-env.js";
+import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
+import { ListPaymentChargebacksUseCase } from "./application/use-cases/list-payment-chargebacks.use-case.js";
+import { BillingPlanMeteringService } from "./domain/billing-plan-guard.js";
+import { ORDER_QUOTA_REPOSITORY } from "./domain/ports/order-quota.repository.port.js";
+import { OrderQuotaNoticePublisher } from "./application/services/order-quota-notice.publisher.js";
+import { OrderQuotaService } from "./application/services/order-quota.service.js";
+import { PrismaOrderQuotaRepository } from "./infrastructure/billing/prisma-order-quota.repository.js";
+import { OrderQuotaReconciliationJob } from "./infrastructure/billing/order-quota-reconciliation.job.js";
+import { BILLING_TRIAL_JOB_QUEUE } from "./domain/ports/billing-trial-job-queue.port.js";
+import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastructure/bullmq-billing-trial.queue.js";
+import {
+  ApproveAsaasSandboxUseCase,
+  CreateAsaasSubaccountUseCase,
+  CreateBillingCheckoutUseCase,
+  CreateBillingPortalUseCase,
+  CreateStripeConnectOnboardingLinkUseCase,
+  DeletePaymentConnectionUseCase,
+  GetAsaasOnboardingLinkUseCase,
+  GetBillingSubscriptionUseCase,
+  ExpireBillingTrialUseCase,
+  ExpireBillingTrialsUseCase,
+  GetPaymentConnectionsUseCase,
+  HandleStripePlatformEventUseCase,
+  SaveAsaasConnectionConfigUseCase,
+  SyncAsaasSubaccountUseCase,
+  SyncStripeConnectUseCase,
+  StartTrialUseCase,
+  SubscribeToPlanUseCase,
+  ChangeSubscriptionPlanUseCase,
+  CancelSubscriptionUseCase,
+  ReconcileScheduledSubscriptionCancellationsUseCase,
+  HandleAsaasBillingWebhookUseCase,
+} from "./application/payment-platform.use-cases.js";
+import { BILLING_PROVIDER } from "./domain/ports/billing-provider.port.js";
+import { AsaasBillingProvider } from "./infrastructure/asaas-billing.provider.js";
+import { BillingScheduledCancellationJob } from "./application/services/billing-scheduled-cancellation.job.js";
+import { BillingTrialExpirationJob } from "./application/services/billing-trial-expiration.job.js";
+import {
+  BillingController,
+  PaymentPlatformController,
+  MerchantPaymentConnectionsController,
+} from "./presentation/http/payment-platform.controller.js";
+import {
+  MercadoPagoOAuthController,
+  MerchantMercadoPagoController,
+} from "./presentation/http/mercadopago-oauth.controller.js";
+import {
+  CreateMercadoPagoOAuthLinkUseCase,
+  HandleMercadoPagoOAuthCallbackUseCase,
+  SyncMercadoPagoConnectionUseCase,
+  RefreshMercadoPagoTokenUseCase,
+  DeleteMercadoPagoConnectionUseCase,
+} from "./application/mercadopago-platform.use-cases.js";
+
+@Module({
+  imports: [
+    ShippingQuotesModule,
+    BillingPromotionsModule,
+    forwardRef(() => CheckoutModule),
+    CommerceModule,
+    MerchantModule,
+    IntegrationsModule,
+    BuyerAccountRepositoryModule,
+    MarketplaceModule,
+  ],
+  controllers: [
+    PaymentHttpController,
+    PaymentChargebacksController,
+    CryptoPaymentController,
+    CryptoQuoteController,
+    StripePaymentController,
+    AsaasWebhookController,
+    AsaasBillingWebhookController,
+    StripeWebhookController,
+    MercadoPagoWebhookController,
+    PaymentPlatformController,
+    MerchantPaymentConnectionsController,
+    BillingController,
+    MercadoPagoOAuthController,
+    MerchantMercadoPagoController,
+  ],
+  providers: [
+    { provide: BILLING_ADMIN_NOTICE_PORT, useFactory: (prisma: PrismaClient) => new PrismaBillingAdminNoticePublisher(prisma), inject: [PRISMA_CROSS_MERCHANT_CLIENT] },
+    PrepareMarketplaceCheckoutService,
+    CreateMarketplacePaymentService,
+    MarketplacePublicPaymentAdmissionService,
+    GetMarketplacePaymentCapabilityService,
+    GetCurrentMarketplacePaymentService,
+    MarketplacePaymentResumeService,
+    CancelCheckoutPaymentUseCase,
+    CancelPaymentIntentUseCase,
+    RefundPaymentService,
+    CreatePaymentIntentUseCase,
+    ConfirmCryptoPaymentUseCase,
+    ConfirmStripePaymentUseCase,
+    GetPaymentIntentStatusUseCase,
+    ListPaymentChargebacksUseCase,
+    HandleAsaasWebhookUseCase,
+    HandleAsaasTransferWebhookUseCase,
+    HandleStripeWebhookUseCase,
+    HandleMercadoPagoWebhookUseCase,
+    ReconcilePaymentIntentsUseCase,
+    CreatePaymentHoldUseCase,
+    MakePaymentHoldsPayoutReadyUseCase,
+    RefundPaymentHoldUseCase,
+    ChargebackPaymentHoldUseCase,
+    SubmitReadyPaymentHoldsUseCase,
+    PaymentHoldLifecycleService,
+    ScheduledMerchantSplitService,
+    PaymentHoldPayoutReadinessJob,
+    PaymentDispatchService,
+    BillingPlanMeteringService,
+    PrismaOrderQuotaRepository,
+    { provide: ORDER_QUOTA_REPOSITORY, useExisting: PrismaOrderQuotaRepository },
+    OrderQuotaNoticePublisher,
+    OrderQuotaService,
+    OrderQuotaReconciliationJob,
+    GetPaymentConnectionsUseCase,
+    CreateStripeConnectOnboardingLinkUseCase,
+    SyncStripeConnectUseCase,
+    SaveAsaasConnectionConfigUseCase,
+    DeletePaymentConnectionUseCase,
+    CreateAsaasSubaccountUseCase,
+    ApproveAsaasSandboxUseCase,
+    GetAsaasOnboardingLinkUseCase,
+    SyncAsaasSubaccountUseCase,
+    GetBillingSubscriptionUseCase,
+    ExpireBillingTrialUseCase,
+    ExpireBillingTrialsUseCase,
+    CreateBillingCheckoutUseCase,
+    CreateBillingPortalUseCase,
+    HandleStripePlatformEventUseCase,
+    StartTrialUseCase,
+    SubscribeToPlanUseCase,
+    ChangeSubscriptionPlanUseCase,
+    CancelSubscriptionUseCase,
+    ReconcileScheduledSubscriptionCancellationsUseCase,
+    HandleAsaasBillingWebhookUseCase,
+    BillingScheduledCancellationJob,
+    BillingTrialExpirationJob,
+    CreateMercadoPagoOAuthLinkUseCase,
+    HandleMercadoPagoOAuthCallbackUseCase,
+    SyncMercadoPagoConnectionUseCase,
+    RefreshMercadoPagoTokenUseCase,
+    DeleteMercadoPagoConnectionUseCase,
+    EvmCryptoPaymentAdapter,
+    CryptoQuoteService,
+    CheckoutPaymentAdapter,
+    PaymentEventPublisher,
+    PaymentWebSocketGateway,
+    EmbedTokenService,
+    // Background job: reconcile stale payment intents (every 15 minutes)
+    ReconcilePaymentIntentsScheduler,
+    ReconcilePaymentIntentsWorker,
+    { provide: CHECKOUT_PAYMENT_PORT, useExisting: CheckoutPaymentAdapter },
+    { provide: CRYPTO_VERIFIER, useClass: EvmCryptoVerifier },
+    BullMqCryptoVerifyQueue,
+    BullMqCryptoVerifyWorker,
+    BullMqBillingTrialQueue,
+    BullMqBillingTrialWorker,
+    { provide: BILLING_TRIAL_JOB_QUEUE, useExisting: BullMqBillingTrialQueue },
+    {
+      provide: AsaasPaymentAdapter,
+      useFactory: (http: HttpClientService) => {
+        const { apiKey, baseUrl } = readAsaasConnection();
+        return new AsaasPaymentAdapter(baseUrl, apiKey ?? "__missing_api_key__", globalThis.fetch);
+      },
+      inject: [HttpClientService]
+    },
+    {
+      provide: PAYMENT_PAYOUT_PROVIDER,
+      useFactory: (http: HttpClientService) => {
+        const { apiKey, baseUrl } = readAsaasConnection();
+        return new AsaasPayoutAdapter(baseUrl, apiKey ?? "__missing_api_key__", http.toFetch());
+      },
+      inject: [HttpClientService],
+    },
+    {
+      provide: RETAINED_MERCHANT_PAYMENT_PROVIDER,
+      useFactory: () => {
+        const stripe = readStripeConnection();
+        const asaas = readAsaasConnection();
+        return new RetainedMerchantPaymentAdapter({ stripeSecret: stripe.secretKey, asaasKey: asaas.apiKey, asaasOrigin: asaas.baseUrl });
+      },
+    },
+    {
+      provide: StripePaymentAdapter,
+      useFactory: () => {
+        const { secretKey, publishableKey } = readStripeConnection();
+        return new StripePaymentAdapter(secretKey, publishableKey);
+      }
+    },
+    {
+      provide: MercadoPagoPaymentAdapter,
+      useFactory: (http: HttpClientService) => {
+        const { accessToken, publicKey, baseUrl } = readMercadoPagoConnection();
+        return new MercadoPagoPaymentAdapter(
+          baseUrl,
+          accessToken ?? "__missing_access_token__",
+          publicKey ?? undefined,
+          globalThis.fetch
+        );
+      },
+      inject: [HttpClientService]
+    },
+    {
+      provide: PAYMENT_PROVIDER_PORT,
+      useFactory: (
+        asaas: AsaasPaymentAdapter,
+        stripe: StripePaymentAdapter,
+        mercadopago: MercadoPagoPaymentAdapter,
+        evmCrypto: EvmCryptoPaymentAdapter,
+        platformConnections: import("./domain/ports/payment-platform-repository.port.js").PaymentPlatformRepository,
+        http: HttpClientService,
+      ) => {
+        const { baseUrl: asaasBaseUrl } = readAsaasConnection();
+        const { baseUrl: mercadopagoBaseUrl } = readMercadoPagoConnection();
+        return resolvePaymentProvider({
+          stripe: isStripeConfigured() ? stripe : null,
+          asaas: isAsaasConfigured() ? asaas : null,
+          mercadopago: isMercadoPagoConfigured() ? mercadopago : null,
+          evmCrypto,
+          platformConnections,
+          asaasBaseUrl,
+          mercadopagoBaseUrl,
+          fetchImpl: globalThis.fetch,
+        });
+      },
+      inject: [
+        AsaasPaymentAdapter,
+        StripePaymentAdapter,
+        MercadoPagoPaymentAdapter,
+        EvmCryptoPaymentAdapter,
+        PAYMENT_PLATFORM_REPOSITORY,
+        HttpClientService,
+      ]
+    },
+    {
+      provide: PAYMENT_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaPaymentRepository(prisma, captureStorefrontCouponForPayment,undefined,
+        createNormalCrossSellPaymentAdmission(async(tx,scope,options)=>{
+          const current=await readNormalCheckoutCrossSellAuthority(tx,scope,undefined,options);
+          return {...current,projectedCart:projectNormalCrossSellCart(current)};
+        })),
+      inject: [PRISMA_CLIENT]
+    },
+    {
+      provide: PAYMENT_SETTLEMENT_LEDGER,
+      useFactory: (prisma: PrismaClient) => new PrismaPaymentSettlementLedgerRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    {
+      provide: PAYMENT_PLATFORM_REPOSITORY,
+      useFactory: (prisma: PrismaClient, billingPrisma: PrismaClient) =>
+        new PrismaPaymentPlatformRepository(prisma, billingPrisma),
+      inject: [PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT],
+    },
+    {
+      provide: STRIPE_PLATFORM_PORT,
+      useFactory: () => {
+        const { secretKey } = readStripeConnection();
+        return new StripePlatformAdapter(secretKey);
+      },
+    },
+    {
+      provide: ASAAS_PLATFORM_PORT,
+      useFactory: (http: HttpClientService) => {
+        const { apiKey, baseUrl } = readAsaasConnection();
+        return new AsaasPlatformAdapter(
+          baseUrl,
+          apiKey ?? "__missing__",
+          http.toFetch(),
+          readAsaasPlatformMerchantId(),
+        );
+      },
+      inject: [HttpClientService],
+    },
+    {
+      provide: PAYMENT_PLATFORM_ENVIRONMENT,
+      useFactory: () => {
+        const stripe = readStripeConnection();
+        const asaas = readAsaasConnection();
+        return {
+          stripe: stripe.secretKey?.startsWith("sk_live_")
+            ? "live"
+            : "test",
+          asaas: asaas.sandbox ? "test" : "live",
+        };
+      },
+    },
+    {
+      provide: BILLING_CONFIG_PORT,
+      useClass: EnvironmentBillingConfig,
+    },
+    {
+      provide: BILLING_PROVIDER,
+      useFactory: (http: HttpClientService) => {
+        const { apiKey, baseUrl } = readAsaasConnection();
+        return new AsaasBillingProvider(baseUrl, apiKey ?? "__missing_api_key__", http.toFetch());
+      },
+      inject: [HttpClientService],
+    },
+  ],
+  exports: [
+    GetMarketplacePaymentCapabilityService,
+    GetCurrentMarketplacePaymentService,
+    MarketplacePaymentResumeService,
+    CancelCheckoutPaymentUseCase,
+    CancelPaymentIntentUseCase,
+    RefundPaymentService,
+    CreatePaymentIntentUseCase,
+    ConfirmCryptoPaymentUseCase,
+    ConfirmStripePaymentUseCase,
+    GetPaymentIntentStatusUseCase,
+    PAYMENT_REPOSITORY,
+    PAYMENT_SETTLEMENT_LEDGER,
+    PAYMENT_PLATFORM_REPOSITORY,
+    BillingPlanMeteringService,
+    OrderQuotaService,
+    PaymentEventPublisher,
+    // Billing subscription lifecycle — consumed by PublicApiBillingModule's controller.
+    GetBillingSubscriptionUseCase,
+    CreateBillingCheckoutUseCase,
+    CreateBillingPortalUseCase,
+    STRIPE_PLATFORM_PORT,
+    StartTrialUseCase,
+    SubscribeToPlanUseCase,
+    ChangeSubscriptionPlanUseCase,
+    CancelSubscriptionUseCase,
+    HandleAsaasBillingWebhookUseCase,
+  ]
+})
+export class PaymentModule {}

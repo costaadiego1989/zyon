@@ -1,0 +1,145 @@
+import { Module, OnModuleInit } from "@nestjs/common";
+import { WeeklyAnalysisService } from "./infrastructure/weekly-analysis.service.js";
+import { WeeklyAnalysisJob } from "./infrastructure/jobs/weekly-analysis.job.js";
+import { RevenueAiBudgetService } from "./infrastructure/revenue-ai-budget.service.js";
+import { StrategyReviewService } from "./application/strategy-review.service.js";
+import { IncentivePolicyService } from "./application/incentive-policy.service.js";
+import { IncentivePolicyController } from "./presentation/http/incentive-policy.controller.js";
+import { IncentiveReviewService } from "./application/incentive-review.service.js";
+import { IncentiveReviewController } from "./presentation/http/incentive-review.controller.js";
+import { IncentiveAlternativeController } from "./presentation/http/incentive-alternative.controller.js";
+import { IncentiveMetricsController } from "./presentation/http/incentive-metrics.controller.js";
+import { IncentiveMetricsService } from "./application/incentive-metrics.service.js";
+import { SharedStrategyLearningService } from "./infrastructure/shared-strategy-learning.service.js";
+import { StrategyReviewController } from "./presentation/http/strategy-review.controller.js";
+import { StrategyMetricsService } from "./application/strategy-metrics.service.js";
+import { StrategyMetricsController } from "./presentation/http/strategy-metrics.controller.js";
+import { StrategyMonitorService } from "./infrastructure/strategy-monitor.service.js";
+import { StrategyMonitorJob } from "./infrastructure/jobs/strategy-monitor.job.js";
+import type { PrismaClient } from "@prisma/client";
+import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
+import { RedisModule } from "../../shared/cache/redis.module.js";
+import { MessagingModule } from "../../shared/messaging/messaging.module.js";
+import { ExperimentsModule } from "../experiments/experiments.module.js";
+import { CHECKOUT_SETTINGS_REPOSITORY } from "../checkout-settings/domain/ports/checkout-settings-repository.port.js";
+import { PrismaCheckoutSettingsRepository } from "../checkout-settings/infrastructure/prisma-checkout-settings.repository.js";
+import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
+
+// Ports
+import { OBSERVATION_REPOSITORY_PORT } from "./domain/ports/observation-repository.port.js";
+import { HYPOTHESIS_REPOSITORY_PORT } from "./domain/ports/hypothesis-repository.port.js";
+import { STRATEGY_LESSON_REPOSITORY_PORT } from "./domain/ports/strategy-lesson-repository.port.js";
+import { HYPOTHESIS_GENERATOR_PORT } from "./domain/ports/hypothesis-generator.port.js";
+import { HYPOTHESIS_MERCHANT_CONTEXT_PORT } from "./domain/ports/hypothesis-merchant-context.port.js";
+
+// Repositories
+import { PrismaObservationRepository } from "./infrastructure/prisma-observation.repository.js";
+import { PrismaHypothesisRepository } from "./infrastructure/prisma-hypothesis.repository.js";
+import { PrismaStrategyLessonRepository } from "./infrastructure/prisma-strategy-lesson.repository.js";
+
+// Adapters
+import { LLMHypothesisGenerator } from "./infrastructure/hypothesis-generator.adapter.js";
+import { PrismaHypothesisMerchantContext } from "./infrastructure/hypothesis-merchant-context.adapter.js";
+
+// Domain Services
+import { DiscountRuleHypothesisService } from "./domain/services/discount-rule-hypothesis.service.js";
+
+// Use Cases
+import { ApproveHypothesisUseCase } from "./application/use-cases/approve-hypothesis.use-case.js";
+import { RejectHypothesisUseCase } from "./application/use-cases/reject-hypothesis.use-case.js";
+import { RecordStrategyLessonUseCase } from "./application/use-cases/record-strategy-lesson.use-case.js";
+import { ObserveMetricsUseCase } from "./application/use-cases/observe-metrics.use-case.js";
+import { GenerateHypothesisUseCase } from "./application/use-cases/generate-hypothesis.use-case.js";
+import { CreateExperimentFromHypothesisUseCase } from "./application/use-cases/create-experiment-from-hypothesis.use-case.js";
+
+// Workers
+import { StrategyFeedbackWorker } from "./infrastructure/workers/strategy-feedback.worker.js";
+import { DailyObservationScheduler, DailyObservationWorker } from "./infrastructure/jobs/daily-observation.job.js";
+
+// Controllers
+import { RevenueManagerController } from "./presentation/http/revenue-manager.controller.js";
+
+@Module({
+  imports: [PersistenceModule, RedisModule, MessagingModule, ExperimentsModule, CheckoutSettingsModule],
+  controllers: [RevenueManagerController, StrategyReviewController, StrategyMetricsController, IncentivePolicyController, IncentiveReviewController, IncentiveAlternativeController, IncentiveMetricsController],
+  providers: [
+    WeeklyAnalysisService,
+    WeeklyAnalysisJob,
+    RevenueAiBudgetService,
+    StrategyReviewService,
+    IncentivePolicyService,
+    IncentiveReviewService,
+    IncentiveMetricsService,
+    SharedStrategyLearningService,
+    StrategyMetricsService,
+    StrategyMonitorService,
+    StrategyMonitorJob,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
+    {
+      provide: OBSERVATION_REPOSITORY_PORT,
+      useFactory: (prisma: PrismaClient) => new PrismaObservationRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    {
+      provide: HYPOTHESIS_REPOSITORY_PORT,
+      useFactory: (prisma: PrismaClient) => new PrismaHypothesisRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    {
+      provide: STRATEGY_LESSON_REPOSITORY_PORT,
+      useFactory: (prisma: PrismaClient) => new PrismaStrategyLessonRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    // Hypothesis generator port — LLM-backed adapter
+    {
+      provide: HYPOTHESIS_MERCHANT_CONTEXT_PORT,
+      useFactory: (prisma: PrismaClient) => new PrismaHypothesisMerchantContext(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    {
+      provide: HYPOTHESIS_GENERATOR_PORT,
+      useClass: LLMHypothesisGenerator,
+    },
+    // F4-T03: checkout-settings repo to persist discount-rule drafts
+    {
+      provide: CHECKOUT_SETTINGS_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaCheckoutSettingsRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    // F2-T02: Domain service for discount rule hypothesis generation
+    DiscountRuleHypothesisService,
+    ApproveHypothesisUseCase,
+    RejectHypothesisUseCase,
+    RecordStrategyLessonUseCase,
+    ObserveMetricsUseCase,
+    GenerateHypothesisUseCase,
+    CreateExperimentFromHypothesisUseCase,
+    StrategyFeedbackWorker,
+    DailyObservationScheduler,
+    DailyObservationWorker,
+  ],
+  exports: [
+    OBSERVATION_REPOSITORY_PORT,
+    HYPOTHESIS_REPOSITORY_PORT,
+    STRATEGY_LESSON_REPOSITORY_PORT,
+    ApproveHypothesisUseCase,
+    RejectHypothesisUseCase,
+    RecordStrategyLessonUseCase,
+    ObserveMetricsUseCase,
+    GenerateHypothesisUseCase,
+    CreateExperimentFromHypothesisUseCase,
+    DailyObservationWorker,
+  ],
+})
+export class RevenueManagerModule implements OnModuleInit {
+  constructor(
+    private readonly dailyObservationScheduler: DailyObservationScheduler,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    // Register recurring daily observation job on boot
+    await this.dailyObservationScheduler.ensureRecurringJob();
+  }
+}

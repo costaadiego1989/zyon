@@ -1,0 +1,10 @@
+import "./modules/whatsapp-channel/application/use-cases/configure-whatsapp.spec.js";
+import "./modules/whatsapp-channel/infrastructure/adapters/twilio-onboarding.spec.js";
+import "./modules/whatsapp-channel/infrastructure/adapters/meta-cloud-sender.adapter.spec.js";
+import "./modules/whatsapp-channel/infrastructure/repositories/whatsapp-onboarding.integration.spec.js";
+import "./modules/whatsapp-channel/application/use-cases/bubblewhats-inbox.spec.js";
+import "./modules/whatsapp-templates/infrastructure/adapters/meta-cloud-template.adapter.spec.js";
+import "./modules/whatsapp-templates/infrastructure/adapters/whatsapp-template-sender.adapter.spec.js";
+import "./modules/whatsapp-templates/application/use-cases/recovery-channel-routing.spec.js";
+import "./modules/whatsapp-templates/application/use-cases/send-whatsapp-message.spec.js";
+import "./modules/post-sale/application/use-cases/process-scheduled-messages.routing.spec.js";

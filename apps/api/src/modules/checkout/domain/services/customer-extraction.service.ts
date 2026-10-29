@@ -1,0 +1,237 @@
+import type { ChatStage, CheckoutSession, CustomerAddress } from "@zyon/shared-types";
+import { requiresPhysicalDelivery } from "./cart-fulfillment.js";
+import { pendingCustomerCorrection, correctionLabels } from "./customer-correction-prompts.js";
+
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/;
+const NAME_QUESTION_RE = /\b(nome\s*completo|seu\s+nome|posso\s+te\s+chamar|como\s+(?:te\s+chamar|posso\s+te\s+chamar)|chamo|qual\s+(?:o\s+)?seu\s+nome)\b/i;
+
+export function extractEmail(text: string | undefined | null): string | undefined {
+  if (!text) return undefined;
+  const match = text.match(EMAIL_RE);
+  if (!match) return undefined;
+  const value = match[0];
+  if (!/\.[A-Za-z]{2,}$/.test(value)) return undefined;
+  return value;
+}
+
+export function extractCpf(text: string): string | undefined {
+  // Email addresses and unrelated numbers never constitute a document.
+  const input = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, " ");
+  const formatted = input.match(/\b\d{3}[.\s]\d{3}[.\s]\d{3}[-\s]\d{2}\b/);
+  if (formatted) return formatted[0].replace(/\D/g, "");
+  return input.match(/\b\d{11}\b/)?.[0];
+}
+
+export function extractCep(text: string): string | undefined {
+  const m = text.match(/\b(\d{5})-?(\d{3})\b/);
+  if (m) return `${m[1]}${m[2]}`;
+  const digitsOnly = text.replace(/\D+/g, "");
+  if (/^\d{8}$/.test(digitsOnly)) return digitsOnly;
+  return undefined;
+}
+
+export function extractPhone(text: string): string | undefined {
+  const m = text.match(/\(?\s*(\d{2})\s*\)?[\s-]?(\d{4,5})\s*-?\s*(\d{4})/);
+  if (m) {
+    const digits = `${m[1]}${m[2]}${m[3]}`;
+    if (digits.length >= 10 && digits.length <= 11) return digits;
+  }
+  
+  const clean = text.replace(/[\s-]/g, "");
+  const isolated = clean.match(/\b(\d{10,11})\b/);
+  if (isolated) return isolated[1];
+
+  const digitsOnly = text.replace(/\D+/g, "");
+  if (digitsOnly.length >= 10 && digitsOnly.length <= 11) {
+    return digitsOnly;
+  }
+
+  return undefined;
+}
+
+/** Brazilian mobile: 11 digits with 9 as the first digit after DDD. */
+export function isBrazilianMobilePhone(phone: string): boolean {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length === 11 && digits[2] === "9";
+}
+/** A provider-verified wa_id may use Meta's canonical Brazilian eight-digit form. */
+export function hasValidContactPhone(customer: { phone?: string; phone_verified?: boolean } | undefined): boolean {
+  return Boolean(customer?.phone && (isBrazilianMobilePhone(customer.phone)
+    || (customer.phone_verified === true && /^\+?\d{10,15}$/.test(customer.phone))));
+}
+
+const NAME_FILLERS = ["é", "e", "sou", "meu", "nome", "me", "chamo", "o", "a"];
+const NAME_STOPWORDS = new Set([
+  "quero",
+  "cupom",
+  "desconto",
+  "frete",
+  "gratis",
+  "grátis",
+  "caro",
+  "pix",
+  "cartao",
+  "cartão",
+  "boleto",
+  "pedido",
+  "comprar",
+  "finalizar",
+  "preco",
+  "bom",
+  "boa",
+  "dia",
+  "tarde",
+  "noite",
+  "oi",
+  "ola",
+  "sim",
+  "nao",
+  "preço"
+]);
+
+export function extractName(text: string, lastAgentTurn?: string): string | undefined {
+  if (!lastAgentTurn || !NAME_QUESTION_RE.test(lastAgentTurn)) return undefined;
+  return normalizeNameCandidate(text);
+}
+
+export function extractStandaloneName(text: string): string | undefined {
+  const normalized = normalizeNameCandidate(text);
+  if (!normalized) return undefined;
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  const hasExplicitNameIntent = /\b(meu\s+nome|me\s+chamo|sou)\b/i.test(text);
+  const looksLikeFullName = tokens.length >= 2 && tokens.length <= 5;
+  const hasCapitalizedToken = tokens.some((token) =>
+    /^[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇ][\p{L}'-]+$/u.test(token.replace(/[.,;:]/g, ""))
+  );
+  if (!hasExplicitNameIntent && !hasCapitalizedToken && !looksLikeFullName) return undefined;
+  return normalized;
+}
+
+function normalizeNameCandidate(text: string): string | undefined {
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > 80) return undefined;
+  if (/[\d@/]/.test(trimmed)) return undefined;
+  const tokens = trimmed
+    .split(/\s+/)
+    .filter((t) => !NAME_FILLERS.includes(t.toLowerCase()))
+    .map((t) => t.replace(/[.,;:]/g, ""))
+    .filter((t) => t.length > 0);
+  if (tokens.length < 1 || tokens.length > 5) return undefined;
+  if (tokens.some((t) => NAME_STOPWORDS.has(t.toLowerCase()))) return undefined;
+  if (tokens.some((t) => !/^[\p{L}'-]+$/u.test(t))) return undefined;
+  return tokens
+    .map((t) => t.charAt(0).toLocaleUpperCase("pt-BR") + t.slice(1).toLocaleLowerCase("pt-BR"))
+    .join(" ");
+}
+
+export function extractAddressDetailLine(
+  text: string
+): Pick<CustomerAddress, "number" | "complement"> | null {
+  const stripped = text
+    .replace(/\b\d{5}-?\d{3}\b/g, " ")
+    .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, " ")
+    .trim();
+  if (/^s\/?n\.?$|^sem\s+n[uú]mero$/i.test(stripped.replace(/\./g, ""))) {
+    return { number: "S/N", complement: undefined };
+  }
+  const m = stripped.match(/^(\d{1,6}[a-zA-Z]?)(?:\s*[,;\-\/]\s*|\s+)(.+)$/);
+  if (m) {
+    return { number: m[1]?.trim(), complement: (m[2] ?? "").trim().slice(0, 160) };
+  }
+  const single = stripped.match(/^(\d{1,6}[a-zA-Z]?)$/);
+  if (single) return { number: single[1]!, complement: undefined };
+  return null;
+}
+
+export function extractOtp(text: string): string | undefined {
+  // Prefer OTP/code-labeled numbers so pasted API log lines do not match PID/date first.
+  const labeled = text.match(
+    /(?:otp|c[o\u00f3]digo(?:\s+de\s+verifica(?:c|\u00e7)[a\u00e3]o)?|code)[^\d]{0,80}(\d(?:[-\s]?\d){3,5})/i
+  );
+  if (labeled?.[1]) return labeled[1].replace(/\D+/g, "");
+
+  const candidates = Array.from(text.matchAll(/\b(\d(?:[-\s]?\d){3,5})\b/g))
+    .map((m) => m[1]?.replace(/\D+/g, ""))
+    .filter((digits): digits is string => Boolean(digits && digits.length >= 4 && digits.length <= 6));
+
+  const sixDigitCandidates = candidates.filter((digits) => digits.length === 6);
+  return sixDigitCandidates.at(-1) ?? candidates.at(-1);
+}
+
+export function deriveChatStage(session: CheckoutSession, completed = false): ChatStage {
+  if (completed) return "completed";
+  if (pendingCustomerCorrection(session)) return "data_collection";
+  const c = session.customer ?? {};
+  if (!c.fullName || !c.email || !c.email_verified || !c.cpf || !hasValidContactPhone(c)) return "data_collection";
+  const addr = c.address ?? {};
+  if (requiresPhysicalDelivery(session.cart) && (
+    !addr.zip ||
+    !addr.street ||
+    !(addr.city && addr.state) ||
+    !c.address_verified ||
+    !addr.number ||
+    addr.complement === undefined ||
+    !session.shipping
+  )) {
+    return "shipping";
+  }
+  if (!session.paymentMethod) return "payment";
+  // Only the explicit, server-verified `completed` argument can report success.
+  // A method selection (or an untyped field on a snapshot) is not payment proof.
+  return "payment_pending";
+}
+
+const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [
+  // A valid WhatsApp is collected before email verification so a merchant's
+  // approved Meta template can recover an unavailable e-mail delivery.
+  { label: "telefone", has: (s) => hasValidContactPhone(s.customer) },
+  { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
+  { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
+  { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
+  { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
+];
+
+export function isShippingQuickReplyQuestion(text: string): boolean {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+  if (!normalized) return false;
+  return /^(como informo o bloco|moro em zona rural|como calculo o frete|entregam em todo o brasil|nao sei meu cep|cep esta correto|nao encontram meu endereco|qual o problema com o cep|tem frete gratis|prazo esta muito longo|tem transportadora mais rapida|qual o prazo medio|tem opcao de retirada|como acompanho o pedido)(\?)?$/.test(
+    normalized
+  );
+}
+
+const EMAIL_OTP_FIELD = "código de verificação";
+
+export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage): string[] {
+  const correction = pendingCustomerCorrection(session);
+  if (correction) return [correctionLabels[correction]];
+  if (stage === "data_collection") {
+    const missing = DATA_FIELD_ORDER.filter((f) => !f.has(session)).map((f) => f.label);
+    const customer = session.customer ?? {};
+    if (customer.email && customer.otp_code && !customer.email_verified) {
+      return prioritizeMissingField(missing, EMAIL_OTP_FIELD);
+    }
+    return missing;
+  }
+  if (stage === "shipping") {
+    if (!requiresPhysicalDelivery(session.cart)) return [];
+    const addr = session.customer?.address ?? {};
+    if (!addr.zip) return ["CEP"];
+    if (!(addr.street && addr.city && addr.state)) return ["confirmar CEP"];
+    if (!session.customer?.address_verified) return ["confirmar endereço"];
+    if (!addr.number) return ["número"];
+    if (addr.complement === undefined) return ["complemento (ou responda que não tem)"];
+    if (typeof session.shipping?.customerPrice !== "number") return ["frete"];
+    return [];
+  }
+  if (stage === "payment") return ["forma de pagamento"];
+  return [];
+}
+
+function prioritizeMissingField(fields: string[], field: string): string[] {
+  if (!fields.includes(field)) return fields;
+  return [field, ...fields.filter((item) => item !== field)];
+}

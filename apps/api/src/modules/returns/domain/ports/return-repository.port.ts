@@ -1,0 +1,79 @@
+import { ReturnEntity, ReturnStatus, ReturnItemProps, ReturnLabelProps, ReturnInspectionProps, ReturnRefundProps } from "../entities/return.entity.js";
+
+export interface CreateReturnInput {
+  merchantId: string;
+  orderId: string;
+  buyerId: string;
+  reason: string;
+  notes?: string;
+  imageUrls?: string[];
+  items: Array<{ variantId: string; quantity: number; reason?: string }>;
+}
+
+export interface ListReturnsInput {
+  merchantId: string;
+  status?: ReturnStatus;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListReturnsResult {
+  returns: ReturnEntity[];
+  nextCursor?: string;
+  total: number;
+}
+
+export interface SaveLabelInput {
+  returnId: string;
+  carrier: string;
+  trackingNumber: string;
+  labelUrl?: string;
+  expiresAt: Date;
+}
+
+export interface SaveInspectionInput {
+  returnId: string;
+  inspectedBy: string;
+  itemCondition: string;
+  verdict: string;
+  notes?: string;
+}
+
+export interface SaveRefundInput {
+  returnId: string;
+  paymentIntentId?: string;
+  providerRefundId?: string;
+  amountInCents: number;
+  status: string;
+}
+
+/**
+ * Creates the durable refund-attempt marker. A return has one refund, so the
+ * boolean result is an atomic gate for the outbound provider request.
+ */
+export interface BeginRefundInput extends SaveRefundInput {}
+
+export interface PendingRefundQuery {
+  olderThan: Date;
+  limit: number;
+}
+
+export const RETURN_REPOSITORY_PORT = "ReturnRepositoryPort";
+
+export interface ReturnRepositoryPort {
+  create(input: CreateReturnInput): Promise<ReturnEntity>;
+  findById(merchantId: string, returnId: string): Promise<ReturnEntity | null>;
+  findByOrderId(merchantId: string, orderId: string): Promise<ReturnEntity[]>;
+  findByBuyerId(buyerId: string): Promise<ReturnEntity[]>;
+  /** Pending attempts are safe to reconcile, never reissue. */
+  listPendingRefunds(query: PendingRefundQuery): Promise<ReturnEntity[]>;
+  list(input: ListReturnsInput): Promise<ListReturnsResult>;
+  updateStatus(returnId: string, status: ReturnStatus, expectedStatus?: ReturnStatus): Promise<void>;
+  saveLabel(input: SaveLabelInput): Promise<ReturnLabelProps>;
+  /** Atomic manual registration, serialized with automatic carrier purchases. */
+  registerManualLabel?(merchantId: string, input: SaveLabelInput): Promise<void>;
+  saveInspection(input: SaveInspectionInput): Promise<ReturnInspectionProps>;
+  beginRefund(input: BeginRefundInput): Promise<boolean>;
+  saveRefund(input: SaveRefundInput): Promise<ReturnRefundProps>;
+  updateRefundStatus(returnId: string, status: string, processedAt?: Date): Promise<void>;
+}

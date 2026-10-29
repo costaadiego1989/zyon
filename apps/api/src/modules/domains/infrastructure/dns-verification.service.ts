@@ -1,0 +1,51 @@
+/**
+ * DNS verification service.
+ * Uses Node.js dns.promises to verify CNAME records.
+ */
+
+import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
+import { promises as dns } from "dns";
+
+@Injectable()
+export class DnsVerificationService {
+  private readonly logger = new Logger(DnsVerificationService.name);
+
+  async verifyTxt(name: string, expectedValue: string): Promise<boolean> {
+    try {
+      const records = await dns.resolveTxt(name);
+      return records.some(chunks => chunks.join("") === expectedValue);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENODATA" || code === "ENOTFOUND") return false;
+      throw new ServiceUnavailableException("dns_verification_unavailable");
+    }
+  }
+
+  /**
+   * Verify that a domain has a CNAME pointing to the expected target.
+   */
+  async verifyCname(domain: string, expectedTarget: string): Promise<boolean> {
+    try {
+      const records = await dns.resolveCname(domain);
+      const normalized = records.map((r) => r.replace(/\.$/, "").toLowerCase());
+      const target = expectedTarget.replace(/\.$/, "").toLowerCase();
+
+      const verified = normalized.includes(target);
+      if (verified) {
+        this.logger.log(`Domain ${domain} verified: CNAME → ${target}`);
+      } else {
+        this.logger.debug(
+          `Domain ${domain} CNAME mismatch. Expected: ${target}, Got: ${normalized.join(", ")}`,
+        );
+      }
+      return verified;
+    } catch (error) {
+      this.logger.debug(
+        `DNS lookup failed for ${domain}: ${(error as Error).message}`,
+      );
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENODATA" || code === "ENOTFOUND") return false;
+      throw new ServiceUnavailableException("dns_verification_unavailable");
+    }
+  }
+}

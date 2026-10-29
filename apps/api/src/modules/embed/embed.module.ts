@@ -1,0 +1,100 @@
+import { UpdateMarketplaceCheckoutAddressService } from "./application/update-marketplace-checkout-address.service.js";
+import { Module } from "@nestjs/common";
+import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
+import { AuthorizeStorefrontCartService } from "./application/authorize-storefront-cart.service.js";
+import { ResolveEmbedBuyerService } from "./application/resolve-embed-buyer.service.js";
+import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { BuyerJwtService } from "../buyer-account/domain/services/buyer-jwt.service.js";
+import { AuthModule } from "../auth/auth.module.js";
+import { CheckoutModule } from "../checkout/checkout.module.js";
+import { IntegrationsModule } from "../integrations/integrations.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
+import { PaymentModule } from "../payment/payment.module.js";
+import { MessagingModule } from "../../shared/messaging/messaging.module.js";
+import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
+import { CampaignConsentModule } from "../campaign-consent/campaign-consent.module.js";
+import { EmbedTokenService } from "./domain/embed-token.service.js";
+import { AgentSessionTokenService } from "./domain/agent-session-token.service.js";
+import { AgentCheckoutStateService } from "./domain/agent-checkout-state.service.js";
+import { IssueEmbedSessionUseCase } from "./application/issue-embed-session.use-case.js";
+import { UpdateEmbedCustomerUseCase } from "./application/update-embed-customer.use-case.js";
+import { StartProtocolSessionUseCase } from "./application/start-protocol-session.use-case.js";
+import { TransitionProtocolStateUseCase } from "./application/transition-protocol-state.use-case.js";
+import { GetProtocolStateUseCase } from "./application/get-protocol-state.use-case.js";
+import { EmbedSessionsController } from "./presentation/http/embed-sessions.controller.js";
+import { EmbedSessionIssuerGuard } from "./presentation/http/embed-session-issuer.guard.js";
+import { EmbedAuthGuard } from "./presentation/http/embed-auth.guard.js";
+import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./presentation/http/embed-checkout.controller.js";
+import { EmbedConsentController } from "./presentation/http/embed-consent.controller.js";
+import { ProtocolAgentController } from "./presentation/http/protocol-agent.controller.js";
+import { WidgetCatalogController } from "../catalog/presentation/http/widget-catalog.controller.js";
+import { CatalogModule } from "../catalog/catalog.module.js";
+import { InstallationsModule } from "../installations/installations.module.js";
+import { PrismaProtocolSessionRepository, PROTOCOL_SESSION_REPOSITORY } from "./infrastructure/protocol-session.repository.js";
+import { ProtocolWebhookPublisher } from "./infrastructure/protocol-webhook-publisher.js";
+import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-expiry-reaper.js";
+import { OpenAIRealtimeVoiceService } from "../../shared/openai/openai-realtime-voice.service.js";
+import { EmbedRealtimeVoiceController } from "./presentation/http/embed-realtime-voice.controller.js";
+import { ReopenEmbedCheckoutUseCase } from "./application/reopen-embed-checkout.use-case.js";
+import { RenewStorefrontEmbedSessionService } from "./application/renew-storefront-embed-session.service.js";
+
+@Module({
+  imports: [
+    AuthModule,
+    CheckoutModule,
+    MerchantModule,
+    PaymentModule,
+    IntegrationsModule,
+    CatalogModule,
+    InstallationsModule,
+    MessagingModule,
+    IntentMemoryModule,
+    CampaignConsentModule,
+    BuyerAccountRepositoryModule,
+  ],
+  controllers: [
+    EmbedSessionsController,
+    EmbedCheckoutController,
+    EmbedRealtimeVoiceController,
+    EmbedConsentController,
+    ProtocolAgentController,
+    WidgetCatalogController,
+  ],
+  providers: [
+    UpdateMarketplaceCheckoutAddressService,
+    { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
+    AuthorizeStorefrontCartService,
+    ResolveEmbedBuyerService,
+    OpenAIRealtimeVoiceService,
+    { provide: BuyerJwtService, useFactory: () => new BuyerJwtService() },
+    EmbedTokenService,
+    AgentSessionTokenService,
+    AgentCheckoutStateService,
+    IssueEmbedSessionUseCase,
+    RenewStorefrontEmbedSessionService,
+    UpdateEmbedCustomerUseCase,
+    ReopenEmbedCheckoutUseCase,
+    StartProtocolSessionUseCase,
+    TransitionProtocolStateUseCase,
+    GetProtocolStateUseCase,
+    {
+      provide: PROTOCOL_SESSION_REPOSITORY,
+      useClass: PrismaProtocolSessionRepository,
+    },
+    EmbedAuthGuard,
+    EmbedSessionIssuerGuard,
+    EmbedCheckoutGuardHelper,
+    ProtocolWebhookPublisher,
+    ProtocolSessionExpiryReaper,
+  ],
+  exports: [
+    ReopenEmbedCheckoutUseCase,
+    IssueEmbedSessionUseCase,
+    ResolveEmbedBuyerService,
+    EmbedTokenService,
+    AgentSessionTokenService,
+    EmbedAuthGuard,
+    EmbedCheckoutGuardHelper,
+  ],
+})
+export class EmbedModule {}

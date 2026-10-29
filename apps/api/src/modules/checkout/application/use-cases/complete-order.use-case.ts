@@ -1,0 +1,540 @@
+import { snapshotOrderLines } from "../../../operations/domain/order-fulfillment.js";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
+import type { CheckoutSession, CompleteOrderRequest, CompleteOrderResponse } from "@zyon/shared-types";
+import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
+import { CompletedOrderEntity } from "../../domain/entities/completed-order.entity.js";
+import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
+import { planOmnichannelConfirmation } from "../../domain/policies/omnichannel-confirmation.policy.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
+import { ORDER_REPOSITORY, type OrderRepository } from "../../domain/ports/order.repository.port.js";
+import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import { CHECKOUT_REPOSITORY } from "../../domain/ports/checkout-repository.port.js";
+import type { CheckoutEventName, CompletedOrder, DomainEventEnvelope } from "@zyon/shared-types";
+import { PlaceCrossStoreOrderUseCase } from "../../../marketplace/application/use-cases/place-cross-store-order.use-case.js";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { RecordIntentIfConsentedUseCase } from "../../../intent-memory/application/use-cases/classify-customer-intent.use-case.js";
+import { AttributionTaggerService } from "../../../revenue-lift/domain/services/attribution-tagger.service.js";
+import { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdout-group.service.js";
+import { RevenueLiftRepository } from "../../../revenue-lift/infrastructure/revenue-lift.repository.js";
+import {
+  PURCHASE_HISTORY_PORT,
+  type PurchaseHistoryPort
+} from "../../domain/ports/purchase-history.port.js";
+import { MetricsService } from "../../../../shared/observability/metrics.service.js";
+import { RecordExperimentResultUseCase } from "../../../experiments/application/use-cases/record-experiment-result.use-case.js";
+import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
+import { PAYMENT_APPROVAL_READER, type PaymentApprovalReader, type PersistedPaymentApproval } from "../../domain/ports/payment-approval.port.js";
+import { assertPaymentAmount, orderTotalCents } from "../../../payment/domain/payment-amount.js";
+import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
+import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
+import { parseCheckoutCouponOrderAuthority, parseCheckoutCouponPaymentAuthority, type CheckoutCouponOrderAuthority } from "../../domain/services/checkout-coupon-binding.js";
+import { isDeepStrictEqual } from "node:util";
+import { parseWidgetCheckoutPaymentAuthority, type WidgetCheckoutPaymentAuthority } from "../../../payment/domain/widget-checkout-payment-authority.schemas.js";
+import { parseNormalCheckoutPaymentAuthority, type NormalCheckoutPaymentAuthority } from "../../../payment/domain/normal-checkout-payment-authority.schemas.js";
+
+interface OrderCommitRepository {
+  assertNormalCrossSellPaymentOrderAuthority?(merchantId:string,sessionId:string,authority:NormalCheckoutPaymentAuthority,
+    paymentIntentId:string,providerPaymentId:string):Promise<void>|void;
+  assertPublicCompletionAllowed?(merchantId: string, sessionId: string): Promise<void> | void;
+  assertCouponOrderAuthority?(merchantId: string, sessionId: string, authority?: CheckoutCouponOrderAuthority, paymentIntentId?: string): Promise<void> | void;
+  assertWidgetPaymentOrderAuthority?(merchantId: string, sessionId: string, authority: WidgetCheckoutPaymentAuthority,
+    paymentIntentId: string, providerPaymentId: string): Promise<void> | void;
+  saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> | { order: CompletedOrder; idempotent: boolean };
+  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> | void;
+  appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope> | DomainEventEnvelope;
+  recordCompletedOrderQuota?(order: CompletedOrder): Promise<void> | void;
+}
+
+interface TransactionRunner {
+  transaction?<T>(work: (repository: OrderCommitRepository) => Promise<T>): Promise<T>;
+}
+
+@Injectable()
+export class CompleteOrderUseCase {
+  constructor(
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
+    @Inject(ORDER_REPOSITORY) private readonly orders: OrderRepository,
+    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
+    @Optional() @Inject(OFFER_REPOSITORY) private readonly offerRepository?: OfferRepository,
+    @Optional() @Inject(PURCHASE_HISTORY_PORT) private readonly purchaseHistory?: PurchaseHistoryPort,
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccounts?: BuyerAccountRepository,
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() @Inject(CHECKOUT_REPOSITORY) private readonly txRunner?: TransactionRunner,
+    @Optional() private readonly recordExperimentResult?: RecordExperimentResultUseCase,
+    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase,
+    @Optional() private readonly placeCrossStoreOrder?: PlaceCrossStoreOrderUseCase,
+    @Optional() private readonly attributionTagger?: AttributionTaggerService,
+    @Optional() private readonly recordIntentIfConsented?: RecordIntentIfConsentedUseCase,
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
+    @Optional() private readonly holdoutGroup?: HoldoutGroupService,
+    @Optional() private readonly revenueLiftRepo?: RevenueLiftRepository,
+    @Optional() @Inject(PAYMENT_APPROVAL_READER) private readonly paymentApprovals?: PaymentApprovalReader,
+    private readonly orderQuota?: OrderQuotaService,
+  ) { }
+
+  private readonly logger = new Logger(CompleteOrderUseCase.name);
+
+  async execute(input: CompleteOrderRequest): Promise<CompleteOrderResponse> {
+    await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
+    return this.complete(input);
+  }
+
+  /** Internal payment event entrypoint; HTTP bodies cannot supply trusted approval data. */
+  async executePaymentApproval(input: CompleteOrderRequest, paymentIntentId?: string): Promise<CompleteOrderResponse> {
+    if (!paymentIntentId || !this.paymentApprovals) throw new BadRequestException("payment_approval_required");
+    const approval = await this.paymentApprovals.find(input.merchant_id, input.session_id, paymentIntentId);
+    if (!approval || approval.id !== paymentIntentId || approval.merchantId !== input.merchant_id || approval.sessionId !== input.session_id ||
+      approval.status !== "approved" || approval.providerPaymentId !== input.external_order_id ||
+      approval.currency !== input.currency || approval.approvedAmountCents !== approval.amountCents ||
+      !Number.isSafeInteger(approval.amountCents) || approval.amountCents <= 0 ||
+      toCents(input.order_total) !== orderTotalCents(approval.amountBreakdown ?? undefined, approval.amountCents) ||
+      (approval.acceptedOfferId ?? undefined) !== input.accepted_offer_id) {
+      throw new BadRequestException("payment_approval_mismatch");
+    }
+    if (approval.amountBreakdown) assertPaymentAmount(approval.amountBreakdown, approval.amountCents, approval.currency);
+    let widgetAuthority: WidgetCheckoutPaymentAuthority | undefined;
+    if ("widgetCheckoutAuthority" in approval) {
+      widgetAuthority = parseWidgetCheckoutPaymentAuthority(approval.widgetCheckoutAuthority);
+      if ("couponAuthority" in approval || !this.txRunner?.transaction || widgetAuthority.paymentId !== approval.id
+        || widgetAuthority.merchantId !== approval.merchantId || widgetAuthority.checkoutSessionId !== approval.sessionId
+        || widgetAuthority.amountCents !== approval.amountCents || widgetAuthority.currency !== approval.currency
+        || approval.acceptedOfferId !== null || !isDeepStrictEqual(widgetAuthority.amountBreakdown, approval.amountBreakdown))
+        throw new Error("payment_widget_checkout_authority_conflict");
+    }
+    // Only the internal persisted approval can carry this authority. Presence
+    // is strict: null/undefined/corrupt metadata must never become legacy mode.
+    let couponAuthority: CheckoutCouponOrderAuthority | undefined;
+    if ("couponAuthority" in approval) {
+      const identity = parseCheckoutCouponPaymentAuthority(approval.couponAuthority);
+      if (identity.merchantId !== approval.merchantId || identity.checkoutSessionId !== approval.sessionId
+        || approval.amountBreakdown && identity.discountCents !== approval.amountBreakdown.discountCents) {
+        throw new Error("checkout_coupon_binding_conflict");
+      }
+      couponAuthority = parseCheckoutCouponOrderAuthority({ ...identity, orderId: input.external_order_id });
+      if (!this.txRunner?.transaction) throw new Error("checkout_coupon_binding_conflict");
+    }
+    let normalAuthority:NormalCheckoutPaymentAuthority|undefined;
+    if("normalCrossSellAuthority"in approval){
+      normalAuthority=parseNormalCheckoutPaymentAuthority(approval.normalCrossSellAuthority);
+      if(widgetAuthority||!this.txRunner?.transaction||normalAuthority.paymentId!==approval.id||normalAuthority.merchantId!==approval.merchantId
+        ||normalAuthority.checkoutSessionId!==approval.sessionId||normalAuthority.amountCents!==approval.amountCents||normalAuthority.currency!==approval.currency
+        ||(normalAuthority.discountOwner?.kind==="accepted_offer"?approval.acceptedOfferId!==null&&approval.acceptedOfferId!==normalAuthority.discountOwner.authorizedOfferId:approval.acceptedOfferId!==null)
+        ||!isDeepStrictEqual(normalAuthority.amountBreakdown,approval.amountBreakdown))
+        throw new Error("payment_normal_cross_sell_authority_conflict");
+    }
+    const historicalInput=normalAuthority?.discountOwner?.kind==="accepted_offer"
+      ?{...input,accepted_offer_id:normalAuthority.discountOwner.authorizedOfferId}:input;
+    return this.complete(historicalInput, approval, couponAuthority, widgetAuthority,normalAuthority);
+  }
+
+  private async complete(input: CompleteOrderRequest, approval?: PersistedPaymentApproval, couponAuthority?: CheckoutCouponOrderAuthority,
+    widgetAuthority?: WidgetCheckoutPaymentAuthority,normalAuthority?:NormalCheckoutPaymentAuthority): Promise<CompleteOrderResponse> {
+    // An approved immutable widget journal is historical order data, not a raw
+    // BASE checkout projection. Do not invoke the generic receipt mapper even
+    // for retries. Actual approved persistence is rechecked in commit below.
+    const session = widgetAuthority ? frozenAdmittedOrderSession(widgetAuthority)
+      : normalAuthority ? frozenAdmittedOrderSession(normalAuthority)
+      : await this.sessions.getSession(input.merchant_id, input.session_id);
+    if (!session) throw new NotFoundException("checkout_session_not_found");
+    const existingOrder = approval
+      ? await this.orders.getCompletedOrder(input.merchant_id, input.session_id, input.external_order_id)
+      : undefined;
+    if (couponAuthority && (couponAuthority.buyerId !== session.globalUserId || !existingOrder && (
+      session.cart.cart_ref !== couponAuthority.cartId || toCents(session.cart.currentDiscount ?? 0) !== couponAuthority.discountCents
+    ))) throw new Error("checkout_coupon_binding_conflict");
+
+    // A retry of an already committed payment must not depend on a later cart edit.
+    // The order repository still rejects conflicting persisted money/currency/offer.
+    if (approval && !existingOrder) {
+      if (session.cart.currency !== approval.currency) throw new BadRequestException("payment_currency_mismatch");
+      const breakdown = approval.amountBreakdown;
+      if (breakdown?.cartFingerprint && breakdown.cartFingerprint !== paymentCartFingerprint(session)) {
+        throw new BadRequestException("payment_cart_changed");
+      }
+      const items = session.cart.items.reduce((sum, item) => sum + toCents(item.price) * item.quantity, 0);
+      const discount = toCents(session.cart.currentDiscount ?? 0);
+      const shipping = toCents(session.shipping?.customerPrice ?? 0);
+      if (breakdown ? items !== breakdown.itemsSubtotalCents || discount !== breakdown.discountCents || shipping !== breakdown.shippingCents
+        : items - discount + shipping !== approval.amountCents) {
+        throw new BadRequestException("payment_cart_changed");
+      }
+    }
+
+    let merchantName: string | undefined;
+    try {
+      merchantName = (await this.merchantRepo?.getProfile(input.merchant_id))?.name;
+    } catch { /* non-critical — templates fall back to "nossa loja" */ }
+
+    if (this.offerRepository) {
+      const expectedTotal = approval
+        ? orderTotalCents(approval.amountBreakdown ?? undefined, approval.amountCents) / 100
+        : computeExpectedTotal(session);
+      const TOLERANCE = 0.02;
+      const expectedWithBuyerFee = expectedTotal + BUYER_SERVICE_FEE_MAJOR_UNITS;
+      const matchesTotal = Math.abs(input.order_total - expectedTotal) <= TOLERANCE;
+      // The direct legacy entrypoint still accepts the fixed buyer service fee;
+      // an approved payment instead must match its persisted amount exactly.
+      const matchesTotalWithFee = !approval && Math.abs(input.order_total - expectedWithBuyerFee) <= TOLERANCE;
+      if (!matchesTotal && !matchesTotalWithFee) {
+        throw new BadRequestException("order_total_mismatch");
+      }
+
+      if ((!approval || !existingOrder) && !normalAuthority && input.accepted_offer_id) {
+        const acceptedOffer = await this.offerRepository.getAcceptedOffer(
+          input.merchant_id,
+          input.session_id,
+          input.accepted_offer_id
+        );
+        if (!acceptedOffer) {
+          throw new BadRequestException("accepted_offer_invalid");
+        }
+      }
+    }
+
+    // Snapshot the cart line items + shipping at completion so returns can
+    // compute per-item partial refunds later (the Return only stores variantId
+    // + quantity, not prices).
+    const lineItems = snapshotOrderLines(session.cart?.items ?? []);
+    const shippingCents = session.shipping?.customerPrice != null
+      ? Math.round(session.shipping.customerPrice * 100)
+      : undefined;
+
+    const order = CompletedOrderEntity.complete(input, new Date(), { lineItems, shippingCents }).snapshot();
+    const whatsappMessage =
+      session.customer?.phone && order.trackingCode
+        ? `Olá ${session.customer.fullName || "Cliente"}! Seu pagamento foi confirmado com sucesso. Seu pedido foi processado e o código de rastreio é: ${order.trackingCode}. Obrigado por comprar conosco!`
+        : undefined;
+
+    const commit = async (repo: OrderCommitRepository): Promise<boolean> => {
+      // A private bound checkout cannot be completed through the public legacy
+      // entrypoint. Canonical storage is checked in this same order/outbox TX.
+      if (!approval) await repo.assertPublicCompletionAllowed?.(input.merchant_id, input.session_id);
+      else if (widgetAuthority) {
+        if (!this.txRunner?.transaction || !repo.assertWidgetPaymentOrderAuthority || !approval.providerPaymentId)
+          throw new Error("payment_widget_checkout_authority_conflict");
+        await repo.assertWidgetPaymentOrderAuthority(input.merchant_id, input.session_id, widgetAuthority, approval.id, approval.providerPaymentId);
+      }
+      else {
+        if(normalAuthority){
+          if(!this.txRunner?.transaction||!repo.assertNormalCrossSellPaymentOrderAuthority||!approval.providerPaymentId)
+            throw new Error("payment_normal_cross_sell_authority_conflict");
+          await repo.assertNormalCrossSellPaymentOrderAuthority(input.merchant_id,input.session_id,normalAuthority,approval.id,approval.providerPaymentId);
+        }
+        if (couponAuthority && !repo.assertCouponOrderAuthority) throw new Error("checkout_coupon_binding_conflict");
+        if(couponAuthority||!normalAuthority)await repo.assertCouponOrderAuthority?.(input.merchant_id, input.session_id, couponAuthority, approval.id);
+      }
+      const saved = await repo.saveCompletedOrder(order);
+      if (saved.idempotent) return true;
+      await repo.recordCompletedOrderQuota?.(order);
+      await repo.recordEvent(input.merchant_id, input.session_id, "order_completed");
+      const confirmation_touchpoints = planOmnichannelConfirmation(input.order_total);
+      await repo.appendOutbox(
+        createCheckoutEventEnvelope({
+          eventType: "order.completed",
+          merchantId: input.merchant_id,
+          payload: {
+            session_id: input.session_id,
+            external_order_id: input.external_order_id,
+            order_total: input.order_total,
+            currency: input.currency,
+            accepted_offer_id: input.accepted_offer_id,
+            tracking_code: order.trackingCode ?? null,
+            confirmation_touchpoints,
+            fulfillment_snapshot: { version: 2, lines: lineItems },
+            carrier_key: session.shipping?.carrier ?? null,
+            ...(approval ? { payment_intent_id: approval.id, payment_amount_breakdown: approval.amountBreakdown } : {}),
+            ...(couponAuthority ? { coupon_authority: couponAuthority } : {}),
+            ...(normalAuthority?.discountOwner?.kind==="checkout_coupon"?{normal_coupon_owner:normalAuthority.discountOwner}:{}),
+            inventory_sale: {
+              version: 1,
+              stocked_items_only: true,
+              items: session.cart.items.filter(item => !item.productType || ["physical", "food"].includes(item.productType)).map((item) => ({
+                sku: item.sku,
+                ...(item.productType ? { productType: item.productType } : {}),
+                quantity: item.quantity,
+                ...(item.variantId ? { variantId: item.variantId } : {}),
+              })),
+              buyerEmail: session.customer?.email ?? "",
+              buyerName: session.customer?.fullName ?? "",
+              buyerPhone: session.customer?.phone ?? "",
+              totalCents: toCents(input.order_total),
+              timestamp: order.completedAt
+            }
+          },
+          causationId: input.external_order_id
+        })
+      );
+
+      // Persist delivery intent in the same transaction as the completed order.
+      // The outbox worker owns retries; payment callbacks never call the gateway.
+      if (whatsappMessage && session.customer?.phone) {
+        await repo.appendOutbox(createCheckoutEventEnvelope({
+          eventType: "whatsapp.message.requested",
+          merchantId: input.merchant_id,
+          payload: {
+            session_id: input.session_id,
+            external_order_id: input.external_order_id,
+            phone: session.customer.phone,
+            template: "order_tracking",
+            tracking_code: order.trackingCode,
+            message: whatsappMessage,
+          },
+          causationId: input.external_order_id,
+        }));
+      }
+
+      const buyerEmail = session.customer?.email;
+      const buyerPhone = session.customer?.phone;
+      // The merchant must always receive the operational order notification.
+      // Buyer delivery is handled independently and skips absent buyer contacts.
+      await repo.appendOutbox(
+          createCheckoutEventEnvelope({
+            eventType: "order.confirmed",
+            merchantId: input.merchant_id,
+            payload: {
+              type: "ORDER_CONFIRMATION",
+              merchantId: input.merchant_id,
+              merchantName,
+              orderId: input.external_order_id,
+              orderNumber: input.external_order_id,
+              buyerEmail: buyerEmail ?? "",
+              buyerName: session.customer?.fullName,
+              buyerPhone,
+              items: (session.cart?.items ?? []).map((it) => {
+                const opts = it.selected_options?.length
+                  ? ` — ${it.selected_options.map((o) => o.item_name).join(", ")}`
+                  : "";
+                const base = it.variant ? `${it.name} (${it.variant})` : it.name;
+                return {
+                  name: `${base}${opts}`,
+                  quantity: it.quantity,
+                  price: it.price.toFixed(2),
+                };
+              }),
+              total: input.order_total.toFixed(2),
+              currency: input.currency,
+            },
+            causationId: input.external_order_id
+          })
+      );
+      return false;
+    };
+
+    const fallbackRepo: OrderCommitRepository = {
+      assertPublicCompletionAllowed: (m, s) => this.orders.assertPublicCompletionAllowed?.(m, s),
+      assertCouponOrderAuthority: (m, s, a, p) => this.orders.assertCouponOrderAuthority?.(m, s, a, p),
+      saveCompletedOrder: (o) => this.orders.saveCompletedOrder(o),
+      recordEvent: (m, s, e) => this.sessions.recordEvent(m, s, e),
+      appendOutbox: (e) => this.outbox.appendOutbox(e),
+      recordCompletedOrderQuota: async (o) => {
+        await this.orderQuota?.recordCompletedOrder({
+          merchantId: o.merchantId,
+          externalOrderId: o.externalOrderId,
+          completedAt: new Date(o.completedAt),
+        });
+      }
+    };
+    const idempotent = this.txRunner?.transaction
+      ? await this.txRunner.transaction(commit)
+      : await commit(fallbackRepo);
+
+    if (!idempotent) {
+      this.metrics?.orderCompleted.inc({ merchant_id: input.merchant_id });
+
+      await this.recordConversionAnalytics(session, input);
+
+      const globalUserId = widgetAuthority ? widgetAuthority.buyerId : await this.resolveBuyerGlobalUserId(session);
+      await this.tagAttributionForOrder(session, input, globalUserId);
+      if (globalUserId) {
+        await this.purchaseHistory?.recordCheckoutPurchase({
+          merchantId: input.merchant_id,
+          sessionId: input.session_id,
+          globalUserId,
+          orderId: input.external_order_id,
+          currency: input.currency,
+          totalAmount: input.order_total,
+          discountAmount: session.cart.currentDiscount ?? 0,
+          completedAt: order.completedAt,
+          items: session.cart.items.map((item) => ({
+            sku: item.sku,
+            title: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            discountAmount: 0
+          }))
+        });
+      }
+    }
+
+    // Marketplace settlements are persisted by the durable order.completed subscriber.
+
+    if (this.recordIntentIfConsented && !idempotent) {
+      void this.intentTrackingEnabled(input.merchant_id).then(async (enabled) => {
+        if (!enabled) return;
+        const sessionEvents = await this.sessions.getSessionEvents(input.merchant_id, input.session_id);
+        await this.recordIntentIfConsented!.execute({
+          merchantId: input.merchant_id,
+          globalUserId: session.globalUserId,
+          sessionEvents,
+          cart: session.cart
+        });
+      }).catch((err) => {
+        this.logger.warn(`intent-classification.failed (non-blocking)`, {
+          merchantId: input.merchant_id,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      });
+    }
+
+    return {
+      recorded: true,
+      idempotent,
+      event_type: "order.completed"
+    };
+  }
+
+  /**
+   * Reads the merchant's Intent Memory toggle. Fails open (returns true) when
+   * the repository or setting is absent, preserving prior behaviour where
+   * intent was always classified — only an explicit `false` disables it.
+   */
+  private async intentTrackingEnabled(merchantId: string): Promise<boolean> {
+    if (!this.merchantRepo?.getStoreSettings) return true;
+    try {
+      const settings = await this.merchantRepo.getStoreSettings(merchantId);
+      return settings?.intentMemory?.intent_tracking_enabled !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  private async recordConversionAnalytics(session: CheckoutSession, input: CompleteOrderRequest): Promise<void> {
+    if (!session.promptVariantId) return;
+    const elapsedSeconds = session.createdAt
+      ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)
+      : undefined;
+
+    if (this.recordExperimentResult) {
+      await this.recordExperimentResult.execute({
+        sessionId: input.session_id,
+        merchantId: input.merchant_id,
+        converted: true,
+        revenue: input.order_total,
+        offersShown: session.chatHistory?.filter(m => m.authorizedOfferId)?.length ?? 0,
+        offersAccepted: input.accepted_offer_id ? 1 : 0,
+        durationSeconds: elapsedSeconds,
+      });
+    }
+
+    if (this.recordFunnelEvent) {
+      await this.recordFunnelEvent.execute({
+        merchantId: input.merchant_id,
+        sessionId: input.session_id,
+        stage: 'checkout_completed',
+        metadata: { timeFromStart: elapsedSeconds },
+      });
+    }
+  }
+
+  private async tagAttributionForOrder(
+    session: CheckoutSession,
+    input: CompleteOrderRequest,
+    globalUserId?: string
+  ): Promise<void> {
+    if (!this.attributionTagger) return;
+    try {
+      const effectiveUserId = globalUserId ?? session.customer?.email?.trim().toLowerCase();
+      const cohort: "holdout" | "treatment" =
+        session.cohort ??
+        (effectiveUserId && this.holdoutGroup
+          ? this.holdoutGroup.assignCohort(effectiveUserId, input.merchant_id)
+          : "treatment");
+
+      const applied = session.featuresApplied ?? {};
+      const shipping = session.shipping;
+      const subsidyMajor =
+        shipping && typeof shipping.realCost === "number"
+          ? Math.max(0, shipping.realCost - (shipping.customerPrice ?? 0))
+          : 0;
+      const shippingSubsidyCents = Math.round(subsidyMajor * 100);
+
+      const attributionTag = this.attributionTagger.tag({
+        sessionId: input.session_id,
+        orderId: input.external_order_id,
+        cohort,
+        features: {
+          negotiation: applied.negotiation ?? false,
+          crossSell: applied.crossSell ?? false,
+          progressiveDiscount: (applied.progressiveDiscount ?? false) || (session.cart.currentDiscount ?? 0) > 0,
+          cartRecovery: applied.cartRecovery ?? false,
+          intentPersonalization: applied.intentPersonalization ?? false,
+          experimentVariantId: session.promptVariantId
+        },
+        revenue: {
+          orderValueCents: toCents(input.order_total),
+          discountCents: toCents(session.cart.currentDiscount ?? 0),
+          shippingSubsidyCents
+        },
+        aiCostCents: session.aiCostCents ?? 0
+      });
+
+      await this.revenueLiftRepo?.saveTag({
+        merchantId: input.merchant_id,
+        orderId: attributionTag.orderId,
+        sessionId: attributionTag.sessionId,
+        globalUserId: effectiveUserId ?? attributionTag.sessionId,
+        cohort: attributionTag.cohort,
+        negotiationApplied: attributionTag.negotiationApplied,
+        crossSellApplied: attributionTag.crossSellApplied,
+        progressiveDiscountApplied: attributionTag.progressiveDiscountApplied,
+        cartRecoveryApplied: attributionTag.cartRecoveryApplied,
+        intentPersonalizationApplied: attributionTag.intentPersonalizationApplied,
+        experimentVariantId: attributionTag.experimentVariantId,
+        orderValueCents: attributionTag.orderValueCents,
+        discountGivenCents: attributionTag.discountGivenCents,
+        shippingSubsidyCents: attributionTag.shippingSubsidyCents,
+        aiCostCents: attributionTag.aiCostCents,
+      });
+
+      this.logger.debug("attribution.tagged", { sessionId: input.session_id, cohort, tag: attributionTag });
+    } catch (err) {
+      this.logger.error("attribution.failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  private async resolveBuyerGlobalUserId(session: CheckoutSession): Promise<string | undefined> {
+    const email = session.customer?.email?.trim().toLowerCase();
+    if (email && this.buyerAccounts) {
+      const account = await this.buyerAccounts.findByEmail(email);
+      if (account?.globalUserId) return account.globalUserId;
+    }
+    return session.globalUserId || undefined;
+  }
+}
+
+const BUYER_SERVICE_FEE_MAJOR_UNITS = 0.99;
+
+/** Minimal local carrier for the existing order/notification/fulfillment
+ * pipeline. No mutable session metadata, conversation or analytics is inferred. */
+function frozenAdmittedOrderSession(authority: WidgetCheckoutPaymentAuthority|NormalCheckoutPaymentAuthority): CheckoutSession {
+  return { merchantId: authority.merchantId, sessionId: authority.checkoutSessionId,
+    conversationId: "", ...structuredClone(authority.frozenProjection),
+    abandonmentScore: 0, triggerAgent: false, chatHistory: [], createdAt: authority.admittedAt, updatedAt: authority.admittedAt };
+}
+
+function computeExpectedTotal(session: CheckoutSession): number {
+  const items = Array.isArray(session.cart?.items) ? session.cart.items : [];
+  const gross = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const discount = session.cart?.currentDiscount ?? 0;
+  const shipping = session.shipping?.customerPrice ?? 0;
+  const total = gross + shipping - discount;
+  return Math.round(Math.max(0, total) * 100) / 100;
+}
+
+function toCents(amount: number): number {
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(Math.round(amount * 100))) {
+    throw new BadRequestException("order_amount_invalid");
+  }
+  return Math.round(amount * 100);
+}

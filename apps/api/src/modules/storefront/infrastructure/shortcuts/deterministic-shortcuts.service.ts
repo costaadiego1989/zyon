@@ -1,0 +1,386 @@
+import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
+import type { StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
+import type { CartAddResultBlock, ConversationBlock } from "../../domain/types/conversation-block.js";
+import type { AgentCopyService } from "../copy/agent-copy.service.js";
+import { productGallery } from "../product-gallery.js";
+import { isCatalogBrowseQuery } from "../../../catalog/domain/services/contextual-product-search.js";
+import { isUnspecifiedShoppingRequest, productBrowsingAction } from "../../domain/services/sales-discovery.js";
+import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
+import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
+import { conversationBlockSchema } from "../../domain/contracts/conversation-block.schemas.js";
+import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
+
+export interface DeterministicShortcutDeps {
+  productRepo: ProductRepositoryPort;
+  copyService: AgentCopyService;
+  emitFunnelEvent: (merchantId: string, sessionId: string, event: string) => Promise<void>;
+  applyCoupon?: (args: { cartId?: string; couponCode: string }) => Promise<any>;
+  addItemToCart?: (args: { cartId?: string; variantId: string; quantity: number; selectedOptionItemIds?: string[] }) => Promise<any>;
+  getCartBlock?: (cartId: string) => Promise<ConversationBlock | null>;
+}
+
+const formatPrice = (cents: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+function productVariants(product: any) {
+  const isDigitalOrService = product.type === "digital" || product.type === "service";
+  return (product.variants ?? []).filter((variant: any) => variant.isActive).map((variant: any) => {
+    const attributes = (variant.attributes ?? {}) as Record<string, string>;
+    const attributeKeys = Object.keys(attributes);
+    const attributeValues = Object.values(attributes);
+    const stock = isDigitalOrService ? 999 : Math.max(0, (variant.stockQuantity ?? 0) - (variant.stockReserved ?? 0));
+    return {
+      id: variant.id,
+      name: variant.name || attributeKeys.join(" / ") || "Opção",
+      value: attributeValues.length > 0 ? attributeValues.join(", ") : (variant.sku ?? variant.name ?? ""),
+      sku: variant.sku,
+      stock,
+      price: variant.basePriceInCents,
+      priceFormatted: variant.basePriceInCents ? formatPrice(variant.basePriceInCents) : undefined,
+    };
+  });
+}
+
+function cartSummaryBlock(cart: any): ConversationBlock | null {
+  if (!Array.isArray(cart?.items)) return null;
+  const total = typeof cart.total === "number" ? cart.total : 0;
+  const discount = typeof cart.discount === "number" ? cart.discount : 0;
+  return {
+    type: "cart_summary",
+    data: {
+      cartId: typeof cart.cartId === "string" ? cart.cartId : undefined,
+      items: cart.items.map((item: any) => ({
+        variantId: item.variantId,
+        productName: item.name,
+        quantity: item.quantity,
+        price: item.unitPrice,
+        subtotal: item.lineTotal ?? item.unitPrice * item.quantity,
+        imageUrl: item.imageUrl,
+      })),
+      itemCount: typeof cart.itemCount === "number" ? cart.itemCount : cart.items.reduce((sum: number, item: any) => sum + (item.quantity ?? 0), 0),
+      subtotal: total,
+      discount,
+      freeShipping: cart.freeShipping === true,
+      total: total - discount,
+      nextNudge: cart.nextNudge ?? undefined,
+      activeRules: cart.activeRules ?? undefined,
+    },
+  } as ConversationBlock;
+}
+
+const CART_ADD_REFUSALS = new Set([
+  "variant_out_of_stock", "stock_validation_unavailable", "variant_not_resolved", "variant_selection_required",
+  "product_unavailable", "digital_content_unavailable", "cart_quantity_invalid", "cart_item_limit",
+  "cart_option_line_selection_required", "option_required", "unknown_option_item", "single_selection_exceeded",
+  "required_group_missing", "single_group_multiple_selected",
+]);
+
+function sameOptionIds(actual: unknown, expected: string[]): boolean {
+  if (actual === undefined) return expected.length === 0;
+  if (!Array.isArray(actual) || !actual.every(id => typeof id === "string")) return false;
+  const sorted = [...actual].sort();
+  const expectedSorted = [...expected].sort();
+  return sorted.length === expectedSorted.length && sorted.every((id, index) => id === expectedSorted[index]);
+}
+
+function savedOptionsMatch(selectedOptions: unknown, expected: string[]): boolean {
+  if (selectedOptions === undefined) return expected.length === 0;
+  if (!Array.isArray(selectedOptions) || selectedOptions.length !== expected.length) return false;
+  const ids = selectedOptions.map(option => option?.itemId);
+  if (ids.some(id => id !== undefined)) return sameOptionIds(ids, expected);
+  // The native public DTO omits option IDs. addedItem carries the exact IDs
+  // admitted by the server; the saved line must still contain that composition.
+  return selectedOptions.every(option => option && typeof option.groupName === "string"
+    && typeof option.itemName === "string" && Number.isFinite(option.priceModifier));
+}
+
+/** A cart snapshot alone cannot acknowledge this command: it may predate the add. */
+function cartAddResult(cart: any, cartId: string, variantId: string, optionItemIds: string[]): CartAddResultBlock {
+  const data: CartAddResultBlock["data"] = { cartId, variantId, optionItemIds, status: "unknown" };
+  const code = typeof cart?.error === "string" ? cart.error : typeof cart?.code === "string" ? cart.code : undefined;
+  if (code || cart?.error) {
+    if (code && (CART_ADD_REFUSALS.has(code) || code.startsWith("food_option_") || code.startsWith("service_slot_") || code.startsWith("service_schedule_"))) {
+      data.status = "rejected";
+      data.code = code;
+    }
+    return { type: "cart_add_result", data };
+  }
+  const added = cart?.addedItem;
+  const savedSelection = Array.isArray(cart?.items) && cart.items.some((item: any) => item?.variantId === variantId
+    && Number.isSafeInteger(item.quantity) && item.quantity > 0 && (item.selectedServiceSlot?.slotId ?? undefined) === undefined
+    && savedOptionsMatch(item.selectedOptions, optionItemIds));
+  if (cart?.cartId === cartId && added?.variantId === variantId && (added.serviceSlotId ?? undefined) === undefined
+    && sameOptionIds(added.optionItemIds, optionItemIds) && savedSelection) {
+    data.status = "succeeded";
+    data.optionItemIds = added.optionItemIds ?? [];
+  }
+  return { type: "cart_add_result", data };
+}
+
+async function resolveAddToCartShortcut(
+  deps: DeterministicShortcutDeps,
+  input: StorefrontConversationInput,
+): Promise<StorefrontConversationOutput | null> {
+  const match = input.userMessage.trim().match(/^adicionar(?:\s+.+?)?\s+ao carrinho\s+\[variantId:([A-Za-z0-9_-]{1,191})\](?:\s+\[optionItemIds:([A-Za-z0-9_,-]+)\])?\s*$/i);
+  if (!match || !deps.addItemToCart) return null;
+  const optionItemIds = (match[2] ?? "").split(",").filter((id) => /^[A-Za-z0-9_-]{1,191}$/.test(id));
+  const cartId = input.cartId ?? input.sessionId;
+  try {
+    const args = {
+      cartId,
+      variantId: match[1],
+      quantity: 1,
+      ...(optionItemIds.length ? { selectedOptionItemIds: optionItemIds } : {}),
+    };
+    const checked = await callStorefrontTool("add_item_to_cart", args, () => deps.addItemToCart!(args), { cartId });
+    const cart = checked.ok ? checked.data : undefined;
+    const result = cartAddResult(cart, cartId, match[1], optionItemIds);
+    const block = cartSummaryBlock(cart);
+    if (result.data.status !== "succeeded" || !block) {
+      return {
+        message: result.data.status === "rejected"
+          ? cart && typeof cart === "object" && "detail" in cart && typeof cart.detail === "string" ? cart.detail : "Não consegui adicionar este produto agora. Revise sua escolha."
+          : "Não consegui confirmar se o produto foi adicionado. Confira o carrinho antes de tentar novamente.",
+        blocks: [result],
+        suggestedNext: ["Ver Carrinho", "Continuar Comprando"],
+      };
+    }
+    deps.emitFunnelEvent(input.merchantId, input.sessionId, "cart_viewed").catch(() => {});
+    return {
+      message: "Produto adicionado ao carrinho.",
+      blocks: [result, block],
+      suggestedNext: ["Ver Carrinho", "Continuar Comprando", "Finalizar Compra"],
+    };
+  } catch {
+    return {
+      message: "Não consegui confirmar se o produto foi adicionado. Confira o carrinho antes de tentar novamente.",
+      blocks: [cartAddResult(undefined, cartId, match[1], optionItemIds)],
+      suggestedNext: ["Ver Carrinho", "Continuar Comprando"],
+    };
+  }
+}
+
+async function resolveOffersShortcut(
+  deps: DeterministicShortcutDeps,
+  input: StorefrontConversationInput,
+  normalizedMsg: string,
+): Promise<StorefrontConversationOutput | null> {
+  const triggers = ["ofertas", "ofertas do dia", "promoções", "promocoes", "ver produtos"];
+  const isProducts = isCatalogBrowseQuery(input.userMessage);
+  if (!isProducts && !triggers.includes(normalizedMsg)) return null;
+
+  try {
+    const result = await deps.productRepo.search({
+      merchantId: input.merchantId,
+      query: isProducts ? "*" : undefined,
+      inStockOnly: isProducts && /dispon[ií]ve[il]|estoque/i.test(input.userMessage) ? true : undefined,
+      isActiveOnly: true,
+      limit: 10,
+    });
+    if (result.products.length === 0) return null;
+
+    deps.emitFunnelEvent(input.merchantId, input.sessionId, "product_viewed").catch(() => {});
+
+    const blocks: ConversationBlock[] = [{
+      type: "product_carousel",
+      data: {
+        // No fabricated discount/badge. The catalog search carries no authorized
+        // promo, so a hardcoded `badge: "Oferta"` + `discountPercent: 15` on every
+        // product was a deceive-the-buyer fake (card promised 15% off that
+        // checkout never honored — buyer pays full price). A discount/badge is
+        // shown ONLY when a real, authorized promotion supplies it.
+        products: result.products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          price: p.defaultVariant?.basePriceInCents ?? 0,
+          priceFormatted: formatPrice(p.defaultVariant?.basePriceInCents ?? 0),
+          ...productGallery(p),
+          inStock: p.hasStock,
+          variants: productVariants(p),
+        })),
+        nextCursor: result.nextCursor,
+        merchantId: input.merchantId,
+      },
+    } as ConversationBlock];
+
+    const introDefault = isProducts ? "Encontrei esses produtos para você:" : "Aqui estão nossas ofertas:";
+    const introMessage = isProducts ? introDefault : await deps.copyService.generateVariantCopy(
+      input.experimentSystemPrompt,
+      isProducts
+        ? "Responda em 1 frase curta e amigável que encontrou produtos pra o cliente. Não liste os produtos."
+        : "Responda em 1 frase curta e animada apresentando as ofertas do dia. Não liste os produtos.",
+      introDefault,
+    );
+    return {
+      message: introMessage,
+      blocks,
+      suggestedNext: ["Selecionar Produto", "Filtrar Produtos", "Categorias", "Ofertas do Dia"],
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveDetailsShortcut(
+  deps: DeterministicShortcutDeps,
+  input: StorefrontConversationInput,
+  normalizedMsg: string,
+): Promise<StorefrontConversationOutput | null> {
+  const detalhesMatch = normalizedMsg.match(/^detalhes\s+(.+)$/);
+  if (!detalhesMatch) return null;
+
+  const productName = detalhesMatch[1].trim();
+  try {
+    const detailResult = await deps.productRepo.search({
+      merchantId: input.merchantId,
+      query: productName,
+      isActiveOnly: true,
+      limit: 3,
+    });
+    const product = detailResult.products[0];
+    if (!product) return null;
+
+    const price = product.defaultVariant?.basePriceInCents ?? 0;
+    const isDigitalOrService = product.type === "digital" || product.type === "service";
+    const blocks: ConversationBlock[] = [{
+      type: "product_card",
+      data: {
+        id: product.id,
+        name: product.name,
+        price,
+        priceFormatted: formatPrice(price),
+        ...productGallery(product),
+        description: product.description ?? undefined,
+        inStock: product.hasStock,
+        rating: product.averageRating ?? undefined,
+        reviewCount: product.reviewCount ?? 0,
+        detailed: true,
+        stock: isDigitalOrService ? 999 : (product.totalStock ?? 0),
+        sku: product.defaultVariant?.sku ?? product.variants?.[0]?.sku,
+        variants: (product.variants ?? []).map((v: any) => {
+          const attrs = (v.attributes ?? {}) as Record<string, string>;
+          const attrKeys = Object.keys(attrs);
+          const attrValues = Object.values(attrs);
+          const variantStock = isDigitalOrService ? 999 : Math.max(0, (v.stockQuantity ?? 0) - (v.stockReserved ?? 0));
+          return {
+            id: v.id,
+            name: v.name || attrKeys.join(" / ") || "Opção",
+            value: attrValues.length > 0 ? attrValues.join(", ") : (v.sku ?? v.name ?? ""),
+            sku: v.sku,
+            stock: variantStock,
+            price: v.basePriceInCents,
+            priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined,
+          };
+        }),
+      },
+    } as ConversationBlock];
+
+    deps.emitFunnelEvent(input.merchantId, input.sessionId, "product_viewed").catch(() => {});
+    const detailMessage = await deps.copyService.generateVariantCopy(
+      input.experimentSystemPrompt,
+      `Apresente o produto "${product.name}" em 1 frase curta e empolgante. Não repita o nome completo, diga "esse produto" ou algo natural.`,
+      `Aqui estão os detalhes de **${product.name}**:`,
+    );
+    return {
+      message: detailMessage,
+      blocks,
+      suggestedNext: [
+        `Adicionar ${product.name} ao carrinho`,
+        `Calcular frete para ${product.name}`,
+        `Ver avaliações de ${product.name}`,
+        "Ver mais produtos",
+      ],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Deterministic coupon apply. Matches "aplicar cupom X" / "usar cupom X" /
+ * "cupom X" and routes straight to the real applyCoupon handler — never the LLM
+ * (which sometimes fails to emit the tool call). The discount is authorized
+ * server-side by the coupon use-case; this shortcut only parses the code.
+ */
+async function resolveCouponShortcut(
+  deps: DeterministicShortcutDeps,
+  input: StorefrontConversationInput,
+  normalizedMsg: string,
+): Promise<StorefrontConversationOutput | null> {
+  if (!deps.applyCoupon) return null;
+  // Accept "aplicar cupom XPTO", "usar cupom XPTO", "cupom XPTO" (code = alnum, 3-32).
+  const m = normalizedMsg.match(/^(?:aplicar|usar|use|quero(?:\s+usar)?)?\s*cupom\s+([a-z0-9][a-z0-9._-]{2,31})$/i);
+  if (!m) return null;
+  const code = m[1].toUpperCase();
+  const cartId = input.cartId ?? input.sessionId;
+  const uncertain = (): StorefrontConversationOutput => ({ message: STOREFRONT_CONTRACT_FALLBACK, blocks: [], suggestedNext: ["Ver Carrinho"] });
+  try {
+    const args = { cartId, couponCode: code };
+    const checked = await callStorefrontTool("apply_coupon", args, () => deps.applyCoupon!(args), { cartId });
+    if (!checked.ok) return uncertain();
+    const outcome = storefrontToolOutputSchemas.apply_coupon.safeParse(checked.data);
+    if (!outcome.success) return uncertain();
+    const result = outcome.data;
+    const blocks: ConversationBlock[] = [];
+    if (deps.getCartBlock && input.cartId) {
+      // A best-effort read cannot erase an already confirmed coupon outcome.
+      try {
+        const parsedBlock = conversationBlockSchema.safeParse(await deps.getCartBlock(input.cartId));
+        if (parsedBlock.success && parsedBlock.data.type === "cart_summary" && parsedBlock.data.data.cartId === cartId) blocks.push(parsedBlock.data);
+      } catch { /* Keep the confirmed application/rejection; never replay it. */ }
+    }
+    if (result?.applied) {
+      const disc = result.discount;
+      return {
+        message: `Cupom ${code} aplicado! Desconto de ${formatPrice(Math.round(disc * 100))}.`,
+        blocks,
+        suggestedNext: ["Ver Carrinho", "Finalizar Compra"],
+      };
+    }
+    // Honest rejection — never claim a discount that wasn't authorized.
+    const reasonMap: Record<string, string> = {
+      cart_empty: "Seu carrinho está vazio. Adicione um produto antes de aplicar o cupom.",
+      COUPON_NOT_FOUND: `Não encontrei o cupom ${code}.`,
+      coupon_not_found: `Não encontrei o cupom ${code}.`,
+      COUPON_MIN_CART_NOT_MET: "O valor do carrinho ainda não atinge o mínimo desse cupom.",
+      COUPON_EXPIRED: `O cupom ${code} está expirado.`,
+      COUPON_ALREADY_APPLIED: `O cupom ${code} já foi aplicado.`,
+      coupon_service_unavailable: "Não consegui validar o cupom agora. Tente novamente em instantes.",
+    };
+    const msg = result.commercialNotices?.length ? result.commercialNotices.map(notice => notice.message).join(" ")
+      : Object.hasOwn(reasonMap, result.reason) ? reasonMap[result.reason]! : `Não foi possível aplicar o cupom ${code}.`;
+    return { message: msg, blocks, suggestedNext: ["Ver Carrinho"] };
+  } catch {
+    return uncertain(); // The write may have committed; never fall through to the LLM.
+  }
+}
+
+export async function resolveDeterministicShortcut(
+  deps: DeterministicShortcutDeps,
+  input: StorefrontConversationInput,
+  options: { structuredReadRouting?: boolean } = {},
+): Promise<StorefrontConversationOutput | null> {
+  // An attachment needs catalog matching and buyer confirmation from the agent,
+  // even when the accompanying text would normally trigger a shortcut.
+  if (input.attachmentContext) return null;
+  // No product/filter was selected yet. Resolve these navigation labels before
+  // the agent or its fallback can replay a previous contextual search. Do not
+  // return the same generic buttons, spend model tokens, or mutate the cart.
+  const browsingAction = productBrowsingAction(input.userMessage);
+  if (browsingAction) return {
+    message: browsingAction === "select"
+      ? "Qual produto você quer conhecer melhor? Clique em “Saber mais” no card ou me diga o nome."
+      : "Qual critério você quer usar para filtrar os produtos? Pode me dizer a faixa de preço ou uma característica importante.",
+    blocks: [],
+    suggestedNext: [],
+  };
+  // Wanting help to buy is not a request to dump the catalog. Let the agent
+  // discover the need; explicit "Ver Produtos"/catalog actions stay deterministic.
+  if (isUnspecifiedShoppingRequest(input.userMessage)) return null;
+  const normalizedMsg = input.userMessage.trim().toLowerCase();
+  return (
+    (await resolveAddToCartShortcut(deps, input)) ??
+    (options.structuredReadRouting ? null : await resolveOffersShortcut(deps, input, normalizedMsg)) ??
+    (options.structuredReadRouting ? null : await resolveDetailsShortcut(deps, input, normalizedMsg)) ??
+    (await resolveCouponShortcut(deps, input, normalizedMsg))
+  );
+}

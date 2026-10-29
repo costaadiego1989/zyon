@@ -1,0 +1,114 @@
+import type { BillingCycle } from "@zyon/shared-types";
+import type { OrderQuotaSnapshot } from "./services/order-quota.types.js";
+
+export type PaymentConnectionProvider = "stripe" | "asaas" | "mercadopago";
+/** `starter` remains the Free identifier; `starter179` is the paid Starter plan. */
+export type BillingPlan = "starter" | "starter179" | "growth" | "scale";
+export type PaymentConnectionEnvironment = "test" | "live";
+export type PaymentConnectionStatus =
+  | "pending"
+  | "restricted"
+  | "active"
+  | "degraded";
+
+export interface PaymentConnectionSnapshot {
+  merchantId: string;
+  provider: PaymentConnectionProvider;
+  environment: PaymentConnectionEnvironment;
+  status: PaymentConnectionStatus;
+  externalAccountId?: string;
+  walletId?: string;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  requirements: string[];
+  lastSyncedAt?: string;
+  lastErrorCode?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BillingSubscriptionStatus =
+  | "trialing"
+  | "starter"
+  | "active"
+  | "past_due"
+  | "unpaid"
+  | "paused"
+  | "cancelled"
+  | "incomplete";
+
+export interface BillingSubscriptionSnapshot {
+  merchantId: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripePriceId?: string;
+  status: BillingSubscriptionStatus;
+  trialEndsAt?: string;
+  currentPeriodEnd?: string;
+  cancelAtPeriodEnd: boolean;
+  createdAt: string;
+  updatedAt: string;
+  provider?: "asaas" | "stripe";
+  planKey?: BillingPlan;
+  asaasCustomerId?: string;
+  asaasSubscriptionId?: string;
+  pendingPlanKey?: BillingPlan;
+  pendingUpgradePlanKey?: BillingPlan;
+  pendingUpgradeAmountCents?: number;
+  pendingUpgradeRequestedAt?: string;
+  billingAmountCents?: number;
+  billingCycle?: BillingCycle;
+  billingDiscountPercent?: number;
+  pendingBillingCycle?: BillingCycle;
+  pendingBillingAmountCents?: number;
+  pendingBillingDiscountPercent?: number;
+  lastBillingEventAt?: string;
+  lastBillingPaymentId?: string;
+  lastBillingPaymentDueAt?: string;
+  pendingPlanEffectiveAt?: string;
+  /** When the provider recurrence was suspended for a period-end cancellation. */
+  providerCancellationScheduledAt?: string;
+}
+
+export interface BillingUsageSnapshot {
+  periodStart: string;
+  ordersPerMonth: number;
+  voiceSessions: number;
+  commerceConnections: number;
+  webhookEndpoints: number;
+  teamMembers: number;
+  crossSellPromotions: number;
+  activeCoupons: number;
+}
+
+export interface BillingSubscriptionWithPlanSnapshot extends BillingSubscriptionSnapshot {
+  trialExpired: boolean;
+  trialDaysRemaining: number;
+  plan: BillingPlan;
+  planName: string;
+  monthlyPriceBrl: number;
+  transactionFeeCents: number;
+  buyerServiceFeeCents: number;
+  limits: Record<string, number | null>;
+  features: Record<string, boolean>;
+  usage?: BillingUsageSnapshot;
+  commercial?: OrderQuotaSnapshot;
+}
+
+export interface AsaasSubaccountInput {
+  name: string;
+  email: string;
+  loginEmail?: string;
+  cpfCnpj: string;
+  birthDate?: string;
+  companyType?: "MEI" | "LIMITED" | "INDIVIDUAL" | "ASSOCIATION";
+  phone?: string;
+  mobilePhone: string;
+  site?: string;
+  incomeValue: number;
+  address: string;
+  addressNumber: string;
+  complement?: string;
+  province: string;
+  postalCode: string;
+}

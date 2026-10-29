@@ -1,0 +1,534 @@
+import type { PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { toNumber } from "../../../shared/persistence/decimal.util.js";
+import { summarizeFulfillment } from "../domain/order-fulfillment.js";
+import { fulfillmentPaymentEligible } from "../../../shared/persistence/order-fulfillment.js";
+import { marketplaceFulfillmentSessions } from "../../fulfillment/infrastructure/repositories/marketplace-fulfillment-guard.js";
+import type {
+  CustomerDetail,
+  CustomerPurchase,
+  CustomerSummary,
+  OperationsCursor,
+  OperationsReadRepository,
+  OrderDetail,
+  OrderSummary,
+  OrderTimelineEntry,
+  PaymentSummary,
+} from "../domain/ports/operations-read.repository.port.js";
+
+export class PrismaOperationsReadRepository
+  implements OperationsReadRepository
+{
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async listOrders(input: {
+    merchantId: string;
+    limit: number;
+    cursor?: OperationsCursor;
+  }): Promise<OrderSummary[]> {
+    const rows = await this.prisma.completedOrder.findMany({
+      where: {
+        merchantId: input.merchantId,
+        ...cursorWhere("completedAt", input.cursor),
+      },
+      include: {
+        session: { select: { customer: true, cart: true } },
+      },
+      orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+      take: input.limit,
+    });
+
+    // Batch-fetch payments for all sessions in this page to enrich with
+    // method / provider / paidAt without an N+1 query per order.
+    const sessionIds = rows.map((row) => row.sessionId);
+    const payments = sessionIds.length
+      ? await this.prisma.paymentIntent.findMany({
+          where: {
+            merchantId: input.merchantId,
+            sessionId: { in: sessionIds },
+          },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+    const paymentBySession = new Map<string, (typeof payments)[number]>();
+    for (const payment of payments) {
+      // Keep the most relevant payment per session: prefer a confirmed one,
+      // otherwise the latest by createdAt (asc order means later overwrites).
+      const existing = paymentBySession.get(payment.sessionId);
+      if (!existing || isConfirmedPayment(payment.status)) {
+        paymentBySession.set(payment.sessionId, payment);
+      }
+    }
+
+    const fundedSessions = await marketplaceFulfillmentSessions(this.prisma, input.merchantId, sessionIds);
+    return rows.map((row) =>
+      toOrderSummary(row, paymentBySession.get(row.sessionId), fundedSessions.has(row.sessionId)),
+    );
+  }
+
+  async getOrder(
+    merchantId: string,
+    orderId: string,
+  ): Promise<OrderDetail | undefined> {
+    return this.findOrder({ id: orderId, merchantId });
+  }
+
+  async getOrderByExternalId(
+    merchantId: string,
+    externalOrderId: string,
+  ): Promise<OrderDetail | undefined> {
+    return this.findOrder({ externalOrderId, merchantId });
+  }
+
+  private async findOrder(where: {
+    merchantId: string;
+    id?: string;
+    externalOrderId?: string;
+  }): Promise<OrderDetail | undefined> {
+    const row = await this.prisma.completedOrder.findFirst({
+      where,
+      include: {
+        fulfillmentActions: { orderBy: { createdAt: "asc" } },
+        session: {
+          select: {
+            customer: true,
+            cart: true,
+            events: { orderBy: { occurredAt: "asc" } },
+          },
+        },
+      },
+    });
+    if (!row) return undefined;
+
+    const [payments, shipment] = await Promise.all([
+      this.prisma.paymentIntent.findMany({
+        where: {
+          merchantId: where.merchantId,
+          sessionId: row.sessionId,
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+      this.prisma.shipment.findFirst({
+        where: {
+          merchantId: where.merchantId,
+          externalOrderId: row.externalOrderId,
+        },
+        include: { trackingEvents: { orderBy: { occurredAt: "asc" } } },
+      }),
+    ]);
+
+    const timeline: OrderTimelineEntry[] = [
+      ...(row.fulfillmentActions ?? []).map(action => ({ id: action.id, type: "fulfillment", status: action.toStatus,
+        description: action.proof ?? action.action, occurredAt: action.occurredAt.toISOString(),
+        data: { unitId: action.unitId, actorId: action.actorId, origin: action.origin, fromStatus: action.fromStatus, quantity: action.quantity } })),
+      ...row.session.events.map((event) => ({
+        id: event.id,
+        type: "checkout",
+        status: event.eventName,
+        occurredAt: event.occurredAt.toISOString(),
+      })),
+      ...payments.flatMap((payment) =>
+        paymentHistory(payment.id, payment.statusHistory),
+      ),
+      ...(shipment?.trackingEvents ?? []).map((event) => ({
+        id: event.id,
+        type: "tracking",
+        status: event.status,
+        description: event.description,
+        occurredAt: event.occurredAt.toISOString(),
+        data: {
+          location: event.location,
+          tracking_code: event.trackingCode,
+        },
+      })),
+      {
+        id: `completed:${row.id}`,
+        type: "order",
+        status: "approved",
+        occurredAt: row.completedAt.toISOString(),
+      },
+      ...(row.cancelledAt
+        ? [
+            {
+              id: `cancelled:${row.id}`,
+              type: "order",
+              status: "cancelled",
+              description: row.cancellationReason ?? undefined,
+              occurredAt: row.cancelledAt.toISOString(),
+            },
+          ]
+        : []),
+    ].sort((left, right) =>
+      left.occurredAt.localeCompare(right.occurredAt),
+    );
+    const commercePayment = [...payments]
+      .reverse()
+      .find((payment) => Boolean(payment.commerceOrderId));
+    const enrichPayment =
+      [...payments].reverse().find((payment) => isConfirmedPayment(payment.status)) ??
+      payments[payments.length - 1];
+
+    const fundedSessions = await marketplaceFulfillmentSessions(this.prisma, where.merchantId, [row.sessionId]);
+    return {
+      ...toOrderSummary(row, enrichPayment, fundedSessions.has(row.sessionId)),
+      timeline,
+      commerceOrderId: commercePayment?.commerceOrderId ?? undefined,
+      paymentStatus: commercePayment?.status,
+    };
+  }
+
+  async listCustomers(input: {
+    merchantId: string;
+    limit: number;
+    cursor?: OperationsCursor;
+  }): Promise<CustomerSummary[]> {
+    const cursorAt = input.cursor
+      ? new Date(input.cursor.occurredAt)
+      : undefined;
+    const cursorFilter =
+      cursorAt && input.cursor
+        ? Prisma.sql`AND (
+            "last_seen_at" < ${cursorAt}
+            OR ("last_seen_at" = ${cursorAt} AND "global_user_id" < ${input.cursor.id})
+          )`
+        : Prisma.empty;
+
+    // P0 fix: one row per buyer (global_user_id), even when the customer profile
+    // changed across sessions. DISTINCT ON picks the latest session per buyer
+    // (tie-break on session id) and window aggregates give stable first/last seen.
+    // A prior CTE attempt left ROW_NUMBER unused (GROUP BY collapsed it) and could
+    // still emit duplicates when two sessions shared the max updated_at.
+    const rows = await this.prisma.$queryRaw<CustomerRow[]>(Prisma.sql`
+      WITH buyer_rows AS (
+        SELECT DISTINCT ON ("global_user_id")
+          "global_user_id",
+          "customer",
+          MIN("created_at") OVER (PARTITION BY "global_user_id") AS "first_seen_at",
+          MAX("updated_at") OVER (PARTITION BY "global_user_id") AS "last_seen_at"
+        FROM "checkout_sessions"
+        WHERE "merchant_id" = ${input.merchantId}
+        ORDER BY "global_user_id", "updated_at" DESC, "session_id" DESC
+      )
+      SELECT
+        "global_user_id",
+        "customer",
+        "first_seen_at",
+        "last_seen_at"
+      FROM buyer_rows
+      WHERE TRUE
+      ${cursorFilter}
+      ORDER BY "last_seen_at" DESC, "global_user_id" DESC
+      LIMIT ${input.limit}
+    `);
+    return rows.map(toCustomerSummary);
+  }
+
+  async getCustomer(
+    merchantId: string,
+    customerId: string,
+  ): Promise<CustomerDetail | undefined> {
+    const session = await this.prisma.checkoutSession.findFirst({
+      where: { merchantId, globalUserId: customerId },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!session) return undefined;
+    const [first, purchases] = await Promise.all([
+      this.prisma.checkoutSession.findFirst({
+        where: { merchantId, globalUserId: customerId },
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true },
+      }),
+      this.prisma.buyerPurchaseRecord.findMany({
+        where: { merchantId, globalUserId: customerId },
+        orderBy: { completedAt: "desc" },
+        take: 100,
+      }),
+    ]);
+    return {
+      id: customerId,
+      profile: sanitizeCustomer(session.customer),
+      firstSeenAt: (first?.createdAt ?? session.createdAt).toISOString(),
+      lastSeenAt: session.updatedAt.toISOString(),
+      purchaseHistory: purchases.map(toCustomerPurchase),
+    };
+  }
+
+  async listCustomerPurchases(input: {
+    merchantId: string;
+    customerId: string;
+    limit: number;
+    cursor?: OperationsCursor;
+  }): Promise<CustomerPurchase[]> {
+    const completedAt = input.cursor
+      ? new Date(input.cursor.occurredAt)
+      : undefined;
+    const purchases = await this.prisma.buyerPurchaseRecord.findMany({
+      where: {
+        merchantId: input.merchantId,
+        globalUserId: input.customerId,
+        ...(completedAt && input.cursor
+          ? {
+              OR: [
+                { completedAt: { lt: completedAt } },
+                { completedAt, orderId: { lt: input.cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ completedAt: "desc" }, { orderId: "desc" }],
+      take: input.limit,
+    });
+    return purchases.map(toCustomerPurchase);
+  }
+
+  async listPayments(input: {
+    merchantId: string;
+    limit: number;
+    cursor?: OperationsCursor;
+  }): Promise<PaymentSummary[]> {
+    const rows = await this.prisma.paymentIntent.findMany({
+      where: {
+        merchantId: input.merchantId,
+        ...cursorWhere("updatedAt", input.cursor),
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: input.limit,
+    });
+    return rows.map(toPaymentSummary);
+  }
+
+  async getPayment(
+    merchantId: string,
+    paymentId: string,
+  ): Promise<PaymentSummary | undefined> {
+    const row = await this.prisma.paymentIntent.findFirst({
+      where: { id: paymentId, merchantId },
+    });
+    return row ? toPaymentSummary(row) : undefined;
+  }
+}
+
+type CustomerRow = {
+  global_user_id: string;
+  customer: unknown;
+  first_seen_at: Date;
+  last_seen_at: Date;
+};
+
+function cursorWhere(
+  field: "completedAt" | "updatedAt",
+  cursor?: OperationsCursor,
+): Record<string, unknown> {
+  if (!cursor) return {};
+  const occurredAt = new Date(cursor.occurredAt);
+  return {
+    OR: [
+      { [field]: { lt: occurredAt } },
+      { [field]: occurredAt, id: { lt: cursor.id } },
+    ],
+  };
+}
+
+function toOrderSummary(
+  row: {
+    id: string;
+    sessionId: string;
+    externalOrderId: string;
+    orderTotal: { toNumber(): number } | number;
+    currency: string;
+    status: string;
+    acceptedOfferId: string | null;
+    trackingCode: string | null;
+    completedAt: Date;
+    cancelledAt: Date | null;
+    cancellationReason: string | null;
+    session: { customer: unknown; cart: unknown };
+    lineItemsJson?: unknown;
+    fulfillmentJson?: unknown;
+    fulfillmentVersion?: number;
+  },
+  payment?: {
+    method: string;
+    status: string;
+    providerPaymentId: string | null;
+    updatedAt: Date;
+    amountCents?: number;
+    approvedAmountCents?: number | null;
+    currency?: string;
+    amountBreakdown?: unknown;
+  } | undefined,
+  marketplace = false,
+): OrderSummary {
+  return {
+    id: row.id,
+    sessionId: row.sessionId,
+    externalOrderId: row.externalOrderId,
+    status: row.status,
+    fulfillment: summarizeFulfillment(row.fulfillmentJson, row.fulfillmentVersion ?? 0,
+      fulfillmentPaymentEligible(row, payment as Parameters<typeof fulfillmentPaymentEligible>[1]), row.status, marketplace),
+    totalMinor: toMinor(row.orderTotal),
+    currency: row.currency,
+    acceptedOfferId: row.acceptedOfferId ?? undefined,
+    trackingCode: row.trackingCode ?? undefined,
+    customer: sanitizeCustomer(row.session.customer),
+    cart: Array.isArray(row.lineItemsJson) && row.lineItemsJson.length > 0
+      ? { currency: row.currency, items: row.lineItemsJson.map((line: Record<string, unknown>) => ({ sku: line.sku, variantId: line.variantId, name: line.name,
+          quantity: line.quantity, unit_price: line.unitPriceCents, unitPriceCents: line.unitPriceCents, productType: line.productType, selected_options: line.selectedOptions ?? [], schedule: line.schedule })) }
+      : normalizeObject(row.session.cart),
+    completedAt: row.completedAt.toISOString(),
+    cancelledAt: row.cancelledAt?.toISOString(),
+    cancellationReason: row.cancellationReason ?? undefined,
+    paymentMethod: payment ? derivePaymentMethod(payment.method) : undefined,
+    paymentProvider: payment ? derivePaymentProvider(payment.providerPaymentId) : undefined,
+    paidAt: payment && isConfirmedPayment(payment.status) ? payment.updatedAt.toISOString() : undefined,
+  };
+}
+
+function isConfirmedPayment(status: string): boolean {
+  const normalized = status.toLowerCase();
+  return normalized === "approved" || normalized === "paid" || normalized === "confirmed" || normalized === "received";
+}
+
+function derivePaymentMethod(method: string): string {
+  const normalized = method.toLowerCase();
+  if (normalized.includes("pix")) return "pix";
+  if (normalized.includes("credit") || normalized === "card") return "credit_card";
+  if (normalized.includes("boleto")) return "boleto";
+  if (normalized.includes("crypto")) return "crypto";
+  return method;
+}
+
+function derivePaymentProvider(providerPaymentId: string | null): string {
+  if (!providerPaymentId) return "unknown";
+  // Asaas IDs look like "pay_xxx"; Stripe IDs start with "pi_" / "ch_".
+  // Mercado Pago IDs are numeric / "mp_" prefixed in our routing adapter.
+  if (providerPaymentId.startsWith("pi_") || providerPaymentId.startsWith("ch_") || providerPaymentId.startsWith("stripe_")) {
+    return "stripe";
+  }
+  if (providerPaymentId.startsWith("pay_") || providerPaymentId.startsWith("asaas_")) {
+    return "asaas";
+  }
+  if (providerPaymentId.startsWith("mp_") || /^^\d+$/.test(providerPaymentId)) {
+    return "mercado_pago";
+  }
+  return "unknown";
+}
+
+function toCustomerSummary(row: CustomerRow): CustomerSummary {
+  return {
+    id: row.global_user_id,
+    profile: sanitizeCustomer(row.customer),
+    firstSeenAt: row.first_seen_at.toISOString(),
+    lastSeenAt: row.last_seen_at.toISOString(),
+  };
+}
+
+function toCustomerPurchase(purchase: {
+  orderId: string;
+  currency: string;
+  totalAmount: { toNumber(): number } | number;
+  discountAmount: { toNumber(): number } | number;
+  items: unknown;
+  completedAt: Date;
+}): CustomerPurchase {
+  return {
+    orderId: purchase.orderId,
+    currency: purchase.currency,
+    totalMinor: toMinor(purchase.totalAmount),
+    discountMinor: toMinor(purchase.discountAmount),
+    items: purchase.items,
+    completedAt: purchase.completedAt.toISOString(),
+  };
+}
+
+function toPaymentSummary(row: {
+  id: string;
+  sessionId: string;
+  amountCents: number;
+  approvedAmountCents: number | null;
+  currency: string;
+  method: string;
+  status: string;
+  providerPaymentId: string | null;
+  commerceOrderId: string | null;
+  acceptedOfferId: string | null;
+  statusHistory: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}): PaymentSummary {
+  return {
+    id: row.id,
+    sessionId: row.sessionId,
+    amountMinor: row.amountCents,
+    approvedAmountMinor: row.approvedAmountCents ?? undefined,
+    currency: row.currency,
+    method: row.method,
+    status: row.status,
+    providerReference: row.providerPaymentId ?? undefined,
+    commerceOrderId: row.commerceOrderId ?? undefined,
+    acceptedOfferId: row.acceptedOfferId ?? undefined,
+    statusHistory: Array.isArray(row.statusHistory) ? row.statusHistory : [],
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function paymentHistory(
+  paymentId: string,
+  value: unknown,
+): OrderTimelineEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry, index) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (
+      typeof record.status !== "string" ||
+      typeof record.occurredAt !== "string"
+    ) {
+      return [];
+    }
+    return [{
+      id: `${paymentId}:${index}`,
+      type: "payment",
+      status: record.status,
+      description:
+        typeof record.reason === "string" ? record.reason : undefined,
+      occurredAt: record.occurredAt,
+    }];
+  });
+}
+
+function sanitizeCustomer(value: unknown): Record<string, unknown> {
+  const customer = normalizeObject(value);
+  const allowed = [
+    "externalCustomerId",
+    "email",
+    "email_verified",
+    "recognized_buyer",
+    "phone",
+    "phone_verified",
+    "address_verified",
+    "isReturning",
+    "fullName",
+    "address",
+  ];
+  return Object.fromEntries(
+    allowed
+      .filter((key) => customer[key] !== undefined)
+      .map((key) => [toSnakeCase(key), customer[key]]),
+  );
+}
+
+function normalizeObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function toSnakeCase(value: string): string {
+  return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+function toMinor(value: { toNumber(): number } | number): number {
+  return Math.round(toNumber(value) * 100);
+}

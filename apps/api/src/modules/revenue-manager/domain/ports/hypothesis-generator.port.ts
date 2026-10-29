@@ -1,0 +1,55 @@
+import type { ObservationSnapshot } from "../entities/observation.entity.js";
+import type { StrategyLessonSnapshot } from "../entities/strategy-lesson.entity.js";
+import type { MerchantRules } from "@zyon/shared-types";
+import type { CheckoutChatBaseline } from "../../../checkout/domain/services/checkout-chat-baseline.js";
+import type { StrategyMeasurementPlanning } from "../strategy-measurement.js";
+import type { RevenueIncentiveOptions } from "../revenue-incentive-options.js";
+import type { StrategyOrchestration } from "../strategy-orchestration.js";
+
+export const HYPOTHESIS_GENERATOR_PORT = Symbol("HYPOTHESIS_GENERATOR_PORT");
+
+export interface HypothesisGenerationRequest {
+  analysis_context?: { runId: string; leaseToken: number; revisionId?: string };
+  revision?: { preference: string; previous_proposal: HypothesisGenerationResponse;
+    incentive_alternative?: { discount_percent: number; max_discount_cents: number; limit_cents: number;
+      max_redemptions: number; duration_days: 7; explanation: "lower_discount_same_audience" } };
+  merchant_id: string;
+  observation: ObservationSnapshot;
+  past_lessons: StrategyLessonSnapshot[];
+  /** Exact control text or recipe reference supplied by the server, never the model. */
+  current_prompt: string;
+  /** Server-owned primary chat recipe; current_prompt is its opaque control reference. */
+  checkout_baseline?: CheckoutChatBaseline;
+  measurement_planning?: StrategyMeasurementPlanning;
+  incentive_options?: RevenueIncentiveOptions;
+  constraints: {
+    max_discount_percent: number;
+    allow_free_shipping: boolean;
+    max_running_experiments: number;
+    merchant_rules: MerchantRules;
+  };
+}
+
+export interface HypothesisGenerationResponse {
+  strategy_plan?: StrategyOrchestration;
+  hypothesis_text: string;
+  reasoning: string;
+  expected_lift_percent: number;
+  template: {
+    name: string;
+    description: string;
+    variant_a: { name: string; system_prompt: string; weight: number; is_control: boolean };
+    variant_b: { name: string; system_prompt: string; weight: number; is_control: boolean };
+  };
+}
+
+export interface HypothesisGeneratorPort {
+  generate(request: HypothesisGenerationRequest): Promise<HypothesisGenerationResponse>;
+}
+
+export type HypothesisGenerationCheckpoint = HypothesisGenerationResponse | {
+  definition: "checkout-hypothesis-cache-v1";
+  baselineReference: string;
+  contextHash: string;
+  response: HypothesisGenerationResponse;
+};

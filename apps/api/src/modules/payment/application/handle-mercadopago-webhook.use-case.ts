@@ -1,0 +1,292 @@
+import { BadRequestException, Inject, Injectable, Optional, Logger } from "@nestjs/common";
+import { createHmac } from "node:crypto";
+import {
+  PAYMENT_REPOSITORY,
+  type PaymentRepository,
+  type ProviderEventKey
+} from "../domain/ports/payment-repository.port.js";
+import { MetricsService } from "../../../shared/observability/metrics.service.js";
+import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
+import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
+import {
+  PAYMENT_PROVIDER_PORT,
+  type PaymentProviderPort,
+} from "../domain/ports/payment-provider.port.js";
+import { HandleMarketplaceChargebackUseCase } from "../../marketplace/application/use-cases/handle-marketplace-chargeback.use-case.js";
+
+export type MercadoPagoWebhookInbound = {
+  action?: string;
+  type?: string;
+  data?: { id?: string | number; paymentId?: string | number };
+};
+
+export type HandleMercadoPagoWebhookResult =
+  | { outcome: "duplicate" }
+  | { outcome: "ignored"; reason: string }
+  | { outcome: "processed"; effect: string };
+
+function normalizeInbound(body: unknown): MercadoPagoWebhookInbound {
+  if (!body || typeof body !== "object") throw new BadRequestException("mercadopago_webhook_invalid_body");
+  const o = body as Record<string, unknown>;
+  const action = typeof o.action === "string" ? o.action.trim() : undefined;
+  const type = typeof o.type === "string" ? o.type.trim() : undefined;
+  let data: MercadoPagoWebhookInbound["data"];
+  if (o.data && typeof o.data === "object" && !Array.isArray(o.data)) {
+    const d = o.data as Record<string, unknown>;
+    const id = d.id;
+    const paymentId = d.payment_id;
+    data = {
+      id: typeof id === "string" ? id : typeof id === "number" ? id : undefined,
+      paymentId: typeof paymentId === "string" ? paymentId : typeof paymentId === "number" ? paymentId : undefined,
+    };
+  }
+  return { action, type, data };
+}
+
+export class UnauthorizedWebhookError extends Error {
+  private readonly logger = new Logger(UnauthorizedWebhookError.name);
+
+  constructor() {
+    super("mercadopago_webhook_signature_invalid");
+    this.name = "UnauthorizedWebhookError";
+  }
+}
+
+/**
+ * Validates MercadoPago webhook signature.
+ * Format: x-signature header contains "ts=TIMESTAMP,v1=HMAC_SHA256"
+ * Template: id:{data.id};request-id:{x-request-id};ts:{ts};
+ * HMAC is computed with webhook secret key.
+ */
+export function assertWebhookSignature(
+  rawBody: string,
+  signature: string | undefined,
+  xRequestId: string | undefined,
+  webhookSecret: string | undefined
+): void {
+  // FAIL-CLOSED: if no webhook secret is configured, reject all incoming webhooks.
+  if (!webhookSecret) throw new UnauthorizedWebhookError();
+
+  if (!signature) throw new UnauthorizedWebhookError();
+
+  // Parse signature header: "ts=TIMESTAMP,v1=HMAC"
+  const parts = signature.split(",");
+  let ts = "";
+  let v1 = "";
+  for (const part of parts) {
+    if (part.startsWith("ts=")) {
+      ts = part.slice(3).trim();
+    } else if (part.startsWith("v1=")) {
+      v1 = part.slice(3).trim();
+    }
+  }
+
+  if (!ts || !v1) throw new UnauthorizedWebhookError();
+
+  // Parse JSON to extract payment ID
+  let paymentId = "";
+  try {
+    const parsed = JSON.parse(rawBody);
+    if (parsed.data?.id) {
+      paymentId = String(parsed.data.id);
+    }
+  } catch {
+    throw new UnauthorizedWebhookError();
+  }
+
+  // Build template: "id:{paymentId};request-id:{xRequestId};ts:{ts};"
+  const template = `id:${paymentId};request-id:${xRequestId || ""};ts:${ts};`;
+
+  // Compute HMAC-SHA256
+  const computed = createHmac("sha256", webhookSecret).update(template).digest("hex");
+
+  // Timing-safe comparison
+  if (v1.length !== computed.length) throw new UnauthorizedWebhookError();
+  const bufferExpected = Buffer.from(computed, "hex");
+  const bufferGot = Buffer.from(v1, "hex");
+  let equal = true;
+  for (let i = 0; i < bufferExpected.length; i++) {
+    if (bufferExpected[i] !== bufferGot[i]) equal = false;
+  }
+  if (!equal) throw new UnauthorizedWebhookError();
+}
+
+@Injectable()
+export class HandleMercadoPagoWebhookUseCase {
+  private readonly logger = new Logger(HandleMercadoPagoWebhookUseCase.name);
+
+  constructor(
+    @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
+    private readonly paymentDispatch: PaymentDispatchService,
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() @Inject(PAYMENT_PROVIDER_PORT) private readonly provider?: PaymentProviderPort,
+    @Optional() private readonly marketplaceChargeback?: HandleMarketplaceChargebackUseCase,
+  ) {}
+
+  async execute(
+    rawBody: string,
+    signature: string | undefined,
+    xRequestId: string | undefined,
+    webhookSecret?: string,
+    intentReference?: string,
+  ): Promise<HandleMercadoPagoWebhookResult> {
+    const expectedSecret = webhookSecret ?? process.env.MERCADOPAGO_WEBHOOK_SECRET;
+    assertWebhookSignature(rawBody, signature, xRequestId, expectedSecret);
+
+    let body: MercadoPagoWebhookInbound;
+    try {
+      body = normalizeInbound(JSON.parse(rawBody));
+    } catch {
+      throw new BadRequestException("mercadopago_webhook_invalid_json");
+    }
+
+    if (!body.data?.id) {
+      throw new BadRequestException("mercadopago_webhook_invalid_shape");
+    }
+
+    // `topic_chargebacks_wh` identifies the dispute in data.id and the
+    // original payment in data.payment_id. Payment notifications use data.id.
+    const paymentId = String(body.data.paymentId ?? body.data.id);
+    const providerEventSubject = body.type === "topic_chargebacks_wh"
+      ? String(body.data.id)
+      : paymentId;
+
+    // Resolve merchant BEFORE idempotency gate to ensure tenant scoping
+    // (ADR 0001 #3: do not gate on external ID alone).
+    const referenceFromRoute = normalizeIntentReference(intentReference);
+    const referenceByProvider =
+      await this.payments.getIntentReferenceByProviderPaymentId?.(paymentId);
+    const ref = referenceByProvider ?? (referenceFromRoute
+      ? await this.payments.getIntentByExternalReference(referenceFromRoute)
+      : null);
+    const merchantId = ref?.merchantId ?? null;
+    const state = await this.resolveAuthoritativeState(body, paymentId, ref);
+
+    // Mercado Pago identifies every payment.updated notification with the
+    // payment id, including transitions such as pending -> approved. Reserve
+    // each authoritative state once, rather than permanently consuming the
+    // payment id after an informational pending delivery.
+    const eventKey: ProviderEventKey = {
+      provider: "mercadopago",
+      merchantId,
+      eventId: `${providerEventSubject}:${state ?? "ignored"}`
+    };
+
+    // Atomic idempotency gate: record the marker BEFORE any side effect.
+    const reserved = await this.payments.recordProcessedProviderEvent(eventKey);
+    if (!reserved) {
+      return { outcome: "duplicate" };
+    }
+
+    try {
+      const effect = await this.dispatch(body, paymentId, ref, state);
+      return { outcome: "processed", effect };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown_error";
+      if (msg.includes("illegal_transition")) {
+        this.metrics?.paymentWebhookAnomaly.inc({ provider: "mercadopago", kind: "illegal_transition" });
+        this.logger.error("mercadopago.webhook.illegal_transition", {
+          paymentId,
+          merchantId,
+          action: body.action
+        });
+        return { outcome: "ignored", reason: "illegal_transition_alerted" };
+      }
+      // Transient failure: release the marker so re-delivery can retry.
+      await this.payments.deleteProcessedProviderEvent(eventKey);
+      throw e;
+    }
+  }
+
+  private async dispatch(
+    body: MercadoPagoWebhookInbound,
+    paymentId: string,
+    ref: { id: string; merchantId: string } | null,
+    state: "approved" | "failed" | "pending" | "unknown" | "chargeback_pending" | "chargeback_won" | "chargeback_lost" | null
+  ): Promise<string> {
+    const isPaymentUpdated = body.action === "payment.updated";
+    const isChargebackUpdated = body.type === "topic_chargebacks_wh";
+    // Both notification types are signed. The chargeback topic carries its
+    // own case id plus the payment id and is required for timely alerting.
+    if (!isPaymentUpdated && !isChargebackUpdated) {
+      return "ignored_event_action";
+    }
+
+    // Intent was already resolved before idempotency gate; use it directly
+    if (!ref) {
+      return "ignored_intent_not_found";
+    }
+
+    const intentEntity = await this.payments.getIntentById(ref.merchantId, ref.id);
+    if (!intentEntity) {
+      return "ignored_intent_not_found";
+    }
+
+    if (state === "approved") {
+      return await this.paymentDispatch.markApprovedAndComplete(intentEntity, paymentId);
+    } else if (state === "failed") {
+      await this.paymentDispatch.markFailed(intentEntity, "payment_failed_by_provider");
+      return "payment_failed";
+    } else if (state === "chargeback_pending" || state === "chargeback_won" || state === "chargeback_lost") {
+      const chargebackStatus = state.replace("chargeback_", "") as "pending" | "won" | "lost";
+      const before = intentEntity.snapshot();
+      await this.paymentDispatch.syncChargebackStatus(
+        intentEntity,
+        chargebackStatus,
+        `mercadopago_${chargebackStatus}`,
+      );
+      const after = intentEntity.snapshot();
+      if (before.status === "approved" && after.status.startsWith("chargeback_")) {
+        await this.propagateMarketplaceChargeback(after.providerPaymentId ?? after.commerceOrderId ?? after.sessionId, after.merchantId);
+      }
+      return `chargeback_${chargebackStatus}`;
+    }
+
+    // For pending/unknown states, do nothing — webhook is informational
+    return "noop_payment_pending_or_unknown";
+  }
+
+  private async propagateMarketplaceChargeback(orderId: string | undefined, merchantId: string): Promise<void> {
+    if (!this.marketplaceChargeback || !orderId) return;
+    try {
+      const results = await this.marketplaceChargeback.executeForOrder(orderId, merchantId);
+      if (results.length > 0) {
+        this.logger.log(`Marketplace chargeback processed for order ${orderId}: ${results.length} settlement(s)`);
+      }
+    } catch (error) {
+      this.logger.error(`Marketplace chargeback failed for order ${orderId}: ${(error as Error).message}`);
+    }
+  }
+
+  private async resolveAuthoritativeState(
+    body: MercadoPagoWebhookInbound,
+    paymentId: string,
+    ref: { id: string; merchantId: string } | null
+  ): Promise<"approved" | "failed" | "pending" | "unknown" | "chargeback_pending" | "chargeback_won" | "chargeback_lost" | null> {
+    if ((body.action !== "payment.updated" && body.type !== "topic_chargebacks_wh") || !ref) return null;
+    const provider = this.provider;
+    if (!provider?.fetchPaymentStatus) {
+      throw new BadRequestException("mercadopago_provider_not_configured");
+    }
+
+    const statusOutput = await provider.fetchPaymentStatus({
+      merchantId: ref.merchantId,
+      provider: "mercadopago",
+      providerPaymentId: paymentId
+    });
+    if (statusOutput.externalReference && statusOutput.externalReference !== ref.id) {
+      throw new BadRequestException("mercadopago_webhook_intent_mismatch");
+    }
+    return statusOutput.state;
+  }
+}
+
+function normalizeIntentReference(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  // Payment intent ids are opaque UUID-backed references. Reject arbitrary
+  // query values before querying persistence, even though the Mercado Pago
+  // signature remains the primary authenticity control.
+  return normalized && /^pay_int_[a-zA-Z0-9_-]{16,}$/.test(normalized)
+    ? normalized
+    : undefined;
+}

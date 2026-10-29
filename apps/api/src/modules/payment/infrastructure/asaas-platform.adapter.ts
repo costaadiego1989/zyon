@@ -1,0 +1,148 @@
+import type {
+  AsaasPlatformPort,
+} from "../domain/ports/payment-platform-provider.port.js";
+import type {
+  AsaasSubaccountInput,
+} from "../domain/payment-platform.types.js";
+
+export class AsaasPlatformAdapter implements AsaasPlatformPort {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly rootApiKey: string,
+    private readonly fetchImpl: typeof fetch,
+    private readonly platformMerchantId?: string,
+  ) {}
+
+  async resolvePlatformAccount(merchantId: string, cpfCnpj: string) {
+    // A matching public tax ID alone never grants access to platform funds.
+    if (!this.platformMerchantId || merchantId !== this.platformMerchantId) return null;
+    const account = await this.request<{ cpfCnpj?: string }>("/v3/myAccount/commercialInfo", this.rootApiKey, { method: "GET" });
+    if (account.cpfCnpj?.replace(/\D/g, "") !== cpfCnpj.replace(/\D/g, "")) {
+      throw new Error("asaas_platform_account_identity_mismatch");
+    }
+    const walletId = await this.retrieveWalletId(this.rootApiKey);
+    if (!walletId) throw new Error("asaas_wallet_not_found");
+    return { apiKey: this.rootApiKey, walletId };
+  }
+
+  async createSubaccount(
+    input: AsaasSubaccountInput,
+  ): Promise<{
+    accountId: string;
+    walletId: string;
+    apiKey: string;
+  }> {
+    const response = await this.request<{
+      id?: string;
+      walletId?: string;
+      apiKey?: string;
+    }>("/v3/accounts", this.rootApiKey, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    if (!response.id || !response.walletId || !response.apiKey) {
+      throw new Error("asaas_subaccount_credentials_missing");
+    }
+    return {
+      accountId: response.id,
+      walletId: response.walletId,
+      apiKey: response.apiKey,
+    };
+  }
+
+  retrieveAccountStatus(apiKey: string, sandbox?: boolean) {
+    return this.request<{
+      general: string;
+      commercialInfo: string;
+      bankAccountInfo: string;
+      documentation: string;
+    }>("/v3/myAccount/status", apiKey, { method: "GET" }, sandbox);
+  }
+
+  async listOnboardingLinks(apiKey: string, sandbox?: boolean): Promise<string[]> {
+    const response = await this.request<{
+      data?: Array<{ onboardingUrl?: string | null }>;
+    }>("/v3/myAccount/documents", apiKey, { method: "GET" }, sandbox);
+    return (response.data ?? [])
+      .map((document) => document.onboardingUrl?.trim())
+      .filter((url): url is string => Boolean(url));
+  }
+
+  async findSubaccountByCpfCnpj(cpfCnpj: string): Promise<{ accountId: string; email?: string } | null> {
+    const digits = cpfCnpj.replace(/\D+/g, "");
+    if (!digits) return null;
+    const response = await this.request<{
+      data?: Array<{ id?: string; cpfCnpj?: string; email?: string; loginEmail?: string }>;
+    }>(`/v3/accounts?cpfCnpj=${encodeURIComponent(digits)}&limit=1`, this.rootApiKey, { method: "GET" });
+    const account = response.data?.find(item => item.cpfCnpj?.replace(/\D/g, "") === digits);
+    return account?.id ? { accountId: account.id, email: account.loginEmail ?? account.email } : null;
+  }
+
+  async createSubaccountApiKey(accountId: string): Promise<{ apiKey: string }> {
+    // apiKey is only returned once at creation; for an existing subaccount we
+    // mint a fresh access token to be able to operate on its behalf.
+    const response = await this.request<{ apiKey?: string; access_token?: string }>(
+      `/v3/accounts/${encodeURIComponent(accountId)}/accessTokens`,
+      this.rootApiKey,
+      { method: "POST", body: JSON.stringify({ name: "zyon-integration" }) },
+    );
+    const apiKey = response.apiKey ?? response.access_token;
+    if (!apiKey) throw new Error("asaas_subaccount_api_key_missing");
+    return { apiKey };
+  }
+
+  async retrieveWalletId(apiKey: string, sandbox?: boolean): Promise<string | null> {
+    // GET /v3/wallets with the subaccount's own apiKey returns its wallet(s).
+    const response = await this.request<{
+      data?: Array<{ id?: string; walletId?: string }>;
+    }>("/v3/wallets/", apiKey, { method: "GET" }, sandbox);
+    const w = response.data?.[0];
+    return w?.walletId ?? w?.id ?? null;
+  }
+
+  async approveSandboxAccount(apiKey: string): Promise<void> {
+    // Sandbox-only: approves commercial data + documentation instantly so BaaS
+    // subaccounts (whose onboardingUrl is null in sandbox) can be tested end to
+    // end. https://docs.asaas.com/recipes/aprovação-de-conta-em-sandbox
+    await this.request<unknown>("/v3/sandbox/myAccount/approve", apiKey, { method: "POST", body: "{}" });
+  }
+
+  private async request<T>(
+    path: string,
+    apiKey: string,
+    init: RequestInit,
+    sandbox?: boolean,
+  ): Promise<T> {
+    // Hard timeout so a slow/hung Asaas call never pins the request (a
+    // subaccount create fans out to 3 sequential calls). AbortSignal.timeout
+    // rejects with a TimeoutError that bubbles up as a gateway error.
+    const response = await this.fetchImpl(
+      `${this.originForKey(apiKey, sandbox)}${path}`,
+      {
+        ...init,
+        signal: (init as { signal?: AbortSignal }).signal ?? AbortSignal.timeout(10000),
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          access_token: apiKey,
+          "user-agent": "Zyon/1.0",
+          ...init.headers,
+        },
+      },
+    );
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => "")).split(apiKey).join("[redacted]");
+      throw new Error(
+        `asaas_platform_request_failed_${response.status}:${detail}`,
+      );
+    }
+    return (await response.json()) as T;
+  }
+
+  private originForKey(apiKey: string, sandbox?: boolean): string {
+    if (sandbox !== undefined) return sandbox ? "https://api-sandbox.asaas.com" : "https://api.asaas.com";
+    if (apiKey.startsWith("$aact_hmlg_")) return "https://api-sandbox.asaas.com";
+    if (apiKey.startsWith("$aact_prod_")) return "https://api.asaas.com";
+    return this.baseUrl.replace(/\/+$/, "");
+  }
+}
