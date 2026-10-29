@@ -115,7 +115,7 @@ export const storefrontToolOutputSchemas = {
     z.object({ configured: z.boolean(), policies, message: text.optional() }),
   ]),
   get_buyer_profile: z.object({ message: text }),
-  get_daily_deals: z.object({ deals: list(pricedProduct) }),
+  get_daily_deals: z.object({ deals: list(pricedProduct.extend({ expiresAt: z.iso.datetime().optional() })) }),
   get_faq: z.object({ faqs: list(z.object({ question: text, answer: text })) }),
   escalate_to_human: z.object({ escalated: z.literal(true), ticketId: id, message: text, reason: text.optional() }),
   get_invoice: z.object({ orderId: id.optional(), invoiceAvailable: z.literal(false), message: text }),

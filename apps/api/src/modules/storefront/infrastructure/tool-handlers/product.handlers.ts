@@ -8,6 +8,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { ProductPromotionEntity } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import { applyProductPromoPricing } from "../../application/services/storefront-cart-promo.pricing.js";
+import { selectBestProductPromotion } from "../../../catalog/domain/services/best-product-promotion.service.js";
 import { loadCartCosts } from "../../application/services/reevaluate-cart-rules.js";
 import { extractOptionGroups } from "../../domain/food-options.js";
 import { isDigitalContentReady } from "../../../catalog/domain/services/product-type-validation.js";
@@ -345,7 +346,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             createdAt: true, updatedAt: true },
         });
       } catch { promos = []; }
-      const deals: Array<{ id: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; images: string[]; inStock: boolean; coupon?: boolean }> = [];
+      const deals: Array<{ id: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; images: string[]; inStock: boolean; coupon?: boolean; expiresAt?: string }> = [];
       if (!promos.length) return { deals };
       const merchantRules = await readExistingMerchantRules(deps.merchantRepo, ctx.merchantId).catch(() => undefined);
       if (!merchantRules) return { deals };
@@ -367,11 +368,16 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             { rules: merchantRules, costsByVariant: costs });
           const badge = meta.get(variant.id);
           if (!badge) continue;
+          const selected = selectBestProductPromotion({ merchantId: ctx.merchantId, variantId: variant.id,
+            productId: p.id, categoryId: p.categoryId, baseUnitPriceCents: base, promotions: promos, now });
+          const promotion = !badge.coupon && selected.promotionId
+            ? promos.find(row => row.id === selected.promotionId) : undefined;
           // Coupon-linked promotions remain badges only, never an inline grant.
           deals.push({
             id: p.id, name: p.name, price: quote.items[0]!.unitPriceCents,
             ...productGallery(p), inStock: p.hasStock,
             ...(badge.coupon ? { coupon: true } : { originalPrice: badge.originalPriceCents, discountPercent: badge.discountPercent }),
+            ...(promotion ? { expiresAt: promotion.endsAt.toISOString() } : {}),
           });
           if (deals.length >= limit) break;
         } catch { /* No authorized price => no deal to advertise. */ }
