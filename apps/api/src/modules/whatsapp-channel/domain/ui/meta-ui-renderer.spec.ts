@@ -16,6 +16,19 @@ test("conversational spacing leaves raw Pix and links untouched", () => {
   assert.equal(formatMetaConversation(link),link);
 });
 
+test("changing a variant gives a concise authoritative selection and keeps full details and constraints accessible", () => {
+  const full="Texto publicado com instruções completas. ".repeat(20);
+  const view=buildMetaUiView(response({agentMessage:"Confira sua seleção e continue:",state:{...response().state,selectedProductId:"p",selectedVariantId:"v50"},blocks:[
+    {type:"product_card",data:{id:"p",name:"Sérum",price:12990,description:full,sellerName:"Loja parceira",variants:[{id:"v30",name:"Tamanho",value:"30 ml",price:12990,stock:4},{id:"v50",name:"Tamanho",value:"50 ml",price:18990,stock:4}],ruleNotices:[{message:"Mínimo de duas unidades."}]}},
+    {type:"product_content",data:{blocks:[{type:"paragraph",props:{text:full}}]}},
+  ] as any}),{selectionOnly:true});
+  assert.match(view.body,/189,90/);assert.match(view.body,/50 ml/);assert.match(view.body,/Loja parceira/);assert.match(view.body,/Mínimo de duas/);
+  assert(!view.body.includes(full));assert(view.body.length<400);
+  const details=view.choices.find(c=>c.label==="Ver detalhes completos");
+  assert(details?.action.kind==="tool"&&details.action.tool==="show_content"&&String(details.action.args.text).includes(full));
+  assert(view.choices.some(c=>c.action.kind==="tool"&&c.action.tool==="add_item_to_cart"&&c.action.args.variantId==="v50"));
+});
+
 test("product details start with the actual hero photo and retain the entire description afterwards", () => {
   const description = "Informação publicada. ".repeat(100);
   const shown = presentMetaUi(buildMetaUiView(response({ blocks: [{ type: "product_card", data: { id: "product", name: "Produto", price: 500,

@@ -124,7 +124,7 @@ export class HandleMetaConversationUseCase {
         state = { ...state, selectedProductId: action.productId, selectedVariantId: action.kind === "variant" ? action.variantId : state.selectedVariantId,
           selectedOptionItemIds, selectedServiceSlotId: action.kind === "slot" ? action.slotId : state.selectedServiceSlotId,
           selectedOptionGroupId: action.kind === "option_group" ? action.groupId : state.selectedOptionGroupId, page: 0, expectsFreeInput: false };
-        view = buildMetaUiView({ agentMessage: "Confira sua seleção e continue:", blocks: view.blocks, quickReplies: view.quickReplies, merchantName: view.title, state });
+        view = buildMetaUiView({ agentMessage: "Confira sua seleção e continue:", blocks: view.blocks, quickReplies: view.quickReplies, merchantName: view.title, state }, { selectionOnly: true });
       } else if (action?.kind === "tool" && ["show_content", "product_gallery", "media_page", "edit_cart_item"].includes(action.tool)) {
         if (action.tool === "show_content") view = { title: state.view?.title || "Sua loja", body: String(action.args.text || ""), choices: [], media: [], blocks: [], quickReplies: [] };
         else if (action.tool === "media_page") view = { title: "Mídias do produto", body: "Continue explorando o produto:", choices: [], media: action.args.media as any[], blocks: [], quickReplies: [] };

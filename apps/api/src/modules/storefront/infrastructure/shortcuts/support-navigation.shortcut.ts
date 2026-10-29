@@ -6,6 +6,7 @@ import { resolveNativeShippingReference } from "../agents/native-shipping-refere
 import { shippingReferenceCepSchema } from "../../domain/contracts/storefront-shipping-reference.schemas.js";
 
 export const SHIPPING_CEP_PROMPT = "Qual é o CEP de entrega? Envie somente o CEP para consultar as opções do seu carrinho. O prazo e o valor serão confirmados na cotação.";
+export const SHIPPING_CEP_INVALID_PROMPT = "*Confira o CEP*\n\nO CEP precisa ter 8 dígitos. Pode enviá-lo com ou sem hífen.\n\n" + SHIPPING_CEP_PROMPT;
 export const SUPPORT_REPORT_PROMPT = "Descreva o problema com a loja ou seu pedido em uma mensagem. Vou registrar a descrição para a equipe da loja. Não envie senhas ou dados bancários.";
 
 const SUPPORT_REPLIES = ["FAQ", "Falar com Humano", "Reportar Problema", "Status do Pedido", "Voltar ao Início"];
@@ -29,12 +30,14 @@ export async function resolveSupportNavigation(
   const action = ACTIONS.get(input.userMessage.trim().toLowerCase() as Parameters<typeof ACTIONS.get>[0]);
   const previous = input.history.slice().reverse().find(turn => turn.role === "assistant");
   const reporting = !action && previous?.content === SUPPORT_REPORT_PROMPT && input.userMessage.trim().length > 0 && input.userMessage.length <= 2000;
-  const pendingCep = previous?.content === SHIPPING_CEP_PROMPT
+  const pendingCep = [SHIPPING_CEP_PROMPT, SHIPPING_CEP_INVALID_PROMPT].includes(previous?.content ?? "")
     ? shippingReferenceCepSchema.safeParse(input.userMessage.trim()) : undefined;
-  if (!action && !pendingCep?.success && !reporting) return null;
+  const invalidCep = pendingCep && !pendingCep.success && /^[\d\s.-]{1,30}$/.test(input.userMessage.trim());
+  if (!action && !pendingCep?.success && !invalidCep && !reporting) return null;
   const output = (message: string, suggestedNext = SUPPORT_REPLIES): StorefrontConversationOutput => ({
     message: message.slice(0, 7900), blocks: [], cartId: input.cartId || input.sessionId, suggestedNext,
   });
+  if (invalidCep && !action) return output(SHIPPING_CEP_INVALID_PROMPT, []);
   if (action === "find") return output("Qual produto você procura? Diga o nome, tipo ou o que você precisa.", []);
   if (action === "select") return output("Qual produto você quer conhecer melhor? Diga o nome ou escolha um dos produtos apresentados.", []);
   if (action === "filter") return output("Qual critério você quer usar para filtrar os produtos? Pode me dizer a faixa de preço ou uma característica importante.", []);

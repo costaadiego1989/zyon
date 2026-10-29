@@ -48,13 +48,14 @@ export const formatMetaConversation = (text: string): string => formatMetaText(t
   }).join("\n\n").trim();
 
 /** Channel presentation only: all commercial values and actions come from the store. */
-export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiView {
+export function buildMetaUiView(response: WhatsAppStructuredResponse, options: { selectionOnly?: boolean } = {}): MetaUiView {
   const view: MetaUiView = { stage: response.state.stage, title: response.merchantName || "Sua loja", body: response.agentMessage, choices: [], media: [], blocks: response.blocks, quickReplies: response.quickReplies };
   const cartJustAdded = response.blocks.some(block => block.type === "cart_add_result" && object(block.data).status === "succeeded");
   const redundantIntro = response.blocks.some(block => ["cart_summary", "wishlist"].includes(block.type))
     && /^(?:Este é o seu carrinho:|Seu carrinho:|Sua lista de desejos:|Confira sua lista de desejos:)$/.test(response.agentMessage.trim());
   const redundantAdd = cartJustAdded && /^Produto adicionado ao carrinho\.?$/.test(response.agentMessage.trim());
   const text: string[] = redundantIntro || redundantAdd ? [] : [formatMetaConversation(response.agentMessage)];
+  const selectionText: string[] = [];
   const add = (label: string, action: StoreUiAction, description?: string) => view.choices.push({ label, action, description });
   const photo = (url: unknown, caption?: string) => { const link = safeLink(url); if (link && !view.media.some(m => m.type === "image" && m.media.link === link)) view.media.push({ type: "image", media: { link, caption: caption ? concise(caption, 1024) : undefined } }); };
   const productChoice = (p: Record<string, any>) => {
@@ -115,7 +116,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         if (d.nextCursor) add("Mais produtos", tool("search_products", { query: d.query || "*", categoryId: d.categoryId, cursor: d.nextCursor }));
         break;
       case "product_card": {
-        if (d.sellerName) text.push(`Vendido por: ${value(d.sellerName)}`);
+        if (d.sellerName) { const seller = `Vendido por: ${value(d.sellerName)}`; text.push(seller); selectionText.push(seller); }
         const retailerId = response.state.catalogRetailerIds?.[value(d.variants?.[0]?.id)] ?? response.state.catalogRetailerIds?.[value(d.sku ?? d.variants?.[0]?.sku)];
         if (response.state.catalogId && retailerId && response.state.catalogPrices?.[retailerId] === Number(d.variants?.[0]?.price ?? d.price) && items(d.variants).length <= 1 && !items(d.optionGroups).length && !d.serviceSchedule) view.media.push({ type: "interactive", interactive: {
           type: "product", body: { text: value(d.name) }, action: { catalog_id: response.state.catalogId, product_retailer_id: retailerId } } });
@@ -125,13 +126,15 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         const variantId = remembered ? selected : (variants.length === 1 ? value(variants[0].id) : undefined);
         const selectedVariant = variants.find(v => v.id === variantId);
         const price = selectedVariant?.priceFormatted || (selectedVariant?.price != null ? money(Number(selectedVariant.price) / 100) : d.priceFormatted || money(Number(d.price) / 100));
-        text.push(`*${value(d.name)}*\n*${price}*${d.inStock === false ? "\n_Indisponível_" : ""}`);
+        const heading = `*${value(d.name)}*\n*${price}*${d.inStock === false ? "\n_Indisponível_" : ""}`;
+        text.push(heading); selectionText.push(heading);
         if (d.description) text.push(`*Descrição*\n${value(d.description)}`);
         if (Number(d.reviewCount) > 0 && d.rating != null) text.push(`*Avaliações*\n${value(d.rating)} / 5 · ${value(d.reviewCount)} avaliação(ões)`);
         if (!(response.state.catalogId && retailerId && response.state.catalogPrices?.[retailerId] === Number(d.variants?.[0]?.price ?? d.price) && items(d.variants).length <= 1 && !items(d.optionGroups).length && !d.serviceSchedule)) photo(selectedVariant?.image || d.image || d.images?.[0], `*${value(d.name)}*\n*${price}*`);
-        if (selectedVariant && selected) text.push(`_Selecionado: ${variantTitle(selectedVariant)}_`);
+        if (selectedVariant && selected) { const selectedLabel = `_Selecionado: ${variantTitle(selectedVariant)}_`; text.push(selectedLabel); selectionText.push(selectedLabel); }
         else if (variants.length === 1 && selectedVariant?.name && selectedVariant.name !== "SKU" && selectedVariant.value) {
-          text.push(`*${value(selectedVariant.name)}:* ${value(selectedVariant.value)}`);
+          const selectedLabel = `*${value(selectedVariant.name)}:* ${value(selectedVariant.value)}`;
+          text.push(selectedLabel); selectionText.push(selectedLabel);
         }
         const groups = items(d.optionGroups); const chosen = response.state.selectedOptionItemIds ?? [];
         const pending = groups.find(g => (g.required || Number(g.minSelections) > 0) && items(g.items).filter(i => chosen.includes(value(i.id))).length < Number(g.minSelections ?? 1));
@@ -140,20 +143,22 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         const slot = items(schedule.slots).find(s => s.slotId === response.state.selectedServiceSlotId && s.selectable !== false);
         if (d.serviceSchedule && !slot) {
           text.push("Escolha um horário disponível:");
+          selectionText.push("Escolha um horário disponível:");
           items(schedule.slots).filter(s => s.selectable !== false).forEach(s => add(serviceSlotLabel(s as any), { kind: "slot", productId: value(d.id), slotId: value(s.slotId) }));
-        } else if (slot) text.push(`Horário escolhido: ${serviceSlotLabel(slot as any)}`);
+        } else if (slot) { const selectedLabel = `Horário escolhido: ${serviceSlotLabel(slot as any)}`; text.push(selectedLabel); selectionText.push(selectedLabel); }
         if (editing) {
           text.push(`Escolha ${value(editing.name)}:`);
+          selectionText.push(`Escolha ${value(editing.name)}:`);
           items(editing.items).forEach(i => add(`${chosen.includes(value(i.id)) ? "✓ " : ""}${value(i.name)}`, { kind: "option", productId: value(d.id), groupId: value(editing.id), itemId: value(i.id) }, i.priceModifierInCents ? money(Number(i.priceModifierInCents) / 100) : undefined));
           if (!pending) add("Confirmar adicionais", { kind: "option_group", productId: value(d.id) });
         } else if (variantId && d.inStock !== false && (!d.serviceSchedule || slot)) add("Adicionar ao carrinho", tool("add_item_to_cart", { variantId, quantity: 1, selectedOptionItemIds: chosen, selectedServiceSlotId: slot?.slotId }));
         groups.forEach(g => { if (g.id !== editing?.id) add(`Personalizar ${value(g.name)}`, { kind: "option_group", productId: value(d.id), groupId: value(g.id) }); });
         const selectedOptions = groups.flatMap(g => items(g.items).filter(i => chosen.includes(value(i.id))).map(i => `${value(g.name)}: ${value(i.name)}${i.priceModifierInCents ? ` (+${money(Number(i.priceModifierInCents) / 100)})` : ""}`));
-        if (selectedOptions.length) text.push(selectedOptions.join("\n"));
+        if (selectedOptions.length) { text.push(selectedOptions.join("\n")); selectionText.push(selectedOptions.join("\n")); }
         if (variants.length > 1 || remembered && !selected) variants.forEach(v => add(`${v.id === selected ? "✓ " : ""}${variantTitle(v)}`, { kind: "variant", productId: value(d.id), variantId: value(v.id) }, v.priceFormatted));
         if (Array.isArray(d.images) && d.images.length > 1) add("Ver fotos", tool("product_gallery", { productId: d.id, images: d.images }));
         add("Salvar nos favoritos", tool("add_to_wishlist", { productId: d.id }));
-        items(d.ruleNotices).forEach(n => text.push(value(n.message)));
+        items(d.ruleNotices).forEach(n => { text.push(value(n.message)); selectionText.push(value(n.message)); });
         break;
       }
       case "category_carousel":
@@ -202,7 +207,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         if (d.estimatedDelivery) text.push(`Previsão: ${value(d.estimatedDelivery)}`); break;
       case "comparison_table": case "product_comparison":
         if (items(d.products).length) text.push("*Comparação de produtos*");
-        items(d.products).forEach(p => { text.push(`*${value(p.name)}*\n*${p.priceFormatted || money(p.price)}*\n${Object.entries(object(p.attributes)).map(([k, v]) => `- ${k}: ${value(v)}`).join("\n")}`); productChoice(p); }); break;
+        items(d.products).forEach(p => { const labels: Record<string, string> = { size: "Tamanho", color: "Cor", volume: "Volume", weight: "Peso", material: "Material", voltage: "Voltagem" };
+          text.push(`*${value(p.name)}*\n*${p.priceFormatted || money(p.price)}*\n${Object.entries(object(p.attributes)).map(([k, v]) => `- ${labels[k.toLowerCase()] || k}: ${value(v)}`).join("\n")}`); productChoice(p); }); break;
       case "reviews":
         text.push(`Avaliações de ${value(d.productName)}: ${value(d.averageRating)} / 5 (${value(d.totalReviews)})`);
         items(d.reviews).forEach(r => text.push(`${value(r.author)} · ${value(r.rating)} / 5\n${value(r.text)}`));
@@ -264,6 +270,11 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
   const seen = new Set<string>();
   view.choices = view.choices.filter(c => { const key = actionKey(c.action); if (!c.label.trim() || seen.has(key)) return false; seen.add(key); return true; });
   view.body = formatMetaText(text.filter(Boolean).join("\n\n"));
+  if (options.selectionOnly && selectionText.length) {
+    const fullDetails = view.body;
+    view.body = [formatMetaConversation(response.agentMessage), ...selectionText].filter(Boolean).join("\n\n");
+    add("Ver detalhes completos", tool("show_content", { text: fullDetails }));
+  }
   return view;
 }
 

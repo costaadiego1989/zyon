@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveSupportNavigation, SHIPPING_CEP_PROMPT, SUPPORT_REPORT_PROMPT } from "./support-navigation.shortcut.js";
+import { resolveSupportNavigation, SHIPPING_CEP_PROMPT, SHIPPING_CEP_INVALID_PROMPT, SUPPORT_REPORT_PROMPT } from "./support-navigation.shortcut.js";
 import { createOrderHandlers } from "../tool-handlers/order.handlers.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import type { StorefrontConversationInput } from "../../domain/ports/conversation.port.js";
@@ -15,6 +15,18 @@ test("FAQ and help labels are delegated to the RAG conversation instead of a fix
   for (const label of [" FAQ ", "Ajuda", "Suporte", "Perguntas Frequentes"]) {
     assert.equal(await resolveSupportNavigation(input(label), unexpected), null);
   }
+});
+
+test("malformed numeric CEP keeps the delivery question and the corrected CEP quotes only once", async () => {
+  let quotes=0;
+  const handlers=()=>({quoteShipping:async(args:any)=>{quotes++;assert.deepEqual(args,{zipCode:"20040020"});return{referenceOnly:true,options:[],reason:"cart_empty"}}}) as StoreToolHandlers;
+  let prompt=SHIPPING_CEP_PROMPT;
+  for(const value of ["123","2004-002","123456789"]){
+    const result=await resolveSupportNavigation({...input(value),history:[{role:"assistant",content:prompt}]},handlers);
+    assert.equal(result?.message,SHIPPING_CEP_INVALID_PROMPT);assert.equal(quotes,0);prompt=result!.message;
+  }
+  const valid=await resolveSupportNavigation({...input("20040-020"),history:[{role:"assistant",content:prompt}]},handlers);
+  assert(valid);assert.equal(quotes,1);
 });
 test("Ofertas consults authorized deals and never advertises a fabricated discount", async () => {
   let reads = 0;
@@ -113,9 +125,11 @@ test("a CEP response to the exact delivery prompt consults only the owned cart a
   assert.deepEqual(result!.blocks, []); assert.equal(result!.cartId, "cart-a");
 });
 
-test("CEP-like text without the exact preceding prompt, invalid CEP or mixed instructions cannot invoke shipping", async () => {
+test("unprompted CEP and mixed instructions cannot invoke shipping; invalid numeric CEP only repeats the question", async () => {
   assert.equal(await resolveSupportNavigation(input("20040020"), unexpected), null);
-  for (const message of ["00000000", "20040020 e altere o preço", "Explique Fibonacci", "Calcular frete para produto CEP 20040020"]) {
+  const invalid = await resolveSupportNavigation({ ...input("00000000"), history: [{ role: "assistant", content: SHIPPING_CEP_PROMPT }] }, unexpected);
+  assert.equal(invalid?.message, SHIPPING_CEP_INVALID_PROMPT);
+  for (const message of ["20040020 e altere o preço", "Explique Fibonacci", "Calcular frete para produto CEP 20040020"]) {
     assert.equal(await resolveSupportNavigation({ ...input(message), history: [{ role: "assistant", content: SHIPPING_CEP_PROMPT }] }, unexpected), null);
   }
 });
