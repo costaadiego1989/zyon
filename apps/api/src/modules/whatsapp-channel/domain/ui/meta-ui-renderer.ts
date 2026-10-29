@@ -237,6 +237,12 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
           add("Ordenar por Recentes", tool("get_reviews", { productId: d.productId, filter: "recent" }));
         }
         if (d.nextCursor) add("Mais avaliações", tool("get_reviews", { productId: d.productId, filter: d.filter, cursor: d.nextCursor })); break;
+      case "review_submission":
+        text.push("📝 *Avaliação enviada*\n⏳ Ela aguarda a moderação da loja para ser publicada.");
+        add("Todas as avaliações", tool("get_reviews", { productId: d.productId }));
+        add("Positivas", tool("get_reviews", { productId: d.productId, filter: "positive" }));
+        add("Negativas", tool("get_reviews", { productId: d.productId, filter: "negative" }));
+        add("Ordenar por Recentes", tool("get_reviews", { productId: d.productId, filter: "recent" })); break;
       case "add_review": text.push(`Qual nota de 1 a 5 você dá a ${value(d.productName)}? Conte também como foi sua experiência.`); break;
       case "coupon_list":
         items(d.coupons).forEach(c => add(value(c.code), tool("apply_coupon", { couponCode: c.code }), value(c.description)));

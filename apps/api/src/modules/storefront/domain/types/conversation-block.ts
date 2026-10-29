@@ -221,6 +221,12 @@ export interface AddReviewBlock {
   data: { productId: string; productName: string };
 }
 
+/** Receipt of a successful submission; pending content is never a public review. */
+export interface ReviewSubmissionBlock {
+  type: "review_submission";
+  data: { reviewId: string; productId: string; status: "pending_moderation" };
+}
+
 export interface CrossSellBlock {
   type: "cross_sell";
   data: {
@@ -276,6 +282,7 @@ export type ConversationBlock =
   | WishlistBlock
   | ReviewsBlock
   | AddReviewBlock
+  | ReviewSubmissionBlock
   | CrossSellBlock
   | CouponListBlock
   | CategoryCarouselBlock;

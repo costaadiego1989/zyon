@@ -25,7 +25,7 @@ function fixture(authenticated: boolean) {
     return { products: [product], total: 1 };
   } }, prisma: { checkoutSetting: { findUnique: async () => null } } } as never, context);
   const reviews = createReviewHandlers({ prisma: {} as never, submitTestimonial: { execute: async (input: any) => {
-    writes.push(input); return { id: "persisted-pending-testimonial" };
+    writes.push(input); return { id: "persisted-pending-testimonial", productId: input.productId };
   } } as never }, context);
   return { handlers: { ...products, ...reviews }, reads, writes, buyer };
 }

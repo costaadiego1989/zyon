@@ -63,6 +63,7 @@ export const conversationBlockSchema = z.discriminatedUnion("type", [
   block("reviews", { productId: text, productName: text, averageRating: rating, totalReviews: count, filter: z.enum(["positive", "negative", "recent"]).optional(),
     reviews: list(z.strictObject({ id, author: text, rating, text, date: text })), nextCursor: text.optional() }),
   block("add_review", { productId: id, productName: text }),
+  block("review_submission", { reviewId: id, productId: id, status: z.literal("pending_moderation") }),
   block("cross_sell", { trigger: text, displayMode: z.enum(["inline", "modal", "banner", "interstitial"]).optional(), products: list(z.strictObject({ id, productId: id.optional(), name: text, price: money,
     priceFormatted: text, image: text.optional(), images: list(text).optional(), inStock: z.boolean(),
     discountPercent: percent.optional(), promoId: id.optional(), couponCode: text.optional() })) }),

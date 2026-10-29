@@ -5,12 +5,21 @@ import { validateStorefrontToolOutput } from "../../domain/contracts/storefront-
 
 test("reviews use the moderated persistence service and the authenticated author, not a fabricated receipt", async () => {
   let written: any;
-  const handlers = createReviewHandlers({ prisma: {} as any, submitTestimonial: { execute: async (input: any) => { written = input; return { id: "persisted-review" }; } } as any },
+  const handlers = createReviewHandlers({ prisma: {} as any, submitTestimonial: { execute: async (input: any) => { written = input; return { id: "persisted-review", productId: input.productId }; } } as any },
     { merchantId: "merchant", sessionId: "cart", buyer: { globalUserId: "verified-buyer", name: "Comprador" } });
   const result: any = await handlers.createReview({ productId: "product", rating: 5, text: "Muito bom", authorName: "Comprador", authorPhone: "forged" });
   assert.equal(result.id, "persisted-review"); assert.equal(result.status, "pending_moderation");
   assert.equal(written.buyerId, "verified-buyer"); assert.equal(written.merchantId, "merchant"); assert.equal(written.authorPhone, undefined);
   assert.equal(validateStorefrontToolOutput("create_review", result).ok, true);
+});
+
+test("the submission reference comes from the persisted review", async () => {
+  const handlers = createReviewHandlers({ prisma: {} as any,
+    submitTestimonial: { execute: async () => ({ id: "persisted-review", productId: "persisted-product" }) } as any },
+    { merchantId: "merchant", sessionId: "cart", buyer: { globalUserId: "buyer", name: "Comprador" } });
+  const result: any = await handlers.createReview({ productId: "requested-product", rating: 3, text: "Avaliação" });
+  assert.equal(result.productId, "persisted-product");
+  assert.equal(result.status, "pending_moderation");
 });
 test("product questions expose only published merchant FAQs and persist a real support handoff", async () => {
   let scoped: any, handoff: any;

@@ -382,6 +382,12 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
       } as any);
     }
   }
+  const submittedReview = storefrontToolOutputSchemas.create_review.safeParse(toolResults.create_review);
+  if (submittedReview.success) {
+    blocks.push({ type: "review_submission", data: { reviewId: submittedReview.data.id,
+      productId: submittedReview.data.productId, status: submittedReview.data.status } });
+  }
+
   if (toolResults["get_reviews"]) {
     const reviewsData = toolResults["get_reviews"] as any;
     if (reviewsData?.reviews?.length > 0) {

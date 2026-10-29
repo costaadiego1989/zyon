@@ -40,7 +40,7 @@ export function createReviewHandlers(deps: ReviewHandlerDeps, ctx: ToolRequestCo
         authorName, body: args.text, rating: args.rating, buyerId: ctx.buyer.globalUserId });
       return {
         id: review.id,
-        productId: args.productId,
+        productId: review.productId,
         author: authorName,
         rating: args.rating,
         text: args.text,
