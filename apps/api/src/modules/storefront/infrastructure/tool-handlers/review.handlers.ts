@@ -3,6 +3,7 @@ import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import type { PrismaClient } from "@prisma/client";
 import type { SubmitCustomerTestimonialUseCase } from "../../../catalog/application/use-cases/submit-customer-testimonial.use-case.js";
 import type { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
+import { readPublicProductReviews } from "../../../catalog/infrastructure/repositories/public-product-reviews.reader.js";
 
 export interface ReviewHandlerDeps {
   prisma: PrismaClient;
@@ -16,33 +17,13 @@ export function createReviewHandlers(deps: ReviewHandlerDeps, ctx: ToolRequestCo
       const productId = args.productId;
       const limit = Math.max(1, Math.min(20, Number(args.limit) || 10));
       try {
-        const where: any = { merchantId: ctx.merchantId, moderationStatus: "approved" };
-        if (productId) where.productId = productId;
-        if (args.filter === "positive") where.rating = { gte: 4 };
-        if (args.filter === "negative") where.rating = { lte: 2 };
         const product = productId ? await deps.prisma.product.findFirst({ where: { id: productId, merchantId: ctx.merchantId, isActive: true }, select: { name: true } }) : undefined;
         if (productId && !product) return { error: "product_not_found", reviews: [] };
-        if (args.cursor && !await deps.prisma.productReview.findFirst({ where: { ...where, id: args.cursor }, select: { id: true } })) return { error: "review_cursor_invalid", reviews: [] };
-        const [rows, stats] = await Promise.all([
-          deps.prisma.productReview.findMany({
-            where,
-            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-            ...(args.cursor ? { cursor: { id: args.cursor }, skip: 1 } : {}),
-            take: limit + 1,
-          }),
-          deps.prisma.productReview.aggregate({ where, _count: true, _avg: { rating: true } }),
-        ]);
-        const reviews = rows.slice(0, limit).map((r: any) => ({
-          id: r.id,
-          author: r.buyerName || "Cliente",
-          rating: r.rating,
-          text: r.text ?? r.body ?? "",
-          date: r.createdAt?.toISOString?.()?.slice(0, 10) ?? "",
-        }));
-        return { reviews, productId, productName: product?.name ?? "", nextCursor: rows.length > limit ? rows[limit - 1].id : undefined,
-          totalCount: stats._count, averageRating: Math.round((stats._avg.rating ?? 0) * 10) / 10 };
+        const result = await readPublicProductReviews(deps.prisma, { merchantId: ctx.merchantId, productId,
+          filter: args.filter, cursor: args.cursor, limit });
+        return { ...result, productId, productName: product?.name ?? "" };
       } catch {
-        return { reviews: [], totalCount: 0, averageRating: 0 };
+        return { error: "reviews_unavailable" };
       }
     },
 

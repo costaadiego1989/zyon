@@ -24,3 +24,34 @@ test("product questions expose only published merchant FAQs and persist a real s
   assert.equal(validateStorefrontToolOutput("get_product_questions", questions).ok, true);
   assert.equal(validateStorefrontToolOutput("create_question", result).ok, true);
 });
+
+test("review reads preserve canonical aggregate, filtered page and source-aware cursor", async () => {
+  let query: any;
+  const review = { id: "testimonial:public-id", author: "Autor publicado", rating: 4, text: "Comentário publicado", date: "2026-10-29" };
+  const handlers = createReviewHandlers({ prisma: {
+    product: { findFirst: async () => ({ name: "Produto da loja" }) },
+    $queryRaw: async (input: any) => { query = input; return [{ totalCount: 3, averageRating: 4.3, cursorValid: true,
+      reviews: [review, { ...review, id: "review:legacy-id", rating: 5 }] }]; },
+  } as any }, { merchantId: "own-merchant", sessionId: "conversation" });
+  const result: any = await handlers.getReviews({ productId: "own-product", filter: "positive", limit: 1 });
+  assert.equal(result.productName, "Produto da loja"); assert.equal(result.totalCount, 3);
+  assert.equal(result.averageRating, 4.3); assert.deepEqual(result.reviews, [review]);
+  assert.equal(result.nextCursor, review.id);
+  assert(query.values.includes("own-merchant") && query.values.includes("own-product"));
+  assert.equal(validateStorefrontToolOutput("get_reviews", result).ok, true);
+});
+
+test("a product outside the current merchant cannot disclose reviews or run the reader", async () => {
+  const handlers = createReviewHandlers({ prisma: { product: { findFirst: async () => null },
+    $queryRaw: async () => assert.fail("foreign product must not query reviews") } as any },
+    { merchantId: "own-merchant", sessionId: "conversation" });
+  assert.equal((await handlers.getReviews({ productId: "foreign-product" }) as any).error, "product_not_found");
+});
+
+test("review storage failures are reported as unavailable instead of a false empty catalogue", async () => {
+  const handlers = createReviewHandlers({ prisma: { product: { findFirst: async () => ({ name: "Produto" }) },
+    $queryRaw: async () => { throw new Error("PRIVATE_DATABASE_DETAILS"); } } as any },
+    { merchantId: "own-merchant", sessionId: "conversation" });
+  const result = await handlers.getReviews({ productId: "own-product" });
+  assert.deepEqual(result, { error: "reviews_unavailable" });
+});

@@ -24,6 +24,9 @@ export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversa
   const args = { productId: state.selectedProductId };
   if (["mais informacoes", "adicionar ao carrinho"].includes(key)) return tool("get_product_details", args);
   if (key === "ver avaliacoes") return tool("get_reviews", args);
+  if (key === "positivas") return tool("get_reviews", { ...args, filter: "positive" });
+  if (key === "negativas") return tool("get_reviews", { ...args, filter: "negative" });
+  if (key === "ordenar por recentes") return tool("get_reviews", { ...args, filter: "recent" });
   if (key === "produtos semelhantes") return tool("get_similar_products", args);
   if (key === "comparar") return tool("compare_products", args);
 }

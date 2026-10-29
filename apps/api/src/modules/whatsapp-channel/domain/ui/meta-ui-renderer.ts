@@ -228,9 +228,15 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         items(d.products).forEach(p => { const labels: Record<string, string> = { size: "Tamanho", color: "Cor", volume: "Volume", weight: "Peso", material: "Material", voltage: "Voltagem" };
           text.push(`*${value(p.name)}*\n*${p.priceFormatted || money(p.price)}*\n${Object.entries(object(p.attributes)).map(([k, v]) => `- ${labels[k.toLowerCase()] || k}: ${value(v)}`).join("\n")}`); productChoice(p); }); break;
       case "reviews":
-        text.push(`Avaliações de ${value(d.productName)}: ${value(d.averageRating)} / 5 (${value(d.totalReviews)})`);
-        items(d.reviews).forEach(r => text.push(`${value(r.author)} · ${value(r.rating)} / 5\n${value(r.text)}`));
-        if (d.nextCursor) add("Mais avaliações", tool("get_reviews", { productId: d.productId, cursor: d.nextCursor })); break;
+        text.push(`⭐ *Avaliações*\n📦 *${value(d.productName)}*\n\n📊 *${d.filter === "positive" ? "Positivas" : d.filter === "negative" ? "Negativas" : "Publicadas"}:* ${value(d.totalReviews)} · Média: *${Number(d.averageRating).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5*\n_Da mais recente para a mais antiga._`);
+        items(d.reviews).forEach(r => text.push(`👤 *${value(r.author)}*\n⭐ *${value(r.rating)} / 5*${/^\d{4}-\d{2}-\d{2}$/.test(value(r.date)) ? ` · 📅 ${value(r.date).split("-").reverse().join("/")}` : ""}\n\n${value(r.text)}`));
+        if (d.productId) {
+          add("Todas as avaliações", tool("get_reviews", { productId: d.productId }));
+          add("Positivas", tool("get_reviews", { productId: d.productId, filter: "positive" }));
+          add("Negativas", tool("get_reviews", { productId: d.productId, filter: "negative" }));
+          add("Ordenar por Recentes", tool("get_reviews", { productId: d.productId, filter: "recent" }));
+        }
+        if (d.nextCursor) add("Mais avaliações", tool("get_reviews", { productId: d.productId, filter: d.filter, cursor: d.nextCursor })); break;
       case "add_review": text.push(`Qual nota de 1 a 5 você dá a ${value(d.productName)}? Conte também como foi sua experiência.`); break;
       case "coupon_list":
         items(d.coupons).forEach(c => add(value(c.code), tool("apply_coupon", { couponCode: c.code }), value(c.description)));

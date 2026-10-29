@@ -201,6 +201,7 @@ export interface ReviewsBlock {
     productId: string;
     productName: string;
     averageRating: number;
+    filter?: "positive" | "negative" | "recent";
     totalReviews: number;
     reviews: Array<{
       id: string;
