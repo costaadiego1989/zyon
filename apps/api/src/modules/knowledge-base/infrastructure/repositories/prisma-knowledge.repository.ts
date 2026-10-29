@@ -177,8 +177,12 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
           `SELECT
             id, merchant_id, source_type, source_id, content, metadata,
             1 - (embedding_vec <=> $1::vector(${dim})) as similarity
-          FROM knowledge_chunks
-          WHERE merchant_id = $2
+          FROM knowledge_chunks k
+          WHERE k.merchant_id = $2
+          AND (k.source_type <> 'product' OR EXISTS (
+            SELECT 1 FROM products p WHERE p.id = k.source_id
+            AND p.merchant_id = k.merchant_id AND p.is_active AND p.deleted_at IS NULL
+          ))
           AND embedding_vec IS NOT NULL
           ORDER BY embedding_vec <=> $1::vector(${dim})
           LIMIT $3`,
@@ -197,8 +201,12 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
         this.logger.debug("pgvector unavailable, using base64 cosine fallback");
         const allChunks = await this.prisma.$queryRaw<KnowledgeChunkRow[]>`
           SELECT id, merchant_id, source_type, source_id, content, metadata, embedding
-          FROM knowledge_chunks
-          WHERE merchant_id = ${merchantId}
+          FROM knowledge_chunks k
+          WHERE k.merchant_id = ${merchantId}
+          AND (k.source_type <> 'product' OR EXISTS (
+            SELECT 1 FROM products p WHERE p.id = k.source_id
+            AND p.merchant_id = k.merchant_id AND p.is_active AND p.deleted_at IS NULL
+          ))
           AND embedding IS NOT NULL
         `;
 
