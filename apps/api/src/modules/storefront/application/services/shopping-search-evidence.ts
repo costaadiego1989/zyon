@@ -1,4 +1,5 @@
 import type { ShoppingSearchPlan } from "../../domain/contracts/shopping-search-plan.schemas.js";
+import { validateStorefrontMessage } from "../../domain/tools/safety-validator.js";
 
 const money = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 
@@ -6,11 +7,13 @@ export function shoppingSearchEvidence(plan: ShoppingSearchPlan, count: number) 
   const preferences = plan.attributes.filter(item => item.priority === "preferred")
     .map(item => `${item.name}: ${item.operator === "not_equals" ? "diferente de " : ""}${item.value}`);
   const common = { version: 1 as const, appliedPlan: plan, unconfirmedPreferences: preferences };
+  const safeCopy = (message: string, fallback: string) => validateStorefrontMessage(message).safe ? message : fallback;
   if (plan.unsupportedCriteria.length) return { ...common, status: "unsupported" as const,
-    message: `🔎 Ainda não consigo verificar estes critérios no catálogo: ${plan.unsupportedCriteria.join(", ")}. Não vou apresentar opções como se atendessem a essas exigências. Podemos ajustar a busca?` };
+    message: safeCopy(`🔎 Ainda não consigo verificar estes critérios no catálogo: ${plan.unsupportedCriteria.join(", ")}. Não vou apresentar opções como se atendessem a essas exigências. Podemos ajustar a busca?`,
+      "🔎 Não consigo comprovar todos os critérios solicitados nesta busca. Não apresentei produtos como se atendessem a essas exigências. Podemos ajustar os critérios?") };
   if (plan.delivery) return { ...common, status: plan.delivery.zipCode ? "unsupported" as const : "needs_information" as const,
     message: plan.delivery.zipCode
-      ? "🚚 Ainda não consigo verificar frete por produto nesta busca. A cotação real está disponível para os itens escolhidos no carrinho; não confirmei frete grátis, limite de custo nem prazo para os produtos do catálogo."
+      ? "🚚 Ainda não consigo verificar frete por produto nesta busca. A cotação real está disponível para os itens escolhidos no carrinho; nenhuma condição de custo ou prazo foi confirmada para os produtos do catálogo."
       : "📍 Para conferir uma exigência de frete, preciso do CEP de destino. A busca de frete por produto ainda não está disponível; não vou afirmar que algum item atende sem uma cotação real." };
   const filters = [
     plan.minPriceCents !== undefined && plan.maxPriceCents !== undefined
@@ -28,5 +31,8 @@ export function shoppingSearchEvidence(plan: ShoppingSearchPlan, count: number) 
   if (plan.sortBy) message += `\n📋 Ordem: ${sort[plan.sortBy]}.`;
   if (preferences.length) message += `\nℹ️ Preferências ainda não confirmadas: ${preferences.join("; ")}.`;
   if (!count) message += " Podemos ajustar os critérios?";
-  return { ...common, status: "verified" as const, message };
+  const fallback = count
+    ? `🔎 Encontrei ${count} opções disponíveis que atendem aos requisitos verificados nesta página.${preferences.length ? " Suas preferências ainda não foram confirmadas." : ""}`
+    : "🔎 Não encontrei produtos disponíveis com os requisitos solicitados. Podemos ajustar os critérios?";
+  return { ...common, status: "verified" as const, message: safeCopy(message, fallback) };
 }

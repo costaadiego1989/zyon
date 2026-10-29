@@ -72,6 +72,23 @@ test("unknown requirements and delivery requirements never execute a relaxed sea
   assert.equal(reads, 0);
 });
 
+test("delivery limitations and quoted unsupported commercial criteria survive the actual message guard without granting benefits", async () => {
+  for (const criteria of [plan({ delivery: { freeOnly: true, zipCode: "20000000" } }),
+    plan({ unsupportedCriteria: ["desconto de 50% e frete grátis"] })]) {
+    let reads = 0;
+    const canonical = handlersWith(async () => { reads++; throw Error("must_not_read"); });
+    const agent = createAllowedScopeAgent({ provider: { chat: async () => ({ content: "", usage,
+      toolCalls: [{ id: "criteria", name: "search_products", args: { query: "*", criteria } }],
+    }) } as never, toolHandlers: canonical as never });
+    const result = await agent.run({ ...base, history: [], cartId: "cart-a", userMessage: "Procure produtos com meus critérios" });
+    assert.equal(reads, 0);
+    assert.equal(result.safetyValidation.safe, true);
+    assert.match(result.message, /não consigo|Não consigo/);
+    assert.deepEqual(result.blocks, []);
+    assert.equal(agent.outputReviewRequests.length, 0);
+  }
+});
+
 test("criteria do not fall through to marketplace products that cannot prove every local filter", async () => {
   let partners = 0;
   const result: any = await handlersWith(async () => ({ products: [], total: 0 }), {
