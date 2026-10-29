@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { OpenRouterChatRequest, OpenRouterProvider } from "@zyon/conversation-engine";
-import { createAllowedScopeAgent } from "./storefront-scope.fixture.js";
+import { createAllowedScopeAgent as createScopeAgent } from "./storefront-scope.fixture.js";
 import { storefrontQuickReplies } from "../../domain/services/storefront-quick-replies.service.js";
 import { ensureProductDiscovery } from "./product-discovery-fallback.js";
 import { contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
 import { normalizeSalesText } from "../../domain/services/sales-recommendation-intent.js";
 
+const createAllowedScopeAgent = (deps: Parameters<typeof createScopeAgent>[0]) => createScopeAgent(deps, { domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", requiresTool: true, needsProductDiscovery: true });
 const usage = { promptTokens: 20, completionTokens: 10, totalTokens: 30 };
 
 test("known skin profile skips the objective interview and discloses related results without a second model call", async () => {

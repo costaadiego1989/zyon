@@ -26,6 +26,8 @@ export const storefrontIntentPromptV1 = {
     intent: "um dos nove valores definidos nas regras", confidence: "número entre 0 e 1",
     requiresTool: "boolean", needsProductDiscovery: "boolean" },
   examples: [
+    { input: "Quero enviar uma avaliação do produto X: nota 3 de 5, comentário 'Atendeu ao esperado'.", output: { schemaVersion: 2, domain: "STORE_SUPPORT", intent: "COMPLEX_QUESTION", confidence: 0.98, requiresTool: true, needsProductDiscovery: false } },
+    { input: "Mostre produtos com avaliação mínima de 4 estrelas", output: { schemaVersion: 2, domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", confidence: 0.98, requiresTool: true, needsProductDiscovery: true } },
     { input: "Oi, compare estas duas opções", output: { schemaVersion: 2, domain: "STORE_COMMERCE", intent: "COMPARE_PRODUCTS", confidence: 0.95, requiresTool: true, needsProductDiscovery: false } },
     { input: "Algo para pele sensível, por favor", output: { schemaVersion: 2, domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", confidence: 0.9, requiresTool: true, needsProductDiscovery: true } },
     { input: "Não adicione ainda; só me diga a diferença", output: { schemaVersion: 2, domain: "STORE_COMMERCE", intent: "COMPARE_PRODUCTS", confidence: 0.9, requiresTool: true, needsProductDiscovery: false } },

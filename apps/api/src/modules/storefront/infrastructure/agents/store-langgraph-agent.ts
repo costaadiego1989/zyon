@@ -269,8 +269,9 @@ export class StorefrontLangGraphAgent {
     const blocks: ConversationBlock[] = [];
     let discoveryQuestion: SalesDiscoveryQuestion | undefined;
     const history = salesDiscoveryHistory(input.history, input.userMessage);
+    const productDiscovery = semantic.classification.needsProductDiscovery === true;
     const discoveryRounds = countSalesDiscoveryRounds(history.slice(-10));
-    const canDiscover = allowsSalesDiscovery(input.userMessage, input.attachmentContext)
+    const canDiscover = productDiscovery && allowsSalesDiscovery(input.userMessage, input.attachmentContext)
       && discoveryRounds < MAX_SALES_DISCOVERY_ROUNDS;
     const lastReply = history.filter(message => message.role === "assistant").at(-1)?.content ?? "";
     const needsPriceDiscovery = canDiscover && isBarePriceObjection(input.userMessage)
@@ -283,10 +284,20 @@ export class StorefrontLangGraphAgent {
       : canAsk ? [...tools, ASK_PRODUCT_PREFERENCES] : tools;
 
     const cartPolicy = createCartTurnPolicy(input.userMessage, input.attachmentContext, input.cartId || input.sessionId);
-    const searchPolicy = createSalesSearchPolicy(input.userMessage, history.slice(-10), input.attachmentContext);
+    const searchPolicy = createSalesSearchPolicy(input.userMessage, history.slice(-10), input.attachmentContext, productDiscovery);
+    const requestHandlers = input.toolHandlers ?? this.defaultToolHandlers;
+    const turnHandlers = productDiscovery ? requestHandlers : new Proxy(requestHandlers, {
+      get(target, property, receiver) {
+        const value = Reflect.get(target, property, receiver);
+        // Tool schemas have already rejected caller-controlled internal fields.
+        // This server-owned flag changes only read lookup semantics, never auth.
+        return property === "searchProducts" ? (args: Parameters<StoreToolHandlers["searchProducts"]>[0]) =>
+          value({ ...args, lookupOnly: true }) : value;
+      },
+    });
     const commerceTools = searchPolicy.wrap(cartPolicy.wrap(buildExecutableStoreTools({
       merchantId: input.merchantId, sessionId: input.sessionId,
-      handlers: input.toolHandlers ?? this.defaultToolHandlers,
+      handlers: turnHandlers,
     })));
     const executableTools: ExecutableTool[] = needsDiscovery ? [] : commerceTools;
     if (canAsk) executableTools.push({ name: ASK_PRODUCT_PREFERENCES.name, execute: async args => {
@@ -322,7 +333,7 @@ export class StorefrontLangGraphAgent {
         : profileReady
           ? "CONTEXTO SUFICIENTE: área e perfil já informados. Pesquise agora, sem exigir uma pergunta de objetivo. Se não houver correspondência exata, use as alternativas relacionadas identificadas pela ferramenta, sem prometer adequação não confirmada."
           : "Só pergunte se a informação ausente realmente muda a escolha. Se já sabe o suficiente, pesquise agora."} Para perguntar, chame ask_product_preferences com UMA pergunta e respostas rápidas que respondam exatamente a ela, ou [] para pergunta aberta. Use o histórico, não repita dados conhecidos. Não peça objetivo e orçamento juntos. Não ofereça carrinho, semelhantes ou finalizar compra durante a descoberta.`
-      : !input.attachmentContext && discoveryRounds >= MAX_SALES_DISCOVERY_ROUNDS && allowsSalesDiscovery(input.userMessage)
+      : productDiscovery && !input.attachmentContext && discoveryRounds >= MAX_SALES_DISCOVERY_ROUNDS && allowsSalesDiscovery(input.userMessage)
         ? "\n\nLIMITE DA DESCOBERTA ATINGIDO: já houve 3 rodadas de perguntas. Não faça uma quarta pergunta de perfil. Consulte agora o catálogo usando todas as respostas do histórico e preserve as restrições. Apresente até 3 resultados relevantes; se não encontrar, explique a limitação sem inventar adequação."
         : "";
     const systemContent = JSON.stringify({ ...JSON.parse(baseSystemContent), attachmentPolicy, discoveryPolicy });
@@ -346,7 +357,7 @@ export class StorefrontLangGraphAgent {
     let finalContent = "";
     let canonicalSearchComplete = false;
     const captureCanonicalSearch = (name: string): boolean => {
-      if (name !== "search_products") return false;
+      if (!productDiscovery || name !== "search_products") return false;
       const parsed = storefrontToolOutputSchemas.search_products.safeParse(toolResults.search_products);
       if (!parsed.success || !parsed.data.searchEvidence) return false;
       // The validated plan has one authoritative result. Do not ask the model
@@ -564,6 +575,7 @@ export class StorefrontLangGraphAgent {
     else if (searchPolicy.recommendationMessage) finalContent = searchPolicy.recommendationMessage;
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;
     const built = buildConversationBlocks({ toolResults: cartPolicy.sanitizeResults(toolResults), userMessage: input.userMessage, finalContent, merchantId: input.merchantId,
+      searchPurpose: productDiscovery ? "discovery" : "lookup",
       presentationMode: this.structuredRouting ? "structured" : "legacy" });
     blocks.push(...built.blocks);
     finalContent = built.finalContent;
@@ -684,8 +696,7 @@ export class StorefrontLangGraphAgent {
       ...(discoveryQuestion && validation.safe && validation.message === discoveryQuestion.question ? { discoveryQuestion } : {}),
       routing: {
         source: semantic.source, domain: semantic.classification.domain,
-        ...(this.structuredRouting ? { needsProductDiscovery: !discoveryQuestion && (semantic.classification.needsProductDiscovery
-          || profileReady || (discoveryRounds >= MAX_SALES_DISCOVERY_ROUNDS && allowsSalesDiscovery(input.userMessage))) } : {}),
+        needsProductDiscovery: productDiscovery && !discoveryQuestion,
         intent: intentResult.intent,
         confidence: intentResult.confidence,
         modelTier,

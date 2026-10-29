@@ -6,6 +6,7 @@ import { storefrontShippingReferenceResultSchema } from "../../domain/contracts/
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 
 export interface BuildBlocksInput {
+  searchPurpose?: "discovery" | "lookup";
   presentationMode?: "legacy" | "structured";
   toolResults: Record<string, unknown>;
   userMessage: string;
@@ -66,11 +67,11 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     return { blocks: [], finalContent: "Este produto está indisponível no momento. Escolha outro produto." };
   }
 
-  const skipProductCarousel = !!toolResults["add_item_to_cart"] || !!toolResults["get_product_details"];
+  const skipProductCarousel = input.searchPurpose === "lookup" || !!toolResults["add_item_to_cart"] || !!toolResults["get_product_details"];
   const isDetailIntent = input.presentationMode === "structured" ? false
     : /detalh|saber mais|informa[cç]|especifica|mais sobre|me fale|conte.*sobre/i.test(userMessage);
   const searchData = toolResults["search_products"] as any;
-  const singleSearchAsDetail = !toolResults["get_product_details"] && isDetailIntent && searchData?.products?.length === 1;
+  const singleSearchAsDetail = input.searchPurpose !== "lookup" && !toolResults["get_product_details"] && isDetailIntent && searchData?.products?.length === 1;
 
   if (singleSearchAsDetail) {
     const p = searchData.products[0];
@@ -519,7 +520,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     if (blocks.some(block => block.type === "product_comparison")) finalContent = "Confira a comparação dos produtos selecionados.";
     else if (blocks.some(block => block.type === "product_card")) finalContent = "Veja os detalhes publicados deste produto.";
     else if (blocks.some(block => block.type === "product_carousel" && block.data.products.length)) finalContent = "Encontrei estas opções no catálogo da loja.";
-    else if (canonicalSearch.success && !canonicalSearch.data.products.length)
+    else if (input.searchPurpose !== "lookup" && canonicalSearch.success && !canonicalSearch.data.products.length)
       finalContent = "🔎 Não encontrei produtos para essa consulta. Podemos ajustar o nome ou os critérios?";
     else {
       const reviews = storefrontToolOutputSchemas.get_reviews.safeParse(toolResults.get_reviews);

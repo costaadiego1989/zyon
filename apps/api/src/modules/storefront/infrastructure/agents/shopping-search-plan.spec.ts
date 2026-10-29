@@ -6,13 +6,14 @@ import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-t
 import { shoppingSearchEvidence } from "../../application/services/shopping-search-evidence.js";
 import { createProductHandlers } from "../tool-handlers/product.handlers.js";
 import { buildConversationBlocks } from "./conversation-block.builder.js";
-import { createAllowedScopeAgent } from "./storefront-scope.fixture.js";
+import { createAllowedScopeAgent as createScopeAgent } from "./storefront-scope.fixture.js";
 import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
 import { createSalesSearchPolicy } from "../../domain/services/sales-search-policy.js";
 import { buildMetaUiView } from "../../../whatsapp-channel/domain/ui/meta-ui-renderer.js";
 import { executeStorefrontUiAction } from "./storefront-ui-action.executor.js";
 import { conversationBlockSchema } from "../../domain/contracts/conversation-block.schemas.js";
 
+const createAllowedScopeAgent = (deps: Parameters<typeof createScopeAgent>[0]) => createScopeAgent(deps, { domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", requiresTool: true, needsProductDiscovery: true });
 const usage = { promptTokens: 10, completionTokens: 10, totalTokens: 20 };
 const base = { merchantId: "merchant-a", sessionId: "cart-a", userMessage: "Mostre produtos entre 50 e 100 reais. Não altere meu carrinho." };
 const plan = (extra: Record<string, unknown> = {}) => shoppingSearchPlanSchema.parse({ version: 1, query: "*", ...extra });

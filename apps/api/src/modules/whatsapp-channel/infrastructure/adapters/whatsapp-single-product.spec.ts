@@ -66,6 +66,9 @@ test('typing the single matching product opens authoritative purchase controls t
 for (const [name, blocks, action, detailsId] of [
   ['ambiguous results', [{ type: 'product_carousel', data: { products: [product, { ...product, id: 'other' }] } }]],
   ['more search results', [{ type: 'product_carousel', data: { products: [product], nextCursor: 'next' } }]],
+  ['typed filters restrict eligible variants', [{ type: 'product_carousel', data: { products: [{ ...product,
+    price: 5000, variants: [{ id: 'eligible-variant', price: 5000, stock: 2 }] }],
+    criteria: { version: 1, query: '*', maxPriceCents: 6000, attributes: [], unsupportedCriteria: [] } } }]],
   ['cart response', [{ type: 'product_carousel', data: { products: [product] } }, { type: 'cart_summary', data: { items: [] } }]],
   ['explicit catalog action', [{ type: 'product_carousel', data: { products: [product] } }], { tool: 'search_products', args: { query: '*' } }],
   ['mismatched product details', [{ type: 'product_carousel', data: { products: [product] } }], undefined, 'foreign'],

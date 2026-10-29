@@ -309,7 +309,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     let result = await prepared.run({ knowledgeContext,
       ...(deferred ? { attachmentContext: input.attachmentContext, oneBuyClick: input.oneBuyClick } : {}) });
     result = await ensureProductDiscovery(result, { userMessage: input.userMessage, merchantId: input.merchantId, handlers: shortcutHandlers, history: input.history,
-      discoveryDecision: this.structuredRouting ? result.routing.needsProductDiscovery === true : undefined });
+      discoveryDecision: result.routing.needsProductDiscovery });
     const blocks = await appendOneBuyClickCheckout({
       blocks: result.blocks,
       toolsUsed: result.toolsUsed,

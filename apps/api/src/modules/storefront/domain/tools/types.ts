@@ -30,6 +30,9 @@ export interface StoreToolHandlers {
     minRating?: number;
     sortBy?: "price_asc" | "price_desc" | "rating" | "best_sellers" | "newest" | "discount";
     criteria?: ShoppingSearchPlan;
+    /** Internal orchestration only, injected after the public tool argument
+     * boundary. A support/details lookup is not a shopping recommendation. */
+    lookupOnly?: boolean;
     inStockOnly?: boolean;
     limit?: number;
     cursor?: string;

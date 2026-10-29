@@ -40,20 +40,20 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     searchProducts: async (args) => {
       const parsedPlan = args.criteria === undefined ? undefined : shoppingSearchPlanSchema.safeParse(args.criteria);
       if (parsedPlan && !parsedPlan.success) return { error: "shopping_search_plan_invalid" };
-      const plan = parsedPlan?.success ? parsedPlan.data : undefined;
+      const plan = !args.lookupOnly && parsedPlan?.success ? parsedPlan.data : undefined;
       // Declared, unsupported requirements must never degrade into broad matches.
       if (plan && (plan.delivery || plan.unsupportedCriteria.length)) return {
         products: [], nextCursor: null, query: plan.query, searchEvidence: shoppingSearchEvidence(plan, 0),
       };
-      if (args.sortBy === "best_sellers" || args.sortBy === "discount") {
+      if (!args.lookupOnly && (args.sortBy === "best_sellers" || args.sortBy === "discount")) {
         const unavailable = shoppingSearchPlanSchema.parse({ version: 1, query: plan?.query ?? args.query ?? "*",
           unsupportedCriteria: [args.sortBy === "best_sellers" ? "mais vendidos" : "maior desconto"] });
         return { products: [], nextCursor: null, query: unavailable.query, searchEvidence: shoppingSearchEvidence(unavailable, 0) };
       }
       // The buyer's explicit ceiling is authoritative, including its currency
       // conversion. A model sending 100 for R$100 must not silently mean R$1.
-      const maxPrice = plan ? plan.maxPriceCents : salesSearchMaxPrice(ctx.userMessage ?? "") ?? args.maxPrice;
-      const query = plan ? plan.query : contextualProductQuery(args.query, ctx.userMessage);
+      const maxPrice = args.lookupOnly ? undefined : plan ? plan.maxPriceCents : salesSearchMaxPrice(ctx.userMessage ?? "") ?? args.maxPrice;
+      const query = args.lookupOnly ? args.criteria?.query ?? args.query : plan ? plan.query : contextualProductQuery(args.query, ctx.userMessage);
       const contextual = !!query && contextualSearchGroups(query).length > 0;
       const result = await deps.productRepo.search({
         merchantId: ctx.merchantId,
@@ -61,11 +61,11 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         queryMode: contextual ? "contextual" : undefined,
         categoryId: args.categoryId,
         maxPriceCents: maxPrice,
-        ...((plan?.minPriceCents ?? args.minPrice) !== undefined ? { minPriceCents: plan?.minPriceCents ?? args.minPrice } : {}),
-        ...((plan?.minRating ?? args.minRating) !== undefined ? { minRating: plan?.minRating ?? args.minRating } : {}),
-        ...((plan?.sortBy ?? args.sortBy) ? { sortBy: plan?.sortBy ?? args.sortBy } : {}),
+        ...(!args.lookupOnly && (plan?.minPriceCents ?? args.minPrice) !== undefined ? { minPriceCents: plan?.minPriceCents ?? args.minPrice } : {}),
+        ...(!args.lookupOnly && (plan?.minRating ?? args.minRating) !== undefined ? { minRating: plan?.minRating ?? args.minRating } : {}),
+        ...(!args.lookupOnly && (plan?.sortBy ?? args.sortBy) ? { sortBy: plan?.sortBy ?? args.sortBy } : {}),
         ...(plan ? { attributes: plan.attributes.filter(item => item.priority === "required").map(({ priority: _priority, ...item }) => item), currency: "BRL" as const } : {}),
-        inStockOnly: plan ? true : args.inStockOnly,
+        inStockOnly: args.lookupOnly ? false : plan ? true : args.inStockOnly,
         isActiveOnly: true,
         cursor: args.cursor,
         limit: Math.min(args.limit ?? 10, 20)
@@ -103,7 +103,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       }));
 
       const federatedSearch = deps.searchFederatedProducts;
-      const shouldSearchMarketplace = !plan && args.minPrice === undefined && args.minRating === undefined && !args.sortBy
+      const shouldSearchMarketplace = !args.lookupOnly && !plan && args.minPrice === undefined && args.minRating === undefined && !args.sortBy
         && localProducts.length === 0 && federatedSearch && query && query !== "*";
       if (shouldSearchMarketplace && federatedSearch) {
         try {

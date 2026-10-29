@@ -15,8 +15,8 @@ export function salesSearchMaxPrice(text: string): number | undefined {
  * The model may change synonyms, never the buyer's budget/negative constraints.
  * Counter/results are request-local and shared by primary/fallback providers. */
 export function createSalesSearchPolicy(userMessage: string,
-  history: Array<{ role: "user" | "assistant"; content: string }>, attachmentContext?: string) {
-  const active = allowsSalesDiscovery(userMessage, attachmentContext);
+  history: Array<{ role: "user" | "assistant"; content: string }>, attachmentContext?: string, discoveryEnabled = true) {
+  const active = discoveryEnabled && allowsSalesDiscovery(userMessage, attachmentContext);
   let context = salesRecommendationContext(userMessage, history);
   const current = userMessage.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   // An explicit change is allowed; a model silently dropping a restriction is

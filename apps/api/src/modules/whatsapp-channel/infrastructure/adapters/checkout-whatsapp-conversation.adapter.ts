@@ -308,7 +308,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       const catalogs = response.blocks.filter(block => block.type === "product_carousel");
       const products = catalogs.flatMap(block => (block.data as any).products ?? []);
       const productId = products[0]?.productId || products[0]?.id;
-      if (products.length === 1 && typeof productId === "string" && !catalogs.some(block => (block.data as any).nextCursor)) {
+      if (products.length === 1 && typeof productId === "string" && !catalogs.some(block => (block.data as any).nextCursor || (block.data as any).criteria)) {
         const details = await this.storefrontConversation.reply({ merchantId: input.merchantId, sessionId: state.conversationId,
           cartId: state.conversationId, userMessage: input.message, history: state.history, merchantName: config.name,
           storeCategory: "others", buyerContext: { globalUserId: shopper.globalUserId, name: shopper.fullName, phone: shopper.phone, email: shopper.email },
