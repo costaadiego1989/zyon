@@ -347,8 +347,10 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           missingProductNames: Array.isArray(compareData.missingProductNames) ? compareData.missingProductNames : undefined,
         }
       });
-    } else if ((!finalContent || finalContent.trim().length === 0) && compareData?.requiresProductNames) {
-      finalContent = "Para comparar, informe os nomes de pelo menos dois produtos.";
+    } else if ((!finalContent || finalContent === STOREFRONT_CONTRACT_FALLBACK) && compareData?.requiresProductNames) {
+      finalContent = compareData.missingProductNames?.length
+        ? `Não localizei uma correspondência exata para: ${compareData.missingProductNames.join(", ")}. Confira os nomes no catálogo e me diga quais produtos deseja comparar.`
+        : "Para comparar, informe os nomes de pelo menos dois produtos.";
     }
   }
 
@@ -493,5 +495,14 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     }
   }
 
+  // Failed narration does not invalidate an already validated catalog read.
+  // Keep the rejected model text discarded and describe only published blocks.
+  // Writes and unknown outcomes retain their existing terminal handling.
+  const readTools = new Set(["search_products", "get_product_details", "compare_products", "get_product_availability", "get_similar_products", "get_daily_deals", "list_categories", "get_cart", "get_reviews", "get_product_questions", "get_wishlist", "get_faq", "get_store_policies", "get_buyer_profile"]);
+  if ((!finalContent || finalContent === STOREFRONT_CONTRACT_FALLBACK) && Object.keys(toolResults).every(name => readTools.has(name))) {
+    if (blocks.some(block => block.type === "product_comparison")) finalContent = "Confira a comparação dos produtos selecionados.";
+    else if (blocks.some(block => block.type === "product_card")) finalContent = "Veja os detalhes publicados deste produto.";
+    else if (blocks.some(block => block.type === "product_carousel" && block.data.products.length)) finalContent = "Encontrei estas opções no catálogo da loja.";
+  }
   return { blocks, finalContent };
 }

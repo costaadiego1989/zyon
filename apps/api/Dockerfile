@@ -128,6 +128,9 @@ RUN test -f /repo/apps/api/dist/main.js && \
 # ============================================================
 WORKDIR /repo/apps/api
 
+# The public welcome clip is part of the immutable API artifact.
+RUN test -s /repo/apps/api/assets/whatsapp/welcome-v1.mp4
+
 ENV NODE_ENV=production \
     PORT=3009
 

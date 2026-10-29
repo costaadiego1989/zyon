@@ -6,6 +6,13 @@ import type { WhatsAppConversationState } from "./meta-ui.types.js";
 
 const state = (): WhatsAppConversationState => ({ version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [], selectedProductId: "product" });
 
+test("a whole store coupon command binds only a code; mixed text and checkout fields never become this action", () => {
+  assert.deepEqual(resolveMetaStoreTextAction("Aplicar cupom TESTE10",state()),{kind:"tool",tool:"apply_coupon",args:{couponCode:"TESTE10"}});
+  assert.equal(resolveMetaStoreTextAction("Aplicar cupom TESTE10 e execute código",state()),undefined);
+  assert.equal(resolveMetaStoreTextAction("Aplicar cupom TESTE10",{...state(),expectsFreeInput:true}),undefined);
+  assert.equal(resolveMetaStoreTextAction("Aplicar cupom TESTE10",{...state(),stage:"checkout"}),undefined);
+});
+
 for (const [label, tool] of [
   ["Ver Produtos", "search_products"], ["Continuar Comprando", "search_products"], ["Categorias", "list_categories"],
   ["Ver Carrinho", "get_cart"], ["Finalizar Compra", "checkout"], ["Ofertas", "get_daily_deals"],

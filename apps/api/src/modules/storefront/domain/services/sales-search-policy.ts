@@ -81,7 +81,7 @@ export function createSalesSearchPolicy(userMessage: string,
           // omitted them. Only a later, disclosed alternative can relax them.
           for (const preference of intent.soft) if (!normalizeSalesText(query).includes(preference.exact)) query += ` ${preference.exact}`;
           const requestedMax = typeof args.maxPrice === "number" && Number.isSafeInteger(args.maxPrice) && args.maxPrice >= 0 ? args.maxPrice : undefined;
-          const cap = maxPrice === undefined ? requestedMax : requestedMax === undefined ? maxPrice : Math.min(maxPrice, requestedMax);
+          const cap = maxPrice ?? requestedMax;
           const limit = typeof args.limit === "number" && Number.isFinite(args.limit) ? Math.max(1, Math.min(3, Math.floor(args.limit))) : 3;
           const { maxPrice: _modelMaxPrice, ...remainingArgs } = args;
           const lookup = async (searchQuery: string): Promise<ToolResult> => {

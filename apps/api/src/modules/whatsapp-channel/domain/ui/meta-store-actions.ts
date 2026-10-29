@@ -37,6 +37,11 @@ export function resolveMetaStoreTextAction(message: string, state: WhatsAppConve
   }
   if (state.stage === "checkout" && !state.expectsFreeInput && /^(ver carrinho|continuar comprando|ver produtos)$/i.test(message.trim())) return metaStoreQuickReplyAction(message, state);
   if (state.expectsFreeInput || state.stage !== "store") return;
+  // A whole typed coupon command is the text equivalent of a native coupon
+  // control. No cart/customer IDs come from the message. Checkout fields keep
+  // their existing fingerprint-bound entry flow instead.
+  const coupon = message.trim().match(/^(?:aplicar|usar)\s+cupom\s+([a-z0-9][a-z0-9._-]{2,31})$/i);
+  if (coupon) return { kind: "tool", tool: "apply_coupon", args: { couponCode: coupon[1]!.toUpperCase() } };
   if (/^outras op[cç][oõ]es$/i.test(message.trim()) && state.view &&
     !state.view.blocks.some(block => block.type === "product_card") &&
     state.view.blocks.some(block => ["product_carousel", "marketplace_products", "wishlist", "cross_sell"].includes(block.type))) return { kind: "catalog_options" };

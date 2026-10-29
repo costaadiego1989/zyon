@@ -68,6 +68,7 @@ export interface StorefrontAgentDeps {
 }
 
 export interface StorefrontAgentInput {
+  messageFormat?: "whatsapp";
   sessionId: string;
   merchantId: string;
   userMessage: string;
@@ -144,7 +145,13 @@ export class StorefrontLangGraphAgent {
     const message = parseStorefrontModelOutput(result);
     if (message !== undefined) return message;
     recordStorefrontDecision("validation", "fallback", "invalid_output");
-    this.logger.warn("agent.output_contract.invalid", { schemaVersion: 1, reason: "invalid_model_output" });
+    let wire: unknown;
+    try { wire = JSON.parse(result.content); } catch { /* Never log the content. */ }
+    const version = wire && typeof wire === "object" && "schemaVersion" in wire ? (wire as { schemaVersion: unknown }).schemaVersion : undefined;
+    this.logger.warn({ event: "agent.output_contract.invalid", schemaVersion: 1, reason: "invalid_model_output",
+      finishReason: ["stop", "length", "tool_calls", "content_filter"].includes(result.finishReason ?? "") ? result.finishReason : "other",
+      receivedSchemaVersion: typeof version === "number" && Number.isSafeInteger(version) ? version : undefined,
+      jsonObject: !!wire && typeof wire === "object" && !Array.isArray(wire) });
     return STOREFRONT_MODEL_FALLBACK;
   }
   private readonly logger = new Logger(StorefrontLangGraphAgent.name);
@@ -300,6 +307,7 @@ export class StorefrontLangGraphAgent {
       buyerContext: input.buyerContext,
       oneBuyClick: input.oneBuyClick,
       knowledgeContext: input.knowledgeContext,
+      messageFormat: input.messageFormat,
     });
     const baseSystemContent = defaultSystem;
     const attachmentPolicy = input.attachmentContext

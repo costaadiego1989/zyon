@@ -40,7 +40,7 @@ export const storefrontConversationInputSchema = z.strictObject({
   storeSettings: z.record(z.string(), z.json()).optional(), agentIdentity: identity.optional(), merchantPolicy: policy.optional(),
   advancedRules: z.array(z.string().max(8000)).max(200).optional(), experimentSystemPrompt: z.string().max(24000).optional(),
   buyerContext: buyer.optional(), oneBuyClick: oneBuyClickContextSchema.optional(),
-  deviceType: z.enum(["mobile", "tablet", "desktop"]).optional(), uiAction: uiAction.optional(),
+  deviceType: z.enum(["mobile", "tablet", "desktop"]).optional(), messageFormat: z.literal("whatsapp").optional(), uiAction: uiAction.optional(),
 });
 
 export const storefrontConversationOutputSchema = z.strictObject({

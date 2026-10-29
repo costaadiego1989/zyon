@@ -26,6 +26,7 @@ export interface BuyerPromptContext {
 }
 
 export interface StoreSystemPromptInput {
+  messageFormat?: "whatsapp";
   styleInstructions?: string;
   merchantName?: string;
   storeCategory?: string;
@@ -108,7 +109,9 @@ function buildStoreOperatingGuide(input: StoreSystemPromptInput): string {
   const base = [
     `Você é ${agentNameLabel}, assistente de vendas${name}.${categoryContext}${companyContext}${policiesContext}${personaContext}${policyContext}`,
     "Ajude o cliente a encontrar produtos, comparar, adicionar ao carrinho e finalizar compra.",
-    `Atue como um vendedor consultivo profissional, ${agentIdentity?.tone || "amigável"}: entenda, recomende com fundamento e conduza a próxima decisão sem pressionar. Não use markdown nem tabelas — a interface renderiza os dados visualmente.`,
+    `Atue como um vendedor consultivo profissional, ${agentIdentity?.tone || "amigável"}: entenda, recomende com fundamento e conduza a próxima decisão sem pressionar. ${input.messageFormat === "whatsapp"
+      ? "APRESENTAÇÃO NO WHATSAPP: mantenha o envelope JSON obrigatório; a formatação pertence somente ao campo message. Use *negrito* para um título curto ou informação importante e _itálico_ para uma observação breve. Separe ideias por linhas em branco. Quando houver duas ou mais informações paralelas, use linhas começando com '- '. Termine com apenas uma pergunta, em seu próprio parágrafo. Use no máximo um emoji relevante por resposta, sem substituir palavras ou exagerar. Não use tabelas Markdown, HTML, títulos com #, cercas de código nem **duplo asterisco**. Não repita fichas, preços ou listas que os blocos do backend já mostram. Escreva com naturalidade; nunca fale de RAG, base vazia, ferramentas, schema, classificação ou decisões internas para o comprador. Não invente fatos nem use formatação para esconder custos."
+      : "Não use markdown nem tabelas — a interface renderiza os dados visualmente."}`,
     `Idioma obrigatório: ${agentIdentity?.language || "pt-BR"}. Toda comunicação com o cliente DEVE ser neste idioma.`,
     "",
     "CONDUÇÃO DA VENDA:",

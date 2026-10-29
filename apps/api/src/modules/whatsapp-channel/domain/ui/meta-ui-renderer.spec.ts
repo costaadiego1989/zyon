@@ -1,10 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildMetaUiView, presentMetaUi, formatMetaText, withMetaCartNavigation, metaWelcomeMessage, buildMetaCatalogOptionsView } from "./meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, formatMetaText, formatMetaConversation, withMetaCartNavigation, metaWelcomeMessage, buildMetaCatalogOptionsView } from "./meta-ui-renderer.js";
 import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
 const native = (presentation: ReturnType<typeof presentMetaUi>) => presentation.messages.filter(m => m.type === "interactive").map(m => m.type === "interactive" ? m.interactive as any : null);
+
+test("conversational spacing leaves raw Pix and links untouched", () => {
+  const prose="Este é um texto publicado com informações suficientes para ajudar a escolher um produto e entender as opções que a loja oferece neste momento. Confira as informações e me diga o que você prefere para continuar com tranquilidade. Qual produto você quer conhecer?";
+  assert(formatMetaConversation(prose).includes("\n\nConfira"));
+  const pix="000201"+"1234567890".repeat(30);
+  const shown=presentMetaUi(buildMetaUiView(response({blocks:[{type:"pix_payment",data:{copy_paste:pix}}] as any})),"pix");
+  assert(shown.messages.some(m=>m.type==="text"&&m.text.body===pix));
+  const link="https://example.test/checkout?reference=abc.def&token=literal";
+  assert.equal(formatMetaConversation(link),link);
+});
 
 test("product details start with the actual hero photo and retain the entire description afterwards", () => {
   const description = "Informação publicada. ".repeat(100);
@@ -20,7 +30,7 @@ test("store rich text retains native bold, italic and heading hierarchy without 
 
 test("welcome retains merchant copy and explicitly invites unrestricted conversation", () => {
   const message = metaWelcomeMessage("Olá! Encontre produtos e confira seu pedido.", "Athom", "Zyon");
-  assert.match(message, /^\*Zyon · Athom\*/);
+  assert.match(message, /^👋 \*Zyon · Athom\*/);
   assert.match(message, /\*Converse à vontade\*/);
   assert.match(message, /Pergunte o que quiser/);
   assert.ok(message.includes("Olá! Encontre produtos e confira seu pedido."));

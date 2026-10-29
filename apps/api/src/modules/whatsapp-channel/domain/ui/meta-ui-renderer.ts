@@ -40,11 +40,21 @@ export const formatMetaText = (text: string): string => text
   .replace(/^#{1,6}\s+(.+)$/gm, "*$1*").replace(/~~([^~]+)~~/g, "~$1~")
   .replace(/\[([^\]]+)\]\((https:\/\/[^)]+)\)/g, "$1: $2");
 
+/** Prose rhythm only. Codes, URLs and structured list lines keep their bytes. */
+export const formatMetaConversation = (text: string): string => formatMetaText(text)
+  .replace(/\r\n/g, "\n").split(/\n{2,}/).map(paragraph => {
+    if (paragraph.length < 180 || paragraph.includes("\n") || /https?:\/\/|000201|```/.test(paragraph)) return paragraph;
+    return paragraph.replace(/([.!?])\s+(?=[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ])/g, "$1\n\n");
+  }).join("\n\n").trim();
+
 /** Channel presentation only: all commercial values and actions come from the store. */
 export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiView {
   const view: MetaUiView = { stage: response.state.stage, title: response.merchantName || "Sua loja", body: response.agentMessage, choices: [], media: [], blocks: response.blocks, quickReplies: response.quickReplies };
-  const text: string[] = [response.agentMessage];
   const cartJustAdded = response.blocks.some(block => block.type === "cart_add_result" && object(block.data).status === "succeeded");
+  const redundantIntro = response.blocks.some(block => ["cart_summary", "wishlist"].includes(block.type))
+    && /^(?:Este é o seu carrinho:|Seu carrinho:|Sua lista de desejos:|Confira sua lista de desejos:)$/.test(response.agentMessage.trim());
+  const redundantAdd = cartJustAdded && /^Produto adicionado ao carrinho\.?$/.test(response.agentMessage.trim());
+  const text: string[] = redundantIntro || redundantAdd ? [] : [formatMetaConversation(response.agentMessage)];
   const add = (label: string, action: StoreUiAction, description?: string) => view.choices.push({ label, action, description });
   const photo = (url: unknown, caption?: string) => { const link = safeLink(url); if (link && !view.media.some(m => m.type === "image" && m.media.link === link)) view.media.push({ type: "image", media: { link, caption: caption ? concise(caption, 1024) : undefined } }); };
   const productChoice = (p: Record<string, any>) => {
@@ -64,6 +74,11 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
     const d = object(block.data);
     switch (block.type) {
       case "text": case "message": text.push(value(d.text || d.content)); break;
+      case "welcome_animation": {
+        const link = safeLink(d.url);
+        if (link) view.media.push({ type: "video", media: { link } });
+        break;
+      }
       case "form_field": text.push(`Informe ${value(d.label || d.field)}:`); break;
       case "address_confirmation": text.push(`*Confira a entrega*\n${value(d.formatted)}\n\n_O endereço está correto?_`); add("Sim", { kind: "message", message: "Sim" }); add("Corrigir endereço", { kind: "message", message: "Não" }); break;
       case "payment_methods":
@@ -90,8 +105,9 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
       case "crypto_payment": text.push("Conecte sua carteira pelo checkout seguro para concluir o pagamento."); break;
       case "checkout_price_review": text.push("Os valores do pedido mudaram. Confira e confirme o novo total no checkout seguro."); break;
       case "lead_capture": text.push("Informe seus dados para continuar. Você também pode usar o formulário no checkout seguro."); break;
-      case "order_summary": text.push(items(d.items).map(i => `${value(i.quantity)}× ${value(i.name)} — ${money(i.line_total ?? i.price)}`).join("\n")); break;
+      case "order_summary": text.push("*Resumo do pedido*", items(d.items).map(i => `- ${value(i.quantity)}× ${value(i.name)} — *${money(i.line_total ?? i.price)}*`).join("\n")); break;
       case "wishlist":
+        if (items(d.items).length) text.push("♡ *Seus favoritos*\nAbra um produto para ver os detalhes ou use as opções da lista.");
         items(d.items).forEach(p => { productChoice(p); if (p.id) add(`Remover: ${value(p.name)}`, tool("remove_from_wishlist", { productId: p.id })); });
         break;
       case "product_carousel": case "marketplace_products": case "cross_sell":
@@ -145,7 +161,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
       case "variant_selector":
         items(d.groups).forEach(g => items(g.options).filter(o => o.available !== false).forEach(o => add(`${value(g.name)}: ${value(o.value)}`, { kind: "variant", productId: value(d.productId), variantId: value(o.id) }))); break;
       case "cart_summary":
-        text.push("*Seu carrinho*");
+        text.push("🛒 *Seu carrinho*");
         if (!items(d.items).length) text.push("Seu carrinho está vazio. Escolha um produto para começar.");
         items(d.items).forEach((i, index) => {
           text.push(`${index + 1}. *${value(i.productName || i.name)}*\nQuantidade: ${i.quantity} · ${money(i.subtotal)}`);
@@ -167,6 +183,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
       case "cart_add_result":
         text.push(d.status === "succeeded" ? "✅ *Item adicionado ao carrinho*" : d.status === "unknown" ? "_A inclusão está sendo verificada._" : "Não foi possível adicionar este item."); break;
       case "shipping_options":
+        if (items(d.options).length) text.push("🚚 *Opções de entrega*\nCompare o valor e o prazo antes de escolher.");
         items(d.options).forEach(o => {
           const carrier = value(o.carrier), name = value(o.name);
           const label = carrier.startsWith("melhor-envio-") || carrier.startsWith("own_delivery_")
@@ -180,11 +197,12 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         if (safeLink(d.url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "*Continue sua compra com segurança*\nPreencha os dados protegidos na página da loja. Seu carrinho será mantido." }, action: { name: "cta_url", parameters: { display_text: "Continuar compra", url: safeLink(d.url) } } } }); break;
       case "checkout_prepared": add("Continuar checkout", tool("checkout", { actionId: d.actionId, cartId: d.cartId })); break;
       case "order_confirmation":
-        text.push(`*Pedido ${value(d.orderId)}*\nTotal: ${money(d.total)}`);
+        text.push(`✅ *Pedido ${value(d.orderId)}*\n*Total: ${money(d.total)}*`);
         items(d.items).forEach(i => text.push(`${i.quantity}× ${value(i.productName)} — ${money(i.price)}`));
         if (d.estimatedDelivery) text.push(`Previsão: ${value(d.estimatedDelivery)}`); break;
       case "comparison_table": case "product_comparison":
-        items(d.products).forEach(p => { text.push(`*${value(p.name)}* — ${p.priceFormatted || money(p.price)}\n${Object.entries(object(p.attributes)).map(([k, v]) => `${k}: ${value(v)}`).join("\n")}`); productChoice(p); }); break;
+        if (items(d.products).length) text.push("*Comparação de produtos*");
+        items(d.products).forEach(p => { text.push(`*${value(p.name)}*\n*${p.priceFormatted || money(p.price)}*\n${Object.entries(object(p.attributes)).map(([k, v]) => `- ${k}: ${value(v)}`).join("\n")}`); productChoice(p); }); break;
       case "reviews":
         text.push(`Avaliações de ${value(d.productName)}: ${value(d.averageRating)} / 5 (${value(d.totalReviews)})`);
         items(d.reviews).forEach(r => text.push(`${value(r.author)} · ${value(r.rating)} / 5\n${value(r.text)}`));
@@ -266,7 +284,7 @@ export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): Me
 }
 
 export function metaWelcomeMessage(greeting: string, merchantName: string, agentName = "Zyon"): string {
-  return `*${formatMetaText(agentName)} · ${formatMetaText(merchantName)}*\n\n${formatMetaText(greeting).trim()}\n\n*Converse à vontade*\nPergunte o que quiser. Eu ajudo com produtos, entrega, pagamento e seu pedido.\n\n_Use o menu ou escreva sua pergunta aqui na conversa._`;
+  return `👋 *${formatMetaText(agentName)} · ${formatMetaText(merchantName)}*\n\n${formatMetaConversation(greeting)}\n\n*Converse à vontade*\n- Encontre e compare produtos.\n- Confira entrega, pagamento e seu pedido.\n\n_Pergunte o que quiser sobre a loja, pelo menu ou aqui na conversa._`;
 }
 
 export const isMetaCatalogView = (view?: MetaUiView): boolean => !!view && view.stage !== "checkout" &&

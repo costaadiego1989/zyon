@@ -114,7 +114,17 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     if ((firstTurn && /^(oi|ol[áa]|bom dia|boa tarde|boa noite)[!.\s]*$/i.test(input.message.trim())) || /^(menu|in[ií]cio)[!.\s]*$/i.test(input.message.trim())) {
       state.stage = "store"; state.expectsFreeInput = false;
       state.history = [{ role: "user", content: input.message }, { role: "assistant", content: greeting }];
-      return { agentMessage: greeting, quickReplies: config.quickReplies || [], blocks: [], merchantName: config.name, state };
+      const blocks: WhatsAppStructuredResponse["blocks"] = [];
+      if (!state.welcomeAnimationShown) {
+        try {
+          const origin = new URL(process.env.API_PUBLIC_URL || process.env.PUBLIC_API_BASE_URL || process.env.PUBLIC_API_URL || "");
+          if (origin.protocol === "https:" && !origin.username && !origin.password) {
+            blocks.push({ type: "welcome_animation", data: { url: new URL("/whatsapp/presentation/welcome-v1.mp4", origin).href } });
+            state.welcomeAnimationShown = true;
+          }
+        } catch { /* Text and native menu remain available without a public media origin. */ }
+      }
+      return { agentMessage: greeting, quickReplies: config.quickReplies || [], blocks, merchantName: config.name, state };
     }
     const paymentAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout"].includes(input.action.tool);
     const checkoutAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry", "show_checkout"].includes(input.action.tool);
@@ -250,7 +260,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       trusted_buyer_context: { globalUserId: shopper.globalUserId, name: shopper.fullName, phone: shopper.phone, email: shopper.email },
       history: state.history, ui_action: canonicalAction,
       attachment_context: input.attachmentContext,
-    });
+    }, undefined, "whatsapp");
     // A natural-language search with one result should expose its purchase
     // controls immediately. Read through the shared tools without recording a
     // second buyer turn or deriving a variant from the agent's prose.

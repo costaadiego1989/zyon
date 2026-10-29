@@ -16,6 +16,7 @@ import { loadProductNoticeRules, productRuleNotices } from "../product-rule-noti
 import { productGallery } from "../product-gallery.js";
 import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
 import { contextualProductQuery, contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
+import { salesSearchMaxPrice } from "../../domain/services/sales-search-policy.js";
 
 import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
@@ -35,6 +36,9 @@ export interface ProductHandlerDeps {
 export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "searchProducts" | "getProductDetails" | "compareProducts" | "getProductAvailability" | "getSimilarProducts" | "getDailyDeals" | "listCategories"> {
   return {
     searchProducts: async (args) => {
+      // The buyer's explicit ceiling is authoritative, including its currency
+      // conversion. A model sending 100 for R$100 must not silently mean R$1.
+      const maxPrice = salesSearchMaxPrice(ctx.userMessage ?? "") ?? args.maxPrice;
       const query = contextualProductQuery(args.query, ctx.userMessage);
       const contextual = !!query && contextualSearchGroups(query).length > 0;
       const result = await deps.productRepo.search({
@@ -42,7 +46,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         query,
         queryMode: contextual ? "contextual" : undefined,
         categoryId: args.categoryId,
-        maxPriceCents: args.maxPrice,
+        maxPriceCents: maxPrice,
         inStockOnly: args.inStockOnly,
         isActiveOnly: true,
         cursor: args.cursor,
@@ -88,10 +92,10 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             query: query!,
             hostMerchantId: ctx.merchantId,
             limit: Math.min(args.limit ?? 5, 10),
-            maxPriceCents: args.maxPrice,
+            maxPriceCents: maxPrice,
           });
           const rawProducts = (marketplaceResult.products ?? []).filter(p => p.stockAvailable && p.currency === "BRL"
-            && (args.maxPrice === undefined || p.priceCents <= args.maxPrice));
+            && (maxPrice === undefined || p.priceCents <= maxPrice));
           const sellerIds = [...new Set(rawProducts.map(p => p.sourceMerchantId))];
           const sellerNames: Record<string, string> = {};
           for (const sid of sellerIds) {

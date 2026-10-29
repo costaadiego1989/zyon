@@ -70,7 +70,7 @@ export class HandleMetaConversationUseCase {
       } else if (!state.expectsFreeInput && /^(0|voltar)$/i.test(input.body.trim()) && state.previousViews.length) action = { kind: "back" };
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
       else if (/^(menu|in[ií]cio)$/i.test(input.body.trim())) action = { kind: "menu" };
-      else action = resolveMetaStoreTextAction(input.body, state);
+      else if (!input.metaMedia) action = resolveMetaStoreTextAction(input.body, state);
       if (action?.kind === "menu" && !recoveredView && isMetaCatalogView(state.view) &&
         (input.interactiveId || !state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0))) action = { kind: "catalog_options" };
       if (action?.kind === "message" && /^(ver carrinho|finalizar compra|finalizar pedido|continuar checkout|continuar comprando|ver produtos)$/i.test(action.message.trim())) action = metaStoreQuickReplyAction(action.message, state) ?? action;

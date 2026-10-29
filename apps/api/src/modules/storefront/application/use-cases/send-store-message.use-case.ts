@@ -71,11 +71,11 @@ export class SendStoreMessageUseCase {
     @Optional() @Inject(STOREFRONT_USE_CASE_OBSERVATION) private readonly observation: StorefrontUseCaseObservation = NOOP_STOREFRONT_USE_CASE_OBSERVATION,
   ) {}
 
-  async execute(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext): Promise<SendStoreMessageOutput> {
-    return this.observation.turn(() => this.executeTurn(input, deferredContext));
+  async execute(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext, messageFormat?: "whatsapp"): Promise<SendStoreMessageOutput> {
+    return this.observation.turn(() => this.executeTurn(input, deferredContext, messageFormat));
   }
 
-  private async executeTurn(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext): Promise<SendStoreMessageOutput> {
+  private async executeTurn(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext, messageFormat?: "whatsapp"): Promise<SendStoreMessageOutput> {
     const parsedInput = await this.validate("input", () => sendStoreMessageInputSchema.safeParse(input), "invalid_input");
     if (!parsedInput.success) throw new BadRequestException("invalid_storefront_input");
     input = parsedInput.data;
@@ -227,6 +227,7 @@ export class SendStoreMessageUseCase {
       buyerContext,
       oneBuyClick: input.one_buy_click,
       deviceType: input.device_type,
+      messageFormat,
     }), "invalid_context");
     if (!context.success) {
       this.logger.warn("storefront.contract.invalid", { stage: "context", version: STOREFRONT_CONVERSATION_CONTRACT_VERSION,

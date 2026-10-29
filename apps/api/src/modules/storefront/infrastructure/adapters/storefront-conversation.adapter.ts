@@ -201,6 +201,16 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     let handlers: StoreToolHandlers | undefined;
     const getHandlers = () => handlers ??= observeStorefrontHandlers(
       composeStoreToolHandlers(this.handlerDeps, ctx), input.cartId || input.sessionId);
+    const readCartBlock = async (cartId: string) => {
+      try {
+        const args = { cartId };
+        const checked = await callStorefrontTool("get_cart", args, () => getHandlers().getCart(args), { cartId });
+        if (!checked.ok) return null;
+        const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: "Ver carrinho", finalContent: "",
+          toolResults: { get_cart: checked.data } });
+        return built.blocks.find(block => block.type === "cart_summary" && block.data.items.length > 0) ?? null;
+      } catch { return null; }
+    };
     if (input.uiAction) {
       this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
       const shortcutHandlers = getHandlers();
@@ -233,6 +243,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       advancedRules: input.advancedRules,
       buyerContext: input.buyerContext,
       oneBuyClick: input.oneBuyClick,
+      messageFormat: input.messageFormat,
       systemPrompt: input.experimentSystemPrompt,
       toolHandlers: new Proxy({} as StoreToolHandlers, {
         get(_target, key) { return Reflect.get(getHandlers(), key); },
@@ -268,18 +279,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         // so the storefront cart store (CartFAB drawer) refreshes its discount /
         // net total. Without this the coupon persists server-side but the drawer
         // shows the stale pre-discount total (buyer told "applied", sees full price).
-        getCartBlock: async (cartId: string) => {
-          try {
-            const args = { cartId };
-            const checked = await callStorefrontTool("get_cart", args, () => shortcutHandlers.getCart(args), { cartId });
-            if (!checked.ok) return null;
-            const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: "Ver carrinho", finalContent: "",
-              toolResults: { get_cart: checked.data } });
-            return built.blocks.find(block => block.type === "cart_summary" && block.data.items.length > 0) ?? null;
-          } catch {
-            return null;
-          }
-        },
+        getCartBlock: readCartBlock,
       },
       input,
       { structuredReadRouting: this.structuredRouting },
