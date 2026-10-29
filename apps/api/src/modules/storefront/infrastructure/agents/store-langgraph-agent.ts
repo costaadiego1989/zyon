@@ -46,6 +46,9 @@ import { reviewStorefrontReply, type StorefrontReviewBudget } from "../copy/stor
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../../domain/contracts/shopping-search-plan.schemas.js";
 import { withStorefrontReplyContract } from "./storefront-reply-contract.js";
+import { planStorefrontShopping } from "../ai/structured-shopping-planner.js";
+import type { ShoppingSearchPlan } from "../../domain/contracts/shopping-search-plan.schemas.js";
+import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
 
 export interface StorefrontAgentCallbacks {
   onToken?: (token: string) => void;
@@ -281,6 +284,52 @@ export class StorefrontLangGraphAgent {
     const needsPriceDiscovery = canDiscover && isBarePriceObjection(input.userMessage)
       && !/\b(frete|pagamento|pedido|carrinho|checkout|entrega)\b/i.test(lastReply);
     const needsDiscovery = canDiscover && (needsPriceDiscovery || isUnspecifiedShoppingRequest(input.userMessage) || isBroadShoppingRequest(input.userMessage));
+    let turnPlan: ShoppingSearchPlan | undefined;
+    if (structuredSearchRequired && !needsDiscovery) {
+      const planned = await planStorefrontShopping(this.provider, { userMessage: input.userMessage,
+        history: history.slice(-10), attachmentContext: input.attachmentContext }, { model: this.fastModel, mode: this.outputMode });
+      this.costTracker.record(planned.usage);
+      totalPromptTokens += planned.usage.promptTokens; totalCompletionTokens += planned.usage.completionTokens;
+      totalTokens += planned.usage.totalTokens;
+      turnPlan = planned.plan;
+      const finish = (message: string, presented: ConversationBlock[] = [], confirmed = false): StorefrontAgentResult => {
+        const validation = validateStorefrontMessage(message);
+        if (validation.message) input.callbacks?.onToken?.(validation.message);
+        return { message: validation.message, blocks: validation.safe ? presented : [], cartId: input.cartId,
+          usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens }, toolsUsed,
+          routing: { source: semantic.source, domain: semantic.classification.domain, needsProductDiscovery: true,
+            structuredSearchRequired: true, intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
+          safetyValidation: { safe: validation.safe && confirmed, reason: confirmed ? validation.reason : "shopping_search_unconfirmed" } };
+      };
+      if (!turnPlan || !this.costTracker.canAfford(0.01)) return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
+      // A constrained discovery has one server-owned read and one evidence
+      // projection. Secondary tools cannot leak out-of-budget alternatives,
+      // and no narration call can reinterpret a price as meeting the ceiling.
+      const monetary = turnPlan.minPriceCents !== undefined || turnPlan.maxPriceCents !== undefined;
+      if (monetary || turnPlan.minRating !== undefined || turnPlan.attributes.length || turnPlan.sortBy
+        || turnPlan.delivery || turnPlan.unsupportedCriteria.length) {
+        const handlers = input.toolHandlers ?? this.defaultToolHandlers;
+        const args = { query: turnPlan.query, criteria: turnPlan, inStockOnly: true, limit: 3 };
+        try {
+          if (monetary && !handlers.recommendProducts) return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
+          toolsUsed.push("search_products"); input.callbacks?.onToolCall?.("search_products", args);
+          const read = await callStorefrontTool("search_products", args, checked => monetary
+            ? handlers.recommendProducts!({ criteria: turnPlan!, limit: 3 })
+            : handlers.searchProducts(checked as Parameters<StoreToolHandlers["searchProducts"]>[0]));
+          input.callbacks?.onToolResult?.("search_products", read);
+          const confirmed = read.ok ? storefrontToolOutputSchemas.search_products.safeParse(read.data) : undefined;
+          if (!confirmed?.success || !confirmed.data.searchEvidence
+            || JSON.stringify(confirmed.data.searchEvidence.appliedPlan) !== JSON.stringify(turnPlan))
+            return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
+          const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: input.userMessage,
+            finalContent: confirmed.data.searchEvidence.message, toolResults: { search_products: confirmed.data },
+            searchPurpose: "discovery", presentationMode: "structured" });
+          return finish(built.finalContent, built.blocks, true);
+        } catch {
+          return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED); // Never retry a failed price projection.
+        }
+      }
+    }
     const profileReady = !needsDiscovery && hasCareProfile(salesRecommendationContext(input.userMessage, history));
     const canAsk = canDiscover && !profileReady;
     const tools = buildStoreTools().map(tool => !structuredSearchRequired || tool.name !== "search_products" ? tool : {
@@ -300,7 +349,8 @@ export class StorefrontLangGraphAgent {
         return property === "searchProducts" ? async (args: Parameters<StoreToolHandlers["searchProducts"]>[0]) => {
           if (structuredSearchRequired && !args.criteria) return { error: "shopping_search_plan_required",
             message: "Informe criteria version 1 com todos os requisitos separados da query. A busca ainda não foi executada." };
-          return value(productDiscovery ? args : { ...args, lookupOnly: true });
+          return value(productDiscovery ? (turnPlan ? { ...args, query: turnPlan.query, criteria: turnPlan } : args)
+            : { ...args, lookupOnly: true });
         } : value;
       },
     });

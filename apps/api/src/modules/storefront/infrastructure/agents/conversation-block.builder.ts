@@ -33,7 +33,7 @@ function presentedVariant(variant: any, productType?: string) {
   const tracksQuantity = productType !== "digital" && productType !== "service";
   const stock = tracksQuantity && typeof variant.stockQuantity === "number"
     ? Math.max(0, variant.stockQuantity - (variant.stockReserved ?? 0)) : undefined;
-  const price = variant.basePriceInCents ?? variant.price;
+  const price = variant.price ?? variant.basePriceInCents;
   return { id: variant.id ?? variant.sku, name: labels[attribute.toLowerCase()] ?? attribute,
     value: Object.values(variant.attributes ?? {})[0] as string ?? variant.sku ?? variant.id,
     sku: variant.sku, stock, price,

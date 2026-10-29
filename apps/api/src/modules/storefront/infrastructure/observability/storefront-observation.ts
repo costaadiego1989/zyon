@@ -16,7 +16,7 @@ const stageSchema = z.enum(["turn", "agent", "classifier", "provider", "tool", "
 const outcomeSchema = z.enum(["ok", "error", "fallback", "rejected", "unknown"]);
 const reasonSchema = z.enum(["completed", "exception", "invalid_input", "invalid_context", "invalid_output", "invalid_usage", "out_of_scope", "scope_unclear",
   "low_confidence", "inconsistent", "tool_calls", "cart_outcome_unknown", "safety_rejected", "budget_exhausted", "provider_fallback", "business_rejected"]);
-const phaseSchema = z.enum(["main", "retry", "final", "classifier", "variant", "nudge", "output_review"]);
+const phaseSchema = z.enum(["main", "retry", "final", "classifier", "shopping_plan", "variant", "nudge", "output_review"]);
 const providerSchema = z.enum(["primary", "fallback", "copy"]);
 const boundarySchema = z.enum(storefrontObservationBoundaries);
 const observationSchema = z.strictObject({

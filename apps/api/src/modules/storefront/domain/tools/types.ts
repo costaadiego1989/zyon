@@ -22,6 +22,8 @@ export interface ExecutableTool {
 }
 
 export interface StoreToolHandlers {
+  /** Internal, read-only projection of eligible prices, never a model tool. */
+  recommendProducts?: (args: { criteria: ShoppingSearchPlan; limit?: number }) => Promise<unknown>;
   searchProducts: (args: {
     query: string;
     categoryId?: string;

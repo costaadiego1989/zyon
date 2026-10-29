@@ -203,22 +203,20 @@ test("real tool loop carries LLM JSON plan through the shared handler and termin
   }
 });
 
-test("structured discovery requires a plan on the wire and can repair a missing read plan without lexical shipping searches", async () => {
+test("structured discovery independently plans delivery requirements before any lexical search or narration", async () => {
   let calls = 0, reads = 0;
   const canonical = handlersWith(async () => { reads++; throw Error("shipping_capability_is_not_a_lexical_search"); });
   const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: canonical as never,
     provider: { chat: async (request: any) => {
       calls++;
-      const search = request.tools?.find((tool: any) => tool.function.name === "search_products");
-      assert.ok(search.function.parameters.required.includes("criteria"));
-      if (calls === 1) return { content: "", toolCalls: [{ id: "missing-plan", name: "search_products",
-        args: { query: "frete grátis CEP 20040-020" } }], usage };
-      assert.ok(request.messages.some((item: any) => item.role === "tool" && item.content.includes("shopping_search_plan_required")));
-      return { content: "", toolCalls: [{ id: "valid-plan", name: "search_products", args: { query: "*",
-        criteria: plan({ delivery: { freeOnly: true, zipCode: "20040020" } }) } }], usage };
+      assert.equal(JSON.parse(request.messages[0].content).id, "storefront.shopping-plan");
+      assert.equal(request.tools, undefined);
+      return { content: JSON.stringify({ schemaVersion: 1, plan: { version: 1, query: "*", minPriceCents: null,
+        maxPriceCents: null, minRating: null, attributes: [], sortBy: null,
+        delivery: { freeOnly: true, zipCode: "20040020" }, unsupportedCriteria: [] } }), usage };
     } } as never });
   const result = await agent.run({ ...base, userMessage: "Mostre produtos com frete grátis para o CEP 20040-020", history: [] });
-  assert.equal(calls, 2); assert.equal(reads, 0);
+  assert.equal(calls, 1); assert.equal(reads, 0);
   assert.match(result.message, /não consigo verificar frete por produto/);
   assert.equal(result.safetyValidation.safe, true);
   assert.equal(result.routing.structuredSearchRequired, true);
