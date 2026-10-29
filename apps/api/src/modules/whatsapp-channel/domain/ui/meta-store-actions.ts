@@ -28,6 +28,9 @@ export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversa
   if (key === "positivas") return tool("get_reviews", { ...args, filter: "positive" });
   if (key === "negativas") return tool("get_reviews", { ...args, filter: "negative" });
   if (key === "ordenar por recentes") return tool("get_reviews", { ...args, filter: "recent" });
+  if (key === "ver respondidas") return tool("get_product_questions", { ...args, filter: "answered" });
+  if (key === "minhas perguntas") return tool("get_product_questions", { ...args, filter: "mine" });
+  if (key === "fazer pergunta") return tool("ask_product_question", args);
   if (key === "produtos semelhantes") return tool("get_similar_products", args);
   if (key === "comparar") return tool("compare_products", args);
 }

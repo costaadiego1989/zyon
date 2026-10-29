@@ -50,6 +50,7 @@ export interface WhatsAppConversationState {
   paymentRevision?: number;
   pendingCheckoutEdit?: { section: "payment" | "coupon"; fingerprint: string; intentId: string; method?: "pix" | "card" };
   pendingCoupon?: { sessionId: string; fingerprint: string };
+  pendingProductQuestion?: { productId: string };
   expectsFreeInput?: boolean;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   revision: string;

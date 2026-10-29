@@ -107,7 +107,7 @@ export class HandleMetaConversationUseCase {
         const cartView = view?.blocks.some(b => b.type === "cart_summary") || view?.choices.some(c => c.action.kind === "tool" && ["update_cart_item", "remove_cart_item", "edit_cart_item"].includes(c.action.tool));
         const checkoutView = !!state.checkoutSessionId && (view?.stage === "checkout" || !view?.stage && view?.blocks.some(b => ["checkout_summary", "payment_methods", "payment_intent", "checkout_edit_actions", "checkout_edit_confirmation", "coupon_entry", "checkout_redirect", "checkout_form", "shipping_options"].includes(b.type)));
         state = { ...state, stage: checkoutView ? "checkout" : view?.stage ?? (cartView || product ? "store" : state.stage),
-          pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
+          pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, pendingProductQuestion: undefined, expectsFreeInput: false };
         const refresh = checkoutView ? { kind: "tool" as const, tool: "show_checkout", args: {} } : cartView ? { kind: "tool" as const, tool: "get_cart", args: {} }
           : product ? { kind: "tool" as const, tool: "get_product_details", args: { productId: (product.data as any).id } } : undefined;
         if (refresh) { const response = await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData, message: "Voltar", state, action: refresh }); state = response.state; view = buildMetaUiView(response); }

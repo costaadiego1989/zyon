@@ -382,6 +382,18 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
       } as any);
     }
   }
+  const questions = storefrontToolOutputSchemas.get_product_questions.safeParse(toolResults.get_product_questions);
+  if (questions.success) {
+    blocks.push({ type: "product_questions", data: questions.data });
+    finalContent = questions.data.totalCount ? `Confira as perguntas públicas respondidas sobre ${questions.data.productName}.`
+      : `Ainda não há perguntas públicas respondidas sobre ${questions.data.productName}. Você pode enviar uma pergunta à loja.`;
+  }
+  const submittedQuestion = storefrontToolOutputSchemas.create_question.safeParse(toolResults.create_question);
+  if (submittedQuestion.success) {
+    blocks.push({ type: "question_submission", data: { ticketId: submittedQuestion.data.id,
+      productId: submittedQuestion.data.productId, status: submittedQuestion.data.status } });
+    finalContent = "Sua pergunta foi encaminhada ao atendimento da loja. Acompanhe a resposta pelo protocolo informado.";
+  }
   const submittedReview = storefrontToolOutputSchemas.create_review.safeParse(toolResults.create_review);
   if (submittedReview.success) {
     blocks.push({ type: "review_submission", data: { reviewId: submittedReview.data.id,

@@ -50,25 +50,31 @@ export function createReviewHandlers(deps: ReviewHandlerDeps, ctx: ToolRequestCo
     },
 
     getProductQuestions: async (args: any) => {
+      const product = await deps.prisma.product.findFirst({ where: { id: args.productId, merchantId: ctx.merchantId, isActive: true }, select: { id: true, name: true } });
+      if (!product) return { error: "product_not_found" };
+      if (args.filter === "mine" || args.filter === "unanswered") return { error: "product_question_history_unavailable",
+        message: "O histórico pessoal de perguntas ainda não está disponível por aqui. Acompanhe seu protocolo no atendimento da loja. As perguntas respondidas são públicas, não uma lista das suas perguntas." };
       const questions = await deps.prisma.productFaq.findMany({ where: { productId: args.productId, isPublished: true,
-        product: { merchantId: ctx.merchantId, isActive: true } }, orderBy: [{ order: "asc" }, { id: "asc" }], take: 100 });
+        locale: "pt-BR", product: { merchantId: ctx.merchantId, isActive: true } }, orderBy: [{ order: "asc" }, { id: "asc" }], take: 100 });
       return {
+        productId: product.id, productName: product.name, scope: "public_answered", filter: "answered",
         questions: questions.map(q => ({ id: q.id, question: q.question, answer: q.answer })), totalCount: questions.length,
       };
     },
 
     createQuestion: async (args: any) => {
-      const product = await deps.prisma.product.findFirst({ where: { id: args.productId, merchantId: ctx.merchantId, isActive: true }, select: { name: true } });
+      const product = await deps.prisma.product.findFirst({ where: { id: args.productId, merchantId: ctx.merchantId, isActive: true }, select: { id: true, name: true } });
       if (!product) return { error: "product_not_found" };
       if (typeof args.question !== "string" || !args.question.trim() || args.question.length > 4000) return { error: "product_question_invalid" };
       if (!deps.supportHandoff) return { error: "product_question_service_unavailable" };
+      const intake = `Pergunta sobre ${product.name}: ${args.question.trim()}`;
       const ticket = await deps.supportHandoff.createHandoff({ merchantId: ctx.merchantId, sessionId: ctx.conversationId ?? ctx.sessionId,
-        buyerMessage: `Pergunta sobre ${product.name}: ${args.question.trim()}` });
+        buyerId: ctx.buyer?.globalUserId, buyerMessage: intake, initialMessage: intake });
       return {
         id: ticket.ticketId,
-        productId: args.productId,
+        productId: product.id,
         question: args.question,
-        author: args.authorName,
+        author: ctx.buyer?.name || args.authorName,
         date: new Date().toISOString().slice(0, 10),
         status: "awaiting_answer"
       };

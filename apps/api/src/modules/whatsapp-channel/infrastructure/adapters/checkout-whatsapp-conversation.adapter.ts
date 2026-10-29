@@ -132,6 +132,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const greeting = metaWelcomeMessage(config.agentGreeting || `Olá! Sou ${config.agentName || "Zyon"}, sua assistente na ${config.name}.\n\nPosso ajudar você a encontrar produtos, conferir as condições da loja e acompanhar seu pedido.`, config.name, config.agentName || "Zyon");
     state.pendingFlow = undefined;
     if ((firstTurn && /^(oi|ol[áa]|bom dia|boa tarde|boa noite)[!.\s]*$/i.test(input.message.trim())) || /^(menu|in[ií]cio)[!.\s]*$/i.test(input.message.trim())) {
+      state.pendingProductQuestion = undefined;
       state.stage = "store"; state.expectsFreeInput = false;
       state.history = [{ role: "user", content: input.message }, { role: "assistant", content: greeting }];
       const blocks: WhatsAppStructuredResponse["blocks"] = [];
@@ -284,7 +285,17 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       return this.checkoutUi(response, state, config.name, input.message, input.merchantId);
     }
     const action = input.action?.kind === "tool" ? input.action : undefined;
-    const canonicalAction = recognizedContactAnswer || action?.tool === "checkout" ? { tool: "create_checkout_session", args: {} } : action ? { tool: action.tool, args: action.args } : undefined;
+    const pendingQuestion = state.stage === "store" && state.pendingProductQuestion;
+    if (pendingQuestion && !input.action && /^(voltar|cancelar|desistir|não quero|nao quero)$/i.test(input.message.trim())) {
+      const message = "O envio da pergunta foi cancelado. Como posso ajudar?";
+      return { agentMessage: message, quickReplies: ["Ver Respondidas", "Ver Carrinho"], blocks: [], merchantName: config.name,
+        state: { ...state, pendingProductQuestion: undefined, expectsFreeInput: false,
+          history: [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: message }].slice(-24) } };
+    }
+    const canonicalAction = recognizedContactAnswer || action?.tool === "checkout" ? { tool: "create_checkout_session", args: {} }
+      : action ? { tool: action.tool, args: action.args }
+      : pendingQuestion ? { tool: "create_question", args: { productId: pendingQuestion.productId, question: input.message } } : undefined;
+    if (pendingQuestion) { state.pendingProductQuestion = undefined; state.expectsFreeInput = false; }
     const response = await this.store.execute({
       merchant_id: input.merchantId, conversation_id: state.conversationId, cart_id: state.conversationId,
       user_message: input.message, global_user_id: shopper.globalUserId,
@@ -368,10 +379,15 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     state.history = [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: response.message }].slice(-24);
     const product = response.blocks.find(b => b.type === "product_card");
     const submission = response.blocks.find(b => b.type === "review_submission");
-    const productId = submission?.data.productId ?? (product?.data as { id?: string } | undefined)?.id;
+    const questionContext = response.blocks.find(b => b.type === "question_submission")
+      ?? response.blocks.find(b => b.type === "product_question_input") ?? response.blocks.find(b => b.type === "product_questions");
+    const productId = submission?.data.productId ?? (questionContext?.data as { productId?: string } | undefined)?.productId ?? (product?.data as { id?: string } | undefined)?.id;
     if (productId) {
       if (state.selectedProductId !== productId) { state.selectedVariantId = undefined; state.selectedOptionItemIds = []; state.selectedOptionGroupId = undefined; state.selectedServiceSlotId = undefined; }
       state.selectedProductId = productId;
+    }
+    if (response.blocks.some(b => b.type === "product_question_input") && productId) {
+      state.pendingProductQuestion = { productId }; state.expectsFreeInput = true;
     }
     if (product) {
       const productId = String((product.data as any).id);

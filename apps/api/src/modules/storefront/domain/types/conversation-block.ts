@@ -227,6 +227,22 @@ export interface ReviewSubmissionBlock {
   data: { reviewId: string; productId: string; status: "pending_moderation" };
 }
 
+export interface ProductQuestionsBlock {
+  type: "product_questions";
+  data: { productId: string; productName: string; scope: "public_answered"; filter: "answered";
+    questions: Array<{ id: string; question: string; answer: string }>; totalCount: number };
+}
+
+export interface QuestionSubmissionBlock {
+  type: "question_submission";
+  data: { ticketId: string; productId: string; status: "awaiting_answer" };
+}
+
+export interface ProductQuestionInputBlock {
+  type: "product_question_input";
+  data: { productId: string; productName: string };
+}
+
 export interface CrossSellBlock {
   type: "cross_sell";
   data: {
@@ -283,6 +299,9 @@ export type ConversationBlock =
   | ReviewsBlock
   | AddReviewBlock
   | ReviewSubmissionBlock
+  | ProductQuestionsBlock
+  | QuestionSubmissionBlock
+  | ProductQuestionInputBlock
   | CrossSellBlock
   | CouponListBlock
   | CategoryCarouselBlock;

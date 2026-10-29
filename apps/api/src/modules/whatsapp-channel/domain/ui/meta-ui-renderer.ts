@@ -243,6 +243,18 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         add("Positivas", tool("get_reviews", { productId: d.productId, filter: "positive" }));
         add("Negativas", tool("get_reviews", { productId: d.productId, filter: "negative" }));
         add("Ordenar por Recentes", tool("get_reviews", { productId: d.productId, filter: "recent" })); break;
+      case "product_questions":
+        text.push(`💬 *Perguntas públicas respondidas*\n📦 *${value(d.productName)}*`);
+        items(d.questions).forEach(q => text.push(`❓ *${value(q.question)}*\n💡 ${value(q.answer)}`));
+        add("Fazer Pergunta", tool("ask_product_question", { productId: d.productId }));
+        add("Ver Respondidas", tool("get_product_questions", { productId: d.productId, filter: "answered" }));
+        add("Minhas Perguntas", tool("get_product_questions", { productId: d.productId, filter: "mine" })); break;
+      case "question_submission":
+        text.push(`📨 *Pergunta encaminhada*\n🎫 Protocolo: *${value(d.ticketId)}*\n⏳ Acompanhe a resposta pelo atendimento da loja.`);
+        add("Ver Respondidas", tool("get_product_questions", { productId: d.productId, filter: "answered" }));
+        add("Minhas Perguntas", tool("get_product_questions", { productId: d.productId, filter: "mine" })); break;
+      case "product_question_input":
+        text.push(`❓ *Sua pergunta para a loja*\n📦 *${value(d.productName)}*\nEscreva a pergunta em uma mensagem. Use *Voltar* para desistir.`); break;
       case "add_review": text.push(`Qual nota de 1 a 5 você dá a ${value(d.productName)}? Conte também como foi sua experiência.`); break;
       case "coupon_list":
         items(d.coupons).forEach(c => add(value(c.code), tool("apply_coupon", { couponCode: c.code }), value(c.description)));
