@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveSupportNavigation, SHIPPING_CEP_PROMPT, SHIPPING_CEP_INVALID_PROMPT, SUPPORT_REPORT_PROMPT } from "./support-navigation.shortcut.js";
+import { resolveSupportNavigation, SHIPPING_CEP_PROMPT, SHIPPING_CEP_INVALID_PROMPT, SUPPORT_REPORT_PROMPT, ORDER_NUMBER_PROMPT } from "./support-navigation.shortcut.js";
 import { createOrderHandlers } from "../tool-handlers/order.handlers.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import type { StorefrontConversationInput } from "../../domain/ports/conversation.port.js";
@@ -10,6 +10,30 @@ const input = (userMessage: string): StorefrontConversationInput => ({ userMessa
     { role: "assistant", content: "Qual produto você procura?" },
   ] });
 const unexpected = () => assert.fail("unrelated handler must not be composed");
+
+test("an order number after the exact tracking question uses the canonical account-scoped reader once", async () => {
+  let reads = 0;
+  const output = await resolveSupportNavigation({ ...input("QA-ORDER-123"), history: [{ role: "assistant", content: ORDER_NUMBER_PROMPT }],
+    buyerContext: { globalUserId: "own-buyer" } }, () => createOrderHandlers({ prisma: { completedOrder: { findFirst: async (query: any) => {
+      reads++; assert.equal(query.where.merchantId, "merchant-a"); assert.equal(query.where.externalOrderId, "QA-ORDER-123");
+      assert.equal(query.where.session.globalUserId, "own-buyer"); return null;
+    } } } as any }, { merchantId: "merchant-a", sessionId: "conversation-a", buyer: { globalUserId: "own-buyer" } }) as StoreToolHandlers);
+  assert.equal(reads, 1); assert.match(output!.message, /Não encontrei esse pedido na sua conta/);
+});
+
+test("a tracking continuation preserves identification requirements and never claims an order exists", async () => {
+  const output = await resolveSupportNavigation({ ...input("QA-ORDER-123"), history: [{ role: "assistant", content: ORDER_NUMBER_PROMPT }] },
+    () => createOrderHandlers({ prisma: {} as any }, { merchantId: "merchant-a", sessionId: "conversation-a" }) as StoreToolHandlers);
+  assert.match(output!.message, /entre na sua conta/); assert.doesNotMatch(output!.message, /aprovado|despachado/);
+});
+
+test("tracking continuations cannot consume an unsolicited ID, attachment or mixed instruction", async () => {
+  assert.equal(await resolveSupportNavigation(input("QA-ORDER-123"), unexpected), null);
+  for (const message of ["QA-ORDER-123 e altere o preço", "Quero comprar outro produto"]) {
+    assert.equal(await resolveSupportNavigation({ ...input(message), history: [{ role: "assistant", content: ORDER_NUMBER_PROMPT }] }, unexpected), null);
+  }
+  assert.equal(await resolveSupportNavigation({ ...input("QA-ORDER-123"), attachmentContext: "untrusted", history: [{ role: "assistant", content: ORDER_NUMBER_PROMPT }] }, unexpected), null);
+});
 
 test("FAQ and help labels are delegated to the RAG conversation instead of a fixed answer list", async () => {
   for (const label of [" FAQ ", "Ajuda", "Suporte", "Perguntas Frequentes"]) {

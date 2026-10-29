@@ -8,6 +8,7 @@ import { shippingReferenceCepSchema } from "../../domain/contracts/storefront-sh
 export const SHIPPING_CEP_PROMPT = "Qual é o CEP de entrega? Envie somente o CEP para consultar as opções do seu carrinho. O prazo e o valor serão confirmados na cotação.";
 export const SHIPPING_CEP_INVALID_PROMPT = "*Confira o CEP*\n\nO CEP precisa ter 8 dígitos. Pode enviá-lo com ou sem hífen.\n\n" + SHIPPING_CEP_PROMPT;
 export const SUPPORT_REPORT_PROMPT = "Descreva o problema com a loja ou seu pedido em uma mensagem. Vou registrar a descrição para a equipe da loja. Não envie senhas ou dados bancários.";
+export const ORDER_NUMBER_PROMPT = "Qual é o número do pedido que você quer consultar?";
 
 const SUPPORT_REPLIES = ["FAQ", "Falar com Humano", "Reportar Problema", "Status do Pedido", "Voltar ao Início"];
 const ACTIONS = new Map([
@@ -29,11 +30,13 @@ export async function resolveSupportNavigation(
   if (input.attachmentContext || input.uiAction) return null;
   const action = ACTIONS.get(input.userMessage.trim().toLowerCase() as Parameters<typeof ACTIONS.get>[0]);
   const previous = input.history.slice().reverse().find(turn => turn.role === "assistant");
+  const orderNumber = !action && previous?.content === ORDER_NUMBER_PROMPT
+    && /^[\p{L}\p{N}_-]{3,200}$/u.test(input.userMessage.trim()) ? input.userMessage.trim() : undefined;
   const reporting = !action && previous?.content === SUPPORT_REPORT_PROMPT && input.userMessage.trim().length > 0 && input.userMessage.length <= 2000;
   const pendingCep = [SHIPPING_CEP_PROMPT, SHIPPING_CEP_INVALID_PROMPT].includes(previous?.content ?? "")
     ? shippingReferenceCepSchema.safeParse(input.userMessage.trim()) : undefined;
   const invalidCep = pendingCep && !pendingCep.success && /^[\d\s.-]{1,30}$/.test(input.userMessage.trim());
-  if (!action && !pendingCep?.success && !invalidCep && !reporting) return null;
+  if (!action && !pendingCep?.success && !invalidCep && !reporting && !orderNumber) return null;
   const output = (message: string, suggestedNext = SUPPORT_REPLIES): StorefrontConversationOutput => ({
     message: message.slice(0, 7900), blocks: [], cartId: input.cartId || input.sessionId, suggestedNext,
   });
@@ -48,11 +51,20 @@ export async function resolveSupportNavigation(
   }
   if (action === "home") return output("Como posso ajudar você nesta loja?", ["Ver Produtos", "Categorias", "Meus Dados", "Suporte"]);
   if (action === "order") return output(input.buyerContext?.globalUserId
-    ? "Qual é o número do pedido que você quer consultar?"
+    ? ORDER_NUMBER_PROMPT
     : "Para consultar o status do seu pedido, entre na sua conta em Meus Dados e abra Pedidos ou Rastreio.",
     ["Meus Dados", "Falar com Humano", "FAQ", "Voltar ao Início"]);
   try {
     const handlers = getHandlers();
+    if (orderNumber) {
+      const args = { orderId: orderNumber };
+      const checked = await callStorefrontTool("track_order", args, () => handlers.trackOrder(args));
+      if (!checked.ok) return output("Não consegui consultar esse pedido agora. Tente novamente em instantes.");
+      const tracking = checked.data as { message?: string; statusLabel?: string };
+      const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: input.userMessage,
+        finalContent: tracking.message ?? tracking.statusLabel ?? "Confira a situação do pedido.", toolResults: { track_order: checked.data } });
+      return { ...output(built.finalContent), blocks: built.blocks };
+    }
     if (action === "shipping") {
       const args = { cartId: input.cartId || input.sessionId };
       const checked = await callStorefrontTool("get_cart", args, () => handlers.getCart(args), { cartId: args.cartId });
