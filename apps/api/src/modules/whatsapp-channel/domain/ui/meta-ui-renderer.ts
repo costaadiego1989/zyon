@@ -147,7 +147,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         const heading = `*${value(d.name)}*\n*${price}*${d.inStock === false ? "\n_Indisponível_" : ""}`;
         text.push(heading); selectionText.push(heading);
         if (d.description) text.push(`*Descrição*\n${value(d.description)}`);
-        if (Number(d.reviewCount) > 0 && d.rating != null) text.push(`*Avaliações*\n${value(d.rating)} / 5 · ${value(d.reviewCount)} avaliação(ões)`);
+        if (Number(d.reviewCount) > 0 && d.rating != null) text.push(`*Avaliações*\n${Number(d.rating).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5 · ${value(d.reviewCount)} avaliação(ões)`);
         if (!(response.state.catalogId && retailerId && response.state.catalogPrices?.[retailerId] === Number(d.variants?.[0]?.price ?? d.price) && items(d.variants).length <= 1 && !items(d.optionGroups).length && !d.serviceSchedule)) photo(selectedVariant?.image || d.image || d.images?.[0], `*${value(d.name)}*\n*${price}*`);
         if (selectedVariant && selected) { const selectedLabel = `_Selecionado: ${variantTitle(selectedVariant)}_`; text.push(selectedLabel); selectionText.push(selectedLabel); }
         else if (variants.length === 1 && selectedVariant?.name && selectedVariant.name !== "SKU" && selectedVariant.value) {
