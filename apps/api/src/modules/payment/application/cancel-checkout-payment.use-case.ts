@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/payment-repository.port.js";
 import { CancelPaymentIntentUseCase } from "./cancel-payment-intent.use-case.js";
-import type { TrustedCheckoutBuyer } from "../../checkout/application/services/trusted-checkout-buyer.js";
+import type { AuthenticatedCheckoutBuyer } from "../../checkout/application/services/trusted-checkout-buyer.js";
 
 @Injectable()
 export class CancelCheckoutPaymentUseCase {
@@ -10,7 +10,7 @@ export class CancelCheckoutPaymentUseCase {
     private readonly cancellation: CancelPaymentIntentUseCase,
   ) {}
 
-  async execute(merchantId: string, sessionId: string, buyer: TrustedCheckoutBuyer): Promise<void> {
+  async execute(merchantId: string, sessionId: string, buyer: AuthenticatedCheckoutBuyer): Promise<void> {
     if (!this.payments.listForSession) throw new ServiceUnavailableException("checkout_edit_unavailable");
     const intents = await this.payments.listForSession(merchantId, sessionId);
     for (const intent of intents) {

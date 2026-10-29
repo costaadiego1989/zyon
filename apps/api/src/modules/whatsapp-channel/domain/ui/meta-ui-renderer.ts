@@ -214,7 +214,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         }); break;
       case "shipping_quote_input": text.push("Qual é o CEP para calcular a entrega?"); break;
       case "checkout_redirect":
-        if (safeLink(d.url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "*Continue sua compra com segurança*\nPreencha os dados protegidos na página da loja. Seu carrinho será mantido." }, action: { name: "cta_url", parameters: { display_text: "Continuar compra", url: safeLink(d.url) } } } }); break;
+        if (safeLink(d.url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "🤖 🔒 *Continue sua compra com segurança*\n\nPreencha os dados protegidos na página da loja. Seu carrinho será mantido." }, action: { name: "cta_url", parameters: { display_text: "Continuar compra", url: safeLink(d.url) } } } }); break;
       case "checkout_prepared": add("Continuar checkout", tool("checkout", { actionId: d.actionId, cartId: d.cartId })); break;
       case "order_confirmation":
         text.push(`✅ *Pedido ${value(d.orderId)}*\n*Total: ${money(d.total)}*`);

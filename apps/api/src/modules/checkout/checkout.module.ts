@@ -257,6 +257,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
     GetCheckoutSessionUseCase,
     EvaluateShippingUseCase,
     CheckoutCustomerService,
+    CheckoutShippingService,
   ]
 })
 export class CheckoutModule {}

@@ -33,6 +33,8 @@ export class HandleMetaConversationUseCase {
     if (Date.now() - input.timestamp > 24 * 60 * 60 * 1000) throw new Error("whatsapp_service_window_expired");
     const claim = input.inboxClaim;
     if (!claim || !this.inbox.saveResponse || !this.conversation.respondStore) throw new Error("whatsapp_durable_ui_unavailable");
+    const verifiedSender = input.provider === "META_CLOUD" ? { inboxId: claim.id, leaseToken: claim.leaseToken,
+      deviceId: input.deviceId, fromNumber: input.fromNumber } : undefined;
     let saved = claim.responseState as unknown as SavedTurn | undefined;
     if (saved?.phase === "generating" || saved?.phase === "dispatching") throw new Error("whatsapp_turn_result_unknown");
     if (!saved?.presentation || !saved.state) {
@@ -80,7 +82,7 @@ export class HandleMetaConversationUseCase {
       if (recoveredView) {
         const refresh = refreshMetaReadView(recoveredView);
         if (refresh) {
-          const response = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData,
+          const response = await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
             message: "Continuar navegação", state, action: refresh });
           state = response.state; view = buildMetaUiView(response);
         } else view = recoveredView;
@@ -108,7 +110,7 @@ export class HandleMetaConversationUseCase {
           pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
         const refresh = checkoutView ? { kind: "tool" as const, tool: "show_checkout", args: {} } : cartView ? { kind: "tool" as const, tool: "get_cart", args: {} }
           : product ? { kind: "tool" as const, tool: "get_product_details", args: { productId: (product.data as any).id } } : undefined;
-        if (refresh) { const response = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData, message: "Voltar", state, action: refresh }); state = response.state; view = buildMetaUiView(response); }
+        if (refresh) { const response = await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData, message: "Voltar", state, action: refresh }); state = response.state; view = buildMetaUiView(response); }
       }
       else if ((action?.kind === "variant" || action?.kind === "option" || action?.kind === "slot" || action?.kind === "option_group") && view) {
         let selectedOptionItemIds = state.selectedOptionItemIds;
@@ -146,7 +148,7 @@ export class HandleMetaConversationUseCase {
       } else {
         if (action?.kind === "menu") state = { ...state, pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
         const attachmentContext = input.metaMedia ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia) : undefined;
-        const response: WhatsAppStructuredResponse = responseProducer ? await responseProducer() : await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData,
+        const response: WhatsAppStructuredResponse = responseProducer ? await responseProducer() : await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
           message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : input.body, state,
           attachmentContext,
           messageId: claim.id,

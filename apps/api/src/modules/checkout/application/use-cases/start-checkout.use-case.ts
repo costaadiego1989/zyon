@@ -22,7 +22,7 @@ import { CheckoutBootstrapService } from "../services/checkout-bootstrap.service
 import { InterventionRuleTextBuilder } from "../services/intervention-rule-text.builder.js";
 import { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
 import { unverifiedCustomerHints } from "../services/checkout-input-policy.js";
-import type { TrustedCheckoutBuyer } from "../services/trusted-checkout-buyer.js";
+import type { TrustedCheckoutBuyer, TrustedWhatsAppCheckoutBuyer } from "../services/trusted-checkout-buyer.js";
 import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
 import {
   PAYMENT_PLATFORM_REPOSITORY,
@@ -62,6 +62,7 @@ export class StartCheckoutUseCase {
   ) { }
 
   async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean;
+    trustedWhatsAppBuyer?: TrustedWhatsAppCheckoutBuyer;
     trustedPhoneBuyer?: { globalUserId: string; phone: string; fullName?: string; email?: string } }): Promise<StartCheckoutResponse> {
     if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
       throw new BadRequestException("checkout_merchant_required");
@@ -77,7 +78,7 @@ export class StartCheckoutUseCase {
           ? await this.cartAuthority.resolveRecoveredStorefront(input.merchant_id.trim(), input.cart, trustedContext.storefrontCartRef)
           : await this.cartAuthority.resolveStorefront(input.merchant_id.trim(), trustedContext.storefrontCartRef)
         : await this.cartAuthority.resolve(input.merchant_id.trim(), input.cart),
-      customer: trustedContext?.trustedBuyer?.customer ?? (trustedContext?.trustedPhoneBuyer
+      customer: trustedContext?.trustedBuyer?.customer ?? trustedContext?.trustedWhatsAppBuyer?.customer ?? (trustedContext?.trustedPhoneBuyer
         ? { ...unverifiedCustomerHints(trustedContext.trustedPhoneBuyer), phone: trustedContext.trustedPhoneBuyer.phone, phone_verified: true, email_verified: false }
         : unverifiedCustomerHints(input.customer)),
       shipping: undefined,
@@ -99,7 +100,7 @@ export class StartCheckoutUseCase {
     const merchantRules = await this.merchantRepository?.getRules(input.merchant_id);
     // Only application-verified proof may provide the buyer identity. Browser
     // hints stay anonymous until this bridge or checkout OTP authenticates them.
-    const globalUserId = trustedContext?.trustedBuyer?.globalUserId ?? trustedContext?.trustedPhoneBuyer?.globalUserId ?? (await this.buyerResolution.resolve({
+    const globalUserId = trustedContext?.trustedBuyer?.globalUserId ?? trustedContext?.trustedWhatsAppBuyer?.globalUserId ?? trustedContext?.trustedPhoneBuyer?.globalUserId ?? (await this.buyerResolution.resolve({
       ...input,
       customer: undefined
     })).globalUserId;
@@ -111,6 +112,7 @@ export class StartCheckoutUseCase {
     // Phase 3: Checkout Bootstrap
     let { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true, {
       trustedBuyer: trustedContext?.trustedBuyer,
+      trustedWhatsAppBuyer: trustedContext?.trustedWhatsAppBuyer,
       trustedPhoneBuyer: trustedContext?.trustedPhoneBuyer,
       requireBuyerProof: trustedContext?.requireBuyerProof,
       refreshCart: trustedContext?.refreshCart,

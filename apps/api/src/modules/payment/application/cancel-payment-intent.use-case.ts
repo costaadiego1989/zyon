@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../checkout/domain/ports/checkout-repository.port.js";
-import type { TrustedCheckoutBuyer } from "../../checkout/application/services/trusted-checkout-buyer.js";
+import type { AuthenticatedCheckoutBuyer } from "../../checkout/application/services/trusted-checkout-buyer.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/payment-repository.port.js";
 import { PAYMENT_PROVIDER_PORT, type PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
@@ -9,7 +9,7 @@ import type { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import type { PaymentCancellation, PendingPaymentCancellationInput, PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { savePaymentTransition } from "./services/save-payment-transition.js";
 
-export type CancelPaymentIntentRequest = { merchantId: string; sessionId: string; intentId: string; idempotencyKey: string; buyer: TrustedCheckoutBuyer };
+export type CancelPaymentIntentRequest = { merchantId: string; sessionId: string; intentId: string; idempotencyKey: string; buyer: AuthenticatedCheckoutBuyer };
 export type CancelPaymentIntentResponse = { version: 1; intent_id: string; status: string; cancellation: "cancelled" | "pending" | "unsupported" | "not_pending"; reason?: string };
 
 /** A cancellation is a durable single submission. Recovery only reads the original charge. */
@@ -28,6 +28,10 @@ export class CancelPaymentIntentUseCase {
     const session = await this.checkout.getSession(input.merchantId, input.sessionId);
     if (!session || session.merchantId !== input.merchantId || session.sessionId !== input.sessionId ||
         !input.buyer?.globalUserId || session.globalUserId !== input.buyer.globalUserId) throw new ForbiddenException("payment_cancellation_buyer_mismatch");
+    if ("merchantId" in input.buyer && (input.buyer.merchantId !== input.merchantId || input.buyer.conversationId !== session.cart.cart_ref ||
+      session.customer?.phone_verified !== true || session.customer.phone?.replace(/\D/g, "") !== input.buyer.customer.phone.replace(/\D/g, ""))) {
+      throw new ForbiddenException("payment_cancellation_buyer_mismatch");
+    }
     let intent = await this.load(input);
     const snapshot = intent.snapshot();
     const sessionScope = session as { crossStoreItems?: unknown[] };

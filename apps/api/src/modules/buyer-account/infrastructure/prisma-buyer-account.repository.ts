@@ -89,6 +89,16 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
     return row ? toDomainAccount(row) : null;
   }
 
+  async findRegisteredByPhones(phones: string[], emailHint?: string): Promise<BuyerAccount[]> {
+    const hashes = phones.map(phone => buyerPhoneLookupHash(phone)).filter((hash): hash is string => !!hash);
+    const rows = await this.prisma.buyerAccount.findMany({ where: {
+      NOT: { email: { endsWith: "@buyer.aacp" } },
+      ...(emailHint ? { email: emailHint.trim().toLowerCase() } : {}),
+      OR: [{ phoneLookupHash: { in: hashes } }, { phone: { in: phones.flatMap(phone => [phone, "+" + phone]) } }],
+    }, take: 2 });
+    return rows.map(toDomainAccount);
+  }
+
   async findAgentByGlobalUserId(globalUserId: string): Promise<BuyerAgentProfile | null> {
     const row = await this.prisma.buyerAgentProfile.findUnique({ where: { globalUserId } });
     return row ? toDomainAgent(row) : null;
@@ -136,7 +146,7 @@ type BuyerPiiFields = Pick<BuyerAccount, "phone" | "cpf">;
 type AccountRow = {
   globalUserId: string;
   email: string;
-  passwordHash: string;
+  passwordHash: string | null;
   displayName: string;
   phone: string | null;
   cpf: string | null;
