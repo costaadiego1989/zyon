@@ -21,6 +21,18 @@ test("public question blocks carry a canonical product, without manufacturing a 
   assert.equal(result.blocks.some(b => b.type === "question_submission"), false);
 });
 
+test("personal question blocks disclose only linked own intake and explicitly leave the answer unlinked", () => {
+  const result = buildConversationBlocks({ merchantId: "merchant", userMessage: "Minhas Perguntas", finalContent: "",
+    toolResults: { get_product_questions: { productId, productName: "QA físico", scope: "buyer_history", filter: "mine", historyLimited: true,
+      returnedCount: 1, hasMore: false, questions: [{ id: "message", ticketId: "case", question: "Pergunta própria?", date: "2026-10-29T12:00:00Z", answerState: "not_linked" }] } } });
+  assert.equal(result.blocks[0]?.type, "buyer_product_questions");
+  assert.equal(conversationBlockSchema.safeParse(result.blocks[0]).success, true);
+  assert.match(result.finalContent, /somente perguntas recentes/);
+  const view = buildMetaUiView({ agentMessage: result.finalContent, blocks: result.blocks, quickReplies: [], state: base });
+  assert.match(view.body, /Pergunta própria/); assert.match(view.body, /Resposta não vinculada/);
+  assert.equal(view.body.includes("Perguntas públicas respondidas"), false);
+});
+
 test("native question intake retains the product ID across free text and creates one actual handoff", async () => {
   const calls: any[] = [], writes: any[] = [];
   const handlers: any = { getProductDetails: async ({ productId: requested }: any) => ({ product: { id: requested, name: "QA físico", price: 300, inStock: true } }),

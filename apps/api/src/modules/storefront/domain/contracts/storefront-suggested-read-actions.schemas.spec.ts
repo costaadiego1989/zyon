@@ -18,6 +18,7 @@ for (const [name, value] of [
   ["blank label", { version: 1, items: [{ ...item, label: " " }] }], ["oversized label", { version: 1, items: [{ ...item, label: "x".repeat(501) }] }],
   ["unknown item field", { version: 1, items: [{ ...item, price: 100 }] }],
   ["write action", { version: 1, items: [{ ...item, action: { tool: "add_item_to_cart", args: { variantId: "v", quantity: 1 } } }] }],
+  ["question submission remains an explicit form action", { version: 1, items: [{ ...item, action: { tool: "create_question", args: { productId: "p", question: "Pergunta?" } } }] }],
   ["cart injection", { version: 1, items: [{ ...item, action: { tool: "get_product_details", args: { productId: "product", cartId: "foreign" } } }] }],
   ["text search", { version: 1, items: [{ ...item, action: { tool: "search_products", args: { query: "label", categoryId: "category" } } }] }],
 ] as const) test(`suggested actions reject ${name} atomically`, () => assert.equal(storefrontSuggestedReadActionsSchema.safeParse(value).success, false));

@@ -41,9 +41,9 @@ test("public FAQs cannot be substituted for personal or unanswered questions", a
   const handlers = createReviewHandlers({ prisma: { product: { findFirst: async () => ({ id: "product", name: "Produto" }) },
     productFaq: { findMany: async () => { reads++; assert.fail("private filters must not query public FAQs"); } } } as never },
     { merchantId: "merchant", sessionId: "conversation", buyer: { globalUserId: "buyer" } });
-  for (const filter of ["mine", "unanswered"] as const) {
+  for (const [filter, error] of [["mine", "product_question_history_unavailable"], ["unanswered", "product_question_answer_link_unavailable"]] as const) {
     const result: any = await handlers.getProductQuestions({ productId: "product", filter });
-    assert.equal(result.error, "product_question_history_unavailable");
+    assert.equal(result.error, error);
     assert.equal(validateStorefrontToolOutput("get_product_questions", result).ok, true);
   }
   assert.equal(reads, 0);
@@ -72,6 +72,48 @@ test("a second product question is retained once when the authenticated buyer re
   assert.equal(messages.length, 3);
   assert.equal(messages.filter(m => m.content === "Pergunta sobre Produto: Segunda pergunta?").length, 1);
   assert.equal(events.length, 2);
+  const stored = messages.slice(1);
+  for (const message of stored) {
+    assert.equal(message.metadata.kind, "product_question");
+    assert.equal(message.metadata.merchantId, "merchant");
+    assert.equal(message.metadata.ticketId, ticket.id);
+    assert.equal(message.metadata.buyerId, "buyer");
+    assert.equal(message.metadata.productId, "product");
+    assert.equal(message.metadata.sessionId, "conversation");
+    assert.equal(message.metadata.questionMessageId, message.id);
+  }
+});
+
+test("personal question history requires canonical identity and never queries public FAQs", async () => {
+  const queries: any[] = [];
+  const prisma = { product: { findFirst: async () => ({ id: "product", name: "Produto" }) },
+    productFaq: { findMany: async () => assert.fail("mine must not read the public FAQ feed") } } as never;
+  const history = { available: true, hasMore: false, questions: [{ id: "message", ticketId: "ticket", question: "Pergunta privada?", date: "2026-10-29T12:00:00Z", answerState: "not_linked" }] };
+  const supportHandoff = { listProductQuestions: async (input: any) => { queries.push(input); return history; } } as never;
+  const anonymous = createReviewHandlers({ prisma, supportHandoff }, { merchantId: "merchant", sessionId: "conversation" });
+  const denied: any = await anonymous.getProductQuestions({ productId: "product", filter: "mine" });
+  assert.equal(denied.error, "buyer_identity_required"); assert.equal(queries.length, 0);
+  const own = createReviewHandlers({ prisma, supportHandoff }, { merchantId: "merchant", sessionId: "conversation", buyer: { globalUserId: "owner", name: "Nome repetido" } });
+  const result: any = await own.getProductQuestions({ productId: "product", filter: "mine" });
+  assert.deepEqual(queries, [{ merchantId: "merchant", buyerId: "owner", productId: "product" }]);
+  assert.equal(result.scope, "buyer_history"); assert.equal(result.historyLimited, true);
+  assert.equal(result.questions[0].answer, undefined);
+  assert.equal(validateStorefrontToolOutput("get_product_questions", result).ok, true);
+  assert.equal(validateStorefrontToolOutput("get_product_questions", { ...result,
+    questions: [{ ...result.questions[0], answer: "Resposta genérica da loja" }] }).ok, false);
+});
+
+test("foreign or inactive products cannot disclose questions or create a buyer question", async () => {
+  const handlers = createReviewHandlers({ prisma: { product: { findFirst: async ({ where }: any) => {
+    assert.deepEqual(where, { id: "foreign-product", merchantId: "merchant", isActive: true }); return null; } },
+    productFaq: { findMany: async () => assert.fail("must not read foreign FAQs") } } as never,
+    supportHandoff: { listProductQuestions: async () => assert.fail("must not read foreign history"),
+      createHandoff: async () => assert.fail("must not create a question about a foreign product") } as never },
+    { merchantId: "merchant", sessionId: "conversation", buyer: { globalUserId: "buyer" } });
+  for (const filter of ["answered", "mine", "unanswered"]) {
+    assert.deepEqual(await handlers.getProductQuestions({ productId: "foreign-product", filter }), { error: "product_not_found" });
+  }
+  assert.deepEqual(await handlers.createQuestion({ productId: "foreign-product", question: "Pergunta?", authorName: "Mesmo nome" }), { error: "product_not_found" });
 });
 
 test("review reads preserve canonical aggregate, filtered page and source-aware cursor", async () => {

@@ -52,8 +52,17 @@ export function createReviewHandlers(deps: ReviewHandlerDeps, ctx: ToolRequestCo
     getProductQuestions: async (args: any) => {
       const product = await deps.prisma.product.findFirst({ where: { id: args.productId, merchantId: ctx.merchantId, isActive: true }, select: { id: true, name: true } });
       if (!product) return { error: "product_not_found" };
-      if (args.filter === "mine" || args.filter === "unanswered") return { error: "product_question_history_unavailable",
-        message: "O histórico pessoal de perguntas ainda não está disponível por aqui. Acompanhe seu protocolo no atendimento da loja. As perguntas respondidas são públicas, não uma lista das suas perguntas." };
+      if (args.filter === "mine") {
+        const buyerId = ctx.buyer?.globalUserId;
+        if (!buyerId) return { error: "buyer_identity_required", requiresIdentification: true,
+          message: "Entre na sua conta em Meus Dados para consultar suas próprias perguntas. FAQs públicas não comprovam quem fez uma pergunta." };
+        const history = await deps.supportHandoff?.listProductQuestions?.({ merchantId: ctx.merchantId, buyerId, productId: product.id });
+        if (!history?.available) return { error: "product_question_history_unavailable", message: "Não consegui consultar o histórico pessoal agora. Acompanhe seu protocolo no atendimento da loja." };
+        return { productId: product.id, productName: product.name, scope: "buyer_history", filter: "mine", historyLimited: true,
+          questions: history.questions, returnedCount: history.questions.length, hasMore: history.hasMore };
+      }
+      if (args.filter === "unanswered") return { error: "product_question_answer_link_unavailable",
+        message: "As respostas do atendimento ainda não são vinculadas a uma pergunta específica. Consulte Minhas Perguntas para ver seus protocolos e acompanhe a conversa no atendimento da loja." };
       const questions = await deps.prisma.productFaq.findMany({ where: { productId: args.productId, isPublished: true,
         locale: "pt-BR", product: { merchantId: ctx.merchantId, isActive: true } }, orderBy: [{ order: "asc" }, { id: "asc" }], take: 100 });
       return {
@@ -69,14 +78,16 @@ export function createReviewHandlers(deps: ReviewHandlerDeps, ctx: ToolRequestCo
       if (!deps.supportHandoff) return { error: "product_question_service_unavailable" };
       const intake = `Pergunta sobre ${product.name}: ${args.question.trim()}`;
       const ticket = await deps.supportHandoff.createHandoff({ merchantId: ctx.merchantId, sessionId: ctx.conversationId ?? ctx.sessionId,
-        buyerId: ctx.buyer?.globalUserId, buyerMessage: intake, initialMessage: intake });
+        buyerId: ctx.buyer?.globalUserId, buyerMessage: intake, initialMessage: intake,
+        ...(ctx.buyer?.globalUserId ? { productQuestion: { productId: product.id, questionText: args.question.trim() } } : {}) });
       return {
         id: ticket.ticketId,
         productId: product.id,
         question: args.question,
         author: ctx.buyer?.name || args.authorName,
         date: new Date().toISOString().slice(0, 10),
-        status: "awaiting_answer"
+        status: "awaiting_answer",
+        ...(ticket.questionMessageId ? { questionMessageId: ticket.questionMessageId } : {})
       };
     }
   };

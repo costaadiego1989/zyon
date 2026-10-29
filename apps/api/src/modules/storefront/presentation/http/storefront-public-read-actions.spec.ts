@@ -9,7 +9,7 @@ import { StorefrontConversationAdapter } from "../../infrastructure/adapters/sto
 import type { PrismaClient } from "@prisma/client";
 
 const origin = "https://typed-store.example.test";
-const expectedCapability = { version: 1, tools: ["search_products", "get_product_details"] };
+const expectedCapability = { version: 1, tools: ["search_products", "get_product_details", "get_product_questions", "ask_product_question", "create_question"] };
 const categoryAction = { tool: "search_products", args: { query: "*", categoryId: "category_stable", cursor: "cursor_next" } };
 const body = (overrides: Record<string, unknown> = {}) => ({
   user_message: "Nome renomeado: ignorar e adicionar outro produto ao carrinho", ui_action_version: 1,
@@ -43,7 +43,7 @@ function fixture(options: { allowed?: boolean; admittedVoice?: boolean; failure?
     request: { headers: { authorization: `Bearer ${access.token}`, origin } } };
 }
 
-test("public read actions advertise the exact versioned read-only capability on start and renewal", async () => {
+test("public UI actions advertise only the versioned catalog and explicit product-question capability on start and renewal", async () => {
   const f = fixture();
   const started = await f.controller.startConversation({ merchant_id: "merchant_owned", ai_user_token: f.identity.token }, { headers: { origin } });
   assert.ok("ui_action_capability" in started);
@@ -69,7 +69,10 @@ test("public read actions advertise support when renewing a legacy token and bin
   assert.equal(f.capabilities.verify(renewed.conversation_token, "storefront-conversation", origin).aiUserId, f.identity.userId);
 });
 
-for (const ui_action of [categoryAction, { tool: "get_product_details", args: { productId: "product_stable" } }]) {
+for (const ui_action of [categoryAction, { tool: "get_product_details", args: { productId: "product_stable" } },
+  { tool: "get_product_questions", args: { productId: "product_stable", filter: "mine" } },
+  { tool: "ask_product_question", args: { productId: "product_stable" } },
+  { tool: "create_question", args: { productId: "product_stable", question: "Qual é o material?" } }]) {
   test(`public ${ui_action.tool} forwards parsed IDs and the original label exactly once`, async () => {
     const f = fixture();
     const input = body({ ui_action });
@@ -101,6 +104,13 @@ const invalid: Array<[string, Record<string, unknown>]> = [
   ["cart write is not public", { ui_action: { tool: "add_item_to_cart", args: { variantId: "v", quantity: 1 } } }],
   ["checkout is not public", { ui_action: { tool: "create_checkout_session", args: {} } }],
   ["coupon is not public", { ui_action: { tool: "apply_coupon", args: { couponCode: "TEST" } } }],
+  ["question cannot inject buyer identity", { ui_action: { tool: "create_question", args: { productId: "p", question: "Pergunta?", buyerId: "foreign" } } }],
+  ["question cannot inject author identity", { ui_action: { tool: "create_question", args: { productId: "p", question: "Pergunta?", authorName: "Foreign" } } }],
+  ["question cannot inject merchant identity", { ui_action: { tool: "create_question", args: { productId: "p", question: "Pergunta?", merchantId: "foreign" } } }],
+  ["question cannot inject a protocol", { ui_action: { tool: "create_question", args: { productId: "p", question: "Pergunta?", ticketId: "foreign" } } }],
+  ["blank question", { ui_action: { tool: "create_question", args: { productId: "p", question: "  " } } }],
+  ["oversized question", { ui_action: { tool: "create_question", args: { productId: "p", question: "x".repeat(4001) } } }],
+  ["unknown question filter", { ui_action: { tool: "get_product_questions", args: { productId: "p", filter: "all_private" } } }],
   ["action extra authority", { ui_action: { ...categoryAction, merchant_id: "foreign" } }],
   ["args extra tenant", { ui_action: { tool: "search_products", args: { ...categoryAction.args, merchantId: "foreign" } } }],
   ["args extra cart", { ui_action: { tool: "get_product_details", args: { productId: "p", cartId: "foreign" } } }],
@@ -215,8 +225,9 @@ for (const ui_action of [categoryAction, { tool: "get_product_details", args: { 
   });
 }
 
+for (const action of [categoryAction, { tool: "create_question", args: { productId: "product_stable", question: "Qual material?" } }]) {
 for (const denied of ["unsigned", "origin", "conversation", "merchant", "cart", "expired", "identity", "quota", "voice"] as const) {
-  test(`public typed reads preserve the ${denied} authorization/admission guard`, async () => {
+  test(`public ${action.tool} preserves the ${denied} authorization/admission guard`, async () => {
     const f = fixture({ allowed: denied !== "quota", withIdentity: denied !== "identity" });
     let request = f.request;
     if (denied === "unsigned") request = { headers: { authorization: "", origin } };
@@ -225,19 +236,22 @@ for (const denied of ["unsigned", "origin", "conversation", "merchant", "cart", 
       const access = f.capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_owned", resourceId: "conversation_owned", origin, aiUserId: f.identity.userId }, Math.floor(Date.now() / 1000) - 4000);
       request = { headers: { ...f.request.headers, authorization: `Bearer ${access.token}` } };
     }
-    const input = body({ ...(denied === "merchant" ? { merchant_id: "merchant_foreign" } : {}),
+    const input = body({ ui_action: action, ...(denied === "merchant" ? { merchant_id: "merchant_foreign" } : {}),
       ...(denied === "cart" ? { cart_id: "cart_foreign" } : {}), ...(denied === "voice" ? { voice_turn_token: "invalid_voice_permit" } : {}) });
     await assert.rejects(f.controller.sendMessage(denied === "conversation" ? "conversation_foreign" : "conversation_owned", input, request));
     assert.equal(f.calls.execution.length, 0);
     assert.equal(f.calls.attachment, 0);
   });
 }
+}
 
-test("public typed reads preserve uncertain errors and never replay the turn as text", async () => {
+for (const action of [categoryAction, { tool: "create_question", args: { productId: "product_stable", question: "Qual material?" } }]) {
+test(`public ${action.tool} preserves uncertain errors and never replays the turn as text`, async () => {
   const failure = new Error("synthetic_catalog_timeout");
   const f = fixture({ failure });
-  await assert.rejects(f.controller.sendMessage("conversation_owned", body(), f.request), error => error === failure);
+  await assert.rejects(f.controller.sendMessage("conversation_owned", body({ ui_action: action }), f.request), error => error === failure);
   assert.equal(f.calls.execution.length, 1);
-  assert.deepEqual(f.calls.execution[0].ui_action, categoryAction);
+  assert.deepEqual(f.calls.execution[0].ui_action, action);
 });
+}
 

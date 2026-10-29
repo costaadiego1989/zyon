@@ -384,14 +384,20 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
   const questions = storefrontToolOutputSchemas.get_product_questions.safeParse(toolResults.get_product_questions);
   if (questions.success) {
-    blocks.push({ type: "product_questions", data: questions.data });
-    finalContent = questions.data.totalCount ? `Confira as perguntas públicas respondidas sobre ${questions.data.productName}.`
-      : `Ainda não há perguntas públicas respondidas sobre ${questions.data.productName}. Você pode enviar uma pergunta à loja.`;
+    if (questions.data.scope === "public_answered") {
+      blocks.push({ type: "product_questions", data: questions.data });
+      finalContent = questions.data.totalCount ? `Confira as perguntas públicas respondidas sobre ${questions.data.productName}.`
+        : `Ainda não há perguntas públicas respondidas sobre ${questions.data.productName}. Você pode enviar uma pergunta à loja.`;
+    } else {
+      blocks.push({ type: "buyer_product_questions", data: questions.data });
+      finalContent = "Este histórico inclui somente perguntas recentes registradas com vínculo à sua conta. Não inclui registros antigos sem esse vínculo. As respostas ainda não são vinculadas individualmente; acompanhe o atendimento pelo protocolo.";
+    }
   }
   const submittedQuestion = storefrontToolOutputSchemas.create_question.safeParse(toolResults.create_question);
   if (submittedQuestion.success) {
     blocks.push({ type: "question_submission", data: { ticketId: submittedQuestion.data.id,
-      productId: submittedQuestion.data.productId, status: submittedQuestion.data.status } });
+      productId: submittedQuestion.data.productId, status: submittedQuestion.data.status,
+      ...(submittedQuestion.data.questionMessageId ? { questionMessageId: submittedQuestion.data.questionMessageId } : {}) } });
     finalContent = "Sua pergunta foi encaminhada ao atendimento da loja. Acompanhe a resposta pelo protocolo informado.";
   }
   const submittedReview = storefrontToolOutputSchemas.create_review.safeParse(toolResults.create_review);

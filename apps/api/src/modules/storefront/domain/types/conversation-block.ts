@@ -235,7 +235,14 @@ export interface ProductQuestionsBlock {
 
 export interface QuestionSubmissionBlock {
   type: "question_submission";
-  data: { ticketId: string; productId: string; status: "awaiting_answer" };
+  data: { ticketId: string; productId: string; status: "awaiting_answer"; questionMessageId?: string };
+}
+
+export interface BuyerProductQuestionsBlock {
+  type: "buyer_product_questions";
+  data: { productId: string; productName: string; scope: "buyer_history"; filter: "mine";
+    questions: Array<{ id: string; ticketId: string; question: string; date: string; answerState: "not_linked" }>;
+    returnedCount: number; hasMore: boolean; historyLimited: true };
 }
 
 export interface ProductQuestionInputBlock {
@@ -301,6 +308,7 @@ export type ConversationBlock =
   | ReviewSubmissionBlock
   | ProductQuestionsBlock
   | QuestionSubmissionBlock
+  | BuyerProductQuestionsBlock
   | ProductQuestionInputBlock
   | CrossSellBlock
   | CouponListBlock

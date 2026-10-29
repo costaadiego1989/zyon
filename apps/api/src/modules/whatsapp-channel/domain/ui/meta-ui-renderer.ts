@@ -253,6 +253,13 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         text.push(`📨 *Pergunta encaminhada*\n🎫 Protocolo: *${value(d.ticketId)}*\n⏳ Acompanhe a resposta pelo atendimento da loja.`);
         add("Ver Respondidas", tool("get_product_questions", { productId: d.productId, filter: "answered" }));
         add("Minhas Perguntas", tool("get_product_questions", { productId: d.productId, filter: "mine" })); break;
+      case "buyer_product_questions":
+        text.push(`🔒 *Suas perguntas com vínculo à conta*\n📦 *${value(d.productName)}*\n${value(d.returnedCount)} pergunta(s) exibida(s).`);
+        items(d.questions).forEach(q => text.push(`❓ *${value(q.question)}*\n🎫 Protocolo: *${value(q.ticketId)}*\n⏳ Resposta não vinculada; acompanhe o atendimento.`));
+        if (!items(d.questions).length) text.push("Ainda não há perguntas com esse vínculo neste histórico. Isso não comprova ausência de chamados antigos.");
+        if (d.hasMore) text.push("Exibimos até 20 registros recentes. Há outros registros; acompanhe os protocolos no atendimento.");
+        add("Fazer Pergunta", tool("ask_product_question", { productId: d.productId }));
+        add("Ver Respondidas", tool("get_product_questions", { productId: d.productId, filter: "answered" })); break;
       case "product_question_input":
         text.push(`❓ *Sua pergunta para a loja*\n📦 *${value(d.productName)}*\nEscreva a pergunta em uma mensagem. Use *Voltar* para desistir.`); break;
       case "add_review": text.push(`Qual nota de 1 a 5 você dá a ${value(d.productName)}? Conte também como foi sua experiência.`); break;

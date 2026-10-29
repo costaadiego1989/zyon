@@ -209,7 +209,7 @@ export class StorefrontController {
   ) {
     const claims = this.conversationAccess(request, conversationId, body.merchant_id);
     if (body.cart_id !== undefined && body.cart_id !== claims.resourceId) throw new ForbiddenException("conversation_cart_mismatch");
-    let uiAction: import("@zyon/shared-types").StorefrontReadUiAction | undefined;
+    let uiAction: import("@zyon/shared-types").StorefrontPublicUiAction | undefined;
     if (Object.hasOwn(body, "ui_action_version") || Object.hasOwn(body, "ui_action")) {
       const parsed = storefrontPublicReadUiActionRequestSchema.safeParse({
         ui_action_version: body.ui_action_version, ui_action: body.ui_action, user_message: body.user_message,

@@ -380,7 +380,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const product = response.blocks.find(b => b.type === "product_card");
     const submission = response.blocks.find(b => b.type === "review_submission");
     const questionContext = response.blocks.find(b => b.type === "question_submission")
-      ?? response.blocks.find(b => b.type === "product_question_input") ?? response.blocks.find(b => b.type === "product_questions");
+      ?? response.blocks.find(b => b.type === "product_question_input") ?? response.blocks.find(b => b.type === "buyer_product_questions")
+      ?? response.blocks.find(b => b.type === "product_questions");
     const productId = submission?.data.productId ?? (questionContext?.data as { productId?: string } | undefined)?.productId ?? (product?.data as { id?: string } | undefined)?.id;
     if (productId) {
       if (state.selectedProductId !== productId) { state.selectedVariantId = undefined; state.selectedOptionItemIds = []; state.selectedOptionGroupId = undefined; state.selectedServiceSlotId = undefined; }
