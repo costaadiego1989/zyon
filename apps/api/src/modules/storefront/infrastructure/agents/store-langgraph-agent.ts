@@ -45,6 +45,7 @@ import type { OneBuyClickConversationContext } from "../../domain/ports/conversa
 import { reviewStorefrontReply, type StorefrontReviewBudget } from "../copy/storefront-semantic-review.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../../domain/contracts/shopping-search-plan.schemas.js";
+import { withStorefrontReplyContract } from "./storefront-reply-contract.js";
 
 export interface StorefrontAgentCallbacks {
   onToken?: (token: string) => void;
@@ -387,7 +388,7 @@ export class StorefrontLangGraphAgent {
         const result: OpenRouterChatResult = await observeStorefrontChat(this.provider, {
           ...(this.structuredRouting ? { model: modelUsed } : {}),
           responseFormat: this.responseFormat,
-          messages,
+          messages: withStorefrontReplyContract(messages),
           tools: openRouterTools.length > 0 ? openRouterTools : undefined,
           temperature: 0.2,
           maxTokens: 1000
@@ -453,7 +454,7 @@ export class StorefrontLangGraphAgent {
         try {
           const retryResult: OpenRouterChatResult = await observeStorefrontChat(this.provider, {
             responseFormat: this.responseFormat,
-            messages,
+            messages: withStorefrontReplyContract(messages),
             tools: openRouterTools.length > 0 ? openRouterTools : undefined,
             temperature: 0.3,
             maxTokens: 500,
@@ -490,7 +491,7 @@ export class StorefrontLangGraphAgent {
             }
             groundProductResponse(messages, toolResults);
             if (!canonicalSearchComplete && !cartPolicy.terminal) {
-              const finalResult = await observeStorefrontChat(this.provider, { messages, responseFormat: this.responseFormat, temperature: 0.3, maxTokens: 500, model: this.strongModel }, "primary", "final");
+              const finalResult = await observeStorefrontChat(this.provider, { messages: withStorefrontReplyContract(messages), responseFormat: this.responseFormat, temperature: 0.3, maxTokens: 500, model: this.strongModel }, "primary", "final");
               finalContent = this.decodeResponse(finalResult);
               totalPromptTokens += finalResult.usage.promptTokens;
               totalCompletionTokens += finalResult.usage.completionTokens;
@@ -528,7 +529,7 @@ export class StorefrontLangGraphAgent {
             fbLoops++;
             const fbResult = await observeStorefrontChat(this.fallbackProvider, {
               responseFormat: this.responseFormat,
-              messages: fbMessages,
+              messages: withStorefrontReplyContract(fbMessages),
               tools: openRouterTools.length > 0 ? openRouterTools : undefined,
               temperature: 0.2,
               maxTokens: 500
