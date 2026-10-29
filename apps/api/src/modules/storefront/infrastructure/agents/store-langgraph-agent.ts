@@ -699,7 +699,10 @@ export class StorefrontLangGraphAgent {
 
     return {
       message: validation.message,
-      blocks: finalBlocks,
+      // A rejected narration must not turn its promotion lookup into an
+      // unsolicited offer. Keep committed outcomes and other canonical reads.
+      blocks: !validation.safe || validation.message === STOREFRONT_MODEL_FALLBACK
+        ? finalBlocks.filter(block => block.type !== "coupon_list") : finalBlocks,
       cartId: input.cartId,
       usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
       toolsUsed,
