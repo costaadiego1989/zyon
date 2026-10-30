@@ -52,7 +52,23 @@ export function shoppingRecoveryQueries(plan: ShoppingSearchPlan, userMessage = 
     remaining = remaining.replace(phrase(term), " ").replace(/\s+/g, " ").trim();
   }
   const family = normalizeShoppingFact(plan.recovery.familyQuery);
-  if (family !== remaining || !contextualSearchGroups(family).some(group => !/^(?:sem|nao) /.test(group[0]!))) return undefined;
+  const positive = (query: string) => contextualSearchGroups(query).filter(group => !/^(?:sem|nao) /.test(group[0]!));
+  const exact = appended.length ? `${original} ${appended.join(" ")}` : original;
+  const originalGroups = positive(exact), familyGroups = positive(family);
+  if (family !== remaining || !familyGroups.length) return undefined;
+  // A separate name adds evidence only for a family with at least two public
+  // lexical groups. A single proper name is ambiguous in this initial scope;
+  // it must not become the purpose of an unrelated product after broadening.
+  if (appended.length && familyGroups.length < 2) return undefined;
+  // Literal removal alone does not prove optionality: a model could mark the
+  // whole product family optional and keep only a model name ("Kit Organizador
+  // Viajante" -> "Viajante"). Preserve the leading product core, including two
+  // groups when the original contains three or more. Unproved reductions stay
+  // exact-only instead of filling the carousel with unrelated catalog items.
+  if (family !== exact && (familyGroups.length < Math.min(2, Math.max(1, originalGroups.length - 1))
+    || familyGroups.some((group, index) => JSON.stringify(group) !== JSON.stringify(originalGroups[index])))) return undefined;
+  const generic = new Set(["kit", "kits", "conjunto", "conjuntos", "acessorio", "acessorios", "pacote", "pacotes", "modelo", "modelos", "linha", "linhas"]);
+  if (familyGroups.every(group => group.every(term => generic.has(term)))) return undefined;
   if (!terms.length && !plan.attributes.some(a => a.priority === "preferred" && a.operator === "equals")) return undefined;
   return { exact: appended.length ? `${plan.query} ${appended.join(" ")}` : plan.query, family: plan.recovery.familyQuery };
 }

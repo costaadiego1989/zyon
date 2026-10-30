@@ -182,6 +182,38 @@ test("negating the obligation keeps a typed preference relaxable; negating optio
   }
 });
 
+test("a mistaken optional label cannot erase the product family and present an unrelated namesake", async () => {
+  for (const recovery of [
+    { familyQuery: "viajante", optionalQueryTerms: ["kit organizador"] },
+    { familyQuery: "kit", optionalQueryTerms: ["organizador", "viajante"] },
+    { familyQuery: "kit viajante", optionalQueryTerms: ["organizador"] },
+  ]) {
+    const row = { ...product("cosmetic"), name: "Creme Viajante Kit", description: "Creme para a pele" };
+    const f = fixture([row]); const out = await f.read(criteria({ recovery }));
+    assert.deepEqual(out.products, []); assert.equal(f.queries.length, 1); assert.equal(f.writes(), 0);
+  }
+  const namesake = fixture([{ ...product("cosmetic"), name: "Creme Viajante", description: "Creme para a pele" }]);
+  await assert.rejects(namesake.read(criteria({ query: "viajante",
+    recovery: { familyQuery: "viajante", optionalQueryTerms: ["kit organizador"] } })), /scope_unconfirmed/);
+  assert.equal(namesake.queries.length, 0); assert.equal(namesake.writes(), 0);
+  const singleFamily = fixture(undefined, { context: { userMessage: "Tênis SprintPlus; se não tiver, mostre semelhantes." } });
+  await assert.rejects(singleFamily.read(criteria({ query: "tênis",
+    recovery: { familyQuery: "tênis", optionalQueryTerms: ["SprintPlus"] } })), /scope_unconfirmed/);
+  assert.equal(singleFamily.queries.length, 0);
+});
+
+test("safe suffix recovery retains the family and lexical exclusion; a one-word real family still works", async () => {
+  const row = { ...product(), name: "Kit Organizador sem couro", description: "Organizador para cabos sem couro" };
+  const f = fixture([row]);
+  const out = await f.read(criteria({ query: "kit organizador viajante sem couro",
+    recovery: { familyQuery: "kit organizador sem couro", optionalQueryTerms: ["viajante"] } }));
+  assert.equal(out.products.length, 1); assert.equal(f.queries[1].query, "kit organizador sem couro");
+  const shoe = { ...product(), name: "Tênis Básico", description: "Tênis para corrida" };
+  const shoes = fixture([shoe]);
+  const result = await shoes.read(criteria({ query: "tênis SprintPlus", recovery: { familyQuery: "tênis", optionalQueryTerms: ["SprintPlus"] } }));
+  assert.equal(result.products.length, 1); assert.equal(result.searchEvidence!.matchType, "similar");
+});
+
 test("same-variant verification rejects a cheap wrong-color variant even if another variant is blue", async () => {
   const row = product("viajante", 6000, { cor: "preto" });
   row.variants.push({ ...row.variants[0]!, id: "blue", attributes: { cor: "azul" }, basePriceInCents: 12000 });
