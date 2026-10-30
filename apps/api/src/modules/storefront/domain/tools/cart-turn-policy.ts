@@ -203,6 +203,12 @@ export function createCartTurnPolicy(message: string, attachmentContext?: string
               || (args.serviceSlotId ?? null) !== inspected.data.serviceSlotId)) return denied(tool.name, "cart_selection_binding_mismatch");
             if (optionTag && (!Array.isArray(args.optionItemIds) || JSON.stringify([...args.optionItemIds].sort()) !== JSON.stringify(options))
               || serviceSlotTag && args.serviceSlotId !== serviceSlotTag) return denied(tool.name, "cart_selection_binding_mismatch");
+            if (tool.name === "update_cart_item" && inspected?.success) {
+              // Absence is a legacy unique-variant selector, not the inspected
+              // empty selection. Carry []/null into the locked writer so a
+              // changed options/slot line cannot replace the admitted line.
+              args = { ...args, optionItemIds: [...inspected.data.optionItemIds], serviceSlotId: inspected.data.serviceSlotId };
+            }
           }
           if (tool.name === "create_checkout_session" && allowed.has("add_item_to_cart")
             && !addOutcomes.some(outcome => outcome.status === "succeeded")) return denied(tool.name, "cart_action_requires_review");

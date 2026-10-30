@@ -61,7 +61,7 @@ test("a zero target is only admitted and bound; the inspection never removes any
 test("an explicit zero reaches only the inspected writer line and preserves the R3 sibling", async () => {
   const f = fixture(); let updates = 0;
   const agent = agentFor({ ...f.handlers, updateCartItem: async (args: unknown) => {
-    updates++; assert.deepEqual(args, { cartId: "cart", variantId: "essential", quantity: 0 });
+    updates++; assert.deepEqual(args, { cartId: "cart", variantId: "essential", quantity: 0, optionItemIds: [], serviceSlotId: null });
     return { cartId: "cart", items: [{ variantId: "physical", name: "QA Físico R$3", quantity: 1, unitPrice: 3, lineTotal: 3 }], total: 3, itemCount: 1 };
   } }, async request => {
     const system = JSON.parse(request.messages[0].content);

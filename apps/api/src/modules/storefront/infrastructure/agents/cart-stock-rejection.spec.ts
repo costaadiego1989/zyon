@@ -99,7 +99,7 @@ test("a returned cart read resolves the line before quantity validation, without
   const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
     inspectCartQuantity: inspected,
     getCart: async () => ({ cartId: "cart", items: [{ variantId: "essential", name: "Kit Organizador Essencial", quantity: 1, unitPrice: 60, lineTotal: 60 }], total: 60, itemCount: 1 }),
-    updateCartItem: async (input: unknown) => { updates++; assert.deepEqual(input, args); return refusal(); },
+    updateCartItem: async (input: unknown) => { updates++; assert.deepEqual(input, { ...args, optionItemIds: [], serviceSlotId: null }); return refusal(); },
   } as never, provider: { chat: async () => {
     main++;
     if (main > 2) assert.fail("known admission rejection is terminal before generated narration");
