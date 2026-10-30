@@ -298,6 +298,7 @@ export class StorefrontLangGraphAgent {
 
     const toolsUsed: string[] = [];
     const toolResults: Record<string, unknown> = {};
+    const canRunModelTools = () => !requiredReadToolName || !toolsUsed.includes(requiredReadToolName);
     let totalPromptTokens = semantic.usage.promptTokens;
     let totalCompletionTokens = semantic.usage.completionTokens;
     let totalTokens = semantic.usage.totalTokens;
@@ -541,13 +542,15 @@ export class StorefrontLangGraphAgent {
       }
       while (loops < MAX_TOOL_LOOPS && !cartPolicy.terminal) {
         loops += 1;
+        const modelToolsAllowed = canRunModelTools();
 
         const result: OpenRouterChatResult = await observeStorefrontChat(this.provider, {
           ...(this.structuredRouting ? { model: modelUsed } : {}),
           responseFormat: this.responseFormat,
           messages: withStorefrontReplyContract(messages),
           tools: openRouterTools.length > 0 ? openRouterTools : undefined,
-          ...(requiredReadToolName ? { toolChoice: { type: "function" as const, function: { name: requiredReadToolName } } } : {}),
+          ...(requiredReadToolName ? { toolChoice: modelToolsAllowed
+            ? { type: "function" as const, function: { name: requiredReadToolName } } : "none" as const } : {}),
           temperature: 0.2,
           maxTokens: 1000
         }, "primary", "main", this.primaryModel);
@@ -562,6 +565,7 @@ export class StorefrontLangGraphAgent {
         });
 
         if (result.toolCalls && result.toolCalls.length > 0) {
+          if (!modelToolsAllowed) { finalContent = STOREFRONT_MODEL_FALLBACK; break; }
           messages.push({
             role: "assistant",
             content: result.content || "",
@@ -573,7 +577,7 @@ export class StorefrontLangGraphAgent {
           } as any);
 
           for (const tc of result.toolCalls) {
-            const execTool = executableTools.find((t) => t.name === tc.name);
+            const execTool = canRunModelTools() ? executableTools.find((t) => t.name === tc.name) : undefined;
             if (!execTool) {
               messages.push({ role: "tool", content: JSON.stringify({ error: "tool_not_available_for_this_turn" }), name: tc.name, tool_call_id: tc.id });
               continue;
@@ -634,7 +638,7 @@ export class StorefrontLangGraphAgent {
           if (retryResult.toolCalls && retryResult.toolCalls.length > 0) {
             const rejectedRetryCalls = new Set<object>();
             for (const tc of retryResult.toolCalls) {
-              const execTool = retryToolNames.has(tc.name) ? executableTools.find((t) => t.name === tc.name) : undefined;
+              const execTool = retryToolNames.has(tc.name) && canRunModelTools() ? executableTools.find((t) => t.name === tc.name) : undefined;
               if (!execTool) {
                 rejectedRetryCalls.add(tc);
                 continue;
@@ -680,7 +684,7 @@ export class StorefrontLangGraphAgent {
     } catch (err: unknown) {
       this.logger.error("agent.llm.failed", { reason: "provider_or_tool_error" });
 
-      if (this.fallbackProvider && !cartPolicy.mutationOutcome) {
+      if (this.fallbackProvider && !cartPolicy.mutationOutcome && canRunModelTools()) {
         recordStorefrontDecision("agent", "fallback", "provider_fallback");
         this.logger.warn("agent.fallback_provider.retry");
         try {
@@ -699,11 +703,13 @@ export class StorefrontLangGraphAgent {
           let fbFinalContent = "";
           while (fbLoops < 3) {
             fbLoops++;
+            const modelToolsAllowed = canRunModelTools();
             const fbResult = await observeStorefrontChat(this.fallbackProvider, {
               responseFormat: this.responseFormat,
               messages: withStorefrontReplyContract(fbMessages),
               tools: openRouterTools.length > 0 ? openRouterTools : undefined,
-              ...(requiredReadToolName ? { toolChoice: { type: "function" as const, function: { name: requiredReadToolName } } } : {}),
+              ...(requiredReadToolName ? { toolChoice: modelToolsAllowed
+                ? { type: "function" as const, function: { name: requiredReadToolName } } : "none" as const } : {}),
               temperature: 0.2,
               maxTokens: 500
             }, "fallback", "main", this.fallbackModel);
@@ -713,9 +719,10 @@ export class StorefrontLangGraphAgent {
             this.costTracker.record({ promptTokens: fbResult.usage.promptTokens, completionTokens: fbResult.usage.completionTokens });
 
             if (fbResult.toolCalls && fbResult.toolCalls.length > 0) {
+              if (!modelToolsAllowed) { fbFinalContent = STOREFRONT_MODEL_FALLBACK; break; }
               fbMessages.push({ role: "assistant", content: fbResult.content || "", tool_calls: fbResult.toolCalls.map((tc) => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: JSON.stringify(tc.args) } })) } as any);
               for (const tc of fbResult.toolCalls) {
-                const execTool = executableTools.find((t) => t.name === tc.name);
+                const execTool = canRunModelTools() ? executableTools.find((t) => t.name === tc.name) : undefined;
                 if (!execTool) {
                   fbMessages.push({ role: "tool", content: JSON.stringify({ error: "tool_not_available_for_this_turn" }), name: tc.name, tool_call_id: tc.id });
                   continue;
