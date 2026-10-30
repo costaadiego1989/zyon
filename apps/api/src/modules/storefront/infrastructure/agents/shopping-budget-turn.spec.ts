@@ -83,6 +83,22 @@ test("auxiliary lookup for writing a review remains outside the shopping planner
   assert.equal(lookup, 1); assert.equal(calls, 2);
 });
 
+test("a non-discovery main call cannot activate a model-authored shopping plan through the canonical port", async () => {
+  let modelCalls = 0, quotes = 0, lookups = 0;
+  const agent = createAllowedScopeAgent({ structuredRouting: true, provider: { chat: async () => {
+    modelCalls++;
+    return modelCalls === 1 ? { content: "", toolCalls: [{ id: "generated-shopping-plan", name: "search_products", args: {
+      query: "Produto", criteria: shoppingSearchPlanSchema.parse({ version: 1, query: "Produto", maxPriceCents: 9500, discountOnly: true }) } }], usage }
+      : { content: JSON.stringify({ schemaVersion: 1, message: "Preciso identificar os dados do produto solicitado." }), usage };
+  } } as never, toolHandlers: { searchProducts: async () => { lookups++; return { products: [] }; },
+    recommendProducts: async ({ criteria }: any) => { quotes++; return { products: [{ id: "different", name: "Oferta fora do lookup", price: 9000, inStock: true }],
+      searchEvidence: shoppingSearchEvidence(criteria, 1) }; } } as never },
+  { domain: "STORE_SUPPORT", intent: "COMPLEX_QUESTION", requiresTool: true, needsProductDiscovery: false });
+  const result = await agent.run({ ...input, userMessage: "Quero avaliar Produto com três estrelas." });
+  assert.equal(quotes, 0); assert.equal(lookups, 0);
+  assert.equal(result.blocks.some(block => block.type === "product_carousel"), false);
+});
+
 test("rendered projected variants show the authorized effective price and retain eligible variant identity", () => {
   const criteria = shoppingSearchPlanSchema.parse({ version: 1, query: "*", maxPriceCents: 9500 });
   const result = buildConversationBlocks({ merchantId: "merchant", userMessage: "até95", finalContent: "",

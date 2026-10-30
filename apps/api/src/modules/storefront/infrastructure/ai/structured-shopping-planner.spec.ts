@@ -35,6 +35,25 @@ test("all nullable requirement decisions are mandatory in the planner contract",
   assert.equal(shoppingPlannerOutputSchema.safeParse({ ...value, plan: missing }).success, false);
 });
 
+test("discountOnly has a supported, advertised nullable decision and old wires retain no discount filter", async () => {
+  assert.equal(shoppingPlannerOutputSchema.parse(wirePlan()).plan.discountOnly, null);
+  for (const value of [true, null]) {
+    const result = await planStorefrontShopping({ chat: async request => {
+      const contract = JSON.parse(request.messages[0]!.content!).outputContract.properties.plan;
+      assert.ok(contract.required.includes("discountOnly"));
+      return { content: JSON.stringify(wirePlan({ discountOnly: value })), usage };
+    } } as never, { userMessage: "Quais produtos estão com desconto?", history: [] }, { mode: "json_object" });
+    assert.equal(result.plan?.discountOnly, value === null ? undefined : value);
+  }
+  for (const invalid of [false, "true", "false"]) assert.equal(shoppingPlannerOutputSchema.safeParse(wirePlan({ discountOnly: invalid })).success, false);
+});
+
+test("replayed inverse false from the provider is an unconfirmed plan, never an unfiltered catalog read", async () => {
+  const result = await planStorefrontShopping({ chat: async () => ({ content: JSON.stringify(wirePlan({ discountOnly: false })), usage }) } as never,
+    { userMessage: "Mostre somente produtos que não estão com desconto.", history: [] }, { mode: "json_object" });
+  assert.equal(result.plan, undefined);
+});
+
 test("optional recovery is a read proposal with a closed contract and preserves all original hard criteria", async () => {
   const recovery = { familyQuery: "kit organizador", optionalQueryTerms: ["Viajante"] };
   const wire = wirePlan({ query: "kit organizador Viajante", maxPriceCents: 7000, recovery,

@@ -124,6 +124,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             ruleNotices: p.ruleNotices,
             price: p.price,
             priceFormatted: formatPrice(p.price),
+            ...(typeof p.originalPrice === "number" && p.originalPrice > p.price && !p.coupon
+              ? { originalPrice: p.originalPrice, originalPriceFormatted: formatPrice(p.originalPrice), discountPercent: p.discountPercent } : {}),
             image: p.image,
             images: p.images ?? (p.image ? [p.image] : []),
             inStock: p.inStock ?? true,

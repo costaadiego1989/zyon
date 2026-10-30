@@ -150,11 +150,11 @@ test("malformed main JSON is not repaired or retried by the comparison demand", 
   }
 });
 
-test("an unknown mutation is terminal and cannot become a forced comparison retry", async () => {
+test("an authorized cart mutation with an unknown outcome remains terminal under the read scopes", async () => {
   let calls = 0, writes = 0;
   const agent = createAllowedScopeAgent({ structuredRouting: true,
     toolHandlers: { addItemToCart: async () => { writes++; throw Error("PRIVATE_UNKNOWN_ACK"); } } as never,
-    provider: { chat: async () => { assert.equal(++calls, 1); return { content: "", toolCalls: [{ id: "add", name: "add_item_to_cart", args: { variantId: "essential", quantity: 1 } }], usage }; } } as never }, classification);
+    provider: { chat: async () => { assert.equal(++calls, 1); return { content: "", toolCalls: [{ id: "add", name: "add_item_to_cart", args: { variantId: "essential", quantity: 1 } }], usage }; } } as never }, { ...classification, intent: "ADD_CART" });
   const result = await agent.run({ ...input, userMessage: "Adicione uma unidade do Kit ao carrinho.", history: [] });
   assert.equal(writes, 1); assert.match(result.message, /Não consegui confirmar/); assert.deepEqual(result.toolsUsed, ["add_item_to_cart"]);
 });

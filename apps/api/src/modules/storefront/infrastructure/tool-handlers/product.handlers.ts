@@ -43,6 +43,11 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     searchProducts: async (args) => {
       const parsedPlan = args.criteria === undefined ? undefined : shoppingSearchPlanSchema.safeParse(args.criteria);
       if (parsedPlan && !parsedPlan.success) return { error: "shopping_search_plan_invalid" };
+      if (parsedPlan?.success && parsedPlan.data.discountOnly === true) return {
+        products: [], nextCursor: null, query: parsedPlan.data.query,
+        searchEvidence: { ...shoppingSearchEvidence(parsedPlan.data, 0), status: "unsupported" as const,
+          message: "🔎 Preciso confirmar os preços promocionais antes de apresentar produtos com desconto. Esta consulta não confirmou quais ofertas estão disponíveis." },
+      };
       const plan = !args.lookupOnly && parsedPlan?.success ? parsedPlan.data : undefined;
       // Declared, unsupported requirements must never degrade into broad matches.
       if (plan && (plan.delivery || plan.unsupportedCriteria.length)) return {

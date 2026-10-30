@@ -1,5 +1,6 @@
 import type { ToolDefinition, ExecutableTool, StoreToolContext } from "../types.js";
 import { wrapHandler } from "../types.js";
+import { readShoppingProducts } from "../read-shopping-products.js";
 
 export const SEARCH_PRODUCTS: ToolDefinition = {
   name: "search_products",
@@ -40,5 +41,5 @@ export const SEARCH_PRODUCTS: ToolDefinition = {
 };
 
 export function createSearchProductsTool(ctx: StoreToolContext): ExecutableTool {
-  return wrapHandler("search_products", (args) => ctx.handlers.searchProducts(args));
+  return wrapHandler("search_products", (args) => readShoppingProducts(ctx.handlers, args));
 }
