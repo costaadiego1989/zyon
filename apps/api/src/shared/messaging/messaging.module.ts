@@ -7,6 +7,9 @@ import { DOMAIN_EVENT_BUS } from "../events/domain-event-bus.port.js";
 import { PRISMA_CLIENT } from "../persistence/persistence.module.js";
 import { OutboxDispatcher } from "./outbox-dispatcher.service.js";
 import { OutboxBullMqRelay } from "./infrastructure/outbox-bullmq-relay.service.js";
+import { INFORMATIONAL_EVENT_REDRIVE } from "./ports/informational-event-redrive.port.js";
+import { PrismaInformationalEventRedriveAdapter } from "./infrastructure/prisma-informational-event-redrive.adapter.js";
+import { RedriveInformationalEventUseCase } from "./redrive-informational-event.use-case.js";
 
 @Global()
 @Module({
@@ -20,7 +23,9 @@ import { OutboxBullMqRelay } from "./infrastructure/outbox-bullmq-relay.service.
     { provide: DOMAIN_EVENT_BUS, useExisting: InMemoryDomainEventBus },
     OutboxDispatcher,
     OutboxBullMqRelay,
+    { provide: INFORMATIONAL_EVENT_REDRIVE, useFactory: (prisma: PrismaClient) => new PrismaInformationalEventRedriveAdapter(prisma), inject: [PRISMA_CLIENT] },
+    RedriveInformationalEventUseCase,
   ],
-  exports: [OUTBOX_REPOSITORY, DOMAIN_EVENT_BUS, OutboxDispatcher]
+  exports: [OUTBOX_REPOSITORY, DOMAIN_EVENT_BUS, OutboxDispatcher, INFORMATIONAL_EVENT_REDRIVE, RedriveInformationalEventUseCase]
 })
 export class MessagingModule {}
