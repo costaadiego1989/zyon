@@ -50,14 +50,42 @@ test("V2 prompt distinguishes an academic topic from a product title and store s
 });
 
 test("contextual sales objections remain commerce without authorizing tools or product discovery", () => {
-  const contextual = storefrontIntentPromptV1.examples.filter(example => "history" in example);
-  assert.equal(contextual.length, 4);
+  const objections = new Map([
+    ["Está caro para mim.", "NEGOTIATE_PRICE"],
+    ["Meu orçamento não chega a esse valor.", "NEGOTIATE_PRICE"],
+    ["Ainda não tenho certeza se vale a pena.", "COMPLEX_QUESTION"],
+    ["Vou deixar para outra hora, obrigado.", "COMPLEX_QUESTION"],
+  ]);
+  const contextual = storefrontIntentPromptV1.examples.filter(example => objections.has(example.input));
+  assert.equal(contextual.length, objections.size);
+  assert.deepEqual(new Set(contextual.map(example => example.input)), new Set(objections.keys()));
   for (const example of contextual) {
+    assert.equal("history" in example, true);
     const parsed = storefrontIntentOutputSchema.parse(example.output);
     assert.equal(parsed.domain, "STORE_COMMERCE");
+    assert.equal(parsed.intent, objections.get(example.input));
     assert.equal(parsed.requiresTool, false);
     assert.equal(parsed.needsProductDiscovery, false);
     assert.equal(isConsistentStorefrontIntent(parsed), true);
   }
   assert.match(storefrontIntentPromptV1.rules.join(" "), /Sem contexto comercial suficiente, preserve UNCLEAR/);
+});
+
+test("contextual factual offer questions require current evidence without product discovery", () => {
+  const questions = new Set([
+    "Em outra loja vi esse mesmo item por um valor menor. O que vocês têm de diferente e qual condição está valendo aqui?",
+    "Essa condição ainda está valendo?",
+  ]);
+  const contextual = storefrontIntentPromptV1.examples.filter(example => questions.has(example.input));
+  assert.equal(contextual.length, questions.size);
+  assert.deepEqual(new Set(contextual.map(example => example.input)), questions);
+  for (const example of contextual) {
+    assert.equal("history" in example, true);
+    const parsed = storefrontIntentOutputSchema.parse(example.output);
+    assert.equal(parsed.domain, "STORE_COMMERCE");
+    assert.equal(parsed.intent, "NEGOTIATE_PRICE");
+    assert.equal(parsed.requiresTool, true);
+    assert.equal(parsed.needsProductDiscovery, false);
+    assert.equal(isConsistentStorefrontIntent(parsed), true);
+  }
 });
