@@ -136,7 +136,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             sellerName: p.sellerName ?? undefined,
             sellerMerchantId: p.sellerMerchantId,
           })),
-          nextCursor: searchData.nextCursor,
+          ...(searchData.nextCursor == null ? {} : { nextCursor: searchData.nextCursor }),
           merchantId: input.merchantId,
           query: searchData.query,
           categoryId: searchData.categoryId,
