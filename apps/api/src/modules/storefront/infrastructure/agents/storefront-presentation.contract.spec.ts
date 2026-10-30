@@ -105,24 +105,41 @@ test("structured discovery keeps a carousel for a single match despite detail ke
   assert.equal(result.blocks[0].type, "product_carousel");
 });
 
-test("structured agent propagates presentation mode without extra classification call", async () => {
-  let calls = 0;
+test("structured agent propagates presentation mode with one classification and a canonical shopping plan", async () => {
+  const phases = { classification: 0, planner: 0, main: 0, review: 0 };
+  let reads = 0;
   const criteria = { version: 1, query: "algo", attributes: [], unsupportedCriteria: [] };
   const usage = { promptTokens: 1, completionTokens: 1, totalTokens: 2 };
   const agent = new StorefrontLangGraphAgent({ structuredRouting: true, provider: { chat: async (request: OpenRouterChatRequest) => {
-    calls++;
-    if (JSON.parse(request.messages[0]!.content!).id === "storefront.reply-review") return {
-      content: JSON.stringify({ schemaVersion: 1, verdict: "ALLOW", confidence: 1 }), usage, finishReason: "stop",
-    };
-    if (calls === 1) return { content: JSON.stringify({ schemaVersion: 2, domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", confidence: 0.9, requiresTool: true, needsProductDiscovery: true }), usage };
-    if (calls === 2) return { content: "", toolCalls: [{ id: "search", name: "search_products", args: { query: "algo", criteria } }], usage };
-    return { content: '{"schemaVersion":1,"message":"Confira as opções."}', usage };
-  } } as never, toolHandlers: { searchProducts: async () => ({ products: [product], searchEvidence: {
-    version: 1, status: "verified", appliedPlan: criteria, message: "Confira as opções.", unconfirmedPreferences: [],
-  } }) } as never });
+    const id = JSON.parse(request.messages[0]!.content!).id;
+    if (id === "storefront.reply-review") {
+      phases.review++;
+      return { content: JSON.stringify({ schemaVersion: 1, verdict: "ALLOW", confidence: 1 }), usage, finishReason: "stop" };
+    }
+    if (id === "storefront.intent") {
+      phases.classification++;
+      return { content: JSON.stringify({ schemaVersion: 2, domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", confidence: 0.9, requiresTool: true, needsProductDiscovery: true }), usage };
+    }
+    if (id === "storefront.shopping-plan") {
+      phases.planner++;
+      return { content: JSON.stringify({ schemaVersion: 1, plan: { ...criteria, minPriceCents: null, maxPriceCents: null,
+        minRating: null, sortBy: null, delivery: null, recovery: null, discountOnly: null } }), usage };
+    }
+    phases.main++;
+    assert.equal(phases.main, 1, "the canonical search result must not trigger another narration/repair request");
+    return { content: "", toolCalls: [{ id: "search", name: "search_products", args: { query: "algo", criteria } }], usage };
+  } } as never, toolHandlers: { searchProducts: async (args: any) => {
+    reads++; assert.deepEqual(args.criteria, criteria);
+    return { products: [product], searchEvidence: { version: 1, status: "verified", appliedPlan: criteria,
+      message: "Confira as opções.", unconfirmedPreferences: [] } };
+  } } as never });
   const output = await agent.run({ merchantId: "store", sessionId: "cart", history: [], storeCategory: "others", userMessage: "Detalhes do produto" });
-  assert.equal(output.blocks[0].type, "product_carousel");
-  assert.equal(calls, 2);
+  assert.equal(output.blocks.find(block => block.type === "product_carousel")?.type, "product_carousel");
+  assert.equal(output.blocks.some(block => block.type === "product_card"), false, "a detail keyword must not override the structured discovery decision");
+  assert.deepEqual(output.toolsUsed, ["search_products"]);
+  assert.equal(output.safetyValidation.safe, true);
+  assert.equal(reads, 1);
+  assert.deepEqual(phases, { classification: 1, planner: 1, main: 1, review: 0 }, "current read evidence owns the response without another classifier or narration/review model");
 });
 
 test("adapter preserves clarification suppression without stale structured catalog choices", async () => {

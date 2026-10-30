@@ -6,6 +6,7 @@ import { storefrontQuickReplies } from "../../domain/services/storefront-quick-r
 import { ensureProductDiscovery } from "./product-discovery-fallback.js";
 import { contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
 import { normalizeSalesText } from "../../domain/services/sales-recommendation-intent.js";
+import { STOREFRONT_REPLY_CONTRACT_REMINDER } from "./storefront-reply-contract.js";
 
 const createAllowedScopeAgent = (deps: Parameters<typeof createScopeAgent>[0]) => createScopeAgent(deps, { domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", requiresTool: true, needsProductDiscovery: true });
 const usage = { promptTokens: 20, completionTokens: 10, totalTokens: 30 };
@@ -113,9 +114,10 @@ test("a disobedient provider cannot turn an object-free purchase into an arbitra
 
 test("specific follow-ups keep the need and budget history without receiving the vague-turn restriction", async () => {
   let seen: OpenRouterChatRequest | undefined;
+  let calls = 0;
   const agent = createAllowedScopeAgent({ provider: { chat: async (request: OpenRouterChatRequest) => {
-    seen = request;
-    return { content: "Vou considerar a hidratação e suas preferências na seleção.", toolCalls: [], usage };
+    seen = request; calls++;
+    return { content: JSON.stringify({ schemaVersion: 1, message: "Vou considerar a hidratação e suas preferências na seleção." }), toolCalls: [], usage };
   } } as unknown as OpenRouterProvider, toolHandlers: {} as never });
   await agent.run({ merchantId: "qa", sessionId: "qa", storeCategory: "others", userMessage: "Hidratação", history: [
     { role: "user", content: "Quero algo para pele oleosa, sem perfume, até R$ 80" },
@@ -123,7 +125,10 @@ test("specific follow-ups keep the need and budget history without receiving the
     { role: "user", content: "Hidratação" }, // Real storefront payload includes the current message.
   ] });
   assert.ok(seen);
-  assert.equal(seen.messages.at(-1)!.content, "Hidratação");
+  assert.equal(calls, 1, "valid transport must not introduce a repair/model retry");
+  assert.equal(seen.messages.filter(message => message.role === "user").at(-1)!.content, "Hidratação");
+  assert.equal(seen.messages.at(-1)!.role, "system");
+  assert.equal(seen.messages.at(-1)!.content, STOREFRONT_REPLY_CONTRACT_REMINDER);
   assert.equal(seen.messages.filter(message=>message.role==="user" && message.content==="Hidratação").length,1);
   assert.match(seen.messages[1]!.content, /pele oleosa, sem perfume, até R\$ 80/);
   assert.doesNotMatch(seen.messages[0]!.content, /TURNO DE DESCOBERTA/);
@@ -136,10 +141,12 @@ test("product-result guidance reaches primary and fallback replies without an ad
       calls++;
       assert.equal(request.temperature, 0.2);
       if (calls === 1) return { content: "", toolCalls: [{ id: "search", name: "search_products", args: { query: "hidratante sem perfume", limit: 3 } }], usage };
-      assert.match(request.messages.at(-1)!.content, /RESPOSTA APÓS CONSULTAR PRODUTOS/);
-      assert.match(request.messages.at(-1)!.content, /Não complete com conhecimento genérico/);
-      assert.match(request.messages.at(-1)!.content, /Volume não informa embalagem/);
-      return { content: "Esta opção tem textura leve e não contém perfume. Quer ver os detalhes?", toolCalls: [], usage };
+      const guidance = request.messages.find(message => message.role === "system" && /RESPOSTA APÓS CONSULTAR PRODUTOS/.test(message.content));
+      assert.ok(guidance, "product guidance must remain alongside the final transport reminder");
+      assert.match(guidance.content, /Não complete com conhecimento genérico/);
+      assert.match(guidance.content, /Volume não informa embalagem/);
+      assert.equal(request.messages.at(-1)!.content, STOREFRONT_REPLY_CONTRACT_REMINDER);
+      return { content: JSON.stringify({ schemaVersion: 1, message: "Esta opção tem textura leve e não contém perfume. Quer ver os detalhes?" }), toolCalls: [], usage };
     };
     const agent = createAllowedScopeAgent({ provider: { chat: failover ? async () => { throw Error("primary_unavailable"); } : respond } as unknown as OpenRouterProvider,
       fallbackProvider: { chat: respond } as unknown as OpenRouterProvider,
