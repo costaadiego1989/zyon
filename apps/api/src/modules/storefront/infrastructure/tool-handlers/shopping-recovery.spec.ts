@@ -85,6 +85,47 @@ test("SALE23: cap50 never admits the R$60 item or silently increases the cap", a
   assert.match(out.searchEvidence!.message, /limite|teto|orçamento/); assert.equal(f.writes(), 0);
 });
 
+test("SALE23: released blue plus acceptable black keeps cap50 and asks explicitly before revising the budget", async () => {
+  const input = criteria({ query: "kit organizador", maxPriceCents: 5000,
+    recovery: { familyQuery: "kit organizador", optionalQueryTerms: [] },
+    attributes: [{ name: "cor", value: "preto", operator: "equals", priority: "preferred" }] });
+  const f = fixture(), before = structuredClone(input), out = await f.read(input);
+  assert.deepEqual(out.products, []); assert.equal(out.searchEvidence!.matchType, "no_match");
+  assert.match(out.searchEvidence!.message, /50,00/); assert.match(out.searchEvidence!.message, /manter.*limite.*ou autoriza rever esse limite/s);
+  assert.doesNotMatch(out.searchEvidence!.message, /azul|flexibilizar cor|Encontrei/);
+  assert.deepEqual(out.searchEvidence!.appliedPlan, shoppingSearchPlanSchema.parse(input)); assert.deepEqual(input, before);
+  assert.equal(f.writes(), 0);
+});
+
+test("withdrawing a blue preference does not ban an affordable blue alternative", async () => {
+  const input = criteria({ query: "kit organizador", maxPriceCents: 5000,
+    recovery: { familyQuery: "kit organizador", optionalQueryTerms: [] },
+    attributes: [{ name: "cor", value: "preto", operator: "equals", priority: "preferred" }] });
+  const f = fixture([product("black", 6000), product("blue", 4000, { cor: "azul" })]);
+  const out = await f.read(input);
+  assert.deepEqual(out.products.map(row => [row.id, row.price]), [["blue", 4000]]);
+  assert.equal(out.searchEvidence!.matchType, "similar"); assert.match(out.searchEvidence!.message, /azul.*preto/);
+  assert.equal(f.writes(), 0);
+});
+
+test("genuine color exclusions and unrelated required compatibility survive the same cap and recovery", async () => {
+  for (const attributes of [
+    [{ name: "cor", value: "azul", operator: "not_equals", priority: "required" }],
+    [{ name: "compatibilidade", value: "USB-C", operator: "equals", priority: "required" },
+      { name: "material", value: "couro", operator: "not_equals", priority: "required" },
+      { name: "cor", value: "preto", operator: "equals", priority: "preferred" }],
+  ]) {
+    const input = criteria({ query: "kit organizador", maxPriceCents: 5000,
+      recovery: { familyQuery: "kit organizador", optionalQueryTerms: [] }, attributes });
+    const f = fixture([product("blue", 4000, { cor: "azul", compatibilidade: "USB-A", material: "couro" })]);
+    const out = await f.read(input); assert.deepEqual(out.products, []);
+    assert.deepEqual(out.searchEvidence!.appliedPlan, shoppingSearchPlanSchema.parse(input));
+    for (const query of f.queries) for (const required of attributes.filter(a => a.priority === "required"))
+      assert.deepEqual(query.criteria.attributes.find((a: any) => a.name === required.name), required);
+    assert.equal(f.writes(), 0);
+  }
+});
+
 test("R$95 recovery uses the canonical R$90 promotion, without treating contextual purpose as a fabricated requirement", async () => {
   const row = product("completo", 10000), f = fixture([row], { promotions: [{ id: "promo", merchantId, productId: row.id,
     isActive: true, discountType: "percent", discountValue: 10, startsAt: new Date(0), endsAt: new Date("2099-01-01") }] });
