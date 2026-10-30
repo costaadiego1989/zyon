@@ -12,6 +12,8 @@ const cart = { id: "row", sessionId: "cart", merchantId: "merchant", total: 6000
 const refusal = () => ({ error: "variant_out_of_stock", message: INSUFFICIENT_CART_STOCK_MESSAGE,
   notApplied: { cartId: "cart", variantId: "essential", quantity: 20 } });
 const args = { cartId: "cart", variantId: "essential", quantity: 20 };
+const inspected = async () => ({ status: "admitted", cartId: "cart", quantity: 20,
+  selection: { ...args, optionItemIds: [], serviceSlotId: null } });
 
 test("canonical stock rejects quantity20 before cart write and binds the not-applied result", async () => {
   let stockReads = 0;
@@ -95,6 +97,7 @@ test("a returned cart read resolves the line before quantity validation, without
   let main = 0, updates = 0;
   const usage = { promptTokens: 1, completionTokens: 1, totalTokens: 2 };
   const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+    inspectCartQuantity: inspected,
     getCart: async () => ({ cartId: "cart", items: [{ variantId: "essential", name: "Kit Organizador Essencial", quantity: 1, unitPrice: 60, lineTotal: 60 }], total: 60, itemCount: 1 }),
     updateCartItem: async (input: unknown) => { updates++; assert.deepEqual(input, args); return refusal(); },
   } as never, provider: { chat: async () => {
@@ -112,6 +115,7 @@ test("a direct known stock rejection cannot be narrated as success or sent to an
   let main = 0, updates = 0;
   const usage = { promptTokens: 1, completionTokens: 1, totalTokens: 2 };
   const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+    inspectCartQuantity: inspected,
     updateCartItem: async () => { updates++; return refusal(); },
   } as never, provider: { chat: async () => {
     assert.equal(++main, 1, "the known refusal ends the provider loop");
@@ -127,6 +131,7 @@ test("an agent update with unknown outcome never uses the known-stock refusal co
   let main = 0, updates = 0;
   const usage = { promptTokens: 1, completionTokens: 1, totalTokens: 2 };
   const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+    inspectCartQuantity: inspected,
     updateCartItem: async () => { updates++; throw Error("PRIVATE_UNKNOWN_WRITE"); },
   } as never, provider: { chat: async () => {
     assert.equal(++main, 1, "uncertain update cannot continue or retry");

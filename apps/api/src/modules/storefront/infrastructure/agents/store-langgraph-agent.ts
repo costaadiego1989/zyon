@@ -49,7 +49,10 @@ import { withStorefrontReplyContract } from "./storefront-reply-contract.js";
 import { planStorefrontShopping } from "../ai/structured-shopping-planner.js";
 import type { ShoppingSearchPlan } from "../../domain/contracts/shopping-search-plan.schemas.js";
 import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
-import { hasFractionalCartQuantity, FRACTIONAL_CART_QUANTITY_MESSAGE, INSUFFICIENT_CART_STOCK_MESSAGE } from "../../domain/services/cart-quantity-input.js";
+import { hasFractionalCartQuantity, FRACTIONAL_CART_QUANTITY_MESSAGE, INSUFFICIENT_CART_STOCK_MESSAGE,
+  explicitCartQuantityCommand, INVALID_CART_QUANTITY_MESSAGE, CART_QUANTITY_INSPECTION_UNAVAILABLE,
+  CART_QUANTITY_LINE_REQUIRED, CART_QUANTITY_ITEM_NOT_FOUND } from "../../domain/services/cart-quantity-input.js";
+import { cartQuantityInspectionSchema, type CartQuantitySelection } from "../../domain/contracts/cart-quantity-inspection.schemas.js";
 import { buildCurrentCommercialFacts } from "../../domain/services/current-commercial-facts.js";
 
 export interface StorefrontAgentCallbacks {
@@ -293,9 +296,37 @@ export class StorefrontLangGraphAgent {
     let totalCompletionTokens = semantic.usage.completionTokens;
     let totalTokens = semantic.usage.totalTokens;
     const blocks: ConversationBlock[] = [];
+    const requestHandlers = input.toolHandlers ?? this.defaultToolHandlers;
+    const quantityCommand = input.attachmentContext ? undefined : explicitCartQuantityCommand(input.userMessage);
+    let quantitySelection: CartQuantitySelection | undefined;
+    if (quantityCommand) {
+      const refuse = (message: string): StorefrontAgentResult => {
+        input.callbacks?.onToken?.(message);
+        return { message, blocks: [], toolsUsed: [], cartId: input.cartId,
+          usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+          routing: { source: semantic.source, domain: semantic.classification.domain, needsProductDiscovery: false,
+            intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed }, safetyValidation: { safe: true } };
+      };
+      if (!Number.isSafeInteger(quantityCommand.quantity) || quantityCommand.quantity < 0 || quantityCommand.quantity > 99)
+        return refuse(INVALID_CART_QUANTITY_MESSAGE);
+      const cartId = input.cartId || input.sessionId;
+      if (!requestHandlers.inspectCartQuantity) return refuse(CART_QUANTITY_INSPECTION_UNAVAILABLE);
+      try {
+        const checked = cartQuantityInspectionSchema.safeParse(await observeStorefrontOperation("validation",
+          () => requestHandlers.inspectCartQuantity!({ cartId, ...quantityCommand })));
+        if (!checked.success || checked.data.cartId !== cartId || checked.data.quantity !== quantityCommand.quantity
+          || checked.data.status === "unavailable") return refuse(CART_QUANTITY_INSPECTION_UNAVAILABLE);
+        if (checked.data.status === "rejected") return refuse(checked.data.code === "variant_out_of_stock" ? INSUFFICIENT_CART_STOCK_MESSAGE
+          : checked.data.code === "cart_line_selection_required" ? CART_QUANTITY_LINE_REQUIRED
+          : checked.data.code === "cart_item_not_found" ? CART_QUANTITY_ITEM_NOT_FOUND : CART_QUANTITY_INSPECTION_UNAVAILABLE);
+        if (checked.data.selection.cartId !== cartId || checked.data.selection.quantity !== quantityCommand.quantity)
+          return refuse(CART_QUANTITY_INSPECTION_UNAVAILABLE);
+        quantitySelection = checked.data.selection;
+      } catch { return refuse(CART_QUANTITY_INSPECTION_UNAVAILABLE); }
+    }
     let discoveryQuestion: SalesDiscoveryQuestion | undefined;
     const history = salesDiscoveryHistory(input.history, input.userMessage);
-    const productDiscovery = semantic.classification.needsProductDiscovery === true;
+    const productDiscovery = !quantitySelection && semantic.classification.needsProductDiscovery === true;
     const structuredSearchRequired = this.structuredRouting && productDiscovery;
     const discoveryRounds = countSalesDiscoveryRounds(history.slice(-10));
     const canDiscover = productDiscovery && allowsSalesDiscovery(input.userMessage, input.attachmentContext)
@@ -358,9 +389,8 @@ export class StorefrontLangGraphAgent {
     const turnTools = needsDiscovery ? [ASK_PRODUCT_PREFERENCES]
       : canAsk ? [...tools, ASK_PRODUCT_PREFERENCES] : tools;
 
-    const cartPolicy = createCartTurnPolicy(input.userMessage, input.attachmentContext, input.cartId || input.sessionId);
+    const cartPolicy = createCartTurnPolicy(input.userMessage, input.attachmentContext, input.cartId || input.sessionId, quantitySelection);
     const searchPolicy = createSalesSearchPolicy(input.userMessage, history.slice(-10), input.attachmentContext, productDiscovery && !structuredSearchRequired);
-    const requestHandlers = input.toolHandlers ?? this.defaultToolHandlers;
     const turnHandlers = productDiscovery && !structuredSearchRequired ? requestHandlers : new Proxy(requestHandlers, {
       get(target, property, receiver) {
         const value = Reflect.get(target, property, receiver);
@@ -415,7 +445,9 @@ export class StorefrontLangGraphAgent {
       : productDiscovery && !input.attachmentContext && discoveryRounds >= MAX_SALES_DISCOVERY_ROUNDS && allowsSalesDiscovery(input.userMessage)
         ? "\n\nLIMITE DA DESCOBERTA ATINGIDO: já houve 3 rodadas de perguntas. Não faça uma quarta pergunta de perfil. Consulte agora o catálogo usando todas as respostas do histórico e preserve as restrições. Apresente até 3 resultados relevantes; se não encontrar, explique a limitação sem inventar adequação."
         : "";
-    const systemContent = JSON.stringify({ ...JSON.parse(baseSystemContent), attachmentPolicy, discoveryPolicy });
+    const systemContent = JSON.stringify({ ...JSON.parse(baseSystemContent), attachmentPolicy, discoveryPolicy,
+      ...(quantitySelection ? { cartQuantityAdmission: { selection: quantitySelection,
+        rules: "Leitura canônica de uma única linha; a mensagem atual já informou essa quantidade exata. Esta leitura não alterou o carrinho e não concede autorização de compra ou cobrança. Para executar somente a alteração solicitada, use update_cart_item com esse vínculo; não reconfirme a quantidade nem substitua por outra. O writer revalidará tudo. Não afirme alteração sem retorno confirmado da ferramenta." } } : {}) });
     const currentUserMessage = input.attachmentContext
       ? `${input.userMessage}\n\n${input.attachmentContext}`
       : input.userMessage;

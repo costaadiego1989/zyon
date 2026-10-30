@@ -3,6 +3,7 @@ import { allowsSalesDiscovery, isUnspecifiedShoppingRequest } from "../services/
 import { storefrontToolArgumentSchemas } from "../contracts/storefront-tool.schemas.js";
 import { storefrontToolOutputSchemas, validateStorefrontToolOutput } from "../contracts/storefront-tool-output.schemas.js";
 import { explicitCartQuantityTarget } from "../services/cart-quantity-input.js";
+import { cartQuantitySelectionSchema, type CartQuantitySelection } from "../contracts/cart-quantity-inspection.schemas.js";
 
 const CART_WRITES = new Set([
   "add_item_to_cart", "update_cart_item", "remove_cart_item", "clear_cart",
@@ -128,10 +129,11 @@ function errorCode(result: ToolResult): string | undefined {
   return undefined;
 }
 
-export function createCartTurnPolicy(message: string, attachmentContext?: string, cartId?: string) {
+export function createCartTurnPolicy(message: string, attachmentContext?: string, cartId?: string, inspectedSelection?: CartQuantitySelection) {
   const allowed = authorizedWrites(message, attachmentContext);
   const requestedAdd = explicitAdd(message);
   const requestedQuantity = explicitCartQuantityTarget(message);
+  const inspected = inspectedSelection === undefined ? undefined : cartQuantitySelectionSchema.safeParse(inspectedSelection);
   const bindings = [...message.matchAll(/\[variantId:([A-Za-z0-9_-]{1,191})\]/g)].map(match => match[1]);
   const optionTag = message.match(/\[optionItemIds:([^\]]*)\]/);
   const options = optionTag ? optionTag[1].split(",").filter(Boolean).sort() : [];
@@ -194,6 +196,11 @@ export function createCartTurnPolicy(message: string, attachmentContext?: string
             args = structuredClone(parsed.data);
             if (tool.name === "update_cart_item" && requestedQuantity !== undefined && args.quantity !== requestedQuantity)
               return denied(tool.name, "cart_selection_binding_mismatch");
+            if (tool.name === "update_cart_item" && inspected !== undefined && (!inspected.success
+              || inspected.data.cartId !== cartId || inspected.data.quantity !== requestedQuantity
+              || args.variantId !== inspected.data.variantId || args.quantity !== inspected.data.quantity
+              || JSON.stringify([...(Array.isArray(args.optionItemIds) ? args.optionItemIds : [])].sort()) !== JSON.stringify(inspected.data.optionItemIds)
+              || (args.serviceSlotId ?? null) !== inspected.data.serviceSlotId)) return denied(tool.name, "cart_selection_binding_mismatch");
             if (optionTag && (!Array.isArray(args.optionItemIds) || JSON.stringify([...args.optionItemIds].sort()) !== JSON.stringify(options))
               || serviceSlotTag && args.serviceSlotId !== serviceSlotTag) return denied(tool.name, "cart_selection_binding_mismatch");
           }
