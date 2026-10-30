@@ -14,10 +14,12 @@ import { CancelShipmentUseCase } from "./application/use-cases/cancel-shipment.u
 import { FulfillmentOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
 import { OnShipmentDeliveredHandler } from "./infrastructure/event-handlers/on-shipment-delivered.handler.js";
 import { TrackingWebhookController } from "./presentation/http/tracking-webhook.controller.js";
+import { ShipmentCreatedAuditHandler } from "./infrastructure/event-handlers/shipment-created-audit.handler.js";
 
 @Module({
   controllers: [TrackingWebhookController],
   providers: [
+    ShipmentCreatedAuditHandler,
     {
       provide: SHIPMENT_REPOSITORY,
       useFactory: (prisma: PrismaClient) =>

@@ -25,11 +25,13 @@ import { ShippingShipmentDashboardController } from "./presentation/http/shippin
 import { MarketplaceShipmentDashboardService } from "./application/marketplace-shipment-dashboard.service.js";
 import { PrismaMarketplaceDeliveryRepository } from "./infrastructure/repositories/prisma-marketplace-delivery.repository.js";
 import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketplace-delivery-events.handler.js";
+import { ShippingQuoteCreatedAuditHandler } from "./infrastructure/event-handlers/shipping-quote-created-audit.handler.js";
 
 @Module({
   imports: [MerchantModule],
   controllers: [ShippingShipmentRecoveryController, ShippingShipmentDashboardController],
   providers: [
+    ShippingQuoteCreatedAuditHandler,
     PrismaMarketplaceDeliveryRepository,
     MarketplaceDeliveryEventsHandler,
     { provide: PrismaMarketplaceShipmentRepository,
