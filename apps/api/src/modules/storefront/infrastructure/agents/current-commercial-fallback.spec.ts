@@ -10,6 +10,11 @@ const classification = { intent: "NEGOTIATE_PRICE" as const, requiresTool: true,
 const reads = { listPromotions: async () => ({ promotions: [], coupons: [] }),
   getDailyDeals: async () => ({ deals: [{ id: "complete", name: "Kit Completo", price: 9000, originalPrice: 10000, inStock: true }] }) };
 const reply = (message: string) => JSON.stringify({ schemaVersion: 1, message });
+const inspectOwnedUpdate = async (args: { cartId: string; quantity: number }) => {
+  assert.equal(args.cartId, "owned"); assert.equal(args.quantity, 2);
+  return { status: "admitted" as const, cartId: "owned", quantity: 2,
+    selection: { cartId: "owned", quantity: 2, variantId: "variant", optionItemIds: [], serviceSlotId: null } };
+};
 
 test("failed generated narration becomes current public facts without another provider call or conflicting cards", async () => {
   let calls = 0;
@@ -58,7 +63,8 @@ test("a denied write attempt cannot be hidden by a factual commercial fallback",
 test("an uncertain update remains terminal unknown despite confirmed commercial reads", async () => {
   let calls = 0, writes = 0;
   const agent = createAllowedScopeAgent({ structuredRouting: true,
-    toolHandlers: { ...reads, updateCartItem: async () => { writes++; throw Error("PRIVATE_WRITE_ACK_TIMEOUT"); } } as never,
+    toolHandlers: { ...reads, inspectCartQuantity: inspectOwnedUpdate,
+      updateCartItem: async () => { writes++; throw Error("PRIVATE_WRITE_ACK_TIMEOUT"); } } as never,
     provider: { chat: async () => { calls++; return { content: "", toolCalls: [{ id: "update", name: "update_cart_item",
       args: { cartId: "owned", variantId: "variant", quantity: 2 } }], usage }; } } as never,
   }, classification);
@@ -70,7 +76,8 @@ test("an uncertain update remains terminal unknown despite confirmed commercial 
 test("a committed update keeps its canonical receipt and is not replaced by offer facts", async () => {
   let calls = 0, writes = 0;
   const agent = createAllowedScopeAgent({ structuredRouting: true,
-    toolHandlers: { ...reads, updateCartItem: async () => { writes++; return { cartId: "owned", total: 120, itemCount: 2,
+    toolHandlers: { ...reads, inspectCartQuantity: inspectOwnedUpdate,
+      updateCartItem: async () => { writes++; return { cartId: "owned", total: 120, itemCount: 2,
       items: [{ variantId: "variant", name: "Produto", quantity: 2, unitPrice: 60, lineTotal: 120 }] }; } } as never,
     provider: { chat: async () => { calls++; return { content: "", toolCalls: [{ id: "update", name: "update_cart_item",
       args: { cartId: "owned", variantId: "variant", quantity: 2 } }], usage }; } } as never,
