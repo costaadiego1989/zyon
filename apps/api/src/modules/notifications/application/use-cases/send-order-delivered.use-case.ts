@@ -17,34 +17,43 @@ export class SendOrderDeliveredUseCase {
   ) {}
 
   async execute(event: OrderDeliveredEvent): Promise<void> {
-    // Email notification
+    const deliveries: Promise<unknown>[] = [];
     if (event.buyerEmail) {
       const html = renderOrderDeliveredTemplate(event);
-      await this.emailSender.send({
+      deliveries.push(Promise.resolve().then(() => this.emailSender.send({
         to: event.buyerEmail,
         merchantId: event.merchantId,
         subject: `Zyon | Pedido #${event.orderId} entregue`,
         html,
         requireDelivery: true,
-      });
+        idempotencyKey: `order-delivered:${event.merchantId}:${event.orderId}:buyer-email`,
+      })));
     } else {
       this.logger.warn(`Skipping delivered email for order ${event.orderId}: no buyer email`);
     }
 
-    // WhatsApp notification — safe template path when available.
     if (event.buyerPhone) {
+      const buyerPhone = event.buyerPhone;
       const freeformText = renderOrderDeliveredWhatsApp(event);
-      if (this.sendWhatsApp) {
-        await this.sendWhatsApp.execute({
-          merchantId: event.merchantId,
-          type: "order_delivered",
-          toPhone: event.buyerPhone,
-          variables: { buyerName: event.buyerName, orderId: event.orderId },
-          freeformText,
-        });
-      } else {
-        await this.whatsappSender.send({ phone: event.buyerPhone, message: freeformText });
-      }
+      deliveries.push(Promise.resolve().then(async () => {
+        if (this.sendWhatsApp) {
+          const result = await this.sendWhatsApp.execute({
+            merchantId: event.merchantId,
+            orderId: event.orderId,
+            idempotencyKey: event.orderId,
+            type: "order_delivered",
+            toPhone: buyerPhone,
+            variables: { buyerName: event.buyerName, orderId: event.orderId },
+            freeformText,
+          });
+          if (result.status !== "accepted") this.logger.warn(`order_delivered_whatsapp_${result.status} reason=${result.reason ?? "unconfirmed"}`);
+        } else {
+          await this.whatsappSender.send({ phone: buyerPhone, message: freeformText });
+        }
+      }));
     }
+    const results = await Promise.allSettled(deliveries);
+    const failed = results.find(result => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   }
 }

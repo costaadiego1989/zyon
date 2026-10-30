@@ -17,10 +17,11 @@ export class SendOrderConfirmationUseCase {
   ) {}
 
   async execute(event: OrderConfirmationEvent): Promise<void> {
-    // Email notification
+    const deliveries: Promise<unknown>[] = [];
+    // Independent channels: an email rejection must not suppress WhatsApp.
     if (event.buyerEmail) {
       const html = renderOrderConfirmationTemplate(event);
-      await this.emailSender.send({
+      deliveries.push(Promise.resolve().then(() => this.emailSender.send({
         to: event.buyerEmail,
         merchantId: event.merchantId,
         subject: event.merchantName
@@ -28,26 +29,34 @@ export class SendOrderConfirmationUseCase {
           : `Zyon | Pedido #${event.orderNumber} confirmado`.replace(/[\r\n]/g, " "),
         html,
         requireDelivery: true,
-      });
+        idempotencyKey: `order-confirmation:${event.merchantId}:${event.orderId}:buyer-email`,
+      })));
     } else {
       this.logger.warn(`Skipping confirmation email for order ${event.orderNumber}: no buyer email`);
     }
 
-    // WhatsApp notification — safe template path when available; email above is
-    // the parallel channel, so no email fallback needed here.
     if (event.buyerPhone) {
+      const buyerPhone = event.buyerPhone;
       const freeformText = renderOrderConfirmationWhatsApp(event);
-      if (this.sendWhatsApp) {
-        await this.sendWhatsApp.execute({
-          merchantId: event.merchantId,
-          type: event.items.length && event.items.every(item => item.productType === "digital" || item.productType === "service") ? "order_nonphysical_confirmation" : "order_confirmation",
-          toPhone: event.buyerPhone,
-          variables: { buyerName: event.buyerName, orderId: event.orderNumber },
-          freeformText,
-        });
-      } else {
-        await this.whatsappSender.send({ phone: event.buyerPhone, message: freeformText });
-      }
+      deliveries.push(Promise.resolve().then(async () => {
+        if (this.sendWhatsApp) {
+          const result = await this.sendWhatsApp.execute({
+            merchantId: event.merchantId,
+            orderId: event.orderId,
+            idempotencyKey: event.orderId,
+            type: event.items.length && event.items.every(item => item.productType === "digital" || item.productType === "service") ? "order_nonphysical_confirmation" : "order_confirmation",
+            toPhone: buyerPhone,
+            variables: { buyerName: event.buyerName, orderId: event.orderNumber, storeName: event.merchantName },
+            freeformText,
+          });
+          if (result.status !== "accepted") this.logger.warn(`order_confirmation_whatsapp_${result.status} reason=${result.reason ?? "unconfirmed"}`);
+        } else {
+          await this.whatsappSender.send({ phone: buyerPhone, message: freeformText });
+        }
+      }));
     }
+    const results = await Promise.allSettled(deliveries);
+    const failed = results.find(result => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   }
 }
