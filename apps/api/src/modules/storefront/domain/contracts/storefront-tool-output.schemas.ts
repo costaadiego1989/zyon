@@ -72,9 +72,11 @@ export const storefrontToolOutputSchemas = {
     source: z.enum(["mixed", "marketplace", "local"]).optional(), note: text.optional() }),
   get_product_details: z.object({ product: product.refine(value => value.price !== undefined
     || value.variants?.some(item => item.isActive !== false && item.basePriceInCents !== undefined)), ...suggestions }),
-  compare_products: z.object({ comparison: list(z.object({ id, name: text, price: money, attributes: z.record(z.string(), text),
+  compare_products: z.object({ comparison: list(z.object({ id, name: text, description: text.optional(), descriptionTruncated: z.literal(true).optional(), price: money, attributes: z.record(z.string(), text),
     stock: count.optional(), rating: rating.nullable().optional(), type: text.optional(), inStock: z.boolean().optional() })),
-    requestedProductNames: list(text).optional(), missingProductNames: list(text).optional(), requiresProductNames: z.boolean().optional() }),
+    requestedProductNames: list(text).optional(), missingProductNames: list(text).optional(), requiresProductNames: z.boolean().optional(), message: text.optional(),
+    nameResolution: list(z.object({ requestedName: text, status: z.enum(["resolved", "ambiguous", "not_found", "limited"]),
+      candidates: z.array(z.object({ id, name: text })).max(5), candidateCount: count.optional() })).optional() }),
   get_product_availability: z.object({ inStock: z.boolean(), quantity: count.nullable(), estimatedShipping: text.optional() }),
   add_item_to_cart: cart.extend({ ...suggestions, addedItem: z.object({ variantId: id, serviceSlotId: id.optional(), optionItemIds: list(id) }).optional() }),
   get_cart: cart, remove_cart_item: cart, update_cart_item: cart, clear_cart: cart,

@@ -33,6 +33,17 @@ export class PrismaProductRepository implements ProductRepositoryPort {
 
   constructor(private readonly prisma: PrismaClient) {}
 
+  async listPublicNames(input: { merchantId: string; cursor?: string; limit: number }) {
+    const limit = Number.isSafeInteger(input.limit) ? Math.max(1, Math.min(100, input.limit)) : 100;
+    const rows = await this.prisma.product.findMany({
+      where: { merchantId: input.merchantId, isActive: true, deletedAt: null },
+      select: { id: true, name: true }, orderBy: { id: "asc" }, take: limit + 1,
+      ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+    });
+    const items = rows.slice(0, limit);
+    return { items, ...(rows.length > limit ? { nextCursor: items.at(-1)!.id } : {}) };
+  }
+
   async create(input: CreateProductInput): Promise<ProductEntity> {
     const product = await this.prisma.$transaction(async (tx) => {
       await lockCatalogMerchant(tx, input.merchantId);

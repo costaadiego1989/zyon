@@ -19,6 +19,7 @@ import { contextualProductQuery, contextualSearchGroups } from "../../../catalog
 import { salesSearchMaxPrice } from "../../domain/services/sales-search-policy.js";
 import { shoppingSearchPlanSchema } from "../../domain/contracts/shopping-search-plan.schemas.js";
 import { shoppingSearchEvidence } from "../../application/services/shopping-search-evidence.js";
+import { resolveComparisonNames } from "./comparison-product-name.js";
 
 import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
@@ -237,15 +238,17 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
 
       const products = (await Promise.all(
         productIds.map((id) => deps.productRepo.findById(ctx.merchantId, id)),
-      )).filter((product): product is NonNullable<typeof product> => Boolean(product?.isActive));
+      )).filter((product): product is NonNullable<typeof product> => Boolean(product?.isActive && product.merchantId === ctx.merchantId));
 
-      const missingProductNames: string[] = [];
-      for (const productName of productNames) {
-        const result = await deps.productRepo.search({ merchantId: ctx.merchantId, query: productName, isActiveOnly: true, limit: 10 });
-        const exactMatch = result.products.find((product) => normalizeProductName(product.name) === normalizeProductName(productName));
-        if (exactMatch && !products.some((product) => product.id === exactMatch.id)) products.push(exactMatch);
-        else if (!exactMatch) missingProductNames.push(productName);
+      const nameResolution = productNames.length ? await resolveComparisonNames(deps.productRepo, ctx.merchantId, productNames) : [];
+      for (const resolved of nameResolution) {
+        if (resolved.status !== "resolved") continue;
+        const product = await deps.productRepo.findById(ctx.merchantId, resolved.candidates[0]!.id);
+        if (!product?.isActive || product.merchantId !== ctx.merchantId) {
+          resolved.status = "limited"; resolved.candidates = []; delete resolved.candidateCount;
+        } else if (!products.some(item => item.id === product.id)) products.push(product);
       }
+      const missingProductNames = nameResolution.filter(item => item.status === "not_found").map(item => item.requestedName);
 
       const requestedCount = productIds.length + productNames.length;
       const baseProduct = products[0];
@@ -261,6 +264,8 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         comparison: products.map((product) => ({
           id: product.id,
           name: product.name,
+          description: product.description?.slice(0, 4000) || undefined,
+          ...(product.description && product.description.length > 4000 ? { descriptionTruncated: true } : {}),
           price: product.defaultVariant?.basePriceInCents ?? 0,
           attributes: product.defaultVariant?.attributes ?? {},
           stock: product.totalStock,
@@ -269,7 +274,10 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         })),
         requestedProductNames: productNames,
         missingProductNames,
-        requiresProductNames: products.length < 2,
+        nameResolution,
+        ...(nameResolution.some(item => item.status === "limited") ? { message: "A identificação por nome ficou incompleta. Escolha os produtos no catálogo para comparar; não confirmei que estejam ausentes." }
+          : nameResolution.some(item => item.status === "ambiguous") ? { message: "Há mais de um produto com esse nome. Peça ao comprador para escolher entre os nomes publicados antes de comparar." } : {}),
+        requiresProductNames: products.length < 2 || nameResolution.some(item => item.status !== "resolved"),
       };
     },
 
@@ -408,13 +416,4 @@ function uniqueStrings(values: unknown[]): string[] {
     .filter((value): value is string => typeof value === "string")
     .map((value) => value.trim())
     .filter(Boolean))];
-}
-
-function normalizeProductName(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("pt-BR")
-    .replace(/\s+/g, " ")
-    .trim();
 }
