@@ -286,6 +286,8 @@ export class StorefrontLangGraphAgent {
       : classifyIntent(input.userMessage);
     const modelTier = getModelForIntent(intentResult.intent);
     const modelUsed = modelTier === "fast" ? this.fastModel : this.strongModel;
+    const requiresComparisonRead = this.structuredRouting && intentResult.intent === "COMPARE_PRODUCTS";
+    const requiresCanonicalRead = this.structuredRouting && (semantic.classification.requiresTool || requiresComparisonRead);
 
     input.callbacks?.onIntentClassified?.(intentResult);
     input.callbacks?.onModelRouted?.(modelTier, intentResult.intent);
@@ -584,14 +586,22 @@ export class StorefrontLangGraphAgent {
 
       // ─── Fallback: if no tool was called but intent requires one, retry with strong model ───
       const TOOL_REQUIRED_PATTERNS = /^(categorias|ver todas|por preço|por avaliação|mais vendidos|novidades|frete grátis|por desconto|faq|falar com humano|ofertas do dia|ver avaliações|status do pedido)$/i;
-      const requiresTool = this.structuredRouting ? semantic.classification.requiresTool : TOOL_REQUIRED_PATTERNS.test(input.userMessage.trim());
+      const requiresTool = this.structuredRouting ? requiresCanonicalRead : TOOL_REQUIRED_PATTERNS.test(input.userMessage.trim());
       if (!cartPolicy.mutationOutcome && toolsUsed.length === 0 && finalContent !== STOREFRONT_MODEL_FALLBACK && requiresTool) {
         this.logger.warn("agent.no_tool_called.retry", { model: this.strongModel });
         try {
+          // A comparison requires current catalog evidence. Repeating an auto-tool
+          // request can produce another unsupported narrative, even with history.
+          const retryTools = requiresComparisonRead
+            ? openRouterTools.filter((tool) => tool.function.name === "compare_products")
+            : openRouterTools;
+          if (requiresComparisonRead && retryTools.length === 0) throw new Error("comparison_read_unavailable");
+          const retryToolNames = new Set(retryTools.map((tool) => tool.function.name));
           const retryResult: OpenRouterChatResult = await observeStorefrontChat(this.provider, {
             responseFormat: this.responseFormat,
             messages: withStorefrontReplyContract(messages),
-            tools: openRouterTools.length > 0 ? openRouterTools : undefined,
+            tools: retryTools.length > 0 ? retryTools : undefined,
+            ...(requiresComparisonRead ? { toolChoice: { type: "function" as const, function: { name: "compare_products" } } } : {}),
             temperature: 0.3,
             maxTokens: 500,
             model: this.strongModel
@@ -602,9 +612,14 @@ export class StorefrontLangGraphAgent {
           this.costTracker.record(retryResult.usage);
 
           if (retryResult.toolCalls && retryResult.toolCalls.length > 0) {
+            const rejectedRetryCalls = new Set<object>();
             for (const tc of retryResult.toolCalls) {
+              const execTool = retryToolNames.has(tc.name) ? executableTools.find((t) => t.name === tc.name) : undefined;
+              if (!execTool) {
+                rejectedRetryCalls.add(tc);
+                continue;
+              }
               toolsUsed.push(tc.name);
-              const execTool = executableTools.find((t) => t.name === tc.name);
               if (execTool) {
                 const toolResult = await this.executeObservedTool(execTool, tc.args);
                 toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
@@ -622,7 +637,7 @@ export class StorefrontLangGraphAgent {
               }))
             } as any);
             for (const tc of retryResult.toolCalls) {
-              const result = toolResults[tc.name];
+              const result = rejectedRetryCalls.has(tc) ? { error: "tool_not_available_for_this_turn" } : toolResults[tc.name];
               messages.push({ role: "tool", content: JSON.stringify(result), name: tc.name, tool_call_id: tc.id });
             }
             groundProductResponse(messages, toolResults);
@@ -722,7 +737,7 @@ export class StorefrontLangGraphAgent {
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;
     const confirmedRead = Object.entries(toolResults).some(([name, value]) => CANONICAL_READ_TOOLS.has(name)
       && value !== null && typeof value === "object" && !Array.isArray(value) && !("error" in value));
-    const requiredReadUnconfirmed = this.structuredRouting && semantic.classification.requiresTool
+    const requiredReadUnconfirmed = requiresCanonicalRead
       && toolsUsed.every(name => CANONICAL_READ_TOOLS.has(name)) && !confirmedRead
       && !discoveryQuestion && finalContent !== STOREFRONT_MODEL_FALLBACK;
     if (requiredReadUnconfirmed)
