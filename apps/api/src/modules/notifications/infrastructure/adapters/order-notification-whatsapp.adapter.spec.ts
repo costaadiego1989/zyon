@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { OrderNotificationWhatsAppAdapter } from "./order-notification-whatsapp.adapter.js";
 import type { NotificationWhatsAppInput } from "../../application/ports/notification-whatsapp-sender.port.js";
 import { WhatsAppDeliveryService } from "../../../whatsapp-channel/application/services/whatsapp-delivery.service.js";
+import { HandleStatusUpdateUseCase } from "../../../whatsapp-channel/application/use-cases/handle-status-update.use-case.js";
 
 const recipient = "+5521993001883", sender = "+5521971191446";
 const input: NotificationWhatsAppInput = { merchantId: "merchant-a", orderId: "order-1", idempotencyKey: "order-1",
@@ -13,7 +14,8 @@ const payload = () => ({ provider: "META_CLOUD", merchantId: "merchant-a", devic
   fromNumber: recipient.slice(1), timestamp: Date.now() - 60_000 });
 
 function fixture() {
-  const state: any = { row: null, rows: new Map(), requests: [], templateCalls: [], queries: [], config: connection(), inbound: { payload: payload() },
+  const state: any = { row: null, rows: new Map(), requests: [], templateCalls: [], queries: [], receiptQueries: [], inboxWrites: 0,
+    config: connection(), inbound: { payload: payload() },
     merchant: { name: "Loja A", budgetWhatsapp: null, storeSettings: { company: { phone: recipient } } },
     http: async () => new Response(JSON.stringify({ messages: [{ id: "wamid.merchant" }] }), { status: 200 }),
     templateResult: { status: "sent", channel: "whatsapp_template", messageId: "wamid.buyer" }, configReads: 0 };
@@ -21,7 +23,16 @@ function fixture() {
     merchant: { findUnique: async () => state.merchant },
     whatsAppWebhookInbox: {
       findFirst: async (query: unknown) => { state.queries.push(query); return state.inbound; },
-      updateMany: async () => ({ count: 0 }),
+      updateMany: async () => { state.inboxWrites++; return { count: 0 }; },
+    },
+    $queryRaw: async (query: any) => {
+      state.receiptQueries.push(query);
+      assert.match(query.strings.join("?"), /FOR UPDATE/);
+      return [...state.rows.values()].filter((row: any) => query.values.includes(row.merchantId) && query.values.includes(row.configId)
+        && (query.values.includes(row.id) || query.values.includes(row.providerMessageId))).map((row: any) => ({
+          id: row.id, merchant_id: row.merchantId, config_id: row.configId, state: row.state,
+          response: structuredClone(row.response), provider_message_id: row.providerMessageId,
+        }));
     },
     whatsAppDelivery: {
       findUnique: async ({ where }: any) => state.rows.get(where.id) ?? null,
@@ -37,7 +48,9 @@ function fixture() {
     $transaction: async (run: any) => run(prisma),
   };
   const configs: any = { findByMerchantId: async () => { state.configReads++; if (state.beforeConfigRead) state.beforeConfigRead(state.configReads); return state.changeConfig && state.configReads > 1 ? state.changeConfig : state.config; } };
-  const templates: any = { execute: async (request: unknown) => { state.templateCalls.push(request); return state.templateResult; } };
+  const templates: any = { execute: async (request: unknown) => {
+    state.templateCalls.push(request); if (state.beforeTemplateReturn) await state.beforeTemplateReturn(); return state.templateResult;
+  } };
   return { state, prisma, adapter: new OrderNotificationWhatsAppAdapter(prisma, configs, templates) };
 }
 
@@ -158,10 +171,67 @@ test("authenticated Meta receipts reconcile an unknown order notification withou
     assert.equal((await adapter.execute(input)).status, "unknown");
     const delivery = new WhatsAppDeliveryService(prisma, {} as any);
     await delivery.reconcileMeta("merchant-a", "config-a", { id: "wamid.reconciled", status: "delivered", biz_opaque_callback_data: state.row.id });
+    assert.equal(state.row.state, "submission_unknown");
+    await new HandleStatusUpdateUseCase(prisma).receiveMetaReceipt({ merchantId: "merchant-a", configId: "config-a",
+      messageId: "wamid.reconciled", status: "delivered", correlationId: state.row.id, timestamp: "1793389800" });
     assert.equal((await adapter.execute(input)).status, "accepted");
   });
   assert.equal(state.requests.length, 1);
   assert.equal(state.row.providerMessageId, "wamid.reconciled");
+  assert.equal(state.row.response.receipt.status, "delivered"); assert.equal(state.inboxWrites, 0);
+});
+
+for (const providerReturns of ["accepted", "unknown", "failed"] as const) {
+  for (const receiptStatus of ["delivered", "failed"] as const) {
+    test(`an early ${receiptStatus} callback survives a late ${providerReturns} provider result without replay`, async () => {
+      const { state, prisma, adapter } = fixture();
+      state.http = async () => {
+        await new HandleStatusUpdateUseCase(prisma).receiveMetaReceipt({ merchantId: "merchant-a", configId: "config-a",
+          messageId: "wamid.early", status: receiptStatus, correlationId: state.row.id, timestamp: "1793389800",
+          ...(receiptStatus === "failed" ? { errorCode: 131053 } : {}) });
+        if (providerReturns === "unknown") throw Error("late_timeout");
+        if (providerReturns === "failed") return new Response("{}", { status: 403 });
+        return new Response(JSON.stringify({ messages: [{ id: "wamid.late-different" }] }), { status: 200 });
+      };
+      await withProvider(state, async () => {
+        const result = await adapter.execute(input);
+        assert.equal(result.status, receiptStatus === "failed" ? "failed" : "accepted");
+        assert.equal(result.messageId, "wamid.early");
+        if (receiptStatus === "failed") assert.equal(result.reason, "provider_delivery_failed");
+        assert.deepEqual(await adapter.execute(input), result);
+      });
+      assert.equal(state.requests.length, 1); assert.equal(state.inboxWrites, 0);
+      assert.equal(state.row.providerMessageId, "wamid.early");
+      assert.equal(state.row.response.receipt.status, receiptStatus);
+      assert.equal(state.row.state, receiptStatus === "failed" ? "notification_delivery_failed" : "sent");
+    });
+  }
+}
+
+test("known order IDs without opaque correlation bypass generic inbox reconciliation", async () => {
+  const { state, prisma, adapter } = fixture();
+  await withProvider(state, async () => { await adapter.execute(input); });
+  const delivery = new WhatsAppDeliveryService(prisma, {} as any);
+  await delivery.reconcileMeta("merchant-a", "config-a", { id: state.row.providerMessageId, status: "read" });
+  assert.equal(state.inboxWrites, 0); assert.equal(state.row.response.receipt, undefined);
+  await new HandleStatusUpdateUseCase(prisma).receiveMetaReceipt({ merchantId: "merchant-a", configId: "config-a",
+    messageId: state.row.providerMessageId, status: "read", timestamp: "1793389800" });
+  assert.equal(state.row.response.receipt.status, "read"); assert.equal(state.inboxWrites, 0);
+});
+
+test("an early buyer template receipt survives an unknown template result without another send", async () => {
+  const { state, prisma, adapter } = fixture();
+  state.templateResult = { status: "uncertain", channel: "whatsapp_template" };
+  state.beforeTemplateReturn = async () => new HandleStatusUpdateUseCase(prisma).receiveMetaReceipt({
+    merchantId: "merchant-a", configId: "config-a", messageId: "wamid.buyer.early", status: "delivered",
+    correlationId: state.row.id, timestamp: "1793389800",
+  });
+  const buyer = { ...input, type: "order_confirmation" as const };
+  const result = await adapter.execute(buyer);
+  assert.deepEqual(result, { status: "accepted", channel: "whatsapp_template", messageId: "wamid.buyer.early" });
+  assert.deepEqual(await adapter.execute(buyer), result);
+  assert.equal(state.templateCalls.length, 1); assert.equal(state.requests.length, 0); assert.equal(state.inboxWrites, 0);
+  assert.equal(state.row.response.receipt.status, "delivered");
 });
 
 test("buyer dispatch retains the approved-template path, branding and receipt correlation", async () => {

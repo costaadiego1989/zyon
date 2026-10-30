@@ -113,7 +113,7 @@ export class OrderNotificationWhatsAppAdapter implements NotificationWhatsAppSen
     const state = result.status === "accepted" ? "sent" : result.status === "unknown" ? "submission_unknown" : `notification_${result.status}`;
     const saved = await this.prisma.whatsAppDelivery.updateMany({ where: { id, merchantId: input.merchantId,
       configId: config.id, state: "sending", processingToken }, data: { state,
-        response: { ...metadata, ...result } as Prisma.InputJsonValue, providerMessageId: result.messageId ?? null } });
+        response: { ...metadata, ...result, channel: metadata.channel } as Prisma.InputJsonValue, providerMessageId: result.messageId ?? null } });
     if (saved.count !== 1) {
       const reconciled = await this.prisma.whatsAppDelivery.findUnique({ where: { id } });
       return reconciled ? this.previous(reconciled, input.merchantId, config.id) : unknown();
@@ -128,6 +128,9 @@ export class OrderNotificationWhatsAppAdapter implements NotificationWhatsAppSen
   private previous(row: { merchantId: string; configId: string; state: string; providerMessageId: string | null; response: unknown }, merchantId: string, configId: string): NotificationWhatsAppResult {
     if (row.merchantId !== merchantId || row.configId !== configId) return unknown();
     const response = row.response as Partial<NotificationWhatsAppResult> | null;
+    if (row.state === "notification_delivery_failed") return { status: "failed",
+      channel: response?.channel === "whatsapp_session" ? "whatsapp_session" : "whatsapp_template",
+      reason: "provider_delivery_failed", ...(row.providerMessageId ? { messageId: row.providerMessageId } : {}) };
     if (row.state === "sent" && row.providerMessageId?.trim()) return { status: "accepted",
       channel: response?.channel === "whatsapp_session" ? "whatsapp_session" : "whatsapp_template", messageId: row.providerMessageId };
     if (row.state === "notification_skipped") return skipped(response?.reason ?? "approved_template_unavailable");
