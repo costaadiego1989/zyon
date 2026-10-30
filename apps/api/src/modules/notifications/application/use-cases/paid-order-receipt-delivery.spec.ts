@@ -38,11 +38,12 @@ test("unavailable canonical scope refuses all buyer and merchant deliveries", as
 test("correction sends only two receipts, keeps stable separate keys and never creates a second order dashboard event", async () => {
   const h = harness();
   await h.correction.execute({ merchantId: "m1", externalOrderId: "185874", idempotencyPurpose: purpose });
-  assert.equal(h.emails.length, 2); assert.equal(h.whatsapp.length, 2); assert.equal(h.dashboard.length, 0);
+  assert.equal(h.emails.length, 2); assert.equal(h.whatsapp.length, 3); assert.equal(h.dashboard.length, 0);
   assert.equal(h.emails[0].idempotencyKey, `${purpose}:m1:185874:buyer-email`);
   assert.equal(h.emails[1].idempotencyKey, `${purpose}:m1:185874:merchant-email`);
-  assert.equal(h.whatsapp[0].idempotencyKey, purpose); assert.equal(h.whatsapp[1].idempotencyKey, purpose);
-  assert.deepEqual(h.whatsapp.map(input => input.type), ["order_confirmation", "merchant_order_paid"]);
+  assert.equal(h.whatsapp[0].idempotencyKey, purpose); assert.equal(h.whatsapp[2].idempotencyKey, purpose);
+  assert.equal(h.whatsapp[1].idempotencyKey, "185874");
+  assert.deepEqual(h.whatsapp.map(input => input.type), ["order_confirmation", "order_paid_animation", "merchant_order_paid"]);
   const keys = h.emails.map(input => input.idempotencyKey);
   await h.correction.execute({ merchantId: "m1", externalOrderId: "185874", idempotencyPurpose: purpose });
   assert.deepEqual(h.emails.slice(2).map(input => input.idempotencyKey), keys);

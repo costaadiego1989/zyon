@@ -19,7 +19,13 @@ function fixture() {
     merchant: { name: "Loja A", budgetWhatsapp: null, storeSettings: { company: { phone: recipient } } },
     http: async () => new Response(JSON.stringify({ messages: [{ id: "wamid.merchant" }] }), { status: 200 }),
     templateResult: { status: "sent", channel: "whatsapp_template", messageId: "wamid.buyer" }, configReads: 0 };
+  state.order = { id: "db-order-1", merchantId: "merchant-a", sessionId: "session-a", externalOrderId: "order-1", status: "approved" };
+  state.confirmation = { payload: { type: "ORDER_CONFIRMATION", merchantId: "merchant-a", orderId: "order-1", buyerPhone: recipient } };
+  state.receipt = { merchantId: "merchant-a", orderId: "order-1", buyerPhone: recipient,
+    paidReceipt: { status: "itemized", currency: "BRL", totalPaidCents: 1385 } };
   const prisma: any = {
+    completedOrder: { findFirst: async (query: unknown) => { state.orderQuery = query; return state.order; } },
+    outboxMessage: { findFirst: async (query: unknown) => { state.orderEventQuery = query; return state.confirmation; } },
     merchant: { findUnique: async () => state.merchant },
     whatsAppWebhookInbox: {
       findFirst: async (query: unknown) => { state.queries.push(query); return state.inbound; },
@@ -51,7 +57,8 @@ function fixture() {
   const templates: any = { execute: async (request: unknown) => {
     state.templateCalls.push(request); if (state.beforeTemplateReturn) await state.beforeTemplateReturn(); return state.templateResult;
   } };
-  return { state, prisma, adapter: new OrderNotificationWhatsAppAdapter(prisma, configs, templates) };
+  const receipts: any = { read: async (query: unknown) => { state.receiptQuery = query; return state.receipt; } };
+  return { state, prisma, adapter: new OrderNotificationWhatsAppAdapter(prisma, configs, templates, receipts) };
 }
 
 async function withProvider<T>(state: any, run: () => Promise<T>) {
@@ -62,6 +69,119 @@ async function withProvider<T>(state: any, run: () => Promise<T>) {
   }) as typeof fetch;
   try { return await run(); } finally { globalThis.fetch = previous; }
 }
+
+async function withAnimationProvider<T>(state: any, run: () => Promise<T>) {
+  const previous = process.env.API_PUBLIC_URL;
+  process.env.API_PUBLIC_URL = "https://api.example.test/";
+  try { return await withProvider(state, run); }
+  finally { if (previous === undefined) delete process.env.API_PUBLIC_URL; else process.env.API_PUBLIC_URL = previous; }
+}
+
+test("paid animation has a separate immutable order ledger and corrections cannot resend its video", async () => {
+  const { state, adapter } = fixture();
+  await withAnimationProvider(state, async () => {
+    const request = { ...input, type: "order_paid_animation" as const };
+    const accepted = await adapter.execute(request);
+    assert.equal(accepted.status, "accepted");
+    assert.deepEqual(await adapter.execute({ ...request, idempotencyKey: "qa-order-receipt-correction-v1:order-1" }), accepted);
+  });
+  assert.equal(state.requests.length, 1); assert.equal(state.templateCalls.length, 0);
+  assert.equal(state.requests[0].body.type, "video");
+  assert.equal(state.requests[0].body.video.link, "https://api.example.test/whatsapp/presentation/payment-paid-v1.mp4");
+  assert.equal(state.row.response.type, "order_paid_animation"); assert.equal(state.row.response.channel, "whatsapp_session");
+  assert.equal(state.row.response.orderId, "order-1"); assert.equal(state.row.response.receipt, undefined);
+  assert.deepEqual(state.receiptQuery, { merchantId: "merchant-a", externalOrderId: "order-1" });
+});
+
+test("shipped animation binds canonical ID to external order and requires actual shipped state", async () => {
+  const { state, adapter } = fixture(); state.order.status = "shipped";
+  await withAnimationProvider(state, async () => {
+    assert.equal((await adapter.execute({ ...input, orderId: "db-order-1", type: "order_shipped_animation" })).status, "accepted");
+    assert.equal((await adapter.execute({ ...input, orderId: "order-1", type: "order_shipped_animation" })).status, "accepted");
+  });
+  assert.equal(state.requests.length, 1);
+  assert.equal(state.requests[0].body.video.link, "https://api.example.test/whatsapp/presentation/order-shipped-v1.mp4");
+  assert.equal(state.row.response.orderId, "order-1"); assert.equal(state.row.response.type, "order_shipped_animation");
+  assert.equal(state.orderEventQuery.where.merchantId, "merchant-a");
+  assert.equal(state.orderEventQuery.where.eventType, "order.confirmed");
+});
+
+for (const [label, change] of [
+  ["foreign order", (s: any) => { s.order.merchantId = "other"; }],
+  ["missing order", (s: any) => { s.order = null; }],
+  ["another order ID", (s: any) => { s.order.externalOrderId = "other"; }],
+  ["unapproved payment", (s: any) => { s.receipt.paidReceipt = undefined; }],
+  ["foreign payment owner", (s: any) => { s.receipt.merchantId = "other"; }],
+  ["another payment order", (s: any) => { s.receipt.orderId = "other"; }],
+  ["another buyer", (s: any) => { s.receipt.buyerPhone = "+5511988887777"; }],
+  ["cancelled order", (s: any) => { s.order.status = "cancelled"; }],
+  ["self sender", (s: any) => { s.config.whatsappNumber = recipient; }],
+  ["sender unknown", (s: any) => { s.config.whatsappNumber = undefined; }],
+  ["sender malformed", (s: any) => { s.config.whatsappNumber = "unidentified"; }],
+  ["missing authenticated inbox", (s: any) => { s.inbound = null; }],
+  ["wrong inbox tenant", (s: any) => { s.inbound.payload.merchantId = "other"; }],
+  ["wrong inbox device", (s: any) => { s.inbound.payload.deviceId = "other"; }],
+  ["expired inbox", (s: any) => { s.inbound.payload.timestamp = Date.now() - 24 * 60 * 60_000; }],
+  ["future inbox", (s: any) => { s.inbound.payload.timestamp = Date.now() + 60_000; }],
+] as const) test(`paid animation ${label} never authorizes a send or claims delivery`, async () => {
+  const { state, adapter } = fixture(); change(state);
+  await withAnimationProvider(state, async () => assert.equal((await adapter.execute({ ...input, type: "order_paid_animation" })).status, "skipped"));
+  assert.equal(state.requests.length + state.templateCalls.length, 0); assert.equal(state.row, null);
+});
+
+for (const status of ["approved", "pending", "preparing", "cancelled", "delivered"]) test(`order state ${status} cannot announce shipment`, async () => {
+  const { state, adapter } = fixture(); state.order.status = status;
+  await withAnimationProvider(state, async () => assert.equal((await adapter.execute({ ...input, type: "order_shipped_animation" })).status, "skipped"));
+  assert.equal(state.requests.length, 0); assert.equal(state.row, null);
+});
+
+test("shipped animation rejects a different historical buyer or missing order contact snapshot", async () => {
+  for (const confirmation of [null, { payload: { type: "ORDER_CONFIRMATION", merchantId: "other", orderId: "order-1", buyerPhone: recipient } },
+    { payload: { type: "ORDER_CONFIRMATION", merchantId: "merchant-a", orderId: "order-1", buyerPhone: "+5511988887777" } }]) {
+    const { state, adapter } = fixture(); state.order.status = "shipped"; state.confirmation = confirmation;
+    await withAnimationProvider(state, async () => assert.equal((await adapter.execute({ ...input, type: "order_shipped_animation" })).status, "skipped"));
+    assert.equal(state.requests.length, 0); assert.equal(state.row, null);
+  }
+});
+
+test("animation rechecks payment order scope before dispatch after durable admission", async () => {
+  const { state, adapter } = fixture();
+  state.beforeConfigRead = (count: number) => { if (count === 2) state.order.status = "cancelled"; };
+  await withAnimationProvider(state, async () => assert.equal((await adapter.execute({ ...input, type: "order_paid_animation" })).status, "skipped"));
+  assert.equal(state.requests.length, 0); assert.equal(state.row.state, "notification_skipped");
+});
+
+test("animation asset URLs require a configured credential-free HTTPS origin", async () => {
+  for (const origin of ["http://api.example.test", "https://user:secret@api.example.test", "invalid"]) {
+    const { state, adapter } = fixture();
+    await withAnimationProvider(state, async () => {
+      process.env.API_PUBLIC_URL = origin;
+      assert.equal((await adapter.execute({ ...input, type: "order_paid_animation" })).status, "skipped");
+    });
+    assert.equal(state.requests.length, 0); assert.equal(state.row, null);
+  }
+});
+
+test("animation unknown acceptance cannot be retried with a different correction purpose", async () => {
+  const { state, adapter } = fixture(); state.http = async () => { throw Error("timeout"); };
+  await withAnimationProvider(state, async () => {
+    assert.equal((await adapter.execute({ ...input, type: "order_paid_animation" })).status, "unknown");
+    assert.equal((await adapter.execute({ ...input, type: "order_paid_animation", idempotencyKey: "correction-v2" })).status, "unknown");
+  });
+  assert.equal(state.requests.length, 1); assert.equal(state.row.state, "submission_unknown");
+});
+
+for (const type of ["order_paid_animation", "order_shipped_animation"] as const) test(`${type} authentic Meta receipts reconcile acceptance separately from delivery`, async () => {
+  const { state, prisma, adapter } = fixture(); if (type === "order_shipped_animation") state.order.status = "shipped";
+  state.http = async () => {
+    await new HandleStatusUpdateUseCase(prisma).receiveMetaReceipt({ merchantId: "merchant-a", configId: "config-a",
+      messageId: "wamid.animation", status: "read", correlationId: state.row.id, timestamp: "1793394227" });
+    throw Error("late_timeout");
+  };
+  await withAnimationProvider(state, async () => assert.equal((await adapter.execute({ ...input, type })).status, "accepted"));
+  assert.equal(state.requests.length, 1); assert.equal(state.row.providerMessageId, "wamid.animation");
+  assert.equal(state.row.response.receipt.status, "read"); assert.equal(state.row.response.channel, "whatsapp_session");
+});
 
 test("merchant Meta acceptance persists a scoped order ledger and replay never sends twice", async () => {
   const { state, adapter } = fixture();

@@ -51,6 +51,13 @@ export class SendOrderShippedUseCase {
           await this.whatsappSender.send({ phone: buyerPhone, message: freeformText });
         }
       }));
+      if (this.sendWhatsApp) {
+        deliveries.push(Promise.resolve().then(async () => {
+          const result = await this.sendWhatsApp!.execute({ merchantId: event.merchantId, orderId: event.orderId,
+            idempotencyKey: event.orderId, type: "order_shipped_animation", toPhone: buyerPhone });
+          if (result.status !== "accepted") this.logger.warn(`order_shipped_animation_${result.status} reason=${result.reason ?? "unconfirmed"}`);
+        }));
+      }
     }
     const results = await Promise.allSettled(deliveries);
     const failed = results.find(result => result.status === "rejected");

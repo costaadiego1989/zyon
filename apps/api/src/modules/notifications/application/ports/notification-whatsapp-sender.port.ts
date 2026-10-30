@@ -8,7 +8,7 @@ export interface NotificationWhatsAppInput {
     merchantId: string;
     orderId: string;
     idempotencyKey?: string;
-    type: "order_confirmation" | "order_nonphysical_confirmation" | "order_shipped" | "order_delivered" | "merchant_order_paid";
+    type: "order_confirmation" | "order_nonphysical_confirmation" | "order_shipped" | "order_delivered" | "merchant_order_paid" | "order_paid_animation" | "order_shipped_animation";
     toPhone?: string;
     variables?: Record<string, string | number | undefined>;
     freeformText?: string;

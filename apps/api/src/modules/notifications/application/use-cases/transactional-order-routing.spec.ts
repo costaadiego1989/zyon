@@ -75,8 +75,8 @@ test("shipped WhatsApp remains independent of an email failure", async () => {
     { execute: async input => { inputs.push(input); return { status: "accepted", channel: "whatsapp_template", messageId: "wamid.shipped" }; } });
   await assert.rejects(useCase.execute({ type: "ORDER_SHIPPED", merchantId: event.merchantId, orderId: event.orderId,
     buyerPhone: event.buyerPhone, buyerEmail: event.buyerEmail, trackingNumber: "BR123456789AA" }), /email_rejected/);
-  assert.equal(inputs.length, 1);
-  assert.equal(inputs[0].type, "order_shipped");
+  assert.equal(inputs.length, 2);
+  assert.deepEqual(inputs.map(input => input.type), ["order_shipped", "order_shipped_animation"]);
   assert.equal(inputs[0].idempotencyKey, "order-1:BR123456789AA");
 });
 

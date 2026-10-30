@@ -30,7 +30,7 @@ interface MetaReceiptInput {
   correlationId?: string; timestamp?: string; errorCode?: number;
 }
 const ORDER_CORRELATION = /^order_notification:[a-f0-9]{64}$/;
-const ORDER_NOTIFICATION_TYPES = new Set(["order_confirmation", "order_nonphysical_confirmation", "order_shipped", "order_delivered", "merchant_order_paid"]);
+const ORDER_NOTIFICATION_TYPES = new Set(["order_confirmation", "order_nonphysical_confirmation", "order_shipped", "order_delivered", "merchant_order_paid", "order_paid_animation", "order_shipped_animation"]);
 // An authenticated positive delivery/read is stronger than a contradictory
 // failure. A late acceptance alone can never erase a delivery failure.
 const ORDER_RECEIPT_RANK: Record<string, number> = { sent: 1, failed: 2, delivered: 3, read: 4 };
@@ -113,7 +113,7 @@ export class HandleStatusUpdateUseCase {
       const metadata = saved as Record<string, unknown>;
       if (metadata.kind !== "order_notification" || typeof metadata.orderId !== "string" || !metadata.orderId.trim()
         || typeof metadata.type !== "string" || !ORDER_NOTIFICATION_TYPES.has(metadata.type)) return;
-      const channel = metadata.type === "merchant_order_paid" ? "whatsapp_session" : "whatsapp_template";
+      const channel = ["merchant_order_paid", "order_paid_animation", "order_shipped_animation"].includes(String(metadata.type)) ? "whatsapp_session" : "whatsapp_template";
       const legacyUnknownChannel = row.state === "submission_unknown" && metadata.status === "unknown" && metadata.channel === "none";
       if (metadata.channel !== channel && !legacyUnknownChannel) return;
       const previous = metadata.receipt;
