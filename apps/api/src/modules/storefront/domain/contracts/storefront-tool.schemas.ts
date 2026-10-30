@@ -54,7 +54,7 @@ export const storefrontToolArgumentSchemas = {
   add_to_wishlist: product,
   get_wishlist: z.strictObject({}),
   remove_from_wishlist: product,
-  track_order: z.strictObject({ orderId: id }),
+  track_order: z.strictObject({ orderId: id.optional() }),
   get_store_policies: z.strictObject({ policyType: z.enum(["privacy", "terms", "returns", "exchanges", "shipping", "warranty", "payment", "general", "all"]).optional() }),
   get_buyer_profile: z.strictObject({}),
   get_daily_deals: z.strictObject({ limit }),

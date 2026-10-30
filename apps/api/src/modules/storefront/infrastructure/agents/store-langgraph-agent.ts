@@ -286,8 +286,10 @@ export class StorefrontLangGraphAgent {
       : classifyIntent(input.userMessage);
     const modelTier = getModelForIntent(intentResult.intent);
     const modelUsed = modelTier === "fast" ? this.fastModel : this.strongModel;
-    const requiresComparisonRead = this.structuredRouting && intentResult.intent === "COMPARE_PRODUCTS";
-    const requiresCanonicalRead = this.structuredRouting && (semantic.classification.requiresTool || requiresComparisonRead);
+    const requiredReadToolName = this.structuredRouting
+      ? intentResult.intent === "COMPARE_PRODUCTS" ? "compare_products" : intentResult.intent === "ORDER_STATUS" ? "track_order" : undefined
+      : undefined;
+    const requiresCanonicalRead = this.structuredRouting && (semantic.classification.requiresTool || requiredReadToolName !== undefined);
 
     input.callbacks?.onIntentClassified?.(intentResult);
     input.callbacks?.onModelRouted?.(modelTier, intentResult.intent);
@@ -479,6 +481,14 @@ export class StorefrontLangGraphAgent {
       finalContent = parsed.data.searchEvidence.message;
       return true;
     };
+    let orderClarification: string | undefined;
+    const captureOrderClarification = (name: string): boolean => {
+      if (name !== "track_order") return false;
+      const parsed = storefrontToolOutputSchemas.track_order.safeParse(toolResults[name]);
+      if (!parsed.success || parsed.data.found !== false || parsed.data.orderId !== undefined || parsed.data.requiresIdentification) return false;
+      orderClarification = parsed.data.message;
+      return true;
+    };
     let loops = 0;
     let commercialEvidence: OpenRouterChatMessage | undefined;
     const openRouterTools = turnTools.map((t) => ({
@@ -572,11 +582,11 @@ export class StorefrontLangGraphAgent {
                 name: tc.name,
                 tool_call_id: tc.id
               });
-              if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name)) break;
+              if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureOrderClarification(tc.name)) break;
             }
           }
           groundProductResponse(messages, toolResults);
-          if (canonicalSearchComplete || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
+          if (canonicalSearchComplete || orderClarification || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
           continue; // loop back to LLM with tool results
         }
 
@@ -590,18 +600,18 @@ export class StorefrontLangGraphAgent {
       if (!cartPolicy.mutationOutcome && toolsUsed.length === 0 && finalContent !== STOREFRONT_MODEL_FALLBACK && requiresTool) {
         this.logger.warn("agent.no_tool_called.retry", { model: this.strongModel });
         try {
-          // A comparison requires current catalog evidence. Repeating an auto-tool
+          // These intents require their canonical read. Repeating an auto-tool
           // request can produce another unsupported narrative, even with history.
-          const retryTools = requiresComparisonRead
-            ? openRouterTools.filter((tool) => tool.function.name === "compare_products")
+          const retryTools = requiredReadToolName
+            ? openRouterTools.filter((tool) => tool.function.name === requiredReadToolName)
             : openRouterTools;
-          if (requiresComparisonRead && retryTools.length === 0) throw new Error("comparison_read_unavailable");
+          if (requiredReadToolName && retryTools.length === 0) throw new Error("required_read_tool_unavailable");
           const retryToolNames = new Set(retryTools.map((tool) => tool.function.name));
           const retryResult: OpenRouterChatResult = await observeStorefrontChat(this.provider, {
             responseFormat: this.responseFormat,
             messages: withStorefrontReplyContract(messages),
             tools: retryTools.length > 0 ? retryTools : undefined,
-            ...(requiresComparisonRead ? { toolChoice: { type: "function" as const, function: { name: "compare_products" } } } : {}),
+            ...(requiredReadToolName ? { toolChoice: { type: "function" as const, function: { name: requiredReadToolName } } } : {}),
             temperature: 0.3,
             maxTokens: 500,
             model: this.strongModel
@@ -623,7 +633,7 @@ export class StorefrontLangGraphAgent {
               if (execTool) {
                 const toolResult = await this.executeObservedTool(execTool, tc.args);
                 toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
-                if (cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name)) break;
+                if (cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureOrderClarification(tc.name)) break;
               }
             }
             // Get final text after tool execution
@@ -641,7 +651,7 @@ export class StorefrontLangGraphAgent {
               messages.push({ role: "tool", content: JSON.stringify(result), name: tc.name, tool_call_id: tc.id });
             }
             groundProductResponse(messages, toolResults);
-            if (!canonicalSearchComplete && !cartPolicy.terminal) {
+            if (!canonicalSearchComplete && !orderClarification && !cartPolicy.terminal) {
               const finalResult = await observeStorefrontChat(this.provider, { messages: withStorefrontReplyContract(messages), responseFormat: this.responseFormat, temperature: 0.3, maxTokens: 500, model: this.strongModel }, "primary", "final");
               finalContent = this.decodeResponse(finalResult);
               totalPromptTokens += finalResult.usage.promptTokens;
@@ -704,11 +714,11 @@ export class StorefrontLangGraphAgent {
                   const toolResult = await this.executeObservedTool(execTool, tc.args);
                   toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
                   fbMessages.push({ role: "tool", content: JSON.stringify(toolResult.ok ? toolResult.data : { error: toolResult.error }), name: tc.name, tool_call_id: tc.id });
-                  if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name)) break;
+                  if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureOrderClarification(tc.name)) break;
                 }
               }
               groundProductResponse(fbMessages, toolResults);
-              if (canonicalSearchComplete || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
+              if (canonicalSearchComplete || orderClarification || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
               continue;
             }
             fbFinalContent = this.decodeResponse(fbResult);
@@ -735,6 +745,7 @@ export class StorefrontLangGraphAgent {
     if (discoveryQuestion) finalContent = discoveryQuestion.question;
     else if (searchPolicy.recommendationMessage) finalContent = searchPolicy.recommendationMessage;
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;
+    if (orderClarification) finalContent = orderClarification;
     const confirmedRead = Object.entries(toolResults).some(([name, value]) => CANONICAL_READ_TOOLS.has(name)
       && value !== null && typeof value === "object" && !Array.isArray(value) && !("error" in value));
     const requiredReadUnconfirmed = requiresCanonicalRead
@@ -825,7 +836,7 @@ export class StorefrontLangGraphAgent {
 
     // The fixed contract fallback is server-owned, not generated candidate prose.
     // A textual refusal never revokes/duplicates an already committed tool effect.
-    if (validation.safe && !mutationOutcome && !built.canonicalReadMessage && messageToValidate !== STOREFRONT_MODEL_FALLBACK) {
+    if (validation.safe && !mutationOutcome && !built.canonicalReadMessage && !orderClarification && messageToValidate !== STOREFRONT_MODEL_FALLBACK) {
       const productReferences: string[] = [];
       const addReference = (value: unknown) => { if (typeof value === "string" && value.trim() && productReferences.length < 12)
         productReferences.push(value.slice(0, 160)); };

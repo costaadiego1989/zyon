@@ -104,7 +104,7 @@ export interface StoreToolHandlers {
   addToWishlist: (args: { productId: string }) => Promise<unknown>;
   getWishlist: () => Promise<unknown>;
   removeFromWishlist: (args: { productId: string }) => Promise<unknown>;
-  trackOrder: (args: { orderId: string }) => Promise<unknown>;
+  trackOrder: (args: { orderId?: string }) => Promise<unknown>;
   getStorePolicies: (args: {
     policyType?: "privacy" | "terms" | "returns" | "exchanges" | "shipping" | "warranty" | "payment" | "general" | "all";
   }) => Promise<unknown>;
