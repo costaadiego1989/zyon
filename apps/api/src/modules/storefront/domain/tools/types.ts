@@ -68,7 +68,7 @@ export interface StoreToolHandlers {
      */
     crossSellPromoId?: string;
   }) => Promise<unknown>;
-  getCart: (args: { cartId: string }) => Promise<unknown>;
+  getCart: (args: { cartId?: string }) => Promise<unknown>;
   removeCartItem: (args: { cartId: string; variantId: string; optionItemIds?: string[]; serviceSlotId?: string | null }) => Promise<unknown>;
   updateCartItem: (args: { cartId: string; variantId: string; quantity: number; optionItemIds?: string[]; serviceSlotId?: string | null }) => Promise<unknown>;
   clearCart: (args: { cartId: string }) => Promise<unknown>;
@@ -124,13 +124,14 @@ export interface StoreToolContext {
 
 export function wrapHandler(
   name: string,
-  fn: (args: any) => Promise<unknown>
+  fn: (args: any) => Promise<unknown>,
+  scope?: { cartId: string }
 ): ExecutableTool {
   return {
     name,
     execute: async (args: Record<string, unknown>): Promise<ToolResult> => {
       try {
-        return await callStorefrontTool(name, args, fn);
+        return await callStorefrontTool(name, args, fn, scope);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         const code = err instanceof Error && (err as any).code ? (err as any).code : undefined;

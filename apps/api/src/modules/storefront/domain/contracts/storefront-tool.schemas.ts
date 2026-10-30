@@ -34,7 +34,7 @@ export const storefrontToolArgumentSchemas = {
     cartId, variantId: id, quantity,
     selectedOptionItemIds: z.array(id).max(100).optional(), selectedServiceSlotId: id.optional(), crossSellPromoId: id.optional(),
   }),
-  get_cart: cart,
+  get_cart: z.strictObject({ cartId }),
   remove_cart_item: z.strictObject({ cartId: id, variantId: id, ...storefrontCartLineSelectorShape }),
   update_cart_item: z.strictObject({ cartId: id, variantId: id, quantity: z.number().int().min(0).max(99), ...storefrontCartLineSelectorShape }),
   clear_cart: cart,
