@@ -402,6 +402,7 @@ export class StorefrontLangGraphAgent {
     const searchPolicy = createSalesSearchPolicy(input.userMessage, history.slice(-10), input.attachmentContext, productDiscovery && !structuredSearchRequired);
     const turnHandlers = productDiscovery && !structuredSearchRequired ? requestHandlers : new Proxy(requestHandlers, {
       get(target, property, receiver) {
+        if (!productDiscovery && property === "shoppingReadMode") return "lookup_only";
         if (!productDiscovery && property === "recommendProducts") return undefined;
         const value = Reflect.get(target, property, receiver);
         // Tool schemas have already rejected caller-controlled internal fields.

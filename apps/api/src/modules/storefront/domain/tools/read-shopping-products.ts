@@ -14,6 +14,12 @@ export async function readShoppingProducts(handlers: StoreToolHandlers, args: Pa
   const parsed = shoppingSearchPlanSchema.safeParse(args.criteria);
   if (!parsed.success) throw new StorefrontToolOutputError();
   const plan = parsed.data;
+  if (handlers.shoppingReadMode === "lookup_only") {
+    if (plan.discountOnly === true) throw new StorefrontToolOutputError();
+    // A server-admitted auxiliary lookup resolves a name. Ratings, money and
+    // preferences generated for a review are not shopping requirements here.
+    return handlers.searchProducts({ ...args, criteria: plan, lookupOnly: true });
+  }
   if (args.sortBy === "discount" || args.sortBy === "best_sellers") {
     return { products: [], nextCursor: null, query: plan.query, searchEvidence: { version: 1, status: "unsupported",
       appliedPlan: plan, unconfirmedPreferences: [], message: args.sortBy === "discount"

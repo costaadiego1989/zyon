@@ -15,6 +15,8 @@ O baseline local tinha 15 testes aprovados e 12 falhas para a capacidade nova. A
 
 A integração também reproduziu um desvio da porta canônica num turno sem descoberta. Após a proteção mínima do Proxy, o gate adicional de lookup e dispatcher aprovou **16/16** casos; o cenário novo falhava antes da correção. A revisão independente aprovou os controles de preço e fronteiras antes da entrega.
 
+A integração seguinte revelou que bloquear a porta canônica também impedia um lookup auxiliar tipado válido de avaliação. A correção mantém a fixture original: uma capability somente interna dos handlers identifica `lookup_only`, valida o plano e permite resolver o nome ignorando critérios comerciais, como o handler já fazia. `discountOnly=true` continua bloqueado nesse modo, e clientes/modelos não podem enviar a capability. O cenário original falhou na base e o gate da correção aprovou **78/78** testes, incluindo a avaliação criada uma única vez, identidade canônica, moderação pendente, ausência de descoberta e tentativa de falsificar a capability. Evidências: `local-typed-review-lookup-baseline.log` e `local-typed-review-lookup-final.log`.
+
 Evidências em `.audit/whatsapp-final-acceptance-20261028/`:
 
 - `local-discount-only-baseline.log`

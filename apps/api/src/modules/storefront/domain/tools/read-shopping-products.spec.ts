@@ -10,6 +10,7 @@ import { storefrontConversationOutputSchema, STOREFRONT_CONTRACT_FALLBACK } from
 import { storefrontPublicReadUiActionRequestSchema } from "../contracts/storefront-public-read-ui-action.schemas.js";
 import { createProductHandlers } from "../../infrastructure/tool-handlers/product.handlers.js";
 import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../contracts/shopping-search-plan.schemas.js";
+import { storefrontToolArgumentSchemas } from "../contracts/storefront-tool.schemas.js";
 
 const plan = (extra: Record<string, unknown> = {}) => shoppingSearchPlanSchema.parse({ version: 1, query: "*", discountOnly: true, ...extra });
 function fixture(options: { missing?: boolean; error?: boolean } = {}) {
@@ -102,4 +103,27 @@ test("a provider replay of inverse false fails planning before either reader can
     userMessage: "Mostre somente produtos que não estão com desconto." });
   assert.equal(f.calls.length, 0); assert.equal(f.baseReads(), 0); assert.equal(out.message, SHOPPING_SEARCH_PLAN_UNCONFIRMED);
   assert.deepEqual(out.blocks, []);
+});
+
+test("only an internal lookup capability preserves a valid typed name lookup without commercial filtering", async () => {
+  const calls: any[] = []; let quotes = 0;
+  const criteria = plan({ query: "Produto", discountOnly: false, minRating: 3, minPriceCents: 500, maxPriceCents: 3000 });
+  const handlers = { shoppingReadMode: "lookup_only" as const,
+    searchProducts: async (args: any) => { calls.push(args); return { products: [] }; },
+    recommendProducts: async () => { quotes++; throw Error("commercial discovery forbidden"); } };
+  await readShoppingProducts(handlers as never, { query: "Produto", criteria });
+  assert.equal(quotes, 0); assert.equal(calls.length, 1); assert.equal(calls[0].lookupOnly, true);
+  assert.deepEqual(calls[0].criteria, criteria);
+  await assert.rejects(readShoppingProducts(handlers as never, { query: "Produto", criteria: plan({ query: "Produto" }) }));
+  assert.equal(quotes, 0); assert.equal(calls.length, 1); // discountOnly=true grants neither lookup nor quote.
+});
+
+test("a client/model cannot submit the handler capability and handlers without it still require canonical authority", async () => {
+  const criteria = plan({ discountOnly: false, maxPriceCents: 3000 }); let lookups = 0;
+  const handlers = { searchProducts: async () => { lookups++; return { products: [] }; } };
+  assert.equal(storefrontToolArgumentSchemas.search_products.safeParse({ query: "Produto", criteria, shoppingReadMode: "lookup_only" }).success, false);
+  assert.equal(shoppingSearchPlanSchema.safeParse({ ...criteria, shoppingReadMode: "lookup_only" }).success, false);
+  await assert.rejects(readShoppingProducts(handlers as never,
+    { query: "Produto", criteria, shoppingReadMode: "lookup_only" } as never));
+  assert.equal(lookups, 0);
 });

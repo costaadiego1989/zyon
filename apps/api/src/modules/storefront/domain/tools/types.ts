@@ -22,6 +22,8 @@ export interface ExecutableTool {
 }
 
 export interface StoreToolHandlers {
+  /** Server-issued turn capability, never a model/public argument. */
+  readonly shoppingReadMode?: "lookup_only";
   /** Internal read admission; never exposed to the model as a tool. */
   inspectCartQuantity?: (args: { cartId: string; itemReference: string; quantity: number }) => Promise<import("../contracts/cart-quantity-inspection.schemas.js").CartQuantityInspection>;
   /** Internal, read-only projection of eligible prices, never a model tool. */
