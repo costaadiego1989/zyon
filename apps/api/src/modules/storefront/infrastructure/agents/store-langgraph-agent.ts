@@ -485,7 +485,20 @@ export class StorefrontLangGraphAgent {
     }));
 
     try {
-      if (this.structuredRouting && intentResult.intent === "NEGOTIATE_PRICE" && semantic.classification.requiresTool) {
+      if (quantitySelection?.quantity === 0) {
+        // Zero is an explicit removal of the inspected line. Execute through
+        // the existing consent/correlation policy and writer exactly once;
+        // another model confirmation cannot add authority or change the line.
+        const tool = executableTools.find(candidate => candidate.name === "update_cart_item");
+        if (tool) {
+          const args = structuredClone(quantitySelection);
+          toolsUsed.push(tool.name); input.callbacks?.onToolCall?.(tool.name, args);
+          const result = await this.executeObservedTool(tool, args);
+          toolResults[tool.name] = result.ok ? result.data : { error: result.error };
+          input.callbacks?.onToolResult?.(tool.name, result);
+        }
+      }
+      if (!cartPolicy.terminal && this.structuredRouting && intentResult.intent === "NEGOTIATE_PRICE" && semantic.classification.requiresTool) {
         // This intent requires current conditions, not merely empathetic price
         // objections. Read before narration; a model cannot defer this lookup.
         for (const name of ["list_promotions", "get_daily_deals"] as const) {
@@ -505,7 +518,7 @@ export class StorefrontLangGraphAgent {
           rules: "Conclua a pergunta com estes fatos atuais; não termine prometendo outra consulta. Não use condições do histórico como se estivessem revalidadas. Um resultado vazio confirma ausência de oferta nessa consulta; erro é condição desconhecida. A regra false proíbe acumular os benefícios; true não concede nenhum. Para negar, fale da combinação ou desses benefícios, sem repetir porcentagem pedida nem anunciar benefício sem autorização. O preço de concorrente é alegado, não é teto do comprador. Se faltar dado do item conhecido, consulte seu catálogo antes de afirmar. Não aplique, adicione ou cobre por causa destas leituras." }) };
         messages.push(commercialEvidence);
       }
-      while (loops < MAX_TOOL_LOOPS) {
+      while (loops < MAX_TOOL_LOOPS && !cartPolicy.terminal) {
         loops += 1;
 
         const result: OpenRouterChatResult = await observeStorefrontChat(this.provider, {
