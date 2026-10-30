@@ -1,0 +1,31 @@
+<template>
+<style>
+  #root{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;background:#f8faf8;color:#173c32;text-align:center;font-family:Inter,sans-serif}
+  #paid-mark-copy{display:grid;place-items:center;width:184px;height:184px;border-radius:50%;background:#e3f1e9;color:#086c50}
+  #paid-mark-copy svg{width:144px;height:144px;fill:none;stroke:currentColor;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+  #paid-mark-copy circle{opacity:.18}
+  #paid-title-copy{font-size:66px;line-height:1.1;font-weight:700;letter-spacing:-.035em}
+  #paid-note-copy{font-size:31px;line-height:1.35;font-weight:400;color:#36564b}
+</style>
+<div data-hf-id="hf-cn1o" id="root" data-composition-id="paid" data-width="720" data-height="720">
+  <div data-hf-id="hf-vzfk" id="paid-mark" class="clip" data-start="0" data-duration="3" data-track-index="0" data-track-kind="graphics">
+    <!-- Mark adapted from HyperFrames registry success-check. -->
+    <div data-hf-id="hf-uvwg" id="paid-mark-copy" aria-label="Pagamento aprovado">
+      <svg data-hf-id="hf-ha7k" viewBox="0 0 64 64" aria-hidden="true"><circle data-hf-id="hf-mb9z" cx="32" cy="32" r="27"/><path data-hf-id="hf-xbr6" id="paid-tick" d="M20 33.5l8 8L45 23"/></svg>
+    </div>
+  </div>
+  <div data-hf-id="hf-rciu" id="paid-title" class="clip" data-start="0" data-duration="3" data-track-index="1" data-track-kind="text"><div data-hf-id="hf-kcer" id="paid-title-copy" data-var-text="title">Pedido pago</div></div>
+  <div data-hf-id="hf-wt6r" id="paid-note" class="clip" data-start="0" data-duration="3" data-track-index="2" data-track-kind="text"><div data-hf-id="hf-ip3n" id="paid-note-copy" data-var-text="note">Obrigado pela sua compra.</div></div>
+</div>
+<script>
+  const tick=document.querySelector('#paid-tick');
+  const length=tick.getTotalLength();
+  tick.style.strokeDasharray=String(length);
+  const tl=gsap.timeline({paused:true});
+  tl.fromTo('#paid-mark-copy',{opacity:1,scale:.86},{opacity:1,scale:1,duration:.4,ease:'power3.out'},.05);
+  tl.fromTo('#paid-tick',{strokeDashoffset:length},{strokeDashoffset:0,duration:.45,ease:'power2.out'},.24);
+  tl.fromTo('#paid-title-copy',{opacity:1,y:14},{opacity:1,y:0,duration:.42,ease:'power3.out'},.4);
+  tl.fromTo('#paid-note-copy',{opacity:1,y:10},{opacity:1,y:0,duration:.32,ease:'power2.out'},.65);
+  window.__timelines=window.__timelines||{};window.__timelines.paid=tl;
+</script>
+</template>

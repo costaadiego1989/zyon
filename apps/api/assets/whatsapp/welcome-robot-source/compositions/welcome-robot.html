@@ -1,0 +1,29 @@
+<template>
+<style>
+#root{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;background:#f8faf8;color:#173c32;text-align:center;font-family:Inter,sans-serif}
+#welcome-robot-mark-copy{display:grid;place-items:center;width:208px;height:208px;border-radius:50%;background:#e3f1e9;color:#086c50}
+#welcome-robot-mark-copy svg{width:166px;height:166px;overflow:visible;fill:none;stroke:currentColor;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
+#cart-product,#cart-success{fill:#e3f1e9}
+#welcome-robot-title-copy{font-size:61px;line-height:1.1;font-weight:700;letter-spacing:-.035em}
+#welcome-robot-note-copy{font-size:30px;line-height:1.35;font-weight:400;color:#36564b}
+</style>
+<div data-hf-id="hf-k2hl" id="root" data-composition-id="welcome-robot" data-width="720" data-height="720">
+<div data-hf-id="hf-fr0z" id="welcome-robot-mark" class="clip" data-start="0" data-duration="3" data-track-index="0" data-track-kind="graphics"><div data-hf-id="hf-7va6" id="welcome-robot-mark-copy" aria-label="Assistente virtual acenando"><svg data-hf-id="hf-p24p" viewBox="0 0 140 130" aria-hidden="true"><path data-hf-id="hf-9gif" d="M70 12v13"/><circle data-hf-id="hf-gypq" cx="70" cy="9" r="4"/><g data-hf-id="hf-jxmu" id="robot-body"><rect data-hf-id="hf-st4e" x="31" y="28" width="78" height="59" rx="15"/><path data-hf-id="hf-319q" d="M41 96h58v21H41zM25 50h-8v21h8M115 50h8v21h-8"/><path data-hf-id="hf-e9n8" id="robot-smile" d="M57 68q13 12 26 0"/><g data-hf-id="hf-axik" id="robot-eyes"><circle data-hf-id="hf-nfjf" cx="52" cy="50" r="3"/><circle data-hf-id="hf-lvs9" cx="87" cy="50" r="3"/></g></g><path data-hf-id="hf-opuh" d="m39 103-17 10"/><g data-hf-id="hf-42p1" id="robot-wave"><path data-hf-id="hf-uakk" d="m99 103 22-19V59"/><path data-hf-id="hf-18rq" d="M114 59v-7m7 7V48m7 11v-7M114 64h14"/></g></svg></div></div>
+<div data-hf-id="hf-kabx" id="welcome-robot-title" class="clip" data-start="0" data-duration="3" data-track-index="1" data-track-kind="text"><div data-hf-id="hf-ptco" id="welcome-robot-title-copy" data-var-text="title">Olá, que bom te ver!</div></div>
+<div data-hf-id="hf-635s" id="welcome-robot-note" class="clip" data-start="0" data-duration="3" data-track-index="2" data-track-kind="text"><div data-hf-id="hf-p0oc" id="welcome-robot-note-copy" data-var-text="note">Como posso ajudar na sua compra?</div></div>
+</div>
+<script>
+// Short confirmation motion adapted from the HyperFrames success-check timing.
+const tl=gsap.timeline({paused:true});
+tl.fromTo('#welcome-robot-mark-copy',{scale:.92},{scale:1,duration:.4,ease:'power3.out'},.05);
+tl.fromTo('#robot-wave',{rotation:-12,svgOrigin:'101 102'},{rotation:10,duration:.32,ease:'power2.inOut'},.18);
+tl.to('#robot-wave',{rotation:-12,duration:.32,ease:'power2.inOut'},.5);
+tl.to('#robot-wave',{rotation:10,duration:.32,ease:'power2.inOut'},.82);
+tl.to('#robot-wave',{rotation:0,duration:.4,ease:'power2.out'},1.14);
+tl.fromTo('#robot-eyes',{scaleY:1,svgOrigin:'70 50'},{scaleY:.15,duration:.07,ease:'power1.in'},1.85);
+tl.to('#robot-eyes',{scaleY:1,duration:.1,ease:'power1.out'},1.92);
+tl.fromTo('#welcome-robot-title-copy',{y:8},{y:0,duration:.4,ease:'power3.out'},.12);
+tl.fromTo('#welcome-robot-note-copy',{y:6},{y:0,duration:.45,ease:'power3.out'},.2);
+window.__timelines['welcome-robot']=tl;
+</script>
+</template>

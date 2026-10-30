@@ -1,0 +1,27 @@
+<template>
+<style>
+#root{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;background:#f8faf8;color:#173c32;text-align:center;font-family:Inter,sans-serif}
+#order-shipped-mark-copy{display:grid;place-items:center;width:208px;height:208px;border-radius:50%;background:#e3f1e9;color:#086c50}
+#order-shipped-mark-copy svg{width:166px;height:166px;overflow:visible;fill:none;stroke:currentColor;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
+#cart-product,#cart-success{fill:#e3f1e9}
+#order-shipped-title-copy{font-size:61px;line-height:1.1;font-weight:700;letter-spacing:-.035em}
+#order-shipped-note-copy{font-size:30px;line-height:1.35;font-weight:400;color:#36564b}
+</style>
+<div data-hf-id="hf-l7zy" id="root" data-composition-id="order-shipped" data-width="720" data-height="720">
+<div data-hf-id="hf-jueo" id="order-shipped-mark" class="clip" data-start="0" data-duration="3" data-track-index="0" data-track-kind="graphics"><div data-hf-id="hf-tx4z" id="order-shipped-mark-copy" aria-label="Pedido enviado"><svg data-hf-id="hf-p24p" viewBox="0 0 140 130" aria-hidden="true"><path data-hf-id="hf-yt5s" id="shipping-road" d="M15 111h120"/><g data-hf-id="hf-qkg7" id="shipping-truck"><path data-hf-id="hf-lkzo" d="M19 36h67v59H19zM86 58h23l19 22v15H86z"/><path data-hf-id="hf-aaa0" d="M94 64h12l13 16H94zM25 47h28v29H25zM39 47v11"/><circle data-hf-id="hf-zcoi" cx="42" cy="97" r="11"/><circle data-hf-id="hf-z810" cx="109" cy="97" r="11"/><path data-hf-id="hf-t7hv" d="M33 97h18M100 97h18"/></g><path data-hf-id="hf-n8fi" id="shipping-speed" d="M13 55H3m10 14H0m13 14H5"/></svg></div></div>
+<div data-hf-id="hf-iey4" id="order-shipped-title" class="clip" data-start="0" data-duration="3" data-track-index="1" data-track-kind="text"><div data-hf-id="hf-uzsy" id="order-shipped-title-copy" data-var-text="title">Pedido enviado</div></div>
+<div data-hf-id="hf-fu03" id="order-shipped-note" class="clip" data-start="0" data-duration="3" data-track-index="2" data-track-kind="text"><div data-hf-id="hf-su13" id="order-shipped-note-copy" data-var-text="note">Sua compra está a caminho.</div></div>
+</div>
+<script>
+// Short confirmation motion adapted from the HyperFrames success-check timing.
+const tl=gsap.timeline({paused:true});
+tl.fromTo('#order-shipped-mark-copy',{scale:.92},{scale:1,duration:.4,ease:'power3.out'},.05);
+tl.fromTo('#shipping-truck',{x:-12},{x:8,duration:1.25,ease:'power2.inOut'},.12);
+tl.to('#shipping-truck',{x:0,duration:.55,ease:'power2.out'},1.37);
+tl.fromTo('#shipping-speed',{opacity:.1,x:5},{opacity:.8,x:0,duration:.45,ease:'power2.out'},.2);
+tl.to('#shipping-speed',{opacity:.15,duration:.5,ease:'power2.inOut'},1.25);
+tl.fromTo('#order-shipped-title-copy',{y:8},{y:0,duration:.4,ease:'power3.out'},.12);
+tl.fromTo('#order-shipped-note-copy',{y:6},{y:0,duration:.45,ease:'power3.out'},.2);
+window.__timelines['order-shipped']=tl;
+</script>
+</template>

@@ -1,0 +1,27 @@
+<template>
+<style>
+#root{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;background:#f8faf8;color:#173c32;text-align:center;font-family:Inter,sans-serif}
+#cart-empty-mark-copy{display:grid;place-items:center;width:208px;height:208px;border-radius:50%;background:#e3f1e9;color:#086c50}
+#cart-empty-mark-copy svg{width:166px;height:166px;overflow:visible;fill:none;stroke:currentColor;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
+#cart-product,#cart-success{fill:#e3f1e9}
+#cart-empty-title-copy{font-size:61px;line-height:1.1;font-weight:700;letter-spacing:-.035em}
+#cart-empty-note-copy{font-size:30px;line-height:1.35;font-weight:400;color:#36564b}
+</style>
+<div data-hf-id="hf-3pvs" id="root" data-composition-id="cart-empty" data-width="720" data-height="720">
+<div data-hf-id="hf-y26k" id="cart-empty-mark" class="clip" data-start="0" data-duration="3" data-track-index="0" data-track-kind="graphics"><div data-hf-id="hf-mjgz" id="cart-empty-mark-copy" aria-label="Seu carrinho está vazio"><svg data-hf-id="hf-p24p" viewBox="0 0 140 130" aria-hidden="true"><g data-hf-id="hf-7oxt" id="empty-cart"><path data-hf-id="hf-705b" d="M18 25h13l11 55h62l12-40H35"/><path data-hf-id="hf-hwkx" d="M46 92h54"/><circle data-hf-id="hf-h68e" cx="49" cy="105" r="5"/><circle data-hf-id="hf-xat5" cx="97" cy="105" r="5"/></g><g data-hf-id="hf-xfay" id="empty-spark"><path data-hf-id="hf-qk87" d="M78 19v15m-7-7h14M112 11v9m-5-4h10"/></g></svg></div></div>
+<div data-hf-id="hf-wr5e" id="cart-empty-title" class="clip" data-start="0" data-duration="3" data-track-index="1" data-track-kind="text"><div data-hf-id="hf-swu4" id="cart-empty-title-copy" data-var-text="title">Carrinho vazio</div></div>
+<div data-hf-id="hf-5o6f" id="cart-empty-note" class="clip" data-start="0" data-duration="3" data-track-index="2" data-track-kind="text"><div data-hf-id="hf-ans4" id="cart-empty-note-copy" data-var-text="note">Que tal explorar a loja?</div></div>
+</div>
+<script>
+// Short confirmation motion adapted from the HyperFrames success-check timing.
+const tl=gsap.timeline({paused:true});
+tl.fromTo('#cart-empty-mark-copy',{scale:.92},{scale:1,duration:.4,ease:'power3.out'},.05);
+tl.fromTo('#empty-cart',{x:-7},{x:0,duration:.65,ease:'power3.out'},.12);
+tl.fromTo('#empty-spark',{opacity:.2},{opacity:1,duration:.5,ease:'power2.out'},.2);
+tl.to('#empty-spark',{opacity:.3,duration:.55,ease:'power2.inOut'},1.05);
+tl.to('#empty-spark',{opacity:.9,duration:.55,ease:'power2.inOut'},1.6);
+tl.fromTo('#cart-empty-title-copy',{y:8},{y:0,duration:.4,ease:'power3.out'},.12);
+tl.fromTo('#cart-empty-note-copy',{y:6},{y:0,duration:.45,ease:'power3.out'},.2);
+window.__timelines['cart-empty']=tl;
+</script>
+</template>

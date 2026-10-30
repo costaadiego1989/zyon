@@ -67,6 +67,7 @@ export interface WhatsAppConversationState {
   pendingFlow?: { token: string; field: "fullName" | "email" | "cpf" | "zip" | "number" | "complement"; checkoutSessionId: string; expiresAt: number };
   catalogId?: string;
   welcomeAnimationShown?: boolean;
+  cartEmptyAnimationShown?: boolean;
   catalogRetailerIds?: Record<string, string>;
   catalogPrices?: Record<string, number>;
   flowIds?: Record<string, string>;

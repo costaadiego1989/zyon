@@ -1,0 +1,27 @@
+<template>
+<style>
+#root{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;background:#f8faf8;color:#173c32;text-align:center;font-family:Inter,sans-serif}
+#cart-added-mark-copy{display:grid;place-items:center;width:208px;height:208px;border-radius:50%;background:#e3f1e9;color:#086c50}
+#cart-added-mark-copy svg{width:166px;height:166px;overflow:visible;fill:none;stroke:currentColor;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
+#cart-product,#cart-success{fill:#e3f1e9}
+#cart-added-title-copy{font-size:61px;line-height:1.1;font-weight:700;letter-spacing:-.035em}
+#cart-added-note-copy{font-size:30px;line-height:1.35;font-weight:400;color:#36564b}
+</style>
+<div data-hf-id="hf-o0wb" id="root" data-composition-id="cart-added" data-width="720" data-height="720">
+<div data-hf-id="hf-vgjn" id="cart-added-mark" class="clip" data-start="0" data-duration="3" data-track-index="0" data-track-kind="graphics"><div data-hf-id="hf-pa5r" id="cart-added-mark-copy" aria-label="Produto adicionado ao carrinho"><svg data-hf-id="hf-p24p" viewBox="0 0 140 130" aria-hidden="true"><g data-hf-id="hf-tjam" id="cart-body"><path data-hf-id="hf-705b" d="M18 25h13l11 55h62l12-40H35"/><path data-hf-id="hf-hwkx" d="M46 92h54"/><circle data-hf-id="hf-h68e" cx="49" cy="105" r="5"/><circle data-hf-id="hf-xat5" cx="97" cy="105" r="5"/></g><g data-hf-id="hf-md2f" id="cart-product"><path data-hf-id="hf-liq5" d="M63 49V28l17-8 17 8v21l-17 9z"/><path data-hf-id="hf-lkbt" d="m63 28 17 9 17-9M80 37v21"/></g><g data-hf-id="hf-z9ej" id="cart-success"><circle data-hf-id="hf-ebxc" cx="111" cy="23" r="17"/><path data-hf-id="hf-oiex" id="cart-tick" d="m102 23 6 6 12-13"/></g></svg></div></div>
+<div data-hf-id="hf-0iwf" id="cart-added-title" class="clip" data-start="0" data-duration="3" data-track-index="1" data-track-kind="text"><div data-hf-id="hf-qrbe" id="cart-added-title-copy" data-var-text="title">No seu carrinho</div></div>
+<div data-hf-id="hf-rg3s" id="cart-added-note" class="clip" data-start="0" data-duration="3" data-track-index="2" data-track-kind="text"><div data-hf-id="hf-oz7y" id="cart-added-note-copy" data-var-text="note">Produto adicionado com sucesso.</div></div>
+</div>
+<script>
+// Short confirmation motion adapted from the HyperFrames success-check timing.
+const tl=gsap.timeline({paused:true});
+tl.fromTo('#cart-added-mark-copy',{scale:.92},{scale:1,duration:.4,ease:'power3.out'},.05);
+tl.fromTo('#cart-product',{y:-22,opacity:.45},{y:0,opacity:1,duration:.55,ease:'power3.out'},.12);
+tl.fromTo('#cart-success',{scale:.6,opacity:.5,svgOrigin:'111 23'},{scale:1,opacity:1,duration:.35,ease:'back.out(1.3)'},.55);
+tl.fromTo('#cart-body',{x:0},{x:5,duration:.3,ease:'power2.out'},.55);
+tl.to('#cart-body',{x:0,duration:.25,ease:'power2.inOut'},.85);
+tl.fromTo('#cart-added-title-copy',{y:8},{y:0,duration:.4,ease:'power3.out'},.12);
+tl.fromTo('#cart-added-note-copy',{y:6},{y:0,duration:.45,ease:'power3.out'},.2);
+window.__timelines['cart-added']=tl;
+</script>
+</template>

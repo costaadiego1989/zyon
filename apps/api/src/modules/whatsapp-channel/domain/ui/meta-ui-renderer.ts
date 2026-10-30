@@ -3,6 +3,7 @@ import type { MetaUiChoice, MetaUiMessage, MetaUiPresentation, MetaUiView, Store
 import { serviceSlotLabel } from "../../../catalog/domain/services/service-schedule.js";
 import { metaStoreQuickReplyAction } from "./meta-store-actions.js";
 import { commercialNoticesSchema } from "../../../storefront/domain/contracts/commercial-notice.schemas.js";
+import { receiptSummaryLines } from "../../../notifications/domain/paid-order-receipt.js";
 
 const object = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const items = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
@@ -93,7 +94,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
     const d = object(block.data);
     switch (block.type) {
       case "text": case "message": text.push(value(d.text || d.content)); break;
-      case "welcome_animation": {
+      case "commerce_animation": case "payment_paid_animation": case "welcome_animation": {
         const link = safeLink(d.url);
         if (link) view.media.push({ type: "video", media: { link } });
         break;
@@ -220,7 +221,9 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         if (safeLink(d.url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "🤖 🔒 *Continue sua compra com segurança*\n\nPreencha os dados protegidos na página da loja. Seu carrinho será mantido." }, action: { name: "cta_url", parameters: { display_text: "Continuar compra", url: safeLink(d.url) } } } }); break;
       case "checkout_prepared": add("Continuar checkout", tool("checkout", { actionId: d.actionId, cartId: d.cartId })); break;
       case "order_confirmation":
-        text.push(`✅ *Pedido ${value(d.orderId)}*\n*Total: ${money(d.total)}*`);
+        text.push(`🧾 *Pedido ${value(d.orderId)}*\n` + (d.paidReceipt
+          ? receiptSummaryLines(d.paidReceipt).map(line => line.startsWith("Total pago:") ? `✅ *${line}*` : line).join("\n")
+          : `*Valor do pedido: ${money(d.total)}*`));
         items(d.items).forEach(i => text.push(`${i.quantity}× ${value(i.productName)} — ${money(i.price)}`));
         if (d.estimatedDelivery) text.push(`Previsão: ${value(d.estimatedDelivery)}`); break;
       case "comparison_table": case "product_comparison":
@@ -414,7 +417,8 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   });
   const productPhotos: MetaUiMessage[] = catalog && options.includeMedia !== false ? choices.filter(choice => choice.image).map(choice => ({ type: "image", media: choice.image! })) : [];
   const messages: MetaUiMessage[] = [];
-  const visibleMedia = productPhotos.length ? productPhotos.slice(0, 3)
+  const confirmationVideos = !options.navigationOnly && options.includeMedia !== false && view.blocks.some(block => block.type === "commerce_animation") ? view.media.filter(media => media.type === "video").slice(0, 1) : [];
+  const visibleMedia = productPhotos.length ? [...confirmationVideos, ...productPhotos].slice(0, 3)
     : options.includeMedia !== false && !options.navigationOnly ? view.media.filter(m => m.type !== "text").slice(0, 3) : [];
   // Product detail starts with its real photo and price, followed by the full
   // published information. Payment instructions retain their existing order.

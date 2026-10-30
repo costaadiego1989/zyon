@@ -26,6 +26,8 @@ import { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../../../payment/domain/ports/payment-repository.port.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../../checkout/domain/checkout-experience.config.js";
 import { metaWelcomeMessage } from "../../domain/ui/meta-ui-renderer.js";
+import { presentationAssetUrl, withCartAnimations } from "../../domain/ui/commerce-animations.js";
+import { projectPaidOrderReceipt } from "../../../notifications/domain/paid-order-receipt.js";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../../storefront/domain/ports/conversation.port.js";
 import { CheckoutShippingService } from "../../../checkout/application/services/checkout-shipping.service.js";
 import type { TrustedWhatsAppCheckoutBuyer } from "../../../checkout/application/services/trusted-checkout-buyer.js";
@@ -142,13 +144,11 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       state.history = [{ role: "user", content: input.message }, { role: "assistant", content: greeting }];
       const blocks: WhatsAppStructuredResponse["blocks"] = [];
       if (!state.welcomeAnimationShown) {
-        try {
-          const origin = new URL(process.env.API_PUBLIC_URL || process.env.PUBLIC_API_BASE_URL || process.env.PUBLIC_API_URL || "");
-          if (origin.protocol === "https:" && !origin.username && !origin.password) {
-            blocks.push({ type: "welcome_animation", data: { url: new URL("/whatsapp/presentation/welcome-v1.mp4", origin).href } });
-            state.welcomeAnimationShown = true;
-          }
-        } catch { /* Text and native menu remain available without a public media origin. */ }
+        const url = presentationAssetUrl("welcome-v2.mp4");
+        if (url) {
+          blocks.push({ type: "welcome_animation", data: { url } });
+          state.welcomeAnimationShown = true;
+        }
       }
       return { agentMessage: greeting, quickReplies: config.quickReplies || [], blocks, merchantName: config.name, state };
     }
@@ -156,6 +156,10 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const checkoutAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry", "show_checkout"].includes(input.action.tool);
     const browsing = (input.action?.kind === "tool" && !checkoutAction) || /^(continuar comprando|ver produtos|encontrar produto|categorias|ofertas|ver carrinho|faq|ajuda|suporte|perguntas frequentes|tirar d[uú]vidas|trocas e devolu[cç][oõ]es)$/i.test(input.message.trim());
     if (checkoutAction && state.checkoutSessionId) state.stage = "checkout";
+    const paymentStatusRequest = /^verificar pagamento$/i.test(input.message.trim()) && identitySession?.merchantId === input.merchantId &&
+      identitySession.cart.cart_ref === state.conversationId && identitySession.customer?.phone_verified === true &&
+      identitySession.customer.phone?.replace(/\D/g, "") === input.buyer.phone.replace(/\D/g, "");
+    if (paymentStatusRequest) state.stage = "checkout";
     // The checkout owns explicit checkout actions and requested field answers.
     // Ordinary conversation returns to the same storefront agent, retaining
     // the cart, verified identity and original payment for later resumption.
@@ -182,7 +186,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       state = await this.syncPayment(input.merchantId, state);
       const experience = () => buildExperienceFromSession(checkout, { merchantName: config.name, serviceFee: this.experienceConfig?.platformFeeBrl });
       const currentTool = input.action?.kind === "tool" ? input.action.tool : undefined;
-      if (currentTool === "show_checkout") return this.checkoutUi({ message: "Confira seu pedido e as opções atuais.", experience: experience(), resumePayment: true }, state, config.name, input.message, input.merchantId);
+      if (currentTool === "show_checkout" || paymentStatusRequest) return this.checkoutUi({ message: "Confira seu pedido e as opções atuais.", experience: experience(), resumePayment: true }, state, config.name, input.message, input.merchantId);
       if (["cancel_checkout_edit", "cancel_coupon_entry"].includes(currentTool ?? "")) {
         state.pendingCheckoutEdit = undefined; state.pendingCoupon = undefined;
         return this.checkoutUi({ message: "Tudo bem. Seu pedido foi mantido.", experience: experience() }, state, config.name, input.message, input.merchantId);
@@ -408,8 +412,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         if (contentBlocks.length) response.blocks.push({ type: "product_content", data: { productId, blocks: contentBlocks } } as any);
       }
     }
-    return { agentMessage: firstTurn ? `${greeting}\n\n${response.message}` : response.message, quickReplies: response.suggested_next,
-      blocks: response.blocks, merchantName: config.name, state };
+    return withCartAnimations({ agentMessage: firstTurn ? `${greeting}\n\n${response.message}` : response.message, quickReplies: response.suggested_next,
+      blocks: response.blocks, merchantName: config.name, state });
   }
 
   private returningBuyerMessage(session: import("@zyon/shared-types").CheckoutSession, buyer: TrustedWhatsAppCheckoutBuyer): string {
@@ -463,9 +467,23 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       state.payment = { ...state.payment, status: status.status };
       if (status.status === "approved") {
         state.pendingCheckoutEdit = undefined; state.pendingCoupon = undefined;
-        const order = await this.prisma?.completedOrder.findFirst({ where: { merchantId, sessionId: checkoutSessionId }, select: { externalOrderId: true, orderTotal: true } });
-        message = order ? `Pagamento confirmado! Seu pedido ${order.externalOrderId} está registrado.` : "O pagamento foi confirmado. O registro do pedido está sendo concluído.";
-        if (order) blocks.push({ type: "order_confirmation", data: { orderId: order.externalOrderId, total: Number(order.orderTotal), items: exp?.items ?? [] } } as any);
+        const payment = await this.prisma?.paymentIntent.findFirst({ where: { id: state.payment.intentId, merchantId, sessionId: checkoutSessionId, status: "approved" } });
+        const canonicalPayment = payment?.id === state.payment.intentId && payment.merchantId === merchantId && payment.sessionId === checkoutSessionId &&
+          payment.status === "approved" && Number.isSafeInteger(payment.amountCents) && payment.amountCents > 0 && payment.approvedAmountCents === payment.amountCents && payment.providerPaymentId;
+        const order = canonicalPayment ? await this.prisma?.completedOrder.findFirst({ where: { merchantId, sessionId: checkoutSessionId, externalOrderId: payment.providerPaymentId! }, select: {
+          merchantId: true, sessionId: true, externalOrderId: true, status: true, currency: true,
+          orderTotal: true, shippingCents: true, lineItemsJson: true,
+        } }) : undefined;
+        message = order ? `✅ *Pagamento confirmado!*\n\n🧾 Seu pedido *${order.externalOrderId}* está registrado.\n💬 Você pode consultar o andamento por aqui.` : "✅ *Pagamento confirmado!*\n\n⏳ O registro do pedido está sendo concluído. Você não precisa pagar novamente.";
+        // An older checkout experience can still contain pre-discount totals or
+        // payment instructions. The approved snapshot owns this receipt.
+        for (let i = blocks.length - 1; i >= 0; i--) if (["checkout_summary", "payment_intent", "pix_payment", "payment_actions", "payment_methods", "shipping_options", "form_field", "checkout_form"].includes(blocks[i].type)) blocks.splice(i, 1);
+        if (order) {
+          const paidReceipt = payment ? projectPaidOrderReceipt(order, payment) : null;
+          if (paidReceipt) blocks.push({ type: "order_confirmation", data: { orderId: order.externalOrderId,
+            total: paidReceipt.totalPaidCents / 100, paidReceipt, items: [] } } as any);
+          else message += "\n\nℹ️ O detalhamento deste recibo ainda não está disponível. Não é necessário pagar novamente.";
+        }
       } else if (["pending", "requires_action"].includes(status.status)) {
         if (!state.pendingCheckoutEdit) blocks.push({ type: "payment_intent", data: state.payment });
       }
@@ -485,7 +503,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     } else if (session && state.payment && ["pending", "requires_action"].includes(state.payment.status)) {
       blocks.push({ type: "checkout_edit_actions", data: { fingerprint: paymentCartFingerprint(session), couponAllowed: true } });
     }
-    const nextField = response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
+    const approved = state.payment?.status === "approved";
+    const nextField = approved ? undefined : response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
     // Ask the next field explicitly. Starting a checkout must not stop at its greeting.
     if (nextField === "email") message = "📧 *E-mail para o pedido*\n\nQual é seu e-mail de contato? Ele será usado no pagamento e nas atualizações do pedido.\n\n_Não é preciso confirmar por código._";
     if (nextField === "código de verificação" && session?.customer?.otp_code && !/inválido|expirou|não foi possível|não consegui/i.test(message)) {
@@ -534,7 +553,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const replies = [...new Set<string>([...(nextField === "código de verificação" || message?.includes("Reenviar código") ? ["Reenviar código", "Alterar email"] : []), ...(exp?.copy?.quick_replies || []), ...(response.actions || []).map((a: any) => a.label)])]
       .filter(label => !paymentSurface || !/^(pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito)|remover item|tenho um cupom de desconto)$/i.test(label.trim()));
     return { agentMessage: message, merchantName, blocks,
-      quickReplies: secureIdentifier ? ["Ver Carrinho", "Continuar Comprando"] : state.pendingCheckoutEdit || state.pendingCoupon ? [] : paymentSurface ? [...replies, ...(state.payment ? ["Verificar pagamento"] : []), "Ver Carrinho", "Continuar Comprando"] : replies,
+      quickReplies: approved ? ["Rastrear Pedido", "Continuar Comprando"] : secureIdentifier ? ["Ver Carrinho", "Continuar Comprando"] : state.pendingCheckoutEdit || state.pendingCoupon ? [] : paymentSurface ? [...replies, ...(state.payment ? ["Verificar pagamento"] : []), "Ver Carrinho", "Continuar Comprando"] : replies,
       state: { ...state, checkoutSessionId: response.session_id || state.checkoutSessionId, checkoutConversationId: response.conversation_id || state.checkoutConversationId,
         checkoutSummaryFingerprint: summaryFingerprint,
         pendingFlow, expectsFreeInput: !!state.pendingCoupon || !secureIdentifier && !!nextField && /^(telefone|email|nome|CPF|CEP|número|complemento|código de verificação)/i.test(nextField),
