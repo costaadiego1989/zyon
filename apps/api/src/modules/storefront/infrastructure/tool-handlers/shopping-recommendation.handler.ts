@@ -1,4 +1,5 @@
 import type { ProductHandlerDeps } from "./product.handlers.js";
+import { z } from "zod";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import type { StoreToolHandlers } from "../../domain/tools/types.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
@@ -16,6 +17,8 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
   search: StoreToolHandlers["searchProducts"]): NonNullable<StoreToolHandlers["recommendProducts"]> {
   return async args => {
     const plan = shoppingSearchPlanSchema.parse(args.criteria);
+    z.strictObject({ categoryId: z.string().min(1).max(191).optional(), cursor: z.string().max(2048).optional() })
+      .parse({ categoryId: args.categoryId, cursor: args.cursor });
     if (plan.delivery || plan.unsupportedCriteria.length) return { products: [], nextCursor: null,
       query: plan.query, searchEvidence: shoppingSearchEvidence(plan, 0) };
     const rules = await readExistingMerchantRules(deps.merchantRepo, ctx.merchantId);
@@ -27,7 +30,7 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
         discountType: true, discountValue: true, promoPriceInCents: true, isActive: true, startsAt: true, endsAt: true,
         createdAt: true, updatedAt: true },
     });
-    const { minPriceCents: _min, maxPriceCents: _max, sortBy, recovery: _recovery, ...criteria } = plan;
+    const { minPriceCents: _min, maxPriceCents: _max, discountOnly: _discountOnly, sortBy, recovery: _recovery, ...criteria } = plan;
     const candidatePlan = { ...criteria, ...(sortBy && sortBy !== "price_asc" && sortBy !== "price_desc" ? { sortBy } : {}) };
     type Product = ReturnType<typeof storefrontToolOutputSchemas.search_products.parse>["products"][number];
     const recoveryPlan = plan.recovery ? plan : plan.attributes.some(a => a.priority === "preferred" && a.operator === "equals")
@@ -38,19 +41,20 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
       throw new Error("shopping_recovery_scope_unconfirmed");
     const phases = [{ query: queries?.exact ?? plan.query, similar: false }, ...(queries ? [{ query: queries.family, similar: true }] : [])];
     let products = new Map<string, Product>();
-    let truncated = false, unconfirmedPrice = false, readCount = 0, quoteCount = 0, similar = false;
+    let truncated = !!args.cursor, unconfirmedPrice = false, readCount = 0, quoteCount = 0, similar = false;
     // Both phases share three catalog pages. Only a complete, zero eligible
     // exact result permits recovery; errors and unknown prices never do.
     for (const phase of phases) {
       const seenCursors = new Set<string>();
-      let cursor: string | undefined, complete = false;
+      let cursor: string | undefined = phase.similar ? undefined : args.cursor, complete = false;
+      if (cursor) seenCursors.add(cursor);
       products = new Map();
       const phasePlan = { ...candidatePlan, query: phase.query, attributes: candidatePlan.attributes.map(a => ({ ...a,
         priority: (a.operator === "not_equals" || !phase.similar && recoveryPlan ? "required" : a.priority) as "required" | "preferred" })) };
       while (readCount < 3) {
         readCount++;
         const result = storefrontToolOutputSchemas.search_products.parse(await search({ query: phase.query,
-          criteria: phasePlan, inStockOnly: true, limit: 20, ...(cursor ? { cursor } : {}) }));
+          criteria: phasePlan, inStockOnly: true, limit: 20, ...(args.categoryId ? { categoryId: args.categoryId } : {}), ...(cursor ? { cursor } : {}) }));
         for (const product of result.products) {
           if (product.inStock !== true || product.source === "marketplace") continue;
           if (plan.minRating !== undefined && (product.rating === undefined || product.rating === null || product.rating < plan.minRating)) continue;
@@ -59,11 +63,12 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
           if ((product.variants?.length ?? 0) > 20) truncated = true;
           for (const variant of (product.variants ?? []).slice(0, 20)) {
             const base = variant.basePriceInCents;
-            if (variant.isActive === false || !Number.isSafeInteger(base) || base! < 0) continue;
-            if (recoveryPlan && !shoppingAttributesMatch(plan, variant.attributes, !phase.similar)) continue;
+            if (variant.isActive === false) continue;
+            if (!Number.isSafeInteger(base) || base! < 0) { unconfirmedPrice ||= plan.discountOnly === true; continue; }
+            if ((recoveryPlan || plan.discountOnly) && !shoppingAttributesMatch(plan, variant.attributes, !!recoveryPlan && !phase.similar)) continue;
             if (product.type !== "digital" && product.type !== "service"
               && (variant.stockQuantity ?? 0) <= (variant.stockReserved ?? 0)) continue;
-            if (recoveryPlan && quoteCount >= 60) { truncated = true; continue; }
+            if ((recoveryPlan || plan.discountOnly) && quoteCount >= 60) { truncated = true; continue; }
             quoteCount++;
             try {
               const quote: StorefrontCart = { id: `shopping-read:${product.id}:${variant.id}`, merchantId: ctx.merchantId,
@@ -74,12 +79,16 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
               // the selector then applies the same ceiling and margin as checkout.
               const costs = await loadCartCosts(deps.prisma, ctx.merchantId, quote, true);
               if (quote.items[0]!.pricingOriginalUnitPriceCents !== base) throw new Error("shopping_catalog_price_changed");
+              if (args.categoryId && quote.items[0]!.categoryId !== args.categoryId) continue;
               const meta = await applyProductPromoPricing({ findActiveBySku: async () => promotions }, ctx.merchantId, quote,
                 { rules, costsByVariant: costs });
               const price = quote.items[0]!.unitPriceCents;
+              const badge = meta.get(variant.id);
+              if (plan.discountOnly && !(price < base! && badge && !badge.coupon && badge.promotionId
+                && badge.originalPriceCents === base)) continue;
               if (plan.minPriceCents !== undefined && price < plan.minPriceCents
                 || plan.maxPriceCents !== undefined && price > plan.maxPriceCents) continue;
-              eligible.push({ variant: { ...variant, price }, badge: meta.get(variant.id) });
+              eligible.push({ variant: { ...variant, price }, badge });
             } catch {
               // A required option or a stale price in one variant cannot grant
               // it eligibility or erase other independently confirmed products.
@@ -114,6 +123,6 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
     if (!recoveryPlan && truncated && !selected.length) evidence.message = "🔎 Não encontrei uma opção compatível entre os produtos verificados nesta seleção. Podemos refinar a busca?";
     if (truncated || matches.length > limit) evidence.message += "\nℹ️ Esta é uma seleção das opções verificadas, não uma listagem completa. Podemos refinar a busca.";
     if (unconfirmedPrice) evidence.message += "\nℹ️ Algumas condições não puderam ser verificadas. Apresentei somente opções com preço confirmado.";
-    return { products: selected, nextCursor: null, query: plan.query, searchEvidence: evidence };
+    return { products: selected, nextCursor: null, query: plan.query, ...(args.categoryId ? { categoryId: args.categoryId } : {}), searchEvidence: evidence };
   };
 }

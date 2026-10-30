@@ -14,6 +14,7 @@ import { executeStorefrontUiAction } from "./storefront-ui-action.executor.js";
 import { conversationBlockSchema } from "../../domain/contracts/conversation-block.schemas.js";
 import { ensureProductDiscovery } from "./product-discovery-fallback.js";
 import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../../domain/contracts/shopping-search-plan.schemas.js";
+import { createShoppingRecommendationReader } from "../tool-handlers/shopping-recommendation.handler.js";
 
 const createAllowedScopeAgent = (deps: Parameters<typeof createScopeAgent>[0]) => createScopeAgent(deps, { domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", requiresTool: true, needsProductDiscovery: true });
 const usage = { promptTokens: 10, completionTokens: 10, totalTokens: 20 };
@@ -150,9 +151,10 @@ test("catalog pagination carries the same typed filters through block validation
   assert.equal(next?.action.kind, "tool");
   assert.deepEqual((next?.action as any).args.criteria, criteria);
   const calls: any[] = [];
-  const result = await executeStorefrontUiAction({ searchProducts: async args => { calls.push(args); return {
+  const result = await executeStorefrontUiAction({ recommendProducts: async args => { calls.push(args); return {
     products: [], query: "*", searchEvidence: shoppingSearchEvidence(criteria, 0),
-  }; } } as never, { tool: "search_products", args: (next?.action as any).args }, "merchant-a", "cart-a");
+  }; }, searchProducts: async () => { throw Error("base-price shortcut forbidden"); } } as never,
+  { tool: "search_products", args: (next?.action as any).args }, "merchant-a", "cart-a");
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].criteria, criteria);
   assert.equal(calls[0].cursor, "cursor-p");
@@ -182,6 +184,8 @@ test("real tool loop carries LLM JSON plan through the shared handler and termin
     const criteria = plan({ minPriceCents: 5000, maxPriceCents: 10000, minRating: 4, sortBy: "newest" });
     let modelCalls = 0, writes = 0;
     const canonical = handlersWith(async args => { calls.push(args); return { products: [], total: 0 }; });
+    const recommendProducts = createShoppingRecommendationReader({ merchantRepo: { getExistingRules: async () => ({ maxDiscountPercent: 10, minimumMarginPercent: 0 }) },
+      prisma: { productPromotion: { findMany: async () => [] } } } as never, base, canonical.searchProducts);
     const agent = createAllowedScopeAgent({ provider: { chat: async (request: any) => {
       assert.match(request.messages[0].content, /PLANO DE CONSULTA/);
       const tool = request.tools?.find((item: any) => item.function.name === "search_products");
@@ -190,10 +194,10 @@ test("real tool loop carries LLM JSON plan through the shared handler and termin
         ? { content: "", toolCalls: [{ id: "read", name: "search_products", args: { query: "*", criteria } },
           { id: "discarded-relaxation", name: "search_products", args: { query: "*" } }], usage }
         : { content: "PRIVATE_UNSTRUCTURED_MODEL_PROSE", usage };
-    } } as never, toolHandlers: { ...canonical, addItemToCart: async () => { writes++; throw Error("write_forbidden"); } } as never });
+    } } as never, toolHandlers: { ...canonical, recommendProducts, addItemToCart: async () => { writes++; throw Error("write_forbidden"); } } as never });
     const result = await agent.run({ ...base, cartId: "cart-a", history: [], messageFormat });
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].maxPriceCents, 10000);
+    assert.equal(calls[0].maxPriceCents, undefined); // Candidates precede canonical promotional pricing.
     assert.equal(modelCalls, 1);
     assert.equal(writes, 0);
     assert.equal(agent.outputReviewRequests.length, 0);

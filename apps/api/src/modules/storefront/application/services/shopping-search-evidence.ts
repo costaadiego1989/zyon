@@ -17,6 +17,7 @@ export function shoppingSearchEvidence(plan: ShoppingSearchPlan, count: number):
       ? "🚚 Ainda não consigo verificar frete por produto nesta busca. A cotação real está disponível para os itens escolhidos no carrinho; nenhuma condição de custo ou prazo foi confirmada para os produtos do catálogo."
       : "📍 Para conferir uma exigência de frete, preciso do CEP de destino. A busca de frete por produto ainda não está disponível; não vou afirmar que algum item atende sem uma cotação real." };
   const filters = [
+    plan.discountOnly === true ? "promoção automática vigente e aplicada, com redução de preço confirmada" : undefined,
     plan.minPriceCents !== undefined && plan.maxPriceCents !== undefined
       ? `preço de ${money(plan.minPriceCents)} a ${money(plan.maxPriceCents)}`
       : plan.minPriceCents !== undefined ? `preço a partir de ${money(plan.minPriceCents)}`

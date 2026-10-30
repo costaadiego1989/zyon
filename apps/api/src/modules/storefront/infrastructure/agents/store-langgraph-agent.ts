@@ -45,6 +45,7 @@ import type { OneBuyClickConversationContext } from "../../domain/ports/conversa
 import { reviewStorefrontReply, type StorefrontReviewBudget } from "../copy/storefront-semantic-review.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../../domain/contracts/shopping-search-plan.schemas.js";
+import { readShoppingProducts, requiresCanonicalShoppingRead } from "../../domain/tools/read-shopping-products.js";
 import { withStorefrontReplyContract } from "./storefront-reply-contract.js";
 import { planStorefrontShopping } from "../ai/structured-shopping-planner.js";
 import type { ShoppingSearchPlan } from "../../domain/contracts/shopping-search-plan.schemas.js";
@@ -361,9 +362,7 @@ export class StorefrontLangGraphAgent {
       // A constrained discovery has one server-owned read and one evidence
       // projection. Secondary tools cannot leak out-of-budget alternatives,
       // and no narration call can reinterpret a price as meeting the ceiling.
-      const monetary = turnPlan.minPriceCents !== undefined || turnPlan.maxPriceCents !== undefined;
-      const canonicalSearch = monetary || turnPlan.recovery !== undefined
-        || turnPlan.attributes.some(a => a.priority === "preferred" && a.operator === "equals");
+      const canonicalSearch = requiresCanonicalShoppingRead(turnPlan);
       if (canonicalSearch || turnPlan.minRating !== undefined || turnPlan.attributes.length || turnPlan.sortBy
         || turnPlan.delivery || turnPlan.unsupportedCriteria.length) {
         const handlers = input.toolHandlers ?? this.defaultToolHandlers;
@@ -371,9 +370,8 @@ export class StorefrontLangGraphAgent {
         try {
           if (canonicalSearch && !handlers.recommendProducts) return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
           toolsUsed.push("search_products"); input.callbacks?.onToolCall?.("search_products", args);
-          const read = await observeStorefrontOperation("tool", () => callStorefrontTool("search_products", args, checked => canonicalSearch
-            ? handlers.recommendProducts!({ criteria: turnPlan!, limit: 3 })
-            : handlers.searchProducts(checked as Parameters<StoreToolHandlers["searchProducts"]>[0])), { tool: "search_products" });
+          const read = await observeStorefrontOperation("tool", () => callStorefrontTool("search_products", args, checked =>
+            readShoppingProducts(handlers, checked as Parameters<StoreToolHandlers["searchProducts"]>[0])), { tool: "search_products" });
           input.callbacks?.onToolResult?.("search_products", read);
           const confirmed = read.ok ? storefrontToolOutputSchemas.search_products.safeParse(read.data) : undefined;
           if (!confirmed?.success || !confirmed.data.searchEvidence
@@ -404,6 +402,7 @@ export class StorefrontLangGraphAgent {
     const searchPolicy = createSalesSearchPolicy(input.userMessage, history.slice(-10), input.attachmentContext, productDiscovery && !structuredSearchRequired);
     const turnHandlers = productDiscovery && !structuredSearchRequired ? requestHandlers : new Proxy(requestHandlers, {
       get(target, property, receiver) {
+        if (!productDiscovery && property === "recommendProducts") return undefined;
         const value = Reflect.get(target, property, receiver);
         // Tool schemas have already rejected caller-controlled internal fields.
         // This server-owned flag changes only read lookup semantics, never auth.

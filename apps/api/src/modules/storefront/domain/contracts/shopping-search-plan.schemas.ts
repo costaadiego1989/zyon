@@ -15,6 +15,7 @@ const attribute = z.strictObject({
 export const shoppingSearchPlanSchema = z.strictObject({
   version: z.literal(1),
   query: z.string().trim().min(1).max(500),
+  discountOnly: z.boolean().describe("Supported read-only criterion: true for products currently on sale/with discount, requiring a real active automatic promotion applied and authorized by canonical pricing. Do not place this supported request in unsupportedCriteria. False or null means no discount filter, never only products without discount. Biggest-discount ranking, requested future discounts, coupon-only benefits and progressive/cart discounts are not verified by this flag.").optional(),
   recovery: z.strictObject({
     familyQuery: z.string().trim().min(1).max(500),
     optionalQueryTerms: z.array(z.string().trim().min(1).max(120)).max(4),

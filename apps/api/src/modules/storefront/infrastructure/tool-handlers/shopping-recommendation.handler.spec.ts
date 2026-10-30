@@ -36,7 +36,7 @@ function fixture(products: ReturnType<typeof product>[], promotions = [promotion
   } as never, ctx, async args => { queries.push(structuredClone(args));
     return options.page ? options.page(args, queries.length) : { products, nextCursor: null, query: args.query };
   });
-  return { read: (criteria: ReturnType<typeof plan>, limit?: number) => reader({ criteria, limit }), queries, reads,
+  return { read: (criteria: ReturnType<typeof plan>, limit?: number, scope?: { categoryId?: string; cursor?: string }) => reader({ criteria, limit, ...scope }), queries, reads,
     writes: () => writes };
 }
 
@@ -113,4 +113,77 @@ test("bounded scans follow empty pages without losing the budget and disclose in
   assert.equal(context.queries.length, 3); assert.equal(result.products[0]!.price, 6000);
   assert.match(result.searchEvidence!.message, /não uma listagem completa/);
   assert.equal(result.nextCursor, null);
+});
+
+test("discountOnly is a supported capability: only the authorized automatic R$100 to R$90 variant is eligible", async () => {
+  const f = fixture([product("essencial", [variant("v60", 6000)]), product("completo", [variant("v100", 10000)])]);
+  const criteria = plan({ query: "*", discountOnly: true });
+  const result = storefrontToolOutputSchemas.search_products.parse(await f.read(criteria));
+  assert.deepEqual(result.products.map(p => [p.id, p.price, p.originalPrice, p.discountPercent]), [["completo", 9000, 10000, 10]]);
+  assert.deepEqual(result.products[0]!.variants!.map(v => [v.id, v.basePriceInCents, v.price]), [["v100", 10000, 9000]]);
+  assert.equal(result.searchEvidence!.appliedPlan.discountOnly, true);
+  assert.match(result.searchEvidence!.message, /promo|desconto/i);
+  assert.equal(f.queries[0].criteria.discountOnly, undefined); assert.equal(f.writes(), 0);
+});
+
+test("discountOnly preserves the R$70 cap instead of advertising the R$90 offer", async () => {
+  const f = fixture([product("essencial", [variant("v60", 6000)]), product("completo", [variant("v100", 10000)])]);
+  const out = storefrontToolOutputSchemas.search_products.parse(await f.read(plan({ maxPriceCents: 7000, discountOnly: true })));
+  assert.deepEqual(out.products, []); assert.equal(f.writes(), 0);
+});
+
+for (const [label, promotions, rules] of [
+  ["no active promotion despite internal discount capacity", [], undefined],
+  ["inactive", [promotion("completo", 10, { isActive: false })], undefined],
+  ["expired", [promotion("completo", 10, { endsAt: new Date(1) })], undefined],
+  ["future", [promotion("completo", 10, { startsAt: new Date("2098-01-01") })], undefined],
+  ["foreign", [promotion("completo", 10, { merchantId: "foreign" })], undefined],
+  ["coupon only", [promotion("completo", 0, { couponId: "coupon", discountType: null, discountValue: null })], undefined],
+  ["zero authority", [promotion("completo")], { maxDiscountPercent: 0, minimumMarginPercent: 0 }],
+] as const) test(`discountOnly excludes ${label}`, async () => {
+  const f = fixture([product("completo", [variant("v100", 10000)])], promotions as any, { rules });
+  const out = storefrontToolOutputSchemas.search_products.parse(await f.read(plan({ discountOnly: true })));
+  assert.deepEqual(out.products, []); assert.equal(f.writes(), 0);
+});
+
+test("discountOnly is checked on the same in-stock variant as required attributes, rating and canonical price", async () => {
+  const row = { ...product("completo", [variant("wrong-color", 10000, { attributes: { cor: "preto", material: "couro" } }),
+    variant("blue-stockless", 10000, { attributes: { cor: "azul", material: "poliéster" }, stockReserved: 5 })]), rating: 4.5 };
+  const f = fixture([row]); const out = storefrontToolOutputSchemas.search_products.parse(await f.read(plan({ discountOnly: true,
+    minRating: 4, maxPriceCents: 9500, attributes: [
+      { name: "cor", value: "azul", operator: "equals", priority: "required" },
+      { name: "material", value: "couro", operator: "not_equals", priority: "preferred" }] })));
+  assert.deepEqual(out.products, []); assert.equal(f.writes(), 0);
+});
+
+test("false means no discount filter, with no inverse interpretation", async () => {
+  const f = fixture([product("essencial", [variant("v60", 6000)]), product("completo", [variant("v100", 10000)])]);
+  const out = storefrontToolOutputSchemas.search_products.parse(await f.read(plan({ discountOnly: false })));
+  assert.deepEqual(out.products.map(p => p.id), ["essencial", "completo"]);
+});
+
+test("discountOnly cannot claim absence when current eligible pricing is unknown", async () => {
+  const f = fixture([product("completo", [variant("v100", 10000)])], undefined, { missingPrice: true });
+  await assert.rejects(f.read(plan({ discountOnly: true }))); assert.equal(f.writes(), 0);
+  const missingBase = fixture([{ ...product("completo", [variant("v100", 10000, { basePriceInCents: undefined })]), price: 10000 }]);
+  await assert.rejects(missingBase.read(plan({ discountOnly: true }))); assert.equal(missingBase.writes(), 0);
+});
+
+test("canonical category/cursor scope survives the projection and incomplete prefix never triggers family recovery", async () => {
+  const rows = [product("completo", [variant("v100", 10000)])]; const f = fixture(rows);
+  const out = storefrontToolOutputSchemas.search_products.parse(await f.read(plan({ discountOnly: true }), 3, { categoryId: "category" }));
+  assert.equal(f.queries[0].categoryId, "category"); assert.equal(out.categoryId, "category"); assert.equal(out.products[0]!.price, 9000);
+  const wrongCategory = fixture(rows);
+  assert.deepEqual((await wrongCategory.read(plan({ discountOnly: true }), 3, { categoryId: "different" }) as any).products, []);
+  const paged = fixture(rows, undefined, { page: () => ({ products: [], nextCursor: null }) });
+  const result = storefrontToolOutputSchemas.search_products.parse(await paged.read(plan({ query: "organizador viajante", discountOnly: true,
+    recovery: { familyQuery: "organizador", optionalQueryTerms: ["viajante"] } }), 3, { cursor: "page-2" }));
+  assert.equal(paged.queries.length, 1); assert.equal(paged.queries[0].cursor, "page-2");
+  assert.equal(result.searchEvidence!.matchType, "incomplete"); assert.doesNotMatch(result.searchEvidence!.message, /não encontrei/i);
+});
+
+test("new canonical category/cursor hints are runtime validated before a catalog read", async () => {
+  for (const scope of [{ categoryId: "" }, { categoryId: "x".repeat(192) }, { cursor: 12 }, { cursor: "x".repeat(2049) }]) {
+    const f = fixture([]); await assert.rejects(f.read(plan({ discountOnly: true }), 3, scope as never)); assert.equal(f.queries.length, 0);
+  }
 });
