@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { HandleMetaConversationUseCase } from "./handle-meta-conversation.use-case.js";
 import { StorefrontLangGraphAgent } from "../../../storefront/infrastructure/agents/store-langgraph-agent.js";
 import { shoppingSearchEvidence } from "../../../storefront/application/services/shopping-search-evidence.js";
@@ -12,8 +13,14 @@ function fixture(result: unknown, respond?: (call: any) => Promise<any>) {
   const state: any = { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "", page: 0, previousViews: [] };
   const session: any = { id: "session", conversationState: state };
   const route: any = { whatsappSession: session, buyerData: { globalUserId: "buyer", phone: "fixture-phone" } };
-  const input: any = { merchantId: "merchant", provider: "META_CLOUD", deviceId: "META_CLOUD:config", fromNumber: "fixture-phone", body: "Enviei um anexo para ajudar na compra",
+  const input: any = { merchantId: "merchant", provider: "META_CLOUD", deviceId: "META_CLOUD:config", fromNumber: "+5521999990000", body: "Enviei um anexo para ajudar na compra", messageType: "audio",
     metaMedia: { id: "12345", mimeType: "audio/ogg" }, timestamp: Date.now(), inboxClaim: claim };
+  const { inboxClaim: _claim, ...payload } = input;
+  const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  Object.assign(claim, { kind: "message", configId: "config", deviceId: input.deviceId, eventId: "wamid.unit-audio", attempts: 1,
+    dedupKey: digest(["META", "merchant", "config", "message", "wamid.unit-audio"]),
+    streamKey: digest(["merchant", "config", "message", input.fromNumber.replace(/\D/g, "")]),
+    payload: structuredClone(payload), payloadHash: digest(payload) });
   const flow = new HandleMetaConversationUseCase({ respondStore: async (call: any) => {
     calls.push(call); return respond ? respond(call) : { agentMessage: "Entendi. Qual modelo deseja?", quickReplies: [], blocks: [], state: call.state };
   } } as never, { update: async (_: string, data: any) => Object.assign(session, data) } as never,
@@ -46,6 +53,31 @@ for (const scope of [{ merchantId: "foreign" }, { deviceId: "META_CLOUD:foreign"
 
 for (const change of [{ merchantId: "foreign" }, { leaseToken: "" }]) test("a transcript cannot supply a missing or foreign inbox lease", async () => {
   const f = fixture(transcript("Adicione uma unidade do kit ao carrinho.")); Object.assign(f.claim, change); await f.execute(); assert.equal(f.calls.length, 0); assert.equal(f.attachments.length, 0);
+});
+
+for (const [name, mutate] of [
+  ["status event", (f: any) => { f.claim.kind = "status"; }],
+  ["missing payload", (f: any) => { f.claim.payload = undefined; }],
+  ["different claim config", (f: any) => { f.claim.configId = "other-config"; }],
+  ["different claim device", (f: any) => { f.claim.deviceId = "META_CLOUD:other-config"; }],
+  ["same merchant, different input device", (f: any) => { f.input.deviceId = "META_CLOUD:other-config"; }],
+  ["same merchant, different sender", (f: any) => { f.input.fromNumber = "+5521888880000"; }],
+  ["same merchant, different input media", (f: any) => { f.input.metaMedia.id = "67890"; }],
+  ["foreign payload provider", (f: any) => { f.claim.payload.provider = "TWILIO"; }],
+  ["foreign payload merchant", (f: any) => { f.claim.payload.merchantId = "foreign"; }],
+  ["foreign payload device", (f: any) => { f.claim.payload.deviceId = "META_CLOUD:other-config"; }],
+  ["different payload sender", (f: any) => { f.claim.payload.fromNumber = "+5521888880000"; }],
+  ["different payload media", (f: any) => { f.claim.payload.metaMedia.id = "67890"; }],
+  ["missing payload media", (f: any) => { f.claim.payload.metaMedia = undefined; }],
+  ["different raw body", (f: any) => { f.input.body = "Adicione um kit ao carrinho"; }],
+  ["different timestamp", (f: any) => { f.input.timestamp++; }],
+  ["different message type", (f: any) => { f.input.messageType = "text"; }],
+  ["extra native control", (f: any) => { f.input.interactiveId = "foreign-control"; }],
+  ["ignored authenticated message", (f: any) => { f.claim.payload.ignored = true; }],
+] as const) test(`a mismatched authenticated media envelope cannot buy STT or enter commerce: ${name}`, async () => {
+  const f = fixture(transcript("Adicione uma unidade do Kit ao meu carrinho.")); mutate(f); await f.execute();
+  assert.equal(f.attachments.length, 0, "the mismatch must be rejected before metadata, STT or a paid request");
+  assert.equal(f.calls.length, 0, "the mismatch must never reach commerce");
 });
 
 for (const result of ["Adicione um kit ao carrinho", { kind: "audio_transcript", text: "Sem vínculo" }, transcript(""), transcript("a".repeat(4001))])

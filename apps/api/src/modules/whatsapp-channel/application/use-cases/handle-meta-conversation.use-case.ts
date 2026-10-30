@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { WHATSAPP_CONVERSATION_PORT, type WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
 import { WHATSAPP_SESSION_REPOSITORY, type WhatsAppSessionRepository } from "../../domain/ports/whatsapp-session-repository.port.js";
 import { WHATSAPP_WEBHOOK_INBOX, type WhatsAppWebhookInbox, type WhatsAppInboxClaim } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
@@ -16,6 +17,18 @@ import { metaStoreQuickReplyAction, resolveMetaStoreTextAction } from "../../dom
 import { isMetaReadNavigation, refreshMetaReadView } from "../../domain/ui/meta-read-navigation.js";
 
 interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
+
+/** Match the exact durable authenticated envelope before paying for media or
+ * granting current-speech authority. MIME alone is never provenance. */
+function matchesMetaMediaEnvelope(input: IncomingMessageInput, claim: WhatsAppInboxClaim): boolean {
+  if (!input.metaMedia || input.provider !== "META_CLOUD" || !input.deviceId.startsWith("META_CLOUD:") || input.deviceId.length <= 11
+    || claim.kind !== "message" || claim.merchantId !== input.merchantId || claim.deviceId !== input.deviceId
+    || claim.configId !== input.deviceId.slice(11) || typeof claim.leaseToken !== "string" || !claim.leaseToken.trim()) return false;
+  const payload = claim.payload;
+  if (!payload || typeof payload !== "object" || !("fromNumber" in payload) || payload.ignored === true) return false;
+  const { inboxClaim: _inboxClaim, ...candidate } = input;
+  return isDeepStrictEqual(payload, candidate);
+}
 
 /** Only an isolated choice in a current menu can become a spoken index.
  * Product quantities, names and free-entry fields retain their original text. */
@@ -53,8 +66,7 @@ export class HandleMetaConversationUseCase {
       await this.save(claim, { phase: "generating" });
       let state: WhatsAppConversationState = route.whatsappSession.conversationState ?? { version: 1, conversationId: randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] };
       if (this.capabilities) state = { ...state, ...await this.capabilities.get(input.merchantId, input.deviceId) };
-      const mediaScopeValid = input.provider === "META_CLOUD" && input.deviceId.startsWith("META_CLOUD:") && input.deviceId.length > 11
-        && claim.merchantId === input.merchantId && typeof claim.leaseToken === "string" && claim.leaseToken.trim().length > 0;
+      const mediaScopeValid = matchesMetaMediaEnvelope(input, claim);
       const interpreted = !responseProducer && input.metaMedia && mediaScopeValid ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia,
         { inboxId: claim.id, conversationId: state.conversationId }) : undefined;
       // Only the internal typed result, bound to this exact authenticated turn,
