@@ -17,6 +17,18 @@ import { isMetaReadNavigation, refreshMetaReadView } from "../../domain/ui/meta-
 
 interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
+/** Only an isolated choice in a current menu can become a spoken index.
+ * Product quantities, names and free-entry fields retain their original text. */
+function isolatedMenuChoice(message: string, state: WhatsAppConversationState): number | undefined {
+  if (state.expectsFreeInput || !state.view || !state.numericSelections?.length) return undefined;
+  const normalized = message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const match = /^(?:(?:quero a )?opcao )?(um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|\d{1,2})[.!?]?$/.exec(normalized);
+  if (!match) return undefined;
+  const words: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10 };
+  const index = words[match[1]!] ?? Number(match[1]);
+  return index >= 1 && index <= state.numericSelections.length ? index : undefined;
+}
+
 @Injectable()
 export class HandleMetaConversationUseCase {
   constructor(
@@ -41,11 +53,27 @@ export class HandleMetaConversationUseCase {
       await this.save(claim, { phase: "generating" });
       let state: WhatsAppConversationState = route.whatsappSession.conversationState ?? { version: 1, conversationId: randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] };
       if (this.capabilities) state = { ...state, ...await this.capabilities.get(input.merchantId, input.deviceId) };
+      const mediaScopeValid = input.provider === "META_CLOUD" && input.deviceId.startsWith("META_CLOUD:") && input.deviceId.length > 11
+        && claim.merchantId === input.merchantId && typeof claim.leaseToken === "string" && claim.leaseToken.trim().length > 0;
+      const interpreted = !responseProducer && input.metaMedia && mediaScopeValid ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia,
+        { inboxId: claim.id, conversationId: state.conversationId }) : undefined;
+      // Only the internal typed result, bound to this exact authenticated turn,
+      // supplies current speech. Raw inbox input/IDs are never overwritten.
+      const spokenMessage = interpreted?.kind === "audio_transcript" && mediaScopeValid && interpreted.scope?.merchantId === input.merchantId
+        && interpreted.scope.deviceId === input.deviceId && interpreted.scope.inboxId === claim.id
+        && interpreted.scope.conversationId === state.conversationId && interpreted.scope.mediaId === input.metaMedia?.id
+        && typeof interpreted.text === "string" && interpreted.text.trim().length > 0 && interpreted.text.length <= 4000
+        ? interpreted.text : undefined;
+      const attachmentContext = interpreted?.kind === "attachment_context" && typeof interpreted.context === "string" && interpreted.context.trim()
+        ? interpreted.context : undefined;
+      const unreadMedia = !!input.metaMedia && !spokenMessage && !attachmentContext;
+      const message = spokenMessage ?? input.body;
       let action: StoreUiAction | undefined;
       let recoveredView: MetaUiView | undefined;
-      const numeric = /^\d{1,2}$/.test(input.body.trim()) ? Number(input.body.trim()) : NaN;
+      const numeric = /^\d{1,2}$/.test(message.trim()) ? Number(message.trim()) : isolatedMenuChoice(message, state) ?? NaN;
       let invalidSelection = false;
       if (responseProducer) { /* The post-sale handler owns its numeric input. */ }
+      else if (input.metaMedia && !spokenMessage) { /* Reference/failed media never selects or authorizes a UI action. */ }
       else if (input.catalogOrder) {
         const lines = await this.catalogOrders?.resolve(input.merchantId, state.catalogId, input.catalogOrder);
         invalidSelection = !lines;
@@ -69,10 +97,10 @@ export class HandleMetaConversationUseCase {
           }
         }
         invalidSelection = !action;
-      } else if (!state.expectsFreeInput && /^(0|voltar)$/i.test(input.body.trim()) && state.previousViews.length) action = { kind: "back" };
+      } else if (!state.expectsFreeInput && /^(0|voltar)$/i.test(message.trim()) && state.previousViews.length) action = { kind: "back" };
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
-      else if (/^(menu|in[ií]cio)$/i.test(input.body.trim())) action = { kind: "menu" };
-      else if (!input.metaMedia) action = resolveMetaStoreTextAction(input.body, state);
+      else if (/^(menu|in[ií]cio)$/i.test(message.trim())) action = { kind: "menu" };
+      else if (!input.metaMedia || spokenMessage) action = resolveMetaStoreTextAction(message, state);
       if (action?.kind === "menu" && !recoveredView && isMetaCatalogView(state.view) &&
         (input.interactiveId || !state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0))) action = { kind: "catalog_options" };
       if (action?.kind === "message" && /^(ver carrinho|finalizar compra|finalizar pedido|continuar checkout|continuar comprando|ver produtos)$/i.test(action.message.trim())) action = metaStoreQuickReplyAction(action.message, state) ?? action;
@@ -147,16 +175,17 @@ export class HandleMetaConversationUseCase {
         if (state.view) state = { ...state, previousViews: [...state.previousViews, state.view].slice(-6), page: 0 };
       } else {
         if (action?.kind === "menu") state = { ...state, pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
-        const attachmentContext = input.metaMedia ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia,
-          { inboxId: claim.id, conversationId: state.conversationId }) : undefined;
-        const response: WhatsAppStructuredResponse = responseProducer ? await responseProducer() : await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
-          message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : input.body, state,
+        const response: WhatsAppStructuredResponse = unreadMedia ? {
+          agentMessage: responseProducer ? "Não consigo usar anexos nesta etapa. Escreva sua resposta para continuar."
+            : (/^audio\//i.test(input.metaMedia?.mimeType ?? "") || interpreted?.kind === "audio_transcript")
+            ? "Não consegui transcrever esse áudio agora. Envie outra nota de voz Ogg/Opus de até 3 MB ou escreva o que procura."
+            : "Não consegui ler esse anexo. Envie uma foto (JPG, PNG ou WebP) de até 3 MB, uma lista TXT/CSV ou escreva o que procura.",
+          blocks: [], quickReplies: [], state,
+        } : responseProducer ? await responseProducer() : await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
+          message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : message, state,
           attachmentContext,
           messageId: claim.id,
           action: action?.kind === "tool" ? action : undefined });
-        if (input.metaMedia && !attachmentContext) response.agentMessage = (/^audio\//i.test(input.metaMedia.mimeType ?? "")
-          ? "Não consegui transcrever esse áudio agora. Escreva o que procura para continuar.\n\n"
-          : "Não consegui ler esse anexo. Envie uma foto (JPG, PNG ou WebP) de até 3 MB, uma lista TXT/CSV ou escreva o que procura.\n\n") + response.agentMessage;
         state = response.state;
         if (view) state = { ...state, previousViews: [...state.previousViews, view].slice(-6) };
         view = buildMetaUiView(response); state.page = 0;

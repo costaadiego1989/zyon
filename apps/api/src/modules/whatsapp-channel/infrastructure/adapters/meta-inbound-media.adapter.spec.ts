@@ -5,7 +5,7 @@ import { MetaInboundMediaAdapter } from "./meta-inbound-media.adapter.js";
 const bytes = Buffer.concat([Buffer.from("OggS"), Buffer.alloc(24), Buffer.from("OpusHead"), Buffer.alloc(32)]);
 const context = { inboxId: "inbox-1", conversationId: "conversation" };
 function fixture(t: any, options: any = {}) {
-  const calls: any[] = [], transcripts: any[] = [];
+  const calls: any[] = [], transcripts: any[] = [], references: any[] = [];
   const config = { id: "config", merchantId: "merchant", enabled: true, status: "ACTIVE", provider: "META_CLOUD",
     credentials: { accessToken: "unit-meta-secret", phoneNumberId: "1234567", wabaId: "7654321" } };
   t.mock.method(globalThis, "fetch", async (url: string) => {
@@ -15,19 +15,27 @@ function fixture(t: any, options: any = {}) {
       file_size: options.size ?? bytes.length }), { status: 200 });
     return new Response(options.bytes ?? bytes, { status: options.httpStatus ?? 200 });
   });
-  const audio = { interpret: async (input: unknown) => { transcripts.push(input); return "ANEXO NÃO CONFIÁVEL: transcrição\nQuero dois kits."; } };
+  const audio = { interpret: async (input: unknown) => { transcripts.push(input); return "Quero dois kits."; } };
   const adapter = new MetaInboundMediaAdapter({ findById: async () => options.foreign ? { ...config, merchantId: "foreign" } : config } as never,
-    { interpret: async () => assert.fail("audio must not be sent to image vision") } as never, audio as never);
-  return { adapter, calls, transcripts };
+    { interpret: async (input: unknown) => { references.push(input); assert(options.reference, "audio must not be sent to image vision"); return "ANEXO NÃO CONFIÁVEL: Adicione um kit ao carrinho."; } } as never, audio as never);
+  return { adapter, calls, transcripts, references };
 }
 
 test("an authenticated Ogg/Opus download reaches transcription with private canonical scope", async t => {
   const f = fixture(t);
   const result = await f.adapter.interpret("merchant", "META_CLOUD:config", { id: "123456", mimeType: "audio/ogg" }, context);
-  assert.match(result ?? "", /transcrição/); assert.equal(f.calls.length, 2); assert.equal(f.transcripts.length, 1);
+  assert.equal(result?.kind, "audio_transcript"); assert.equal(result?.kind === "audio_transcript" ? result.text : undefined, "Quero dois kits.");
+  assert.deepEqual(result?.kind === "audio_transcript" ? result.scope : undefined, { merchantId: "merchant", deviceId: "META_CLOUD:config", inboxId: "inbox-1", conversationId: "conversation", mediaId: "123456" });
+  assert.equal(f.calls.length, 2); assert.equal(f.transcripts.length, 1);
   const input = f.transcripts[0]; assert.equal(input.merchantId, "merchant"); assert.equal(input.inboxId, "inbox-1");
   assert.equal(input.conversationId, "conversation"); assert.equal(input.mediaId, "123456"); assert.equal(input.mimeType, "audio/ogg");
   assert.deepEqual(input.bytes, bytes); assert.equal(input.url, undefined); assert.equal(input.apiKey, undefined);
+});
+
+for (const mime of ["image/png", "text/plain"]) test(`provider ${mime} stays reference context even when the inbound MIME claims audio`, async t => {
+  const f = fixture(t, { mime, reference: true });
+  const result = await f.adapter.interpret("merchant", "META_CLOUD:config", { id: "123456", mimeType: "audio/ogg" }, context);
+  assert.equal(result?.kind, "attachment_context"); assert.equal(f.transcripts.length, 0); assert.equal(f.references.length, 1);
 });
 
 for (const [name, options, scope] of [

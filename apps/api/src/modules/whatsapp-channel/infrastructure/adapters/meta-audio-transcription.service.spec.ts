@@ -22,10 +22,9 @@ function fixture(t: any, options: any = {}) {
   return { admissions, requests, service: new MetaAudioTranscriptionService(billing as never, metering as never) };
 }
 
-test("a completed voice file uses server multipart credentials, plan admission and an untrusted transcript", async t => {
+test("a completed voice file uses server multipart credentials and returns only the current spoken text", async t => {
   const f = fixture(t); const context = await f.service.interpret(input);
-  assert.match(context, /ANEXO NÃO CONFIÁVEL/); assert.match(context, /não altere carrinho nem pagamento/); assert.match(context, /confirmação explícita/);
-  assert.match(context, /Quero dois kits; não pague nem adicione nada\./);
+  assert.equal(context, "Quero dois kits; não pague nem adicione nada.");
   const [scope, url, request, claim] = f.requests[0];
   assert.deepEqual(scope, { merchantId: "merchant", conversationId: "conversation", source: "voice_whatsapp_audio", costCenter: "voice" });
   const governance = new AiGovernanceService({ aiActorTeam: { findMany: async () => [] } } as never, { get: () => undefined } as never);

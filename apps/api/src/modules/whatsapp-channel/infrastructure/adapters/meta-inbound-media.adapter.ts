@@ -4,6 +4,11 @@ import { connectedMetaCloudCredentials } from "../../domain/services/connected-m
 import { StorefrontAttachmentInterpreter } from "../../../storefront/application/services/storefront-attachment-interpreter.service.js";
 import { MetaAudioTranscriptionService, MAX_META_AUDIO_BYTES, isOggOpus } from "./meta-audio-transcription.service.js";
 
+/** Internal output only: caller MIME never grants the audio-transcript kind. */
+export type MetaInboundMediaResult =
+  | { kind: "attachment_context"; context: string }
+  | { kind: "audio_transcript"; text: string; scope: { merchantId: string; deviceId: string; inboxId: string; conversationId: string; mediaId: string } };
+
 @Injectable()
 export class MetaInboundMediaAdapter {
   constructor(@Inject(WHATSAPP_CONFIG_REPOSITORY) private readonly configs: WhatsAppConfigRepository,
@@ -11,7 +16,7 @@ export class MetaInboundMediaAdapter {
     @Optional() @Inject(MetaAudioTranscriptionService) private readonly audio?: MetaAudioTranscriptionService) {}
 
   async interpret(merchantId: string, deviceId: string, media: { id: string; mimeType?: string; name?: string },
-    context?: { inboxId: string; conversationId: string }): Promise<string | undefined> {
+    context?: { inboxId: string; conversationId: string }): Promise<MetaInboundMediaResult | undefined> {
     if (!/^\d+$/.test(media.id)) return undefined;
     const config = deviceId.startsWith("META_CLOUD:") ? await this.configs.findById(deviceId.slice(11)) : null;
     const credentials = connectedMetaCloudCredentials(config, merchantId);
@@ -38,11 +43,14 @@ export class MetaInboundMediaAdapter {
       const bytes = Buffer.concat(chunks);
       if (audio) {
         if (bytes.length !== info.file_size || !isOggOpus(bytes)) return undefined;
-        return await this.audio!.interpret({ merchantId, conversationId: context!.conversationId, inboxId: context!.inboxId,
+        const text = await this.audio!.interpret({ merchantId, conversationId: context!.conversationId, inboxId: context!.inboxId,
           mediaId: media.id, mimeType: "audio/ogg", bytes });
+        return { kind: "audio_transcript", text, scope: { merchantId, deviceId, inboxId: context!.inboxId,
+          conversationId: context!.conversationId, mediaId: media.id } };
       }
-      return await this.interpreter.interpret(image ? { kind: "image", name: media.name ?? "Foto enviada pelo WhatsApp", mimeType, dataBase64: bytes.toString("base64") }
+      const attachmentContext = await this.interpreter.interpret(image ? { kind: "image", name: media.name ?? "Foto enviada pelo WhatsApp", mimeType, dataBase64: bytes.toString("base64") }
         : { kind: "shopping_list", name: media.name ?? "Lista de compras", mimeType, text: bytes.toString("utf8") });
+      return attachmentContext ? { kind: "attachment_context", context: attachmentContext } : undefined;
     } catch { return undefined; }
   }
 }
