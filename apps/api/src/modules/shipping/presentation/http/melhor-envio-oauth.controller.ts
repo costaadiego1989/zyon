@@ -122,6 +122,11 @@ export class MelhorEnvioOAuthController {
           melhorEnvioAccessToken: encryptedAccessToken,
           melhorEnvioRefreshToken: encryptedRefreshToken,
           melhorEnvioExpiresAt: expiresAt,
+          shippingWallets: { updateMany: { where: {}, data: {
+            balanceCents: null, reservedCents: null, debtsCents: null, checkedAt: null,
+            lastAttemptAt: null, lastErrorCode: null, lowBalance: false, alertId: null,
+            emailPending: false, emailAttempts: 0, emailStartedAt: null, emailSentAt: null, emailRecipient: null, leaseToken: null, leaseUntil: null,
+          } } },
         },
       });
       this.logger.log("melhor_envio.connected", { merchantId, expiresAt: expiresAt.toISOString() });

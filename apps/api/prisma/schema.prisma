@@ -47,6 +47,7 @@ model Merchant {
   webhookEndpoints         MerchantWebhookEndpoint[]
   webhookDeliveries        MerchantWebhookDelivery[]
   shipments                Shipment[]
+  shippingWallets          MelhorEnvioWallet[]
   commerceConnection       MerchantCommerceConnection?
   commercePendingOrders    CommercePendingOrder[]
   commercePaidEvents       CommercePaidEvent[]
@@ -81,6 +82,38 @@ model Merchant {
   @@index([billingAccountMerchantId])
 
   @@map("merchants")
+}
+
+model MelhorEnvioWallet {
+  id                 String    @id @default(cuid())
+  merchantId         String    @map("merchant_id")
+  environment        String
+  alertEnabled       Boolean   @default(false) @map("alert_enabled")
+  thresholdCents     Int       @default(10000) @map("threshold_cents")
+  emailEnabled       Boolean   @default(false) @map("email_enabled")
+  balanceCents       Int?      @map("balance_cents")
+  reservedCents      Int?      @map("reserved_cents")
+  debtsCents         Int?      @map("debts_cents")
+  checkedAt          DateTime? @map("checked_at")
+  lastAttemptAt      DateTime? @map("last_attempt_at")
+  lastErrorCode      String?   @map("last_error_code")
+  lowBalance         Boolean   @default(false) @map("low_balance")
+  alertId            String?   @map("alert_id")
+  emailPending       Boolean   @default(false) @map("email_pending")
+  emailAttempts      Int       @default(0) @map("email_attempts")
+  emailStartedAt     DateTime? @map("email_started_at")
+  emailSentAt        DateTime? @map("email_sent_at")
+  emailRecipient     String?   @map("email_recipient")
+  leaseToken         String?   @map("lease_token")
+  leaseUntil         DateTime? @map("lease_until")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, environment])
+  @@index([environment, alertEnabled, lastAttemptAt], map: "melhor_envio_wallets_monitor_idx")
+  @@map("melhor_envio_wallets")
 }
 
 model MerchantOnboardingState {

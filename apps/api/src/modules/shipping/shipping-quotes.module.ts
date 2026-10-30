@@ -83,6 +83,7 @@ import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketp
     GetMarketplaceShippingContractService
   ],
   exports: [
+    MELHOR_ENVIO_TOKEN_RESOLVER,
     PrismaMarketplaceDeliveryRepository,
     ExecuteMarketplaceShipmentService,
     PrismaMarketplaceShipmentRepository,
