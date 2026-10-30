@@ -20,6 +20,8 @@ import { salesSearchMaxPrice } from "../../domain/services/sales-search-policy.j
 import { shoppingSearchPlanSchema } from "../../domain/contracts/shopping-search-plan.schemas.js";
 import { shoppingSearchEvidence } from "../../application/services/shopping-search-evidence.js";
 import { resolveComparisonNames } from "./comparison-product-name.js";
+import { createShoppingRecommendationReader } from "./shopping-recommendation.handler.js";
+import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 
 import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
@@ -207,7 +209,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           : cart;
         crossSellSuggestions = await buildCrossSellSuggestions(deps, ctx.merchantId, crossSellCart, config, product.name);
       }
-      return {
+      const details = {
         crossSellSuggestions,
         crossSellDisplayMode: crossSellSuggestions.length > 0 ? config?.display?.mode : undefined,
         product: {
@@ -227,6 +229,25 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           reviewCount: product.reviewCount
         }
       };
+      try {
+        // Native product controls are hydrated with a separate detail read.
+        // Revalidate the one-item price here too, so a confirmed offer is not
+        // replaced with its catalog basis when opening that card. No cart,
+        // coupon or stock writer participates in this independent quote.
+        const quote = createShoppingRecommendationReader(deps, ctx, async () => ({
+          products: [{ ...details.product, price: product.defaultVariant?.basePriceInCents ?? 0, source: "local" }], nextCursor: null,
+        }));
+        const priced = storefrontToolOutputSchemas.search_products.parse(await quote({
+          criteria: shoppingSearchPlanSchema.parse({ version: 1, query: product.name }), limit: 1,
+        })).products.find(candidate => candidate.id === product.id);
+        if (priced) {
+          const prices = new Map((priced.variants ?? []).map(variant => [variant.id, variant.price]));
+          return { ...details, product: { ...details.product,
+            variants: product.variants.map(variant => prices.has(variant.id) ? { ...variant, price: prices.get(variant.id) } : variant),
+          } };
+        }
+      } catch { /* Unknown offer eligibility leaves only the published basis. */ }
+      return details;
     },
 
     compareProducts: async (args) => {

@@ -4,6 +4,7 @@ import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-
 import { commercialNoticesSchema } from "../../domain/contracts/commercial-notice.schemas.js";
 import { storefrontShippingReferenceResultSchema } from "../../domain/contracts/storefront-shipping-reference.schemas.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
+import { currentDealCardPricing } from "./current-deal-card-pricing.js";
 
 export interface BuildBlocksInput {
   searchPurpose?: "discovery" | "lookup";
@@ -151,8 +152,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     if (detailData?.product) {
       const p = detailData.product;
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-      const variants = (p.variants ?? []).filter((variant: any) => variant.isActive !== false);
-      const price = variants[0]?.basePriceInCents ?? p.price ?? 0;
+      const { variants, firstDeal } = currentDealCardPricing(p, toolResults["get_daily_deals"]);
+      const price = variants[0]?.price ?? p.price ?? variants[0]?.basePriceInCents ?? 0;
       const isDigitalOrService = p.type === "digital" || p.type === "service";
       blocks.push({
         type: "product_card",
@@ -163,6 +164,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           ruleNotices: p.ruleNotices,
           price,
           priceFormatted: formatPrice(price),
+          ...(firstDeal ? { originalPrice: firstDeal.originalPrice,
+            originalPriceFormatted: formatPrice(firstDeal.originalPrice!), discountPercent: firstDeal.discountPercent } : {}),
           image: Array.isArray(p.images) ? p.images[0] : p.image ?? p.media?.find((media: { type?: string }) => media.type === "IMAGE")?.url,
           images: p.images ?? p.media?.filter((media: { type?: string }) => media.type === "IMAGE").map((media: { url: string }) => media.url) ?? (p.image ? [p.image] : []),
           inStock: typeof p.inStock === "boolean" ? p.inStock : p.type === "service" || (!isDigitalOrService && (p.stock ?? 0) > 0),
