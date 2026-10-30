@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { storefrontCartLineSelectorShape } from "./storefront-cart-line-selector.schemas.js";
+import { shoppingSearchPlanSchema } from "./shopping-search-plan.schemas.js";
 
 export const STOREFRONT_TOOL_CONTRACT_VERSION = 1;
 const id = z.string().min(1).max(191);
@@ -17,6 +18,8 @@ const limit = z.number().int().min(1).max(100).optional();
 export const storefrontToolArgumentSchemas = {
   search_products: z.strictObject({
     query: z.string().max(1000), categoryId: id.optional(), cursor, maxPrice: z.number().nonnegative().optional(),
+    criteria: shoppingSearchPlanSchema.optional(),
+    minPrice: z.number().int().nonnegative().optional(), minRating: z.number().min(1).max(5).optional(),
     inStockOnly: z.boolean().optional(), limit: z.number().int().min(1).max(20).optional(),
     sortBy: z.enum(["price_asc", "price_desc", "rating", "best_sellers", "newest", "discount"]).optional(),
   }),
@@ -31,7 +34,7 @@ export const storefrontToolArgumentSchemas = {
     cartId, variantId: id, quantity,
     selectedOptionItemIds: z.array(id).max(100).optional(), selectedServiceSlotId: id.optional(), crossSellPromoId: id.optional(),
   }),
-  get_cart: cart,
+  get_cart: z.strictObject({ cartId }),
   remove_cart_item: z.strictObject({ cartId: id, variantId: id, ...storefrontCartLineSelectorShape }),
   update_cart_item: z.strictObject({ cartId: id, variantId: id, quantity: z.number().int().min(0).max(99), ...storefrontCartLineSelectorShape }),
   clear_cart: cart,
@@ -51,7 +54,7 @@ export const storefrontToolArgumentSchemas = {
   add_to_wishlist: product,
   get_wishlist: z.strictObject({}),
   remove_from_wishlist: product,
-  track_order: z.strictObject({ orderId: id }),
+  track_order: z.strictObject({ orderId: id.optional() }),
   get_store_policies: z.strictObject({ policyType: z.enum(["privacy", "terms", "returns", "exchanges", "shipping", "warranty", "payment", "general", "all"]).optional() }),
   get_buyer_profile: z.strictObject({}),
   get_daily_deals: z.strictObject({ limit }),

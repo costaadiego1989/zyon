@@ -60,6 +60,11 @@ export class ResendEmailAdapter implements EmailSenderPort {
       to: input.to,
       subject: input.subject,
       html: await this.applyMerchantBranding(input),
+      ...(input.text !== undefined ? { text: input.text } : {}),
+      ...(input.attachments?.length ? { attachments: input.attachments.map(attachment => ({
+        filename: attachment.filename, content: attachment.content,
+        content_type: attachment.contentType, content_id: attachment.contentId,
+      })) } : {}),
     };
 
     try {

@@ -26,17 +26,17 @@ export class PrismaPlatformAiUsageRepository implements PlatformAiUsageRepositor
       SELECT
         usage.merchant_id AS "merchantId",
         merchant.name AS "merchantName",
-        COUNT(*) FILTER (WHERE usage.source = ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE})::text AS "chatEventCount",
-        COALESCE(SUM(usage.prompt_tokens) FILTER (WHERE usage.source = ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE}), 0)::text AS "chatPromptTokens",
-        COALESCE(SUM(usage.completion_tokens) FILTER (WHERE usage.source = ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE}), 0)::text AS "chatCompletionTokens",
-        COALESCE(SUM(usage.total_tokens) FILTER (WHERE usage.source = ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE}), 0)::text AS "chatTotalTokens",
-        COUNT(*) FILTER (WHERE usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE})::text AS "voiceComponentEventCount",
-        COUNT(DISTINCT usage.provider_event_id) FILTER (WHERE usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE})::text AS "voiceResponseCount",
-        COUNT(DISTINCT usage.voice_session_id) FILTER (WHERE usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE})::text AS "voiceSessionCount",
-        COUNT(DISTINCT usage.provider_event_id) FILTER (WHERE usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE} AND usage.execution_status = 'failed')::text AS "voiceFailedResponseCount",
-        COALESCE(SUM(usage.prompt_tokens) FILTER (WHERE usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE}), 0)::text AS "voicePromptTokens",
-        COALESCE(SUM(usage.completion_tokens) FILTER (WHERE usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE}), 0)::text AS "voiceCompletionTokens",
-        COALESCE(SUM(usage.total_tokens) FILTER (WHERE usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE}), 0)::text AS "voiceTotalTokens",
+        COUNT(*) FILTER (WHERE usage.cost_center <> 'voice')::text AS "chatEventCount",
+        COALESCE(SUM(usage.prompt_tokens) FILTER (WHERE usage.cost_center <> 'voice'), 0)::text AS "chatPromptTokens",
+        COALESCE(SUM(usage.completion_tokens) FILTER (WHERE usage.cost_center <> 'voice'), 0)::text AS "chatCompletionTokens",
+        COALESCE(SUM(usage.total_tokens) FILTER (WHERE usage.cost_center <> 'voice'), 0)::text AS "chatTotalTokens",
+        COUNT(*) FILTER (WHERE usage.cost_center = 'voice')::text AS "voiceComponentEventCount",
+        COUNT(DISTINCT usage.provider_event_id) FILTER (WHERE usage.cost_center = 'voice')::text AS "voiceResponseCount",
+        COUNT(DISTINCT usage.voice_session_id) FILTER (WHERE usage.cost_center = 'voice')::text AS "voiceSessionCount",
+        COUNT(DISTINCT usage.provider_event_id) FILTER (WHERE usage.cost_center = 'voice' AND usage.execution_status = 'failed')::text AS "voiceFailedResponseCount",
+        COALESCE(SUM(usage.prompt_tokens) FILTER (WHERE usage.cost_center = 'voice'), 0)::text AS "voicePromptTokens",
+        COALESCE(SUM(usage.completion_tokens) FILTER (WHERE usage.cost_center = 'voice'), 0)::text AS "voiceCompletionTokens",
+        COALESCE(SUM(usage.total_tokens) FILTER (WHERE usage.cost_center = 'voice'), 0)::text AS "voiceTotalTokens",
         COUNT(*) FILTER (WHERE usage.cost_status = 'estimated')::text AS "estimatedEventCount",
         COUNT(*) FILTER (WHERE usage.cost_status = 'provider_reported')::text AS "providerReportedEventCount",
         COUNT(*) FILTER (WHERE usage.cost_status = 'reconciled')::text AS "reconciledEventCount",
@@ -183,24 +183,6 @@ function costBucket(status: PricedCostRow["costStatus"]): keyof PlatformAiUsageM
   return "reconciled";
 }
 
-function usageFilters(input: PlatformAiUsageMerchantQuery) {
-  return Prisma.sql`
-    (
-      (
-        usage.source = ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE}
-        AND usage.channel = ${PLATFORM_CHAT_USAGE_CHANNEL}
-        AND usage.component = ${PLATFORM_CHAT_USAGE_COMPONENT}
-        AND usage.execution_status = 'succeeded'
-      )
-      OR (
-        usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE}
-        AND usage.channel = ${PLATFORM_VOICE_USAGE_CHANNEL}
-        AND usage.provider = ${PLATFORM_VOICE_USAGE_PROVIDER}
-      )
-    )
-    AND usage.started_at >= ${input.from}
-    AND usage.started_at < ${input.to}
-  `;
-}
+function usageFilters(input: PlatformAiUsageMerchantQuery) { return Prisma.sql`usage.measurement_origin IN ('server_http','server_sideband') AND usage.payer='platform' AND usage.started_at >= ${input.from} AND usage.started_at < ${input.to}`; }
 
 function bigintFromText(value: string): bigint { return BigInt(value); }

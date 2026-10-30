@@ -31,6 +31,7 @@ export function resolveWhatsAppProvider(): WhatsAppProvider {
 
 export interface SendWhatsAppMessageInput {
   merchantId: string;
+  correlationId?: string;
   type: WhatsAppTemplateType;
   toPhone?: string;
   /** Semantic variables: buyerName, productName, coupon, discountPercent, orderId, trackingCode, link. */
@@ -94,6 +95,7 @@ export class SendWhatsAppMessageUseCase {
           try {
             const result = await this.templateSender.sendTemplate({
               merchantId: input.merchantId,
+              ...(input.correlationId ? { correlationId: input.correlationId } : {}),
               type: input.type,
               toNumber: input.toPhone,
               contentSid: template.twilioContentSid,

@@ -40,7 +40,7 @@ test("a plain-text open question returns no unrelated configured buttons",async(
   assert.deepEqual(result.blocks,[]);
 });
 
-test("browsing buttons after skin alternatives bypass the LLM, fallback search and quick-purchase cart", async () => {
+test("application browsing buttons after skin alternatives bypass classification, generation and cart writes", async () => {
   let searches = 0;
   let providerCalls = 0;
   let cartCalls = 0;
@@ -68,5 +68,5 @@ test("browsing buttons after skin alternatives bypass the LLM, fallback search a
   assert.equal(searches, 0);
   assert.equal(providerCalls, 0);
   assert.equal(cartCalls, 0);
-  assert.equal(preparations, 3, "each navigation still passes exactly one scope preparation before its shortcut");
+  assert.equal(preparations, 0, "complete application navigation labels have no semantic ambiguity; prose remains gated");
 });

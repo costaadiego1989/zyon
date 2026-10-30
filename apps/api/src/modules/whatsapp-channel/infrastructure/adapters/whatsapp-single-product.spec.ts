@@ -26,6 +26,24 @@ function fixture(blocks: any[], detailsId = 'protetor') {
   return { calls, storeCalls, adapter };
 }
 
+test('welcome animation is HTTPS-only and appears once while text and menu stay available on later visits', async t => {
+  const previous=process.env.API_PUBLIC_URL;
+  t.after(()=>{if(previous===undefined)delete process.env.API_PUBLIC_URL;else process.env.API_PUBLIC_URL=previous});
+  process.env.API_PUBLIC_URL='https://api.example.test';
+  const f=fixture([]),buyer={globalUserId:'buyer',phone:'5521999990000'};
+  const first=await f.adapter.respondStore({merchantId:'merchant',buyer,message:'Menu',state:initial});
+  assert.equal(first.blocks.filter(b=>b.type==='welcome_animation').length,1);
+  assert.equal(first.state.welcomeAnimationShown,true);
+  const presentation=presentMetaUi(buildMetaUiView(first),'welcome');
+  assert(presentation.messages.some(m=>m.type==='video'));
+  assert(presentation.messages.some(m=>m.type==='text'&&m.text.body.includes('Athom')));
+  const next=await f.adapter.respondStore({merchantId:'merchant',buyer,message:'Menu',state:first.state});
+  assert(!next.blocks.some(b=>b.type==='welcome_animation'));
+  process.env.API_PUBLIC_URL='http://api.example.test';
+  const insecure=await f.adapter.respondStore({merchantId:'merchant',buyer,message:'Menu',state:initial});
+  assert.equal(insecure.blocks.length,0);assert(insecure.agentMessage.includes('Athom'));
+});
+
 test('typing the single matching product opens authoritative purchase controls through one storefront turn', async () => {
   const f = fixture([{ type: 'product_carousel', data: { products: [{ id: 'protetor', name: product.name }] } }]);
   const response = await f.adapter.respondStore({ merchantId: 'merchant', buyer: { globalUserId: 'buyer', phone: '5521999990000' },
@@ -48,6 +66,9 @@ test('typing the single matching product opens authoritative purchase controls t
 for (const [name, blocks, action, detailsId] of [
   ['ambiguous results', [{ type: 'product_carousel', data: { products: [product, { ...product, id: 'other' }] } }]],
   ['more search results', [{ type: 'product_carousel', data: { products: [product], nextCursor: 'next' } }]],
+  ['typed filters restrict eligible variants', [{ type: 'product_carousel', data: { products: [{ ...product,
+    price: 5000, variants: [{ id: 'eligible-variant', price: 5000, stock: 2 }] }],
+    criteria: { version: 1, query: '*', maxPriceCents: 6000, attributes: [], unsupportedCriteria: [] } } }]],
   ['cart response', [{ type: 'product_carousel', data: { products: [product] } }, { type: 'cart_summary', data: { items: [] } }]],
   ['explicit catalog action', [{ type: 'product_carousel', data: { products: [product] } }], { tool: 'search_products', args: { query: '*' } }],
   ['mismatched product details', [{ type: 'product_carousel', data: { products: [product] } }], undefined, 'foreign'],

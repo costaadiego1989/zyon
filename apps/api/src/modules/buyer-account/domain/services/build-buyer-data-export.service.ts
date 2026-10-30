@@ -36,6 +36,7 @@ export interface BuyerDataExportPayload {
   generatedAt: Date;
   generatedFor: { globalUserId: string };
   sections: {
+    shoppingAgentWorkspaces?: unknown[];
     profile: {
       email: string;
       displayName: string;

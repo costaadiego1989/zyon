@@ -1,3 +1,4 @@
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { EmbeddingService } from "../../infrastructure/services/embedding.service.js";
@@ -27,6 +28,7 @@ export class IndexProductEmbeddingUseCase {
   ) {}
 
   async execute(input: IndexProductEmbeddingInput): Promise<void> {
+    return withAiMetering({ merchantId: input.merchantId, source: "catalog_index", costCenter: "automation" }, async () => {
     if (!this.embeddingService.isAvailable()) {
       return;
     }
@@ -70,5 +72,7 @@ export class IndexProductEmbeddingUseCase {
         `Failed to index embedding for product ${input.productId}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+
+    });
   }
 }

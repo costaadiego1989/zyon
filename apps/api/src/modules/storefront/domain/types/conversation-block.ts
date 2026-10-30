@@ -1,5 +1,6 @@
 import type { CommercialNotice, CrossSellDisplayMode } from "@zyon/shared-types";
 import type { PublicServiceSchedule } from "../../../catalog/domain/services/service-schedule.js";
+import type { ShoppingSearchPlan } from "../contracts/shopping-search-plan.schemas.js";
 export interface ProductCardBlock {
   type: "product_card";
   data: {
@@ -44,6 +45,7 @@ export interface ProductCarouselBlock {
     merchantId?: string;
     query?: string;
     categoryId?: string;
+    criteria?: ShoppingSearchPlan;
   };
 }
 
@@ -201,6 +203,7 @@ export interface ReviewsBlock {
     productId: string;
     productName: string;
     averageRating: number;
+    filter?: "positive" | "negative" | "recent";
     totalReviews: number;
     reviews: Array<{
       id: string;
@@ -215,6 +218,35 @@ export interface ReviewsBlock {
 
 export interface AddReviewBlock {
   type: "add_review";
+  data: { productId: string; productName: string };
+}
+
+/** Receipt of a successful submission; pending content is never a public review. */
+export interface ReviewSubmissionBlock {
+  type: "review_submission";
+  data: { reviewId: string; productId: string; status: "pending_moderation" };
+}
+
+export interface ProductQuestionsBlock {
+  type: "product_questions";
+  data: { productId: string; productName: string; scope: "public_answered"; filter: "answered";
+    questions: Array<{ id: string; question: string; answer: string }>; totalCount: number };
+}
+
+export interface QuestionSubmissionBlock {
+  type: "question_submission";
+  data: { ticketId: string; productId: string; status: "awaiting_answer"; questionMessageId?: string };
+}
+
+export interface BuyerProductQuestionsBlock {
+  type: "buyer_product_questions";
+  data: { productId: string; productName: string; scope: "buyer_history"; filter: "mine";
+    questions: Array<{ id: string; ticketId: string; question: string; date: string; answerState: "not_linked" }>;
+    returnedCount: number; hasMore: boolean; historyLimited: true };
+}
+
+export interface ProductQuestionInputBlock {
+  type: "product_question_input";
   data: { productId: string; productName: string };
 }
 
@@ -273,6 +305,11 @@ export type ConversationBlock =
   | WishlistBlock
   | ReviewsBlock
   | AddReviewBlock
+  | ReviewSubmissionBlock
+  | ProductQuestionsBlock
+  | QuestionSubmissionBlock
+  | BuyerProductQuestionsBlock
+  | ProductQuestionInputBlock
   | CrossSellBlock
   | CouponListBlock
   | CategoryCarouselBlock;

@@ -38,6 +38,10 @@ export interface SearchProductsInput {
   categoryId?: string;
   minPriceCents?: number;
   maxPriceCents?: number;
+  minRating?: number;
+  currency?: "BRL";
+  attributes?: Array<{ name: string; value: string; operator: "equals" | "not_equals" }>;
+  sortBy?: "price_asc" | "price_desc" | "rating" | "newest";
   inStockOnly?: boolean;
   isActiveOnly?: boolean;
   status?: "all" | "active" | "inactive";
@@ -67,6 +71,10 @@ export interface ReserveStockResult {
 }
 
 export interface ProductRepositoryPort {
+  /** Public names only, in stable id order. No prices, descriptions or private metadata. */
+  listPublicNames?(input: { merchantId: string; cursor?: string; limit: number }): Promise<{
+    items: Array<{ id: string; name: string }>; nextCursor?: string;
+  }>;
   create(input: CreateProductInput): Promise<ProductEntity>;
   findById(merchantId: string, productId: string): Promise<ProductEntity | null>;
   search(input: SearchProductsInput): Promise<SearchProductsResult>;

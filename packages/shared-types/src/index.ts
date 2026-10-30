@@ -1342,6 +1342,8 @@ export interface SupportReturnItem {
 
 export type SupportMessageMetadata =
   | { kind: "text" }
+  | { kind: "product_question"; schemaVersion: 1; merchantId: string; ticketId: string; productId: string; buyerId: string; sessionId: string;
+      questionMessageId: string; questionText: string }
   | { kind: "photos"; imageUrls: string[] }
   | { kind: "case_update"; event: string; returnId?: string }
   | {
@@ -1590,8 +1592,10 @@ export { checkoutEditIntent, type CheckoutEditSection } from "./checkout-edit-in
 export { VOICE_MICROPHONE_CONSTRAINTS, RealtimeVoiceInput, RealtimeVoiceResponses, type VoiceInputEvent } from "./realtime-voice-input.js";
 
 export * from "./order-fulfillment.js";
-export type { StorefrontReadUiAction, StorefrontReadUiActionCapability, StorefrontReadUiActionRequest,
+export type { StorefrontReadUiAction, StorefrontQuestionUiAction, StorefrontPublicUiAction, StorefrontReadUiActionCapability, StorefrontReadUiActionRequest,
   StorefrontSuggestedReadAction, StorefrontSuggestedReadActions } from "./storefront-read-ui-action.js";
 
 
 export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, RealtimeServerVoiceTurns, type RealtimeVoiceCall, type RealtimeServerVoiceEvent } from "./realtime-voice-session.js";
+
+export * from "./shopping-agent-appearance.js";

@@ -33,6 +33,8 @@ export class HandleMetaConversationUseCase {
     if (Date.now() - input.timestamp > 24 * 60 * 60 * 1000) throw new Error("whatsapp_service_window_expired");
     const claim = input.inboxClaim;
     if (!claim || !this.inbox.saveResponse || !this.conversation.respondStore) throw new Error("whatsapp_durable_ui_unavailable");
+    const verifiedSender = input.provider === "META_CLOUD" ? { inboxId: claim.id, leaseToken: claim.leaseToken,
+      deviceId: input.deviceId, fromNumber: input.fromNumber } : undefined;
     let saved = claim.responseState as unknown as SavedTurn | undefined;
     if (saved?.phase === "generating" || saved?.phase === "dispatching") throw new Error("whatsapp_turn_result_unknown");
     if (!saved?.presentation || !saved.state) {
@@ -70,7 +72,7 @@ export class HandleMetaConversationUseCase {
       } else if (!state.expectsFreeInput && /^(0|voltar)$/i.test(input.body.trim()) && state.previousViews.length) action = { kind: "back" };
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
       else if (/^(menu|in[ií]cio)$/i.test(input.body.trim())) action = { kind: "menu" };
-      else action = resolveMetaStoreTextAction(input.body, state);
+      else if (!input.metaMedia) action = resolveMetaStoreTextAction(input.body, state);
       if (action?.kind === "menu" && !recoveredView && isMetaCatalogView(state.view) &&
         (input.interactiveId || !state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0))) action = { kind: "catalog_options" };
       if (action?.kind === "message" && /^(ver carrinho|finalizar compra|finalizar pedido|continuar checkout|continuar comprando|ver produtos)$/i.test(action.message.trim())) action = metaStoreQuickReplyAction(action.message, state) ?? action;
@@ -80,7 +82,7 @@ export class HandleMetaConversationUseCase {
       if (recoveredView) {
         const refresh = refreshMetaReadView(recoveredView);
         if (refresh) {
-          const response = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData,
+          const response = await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
             message: "Continuar navegação", state, action: refresh });
           state = response.state; view = buildMetaUiView(response);
         } else view = recoveredView;
@@ -105,10 +107,10 @@ export class HandleMetaConversationUseCase {
         const cartView = view?.blocks.some(b => b.type === "cart_summary") || view?.choices.some(c => c.action.kind === "tool" && ["update_cart_item", "remove_cart_item", "edit_cart_item"].includes(c.action.tool));
         const checkoutView = !!state.checkoutSessionId && (view?.stage === "checkout" || !view?.stage && view?.blocks.some(b => ["checkout_summary", "payment_methods", "payment_intent", "checkout_edit_actions", "checkout_edit_confirmation", "coupon_entry", "checkout_redirect", "checkout_form", "shipping_options"].includes(b.type)));
         state = { ...state, stage: checkoutView ? "checkout" : view?.stage ?? (cartView || product ? "store" : state.stage),
-          pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
+          pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, pendingProductQuestion: undefined, expectsFreeInput: false };
         const refresh = checkoutView ? { kind: "tool" as const, tool: "show_checkout", args: {} } : cartView ? { kind: "tool" as const, tool: "get_cart", args: {} }
           : product ? { kind: "tool" as const, tool: "get_product_details", args: { productId: (product.data as any).id } } : undefined;
-        if (refresh) { const response = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData, message: "Voltar", state, action: refresh }); state = response.state; view = buildMetaUiView(response); }
+        if (refresh) { const response = await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData, message: "Voltar", state, action: refresh }); state = response.state; view = buildMetaUiView(response); }
       }
       else if ((action?.kind === "variant" || action?.kind === "option" || action?.kind === "slot" || action?.kind === "option_group") && view) {
         let selectedOptionItemIds = state.selectedOptionItemIds;
@@ -124,7 +126,7 @@ export class HandleMetaConversationUseCase {
         state = { ...state, selectedProductId: action.productId, selectedVariantId: action.kind === "variant" ? action.variantId : state.selectedVariantId,
           selectedOptionItemIds, selectedServiceSlotId: action.kind === "slot" ? action.slotId : state.selectedServiceSlotId,
           selectedOptionGroupId: action.kind === "option_group" ? action.groupId : state.selectedOptionGroupId, page: 0, expectsFreeInput: false };
-        view = buildMetaUiView({ agentMessage: "Confira sua seleção e continue:", blocks: view.blocks, quickReplies: view.quickReplies, merchantName: view.title, state });
+        view = buildMetaUiView({ agentMessage: "Confira sua seleção e continue:", blocks: view.blocks, quickReplies: view.quickReplies, merchantName: view.title, state }, { selectionOnly: true });
       } else if (action?.kind === "tool" && ["show_content", "product_gallery", "media_page", "edit_cart_item"].includes(action.tool)) {
         if (action.tool === "show_content") view = { title: state.view?.title || "Sua loja", body: String(action.args.text || ""), choices: [], media: [], blocks: [], quickReplies: [] };
         else if (action.tool === "media_page") view = { title: "Mídias do produto", body: "Continue explorando o produto:", choices: [], media: action.args.media as any[], blocks: [], quickReplies: [] };
@@ -146,7 +148,7 @@ export class HandleMetaConversationUseCase {
       } else {
         if (action?.kind === "menu") state = { ...state, pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
         const attachmentContext = input.metaMedia ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia) : undefined;
-        const response: WhatsAppStructuredResponse = responseProducer ? await responseProducer() : await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData,
+        const response: WhatsAppStructuredResponse = responseProducer ? await responseProducer() : await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
           message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : input.body, state,
           attachmentContext,
           messageId: claim.id,

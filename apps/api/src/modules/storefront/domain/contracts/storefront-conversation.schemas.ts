@@ -25,6 +25,7 @@ export const storefrontPreparedContextSchema = storefrontDeferredContextSchema.e
 const uiAction = storefrontUiActionSchema;
 const policy = z.strictObject({ maxDiscountPercent: z.number().min(0).max(100).optional(),
   allowFreeShipping: z.boolean().optional(), allowShippingDiscount: z.boolean().optional(),
+  allowStackDiscountAndFreeShipping: z.boolean().optional(),
   freeShippingMinCartValue: z.number().nonnegative().optional(), maxPartialShippingDiscount: z.number().min(0).max(100).optional(),
   offerExpirationMinutes: z.number().int().positive().optional() });
 
@@ -40,7 +41,7 @@ export const storefrontConversationInputSchema = z.strictObject({
   storeSettings: z.record(z.string(), z.json()).optional(), agentIdentity: identity.optional(), merchantPolicy: policy.optional(),
   advancedRules: z.array(z.string().max(8000)).max(200).optional(), experimentSystemPrompt: z.string().max(24000).optional(),
   buyerContext: buyer.optional(), oneBuyClick: oneBuyClickContextSchema.optional(),
-  deviceType: z.enum(["mobile", "tablet", "desktop"]).optional(), uiAction: uiAction.optional(),
+  deviceType: z.enum(["mobile", "tablet", "desktop"]).optional(), messageFormat: z.literal("whatsapp").optional(), uiAction: uiAction.optional(),
 });
 
 export const storefrontConversationOutputSchema = z.strictObject({

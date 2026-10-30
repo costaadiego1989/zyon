@@ -50,6 +50,7 @@ export interface WhatsAppConversationState {
   paymentRevision?: number;
   pendingCheckoutEdit?: { section: "payment" | "coupon"; fingerprint: string; intentId: string; method?: "pix" | "card" };
   pendingCoupon?: { sessionId: string; fingerprint: string };
+  pendingProductQuestion?: { productId: string };
   expectsFreeInput?: boolean;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   revision: string;
@@ -65,6 +66,7 @@ export interface WhatsAppConversationState {
   selectedServiceSlotId?: string;
   pendingFlow?: { token: string; field: "fullName" | "email" | "cpf" | "zip" | "number" | "complement"; checkoutSessionId: string; expiresAt: number };
   catalogId?: string;
+  welcomeAnimationShown?: boolean;
   catalogRetailerIds?: Record<string, string>;
   catalogPrices?: Record<string, number>;
   flowIds?: Record<string, string>;

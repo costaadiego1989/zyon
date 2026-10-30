@@ -1,3 +1,5 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { Injectable, Optional } from "@nestjs/common";
 import { generateDeterministicReply, generateSalesReply, isSafeGeneratedMessage } from "@zyon/conversation-engine";
 import type { ConversationPort, ConversationReplyInput } from "../../domain/ports/conversation.port.js";
@@ -8,6 +10,7 @@ export class OpenAiConversationAdapter implements ConversationPort {
   constructor(@Optional() private readonly http?: HttpClientService) {}
 
   async reply(input: ConversationReplyInput) {
+    return withAiMetering({ merchantId: input.merchantId!, conversationId: input.sessionId, source: "checkout_conversation" }, async () => {
     const deepSeekApiKey = process.env.DEEPSEEK_API_KEY;
     const reply = await generateSalesReply({
       ...input,
@@ -17,11 +20,13 @@ export class OpenAiConversationAdapter implements ConversationPort {
         ? (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com/v1")
         : process.env.OPENAI_BASE_URL,
       model: deepSeekApiKey ? (process.env.DEEPSEEK_MODEL ?? "deepseek-chat") : process.env.OPENAI_MODEL,
-      fetchFn: this.http?.toFetch(),
+      fetchFn: this.http?.toFetch(meteredAiFetch("checkout_conversation")) ?? meteredAiFetch("checkout_conversation"),
     });
     if (!isSafeGeneratedMessage(reply.message, input.authorizedOffer)) {
       return generateDeterministicReply(input);
     }
     return reply;
+
+    });
   }
 }

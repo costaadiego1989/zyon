@@ -37,7 +37,7 @@ for (const [promotion, price, badge] of [
     assert.ok((reads[0] as unknown[])[2] instanceof Date);
     assert.equal(input.items[0].unitPriceCents, price);
     assert.equal(input.total, price * 2);
-    assert.deepEqual(meta.get("variant-a"), badge);
+    assert.deepEqual(meta.get("variant-a"), "couponId" in promotion ? badge : { ...badge, promotionId: "promo" });
   });
 }
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { commercialNoticesSchema } from "./commercial-notice.schemas.js";
+import { shoppingSearchPlanSchema } from "./shopping-search-plan.schemas.js";
 
 const id = z.string().min(1).max(191);
 const text = z.string().max(24000);
@@ -36,7 +37,7 @@ const block = <T extends string, S extends z.ZodRawShape>(type: T, data: S) =>
 /** Exhaustive display contracts: no catch-all block or untyped data payload. */
 export const conversationBlockSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("product_card"), data: product }),
-  block("product_carousel", { products: list(product), nextCursor: text.optional(), merchantId: id.optional(), query: text.optional(), categoryId: id.optional() }),
+  block("product_carousel", { products: list(product), nextCursor: text.optional(), merchantId: id.optional(), query: text.optional(), categoryId: id.optional(), criteria: shoppingSearchPlanSchema.optional() }),
   block("comparison_table", { products: list(z.strictObject({ id, name: text, price: money,
     attributes: z.record(z.string(), text), stock: count, rating: rating.optional() })), attributes: list(text) }),
   block("cart_summary", { cartId: id.optional(), items: list(cartItem), itemCount: count, subtotal: money,
@@ -59,9 +60,17 @@ export const conversationBlockSchema = z.discriminatedUnion("type", [
     rating: rating.optional(), inStock: z.boolean(), attributes: z.record(z.string(), text) })), missingProductNames: list(text).optional() }),
   block("wishlist", { items: list(product.pick({ id: true, name: true, description: true, price: true, priceFormatted: true,
     image: true, images: true, inStock: true, rating: true, reviewCount: true })) }),
-  block("reviews", { productId: text, productName: text, averageRating: rating, totalReviews: count,
+  block("reviews", { productId: text, productName: text, averageRating: rating, totalReviews: count, filter: z.enum(["positive", "negative", "recent"]).optional(),
     reviews: list(z.strictObject({ id, author: text, rating, text, date: text })), nextCursor: text.optional() }),
   block("add_review", { productId: id, productName: text }),
+  block("review_submission", { reviewId: id, productId: id, status: z.literal("pending_moderation") }),
+  block("product_questions", { productId: id, productName: text, scope: z.literal("public_answered"), filter: z.literal("answered"),
+    questions: list(z.strictObject({ id, question: text, answer: text })), totalCount: count }),
+  block("question_submission", { ticketId: id, productId: id, status: z.literal("awaiting_answer"), questionMessageId: id.optional() }),
+  block("buyer_product_questions", { productId: id, productName: text, scope: z.literal("buyer_history"), filter: z.literal("mine"),
+    questions: list(z.strictObject({ id, ticketId: id, question: text, date: text, answerState: z.literal("not_linked") })),
+    returnedCount: count, hasMore: z.boolean(), historyLimited: z.literal(true) }),
+  block("product_question_input", { productId: id, productName: text }),
   block("cross_sell", { trigger: text, displayMode: z.enum(["inline", "modal", "banner", "interstitial"]).optional(), products: list(z.strictObject({ id, productId: id.optional(), name: text, price: money,
     priceFormatted: text, image: text.optional(), images: list(text).optional(), inStock: z.boolean(),
     discountPercent: percent.optional(), promoId: id.optional(), couponCode: text.optional() })) }),

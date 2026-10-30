@@ -4,7 +4,7 @@ import { wrapHandler } from "../types.js";
 export const GET_PRODUCT_QUESTIONS: ToolDefinition = {
   name: "get_product_questions",
   description:
-    "Get Q&A for a product. Returns questions with id, question text, answer (if any), author, and date. Use when buyer asks about product details not in the description.",
+    "Read public answered FAQs, or use filter mine to retrieve only recent product questions linked to the authenticated buyer's account and support protocols. This personal history excludes legacy unlinked records; support replies are not individually linked to questions. Unanswered is unsupported. Never present public FAQs or a generic support reply as the buyer's own question/answer.",
   parameters: {
     type: "object",
     properties: {

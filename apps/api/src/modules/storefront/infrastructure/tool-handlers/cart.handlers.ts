@@ -28,6 +28,8 @@ import { selectStorefrontCartLine, storefrontCartLineSelectionLabel, StorefrontC
 import type { StorefrontCartLineSelector } from "../../domain/ports/storefront-cart.port.js";
 import type { StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
 import { storefrontShippingReferenceResultSchema, shippingReferenceUnavailable } from "../../domain/contracts/storefront-shipping-reference.schemas.js";
+import { INSUFFICIENT_CART_STOCK_MESSAGE } from "../../domain/services/cart-quantity-input.js";
+import { createCartQuantityInspectionReader, inspectSelectedCartQuantity } from "./cart-quantity-inspection.reader.js";
 
 const logger = new Logger("CartHandlers");
 function lineSelector(args: StorefrontCartLineSelector): StorefrontCartLineSelector | undefined {
@@ -134,8 +136,9 @@ function variantLabel(attributes: Record<string, string>, fallback: string): str
   return values.length > 0 ? values.join(" · ") : fallback;
 }
 
-export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "addItemToCart" | "getCart" | "removeCartItem" | "updateCartItem" | "clearCart" | "quoteShipping" | "applyCoupon" | "removeCoupon" | "listPromotions" | "createCheckoutSession"> {
+export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "inspectCartQuantity" | "addItemToCart" | "getCart" | "removeCartItem" | "updateCartItem" | "clearCart" | "quoteShipping" | "applyCoupon" | "removeCoupon" | "listPromotions" | "createCheckoutSession"> {
   return {
+    inspectCartQuantity: createCartQuantityInspectionReader(deps, ctx),
     addItemToCart: async (args) => {
       const sessionId = ctx.sessionId || `cart_${Date.now()}`;
 
@@ -441,17 +444,11 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       try { selected = selectStorefrontCartLine(current.items, args.variantId, selector); }
       catch (error) { if (error instanceof StorefrontCartLineSelectionError) return { error: error.message }; throw error; }
       if (selected === undefined) return { error: "cart_item_not_found" };
-      const line = current.items[selected]!;
-      const product = args.quantity > 0 ? await deps.productRepo.findById(ctx.merchantId, line.productId) : null;
-      if (args.quantity > 0 && (!product || !product.isActive || !product.variants.some(v => v.id === args.variantId && v.isActive))) return { error: "product_unavailable" };
-      if (args.quantity > 0 && product && product.type !== "digital" && product.type !== "service") {
-        try {
-          const stock = await deps.stockRepo.getAvailableStock(args.variantId);
-          const available = Math.max(0, stock.quantity - stock.reserved);
-          const finalQuantity = current.items.reduce((sum, item, index) => sum + (item.variantId === args.variantId ? index === selected ? args.quantity : item.quantity : 0), 0);
-          if (!Number.isFinite(available) || finalQuantity > available) return { error: "variant_out_of_stock", detail: "A variação escolhida não possui estoque suficiente." };
-        } catch { return { error: "stock_validation_unavailable", detail: "Não foi possível validar o estoque agora." }; }
-      }
+      const admission = await inspectSelectedCartQuantity(deps, ctx.merchantId, current.items, selected, args.quantity);
+      if (admission === "product_unavailable") return { error: admission };
+      if (admission === "stock_validation_unavailable") return { error: admission, detail: "Não foi possível validar o estoque agora." };
+      if (admission === "variant_out_of_stock") return { error: admission, detail: "A variação escolhida não possui estoque suficiente.",
+        message: INSUFFICIENT_CART_STOCK_MESSAGE, notApplied: { cartId: current.sessionId, variantId: args.variantId, quantity: args.quantity } };
       const updated = selector ? await deps.cartRepo.updateItemQuantity(ctx.merchantId, ctx.sessionId, args.variantId, args.quantity, selector)
         : await deps.cartRepo.updateItemQuantity(ctx.merchantId, ctx.sessionId, args.variantId, args.quantity);
       const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, ctx.sessionId, updated);

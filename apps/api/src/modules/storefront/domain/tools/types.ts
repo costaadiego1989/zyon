@@ -1,4 +1,5 @@
 import { callStorefrontTool } from "./call-storefront-tool.js";
+import type { ShoppingSearchPlan } from "../contracts/shopping-search-plan.schemas.js";
 
 export interface ToolDefinition {
   name: string;
@@ -21,10 +22,21 @@ export interface ExecutableTool {
 }
 
 export interface StoreToolHandlers {
+  /** Internal read admission; never exposed to the model as a tool. */
+  inspectCartQuantity?: (args: { cartId: string; itemReference: string; quantity: number }) => Promise<import("../contracts/cart-quantity-inspection.schemas.js").CartQuantityInspection>;
+  /** Internal, read-only projection of eligible prices, never a model tool. */
+  recommendProducts?: (args: { criteria: ShoppingSearchPlan; limit?: number }) => Promise<unknown>;
   searchProducts: (args: {
     query: string;
     categoryId?: string;
     maxPrice?: number;
+    minPrice?: number;
+    minRating?: number;
+    sortBy?: "price_asc" | "price_desc" | "rating" | "best_sellers" | "newest" | "discount";
+    criteria?: ShoppingSearchPlan;
+    /** Internal orchestration only, injected after the public tool argument
+     * boundary. A support/details lookup is not a shopping recommendation. */
+    lookupOnly?: boolean;
     inStockOnly?: boolean;
     limit?: number;
     cursor?: string;
@@ -56,7 +68,7 @@ export interface StoreToolHandlers {
      */
     crossSellPromoId?: string;
   }) => Promise<unknown>;
-  getCart: (args: { cartId: string }) => Promise<unknown>;
+  getCart: (args: { cartId?: string }) => Promise<unknown>;
   removeCartItem: (args: { cartId: string; variantId: string; optionItemIds?: string[]; serviceSlotId?: string | null }) => Promise<unknown>;
   updateCartItem: (args: { cartId: string; variantId: string; quantity: number; optionItemIds?: string[]; serviceSlotId?: string | null }) => Promise<unknown>;
   clearCart: (args: { cartId: string }) => Promise<unknown>;
@@ -92,7 +104,7 @@ export interface StoreToolHandlers {
   addToWishlist: (args: { productId: string }) => Promise<unknown>;
   getWishlist: () => Promise<unknown>;
   removeFromWishlist: (args: { productId: string }) => Promise<unknown>;
-  trackOrder: (args: { orderId: string }) => Promise<unknown>;
+  trackOrder: (args: { orderId?: string }) => Promise<unknown>;
   getStorePolicies: (args: {
     policyType?: "privacy" | "terms" | "returns" | "exchanges" | "shipping" | "warranty" | "payment" | "general" | "all";
   }) => Promise<unknown>;
@@ -112,13 +124,14 @@ export interface StoreToolContext {
 
 export function wrapHandler(
   name: string,
-  fn: (args: any) => Promise<unknown>
+  fn: (args: any) => Promise<unknown>,
+  scope?: { cartId: string }
 ): ExecutableTool {
   return {
     name,
     execute: async (args: Record<string, unknown>): Promise<ToolResult> => {
       try {
-        return await callStorefrontTool(name, args, fn);
+        return await callStorefrontTool(name, args, fn, scope);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         const code = err instanceof Error && (err as any).code ? (err as any).code : undefined;

@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { rejectUnauthenticated, type ToolAuthorizer } from "../authorization.js";
 import {
   generateDeterministicReply,
   isSafeGeneratedMessage
@@ -19,12 +20,13 @@ import { GenerateMessageInputSchema } from "../schemas.js";
  * here. MCP servers must work offline. The LLM path requires API keys and
  * network and lives in the API server, not the MCP tool surface.
  */
-export function registerGenerateMessage(server: McpServer): void {
+export function registerGenerateMessage(server: McpServer, authorize:ToolAuthorizer=rejectUnauthenticated): void {
   server.tool(
     "aacp_generate_message",
     "Generate a context-appropriate chat message for a buyer. Always runs through the safety validator; returns a deterministic safe fallback if the message would contain forbidden claims.",
     GenerateMessageInputSchema.shape,
     async (input) => {
+      await authorize({tool:"aacp_generate_message",merchantId:input.merchantId});
       const { context } = input;
 
       // Build a minimal cart if we know the total, to feed the engine.

@@ -13,9 +13,12 @@
 #   5. Build api itself.
 #   6. Runtime: same image, NODE_ENV=production.
 #
-# Pinned to node:22-alpine so builder and runtime match Node major.
+# The local ONNX embedding runtime needs glibc. Keep the Node major while using
+# Debian for compatible native CPU inference instead of Alpine's musl loader.
 
-FROM node:22-alpine
+FROM node:22-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl libgomp1 && rm -rf /var/lib/apt/lists/*
 
 ENV PNPM_HOME=/pnpm \
     PNPM_VERSION=9.15.0 \
@@ -40,6 +43,10 @@ COPY apps/api/ apps/api/
 # are build-time requirements.
 # ============================================================
 RUN pnpm install --prod=false --frozen-lockfile
+
+# Fail the image build if native embedding dependencies cannot be loaded. Model
+# weights remain lazy; this verifies the runtime without a model download.
+RUN cd /repo/apps/api && node --input-type=module -e "await import('@huggingface/transformers'); console.log('LOCAL EMBEDDING RUNTIME OK')"
 
 # ============================================================
 # VERIFY PRISMA INSTALL
@@ -104,6 +111,11 @@ RUN pnpm --filter @zyon/payments-evm build
 # Semantic errors still fail the image; no noCheck/ignore-error build is used.
 RUN cd /repo/apps/api && NODE_OPTIONS=--max-old-space-size=4096 pnpm exec tsc -p tsconfig.build.json --pretty false
 
+# Cache the exact application's embedding model and verify real inference before
+# publishing an image. The first buyer conversation must not depend on a model
+# download, and a native/runtime failure must fail the build instead of hiding RAG.
+RUN cd /repo/apps/api && node --input-type=module -e "const { LocalEmbeddingService } = await import('./dist/modules/knowledge-base/infrastructure/services/local-embedding.service.js'); const vector = await new LocalEmbeddingService().generate('Verificação da base de conhecimento da loja'); if (!vector || vector.length !== 384) process.exit(1); console.log('LOCAL EMBEDDING INFERENCE OK: 384 dimensions')"
+
 # Verify nest build produced output.
 RUN test -f /repo/apps/api/dist/main.js && \
     echo "NEST BUILD OK" || \
@@ -115,6 +127,9 @@ RUN test -f /repo/apps/api/dist/main.js && \
 # DATABASE_URL is provided at runtime via Railway env var. Do not set here.
 # ============================================================
 WORKDIR /repo/apps/api
+
+# The public welcome clip is part of the immutable API artifact.
+RUN test -s /repo/apps/api/assets/whatsapp/welcome-v1.mp4
 
 ENV NODE_ENV=production \
     PORT=3009

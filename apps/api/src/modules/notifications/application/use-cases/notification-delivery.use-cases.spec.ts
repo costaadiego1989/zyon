@@ -8,6 +8,7 @@ import { SendOrderDeliveredUseCase } from "./send-order-delivered.use-case.js";
 import { SendReturnApprovedUseCase } from "./send-return-approved.use-case.js";
 import { SendMerchantOrderNotificationUseCase } from "./send-merchant-order-notification.use-case.js";
 import type { MerchantNotificationInboxPort } from "../../domain/ports/merchant-notification-inbox.port.js";
+import type { NotificationWhatsAppSender } from "../ports/notification-whatsapp-sender.port.js";
 
 class RecordingEmailSender implements EmailSenderPort {
   readonly inputs: SendEmailInput[] = [];
@@ -58,10 +59,10 @@ test("a paid order always reaches the merchant dashboard and email without a buy
     markAllRead: async () => undefined,
   };
   let whatsappSends = 0;
-  const merchantWhatsApp: WhatsAppSenderPort = {
-    async send() {
+  const merchantWhatsApp: NotificationWhatsAppSender = {
+    async execute() {
       whatsappSends++;
-      return { status: "accepted" };
+      return { status: "accepted", channel: "whatsapp_session", messageId: "wamid.merchant" };
     },
   };
 

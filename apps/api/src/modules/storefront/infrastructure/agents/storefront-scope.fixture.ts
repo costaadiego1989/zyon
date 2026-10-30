@@ -1,11 +1,12 @@
 import type { OpenRouterChatRequest, OpenRouterProvider } from "@zyon/conversation-engine";
 import { StorefrontLangGraphAgent, type StorefrontAgentDeps } from "./store-langgraph-agent.js";
+import type { StorefrontSemanticIntent } from "../../domain/contracts/storefront-intent.schemas.js";
 
 /** Existing agent suites exercise main/tool/retry behavior. Add the newly
  * mandatory, successful V2 preflight to their provider double, not an opt-out
  * to production. Their original counters still measure the same main calls.
  * Scope/cost/denial suites use raw providers and positive classifier usage. */
-export function createAllowedScopeAgent(deps: StorefrontAgentDeps): StorefrontLangGraphAgent & { outputReviewRequests: OpenRouterChatRequest[] } {
+export function createAllowedScopeAgent(deps: StorefrontAgentDeps, classification: Partial<StorefrontSemanticIntent> = {}): StorefrontLangGraphAgent & { outputReviewRequests: OpenRouterChatRequest[] } {
   const primary = deps.provider;
   const outputReviewRequests: OpenRouterChatRequest[] = [];
   const provider = {
@@ -16,7 +17,7 @@ export function createAllowedScopeAgent(deps: StorefrontAgentDeps): StorefrontLa
       catch { /* Non-JSON main prompts still go to the existing provider double. */ }
       if (classifier) return {
         content: JSON.stringify({ schemaVersion: 2, domain: "STORE_COMMERCE", intent: "COMPLEX_QUESTION",
-          confidence: 1, requiresTool: false, needsProductDiscovery: false }),
+          confidence: 1, requiresTool: false, needsProductDiscovery: false, ...classification }),
         usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 }, finishReason: "stop",
       };
       if (review) {

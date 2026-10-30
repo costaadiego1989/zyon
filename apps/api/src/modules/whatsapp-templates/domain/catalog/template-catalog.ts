@@ -88,6 +88,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
 
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
+  shopping_agent_alert: "Olá, {{buyerName}}. Seu agente pessoal encontrou uma atualização para {{productName}}. Revise a tarefa e as condições atuais: {{link}}.\n\nAtenciosamente,\n{{storeName}}",
 marketplace_operational_alert: "Zyon: alerta operacional {{alertName}} está {{alertStatus}}, gravidade {{alertSeverity}}. Início: {{observedAt}}. Consulte o painel: {{dashboardLink}}.\n\nEquipe Zyon.",
   plan_expiry_7d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete de 7 dias para que você revise a renovação em {{dashboardLink}}.\n\nEquipe Zyon.",
   plan_expiry_3d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Faltam 3 dias para o vencimento. Revise a assinatura e a forma de pagamento em {{dashboardLink}}.\n\nEquipe Zyon.",
@@ -125,6 +126,7 @@ Consulte as informações da sua compra. O acesso a produtos digitais é enviado
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
+  shopping_agent_alert: false,
 marketplace_operational_alert: false,
   checkout_otp: false,
   plan_expiry_7d: false, plan_expiry_3d: false, plan_expiry_24h: false, plan_expiry_expired: false,
@@ -145,6 +147,7 @@ marketplace_operational_alert: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
+  shopping_agent_alert: "Aviso do agente pessoal",
 marketplace_operational_alert: "Marketplace: alerta operacional",
   checkout_otp: "Código de confirmação do checkout",
   plan_expiry_7d: "Plano: vencimento em 7 dias", plan_expiry_3d: "Plano: vencimento em 3 dias",
@@ -173,7 +176,7 @@ marketplace_operational_alert: "Marketplace: alerta operacional",
 
 // Incentives, reactivation and replenishment campaigns are promotional.
 // Template category does not replace recipient consent or current Meta approval.
-const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "loyalty", "reorder", "cart_recovery"]);
+const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "loyalty", "reorder", "cart_recovery", "shopping_agent_alert"]);
 
 export function categoryFor(type: WhatsAppTemplateType): WhatsAppTemplateCategory {
   if (type === "checkout_otp") return "AUTHENTICATION";

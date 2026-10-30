@@ -1,10 +1,49 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildMetaUiView, presentMetaUi, formatMetaText, withMetaCartNavigation, metaWelcomeMessage, buildMetaCatalogOptionsView } from "./meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, formatMetaText, formatMetaConversation, formatMetaSpeech, withMetaCartNavigation, metaWelcomeMessage, buildMetaCatalogOptionsView } from "./meta-ui-renderer.js";
 import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
 const native = (presentation: ReturnType<typeof presentMetaUi>) => presentation.messages.filter(m => m.type === "interactive").map(m => m.type === "interactive" ? m.interactive as any : null);
+
+test("assistant prose has a robot identity and contextual emphasis without changing a payment payload", () => {
+ const prose=formatMetaSpeech("*Descrição*\nPublicado pela loja.\n\n*Confirme sua conta*\nInforme o código recebido.");
+ assert.match(prose,/^🤖 📝 \*Descrição\*/);assert.match(prose,/🔐 \*Confirme sua conta\*/);
+ assert.equal(formatMetaSpeech(prose),prose);
+ const pix="000201"+"1234567890".repeat(30);assert.equal(formatMetaSpeech(pix),pix);
+});
+
+test("welcome sends the greeting, then its video, then assistance blocks and native controls", () => {
+ const view=buildMetaUiView(response({agentMessage:"👋 *Boas-vindas*\n\nOlá, sou a assistente da loja.\n\n*Converse à vontade*\n- Confira os produtos.",
+  blocks:[{type:"welcome_animation",data:{url:"https://example.test/welcome.mp4"}}] as any,quickReplies:["Ver Produtos"]}));
+ const shown=presentMetaUi(view,"welcome-order");
+ assert.deepEqual(shown.messages.map(m=>m.type),["text","video","text","interactive"]);
+ assert(shown.messages[0].type==="text"&&shown.messages[0].text.body.startsWith("🤖 👋"));
+ assert(shown.messages[2].type==="text"&&shown.messages[2].text.body.includes("💬 *Converse à vontade*"));
+});
+
+test("conversational spacing leaves raw Pix and links untouched", () => {
+  const prose="Este é um texto publicado com informações suficientes para ajudar a escolher um produto e entender as opções que a loja oferece neste momento. Confira as informações e me diga o que você prefere para continuar com tranquilidade. Qual produto você quer conhecer?";
+  assert(formatMetaConversation(prose).includes("\n\nConfira"));
+  const pix="000201"+"1234567890".repeat(30);
+  const shown=presentMetaUi(buildMetaUiView(response({blocks:[{type:"pix_payment",data:{copy_paste:pix}}] as any})),"pix");
+  assert(shown.messages.some(m=>m.type==="text"&&m.text.body===pix));
+  const link="https://example.test/checkout?reference=abc.def&token=literal";
+  assert.equal(formatMetaConversation(link),link);
+});
+
+test("changing a variant gives a concise authoritative selection and keeps full details and constraints accessible", () => {
+  const full="Texto publicado com instruções completas. ".repeat(20);
+  const view=buildMetaUiView(response({agentMessage:"Confira sua seleção e continue:",state:{...response().state,selectedProductId:"p",selectedVariantId:"v50"},blocks:[
+    {type:"product_card",data:{id:"p",name:"Sérum",price:12990,description:full,sellerName:"Loja parceira",variants:[{id:"v30",name:"Tamanho",value:"30 ml",price:12990,stock:4},{id:"v50",name:"Tamanho",value:"50 ml",price:18990,stock:4}],ruleNotices:[{message:"Mínimo de duas unidades."}]}},
+    {type:"product_content",data:{blocks:[{type:"paragraph",props:{text:full}}]}},
+  ] as any}),{selectionOnly:true});
+  assert.match(view.body,/189,90/);assert.match(view.body,/50 ml/);assert.match(view.body,/Loja parceira/);assert.match(view.body,/Mínimo de duas/);
+  assert(!view.body.includes(full));assert(view.body.length<400);
+  const details=view.choices.find(c=>c.label==="Ver detalhes completos");
+  assert(details?.action.kind==="tool"&&details.action.tool==="show_content"&&String(details.action.args.text).includes(full));
+  assert(view.choices.some(c=>c.action.kind==="tool"&&c.action.tool==="add_item_to_cart"&&c.action.args.variantId==="v50"));
+});
 
 test("product details start with the actual hero photo and retain the entire description afterwards", () => {
   const description = "Informação publicada. ".repeat(100);
@@ -20,7 +59,7 @@ test("store rich text retains native bold, italic and heading hierarchy without 
 
 test("welcome retains merchant copy and explicitly invites unrestricted conversation", () => {
   const message = metaWelcomeMessage("Olá! Encontre produtos e confira seu pedido.", "Athom", "Zyon");
-  assert.match(message, /^\*Zyon · Athom\*/);
+  assert.match(message, /^👋 \*Zyon · Athom\*/);
   assert.match(message, /\*Converse à vontade\*/);
   assert.match(message, /Pergunte o que quiser/);
   assert.ok(message.includes("Olá! Encontre produtos e confira seu pedido."));
@@ -35,7 +74,7 @@ test("catalog prioritizes actual photos and retains products without photos on l
   const products = shown.numericSelections.filter(a => a.kind === "tool" && a.tool === "get_product_details");
   assert.deepEqual(products.map(a => a.kind === "tool" && a.args.productId), ["serum", "test"]);
   const menu = native(shown).find(m => m.type === "list");
-  assert.equal(menu.footer.text, "Pode perguntar o que quiser.");
+  assert.equal(menu.footer.text, "🤖 Pode perguntar o que quiser.");
   assert.equal(menu.action.sections[0].rows[0].title, "1. Ver produtos");
   assert.equal(menu.action.sections[0].rows[1].title, "2. Encontrar produto");
 });

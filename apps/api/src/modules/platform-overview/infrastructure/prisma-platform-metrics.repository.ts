@@ -134,17 +134,17 @@ export class PrismaPlatformMetricsRepository implements PlatformMetricsRepositor
     const [totalsRows, costRows, seriesRows, seriesCostRows] = await Promise.all([
       this.prisma.$queryRaw<AiTotalsRow[]>(Prisma.sql`
         SELECT
-          usage.source AS source,
+          CASE WHEN usage.cost_center = 'voice' THEN ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE} ELSE ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE} END AS source,
           COUNT(*)::text AS "eventCount",
           COALESCE(SUM(usage.total_tokens), 0)::text AS "totalTokens",
           COUNT(*) FILTER (WHERE usage.cost_status = 'unpriced')::text AS "unpricedEventCount"
         FROM ai_usage_events AS usage
         WHERE ${filter}
-        GROUP BY usage.source
+        GROUP BY 1
       `),
       this.prisma.$queryRaw<AiCostRow[]>(Prisma.sql`
         SELECT
-          usage.source AS source,
+          CASE WHEN usage.cost_center = 'voice' THEN ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE} ELSE ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE} END AS source,
           usage.cost_status AS "costStatus",
           usage.currency AS currency,
           COALESCE(SUM(usage.cost_micros), 0)::text AS "costMicros",
@@ -154,16 +154,16 @@ export class PrismaPlatformMetricsRepository implements PlatformMetricsRepositor
           AND usage.cost_status IN ('estimated', 'provider_reported', 'reconciled')
           AND usage.cost_micros IS NOT NULL
           AND usage.currency IS NOT NULL
-        GROUP BY usage.source, usage.cost_status, usage.currency
-        ORDER BY usage.source, usage.cost_status, usage.currency
+        GROUP BY 1, 2, 3
+        ORDER BY 1, 2, 3
       `),
       this.prisma.$queryRaw<AiSeriesRow[]>(Prisma.sql`
         SELECT
           TO_CHAR(DATE_TRUNC(${bucketUnit(period)}, usage.started_at AT TIME ZONE ${PRESENTATION_TIME_ZONE}), ${bucketFormat(period)}) AS bucket,
-          COUNT(*) FILTER (WHERE usage.source = ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE})::text AS "chatEventCount",
-          COUNT(*) FILTER (WHERE usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE})::text AS "voiceEventCount",
-          COALESCE(SUM(usage.total_tokens) FILTER (WHERE usage.source = ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE}), 0)::text AS "chatTotalTokens",
-          COALESCE(SUM(usage.total_tokens) FILTER (WHERE usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE}), 0)::text AS "voiceTotalTokens"
+          COUNT(*) FILTER (WHERE usage.cost_center <> 'voice')::text AS "chatEventCount",
+          COUNT(*) FILTER (WHERE usage.cost_center = 'voice')::text AS "voiceEventCount",
+          COALESCE(SUM(usage.total_tokens) FILTER (WHERE usage.cost_center <> 'voice'), 0)::text AS "chatTotalTokens",
+          COALESCE(SUM(usage.total_tokens) FILTER (WHERE usage.cost_center = 'voice'), 0)::text AS "voiceTotalTokens"
         FROM ai_usage_events AS usage
         WHERE ${filter}
         GROUP BY 1
@@ -172,7 +172,7 @@ export class PrismaPlatformMetricsRepository implements PlatformMetricsRepositor
       this.prisma.$queryRaw<AiSeriesCostRow[]>(Prisma.sql`
         SELECT
           TO_CHAR(DATE_TRUNC(${bucketUnit(period)}, usage.started_at AT TIME ZONE ${PRESENTATION_TIME_ZONE}), ${bucketFormat(period)}) AS bucket,
-          usage.source AS source,
+          CASE WHEN usage.cost_center = 'voice' THEN ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE} ELSE ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE} END AS source,
           usage.cost_status AS "costStatus",
           usage.currency AS currency,
           COALESCE(SUM(usage.cost_micros), 0)::text AS "costMicros",
@@ -182,8 +182,8 @@ export class PrismaPlatformMetricsRepository implements PlatformMetricsRepositor
           AND usage.cost_status IN ('estimated', 'provider_reported', 'reconciled')
           AND usage.cost_micros IS NOT NULL
           AND usage.currency IS NOT NULL
-        GROUP BY 1, usage.source, usage.cost_status, usage.currency
-        ORDER BY 1, usage.source, usage.cost_status, usage.currency
+        GROUP BY 1, 2, 3, 4
+        ORDER BY 1, 2, 3, 4
       `),
     ]);
 
@@ -287,25 +287,7 @@ function channelForSource(source: string): "chat" | "voice" | undefined {
   return undefined;
 }
 
-function aiFilter(period: PlatformMetricsPeriod) {
-  return Prisma.sql`
-    (
-      (
-        usage.source = ${PLATFORM_CHAT_USAGE_CAPTURE_SOURCE}
-        AND usage.channel = ${PLATFORM_CHAT_USAGE_CHANNEL}
-        AND usage.component = ${PLATFORM_CHAT_USAGE_COMPONENT}
-        AND usage.execution_status = 'succeeded'
-      )
-      OR (
-        usage.source = ${PLATFORM_VOICE_USAGE_CAPTURE_SOURCE}
-        AND usage.channel = ${PLATFORM_VOICE_USAGE_CHANNEL}
-        AND usage.provider = ${PLATFORM_VOICE_USAGE_PROVIDER}
-      )
-    )
-    AND usage.started_at >= ${period.from}
-    AND usage.started_at < ${period.to}
-  `;
-}
+function aiFilter(period: PlatformMetricsPeriod) { return Prisma.sql`usage.measurement_origin IN ('server_http','server_sideband') AND usage.payer='platform' AND usage.started_at >= ${period.from} AND usage.started_at < ${period.to}`; }
 
 function roundAnnualMonthlyEquivalent(amountCents: bigint): bigint {
   return (amountCents + 6n) / 12n;

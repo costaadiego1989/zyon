@@ -162,7 +162,7 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
   if (completed) return "completed";
   if (pendingCustomerCorrection(session)) return "data_collection";
   const c = session.customer ?? {};
-  if (!c.fullName || !c.email || !c.email_verified || !c.cpf || !hasValidContactPhone(c)) return "data_collection";
+  if (!c.fullName || !c.email || !c.cpf || !hasValidContactPhone(c)) return "data_collection";
   const addr = c.address ?? {};
   if (requiresPhysicalDelivery(session.cart) && (
     !addr.zip ||
@@ -182,11 +182,9 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
 }
 
 const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [
-  // A valid WhatsApp is collected before email verification so a merchant's
-  // approved Meta template can recover an unavailable e-mail delivery.
+  // Checkout collects contact data. Account authentication is a separate flow.
   { label: "telefone", has: (s) => hasValidContactPhone(s.customer) },
-  { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
-  { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
+  { label: "email", has: (s) => Boolean(s.customer?.email) },
   { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
   { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
 ];
@@ -203,18 +201,11 @@ export function isShippingQuickReplyQuestion(text: string): boolean {
   );
 }
 
-const EMAIL_OTP_FIELD = "código de verificação";
-
 export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage): string[] {
   const correction = pendingCustomerCorrection(session);
   if (correction) return [correctionLabels[correction]];
   if (stage === "data_collection") {
-    const missing = DATA_FIELD_ORDER.filter((f) => !f.has(session)).map((f) => f.label);
-    const customer = session.customer ?? {};
-    if (customer.email && customer.otp_code && !customer.email_verified) {
-      return prioritizeMissingField(missing, EMAIL_OTP_FIELD);
-    }
-    return missing;
+    return DATA_FIELD_ORDER.filter((f) => !f.has(session)).map((f) => f.label);
   }
   if (stage === "shipping") {
     if (!requiresPhysicalDelivery(session.cart)) return [];
@@ -229,9 +220,4 @@ export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage
   }
   if (stage === "payment") return ["forma de pagamento"];
   return [];
-}
-
-function prioritizeMissingField(fields: string[], field: string): string[] {
-  if (!fields.includes(field)) return fields;
-  return [field, ...fields.filter((item) => item !== field)];
 }

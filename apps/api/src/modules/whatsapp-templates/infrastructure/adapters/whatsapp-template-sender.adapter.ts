@@ -74,7 +74,8 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
       response = await fetch(`${GRAPH}/${credentials.phoneNumberId}/messages`, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), type: "template", template }),
+        body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), type: "template", template,
+          ...(input.correlationId ? { biz_opaque_callback_data: input.correlationId } : {}) }),
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);

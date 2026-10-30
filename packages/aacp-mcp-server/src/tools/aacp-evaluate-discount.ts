@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { rejectUnauthenticated, type ToolAuthorizer } from "../authorization.js";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import type { Cart, MerchantRules } from "@zyon/shared-types";
 import { EvaluateDiscountInputSchema } from "../schemas.js";
@@ -9,12 +10,13 @@ import { EvaluateDiscountInputSchema } from "../schemas.js";
  * Wraps @zyon/rules-engine's evaluateDiscountOffer with sensible defaults
  * (DEFAULT_MERCHANT_RULES baseline, 4% payment fee baked in via engine).
  */
-export function registerEvaluateDiscount(server: McpServer): void {
+export function registerEvaluateDiscount(server: McpServer, authorize:ToolAuthorizer=rejectUnauthenticated): void {
   server.tool(
     "aacp_evaluate_discount",
     "Evaluate whether a discount request respects merchant margin and cap rules. Returns approved/denied with the effective percent and resulting margin.",
     EvaluateDiscountInputSchema.shape,
     async (input) => {
+      await authorize({tool:"aacp_evaluate_discount",merchantId:input.merchantId});
       const cartTotal = input.cartItems.reduce(
         (sum, item) => sum + item.price * item.quantity,
         0

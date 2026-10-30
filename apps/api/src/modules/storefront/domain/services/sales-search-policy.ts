@@ -15,8 +15,8 @@ export function salesSearchMaxPrice(text: string): number | undefined {
  * The model may change synonyms, never the buyer's budget/negative constraints.
  * Counter/results are request-local and shared by primary/fallback providers. */
 export function createSalesSearchPolicy(userMessage: string,
-  history: Array<{ role: "user" | "assistant"; content: string }>, attachmentContext?: string) {
-  const active = allowsSalesDiscovery(userMessage, attachmentContext);
+  history: Array<{ role: "user" | "assistant"; content: string }>, attachmentContext?: string, discoveryEnabled = true) {
+  const active = discoveryEnabled && allowsSalesDiscovery(userMessage, attachmentContext);
   let context = salesRecommendationContext(userMessage, history);
   const current = userMessage.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   // An explicit change is allowed; a model silently dropping a restriction is
@@ -60,6 +60,10 @@ export function createSalesSearchPolicy(userMessage: string,
           ? { ok: false, error: "similar_product_requires_confirmation" } : tool.execute(args),
       } : {
         name: tool.name, execute: async args => {
+          // A typed general criteria plan already separates product purpose,
+          // hard requirements and preferences. Do not concatenate them back
+          // into the lexical query or relax them in synonym searches.
+          if (args.criteria !== undefined) return tool.execute(args);
           if (relatedLabels && lastResult) return lastResult;
           if (searches >= 3) {
             terminal = true;
@@ -81,7 +85,7 @@ export function createSalesSearchPolicy(userMessage: string,
           // omitted them. Only a later, disclosed alternative can relax them.
           for (const preference of intent.soft) if (!normalizeSalesText(query).includes(preference.exact)) query += ` ${preference.exact}`;
           const requestedMax = typeof args.maxPrice === "number" && Number.isSafeInteger(args.maxPrice) && args.maxPrice >= 0 ? args.maxPrice : undefined;
-          const cap = maxPrice === undefined ? requestedMax : requestedMax === undefined ? maxPrice : Math.min(maxPrice, requestedMax);
+          const cap = maxPrice ?? requestedMax;
           const limit = typeof args.limit === "number" && Number.isFinite(args.limit) ? Math.max(1, Math.min(3, Math.floor(args.limit))) : 3;
           const { maxPrice: _modelMaxPrice, ...remainingArgs } = args;
           const lookup = async (searchQuery: string): Promise<ToolResult> => {

@@ -1,3 +1,4 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { Injectable, Logger } from "@nestjs/common";
 
 /**
@@ -33,7 +34,7 @@ export class EmbeddingService {
 
     const trimmed = text.slice(0, 8000); // text-embedding-3-small context limit safety
     try {
-      const response = await fetch("https://api.openai.com/v1/embeddings", {
+      const response = await meteredAiFetch("catalog_embedding")("https://api.openai.com/v1/embeddings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

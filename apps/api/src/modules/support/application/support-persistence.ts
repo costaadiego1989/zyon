@@ -15,12 +15,14 @@ export async function appendSupportEvent(tx: Prisma.TransactionClient, merchantI
   });
 }
 export async function persistSupportMessage(tx: Prisma.TransactionClient, input: {
+  id?: string;
   ticketId: string; merchantId: string; senderType: string; content: string;
   metadata?: Prisma.InputJsonValue; clientMessageId?: string;
 }) {
   const previous = await tx.supportTicketMessage.findFirst({ where: { ticketId: input.ticketId }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
   const createdAt = new Date(Math.max(Date.now(), previous ? previous.createdAt.getTime() + 1 : 0));
   const message = await tx.supportTicketMessage.create({ data: {
+    ...(input.id ? { id: input.id } : {}),
     ticketId: input.ticketId, senderType: input.senderType, content: input.content,
     metadata: input.metadata, clientMessageId: input.clientMessageId, createdAt,
   } });

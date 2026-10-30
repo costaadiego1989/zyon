@@ -4,6 +4,8 @@ export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
+  text?: string;
+  attachments?: Array<{ filename: string; content: string; contentType: string; contentId: string }>;
   /** Resolves logo, company registration and social links for merchant-owned email. */
   merchantId?: string;
   from?: string;

@@ -26,7 +26,7 @@ export const validToolResults = {
   create_checkout_session: { checkoutUrl: "https://checkout.example.test/embed/checkout/chk_1", sessionId: "chk_1" },
   get_reviews: { reviews: [], totalCount: 0, averageRating: 0 },
   create_review: review,
-  get_product_questions: { questions: [{ id: "q1", question: "Tamanho?", answer: "Médio" }], totalCount: 1 },
+  get_product_questions: { productId: "p1", productName: "Produto", scope: "public_answered", filter: "answered", questions: [{ id: "q1", question: "Tamanho?", answer: "Médio" }], totalCount: 1 },
   create_question: { id: "q1", productId: "p1", author: "Cliente", question: "Tamanho?", date: "2026-10-16", status: "awaiting_answer" },
   get_similar_products: { products: [product] },
   add_to_wishlist: { added: true, productId: "p1", items: [product], message: "Salvo" },

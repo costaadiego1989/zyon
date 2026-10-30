@@ -1,3 +1,5 @@
+import { withAiMetering } from "../../../../shared/ai-metering.js";
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { BadGatewayException, BadRequestException, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { storefrontVisionInputSchema, storefrontVisionExtractionSchema, storefrontVisionWireSchema } from "../../domain/contracts/storefront-secondary-guardrails.schemas.js";
 import { storefrontVisionProductsPromptV1 } from "../../domain/prompts/storefront-secondary-guardrails.v1.js";
@@ -14,13 +16,13 @@ export type StorefrontConversationAttachment =
 /** Converts a one-turn attachment to bounded context. The original file is never persisted. */
 @Injectable()
 export class StorefrontAttachmentInterpreter {
-  async interpret(raw: unknown): Promise<string | undefined> {
+  async interpret(raw: unknown, context?: { merchantId: string; conversationId: string }): Promise<string | undefined> {
     if (raw === undefined || raw === null) return undefined;
     if (!isRecord(raw) || typeof raw.kind !== "string") throw new BadRequestException("invalid_conversation_attachment");
 
     const name = safeName(raw.name);
     if (raw.kind === "shopping_list") return this.interpretShoppingList(raw, name);
-    if (raw.kind === "image") return this.interpretImage(raw, name);
+    if (raw.kind === "image") return context ? withAiMetering({ ...context, source: "storefront_image" }, () => this.interpretImage(raw, name)) : this.interpretImage(raw, name);
     throw new BadRequestException("unsupported_conversation_attachment");
   }
 
@@ -59,7 +61,7 @@ export class StorefrontAttachmentInterpreter {
 
     let response: Response;
     try {
-      response = await fetch(`${provider.baseUrl}/chat/completions`, {
+      response = await meteredAiFetch("storefront_image")(`${provider.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
         body: JSON.stringify({

@@ -126,7 +126,7 @@ export const BILLING_FEATURE_LABELS: Record<string, string> = {
   advancedRules: "Regras comerciais avançadas", knowledgeBase: "Base de conhecimento", postSale: "Pós-venda",
   customDomain: "Domínio próprio", crmIntegrations: "Integrações com CRM", aiSpreadsheetImport: "Importação de planilhas com IA",
   advancedAi: "Recursos avancados de IA",
-  revenueManager: "Revenue Manager", m2mAgents: "Agentes M2M", realtimeChatSupport: "Suporte por chat em tempo real",
+  revenueManager: "Revenue Manager", m2mAgents: "Agentes M2M", personalShoppingAgent: "Agente pessoal de compras", realtimeChatSupport: "Suporte por chat em tempo real",
   prioritySupport: "Suporte prioritário",
 };
 
@@ -184,6 +184,7 @@ export type BillingPlanFeatureKey =
   // Scale (otimização autônoma + M2M)
   | "revenueManager"
   | "m2mAgents"
+  | "personalShoppingAgent"
   | "realtimeChatSupport"
   | "prioritySupport"
   | "whatsappSeller"
@@ -249,7 +250,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       advancedAi: false,
       aiSpreadsheetImport: false,
       revenueManager: false,
-      m2mAgents: false,
+      m2mAgents: false, personalShoppingAgent: false,
       advancedProductLayout: false,
       realtimeChatSupport: false,
       prioritySupport: false,
@@ -275,7 +276,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       publicApiV1: false, abTests: false, marketplace: false, intentMemory: false,
       revenueLift: false, advancedRules: false, knowledgeBase: false, postSale: true,
       customDomain: true, crmIntegrations: false, advancedAi: false, aiSpreadsheetImport: false,
-      revenueManager: false, m2mAgents: false, realtimeChatSupport: false, prioritySupport: false, whatsappSeller: true,
+      revenueManager: false, m2mAgents: false, personalShoppingAgent: false, realtimeChatSupport: false, prioritySupport: false, whatsappSeller: true,
     }),
   },
   growth: {
@@ -312,7 +313,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       advancedAi: true,
       aiSpreadsheetImport: true,
       revenueManager: false,
-      m2mAgents: false,
+      m2mAgents: false, personalShoppingAgent: false,
       advancedProductLayout: true,
       realtimeChatSupport: true,
       prioritySupport: false,
@@ -352,7 +353,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       advancedAi: true,
       aiSpreadsheetImport: true,
       revenueManager: true,
-      m2mAgents: true,
+      m2mAgents: true, personalShoppingAgent: true,
       advancedProductLayout: true,
       realtimeChatSupport: true,
       prioritySupport: true,

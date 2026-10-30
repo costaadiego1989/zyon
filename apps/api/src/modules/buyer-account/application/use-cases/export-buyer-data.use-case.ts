@@ -61,6 +61,7 @@ export class ExportBuyerDataUseCase {
       purchases,
     });
     await this.recordAudit(input.globalUserId);
+    if (this.port.listShoppingWorkspacesForExport) payload.sections.shoppingAgentWorkspaces = await this.port.listShoppingWorkspacesForExport(input.globalUserId);
     return payload;
   }
 

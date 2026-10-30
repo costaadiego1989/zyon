@@ -55,8 +55,9 @@ test("structured route uses versioned JSON and validated classification, not gre
   assert.ok(prompt.role && prompt.task && prompt.rules && prompt.examples);
   assert.equal(JSON.parse(requests[0].messages[1].content!).userMessage, input.userMessage);
   assert.equal(requests[1].model, "strong");
-  assert.equal(requests.length, 4); // classification, first reply, one tool-required retry, output review
-  assert.equal(output.usage.totalTokens, usage.totalTokens * 4);
+  assert.equal(requests.length, 3); // classification, first reply, one existing tool-required retry; no confirmed read to review
+  assert.equal(output.usage.totalTokens, usage.totalTokens * 3);
+  assert.equal(output.safetyValidation.reason, "required_read_unconfirmed");
   assert.equal(JSON.stringify(classifiedCallbacks).includes(input.userMessage), false);
 });
 

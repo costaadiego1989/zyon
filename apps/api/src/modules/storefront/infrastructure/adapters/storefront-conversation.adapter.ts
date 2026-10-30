@@ -1,3 +1,5 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
 import type { StorefrontConversationScopePort } from "../../domain/ports/conversation-scope.port.js";
@@ -11,6 +13,7 @@ import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import { ensureProductDiscovery } from "../agents/product-discovery-fallback.js";
 import { resolveNativeShippingReference } from "../agents/native-shipping-reference.js";
+import { knowledgeHelpNavigation } from "../shortcuts/knowledge-help-navigation.js";
 import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/index.js";
 import { STOREFRONT_SHIPPING_REFERENCE, type StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
@@ -56,7 +59,7 @@ function optionalProviderTransport(factory: StorefrontProviderFetchFactory | und
   if (typeof factory !== "function") throw new Error("storefront_provider_transport_invalid");
   const fetchFn = factory(channel);
   if (typeof fetchFn !== "function") throw new Error("storefront_provider_transport_invalid");
-  return { fetchFn };
+  return { fetchFn: meteredAiFetch("storefront_agent", fetchFn) };
 }
 
 @Injectable()
@@ -113,7 +116,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const localModel = process.env.LOCAL_LLM_MODEL || process.env.OPENROUTER_MODEL || "deepseek-chat";
 
     const provider = new OpenRouterProvider({
-      apiKey: localApiKey,
+      apiKey: localApiKey, fetchFn: meteredAiFetch("storefront_agent"),
       baseUrl: localBaseUrl,
       model: localModel,
       ...optionalProviderTransport(providerFetchFactory, "primary"),
@@ -128,7 +131,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const fallbackBaseUrl = process.env.OPENROUTER_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
     const fallbackModel = process.env.OPENROUTER_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
     const fallbackProvider = fallbackApiKey
-      ? new OpenRouterProvider({ apiKey: fallbackApiKey, baseUrl: fallbackBaseUrl, model: fallbackModel,
+      ? new OpenRouterProvider({ apiKey: fallbackApiKey, fetchFn: meteredAiFetch("storefront_agent"), baseUrl: fallbackBaseUrl, model: fallbackModel,
         ...optionalProviderTransport(providerFetchFactory, "fallback") })
       : undefined;
 
@@ -170,14 +173,18 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   }
 
   async generateNudge(input: NudgeCopyInput): Promise<string> {
-    return this.observer.turn(() => this.copyService.generateNudge(input));
+    return withAiMetering({ merchantId: input.merchantId, source: "storefront_nudge" },
+      () => this.observer.turn(() => this.copyService.generateNudge(input)));
   }
   async reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
-    return this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext)) : this.replyTurn(input, deferredContext);
+    return withAiMetering({ merchantId: input.merchantId, conversationId: input.sessionId, source: "storefront" },
+      () => this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext)) : this.replyTurn(input, deferredContext));
   }
   private async replyTurn(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
     // The decision and every later shortcut/RAG/port must use the same input.
     input = structuredClone(input);
+    const helpNavigation = !input.attachmentContext && !input.uiAction ? knowledgeHelpNavigation(input.userMessage) : undefined;
+    if (helpNavigation) input.userMessage = helpNavigation;
     const ctx: ToolRequestContext = {
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
@@ -194,6 +201,16 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     let handlers: StoreToolHandlers | undefined;
     const getHandlers = () => handlers ??= observeStorefrontHandlers(
       composeStoreToolHandlers(this.handlerDeps, ctx), input.cartId || input.sessionId);
+    const readCartBlock = async (cartId: string) => {
+      try {
+        const args = { cartId };
+        const checked = await callStorefrontTool("get_cart", args, () => getHandlers().getCart(args), { cartId });
+        if (!checked.ok) return null;
+        const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: "Ver carrinho", finalContent: "",
+          toolResults: { get_cart: checked.data } });
+        return built.blocks.find(block => block.type === "cart_summary" && block.data.items.length > 0) ?? null;
+      } catch { return null; }
+    };
     if (input.uiAction) {
       this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
       const shortcutHandlers = getHandlers();
@@ -226,6 +243,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       advancedRules: input.advancedRules,
       buyerContext: input.buyerContext,
       oneBuyClick: input.oneBuyClick,
+      messageFormat: input.messageFormat,
       systemPrompt: input.experimentSystemPrompt,
       toolHandlers: new Proxy({} as StoreToolHandlers, {
         get(_target, key) { return Reflect.get(getHandlers(), key); },
@@ -261,18 +279,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         // so the storefront cart store (CartFAB drawer) refreshes its discount /
         // net total. Without this the coupon persists server-side but the drawer
         // shows the stale pre-discount total (buyer told "applied", sees full price).
-        getCartBlock: async (cartId: string) => {
-          try {
-            const args = { cartId };
-            const checked = await callStorefrontTool("get_cart", args, () => shortcutHandlers.getCart(args), { cartId });
-            if (!checked.ok) return null;
-            const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: "Ver carrinho", finalContent: "",
-              toolResults: { get_cart: checked.data } });
-            return built.blocks.find(block => block.type === "cart_summary" && block.data.items.length > 0) ?? null;
-          } catch {
-            return null;
-          }
-        },
+        getCartBlock: readCartBlock,
       },
       input,
       { structuredReadRouting: this.structuredRouting },
@@ -302,7 +309,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     let result = await prepared.run({ knowledgeContext,
       ...(deferred ? { attachmentContext: input.attachmentContext, oneBuyClick: input.oneBuyClick } : {}) });
     result = await ensureProductDiscovery(result, { userMessage: input.userMessage, merchantId: input.merchantId, handlers: shortcutHandlers, history: input.history,
-      discoveryDecision: this.structuredRouting ? result.routing.needsProductDiscovery === true : undefined });
+      discoveryDecision: result.routing.needsProductDiscovery, structuredSearchRequired: result.routing.structuredSearchRequired });
     const blocks = await appendOneBuyClickCheckout({
       blocks: result.blocks,
       toolsUsed: result.toolsUsed,

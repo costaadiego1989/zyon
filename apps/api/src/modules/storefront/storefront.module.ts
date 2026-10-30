@@ -1,3 +1,4 @@
+import { meteredAiFetch } from "../../shared/ai-metering.js";
 import { Module } from "@nestjs/common";
 import { BILLING_PLAN_ACCESS } from "../payment/domain/ports/billing-plan-access.port.js";
 import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
@@ -155,7 +156,7 @@ import { QuoteShippingUseCase } from "../shipping/application/use-cases/quote-sh
     {
       provide: OpenRouterProvider,
       useFactory: () => {
-        return new OpenRouterProvider({
+        return new OpenRouterProvider({ fetchFn: meteredAiFetch("storefront_agent"),
           apiKey: process.env.OPENAI_API_KEY || "",
           model: process.env.OPENAI_MODEL || "gpt-4o-mini"
         });

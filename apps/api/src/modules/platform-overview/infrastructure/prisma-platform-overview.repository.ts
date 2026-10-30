@@ -33,20 +33,20 @@ export class PrismaPlatformOverviewRepository implements PlatformOverviewReposit
       }),
       this.prisma.merchantPlatformFeedback.count(),
       this.prisma.aiUsageEvent.aggregate({
-        where: { channel: "chat", startedAt: { gte: periodStartedAt } },
+        where: { costCenter: { not: "voice" }, measurementOrigin: { in: ["server_http", "server_sideband"] }, payer: "platform", OR: [{ currency: "USD" }, { currency: null }], startedAt: { gte: periodStartedAt } },
         _count: { _all: true },
         _sum: { totalTokens: true, costMicros: true },
       }),
       this.prisma.aiUsageEvent.count({
         where: {
-          channel: "chat",
+          costCenter: { not: "voice" }, measurementOrigin: { in: ["server_http", "server_sideband"] }, payer: "platform", OR: [{ currency: "USD" }, { currency: null }],
           startedAt: { gte: periodStartedAt },
           costMicros: { not: null },
         },
       }),
       this.prisma.aiUsageEvent.count({
         where: {
-          channel: "chat",
+          costCenter: { not: "voice" }, measurementOrigin: { in: ["server_http", "server_sideband"] }, payer: "platform", OR: [{ currency: "USD" }, { currency: null }],
           startedAt: { gte: periodStartedAt },
           costMicros: null,
         },

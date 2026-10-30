@@ -17,6 +17,7 @@ import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../.
 import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 import { checkoutShippingLabel } from "../../domain/services/checkout-shipping-label.js";
 import { toCheckoutShippingQuote } from "../../../shipping/domain/services/checkout-shipping-quote.mapper.js";
+import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
 
 @Injectable()
 export class CheckoutShippingService {
@@ -30,6 +31,21 @@ export class CheckoutShippingService {
     @Optional() @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRulesRepo?: MerchantRulesRepository,
     @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient
   ) { }
+
+  /** Use current canonical quotes; an unset/default preference is not consent. */
+  async prepareReturningBuyer(session: CheckoutSession, preference?: "cheapest" | "fastest"): Promise<CheckoutSession> {
+    if (!requiresPhysicalDelivery(session.cart) || deriveChatStage(session) === "data_collection" ||
+      !session.customer?.address_verified || this.prisma && await hasPreparedCheckoutPayment(this.prisma, session)) return session;
+    const current = await this.tryEnsureShippingOptions(session);
+    if (current.shipping || !preference) return current;
+    const valid = (current.shippingOptions ?? []).filter(option => Number.isFinite(option.customerPrice) && option.customerPrice >= 0 &&
+      !!option.quoteId && !!option.expiresAt && Date.parse(option.expiresAt) > Date.now() &&
+      (preference !== "fastest" || typeof option.deliveryDays === "number" && Number.isFinite(option.deliveryDays) && option.deliveryDays >= 0));
+    const eta = (option: ShippingQuote) => option.deliveryDays ?? Infinity;
+    valid.sort((a, b) => preference === "fastest" ? eta(a) - eta(b) || a.customerPrice - b.customerPrice
+      : a.customerPrice - b.customerPrice || eta(a) - eta(b));
+    return valid[0] ? this.trySelectShippingOption(checkoutShippingLabel(valid[0]), current) : current;
+  }
 
   async processShippingState(session: CheckoutSession, userMessage: string): Promise<CheckoutSession> {
     if (!requiresPhysicalDelivery(session.cart)) return session;

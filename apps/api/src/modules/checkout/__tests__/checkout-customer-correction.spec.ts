@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { checkoutSession } from "./checkout-test-fixtures.js";
+import { localCheckoutScope } from "./local-checkout-scope.fixture.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { DeterministicConversationAdapter } from "../infrastructure/adapters/deterministic-conversation.adapter.js";
 import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
@@ -33,7 +34,7 @@ function setup() {
     undefined,
     emailSender as never,
   );
-  const useCase = createSendChatUseCase(repository, { customerService, conversation: new DeterministicConversationAdapter(), shippingService: new CheckoutShippingService(repository, customerService), offerService: new CheckoutOfferService(repository) });
+  const useCase = createSendChatUseCase(repository, { customerService, conversation: new DeterministicConversationAdapter(), shippingService: new CheckoutShippingService(repository, customerService, undefined, undefined, undefined, localCheckoutScope(repository)), offerService: new CheckoutOfferService(repository) });
   const send = (user_message: string) => useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", conversation_id: "conv_1", user_message });
   const current = () => repository.getSession("mrc_1", "chk_1")!;
   return { repository, send, current, sent };
@@ -51,15 +52,12 @@ test("email correction leaves OTP loop, survives reload, replaces email and reje
   await send("Meu emailistayh");
   assert.equal(sent.length, 0);
   const replaced = await send("right@example.test");
-  assert.match(replaced.message, /right@example.test/);
+  assert.match(replaced.message, /contato atualizado/);
   assert.equal(current().customer?.email, "right@example.test");
-  assert.equal(current().customer?.otp_code, "654321");
+  assert.equal(current().customer?.otp_code, "");
   assert.equal(current().customer?.email_verified, false);
-  assert.deepEqual(sent, ["right@example.test"]);
-  assert.match((await send("123456")).message, /inválido/);
+  assert.deepEqual(sent, []);
   assert.equal(current().customer?.email_verified, false);
-  await send("654321");
-  assert.equal(current().customer?.email_verified, true);
 });
 
 test("direct replacement and correction quick reply work with a pending code", async () => {
@@ -67,13 +65,13 @@ test("direct replacement and correction quick reply work with a pending code", a
     const { send, current, sent } = setup();
     await send(message);
     assert.equal(current().customer?.email, "right@example.test");
-    assert.deepEqual(sent, ["right@example.test"]);
+    assert.deepEqual(sent, []);
   }
   const { send, current } = setup();
   assert.match((await send("Corrigir e-mail")).message, /e-mail correto/);
   await send("Cancelar correção");
   assert.equal(current().customer?.email, "wrong@example.test");
-  assert.deepEqual(missingFieldsForStage(current(), deriveChatStage(current()))[0], "código de verificação");
+  assert.equal(missingFieldsForStage(current(), deriveChatStage(current())).includes("código de verificação"), false);
 });
 
 test("phone correction during email OTP never consumes a phone as the code or CPF", async () => {
@@ -102,14 +100,13 @@ test("changing a verified email detaches prior identity and private account data
   assert.equal(current().shipping, undefined);
 });
 
-test("resend after correction always targets the corrected email", async () => {
+test("correcting contact email retires the old challenge without generating a new one", async () => {
   const { send, current, sent } = setup();
   await send("Trocar email para right@example.test");
   assert.equal(current().customer?.email, "right@example.test");
-  assert.equal(current().customer?.otp_code, "654321");
-  await send("Reenviar código de e-mail");
-  assert.equal(current().customer?.otp_code, "654321");
-  assert.deepEqual(sent, ["right@example.test", "right@example.test"]);
+  assert.equal(current().customer?.otp_code, "");
+  assert.equal(current().customer?.email_verified, false);
+  assert.deepEqual(sent, []);
 });
 
 test("mentioning a wrong email does not resend to it and a correction cannot select payment", async () => {

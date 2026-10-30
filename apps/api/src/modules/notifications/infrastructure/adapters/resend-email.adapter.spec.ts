@@ -78,3 +78,16 @@ test("strict delivery logs neither recipient nor raw provider errors and keeps e
     assert.deepEqual(logs,[["strict_email_provider_rejected"],["strict_email_acceptance_unknown"]]);
   }finally{Logger.prototype.error=originalError;}
 });
+
+test("provider receives plain text and inline logo content with the REST content_id field", async () => {
+  process.env.RESEND_API_KEY = "fake-test-key";
+  globalThis.fetch = async (_url, init) => {
+    const payload = JSON.parse(String(init?.body));
+    assert.equal(payload.text, "Mensagem da loja");
+    assert.deepEqual(payload.attachments, [{ filename: "logo.png", content: "aGVsbG8=", content_type: "image/png", content_id: "store-logo" }]);
+    return new Response(JSON.stringify({ id: "provider-logo" }), { status: 200 });
+  };
+  const result = await new ResendEmailAdapter().send({ ...input, text: "Mensagem da loja", html: '<img src="cid:store-logo">',
+    attachments: [{ filename: "logo.png", content: "aGVsbG8=", contentType: "image/png", contentId: "store-logo" }] });
+  assert.equal(result.messageId, "provider-logo");
+});

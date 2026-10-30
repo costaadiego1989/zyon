@@ -66,6 +66,7 @@ export interface MerchantNameLookupRow {
 }
 
 export interface BuyerAccountPort {
+  listShoppingWorkspacesForExport?(globalUserId: string): Promise<unknown[]>;
   /**
    * Returns true when an account row exists for the given globalUserId.
    * Used to fail fast with `buyer_account_not_found` before destructive ops.

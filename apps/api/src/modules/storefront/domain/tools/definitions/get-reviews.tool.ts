@@ -4,7 +4,7 @@ import { wrapHandler } from "../types.js";
 export const GET_REVIEWS: ToolDefinition = {
   name: "get_reviews",
   description:
-    "Get product reviews. Returns array of reviews with id, author, rating (1-5), text, and date. Use when buyer asks about opinions, ratings, or feedback on a product.",
+    "Read public, approved product reviews and testimonials. Use for opinions, ratings, feedback and positive/negative/recent review filters; always call get_reviews before reporting counts, average, comments or absence. Returns the filtered count, filtered average and a source-aware cursor. Never treat a storage error as no reviews and never fabricate a customer experience.",
   parameters: {
     type: "object",
     properties: {
@@ -20,7 +20,11 @@ export const GET_REVIEWS: ToolDefinition = {
       },
       limit: {
         type: "number",
-        description: "Max reviews to return (default: 10, max: 50)"
+        description: "Max reviews to return (default: 10, effective max: 20)"
+      },
+      cursor: {
+        type: "string",
+        description: "Use only nextCursor from the preceding result, preserving productId and filter. Omit to start a new filter."
       }
     },
     required: ["productId"]

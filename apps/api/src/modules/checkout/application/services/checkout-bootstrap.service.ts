@@ -9,7 +9,7 @@ import { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdo
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../../storefront/domain/ports/storefront-cart.port.js";
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { CartPromoResolutionService } from "./cart-promo-resolution.service.js";
-import type { TrustedCheckoutBuyer } from "./trusted-checkout-buyer.js";
+import type { TrustedCheckoutBuyer, TrustedWhatsAppCheckoutBuyer } from "./trusted-checkout-buyer.js";
 import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 import { requiresPhysicalDelivery } from "../../domain/services/cart-fulfillment.js";
 import { QuoteShippingUseCase } from "../../../shipping/application/use-cases/quote-shipping.use-case.js";
@@ -35,9 +35,18 @@ export class CheckoutBootstrapService {
   ) {}
 
   async bootstrap(input: StartCheckoutRequest, globalUserId: string, cartValidated = false,
-    identity?: { trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean; trustedPhoneBuyer?: { globalUserId: string; phone: string } },
+    identity?: { trustedBuyer?: TrustedCheckoutBuyer; trustedWhatsAppBuyer?: TrustedWhatsAppCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean; trustedPhoneBuyer?: { globalUserId: string; phone: string } },
   ): Promise<BootstrapResult> {
     let enrichedInput = input;
+
+    if (identity?.trustedWhatsAppBuyer) {
+      const buyer = identity.trustedWhatsAppBuyer;
+      if (!buyer.globalUserId || buyer.globalUserId !== globalUserId || buyer.merchantId !== input.merchant_id ||
+        buyer.conversationId !== input.cart?.cart_ref || buyer.customer.phone_verified !== true || buyer.customer.email_verified !== false ||
+        !buyer.customer.phone || input.customer?.phone !== buyer.customer.phone) {
+        throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+      }
+    }
 
     const cartRef = cartValidated ? (input.cart as any)?.cart_ref : (input as any).cart_ref?.trim?.();
     if (this.storefrontCart && cartRef && (!input.cart?.items || input.cart.items.length === 0)) {
@@ -120,7 +129,7 @@ export class CheckoutBootstrapService {
         preparedCreatedBuyer = result.created && !!identity?.trustedBuyer && !!this.customerService;
         if (result.created) await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
       } else {
-        if (identity?.requireBuyerProof || identity?.trustedBuyer || identity?.trustedPhoneBuyer) {
+        if (identity?.requireBuyerProof || identity?.trustedBuyer || identity?.trustedPhoneBuyer || identity?.trustedWhatsAppBuyer) {
           throw new ServiceUnavailableException("checkout_session_binding_unavailable");
         }
         await this.sessions.saveSession(session);
@@ -134,7 +143,13 @@ export class CheckoutBootstrapService {
     // The embed capability remains bound to its first checkout buyer. A new
     // authenticated buyer (including login after an anonymous start) needs a
     // fresh embed token, so concurrent starts cannot replace someone else's PII.
-    if (identity?.trustedPhoneBuyer) {
+    if (identity?.trustedWhatsAppBuyer) {
+      const buyer = identity.trustedWhatsAppBuyer;
+      if (session.globalUserId !== buyer.globalUserId || session.cart.cart_ref !== buyer.conversationId ||
+        session.customer?.phone?.replace(/\D/g, "") !== buyer.customer.phone.replace(/\D/g, "")) {
+        throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+      }
+    } else if (identity?.trustedPhoneBuyer) {
       if (session.globalUserId !== identity.trustedPhoneBuyer.globalUserId || session.customer?.phone?.replace(/\D/g, "") !== identity.trustedPhoneBuyer.phone.replace(/\D/g, "")) {
         throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
       }
@@ -171,7 +186,7 @@ export class CheckoutBootstrapService {
       // Authenticate the canonical winner before recognizing any private PII.
       // Refresh above must retain its persisted CAS expectation, not this new profile.
       session = await this.customerService.prepareTrustedBuyerForCheckout(session, identity.trustedBuyer);
-    } else if (!identity?.trustedBuyer && this.customerService && session.customer?.email?.trim()) {
+    } else if (!identity?.trustedBuyer && !identity?.trustedWhatsAppBuyer && this.customerService && session.customer?.email?.trim()) {
       session = await this.customerService.hydrateReturningBuyerFromEmailHint(session);
     }
 

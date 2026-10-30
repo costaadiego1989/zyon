@@ -3,6 +3,7 @@ import type { StorefrontToolName } from "./storefront-tool.schemas.js";
 import type { ToolResult } from "../tools/types.js";
 import { commercialNoticesSchema } from "./commercial-notice.schemas.js";
 import { storefrontShippingReferenceResultSchema } from "./storefront-shipping-reference.schemas.js";
+import { shoppingSearchEvidenceSchema } from "./shopping-search-plan.schemas.js";
 
 export const STOREFRONT_TOOL_OUTPUT_VERSION = 1;
 const id = z.string().min(1).max(191);
@@ -67,12 +68,15 @@ const shippingOutput = z.unknown().transform((raw, ctx) => {
 /** Success payloads for every native tool. No unknown/passthrough result schema. */
 export const storefrontToolOutputSchemas = {
   search_products: z.object({ products: list(pricedProduct), nextCursor: text.nullable().optional(), query: text.optional(), categoryId: id.optional(),
+    searchEvidence: shoppingSearchEvidenceSchema.optional(),
     source: z.enum(["mixed", "marketplace", "local"]).optional(), note: text.optional() }),
   get_product_details: z.object({ product: product.refine(value => value.price !== undefined
     || value.variants?.some(item => item.isActive !== false && item.basePriceInCents !== undefined)), ...suggestions }),
-  compare_products: z.object({ comparison: list(z.object({ id, name: text, price: money, attributes: z.record(z.string(), text),
+  compare_products: z.object({ comparison: list(z.object({ id, name: text, description: text.optional(), descriptionTruncated: z.literal(true).optional(), price: money, attributes: z.record(z.string(), text),
     stock: count.optional(), rating: rating.nullable().optional(), type: text.optional(), inStock: z.boolean().optional() })),
-    requestedProductNames: list(text).optional(), missingProductNames: list(text).optional(), requiresProductNames: z.boolean().optional() }),
+    requestedProductNames: list(text).optional(), missingProductNames: list(text).optional(), requiresProductNames: z.boolean().optional(), message: text.optional(),
+    nameResolution: list(z.object({ requestedName: text, status: z.enum(["resolved", "ambiguous", "not_found", "limited"]),
+      candidates: z.array(z.object({ id, name: text })).max(5), candidateCount: count.optional() })).optional() }),
   get_product_availability: z.object({ inStock: z.boolean(), quantity: count.nullable(), estimatedShipping: text.optional() }),
   add_item_to_cart: cart.extend({ ...suggestions, addedItem: z.object({ variantId: id, serviceSlotId: id.optional(), optionItemIds: list(id) }).optional() }),
   get_cart: cart, remove_cart_item: cart, update_cart_item: cart, clear_cart: cart,
@@ -91,10 +95,17 @@ export const storefrontToolOutputSchemas = {
     z.object({ checkoutPrepared: z.literal(true), actionId: id, cartId: id,
       shippingPreference: z.enum(["fastest", "cheapest"]), paymentPreference: z.enum(["pix", "card"]) }),
   ]),
-  get_reviews: z.object({ reviews: list(review), productId: id.optional(), productName: text.optional(), nextCursor: text.optional(), totalCount: count, averageRating: rating }),
+  get_reviews: z.object({ reviews: list(review), productId: id.optional(), productName: text.optional(), nextCursor: text.optional(),
+    filter: z.enum(["positive", "negative", "recent"]).optional(), totalCount: count, averageRating: rating }),
   create_review: review.extend({ productId: id, status: z.literal("pending_moderation") }),
-  get_product_questions: z.object({ questions: list(z.object({ id, question: text, answer: text })), totalCount: count }),
-  create_question: z.object({ id, productId: id, question: text, author: text, date: text, status: z.literal("awaiting_answer") }),
+  get_product_questions: z.discriminatedUnion("scope", [
+    z.object({ productId: id, productName: text, scope: z.literal("public_answered"), filter: z.literal("answered"),
+      questions: list(z.object({ id, question: text, answer: text })), totalCount: count }),
+    z.object({ productId: id, productName: text, scope: z.literal("buyer_history"), filter: z.literal("mine"),
+      questions: list(z.strictObject({ id, ticketId: id, question: text, date: text, answerState: z.literal("not_linked") })),
+      returnedCount: count, hasMore: z.boolean(), historyLimited: z.literal(true) }),
+  ]),
+  create_question: z.object({ id, productId: id, question: text, author: text, date: text, status: z.literal("awaiting_answer"), questionMessageId: id.optional() }),
   get_similar_products: z.object({ products: list(pricedProduct) }),
   add_to_wishlist: z.object({ added: z.literal(true), productId: id, items: list(pricedProduct), message: text }),
   get_wishlist: z.object({ items: list(pricedProduct), message: text }),
@@ -112,7 +123,7 @@ export const storefrontToolOutputSchemas = {
     z.object({ configured: z.boolean(), policies, message: text.optional() }),
   ]),
   get_buyer_profile: z.object({ message: text }),
-  get_daily_deals: z.object({ deals: list(pricedProduct) }),
+  get_daily_deals: z.object({ deals: list(pricedProduct.extend({ variantId: id.optional(), expiresAt: z.iso.datetime().optional(), expiresAtFormatted: text.optional() })) }),
   get_faq: z.object({ faqs: list(z.object({ question: text, answer: text })) }),
   escalate_to_human: z.object({ escalated: z.literal(true), ticketId: id, message: text, reason: text.optional() }),
   get_invoice: z.object({ orderId: id.optional(), invoiceAvailable: z.literal(false), message: text }),
@@ -133,6 +144,7 @@ export function validateStorefrontToolOutput(name: string, data: unknown, scope?
       : ["add_to_wishlist", "remove_from_wishlist"].includes(name) ? errorSchema.extend({ items: list(product).optional() })
       : name === "get_reviews" ? errorSchema.extend({ reviews: list(review).optional() })
       : name === "get_product_availability" ? errorSchema.extend({ inStock: z.boolean().optional(), quantity: count.optional() })
+      : name === "update_cart_item" ? errorSchema.extend({ notApplied: z.strictObject({ cartId: id, variantId: id, quantity: count.min(1).max(99) }).optional() })
       : name === "compare_products" ? errorSchema.extend({ comparison: z.array(z.never()).optional() }) : errorSchema
     : storefrontToolOutputSchemas[name as StorefrontToolName];
   const parsed = schema.safeParse(data);

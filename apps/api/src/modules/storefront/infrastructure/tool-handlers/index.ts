@@ -24,6 +24,7 @@ import { createReviewHandlers, type ReviewHandlerDeps } from "./review.handlers.
 import { createWishlistHandlers, type WishlistHandlerDeps } from "./wishlist.handlers.js";
 import { createOrderHandlers, type OrderHandlerDeps } from "./order.handlers.js";
 import { createSupportHandlers, type SupportHandlerDeps } from "./support.handlers.js";
+import { createShoppingRecommendationReader } from "./shopping-recommendation.handler.js";
 
 export interface AllHandlerDeps {
   productRepo: ProductRepositoryPort;
@@ -98,8 +99,10 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
     prisma: deps.prisma,
   };
 
+  const productHandlers = createProductHandlers(productDeps, ctx);
   return {
-    ...createProductHandlers(productDeps, ctx),
+    ...productHandlers,
+    recommendProducts: createShoppingRecommendationReader(productDeps, ctx, productHandlers.searchProducts),
     ...createCartHandlers(cartDeps, ctx),
     ...createReviewHandlers(reviewDeps, ctx),
     ...createWishlistHandlers(wishlistDeps, ctx),

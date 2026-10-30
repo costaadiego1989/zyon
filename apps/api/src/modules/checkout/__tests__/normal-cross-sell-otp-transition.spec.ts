@@ -67,7 +67,7 @@ test("remount cannot reassign NORMAL after a concurrent account appeared, even w
   await assert.rejects(service.hydrateReturningBuyerFromEmailHint(f.verified), /checkout_buyer_session_binding_mismatch/);
   assert.equal(f.generic.length, 0);
 });
-test("NORMAL correction uses the server detachment command and only saves the new challenge generically", async () => {
+test("NORMAL correction uses server detachment and saves contact email without issuing another challenge", async () => {
   const f = fixture(), claim = { requestId: "request", requestHash: "a".repeat(64) }, calls: unknown[][] = [], sent: string[] = [];
   const anonymous = "usr_12345678-1234-4234-8234-123456789abc";
   Reflect.set(f.repository, "detachNormalBuyerEmail", async (...args: unknown[]) => { calls.push(args); return {
@@ -77,9 +77,9 @@ test("NORMAL correction uses the server detachment command and only saves the ne
   const service = new CheckoutCustomerService(f.repository as never, undefined, otp, undefined, undefined,
     { send: async (value: { to: string }) => { sent.push(value.to); return { status: "sent", messageId: "synthetic" }; } } as never);
   const result = await service.correctCustomerInput(f.original, "Corrigir email para new@example.test", undefined, undefined, claim);
-  assert.equal(result?.session.globalUserId, anonymous); assert.equal(result?.session.customer?.otp_code, "654321");
+  assert.equal(result?.session.globalUserId, anonymous); assert.equal(result?.session.customer?.otp_code, "");
   assert.deepEqual(calls, [[{ merchantId: f.original.merchantId, sessionId: f.original.sessionId }, { expectedVersion: 4, email: "new@example.test" }, claim]]);
-  assert.deepEqual(sent, ["new@example.test"]); assert.equal(f.generic.length, 1);
+  assert.deepEqual(sent, []); assert.equal(f.generic.length, 1);
   assert.equal((f.generic[0] as { next: { globalUserId: string } }).next.globalUserId, anonymous);
   assert.equal(f.original.globalUserId, "visitor"); assert.equal(f.original.customer?.otp_code, "123456");
 });

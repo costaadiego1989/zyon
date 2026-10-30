@@ -1,3 +1,4 @@
+import { meteredAiFetch } from "../../../shared/ai-metering.js";
 import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException, ForbiddenException, Param, Res } from "@nestjs/common";
 import type { MerchantTheme } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
@@ -277,7 +278,7 @@ export class MerchantController {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30000);
 
-        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
+        const res = await meteredAiFetch("merchant_generation")(`${provider.baseUrl}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
           body: JSON.stringify({

@@ -27,3 +27,28 @@ test("contextual navigation uses tenant-authorized handlers for recommendations,
   }
   assert.deepEqual(calls, [["similar", { productId: "p1" }], ["compare", { productId: "p1", includeSimilar: true }], ["deals"]]);
 });
+
+test("wishlist sharing formats only the authenticated owner's current public product data and makes no write", async () => {
+  let reads = 0;
+  const result = await executeStorefrontUiAction({ getWishlist: async () => { reads++; return { items: [{ id: "p1", name: "Protetor", price: 9990, inStock: true }], message: "Lista" }; } } as any,
+    { tool: "get_wishlist", args: { share: true } }, "merchant", "cart");
+  assert.equal(reads, 1); assert.match(result.message, /encaminhe esta mensagem/);
+  assert.match(result.message, /Protetor.*99,90/); assert.doesNotMatch(result.message, /https?:|ownerKey|buyerId/);
+});
+
+for (const [tool, handler, payload, expected] of [
+  ["get_daily_deals", "getDailyDeals", { deals: [] }, /não há ofertas ativas/],
+  ["get_reviews", "getReviews", { reviews: [], totalCount: 0, averageRating: 0 }, /não tem avaliações publicadas/],
+  ["search_products", "searchProducts", { products: [] }, /Não encontrei produtos/],
+  ["get_similar_products", "getSimilarProducts", { products: [] }, /Não encontrei produtos semelhantes/],
+  ["compare_products", "compareProducts", { comparison: [{ id: "p1", name: "Atual", price: 100, attributes: {} }], requiresProductNames: true }, /Qual outro produto/],
+  ["get_wishlist", "getWishlist", { items: [], message: "Nenhum item." }, /lista de desejos está vazia/],
+  ["list_categories", "listCategories", { categories: [] }, /não cadastrou categorias/],
+] as const) test(`${tool} explains an empty or insufficient result without an empty actionable block`, async () => {
+  let calls = 0;
+  const handlers = { [handler]: async () => { calls++; return payload; } } as any;
+  const result = await executeStorefrontUiAction(handlers, { tool, args: ["get_reviews", "get_similar_products", "compare_products"].includes(tool) ? { productId: "p1" } : {} }, "merchant", "cart");
+  assert.equal(calls, 1);
+  assert.match(result.message, expected);
+  assert.deepEqual(result.blocks, []);
+});

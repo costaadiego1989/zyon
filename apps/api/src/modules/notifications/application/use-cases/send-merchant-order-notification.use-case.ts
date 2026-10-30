@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../domain/ports/email-sender.port.js";
-import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../domain/ports/whatsapp-sender.port.js";
+import { NOTIFICATION_WHATSAPP_SENDER, type NotificationWhatsAppSender } from "../ports/notification-whatsapp-sender.port.js";
 import { MERCHANT_NOTIFICATION_INBOX_PORT, type MerchantNotificationInboxPort } from "../../domain/ports/merchant-notification-inbox.port.js";
 import type { OrderConfirmationEvent } from "../../domain/events/notification.events.js";
 import { renderMerchantOrderEmail, renderMerchantOrderWhatsApp } from "../../infrastructure/templates/merchant-order-notification.template.js";
@@ -12,7 +12,7 @@ export class SendMerchantOrderNotificationUseCase {
   constructor(
     @Inject(MERCHANT_NOTIFICATION_INBOX_PORT) private readonly inbox: MerchantNotificationInboxPort,
     @Inject(EMAIL_SENDER_PORT) private readonly emailSender: EmailSenderPort,
-    @Inject(WHATSAPP_SENDER_PORT) private readonly whatsappSender: WhatsAppSenderPort,
+    @Inject(NOTIFICATION_WHATSAPP_SENDER) private readonly whatsappSender: NotificationWhatsAppSender,
   ) {}
 
   async execute(event: OrderConfirmationEvent): Promise<void> {
@@ -54,6 +54,7 @@ export class SendMerchantOrderNotificationUseCase {
           subject: `${merchantName} | Novo pedido #${event.orderNumber}`,
           html: renderMerchantOrderEmail({ ...event, merchantName }),
           requireDelivery: true,
+          idempotencyKey: `order-confirmation:${event.merchantId}:${event.orderId}:merchant-email`,
         }),
       });
     } else {
@@ -64,10 +65,15 @@ export class SendMerchantOrderNotificationUseCase {
     if (merchantWhatsApp) {
       deliveries.push({
         channel: "whatsapp",
-        send: () => this.whatsappSender.send({
-          phone: merchantWhatsApp,
-          message: renderMerchantOrderWhatsApp({ ...event, merchantName }),
-        }),
+        send: async () => {
+          const result = await this.whatsappSender.execute({
+            merchantId: event.merchantId, orderId: event.orderId, idempotencyKey: event.orderId,
+            type: "merchant_order_paid", toPhone: merchantWhatsApp,
+            freeformText: renderMerchantOrderWhatsApp({ ...event, merchantName }),
+          });
+          if (result.status !== "accepted") this.logger.warn(`merchant_order_whatsapp_${result.status} reason=${result.reason ?? "unconfirmed"}`);
+          return result;
+        },
       });
     }
 

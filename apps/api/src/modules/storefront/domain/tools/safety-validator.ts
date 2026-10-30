@@ -10,6 +10,8 @@ export interface StorefrontMessageContext {
   authorizedDiscountPercent?: number;
   freeShippingAuthorized?: boolean;
   shippingDiscountAuthorized?: boolean;
+  /** Canonical merchant restriction, never an authorization to grant either benefit. */
+  allowStackDiscountAndFreeShipping?: boolean;
   maxLength?: number;
 }
 
@@ -30,6 +32,39 @@ function getRandomFallback(): string {
   return FALLBACK_MESSAGES_PT[Math.floor(Math.random() * FALLBACK_MESSAGES_PT.length)];
 }
 
+const freeShippingWords = "(?:frete gratis|frete gratuito|envio gratis|free shipping)";
+const offerWords = "(?:(?:a|essa|esta) )?(?:oferta|promocao|desconto)";
+const directStackingDenial = new RegExp(`^(?:(?:a loja|a regra atual da loja) )?nao (?:permite|e permitido|e possivel|podemos|pode|posso) (?:acumular|combinar) (?:${offerWords} com (?:o )?${freeShippingWords}|(?:o )?${freeShippingWords} com ${offerWords})$`);
+const benefitStackingDenial = new RegExp(`^(?:(?:o )?${freeShippingWords} nao pode ser (?:usado|acumulado|combinado) com ${offerWords}|${offerWords} nao pode ser (?:usad[ao]|acumulad[ao]|combinad[ao]) com (?:o )?${freeShippingWords})$`);
+const jointStackingDenial = new RegExp(`^(?:a regra atual da loja nao permite combinar esses beneficios, entao )?(?:a|essa|esta) oferta(?: d[oa] ([\\p{L}\\p{N} —-]{1,160}))? e (?:o )?${freeShippingWords} nao podem ser usados juntos$`, "u");
+
+function normalized(value: string): string {
+  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+/** A false policy can substantiate a refusal to combine, but grants nothing.
+ * Match only complete declarative clauses. Questions, quotes, hypothetical or
+ * double-negative prose remain subject to the unchanged generic validator.
+ * Only the benefit words inside a matched denial are masked for validation;
+ * all other claims, percentages and sensitive data are still checked.
+ */
+function policySupportedStackingDenials(message: string, context: StorefrontMessageContext): string {
+  if (context.allowStackDiscountAndFreeShipping !== false) return message;
+  const framing = normalized(message);
+  if (/["'“”‘’«»`]/u.test(framing)
+    || /(?:^|[.!?\n]\s*)(?:hipotese|hipoteticamente|suponha|digamos|imagine|caso|se)\b/u.test(framing)
+    || /\b(?:nao e verdade|isso e falso|ao contrario)\b/u.test(framing)) return message;
+  return message.replace(/[^.!?\r\n]+[.!?]?/g, clause => {
+    const plain = normalized(clause).replace(/[*_~]/g, "").trim().replace(/^🤖\s*/, "").replace(/[.!]$/, "").trim();
+    if (/["'“”‘’«»`:;?()[\]{}]/u.test(plain)) return clause;
+    const joint = plain.match(jointStackingDenial);
+    const productName = joint?.[1];
+    if (productName && /\b(?:nao|sem|nem|nunca|se|caso|que|verdade|proibido|permitido|talvez)\b/u.test(productName)) return clause;
+    if (!directStackingDenial.test(plain) && !benefitStackingDenial.test(plain) && !joint) return clause;
+    return clause.replace(/frete gr[áa]tis|frete gratuito|envio gr[áa]tis|free shipping/gi, "esses benefícios");
+  });
+}
+
 export function validateStorefrontMessage(
   message: string,
   context: StorefrontMessageContext = {}
@@ -40,9 +75,18 @@ export function validateStorefrontMessage(
     shippingDiscountAuthorized: context.shippingDiscountAuthorized ?? false
   };
 
-  const result: ValidationResult = validateAssistantMessage(message, {
+  // These are affirmative zero-cost promises despite containing "não".
+  // A denial exception must never turn them into authorized shipping.
+  if (!validatorOptions.freeShippingAuthorized && /\bnao (?:(?:precisa|precisara|precisam|precisarao) pagar (?:o )?frete|ha (?:taxa|cobranca|custo) (?:de|do) frete)\b/.test(normalized(message).replace(/[*_~]/g, ""))) {
+    return { safe: false, message: getRandomFallback(), reason: "unauthorized_shipping_claim" };
+  }
+
+  const maximum = context.maxLength ?? 2000;
+  const validationMessage = message.length <= maximum ? policySupportedStackingDenials(message, context) : message;
+
+  const result: ValidationResult = validateAssistantMessage(validationMessage, {
     ...validatorOptions,
-    maxLength: context.maxLength ?? 2000
+    maxLength: maximum
   } as any);
 
   if (result.safe) {

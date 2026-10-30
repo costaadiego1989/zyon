@@ -100,7 +100,7 @@ export class PrismaPlatformCommerceRepository implements PlatformCommerceReposit
 
   async merchantRanking(input: { from: Date; to: Date; sort: "sales" | "ai_cost" | "tokens"; limit: number }): Promise<PlatformMerchantRank[]> {
     const salesWhere: Prisma.CompletedOrderWhereInput = { status: { notIn: SALES_EXCLUDED_STATUSES }, completedAt: { gte: input.from, lt: input.to } };
-    const aiWhere = { startedAt: { gte: input.from, lt: input.to }, executionStatus: "succeeded" } as const;
+    const aiWhere = { startedAt: { gte: input.from, lt: input.to }, measurementOrigin: { in: ["server_http", "server_sideband"] }, payer: "platform", OR: [{ currency: "USD" }, { currency: null }] };
     const [salesRows, aiRows] = await Promise.all([
       this.prisma.completedOrder.groupBy({ by: ["merchantId"], where: salesWhere, _count: { _all: true }, _sum: { orderTotal: true } }),
       this.prisma.aiUsageEvent.groupBy({ by: ["merchantId", "costStatus"], where: aiWhere, _count: { _all: true }, _sum: { totalTokens: true, costMicros: true } }),
@@ -159,8 +159,8 @@ export class PrismaPlatformCommerceRepository implements PlatformCommerceReposit
   }
   private async shipmentFor(merchantId: string, externalOrderId: string) { return this.prisma.shipment.findUnique({ where: { merchantId_externalOrderId: { merchantId, externalOrderId } }, select: { carrier: true, status: true, trackingCode: true, trackingUrl: true, estimatedEta: true, deliveredAt: true } }); }
   private async aiAggregate(merchantId: string, channel: "chat" | "voice", period: { from: Date; to: Date }) {
-    const where = { merchantId, channel, startedAt: { gte: period.from, lt: period.to }, executionStatus: "succeeded" } as const;
-    const [known, unpriced] = await Promise.all([this.prisma.aiUsageEvent.aggregate({ where: { ...where, costStatus: { in: ["estimated", "provider_reported", "reconciled"] } }, _sum: { totalTokens: true, costMicros: true } }), this.prisma.aiUsageEvent.aggregate({ where: { ...where, costStatus: "unpriced" }, _count: { _all: true }, _sum: { totalTokens: true } })]);
+    const where = { merchantId, startedAt: { gte: period.from, lt: period.to }, measurementOrigin: { in: ["server_http", "server_sideband"] }, payer: "platform", costCenter: channel === "voice" ? { equals: "voice" } : { not: "voice" } };
+    const [known, unpriced] = await Promise.all([this.prisma.aiUsageEvent.aggregate({ where: { ...where, currency: "USD", costStatus: { in: ["estimated", "provider_reported", "reconciled"] } }, _sum: { totalTokens: true, costMicros: true } }), this.prisma.aiUsageEvent.aggregate({ where: { ...where, costStatus: "unpriced" }, _count: { _all: true }, _sum: { totalTokens: true } })]);
     return { totalTokens: BigInt(known._sum.totalTokens ?? 0) + BigInt(unpriced._sum.totalTokens ?? 0), knownCostMicros: known._sum.costMicros ?? 0n, unpricedEvents: unpriced._count._all };
   }
 }

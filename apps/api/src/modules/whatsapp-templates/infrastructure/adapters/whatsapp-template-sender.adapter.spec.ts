@@ -63,6 +63,15 @@ describe("Meta Cloud template sender", () => {
     assert.equal(old.requests.length, 0);
   });
 
+  test("a template notification carries its durable ledger ID to Meta receipts", async () => {
+    const h = harness();
+    const correlationId = "order_notification:" + "a".repeat(64);
+    const useCase = new SendWhatsAppMessageUseCase(h.templates, h.adapter, undefined, undefined, h.configs);
+    assert.equal((await useCase.execute({ merchantId: "m1", type: "cart_recovery", correlationId,
+      toPhone: input.toNumber, variables: { buyerName: "Ana", link: "https://store.test/recover" } })).status, "sent");
+    assert.equal(JSON.parse(String(h.requests[0].init?.body)).biz_opaque_callback_data, correlationId);
+  });
+
   for (const invalid of [null, { enabled: false }, { status: "DISCONNECTED" }, { provider: "TWILIO" }, { credentials: {} }]) {
     test("never falls back to platform credentials for an unavailable connection", async () => {
       const h = harness({ config: invalid as any });

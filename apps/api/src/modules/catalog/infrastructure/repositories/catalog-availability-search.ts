@@ -4,10 +4,12 @@ import type { SearchProductsInput } from "../../domain/ports/product-repository.
 import { isDigitalContentReady } from "../../domain/services/product-type-validation.js";
 import { validateFoodMetadata } from "../../domain/services/food-options-validation.js";
 import { isServiceOfferAvailable } from "../../domain/services/service-schedule.js";
+import { publicProductReviewsSql } from "./public-product-reviews.reader.js";
 
 const BROWSE_TERMS = new Set(["produtos", "produto", "tudo", "catálogo", "catalogo", "ver tudo", "todos", "listar", "mostrar", "*", "all", "ver produtos"]);
 const relations = {
   variants: { include: { price: true, stock: true, media: { orderBy: { order: "asc" as const } } } },
+  reviews: { where: { approved: true, OR: [{ moderationStatus: null }, { moderationStatus: "approved" }] }, select: { rating: true } },
 };
 
 /** Availability is applied before count/pagination, including accent matches.
@@ -53,8 +55,18 @@ export async function searchAvailableCatalog(prisma: PrismaClient, input: Search
     const active = input.status === "inactive" ? Prisma.sql`AND NOT p.is_active`
       : input.inStockOnly || input.isActiveOnly || input.status === "active" ? Prisma.sql`AND p.is_active` : Prisma.empty;
     const price = Prisma.sql`
+      ${input.currency ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND pr.currency = ${input.currency})` : Prisma.empty}
       ${input.minPriceCents != null ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND pr.base_price_in_cents >= ${input.minPriceCents})` : Prisma.empty}
       ${input.maxPriceCents != null ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND pr.base_price_in_cents <= ${input.maxPriceCents})` : Prisma.empty}`;
+    const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const normalizedSql = (expression: Prisma.Sql) => Prisma.sql`lower(trim(regexp_replace(normalize(${expression}, NFD), '[\u0300-\u036f]', '', 'g')))`;
+    const attributes = input.attributes?.length ? Prisma.join(input.attributes.map(condition => Prisma.sql`AND EXISTS (
+      SELECT 1 FROM jsonb_each_text(CASE WHEN jsonb_typeof(v.attributes) = 'object' THEN v.attributes ELSE '{}'::jsonb END) attribute
+      WHERE ${normalizedSql(Prisma.sql`attribute.key`)} = ${normalized(condition.name)}
+        AND ${condition.operator === "equals"
+          ? Prisma.sql`${normalizedSql(Prisma.sql`attribute.value`)} = ${normalized(condition.value)}`
+          : Prisma.sql`${normalizedSql(Prisma.sql`attribute.value`)} <> ${normalized(condition.value)}`}
+    )`), " ") : Prisma.empty;
     const available = input.inStockOnly ? Prisma.sql`AND (
       (p.type = 'service' AND p.id = ANY(${readyServiceIds}::text[]))
       OR (p.type = 'digital' AND p.id = ANY(${readyDigitalIds}::text[]))
@@ -63,36 +75,67 @@ export async function searchAvailableCatalog(prisma: PrismaClient, input: Search
         FROM product_stock s WHERE s.variant_id = v.id
       ) > 0)
     )` : Prisma.empty;
+    const eligibleVariant = Prisma.sql`v.product_id = p.id AND v.is_active ${price} ${available} ${input.attributes?.length ? attributes : Prisma.empty}`;
+    const rating = Prisma.sql`(SELECT avg(r.rating) FROM public_reviews r WHERE r.product_id = p.id)`;
+    const publicReviews = Prisma.sql`public_reviews AS (${publicProductReviewsSql(input.merchantId)})`;
     const where = Prisma.sql`
       p.merchant_id = ${input.merchantId} AND p.deleted_at IS NULL ${active}
       ${category} ${text}
+      ${input.minRating !== undefined ? Prisma.sql`AND ${rating} >= ${input.minRating}` : Prisma.empty}
       AND EXISTS (
         SELECT 1 FROM product_variants v
-        WHERE v.product_id = p.id AND v.is_active ${price} ${available}
+        WHERE ${eligibleVariant}
       )`;
     // Use the database timestamp for the cursor, preserving sub-millisecond
     // precision and a stable ID tie-breaker for products created together.
-    const afterCursor = input.cursor && input.offset == null ? Prisma.sql`
+    const rankedSort = input.sortBy && input.sortBy !== "newest";
+    const afterCursor = !rankedSort && input.cursor && input.offset == null ? Prisma.sql`
       AND (p.created_at, p.id) < (
         SELECT c.created_at, c.id FROM products c
         WHERE c.id = ${input.cursor} AND c.merchant_id = ${input.merchantId}
       )` : Prisma.empty;
     const offset = Math.max(0, Math.trunc(input.offset ?? 0));
-    const ids = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-      SELECT p.id FROM products p WHERE ${where} ${afterCursor}
+    const sortPrice = Prisma.sql`(SELECT min(pr.base_price_in_cents) FROM product_variants v
+      JOIN product_prices pr ON pr.variant_id = v.id WHERE ${eligibleVariant})`;
+    const ordering = input.sortBy === "price_asc" ? Prisma.sql`sort_price ASC, created_at DESC, id DESC`
+      : input.sortBy === "price_desc" ? Prisma.sql`sort_price DESC, created_at DESC, id DESC`
+        : Prisma.sql`sort_rating DESC NULLS LAST, created_at DESC, id DESC`;
+    // Rank the complete eligible set before slicing, including tie-breakers.
+    // Cursor lookup stays in the same tenant and exact filtered candidate set.
+    type Hit = { id: string; average_rating: number | null; review_count: number };
+    const reviewCount = Prisma.sql`(SELECT count(*)::integer FROM public_reviews r WHERE r.product_id = p.id)`;
+    const ids = await tx.$queryRaw<Hit[]>(rankedSort ? Prisma.sql`
+      WITH ${publicReviews}, candidates AS (
+        SELECT p.id, p.created_at, ${sortPrice} AS sort_price, ${rating} AS sort_rating, ${reviewCount} AS review_count
+        FROM products p WHERE ${where}
+      ), ranked AS (
+        SELECT *, row_number() OVER (ORDER BY ${ordering}) AS position FROM candidates
+      )
+      SELECT id, sort_rating::double precision AS average_rating, review_count FROM ranked
+      ${input.cursor && input.offset == null ? Prisma.sql`WHERE position > coalesce((SELECT position FROM ranked WHERE id = ${input.cursor}), 9223372036854775807)` : Prisma.empty}
+      ORDER BY position LIMIT ${limit + 1} OFFSET ${offset}
+    ` : Prisma.sql`
+      WITH ${publicReviews}
+      SELECT p.id, ${rating}::double precision AS average_rating, ${reviewCount} AS review_count FROM products p WHERE ${where} ${afterCursor}
       ORDER BY p.created_at DESC, p.id DESC LIMIT ${limit + 1} OFFSET ${offset}
     `);
     const [count] = await tx.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
+      WITH ${publicReviews}
       SELECT count(*) AS total FROM products p WHERE ${where}
     `);
     const pageIds = ids.slice(0, limit).map(p => p.id);
     const rows = pageIds.length ? await tx.product.findMany({
-      where: { merchantId: input.merchantId, id: { in: pageIds } }, include: relations,
+      where: { merchantId: input.merchantId, id: { in: pageIds } }, include: {
+        ...relations,
+        reviews: { ...relations.reviews, where: { ...relations.reviews.where,
+          AND: [{ OR: [{ merchantId: input.merchantId }, { merchantId: null }] }] } },
+      },
     }) : [];
     const order = new Map(pageIds.map((id, index) => [id, index]));
     rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
     return {
       rows,
+      publicRatings: new Map(ids.map(hit => [hit.id, { averageRating: hit.average_rating == null ? undefined : Number(hit.average_rating), reviewCount: Number(hit.review_count ?? 0) }])),
       total: Number(count.total),
       nextCursor: ids.length > limit ? pageIds[pageIds.length - 1] : undefined,
     };

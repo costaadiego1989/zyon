@@ -1,3 +1,4 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards, Inject, Optional, BadRequestException } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
@@ -362,7 +363,7 @@ Regras:
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 15000);
 
-        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
+        const res = await meteredAiFetch("catalog_generation")(`${provider.baseUrl}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
           body: JSON.stringify({

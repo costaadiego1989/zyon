@@ -47,6 +47,7 @@ import { PaymentModule } from "../payment/payment.module.js";
     M2mController,
     M2MManagementController,
   ],
+  exports: [NEGOTIATION_STORE, ApplyNegotiationAgreementToCheckoutUseCase],
   providers: [
     BillingPlanMeteringService,
     PlanLimitGuard,

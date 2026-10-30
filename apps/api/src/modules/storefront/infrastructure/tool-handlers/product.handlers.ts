@@ -16,6 +16,12 @@ import { loadProductNoticeRules, productRuleNotices } from "../product-rule-noti
 import { productGallery } from "../product-gallery.js";
 import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
 import { contextualProductQuery, contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
+import { salesSearchMaxPrice } from "../../domain/services/sales-search-policy.js";
+import { shoppingSearchPlanSchema } from "../../domain/contracts/shopping-search-plan.schemas.js";
+import { shoppingSearchEvidence } from "../../application/services/shopping-search-evidence.js";
+import { resolveComparisonNames } from "./comparison-product-name.js";
+import { createShoppingRecommendationReader } from "./shopping-recommendation.handler.js";
+import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 
 import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
@@ -35,15 +41,35 @@ export interface ProductHandlerDeps {
 export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "searchProducts" | "getProductDetails" | "compareProducts" | "getProductAvailability" | "getSimilarProducts" | "getDailyDeals" | "listCategories"> {
   return {
     searchProducts: async (args) => {
-      const query = contextualProductQuery(args.query, ctx.userMessage);
+      const parsedPlan = args.criteria === undefined ? undefined : shoppingSearchPlanSchema.safeParse(args.criteria);
+      if (parsedPlan && !parsedPlan.success) return { error: "shopping_search_plan_invalid" };
+      const plan = !args.lookupOnly && parsedPlan?.success ? parsedPlan.data : undefined;
+      // Declared, unsupported requirements must never degrade into broad matches.
+      if (plan && (plan.delivery || plan.unsupportedCriteria.length)) return {
+        products: [], nextCursor: null, query: plan.query, searchEvidence: shoppingSearchEvidence(plan, 0),
+      };
+      if (!args.lookupOnly && (args.sortBy === "best_sellers" || args.sortBy === "discount")) {
+        const unavailable = shoppingSearchPlanSchema.parse({ version: 1, query: plan?.query ?? args.query ?? "*",
+          unsupportedCriteria: [args.sortBy === "best_sellers" ? "mais vendidos" : "maior desconto"] });
+        return { products: [], nextCursor: null, query: unavailable.query, searchEvidence: shoppingSearchEvidence(unavailable, 0) };
+      }
+      // The buyer's explicit ceiling is authoritative, including its currency
+      // conversion. A model sending 100 for R$100 must not silently mean R$1.
+      const maxPrice = args.lookupOnly ? undefined : plan ? plan.maxPriceCents : salesSearchMaxPrice(ctx.userMessage ?? "") ?? args.maxPrice;
+      const query = args.lookupOnly ? args.criteria?.query ?? args.query : plan ? plan.query : contextualProductQuery(args.query, ctx.userMessage);
+      const sortBy = plan?.sortBy ?? (args.sortBy !== "best_sellers" && args.sortBy !== "discount" ? args.sortBy : undefined);
       const contextual = !!query && contextualSearchGroups(query).length > 0;
       const result = await deps.productRepo.search({
         merchantId: ctx.merchantId,
         query,
         queryMode: contextual ? "contextual" : undefined,
         categoryId: args.categoryId,
-        maxPriceCents: args.maxPrice,
-        inStockOnly: args.inStockOnly,
+        maxPriceCents: maxPrice,
+        ...(!args.lookupOnly && (plan?.minPriceCents ?? args.minPrice) !== undefined ? { minPriceCents: plan?.minPriceCents ?? args.minPrice } : {}),
+        ...(!args.lookupOnly && (plan?.minRating ?? args.minRating) !== undefined ? { minRating: plan?.minRating ?? args.minRating } : {}),
+        ...(!args.lookupOnly && sortBy ? { sortBy } : {}),
+        ...(plan ? { attributes: plan.attributes.filter(item => item.priority === "required" || item.operator === "not_equals").map(({ priority: _priority, ...item }) => item), currency: "BRL" as const } : {}),
+        inStockOnly: args.lookupOnly ? false : plan ? true : args.inStockOnly,
         isActiveOnly: true,
         cursor: args.cursor,
         limit: Math.min(args.limit ?? 10, 20)
@@ -81,17 +107,18 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       }));
 
       const federatedSearch = deps.searchFederatedProducts;
-      const shouldSearchMarketplace = localProducts.length === 0 && federatedSearch && query && query !== "*";
+      const shouldSearchMarketplace = !args.lookupOnly && !plan && args.minPrice === undefined && args.minRating === undefined && !args.sortBy
+        && localProducts.length === 0 && federatedSearch && query && query !== "*";
       if (shouldSearchMarketplace && federatedSearch) {
         try {
           const marketplaceResult = await federatedSearch.execute({
             query: query!,
             hostMerchantId: ctx.merchantId,
             limit: Math.min(args.limit ?? 5, 10),
-            maxPriceCents: args.maxPrice,
+            maxPriceCents: maxPrice,
           });
           const rawProducts = (marketplaceResult.products ?? []).filter(p => p.stockAvailable && p.currency === "BRL"
-            && (args.maxPrice === undefined || p.priceCents <= args.maxPrice));
+            && (maxPrice === undefined || p.priceCents <= maxPrice));
           const sellerIds = [...new Set(rawProducts.map(p => p.sourceMerchantId))];
           const sellerNames: Record<string, string> = {};
           for (const sid of sellerIds) {
@@ -131,6 +158,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       return {
         products: localProducts,
         nextCursor: result.nextCursor, query, categoryId: args.categoryId,
+        ...(plan ? { searchEvidence: shoppingSearchEvidence(plan, localProducts.length) } : {}),
         ...(contextual && !localProducts.length ? { note: "Não encontrei produtos correspondentes. Pode detalhar o que procura?" } : {}),
       };
     },
@@ -181,7 +209,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           : cart;
         crossSellSuggestions = await buildCrossSellSuggestions(deps, ctx.merchantId, crossSellCart, config, product.name);
       }
-      return {
+      const details = {
         crossSellSuggestions,
         crossSellDisplayMode: crossSellSuggestions.length > 0 ? config?.display?.mode : undefined,
         product: {
@@ -201,6 +229,32 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           reviewCount: product.reviewCount
         }
       };
+      try {
+        // Native product controls are hydrated with a separate detail read.
+        // Revalidate the one-item price here too, so a confirmed offer is not
+        // replaced with its catalog basis when opening that card. No cart,
+        // coupon or stock writer participates in this independent quote.
+        const quote = createShoppingRecommendationReader(deps, ctx, async () => ({
+          products: [{ ...details.product, price: product.defaultVariant?.basePriceInCents ?? 0, source: "local" }], nextCursor: null,
+        }));
+        const priced = storefrontToolOutputSchemas.search_products.parse(await quote({
+          criteria: shoppingSearchPlanSchema.parse({ version: 1, query: product.name }), limit: 1,
+        })).products.find(candidate => candidate.id === product.id);
+        if (priced) {
+          const originals = new Map(product.variants.map(variant => [variant.id, variant]));
+          const confirmed = (priced.variants ?? []).flatMap(variant => {
+            const original = originals.get(variant.id);
+            return original ? [{ ...original, price: variant.price }] : [];
+          });
+          const confirmedIds = new Set(confirmed.map(variant => variant.id));
+          return { ...details, product: { ...details.product,
+            // The reader orders eligible variants by their confirmed price.
+            // Keep that selected offer first when native details are hydrated.
+            variants: [...confirmed, ...product.variants.filter(variant => !confirmedIds.has(variant.id))],
+          } };
+        }
+      } catch { /* Unknown offer eligibility leaves only the published basis. */ }
+      return details;
     },
 
     compareProducts: async (args) => {
@@ -212,15 +266,19 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
 
       const products = (await Promise.all(
         productIds.map((id) => deps.productRepo.findById(ctx.merchantId, id)),
-      )).filter((product): product is NonNullable<typeof product> => Boolean(product?.isActive));
+      )).filter((product): product is NonNullable<typeof product> => Boolean(product?.isActive && product.merchantId === ctx.merchantId));
 
-      const missingProductNames: string[] = [];
-      for (const productName of productNames) {
-        const result = await deps.productRepo.search({ merchantId: ctx.merchantId, query: productName, isActiveOnly: true, limit: 10 });
-        const exactMatch = result.products.find((product) => normalizeProductName(product.name) === normalizeProductName(productName));
-        if (exactMatch && !products.some((product) => product.id === exactMatch.id)) products.push(exactMatch);
-        else if (!exactMatch) missingProductNames.push(productName);
+      const nameResolution = productNames.length ? await resolveComparisonNames(deps.productRepo, ctx.merchantId, productNames) : [];
+      for (const resolved of nameResolution) {
+        if (resolved.status !== "resolved") continue;
+        const candidate = resolved.candidates[0]!;
+        const product = await deps.productRepo.findById(ctx.merchantId, candidate.id);
+        if (!product?.isActive || product.merchantId !== ctx.merchantId
+          || product.id !== candidate.id || product.name !== candidate.name) {
+          resolved.status = "limited"; resolved.candidates = []; delete resolved.candidateCount;
+        } else if (!products.some(item => item.id === product.id)) products.push(product);
       }
+      const missingProductNames = nameResolution.filter(item => item.status === "not_found").map(item => item.requestedName);
 
       const requestedCount = productIds.length + productNames.length;
       const baseProduct = products[0];
@@ -236,6 +294,8 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         comparison: products.map((product) => ({
           id: product.id,
           name: product.name,
+          description: product.description?.slice(0, 4000) || undefined,
+          ...(product.description && product.description.length > 4000 ? { descriptionTruncated: true } : {}),
           price: product.defaultVariant?.basePriceInCents ?? 0,
           attributes: product.defaultVariant?.attributes ?? {},
           stock: product.totalStock,
@@ -244,7 +304,10 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         })),
         requestedProductNames: productNames,
         missingProductNames,
-        requiresProductNames: products.length < 2,
+        nameResolution,
+        ...(nameResolution.some(item => item.status === "limited") ? { message: "A identificação por nome ficou incompleta. Escolha os produtos no catálogo para comparar; não confirmei que estejam ausentes." }
+          : nameResolution.some(item => item.status === "ambiguous") ? { message: "Há mais de um produto com esse nome. Peça ao comprador para escolher entre os nomes publicados antes de comparar." } : {}),
+        requiresProductNames: products.length < 2 || nameResolution.some(item => item.status !== "resolved"),
       };
     },
 
@@ -320,7 +383,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             createdAt: true, updatedAt: true },
         });
       } catch { promos = []; }
-      const deals: Array<{ id: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; images: string[]; inStock: boolean; coupon?: boolean }> = [];
+      const deals: Array<{ id: string; variantId: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; images: string[]; inStock: boolean; coupon?: boolean; expiresAt?: string; expiresAtFormatted?: string }> = [];
       if (!promos.length) return { deals };
       const merchantRules = await readExistingMerchantRules(deps.merchantRepo, ctx.merchantId).catch(() => undefined);
       if (!merchantRules) return { deals };
@@ -342,11 +405,16 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             { rules: merchantRules, costsByVariant: costs });
           const badge = meta.get(variant.id);
           if (!badge) continue;
+          const promotion = !badge.coupon && badge.promotionId
+            ? promos.find(row => row.id === badge.promotionId) : undefined;
           // Coupon-linked promotions remain badges only, never an inline grant.
           deals.push({
-            id: p.id, name: p.name, price: quote.items[0]!.unitPriceCents,
+            id: p.id, variantId: variant.id, name: p.name, price: quote.items[0]!.unitPriceCents,
             ...productGallery(p), inStock: p.hasStock,
             ...(badge.coupon ? { coupon: true } : { originalPrice: badge.originalPriceCents, discountPercent: badge.discountPercent }),
+            ...(promotion ? { expiresAt: promotion.endsAt.toISOString(),
+              expiresAtFormatted: `${new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo",
+                day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(promotion.endsAt)} (horário de Brasília)` } : {}),
           });
           if (deals.length >= limit) break;
         } catch { /* No authorized price => no deal to advertise. */ }
@@ -378,13 +446,4 @@ function uniqueStrings(values: unknown[]): string[] {
     .filter((value): value is string => typeof value === "string")
     .map((value) => value.trim())
     .filter(Boolean))];
-}
-
-function normalizeProductName(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("pt-BR")
-    .replace(/\s+/g, " ")
-    .trim();
 }

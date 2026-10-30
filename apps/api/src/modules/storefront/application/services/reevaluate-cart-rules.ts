@@ -107,6 +107,11 @@ export async function reevaluateCartRules(
       setProductPromoBadge(promoMeta, projected.items, item, { originalPriceCents: item.pricingOriginalUnitPriceCents });
     return { cart: projected, promoMeta, nextNudge: null, activeRules: [] };
   }
+  // An empty cart without a benefit has nothing to reprice or revoke. Do not
+  // turn zero-subtotal rule evaluation into a fictitious rejected benefit.
+  if (!cart.items.length && !cart.couponCode && !cart.discount && !cart.freeShipping) {
+    return { cart: { ...cart, commercialNotices: [] }, promoMeta: new Map(), nextNudge: null, activeRules: [] };
+  }
   try {
     const advancedRules = await loadAdvancedRules(deps.prisma, merchantId);
     const projected = structuredClone(cart);

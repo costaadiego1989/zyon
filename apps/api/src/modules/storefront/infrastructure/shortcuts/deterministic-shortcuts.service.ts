@@ -301,12 +301,12 @@ async function resolveDetailsShortcut(
  * (which sometimes fails to emit the tool call). The discount is authorized
  * server-side by the coupon use-case; this shortcut only parses the code.
  */
-async function resolveCouponShortcut(
-  deps: DeterministicShortcutDeps,
+export async function resolveCouponShortcut(
+  deps: Pick<DeterministicShortcutDeps, "applyCoupon" | "getCartBlock">,
   input: StorefrontConversationInput,
   normalizedMsg: string,
 ): Promise<StorefrontConversationOutput | null> {
-  if (!deps.applyCoupon) return null;
+  if (input.attachmentContext || input.uiAction || !deps.applyCoupon) return null;
   // Accept "aplicar cupom XPTO", "usar cupom XPTO", "cupom XPTO" (code = alnum, 3-32).
   const m = normalizedMsg.match(/^(?:aplicar|usar|use|quero(?:\s+usar)?)?\s*cupom\s+([a-z0-9][a-z0-9._-]{2,31})$/i);
   if (!m) return null;

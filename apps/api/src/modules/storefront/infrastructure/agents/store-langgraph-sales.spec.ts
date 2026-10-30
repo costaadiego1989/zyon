@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { OpenRouterChatRequest, OpenRouterProvider } from "@zyon/conversation-engine";
-import { StorefrontLangGraphAgent } from "./store-langgraph-agent.js";
+import { createAllowedScopeAgent as createScopeAgent } from "./storefront-scope.fixture.js";
 import { storefrontQuickReplies } from "../../domain/services/storefront-quick-replies.service.js";
 import { ensureProductDiscovery } from "./product-discovery-fallback.js";
 import { contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
 import { normalizeSalesText } from "../../domain/services/sales-recommendation-intent.js";
 
+const createAllowedScopeAgent = (deps: Parameters<typeof createScopeAgent>[0]) => createScopeAgent(deps, { domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", requiresTool: true, needsProductDiscovery: true });
 const usage = { promptTokens: 20, completionTokens: 10, totalTokens: 30 };
 
 test("known skin profile skips the objective interview and discloses related results without a second model call", async () => {
@@ -19,7 +20,7 @@ test("known skin profile skips the objective interview and discloses related res
       assert.equal(request.tools?.some(tool => tool.function.name === "ask_product_preferences"), false);
       return { content: "", toolCalls: [{ id: "lookup", name: "search_products", args: { query: "pele oleosa" } }], usage };
     };
-    const agent = new StorefrontLangGraphAgent({ provider: { chat: failover ? async () => { throw Error("unavailable"); } : respond } as any,
+    const agent = createAllowedScopeAgent({ provider: { chat: failover ? async () => { throw Error("unavailable"); } : respond } as any,
       fallbackProvider: { chat: respond } as any, toolHandlers: { searchProducts: async (args: any) => {
         queries.push(args.query);
         const description = "Bruma facial de hidratação leve";
@@ -39,7 +40,7 @@ test("known skin profile skips the objective interview and discloses related res
 });
 
 test("a legacy plain-text goal question cannot prevent searching once the skin profile is known", async () => {
-  const agent = new StorefrontLangGraphAgent({ provider: { chat: async () => ({ content: "Qual é seu objetivo?", toolCalls: [], usage }) } as any,
+  const agent = createAllowedScopeAgent({ provider: { chat: async () => ({ content: "Qual é seu objetivo?", toolCalls: [], usage }) } as any,
     toolHandlers: {} as any });
   const history: Array<{ role: "user" | "assistant"; content: string }> = [
     { role: "user", content: "Quero um produto para pele" }, { role: "assistant", content: "Como é sua pele?" },
@@ -62,7 +63,7 @@ test("a buying need cannot authorize a substituted item, regardless of model too
       { id: "add", name: "add_item_to_cart", args: { cartId: "qa", variantId: "black", quantity: 1 } },
       { id: "checkout", name: "create_checkout_session", args: { cartId: "qa" } },
     ];
-    const agent = new StorefrontLangGraphAgent({ provider: { chat: async () => ({ content: "", toolCalls: reversed ? [...commands].reverse() : commands, usage }) } as any,
+    const agent = createAllowedScopeAgent({ provider: { chat: async () => ({ content: "", toolCalls: reversed ? [...commands].reverse() : commands, usage }) } as any,
       toolHandlers: { searchProducts: async () => ({ products: ++reads === 1 ? [] : [
         { id: "black", name: "Tênis de corrida preto", price: 18000, inStock: true, variants: [], images: [] },
       ] }), addItemToCart: async () => { writes++; return {}; }, createCheckoutSession: async () => { writes++; return {}; } } as any });
@@ -80,7 +81,7 @@ test("vague purchase instructions survive primary and fallback routing without l
       requests.push(request);
       return { content: "Claro! Você já tem algo em mente ou quer ajuda para escolher?", toolCalls: [], usage };
     };
-    const agent = new StorefrontLangGraphAgent({
+    const agent = createAllowedScopeAgent({
       provider: { chat: failover ? async () => { throw Error("primary_unavailable"); } : respond } as unknown as OpenRouterProvider,
       fallbackProvider: { chat: respond } as unknown as OpenRouterProvider,
       toolHandlers: {} as never,
@@ -100,7 +101,7 @@ test("vague purchase instructions survive primary and fallback routing without l
 
 test("a disobedient provider cannot turn an object-free purchase into an arbitrary cart write", async () => {
   let writes = 0;
-  const agent = new StorefrontLangGraphAgent({
+  const agent = createAllowedScopeAgent({
     provider: { chat: async () => ({ content: "", toolCalls: [{ id: "wrong_add", name: "add_item_to_cart", args: { cartId: "qa", variantId: "arbitrary", quantity: 1 } }], usage }) } as unknown as OpenRouterProvider,
     toolHandlers: { addItemToCart: async () => { writes++; return { cartId: "qa", items: [{ variantId: "arbitrary", quantity: 1 }] }; } } as never,
   });
@@ -112,7 +113,7 @@ test("a disobedient provider cannot turn an object-free purchase into an arbitra
 
 test("specific follow-ups keep the need and budget history without receiving the vague-turn restriction", async () => {
   let seen: OpenRouterChatRequest | undefined;
-  const agent = new StorefrontLangGraphAgent({ provider: { chat: async (request: OpenRouterChatRequest) => {
+  const agent = createAllowedScopeAgent({ provider: { chat: async (request: OpenRouterChatRequest) => {
     seen = request;
     return { content: "Vou considerar a hidratação e suas preferências na seleção.", toolCalls: [], usage };
   } } as unknown as OpenRouterProvider, toolHandlers: {} as never });
@@ -140,7 +141,7 @@ test("product-result guidance reaches primary and fallback replies without an ad
       assert.match(request.messages.at(-1)!.content, /Volume não informa embalagem/);
       return { content: "Esta opção tem textura leve e não contém perfume. Quer ver os detalhes?", toolCalls: [], usage };
     };
-    const agent = new StorefrontLangGraphAgent({ provider: { chat: failover ? async () => { throw Error("primary_unavailable"); } : respond } as unknown as OpenRouterProvider,
+    const agent = createAllowedScopeAgent({ provider: { chat: failover ? async () => { throw Error("primary_unavailable"); } : respond } as unknown as OpenRouterProvider,
       fallbackProvider: { chat: respond } as unknown as OpenRouterProvider,
       toolHandlers: { searchProducts: async () => ({ products: [{ id: "qa", name: "Hidratante QA", price: 7900, inStock: true, variants: [], images: [], description: "Textura leve, sem perfume" }] }) } as never,
     });
@@ -178,7 +179,7 @@ test("three useful discovery rounds carry coherent answer choices and then searc
     };
     const handlers:any={searchProducts:async(args:any)=>{searches++;assert.match(args.query,/oleosa.*sem perfume/);return {products:[{id:"qa",name:"Hidratante QA",price:7900,inStock:true,variants:[],images:[]}]};},
       addItemToCart:async()=>assert.fail("consultation cannot mutate cart"),createCheckoutSession:async()=>assert.fail("consultation cannot start checkout")};
-    const agent=new StorefrontLangGraphAgent({provider:{chat:failover?async()=>{throw Error("primary_unavailable");}:respond} as unknown as OpenRouterProvider,
+    const agent=createAllowedScopeAgent({provider:{chat:failover?async()=>{throw Error("primary_unavailable");}:respond} as unknown as OpenRouterProvider,
       fallbackProvider:{chat:respond} as unknown as OpenRouterProvider,toolHandlers:handlers});
     for(const [index,userMessage] of ["Quero um produto para pele","Não sei","Hidratação","Sem perfume"].entries()){
       const result=await agent.run({merchantId:"qa",sessionId:"qa",storeCategory:"electronics",history:[...history],userMessage});
@@ -204,7 +205,7 @@ test("three useful discovery rounds carry coherent answer choices and then searc
 test("direct actions and attachments never expose the discovery tool",async()=>{
   for(const [userMessage,attachmentContext] of [["Ver Produtos",undefined],["Quero comprar este produto",undefined],["Finalizar compra",undefined],
     ["Detalhes desse produto",undefined],["Quero produto para pele","Extracted list"]]){
-    const agent=new StorefrontLangGraphAgent({provider:{chat:async(request:OpenRouterChatRequest)=>{
+    const agent=createAllowedScopeAgent({provider:{chat:async(request:OpenRouterChatRequest)=>{
       assert.equal(request.tools?.some(tool=>tool.function.name==="ask_product_preferences"),false,userMessage);
       return {content:"Entendido.",toolCalls:[],usage};
     }} as unknown as OpenRouterProvider,toolHandlers:{} as never});
@@ -214,7 +215,7 @@ test("direct actions and attachments never expose the discovery tool",async()=>{
 
 test("a malformed question can be corrected in the next tool call without running commerce tools",async()=>{
   let calls=0;
-  const agent=new StorefrontLangGraphAgent({provider:{chat:async()=>({content:"",toolCalls:[{id:`question_${++calls}`,name:"ask_product_preferences",
+  const agent=createAllowedScopeAgent({provider:{chat:async()=>({content:"",toolCalls:[{id:`question_${++calls}`,name:"ask_product_preferences",
     args:calls===1?{question:"Qual a pele? E o objetivo?",replies:[]}:{question:"Qual seu objetivo?",replies:["Hidratação","Ver Carrinho"]}}],usage})} as unknown as OpenRouterProvider,toolHandlers:{} as never});
   const result=await agent.run({merchantId:"qa",sessionId:"qa",storeCategory:"others",history:[],userMessage:"Quero produto para pele"});
   assert.equal(calls,2);
@@ -228,7 +229,7 @@ test("empty recommendation search budgets and buyer constraints survive primary-
     let fallbackCalls=0;
     const searches:any[]=[];
     const respond=(id:string)=>({content:"",toolCalls:[{id,name:"search_products",args:{query:"hidratante",limit:20,maxPrice:50000}}],usage});
-    const agent=new StorefrontLangGraphAgent({provider:{chat:async()=>{
+    const agent=createAllowedScopeAgent({provider:{chat:async()=>{
       primaryCalls++;
       if(failover && primaryCalls===2) throw Error("primary_unavailable");
       return respond(`primary_${primaryCalls}`);
@@ -250,7 +251,7 @@ test("exhausted provider loops with confirmed matches introduce the results inst
   for (const failover of [false, true]) {
     let searches = 0;
     const respond = async () => ({ content: "", toolCalls: [{ id: `lookup_${searches}`, name: "search_products", args: { query: "hidratante leve", limit: 3 } }], usage });
-    const agent = new StorefrontLangGraphAgent({
+    const agent = createAllowedScopeAgent({
       provider: { chat: failover ? async () => { throw Error("primary_unavailable"); } : respond } as unknown as OpenRouterProvider,
       fallbackProvider: { chat: respond } as unknown as OpenRouterProvider,
       toolHandlers: { searchProducts: async () => { searches++; return { products: [{ id: "qa", name: "Hidratante QA", price: 7900, inStock: true, variants: [], images: [], description: "Textura leve" }] }; } } as never,
@@ -272,7 +273,7 @@ test("a bare price objection cannot search and repeat the same cards before clar
       assert.match(request.messages[0]!.content, /faixa de valor confortável/);
       return { content: "", toolCalls: [{ id: "ignored_search", name: "search_products", args: { query: "hidratante" } }], usage };
     };
-    const agent = new StorefrontLangGraphAgent({
+    const agent = createAllowedScopeAgent({
       provider: { chat: failover ? async () => { throw Error("primary_unavailable"); } : respond } as unknown as OpenRouterProvider,
       fallbackProvider: { chat: respond } as unknown as OpenRouterProvider,
       toolHandlers: { searchProducts: async () => { searches++; return { products: [] }; } } as never,
@@ -291,7 +292,7 @@ test("a bare price objection cannot search and repeat the same cards before clar
 });
 
 test("a price objection during shipping does not become a product-discovery interview", async () => {
-  const agent = new StorefrontLangGraphAgent({ provider: { chat: async (request: OpenRouterChatRequest) => {
+  const agent = createAllowedScopeAgent({ provider: { chat: async (request: OpenRouterChatRequest) => {
     assert.ok(request.tools?.some(tool => tool.function.name === "quote_shipping"));
     assert.doesNotMatch(request.messages[0]!.content, /O comprador achou caro, mas não informou/);
     return { content: "Podemos conferir as opções de frete disponíveis.", toolCalls: [], usage };

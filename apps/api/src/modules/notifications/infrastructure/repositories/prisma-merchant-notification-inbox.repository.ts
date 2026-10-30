@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { CreateMerchantNotificationInput, MerchantNotificationContact, MerchantNotificationInboxPort } from "../../domain/ports/merchant-notification-inbox.port.js";
+import { merchantOrderNotificationPhone } from "../../domain/merchant-order-notification-phone.js";
 
 @Injectable()
 export class PrismaMerchantNotificationInboxRepository implements MerchantNotificationInboxPort {
@@ -53,7 +54,8 @@ export class PrismaMerchantNotificationInboxRepository implements MerchantNotifi
       supportEmail: settings.company?.email ?? merchant.budgetEmail ?? undefined,
       budgetEmail: merchant.budgetEmail ?? undefined,
       budgetWhatsapp: merchant.budgetWhatsapp ?? undefined,
-      whatsappPhone: connected ? (config?.whatsappNumber ?? config?.phoneNumber ?? settings.company?.phone ?? merchant.budgetWhatsapp ?? undefined) : undefined,
+      whatsappPhone: connected ? merchantOrderNotificationPhone(merchant.budgetWhatsapp, merchant.storeSettings,
+        config?.whatsappNumber ?? config?.phoneNumber) : undefined,
       whatsappConnected: connected,
     };
   }

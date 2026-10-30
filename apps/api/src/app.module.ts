@@ -1,4 +1,5 @@
 import { createHttpLoggerOptions } from "./shared/logger/http-logger.config.js";
+import { AiMeteringModule } from "./modules/ai-metering/ai-metering.module.js";
 import { Module } from "@nestjs/common";
 import { PlatformControlModule } from "./modules/platform-control/platform-control.module.js";
 import { PlatformOverviewModule } from "./modules/platform-overview/platform-overview.module.js";
@@ -31,6 +32,7 @@ import { FulfillmentModule } from "./modules/fulfillment/fulfillment.module.js";
 import { IntegrationsModule } from "./modules/integrations/integrations.module.js";
 import { SupportModule } from "./modules/support/support.module.js";
 import { BuyerAccountModule } from "./modules/buyer-account/buyer-account.module.js";
+import { BuyerShoppingAgentModule } from "./modules/buyer-shopping-agent/buyer-shopping-agent.module.js";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module.js";
 import { InstallationsModule } from "./modules/installations/installations.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
@@ -92,6 +94,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     IntegrationsModule,
     SupportModule,
     BuyerAccountModule,
+    BuyerShoppingAgentModule,
     OnboardingModule,
     InstallationsModule,
     AuditModule,
@@ -126,6 +129,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     AgenticProtocolModule,
     PublicApiModule,
     PlatformControlModule,
+    AiMeteringModule,
     PlatformOverviewModule,
     PlatformMerchantDirectoryModule,
     PlatformInfrastructureModule,

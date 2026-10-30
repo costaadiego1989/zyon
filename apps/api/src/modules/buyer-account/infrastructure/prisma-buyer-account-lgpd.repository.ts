@@ -21,6 +21,11 @@ import {
 export class PrismaBuyerAccountLgpdRepository implements BuyerAccountPort {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async listShoppingWorkspacesForExport(globalUserId: string): Promise<unknown[]> {
+    return this.prisma.buyerShoppingWorkspace.findMany({ where: { globalUserId },
+      select: { merchantId: true, state: true, createdAt: true, updatedAt: true }, orderBy: { createdAt: "asc" } });
+  }
+
   async countAccountsByGlobalUserId(globalUserId: string): Promise<number> {
     const client = this.prisma as unknown as {
       buyerAccount: {

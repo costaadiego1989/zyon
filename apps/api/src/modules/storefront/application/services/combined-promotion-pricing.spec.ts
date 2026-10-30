@@ -39,6 +39,15 @@ test("a projected snapshot cannot be promoted twice", async () => {
   assert.deepEqual(input, once);
 });
 
+test("a preserved historical discount does not carry a promotion identity without new savings", async () => {
+  const input = cart();
+  const first = await applyProductPromoPricing(repo(promo("original-offer", 10)), "m", input, authority());
+  assert.equal(first.get("v")?.promotionId, "original-offer");
+  const preserved = await applyProductPromoPricing(repo(), "m", input, authority());
+  assert.equal(input.total, 9000);
+  assert.equal(preserved.get("v")?.promotionId, undefined);
+});
+
 test("zero or absent policy cannot grant; unknown cost does not veto the ceiling", async () => {
   for (const options of [undefined, authority({ ...rules, maxDiscountPercent: 0 }), { rules, costsByVariant: new Map() }]) {
     const input = cart();

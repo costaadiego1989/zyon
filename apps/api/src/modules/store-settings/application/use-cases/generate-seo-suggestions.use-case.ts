@@ -1,3 +1,5 @@
+import { withAiAutomation } from "../../../../shared/ai-automation.js";
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject, Logger, BadRequestException } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -39,6 +41,7 @@ export class GenerateSeoSuggestionsUseCase {
     merchantId: string,
     input: GenerateSeoSuggestionsRequest,
   ): Promise<GenerateSeoSuggestionsResponse> {
+    return withAiAutomation({ merchantId, source: "store_seo", taskType: "store_seo", costCenter: "automation" }, async () => {
     if (!input.prompt || input.prompt.trim().length < 10) {
       throw new BadRequestException("Prompt must be at least 10 characters");
     }
@@ -73,7 +76,7 @@ Generate SEO metadata now.`;
     }
 
     try {
-      const response = await fetch(`${baseUrl}/chat/completions`, {
+      const response = await meteredAiFetch("store_seo")(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -109,6 +112,8 @@ Generate SEO metadata now.`;
       this.logger.error(`SEO generation failed for merchant ${merchantId}: ${(error as Error).message}`);
       return this.buildFallback(input.prompt.trim());
     }
+
+    });
   }
 
   private validateAndNormalize(raw: GenerateSeoSuggestionsResponse): GenerateSeoSuggestionsResponse {

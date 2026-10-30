@@ -45,6 +45,14 @@ const blocks = [
   { type: "wishlist", data: { items: [product] } },
   { type: "reviews", data: { productId: "book", productName: "Livro", averageRating: 5, totalReviews: 1, reviews: [{ id: "review", author: "Buyer", rating: 5, text: "Ótimo", date: "2026-10-16" }] } },
   { type: "add_review", data: { productId: "book", productName: "Livro" } },
+  { type: "review_submission", data: { productId: "book", reviewId: "review", status: "pending_moderation" } },
+  { type: "product_questions", data: { productId: "book", productName: "Livro", scope: "public_answered", filter: "answered",
+    questions: [{ id: "faq", question: "Qual material?", answer: "Papel." }], totalCount: 1 } },
+  { type: "question_submission", data: { productId: "book", ticketId: "ticket", questionMessageId: "question", status: "awaiting_answer" } },
+  { type: "buyer_product_questions", data: { productId: "book", productName: "Livro", scope: "buyer_history", filter: "mine",
+    questions: [{ id: "question", ticketId: "ticket", question: "Qual material?", date: "2026-10-29T12:00:00Z", answerState: "not_linked" }],
+    returnedCount: 1, hasMore: false, historyLimited: true } },
+  { type: "product_question_input", data: { productId: "book", productName: "Livro" } },
   { type: "cross_sell", data: { trigger: "similar", products: [{ ...product, promoId: "promo", discountPercent: 10 }] } },
   { type: "coupon_list", data: { coupons: [{ code: "CUPOM", description: "Promoção", expiresAt: null }] } },
   { type: "category_carousel", data: { categories: [{ id: "books", name: "Livros", productCount: 1 }] } },
@@ -104,14 +112,16 @@ test("schema: the context contract validates policy bounds and never accepts exe
 test("schema: actual server-built catalog, cart, shipping, promotion and category blocks remain valid", () => {
   const scenarios = [
     { search_products: { products: [{ id: "book", name: "Livro", price: 1500, inStock: true }] } },
-    { get_cart: { cartId: "conversation", itemCount: 1, total: 15, items: [{ variantId: "variant", name: "Livro", quantity: 1, unitPrice: 15 }] } },
-    { quote_shipping: { options: [{ carrier: "Carrier", name: "Normal", price: 500, days: 3 }] } },
-    { list_promotions: { coupons: [{ code: "CUPOM", description: "Promoção", expiresAt: null }] } },
+    { get_cart: { cartId: "conversation", itemCount: 1, total: 15, items: [{ variantId: "variant", name: "Livro", quantity: 1, unitPrice: 15, lineTotal: 15 }] } },
+    { quote_shipping: { referenceOnly: true, options: [{ carrier: "Carrier", name: "Normal", price: 500, days: 3, zipCode: "01001000" }],
+      reference: { id: "00000000-0000-4000-8000-000000000001", expiresAt: "2099-01-01T00:00:00.000Z", basisHash: "a".repeat(64),
+        configurationHash: "b".repeat(64), destinationZip: "01001000", addressSource: "requested_cep" } } },
+    { list_promotions: { coupons: [{ code: "CUPOM", type: "percent", value: 10, description: "Promoção", expiresAt: null }] } },
     { list_categories: { categories: [{ id: "books", name: "Livros", slug: "books", productCount: 1 }] } },
   ];
   for (const toolResults of scenarios) {
     const built = buildConversationBlocks({ toolResults, userMessage: "Ver opções", finalContent: "Confira.", merchantId: "merchant" });
-    assert.ok(built.blocks.length > 0);
+    assert.ok(built.blocks.length > 0, Object.keys(toolResults)[0]);
     for (const block of built.blocks) assert.equal(conversationBlockSchema.safeParse(block).success, true, JSON.stringify(block));
   }
 });

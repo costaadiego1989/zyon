@@ -4,6 +4,7 @@ export interface WhatsAppConversationPort {
     agentMessage: string; quickReplies: string[];
   }>;
   respondStore?(input: {
+    verifiedSender?: { inboxId: string; leaseToken: string; deviceId: string; fromNumber: string };
     merchantId: string; buyer: { globalUserId: string; phone: string; fullName?: string; email?: string };
     message: string; state: import("../ui/meta-ui.types.js").WhatsAppConversationState;
     attachmentContext?: string;

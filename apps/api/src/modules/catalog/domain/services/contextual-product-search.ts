@@ -1,4 +1,11 @@
 const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+// Shopping instructions and an independently enforced price ceiling are not
+// product attributes. Keep genuine negatives such as "sem perfume" intact.
+function productSearchText(text: string): string {
+  return text.replace(/\b(?:sem|n[aã]o)\s+(?:adicionar|adicione|adiciona|incluir|inclua|inclui|colocar|coloque|coloca)\s+(?:(?:nada|produtos?|itens?)\s+)?(?:ao|no)\s+carrinho(?:\s+por\s+enquanto)?\b/gi, " ")
+    .replace(/\b(?:at[eé]|m[aá]ximo(?: de)?|or[çc]amento(?: de)?|limite(?: de)?)\s*(?:R\$\s*)?\d+(?:[.,]\d+)*(?:\s*reais)?/gi, " ")
+    .replace(/\s+/g, " ").trim();
+}
 const browse = new Set(["*", "", "produto", "produtos", "ver produtos", "continuar comprando", "catalogo", "todos", "tudo", "all", "listar", "mostrar", "ver tudo"]);
 // Unknown profile data and absence of a preference are not negative product
 // attributes. This shared parser also runs in the real tool handler, after the
@@ -30,6 +37,8 @@ export function isCatalogBrowseQuery(query: string): boolean {
 /** Keep an expressed need when the model issues a generic catalog query.
  * Explicit browse actions have no userMessage and retain the entire catalog. */
 export function contextualProductQuery(query?: string, userMessage?: string): string | undefined {
+  query = query === undefined ? query : productSearchText(query);
+  userMessage = userMessage === undefined ? userMessage : productSearchText(userMessage);
   const requested = query != null && isCatalogBrowseQuery(query) ? "*" : query;
   if (!browse.has(normalize(requested ?? ""))) {
     const constraints = userMessage ? contextualSearchGroups(userMessage)
@@ -44,7 +53,7 @@ export function contextualProductQuery(query?: string, userMessage?: string): st
  * Preserve negated phrases rather than recommending their opposite. */
 export function contextualSearchGroups(query: string): string[][] {
   if (browse.has(normalize(query))) return [];
-  let text = normalize(query).replace(/[^\p{L}\p{N}\s-]/gu, " ");
+  let text = normalize(productSearchText(query)).replace(/[^\p{L}\p{N}\s-]/gu, " ");
   const phrases: string[][] = [];
   text = text.replace(/\b(sem|nao)\s+([\p{L}\p{N}-]+)/gu, match => {
     if (!conversationalNegations.has(match.replace(/\s+/g, " "))) phrases.push(match === "sem perfume" || match === "sem fragrancia"

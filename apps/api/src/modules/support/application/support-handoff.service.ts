@@ -2,7 +2,8 @@
  * SUPP-H3: Handoff logic — ticket creation + message formatting.
  */
 import { Inject, Injectable, Optional } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { appendSupportEvent, lockSupportResource, persistSupportMessage } from "./support-persistence.js";
 import type { SupportTicket } from "@zyon/shared-types";
@@ -12,6 +13,7 @@ import {
   type SupportTicketRepository,
 } from "../domain/ports/support-ticket-repository.port.js";
 import { SupportTicketEventPublisher } from "./support-ticket-event.publisher.js";
+import { productQuestionIntakeSchema, productQuestionMessageMetadataSchema, type BuyerProductQuestion } from "../domain/product-question-history.js";
 
 export interface HandoffInput {
   merchantId: string;
@@ -20,11 +22,14 @@ export interface HandoffInput {
   /** Set only from authenticated server context, never from model arguments. */
   buyerId?: string;
   initialMessage?: string;
+  /** Server-owned product identity, never inferred from author names or message prefixes. */
+  productQuestion?: { productId: string; questionText: string };
 }
 
 export interface HandoffResult {
   ticketId: string;
   reply: string;
+  questionMessageId?: string;
 }
 
 @Injectable()
@@ -60,6 +65,14 @@ export class SupportHandoffService {
 
   private async persistHandoff(input: HandoffInput, contextReply?: string): Promise<HandoffResult> {
     const candidate = SupportTicketEntity.create(input).snapshot();
+    const question = input.productQuestion ? productQuestionIntakeSchema.parse({ ...input.productQuestion,
+      buyerId: input.buyerId, sessionId: input.sessionId }) : undefined;
+    const persistInitial = async (tx: Prisma.TransactionClient, ticketId: string, content: string) => {
+      const id = question ? randomUUID() : undefined;
+      return persistSupportMessage(tx, { id, merchantId: input.merchantId, ticketId, senderType: "buyer", content,
+        ...(question && id ? { metadata: { ...question, kind: "product_question", schemaVersion: 1,
+          merchantId: input.merchantId, ticketId, questionMessageId: id } } : {}) });
+    };
     const result = await this.prisma!.$transaction(async tx => {
       const sessionId = candidate.sessionId;
       if (sessionId) await lockSupportResource(tx, `support-session:${candidate.merchantId}:${sessionId}`);
@@ -75,19 +88,64 @@ export class SupportHandoffService {
         const first = await tx.supportTicketMessage.findFirst({ where: { ticketId: previous.id }, select: { id: true } });
         if (!first) await persistSupportMessage(tx, { merchantId: candidate.merchantId, ticketId: previous.id,
           senderType: "buyer", content: previous.buyerMessage });
-        return { created: false, ticket: { ...candidate, id: previous.id, buyerMessage: previous.buyerMessage,
+        // Reusing an active case must preserve a newly supplied intake message.
+        // The same open-case lock serializes retries; identical intake text is
+        // recorded once without creating a second case or creation notification.
+        const initial = input.initialMessage?.trim();
+        const found = initial ? await tx.supportTicketMessage.findFirst({ where: { ticketId: previous.id, senderType: "buyer", content: initial,
+          ...(question ? { AND: [
+            { metadata: { path: ["kind"], equals: "product_question" } }, { metadata: { path: ["schemaVersion"], equals: 1 } },
+            { metadata: { path: ["merchantId"], equals: candidate.merchantId } }, { metadata: { path: ["ticketId"], equals: previous.id } },
+            { metadata: { path: ["productId"], equals: question.productId } }, { metadata: { path: ["buyerId"], equals: question.buyerId } },
+            { metadata: { path: ["sessionId"], equals: question.sessionId } }, { metadata: { path: ["questionText"], equals: question.questionText } },
+          ] } : {}) }, select: { id: true, metadata: true } }) : null;
+        const metadata = question ? productQuestionMessageMetadataSchema.safeParse(found?.metadata) : undefined;
+        const existing = question ? metadata?.success && metadata.data.questionMessageId === found?.id
+          && metadata.data.merchantId === candidate.merchantId && metadata.data.ticketId === previous.id
+          && metadata.data.productId === question.productId && metadata.data.buyerId === question.buyerId
+          && metadata.data.sessionId === question.sessionId && metadata.data.questionText === question.questionText ? found : null : found;
+        let questionMessageId = question ? existing?.id : undefined;
+        if (initial && !existing) {
+          const message = await persistInitial(tx, previous.id, initial);
+          if (question) questionMessageId = message.id;
+        }
+        return { created: false, questionMessageId, ticket: { ...candidate, id: previous.id, buyerMessage: previous.buyerMessage,
           status: previous.status as "open" | "in_progress", createdAt: previous.createdAt.toISOString(), updatedAt: previous.updatedAt.toISOString() } };
       }
       await tx.supportTicket.create({ data: { id: candidate.id, merchantId: candidate.merchantId,
         sessionId, buyerId: input.buyerId, buyerMessage: candidate.buyerMessage, source: "widget", status: "open",
         createdAt: new Date(candidate.createdAt), updatedAt: new Date(candidate.updatedAt) } });
-      await persistSupportMessage(tx, { merchantId: candidate.merchantId, ticketId: candidate.id, senderType: "buyer",
-        content: input.initialMessage?.trim() || candidate.buyerMessage });
+      const message = await persistInitial(tx, candidate.id, input.initialMessage?.trim() || candidate.buyerMessage);
       await appendSupportEvent(tx, candidate.merchantId, candidate.id, "created");
-      return { created: true, ticket: candidate };
+      return { created: true, ticket: candidate, questionMessageId: question ? message.id : undefined };
     });
     if (result.created) this.publisher.publishCreated(result.ticket);
-    return { ticketId: result.ticket.id, reply: formatHandoffReply(result.ticket, contextReply) };
+    return { ticketId: result.ticket.id, reply: formatHandoffReply(result.ticket, contextReply),
+      ...(result.questionMessageId ? { questionMessageId: result.questionMessageId } : {}) };
+  }
+
+  /** Caller supplies the canonical authenticated buyer; legacy/free-text cases are not attributed retroactively. */
+  async listProductQuestions(input: { merchantId: string; buyerId: string; productId: string }): Promise<
+    { available: false } | { available: true; questions: BuyerProductQuestion[]; hasMore: boolean }> {
+    if (!this.prisma || !input.merchantId || !input.buyerId || !input.productId) return { available: false };
+    const limit = 20;
+    try {
+      const rows = await this.prisma.supportTicketMessage.findMany({ where: { senderType: "buyer",
+        ticket: { merchantId: input.merchantId, buyerId: input.buyerId, source: "widget" },
+        AND: [{ metadata: { path: ["kind"], equals: "product_question" } }, { metadata: { path: ["schemaVersion"], equals: 1 } },
+          { metadata: { path: ["merchantId"], equals: input.merchantId } },
+          { metadata: { path: ["productId"], equals: input.productId } }, { metadata: { path: ["buyerId"], equals: input.buyerId } }],
+      }, select: { id: true, ticketId: true, metadata: true, createdAt: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit + 1 });
+      const questions = rows.slice(0, limit).flatMap(row => {
+        const metadata = productQuestionMessageMetadataSchema.safeParse(row.metadata);
+        if (!metadata.success || metadata.data.questionMessageId !== row.id || metadata.data.ticketId !== row.ticketId
+          || metadata.data.merchantId !== input.merchantId || metadata.data.productId !== input.productId
+          || metadata.data.buyerId !== input.buyerId) return [];
+        return [{ id: row.id, ticketId: row.ticketId, question: metadata.data.questionText,
+          date: row.createdAt.toISOString(), answerState: "not_linked" as const }];
+      });
+      return { available: true, questions, hasMore: rows.length > limit };
+    } catch { return { available: false }; }
   }
 
   /** Caller must verify both the private conversation capability and buyer JWT. */

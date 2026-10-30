@@ -4,6 +4,7 @@ export interface MerchantPolicy {
   maxDiscountPercent?: number;
   allowFreeShipping?: boolean;
   allowShippingDiscount?: boolean;
+  allowStackDiscountAndFreeShipping?: boolean;
   freeShippingMinCartValue?: number;
   maxPartialShippingDiscount?: number;
   offerExpirationMinutes?: number;
@@ -41,6 +42,8 @@ export interface StorefrontConversationInput {
   buyerContext?: BuyerContext;
   oneBuyClick?: OneBuyClickConversationContext;
   deviceType?: "mobile" | "tablet" | "desktop";
+  /** Presentation selected by a server channel adapter, never a commerce permit. */
+  messageFormat?: "whatsapp";
   uiAction?: import("../types/storefront-ui-action.js").StorefrontUiAction;
 }
 

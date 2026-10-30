@@ -22,36 +22,36 @@ test("starting a new buyer checkout asks for email in WhatsApp and does not trus
     { execute: async (_: any, context: any) => { proof = context; return { session_id: "checkout", conversation_id: "checkout-conversation" }; } } as any,
     undefined, undefined, { resolveStorefront: async () => session.cart } as any);
   const result = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Finalizar compra", state: initial });
-  assert.match(result.agentMessage, /Qual é seu email/);
+  assert.match(result.agentMessage, /Qual é seu e-mail de contato/);
   assert.equal(result.state.expectsFreeInput, true);
   assert.equal(proof.trustedPhoneBuyer.fullName, undefined);
   assert.equal(result.blocks.some(block => block.type === "checkout_redirect"), false);
 });
 
-test("a returning phone starts the shared email challenge without releasing its account profile", async () => {
-  let stored: any = { ...session, customer: { phone: buyer.phone, phone_verified: true, email: "existing@example.com", email_verified: false } };
+test("a returning phone asks only for contact email without reading its account or starting an email challenge", async () => {
+  let stored: any = { ...session, customer: { phone: buyer.phone, phone_verified: true, email_verified: false } };
   let called = 0;
   const adapter = new CheckoutWhatsAppConversationAdapter({} as any, { getSession: async () => stored } as any,
     { execute: async () => ({ message: "Checkout", blocks: [{ type: "checkout_prepared", data: {} }], suggested_next: [] }) } as any,
     { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
-    { execute: async (_: any, context: any) => { assert.equal(context.trustedPhoneBuyer.email, "existing@example.com"); assert.equal(context.trustedPhoneBuyer.cpf, undefined); return { session_id: "checkout" }; } } as any,
+    { execute: async (_: any, context: any) => { assert.equal(context.trustedPhoneBuyer.email, undefined); assert.equal(context.trustedPhoneBuyer.cpf, undefined); return { session_id: "checkout" }; } } as any,
     undefined, undefined, { resolveStorefront: async () => session.cart } as any, undefined, undefined, undefined,
     { emailHint: async () => "existing@example.com" } as any,
     { beginEmailVerification: async (input: any, merchantName: string) => { called++; assert.equal(merchantName, "Empresa"); stored = { ...input, customer: { ...input.customer, otp_code: "123456", otp_expires_at: new Date(Date.now() + 600000).toISOString() } }; return stored; } } as any);
   const result = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Finalizar compra", state: initial });
-  assert.equal(called, 1); assert.match(result.agentMessage, /e\*\*\*@example.com/);
+  assert.equal(called, 0); assert.match(result.agentMessage, /e-mail de contato/);
   assert.equal(stored.customer.email_verified, false);
   assert.equal(result.agentMessage.includes("existing@example.com"), false);
   assert.equal(result.agentMessage.includes("123456"), false);
-  assert.equal(result.quickReplies.includes("Reenviar código"), true);
+  assert.equal(result.quickReplies.includes("Reenviar código"), false);
 });
 
-test("an invalid OTP reply keeps its error feedback instead of claiming another code was sent", async () => {
+test("an old email challenge does not turn an ordinary checkout message into account authentication", async () => {
   const pending = { ...session, customer: { ...session.customer, email_verified: false, otp_code: "123456" } };
   const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => ({ message: "Código de verificação inválido. Confira seu email.", missing_fields: ["código de verificação"], actions: [] }) } as any,
-    { getSession: async () => pending } as any, {} as any, { executeForMerchant: async () => ({ name: "Empresa" }) } as any);
+    { getSession: async () => pending } as any, {execute:async()=>({message:"Como posso ajudar na loja?",blocks:[],suggested_next:[]})} as any, { executeForMerchant: async () => ({ name: "Empresa" }) } as any);
   const result = await adapter.respondStore({ merchantId: "merchant", buyer, message: "000000", state: { ...initial, stage: "checkout", checkoutSessionId: "checkout" } });
-  assert.match(result.agentMessage, /inválido/);
+  assert.match(result.agentMessage, /ajudar/);
   assert.equal(result.agentMessage.includes("Enviamos"), false);
 });
 
@@ -80,7 +80,7 @@ test("store actions use the shared storefront use case and retain the verified b
     { execute: async (request: any) => { seen = request; return { message: "Produtos", suggested_next: Array.from({ length: 20 }, (_, i) => `Opção ${i}`), blocks: [] }; } } as any,
     { executeForMerchant: async () => ({ name: "Empresa", agentName: "Zyon", agentGreeting: "Saudação da empresa", quickReplies: ["Atalho da empresa"] }) } as any);
   const greeting = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Oi", state: initial });
-  assert.ok(greeting.agentMessage.includes("Saudação da empresa")); assert.match(greeting.agentMessage, /^\*Zyon · Empresa\*/); assert.deepEqual(greeting.quickReplies, ["Atalho da empresa"]);
+  assert.ok(greeting.agentMessage.includes("Saudação da empresa")); assert.match(greeting.agentMessage, /^👋 \*Zyon · Empresa\*/); assert.deepEqual(greeting.quickReplies, ["Atalho da empresa"]);
   const output = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Ver produtos", state: greeting.state,
     action: { kind: "tool", tool: "search_products", args: { categoryId: "category", cursor: "cursor" } } });
   assert.equal(seen.cart_id, initial.conversationId); assert.equal(seen.trusted_buyer_context.globalUserId, buyer.globalUserId);
@@ -169,13 +169,15 @@ test("native payment cannot use a stale cart total or an unavailable method", as
   assert.match((await adapter.respondStore(input)).agentMessage, /não está disponível/);
 });
 
-test("Meta's canonical phone is accepted only with provider proof and does not bypass email verification", () => {
+test("Meta's canonical phone requires provider proof; a contact email does not authenticate its account", () => {
   assert.equal(deriveChatStage(session), "payment_pending");
   assert.ok(!missingFieldsForStage(session, "data_collection").includes("telefone"));
   const unverified = { ...session, customer: { ...session.customer, phone_verified: false } };
   assert.equal(deriveChatStage(unverified), "data_collection");
   assert.ok(missingFieldsForStage(unverified, "data_collection").includes("telefone"));
-  assert.equal(deriveChatStage({ ...session, customer: { ...session.customer, email_verified: false } }), "data_collection");
+  const contactOnly={ ...session, customer: { ...session.customer, email_verified: false } };
+  assert.equal(deriveChatStage(contactOnly), "payment_pending");
+  assert.equal(contactOnly.customer.email_verified,false);
 });
 
 test("a cart that became unavailable before checkout keeps the shopper in a recoverable store conversation", async () => {

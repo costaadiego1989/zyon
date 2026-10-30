@@ -3,8 +3,11 @@ import { STOREFRONT_TOOL_OUTCOME_UNKNOWN } from "../../domain/errors/store-tool-
 import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
 import { commercialNoticesSchema } from "../../domain/contracts/commercial-notice.schemas.js";
 import { storefrontShippingReferenceResultSchema } from "../../domain/contracts/storefront-shipping-reference.schemas.js";
+import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
+import { currentDealCardPricing } from "./current-deal-card-pricing.js";
 
 export interface BuildBlocksInput {
+  searchPurpose?: "discovery" | "lookup";
   presentationMode?: "legacy" | "structured";
   toolResults: Record<string, unknown>;
   userMessage: string;
@@ -15,6 +18,7 @@ export interface BuildBlocksInput {
 export interface BuildBlocksResult {
   blocks: ConversationBlock[];
   finalContent: string;
+  canonicalReadMessage?: true;
 }
 
 /** A rating is only meaningful when it comes with actual product reviews. */
@@ -30,7 +34,7 @@ function presentedVariant(variant: any, productType?: string) {
   const tracksQuantity = productType !== "digital" && productType !== "service";
   const stock = tracksQuantity && typeof variant.stockQuantity === "number"
     ? Math.max(0, variant.stockQuantity - (variant.stockReserved ?? 0)) : undefined;
-  const price = variant.basePriceInCents ?? variant.price;
+  const price = variant.price ?? variant.basePriceInCents;
   return { id: variant.id ?? variant.sku, name: labels[attribute.toLowerCase()] ?? attribute,
     value: Object.values(variant.attributes ?? {})[0] as string ?? variant.sku ?? variant.id,
     sku: variant.sku, stock, price,
@@ -64,11 +68,11 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     return { blocks: [], finalContent: "Este produto está indisponível no momento. Escolha outro produto." };
   }
 
-  const skipProductCarousel = !!toolResults["add_item_to_cart"] || !!toolResults["get_product_details"];
+  const skipProductCarousel = input.searchPurpose === "lookup" || !!toolResults["add_item_to_cart"] || !!toolResults["get_product_details"];
   const isDetailIntent = input.presentationMode === "structured" ? false
     : /detalh|saber mais|informa[cç]|especifica|mais sobre|me fale|conte.*sobre/i.test(userMessage);
   const searchData = toolResults["search_products"] as any;
-  const singleSearchAsDetail = !toolResults["get_product_details"] && isDetailIntent && searchData?.products?.length === 1;
+  const singleSearchAsDetail = input.searchPurpose !== "lookup" && !toolResults["get_product_details"] && isDetailIntent && searchData?.products?.length === 1;
 
   if (singleSearchAsDetail) {
     const p = searchData.products[0];
@@ -133,10 +137,11 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             sellerName: p.sellerName ?? undefined,
             sellerMerchantId: p.sellerMerchantId,
           })),
-          nextCursor: searchData.nextCursor,
+          ...(searchData.nextCursor == null ? {} : { nextCursor: searchData.nextCursor }),
           merchantId: input.merchantId,
           query: searchData.query,
           categoryId: searchData.categoryId,
+          criteria: searchData.searchEvidence?.appliedPlan,
         }
       });
     }
@@ -147,8 +152,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     if (detailData?.product) {
       const p = detailData.product;
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-      const variants = (p.variants ?? []).filter((variant: any) => variant.isActive !== false);
-      const price = variants[0]?.basePriceInCents ?? p.price ?? 0;
+      const { variants, firstDeal } = currentDealCardPricing(p, toolResults["get_daily_deals"]);
+      const price = variants[0]?.price ?? p.price ?? variants[0]?.basePriceInCents ?? 0;
       const isDigitalOrService = p.type === "digital" || p.type === "service";
       blocks.push({
         type: "product_card",
@@ -159,6 +164,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           ruleNotices: p.ruleNotices,
           price,
           priceFormatted: formatPrice(price),
+          ...(firstDeal ? { originalPrice: firstDeal.originalPrice,
+            originalPriceFormatted: formatPrice(firstDeal.originalPrice!), discountPercent: firstDeal.discountPercent } : {}),
           image: Array.isArray(p.images) ? p.images[0] : p.image ?? p.media?.find((media: { type?: string }) => media.type === "IMAGE")?.url,
           images: p.images ?? p.media?.filter((media: { type?: string }) => media.type === "IMAGE").map((media: { url: string }) => media.url) ?? (p.image ? [p.image] : []),
           inStock: typeof p.inStock === "boolean" ? p.inStock : p.type === "service" || (!isDigitalOrService && (p.stock ?? 0) > 0),
@@ -347,13 +354,15 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           missingProductNames: Array.isArray(compareData.missingProductNames) ? compareData.missingProductNames : undefined,
         }
       });
-    } else if ((!finalContent || finalContent.trim().length === 0) && compareData?.requiresProductNames) {
-      finalContent = "Para comparar, informe os nomes de pelo menos dois produtos.";
+    } else if ((!finalContent || finalContent === STOREFRONT_CONTRACT_FALLBACK) && compareData?.requiresProductNames) {
+      finalContent = compareData.missingProductNames?.length
+        ? `Não localizei uma correspondência exata para: ${compareData.missingProductNames.join(", ")}. Confira os nomes no catálogo e me diga quais produtos deseja comparar.`
+        : "Para comparar, informe os nomes de pelo menos dois produtos.";
     }
   }
 
   const wishlistData = (toolResults["remove_from_wishlist"] ?? toolResults["add_to_wishlist"] ?? toolResults["get_wishlist"]) as any;
-  if (wishlistData && Array.isArray(wishlistData.items)) {
+  if (wishlistData && Array.isArray(wishlistData.items) && wishlistData.items.length > 0) {
     blocks.push({
       type: "wishlist",
       data: { items: wishlistData.items },
@@ -376,6 +385,30 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
       } as any);
     }
   }
+  const questions = storefrontToolOutputSchemas.get_product_questions.safeParse(toolResults.get_product_questions);
+  if (questions.success) {
+    if (questions.data.scope === "public_answered") {
+      blocks.push({ type: "product_questions", data: questions.data });
+      finalContent = questions.data.totalCount ? `Confira as perguntas públicas respondidas sobre ${questions.data.productName}.`
+        : `Ainda não há perguntas públicas respondidas sobre ${questions.data.productName}. Você pode enviar uma pergunta à loja.`;
+    } else {
+      blocks.push({ type: "buyer_product_questions", data: questions.data });
+      finalContent = "Este histórico inclui somente perguntas recentes registradas com vínculo à sua conta. Não inclui registros antigos sem esse vínculo. As respostas ainda não são vinculadas individualmente; acompanhe o atendimento pelo protocolo.";
+    }
+  }
+  const submittedQuestion = storefrontToolOutputSchemas.create_question.safeParse(toolResults.create_question);
+  if (submittedQuestion.success) {
+    blocks.push({ type: "question_submission", data: { ticketId: submittedQuestion.data.id,
+      productId: submittedQuestion.data.productId, status: submittedQuestion.data.status,
+      ...(submittedQuestion.data.questionMessageId ? { questionMessageId: submittedQuestion.data.questionMessageId } : {}) } });
+    finalContent = "Sua pergunta foi encaminhada ao atendimento da loja. Acompanhe a resposta pelo protocolo informado.";
+  }
+  const submittedReview = storefrontToolOutputSchemas.create_review.safeParse(toolResults.create_review);
+  if (submittedReview.success) {
+    blocks.push({ type: "review_submission", data: { reviewId: submittedReview.data.id,
+      productId: submittedReview.data.productId, status: submittedReview.data.status } });
+  }
+
   if (toolResults["get_reviews"]) {
     const reviewsData = toolResults["get_reviews"] as any;
     if (reviewsData?.reviews?.length > 0) {
@@ -385,6 +418,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           productId: reviewsData.productId ?? "",
           productName: reviewsData.productName ?? "",
           nextCursor: reviewsData.nextCursor,
+          filter: reviewsData.filter,
           averageRating: reviewsData.averageRating ?? 0,
           totalReviews: reviewsData.totalCount ?? reviewsData.reviews.length,
           reviews: reviewsData.reviews.map((r: any) => ({
@@ -493,5 +527,37 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     }
   }
 
-  return { blocks, finalContent };
+  // Failed narration does not invalidate an already validated catalog read.
+  // Keep the rejected model text discarded and describe only published blocks.
+  // Writes and unknown outcomes retain their existing terminal handling.
+  const readTools = new Set(["search_products", "get_product_details", "compare_products", "get_product_availability", "get_similar_products", "get_daily_deals", "list_categories", "get_cart", "get_reviews", "get_product_questions", "get_wishlist", "get_faq", "get_store_policies", "get_buyer_profile"]);
+  const canonicalSearch = storefrontToolOutputSchemas.search_products.safeParse(toolResults.search_products);
+  const onlyReads = Object.keys(toolResults).length > 0 && Object.keys(toolResults).every(name => readTools.has(name));
+  let canonicalReadMessage: true | undefined;
+  // A declared limit/unknown criterion must survive even a fluent model reply.
+  // The evidence is emitted by the shared canonical handler, never by the LLM.
+  if (onlyReads && canonicalSearch.success && canonicalSearch.data.searchEvidence && !skipProductCarousel) {
+    finalContent = canonicalSearch.data.searchEvidence.message;
+    canonicalReadMessage = true;
+  }
+  if ((!finalContent || finalContent === STOREFRONT_CONTRACT_FALLBACK) && Object.keys(toolResults).every(name => readTools.has(name))) {
+    const policy = storefrontToolOutputSchemas.get_store_policies.safeParse(toolResults.get_store_policies);
+    if (policy.success && policy.data.configured === false && "message" in policy.data && policy.data.message)
+      finalContent = policy.data.message;
+    if (blocks.some(block => block.type === "product_comparison")) finalContent = "Confira a comparação dos produtos selecionados.";
+    else if (blocks.some(block => block.type === "product_card")) finalContent = "Veja os detalhes publicados deste produto.";
+    else if (blocks.some(block => block.type === "product_carousel" && block.data.products.length)) finalContent = "Encontrei estas opções no catálogo da loja.";
+    else if (input.searchPurpose !== "lookup" && canonicalSearch.success && !canonicalSearch.data.products.length)
+      finalContent = "🔎 Não encontrei produtos para essa consulta. Podemos ajustar o nome ou os critérios?";
+    else {
+      const reviews = storefrontToolOutputSchemas.get_reviews.safeParse(toolResults.get_reviews);
+      if (reviews.success) {
+        finalContent = reviews.data.reviews.length
+          ? "⭐ Confira as avaliações publicadas para essa seleção."
+          : "⭐ Não há avaliações publicadas para essa seleção. Não consigo confirmar uma nota a partir de avaliações ausentes.";
+        canonicalReadMessage = true;
+      }
+    }
+  }
+  return { blocks, finalContent, ...(canonicalReadMessage ? { canonicalReadMessage } : {}) };
 }

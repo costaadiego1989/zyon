@@ -3,6 +3,7 @@ import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import type { PrismaClient } from "@prisma/client";
 import type { SubmitCustomerTestimonialUseCase } from "../../../catalog/application/use-cases/submit-customer-testimonial.use-case.js";
 import type { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
+import { readPublicProductReviews } from "../../../catalog/infrastructure/repositories/public-product-reviews.reader.js";
 
 export interface ReviewHandlerDeps {
   prisma: PrismaClient;
@@ -16,33 +17,13 @@ export function createReviewHandlers(deps: ReviewHandlerDeps, ctx: ToolRequestCo
       const productId = args.productId;
       const limit = Math.max(1, Math.min(20, Number(args.limit) || 10));
       try {
-        const where: any = { merchantId: ctx.merchantId, moderationStatus: "approved" };
-        if (productId) where.productId = productId;
-        if (args.filter === "positive") where.rating = { gte: 4 };
-        if (args.filter === "negative") where.rating = { lte: 2 };
         const product = productId ? await deps.prisma.product.findFirst({ where: { id: productId, merchantId: ctx.merchantId, isActive: true }, select: { name: true } }) : undefined;
         if (productId && !product) return { error: "product_not_found", reviews: [] };
-        if (args.cursor && !await deps.prisma.productReview.findFirst({ where: { ...where, id: args.cursor }, select: { id: true } })) return { error: "review_cursor_invalid", reviews: [] };
-        const [rows, stats] = await Promise.all([
-          deps.prisma.productReview.findMany({
-            where,
-            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-            ...(args.cursor ? { cursor: { id: args.cursor }, skip: 1 } : {}),
-            take: limit + 1,
-          }),
-          deps.prisma.productReview.aggregate({ where, _count: true, _avg: { rating: true } }),
-        ]);
-        const reviews = rows.slice(0, limit).map((r: any) => ({
-          id: r.id,
-          author: r.buyerName || "Cliente",
-          rating: r.rating,
-          text: r.text ?? r.body ?? "",
-          date: r.createdAt?.toISOString?.()?.slice(0, 10) ?? "",
-        }));
-        return { reviews, productId, productName: product?.name ?? "", nextCursor: rows.length > limit ? rows[limit - 1].id : undefined,
-          totalCount: stats._count, averageRating: Math.round((stats._avg.rating ?? 0) * 10) / 10 };
+        const result = await readPublicProductReviews(deps.prisma, { merchantId: ctx.merchantId, productId,
+          filter: args.filter, cursor: args.cursor, limit });
+        return { ...result, productId, productName: product?.name ?? "" };
       } catch {
-        return { reviews: [], totalCount: 0, averageRating: 0 };
+        return { error: "reviews_unavailable" };
       }
     },
 
@@ -59,7 +40,7 @@ export function createReviewHandlers(deps: ReviewHandlerDeps, ctx: ToolRequestCo
         authorName, body: args.text, rating: args.rating, buyerId: ctx.buyer.globalUserId });
       return {
         id: review.id,
-        productId: args.productId,
+        productId: review.productId,
         author: authorName,
         rating: args.rating,
         text: args.text,
@@ -69,27 +50,44 @@ export function createReviewHandlers(deps: ReviewHandlerDeps, ctx: ToolRequestCo
     },
 
     getProductQuestions: async (args: any) => {
+      const product = await deps.prisma.product.findFirst({ where: { id: args.productId, merchantId: ctx.merchantId, isActive: true }, select: { id: true, name: true } });
+      if (!product) return { error: "product_not_found" };
+      if (args.filter === "mine") {
+        const buyerId = ctx.buyer?.globalUserId;
+        if (!buyerId) return { error: "buyer_identity_required", requiresIdentification: true,
+          message: "Entre na sua conta em Meus Dados para consultar suas próprias perguntas. FAQs públicas não comprovam quem fez uma pergunta." };
+        const history = await deps.supportHandoff?.listProductQuestions?.({ merchantId: ctx.merchantId, buyerId, productId: product.id });
+        if (!history?.available) return { error: "product_question_history_unavailable", message: "Não consegui consultar o histórico pessoal agora. Acompanhe seu protocolo no atendimento da loja." };
+        return { productId: product.id, productName: product.name, scope: "buyer_history", filter: "mine", historyLimited: true,
+          questions: history.questions, returnedCount: history.questions.length, hasMore: history.hasMore };
+      }
+      if (args.filter === "unanswered") return { error: "product_question_answer_link_unavailable",
+        message: "As respostas do atendimento ainda não são vinculadas a uma pergunta específica. Consulte Minhas Perguntas para ver seus protocolos e acompanhe a conversa no atendimento da loja." };
       const questions = await deps.prisma.productFaq.findMany({ where: { productId: args.productId, isPublished: true,
-        product: { merchantId: ctx.merchantId, isActive: true } }, orderBy: [{ order: "asc" }, { id: "asc" }], take: 100 });
+        locale: "pt-BR", product: { merchantId: ctx.merchantId, isActive: true } }, orderBy: [{ order: "asc" }, { id: "asc" }], take: 100 });
       return {
+        productId: product.id, productName: product.name, scope: "public_answered", filter: "answered",
         questions: questions.map(q => ({ id: q.id, question: q.question, answer: q.answer })), totalCount: questions.length,
       };
     },
 
     createQuestion: async (args: any) => {
-      const product = await deps.prisma.product.findFirst({ where: { id: args.productId, merchantId: ctx.merchantId, isActive: true }, select: { name: true } });
+      const product = await deps.prisma.product.findFirst({ where: { id: args.productId, merchantId: ctx.merchantId, isActive: true }, select: { id: true, name: true } });
       if (!product) return { error: "product_not_found" };
       if (typeof args.question !== "string" || !args.question.trim() || args.question.length > 4000) return { error: "product_question_invalid" };
       if (!deps.supportHandoff) return { error: "product_question_service_unavailable" };
+      const intake = `Pergunta sobre ${product.name}: ${args.question.trim()}`;
       const ticket = await deps.supportHandoff.createHandoff({ merchantId: ctx.merchantId, sessionId: ctx.conversationId ?? ctx.sessionId,
-        buyerMessage: `Pergunta sobre ${product.name}: ${args.question.trim()}` });
+        buyerId: ctx.buyer?.globalUserId, buyerMessage: intake, initialMessage: intake,
+        ...(ctx.buyer?.globalUserId ? { productQuestion: { productId: product.id, questionText: args.question.trim() } } : {}) });
       return {
         id: ticket.ticketId,
-        productId: args.productId,
+        productId: product.id,
         question: args.question,
-        author: args.authorName,
+        author: ctx.buyer?.name || args.authorName,
         date: new Date().toISOString().slice(0, 10),
-        status: "awaiting_answer"
+        status: "awaiting_answer",
+        ...(ticket.questionMessageId ? { questionMessageId: ticket.questionMessageId } : {})
       };
     }
   };

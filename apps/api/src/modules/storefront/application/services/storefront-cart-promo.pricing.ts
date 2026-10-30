@@ -6,7 +6,7 @@ import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js"
 import { toEngineCart } from "../../domain/services/cart-rules-engine.service.js";
 import { commercialNotice } from "../../domain/services/commercial-notice.js";
 
-export type ProductPromoMeta = Map<string, { originalPriceCents: number; discountPercent?: number; coupon?: boolean }>;
+export type ProductPromoMeta = Map<string, { originalPriceCents: number; discountPercent?: number; coupon?: boolean; promotionId?: string }>;
 type PromoLine = Pick<StorefrontCart["items"][number], "variantId" | "selectedOptions" | "selectedServiceSlot">;
 export interface PromotionPricingAuthority {
   rules: MerchantRules;
@@ -80,7 +80,9 @@ export async function applyProductPromoPricing(
     if (confirmed.kind !== "authorized") throw new Error("discount_price_review_required");
     projected.items.forEach((item, index) => {
       if (originals[index]! > item.unitPriceCents) setProductPromoBadge(meta, projected.items, item, { originalPriceCents: originals[index]!,
-        discountPercent: (originals[index]! - item.unitPriceCents) / originals[index]! * 100 });
+        discountPercent: (originals[index]! - item.unitPriceCents) / originals[index]! * 100,
+        ...(allocated.get(keys.get(index)!)!.unitDiscountCents > 0 && chosen[index]!.promotionId
+          ? { promotionId: chosen[index]!.promotionId } : {}) });
       else if (chosen[index]!.couponIds.length) setProductPromoBadge(meta, projected.items, item, { originalPriceCents: originals[index]!, coupon: true });
     });
     const wasUnavailable = cart.commercialNotices?.some(notice => notice.code === "discount_unavailable");
@@ -140,6 +142,7 @@ export async function applyProductPromoPricing(
     if (item.unitPriceCents < base.items[index]!.unitPriceCents) setProductPromoBadge(meta, projected.items, item, {
       originalPriceCents: base.items[index]!.unitPriceCents,
       discountPercent: (base.items[index]!.unitPriceCents - item.unitPriceCents) / base.items[index]!.unitPriceCents * 100,
+      ...(chosen[index]!.promotionId ? { promotionId: chosen[index]!.promotionId } : {}),
     });
     else if (chosen[index]!.couponIds.length) setProductPromoBadge(meta, projected.items, item, { originalPriceCents: item.unitPriceCents, coupon: true });
   });
