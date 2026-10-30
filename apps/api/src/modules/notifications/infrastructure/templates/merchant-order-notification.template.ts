@@ -1,10 +1,11 @@
 import type { OrderConfirmationEvent } from "../../domain/events/notification.events.js";
+import { receiptTotalFormatted, receiptTotalLabel, renderReceiptSummaryHtml, renderReceiptSummaryWhatsApp } from "./paid-order-receipt.template.js";
 
 type MerchantOrderEvent = OrderConfirmationEvent & { merchantName: string };
 
 export function renderMerchantOrderEmail(event: MerchantOrderEvent): string {
   const year = new Date().getFullYear();
-  const total = formatCurrency(event.total, event.currency);
+  const total = receiptTotalFormatted(event);
   const buyer = event.buyerName || event.buyerEmail || event.buyerPhone || "Cliente";
   const items = event.items.map((item) => `
     <tr>
@@ -29,7 +30,7 @@ export function renderMerchantOrderEmail(event: MerchantOrderEvent): string {
           <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#f8faf9;border:1px solid #e3ebe6;border-radius:10px;">
             <tr>
               <td style="padding:18px 20px;"><span style="display:block;color:#64746b;font-size:12px;">Cliente</span><strong style="display:block;margin-top:4px;font-size:15px;">${escapeHtml(buyer)}</strong></td>
-              <td style="padding:18px 20px;text-align:right;"><span style="display:block;color:#64746b;font-size:12px;">Total aprovado</span><strong style="display:block;margin-top:4px;font-size:20px;">${escapeHtml(total)}</strong></td>
+              <td style="padding:18px 20px;text-align:right;"><span style="display:block;color:#64746b;font-size:12px;">${receiptTotalLabel(event)}</span><strong style="display:block;margin-top:4px;font-size:20px;">${escapeHtml(total)}</strong></td>
             </tr>
           </table>
         </td></tr>
@@ -37,6 +38,7 @@ export function renderMerchantOrderEmail(event: MerchantOrderEvent): string {
           <p style="margin:0 0 8px;color:#64746b;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Itens</p>
           <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">${items}</table>
         </td></tr>
+        <tr><td style="padding:20px 30px 0;">${renderReceiptSummaryHtml(event)}</td></tr>
         <tr><td style="padding:22px 30px 30px;">
           <p style="margin:0;color:#4b5563;font-size:13px;line-height:1.6;">Consulte os detalhes do pedido no painel da loja para acompanhar as próximas etapas.</p>
         </td></tr>
@@ -55,7 +57,7 @@ export function renderMerchantOrderWhatsApp(event: MerchantOrderEvent): string {
     `Novo pedido na *${event.merchantName}*`,
     "",
     `Pedido *#${event.orderNumber}* confirmado por ${buyer}.`,
-    `Total: *${formatCurrency(event.total, event.currency)}*`,
+    renderReceiptSummaryWhatsApp(event),
     "",
     "*Itens*",
     items,

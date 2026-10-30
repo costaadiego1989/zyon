@@ -1,0 +1,42 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { renderOrderConfirmationTemplate, renderOrderConfirmationWhatsApp } from "./order-confirmation.template.js";
+import { renderMerchantOrderEmail, renderMerchantOrderWhatsApp } from "./merchant-order-notification.template.js";
+import { projectPaidOrderReceipt, type PaidOrderReceipt } from "../../domain/paid-order-receipt.js";
+
+const receipt = projectPaidOrderReceipt({ merchantId: "m1", sessionId: "s1", externalOrderId: "185874", status: "approved",
+  currency: "BRL", orderTotal: "12.86", shippingCents: 1016,
+  lineItemsJson: [{ unitPriceCents: 300, quantity: 1 }] }, { merchantId: "m1", sessionId: "s1", providerPaymentId: "185874",
+  status: "approved", currency: "BRL", amountCents: 1385, approvedAmountCents: 1385, amountBreakdown: {
+    version: 1, currency: "BRL", itemsSubtotalCents: 300, discountCents: 30, shippingCents: 1016, platformFeeCents: 99, totalCents: 1385,
+  } })!;
+const event = { type: "ORDER_CONFIRMATION" as const, merchantId: "m1", merchantName: "Loja <teste>", orderId: "185874",
+  orderNumber: "185874", buyerEmail: "buyer@example.test", buyerName: "Ana <script>",
+  items: [{ name: "Produto <script>", quantity: 1, price: "3.00" }], total: "12.86", currency: "BRL", paidReceipt: receipt };
+
+for (const [name, render] of [["buyer", renderOrderConfirmationTemplate], ["merchant", renderMerchantOrderEmail]] as const) {
+  test(`${name} email itemizes the approved charge instead of treating merchant order total as total paid`, () => {
+    const html = render(event).replace(/\u00a0/g, " ");
+    for (const value of ["Produtos", "Desconto", "Frete", "Taxa de serviço", "Total pago", "3,00", "0,30", "10,16", "0,99", "13,85"]) assert.ok(html.includes(value), value);
+    assert.doesNotMatch(html, /<script>/);
+  });
+  test(`${name} legacy total is not called the approved/paid charge and never invents a zero fee`, () => {
+    const html = render({ ...event, paidReceipt: undefined });
+    assert.match(html, /Valor do pedido/);
+    assert.doesNotMatch(html, /Total aprovado|Total pago<\/|Taxa de serviço[^<]*0[,.]00/);
+  });
+  test(`${name} total-only approved legacy charge states missing components explicitly`, () => {
+    const partial: PaidOrderReceipt = { status: "total_only", currency: "BRL", totalPaidCents: 1385, reason: "breakdown_unavailable" };
+    const html = render({ ...event, paidReceipt: partial }).replace(/\u00a0/g, " ");
+    assert.match(html, /Total pago/); assert.match(html, /13,85/); assert.match(html, /Detalhamento.*indisponível/);
+    assert.doesNotMatch(html, /Taxa de serviço[^<]*0[,.]00/);
+  });
+}
+
+test("both WhatsApp receipts describe the same complete charge", () => {
+  for (const text of [renderOrderConfirmationWhatsApp(event), renderMerchantOrderWhatsApp(event)]) {
+    const normalized = text.replace(/\u00a0/g, " ");
+    assert.match(normalized, /Total pago: R\$ 13,85/); assert.match(normalized, /Taxa de serviço: R\$ 0,99/);
+    assert.match(normalized, /Desconto: −R\$ 0,30/); assert.doesNotMatch(normalized, /Total:.*12.86/);
+  }
+});

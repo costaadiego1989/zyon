@@ -16,6 +16,22 @@ function harness(type = "loyalty", options: { status?: string; active?: boolean;
   return { sender, calls };
 }
 const input = { merchantId: "m1", type: "loyalty" as const, toPhone: "+5511999991111", fallbackEmail: "buyer@example.test", freeformText: "hello", variables: { buyerName: "Ana", storeName: "Loja", link: "https://loja.example/pedido" } };
+test("approved order templates receive paid charge variables without changing template approval or fallback policy", async () => {
+  const requests: any[] = [];
+  const repo = { findByMerchantAndType: async () => ({ merchantId: "m1", type: "order_confirmation", channel: "whatsapp",
+    isActive: true, metaStatus: "approved", twilioContentSid: "approved_order", metaWabaId: "123456789", metaLastCheckedAt: new Date(),
+    metaVariableMap: { "1": "amount", "2": "totalPaid", "3": "receiptSummary", "4": "total" } }) } as any;
+  const config = { findByMerchantId: async () => ({ merchantId: "m1", provider: "META_CLOUD", enabled: true, status: "ACTIVE",
+    credentials: { accessToken: "token", wabaId: "123456789", phoneNumberId: "987654321" } }) } as any;
+  const sender = new SendWhatsAppMessageUseCase(repo, { sendTemplate: async request => {
+    requests.push(request); return { status: "sent", messageId: "wamid.receipt" };
+  } }, undefined, undefined, config);
+  const result = await sender.execute({ merchantId: "m1", type: "order_confirmation", toPhone: input.toPhone,
+    variables: { amount: "R$ 13,85", totalPaid: "R$ 13,85", total: "R$ 13,85", receiptSummary: "Produtos: R$ 3,00\nTaxa de serviço: R$ 0,99\nTotal pago: R$ 13,85" } });
+  assert.equal(result.status, "sent"); assert.equal(requests.length, 1);
+  assert.deepEqual(requests[0].contentVariables, { "1": "R$ 13,85", "2": "R$ 13,85", "4": "R$ 13,85",
+    "3": "Produtos: R$ 3,00\nTaxa de serviço: R$ 0,99\nTotal pago: R$ 13,85" });
+});
 for (const type of WHATSAPP_TEMPLATE_TYPES) test(`${type}: active merchant approval uses official WhatsApp`, async () => {
   const h = harness(type);
   assert.equal((await h.sender.execute({ ...input, type })).messageId, "wamid.1");

@@ -1,3 +1,5 @@
+import type { PaidOrderReceipt } from "../paid-order-receipt.js";
+
 export type NotificationEventType =
   | "ORDER_CONFIRMATION"
   | "ORDER_SHIPPED"
@@ -22,6 +24,7 @@ export interface OrderConfirmationEvent {
   }>;
   total: string;
   currency?: string;
+  paidReceipt?: PaidOrderReceipt;
 }
 
 export interface OrderShippedEvent {

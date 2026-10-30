@@ -4,6 +4,8 @@ import { WHATSAPP_SENDER_PORT, WhatsAppSenderPort } from "../../domain/ports/wha
 import { OrderConfirmationEvent } from "../../domain/events/notification.events.js";
 import { renderOrderConfirmationTemplate, renderOrderConfirmationWhatsApp } from "../../infrastructure/templates/order-confirmation.template.js";
 import { NOTIFICATION_WHATSAPP_SENDER, type NotificationWhatsAppSender } from "../ports/notification-whatsapp-sender.port.js";
+import { PAID_ORDER_RECEIPT_READER, type PaidOrderReceiptReader, type OrderReceiptDeliveryOptions } from "../ports/paid-order-receipt-reader.port.js";
+import { formatReceiptMoney, receiptSummaryLines } from "../../domain/paid-order-receipt.js";
 
 @Injectable()
 export class SendOrderConfirmationUseCase {
@@ -14,9 +16,15 @@ export class SendOrderConfirmationUseCase {
     @Inject(WHATSAPP_SENDER_PORT) private readonly whatsappSender: WhatsAppSenderPort,
     @Optional() @Inject(NOTIFICATION_WHATSAPP_SENDER)
     private readonly sendWhatsApp?: NotificationWhatsAppSender,
+    @Optional() @Inject(PAID_ORDER_RECEIPT_READER) private readonly receipts?: PaidOrderReceiptReader,
   ) {}
 
-  async execute(event: OrderConfirmationEvent): Promise<void> {
+  async execute(event: OrderConfirmationEvent, options: OrderReceiptDeliveryOptions = {}): Promise<void> {
+    if (this.receipts) {
+      const canonical = await this.receipts.read({ merchantId: event.merchantId, externalOrderId: event.orderId });
+      if (!canonical || canonical.merchantId !== event.merchantId || canonical.orderId !== event.orderId) throw new Error("order_receipt_scope_unavailable");
+      event = canonical;
+    }
     const deliveries: Promise<unknown>[] = [];
     // Independent channels: an email rejection must not suppress WhatsApp.
     if (event.buyerEmail) {
@@ -29,7 +37,7 @@ export class SendOrderConfirmationUseCase {
           : `Zyon | Pedido #${event.orderNumber} confirmado`.replace(/[\r\n]/g, " "),
         html,
         requireDelivery: true,
-        idempotencyKey: `order-confirmation:${event.merchantId}:${event.orderId}:buyer-email`,
+        idempotencyKey: `${options.idempotencyPurpose ?? "order-confirmation"}:${event.merchantId}:${event.orderId}:buyer-email`,
       })));
     } else {
       this.logger.warn(`Skipping confirmation email for order ${event.orderNumber}: no buyer email`);
@@ -43,10 +51,14 @@ export class SendOrderConfirmationUseCase {
           const result = await this.sendWhatsApp.execute({
             merchantId: event.merchantId,
             orderId: event.orderId,
-            idempotencyKey: event.orderId,
+            idempotencyKey: options.idempotencyPurpose ?? event.orderId,
             type: event.items.length && event.items.every(item => item.productType === "digital" || item.productType === "service") ? "order_nonphysical_confirmation" : "order_confirmation",
             toPhone: buyerPhone,
-            variables: { buyerName: event.buyerName, orderId: event.orderNumber, storeName: event.merchantName },
+            variables: { buyerName: event.buyerName, orderId: event.orderNumber, storeName: event.merchantName,
+              ...(event.paidReceipt ? { total: formatReceiptMoney(event.paidReceipt.totalPaidCents, event.paidReceipt.currency),
+                amount: formatReceiptMoney(event.paidReceipt.totalPaidCents, event.paidReceipt.currency),
+                totalPaid: formatReceiptMoney(event.paidReceipt.totalPaidCents, event.paidReceipt.currency),
+                receiptSummary: receiptSummaryLines(event.paidReceipt).join("\n") } : {}) },
             freeformText,
           });
           if (result.status !== "accepted") this.logger.warn(`order_confirmation_whatsapp_${result.status} reason=${result.reason ?? "unconfirmed"}`);

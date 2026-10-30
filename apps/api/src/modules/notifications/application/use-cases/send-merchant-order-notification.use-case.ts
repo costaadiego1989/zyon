@@ -1,9 +1,11 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../domain/ports/email-sender.port.js";
 import { NOTIFICATION_WHATSAPP_SENDER, type NotificationWhatsAppSender } from "../ports/notification-whatsapp-sender.port.js";
 import { MERCHANT_NOTIFICATION_INBOX_PORT, type MerchantNotificationInboxPort } from "../../domain/ports/merchant-notification-inbox.port.js";
 import type { OrderConfirmationEvent } from "../../domain/events/notification.events.js";
 import { renderMerchantOrderEmail, renderMerchantOrderWhatsApp } from "../../infrastructure/templates/merchant-order-notification.template.js";
+import { PAID_ORDER_RECEIPT_READER, type PaidOrderReceiptReader, type OrderReceiptDeliveryOptions } from "../ports/paid-order-receipt-reader.port.js";
+import { receiptTotalFormatted } from "../../infrastructure/templates/paid-order-receipt.template.js";
 
 @Injectable()
 export class SendMerchantOrderNotificationUseCase {
@@ -13,16 +15,22 @@ export class SendMerchantOrderNotificationUseCase {
     @Inject(MERCHANT_NOTIFICATION_INBOX_PORT) private readonly inbox: MerchantNotificationInboxPort,
     @Inject(EMAIL_SENDER_PORT) private readonly emailSender: EmailSenderPort,
     @Inject(NOTIFICATION_WHATSAPP_SENDER) private readonly whatsappSender: NotificationWhatsAppSender,
+    @Optional() @Inject(PAID_ORDER_RECEIPT_READER) private readonly receipts?: PaidOrderReceiptReader,
   ) {}
 
-  async execute(event: OrderConfirmationEvent): Promise<void> {
+  async execute(event: OrderConfirmationEvent, options: OrderReceiptDeliveryOptions = {}): Promise<void> {
+    if (this.receipts) {
+      const canonical = await this.receipts.read({ merchantId: event.merchantId, externalOrderId: event.orderId });
+      if (!canonical || canonical.merchantId !== event.merchantId || canonical.orderId !== event.orderId) throw new Error("order_receipt_scope_unavailable");
+      event = canonical;
+    }
     const contact = await this.inbox.getContact(event.merchantId);
     const merchantName = event.merchantName || contact?.merchantName || "sua loja";
     const buyerName = event.buyerName?.trim() || event.buyerEmail || event.buyerPhone || "Cliente";
     const title = `Novo pedido #${event.orderNumber}`;
-    const body = `${buyerName} concluiu uma compra de ${formatCurrency(event.total, event.currency)} em ${merchantName}.`;
+    const body = `${buyerName} concluiu uma compra de ${receiptTotalFormatted(event)} em ${merchantName}.`;
 
-    const deliveries: Array<{ channel: string; send: () => Promise<unknown> }> = [
+    const deliveries: Array<{ channel: string; send: () => Promise<unknown> }> = options.skipDashboard ? [] : [
       {
         channel: "dashboard",
         send: () => this.inbox.create({
@@ -39,6 +47,7 @@ export class SendMerchantOrderNotificationUseCase {
             total: event.total,
             currency: event.currency ?? "BRL",
             items: event.items,
+            ...(event.paidReceipt ? { paidReceipt: event.paidReceipt } : {}),
           },
         }),
       },
@@ -54,7 +63,7 @@ export class SendMerchantOrderNotificationUseCase {
           subject: `${merchantName} | Novo pedido #${event.orderNumber}`,
           html: renderMerchantOrderEmail({ ...event, merchantName }),
           requireDelivery: true,
-          idempotencyKey: `order-confirmation:${event.merchantId}:${event.orderId}:merchant-email`,
+          idempotencyKey: `${options.idempotencyPurpose ?? "order-confirmation"}:${event.merchantId}:${event.orderId}:merchant-email`,
         }),
       });
     } else {
@@ -67,7 +76,7 @@ export class SendMerchantOrderNotificationUseCase {
         channel: "whatsapp",
         send: async () => {
           const result = await this.whatsappSender.execute({
-            merchantId: event.merchantId, orderId: event.orderId, idempotencyKey: event.orderId,
+            merchantId: event.merchantId, orderId: event.orderId, idempotencyKey: options.idempotencyPurpose ?? event.orderId,
             type: "merchant_order_paid", toPhone: merchantWhatsApp,
             freeformText: renderMerchantOrderWhatsApp({ ...event, merchantName }),
           });

@@ -1,4 +1,5 @@
 import { OrderConfirmationEvent } from "../../domain/events/notification.events.js";
+import { renderReceiptSummaryHtml, renderReceiptSummaryWhatsApp } from "./paid-order-receipt.template.js";
 
 const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
@@ -46,7 +47,7 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
             <td style="background: linear-gradient(135deg, ${brandColor}, #059669); padding: 40px 32px; text-align: center;">
               <div style="width: 56px; height: 56px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 16px; line-height: 56px; font-size: 28px;">✓</div>
               <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 700; letter-spacing: -0.3px;">Pedido Confirmado!</h1>
-              <p style="margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">${event.merchantName ? `Recebemos seu pagamento na ${escapeHtml(event.merchantName)}` : "Recebemos seu pagamento com sucesso"}</p>
+              <p style="margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">${event.paidReceipt ? (event.merchantName ? `Recebemos seu pagamento na ${escapeHtml(event.merchantName)}` : "Recebemos seu pagamento com sucesso") : "Seu pedido foi confirmado"}</p>
             </td>
           </tr>
 
@@ -75,14 +76,7 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
           <!-- Total -->
           <tr>
             <td style="padding: 0 32px 32px;">
-              <table cellpadding="0" cellspacing="0" style="width: 100%; background: #f9fafb; border-radius: 8px; padding: 16px;">
-                <tr>
-                  <td style="padding: 16px; text-align: right;">
-                    <span style="color: #6b7280; font-size: 14px; margin-right: 16px;">Total:</span>
-                    <span style="color: #1f2937; font-size: 24px; font-weight: 700;">${cur} ${escapeHtml(event.total)}</span>
-                  </td>
-                </tr>
-              </table>
+              ${renderReceiptSummaryHtml(event)}
             </td>
           </tr>
 
@@ -120,12 +114,12 @@ export function renderOrderConfirmationWhatsApp(event: OrderConfirmationEvent & 
   return [
     `✅ *Pedido Confirmado!*`,
     ``,
-    `Olá${event.buyerName ? ` ${event.buyerName}` : ""}! Seu pagamento foi aprovado na *${storeName}*.`,
+    `Olá${event.buyerName ? ` ${event.buyerName}` : ""}! ${event.paidReceipt ? "Seu pagamento foi aprovado" : "Seu pedido foi confirmado"} na *${storeName}*.`,
     ``,
     `📋 *Pedido #${event.orderNumber}*`,
     itemsList,
     ``,
-    `💰 *Total: ${cur} ${event.total}*`,
+    renderReceiptSummaryWhatsApp(event),
     ``,
     orderConfirmationInstructions(event),
     ``,

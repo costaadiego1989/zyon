@@ -50,6 +50,9 @@ import { BudgetRequestNotificationJob } from "./application/services/budget-requ
 import { BillingAdminNoticeJob } from "./application/services/billing-admin-notice.job.js";
 import { BudgetRequestNotificationSender } from "./infrastructure/adapters/budget-request-notification.sender.js";
 import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repositories/prisma-budget-request-notification.repository.js";
+import { PAID_ORDER_RECEIPT_READER } from "./application/ports/paid-order-receipt-reader.port.js";
+import { PrismaPaidOrderReceiptReader } from "./infrastructure/repositories/prisma-paid-order-receipt.reader.js";
+import { SendPaidOrderReceiptCorrectionUseCase } from "./application/use-cases/send-paid-order-receipt-correction.use-case.js";
 
 @Module({
   imports: [PersistenceModule, forwardRef(() => PaymentModule), WhatsAppTemplatesModule, AuthModule],
@@ -72,6 +75,8 @@ import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repo
       useClass: BubbleWhatsAdapter,
     },
     { provide: NOTIFICATION_WHATSAPP_SENDER, useClass: OrderNotificationWhatsAppAdapter },
+    { provide: PAID_ORDER_RECEIPT_READER, useClass: PrismaPaidOrderReceiptReader },
+    SendPaidOrderReceiptCorrectionUseCase,
     SendOrderConfirmationUseCase,
     SendOrderShippedUseCase,
     SendOrderDeliveredUseCase,
@@ -95,6 +100,8 @@ import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repo
     { provide: MERCHANT_NOTIFICATION_INBOX_PORT, useClass: PrismaMerchantNotificationInboxRepository },
   ],
   exports: [
+    PAID_ORDER_RECEIPT_READER,
+    SendPaidOrderReceiptCorrectionUseCase,
     EMAIL_SENDER_PORT,
     WHATSAPP_SENDER_PORT,
     SendOrderConfirmationUseCase,
