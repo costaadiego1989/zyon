@@ -241,9 +241,16 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           criteria: shoppingSearchPlanSchema.parse({ version: 1, query: product.name }), limit: 1,
         })).products.find(candidate => candidate.id === product.id);
         if (priced) {
-          const prices = new Map((priced.variants ?? []).map(variant => [variant.id, variant.price]));
+          const originals = new Map(product.variants.map(variant => [variant.id, variant]));
+          const confirmed = (priced.variants ?? []).flatMap(variant => {
+            const original = originals.get(variant.id);
+            return original ? [{ ...original, price: variant.price }] : [];
+          });
+          const confirmedIds = new Set(confirmed.map(variant => variant.id));
           return { ...details, product: { ...details.product,
-            variants: product.variants.map(variant => prices.has(variant.id) ? { ...variant, price: prices.get(variant.id) } : variant),
+            // The reader orders eligible variants by their confirmed price.
+            // Keep that selected offer first when native details are hydrated.
+            variants: [...confirmed, ...product.variants.filter(variant => !confirmedIds.has(variant.id))],
           } };
         }
       } catch { /* Unknown offer eligibility leaves only the published basis. */ }
