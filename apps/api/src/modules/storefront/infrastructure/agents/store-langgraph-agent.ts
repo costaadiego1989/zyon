@@ -149,6 +149,7 @@ const FALLBACK_MESSAGE = "Como posso ajudá-lo com sua busca?";
 const CANONICAL_READ_TOOLS = new Set(["search_products", "get_product_details", "compare_products", "get_product_availability",
   "get_similar_products", "get_daily_deals", "list_categories", "get_cart", "get_reviews", "get_product_questions",
   "get_wishlist", "get_faq", "get_store_policies", "get_buyer_profile", "list_promotions", "quote_shipping", "track_order", "get_invoice"]);
+const POST_SALE_ORDER_TOOLS = new Set(["track_order", "get_invoice", "cancel_order"]);
 
 export class StorefrontLangGraphAgent {
   private readonly structuredRouting: boolean;
@@ -392,8 +393,12 @@ export class StorefrontLangGraphAgent {
     const tools = buildStoreTools().map(tool => !structuredSearchRequired || tool.name !== "search_products" ? tool : {
       ...tool, parameters: { ...tool.parameters, required: [...new Set([...(tool.parameters.required ?? []), "criteria"])] },
     });
-    const turnTools = needsDiscovery ? [ASK_PRODUCT_PREFERENCES]
+    const unscopedTurnTools = needsDiscovery ? [ASK_PRODUCT_PREFERENCES]
       : canAsk ? [...tools, ASK_PRODUCT_PREFERENCES] : tools;
+    const productIntent = this.structuredRouting && (intentResult.intent === "PRODUCT_SEARCH" || intentResult.intent === "RECOMMEND_PERSONALIZED");
+    const turnTools = requiredReadToolName ? unscopedTurnTools.filter(tool => tool.name === requiredReadToolName)
+      : productIntent ? unscopedTurnTools.filter(tool => !POST_SALE_ORDER_TOOLS.has(tool.name)) : unscopedTurnTools;
+    const announcedToolNames = new Set(turnTools.map(tool => tool.name));
 
     const cartPolicy = createCartTurnPolicy(input.userMessage, input.attachmentContext, input.cartId || input.sessionId, quantitySelection);
     const searchPolicy = createSalesSearchPolicy(input.userMessage, history.slice(-10), input.attachmentContext, productDiscovery && !structuredSearchRequired);
@@ -414,7 +419,7 @@ export class StorefrontLangGraphAgent {
       merchantId: input.merchantId, sessionId: input.sessionId,
       handlers: turnHandlers,
     })));
-    const executableTools: ExecutableTool[] = needsDiscovery ? [] : commerceTools;
+    const executableTools: ExecutableTool[] = needsDiscovery ? [] : commerceTools.filter(tool => announcedToolNames.has(tool.name));
     if (canAsk) executableTools.push({ name: ASK_PRODUCT_PREFERENCES.name, execute: async args => {
       if (Object.keys(toolResults).some(name => name !== ASK_PRODUCT_PREFERENCES.name)) return { ok: false, error: "discovery_must_precede_product_results" };
       const parsed = parseSalesDiscoveryQuestion(args);
@@ -485,7 +490,7 @@ export class StorefrontLangGraphAgent {
     };
     let orderClarification: string | undefined;
     const captureOrderClarification = (name: string): boolean => {
-      if (name !== "track_order") return false;
+      if (!this.structuredRouting || intentResult.intent !== "ORDER_STATUS" || name !== "track_order") return false;
       const parsed = storefrontToolOutputSchemas.track_order.safeParse(toolResults[name]);
       if (!parsed.success || parsed.data.found !== false || parsed.data.orderId !== undefined || parsed.data.requiresIdentification) return false;
       orderClarification = parsed.data.message;
@@ -503,7 +508,9 @@ export class StorefrontLangGraphAgent {
         // Zero is an explicit removal of the inspected line. Execute through
         // the existing consent/correlation policy and writer exactly once;
         // another model confirmation cannot add authority or change the line.
-        const tool = executableTools.find(candidate => candidate.name === "update_cart_item");
+        // This internal writer was already admitted above; model read scopes
+        // neither grant this authority nor revoke the exact inspected command.
+        const tool = commerceTools.find(candidate => candidate.name === "update_cart_item");
         if (tool) {
           const args = structuredClone(quantitySelection);
           toolsUsed.push(tool.name); input.callbacks?.onToolCall?.(tool.name, args);
@@ -540,6 +547,7 @@ export class StorefrontLangGraphAgent {
           responseFormat: this.responseFormat,
           messages: withStorefrontReplyContract(messages),
           tools: openRouterTools.length > 0 ? openRouterTools : undefined,
+          ...(requiredReadToolName ? { toolChoice: { type: "function" as const, function: { name: requiredReadToolName } } } : {}),
           temperature: 0.2,
           maxTokens: 1000
         }, "primary", "main", this.primaryModel);
@@ -695,6 +703,7 @@ export class StorefrontLangGraphAgent {
               responseFormat: this.responseFormat,
               messages: withStorefrontReplyContract(fbMessages),
               tools: openRouterTools.length > 0 ? openRouterTools : undefined,
+              ...(requiredReadToolName ? { toolChoice: { type: "function" as const, function: { name: requiredReadToolName } } } : {}),
               temperature: 0.2,
               maxTokens: 500
             }, "fallback", "main", this.fallbackModel);
@@ -748,7 +757,7 @@ export class StorefrontLangGraphAgent {
     else if (searchPolicy.recommendationMessage) finalContent = searchPolicy.recommendationMessage;
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;
     if (orderClarification) finalContent = orderClarification;
-    const confirmedRead = Object.entries(toolResults).some(([name, value]) => CANONICAL_READ_TOOLS.has(name)
+    const confirmedRead = Object.entries(toolResults).some(([name, value]) => (requiredReadToolName ? name === requiredReadToolName : CANONICAL_READ_TOOLS.has(name))
       && value !== null && typeof value === "object" && !Array.isArray(value) && !("error" in value));
     const requiredReadUnconfirmed = requiresCanonicalRead
       && toolsUsed.every(name => CANONICAL_READ_TOOLS.has(name)) && !confirmedRead
