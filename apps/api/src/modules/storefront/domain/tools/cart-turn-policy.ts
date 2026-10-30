@@ -2,6 +2,7 @@ import type { ExecutableTool, ToolResult } from "./types.js";
 import { allowsSalesDiscovery, isUnspecifiedShoppingRequest } from "../services/sales-discovery.js";
 import { storefrontToolArgumentSchemas } from "../contracts/storefront-tool.schemas.js";
 import { storefrontToolOutputSchemas, validateStorefrontToolOutput } from "../contracts/storefront-tool-output.schemas.js";
+import { explicitCartQuantityTarget } from "../services/cart-quantity-input.js";
 
 const CART_WRITES = new Set([
   "add_item_to_cart", "update_cart_item", "remove_cart_item", "clear_cart",
@@ -25,7 +26,7 @@ export interface CartAddOutcome {
   serviceSlotId?: string;
 }
 type TerminalMutation = "update_cart_item" | "remove_cart_item";
-export interface CartMutationOutcome { tool: TerminalMutation; status: "succeeded" | "unknown" | "rejected" }
+export interface CartMutationOutcome { tool: TerminalMutation; status: "succeeded" | "unknown" | "rejected"; code?: "variant_out_of_stock" }
 const terminalMutation = (name: string): name is TerminalMutation => name === "update_cart_item" || name === "remove_cart_item";
 /** The returned cart is a canonical handler projection, not proof of its prior
  * contents. Correlate the exact commanded line without asserting sibling history. */
@@ -130,6 +131,7 @@ function errorCode(result: ToolResult): string | undefined {
 export function createCartTurnPolicy(message: string, attachmentContext?: string, cartId?: string) {
   const allowed = authorizedWrites(message, attachmentContext);
   const requestedAdd = explicitAdd(message);
+  const requestedQuantity = explicitCartQuantityTarget(message);
   const bindings = [...message.matchAll(/\[variantId:([A-Za-z0-9_-]{1,191})\]/g)].map(match => match[1]);
   const optionTag = message.match(/\[optionItemIds:([^\]]*)\]/);
   const options = optionTag ? optionTag[1].split(",").filter(Boolean).sort() : [];
@@ -190,6 +192,8 @@ export function createCartTurnPolicy(message: string, attachmentContext?: string
             const parsed = storefrontToolArgumentSchemas[tool.name].safeParse(args);
             if (!parsed.success || !cartId || parsed.data.cartId !== cartId) return denied(tool.name, "invalid_tool_arguments");
             args = structuredClone(parsed.data);
+            if (tool.name === "update_cart_item" && requestedQuantity !== undefined && args.quantity !== requestedQuantity)
+              return denied(tool.name, "cart_selection_binding_mismatch");
             if (optionTag && (!Array.isArray(args.optionItemIds) || JSON.stringify([...args.optionItemIds].sort()) !== JSON.stringify(options))
               || serviceSlotTag && args.serviceSlotId !== serviceSlotTag) return denied(tool.name, "cart_selection_binding_mismatch");
           }
@@ -215,11 +219,20 @@ export function createCartTurnPolicy(message: string, attachmentContext?: string
             return { ok: false as const, error: "cart_outcome_unknown", code: "cart_outcome_unknown" };
           }).then(value => {
             if (terminalMutation(tool.name)) {
-              let confirmed = false;
-              try { confirmed = !!cartId && confirmsMutation(tool.name, command, value, cartId); } catch { /* A post-write validation error cannot authorize retry. */ }
-              mutationOutcome = { tool: tool.name, status: confirmed ? "succeeded" : "unknown" };
+              let confirmed = false, knownNotApplied = false;
+              try {
+                const rejected = tool.name === "update_cart_item" && value.ok
+                  ? validateStorefrontToolOutput(tool.name, value.data, cartId ? { cartId } : undefined) : undefined;
+                const refusal = rejected?.ok ? rejected.data as { error?: unknown; notApplied?: { cartId?: unknown; variantId?: unknown; quantity?: unknown } } : undefined;
+                knownNotApplied = !!cartId && refusal?.error === "variant_out_of_stock"
+                  && refusal.notApplied?.cartId === cartId && refusal.notApplied.variantId === command.variantId
+                  && refusal.notApplied.quantity === command.quantity;
+                confirmed = !!cartId && confirmsMutation(tool.name, command, value, cartId);
+              } catch { confirmed = knownNotApplied = false; /* A malformed result or post-write validation error cannot authorize retry. */ }
+              mutationOutcome = { tool: tool.name, status: confirmed ? "succeeded" : knownNotApplied ? "rejected" : "unknown",
+                ...(knownNotApplied ? { code: "variant_out_of_stock" as const } : {}) };
               terminal = true;
-              if (!confirmed) value = { ok: false, error: "cart_outcome_unknown", code: "cart_outcome_unknown" };
+              if (!confirmed && !knownNotApplied) value = { ok: false, error: "cart_outcome_unknown", code: "cart_outcome_unknown" };
             }
             completed.set(tool.name, value);
             const code = errorCode(value);

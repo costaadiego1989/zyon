@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hasFractionalCartQuantity } from "./cart-quantity-input.js";
+import { explicitCartQuantityTarget, hasFractionalCartQuantity } from "./cart-quantity-input.js";
 
 test("a direct cart quantity command rejects a fractional target without rounding", () => {
   for (const text of [
@@ -9,6 +9,15 @@ test("a direct cart quantity command rejects a fractional target without roundin
     "Por favor, pode mudar a quantidade do Kit no carrinho para 2,25 itens?",
     "Atualize a quantidade no carrinho para -1,5 unidade.",
   ]) assert.equal(hasFractionalCartQuantity(text), true, text);
+});
+
+test("numeric target binding ignores product/model numbers and never derives authority from quoted text", () => {
+  assert.equal(explicitCartQuantityTarget("Mude a quantidade do Kit Modelo 1,5 no carrinho para 20 unidades."), 20);
+  assert.equal(explicitCartQuantityTarget("Altere a quantidade no carrinho para 0 unidades."), 0);
+  for (const text of ['"Mude a quantidade no carrinho para 20 unidades."',
+    "Exemplo: Mude a quantidade no carrinho para 20 unidades.", "Não mude a quantidade no carrinho para 20 unidades.",
+    "Qual é a quantidade do Kit 20 no carrinho?", "Mude a quantidade no carrinho. O preço é R$ 20."])
+    assert.equal(explicitCartQuantityTarget(text), undefined, text);
 });
 
 test("price/product decimals, queries, quoted commands and valid integral targets are not quantity errors", () => {

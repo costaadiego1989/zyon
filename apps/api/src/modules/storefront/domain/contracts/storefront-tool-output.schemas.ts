@@ -142,6 +142,7 @@ export function validateStorefrontToolOutput(name: string, data: unknown, scope?
       : ["add_to_wishlist", "remove_from_wishlist"].includes(name) ? errorSchema.extend({ items: list(product).optional() })
       : name === "get_reviews" ? errorSchema.extend({ reviews: list(review).optional() })
       : name === "get_product_availability" ? errorSchema.extend({ inStock: z.boolean().optional(), quantity: count.optional() })
+      : name === "update_cart_item" ? errorSchema.extend({ notApplied: z.strictObject({ cartId: id, variantId: id, quantity: count.min(1).max(99) }).optional() })
       : name === "compare_products" ? errorSchema.extend({ comparison: z.array(z.never()).optional() }) : errorSchema
     : storefrontToolOutputSchemas[name as StorefrontToolName];
   const parsed = schema.safeParse(data);

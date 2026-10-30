@@ -49,7 +49,7 @@ import { withStorefrontReplyContract } from "./storefront-reply-contract.js";
 import { planStorefrontShopping } from "../ai/structured-shopping-planner.js";
 import type { ShoppingSearchPlan } from "../../domain/contracts/shopping-search-plan.schemas.js";
 import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
-import { hasFractionalCartQuantity, FRACTIONAL_CART_QUANTITY_MESSAGE } from "../../domain/services/cart-quantity-input.js";
+import { hasFractionalCartQuantity, FRACTIONAL_CART_QUANTITY_MESSAGE, INSUFFICIENT_CART_STOCK_MESSAGE } from "../../domain/services/cart-quantity-input.js";
 
 export interface StorefrontAgentCallbacks {
   onToken?: (token: string) => void;
@@ -693,6 +693,7 @@ export class StorefrontLangGraphAgent {
     const mutationOutcome = cartPolicy.mutationOutcome;
     if (mutationOutcome) finalContent = mutationOutcome.status === "succeeded" ? "Carrinho atualizado. Confira os itens e valores."
       : mutationOutcome.status === "unknown" ? "Não consegui confirmar a alteração. Confira o carrinho antes de tentar novamente."
+      : mutationOutcome.code === "variant_out_of_stock" ? INSUFFICIENT_CART_STOCK_MESSAGE
       : "Para alterar o carrinho, escolha o produto e peça a alteração explicitamente.";
     if (mutationOutcome && mutationOutcome.status !== "succeeded") {
       for (let index = blocks.length - 1; index >= 0; index--) if (blocks[index]?.type === "cart_summary") blocks.splice(index, 1);
