@@ -191,6 +191,9 @@ export class HandleMetaConversationUseCase {
         view = buildMetaUiView(response); state.page = 0;
       }
       if (!view) throw new Error("whatsapp_ui_view_missing");
+      // Returning to an archived welcome restores its text and controls. Its
+      // original clip belongs to the first greeting, not every Back selection.
+      if ((recoveredView || action?.kind === "back") && view.blocks.some(block => block.type === "welcome_animation")) includeMedia = false;
       if (!responseProducer) view = withMetaCartNavigation(view, state.cartHasItems);
       view = { ...view, stage: view.stage ?? state.stage };
       const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0, includeMedia, navigationOnly });

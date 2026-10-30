@@ -17,6 +17,22 @@ function fixture() {
   return { claim, route, input, conversation, sessions, inbox, sender, emitted, calls: () => engineCalls, execute: () => new HandleMetaConversationUseCase(conversation, sessions, inbox, sender).execute(input, route) };
 }
 
+test("back restores the welcome without repeating its original animation or a commerce action", async () => {
+  const f = fixture(), state = f.route.whatsappSession.conversationState;
+  state.history = [{ role: "user", content: "Oi" }, { role: "assistant", content: "Boas-vindas" }];
+  state.welcomeAnimationShown = true;
+  state.previousViews = [buildMetaUiView({ agentMessage: "👋 Olá! Como posso ajudar?", merchantName: "Athom", state,
+    quickReplies: ["Ver Produtos"], blocks: [{ type: "welcome_animation", data: { url: "https://api.example.test/welcome-v2.mp4" } }] })];
+  const history = structuredClone(state.history);
+  f.input.body = "Voltar";
+  await f.execute();
+  assert.equal(f.calls(), 0);
+  assert.equal(f.emitted.some(message => message.type === "video"), false);
+  assert.ok(f.emitted.some(message => message.type === "text" && message.text.body.includes("Como posso ajudar?")));
+  assert.ok(f.emitted.some(message => message.type === "interactive"));
+  assert.deepEqual(f.route.whatsappSession.conversationState.history, history);
+});
+
 for (const mode of ['native', 'numeric', 'typed', 'legacy-native', 'archived-legacy']) test(`catalog secondary options preserve the conversation and original actions: ${mode}`, async () => {
   const f = fixture();
   const state = f.route.whatsappSession.conversationState;
