@@ -6,6 +6,13 @@ import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-t
 import { createAllowedScopeAgent } from "../agents/storefront-scope.fixture.js";
 import { storefrontConversationOutputSchema } from "../../domain/contracts/storefront-conversation.schemas.js";
 import { buildMetaUiView } from "../../../whatsapp-channel/domain/ui/meta-ui-renderer.js";
+import { shoppingFamilyMatches } from "../../domain/services/shopping-recovery.js";
+
+test("a family word is not proved by an unrelated word containing its letters", () => {
+  assert.equal(shoppingFamilyMatches("cabo", "Acabou o creme de uso diário."), false);
+  assert.equal(shoppingFamilyMatches("kit organizador", "Kit organizador de cabos preto."), true);
+  assert.equal(shoppingFamilyMatches("cabo", "Cabo-USB preto."), true);
+});
 
 const merchantId = "owned", ctx = { merchantId, sessionId: "session", userMessage: "Kit Organizador Viajante; se não tiver, recomende semelhante de preferência azul até R$70. Não adicione nem cobre." };
 const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();

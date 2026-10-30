@@ -75,7 +75,8 @@ export function shoppingRecoveryQueries(plan: ShoppingSearchPlan, userMessage = 
 
 export function shoppingFamilyMatches(query: string, facts: string): boolean {
   const text = normalizeShoppingFact(facts), groups = contextualSearchGroups(query);
-  return groups.length > 0 && groups.every(group => group.some(term => text.includes(normalizeShoppingFact(term))));
+  return groups.length > 0 && groups.every(group => group.some(term =>
+    new RegExp(`(?:^|[\\s-])${escape(normalizeShoppingFact(term))}(?=[\\s-]|$)`, "u").test(text)));
 }
 
 /** The same variant must prove every mandatory attribute, including negatives.
