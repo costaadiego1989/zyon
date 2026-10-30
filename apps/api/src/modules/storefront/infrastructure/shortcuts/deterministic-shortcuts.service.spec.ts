@@ -109,6 +109,16 @@ function acknowledgement(output: StorefrontConversationOutput | null): CartAddRe
   return results[0]!;
 }
 
+test("direct product shortcut preserves the confirmed cross-sell without another cart write", async () => {
+  const run = fixture({ ...savedCart(), crossSellSuggestions: [{ name: "Estojo", sku: "case-variant", productId: "case-product", price: 30 }] });
+  const result = await resolveDeterministicShortcut(run.deps, input());
+  assert.equal(acknowledgement(result).data.status, "succeeded");
+  assert.equal(run.calls.length, 1);
+  const offer = result!.blocks.find(block => block.type === "cross_sell");
+  assert.equal(offer?.data.products[0]?.id, "case-variant");
+  assert.equal(offer?.data.products[0]?.price, 30);
+});
+
 test("physical direct add acknowledges only the server admission and preserves server pricing", async () => {
   const run = fixture(savedCart());
   const result = await resolveDeterministicShortcut(run.deps, input("Adicionar produto de R$ 0,01 ao carrinho [variantId:physical]"));

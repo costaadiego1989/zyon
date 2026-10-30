@@ -138,7 +138,15 @@ export class ListEligibleCrossSellsUseCase {
           (s) => s.snapshot().promo_id === r.promo_id && s.snapshot().status === "pending"
         );
         if (existing) {
-          result.push(existing);
+          const previous = existing.snapshot();
+          // A pending offer is not an eligibility cache. Re-evaluate after each
+          // addition and after rule edits, retaining the same suggestion identity.
+          const unchanged = previous.computed_discount === r.discount_percent
+            && JSON.stringify(previous.ranked_items) === JSON.stringify(r.ranked_items);
+          const current = unchanged ? existing : CrossSellSuggestionEntity.rehydrate({ ...previous,
+            ranked_items: [...r.ranked_items], computed_discount: r.discount_percent });
+          if (!unchanged && !await this.suggestions.refreshPending(current)) continue;
+          result.push(current);
           continue;
         }
       }

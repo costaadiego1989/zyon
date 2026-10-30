@@ -374,7 +374,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         const crossSellConfig = await deps.loadCrossSellConfig(ctx.merchantId);
         if (crossSellConfig.enabled && crossSellConfig.touchpoints.post_cart) {
           crossSellSuggestions = await buildCrossSellSuggestions(
-            { productRepo: deps.productRepo, prisma: deps.prisma, listEligibleCrossSells: deps.listEligibleCrossSells },
+            { productRepo: deps.productRepo, prisma: deps.prisma, merchantRepo: deps.merchantRepo, listEligibleCrossSells: deps.listEligibleCrossSells },
             ctx.merchantId,
             cart,
             crossSellConfig,

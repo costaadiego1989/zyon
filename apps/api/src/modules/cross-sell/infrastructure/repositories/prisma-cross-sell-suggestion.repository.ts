@@ -24,6 +24,16 @@ export class PrismaCrossSellSuggestionRepository implements CrossSellSuggestionR
     return row ? toSuggestionEntity(row) : null;
   }
 
+  async refreshPending(suggestion: CrossSellSuggestionEntity): Promise<boolean> {
+    const snapshot = suggestion.snapshot();
+    if (snapshot.status !== "pending") return false;
+    const result = await this.prisma.crossSellSuggestion.updateMany({
+      where: { id: snapshot.id, merchantId: snapshot.merchant_id, sessionId: snapshot.session_id, status: "pending" },
+      data: { rankedItems: snapshot.ranked_items, computedDiscount: snapshot.computed_discount },
+    });
+    return result.count === 1;
+  }
+
   async findBySession(sessionId: string, merchantId: string): Promise<CrossSellSuggestionEntity[]> {
     const rows = await this.prisma.crossSellSuggestion.findMany({
       where: { sessionId, merchantId },

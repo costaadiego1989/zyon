@@ -2,6 +2,10 @@ import type { ProductRepositoryPort } from "../../../catalog/domain/ports/produc
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import { normalizeCrossSellStrategies } from "@zyon/shared-types";
+import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { createShoppingRecommendationReader } from "./shopping-recommendation.handler.js";
+import type { ProductHandlerDeps } from "./product.handlers.js";
+import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 
 export interface CrossSellConfig {
   enabled: boolean;
@@ -40,6 +44,7 @@ export interface CartSnapshot {
 export interface BuildCrossSellDeps {
   productRepo: ProductRepositoryPort;
   prisma: PrismaClient;
+  merchantRepo: MerchantRepository;
   listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
 }
 
@@ -51,8 +56,8 @@ export async function buildCrossSellSuggestions(
   productName: string,
   referenceItem?: CartLineItem,
 ): Promise<CrossSellSuggestion[]> {
-  let crossSellSuggestions: CrossSellSuggestion[] = [];
-  const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 3;
+  const crossSellSuggestions: CrossSellSuggestion[] = [];
+  const maxSuggestions = Math.min(10, crossSellConfig.limits.maxSuggestionsPerSession ?? 3);
   const strategies = normalizeCrossSellStrategies(crossSellConfig.strategies);
   if (maxSuggestions <= 0 || !strategies.length || !deps.listEligibleCrossSells) return [];
   const cartVariantIds = cart.items.map((i) => i.variantId);
@@ -101,31 +106,51 @@ export async function buildCrossSellSuggestions(
     });
 
     if (suggestions.length > 0) {
-      const catalogResults = await deps.productRepo.search({ merchantId, limit: 100, isActiveOnly: true });
-      const skuToProduct = new Map<string, (typeof catalogResults.products)[number]>();
-      for (const p of catalogResults.products) {
-        const commercialSku = p.variants?.[0]?.sku;
-        if (commercialSku) skuToProduct.set(commercialSku.toLowerCase(), p);
-        skuToProduct.set(p.id.toLowerCase(), p);
-      }
-
+      // Bounded exact lookups, never a first-page catalog scan or an arbitrary
+      // variant substitution. SKU uniqueness is not guaranteed across products.
+      const seen = new Set<string>();
+      let reads = 0;
       for (const suggestion of suggestions) {
         if (crossSellSuggestions.length >= maxSuggestions) break;
+        // Legacy benefits have no authoritative checkout quote. Do not promise
+        // them, or silently offer full price after the buyer accepts a discount.
+        if (suggestion.computed_discount !== 0) continue;
         for (const sku of suggestion.ranked_items) {
           if (crossSellSuggestions.length >= maxSuggestions) break;
-          const p = skuToProduct.get(sku.toLowerCase());
-          if (p && p.name !== productName && p.hasStock && !p.variants.some((v) => cartVariantIds.includes(v.id)) && !crossSellSuggestions.some((s) => s.sku === p.variants[0]?.id)) {
+          if (reads >= 20) break;
+          if (typeof sku !== "string" || !sku.trim() || sku.length > 191 || seen.has(sku.toLowerCase())) continue;
+          seen.add(sku.toLowerCase()); reads++;
+          try {
+            const matches = await deps.prisma.productVariant.findMany({
+              where: { isActive: true, product: { merchantId, isActive: true, deletedAt: null },
+                OR: [{ id: sku }, { sku: { equals: sku, mode: "insensitive" } }] },
+              select: { id: true, productId: true }, orderBy: { id: "asc" }, take: 2,
+            });
+            if (matches.length !== 1) continue;
+            const match = matches[0];
+            if (cartVariantIds.includes(match.id) || crossSellSuggestions.some(s => s.sku === match.id)) continue;
+            const p = await deps.productRepo.findById(merchantId, match.productId);
+            const variant = p?.variants.find(v => v.id === match.id && (v.id === sku || v.sku.toLowerCase() === sku.toLowerCase()));
+            if (!p || p.merchantId !== merchantId || !p.isActive || !variant?.isActive || p.name === productName) continue;
+            if (p.type !== "digital" && p.type !== "service" && !(variant.stockQuantity - variant.stockReserved > 0)) continue;
+            // Reuse the same one-item price authority as product discovery.
+            // This read has no cart/coupon/stock writer and quotes this variant only.
+            const quote = createShoppingRecommendationReader(deps as ProductHandlerDeps, { merchantId, sessionId: cart.sessionId }, async () => ({
+              products: [{ id: p.id, name: p.name, type: p.type, price: variant.basePriceInCents, inStock: true,
+                variants: [{ id: variant.id, sku: variant.sku, attributes: variant.attributes, basePriceInCents: variant.basePriceInCents,
+                  isActive: variant.isActive, stockQuantity: variant.stockQuantity, stockReserved: variant.stockReserved }] }],
+            }));
+            const quoted = storefrontToolOutputSchemas.search_products.parse(await quote({ criteria: { version: 1, query: "*", attributes: [], unsupportedCriteria: [] }, limit: 1 }));
+            const price = quoted.products?.[0]?.variants?.find(v => v.id === variant.id)?.price;
+            if (!Number.isSafeInteger(price) || price! <= 0) continue;
             crossSellSuggestions.push({
               name: p.name,
-              sku: p.variants?.[0]?.id ?? p.id,
+              sku: variant.id,
               productId: p.id,
-              price: (p.variants?.[0]?.basePriceInCents ?? 0) / 100,
-              imageUrl: p.variants?.[0]?.media?.[0]?.url,
-              discountPercent: suggestion.computed_discount > 0 ? suggestion.computed_discount : undefined,
-              promoId: suggestion.promo_id || undefined,
-              couponCode: crossSellConfig.discount.enabled && crossSellConfig.discount.mode === "coupon" ? crossSellConfig.discount.couponCode : undefined,
+              price: price! / 100,
+              imageUrl: variant.media?.[0]?.url,
             });
-          }
+          } catch { /* A recommendation failure never retries the successful add. */ }
         }
       }
     }

@@ -3,6 +3,32 @@ import assert from "node:assert/strict";
 import { BadRequestException } from "@nestjs/common";
 import { executeStorefrontUiAction } from "./storefront-ui-action.executor.js";
 
+for (const batch of [false, true]) test(`confirmed ${batch ? "native catalog batch" : "single native add"} retains only its current cross-sell result`, async () => {
+  const writes: string[] = [];
+  const items: any[] = [];
+  const payload = () => ({ cartId: "cart", items: [...items], total: items.length * 10, itemCount: items.length });
+  const result = await executeStorefrontUiAction({
+    addItemToCart: async ({ variantId }: any) => { writes.push(variantId); items.push({ variantId, name: variantId, quantity: 1, unitPrice: 10, lineTotal: 10 }); return {
+      ...payload(), addedItem: { variantId, optionItemIds: [] }, crossSellSuggestions: [{ sku: `extra-${variantId}`, productId: `p-${variantId}`, name: `Complemento ${variantId}`, price: 5 }],
+    }; }, getCart: async () => payload(),
+  } as any, batch ? { tool: "add_catalog_items", args: { lines: [{ variantId: "a", quantity: 1 }, { variantId: "b", quantity: 1 }] } }
+    : { tool: "add_item_to_cart", args: { variantId: "a", quantity: 1 } }, "merchant", "cart");
+  assert.deepEqual(writes, batch ? ["a", "b"] : ["a"]);
+  const block: any = result.blocks.find(b => b.type === "cross_sell");
+  assert.ok(block); assert.deepEqual(block.data.products.map((p: any) => p.id), [batch ? "extra-b" : "extra-a"]);
+});
+
+test("an uncertain later native batch write never replays the first add or projects its stale offer", async () => {
+  const calls: string[] = [];
+  const result = await executeStorefrontUiAction({ addItemToCart: async ({ variantId }: any) => {
+    calls.push(variantId);
+    if (variantId === "b") return {};
+    return { cartId: "cart", items: [{ variantId, name: "A", quantity: 1, unitPrice: 10, lineTotal: 10 }], total: 10, itemCount: 1,
+      addedItem: { variantId, optionItemIds: [] }, crossSellSuggestions: [{ sku: "b", productId: "p-b", name: "B", price: 5 }] };
+  } } as any, { tool: "add_catalog_items", args: { lines: [{ variantId: "a", quantity: 1 }, { variantId: "b", quantity: 1 }] } }, "merchant", "cart");
+  assert.deepEqual(calls, ["a", "b"]); assert.deepEqual(result.blocks, []);
+});
+
 test("a rejected product admission returns a recoverable conversation instead of blocking the turn", async () => {
   const result = await executeStorefrontUiAction({ addItemToCart: async () => { throw new BadRequestException("digital_content_unavailable"); } } as any,
     { tool: "add_item_to_cart", args: { variantId: "variant", quantity: 1 } }, "merchant", "cart");

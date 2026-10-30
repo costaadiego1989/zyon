@@ -15,8 +15,8 @@ const rule: AdvancedRule = { id: "discount", enabled: true, priority: 1,
 const ctx = { merchantId: "merchant", sessionId: "session" };
 
 function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, promotion = false, eligibleCrossSell = false) {
-  const product = (id: string) => ({ id, name: "Product " + id, isActive: true, type: "physical", hasStock: true, totalStock: 10,
-    variants: [{ id: "v-" + id, sku: "sku-" + id, isActive: true, basePriceInCents: 10000, media: [], attributes: {} }],
+  const product = (id: string) => ({ id, merchantId: ctx.merchantId, name: "Product " + id, isActive: true, type: "physical", hasStock: true, totalStock: 10,
+    variants: [{ id: "v-" + id, sku: "sku-" + id, isActive: true, stockQuantity: 10, stockReserved: 0, basePriceInCents: 10000, media: [], attributes: {} }],
     defaultVariant: { basePriceInCents: 10000, media: [] } });
   const products = [product("one"), product("two")];
   let base: StorefrontCart = { id: "cart", merchantId: ctx.merchantId, sessionId: ctx.sessionId, items: [], couponCode: null, discount: 0, freeShipping: false, total: 0, createdAt: new Date(), updatedAt: new Date() };
@@ -25,7 +25,12 @@ function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, 
   const deps = {
     productRepo: { search: async () => ({ products }), findById: async (_m: string, id: string) => products.find((p) => p.id === id) ?? null },
     stockRepo: { getAvailableStock: async () => ({ quantity: 10, reserved: 0 }) },
-    prisma: { checkoutSetting: { findUnique: async () => ({ advancedRules: rules }) }, productVariant: { findMany: async () => [] },
+    prisma: { checkoutSetting: { findUnique: async () => ({ advancedRules: rules }) }, productVariant: { findMany: async (query: any) => {
+      if (query.select.sku) return products.map(p => ({ id: p.variants[0].id, sku: p.variants[0].sku, product: { categoryId: null } }));
+      assert.deepEqual(query.where.product, { merchantId: ctx.merchantId, isActive: true, deletedAt: null });
+      const identifier = query.where.OR[0].id;
+      return products.flatMap(p => p.variants.filter(v => v.id === identifier || v.sku === identifier).map(v => ({ id: v.id, productId: p.id })));
+    } }, productPromotion: { findMany: async () => [] },
       productPrice: { findMany: async (query: any) => {
         assert.equal(query.where.variant.product.merchantId, ctx.merchantId);
         assert.equal(query.where.currency, "BRL");
@@ -196,13 +201,11 @@ test("pre_cart suggestions appear with product details and can coexist with post
   assert.equal((blocks[1].data as any).products[0].productId, "two");
 });
 
-test("pre_cart evaluates the viewed product without persisting it, preserving the authorized cross-sell discount", async () => {
+test("pre_cart evaluates the viewed product without persisting it or promising a legacy benefit without quote authority", async () => {
   const { deps, handlers } = fixture([], false, true, false, true);
   const detail = await createProductHandlers(deps, ctx).getProductDetails({ productId: "one" }) as any;
-  assert.equal(detail.crossSellSuggestions[0].sku, "v-two");
-  assert.equal(detail.crossSellSuggestions[0].discountPercent, 10);
-  assert.equal(detail.crossSellSuggestions[0].promoId, "promo");
-  assert.equal(detail.crossSellDisplayMode, "modal");
+  assert.deepEqual(detail.crossSellSuggestions, []);
+  assert.equal(detail.crossSellDisplayMode, undefined);
   assert.equal((await handlers.getCart({ cartId: ctx.sessionId }) as any).itemCount, 0);
 });
 

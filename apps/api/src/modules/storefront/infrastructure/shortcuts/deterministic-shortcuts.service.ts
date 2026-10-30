@@ -1,6 +1,7 @@
 import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import type { StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
 import type { CartAddResultBlock, ConversationBlock } from "../../domain/types/conversation-block.js";
+import { buildConversationBlocks } from "../agents/conversation-block.builder.js";
 import type { AgentCopyService } from "../copy/agent-copy.service.js";
 import { productGallery } from "../product-gallery.js";
 import { isCatalogBrowseQuery } from "../../../catalog/domain/services/contextual-product-search.js";
@@ -147,7 +148,8 @@ async function resolveAddToCartShortcut(
     deps.emitFunnelEvent(input.merchantId, input.sessionId, "cart_viewed").catch(() => {});
     return {
       message: "Produto adicionado ao carrinho.",
-      blocks: [result, block],
+      blocks: [result, block, ...buildConversationBlocks({ toolResults: { add_item_to_cart: cart }, userMessage: input.userMessage,
+        finalContent: "Produto adicionado ao carrinho.", merchantId: input.merchantId, presentationMode: "structured" }).blocks.filter(b => b.type === "cross_sell")],
       suggestedNext: ["Ver Carrinho", "Continuar Comprando", "Finalizar Compra"],
     };
   } catch {

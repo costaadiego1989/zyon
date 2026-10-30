@@ -32,12 +32,20 @@ async function executeAction(handlers: StoreToolHandlers, action: StorefrontUiAc
   };
   const a = action.args; const str = (key: string) => typeof a[key] === "string" ? a[key] as string : "";
   let result: any; let message: string;
+  let lastConfirmedCatalogAdd: unknown;
   switch (action.tool) {
     case "add_catalog_items": {
       const lines = Array.isArray(a.lines) ? a.lines : [];
       if (!lines.length || lines.length > 30 || lines.some(line => typeof line?.variantId !== "string" || !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 99)) throw new Error("store_ui_catalog_order_invalid");
       const results = [];
-      for (const line of lines) results.push(await validated("add_item_to_cart", handlers.addItemToCart({ cartId, variantId: line.variantId, quantity: line.quantity })));
+      for (const line of lines) {
+        const added = await validated("add_item_to_cart", handlers.addItemToCart({ cartId, variantId: line.variantId, quantity: line.quantity }));
+        results.push(added);
+        // Only the last confirmed write owns current offers. Earlier offers may
+        // already be in the cart after the remaining catalog lines were added.
+        if (!(added as any)?.error && (added as any)?.success !== false && (added as any)?.addedItem)
+          lastConfirmedCatalogAdd = added;
+      }
       result = { success: results.every(r => !(r as any)?.error && (r as any)?.success !== false) };
       message = result.success ? "Confira os itens do catálogo no seu carrinho. A compra será confirmada após o pagamento." : "Alguns itens não puderam ser adicionados. Confira o carrinho e as opções disponíveis.";
       break;
@@ -85,6 +93,7 @@ async function executeAction(handlers: StoreToolHandlers, action: StorefrontUiAc
     default: throw new Error("store_ui_action_unsupported");
   }
   const toolResults: Record<string, unknown> = { [action.tool]: result };
+  if (lastConfirmedCatalogAdd) toolResults.add_item_to_cart = lastConfirmedCatalogAdd;
   if (["get_cart", "remove_cart_item", "update_cart_item", "apply_coupon", "add_item_to_cart", "add_catalog_items"].includes(action.tool)) toolResults.get_cart = await validated("get_cart", handlers.getCart({ cartId }));
   const built = buildConversationBlocks({ toolResults, userMessage: "", finalContent: message, merchantId, presentationMode: "structured" });
   const blocks: ConversationBlock[] = built.blocks;

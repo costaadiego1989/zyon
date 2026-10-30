@@ -16,6 +16,16 @@ export class InMemoryCrossSellSuggestionRepository implements CrossSellSuggestio
     return s;
   }
 
+  async refreshPending(suggestion: CrossSellSuggestionEntity): Promise<boolean> {
+    const current = this.store.get(suggestion.id)?.snapshot();
+    const next = suggestion.snapshot();
+    if (!current || current.merchant_id !== next.merchant_id || current.session_id !== next.session_id
+      || current.status !== "pending" || next.status !== "pending") return false;
+    this.store.set(suggestion.id, CrossSellSuggestionEntity.rehydrate({ ...current,
+      ranked_items: [...next.ranked_items], computed_discount: next.computed_discount }));
+    return true;
+  }
+
   async findBySession(sessionId: string, merchantId: string): Promise<CrossSellSuggestionEntity[]> {
     return [...this.store.values()].filter((s) => s.session_id === sessionId && s.merchant_id === merchantId);
   }

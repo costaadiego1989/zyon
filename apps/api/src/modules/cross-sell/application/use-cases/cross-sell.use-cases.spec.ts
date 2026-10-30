@@ -45,6 +45,19 @@ function makeSuggestionSetup() {
   return { promoRepo, suggestionRepo, outbox, acceptUseCase, listUseCase };
 }
 
+it("pending offers re-evaluate current rule targets after every add without duplicate suggestion identities", async () => {
+  const { promoRepo, suggestionRepo, listUseCase } = makeSuggestionSetup();
+  const promo = makePromo().update({ discount_percent: 0 }); await promoRepo.save(promo);
+  const input = { session_id: "pending-session", merchant_id: "mrc_1", cart: BASE_CART, enabled_strategies: ["complementary" as const] };
+  const first = await listUseCase.execute(input); assert.equal(first.length, 1);
+  await promoRepo.save(promo.update({ recommended_skus: ["SKU-Z", "SKU-NEW"] }));
+  const second = await listUseCase.execute({ ...input, cart: { ...BASE_CART, items: [...BASE_CART.items, { sku: "SKU-Z", name: "Z", price: 10, quantity: 1 }] } });
+  assert.equal(second[0].id, first[0].id); assert.deepEqual(second[0].ranked_items, ["SKU-NEW"]);
+  assert.deepEqual((await suggestionRepo.findById(first[0].id, "mrc_1"))!.snapshot().ranked_items, ["SKU-NEW"]);
+  await promoRepo.save(promo.archive()); assert.deepEqual(await listUseCase.execute(input), []);
+  assert.deepEqual(await listUseCase.execute({ ...input, merchant_id: "other" }), []);
+});
+
 describe("AcceptCrossSellSuggestionUseCase", () => {
   it("accepts ordinary zero-benefit suggestion with valid skus", async () => {
     const { promoRepo, suggestionRepo, outbox, acceptUseCase } = makeSuggestionSetup();

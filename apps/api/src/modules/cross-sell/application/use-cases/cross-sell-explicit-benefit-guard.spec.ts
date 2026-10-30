@@ -24,6 +24,7 @@ function fixture(discount: unknown) {
   let suggestion = CrossSellSuggestionEntity.rehydrate({ id: "suggestion", merchant_id: "merchant", session_id: "session", promo_id: "promo",
     ranked_items: ["SKU-Y"], computed_discount: discount as never, agent_copy: "Fixture", status: "pending", suggested_at: new Date(0).toISOString(), resolved_at: null });
   const suggestions: CrossSellSuggestionRepository = {
+    async refreshPending() { assert.fail("unexpected-refresh"); },
     async findById(id, merchantId) { calls.push("suggestion-read"); return id === suggestion.id && merchantId === suggestion.merchant_id ? suggestion : null; },
     async save(value) { calls.push("suggestion-write"); suggestion = value; }, async findBySession() { assert.fail("unexpected-list"); },
   };
