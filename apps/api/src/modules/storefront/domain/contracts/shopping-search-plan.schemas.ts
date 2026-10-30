@@ -15,6 +15,10 @@ const attribute = z.strictObject({
 export const shoppingSearchPlanSchema = z.strictObject({
   version: z.literal(1),
   query: z.string().trim().min(1).max(500),
+  recovery: z.strictObject({
+    familyQuery: z.string().trim().min(1).max(500),
+    optionalQueryTerms: z.array(z.string().trim().min(1).max(120)).max(4),
+  }).describe("Read-only recovery after a complete zero-result exact search. Propose recovery for an optional model/name or positive preferences when a grounded product family remains. familyQuery retains query, removing only literal optionalQueryTerms when present; if an optional name is separate from query it must occur literally in the current user request and the backend will add it only to narrow the exact read. Never remove an exclusive model/brand, compatibility or exclusion. Use optionalQueryTerms=[] when only relaxing preferred positive attributes. Keep all mandatory attributes and budgets. Return null only when recovery has no grounded family or the buyer requires the exclusive name/model/brand.").optional(),
   minPriceCents: cents.optional(),
   maxPriceCents: cents.optional(),
   minRating: z.number().min(1).max(5).optional(),
@@ -50,4 +54,8 @@ export const shoppingSearchEvidenceSchema = z.strictObject({
   appliedPlan: shoppingSearchPlanSchema,
   message: z.string().min(1).max(8000),
   unconfirmedPreferences: z.array(z.string().max(300)).max(12),
+  matchType: z.enum(["exact", "similar", "no_match", "incomplete"]).optional(),
+  differences: z.array(z.strictObject({ productId: z.string().min(1).max(191),
+    details: z.array(z.string().max(400)).max(13) })).max(3).optional(),
 });
+export type ShoppingSearchEvidence = z.infer<typeof shoppingSearchEvidenceSchema>;

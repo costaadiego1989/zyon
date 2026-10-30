@@ -361,14 +361,16 @@ export class StorefrontLangGraphAgent {
       // projection. Secondary tools cannot leak out-of-budget alternatives,
       // and no narration call can reinterpret a price as meeting the ceiling.
       const monetary = turnPlan.minPriceCents !== undefined || turnPlan.maxPriceCents !== undefined;
-      if (monetary || turnPlan.minRating !== undefined || turnPlan.attributes.length || turnPlan.sortBy
+      const canonicalSearch = monetary || turnPlan.recovery !== undefined
+        || turnPlan.attributes.some(a => a.priority === "preferred" && a.operator === "equals");
+      if (canonicalSearch || turnPlan.minRating !== undefined || turnPlan.attributes.length || turnPlan.sortBy
         || turnPlan.delivery || turnPlan.unsupportedCriteria.length) {
         const handlers = input.toolHandlers ?? this.defaultToolHandlers;
         const args = { query: turnPlan.query, criteria: turnPlan, inStockOnly: true, limit: 3 };
         try {
-          if (monetary && !handlers.recommendProducts) return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
+          if (canonicalSearch && !handlers.recommendProducts) return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
           toolsUsed.push("search_products"); input.callbacks?.onToolCall?.("search_products", args);
-          const read = await observeStorefrontOperation("tool", () => callStorefrontTool("search_products", args, checked => monetary
+          const read = await observeStorefrontOperation("tool", () => callStorefrontTool("search_products", args, checked => canonicalSearch
             ? handlers.recommendProducts!({ criteria: turnPlan!, limit: 3 })
             : handlers.searchProducts(checked as Parameters<StoreToolHandlers["searchProducts"]>[0])), { tool: "search_products" });
           input.callbacks?.onToolResult?.("search_products", read);

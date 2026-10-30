@@ -35,6 +35,19 @@ test("all nullable requirement decisions are mandatory in the planner contract",
   assert.equal(shoppingPlannerOutputSchema.safeParse({ ...value, plan: missing }).success, false);
 });
 
+test("optional recovery is a read proposal with a closed contract and preserves all original hard criteria", async () => {
+  const recovery = { familyQuery: "kit organizador", optionalQueryTerms: ["Viajante"] };
+  const wire = wirePlan({ query: "kit organizador Viajante", maxPriceCents: 7000, recovery,
+    attributes: [{ name: "cor", value: "azul", operator: "equals", priority: "required" }] });
+  assert.equal(shoppingPlannerOutputSchema.safeParse(wire).success, true);
+  for (const extra of [{ merchantId: "foreign" }, { cypher: "MATCH(n)" }, { authorizeCart: true }])
+    assert.equal(shoppingPlannerOutputSchema.safeParse({ ...wire, plan: { ...wire.plan, recovery: { ...recovery, ...extra } } }).success, false);
+  const result = await planStorefrontShopping({ chat: async () => ({ content: JSON.stringify(wire), usage }) } as never,
+    { userMessage: "Kit Viajante até70 azul obrigatório", history: [] }, { mode: "json_object" });
+  assert.deepEqual(result.plan?.recovery, recovery); assert.equal(result.plan?.maxPriceCents, 7000);
+  assert.equal(result.plan?.attributes[0]!.priority, "required");
+});
+
 for (const [name, response] of [
   ["whitespace", { content: " ".repeat(56), usage }],
   ["fenced JSON", { content: "```json\n" + JSON.stringify(wirePlan()) + "\n```", usage }],
@@ -59,6 +72,7 @@ test("json_object exposes the complete attribute and delivery contract before ex
     assert.equal(request.responseFormat?.type, "json_object");
     const prompt = JSON.parse(request.messages[0]!.content!);
     const plan = prompt.outputContract.properties.plan;
+    assert.ok(plan.required.includes("recovery"));
     assert.equal(plan.additionalProperties, false);
     assert.deepEqual(plan.properties.attributes.items.required, ["name", "value", "operator", "priority"]);
     assert.deepEqual(plan.properties.attributes.items.properties.operator.enum, ["equals", "not_equals"]);

@@ -68,7 +68,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         ...(!args.lookupOnly && (plan?.minPriceCents ?? args.minPrice) !== undefined ? { minPriceCents: plan?.minPriceCents ?? args.minPrice } : {}),
         ...(!args.lookupOnly && (plan?.minRating ?? args.minRating) !== undefined ? { minRating: plan?.minRating ?? args.minRating } : {}),
         ...(!args.lookupOnly && sortBy ? { sortBy } : {}),
-        ...(plan ? { attributes: plan.attributes.filter(item => item.priority === "required").map(({ priority: _priority, ...item }) => item), currency: "BRL" as const } : {}),
+        ...(plan ? { attributes: plan.attributes.filter(item => item.priority === "required" || item.operator === "not_equals").map(({ priority: _priority, ...item }) => item), currency: "BRL" as const } : {}),
         inStockOnly: args.lookupOnly ? false : plan ? true : args.inStockOnly,
         isActiveOnly: true,
         cursor: args.cursor,

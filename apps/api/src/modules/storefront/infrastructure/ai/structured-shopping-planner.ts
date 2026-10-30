@@ -9,6 +9,7 @@ import { observeStorefrontChat, recordStorefrontDecision } from "../observabilit
 // that the buyer has no requirement. No IDs, SQL or commercial writes exist.
 export const shoppingPlannerOutputSchema = z.strictObject({ schemaVersion: z.literal(1), plan: z.strictObject({
   version: z.literal(1), query: shoppingSearchPlanSchema.shape.query,
+  recovery: shoppingSearchPlanSchema.shape.recovery.unwrap().nullable().prefault(null),
   minPriceCents: shoppingSearchPlanSchema.shape.minPriceCents.unwrap().nullable(),
   maxPriceCents: shoppingSearchPlanSchema.shape.maxPriceCents.unwrap().nullable(),
   minRating: shoppingSearchPlanSchema.shape.minRating.unwrap().nullable(),
