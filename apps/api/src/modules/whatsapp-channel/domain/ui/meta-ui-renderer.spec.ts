@@ -59,9 +59,10 @@ test("store rich text retains native bold, italic and heading hierarchy without 
 
 test("welcome retains merchant copy and explicitly invites unrestricted conversation", () => {
   const message = metaWelcomeMessage("Olá! Encontre produtos e confira seu pedido.", "Athom", "Zyon");
-  assert.match(message, /^👋 \*Zyon · Athom\*/);
-  assert.match(message, /\*Converse à vontade\*/);
-  assert.match(message, /Pergunte o que quiser/);
+  assert.match(message, /^👋 Olá! Seja muito bem-vindo à \*Athom\*/);
+  assert.match(message, /Eu sou \*Zyon\*, assistente virtual/);
+  assert.match(message, /Converse comigo naturalmente/);
+  assert.match(message, /Digite \*\/atalho\*/);
   assert.ok(message.includes("Olá! Encontre produtos e confira seu pedido."));
 });
 

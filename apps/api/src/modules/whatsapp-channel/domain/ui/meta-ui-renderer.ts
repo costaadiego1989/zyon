@@ -344,7 +344,8 @@ export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): Me
 }
 
 export function metaWelcomeMessage(greeting: string, merchantName: string, agentName = "Zyon"): string {
-  return `👋 *${formatMetaText(agentName)} · ${formatMetaText(merchantName)}*\n\n${formatMetaConversation(greeting)}\n\n*Converse à vontade*\n- Encontre e compare produtos.\n- Confira entrega, pagamento e seu pedido.\n\n_Pergunte o que quiser sobre a loja, pelo menu ou aqui na conversa._`;
+  const merchantCopy = formatMetaConversation(greeting).trim();
+  return `👋 Olá! Seja muito bem-vindo à *${formatMetaText(merchantName)}*!\n\nEu sou *${formatMetaText(agentName)}*, assistente virtual da loja. Vou ajudar você a escolher e cuidar do seu pedido.${merchantCopy ? `\n\n${merchantCopy}` : ""}\n\n💬 *Como posso ajudar hoje?*\nConverse comigo naturalmente: conte o que procura ou pergunte sobre produtos, promoções, entrega e seu pedido.\n\n⚡ *Prefere um caminho mais rápido?*\nDigite */atalho* para ver as opções disponíveis. Você pode usar os atalhos e continuar a conversa quando quiser.`;
 }
 
 export const isMetaCatalogView = (view?: MetaUiView): boolean => !!view && view.stage !== "checkout" &&

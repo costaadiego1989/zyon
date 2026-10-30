@@ -63,6 +63,28 @@ test('typing the single matching product opens authoritative purchase controls t
   assert.ok(f.calls.every(call => !call.uiAction || call.uiAction.tool === 'get_product_details'), 'naming a product cannot add it automatically');
 });
 
+for (const command of ['/atalho', ' /ATALHOS ']) test(`shortcut command ${command} preserves the shopping context without a model or commerce write`, async () => {
+  const f = fixture([]);
+  const state: any = { ...initial, history: [{ role: 'user', content: 'Quero opções até R$70.' }],
+    selectedProductId: 'protetor', selectedVariantId: 'variant-40g', cartHasItems: true,
+    pendingCoupon: { sessionId: 'checkout', fingerprint: 'same-cart' },
+    payment: { intentId: 'existing', sessionId: 'checkout', amount_cents: 1000, status: 'approved' },
+    pendingFlow: { token: 'existing-flow', field: 'fullName', checkoutSessionId: 'checkout', expiresAt: 123 } };
+  const before = structuredClone(state);
+  const result = await f.adapter.respondStore({ merchantId: 'merchant', buyer: { globalUserId: 'buyer', phone: '5521999990000' }, message: command, state });
+  assert.equal(f.calls.length, 0); assert.equal(f.storeCalls.length, 0);
+  assert.deepEqual(state, before, 'input state must not be mutated');
+  for (const field of ['selectedProductId', 'selectedVariantId', 'cartHasItems', 'pendingCoupon', 'payment', 'pendingFlow', 'stage'])
+    assert.deepEqual((result.state as any)[field], before[field]);
+  assert.deepEqual(result.state.history.slice(0, -2), before.history);
+  assert.equal(result.state.history.at(-2)?.content, command);
+  assert.match(result.agentMessage, /Seus atalhos/);
+  assert.equal(result.blocks.some(block => block.type === 'welcome_animation'), false);
+  const shown = presentMetaUi(withMetaCartNavigation(buildMetaUiView(result), true), 'shortcuts');
+  assert.ok(shown.numericSelections.some(action => action.kind === 'tool' && action.tool === 'get_cart'));
+  assert.ok(shown.numericSelections.some(action => action.kind === 'tool' && action.tool === 'checkout'));
+});
+
 for (const [name, blocks, action, detailsId] of [
   ['ambiguous results', [{ type: 'product_carousel', data: { products: [product, { ...product, id: 'other' }] } }]],
   ['more search results', [{ type: 'product_carousel', data: { products: [product], nextCursor: 'next' } }]],

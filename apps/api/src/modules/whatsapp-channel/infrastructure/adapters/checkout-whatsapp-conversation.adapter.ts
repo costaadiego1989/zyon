@@ -129,7 +129,12 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         customer: { phone: owner.phone, phone_verified: true as const, email_verified: false as const } } : undefined);
     const shopper = knownBuyer ? { ...input.buyer, globalUserId: knownBuyer.globalUserId, fullName: knownBuyer.customer.fullName, email: knownBuyer.customer.email } : input.buyer;
     const firstTurn = state.history.length === 0;
-    const greeting = metaWelcomeMessage(config.agentGreeting || `Olá! Sou ${config.agentName || "Zyon"}, sua assistente na ${config.name}.\n\nPosso ajudar você a encontrar produtos, conferir as condições da loja e acompanhar seu pedido.`, config.name, config.agentName || "Zyon");
+    const greeting = metaWelcomeMessage(config.agentGreeting || "", config.name, config.agentName || "Zyon");
+    if (/^\/atalhos?$/i.test(input.message.trim())) {
+      const message = "⚡ *Seus atalhos*\n\nEscolha uma opção no menu abaixo para continuar mais rápido.\n\n💬 Se preferir, conte o que precisa aqui na conversa. Seu carrinho e a etapa do pedido continuam salvos.";
+      state.history = [...state.history, { role: "user", content: input.message }, { role: "assistant", content: message }];
+      return { agentMessage: message, quickReplies: [...(config.quickReplies || [])], blocks: [], merchantName: config.name, state };
+    }
     state.pendingFlow = undefined;
     if ((firstTurn && /^(oi|ol[áa]|bom dia|boa tarde|boa noite)[!.\s]*$/i.test(input.message.trim())) || /^(menu|in[ií]cio)[!.\s]*$/i.test(input.message.trim())) {
       state.pendingProductQuestion = undefined;
