@@ -59,8 +59,8 @@ export function formatMetaSpeech(text: string): string {
   };
   const content = formatMetaConversation(text)
     .replace(/^(\*([^*\n]+)\*)$/gm, (line, heading, label: string) => icons[label.toLocaleLowerCase("pt-BR")] ? `${icons[label.toLocaleLowerCase("pt-BR")]} ${heading}` : line)
-    .replace(/^(Subtotal:)/gm, "🛍️ $1").replace(/^(Frete:)/gm, "🚚 $1")
-    .replace(/^(Descontos:)/gm, "🏷️ $1").replace(/^(Taxa de serviço:)/gm, "ℹ️ $1")
+    .replace(/^((?:Subtotal|Produtos):)/gm, "🛍️ $1").replace(/^(Frete:)/gm, "🚚 $1")
+    .replace(/^(Descontos?:)/gm, "🏷️ $1").replace(/^(Taxa de serviço:)/gm, "ℹ️ $1")
     .replace(/^(\*Total (?:a pagar|parcial|do pagamento):)/gm, "💳 $1")
     .replace(/^(\*[^*\n]+\*)\n(?=\*R\$)/gm, "📦 $1\n");
   return content.startsWith("🤖") ? content : `🤖 ${content}`;
