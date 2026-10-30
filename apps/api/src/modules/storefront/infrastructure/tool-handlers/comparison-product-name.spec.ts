@@ -104,7 +104,9 @@ test("comparison descriptions are bounded and truncation remains visible through
   assert.equal(projected.comparison[0]!.description!.length, 4000); assert.equal(projected.comparison[0]!.descriptionTruncated, true);
 });
 
-for (const invalid of [{ merchantId: "foreign", isActive: true }, { merchantId, isActive: false }]) {
+for (const invalid of [{ merchantId: "foreign", isActive: true }, { merchantId, isActive: false },
+  { merchantId, isActive: true, id: "different-product" },
+  { merchantId, isActive: true, name: "Produto renomeado durante a consulta" }]) {
   test(`name resolution revalidates the selected product: ${JSON.stringify(invalid)}`, async () => {
     const handlers = createProductHandlers({ productRepo: { ...namesRepository([essential]), findById: async (scope: string) => {
       assert.equal(scope, merchantId); return { ...entity(essential), ...invalid };

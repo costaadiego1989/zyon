@@ -243,8 +243,10 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       const nameResolution = productNames.length ? await resolveComparisonNames(deps.productRepo, ctx.merchantId, productNames) : [];
       for (const resolved of nameResolution) {
         if (resolved.status !== "resolved") continue;
-        const product = await deps.productRepo.findById(ctx.merchantId, resolved.candidates[0]!.id);
-        if (!product?.isActive || product.merchantId !== ctx.merchantId) {
+        const candidate = resolved.candidates[0]!;
+        const product = await deps.productRepo.findById(ctx.merchantId, candidate.id);
+        if (!product?.isActive || product.merchantId !== ctx.merchantId
+          || product.id !== candidate.id || product.name !== candidate.name) {
           resolved.status = "limited"; resolved.candidates = []; delete resolved.candidateCount;
         } else if (!products.some(item => item.id === product.id)) products.push(product);
       }
