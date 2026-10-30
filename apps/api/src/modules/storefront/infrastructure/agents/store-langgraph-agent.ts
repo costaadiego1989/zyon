@@ -50,6 +50,7 @@ import { planStorefrontShopping } from "../ai/structured-shopping-planner.js";
 import type { ShoppingSearchPlan } from "../../domain/contracts/shopping-search-plan.schemas.js";
 import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
 import { hasFractionalCartQuantity, FRACTIONAL_CART_QUANTITY_MESSAGE, INSUFFICIENT_CART_STOCK_MESSAGE } from "../../domain/services/cart-quantity-input.js";
+import { buildCurrentCommercialFacts } from "../../domain/services/current-commercial-facts.js";
 
 export interface StorefrontAgentCallbacks {
   onToken?: (token: string) => void;
@@ -795,6 +796,22 @@ export class StorefrontLangGraphAgent {
       }
     }
 
+    let canonicalCommercialFallback = false;
+    if ((!validation.safe || validation.message === STOREFRONT_MODEL_FALLBACK) && commercialEvidence) {
+      const facts = buildCurrentCommercialFacts({ intent: intentResult.intent,
+        requiresTool: semantic.classification.requiresTool, productDiscovery,
+        hasWriteAttempt: !!mutationOutcome || !!addOutcome || cartPolicy.refused || cartPolicy.hasUnknownWrite,
+        toolsUsed, toolResults, allowStackDiscountAndFreeShipping: input.merchantPolicy?.allowStackDiscountAndFreeShipping,
+        now: new Date() });
+      if (facts) {
+        const checked = validateStorefrontMessage(facts, safetyContext);
+        if (checked.safe) {
+          validation = { ...checked, reason: "canonical_commercial_fallback" };
+          canonicalCommercialFallback = true;
+        }
+      }
+    }
+
     if (validation.message && input.callbacks?.onToken) {
       input.callbacks.onToken(validation.message);
     }
@@ -803,7 +820,7 @@ export class StorefrontLangGraphAgent {
       message: validation.message,
       // A rejected narration must not turn its promotion lookup into an
       // unsolicited offer. Keep committed outcomes and other canonical reads.
-      blocks: !validation.safe || validation.message === STOREFRONT_MODEL_FALLBACK
+      blocks: canonicalCommercialFallback ? [] : !validation.safe || validation.message === STOREFRONT_MODEL_FALLBACK
         ? finalBlocks.filter(block => block.type !== "coupon_list") : finalBlocks,
       cartId: input.cartId,
       usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
