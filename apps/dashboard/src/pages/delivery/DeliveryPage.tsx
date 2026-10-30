@@ -93,7 +93,7 @@ export function DeliveryPage(props: DeliveryPageProps) {
       { title: "Acompanhe os pedidos", description: "Veja o status de cada envio e copie o rastreio quando estiver disponível." },
     ]} />
     <div className="delivery-provider-grid">
-      <MelhorEnvioCard config={vm.config} saving={vm.saving} onToggle={vm.toggleMelhorEnvio} onConnect={vm.connectMelhorEnvio} />
+      <MelhorEnvioCard key={props.me.id} config={vm.config} saving={vm.saving} onToggle={vm.toggleMelhorEnvio} onConnect={vm.connectMelhorEnvio} />
       <OwnDeliveryCard config={vm.config.ownDelivery} saving={vm.saving} onToggle={vm.toggleOwnDelivery} onOpenConfig={() => vm.setOwnDeliveryPanelOpen(true)} />
     </div>
     <DataPanel title="Entregas recentes" trailing={<FilterSelect ariaLabel="Status das entregas" value={vm.shipmentsFilter} onChange={vm.setShipmentsFilter} options={SHIPMENT_STATUSES} />}

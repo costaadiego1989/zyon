@@ -3,6 +3,7 @@ import { Package, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
 import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import { Button } from "../../../components/Button.js";
 import type { DeliveryConfig } from "../../../api/endpoints/delivery.js";
+import { MelhorEnvioWalletPanel } from "./MelhorEnvioWalletPanel.js";
 interface MelhorEnvioCardProps {
   config: DeliveryConfig;
   saving: boolean;
@@ -22,5 +23,6 @@ export function MelhorEnvioCard({ config, saving, onToggle, onConnect }: MelhorE
         <p>{ready && config.melhorEnvioExpiresAt ? `Conexão válida até ${new Date(config.melhorEnvioExpiresAt).toLocaleDateString("pt-BR")}.` : ready ? "A conta está conectada para consultar fretes e gerar etiquetas." : "Conecte sua conta para disponibilizar esta modalidade."}</p></div>
       {!ready && <Button variant="outline" onClick={onConnect} disabled={saving}><ExternalLink size={14} />{isExpired ? "Reconectar conta" : "Conectar conta"}</Button>}
     </div> : <p>Ative e conecte sua conta para oferecer os serviços disponíveis para a loja.</p>}
+    {config.melhorEnvioEnabled && isConnected && <MelhorEnvioWalletPanel onReconnect={onConnect} />}
   </div>;
 }

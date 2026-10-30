@@ -1,0 +1,31 @@
+CREATE TABLE "melhor_envio_wallets" (
+    "id" TEXT NOT NULL,
+    "merchant_id" TEXT NOT NULL,
+    "environment" TEXT NOT NULL,
+    "alert_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "threshold_cents" INTEGER NOT NULL DEFAULT 10000,
+    "email_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "balance_cents" INTEGER,
+    "reserved_cents" INTEGER,
+    "debts_cents" INTEGER,
+    "checked_at" TIMESTAMP(3),
+    "last_attempt_at" TIMESTAMP(3),
+    "last_error_code" TEXT,
+    "low_balance" BOOLEAN NOT NULL DEFAULT false,
+    "alert_id" TEXT,
+    "email_pending" BOOLEAN NOT NULL DEFAULT false,
+    "email_attempts" INTEGER NOT NULL DEFAULT 0,
+    "email_started_at" TIMESTAMP(3),
+    "email_sent_at" TIMESTAMP(3),
+    "email_recipient" TEXT,
+    "lease_token" TEXT,
+    "lease_until" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "melhor_envio_wallets_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "melhor_envio_wallets_merchant_id_fkey" FOREIGN KEY ("merchant_id") REFERENCES "merchants"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "melhor_envio_wallets_environment_check" CHECK ("environment" IN ('test', 'live')),
+    CONSTRAINT "melhor_envio_wallets_threshold_check" CHECK ("threshold_cents" BETWEEN 1 AND 5000000)
+);
+CREATE UNIQUE INDEX "melhor_envio_wallets_merchant_id_environment_key" ON "melhor_envio_wallets"("merchant_id", "environment");
+CREATE INDEX "melhor_envio_wallets_monitor_idx" ON "melhor_envio_wallets"("environment", "alert_enabled", "last_attempt_at");

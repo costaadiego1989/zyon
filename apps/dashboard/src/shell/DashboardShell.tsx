@@ -603,6 +603,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 if (n.hypothesisId) setReviewStrategyId(n.hypothesisId);
                 if (n.type === "inventory_alert") { setInventoryNotice({ id: n.id, itemId: n.inventoryItemId, alertId: n.inventoryAlertId }); changeTab("inventory"); }
                 if (n.type === "plan_expiry") changeTab("billing-plans");
+                if (n.type === "shipping_wallet_low_balance") changeTab("delivery");
                 if (n.ticketId) changeTab("support");
                 else {
                   const response = await dashboardFetch(API_BASE_URL, `/merchants/${me.id}/notifications/${encodeURIComponent(n.id)}/read`, { method: "POST" });

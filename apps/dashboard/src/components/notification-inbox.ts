@@ -1,4 +1,4 @@
-export const NOTIFICATION_TYPES = ["ai_strategy_suggestion", "ai_rule_suggestion", "inventory_alert", "plan_expiry", "handoff", "message", "return_requested", "chargeback_opened", "hold_released", "refund_processed", "order_paid"] as const;
+export const NOTIFICATION_TYPES = ["ai_strategy_suggestion", "ai_rule_suggestion", "inventory_alert", "plan_expiry", "handoff", "message", "return_requested", "chargeback_opened", "hold_released", "refund_processed", "order_paid", "shipping_wallet_low_balance"] as const;
 export interface NotificationItem {
   id: string;
   type: typeof NOTIFICATION_TYPES[number];

@@ -25,9 +25,10 @@ import { PrismaOwnDeliveryConfigRepository } from "./infrastructure/repositories
 import { OWN_DELIVERY_CONFIG_REPOSITORY } from "./domain/ports/own-delivery-config.port.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { MarketplaceLabelPurchaseGuard } from "./application/use-cases/marketplace-label-purchase.guard.js";
+import { ShippingWalletModule } from "./shipping-wallet.module.js";
 
 @Module({
-  imports: [MerchantModule, FulfillmentModule, IntegrationsModule, CheckoutPersistenceModule, ShippingQuotesModule],
+  imports: [MerchantModule, FulfillmentModule, IntegrationsModule, CheckoutPersistenceModule, ShippingQuotesModule, ShippingWalletModule],
   controllers: [WidgetShippingController, EmbedShippingController, ShippingLabelController, MelhorEnvioOAuthController, DeliveryConfigController],
   providers: [
     EmbedTokenService,
