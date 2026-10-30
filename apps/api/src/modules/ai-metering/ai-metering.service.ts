@@ -71,6 +71,62 @@ export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
     return response;
   }
 
+  /** Multipart is deliberately separate from the JSON chat transport. The
+   * permanent attempt key survives completion; duplicate/unknown attempts
+   * cannot silently buy another transcription. No file/text enters the ledger. */
+  async fetchTranscription(context: AiMeteringContext, input: string, init: RequestInit,
+    admission: { model: string; idempotencyKey: string }, transport: typeof fetch = globalThis.fetch): Promise<Response> {
+    const endpoint = new URL(input);
+    if (!context.merchantId || !context.conversationId || !/^whatsapp-audio:[a-f0-9]{64}$/.test(admission.idempotencyKey)
+      || !admission.model || admission.model.length > 200 || !(init.body instanceof FormData) || init.body.get("model") !== admission.model
+      || init.body.get("response_format") !== "json" || init.method !== "POST" || !/\/audio\/transcriptions$/.test(endpoint.pathname)
+      || endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.search || endpoint.hash)
+      throw new Error("audio_transcription_scope_invalid");
+    const identity = await this.governance.authorize(context, "model", "openai:" + admission.model);
+    const merchant = await this.db.merchant.findUnique({ where: { id: context.merchantId }, select: { id: true, billingAccountMerchantId: true } });
+    if (!merchant) throw new Error("ai_metering_company_not_found");
+    const now = new Date();
+    const price = await this.db.aiPriceVersion.findFirst({ where: { provider: "openai", model: admission.model, channel: "voice", component: "transcription",
+      effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }], rates: { not: Prisma.DbNull } }, orderBy: { effectiveFrom: "desc" } });
+    if (!price || estimateCost({ input: 1, output: 1, total: 2, inputDetails: {}, outputDetails: {} }, ratesAt(object(price.rates) as Rates, now)) === undefined)
+      throw new Error("audio_transcription_pricing_unavailable");
+    const headers = new Headers(init.headers);
+    let row: AiUsageEvent;
+    try {
+      row = await this.db.aiUsageEvent.create({ data: {
+        idempotencyKey: admission.idempotencyKey, merchantId: merchant.id, billingAccountId: merchant.billingAccountMerchantId ?? merchant.id,
+        credentialScope: credentialScope("openai", headers.get("authorization") ?? ""), payer: context.payer ?? "platform",
+        source: context.source, channel: "voice", component: "transcription", provider: "openai", model: admission.model, requestedModel: admission.model,
+        actorId: identity.actorId, actorRole: identity.actorRole, teamId: identity.teamId, taskId: context.taskId,
+        executionStatus: "unknown", measurementOrigin: "server_http", costCenter: "voice", conversationId: context.conversationId,
+        startedAt: now, completedAt: now, latencyMs: 0,
+      } });
+    } catch (error) {
+      if ((error as { code?: string }).code === "P2002") throw new Error("audio_transcription_already_attempted");
+      throw error;
+    }
+    let response: Response;
+    try { response = await transport(input, init); }
+    catch {
+      await this.completeSafely({ id: row.id, payload: {}, status: "unknown", endedAt: new Date().toISOString() });
+      throw new Error("audio_transcription_provider_unavailable");
+    }
+    if (!response.ok) {
+      await this.completeSafely({ id: row.id, payload: {}, status: response.status >= 400 && response.status < 500 && response.status !== 408 ? "rejected" : "unknown",
+        endedAt: new Date().toISOString() });
+      return response;
+    }
+    let usage: unknown;
+    try { usage = sanitizedUsage(object(await response.clone().json()).usage); } catch { /* The claimed attempt remains unknown. */ }
+    const known = !!normalizeUsage({ usage });
+    // Do not supply a provider id: complete() must retain the permanent inbox
+    // attempt key instead of replacing it with an HTTP request identifier.
+    await this.completeSafely({ id: row.id, payload: { model: admission.model, usage }, status: known ? "succeeded" : "unknown", endedAt: new Date().toISOString() });
+    const measured = await this.db.aiUsageEvent.findUnique({ where: { id: row.id } });
+    if (!known || !measured?.usageKnown || measured.costStatus === "unpriced") throw new Error("audio_transcription_metering_unconfirmed");
+    return response;
+  }
+
   async complete(input: Completion) {
     const row = await this.db.aiUsageEvent.findUnique({ where: { id: input.id } });
     if (!row || row.costStatus === "reconciled") return;

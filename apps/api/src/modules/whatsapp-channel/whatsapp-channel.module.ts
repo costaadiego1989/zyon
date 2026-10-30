@@ -29,6 +29,7 @@ import { MetaCloudImageUploadAdapter } from "./infrastructure/adapters/meta-clou
 import { MetaUiCapabilitiesAdapter } from "./infrastructure/adapters/meta-ui-capabilities.adapter.js";
 import { MetaNativeAssetsService } from "./application/services/meta-native-assets.service.js";
 import { MetaInboundMediaAdapter } from "./infrastructure/adapters/meta-inbound-media.adapter.js";
+import { MetaAudioTranscriptionService } from "./infrastructure/adapters/meta-audio-transcription.service.js";
 import { MetaCatalogOrderAdapter } from "./infrastructure/adapters/meta-catalog-order.adapter.js";
 import { TwilioDeduplicatorService } from "./infrastructure/services/twilio-deduplicator.service.js";
 import { WHATSAPP_SENDER_PORT } from "./domain/ports/whatsapp-sender.port.js";
@@ -106,6 +107,7 @@ export class MultiProviderSenderAdapter {
     MetaUiCapabilitiesAdapter,
     MetaNativeAssetsService,
     MetaInboundMediaAdapter,
+    MetaAudioTranscriptionService,
     MetaCatalogOrderAdapter,
     {
       provide: WHATSAPP_SENDER_PORT,

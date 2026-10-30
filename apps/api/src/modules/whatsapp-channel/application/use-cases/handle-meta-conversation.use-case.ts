@@ -147,13 +147,16 @@ export class HandleMetaConversationUseCase {
         if (state.view) state = { ...state, previousViews: [...state.previousViews, state.view].slice(-6), page: 0 };
       } else {
         if (action?.kind === "menu") state = { ...state, pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
-        const attachmentContext = input.metaMedia ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia) : undefined;
+        const attachmentContext = input.metaMedia ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia,
+          { inboxId: claim.id, conversationId: state.conversationId }) : undefined;
         const response: WhatsAppStructuredResponse = responseProducer ? await responseProducer() : await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
           message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : input.body, state,
           attachmentContext,
           messageId: claim.id,
           action: action?.kind === "tool" ? action : undefined });
-        if (input.metaMedia && !attachmentContext) response.agentMessage = "Não consegui ler esse anexo. Envie uma foto (JPG, PNG ou WebP) de até 3 MB, uma lista TXT/CSV ou escreva o que procura.\n\n" + response.agentMessage;
+        if (input.metaMedia && !attachmentContext) response.agentMessage = (/^audio\//i.test(input.metaMedia.mimeType ?? "")
+          ? "Não consegui transcrever esse áudio agora. Escreva o que procura para continuar.\n\n"
+          : "Não consegui ler esse anexo. Envie uma foto (JPG, PNG ou WebP) de até 3 MB, uma lista TXT/CSV ou escreva o que procura.\n\n") + response.agentMessage;
         state = response.state;
         if (view) state = { ...state, previousViews: [...state.previousViews, view].slice(-6) };
         view = buildMetaUiView(response); state.page = 0;
