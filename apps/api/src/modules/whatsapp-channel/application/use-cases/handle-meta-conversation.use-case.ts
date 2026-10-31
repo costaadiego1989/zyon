@@ -188,10 +188,10 @@ export class HandleMetaConversationUseCase {
       } else {
         if (action?.kind === "menu") state = { ...state, pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
         const response: WhatsAppStructuredResponse = unreadMedia ? {
-          agentMessage: responseProducer ? "Não consigo usar anexos nesta etapa. Escreva sua resposta para continuar."
+          agentMessage: responseProducer ? "📎 *Nesta etapa, vamos continuar por mensagem.*\n\nEscreva sua resposta para continuar."
             : (/^audio\//i.test(input.metaMedia?.mimeType ?? "") || interpreted?.kind === "audio_transcript")
-            ? "Não consegui transcrever esse áudio agora. Envie outra nota de voz Ogg/Opus de até 3 MB ou escreva o que procura."
-            : "Não consegui ler esse anexo. Envie uma foto (JPG, PNG ou WebP) de até 3 MB, uma lista TXT/CSV ou escreva o que procura.",
+            ? "🎙️ *Não consegui transcrever esse áudio agora.*\n\nPode escrever o que procura? Assim consigo continuar ajudando você.\n\n_As notas de voz devem estar em Ogg/Opus e ter até 3 MB._"
+            : "📎 *Não consegui analisar esse anexo agora.*\n\nEscreva o nome do produto ou descreva o que procura para eu continuar ajudando.\n\n_Aceito fotos JPG, PNG ou WebP de até 3 MB e listas TXT/CSV._",
           blocks: [], quickReplies: [], state,
         } : responseProducer ? await responseProducer() : await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
           message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : message, state,
