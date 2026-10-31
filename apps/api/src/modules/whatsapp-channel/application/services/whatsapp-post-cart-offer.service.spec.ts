@@ -136,6 +136,36 @@ test("details fetches the canonical product without adding and keeps offer-speci
   assert.match(result!.agentMessage, /Descrição publicada/); assert.equal(f.calls.details, 1); assert.equal(f.calls.accept, 0);
   assert.equal(buildMetaUiView(result!).choices.filter(c => c.action.kind === "tool" && c.action.tool.includes("cross_sell_offer")).length, 3);
 });
+for (const message of ["Quero ver os detalhes desse complemento antes de decidir.", "Pode me mostrar os detalhes desse complemento?", "Me mostre os detalhes do complemento, por favor."])
+  for (const visible of [true, false]) test(`scoped read-only details recover the pending offer without granting acceptance: ${visible} ${message}`, async () => {
+    const f = fixture(), shown = await f.offer();
+    if (!visible) shown.state.view = undefined;
+    const result = await f.service.handle({ merchantId: "merchant", state: shown.state, message, verifiedOwner: true, details: f.details });
+    assert.equal(f.calls.details, 1); assert.equal(f.calls.accept, 0); assert.equal(f.calls.project, 0);
+    assert.equal(result?.state.postCartOffer?.id, shown.state.postCartOffer?.id);
+    assert.equal(result?.state.postCartOffer?.status, "pending");
+    assert.match(result!.agentMessage, /59,90/);
+    assert.equal(buildMetaUiView(result!).choices.filter(c => c.action.kind === "tool" && c.action.tool.includes("cross_sell_offer")).length, 3);
+  });
+
+test("details recovery never turns unrelated, negated or nonvisible assent into an offer operation", async () => {
+  const f = fixture(), shown = await f.offer(); shown.state.view = undefined;
+  for (const message of ["Não quero ver os detalhes desse complemento", "Quero ver os detalhes de outro produto", "sim", "Adicione esse complemento se tiver desconto", "Quero ver os detalhes desse complemento e adicionar dois"])
+    await f.service.handle({ merchantId: "merchant", state: shown.state, message, verifiedOwner: true, details: f.details });
+  assert.equal(f.calls.details, 0); assert.equal(f.calls.accept, 0);
+});
+
+for (const mode of ["expired", "unverified", "tenant", "cart", "attachment"])
+  test(`scoped details recovery preserves the existing ${mode} fence`, async () => {
+    const f = fixture(), shown = await f.offer(); shown.state.view = undefined;
+    if (mode === "expired") shown.state.postCartOffer!.expiresAt = 0;
+    if (mode === "cart") shown.state.conversationId = "other";
+    await f.service.handle({ merchantId: mode === "tenant" ? "other" : "merchant", state: shown.state,
+      message: "Quero ver os detalhes desse complemento antes de decidir.", verifiedOwner: mode !== "unverified",
+      attachmentContext: mode === "attachment" ? "untrusted photo" : undefined, details: f.details });
+    assert.equal(f.calls.details, 0); assert.equal(f.calls.accept, 0);
+  });
+
 test("conditional or nonvisible assent cannot authorize an add", async () => {
   const f = fixture(), shown = await f.offer();
   assert.equal(await f.service.handle({ merchantId: "merchant", state: shown.state, message: "sim, se tiver desconto", verifiedOwner: true, details: f.details }), undefined);

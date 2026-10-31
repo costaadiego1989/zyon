@@ -90,6 +90,11 @@ export class WhatsAppPostCartOfferService {
     let explicit = input.action?.kind === "tool" && commands.has(input.action.tool) ? input.action : undefined;
     let command = explicit?.tool;
     const visible = input.state.view?.blocks.some(b => b.type === "post_cart_offer" && data(b.data).offerId === offer?.id);
+    // An explicit read of this complement can recover its still-pending view
+    // after another read failed. It grants no assent or cart mutation; ordinary
+    // nonvisible "sim" and unrelated product questions remain outside this path.
+    const text = normalize(input.message).replace(/[!.?]+$/g, "");
+    const scopedDetails = /^(?:(?:quero|gostaria de|pode|poderia)\s+)?(?:me\s+)?(?:(?:ver|mostrar|mostre)\s+)?(?:os\s+)?detalhes\s+(?:desse|deste|do)\s+complemento(?:\s+antes de (?:eu )?decidir)?(?:[, ]+por favor)?$/.test(text);
     if (!explicit && offer?.status === "pending" && input.action?.kind === "tool") {
       const action = input.action;
       if (action.tool === "add_item_to_cart" && action.args.variantId === offer.variantId) {
@@ -102,11 +107,10 @@ export class WhatsAppPostCartOfferService {
       } else if (action.tool === "add_catalog_items" && Array.isArray(action.args.lines)
         && action.args.lines.some(line => data(line).variantId === offer.variantId)) command = "clarify_cross_sell_offer";
     }
-    if (!input.attachmentContext && !input.action && offer?.status === "pending" && visible) {
-      const text = normalize(input.message).replace(/[!.?]+$/g, "");
+    if (!input.attachmentContext && !input.action && offer?.status === "pending" && (visible || scopedDetails)) {
       if (/^(sim|sim[, ]+pode adicionar|pode adicionar|adicionar complemento|quero (esse|este|o) complemento|adicion(e|a) (esse|este|o) complemento)$/.test(text)) command = "accept_cross_sell_offer";
       else if (/^(nao|nao[, ]+obrigad[oa]|seguir sem (extra|complemento)|sem (extra|complemento)|nao quero( (o|esse|este))? complemento)$/.test(text)) command = "decline_cross_sell_offer";
-      else if (/^(ver( os)? detalhes|quero (ver |saber )?(os )?detalhes|mais detalhes)$/.test(text)) command = "cross_sell_offer_details";
+      else if (scopedDetails || /^(ver( os)? detalhes|quero (ver |saber )?(os )?detalhes|mais detalhes)$/.test(text)) command = "cross_sell_offer_details";
       else {
         // A bounded explicit reference may name a contiguous published phrase
         // of the one visible offer. Quantities/conditions/extra items cannot match.
