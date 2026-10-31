@@ -105,7 +105,7 @@ test("structured discovery keeps a carousel for a single match despite detail ke
   assert.equal(result.blocks[0].type, "product_carousel");
 });
 
-test("structured agent propagates presentation mode with one classification and a canonical shopping plan", async () => {
+test("structured agent propagates presentation mode with one classification and a server-owned shopping read", async () => {
   const phases = { classification: 0, planner: 0, main: 0, review: 0 };
   let reads = 0;
   const criteria = { version: 1, query: "algo", attributes: [], unsupportedCriteria: [] };
@@ -126,8 +126,7 @@ test("structured agent propagates presentation mode with one classification and 
         minRating: null, sortBy: null, delivery: null, recovery: null, discountOnly: null } }), usage };
     }
     phases.main++;
-    assert.equal(phases.main, 1, "the canonical search result must not trigger another narration/repair request");
-    return { content: "", toolCalls: [{ id: "search", name: "search_products", args: { query: "algo", criteria } }], usage };
+    assert.fail("a valid shopping plan must not invoke main or a narration/retry request");
   } } as never, toolHandlers: { searchProducts: async (args: any) => {
     reads++; assert.deepEqual(args.criteria, criteria);
     return { products: [product], searchEvidence: { version: 1, status: "verified", appliedPlan: criteria,
@@ -139,7 +138,7 @@ test("structured agent propagates presentation mode with one classification and 
   assert.deepEqual(output.toolsUsed, ["search_products"]);
   assert.equal(output.safetyValidation.safe, true);
   assert.equal(reads, 1);
-  assert.deepEqual(phases, { classification: 1, planner: 1, main: 1, review: 0 }, "current read evidence owns the response without another classifier or narration/review model");
+  assert.deepEqual(phases, { classification: 1, planner: 1, main: 0, review: 0 }, "current read evidence owns the response without a main, retry or narration/review model");
 });
 
 test("adapter preserves clarification suppression without stale structured catalog choices", async () => {

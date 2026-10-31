@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createAllowedScopeAgent } from "./storefront-scope.fixture.js";
 import { shoppingSearchEvidence } from "../../application/services/shopping-search-evidence.js";
+import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../../domain/contracts/shopping-search-plan.schemas.js";
 
 const usage = { promptTokens: 5, completionTokens: 5, totalTokens: 10 };
 const reply = (message: string) => JSON.stringify({ schemaVersion: 1, message });
@@ -58,17 +59,23 @@ test("product fallback announces and executes the same scope as primary", async 
   assert.doesNotMatch(result.message, /número do pedido/); assert.equal(result.safetyValidation.safe, true);
 });
 
-test("a product retry cannot execute a post-sale tool or count it as catalog evidence", async () => {
-  const requests: any[] = []; let calls = 0, orders = 0;
+test("an admitted product plan without a catalog handler cannot retry post-sale tools or invent evidence", async () => {
+  const requests: any[] = []; let calls = 0, orderReads = 0, orderWrites = 0;
   const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
-    trackOrder: async () => { orders++; return { found: false, message: "Informe o número do pedido para consultar o rastreamento." }; },
+    trackOrder: async () => { orderReads++; return { found: false, message: "Informe o número do pedido para consultar o rastreamento." }; },
+    getInvoice: async () => { orderReads++; return { invoiceAvailable: false, message: "Solicite a nota." }; },
+    cancelOrder: async () => { orderWrites++; return { cancellationAvailable: false, message: "Solicite cancelamento." }; },
   } as never, provider: { chat: async (request: any) => {
     requests.push(request); if (phase(request) === "storefront.shopping-plan") return { content: JSON.stringify(wirePlan), usage };
     return ++calls === 2 ? { content: "", toolCalls: [track], usage } : { content: reply("Informe o número do pedido."), usage };
   } } as never }, productSearch);
   const result = await agent.run(input);
-  assert.equal(orders, 0); assertNoPostSale(requests); assert.deepEqual(result.toolsUsed, []);
-  assert.equal(result.safetyValidation.safe, false); assert.doesNotMatch(result.message, /Informe o número/);
+  assert.equal(orderReads, 0); assert.equal(orderWrites, 0); assertNoPostSale(requests);
+  assert.deepEqual(result.toolsUsed, ["search_products"], "an attempted canonical read is not confirmed catalog evidence");
+  assert.equal(calls, 0, "a valid plan never reaches main or the old model retry");
+  assert.equal(requests.length, 1); assert.equal(phase(requests[0]), "storefront.shopping-plan");
+  assert.equal(result.safetyValidation.safe, false); assert.deepEqual(result.blocks, []);
+  assert.equal(result.message, SHOPPING_SEARCH_PLAN_UNCONFIRMED); assert.doesNotMatch(result.message, /Informe o número/);
 });
 
 test("recommendations also exclude tracking, invoice and cancellation tools", async () => {
