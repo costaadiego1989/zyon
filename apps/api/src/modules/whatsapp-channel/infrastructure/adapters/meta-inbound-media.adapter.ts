@@ -28,6 +28,7 @@ export class MetaInboundMediaAdapter {
       const mimeType = (info.mime_type ?? media.mimeType)?.split(";")[0]?.trim().toLowerCase();
       const image = ["image/jpeg", "image/png", "image/webp"].includes(mimeType ?? "");
       const audio = mimeType === "audio/ogg";
+      if ((image || audio) && (!context?.inboxId?.trim() || !context.conversationId?.trim())) return undefined;
       if (audio && (!info.mime_type || !context?.inboxId || !context.conversationId || !this.audio)) return undefined;
       if (!image && !audio && !["text/plain", "text/csv"].includes(mimeType ?? "")) return undefined;
       const max = image || audio ? MAX_META_AUDIO_BYTES : 24 * 1024;
@@ -49,7 +50,8 @@ export class MetaInboundMediaAdapter {
           conversationId: context!.conversationId, mediaId: media.id } };
       }
       const attachmentContext = await this.interpreter.interpret(image ? { kind: "image", name: media.name ?? "Foto enviada pelo WhatsApp", mimeType, dataBase64: bytes.toString("base64") }
-        : { kind: "shopping_list", name: media.name ?? "Lista de compras", mimeType, text: bytes.toString("utf8") });
+        : { kind: "shopping_list", name: media.name ?? "Lista de compras", mimeType, text: bytes.toString("utf8") },
+      context ? { merchantId, conversationId: context.conversationId } : undefined);
       return attachmentContext ? { kind: "attachment_context", context: attachmentContext } : undefined;
     } catch { return undefined; }
   }
