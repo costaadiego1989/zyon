@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { storefrontIntentOutputSchema, isConsistentStorefrontIntent } from "./storefront-intent.schemas.js";
+import { storefrontIntentOutputSchema, storefrontIntentJsonSchema, isConsistentStorefrontIntent } from "./storefront-intent.schemas.js";
 import { storefrontIntentPromptV1 } from "../prompts/storefront-intent.v1.js";
 
 const allowed = { schemaVersion: 2, domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH",
@@ -47,6 +47,29 @@ test("V2 prompt distinguishes an academic topic from a product title and store s
   assert.deepEqual(domains, new Set(["STORE_COMMERCE", "STORE_SUPPORT", "OUT_OF_SCOPE", "UNCLEAR"]));
   assert.ok(examples.some(example => example.input === "Explique a sequência de Fibonacci"));
   assert.ok(examples.some(example => example.input === "Vocês vendem o livro Fibonacci?"));
+});
+
+test("every provider example includes every strict wire field and an explicit coherent shopping phase", () => {
+  const phases = new Map([
+    ["Quero uma ajuda para escolher ainda não sei o produto que eu quero", "clarify"],
+    ["Pode procurar até R$80", "search"],
+    ["Me orienta por onde começar?", "clarify"],
+    ["Oleosa", "search"],
+    ["Mostre produtos com avaliação mínima de 4 estrelas", "search"],
+    ["Algo para pele sensível, por favor", "search"],
+    ["Vocês vendem o livro Fibonacci?", "search"],
+    ["Limpar os filtros do catálogo", "search"],
+  ]);
+  for (const example of storefrontIntentPromptV1.examples) {
+    // Round-trip is the actual prompt JSON, so undefined is not accepted as an
+    // explicit nullable property by the strict provider contract.
+    const wire = JSON.parse(JSON.stringify(example.output));
+    for (const key of storefrontIntentJsonSchema.required) assert.equal(Object.hasOwn(wire, key), true,
+      `${example.input}: missing strict provider field ${key}`);
+    const parsed = storefrontIntentOutputSchema.parse(wire);
+    assert.equal(parsed.shoppingPhase, phases.get(example.input) ?? null, example.input);
+    assert.equal(parsed.shoppingPhase !== null, parsed.needsProductDiscovery, example.input);
+  }
 });
 
 test("contextual sales objections remain commerce without authorizing tools or product discovery", () => {
