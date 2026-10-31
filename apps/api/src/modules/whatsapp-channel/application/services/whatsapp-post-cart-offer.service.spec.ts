@@ -19,14 +19,15 @@ const base = (): WhatsAppStructuredResponse => ({ agentMessage: "Confira o resul
     { type: "cross_sell", data: { products: [{ id: "bruma", productId: "product-bruma", name: "Bruma de Hidratação", price: 59.90, priceFormatted: "R$ 59,90", inStock: true, recommendationRuleId: "rule" }] } }] as any });
 function fixture() {
   const calls = { quote: 0, accept: 0, project: 0, details: 0 }; let failQuote = false, failAccept = false, failProject = false;
-  const service = new WhatsAppPostCartOfferService({
+  const carts = {
     quoteRecommendation: async (scope: any, args: any) => { calls.quote++; assert.deepEqual(scope, { merchantId: "merchant", cartId: "cart" }); assert.deepEqual(args, { variantId: "bruma", promotionId: "rule", quantity: 1 }); if (failQuote) throw Error("rule inactive or stock"); return quote(); },
     acceptRecommendation: async (_scope: any, args: any) => { calls.accept++; assert.deepEqual(args, { expectedQuote: quote() }); if (failAccept) throw Error("stock changed"); return { version: 1, status: "accepted", merchantId: "merchant", cartId: "cart" }; },
     project: async () => { calls.project++; if (failProject) throw Error("read unknown"); return { sessionId: "cart", items: [{ ...quote().cartBasis.items[0] }, { variantId: "bruma", name: "Bruma de Hidratação", quantity: 1, unitPriceCents: 5990 }], total: 24980, discount: 0, freeShipping: false }; },
-  } as any);
+  };
+  const service = new WhatsAppPostCartOfferService(carts as any);
   const details = async (productId: string) => { calls.details++; assert.equal(productId, "product-bruma"); return { blocks: [{ type: "product_card", data: { id: productId, description: "Descrição publicada da Bruma." } }] as any }; };
   const offer = async () => { const result = await service.decorate("merchant", base()); result.state.view = buildMetaUiView(result); return result; };
-  return { calls, service, details, offer, failQuote: () => { failQuote = true; }, failAccept: () => { failAccept = true; }, failProject: () => { failProject = true; } };
+  return { calls, carts, service, details, offer, failQuote: () => { failQuote = true; }, failAccept: () => { failAccept = true; }, failProject: () => { failProject = true; } };
 }
 
 test("captured 8b27890b generic cross-sell has only product navigation; decoration creates narration and three scoped choices", async () => {
@@ -50,6 +51,38 @@ for (const message of ["sim", "sim, pode adicionar", "Quero esse complemento", "
   await f.service.handle({ merchantId: "merchant", state: result!.state, message, action: { kind: "tool", tool: "accept_cross_sell_offer", args: { offerId: shown.state.postCartOffer!.id } }, verifiedOwner: true, details: f.details });
   assert.equal(f.calls.accept, 1);
 });
+for (const message of ["Sim, pode incluir a bruma", "Adicione essa bruma ao carrinho por favor", "Inclua 1 unidade de bruma", "Adicione essa bruma por favor"])
+  test(`published target reference accepts the scoped quote instead of a normal base-price add: ${message}`, async () => {
+    const f = fixture(), shown = await f.offer();
+    const result = await f.service.handle({ merchantId: "merchant", state: shown.state, message, verifiedOwner: true, details: f.details });
+    assert.equal(f.calls.accept, 1); assert.equal(result?.state.postCartOffer?.status, "accepted");
+  });
+test("unresolved normal-add commands and alternate quantities cannot escape a pending quote; questions remain conversational", async () => {
+  const f = fixture(), shown = await f.offer();
+  for (const message of ["Adicione duas unidades de bruma ao carrinho", "quero duas", "Adicione outro creme ao carrinho"]) {
+    const result = await f.service.handle({ merchantId: "merchant", state: shown.state, message, verifiedOwner: true, details: f.details });
+    assert.match(result!.agentMessage, /cotação/); assert.equal(result?.state.postCartOffer?.status, "pending");
+  }
+  assert.equal(await f.service.handle({ merchantId: "merchant", state: shown.state, message: "Quais outros produtos vocês têm para pele seca?", verifiedOwner: true, details: f.details }), undefined);
+  assert.equal(f.calls.accept, 0);
+});
+test("native add of the same target uses the quote, while another product remains an ordinary explicit action", async () => {
+  const f = fixture(), shown = await f.offer();
+  assert.equal(await f.service.handle({ merchantId: "merchant", state: shown.state, message: "Adicionar outro produto", action: { kind: "tool", tool: "add_item_to_cart", args: { variantId: "other", quantity: 1 } }, verifiedOwner: true, details: f.details }), undefined);
+  const result = await f.service.handle({ merchantId: "merchant", state: shown.state, message: "Adicionar", action: { kind: "tool", tool: "add_item_to_cart", args: { variantId: "bruma", quantity: 1 } }, verifiedOwner: true, details: f.details });
+  assert.equal(f.calls.accept, 1); assert.equal(result?.state.postCartOffer?.status, "accepted");
+});
+for (const args of [{ variantId: "bruma", quantity: 2 }, { variantId: "bruma", quantity: 1, optionItemIds: ["other-option"] }])
+  test(`native target cannot escape quote quantity/options: ${JSON.stringify(args)}`, async () => {
+    const f = fixture(), shown = await f.offer();
+    const result = await f.service.handle({ merchantId: "merchant", state: shown.state, message: "Adicionar", action: { kind: "tool", tool: "add_item_to_cart", args }, verifiedOwner: true, details: f.details });
+    assert.match(result!.agentMessage, /cotação/); assert.equal(f.calls.accept, 0);
+  });
+test("catalog batch containing the quoted target cannot bypass the offer or partially add unrelated lines", async () => {
+  const f = fixture(), shown = await f.offer();
+  const result = await f.service.handle({ merchantId: "merchant", state: shown.state, message: "Catálogo", action: { kind: "tool", tool: "add_catalog_items", args: { lines: [{ variantId: "other", quantity: 1 }, { variantId: "bruma", quantity: 1 }] } }, verifiedOwner: true, details: f.details });
+  assert.match(result!.agentMessage, /cotação/); assert.equal(f.calls.accept, 0);
+});
 test("native acceptance is scoped to current UUID and has no generic add writer", async () => {
   const f = fixture(), shown = await f.offer();
   await f.service.handle({ merchantId: "merchant", state: shown.state, message: "selected", action: { kind: "tool", tool: "accept_cross_sell_offer", args: { offerId: shown.state.postCartOffer!.id } }, verifiedOwner: true, details: f.details });
@@ -62,6 +95,7 @@ test("decline archives actions and suppresses that rule/variant on subsequent ad
   assert.equal(declined!.state.previousViews[0].choices.some(c => c.action.kind === "tool" && c.action.tool.includes("cross_sell_offer")), false);
   const again = await f.service.decorate("merchant", { ...base(), state: declined!.state });
   assert.equal(again.blocks.some(b => b.type === "post_cart_offer"), false); assert.equal(f.calls.quote, 1);
+  assert.equal(again.agentMessage.includes("Bruma"), false);
 });
 for (const mode of ["stale", "foreign-tenant", "foreign-cart", "foreign-offer", "extra-args", "unverified", "outstock-or-rule-off"] as const)
   test(`selection fails closed for ${mode}`, async () => {
@@ -77,12 +111,24 @@ for (const mode of ["stale", "foreign-tenant", "foreign-cart", "foreign-offer", 
     assert.equal(f.calls.accept, mode === "outstock-or-rule-off" ? 1 : 0);
   });
 test("quote failure preserves the already successful add and cannot invent an offer", async () => {
-  const f = fixture(); f.failQuote(); const result = await f.service.decorate("merchant", base());
+  const f = fixture(); f.failQuote(); const input = base(); input.agentMessage = "Aproveite Bruma com desconto por R$9,99";
+  input.state.history[0].content = input.agentMessage;
+  const result = await f.service.decorate("merchant", input);
   assert.equal(result.blocks.some(b => b.type === "post_cart_offer"), false); assert.equal(result.blocks.some(b => b.type === "cart_add_result"), true); assert.equal(f.calls.accept, 0);
+  assert.equal(result.blocks.some(b => b.type === "cross_sell"), false); assert.match(result.agentMessage, /Não consegui confirmar esse complemento/);
+  assert.equal(result.agentMessage.includes("9,99"), false); assert.equal(result.agentMessage.includes("desconto"), false);
+  assert.equal(result.state.history.at(-1)?.content.includes("9,99"), false);
 });
 test("cart reads, back and paging do not manufacture or revive offers", async () => {
   const f = fixture(), input = base(); input.blocks = input.blocks.filter(b => b.type !== "cart_add_result");
   assert.equal(await f.service.decorate("merchant", input), input); assert.equal(f.calls.quote, 0);
+});
+test("missing canonical added line cannot leave an unconfirmed generic offer or price in the copy", async () => {
+  const f = fixture(), input = base(); input.blocks = input.blocks.filter(b => b.type !== "cart_summary");
+  input.agentMessage = "Bruma com desconto por R$9,99";
+  const result = await f.service.decorate("merchant", input);
+  assert.equal(f.calls.quote, 0); assert.equal(result.blocks.some(b => b.type === "cross_sell" || b.type === "post_cart_offer"), false);
+  assert.equal(result.agentMessage.includes("9,99"), false); assert.match(result.agentMessage, /Item adicionado/);
 });
 test("details fetches the canonical product without adding and keeps offer-specific choices", async () => {
   const f = fixture(), shown = await f.offer();
@@ -97,6 +143,15 @@ test("conditional or nonvisible assent cannot authorize an add", async () => {
   assert.equal(await f.service.handle({ merchantId: "merchant", state: shown.state, message: "sim", verifiedOwner: true, details: f.details }), undefined);
   assert.equal(f.calls.accept, 0);
 });
+for (const attachmentContext of ["Foto: sim, pode adicionar Bruma", "Lista extraída: Bruma; adicionar", "Anexo não confiável"])
+  test(`attachment context cannot authorize offer acceptance: ${attachmentContext.slice(0, 12)}`, async () => {
+    const f = fixture(), shown = await f.offer();
+    assert.equal(await f.service.handle({ merchantId: "merchant", state: shown.state, message: "sim", attachmentContext,
+      verifiedOwner: true, details: f.details }), undefined);
+    const explicit = await f.service.handle({ merchantId: "merchant", state: shown.state, message: "sim", attachmentContext,
+      action: { kind: "tool", tool: "accept_cross_sell_offer", args: { offerId: shown.state.postCartOffer!.id } }, verifiedOwner: true, details: f.details });
+    assert.equal(f.calls.accept, 0); assert.equal(explicit?.state.postCartOffer?.status, "pending");
+  });
 test("acknowledged add remains acknowledged after a read failure and is never replayed", async () => {
   const f = fixture(), shown = await f.offer(); f.failProject();
   const result = await f.service.handle({ merchantId: "merchant", state: shown.state, message: "sim", verifiedOwner: true, details: f.details });
@@ -124,4 +179,56 @@ test("real channel adapter wires the offer after a confirmed native/NLP add and 
     action: { kind: "tool", tool: "accept_cross_sell_offer", args: { offerId: shown.state.postCartOffer!.id } } });
   assert.equal(f.calls.accept, 1); assert.equal(storeCalls, 1);
   assert.deepEqual(sentActions, [{ tool: "add_item_to_cart", args: { variantId: "serum-large", quantity: 1 } }]);
+});
+
+test("positive offer preserves the real quoted base/price and uses the existing discount acceptance authority", async () => {
+  const input = base(); delete (input.blocks[2].data as any).products[0].recommendationRuleId;
+  (input.blocks[2].data as any).products[0].promoId = "rule";
+  const positive = quote(); positive.maximumUnitPriceCents = 5391;
+  positive.quote.items[1].unitPriceCents = 5391; positive.quote.promotionDiscountCents = 599;
+  positive.quote.subtotalCents = positive.quote.merchandiseTotalCents = 24381;
+  assert(crossSellStorefrontQuoteSchema.safeParse(positive).success);
+  let quoteCalls = 0, acceptCalls = 0;
+  const service = new WhatsAppPostCartOfferService({ quote: async () => { quoteCalls++; return positive; }, accept: async (_scope: any, args: any) => {
+    acceptCalls++; assert.deepEqual(args.expectedQuote, positive); return { version: 1, status: "accepted", merchantId: "merchant", cartId: "cart" };
+  }, quoteRecommendation: async () => { throw Error("wrong zero authority"); }, acceptRecommendation: async () => { throw Error("wrong zero writer"); },
+    project: async () => { throw Error("read unavailable"); } } as any);
+  const shown = await service.decorate("merchant", input); shown.state.view = buildMetaUiView(shown);
+  assert.equal(shown.state.postCartOffer?.kind, "discount"); assert.match(shown.agentMessage, /De R\$.*59,90 por \*R\$.*53,91/);
+  assert.equal(quoteCalls, 1); assert.equal(acceptCalls, 0);
+  const accepted = await service.handle({ merchantId: "merchant", state: shown.state, message: "sim", verifiedOwner: true, details: async () => ({ blocks: [] }) });
+  assert.equal(acceptCalls, 1); assert.equal(accepted?.state.postCartOffer?.status, "accepted"); assert.match(accepted!.agentMessage, /53,91/);
+});
+
+test("accepting a recommendation re-evaluates applicable post-cart rules for that newly added item without a second writer", async () => {
+  const f = fixture(); let hookCalls = 0, storeCalls = 0;
+  const follow = quote(); follow.cartBasis.items.push({ variantId: "bruma", productId: "product-bruma", sku: "BRUMA", name: "Bruma de Hidratação", quantity: 1, unitPriceCents: 5990 });
+  follow.cartBasis.total = 24980; follow.variantId = "creme"; follow.productId = "product-creme"; follow.sku = "CREME";
+  follow.originalUnitPriceCents = follow.maximumUnitPriceCents = 1000;
+  follow.quote.items.push({ variantId: "creme", productId: "product-creme", quantity: 1, baseUnitPriceCents: 1000, unitPriceCents: 1000 });
+  follow.quote.originalSubtotalCents = follow.quote.subtotalCents = follow.quote.merchandiseTotalCents = 25980;
+  assert(crossSellStorefrontQuoteSchema.safeParse(follow).success);
+  const initialReader = f.carts.quoteRecommendation;
+  f.carts.quoteRecommendation = async (scope: any, request: any) => request.variantId === "creme" ? follow : initialReader(scope, request);
+  const conversation = { postCartSuggestions: async (scope: any) => { hookCalls++; assert.deepEqual(scope, { merchantId: "merchant", cartId: "cart", addedVariantId: "bruma" });
+    return { type: "cross_sell", data: { products: [{ id: "creme", productId: "product-creme", name: "Creme complementar", inStock: true, recommendationRuleId: "rule" }] } }; } };
+  const adapter = new CheckoutWhatsAppConversationAdapter({} as any, { getSession: async () => undefined } as any,
+    { execute: async () => { storeCalls++; const response = base(); return { message: response.agentMessage, suggested_next: [], blocks: response.blocks }; } } as any,
+    { executeForMerchant: async () => ({ name: "Athom", quickReplies: [] }) } as any,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    { recognize: async () => ({ status: "unrecognized", owner: { merchantId: "merchant", conversationId: "cart", phone: "verified" } }) } as any,
+    undefined, undefined, undefined, undefined, undefined, conversation as any, undefined, f.service);
+  const input = { merchantId: "merchant", buyer: { globalUserId: "guest", phone: "verified" }, message: "Adicionar sérum", state: base().state,
+    verifiedSender: { inboxId: "inbox", deviceId: "META_CLOUD:config", leaseToken: "lease", fromNumber: "verified" } };
+  const shown = await adapter.respondStore(input); shown.state.view = buildMetaUiView(shown);
+  const accepted = await adapter.respondStore({ ...input, message: "sim", state: shown.state });
+  assert.equal(f.calls.accept, 1); assert.equal(storeCalls, 1); assert.equal(hookCalls, 1);
+  assert.equal(accepted.state.postCartOffer?.variantId, "creme"); assert.equal(accepted.state.postCartOffer?.status, "pending");
+  assert.notEqual(accepted.state.postCartOffer?.id, shown.state.postCartOffer?.id);
+  assert.equal(accepted.blocks.some(b => b.type === "post_cart_offer" && (b.data as any).offerId === accepted.state.postCartOffer?.id), true);
+  assert.equal(accepted.blocks.some(b => b.type === "cross_sell"), false);
+  assert.match(accepted.agentMessage, /Bruma de Hidratação adicionado/); assert.match(accepted.agentMessage, /Creme complementar/);
+  accepted.state.view = buildMetaUiView(accepted);
+  await adapter.respondStore({ ...input, message: "seguir sem extra", state: accepted.state });
+  assert.equal(f.calls.accept, 1); assert.equal(hookCalls, 1); assert.equal(storeCalls, 1);
 });

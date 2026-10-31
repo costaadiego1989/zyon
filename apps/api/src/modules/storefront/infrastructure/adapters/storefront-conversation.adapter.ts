@@ -15,6 +15,7 @@ import { ensureProductDiscovery } from "../agents/product-discovery-fallback.js"
 import { resolveNativeShippingReference } from "../agents/native-shipping-reference.js";
 import { knowledgeHelpNavigation } from "../shortcuts/knowledge-help-navigation.js";
 import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/index.js";
+import { buildCrossSellSuggestions } from "../tool-handlers/cart-cross-sell.helper.js";
 import { STOREFRONT_SHIPPING_REFERENCE, type StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
@@ -449,6 +450,22 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           : ["O que vocês vendem?", "Tem promoção?", "Buscar produto"];
     }
   }
+  async postCartSuggestions(scope: { merchantId: string; cartId: string; addedVariantId: string }): Promise<Extract<ConversationBlock, { type: "cross_sell" }> | undefined> {
+    if (!this.crossSellCart) return;
+    const config = await this.loadCrossSellConfig(scope.merchantId);
+    if (!config.enabled || !config.touchpoints.post_cart) return;
+    const cart = await this.crossSellCart.project({ merchantId: scope.merchantId, cartId: scope.cartId });
+    if (cart.merchantId !== scope.merchantId || cart.sessionId !== scope.cartId) return;
+    const added = cart.items.find(i => i.variantId === scope.addedVariantId && i.quantity > 0);
+    if (!added) return;
+    const products = await buildCrossSellSuggestions({ ...this.handlerDeps, crossSellCart: this.crossSellCart }, scope.merchantId, cart, config, added.name);
+    if (!products.length) return;
+    return { type: "cross_sell", data: { trigger: "Produtos que podem complementar seu pedido", displayMode: config.display?.mode as any,
+      products: products.map(p => ({ id: p.sku, productId: p.productId, name: p.name, price: p.price,
+        priceFormatted: p.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), image: p.imageUrl,
+        inStock: true, promoId: p.promoId, recommendationRuleId: p.recommendationRuleId })) } };
+  }
+
   private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; post_cart?: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; mode: string; percent: number; couponCode?: string }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number }; strategies: string[]; display: { mode: string } }> {
     try {
       const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });

@@ -134,12 +134,23 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         customer: { phone: owner.phone, phone_verified: true as const, email_verified: false as const } } : undefined);
     const shopper = knownBuyer ? { ...input.buyer, globalUserId: knownBuyer.globalUserId, fullName: knownBuyer.customer.fullName, email: knownBuyer.customer.email } : input.buyer;
     const offerResponse = await this.postCartOffers?.handle({ merchantId: input.merchantId, state, message: input.message, action: input.action,
+      attachmentContext: input.attachmentContext,
       verifiedOwner: owner?.merchantId === input.merchantId && owner.conversationId === state.conversationId,
       details: async productId => this.store!.execute({ merchant_id: input.merchantId, conversation_id: state.conversationId,
         cart_id: state.conversationId, global_user_id: shopper.globalUserId, user_message: input.message,
         history: state.history, ui_action: { tool: "get_product_details", args: { productId } },
       }, undefined, "whatsapp") });
-    if (offerResponse) return withCartAnimations({ ...offerResponse, merchantName: config.name });
+    if (offerResponse) {
+      const added = offerResponse.blocks.find(b => b.type === "cart_add_result" && (b.data as any).status === "succeeded");
+      if (added && this.storefrontConversation?.postCartSuggestions) {
+        try {
+          const suggestions = await this.storefrontConversation.postCartSuggestions({ merchantId: input.merchantId,
+            cartId: state.conversationId, addedVariantId: String((added.data as any).variantId) });
+          if (suggestions) offerResponse.blocks.push(suggestions);
+        } catch { /* A recommendation read cannot replay an acknowledged add. */ }
+      }
+      return withCartAnimations({ ...offerResponse, merchantName: config.name });
+    }
     const firstTurn = state.history.length === 0;
     const greeting = metaWelcomeMessage(config.agentGreeting || "", config.name, config.agentName || "Zyon");
     if (/^\/atalhos?$/i.test(input.message.trim())) {

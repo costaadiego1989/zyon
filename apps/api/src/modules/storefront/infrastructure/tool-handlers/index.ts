@@ -30,7 +30,7 @@ export interface AllHandlerDeps {
   productRepo: ProductRepositoryPort;
   stockRepo: StockRepositoryPort;
   cartRepo: StorefrontCartPort;
-  crossSellCart?: Pick<StorefrontCrossSellCartPort, "project">;
+  crossSellCart?: Pick<StorefrontCrossSellCartPort, "project"> & Partial<Pick<StorefrontCrossSellCartPort, "quote">>;
   couponCart?: StorefrontCouponCartPort;
   prisma: PrismaClient;
   merchantRepo: MerchantRepository;

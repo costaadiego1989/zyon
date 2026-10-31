@@ -110,7 +110,7 @@ export interface CartHandlerDeps {
    * before cart-rules evaluation. Optional: when absent, no product promos apply.
    */
   productPromotionRepo?: ProductPromotionRepositoryPort;
-  crossSellCart?: Pick<StorefrontCrossSellCartPort, "project">;
+  crossSellCart?: Pick<StorefrontCrossSellCartPort, "project"> & Partial<Pick<StorefrontCrossSellCartPort, "quote">>;
   couponCart?: StorefrontCouponCartPort;
   oneBuyClick?: OneBuyClickSessionService;
   shippingReference?: StorefrontShippingReferencePort;
@@ -374,7 +374,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         const crossSellConfig = await deps.loadCrossSellConfig(ctx.merchantId);
         if (crossSellConfig.enabled && crossSellConfig.touchpoints.post_cart) {
           crossSellSuggestions = await buildCrossSellSuggestions(
-            { productRepo: deps.productRepo, prisma: deps.prisma, merchantRepo: deps.merchantRepo, listEligibleCrossSells: deps.listEligibleCrossSells },
+            { productRepo: deps.productRepo, prisma: deps.prisma, merchantRepo: deps.merchantRepo, listEligibleCrossSells: deps.listEligibleCrossSells, crossSellCart: deps.crossSellCart },
             ctx.merchantId,
             cart,
             crossSellConfig,

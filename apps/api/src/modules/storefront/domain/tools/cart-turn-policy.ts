@@ -123,6 +123,11 @@ function authorizedWrites(message: string, attachmentContext?: string): Set<stri
   return allowed;
 }
 
+/** Read-only reuse of the exact normal writer grammar by channel offer fences. */
+export function cartMessageAuthorizesAdd(message: string, attachmentContext?: string): boolean {
+  return authorizedWrites(message, attachmentContext).has("add_item_to_cart");
+}
+
 function errorCode(result: ToolResult): string | undefined {
   if (!result.ok) return result.code ?? result.error;
   if (result.data && typeof result.data === "object" && "error" in result.data) return String(result.data.error);

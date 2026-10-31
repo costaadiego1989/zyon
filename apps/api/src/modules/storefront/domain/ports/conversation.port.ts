@@ -75,6 +75,8 @@ export interface NudgeCopyInput {
 export const STOREFRONT_CONVERSATION_PORT = Symbol("StorefrontConversationPort");
 
 export interface StorefrontConversationPort {
+  /** Server channel only, after a confirmed add; not a model tool or write grant. */
+  postCartSuggestions?(scope: { merchantId: string; cartId: string; addedVariantId: string }): Promise<Extract<ConversationBlock, { type: "cross_sell" }> | undefined>;
   reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput>;
   generateNudge(input: NudgeCopyInput): Promise<string>;
 }

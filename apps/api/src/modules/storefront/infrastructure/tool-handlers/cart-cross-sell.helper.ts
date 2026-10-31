@@ -6,6 +6,7 @@ import type { MerchantRepository } from "../../../merchant/domain/ports/merchant
 import { createShoppingRecommendationReader } from "./shopping-recommendation.handler.js";
 import type { ProductHandlerDeps } from "./product.handlers.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
+import type { StorefrontCrossSellCartPort } from "../../domain/ports/storefront-cross-sell-cart.port.js";
 
 export interface CrossSellConfig {
   enabled: boolean;
@@ -47,6 +48,7 @@ export interface BuildCrossSellDeps {
   prisma: PrismaClient;
   merchantRepo: MerchantRepository;
   listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
+  crossSellCart?: Partial<Pick<StorefrontCrossSellCartPort, "quote">>;
 }
 
 export async function buildCrossSellSuggestions(
@@ -113,9 +115,10 @@ export async function buildCrossSellSuggestions(
       let reads = 0;
       for (const suggestion of suggestions) {
         if (crossSellSuggestions.length >= maxSuggestions) break;
-        // Legacy benefits have no authoritative checkout quote. Do not promise
-        // them, or silently offer full price after the buyer accepts a discount.
-        if (suggestion.computed_discount !== 0) continue;
+        // A legacy percentage is eligibility evidence only. A real discount must
+        // be backed by the connected cart quote, never by that percentage alone.
+        const needsDiscountQuote = suggestion.computed_discount !== 0;
+        if (needsDiscountQuote && !deps.crossSellCart?.quote) continue;
         for (const sku of suggestion.ranked_items) {
           if (crossSellSuggestions.length >= maxSuggestions) break;
           if (reads >= 20) break;
@@ -134,6 +137,17 @@ export async function buildCrossSellSuggestions(
             const variant = p?.variants.find(v => v.id === match.id && (v.id === sku || v.sku.toLowerCase() === sku.toLowerCase()));
             if (!p || p.merchantId !== merchantId || !p.isActive || !variant?.isActive || p.name === productName) continue;
             if (p.type !== "digital" && p.type !== "service" && !(variant.stockQuantity - variant.stockReserved > 0)) continue;
+            if (needsDiscountQuote) {
+              const quote = await deps.crossSellCart!.quote!({ merchantId, cartId: cart.sessionId }, {
+                variantId: variant.id, promotionId: suggestion.promo_id, quantity: 1 });
+              if (quote.merchantId !== merchantId || quote.cartId !== cart.sessionId || quote.variantId !== variant.id
+                || quote.productId !== p.id || quote.promotionId !== suggestion.promo_id
+                || quote.maximumUnitPriceCents >= quote.originalUnitPriceCents) continue;
+              crossSellSuggestions.push({ name: p.name, sku: variant.id, productId: p.id,
+                price: quote.maximumUnitPriceCents / 100, imageUrl: variant.media?.[0]?.url,
+                promoId: quote.promotionId, discountPercent: (quote.originalUnitPriceCents - quote.maximumUnitPriceCents) / quote.originalUnitPriceCents * 100 });
+              continue;
+            }
             // Reuse the same one-item price authority as product discovery.
             // This read has no cart/coupon/stock writer and quotes this variant only.
             const quote = createShoppingRecommendationReader(deps as ProductHandlerDeps, { merchantId, sessionId: cart.sessionId }, async () => ({

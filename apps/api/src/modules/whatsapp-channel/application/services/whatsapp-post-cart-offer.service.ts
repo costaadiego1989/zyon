@@ -3,12 +3,14 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { STOREFRONT_CROSS_SELL_CART, type StorefrontCrossSellCartPort } from "../../../storefront/domain/ports/storefront-cross-sell-cart.port.js";
 import type { StoreUiAction, WhatsAppConversationState, WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
+import { cartMessageAuthorizesAdd } from "../../../storefront/domain/tools/cart-turn-policy.js";
 
 type Offer = NonNullable<WhatsAppConversationState["postCartOffer"]>;
 const commands = new Set(["accept_cross_sell_offer", "decline_cross_sell_offer", "cross_sell_offer_details"]);
 const argsSchema = z.strictObject({ offerId: z.string().uuid() });
 const key = (ruleId: string, variantId: string) => JSON.stringify([ruleId, variantId]);
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 const data = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const block = (offer: Offer) => ({ type: "post_cart_offer", data: { offerId: offer.id, productId: offer.productId,
   name: offer.name, priceCents: offer.expectedQuote.maximumUnitPriceCents, imageUrl: offer.imageUrl } });
@@ -31,60 +33,108 @@ export class WhatsAppPostCartOfferService {
       && data(b.data).cartId === response.state.conversationId);
     if (!confirmed) return response;
     const added = data(confirmed.data);
-    if (response.state.postCartOffer?.status === "accepted" && response.state.postCartOffer.variantId === added.variantId) return response;
+    if (response.state.postCartOffer?.status === "accepted" && response.state.postCartOffer.variantId === added.variantId
+      && !response.blocks.some(b => b.type === "cross_sell")) return response;
     const summary = response.blocks.find(b => b.type === "cart_summary");
     const source = data(summary?.data).items?.find((i: any) => i.variantId === added.variantId && i.quantity > 0);
-    if (!source) return response;
+    if (!source) {
+      if (!response.blocks.some(b => b.type === "cross_sell")) return response;
+      const fallback = "🤖 ✅ *Item adicionado ao carrinho!*\n\n✨ Não consegui confirmar o complemento agora. Confira seu carrinho para continuar.";
+      return { ...response, agentMessage: fallback, blocks: response.blocks.filter(b => b.type !== "cross_sell"),
+        state: { ...response.state, history: response.state.history.map((entry, index, all) =>
+          index === all.length - 1 && entry.role === "assistant" ? { ...entry, content: fallback } : entry) } };
+    }
     // Any new confirmed mutation invalidates an earlier snapshot. Paging and reads
     // have no cart_add_result and cannot create or revive an offer.
     let state = retireViews({ ...response.state, postCartOffer: undefined });
     const candidates = response.blocks.filter(b => b.type === "cross_sell").flatMap(b => data(b.data).products ?? []);
+    let attemptedQuote = false;
     for (const candidate of candidates) {
-      const ruleId = candidate.recommendationRuleId;
+      const ruleId = candidate.recommendationRuleId ?? candidate.promoId;
+      const kind = candidate.recommendationRuleId ? "recommendation" : "discount";
       if (typeof ruleId !== "string" || typeof candidate.id !== "string" || typeof candidate.productId !== "string"
         || candidate.inStock !== true || state.declinedCrossSellKeys?.includes(key(ruleId, candidate.id))) continue;
       try {
-        if (!this.carts.quoteRecommendation) continue;
-        const quote = await this.carts.quoteRecommendation({ merchantId, cartId: state.conversationId }, {
+        const quoteReader = kind === "recommendation" ? this.carts.quoteRecommendation?.bind(this.carts) : this.carts.quote.bind(this.carts);
+        if (!quoteReader) continue;
+        attemptedQuote = true;
+        const quote = await quoteReader({ merchantId, cartId: state.conversationId }, {
           variantId: candidate.id, promotionId: ruleId, quantity: 1 });
         if (quote.productId !== candidate.productId || quote.variantId !== candidate.id || quote.merchantId !== merchantId
           || quote.cartId !== state.conversationId || !quote.cartBasis.items.some(i => i.variantId === added.variantId)) continue;
-        const offer: Offer = { id: randomUUID(), merchantId, cartId: state.conversationId, ruleId, kind: "recommendation",
+        if (kind === "discount" && quote.maximumUnitPriceCents >= quote.originalUnitPriceCents) continue;
+        const offer: Offer = { id: randomUUID(), merchantId, cartId: state.conversationId, ruleId, kind,
           variantId: quote.variantId, productId: quote.productId, sourceVariantId: added.variantId,
           addedName: String(source.productName ?? source.name), name: String(candidate.name), imageUrl: candidate.image,
           expiresAt: Date.now() + 10 * 60_000, status: "pending", expectedQuote: quote };
-        const message = `🤖 ✅ *${offer.addedName} adicionado ao carrinho!*\n\n✨ *Que tal complementar sua escolha?*\nA loja selecionou *${offer.name}* para combinar com este item.\n💰 *${money(quote.maximumUnitPriceCents)}* por unidade.\n\n💬 Quer adicionar *1 unidade de ${offer.name}* ou seguir sem esse extra? Você também pode pedir os detalhes.`;
+        const price = kind === "discount" ? `🏷️ De ${money(quote.originalUnitPriceCents)} por *${money(quote.maximumUnitPriceCents)}* por unidade, na cotação atual.`
+          : `💰 *${money(quote.maximumUnitPriceCents)}* por unidade.`;
+        const message = `🤖 ✅ *${offer.addedName} adicionado ao carrinho!*\n\n✨ *Que tal complementar sua escolha?*\nA loja selecionou *${offer.name}* para combinar com este item.\n${price}\n\n💬 Quer adicionar *1 unidade de ${offer.name}* ou seguir sem esse extra? Você também pode pedir os detalhes.`;
         state = { ...state, postCartOffer: offer, expectsFreeInput: false,
           history: response.state.history.map((entry, index, all) => index === all.length - 1 && entry.role === "assistant" ? { ...entry, content: message } : entry) };
         return { ...response, agentMessage: message, quickReplies: [], state,
           blocks: [...response.blocks.filter(b => b.type !== "cross_sell"), block(offer)] };
       } catch { /* Successful cart add is never retried because offering failed. */ }
     }
-    return { ...response, state };
+    const fallback = `🤖 ✅ *${String(source.productName ?? source.name)} adicionado ao carrinho!*\n\n${attemptedQuote
+      ? "✨ Não consegui confirmar esse complemento agora. Você pode seguir com os itens que já escolheu."
+      : "🛒 Você pode conferir o carrinho ou finalizar o pedido com os itens que já escolheu."}`;
+    return { ...response, state: { ...state, history: candidates.length ? state.history.map((entry, index, all) =>
+      index === all.length - 1 && entry.role === "assistant" ? { ...entry, content: fallback } : entry) : state.history },
+      blocks: response.blocks.filter(b => b.type !== "cross_sell"), agentMessage: candidates.length ? fallback : response.agentMessage };
   }
 
   async handle(input: { merchantId: string; state: WhatsAppConversationState; message: string; action?: StoreUiAction;
-    verifiedOwner: boolean; details: (productId: string) => Promise<{ blocks: WhatsAppStructuredResponse["blocks"] }> }): Promise<WhatsAppStructuredResponse | undefined> {
+    attachmentContext?: string; verifiedOwner: boolean; details: (productId: string) => Promise<{ blocks: WhatsAppStructuredResponse["blocks"] }> }): Promise<WhatsAppStructuredResponse | undefined> {
     const offer = input.state.postCartOffer;
-    const explicit = input.action?.kind === "tool" && commands.has(input.action.tool) ? input.action : undefined;
+    let explicit = input.action?.kind === "tool" && commands.has(input.action.tool) ? input.action : undefined;
     let command = explicit?.tool;
     const visible = input.state.view?.blocks.some(b => b.type === "post_cart_offer" && data(b.data).offerId === offer?.id);
-    if (!input.action && offer?.status === "pending" && visible) {
-      const text = input.message.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/[!.?]+$/g, "");
+    if (!explicit && offer?.status === "pending" && input.action?.kind === "tool") {
+      const action = input.action;
+      if (action.tool === "add_item_to_cart" && action.args.variantId === offer.variantId) {
+        const options = action.args.optionItemIds ?? [];
+        const expectedOptions = offer.expectedQuote.selectedOptionItemIds ?? [];
+        if ((action.args.quantity ?? 1) === 1 && Object.keys(action.args).every(k => ["variantId", "quantity", "optionItemIds"].includes(k))
+          && Array.isArray(options) && JSON.stringify([...options].sort()) === JSON.stringify([...expectedOptions].sort())) {
+          explicit = { kind: "tool", tool: "accept_cross_sell_offer", args: { offerId: offer.id } }; command = explicit.tool;
+        } else command = "clarify_cross_sell_offer";
+      } else if (action.tool === "add_catalog_items" && Array.isArray(action.args.lines)
+        && action.args.lines.some(line => data(line).variantId === offer.variantId)) command = "clarify_cross_sell_offer";
+    }
+    if (!input.attachmentContext && !input.action && offer?.status === "pending" && visible) {
+      const text = normalize(input.message).replace(/[!.?]+$/g, "");
       if (/^(sim|sim[, ]+pode adicionar|pode adicionar|adicionar complemento|quero (esse|este|o) complemento|adicion(e|a) (esse|este|o) complemento)$/.test(text)) command = "accept_cross_sell_offer";
       else if (/^(nao|nao[, ]+obrigad[oa]|seguir sem (extra|complemento)|sem (extra|complemento)|nao quero( (o|esse|este))? complemento)$/.test(text)) command = "decline_cross_sell_offer";
       else if (/^(ver( os)? detalhes|quero (ver |saber )?(os )?detalhes|mais detalhes)$/.test(text)) command = "cross_sell_offer_details";
+      else {
+        // A bounded explicit reference may name a contiguous published phrase
+        // of the one visible offer. Quantities/conditions/extra items cannot match.
+        const selection = text.match(/^(?:sim[, ]+)?(?:pode adicionar|pode incluir|adicione|adiciona|inclua|inclui|quero)\s+(.+)$/)?.[1]
+          ?.replace(/[, ]*por favor$/, "").replace(/\s+(?:ao|no|para o)\s+(?:meu\s+)?carrinho[, ]*$/, "")
+          .replace(/^(?:(?:a|o|esse|essa|este|esta|um|uma|1|unidade de)\s+)+/, "").trim();
+        const published = normalize(offer.name).replace(/[^a-z0-9]+/g, " ");
+        if (selection && selection.length >= 4 && /^[a-z ]+$/.test(selection) && (` ${published} `).includes(` ${selection} `)) command = "accept_cross_sell_offer";
+        else if (/^(?:quero|inclua|adicione|adicionar)\s+(?:duas|dois|tres|quatro|[2-9][0-9]*)\b/.test(text)) command = "clarify_cross_sell_offer";
+      }
     }
+    // Unresolved add commands never fall through to the normal base-price writer
+    // while a quote is pending. Questions and other read-only conversation do.
+    if (!command && !input.action && offer?.status === "pending" && !input.attachmentContext
+      && cartMessageAuthorizesAdd(input.message)) command = "clarify_cross_sell_offer";
     if (!command) return;
     const finish = (message: string, state: WhatsAppConversationState, blocks: WhatsAppStructuredResponse["blocks"] = []): WhatsAppStructuredResponse => ({
       agentMessage: message, quickReplies: ["Ver carrinho", "Finalizar pedido"], blocks,
       state: { ...state, history: [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: message }].slice(-24) } });
+    if (input.attachmentContext) return finish("🤖 📎 Vou usar o anexo apenas como referência. Para escolher esse complemento, responda em uma nova mensagem ou use o botão da oferta.", input.state);
     const validArgs = !explicit || argsSchema.safeParse(explicit.args).success && explicit.args.offerId === offer?.id;
     if (!offer || !validArgs || offer.merchantId !== input.merchantId || offer.cartId !== input.state.conversationId
       || offer.status !== "pending" || offer.expiresAt <= Date.now()) {
-      return finish("🤖 ⏳ Essa recomendação já foi encerrada ou mudou. Confira seu carrinho para continuar.", retireViews(input.state));
+      return finish("🤖 ⏳ Essa recomendação já foi encerrada ou mudou. Confira seu carrinho para continuar.", retireViews({ ...input.state,
+        ...(offer?.status === "pending" && offer.expiresAt <= Date.now() ? { postCartOffer: { ...offer, status: "invalidated" } } : {}) }));
     }
     if (!input.verifiedOwner) return finish("🤖 🔒 Não consegui confirmar esta conversa para alterar o carrinho. Abra novamente o menu da loja.", input.state);
+    if (command === "clarify_cross_sell_offer") return finish(`🤖 💬 A recomendação atual é *1 unidade de ${offer.name}* por *${money(offer.expectedQuote.maximumUnitPriceCents)}*.\n\n✨ Para manter essa cotação, escolha *Adicionar complemento* ou *Seguir sem extra*. Outra quantidade precisa de uma nova cotação.`, input.state, [block(offer)]);
     if (command === "decline_cross_sell_offer") {
       const state = retireViews({ ...input.state, postCartOffer: { ...offer, status: "declined" },
         declinedCrossSellKeys: [...new Set([...(input.state.declinedCrossSellKeys ?? []), key(offer.ruleId, offer.variantId)])].slice(-200) });
@@ -97,8 +147,9 @@ export class WhatsAppPostCartOfferService {
       return finish(`🤖 🔎 *${offer.name}*\n💰 *${money(offer.expectedQuote.maximumUnitPriceCents)}* por unidade.${description ? `\n\n${String(description)}` : ""}\n\n💬 Quer adicionar uma unidade ou seguir sem esse extra?`, input.state, [block(offer)]);
     }
     try {
-      if (!this.carts.acceptRecommendation) throw new Error("recommendation_authority_unavailable");
-      await this.carts.acceptRecommendation({ merchantId: input.merchantId, cartId: offer.cartId }, { expectedQuote: offer.expectedQuote });
+      const accept = offer.kind === "recommendation" ? this.carts.acceptRecommendation?.bind(this.carts) : this.carts.accept.bind(this.carts);
+      if (!accept) throw new Error("recommendation_authority_unavailable");
+      await accept({ merchantId: input.merchantId, cartId: offer.cartId }, { expectedQuote: offer.expectedQuote });
     } catch {
       return finish("🤖 ⚠️ Não consegui confirmar a inclusão desse complemento. O preço, o estoque ou o carrinho pode ter mudado.\n\n🛒 Confira o carrinho antes de tentar novamente.", retireViews({ ...input.state, postCartOffer: { ...offer, status: "invalidated" } }));
     }

@@ -10,6 +10,7 @@ import { CrossSellPromotionEntity } from "../../../cross-sell/domain/entities/cr
 import { InMemoryCrossSellPromotionRepository } from "../../../cross-sell/infrastructure/repositories/in-memory-cross-sell-promotion.repository.js";
 import { InMemoryCrossSellSuggestionRepository } from "../../../cross-sell/infrastructure/repositories/in-memory-cross-sell-suggestion.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
+import { StorefrontConversationAdapter } from "../adapters/storefront-conversation.adapter.js";
 
 const config: CrossSellConfig = { enabled: true, touchpoints: { browsing: false, pre_cart: false, post_cart: true, pre_payment: false, post_purchase: false },
   discount: { enabled: false, mode: "percent", percent: 0 }, limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 0 }, strategies: ["complementary"] };
@@ -78,6 +79,43 @@ test("an individual zero-benefit rule works while the store keeps legacy discoun
   assert.equal(result[0]?.price, 30); assert.equal(result[0]?.promoId, undefined);
   assert.equal(result[0]?.discountPercent, undefined); assert.equal(result[0]?.couponCode, undefined);
 });
+
+test("positive legacy eligibility becomes an offer only through the connected canonical cart quote", async () => {
+  const f = fixture({ discount: 10 }); let quotes = 0;
+  f.deps.crossSellCart = { quote: async (scope: any, args: any) => {
+    quotes++; assert.deepEqual(scope, { merchantId: "merchant", cartId: "session" });
+    assert.deepEqual(args, { variantId: "target", promotionId: "active-rule", quantity: 1 });
+    return { ...scope, variantId: "target", productId: "product", promotionId: "active-rule", originalUnitPriceCents: 3000, maximumUnitPriceCents: 2700 };
+  } };
+  const result = await f.run();
+  assert.equal(quotes, 1); assert.equal(result[0]?.price, 27); assert.equal(result[0]?.discountPercent, 10);
+  assert.equal(result[0]?.promoId, "active-rule"); assert.equal(result[0]?.recommendationRuleId, undefined); assert.equal(f.state.writes, 0);
+});
+test("internal post-accept hook reuses the real post-cart configuration, exact cart line and shared helper without a cart writer", async () => {
+  const f = fixture(); let projections = 0;
+  const hook = { handlerDeps: f.deps, loadCrossSellConfig: async () => config, crossSellCart: {
+    project: async (scope: any) => { projections++; assert.deepEqual(scope, { merchantId: "merchant", cartId: "session" }); return { ...cart, merchantId: "merchant" }; },
+  } };
+  const result = await StorefrontConversationAdapter.prototype.postCartSuggestions.call(hook as any, { merchantId: "merchant", cartId: "session", addedVariantId: "source" });
+  assert.equal(result?.data.products[0]?.id, "target"); assert.equal(result?.data.products[0]?.recommendationRuleId, "active-rule");
+  assert.equal(projections, 1); assert.equal(f.state.writes, 0);
+  assert.equal(await StorefrontConversationAdapter.prototype.postCartSuggestions.call(hook as any, { merchantId: "merchant", cartId: "session", addedVariantId: "missing" }), undefined);
+  hook.loadCrossSellConfig = async () => ({ ...config, touchpoints: { ...config.touchpoints, post_cart: false } });
+  const before = projections;
+  assert.equal(await StorefrontConversationAdapter.prototype.postCartSuggestions.call(hook as any, { merchantId: "merchant", cartId: "session", addedVariantId: "source" }), undefined);
+  assert.equal(projections, before);
+});
+for (const changed of ["unknown", "same-price", "foreign-merchant", "foreign-cart", "other-variant", "other-product", "other-rule"] as const)
+  test(`positive recommendation has no fallback to a promised percentage when quote is ${changed}`, async () => {
+    const f = fixture({ discount: 10 });
+    f.deps.crossSellCart = { quote: async () => {
+      if (changed === "unknown") throw Error("authority unknown");
+      return { merchantId: changed === "foreign-merchant" ? "other" : "merchant", cartId: changed === "foreign-cart" ? "other" : "session",
+        variantId: changed === "other-variant" ? "other" : "target", productId: changed === "other-product" ? "other" : "product",
+        promotionId: changed === "other-rule" ? "other" : "active-rule", originalUnitPriceCents: 3000, maximumUnitPriceCents: changed === "same-price" ? 3000 : 2700 };
+    } };
+    assert.deepEqual(await f.run(), []); assert.equal(f.state.writes, 0);
+  });
 
 test("a real active manual rule produces a scoped complementary variant through the shared use case and canonical quote", async () => {
   const f = fixture(); const rules = new InMemoryCrossSellPromotionRepository();
