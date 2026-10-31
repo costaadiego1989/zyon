@@ -32,7 +32,7 @@ class CartLease {
     const repository = new TransactionCartRepository(tx, revalidateCoupon, couponLifecycle);
     this.cart = Object.freeze({
       getOrCreate: (merchantId: string, sessionId: string) => this.invoke(merchantId, sessionId, () => repository.getOrCreate(merchantId, sessionId)),
-      addItem: (merchantId: string, sessionId: string, item: Parameters<StorefrontCartPort["addItem"]>[2]) => this.invoke(merchantId, sessionId, () => repository.addItem(merchantId, sessionId, item)),
+      addItem: (merchantId: string, sessionId: string, item: Parameters<StorefrontCartPort["addItem"]>[2], expected?: Parameters<StorefrontCartPort["addItem"]>[3]) => this.invoke(merchantId, sessionId, () => repository.addItem(merchantId, sessionId, item, expected)),
       removeItem: (merchantId: string, sessionId: string, variantId: string, selector?: Parameters<StorefrontCartPort["removeItem"]>[3]) => this.invoke(merchantId, sessionId, () => repository.removeItem(merchantId, sessionId, variantId, selector)),
       updateItemQuantity: (merchantId: string, sessionId: string, variantId: string, quantity: number, selector?: Parameters<StorefrontCartPort["updateItemQuantity"]>[4]) => this.invoke(merchantId, sessionId, () => repository.updateItemQuantity(merchantId, sessionId, variantId, quantity, selector)),
       clear: (merchantId: string, sessionId: string) => this.invoke(merchantId, sessionId, () => repository.clear(merchantId, sessionId)),

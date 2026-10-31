@@ -161,9 +161,20 @@ test("scope is detached synchronously before waiting for the transaction", async
   const pending = f.uow.run(scope, async ({ cart }) => cart.getOrCreate(bound().merchantId, bound().cartId));
   scope.merchantId = "changed-merchant"; scope.cartId = "changed-session"; gate.resolve();
   await pending;
-  assert.ok(f.calls.filter(call => call.step === "lock").every(call => call.values?.[0] === JSON.stringify(["storefront-cart", bound().merchantId, bound().cartId])));
+  const cartLocks = f.calls.filter(call => call.step === "lock" && typeof call.values?.[0] === "string" && call.values[0].startsWith('["storefront-cart",'));
+  assert.ok(cartLocks.length > 0);
+  assert.ok(cartLocks.every(call => call.values?.[0] === JSON.stringify(["storefront-cart", bound().merchantId, bound().cartId])));
   const upsert = f.calls.find(call => call.step === "upsert")!.args as { where: { merchantId_sessionId: unknown } };
   assert.deepEqual(upsert.where.merchantId_sessionId, { merchantId: bound().merchantId, sessionId: bound().cartId });
+});
+
+for (const stale of [false, true]) test(`UOW forwards the server existing-line CAS instead of discarding it, stale=${stale}`, async () => {
+  const source = initialCart(); source.items = [item()]; source.total = 200;
+  const f = fixture({ initial: source });
+  const pending = f.uow.run(bound(), async ({ cart }) => cart.addItem(bound().merchantId, bound().cartId, item(),
+    { variantId: "synthetic-variant", quantity: stale ? 2 : 1, unitPriceCents: 200 }));
+  if (stale) { await assert.rejects(pending); assert.equal(f.calls.some(c => c.step === "update"), false); }
+  else { const result = await pending; assert.equal(result.items[0].quantity, 2); assert.equal(f.calls.filter(c => c.step === "update").length, 1); }
 });
 
 for (const scope of [null, {}, { ...bound(), extra: true }, { ...bound(), sessionId: "alias" },

@@ -53,10 +53,18 @@ export interface StorefrontCartLineSelector { optionItemIds?: string[]; serviceS
 /** Persisted commercial state used for internal compare-and-set, not client authority. */
 export type StorefrontCartCommercialSnapshot = Pick<StorefrontCart,
   "items" | "total" | "discount" | "couponCode" | "freeShipping">;
+/** Internal read precondition for an explicit increment of one plain existing
+ * line. Never a model/public tool argument or a price authorization. */
+export interface StorefrontExistingCartLine {
+  variantId: string;
+  quantity: number;
+  unitPriceCents: number;
+}
 
 export interface StorefrontCartPort {
   getOrCreate(merchantId: string, sessionId: string): Promise<StorefrontCart>;
-  addItem(merchantId: string, sessionId: string, item: Omit<StorefrontCartItem, "quantity"> & { quantity?: number }): Promise<StorefrontCart>;
+  addItem(merchantId: string, sessionId: string, item: Omit<StorefrontCartItem, "quantity"> & { quantity?: number },
+    expectedExistingLine?: StorefrontExistingCartLine): Promise<StorefrontCart>;
   removeItem(merchantId: string, sessionId: string, variantId: string, selector?: StorefrontCartLineSelector): Promise<StorefrontCart>;
   updateItemQuantity(merchantId: string, sessionId: string, variantId: string, quantity: number, selector?: StorefrontCartLineSelector): Promise<StorefrontCart>;
   clear(merchantId: string, sessionId: string): Promise<StorefrontCart>;

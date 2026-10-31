@@ -4,6 +4,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import { PrismaStorefrontCrossSellCartAdapter } from "./prisma-storefront-cross-sell-cart.adapter.js";
 import { PrismaStorefrontCartRepository } from "./prisma-storefront-cart.repository.js";
+import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
 
 // Explicit serialized delegate fakes prove application control flow, NOT SQL lock
 // exclusion/rollback. Root's disposable native window must prove that separately.
@@ -71,6 +72,64 @@ function fixture() {
     mutateStored: (work: (cart: StorefrontCart) => void) => work(stored), pause: (promise: Promise<void>) => { beforeBegin = promise; } };
 }
 const scope = { merchantId: "merchant", cartId: "cart" }, request = { variantId: "target", promotionId: "promotion", quantity: 1 };
+const existingSource = () => ({ variantId: "host", quantity: 1, unitPriceCents: 10000 });
+test("normal ADD with a server existing-line precondition compares under the cart lock and increments once", async () => {
+  const f = fixture(); const saved = await f.cart.addItem(scope.merchantId, scope.cartId, { ...initial().items[0], quantity: 1 }, existingSource());
+  assert.equal(saved.items[0].quantity, 2); assert.equal(f.calls.filter(c => c === "write").length, 1);
+  await assert.rejects(f.cart.addItem(scope.merchantId, scope.cartId, { ...initial().items[0], quantity: 1 }, existingSource()));
+  assert.equal(f.calls.filter(c => c === "write").length, 1);
+});
+for (const changed of ["quantity", "price", "removed", "duplicate", "options", "slot", "marketplace", "foreign-merchant", "foreign-cart"] as const)
+  test(`existing-line CAS rejects ${changed} before stock admission/write`, async () => {
+    const f = fixture(); f.mutateStored(cart => {
+      if (changed === "quantity") cart.items[0].quantity++;
+      if (changed === "price") cart.items[0].unitPriceCents++;
+      if (changed === "removed") cart.items = [];
+      if (changed === "duplicate") cart.items.push({ ...cart.items[0] });
+      if (changed === "options") cart.items[0].selectedOptions = [{ itemId: "size", itemName: "Size", groupId: "size-group", groupName: "Size", priceModifierInCents: 0 }];
+      if (changed === "slot") cart.items[0].selectedServiceSlot = { slotId: "slot" } as any;
+      if (changed === "marketplace") cart.items[0].marketplace = { lineItemId: "federated", sellerMerchantId: "seller" };
+      if (changed === "foreign-merchant") cart.merchantId = "other";
+      if (changed === "foreign-cart") cart.sessionId = "other";
+    }); const before = f.stored();
+    await assert.rejects(f.cart.addItem(scope.merchantId, scope.cartId, { ...initial().items[0], quantity: 1 }, existingSource()));
+    assert.deepEqual(f.stored(), before); assert.equal(f.calls.includes("catalog"), false); assert.equal(f.calls.includes("write"), false);
+  });
+test("two increments from the same inspected line have one admitted commit and one CAS rejection", async () => {
+  const f = fixture(), item = { ...initial().items[0], quantity: 1 };
+  const results = await Promise.allSettled([f.cart.addItem("merchant", "cart", item, existingSource()), f.cart.addItem("merchant", "cart", item, existingSource())]);
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1); assert.equal(f.stored().items[0].quantity, 2);
+  assert.equal(f.calls.filter(c => c === "write").length, 1);
+});
+for (const mode of ["normal", "changed", "unknown-commit"] as const)
+  test(`existing-line shortcut uses real normal cart repository with CAS, outcome=${mode}`, async () => {
+    const f = fixture(); let attempts = 0;
+    if (mode === "unknown-commit") f.failCommit(Error("commit_acknowledgement_lost"));
+    const result = await resolveDeterministicShortcut({ productRepo: {} as any, copyService: {} as any, emitFunnelEvent: async () => {},
+      getCartBlock: async () => ({ type: "cart_summary", data: { cartId: "cart", items: [{ variantId: "host", productName: "Host", quantity: 1, price: 100, subtotal: 100 }], itemCount: 1, subtotal: 100, total: 100 } }),
+      addExistingItemToCart: async (args, expected) => {
+        attempts++; if (mode === "changed") f.mutateStored(c => { c.items[0].quantity = 2; c.total = 20000; });
+        const saved = await f.cart.addItem("merchant", "cart", { ...initial().items[0], quantity: args.quantity }, expected);
+        return { cartId: "cart", addedItem: { variantId: "host", optionItemIds: [] }, items: saved.items.map(i => ({ variantId: i.variantId,
+          name: i.name, quantity: i.quantity, unitPrice: i.unitPriceCents / 100, lineTotal: i.quantity * i.unitPriceCents / 100 })), total: saved.total / 100,
+          itemCount: saved.items.reduce((n, i) => n + i.quantity, 0), discount: saved.discount / 100 };
+      },
+    }, { merchantId: "merchant", sessionId: "conversation", cartId: "cart", history: [], storeCategory: "test",
+      userMessage: "Adicione mais uma unidade do Host que já está no meu carrinho." }, { structuredReadRouting: true });
+    assert(result); assert.equal(attempts, 1);
+    assert.equal(f.calls.filter(c => c === "write").length, mode === "changed" ? 0 : 1);
+    assert.equal(result.blocks.find(b => b.type === "cart_add_result")?.data.status, mode === "normal" ? "succeeded" : "unknown");
+  });
+test("inspected existing-line binding still enforces total variant stock and detaches the precondition", async () => {
+  const blocked = fixture(); blocked.variants[0].stock[0].quantity = 1;
+  await assert.rejects(blocked.cart.addItem("merchant", "cart", { ...initial().items[0], quantity: 1 }, existingSource()));
+  assert.equal(blocked.calls.includes("write"), false);
+  const f = fixture(), expected = existingSource(); let release!: () => void;
+  f.pause(new Promise<void>(resolve => { release = resolve; }));
+  const pending = f.cart.addItem("merchant", "cart", { ...initial().items[0], quantity: 1 }, expected);
+  expected.quantity = 9; release(); await pending;
+  assert.equal(f.stored().items[0].quantity, 2); assert.equal(f.calls.filter(c => c === "write").length, 1);
+});
 
 test("zero recommendation uses active rule authority and atomically adds a normal line without a discount intent", async () => {
   const f = fixture(); f.promo.discountPercent = new Prisma.Decimal(0); f.promo.maxDiscountPercent = new Prisma.Decimal(0);

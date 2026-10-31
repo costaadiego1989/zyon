@@ -328,7 +328,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         detail: "Este benefício precisa de uma nova cotação antes de adicionar o item.",
         commercialNotices: [commercialNotice("benefit_conditions_not_met")] };
 
-      const addedCart = await deps.cartRepo.addItem(ctx.merchantId, sessionId, {
+      const itemToAdd = {
         variantId: resolvedVariantId,
         productId: resolvedProductId ?? args.variantId,
         categoryId: resolvedProduct?.categoryId,
@@ -339,7 +339,10 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         quantity: args.quantity,
         selectedOptions,
         ...(selectedServiceSlot ? { selectedServiceSlot } : {}),
-      });
+      };
+      const addedCart = ctx.existingLineForAdd
+        ? await deps.cartRepo.addItem(ctx.merchantId, sessionId, itemToAdd, ctx.existingLineForAdd)
+        : await deps.cartRepo.addItem(ctx.merchantId, sessionId, itemToAdd);
 
       // Cross-store: mirror the federated item into cross_store_line_items with
       // frozen commission so PlaceCrossStoreOrder can build the seller settlement

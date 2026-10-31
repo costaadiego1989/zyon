@@ -127,13 +127,13 @@ test("a real active manual rule produces a scoped complementary variant through 
   await rules.save(promotion.archive()); assert.deepEqual(await f.run(), []);
 });
 
-function realAddFixture() {
+function realAddFixture(existingLineForAdd?: import("../../domain/ports/storefront-cart.port.js").StorefrontExistingCartLine) {
   const f = fixture();
   const source = new ProductEntity({ id: "source-product", merchantId: "merchant", name: "Cabo", isActive: true,
     createdAt: new Date(), updatedAt: new Date(), variants: [{ ...f.product.variants[1], id: "source", sku: "SOURCE", basePriceInCents: 1000 }] });
   let saved: any = { id: "cart", merchantId: "merchant", sessionId: "session", items: [], total: 0, discount: 0, couponCode: null,
     freeShipping: false, createdAt: new Date(), updatedAt: new Date() };
-  const state = { writes: 0, evaluations: 0, enabled: true, postCart: true, stock: 10, engineError: false };
+  const state = { writes: 0, evaluations: 0, enabled: true, postCart: true, stock: 10, engineError: false, preconditions: [] as unknown[] };
   f.deps.productRepo.findById = async (_merchant: string, id: string) => id === source.id ? source : id === f.product.id ? f.product : null;
   f.deps.prisma.productVariant.findFirst = async () => ({ productId: source.id });
   const originalPriceRead = f.deps.prisma.productPrice.findMany;
@@ -141,7 +141,8 @@ function realAddFixture() {
     costInCents: 500, variant: { productId: source.id, product: { metadata: null } } }];
   f.deps.prisma.checkoutSetting = { findUnique: async () => ({ advancedRules: [] }) };
   f.deps.stockRepo = { getAvailableStock: async () => ({ quantity: state.stock, reserved: 0 }) };
-  f.deps.cartRepo = { getOrCreate: async () => structuredClone(saved), addItem: async (_merchant: string, _session: string, item: any) => {
+  f.deps.cartRepo = { getOrCreate: async () => structuredClone(saved), addItem: async (_merchant: string, _session: string, item: any, expected?: unknown) => {
+    state.preconditions.push(expected);
     state.writes++; const existing = saved.items.find((line: any) => line.variantId === item.variantId);
     if (existing) existing.quantity += item.quantity; else saved.items.push(item);
     saved.total = saved.items.reduce((sum: number, line: any) => sum + line.quantity * line.unitPriceCents, 0);
@@ -150,11 +151,21 @@ function realAddFixture() {
   f.deps.loadCrossSellConfig = async () => ({ ...config, enabled: state.enabled, touchpoints: { ...config.touchpoints, post_cart: state.postCart } });
   const originalEligible = f.deps.listEligibleCrossSells.execute;
   f.deps.listEligibleCrossSells.execute = async (...args: any[]) => { state.evaluations++; if (state.engineError) throw Error("recommendation_unavailable"); return originalEligible(...args); };
-  const handlers = createCartHandlers(f.deps, { merchantId: "merchant", sessionId: "session" });
+  const handlers = createCartHandlers(f.deps, { merchantId: "merchant", sessionId: "session", existingLineForAdd });
   const add = () => callStorefrontTool("add_item_to_cart", { cartId: "session", variantId: "source", quantity: 1 },
     args => handlers.addItemToCart(args as any), { cartId: "session" });
-  return { add, state };
+  return { add, state, handlers };
 }
+
+test("normal ADD forwards a precondition only from the internal server context, never a model argument", async () => {
+  const expected = { variantId: "source", quantity: 1, unitPriceCents: 1000 };
+  const admitted = realAddFixture(expected); await admitted.add(); assert.deepEqual(admitted.state.preconditions, [expected]);
+  const normal = realAddFixture(); await normal.add(); assert.deepEqual(normal.state.preconditions, [undefined]);
+  const rejected = realAddFixture();
+  const checked = await callStorefrontTool("add_item_to_cart", { cartId: "session", variantId: "source", quantity: 1, existingLineForAdd: expected },
+    args => rejected.handlers.addItemToCart(args as any), { cartId: "session" });
+  assert.equal(checked.ok, false); assert.equal(rejected.state.writes, 0); assert.equal(rejected.state.preconditions.length, 0);
+});
 
 test("the real NLP tool/handler evaluates post-cart after every confirmed add and builds a public offer", async () => {
   const f = realAddFixture();

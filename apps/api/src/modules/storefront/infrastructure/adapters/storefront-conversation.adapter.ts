@@ -276,6 +276,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         ),
         applyCoupon: (args) => shortcutHandlers.applyCoupon(args),
         addItemToCart: (args) => shortcutHandlers.addItemToCart(args),
+        addExistingItemToCart: (args, expected) => observeStorefrontHandlers(composeStoreToolHandlers(this.handlerDeps,
+          { ...ctx, existingLineForAdd: structuredClone(expected) }), input.cartId || input.sessionId).addItemToCart(args),
         // Build an updated cart_summary block after a deterministic coupon apply
         // so the storefront cart store (CartFAB drawer) refreshes its discount /
         // net total. Without this the coupon persists server-side but the drawer

@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { isDeepStrictEqual } from "node:util";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { CartItemNotFoundError } from "../../../catalog/domain/errors.js";
-import type { StorefrontCart, StorefrontCartCommercialSnapshot, StorefrontCartItem, StorefrontCartPort, StorefrontCartLineSelector } from "../../domain/ports/storefront-cart.port.js";
+import type { StorefrontCart, StorefrontCartCommercialSnapshot, StorefrontCartItem, StorefrontCartPort, StorefrontCartLineSelector, StorefrontExistingCartLine } from "../../domain/ports/storefront-cart.port.js";
 import { selectStorefrontCartLine, storefrontCartLineIdentity, StorefrontCartLineSelectionError } from "../../domain/services/storefront-cart-line-identity.js";
 import { StorefrontCartSnapshotConflictError } from "../../domain/errors/storefront-cart-snapshot-conflict.error.js";
 import { assertMarketplaceDiscount, withStorefrontCart, crossSellQuoteReviewRequired, type StorefrontCartAccess, type StorefrontCartTransactionWork, type StorefrontCartTransactionResult } from "./storefront-cart-transaction.js";
@@ -35,10 +35,22 @@ export abstract class StorefrontCartRepositoryCore implements StorefrontCartPort
     return (await this.withCart(merchantId, sessionId, async () => {}, "read")).cart;
   }
 
-  async addItem(merchantId: string, sessionId: string, item: Omit<StorefrontCartItem, "quantity"> & { quantity?: number }): Promise<StorefrontCart> {
+  async addItem(merchantId: string, sessionId: string, item: Omit<StorefrontCartItem, "quantity"> & { quantity?: number },
+    expectedExistingLine?: StorefrontExistingCartLine): Promise<StorefrontCart> {
     const quantity = item.quantity ?? 1;
+    const expected = expectedExistingLine === undefined ? undefined : structuredClone(expectedExistingLine);
     if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) throw new BadRequestException("cart_quantity_invalid");
     return (await this.withCart(merchantId, sessionId, async (tx, cart) => {
+      if (expected !== undefined) {
+        const matches = cart.items.filter(line => line.variantId === expected.variantId);
+        const current = matches[0];
+        if (cart.merchantId !== merchantId || cart.sessionId !== sessionId || expected.variantId !== item.variantId
+          || !Number.isSafeInteger(expected.quantity) || expected.quantity < 1 || expected.quantity > 99
+          || !Number.isSafeInteger(expected.unitPriceCents) || expected.unitPriceCents <= 0
+          || matches.length !== 1 || !current || current.quantity !== expected.quantity || current.unitPriceCents !== expected.unitPriceCents
+          || current.selectedOptions?.length || current.selectedServiceSlot || current.marketplace
+          || item.selectedOptions?.length || item.selectedServiceSlot || item.marketplace) throw new StorefrontCartSnapshotConflictError();
+      }
       // Only the explicit server quote adapter may introduce accepted intent.
       // Ordinary adds cannot merge plain/benefit lines, including forged metadata.
       if (item.crossSellIntent !== undefined || cart.items.some(line => line.variantId === item.variantId && line.crossSellIntent !== undefined)) throw crossSellQuoteReviewRequired();

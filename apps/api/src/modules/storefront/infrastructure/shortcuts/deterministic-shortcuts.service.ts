@@ -10,6 +10,8 @@ import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 import { conversationBlockSchema } from "../../domain/contracts/conversation-block.schemas.js";
 import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
+import { cartMessageAuthorizesAdd, createCartTurnPolicy } from "../../domain/tools/cart-turn-policy.js";
+import type { StorefrontExistingCartLine } from "../../domain/ports/storefront-cart.port.js";
 
 export interface DeterministicShortcutDeps {
   productRepo: ProductRepositoryPort;
@@ -17,6 +19,7 @@ export interface DeterministicShortcutDeps {
   emitFunnelEvent: (merchantId: string, sessionId: string, event: string) => Promise<void>;
   applyCoupon?: (args: { cartId?: string; couponCode: string }) => Promise<any>;
   addItemToCart?: (args: { cartId?: string; variantId: string; quantity: number; selectedOptionItemIds?: string[] }) => Promise<any>;
+  addExistingItemToCart?: (args: { cartId: string; variantId: string; quantity: number }, expected: StorefrontExistingCartLine) => Promise<unknown>;
   getCartBlock?: (cartId: string) => Promise<ConversationBlock | null>;
 }
 
@@ -159,6 +162,52 @@ async function resolveAddToCartShortcut(
       suggestedNext: ["Ver Carrinho", "Continuar Comprando"],
     };
   }
+}
+
+const normalizeCartName = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  .replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+/** A narrow, current-message increment of a named item already in this cart.
+ * The model never supplies the item, count, expected source or write permit. */
+async function resolveExistingCartIncrement(deps: DeterministicShortcutDeps, input: StorefrontConversationInput): Promise<StorefrontConversationOutput | null> {
+  if (input.uiAction || input.attachmentContext || !deps.getCartBlock || !deps.addExistingItemToCart) return null;
+  let command = input.userMessage.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  if (/[\n"`<>]|\b(?:nao|nem|nunca|jamais|talvez|caso|se|exemplo|hipotetic\w*|repita|cite|traduza)\b/.test(command)) return null;
+  for (let count = 0; count < 2; count++) command = command.replace(/^(?:por favor[,\s]+|(?:voce\s+)?(?:pode|poderia)\s+(?:por favor\s+)?|(?:eu\s+)?(?:quero|desejo)\s+|(?:eu\s+)?gostaria de\s+)/, "");
+  const match = command.match(/^(?:adicione|adicionar|inclua|incluir|coloque|colocar)\s+mais\s+(\S+)\s+unidades?\s+(?:do|da|de)\s+(.+?)\s+que\s+ja\s+esta\s+n[oa]\s+(?:(?:meu|minha|seu|sua)\s+)?carrinho[.!?]*$/);
+  if (!match || match[2]!.length > 300 || !cartMessageAuthorizesAdd(input.userMessage)) return null;
+  const words: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10 };
+  const quantity = words[match[1]!] ?? Number(match[1]!.replace(",", "."));
+  const cartId = input.cartId ?? input.sessionId;
+  const readFailure = (): StorefrontConversationOutput => ({ message: "Não consegui conferir esse item do carrinho agora. Confira o carrinho antes de tentar novamente.", blocks: [], suggestedNext: ["Ver Carrinho"] });
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) return { message: "Informe uma quantidade inteira de 1 a 99 unidades para adicionar.", blocks: [], suggestedNext: ["Ver Carrinho"] };
+  let parsed: ReturnType<typeof conversationBlockSchema.safeParse>;
+  try { parsed = conversationBlockSchema.safeParse(await deps.getCartBlock(cartId)); } catch { return readFailure(); }
+  if (!parsed.success || parsed.data.type !== "cart_summary" || parsed.data.data.cartId !== cartId) return readFailure();
+  const current = parsed.data, reference = normalizeCartName(match[2]!);
+  const matches = current.data.items.filter(line => normalizeCartName(line.productName) === reference);
+  if (matches.length !== 1) return { message: matches.length ? "Há mais de uma linha desse produto. Abra o carrinho e escolha a variação que deseja acrescentar." : "Não encontrei esse nome exato no seu carrinho. Abra o carrinho e escolha o produto que deseja acrescentar.", blocks: [current], suggestedNext: ["Ver Carrinho"] };
+  const line = matches[0]!;
+  if (line.optionItemIds?.length || line.selectedOptions?.length || line.serviceSlotId || line.selectedServiceSlotId) return {
+    message: "Esse item tem uma seleção de opções ou horário. Abra os detalhes e escolha a mesma seleção antes de acrescentar.", blocks: [current], suggestedNext: ["Ver Carrinho"] };
+  const unitPriceCents = Math.round(line.price * 100);
+  if (!Number.isSafeInteger(unitPriceCents) || unitPriceCents <= 0 || Math.abs(line.price * 100 - unitPriceCents) > 0.000001) return readFailure();
+  const args = { cartId, variantId: line.variantId, quantity };
+  const expected: StorefrontExistingCartLine = { variantId: line.variantId, quantity: line.quantity, unitPriceCents };
+  const policy = createCartTurnPolicy(input.userMessage, input.attachmentContext, cartId);
+  const [tool] = policy.wrap([{ name: "add_item_to_cart", execute: values => callStorefrontTool("add_item_to_cart", values,
+    () => deps.addExistingItemToCart!(structuredClone(args), structuredClone(expected)), { cartId }) }]);
+  let cart: unknown;
+  try { const result = await tool!.execute(args); cart = result.ok ? result.data : undefined; } catch { /* No retry after an unknown writer outcome. */ }
+  const result = cartAddResult(cart, cartId, line.variantId, []);
+  const saved = cart as { items?: Array<{ variantId: string; quantity: number }> } | undefined;
+  if (result.data.status === "succeeded" && saved?.items?.find(i => i.variantId === line.variantId)?.quantity !== line.quantity + quantity) result.data.status = "unknown";
+  if (result.data.status !== "succeeded") return { message: result.data.status === "rejected"
+    ? "Não consegui acrescentar a quantidade solicitada. Confira a disponibilidade e a seleção do item."
+    : "Não consegui confirmar a inclusão. Confira o carrinho antes de tentar novamente.", blocks: [result], suggestedNext: ["Ver Carrinho"] };
+  const built = buildConversationBlocks({ toolResults: { add_item_to_cart: cart }, userMessage: input.userMessage,
+    finalContent: `${line.productName} adicionado ao carrinho!`, merchantId: input.merchantId, presentationMode: "structured" });
+  return { message: `${line.productName} adicionado ao carrinho!`, blocks: built.blocks,
+    cartId, suggestedNext: ["Ver Carrinho", "Continuar Comprando", "Finalizar Compra"] };
 }
 
 async function resolveOffersShortcut(
@@ -380,6 +429,7 @@ export async function resolveDeterministicShortcut(
   if (isUnspecifiedShoppingRequest(input.userMessage)) return null;
   const normalizedMsg = input.userMessage.trim().toLowerCase();
   return (
+    (await resolveExistingCartIncrement(deps, input)) ??
     (await resolveAddToCartShortcut(deps, input)) ??
     (options.structuredReadRouting ? null : await resolveOffersShortcut(deps, input, normalizedMsg)) ??
     (options.structuredReadRouting ? null : await resolveDetailsShortcut(deps, input, normalizedMsg)) ??
