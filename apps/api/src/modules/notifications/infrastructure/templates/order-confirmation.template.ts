@@ -106,23 +106,23 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
 // ── WhatsApp Template ──────────────────────────────────────────────────────
 
 export function renderOrderConfirmationWhatsApp(event: OrderConfirmationEvent & { merchantName?: string }): string {
-  const inline = (value: string) => value.replace(/[\u0000-\u001f\u007f*_~`]/g, " ").replace(/\s+/g, " ").trim();
+  const inline = (value: string, max = 140) => Array.from(value.replace(/[\u0000-\u001f\u007f*_~`]/g, " ").replace(/\s+/g, " ").trim()).slice(0, max).join("");
   const storeName = inline(event.merchantName || "nossa loja");
   const cur = event.currency === "USD" ? "US$" : event.currency === "EUR" ? "€" : "R$";
-  const itemsList = event.items
+  const itemsList = event.items.slice(0, 8)
     .map((item) => {
       const cents = exactMajorCents(item.price);
       const price = cents === null ? `${cur} ${inline(item.price)}` : formatReceiptMoney(cents, event.currency || "BRL");
       return `• *${inline(item.name)}*\n  ${item.quantity} un. × ${price}`;
     })
-    .join("\n");
+    .join("\n") + (event.items.length > 8 ? `\n\n… e mais ${event.items.length - 8} itens no pedido.` : "");
 
   return [
     `🤖 ✅ *${event.paidReceipt ? "Pagamento aprovado!" : "Pedido confirmado!"}*`,
     ``,
     `Seu pedido na *${storeName}* está confirmado. Obrigado por comprar com a gente! 💛`,
     ``,
-    `🧾 *Pedido #${inline(event.orderNumber)}*`,
+    `🧾 *Pedido #${inline(event.orderNumber, 191)}*`,
     ``,
     `🛍️ *Itens do pedido*`,
     itemsList,

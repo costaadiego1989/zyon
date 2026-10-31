@@ -53,3 +53,11 @@ test("buyer WhatsApp confirmation leads with the paid fact, separates identity f
   assert.match(text, /\n\n✅ \*Total pago: /);
   assert.doesNotMatch(text, /Diego Costa - Athom|preparando|enviado|despachado/);
 });
+
+test("a large buyer receipt remains deliverable as one WhatsApp message and labels omitted item rows", () => {
+  const text = renderOrderConfirmationWhatsApp({ ...event, merchantName: "Loja ".repeat(200),
+    items: Array.from({ length: 50 }, (_, index) => ({ name: `Produto ${index} ${"nome ".repeat(100)}`, quantity: 1, price: "3.00", productType: "physical" })) });
+  assert(text.length <= 4096); assert.match(text, /e mais 42 itens no pedido/);
+  assert.match(text.replace(/\u00a0/g, " "), /Total pago: R\$ 13,85/);
+  assert.match(text.replace(/\u00a0/g, " "), /1 un\. × R\$ 3,00/);
+});
