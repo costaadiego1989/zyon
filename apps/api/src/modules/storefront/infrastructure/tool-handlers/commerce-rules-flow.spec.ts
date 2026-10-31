@@ -8,6 +8,8 @@ import type { AdvancedRule } from "../../../checkout/domain/services/advanced-ru
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import type { CartHandlerDeps } from "./cart.handlers.js";
 import { validateStorefrontToolOutput } from "../../domain/contracts/storefront-tool-output.schemas.js";
+import { executeStorefrontUiAction } from "../agents/storefront-ui-action.executor.js";
+import { storefrontConversationOutputSchema } from "../../domain/contracts/storefront-conversation.schemas.js";
 
 const rule: AdvancedRule = { id: "discount", enabled: true, priority: 1,
   conditions: [{ field: "cart_item_count", operator: ">=", value: 2 }],
@@ -199,6 +201,25 @@ test("pre_cart suggestions appear with product details and can coexist with post
   assert.equal(blocks[1].type, "cross_sell");
   assert.equal((blocks[1].data as any).products[0].id, "v-two");
   assert.equal((blocks[1].data as any).products[0].productId, "two");
+});
+
+test("native product details with a zero-benefit recommendation survive the final conversation contract without adding items", async () => {
+  const { deps, products } = fixture([], true, true);
+  const viewed = products[0]!;
+  viewed.variants.push(...["large", "family"].map(size => ({ ...viewed.variants[0]!,
+    id: `v-one-${size}`, sku: `sku-one-${size}`, attributes: { size } })));
+  const productsHandler = createProductHandlers(deps, ctx);
+  const native = await executeStorefrontUiAction(productsHandler as never,
+    { tool: "get_product_details", args: { productId: viewed.id } }, ctx.merchantId, ctx.sessionId);
+  const output = storefrontConversationOutputSchema.safeParse({ ...native, cartId: ctx.sessionId, suggestedNext: [] });
+  assert.equal(output.success, true, output.success ? undefined : JSON.stringify(output.error.issues));
+  const card: any = native.blocks.find(block => block.type === "product_card");
+  assert.deepEqual(card.data.variants.map((variant: any) => variant.id), viewed.variants.map(variant => variant.id));
+  const recommendation: any = native.blocks.find(block => block.type === "cross_sell");
+  assert.equal(recommendation.data.products[0].recommendationRuleId, "promo");
+  assert.equal(recommendation.data.products[0].promoId, undefined);
+  assert.equal(recommendation.data.products[0].price, 100);
+  assert.deepEqual((await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId)).items, []);
 });
 
 test("pre_cart evaluates the viewed product without persisting it or promising a legacy benefit without quote authority", async () => {

@@ -73,7 +73,7 @@ export const conversationBlockSchema = z.discriminatedUnion("type", [
   block("product_question_input", { productId: id, productName: text }),
   block("cross_sell", { trigger: text, displayMode: z.enum(["inline", "modal", "banner", "interstitial"]).optional(), products: list(z.strictObject({ id, productId: id.optional(), name: text, price: money,
     priceFormatted: text, image: text.optional(), images: list(text).optional(), inStock: z.boolean(),
-    discountPercent: percent.optional(), promoId: id.optional(), couponCode: text.optional() })) }),
+    discountPercent: percent.optional(), promoId: id.optional(), recommendationRuleId: id.optional(), couponCode: text.optional() })) }),
   block("coupon_list", { coupons: list(z.strictObject({ code: text, description: text, minCartValue: money.optional(),
     minCartValueFormatted: text.optional(), expiresAt: text.nullable() })),
     progressive: z.strictObject({ maxPercent: percent, description: text }).optional(), advancedRules: list(z.strictObject({ label: text })).optional() }),

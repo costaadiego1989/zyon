@@ -28,6 +28,15 @@ test("schema: known cross-sell mode does not admit unknown fields or invalid pri
   assert.equal(conversationBlockSchema.safeParse({ type: "cross_sell", data: { ...data, execute: "clear_cart" } }).success, false);
   assert.equal(conversationBlockSchema.safeParse({ type: "cross_sell", data: { ...data, products: [{ ...product, price: -1 }] } }).success, false);
 });
+test("schema: cross-sell carries the existing recommendation rule reference without admitting authority or unknown fields", () => {
+  const block = { type: "cross_sell", data: { trigger: "Complementos", products: [{ ...product, recommendationRuleId: "rule" }] } };
+  assert.deepEqual(conversationBlockSchema.parse(JSON.parse(JSON.stringify(block))), block);
+  for (const recommendationRuleId of ["", "x".repeat(192), 1, {}, null])
+    assert.equal(conversationBlockSchema.safeParse({ ...block, data: { ...block.data,
+      products: [{ ...product, recommendationRuleId }] } }).success, false);
+  assert.equal(conversationBlockSchema.safeParse({ ...block, data: { ...block.data,
+    products: [{ ...product, recommendationRuleId: "rule", accepted: true }] } }).success, false);
+});
 const blocks = [
   card,
   { type: "product_carousel", data: { products: [product], merchantId: "merchant", nextCursor: "next" } },
