@@ -9,6 +9,7 @@ import { connectedMetaCloudCredentials } from "../../../whatsapp-channel/domain/
 import { normalizeRecoveryRecipient } from "../../../whatsapp-templates/domain/services/recovery-whatsapp-policy.js";
 import { merchantOrderNotificationPhone } from "../../domain/merchant-order-notification-phone.js";
 import { PAID_ORDER_RECEIPT_READER, type PaidOrderReceiptReader } from "../../application/ports/paid-order-receipt-reader.port.js";
+import { renderOrderConfirmationWhatsApp } from "../templates/order-confirmation.template.js";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const skipped = (reason: string): NotificationWhatsAppResult => ({ status: "skipped", channel: "none", reason });
@@ -34,7 +35,8 @@ export class OrderNotificationWhatsAppAdapter implements NotificationWhatsAppSen
     const recipient = input.toPhone ? normalizeRecoveryRecipient(input.toPhone) : null;
     if (!recipient || !input.orderId?.trim() || !input.merchantId?.trim()) return skipped("notification_scope_invalid");
     const animationType = input.type === "order_paid_animation" || input.type === "order_shipped_animation" ? input.type : undefined;
-    const sessionMessage = input.type === "merchant_order_paid" || Boolean(animationType);
+    let sessionMessage = input.type === "merchant_order_paid" || Boolean(animationType);
+    let buyerReceiptSession = false;
     const videoUrl = animationType ? animationUrl(animationType) : undefined;
     if (animationType && !videoUrl) return skipped("animation_asset_origin_unavailable");
     const config = await this.configs.findByMerchantId(input.merchantId);
@@ -46,34 +48,46 @@ export class OrderNotificationWhatsAppAdapter implements NotificationWhatsAppSen
     if (animationType) {
       const sender = normalizeRecoveryRecipient(config.whatsappNumber ?? config.phoneNumber ?? "");
       if (!sender || sender === recipient) return skipped("buyer_animation_recipient_invalid");
-      const scope = await this.animationScope(input, recipient, animationType);
+      const scope = await this.buyerOrderScope(input, recipient, animationType);
       if (!scope) return skipped("buyer_animation_order_scope_unavailable");
       input = { ...input, orderId: scope.externalOrderId };
     }
     const deviceId = config.deviceId ?? `META_CLOUD:${config.id}`;
     let inboundTimestamp: number | undefined;
+    if ((input.type === "order_confirmation" || input.type === "order_nonphysical_confirmation") && this.receipts) {
+      const event = await this.receipts.read({ merchantId: input.merchantId, externalOrderId: input.orderId });
+      if (!event || event.merchantId !== input.merchantId || event.orderId !== input.orderId
+        || !event.paidReceipt || !event.buyerPhone || normalizeRecoveryRecipient(event.buyerPhone) !== recipient)
+        return skipped("buyer_receipt_order_scope_unavailable");
+      // Inside the authenticated buyer's conversation, use the full canonical
+      // receipt. Choosing the channel precedes the one immutable delivery claim.
+      // Approved templates remain available outside the service window.
+      if (Array.isArray(event.items) && event.items.length && event.orderNumber) {
+        const nonphysical = event.items.every(item => item.productType === "digital" || item.productType === "service");
+        if (input.type !== (nonphysical ? "order_nonphysical_confirmation" : "order_confirmation"))
+          return skipped("buyer_receipt_type_mismatch");
+        const sender = normalizeRecoveryRecipient(config.whatsappNumber ?? config.phoneNumber ?? "");
+        if (!sender || sender === recipient) return skipped("buyer_receipt_recipient_invalid");
+        if (!await this.buyerOrderScope(input, recipient, "order_paid_animation")) return skipped("buyer_receipt_order_scope_unavailable");
+        const inbound = await this.authenticatedInbound(input.merchantId, config.id, deviceId, recipient);
+        if (inbound) {
+          const freeformText = renderOrderConfirmationWhatsApp({ ...event, merchantName: merchant.name });
+          if (!freeformText.trim() || freeformText.length > 4096) return skipped("notification_content_invalid");
+          input = { ...input, freeformText };
+          inboundTimestamp = inbound;
+          sessionMessage = buyerReceiptSession = true;
+        }
+      }
+    }
     if (sessionMessage) {
-      if (!animationType && merchantOrderNotificationPhone(merchant.budgetWhatsapp, merchant.storeSettings, config.whatsappNumber ?? config.phoneNumber) !== recipient) {
+      if (!animationType && !buyerReceiptSession && merchantOrderNotificationPhone(merchant.budgetWhatsapp, merchant.storeSettings, config.whatsappNumber ?? config.phoneNumber) !== recipient) {
         return skipped("merchant_recipient_unavailable");
       }
       if (!animationType && (!input.freeformText?.trim() || input.freeformText.length > 4096)) return skipped("notification_content_invalid");
       // This inbox is populated only after signature/account routing verification.
       // Require the persisted connection, merchant, sender and provider scope too.
-      const inbound = await this.prisma.whatsAppWebhookInbox.findFirst({ where: {
-        merchantId: input.merchantId, configId: config.id, deviceId, kind: "message",
-        createdAt: { gte: new Date(Date.now() - WINDOW_MS), lte: new Date() },
-        AND: [
-          { payload: { path: ["provider"], equals: "META_CLOUD" } },
-          { payload: { path: ["merchantId"], equals: input.merchantId } },
-          { payload: { path: ["deviceId"], equals: deviceId } },
-          { OR: [recipient, recipient.slice(1)].map(fromNumber => ({ payload: { path: ["fromNumber"], equals: fromNumber } })) },
-        ],
-      }, orderBy: { createdAt: "desc" }, select: { payload: true } });
-      const payload = inbound?.payload as Record<string, unknown> | undefined;
-      inboundTimestamp = typeof payload?.timestamp === "number" ? payload.timestamp : undefined;
-      if (payload?.provider !== "META_CLOUD" || payload.merchantId !== input.merchantId || payload.deviceId !== deviceId
-        || typeof payload.fromNumber !== "string" || normalizeRecoveryRecipient(payload.fromNumber) !== recipient
-        || !this.withinWindow(inboundTimestamp)) return skipped(animationType ? "buyer_animation_session_window_required" : "merchant_approved_template_required");
+      inboundTimestamp ??= await this.authenticatedInbound(input.merchantId, config.id, deviceId, recipient);
+      if (!this.withinWindow(inboundTimestamp)) return skipped(animationType ? "buyer_animation_session_window_required" : "merchant_approved_template_required");
     }
     // Correction purpose belongs to the receipt only; an order animation is once per type/order.
     const purpose = animationType ? `${animationType}:v1` : input.idempotencyKey ?? input.orderId;
@@ -101,13 +115,17 @@ export class OrderNotificationWhatsAppAdapter implements NotificationWhatsAppSen
         if (!latest || current?.id !== config.id || (current.deviceId ?? `META_CLOUD:${current.id}`) !== deviceId
           || latest.wabaId !== credentials.wabaId || latest.phoneNumberId !== credentials.phoneNumberId) {
           result = skipped("meta_connection_changed");
-        } else if (!animationType && (!currentMerchant || merchantOrderNotificationPhone(currentMerchant.budgetWhatsapp, currentMerchant.storeSettings,
+        } else if (!animationType && !buyerReceiptSession && (!currentMerchant || merchantOrderNotificationPhone(currentMerchant.budgetWhatsapp, currentMerchant.storeSettings,
           current.whatsappNumber ?? current.phoneNumber) !== recipient)) {
           result = skipped("merchant_recipient_changed");
         } else if (animationType && (!normalizeRecoveryRecipient(current.whatsappNumber ?? current.phoneNumber ?? "")
           || normalizeRecoveryRecipient(current.whatsappNumber ?? current.phoneNumber ?? "") === recipient
-          || !await this.animationScope(input, recipient, animationType))) {
+          || !await this.buyerOrderScope(input, recipient, animationType))) {
           result = skipped("buyer_animation_order_scope_changed");
+        } else if (buyerReceiptSession && (!normalizeRecoveryRecipient(current.whatsappNumber ?? current.phoneNumber ?? "")
+          || normalizeRecoveryRecipient(current.whatsappNumber ?? current.phoneNumber ?? "") === recipient
+          || !await this.buyerOrderScope(input, recipient, "order_paid_animation"))) {
+          result = skipped("buyer_receipt_order_scope_changed");
         } else if (!this.withinWindow(inboundTimestamp)) {
           result = skipped(animationType ? "buyer_animation_session_window_required" : "merchant_approved_template_required");
         } else {
@@ -154,7 +172,25 @@ export class OrderNotificationWhatsAppAdapter implements NotificationWhatsAppSen
     return typeof timestamp === "number" && Number.isSafeInteger(timestamp) && timestamp <= Date.now() && Date.now() - timestamp < WINDOW_MS;
   }
 
-  private async animationScope(input: NotificationWhatsAppInput, recipient: string, type: AnimationType): Promise<{ externalOrderId: string } | null> {
+  private async authenticatedInbound(merchantId: string, configId: string, deviceId: string, recipient: string): Promise<number | undefined> {
+    const inbound = await this.prisma.whatsAppWebhookInbox.findFirst({ where: {
+      merchantId, configId, deviceId, kind: "message",
+      createdAt: { gte: new Date(Date.now() - WINDOW_MS), lte: new Date() },
+      AND: [
+        { payload: { path: ["provider"], equals: "META_CLOUD" } },
+        { payload: { path: ["merchantId"], equals: merchantId } },
+        { payload: { path: ["deviceId"], equals: deviceId } },
+        { OR: [recipient, recipient.slice(1)].map(fromNumber => ({ payload: { path: ["fromNumber"], equals: fromNumber } })) },
+      ],
+    }, orderBy: { createdAt: "desc" }, select: { payload: true } });
+    const payload = inbound?.payload as Record<string, unknown> | undefined;
+    const timestamp = typeof payload?.timestamp === "number" ? payload.timestamp : undefined;
+    return payload?.provider === "META_CLOUD" && payload.merchantId === merchantId && payload.deviceId === deviceId
+      && typeof payload.fromNumber === "string" && normalizeRecoveryRecipient(payload.fromNumber) === recipient
+      && this.withinWindow(timestamp) ? timestamp : undefined;
+  }
+
+  private async buyerOrderScope(input: NotificationWhatsAppInput, recipient: string, type: AnimationType): Promise<{ externalOrderId: string } | null> {
     const order = await this.prisma.completedOrder.findFirst({ where: { merchantId: input.merchantId,
       OR: [{ id: input.orderId }, { externalOrderId: input.orderId }] },
       select: { id: true, merchantId: true, sessionId: true, externalOrderId: true, status: true } });

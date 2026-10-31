@@ -61,6 +61,69 @@ function fixture() {
   return { state, prisma, adapter: new OrderNotificationWhatsAppAdapter(prisma, configs, templates, receipts) };
 }
 
+function itemizedBuyerReceipt(state: any) {
+  state.receipt = { ...state.receipt, type: "ORDER_CONFIRMATION", orderNumber: "order-1", buyerName: "Diego Costa - Wrong store",
+    merchantName: "Wrong store", currency: "BRL", total: "12.86",
+    items: [{ name: "QA Físico R$3", quantity: 1, price: "3,00", productType: "physical" }],
+    paidReceipt: { status: "itemized", currency: "BRL", itemsSubtotalCents: 300, discountCents: 30,
+      shippingCents: 1016, platformFeeCents: 99, merchantOrderTotalCents: 1286, totalPaidCents: 1385 } };
+}
+
+test("an owned itemized buyer receipt uses the authenticated service window and canonical rich message once", async () => {
+  const { state, adapter } = fixture(); itemizedBuyerReceipt(state);
+  const request = { ...input, type: "order_confirmation" as const, freeformText: "untrusted override", variables: { storeName: "wrong" } };
+  await withProvider(state, async () => {
+    assert.equal((await adapter.execute(request)).channel, "whatsapp_session");
+    assert.equal((await adapter.execute(request)).channel, "whatsapp_session");
+  });
+  assert.equal(state.requests.length, 1); assert.equal(state.templateCalls.length, 0);
+  const body = state.requests[0].body;
+  assert.equal(body.to, recipient.slice(1)); assert.equal(body.type, "text");
+  assert.match(body.text.body, /^🤖 ✅ \*Pagamento aprovado!\*/);
+  assert.match(body.text.body, /\*Loja A\*/); assert.match(body.text.body.replace(/\u00a0/g, " "), /Total pago: R\$ 13,85/);
+  assert.doesNotMatch(body.text.body, /untrusted override|Wrong store|preparando/);
+  assert.equal(state.row.response.channel, "whatsapp_session");
+  assert.equal(JSON.stringify(state.row.response).includes(body.text.body), false);
+});
+
+for (const change of [
+  (s: any) => { s.receipt.buyerPhone = "+5511988887777"; },
+  (s: any) => { s.receipt.merchantId = "other"; },
+  (s: any) => { s.receipt.orderId = "other"; },
+  (s: any) => { s.receipt.paidReceipt = undefined; },
+  (s: any) => { s.order.status = "cancelled"; },
+  (s: any) => { s.order.merchantId = "other"; },
+]) test("a buyer receipt cannot bypass canonical ownership/payment/order guards", async () => {
+  const { state, adapter } = fixture(); itemizedBuyerReceipt(state); change(state);
+  await withProvider(state, async () => assert.equal((await adapter.execute({ ...input, type: "order_confirmation" })).status, "skipped"));
+  assert.equal(state.requests.length + state.templateCalls.length, 0); assert.equal(state.row, null);
+});
+
+test("an expired service window retains approved templates and never changes channels after an uncertain result", async () => {
+  const { state, adapter } = fixture(); itemizedBuyerReceipt(state);
+  state.inbound.payload.timestamp = Date.now() - 25 * 60 * 60_000;
+  state.templateResult = { status: "uncertain", channel: "whatsapp_template" };
+  await withProvider(state, async () => {
+    assert.equal((await adapter.execute({ ...input, type: "order_confirmation" })).status, "unknown");
+    state.inbound.payload.timestamp = Date.now() - 1_000;
+    assert.equal((await adapter.execute({ ...input, type: "order_confirmation" })).status, "unknown");
+  });
+  assert.equal(state.requests.length, 0); assert.equal(state.templateCalls.length, 1);
+});
+
+test("buyer receipt revalidates canonical scope before dispatch and never retries a rejected session message as a template", async () => {
+  for (const revoked of [true, false]) {
+    const { state, adapter } = fixture(); itemizedBuyerReceipt(state);
+    if (revoked) state.beforeConfigRead = (count: number) => { if (count === 2) state.receipt.buyerPhone = "+5511988887777"; };
+    else state.http = async () => new Response("rejected", { status: 400 });
+    await withProvider(state, async () => {
+      assert.equal((await adapter.execute({ ...input, type: "order_confirmation" })).status, revoked ? "skipped" : "failed");
+      await adapter.execute({ ...input, type: "order_confirmation" });
+    });
+    assert.equal(state.requests.length, revoked ? 0 : 1); assert.equal(state.templateCalls.length, 0);
+  }
+});
+
 async function withProvider<T>(state: any, run: () => Promise<T>) {
   const previous = globalThis.fetch;
   globalThis.fetch = (async (url: string, options: RequestInit) => {

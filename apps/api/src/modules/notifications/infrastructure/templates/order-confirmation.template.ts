@@ -1,5 +1,6 @@
 import { OrderConfirmationEvent } from "../../domain/events/notification.events.js";
 import { renderReceiptSummaryHtml, renderReceiptSummaryWhatsApp } from "./paid-order-receipt.template.js";
+import { exactMajorCents, formatReceiptMoney } from "../../domain/paid-order-receipt.js";
 
 const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
@@ -105,24 +106,34 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
 // ── WhatsApp Template ──────────────────────────────────────────────────────
 
 export function renderOrderConfirmationWhatsApp(event: OrderConfirmationEvent & { merchantName?: string }): string {
-  const storeName = event.merchantName || "nossa loja";
+  const inline = (value: string) => value.replace(/[\u0000-\u001f\u007f*_~`]/g, " ").replace(/\s+/g, " ").trim();
+  const storeName = inline(event.merchantName || "nossa loja");
   const cur = event.currency === "USD" ? "US$" : event.currency === "EUR" ? "€" : "R$";
   const itemsList = event.items
-    .map((item) => `  • ${item.name} ×${item.quantity} — ${cur} ${item.price}`)
+    .map((item) => {
+      const cents = exactMajorCents(item.price);
+      const price = cents === null ? `${cur} ${inline(item.price)}` : formatReceiptMoney(cents, event.currency || "BRL");
+      return `• *${inline(item.name)}*\n  ${item.quantity} un. × ${price}`;
+    })
     .join("\n");
 
   return [
-    `✅ *Pedido Confirmado!*`,
+    `🤖 ✅ *${event.paidReceipt ? "Pagamento aprovado!" : "Pedido confirmado!"}*`,
     ``,
-    `Olá${event.buyerName ? ` ${event.buyerName}` : ""}! ${event.paidReceipt ? "Seu pagamento foi aprovado" : "Seu pedido foi confirmado"} na *${storeName}*.`,
+    `Seu pedido na *${storeName}* está confirmado. Obrigado por comprar com a gente! 💛`,
     ``,
-    `📋 *Pedido #${event.orderNumber}*`,
+    `🧾 *Pedido #${inline(event.orderNumber)}*`,
+    ``,
+    `🛍️ *Itens do pedido*`,
     itemsList,
     ``,
     renderReceiptSummaryWhatsApp(event),
     ``,
-    orderConfirmationInstructions(event),
+    `📦 *Próximos passos*`,
+    event.items.length && event.items.every(item => item.productType === "digital" || item.productType === "service")
+      ? orderConfirmationInstructions(event)
+      : "Você pode consultar o andamento do pedido por aqui. Avisaremos quando houver uma atualização da entrega ou retirada.",
     ``,
-    `Qualquer dúvida, estamos à disposição! 🙏`,
+    `💬 Se precisar de ajuda, é só enviar uma mensagem.`,
   ].join("\n");
 }

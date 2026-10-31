@@ -40,3 +40,16 @@ test("both WhatsApp receipts describe the same complete charge", () => {
     assert.match(normalized, /Desconto: −R\$ 0,30/); assert.doesNotMatch(normalized, /Total:.*12.86/);
   }
 });
+
+test("buyer WhatsApp confirmation leads with the paid fact, separates identity from branding and does not invent preparation", () => {
+  const text = renderOrderConfirmationWhatsApp({ ...event, buyerName: "Diego Costa - Athom Technologies", merchantName: "Athom Technologies",
+    items: [{ name: "Produto *teste*\nOutro título", quantity: 1, price: "3,00", productType: "physical" }] });
+  assert.match(text, /^🤖 ✅ \*Pagamento aprovado!\*/);
+  assert.match(text, /Seu pedido na \*Athom Technologies\* está confirmado/);
+  assert.match(text, /🧾 \*Pedido #185874\*/);
+  assert.match(text, /🛍️ \*Itens do pedido\*/);
+  assert.match(text, /Produto teste Outro título/);
+  assert.match(text, /\n🚚 Frete: /);
+  assert.match(text, /\n\n✅ \*Total pago: /);
+  assert.doesNotMatch(text, /Diego Costa - Athom|preparando|enviado|despachado/);
+});

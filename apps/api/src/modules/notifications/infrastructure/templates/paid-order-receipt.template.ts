@@ -21,6 +21,8 @@ export function renderReceiptSummaryHtml(event: OrderConfirmationEvent): string 
   }).join("")}</table>`;
 }
 export function renderReceiptSummaryWhatsApp(event: OrderConfirmationEvent): string {
-  return event.paidReceipt ? receiptSummaryLines(event.paidReceipt).map(line => line.startsWith("Total pago:") ? `💰 *${line}*` : `• ${line}`).join("\n")
+  const icons: Record<string, string> = { Produtos: "🛍️", Desconto: "🏷️", Frete: "🚚", "Taxa de serviço": "ℹ️" };
+  return event.paidReceipt ? receiptSummaryLines(event.paidReceipt).map(line => line.startsWith("Total pago:") ? `\n✅ *${line}*`
+    : `${icons[line.split(":")[0]!] ?? "ℹ️"} ${line}`).join("\n")
     : `💰 *Valor do pedido: ${receiptTotalFormatted(event)}*\nTotal pago e taxas adicionais não discriminados neste recibo.`;
 }
