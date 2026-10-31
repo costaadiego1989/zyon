@@ -4,6 +4,16 @@ import { productBrowsingAction, salesDiscoveryHistory } from "./sales-discovery.
 export const normalizeSalesText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 type History = Array<{ role: "user" | "assistant"; content: string }>;
 
+/** Shared family boundary for discovery context and catalog recommendation. */
+export function salesProductFamily(message: string) {
+  const value = normalizeSalesText(message);
+  return /\b(cabelo|cabelos|capilar)\b/.test(value) ? "hair"
+    : /\b(pele|rosto|facial|oleosidade)\b/.test(value) ? "skin"
+    : /\b(tenis|sapato|sneaker|corrida)\b/.test(value) ? "shoe"
+    : /\b(camiseta|calca)\b/.test(value) ? "clothing"
+    : /\b(notebook|celular)\b/.test(value) ? "electronics" : undefined;
+}
+
 /** Short answers also belong to the need after an unsuccessful recommendation,
  * not just while the last assistant message happens to end in a question. A new
  * explicit shopping need starts a new scope; navigation/checkout closes it. */
@@ -12,11 +22,7 @@ export function salesRecommendationContext(message: string, history: History): s
   const prior = salesDiscoveryHistory(history, message).slice(-10);
   const newNeed = /\b(?:quero|preciso|procuro|busco|gostaria)\b/.test(text)
     && !/\b(?:mais barat\w*|outra opc\w*|outro|com perfume|sem perfume)\b/.test(text);
-  const family = (value: string) => /\b(cabelo|cabelos|capilar)\b/.test(value) ? "hair"
-    : /\b(pele|rosto|facial|oleosidade)\b/.test(value) ? "skin"
-    : /\b(tenis|sapato|sneaker|corrida)\b/.test(value) ? "shoe"
-    : /\b(camiseta|calca)\b/.test(value) ? "clothing"
-    : /\b(notebook|celular)\b/.test(value) ? "electronics" : undefined;
+  const family = salesProductFamily;
   const priorFamily = prior.filter(item => item.role === "user").map(item => family(normalizeSalesText(item.content))).filter(Boolean).at(-1);
   const currentFamily = family(text) ?? (/\bhidrat\w*\b/.test(text) ? priorFamily === "hair" ? "hair" : "skin" : undefined);
   if (newNeed && (!currentFamily || (!!priorFamily && currentFamily !== priorFamily))) return message;

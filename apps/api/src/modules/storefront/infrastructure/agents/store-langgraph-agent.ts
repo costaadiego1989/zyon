@@ -33,6 +33,7 @@ import { validateStorefrontMessage, type StorefrontMessageContext } from "../../
 import { buildStoreSystemPrompt } from "../../domain/prompts/store-system-prompt.builder.js";
 import { buildConversationBlocks } from "./conversation-block.builder.js";
 import { hasCareProfile, salesRecommendationContext } from "../../domain/services/sales-recommendation-intent.js";
+import { contextualCareDiscovery, explicitlyContinuesCareDiscovery } from "../../domain/services/contextual-sales-discovery.js";
 import { allowsSalesDiscovery, countSalesDiscoveryRounds, isBroadShoppingRequest, isUnspecifiedShoppingRequest,
   isBarePriceObjection, needsSalesClarification, MAX_SALES_DISCOVERY_ROUNDS, parseSalesDiscoveryQuestion, salesDiscoveryHistory, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
 import { ASK_PRODUCT_PREFERENCES } from "../../domain/tools/definitions/ask-product-preferences.tool.js";
@@ -334,7 +335,10 @@ export class StorefrontLangGraphAgent {
     }
     let discoveryQuestion: SalesDiscoveryQuestion | undefined;
     const history = salesDiscoveryHistory(input.history, input.userMessage);
-    const productDiscovery = !quantitySelection && semantic.classification.needsProductDiscovery === true;
+    const contextualDiscovery = this.structuredRouting && !quantitySelection && !input.attachmentContext
+      && semantic.classification.domain === "STORE_COMMERCE" && intentResult.intent === "COMPLEX_QUESTION"
+      && !semantic.classification.requiresTool && explicitlyContinuesCareDiscovery(input.userMessage, history);
+    const productDiscovery = !quantitySelection && (semantic.classification.needsProductDiscovery === true || contextualDiscovery);
     const structuredSearchRequired = this.structuredRouting && productDiscovery;
     const discoveryRounds = countSalesDiscoveryRounds(history.slice(-10));
     const canDiscover = productDiscovery && allowsSalesDiscovery(input.userMessage, input.attachmentContext)
@@ -342,8 +346,23 @@ export class StorefrontLangGraphAgent {
     const lastReply = history.filter(message => message.role === "assistant").at(-1)?.content ?? "";
     const needsPriceDiscovery = canDiscover && isBarePriceObjection(input.userMessage)
       && !/\b(frete|pagamento|pedido|carrinho|checkout|entrega)\b/i.test(lastReply);
-    const needsDiscovery = canDiscover && (needsPriceDiscovery
+    const care = contextualCareDiscovery(input.userMessage, history);
+    const needsDiscovery = canDiscover && !care.profileReady && (needsPriceDiscovery || contextualDiscovery
       || needsSalesClarification(input.userMessage, semantic.classification.shoppingPhase));
+    if (this.structuredRouting && needsDiscovery && !needsPriceDiscovery && care.skin) {
+      // This is conversational copy, not a fact/price/tool result. A known care
+      // area advances to its missing field before a generic model invitation can
+      // restart the interview. The next useful question replaces an already
+      // asked profile question; the existing round limit still applies.
+      const question = care.question;
+      const message = question?.question ?? "Tudo bem. Sem esses detalhes, podemos explorar as características publicadas dos produtos, sem presumir uma indicação específica para sua pele. Você pode pedir o catálogo ou indicar o cuidado que procura.";
+      input.callbacks?.onToken?.(message);
+      return { message, ...(question ? { discoveryQuestion: question } : {}), blocks: [], toolsUsed: [], cartId: input.cartId,
+        usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+        routing: { source: semantic.source, domain: semantic.classification.domain, needsProductDiscovery: false,
+          structuredSearchRequired, intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
+        safetyValidation: { safe: true } };
+    }
     let turnPlan: ShoppingSearchPlan | undefined;
     if (structuredSearchRequired && !needsDiscovery) {
       const planned = await planStorefrontShopping(this.provider, { userMessage: input.userMessage,
@@ -613,7 +632,7 @@ export class StorefrontLangGraphAgent {
       // ─── Fallback: if no tool was called but intent requires one, retry with strong model ───
       const TOOL_REQUIRED_PATTERNS = /^(categorias|ver todas|por preço|por avaliação|mais vendidos|novidades|frete grátis|por desconto|faq|falar com humano|ofertas do dia|ver avaliações|status do pedido)$/i;
       const requiresTool = this.structuredRouting ? requiresCanonicalRead : TOOL_REQUIRED_PATTERNS.test(input.userMessage.trim());
-      if (!cartPolicy.mutationOutcome && toolsUsed.length === 0 && finalContent !== STOREFRONT_MODEL_FALLBACK && requiresTool) {
+      if (!needsDiscovery && !cartPolicy.mutationOutcome && toolsUsed.length === 0 && finalContent !== STOREFRONT_MODEL_FALLBACK && requiresTool) {
         this.logger.warn("agent.no_tool_called.retry", { model: this.strongModel });
         try {
           // These intents require their canonical read. Repeating an auto-tool

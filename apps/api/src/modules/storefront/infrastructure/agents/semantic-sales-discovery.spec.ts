@@ -44,7 +44,7 @@ for (const userMessage of ["Quero uma ajuda para escolher ainda não sei o produ
     const result = await agent.run({ merchantId: "owned", sessionId: "same", cartId: "same", userMessage, history });
     assert.deepEqual(result.discoveryQuestion, question, JSON.stringify({ result, calls }));
     assert.equal(result.message, question.question);
-    assert.deepEqual(result.toolsUsed, ["ask_product_preferences"]);
+    assert.deepEqual(result.toolsUsed, [], "server-owned clarification does not fabricate a model tool call");
     assert.deepEqual(result.blocks, []);
     assert.equal(result.cartId, "same");
     assert.equal(result.safetyValidation.safe, true);
