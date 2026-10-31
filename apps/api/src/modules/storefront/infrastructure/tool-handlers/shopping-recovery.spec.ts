@@ -53,6 +53,59 @@ function fixture(rows = [product()], options: any = {}) {
   return { handler: read, read: async (plan = criteria()) => storefrontToolOutputSchemas.search_products.parse(await read({ criteria: plan as never, limit: 3 })), queries, quotes, writes: () => writes };
 }
 
+const carePlan = (priority: "required" | "preferred" = "preferred") => criteria({query:"cuidado facial",maxPriceCents:7000,
+  recovery:{familyQuery:"cuidado facial",optionalQueryTerms:[]},attributes:[
+    {name:"tipo de pele",value:"oleosa",operator:"equals",priority},
+    {name:"textura",value:"leve",operator:"equals",priority:"required"},
+    {name:"perfume",value:"sim",operator:"not_equals",priority:"required"}]});
+const careProduct = () => ({...product("bruma",6000,{textura:"leve",perfume:"não"}),name:"Cuidado facial Bruma",description:"Cuidado facial de textura leve, sem perfume"});
+const careContext = {userMessage:"Minha pele é oleosa. Procuro um cuidado leve e sem perfume. O que você tem?"};
+
+test("buyer skin context permits a real related alternative with unknown indication, retaining texture/exclusion/cap and zero writes",async()=>{
+  const input=carePlan(),before=structuredClone(input),f=fixture([careProduct()],{context:careContext}),out=await f.read(input);
+  assert.equal(f.queries.length,2);assert.equal(out.searchEvidence!.matchType,"similar");
+  assert.deepEqual(out.products.map(p=>[p.id,p.price]),[["bruma",6000]]);
+  assert.match(out.searchEvidence!.message,/Indicação para pele oleosa não confirmada/);
+  assert.doesNotMatch(out.searchEvidence!.message,/preferência oleosa|ideal|indicad[oa] para pele oleosa/);
+  assert.deepEqual(out.searchEvidence!.appliedPlan,shoppingSearchPlanSchema.parse(before));assert.deepEqual(input,before);
+  for(const query of f.queries)for(const name of ["textura","perfume"])
+    assert.equal(query.criteria.attributes.find((a:any)=>a.name===name).priority,"required");
+  assert.equal(f.writes(),0);
+});
+
+test("mandatory public indication is never downgraded or replaced by an unknown-indication card",async()=>{
+  const input=carePlan("required"),f=fixture([careProduct()],{context:{userMessage:"Somente produto com indicação comprovada para pele oleosa e sem perfume"}});
+  const before=structuredClone(input),out=await f.read(input);
+  assert.deepEqual(out.products,[]);assert.equal(out.searchEvidence!.matchType,"no_match");
+  assert.match(out.searchEvidence!.message,/indicação publicada para pele oleosa/);
+  assert.doesNotMatch(out.searchEvidence!.message,/flexibilizar tipo de pele/);
+  assert.deepEqual(out.searchEvidence!.appliedPlan,shoppingSearchPlanSchema.parse(before));assert.deepEqual(input,before);assert.equal(f.writes(),0);
+});
+
+for(const changed of ["perfume","missing_exclusion","texture","stock","cap"] as const)
+  test(`related skin-context candidates never waive ${changed}`,async()=>{
+    const row=careProduct(),input=carePlan();
+    if(changed==="perfume")row.variants[0].attributes.perfume="sim";
+    if(changed==="missing_exclusion")delete row.variants[0].attributes.perfume;
+    if(changed==="texture")row.variants[0].attributes.textura="densa";
+    if(changed==="stock")row.variants[0].stockQuantity=0;
+    if(changed==="cap")input.maxPriceCents=5000;
+    const before=structuredClone(input),f=fixture([row],{context:careContext}),out=await f.read(input);
+    assert.deepEqual(out.products,[]);assert.deepEqual(input,before);assert.equal(f.writes(),0);
+  });
+
+for(const mode of ["unknown_price","foreign_quote","catalog_error","incomplete"] as const)
+  test(`skin context does not turn ${mode} into a successful alternative or proven absence`,async()=>{
+    const f=fixture([careProduct()],{context:careContext,unknown:mode==="unknown_price",foreign:mode==="foreign_quote",error:mode==="catalog_error",
+      ...(mode==="incomplete"?{page:()=>({products:[],nextCursor:"more"})}:{})});
+    if(mode==="incomplete"){
+      // The first complete read is required before broadening; a repeated cursor
+      // is an error rather than a reason to drop any buyer requirement.
+      await assert.rejects(f.read(carePlan()),/shopping_cursor_inconsistent/);
+    }else await assert.rejects(f.read(carePlan()));
+    assert.equal(f.writes(),0);
+  });
+
 test("SALE21: absent exact model and preferred blue return a real related black option within R$70, with differences and no writes", async () => {
   const f = fixture(), input = criteria(), before = structuredClone(input);
   const out = await f.read(input);

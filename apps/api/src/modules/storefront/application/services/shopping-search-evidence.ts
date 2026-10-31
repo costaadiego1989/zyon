@@ -3,10 +3,18 @@ import { normalizeShoppingFact } from "../../domain/services/shopping-recovery.j
 import { validateStorefrontMessage } from "../../domain/tools/safety-validator.js";
 
 const money = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+type Attribute = ShoppingSearchPlan["attributes"][number];
+// A product's skin-type tag describes its published indication. It must never
+// be narrated as a request to change the buyer's skin or as clinical proof.
+const skinIndication = (a: Attribute) => a.operator === "equals"
+  && /^(?:tipo de pele|perfil de pele|perfil da pele|pele)$/.test(normalizeShoppingFact(a.name))
+  && /^(?:oleosa|seca|mista|normal|sensivel)$/.test(normalizeShoppingFact(a.value));
+const attributeLabel = (a: Attribute) => skinIndication(a) ? `indicação publicada para pele ${a.value}`
+  : `${a.name}: ${a.operator === "not_equals" ? "diferente de " : ""}${a.value}`;
 
 export function shoppingSearchEvidence(plan: ShoppingSearchPlan, count: number): ShoppingSearchEvidence {
   const preferences = plan.attributes.filter(item => item.priority === "preferred")
-    .map(item => `${item.name}: ${item.operator === "not_equals" ? "diferente de " : ""}${item.value}`);
+    .map(attributeLabel);
   const common = { version: 1 as const, appliedPlan: plan, unconfirmedPreferences: preferences };
   const safeCopy = (message: string, fallback: string) => validateStorefrontMessage(message).safe ? message : fallback;
   if (plan.unsupportedCriteria.length) return { ...common, status: "unsupported" as const,
@@ -23,7 +31,7 @@ export function shoppingSearchEvidence(plan: ShoppingSearchPlan, count: number):
       : plan.minPriceCents !== undefined ? `preço a partir de ${money(plan.minPriceCents)}`
         : plan.maxPriceCents !== undefined ? `preço até ${money(plan.maxPriceCents)}` : undefined,
     plan.minRating !== undefined ? `avaliação pública aprovada de ${plan.minRating} estrelas ou mais` : undefined,
-    ...plan.attributes.filter(item => item.priority === "required").map(item => `${item.name}: ${item.operator === "not_equals" ? "diferente de " : ""}${item.value}`),
+    ...plan.attributes.filter(item => item.priority === "required").map(attributeLabel),
   ].filter(Boolean);
   const sort = { price_asc: "menor preço primeiro", price_desc: "maior preço primeiro", rating: "melhor avaliação primeiro", newest: "mais recentes primeiro" };
   let message = count
@@ -50,13 +58,20 @@ export function shoppingRecoveryEvidence(plan: ShoppingSearchPlan, products: Arr
     return evidence;
   }
   if (matchType === "no_match") {
+    const indication = plan.attributes.find(skinIndication);
     const mandatory = plan.attributes.filter(a => a.priority === "required" || a.operator === "not_equals");
     const condition = mandatory[0];
-    const question = condition
+    const question = indication
+      ? indication.priority === "required"
+        ? `Quer consultar outro produto que comprove essa indicação, mantendo os demais requisitos${plan.maxPriceCents !== undefined ? ` e o limite de ${money(plan.maxPriceCents)}` : ""}?`
+        : `Quer informar outro nome ou cuidado para eu consultar, mantendo os requisitos obrigatórios${plan.maxPriceCents !== undefined ? ` e o limite de ${money(plan.maxPriceCents)}` : ""}?`
+      : condition
       ? `Você aceita flexibilizar ${condition.name}: ${condition.operator === "not_equals" ? "diferente de " : ""}${condition.value}${plan.maxPriceCents !== undefined ? `, mantendo o limite de ${money(plan.maxPriceCents)}` : ""}?`
       : plan.maxPriceCents !== undefined ? `Você prefere manter o limite de ${money(plan.maxPriceCents)} e procurar outra família de produtos, ou autoriza rever esse limite?`
         : "Você prefere informar outro nome ou rever alguma característica do produto?";
-    evidence.message = `🔎 Não confirmei uma opção disponível com todos os requisitos nesta consulta.\n💬 ${question}`;
+    evidence.message = indication
+      ? `🔎 Não confirmei uma opção disponível com ${attributeLabel(indication)} e os demais requisitos nesta consulta.\n💬 ${question}`
+      : `🔎 Não confirmei uma opção disponível com todos os requisitos nesta consulta.\n💬 ${question}`;
   } else if (matchType === "similar") {
     const preferred = plan.attributes.filter(a => a.priority === "preferred" && a.operator === "equals");
     evidence.differences = products.slice(0, 3).map(p => {
@@ -65,6 +80,11 @@ export function shoppingRecoveryEvidence(plan: ShoppingSearchPlan, products: Arr
         ? [`Nome/modelo solicitado: ${plan.recovery!.optionalQueryTerms.join(", ")}; alternativa publicada: ${p.name.slice(0, 160)}.`] : [];
       for (const a of preferred) {
         const actual = Object.entries(attributes).find(([key]) => normalizeShoppingFact(key) === normalizeShoppingFact(a.name))?.[1];
+        if (skinIndication(a)) {
+          if (actual === undefined || normalizeShoppingFact(actual) !== normalizeShoppingFact(a.value))
+            details.push(`Indicação para pele ${a.value} não confirmada nesta variante.${actual === undefined ? "" : ` O catálogo informa tipo de pele: ${actual}.`}`);
+          continue;
+        }
         if (actual === undefined) details.push(`${a.name}: preferência ${a.value} não confirmada nesta variante.`);
         else if (normalizeShoppingFact(actual) !== normalizeShoppingFact(a.value)) details.push(`${a.name}: ${actual}; preferência solicitada: ${a.value}.`);
       }
