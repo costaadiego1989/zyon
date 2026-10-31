@@ -86,6 +86,29 @@ test("an owned itemized buyer receipt uses the authenticated service window and 
   assert.equal(JSON.stringify(state.row.response).includes(body.text.body), false);
 });
 
+for (const type of ["order_confirmation", "order_nonphysical_confirmation"] as const) {
+  test(`signed ${type} session receipt survives an early READ callback and prevents replay`, async () => {
+    const { state, prisma, adapter } = fixture(); itemizedBuyerReceipt(state);
+    if (type === "order_nonphysical_confirmation") state.receipt.items[0].productType = "digital";
+    const messageId = "wamid.buyer.rich." + type;
+    state.http = async () => {
+      await new HandleStatusUpdateUseCase(prisma).receiveMetaReceipt({ merchantId: "merchant-a", configId: "config-a",
+        correlationId: state.row.id, messageId, status: "read", timestamp: "1793407439" });
+      return new Response(JSON.stringify({ messages: [{ id: messageId }] }), { status: 200 });
+    };
+    await withProvider(state, async () => {
+      const request = { ...input, type };
+      assert.deepEqual(await adapter.execute(request), { status: "accepted", channel: "whatsapp_session", messageId });
+      assert.deepEqual(await adapter.execute(request), { status: "accepted", channel: "whatsapp_session", messageId });
+    });
+    assert.equal(state.row.response.receipt?.status, "read");
+    assert.equal(state.row.response.channel, "whatsapp_session");
+    assert.equal(state.row.providerMessageId, messageId);
+    assert.equal(state.requests.length, 1); assert.equal(state.templateCalls.length, 0);
+    assert.equal(state.inboxWrites, 0);
+  });
+}
+
 for (const change of [
   (s: any) => { s.receipt.buyerPhone = "+5511988887777"; },
   (s: any) => { s.receipt.merchantId = "other"; },

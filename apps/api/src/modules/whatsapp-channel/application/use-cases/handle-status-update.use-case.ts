@@ -113,7 +113,10 @@ export class HandleStatusUpdateUseCase {
       const metadata = saved as Record<string, unknown>;
       if (metadata.kind !== "order_notification" || typeof metadata.orderId !== "string" || !metadata.orderId.trim()
         || typeof metadata.type !== "string" || !ORDER_NOTIFICATION_TYPES.has(metadata.type)) return;
-      const channel = ["merchant_order_paid", "order_paid_animation", "order_shipped_animation"].includes(String(metadata.type)) ? "whatsapp_session" : "whatsapp_template";
+      const buyerConfirmationSession = ["order_confirmation", "order_nonphysical_confirmation"].includes(String(metadata.type))
+        && metadata.channel === "whatsapp_session";
+      const channel = buyerConfirmationSession || ["merchant_order_paid", "order_paid_animation", "order_shipped_animation"].includes(String(metadata.type))
+        ? "whatsapp_session" : "whatsapp_template";
       const legacyUnknownChannel = row.state === "submission_unknown" && metadata.status === "unknown" && metadata.channel === "none";
       if (metadata.channel !== channel && !legacyUnknownChannel) return;
       const previous = metadata.receipt;
