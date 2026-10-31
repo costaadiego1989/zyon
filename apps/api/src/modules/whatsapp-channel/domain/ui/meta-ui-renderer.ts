@@ -70,6 +70,11 @@ export function formatMetaSpeech(text: string): string {
 export function buildMetaUiView(response: WhatsAppStructuredResponse, options: { selectionOnly?: boolean } = {}): MetaUiView {
   const view: MetaUiView = { stage: response.state.stage, title: response.merchantName || "Sua loja", body: response.agentMessage, choices: [], media: [], blocks: response.blocks, quickReplies: response.quickReplies };
   const cartJustAdded = response.blocks.some(block => block.type === "cart_add_result" && object(block.data).status === "succeeded");
+  const narratedOffer = response.state.postCartOffer?.status === "pending"
+    && typeof response.state.postCartOffer.id === "string" && response.state.postCartOffer.id.length > 0
+    && typeof response.state.postCartOffer.sourceVariantId === "string" && response.state.postCartOffer.sourceVariantId.length > 0
+    && response.blocks.some(block => block.type === "post_cart_offer" && object(block.data).offerId === response.state.postCartOffer?.id)
+    && (response.agentMessage.includes("adicionado ao carrinho") || response.agentMessage.includes("Vi que você adicionou"));
   const redundantIntro = response.blocks.some(block => ["cart_summary", "wishlist"].includes(block.type))
     && /^(?:Este é o seu carrinho:|Seu carrinho:|Sua lista de desejos:|Confira sua lista de desejos:)$/.test(response.agentMessage.trim());
   const redundantAdd = cartJustAdded && /^Produto adicionado ao carrinho\.?$/.test(response.agentMessage.trim());
@@ -133,8 +138,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
       case "post_cart_offer": {
         const offer = response.state.postCartOffer;
         if (offer && typeof offer.id === "string" && offer.id.length > 0 && offer.id === d.offerId && offer.status === "pending") {
-          photo(d.imageUrl, `✨ *${value(d.name)}*\n💰 *${money(Number(d.priceCents) / 100)}*`);
-          add("Adicionar complemento", tool("accept_cross_sell_offer", { offerId: d.offerId }), "Uma unidade, pelo preço informado");
+          photo(d.imageUrl, `🤖 💡 *Recomendação opcional*\n\n*${value(d.name)}*\n💰 *${money(Number(d.priceCents) / 100)}*\n\n_Só adiciono se você escolher._`);
+          add("Adicionar sugestão", tool("accept_cross_sell_offer", { offerId: d.offerId }), "Adicionar uma unidade recomendada");
           add("Seguir sem extra", tool("decline_cross_sell_offer", { offerId: d.offerId }), "Manter apenas os itens escolhidos");
           add("Ver detalhes", tool("cross_sell_offer_details", { offerId: d.offerId }));
         }
@@ -215,6 +220,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         add("Continuar comprando", tool("search_products", { query: "*" }));
         break;
       case "cart_add_result":
+        if (d.status === "succeeded" && narratedOffer && d.variantId === response.state.postCartOffer?.sourceVariantId) break;
         text.push(d.status === "succeeded" ? "✅ *Item adicionado ao carrinho*" : d.status === "unknown" ? "_A inclusão está sendo verificada._" : "Não foi possível adicionar este item."); break;
       case "shipping_options":
         if (items(d.options).length) text.push("🚚 *Opções de entrega*\nCompare o valor e o prazo antes de escolher.");

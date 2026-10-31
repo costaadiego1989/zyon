@@ -104,10 +104,12 @@ export function extractSafeTargetFacts(input: PublicTargetFactsInput): PublicTar
   for (const b of blocks.slice(0, 100).sort((a, b) => (Number.isFinite(a.order) ? a.order : 0) - (Number.isFinite(b.order) ? b.order : 0))) {
     if (facts.length === MAX_FACTS) break;
     if (!b.id || b.productId !== input.productId || b.isEnabled !== true || typeof b.locale !== "string" || b.locale.replace(/_/g, "-").toLowerCase() !== locale) continue;
+    if (["title", "heading", "caption"].some(key => {
+      const context = own(b.props, key);
+      return typeof context === "string" && (unsafe(context) || scopeSensitive(context));
+    })) continue; // A list item cannot detach itself from its section's condition.
     const origin = { source: "public_block" as const, blockId: b.id };
     if (["paragraph", "callout", "image_text_split"].includes(b.type)) {
-      const title = own(b.props, b.type === "image_text_split" ? "heading" : "title");
-      if (typeof title === "string" && (unsafe(title) || scopeSensitive(title))) continue;
       add(own(b.props, "text"), { ...origin, path: "props.text" });
     } else if (b.type === "list") {
       const items = own(b.props, "items");

@@ -14,6 +14,7 @@ import { WHATSAPP_CONVERSATION_PORT } from "./domain/ports/whatsapp-conversation
 import { CheckoutWhatsAppConversationAdapter } from "./infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
 import { Module, forwardRef } from "@nestjs/common";
 import { WhatsAppPostCartOfferService } from "./application/services/whatsapp-post-cart-offer.service.js";
+import { AgentRuleReaderModule } from "../agent-rules/agent-rule-reader.module.js";
 import { WhatsAppWebhookController } from "./presentation/http/whatsapp-webhook.controller.js";
 import { WhatsAppConfigController } from "./presentation/http/whatsapp-config.controller.js";
 import { HandleIncomingMessageUseCase } from "./application/use-cases/handle-incoming-message.use-case.js";
@@ -79,7 +80,7 @@ export class MultiProviderSenderAdapter {
 }
 
 @Module({
-  imports: [forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, forwardRef(() => PostSaleModule)],
+  imports: [forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, AgentRuleReaderModule, forwardRef(() => PostSaleModule)],
   controllers: [WhatsAppWebhookController, WhatsAppConfigController, WhatsAppDeliveryController, WhatsAppPresentationController],
   providers: [
     GetWhatsAppUsageUseCase,

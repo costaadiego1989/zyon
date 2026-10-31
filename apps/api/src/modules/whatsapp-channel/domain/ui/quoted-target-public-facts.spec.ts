@@ -98,6 +98,15 @@ test("variant attributes are public string values only; private keys and arbitra
   assert(facts.every(f=>f.source==="variant_attribute"&&f.variantId===variant));
 });
 
+test("list items cannot lose a negation or condition supplied by their public section heading",()=>{
+  for (const props of [
+    { title: "Não indicado para", items: ["Pele oleosa"] },
+    { heading: "Somente quando houver orientação", items: ["Acabamento confortável"] },
+  ]) assert.deepEqual(extractSafeTargetReasons(input({ publicBlocks: [block("list",props)] })),[]);
+  assert.deepEqual(extractSafeTargetReasons(input({ publicBlocks:[block("list",{ title:"Não indicado para",items:["Pele oleosa"] })],description:bruma })),[
+    "Bruma leve para reforçar a hidratação ao longo do dia","acabamento confortável","aplicação prática"]);
+});
+
 test("malformed public fields, unknown locale and missing target cannot synthesize a fact",()=>{
   assert.deepEqual(extractSafeTargetReasons(input({productId:"",description:bruma})),[]);
   assert.deepEqual(extractSafeTargetReasons(input({variantId:"",description:bruma})),[]);

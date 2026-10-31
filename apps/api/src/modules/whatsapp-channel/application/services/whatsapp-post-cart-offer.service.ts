@@ -1,9 +1,13 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { STOREFRONT_CROSS_SELL_CART, type StorefrontCrossSellCartPort } from "../../../storefront/domain/ports/storefront-cross-sell-cart.port.js";
 import type { StoreUiAction, WhatsAppConversationState, WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
 import { cartMessageAuthorizesAdd } from "../../../storefront/domain/tools/cart-turn-policy.js";
+import { MERCHANT_AGENT_RULE_READER, type MerchantAgentRuleReaderPort } from "../../../agent-rules/domain/ports/merchant-agent-rule-reader.port.js";
+import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
+import { GetProductContentUseCase } from "../../../catalog/application/use-cases/get-product-content.use-case.js";
+import { extractSafeTargetReasons } from "../../domain/ui/quoted-target-public-facts.js";
 
 type Offer = NonNullable<WhatsAppConversationState["postCartOffer"]>;
 const commands = new Set(["accept_cross_sell_offer", "decline_cross_sell_offer", "cross_sell_offer_details"]);
@@ -26,7 +30,42 @@ function retireViews(state: WhatsAppConversationState) {
 /** Channel-owned offers carry evidence, never a model-selected price or write grant. */
 @Injectable()
 export class WhatsAppPostCartOfferService {
-  constructor(@Inject(STOREFRONT_CROSS_SELL_CART) private readonly carts: StorefrontCrossSellCartPort) {}
+  constructor(@Inject(STOREFRONT_CROSS_SELL_CART) private readonly carts: StorefrontCrossSellCartPort,
+    @Optional() @Inject(MERCHANT_AGENT_RULE_READER) private readonly agentRules?: MerchantAgentRuleReaderPort,
+    @Optional() @Inject("ProductRepositoryPort") private readonly products?: Pick<ProductRepositoryPort, "findById">,
+    @Optional() @Inject(GetProductContentUseCase) private readonly publicContent?: Pick<GetProductContentUseCase, "execute">) {}
+
+  private async reasons(merchantId: string, offer: Offer): Promise<string[]> {
+    const sourceId = offer.expectedQuote.cartBasis.items.find(item => item.variantId === offer.sourceVariantId)?.productId;
+    if (!this.products || !sourceId) return [];
+    try {
+      const [source, target] = await Promise.all([this.products.findById(merchantId, sourceId), this.products.findById(merchantId, offer.productId)]);
+      const sourceVariant = source?.variants.find(variant => variant.id === offer.sourceVariantId);
+      const targetVariant = target?.variants.find(variant => variant.id === offer.variantId);
+      if (!source || !target || source.id !== sourceId || target.id !== offer.productId
+        || source.merchantId !== merchantId || target.merchantId !== merchantId || !source.isActive || !target.isActive
+        || !sourceVariant?.isActive || !targetVariant?.isActive) return [];
+      let blocks: Parameters<typeof extractSafeTargetReasons>[0]["publicBlocks"] = [];
+      try { blocks = (await this.publicContent?.execute({ merchantId, productId: target.id, locale: "pt-BR" }))?.blocks ?? []; }
+      catch { /* Public description remains usable when optional rich content is unavailable. */ }
+      return extractSafeTargetReasons({ productId: target.id, variantId: targetVariant.id,
+        description: target.description, variantAttributes: targetVariant.attributes, publicBlocks: blocks, locale: "pt-BR" });
+    } catch { return []; /* Missing evidence never invents a benefit or retries the confirmed cart write. */ }
+  }
+
+  private async recommendation(merchantId: string, offer: Offer): Promise<string> {
+    let tone: unknown;
+    try { tone = data((await this.agentRules?.findForMerchant(merchantId))?.identity).tone; } catch { /* Optional voice never changes the confirmed add or quote. */ }
+    // Only the validated tone selects presentation. Free-form persona cannot
+    // supply a price, benefit, suitability claim or consent to add the suggestion.
+    switch (tone) {
+      case "friendly": return `Pensando nessa escolha, separei *${offer.name}* para você conhecer também. Pode ser um complemento interessante para você!`;
+      case "premium": return `Pensando no que você escolheu, separei *${offer.name}* como uma recomendação para acompanhar essa escolha.`;
+      case "direct": return `Com base nessa escolha, separei *${offer.name}* para você avaliar também.`;
+      case "technical": return `Considerando o *${offer.addedName}*, separei *${offer.name}* como complemento para você comparar.`;
+      default: return `Com base nessa escolha, separei *${offer.name}*, que também pode te interessar.`;
+    }
+  }
 
   async decorate(merchantId: string, response: WhatsAppStructuredResponse): Promise<WhatsAppStructuredResponse> {
     const confirmed = response.blocks.find(b => b.type === "cart_add_result" && data(b.data).status === "succeeded"
@@ -69,7 +108,9 @@ export class WhatsAppPostCartOfferService {
           expiresAt: Date.now() + 10 * 60_000, status: "pending", expectedQuote: quote };
         const price = kind === "discount" ? `🏷️ De ${money(quote.originalUnitPriceCents)} por *${money(quote.maximumUnitPriceCents)}* por unidade, na cotação atual.`
           : `💰 *${money(quote.maximumUnitPriceCents)}* por unidade.`;
-        const message = `🤖 ✅ *${offer.addedName} adicionado ao carrinho!*\n\n✨ *Que tal complementar sua escolha?*\nA loja selecionou *${offer.name}* para combinar com este item.\n${price}\n\n💬 Quer adicionar *1 unidade de ${offer.name}* ou seguir sem esse extra? Você também pode pedir os detalhes.`;
+        const [suggestion, reasons] = await Promise.all([this.recommendation(merchantId, offer), this.reasons(merchantId, offer)]);
+        const why = reasons.length ? `\n\n✨ *${reasons.length === 1 ? "Um motivo para conhecer esse produto" : `${reasons.length} motivos para conhecer esse produto`}*\n${reasons.map(reason => `• ${reason}`).join("\n")}` : "";
+        const message = `🤖 ✅ Vi que você adicionou *${offer.addedName}* ao carrinho!\n\n💡 *Minha recomendação para você*\n${suggestion}${why}\n\n${price}\n\n_Sugestão opcional: só adiciono se você quiser._\n\n💬 Quer conhecer melhor essa sugestão, adicionar *1 unidade de ${offer.name}* ou seguir com os itens que já escolheu?`;
         state = { ...state, postCartOffer: offer, expectsFreeInput: false,
           history: response.state.history.map((entry, index, all) => index === all.length - 1 && entry.role === "assistant" ? { ...entry, content: message } : entry) };
         return { ...response, agentMessage: message, quickReplies: [], state,
@@ -94,7 +135,7 @@ export class WhatsAppPostCartOfferService {
     // after another read failed. It grants no assent or cart mutation; ordinary
     // nonvisible "sim" and unrelated product questions remain outside this path.
     const text = normalize(input.message).replace(/[!.?]+$/g, "");
-    const scopedDetails = /^(?:(?:quero|gostaria de|pode|poderia)\s+)?(?:me\s+)?(?:(?:ver|mostrar|mostre)\s+)?(?:os\s+)?detalhes\s+(?:desse|deste|do)\s+complemento(?:\s+antes de (?:eu )?decidir)?(?:[, ]+por favor)?$/.test(text);
+    const scopedDetails = /^(?:(?:quero|gostaria de|pode|poderia)\s+)?(?:me\s+)?(?:(?:ver|mostrar|mostre)\s+)?(?:os\s+)?detalhes\s+(?:desse|deste|do|dessa|desta|da)\s+(?:complemento|sugestao|recomendacao)(?:\s+antes de (?:eu )?decidir)?(?:[, ]+por favor)?$/.test(text);
     if (!explicit && offer?.status === "pending" && input.action?.kind === "tool") {
       const action = input.action;
       if (action.tool === "add_item_to_cart" && action.args.variantId === offer.variantId) {
@@ -108,8 +149,8 @@ export class WhatsAppPostCartOfferService {
         && action.args.lines.some(line => data(line).variantId === offer.variantId)) command = "clarify_cross_sell_offer";
     }
     if (!input.attachmentContext && !input.action && offer?.status === "pending" && (visible || scopedDetails)) {
-      if (/^(sim|sim[, ]+pode adicionar|pode adicionar|adicionar complemento|quero (esse|este|o) complemento|adicion(e|a) (esse|este|o) complemento)$/.test(text)) command = "accept_cross_sell_offer";
-      else if (/^(nao|nao[, ]+obrigad[oa]|seguir sem (extra|complemento)|sem (extra|complemento)|nao quero( (o|esse|este))? complemento)$/.test(text)) command = "decline_cross_sell_offer";
+      if (/^(sim|sim[, ]+pode adicionar|pode adicionar|adicionar (complemento|sugestao|recomendacao)|quero (esse|este|o|essa|esta|a) (complemento|sugestao|recomendacao)|adicion(e|a) (esse|este|o|essa|esta|a) (complemento|sugestao|recomendacao))$/.test(text)) command = "accept_cross_sell_offer";
+      else if (/^(nao|nao[, ]+obrigad[oa]|seguir sem (extra|complemento|sugestao|recomendacao)|sem (extra|complemento|sugestao|recomendacao)|nao quero( (o|esse|este|a|essa|esta))? (complemento|sugestao|recomendacao))$/.test(text)) command = "decline_cross_sell_offer";
       else if (scopedDetails || /^(ver( os)? detalhes|quero (ver |saber )?(os )?detalhes|mais detalhes)$/.test(text)) command = "cross_sell_offer_details";
       else {
         // A bounded explicit reference may name a contiguous published phrase
