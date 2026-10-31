@@ -107,6 +107,24 @@ test("list items cannot lose a negation or condition supplied by their public se
     "Bruma leve para reforçar a hidratação ao longo do dia","acabamento confortável","aplicação prática"]);
 });
 
+test("valid separate public headings preserve negative sections including nested neutral subheadings",()=>{
+  for (const text of ["Não indicado para", "Somente quando houver orientação"]) {
+    const publicBlocks = [block("heading",{text,level:2},{order:0}), block("list",{style:"unordered",items:["Pele oleosa"]},{order:1}),
+      block("heading",{text:"Detalhes",level:3},{order:2}),block("list",{style:"unordered",items:["Acabamento confortável"]},{order:3})];
+    assert.deepEqual(extractSafeTargetReasons(input({publicBlocks})),[]);
+    publicBlocks.push(block("heading",{text:"Características",level:2},{order:4}),block("paragraph",{text:"Aplicação prática."},{order:5}));
+    assert.deepEqual(extractSafeTargetReasons(input({publicBlocks})),["Aplicação prática."]);
+  }
+});
+
+test("disabled and foreign headings cannot change the target product's public section",()=>{
+  const publicBlocks = [block("heading",{text:"Não indicado para",level:2},{order:0,isEnabled:false}),
+    block("heading",{text:"Não indicado para",level:2},{order:1,productId:"other"}),
+    block("heading",{text:"Não indicado para",level:2},{order:2,locale:"en-US"}),
+    block("list",{style:"unordered",items:["Aplicação prática."]},{order:3})];
+  assert.deepEqual(extractSafeTargetReasons(input({publicBlocks})),["Aplicação prática."]);
+});
+
 test("malformed public fields, unknown locale and missing target cannot synthesize a fact",()=>{
   assert.deepEqual(extractSafeTargetReasons(input({productId:"",description:bruma})),[]);
   assert.deepEqual(extractSafeTargetReasons(input({variantId:"",description:bruma})),[]);

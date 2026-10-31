@@ -101,9 +101,18 @@ export function extractSafeTargetFacts(input: PublicTargetFactsInput): PublicTar
   // Enabled content is already public, but repeat target/locale checks before
   // reading its props. Never scan source-product blocks or arbitrary metadata.
   const blocks = Array.isArray(input.publicBlocks) ? input.publicBlocks.filter(b => b && typeof b === "object") : [];
+  let blockedSectionLevel: number | undefined;
   for (const b of blocks.slice(0, 100).sort((a, b) => (Number.isFinite(a.order) ? a.order : 0) - (Number.isFinite(b.order) ? b.order : 0))) {
     if (facts.length === MAX_FACTS) break;
     if (!b.id || b.productId !== input.productId || b.isEnabled !== true || typeof b.locale !== "string" || b.locale.replace(/_/g, "-").toLowerCase() !== locale) continue;
+    if (b.type === "heading") {
+      const level = own(b.props, "level") === 3 ? 3 : 2;
+      if (blockedSectionLevel !== undefined && level > blockedSectionLevel) continue;
+      const heading = own(b.props, "text");
+      blockedSectionLevel = typeof heading !== "string" || unsafe(heading) || scopeSensitive(heading) ? level : undefined;
+      continue;
+    }
+    if (blockedSectionLevel !== undefined) continue;
     if (["title", "heading", "caption"].some(key => {
       const context = own(b.props, key);
       return typeof context === "string" && (unsafe(context) || scopeSensitive(context));
