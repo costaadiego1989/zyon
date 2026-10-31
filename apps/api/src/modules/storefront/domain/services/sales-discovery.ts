@@ -40,6 +40,14 @@ export function isBroadShoppingRequest(message: string): boolean {
 
 export const MAX_SALES_DISCOVERY_ROUNDS = 3;
 
+/** The validated semantic phase wins over legacy phrase matching. It chooses
+ * only interview versus read; domain/action/attachment/round guards stay with
+ * the caller. Old V2 classifications retain their previous behavior. */
+export function needsSalesClarification(message: string, phase: "clarify" | "search" | null | undefined): boolean {
+  return phase === "clarify" || (phase !== "search"
+    && (isUnspecifiedShoppingRequest(message) || isBroadShoppingRequest(message)));
+}
+
 /** A bare price objection supplies no new target price. Clarify that target
  * instead of paying for repeated searches that return the same products. */
 export function isBarePriceObjection(message: string): boolean {

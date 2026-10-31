@@ -34,7 +34,7 @@ import { buildStoreSystemPrompt } from "../../domain/prompts/store-system-prompt
 import { buildConversationBlocks } from "./conversation-block.builder.js";
 import { hasCareProfile, salesRecommendationContext } from "../../domain/services/sales-recommendation-intent.js";
 import { allowsSalesDiscovery, countSalesDiscoveryRounds, isBroadShoppingRequest, isUnspecifiedShoppingRequest,
-  isBarePriceObjection, MAX_SALES_DISCOVERY_ROUNDS, parseSalesDiscoveryQuestion, salesDiscoveryHistory, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
+  isBarePriceObjection, needsSalesClarification, MAX_SALES_DISCOVERY_ROUNDS, parseSalesDiscoveryQuestion, salesDiscoveryHistory, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
 import { ASK_PRODUCT_PREFERENCES } from "../../domain/tools/definitions/ask-product-preferences.tool.js";
 import { createSalesSearchPolicy } from "../../domain/services/sales-search-policy.js";
 import { parseStorefrontModelOutput, storefrontModelJsonSchema, STOREFRONT_MODEL_FALLBACK } from "../../domain/contracts/storefront-model-output.schema.js";
@@ -342,7 +342,8 @@ export class StorefrontLangGraphAgent {
     const lastReply = history.filter(message => message.role === "assistant").at(-1)?.content ?? "";
     const needsPriceDiscovery = canDiscover && isBarePriceObjection(input.userMessage)
       && !/\b(frete|pagamento|pedido|carrinho|checkout|entrega)\b/i.test(lastReply);
-    const needsDiscovery = canDiscover && (needsPriceDiscovery || isUnspecifiedShoppingRequest(input.userMessage) || isBroadShoppingRequest(input.userMessage));
+    const needsDiscovery = canDiscover && (needsPriceDiscovery
+      || needsSalesClarification(input.userMessage, semantic.classification.shoppingPhase));
     let turnPlan: ShoppingSearchPlan | undefined;
     if (structuredSearchRequired && !needsDiscovery) {
       const planned = await planStorefrontShopping(this.provider, { userMessage: input.userMessage,
@@ -451,7 +452,7 @@ export class StorefrontLangGraphAgent {
       ? `\n\n${needsDiscovery ? "TURNO DE DESCOBERTA" : "DESCOBERTA OPCIONAL"}: ${discoveryRounds} de ${MAX_SALES_DISCOVERY_ROUNDS} rodadas de perguntas já usadas. ${needsDiscovery
         ? needsPriceDiscovery
           ? "O comprador achou caro, mas não informou um novo limite. Pergunte UMA faixa de valor confortável para procurar alternativas; não repita os mesmos produtos nem invente desconto. Não chame ferramentas para listar produtos, adicionar ao carrinho ou iniciar checkout."
-          : "O pedido ainda é amplo: não há produto nem objetivo suficiente para recomendar. Não chame ferramentas para listar produtos, adicionar ao carrinho ou iniciar checkout."
+          : "Falta esclarecer um dado relevante para escolher. Use a necessidade e as respostas já conhecidas no histórico: não peça novamente o produto ou a área, nem pergunte se o comprador quer ajuda quando ele já pediu orientação. Por exemplo, se ele procura um cuidado para a pele mas não informou seu tipo, pergunte apenas se ela é oleosa, seca, mista ou sensível. Uma indecisão não é uma busca inválida nem ausência de produtos. Não chame ferramentas para listar produtos, adicionar ao carrinho ou iniciar checkout."
         : profileReady
           ? "CONTEXTO SUFICIENTE: área e perfil já informados. Pesquise agora, sem exigir uma pergunta de objetivo. Se não houver correspondência exata, use as alternativas relacionadas identificadas pela ferramenta, sem prometer adequação não confirmada."
           : "Só pergunte se a informação ausente realmente muda a escolha. Se já sabe o suficiente, pesquise agora."} Para perguntar, chame ask_product_preferences com UMA pergunta e respostas rápidas que respondam exatamente a ela, ou [] para pergunta aberta. Use o histórico, não repita dados conhecidos. Não peça objetivo e orçamento juntos. Não ofereça carrinho, semelhantes ou finalizar compra durante a descoberta.`

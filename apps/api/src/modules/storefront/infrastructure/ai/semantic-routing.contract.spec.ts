@@ -175,12 +175,12 @@ test("strict classifier requests derived JSON Schema and only bounded conversati
       assert.equal(format.json_schema.strict, true);
       assert.equal(format.json_schema.schema.additionalProperties, false);
       assert.equal(format.json_schema.name, "storefront_intent_v2");
-      assert.deepEqual(format.json_schema.schema.required, ["schemaVersion", "domain", "intent", "confidence", "requiresTool", "needsProductDiscovery"]);
+      assert.deepEqual(format.json_schema.schema.required, ["schemaVersion", "domain", "intent", "confidence", "requiresTool", "needsProductDiscovery", "shoppingPhase"]);
     }
     const context = JSON.parse(request.messages[1].content!);
     assert.deepEqual(Object.keys(context), ["userMessage", "history"]);
     assert.deepEqual(context.history, history.slice(-6));
-    return { content: JSON.stringify(classified), usage };
+    return { content: JSON.stringify({ ...classified, shoppingPhase: null }), usage };
   } }, { userMessage: input.userMessage, history }, { structuredOutputMode: "json_schema" });
   assert.equal(output.source, "structured");
 });
