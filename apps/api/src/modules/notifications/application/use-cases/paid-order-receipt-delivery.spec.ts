@@ -41,9 +41,10 @@ test("correction sends only two receipts, keeps stable separate keys and never c
   assert.equal(h.emails.length, 2); assert.equal(h.whatsapp.length, 3); assert.equal(h.dashboard.length, 0);
   assert.equal(h.emails[0].idempotencyKey, `${purpose}:m1:185874:buyer-email`);
   assert.equal(h.emails[1].idempotencyKey, `${purpose}:m1:185874:merchant-email`);
-  assert.equal(h.whatsapp[0].idempotencyKey, purpose); assert.equal(h.whatsapp[2].idempotencyKey, purpose);
-  assert.equal(h.whatsapp[1].idempotencyKey, "185874");
-  assert.deepEqual(h.whatsapp.map(input => input.type), ["order_confirmation", "order_paid_animation", "merchant_order_paid"]);
+  assert.equal(h.whatsapp.find(input => input.type === "order_confirmation").idempotencyKey, purpose);
+  assert.equal(h.whatsapp.find(input => input.type === "merchant_order_paid").idempotencyKey, purpose);
+  assert.equal(h.whatsapp.find(input => input.type === "order_paid_animation").idempotencyKey, "185874");
+  assert(h.whatsapp.findIndex(input => input.type === "order_confirmation") < h.whatsapp.findIndex(input => input.type === "order_paid_animation"));
   const keys = h.emails.map(input => input.idempotencyKey);
   await h.correction.execute({ merchantId: "m1", externalOrderId: "185874", idempotencyPurpose: purpose });
   assert.deepEqual(h.emails.slice(2).map(input => input.idempotencyKey), keys);
@@ -66,4 +67,26 @@ test("correction requires an explicit purpose bound to the same external order",
   const h = harness();
   await assert.rejects(h.correction.execute({ merchantId: "m1", externalOrderId: "185874", idempotencyPurpose: "qa-order-receipt-correction-v1:other" }), /purpose_invalid/);
   assert.equal(h.reads.length, 0);
+});
+
+test("payment animation waits for receipt acceptance while email remains an independent channel", async () => {
+  const calls: string[] = []; let accept!: () => void;
+  const pending = new Promise<void>(resolve => { accept = resolve; });
+  const wa: any = { execute: async (input: any) => { calls.push(input.type); if (input.type === "order_confirmation") await pending;
+    return { status: "accepted", channel: "whatsapp_session", messageId: "wamid" }; } };
+  const buyer = new SendOrderConfirmationUseCase({ send: async () => { calls.push("email"); throw Error("email_unavailable"); } },
+    { send: async () => { throw Error("legacy_forbidden"); } }, wa, { read: async () => event });
+  const execution = buyer.execute(event); const rejected = assert.rejects(execution, /email_unavailable/);
+  await new Promise(resolve => setImmediate(resolve));
+  assert(calls.includes("email")); assert(calls.includes("order_confirmation")); assert(!calls.includes("order_paid_animation"));
+  accept(); await rejected;
+  assert(calls.indexOf("order_confirmation") < calls.indexOf("order_paid_animation"));
+});
+
+test("an unknown receipt acceptance does not launch a payment animation or another receipt channel", async () => {
+  const calls: string[] = [];
+  const buyer = new SendOrderConfirmationUseCase({ send: async () => ({ status: "sent", messageId: "email" }) },
+    { send: async () => { throw Error("legacy_forbidden"); } },
+    { execute: async (input: any) => { calls.push(input.type); return { status: "unknown", channel: "none" }; } }, { read: async () => event });
+  await buyer.execute(event); assert.deepEqual(calls, ["order_confirmation"]);
 });
