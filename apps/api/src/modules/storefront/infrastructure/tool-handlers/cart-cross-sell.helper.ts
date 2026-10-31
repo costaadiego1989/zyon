@@ -25,6 +25,7 @@ export interface CrossSellSuggestion {
   discountPercent?: number;
   couponCode?: string;
   promoId?: string;
+  recommendationRuleId?: string;
 }
 
 export interface CartLineItem {
@@ -148,6 +149,7 @@ export async function buildCrossSellSuggestions(
               sku: variant.id,
               productId: p.id,
               price: price! / 100,
+              recommendationRuleId: suggestion.promo_id,
               imageUrl: variant.media?.[0]?.url,
             });
           } catch { /* A recommendation failure never retries the successful add. */ }

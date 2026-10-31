@@ -51,6 +51,13 @@ export interface WhatsAppConversationState {
   pendingCheckoutEdit?: { section: "payment" | "coupon"; fingerprint: string; intentId: string; method?: "pix" | "card" };
   pendingCoupon?: { sessionId: string; fingerprint: string };
   pendingProductQuestion?: { productId: string };
+  postCartOffer?: {
+    id: string; merchantId: string; cartId: string; ruleId: string; kind: "recommendation" | "discount";
+    variantId: string; productId: string; sourceVariantId: string; addedName: string; name: string;
+    imageUrl?: string; expiresAt: number; status: "pending" | "accepted" | "declined" | "invalidated";
+    expectedQuote: import("../../../cross-sell/domain/contracts/cross-sell-storefront-quote.schemas.js").CrossSellStorefrontQuote;
+  };
+  declinedCrossSellKeys?: string[];
   expectsFreeInput?: boolean;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   revision: string;

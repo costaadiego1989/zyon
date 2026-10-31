@@ -31,7 +31,7 @@ export class PrismaStorefrontCrossSellCartAdapter implements StorefrontCrossSell
     if (active !== null) { z.strictObject({ id: scopeSchema.shape.cartId }).parse(active); throw crossSellQuoteReviewRequired(); }
   }
 
-  private async quoteInTransaction(tx: Prisma.TransactionClient, scope: StorefrontCrossSellCartScope, request: CrossSellStorefrontQuoteRequest) {
+  private async quoteInTransaction(tx: Prisma.TransactionClient, scope: StorefrontCrossSellCartScope, request: CrossSellStorefrontQuoteRequest, recommendationOnly = false) {
     await lockCrossSellMerchantAuthority(tx, scope.merchantId);
     await lockStorefrontCart(tx, scope.merchantId, scope.cartId);
     assertStorefrontCartUnbound(await storefrontCartHasCheckoutBinding(tx, scope.merchantId, scope.cartId));
@@ -48,6 +48,11 @@ export class PrismaStorefrontCrossSellCartAdapter implements StorefrontCrossSell
     const promotion = z.strictObject({ id: scopeSchema.shape.cartId, merchantId: scopeSchema.shape.merchantId, updatedAt: z.date() }).parse(
       await tx.crossSellPromotion.findFirst({ where: { id: request.promotionId, merchantId: scope.merchantId }, select: { id: true, merchantId: true, updatedAt: true } }));
     if (promotion.id !== request.promotionId || promotion.merchantId !== scope.merchantId) throw crossSellQuoteReviewRequired();
+    if (recommendationOnly) {
+      const rule = await tx.crossSellPromotion.findFirst({ where: { id: request.promotionId, merchantId: scope.merchantId },
+        select: { discountPercent: true, maxDiscountPercent: true } });
+      if (!rule || Number(rule.discountPercent) !== 0 || Number(rule.maxDiscountPercent) !== 0) throw crossSellQuoteReviewRequired();
+    }
     await assertLocalCartAdmission(tx, scope.merchantId, request.variantId, request.quantity, item.selectedOptions);
     const simulation: StorefrontCart = { ...persisted, items: [...structuredClone(cartBasis.items), { ...item, variantId: request.variantId, quantity: request.quantity,
       crossSellIntent: { version: 1, promotionId: request.promotionId, promotionUpdatedAt: promotion.updatedAt.toISOString(),
@@ -55,7 +60,7 @@ export class PrismaStorefrontCrossSellCartAdapter implements StorefrontCrossSell
     simulation.total = cartTotal(simulation);
     const outcome = await evaluateStorefrontCartCommercial(tx, scope, simulation);
     const target = outcome.quote.items.find(line => line.variantId === request.variantId)!;
-    if (target.unitPriceCents >= item.unitPriceCents) throw crossSellQuoteReviewRequired();
+    if (!recommendationOnly && target.unitPriceCents >= item.unitPriceCents) throw crossSellQuoteReviewRequired();
     return crossSellStorefrontQuoteSchema.parse({ version: 1, ...scope, variantId: request.variantId, promotionId: request.promotionId, quantity: request.quantity,
       ...optionSelection, ...(item.selectedOptions?.length ? { selectedOptions: item.selectedOptions } : {}), productId: item.productId, sku: item.sku,
       promotionUpdatedAt: promotion.updatedAt.toISOString(), originalUnitPriceCents: item.unitPriceCents,
@@ -112,30 +117,47 @@ export class PrismaStorefrontCrossSellCartAdapter implements StorefrontCrossSell
   }
 
   async quote(rawScope: StorefrontCrossSellCartScope, rawRequest: CrossSellStorefrontQuoteRequest) {
+    return this.readQuote(rawScope, rawRequest);
+  }
+
+  async quoteRecommendation(rawScope: StorefrontCrossSellCartScope, rawRequest: CrossSellStorefrontQuoteRequest) {
+    return this.readQuote(rawScope, rawRequest, true);
+  }
+
+  private async readQuote(rawScope: StorefrontCrossSellCartScope, rawRequest: CrossSellStorefrontQuoteRequest, recommendationOnly = false) {
     const scope = scopeSchema.parse(rawScope), request = crossSellStorefrontQuoteRequestSchema.parse(rawRequest);
     return this.prisma.$transaction(async tx => {
-      try { return await this.quoteInTransaction(tx, scope, request); } catch (error) { rethrowStorefrontCommercialFailure(error); }
+      try { return await this.quoteInTransaction(tx, scope, request, recommendationOnly); } catch (error) { rethrowStorefrontCommercialFailure(error); }
     }, { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 15_000 });
   }
 
   async accept(rawScope: StorefrontCrossSellCartScope, rawRequest: Parameters<StorefrontCrossSellCartPort["accept"]>[1]): Promise<StorefrontCrossSellCartAcknowledgement> {
+    return this.acceptQuoted(rawScope, rawRequest);
+  }
+
+  async acceptRecommendation(rawScope: StorefrontCrossSellCartScope, rawRequest: Parameters<StorefrontCrossSellCartPort["accept"]>[1]): Promise<StorefrontCrossSellCartAcknowledgement> {
+    return this.acceptQuoted(rawScope, rawRequest, true);
+  }
+
+  private async acceptQuoted(rawScope: StorefrontCrossSellCartScope, rawRequest: Parameters<StorefrontCrossSellCartPort["accept"]>[1], recommendationOnly = false): Promise<StorefrontCrossSellCartAcknowledgement> {
     const scope = scopeSchema.parse(rawScope), { expectedQuote } = crossSellStorefrontAcceptanceSchema.parse(rawRequest);
     if (expectedQuote.merchantId !== scope.merchantId || expectedQuote.cartId !== scope.cartId) throw crossSellQuoteReviewRequired();
     await this.prisma.$transaction(async tx => {
       try {
       const current = await this.quoteInTransaction(tx, scope, { variantId: expectedQuote.variantId, promotionId: expectedQuote.promotionId, quantity: expectedQuote.quantity,
-        ...(expectedQuote.selectedOptionItemIds?.length ? { selectedOptionItemIds: expectedQuote.selectedOptionItemIds } : {}) });
+        ...(expectedQuote.selectedOptionItemIds?.length ? { selectedOptionItemIds: expectedQuote.selectedOptionItemIds } : {}) }, recommendationOnly);
       if (!isDeepStrictEqual(current.cartBasis, expectedQuote.cartBasis)) throw new StorefrontCartSnapshotConflictError();
       if (!isDeepStrictEqual(current, expectedQuote)) throw crossSellQuoteReviewRequired();
       const item = await resolveStorefrontCartCatalogItem(tx, scope.merchantId, current.variantId, current.selectedOptionItemIds);
       const result = await withStorefrontCartInTransaction(tx, scope.merchantId, scope.cartId, async (_tx, cart) => {
         if (!isDeepStrictEqual(basis(cart), expectedQuote.cartBasis)) throw new StorefrontCartSnapshotConflictError();
-        cart.items.push({ ...item, variantId: current.variantId, quantity: current.quantity, crossSellIntent: {
+        cart.items.push({ ...item, variantId: current.variantId, quantity: current.quantity, ...(recommendationOnly ? {} : { crossSellIntent: {
           version: 1, promotionId: current.promotionId, promotionUpdatedAt: current.promotionUpdatedAt, acceptedQuantity: current.quantity,
           originalUnitPriceCents: current.originalUnitPriceCents, maximumUnitPriceCents: current.maximumUnitPriceCents,
-          ...(current.selectedOptionItemIds?.length ? { selectedOptionItemIds: current.selectedOptionItemIds } : {}) } });
+          ...(current.selectedOptionItemIds?.length ? { selectedOptionItemIds: current.selectedOptionItemIds } : {}) } }) });
       });
-      if (!result.commercial || !isDeepStrictEqual(result.commercial.quote, expectedQuote.quote)) throw crossSellQuoteReviewRequired();
+      const commercial = result.commercial ?? (recommendationOnly ? await evaluateStorefrontCartCommercial(tx, scope, result.cart) : undefined);
+      if (!commercial || !isDeepStrictEqual(commercial.quote, expectedQuote.quote)) throw crossSellQuoteReviewRequired();
       } catch (error) { rethrowStorefrontCommercialFailure(error); }
     }, { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 15_000 });
     return crossSellStorefrontAcknowledgementSchema.parse({ version: 1, status: "accepted", ...scope });

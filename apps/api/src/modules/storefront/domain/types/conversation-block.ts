@@ -264,6 +264,8 @@ export interface CrossSellBlock {
       image?: string;
       images?: string[];
       inStock: boolean;
+      recommendationRuleId?: string;
+      promoId?: string;
     }>;
   };
 }

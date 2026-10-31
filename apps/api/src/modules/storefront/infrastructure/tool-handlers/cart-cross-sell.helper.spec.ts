@@ -36,7 +36,7 @@ function fixture(overrides: Record<string, unknown> = {}) {
 
 test("post-cart resolves the exact second variant, with independently confirmed price and no legacy benefit action", async () => {
   const f = fixture(); const suggestions = await f.run();
-  assert.deepEqual(suggestions, [{ name: "Estojo", sku: "target", productId: "product", price: 30, imageUrl: undefined }]);
+  assert.deepEqual(suggestions, [{ name: "Estojo", sku: "target", productId: "product", price: 30, imageUrl: undefined, recommendationRuleId: f.state.promo }]);
   assert.equal(f.state.writes, 0);
   const lookup = f.state.lookups.find(x => x.take === 2);
   assert.deepEqual(lookup.where.product, { merchantId: "merchant", isActive: true, deletedAt: null });

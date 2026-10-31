@@ -31,6 +31,7 @@ import { projectPaidOrderReceipt } from "../../../notifications/domain/paid-orde
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../../storefront/domain/ports/conversation.port.js";
 import { CheckoutShippingService } from "../../../checkout/application/services/checkout-shipping.service.js";
 import type { TrustedWhatsAppCheckoutBuyer } from "../../../checkout/application/services/trusted-checkout-buyer.js";
+import { WhatsAppPostCartOfferService } from "../../application/services/whatsapp-post-cart-offer.service.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -54,6 +55,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     @Optional() @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig?: CheckoutExperienceConfig,
     @Optional() @Inject(STOREFRONT_CONVERSATION_PORT) private readonly storefrontConversation?: StorefrontConversationPort,
     @Optional() private readonly checkoutShipping?: CheckoutShippingService,
+    @Optional() private readonly postCartOffers?: WhatsAppPostCartOfferService,
   ) {}
 
   async respond(input: { merchantId: string; checkoutSessionId: string; message: string }) {
@@ -88,7 +90,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     attachmentContext?: string;
     messageId?: string;
   }): Promise<WhatsAppStructuredResponse> {
-    const response = await this.respondStoreTurn(input);
+    const turn = await this.respondStoreTurn(input);
+    const response = this.postCartOffers ? await this.postCartOffers.decorate(input.merchantId, turn) : turn;
     const cartBlock = response.blocks.find(block => block.type === "cart_summary");
     const stored = await this.prisma?.storefrontCart?.findUnique({
       where: { merchantId_sessionId: { merchantId: input.merchantId, sessionId: response.state.conversationId } },
@@ -115,7 +118,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       (identitySession.cart as { cart_ref?: string }).cart_ref === state.conversationId
       ? { globalUserId: identitySession.globalUserId, customer: { ...identitySession.customer, email: identitySession.customer.email, email_verified: true as const } } : undefined;
     const emailAnswer = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.message.trim()) ? input.message.trim() : undefined;
-    const recognition = !verifiedBuyer ? await this.checkoutIdentity?.recognize?.({ merchantId: input.merchantId,
+    const recognition = (!verifiedBuyer || state.postCartOffer) ? await this.checkoutIdentity?.recognize?.({ merchantId: input.merchantId,
       conversationId: state.conversationId, phone: input.buyer.phone,
       emailHint: emailAnswer ?? identitySession?.customer?.email, verifiedSender: input.verifiedSender }) : undefined;
     const registeredBuyer = recognition?.status === "recognized" ? recognition.buyer : undefined;
@@ -130,6 +133,13 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       ? { merchantId: owner.merchantId, conversationId: owner.conversationId, globalUserId: identitySession.globalUserId,
         customer: { phone: owner.phone, phone_verified: true as const, email_verified: false as const } } : undefined);
     const shopper = knownBuyer ? { ...input.buyer, globalUserId: knownBuyer.globalUserId, fullName: knownBuyer.customer.fullName, email: knownBuyer.customer.email } : input.buyer;
+    const offerResponse = await this.postCartOffers?.handle({ merchantId: input.merchantId, state, message: input.message, action: input.action,
+      verifiedOwner: owner?.merchantId === input.merchantId && owner.conversationId === state.conversationId,
+      details: async productId => this.store!.execute({ merchant_id: input.merchantId, conversation_id: state.conversationId,
+        cart_id: state.conversationId, global_user_id: shopper.globalUserId, user_message: input.message,
+        history: state.history, ui_action: { tool: "get_product_details", args: { productId } },
+      }, undefined, "whatsapp") });
+    if (offerResponse) return withCartAnimations({ ...offerResponse, merchantName: config.name });
     const firstTurn = state.history.length === 0;
     const greeting = metaWelcomeMessage(config.agentGreeting || "", config.name, config.agentName || "Zyon");
     if (/^\/atalhos?$/i.test(input.message.trim())) {

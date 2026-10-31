@@ -309,6 +309,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             inStock: true,
             discountPercent: p.discountPercent,
             promoId: p.promoId,
+            recommendationRuleId: p.recommendationRuleId,
             couponCode: p.couponCode,
           })),
         }

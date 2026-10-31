@@ -72,6 +72,44 @@ function fixture() {
 }
 const scope = { merchantId: "merchant", cartId: "cart" }, request = { variantId: "target", promotionId: "promotion", quantity: 1 };
 
+test("zero recommendation uses active rule authority and atomically adds a normal line without a discount intent", async () => {
+  const f = fixture(); f.promo.discountPercent = new Prisma.Decimal(0); f.promo.maxDiscountPercent = new Prisma.Decimal(0);
+  const before = f.stored(); const quote = await f.adapter.quoteRecommendation(scope, request);
+  assert.equal(quote.maximumUnitPriceCents, 10000); assert.equal(quote.quote.promotionDiscountCents, 0);
+  assert.deepEqual(f.stored(), before); assert.equal(f.calls.includes("write"), false);
+  await assert.rejects(f.adapter.quote(scope, request)); // public discount contract remains positive-only
+  await f.adapter.acceptRecommendation(scope, { expectedQuote: quote });
+  assert.equal(f.stored().items.length, 2); assert.equal(f.stored().items[1].crossSellIntent, undefined);
+  assert.equal(f.stored().total, 20000); assert.equal(f.calls.filter(c => c === "write").length, 1);
+  await assert.rejects(f.adapter.acceptRecommendation(scope, { expectedQuote: quote }));
+  assert.equal(f.calls.filter(c => c === "write").length, 1);
+  f.promo.status = "inactive";
+  assert.equal((await f.adapter.project(scope)).total, 20000); // ordinary purchased line is not bound to zero-rule expiry
+});
+for (const changed of ["positive", "inactive", "expired", "stock", "price", "cart", "tenant", "trigger", "rule-version"] as const)
+  test(`recommendation accept closes without a write when ${changed} changes`, async () => {
+    const f = fixture(); f.promo.discountPercent = new Prisma.Decimal(0); f.promo.maxDiscountPercent = new Prisma.Decimal(0);
+    const quote = await f.adapter.quoteRecommendation(scope, request);
+    if (changed === "positive") f.promo.discountPercent = f.promo.maxDiscountPercent = new Prisma.Decimal(10);
+    if (changed === "inactive") f.promo.status = "inactive";
+    if (changed === "expired") f.promo.endsAt = new Date(0);
+    if (changed === "stock") f.variants[1].stock[0].quantity = 0;
+    if (changed === "price") f.variants[1].price.basePriceInCents++;
+    if (changed === "cart") f.mutateStored(c => { c.items[0].quantity++; c.total *= 2; });
+    if (changed === "tenant") f.promo.merchantId = "other";
+    if (changed === "trigger") f.promo.trigger.sku_in_cart = ["OTHER"];
+    if (changed === "rule-version") f.promo.updatedAt = new Date();
+    const before = f.stored(); await assert.rejects(f.adapter.acceptRecommendation(scope, { expectedQuote: quote }));
+    assert.deepEqual(f.stored(), before); assert.equal(f.calls.includes("write"), false);
+  });
+test("concurrent acceptance of a zero recommendation adds exactly one target", async () => {
+  const f = fixture(); f.promo.discountPercent = f.promo.maxDiscountPercent = new Prisma.Decimal(0);
+  const expectedQuote = await f.adapter.quoteRecommendation(scope, request);
+  const results = await Promise.allSettled([f.adapter.acceptRecommendation(scope, { expectedQuote }), f.adapter.acceptRecommendation(scope, { expectedQuote })]);
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  assert.equal(f.stored().items.filter(i => i.variantId === "target").length, 1);
+});
+
 const optionGroup = (itemId: string, priceModifierInCents: number, required = false) => ({ id: "extras", name: "Extras", required,
   selectionType: "multiple", items: [{ id: itemId, name: itemId, priceModifierInCents }] });
 const selectedOption = (itemId: string, priceModifierInCents: number) => ({ groupId: "extras", groupName: "Extras", itemId, itemName: itemId, priceModifierInCents });

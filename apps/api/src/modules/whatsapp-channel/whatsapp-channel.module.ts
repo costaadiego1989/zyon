@@ -13,6 +13,7 @@ import { CouponsExecutionModule } from "../coupons/coupons-execution.module.js";
 import { WHATSAPP_CONVERSATION_PORT } from "./domain/ports/whatsapp-conversation.port.js";
 import { CheckoutWhatsAppConversationAdapter } from "./infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
 import { Module, forwardRef } from "@nestjs/common";
+import { WhatsAppPostCartOfferService } from "./application/services/whatsapp-post-cart-offer.service.js";
 import { WhatsAppWebhookController } from "./presentation/http/whatsapp-webhook.controller.js";
 import { WhatsAppConfigController } from "./presentation/http/whatsapp-config.controller.js";
 import { HandleIncomingMessageUseCase } from "./application/use-cases/handle-incoming-message.use-case.js";
@@ -86,6 +87,7 @@ export class MultiProviderSenderAdapter {
     HandleIncomingMessageUseCase,
     HandleMetaConversationUseCase,
     WhatsAppCheckoutIdentityService,
+    WhatsAppPostCartOfferService,
     { provide: WHATSAPP_CONVERSATION_PORT, useClass: CheckoutWhatsAppConversationAdapter },
     HandleStatusUpdateUseCase,
     RouteToSessionUseCase,

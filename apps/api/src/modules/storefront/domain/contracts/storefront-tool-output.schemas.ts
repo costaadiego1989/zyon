@@ -33,7 +33,7 @@ const product = z.object({ id, name: text, description: text.nullable().optional
   source: z.enum(["local", "marketplace"]).optional(), sellerName: text.optional(), sellerMerchantId: id.optional(),
   serviceSchedule: z.object({ timeZone: text, durationMinutes: z.number().int().positive(), slots: list(slot.extend({ selectable: z.boolean() })) }).optional() });
 const suggestion = z.object({ name: text, sku: id, productId: id, price: money, imageUrl: text.optional(),
-  discountPercent: percent.optional(), couponCode: text.optional(), promoId: id.optional() });
+  discountPercent: percent.optional(), couponCode: text.optional(), promoId: id.optional(), recommendationRuleId: id.optional() });
 const suggestions = { crossSellSuggestions: list(suggestion).optional(), crossSellDisplayMode: text.optional() };
 const pricedProduct = product.extend({ price: money, inStock: z.boolean() });
 const cartItem = z.object({ variantId: id, name: text, quantity: z.number().int().positive(), unitPrice: money, lineTotal: money,

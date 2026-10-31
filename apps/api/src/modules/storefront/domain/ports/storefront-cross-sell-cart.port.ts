@@ -12,5 +12,9 @@ export interface StorefrontCrossSellCartPort {
   projectForCheckout(scope: StorefrontCrossSellCartScope): Promise<{ cart: StorefrontCart; costsByVariant: ReadonlyMap<string, number> }>;
   quote(scope: StorefrontCrossSellCartScope, request: CrossSellStorefrontQuoteRequest): Promise<CrossSellStorefrontQuote>;
   accept(scope: StorefrontCrossSellCartScope, request: CrossSellStorefrontAcceptance): Promise<StorefrontCrossSellCartAcknowledgement>;
+  /** Internal channel recommendation, exclusively active zero-benefit rules.
+   * These are not exposed by the public discount quote controller. */
+  quoteRecommendation?(scope: StorefrontCrossSellCartScope, request: CrossSellStorefrontQuoteRequest): Promise<CrossSellStorefrontQuote>;
+  acceptRecommendation?(scope: StorefrontCrossSellCartScope, request: CrossSellStorefrontAcceptance): Promise<StorefrontCrossSellCartAcknowledgement>;
 }
 

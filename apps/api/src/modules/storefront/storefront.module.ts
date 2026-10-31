@@ -187,6 +187,7 @@ import { QuoteShippingUseCase } from "../shipping/application/use-cases/quote-sh
     AddMarketplaceItemToCartStorefrontUseCase
   ],
   exports: [
+    STOREFRONT_CROSS_SELL_CART,
     StorefrontAttachmentInterpreter,
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
