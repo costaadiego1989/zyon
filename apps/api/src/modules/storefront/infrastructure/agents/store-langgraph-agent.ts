@@ -381,31 +381,28 @@ export class StorefrontLangGraphAgent {
           safetyValidation: { safe: validation.safe && confirmed, reason: confirmed ? validation.reason : "shopping_search_unconfirmed" } };
       };
       if (!turnPlan || !this.costTracker.canAfford(0.01)) return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
-      // A constrained discovery has one server-owned read and one evidence
+      // Every admitted shopping plan has one server-owned read and one evidence
       // projection. Secondary tools cannot leak out-of-budget alternatives,
       // and no narration call can reinterpret a price as meeting the ceiling.
       const canonicalSearch = requiresCanonicalShoppingRead(turnPlan);
-      if (canonicalSearch || turnPlan.minRating !== undefined || turnPlan.attributes.length || turnPlan.sortBy
-        || turnPlan.delivery || turnPlan.unsupportedCriteria.length) {
-        const handlers = input.toolHandlers ?? this.defaultToolHandlers;
-        const args = { query: turnPlan.query, criteria: turnPlan, inStockOnly: true, limit: 3 };
-        try {
-          if (canonicalSearch && !handlers.recommendProducts) return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
-          toolsUsed.push("search_products"); input.callbacks?.onToolCall?.("search_products", args);
-          const read = await observeStorefrontOperation("tool", () => callStorefrontTool("search_products", args, checked =>
-            readShoppingProducts(handlers, checked as Parameters<StoreToolHandlers["searchProducts"]>[0])), { tool: "search_products" });
-          input.callbacks?.onToolResult?.("search_products", read);
-          const confirmed = read.ok ? storefrontToolOutputSchemas.search_products.safeParse(read.data) : undefined;
-          if (!confirmed?.success || !confirmed.data.searchEvidence
-            || JSON.stringify(confirmed.data.searchEvidence.appliedPlan) !== JSON.stringify(turnPlan))
-            return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
-          const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: input.userMessage,
-            finalContent: confirmed.data.searchEvidence.message, toolResults: { search_products: confirmed.data },
-            searchPurpose: "discovery", presentationMode: "structured" });
-          return finish(built.finalContent, built.blocks, true);
-        } catch {
-          return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED); // Never retry a failed price projection.
-        }
+      const handlers = input.toolHandlers ?? this.defaultToolHandlers;
+      const args = { query: turnPlan.query, criteria: turnPlan, inStockOnly: true, limit: 3 };
+      try {
+        if (canonicalSearch && !handlers.recommendProducts) return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
+        toolsUsed.push("search_products"); input.callbacks?.onToolCall?.("search_products", args);
+        const read = await observeStorefrontOperation("tool", () => callStorefrontTool("search_products", args, checked =>
+          readShoppingProducts(handlers, checked as Parameters<StoreToolHandlers["searchProducts"]>[0])), { tool: "search_products" });
+        input.callbacks?.onToolResult?.("search_products", read);
+        const confirmed = read.ok ? storefrontToolOutputSchemas.search_products.safeParse(read.data) : undefined;
+        if (!confirmed?.success || !confirmed.data.searchEvidence
+          || JSON.stringify(confirmed.data.searchEvidence.appliedPlan) !== JSON.stringify(turnPlan))
+          return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
+        const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: input.userMessage,
+          finalContent: confirmed.data.searchEvidence.message, toolResults: { search_products: confirmed.data },
+          searchPurpose: "discovery", presentationMode: "structured" });
+        return finish(built.finalContent, built.blocks, true);
+      } catch {
+        return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED); // Never retry a failed price projection.
       }
     }
     const profileReady = !needsDiscovery && hasCareProfile(salesRecommendationContext(input.userMessage, history));
