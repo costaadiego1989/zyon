@@ -10,7 +10,7 @@ const classification = { intent: "ORDER_STATUS" as const, requiresTool: true, ne
 const trackingCall = { id: "track", name: "track_order", args: { orderId: "ORDER-PAID" } };
 const reply = JSON.stringify({ schemaVersion: 1, message: "O pagamento do pedido ORDER-PAID está aprovado. O rastreamento ainda não está disponível." });
 
-for (const fallback of [false, true]) test(`paid status performs one owned read then narrates with tool_choice none (${fallback ? "fallback" : "primary"})`, async () => {
+for (const fallback of [false, true]) test(`paid status ends with the canonical formatter after one owned read (${fallback ? "fallback" : "primary"})`, async () => {
   const queries: any[] = [], requests: any[] = [];
   const canonical = createOrderHandlers({ prisma: {
     completedOrder: { findFirst: async (query: any) => {
@@ -26,20 +26,19 @@ for (const fallback of [false, true]) test(`paid status performs one owned read 
     provider: fallback ? { chat: async () => { throw Error("primary_unavailable"); } } as never : provider as never,
     ...(fallback ? { fallbackProvider: provider as never } : {}) }, classification);
   const result = await agent.run(input);
-  assert.equal(queries.length, 1); assert.equal(requests.length, 2);
+  assert.equal(queries.length, 1); assert.equal(requests.length, 1);
   assert.deepEqual(requests[0].toolChoice, { type: "function", function: { name: "track_order" } });
-  assert.equal(requests[1].toolChoice, "none");
   assert.match(result.message, /aprovado/); assert.doesNotMatch(result.message, /Como posso ajudá-lo/);
   assert.equal(result.safetyValidation.safe, true); assert.deepEqual(result.toolsUsed, ["track_order"]);
 });
 
-test("a provider that violates tool_choice none cannot repeat the paid-order query", async () => {
+test("a provider cannot repeat the paid-order query after a canonical terminal result", async () => {
   let reads = 0, calls = 0;
   const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: { trackOrder: async () => {
     reads++; return { found: true, orderId: "ORDER-PAID", status: "approved", statusLabel: "Pagamento aprovado", trackingAvailable: false };
   } } as never, provider: { chat: async () => { calls++; return { content: "", toolCalls: [trackingCall], usage }; } } as never }, classification);
   const result = await agent.run(input);
-  assert.equal(reads, 1); assert.equal(calls, 2); assert.deepEqual(result.toolsUsed, ["track_order"]);
+  assert.equal(reads, 1); assert.equal(calls, 1); assert.deepEqual(result.toolsUsed, ["track_order"]);
   assert.doesNotMatch(result.message, /Como posso ajudá-lo/);
 });
 

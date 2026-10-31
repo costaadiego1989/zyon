@@ -44,6 +44,7 @@ import { storefrontPreparedContextSchema } from "../../domain/contracts/storefro
 import type { OneBuyClickConversationContext } from "../../domain/ports/conversation.port.js";
 import { reviewStorefrontReply, type StorefrontReviewBudget } from "../copy/storefront-semantic-review.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
+import { formatTrackedOrderMessage } from "../../domain/services/tracked-order-message.js";
 import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../../domain/contracts/shopping-search-plan.schemas.js";
 import { readShoppingProducts, requiresCanonicalShoppingRead } from "../../domain/tools/read-shopping-products.js";
 import { withStorefrontReplyContract } from "./storefront-reply-contract.js";
@@ -489,12 +490,12 @@ export class StorefrontLangGraphAgent {
       finalContent = parsed.data.searchEvidence.message;
       return true;
     };
-    let orderClarification: string | undefined;
-    const captureOrderClarification = (name: string): boolean => {
+    let canonicalOrderMessage: string | undefined;
+    const captureCanonicalOrder = (name: string): boolean => {
       if (!this.structuredRouting || intentResult.intent !== "ORDER_STATUS" || name !== "track_order") return false;
-      const parsed = storefrontToolOutputSchemas.track_order.safeParse(toolResults[name]);
-      if (!parsed.success || parsed.data.found !== false || parsed.data.orderId !== undefined || parsed.data.requiresIdentification) return false;
-      orderClarification = parsed.data.message;
+      const message = formatTrackedOrderMessage(toolResults[name]);
+      if (!message) return false;
+      canonicalOrderMessage = message;
       return true;
     };
     let loops = 0;
@@ -596,11 +597,11 @@ export class StorefrontLangGraphAgent {
                 name: tc.name,
                 tool_call_id: tc.id
               });
-              if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureOrderClarification(tc.name)) break;
+              if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureCanonicalOrder(tc.name)) break;
             }
           }
           groundProductResponse(messages, toolResults);
-          if (canonicalSearchComplete || orderClarification || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
+          if (canonicalSearchComplete || canonicalOrderMessage || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
           continue; // loop back to LLM with tool results
         }
 
@@ -647,7 +648,7 @@ export class StorefrontLangGraphAgent {
               if (execTool) {
                 const toolResult = await this.executeObservedTool(execTool, tc.args);
                 toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
-                if (cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureOrderClarification(tc.name)) break;
+                if (cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureCanonicalOrder(tc.name)) break;
               }
             }
             // Get final text after tool execution
@@ -665,7 +666,7 @@ export class StorefrontLangGraphAgent {
               messages.push({ role: "tool", content: JSON.stringify(result), name: tc.name, tool_call_id: tc.id });
             }
             groundProductResponse(messages, toolResults);
-            if (!canonicalSearchComplete && !orderClarification && !cartPolicy.terminal) {
+            if (!canonicalSearchComplete && !canonicalOrderMessage && !cartPolicy.terminal) {
               const finalResult = await observeStorefrontChat(this.provider, { messages: withStorefrontReplyContract(messages), responseFormat: this.responseFormat, temperature: 0.3, maxTokens: 500, model: this.strongModel }, "primary", "final");
               finalContent = this.decodeResponse(finalResult);
               totalPromptTokens += finalResult.usage.promptTokens;
@@ -732,11 +733,11 @@ export class StorefrontLangGraphAgent {
                   const toolResult = await this.executeObservedTool(execTool, tc.args);
                   toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
                   fbMessages.push({ role: "tool", content: JSON.stringify(toolResult.ok ? toolResult.data : { error: toolResult.error }), name: tc.name, tool_call_id: tc.id });
-                  if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureOrderClarification(tc.name)) break;
+                  if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureCanonicalOrder(tc.name)) break;
                 }
               }
               groundProductResponse(fbMessages, toolResults);
-              if (canonicalSearchComplete || orderClarification || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
+              if (canonicalSearchComplete || canonicalOrderMessage || cartPolicy.terminal || searchPolicy.terminal || discoveryQuestion || (needsDiscovery && !toolsUsed.length)) break;
               continue;
             }
             fbFinalContent = this.decodeResponse(fbResult);
@@ -763,7 +764,7 @@ export class StorefrontLangGraphAgent {
     if (discoveryQuestion) finalContent = discoveryQuestion.question;
     else if (searchPolicy.recommendationMessage) finalContent = searchPolicy.recommendationMessage;
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;
-    if (orderClarification) finalContent = orderClarification;
+    if (canonicalOrderMessage) finalContent = canonicalOrderMessage;
     const confirmedRead = Object.entries(toolResults).some(([name, value]) => (requiredReadToolName ? name === requiredReadToolName : CANONICAL_READ_TOOLS.has(name))
       && value !== null && typeof value === "object" && !Array.isArray(value) && !("error" in value));
     const requiredReadUnconfirmed = requiresCanonicalRead
@@ -854,7 +855,7 @@ export class StorefrontLangGraphAgent {
 
     // The fixed contract fallback is server-owned, not generated candidate prose.
     // A textual refusal never revokes/duplicates an already committed tool effect.
-    if (validation.safe && !mutationOutcome && !built.canonicalReadMessage && !orderClarification && messageToValidate !== STOREFRONT_MODEL_FALLBACK) {
+    if (validation.safe && !mutationOutcome && !built.canonicalReadMessage && !canonicalOrderMessage && messageToValidate !== STOREFRONT_MODEL_FALLBACK) {
       const productReferences: string[] = [];
       const addReference = (value: unknown) => { if (typeof value === "string" && value.trim() && productReferences.length < 12)
         productReferences.push(value.slice(0, 160)); };
