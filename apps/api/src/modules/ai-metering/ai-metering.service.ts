@@ -10,8 +10,21 @@ import { configureAiAutomation } from "../../shared/ai-automation.js";
 import { AiGovernanceService } from "../ai-governance/ai-governance.service.js";
 import { decimalMicros, estimateCost, normalizeUsage, object, providerName, ratesAt, type Usage, type Rates } from "./usage.js";
 
-type Completion = { id: string; payload: { id?: string; model?: string; usage?: unknown }; status: string; endedAt: string };
+type GatewayFailure = { httpStatus: number; errorCode?: string };
+type Completion = { id: string; payload: { id?: string; model?: string; usage?: unknown }; status: string; endedAt: string; gatewayFailure?: GatewayFailure };
 const RETRY = "zyon:ai-metering:completions";
+const GATEWAY_ERROR_CODES = new Set(["invalid_api_key", "insufficient_quota", "rate_limit_exceeded", "model_not_found", "permission_denied",
+  "invalid_request_error", "unsupported_value", "unsupported_parameter", "invalid_value", "context_length_exceeded",
+  "content_policy_violation", "account_deactivated", "billing_hard_limit_reached", "organization_deactivated", "server_error"]);
+function safeGatewayFailure(httpStatus: unknown, errorCode?: unknown): GatewayFailure | undefined {
+  if (typeof httpStatus !== "number" || !Number.isInteger(httpStatus) || httpStatus < 400 || httpStatus > 599) return undefined;
+  return { httpStatus, ...(typeof errorCode === "string" && GATEWAY_ERROR_CODES.has(errorCode) ? { errorCode } : {}) };
+}
+async function gatewayFailure(response: Response): Promise<GatewayFailure | undefined> {
+  let code: unknown;
+  try { code = object(object(await response.clone().json()).error).code; } catch { /* Never persist the raw error body. */ }
+  return safeGatewayFailure(response.status, code);
+}
 @Injectable()
 export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AiMeteringService.name);
@@ -57,7 +70,8 @@ export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
     try { response = await transport(input, init); }
     catch (error) { await this.completeSafely({ id: row.id, payload: {}, status: "unknown", endedAt: new Date().toISOString() }); throw error; }
     if (!response.ok) {
-      await this.completeSafely({ id: row.id, payload: {}, status: response.status >= 400 && response.status < 500 ? "rejected" : "unknown", endedAt: new Date().toISOString() });
+      await this.completeSafely({ id: row.id, payload: {}, status: response.status >= 400 && response.status < 500 ? "rejected" : "unknown",
+        gatewayFailure: await gatewayFailure(response), endedAt: new Date().toISOString() });
       return response;
     }
     let data: Record<string, any> = {};
@@ -113,7 +127,7 @@ export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
     }
     if (!response.ok) {
       await this.completeSafely({ id: row.id, payload: {}, status: response.status >= 400 && response.status < 500 && response.status !== 408 ? "rejected" : "unknown",
-        endedAt: new Date().toISOString() });
+        gatewayFailure: await gatewayFailure(response), endedAt: new Date().toISOString() });
       return response;
     }
     let usage: unknown;
@@ -150,12 +164,14 @@ export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
       }
     }
     const endedAt = new Date(input.endedAt), providerId = input.payload.id;
+    const diagnostic = safeGatewayFailure(input.gatewayFailure?.httpStatus, input.gatewayFailure?.errorCode);
     const key = providerId ? `provider:${row.provider}:${row.credentialScope}:${providerId}:${row.component}` : row.idempotencyKey;
     try {
       await this.db.aiUsageEvent.update({ where: { id: row.id }, data: { idempotencyKey: key, providerEventId: providerId, model,
         executionStatus: input.status, usageKnown: !!usage, promptTokens: usage?.input, completionTokens: usage?.output, totalTokens: usage?.total,
         inputDetails: usage?.inputDetails, outputDetails: usage?.outputDetails, costMicros: cost, audioCostMicros: audioCost,
         currency, pricingVersion: version, costStatus, completedAt: endedAt, latencyMs: Math.max(0, endedAt.getTime() - row.startedAt.getTime()),
+        metadata: diagnostic ? { ...object(row.metadata), gatewayFailure: diagnostic } : undefined,
       } });
     } catch (error) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
