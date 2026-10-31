@@ -4,7 +4,8 @@ import { wrapHandler } from "../types.js";
 export const ADD_ITEM_TO_CART: ToolDefinition = {
   name: "add_item_to_cart",
   description:
-    "Add product to cart. Accepts either a product ID or a variant ID — the system resolves the correct variant automatically. Creates new cart if cartId omitted. Returns updated cart with items, total, and cartId. ALWAYS call this when user wants to add something to cart. If the message contains a tag like [variantId:xxx], pass xxx as variantId. If it contains [optionItemIds:a,b,c], pass those ids (split on comma) as selectedOptionItemIds — these are the buyer's chosen food options; the server validates and prices them. If it contains [crossSellPromoId:xxx], pass xxx as crossSellPromoId — this signals the buyer accepted a cross-sell suggestion; the server applies the authorized discount (you must NEVER compute or promise the discount yourself).",
+    "Add product to cart. Accepts either a product ID or a variant ID — the system resolves the correct variant automatically. Creates new cart if cartId omitted. Returns updated cart with items, total, and cartId. ALWAYS call this when user wants to add something to cart. If the message contains a tag like [variantId:xxx], pass xxx as variantId. If it contains [optionItemIds:a,b,c], pass those ids (split on comma) as selectedOptionItemIds — these are the buyer's chosen food options; the server validates and prices them. If it contains [crossSellPromoId:xxx], pass xxx as crossSellPromoId — this signals the buyer accepted a cross-sell suggestion; the server applies the authorized discount (you must NEVER compute or promise the discount yourself). " +
+    "quantity is the increment to ADD, including when that exact line already exists. For 'Adicione mais uma unidade do Núcleo Sérum de Barreira que já está no meu carrinho.' read get_cart to identify the exact existing variant/selection, then call add_item_to_cart with quantity=1, not update_cart_item and not the new cart total. The relative clause identifies the item; 'Já adicionei' without a new command grants no write. Ask which line or quantity if ambiguous; never choose it, reinterpret negation, or retry an unknown write.",
   parameters: {
     type: "object",
     properties: {
@@ -22,7 +23,7 @@ export const ADD_ITEM_TO_CART: ToolDefinition = {
       },
       quantity: {
         type: "number",
-        description: "Quantity to add (min: 1, default: 1)"
+        description: "Increment to add (min: 1, default: 1), never the absolute final quantity. 'Add one more' means 1 even if the cart already has 1. Never choose between alternative or unspecified quantities."
       },
       selectedOptionItemIds: {
         type: "array",

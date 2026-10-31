@@ -63,6 +63,18 @@ function normalize(value: string) {
 const addCommand = /^(?:adicionar|adicione|adiciona|colocar|coloque|coloca|incluir|inclua|inclui|botar|bota)\b/;
 const commandPrefix = /^(?:por favor[,\s]+|(?:voce\s+)?(?:pode|poderia)\s+(?:por favor\s+)?|(?:eu\s+)?(?:quero|desejo)\s+|(?:eu\s+)?gostaria de\s+)/;
 const cartMutationVerb = /\b(?:adicionar|adicione|adiciona|colocar|coloque|coloca|incluir|inclua|inclui|botar|bota|remover|remova|retirar|retire|excluir|exclua|limpar|limpe|esvaziar|esvazie|alterar|altere|mudar|mude|atualizar|atualize|aumentar|aumente|diminuir|diminua|aplicar|aplique|usar|use|mexer|mexa)\b/;
+const addCountToken = "(?:-?\\d+(?:[.,]\\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)";
+const addCountUnit = "(?:unidades?|itens?|produtos?|pecas?)";
+const ambiguousAddCount = new RegExp(`\\b(?:${addCountToken}(?:\\s+${addCountUnit})?\\s+(?:ou|a|ate)\\s+${addCountToken}|entre\\s+${addCountToken}\\s+e\\s+${addCountToken})\\s+${addCountUnit}\\b|\\b(?:algumas?|varias?|poucas?|muitas?)\\s+${addCountUnit}\\b`);
+// A quantity at the command's start can omit the repeated unit ("uma unidade
+// ou duas do sérum"). Do not treat numbers later in a product name/dose as it.
+const ambiguousAddCountPrefix = new RegExp(`^(?:adicionar|adicione|adiciona|colocar|coloque|coloca|incluir|inclua|inclui|botar|bota|comprar|compre)\\s+(?:mais\\s+)?(?:${addCountToken}(?:\\s+${addCountUnit})?\\s+(?:ou|a|ate)\\s+${addCountToken}|entre\\s+${addCountToken}\\s+e\\s+${addCountToken})\\b`);
+function hasAmbiguousAddCount(message: string): boolean {
+  const text = normalize(message.replace(/\[(?:variantId|optionItemIds|crossSellPromoId|serviceSlotId):[^\]]*\]/gi, ""));
+  let command = text;
+  for (let prefix = 0; prefix < 2; prefix++) command = command.replace(commandPrefix, "");
+  return ambiguousAddCount.test(text) || ambiguousAddCountPrefix.test(command);
+}
 
 /** A checkout/payment prohibition does not revoke a separate explicit add.
  * This narrow grammar grants only add, never checkout or another cart write.
@@ -101,6 +113,7 @@ function explicitAdd(message: string): { quantity?: number } | undefined {
 function authorizedWrites(message: string, attachmentContext?: string): Set<string> {
   const allowed = new Set<string>();
   if (attachmentContext) return allowed; // Extracted lists require item-by-item review.
+  if (hasAmbiguousAddCount(message)) return allowed; // The model cannot choose a buyer's quantity.
   if (isUnspecifiedShoppingRequest(message)) return allowed; // No product has been chosen.
   // "Quero comprar um tênis de corrida verde" describes a need, not a selected
   // item. Searching it must not authorize buying a substituted color/profile.
