@@ -6,6 +6,24 @@ import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
 const native = (presentation: ReturnType<typeof presentMetaUi>) => presentation.messages.filter(m => m.type === "interactive").map(m => m.type === "interactive" ? m.interactive as any : null);
 
+test("malformed or stale post-cart blocks never render offer controls without a matching pending offer ID", () => {
+  for (const [postCartOffer, data] of [
+    [undefined, {}],
+    [undefined, { offerId: "stale" }],
+    [{ status: "pending" }, {}],
+    [{ id: "", status: "pending" }, { offerId: "" }],
+    [{ id: "current", status: "pending" }, {}],
+    [{ id: "current", status: "pending" }, { offerId: "stale" }],
+    [{ id: "current", status: "declined" }, { offerId: "current" }],
+  ] as const) {
+    const input = response({ blocks: [{ type: "post_cart_offer", data }] as any });
+    input.state.postCartOffer = postCartOffer as any;
+    let view: ReturnType<typeof buildMetaUiView> | undefined;
+    assert.doesNotThrow(() => { view = buildMetaUiView(input); });
+    assert.equal(view!.choices.some(c => c.action.kind === "tool" && c.action.tool.includes("cross_sell_offer")), false);
+  }
+});
+
 test("assistant prose has a robot identity and contextual emphasis without changing a payment payload", () => {
  const prose=formatMetaSpeech("*Descrição*\nPublicado pela loja.\n\n*Confirme sua conta*\nInforme o código recebido.");
  assert.match(prose,/^🤖 📝 \*Descrição\*/);assert.match(prose,/🔐 \*Confirme sua conta\*/);

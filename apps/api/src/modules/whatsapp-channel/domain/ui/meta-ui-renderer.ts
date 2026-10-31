@@ -130,14 +130,16 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         if (items(d.items).length) text.push("♡ *Seus favoritos*\nAbra um produto para ver os detalhes ou use as opções da lista.");
         items(d.items).forEach(p => { productChoice(p); if (p.id) add(`Remover: ${value(p.name)}`, tool("remove_from_wishlist", { productId: p.id })); });
         break;
-      case "post_cart_offer":
-        if (response.state.postCartOffer?.id === d.offerId && response.state.postCartOffer.status === "pending") {
+      case "post_cart_offer": {
+        const offer = response.state.postCartOffer;
+        if (offer && typeof offer.id === "string" && offer.id.length > 0 && offer.id === d.offerId && offer.status === "pending") {
           photo(d.imageUrl, `✨ *${value(d.name)}*\n💰 *${money(Number(d.priceCents) / 100)}*`);
           add("Adicionar complemento", tool("accept_cross_sell_offer", { offerId: d.offerId }), "Uma unidade, pelo preço informado");
           add("Seguir sem extra", tool("decline_cross_sell_offer", { offerId: d.offerId }), "Manter apenas os itens escolhidos");
           add("Ver detalhes", tool("cross_sell_offer_details", { offerId: d.offerId }));
         }
         break;
+      }
       case "product_carousel": case "marketplace_products": case "cross_sell":
         items(d.products ?? d.items).forEach(productChoice);
         if (d.nextCursor) add("Mais produtos", tool("search_products", { query: d.query || "*", categoryId: d.categoryId, cursor: d.nextCursor, ...(d.criteria ? { criteria: d.criteria } : {}) }));
