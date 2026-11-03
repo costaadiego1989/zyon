@@ -338,12 +338,13 @@ export class StorefrontLangGraphAgent {
     const history = salesDiscoveryHistory(input.history, input.userMessage);
     const genericStep = this.structuredRouting && !quantitySelection && !input.attachmentContext
       && semantic.classification.domain === "STORE_COMMERCE" && !salesProductFamily(salesRecommendationContext(input.userMessage, history))
-      && ["PRODUCT_SEARCH", "RECOMMEND_PERSONALIZED", "COMPLEX_QUESTION", "GREETING"].includes(intentResult.intent)
       ? unspecifiedShoppingStep(input.userMessage, history) : undefined;
     if (genericStep) {
       // An unspecified request authorizes a question, not a price assertion,
       // cart add or checkout. This also handles a valid classifier that omitted
-      // needsProductDiscovery, without relaxing factual-read or domain guards.
+      // needsProductDiscovery or chose a cart intent from stale history. The
+      // current object-free grammar and domain stay mandatory; no factual
+      // question is replaced and no mutation authority is granted.
       const finish = (message: string, presented: ConversationBlock[] = [], question?: SalesDiscoveryQuestion): StorefrontAgentResult => {
         input.callbacks?.onToken?.(message);
         return { message, ...(question ? { discoveryQuestion: question } : {}), blocks: presented, toolsUsed, cartId: input.cartId,

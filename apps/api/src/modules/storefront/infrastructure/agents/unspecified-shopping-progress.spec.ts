@@ -8,6 +8,8 @@ const classifications=[
   {schemaVersion:2,domain:"STORE_COMMERCE",intent:"PRODUCT_SEARCH",confidence:1,requiresTool:true,needsProductDiscovery:false},
   {schemaVersion:2,domain:"STORE_COMMERCE",intent:"COMPLEX_QUESTION",confidence:1,requiresTool:true,needsProductDiscovery:false},
   {schemaVersion:2,domain:"STORE_COMMERCE",intent:"RECOMMEND_PERSONALIZED",confidence:1,requiresTool:true,needsProductDiscovery:true,shoppingPhase:"search"},
+  ...(["ADD_CART","COMPARE_PRODUCTS","NEGOTIATE_PRICE","ORDER_STATUS","RETURN_REQUEST"] as const).map(intent=>({schemaVersion:2,domain:"STORE_COMMERCE",intent,confidence:1,requiresTool:true,needsProductDiscovery:false})),
+  {schemaVersion:2,domain:"STORE_COMMERCE",intent:"GREETING",confidence:1,requiresTool:false,needsProductDiscovery:false},
 ] as const;
 const variants=["Quero comprar um produto","Quero comprar algo!","Eu gostaria de comprar alguma coisa.","Oi, quero comprar","Preciso de um produto","Me ajude a escolher um produto"];
 for(const classification of classifications)for(const userMessage of variants)
