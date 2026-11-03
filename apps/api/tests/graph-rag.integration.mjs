@@ -11,6 +11,9 @@ import { GraphRetrievalService } from "../src/modules/graph-rag/application/grap
 import { CommunityReadEngine } from "../src/modules/graph-rag/gateway/community-read-engine.ts";
 import { createQueryGateway } from "../src/modules/graph-rag/gateway/query-gateway.ts";
 import { CommunityGatewayAdapter } from "../src/modules/graph-rag/infrastructure/community-gateway.adapter.ts";
+import { GraphCatalogSearch } from "../src/modules/catalog/infrastructure/graph-catalog-search.ts";
+import { matchesCatalogVariant } from "../src/modules/catalog/domain/services/catalog-search-criteria.ts";
+import { GraphKnowledgeReader } from "../src/modules/knowledge-base/infrastructure/graph-knowledge.reader.ts";
 
 // No environment connection string, commercial database, buyer or order is used.
 // This runner owns a fresh, loopback-only disposable engine and only that engine.
@@ -84,6 +87,41 @@ try {
   assert.equal(found.status, "ready");assert.equal(found.partial, true);
   assert.deepEqual(found.hits.map(hit => hit.variantId), ["v-care"]);
   assert.ok(found.hits.every(hit => hit.merchantId === "fixture-shop-a" && hit.modelId === embedding.modelId));
+  // Actual application readers consume real signed HTTP/Neo4j candidates.
+  // The canonical ports below are synthetic current snapshots, not PostgreSQL.
+  let currentProduct = care("fixture-shop-a"), stock = 2, price = 3000, canonicalReads = 0;
+  const catalogReader = new GraphCatalogSearch(retrieval, { read: async (merchant, id) => {
+    assert.equal(merchant, "fixture-shop-a");assert.equal(id, "p-care");return currentProduct;
+  } });
+  const catalogInput = { merchantId: "fixture-shop-a", query, categoryId: "skin", queryMode: "contextual",
+    allowSemantic: true, inStockOnly: true, currency: "BRL", minPriceCents: 2000, maxPriceCents: 10000,
+    attributes: [{ name: "fragrancia", value: "sim", operator: "not_equals" }] };
+  const canonicalCatalog = async input => {
+    canonicalReads++;
+    if (!input.candidateVariantIds) return { products: [], total: 0 };
+    assert.deepEqual(input.candidateVariantIds, ["v-care"]);
+    for (const key of ["merchantId", "categoryId", "inStockOnly", "currency", "minPriceCents", "maxPriceCents", "attributes"])
+      assert.deepEqual(input[key], catalogInput[key]);
+    assert.equal(input.query, undefined);
+    const variants = [{ id: "v-care", isActive: true, currency: "BRL", basePriceInCents: price,
+      stockQuantity: stock, stockReserved: 0, attributes: { fragrancia: "nao" } },
+    { id: "v-unknown", isActive: true, currency: "BRL", basePriceInCents: 3000,
+      stockQuantity: 2, stockReserved: 0, attributes: {} }]
+      .filter(variant => matchesCatalogVariant(variant, input, "physical"));
+    return { products: variants.length ? [{ id: "p-care", variants }] : [], total: variants.length ? 1 : 0 };
+  };
+  const canonicalFound = await catalogReader.search(catalogInput, canonicalCatalog);
+  assert.deepEqual(canonicalFound.products.map(product => product.variants.map(variant => variant.id)), [["v-care"]]);
+  assert.deepEqual(canonicalFound.retrieval, { engine: "neo4j", match: "semantic", partial: true });
+  stock = 0;assert.deepEqual((await catalogReader.search(catalogInput, canonicalCatalog)).products, []);
+  stock = 2;price = 10001;assert.deepEqual((await catalogReader.search(catalogInput, canonicalCatalog)).products, []);
+  price = 3000;
+  for (const snapshot of [null, { ...care("fixture-shop-a"), version: version + 1 },
+    { ...care("fixture-shop-a"), name: "Changed current name" }, { ...care("fixture-shop-a"), active: false }]) {
+    currentProduct = snapshot;const before = canonicalReads;
+    assert.deepEqual(await catalogReader.search(catalogInput, canonicalCatalog), { products: [], total: 0 });
+    assert.equal(canonicalReads, before + 1, "unverified candidates must not reach the second canonical query");
+  }
   const foreign = await retrieval.searchCatalog({ merchantId: "fixture-shop-c", query });
   assert.deepEqual(foreign, { status: "unavailable", reason: "disabled" });
   const faq = { kind: "knowledge", merchantId: "fixture-shop-a", sourceType: "faq", id: "faq-collection", version,
@@ -91,6 +129,17 @@ try {
   assert.equal((await projection.projectDocument(faq)).status, "applied");
   const documents = await retrieval.searchKnowledge({ merchantId: "fixture-shop-a", query: "Posso devolver o produto depois de receber?" });
   assert.equal(documents.status, "ready");assert.equal(documents.hits[0]?.sourceId, "faq-collection");
+  let currentKnowledge = faq;
+  const knowledgeReader = new GraphKnowledgeReader(retrieval, { read: async (merchant, type, id) => {
+    assert.equal(merchant, "fixture-shop-a");assert.equal(type, "faq");assert.equal(id, "faq-collection");return currentKnowledge;
+  } });
+  const knowledgeInput = { merchantId: "fixture-shop-a", queryText: "Posso devolver o produto depois de receber?" };
+  const currentChunks = await knowledgeReader.search(knowledgeInput);
+  assert.equal(currentChunks.length, 1);assert.equal(currentChunks[0].content, faq.chunks[0].content);
+  for (const snapshot of [null, { ...faq, active: false }, { ...faq, version: version + 1 },
+    { ...faq, merchantId: "fixture-shop-b" }, { ...faq, chunks: [{ id: "returns", content: "Changed public terms" }] }]) {
+    currentKnowledge = snapshot;assert.deepEqual(await knowledgeReader.search(knowledgeInput), []);
+  }
   const tombstone = { kind: "catalog", merchantId: "fixture-shop-a", id: "p-care", version: version + 1, active: false };
   assert.equal((await projection.projectCatalog(tombstone)).status, "applied");
   assert.equal((await projection.projectCatalog(care("fixture-shop-a"))).status, "ignored");
@@ -112,9 +161,11 @@ try {
   proof = { passed: true, observedAt: new Date().toISOString(), engine,
     model: embedding.modelId, dimensions: embedding.dimensions, durationMs: Date.now() - started,
     checks: ["real multilingual inference", "signed HTTP admission and nonce-bound responses", "tenant-first scoped Cypher", "same-variant negative attribute",
+      "current canonical port fixtures reject out-of-stock, over-budget and changed product candidates",
+      "current public knowledge port rejects changed, revoked, foreign and removed sources",
       "FAQ vector retrieval", "duplicate projection", "tombstone rejects old and conflicting same-version upsert", "document equal-version tombstone", "other tenant retained",
       "complete enumeration retirement", "newer versions retained", "production administrative credential rejected"],
-    scope: "Disposable graph and synthetic public fixtures; no PostgreSQL commerce writes or production-channel acceptance." };
+    scope: "Real disposable Neo4j, signed HTTP and application readers with synthetic canonical port fixtures. No real PostgreSQL engine, commerce writes or production-channel acceptance." };
 } catch (error) {
   recordProof({ passed: false, observedAt: new Date().toISOString(), error: error instanceof Error ? error.message : "unknown_test_failure" });
   throw error;
