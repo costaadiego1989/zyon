@@ -51,6 +51,10 @@ test("V2 prompt distinguishes an academic topic from a product title and store s
 
 test("every provider example includes every strict wire field and an explicit coherent shopping phase", () => {
   const phases = new Map([
+    ["Quero comprar um produto", "clarify"],
+    ["Gostaria de comprar alguma coisa", "clarify"],
+    ["Não sei", "clarify"],
+    ["Para minha pele", "clarify"],
     ["Quero uma ajuda para escolher ainda não sei o produto que eu quero", "clarify"],
     ["Pode procurar até R$80", "search"],
     ["Me orienta por onde começar?", "clarify"],
