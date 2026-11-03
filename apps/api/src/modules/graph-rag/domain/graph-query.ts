@@ -73,6 +73,8 @@ RETURN d.merchantId AS merchantId, d.sourceType AS sourceType, d.canonicalId AS 
        vectorScore, (0.8 * vectorScore + 0.2 * lexicalScore) AS score
 ORDER BY score DESC, sourceType, sourceId, chunkId LIMIT $limit`;
 
+export const GRAPH_READ_TEMPLATES = Object.freeze({ catalog: CATALOG_QUERY, knowledge: KNOWLEDGE_QUERY });
+
 /** This is the only read compiler. Neither the LLM nor a caller supplies query
  * syntax, labels, relationship names or the database identity. */
 export function compileGraphRead(value: unknown): GraphReadCommand {

@@ -2,9 +2,8 @@ import { createHash } from "node:crypto";
 import { graphReadSchema, GRAPH_VECTOR_DIMENSIONS } from "../domain/graph-query.js";
 import type { GraphEmbeddingPort } from "../domain/graph-rag.port.js";
 
-export const GRAPH_EMBEDDING_MODEL = "Xenova/paraphrase-multilingual-MiniLM-L12-v2";
-export const GRAPH_EMBEDDING_REVISION = "2c4055b12046f11709e9df2c122e59ffbdc2f900";
-export const GRAPH_EMBEDDING_ID = `${GRAPH_EMBEDDING_MODEL}@${GRAPH_EMBEDDING_REVISION}:q8:mean-normalized:v1`;
+import { GRAPH_EMBEDDING_MODEL, GRAPH_EMBEDDING_REVISION, GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
+export { GRAPH_EMBEDDING_MODEL, GRAPH_EMBEDDING_REVISION, GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
 type Extractor = (text: string) => Promise<number[]>;
 export type GraphExtractorLoader = () => Promise<Extractor>;
 const defaultLoader: GraphExtractorLoader = async () => {

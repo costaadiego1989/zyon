@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "observedAt": "2026-11-03T18:25:55.077Z",
+  "engine": {
+    "name": "Neo4j Kernel",
+    "versions": [
+      "5.26.32"
+    ],
+    "edition": "community"
+  },
+  "model": "Xenova/paraphrase-multilingual-MiniLM-L12-v2@2c4055b12046f11709e9df2c122e59ffbdc2f900:q8:mean-normalized:v1",
+  "dimensions": 384,
+  "durationMs": 20971,
+  "checks": [
+    "real multilingual inference",
+    "tenant-first scoped Cypher",
+    "same-variant negative attribute",
+    "FAQ vector retrieval",
+    "duplicate projection",
+    "tombstone rejects old and conflicting same-version upsert",
+    "document equal-version tombstone",
+    "other tenant retained",
+    "complete enumeration retirement",
+    "newer versions retained",
+    "production administrative credential rejected"
+  ],
+  "scope": "Disposable graph and synthetic public fixtures; no PostgreSQL commerce writes or production-channel acceptance."
+}
