@@ -103,3 +103,18 @@ test("an attachment cannot enter the server-owned object-free discovery recovery
  const result=await agent.run({merchantId:"owned",sessionId:"same",userMessage:"Quero comprar um produto",attachmentContext:"Reference only",history:[]});
  assert.notEqual(result.discoveryQuestion?.question,opening);assert.equal(categoryReads,0);
 });
+
+test("low confidence can tailor a question while keeping the turn denied and every handler inaccessible",async()=>{
+ let calls=0;
+ const agent=new StorefrontLangGraphAgent({structuredRouting:true,provider:{chat:async()=>{calls++;return {content:JSON.stringify({...classifications[0],confidence:0.4}),usage};}},toolHandlers:new Proxy({},{get:()=>assert.fail("denied scope cannot access a handler")}) as never});
+ const turn=await agent.prepare({merchantId:"owned",sessionId:"same",userMessage:"Quero comprar um produto",history:[]});
+ assert.equal(turn.allowed,false);if(turn.allowed)assert.fail("low confidence must not authorize execution");
+ assert.equal(turn.result.message,opening);assert.equal(turn.result.routing.domain,"UNCLEAR");assert.equal(turn.result.routing.source,"fallback");assert.equal(turn.result.routing.confidence,0);
+ assert.deepEqual(turn.result.toolsUsed,[]);assert.equal(calls,1);
+});
+
+test("low confidence after the opening gives navigation guidance without manufacturing a category read",async()=>{
+ const agent=new StorefrontLangGraphAgent({structuredRouting:true,provider:{chat:async()=>({content:JSON.stringify({...classifications[1],confidence:0.5}),usage})},toolHandlers:new Proxy({},{get:()=>assert.fail("blocked scope")}) as never});
+ const turn=await agent.prepare({merchantId:"owned",sessionId:"same",userMessage:"Não sei",history:[{role:"user",content:"Quero comprar um produto"},{role:"assistant",content:opening}]});
+ assert.equal(turn.allowed,false);if(turn.allowed)assert.fail("scope gate preserved");assert.match(turn.result.message,/ver produtos/);assert.deepEqual(turn.result.toolsUsed,[]);assert.equal(turn.result.routing.domain,"UNCLEAR");
+});

@@ -239,12 +239,20 @@ export class StorefrontLangGraphAgent {
     if (!isStorefrontDomainAllowed(semantic.classification.domain)) {
       const outside = semantic.classification.domain === "OUT_OF_SCOPE";
       recordStorefrontDecision("agent", "rejected", outside ? "out_of_scope" : "scope_unclear");
-      const validation = validateStorefrontMessage(outside ? STOREFRONT_OUT_OF_SCOPE_MESSAGE : STOREFRONT_SCOPE_CLARIFICATION_MESSAGE);
+      // Tailor only the clarification copy when routing remains denied. The
+      // fallback domain/confidence and allowed:false are unchanged; handlers,
+      // catalog reads and writes remain inaccessible before the domain gate.
+      const step = !outside && semantic.source === "fallback" && !captured.attachmentContext
+        ? unspecifiedShoppingStep(captured.userMessage, captured.history) : undefined;
+      const validation = validateStorefrontMessage(step === "ask_need" ? UNSPECIFIED_SHOPPING_QUESTION
+        : step ? "Posso ajudar você a escolher. Conte o que pretende fazer com o produto ou escreva *ver produtos* para explorar o catálogo."
+        : outside ? STOREFRONT_OUT_OF_SCOPE_MESSAGE : STOREFRONT_SCOPE_CLARIFICATION_MESSAGE);
       const intent = semantic.classification.intent;
       const modelTier = getModelForIntent(intent);
       if (validation.message) captured.callbacks?.onToken?.(validation.message);
       return { allowed: false, result: {
         message: validation.message, blocks: [], toolsUsed: [], cartId: captured.cartId,
+        ...(step === "ask_need" ? { discoveryQuestion: { question: validation.message, replies: [] } } : {}),
         usage: { ...semantic.usage },
         routing: { domain: semantic.classification.domain, source: semantic.source, needsProductDiscovery: false,
           intent, confidence: semantic.classification.confidence, modelTier,
