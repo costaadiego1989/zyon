@@ -1,5 +1,5 @@
 const genericShoppingWords = new Set(
-  "oi ola bom boa dia tarde noite eu quero queria gostaria desejo preciso estou querendo a o as os de da do para pra por favor um uma uns umas algum alguma alguns algumas algo coisa coisas produto produtos item itens comprar compra levar adquirir escolher escolha encontrar procurar buscar ajuda ajudar ajude me voce voces indicacao recomendacao indique recomende aqui loja nessa nesta".split(" "),
+  "oi ola bom boa dia tarde noite eu quero queria gostaria desejo preciso estou querendo a o as os de da do para pra por favor um uma uns umas algum alguma alguns algumas algo coisa coisas produto produtos item itens comprar compra levar adquirir escolher escolha encontrar procurar buscar ajuda ajudar ajude me voce voces pode poderia podem indicacao recomendacao indique recomende aqui loja nessa nesta".split(" "),
 );
 
 function shoppingWords(message: string): string[] {
@@ -33,9 +33,25 @@ export function isBroadShoppingRequest(message: string): boolean {
   const words = shoppingWords(message);
   if (words.some(word => /^(oleosa|seca|mista|normal|sensivel|oleosidade)$/.test(word))) return false;
   const broadCareWords = new Set("minha meu minhas meus pele rosto facial corpo corporal cabelo cabelos capilar oleosa seca mista normal sensivel cuidar cuidado cuidados tratar procuro busco procurando".split(" "));
-  return words.some(word => /^(quero|queria|gostaria|preciso|procuro|busco|produto|produtos|algo)$/.test(word))
-    && words.some(word => /^(pele|rosto|corpo|cabelo|cabelos)$/.test(word))
+  return words.some(word => /^(pele|rosto|corpo|cabelo|cabelos)$/.test(word))
     && words.every(word => genericShoppingWords.has(word) || broadCareWords.has(word));
+}
+
+export const UNSPECIFIED_SHOPPING_QUESTION = "Que tipo de produto você procura ou qual necessidade quer atender?";
+export const SHOPPING_CATEGORIES_QUESTION = "Podemos começar pelas categorias da loja. Qual delas você gostaria de explorar?";
+
+/** Chooses a conversational next step, never a catalog fact or write grant.
+ * A bare buying request must not depend on a model deciding to call a tool.
+ * Unknown answers are recovered only after this scoped opening question. */
+export function unspecifiedShoppingStep(message: string, history: Array<{role:"user"|"assistant";content:string}>): "ask_need" | "categories" | "browse_categories" | undefined {
+  const last = salesDiscoveryHistory(history, message).filter(h => h.role === "assistant").at(-1)?.content ?? "";
+  const normalize = (s: string) => shoppingWords(s).join(" ");
+  const askedNeed = normalize(last).endsWith(normalize(UNSPECIFIED_SHOPPING_QUESTION));
+  const showedCategories = normalize(last).endsWith(normalize(SHOPPING_CATEGORIES_QUESTION));
+  const unknown = /^(?:ainda )?nao sei(?: (?:escolher|o que comprar|qual produto escolher))?$/.test(normalize(message));
+  if ((askedNeed || showedCategories) && (unknown || isUnspecifiedShoppingRequest(message)))
+    return showedCategories ? "browse_categories" : "categories";
+  return isUnspecifiedShoppingRequest(message) ? "ask_need" : undefined;
 }
 
 export const MAX_SALES_DISCOVERY_ROUNDS = 3;

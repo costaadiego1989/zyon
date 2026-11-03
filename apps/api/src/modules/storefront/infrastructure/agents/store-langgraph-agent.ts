@@ -32,10 +32,11 @@ import { classifyStorefrontIntent, type StructuredIntentResult } from "../ai/str
 import { validateStorefrontMessage, type StorefrontMessageContext } from "../../domain/tools/safety-validator.js";
 import { buildStoreSystemPrompt } from "../../domain/prompts/store-system-prompt.builder.js";
 import { buildConversationBlocks } from "./conversation-block.builder.js";
-import { hasCareProfile, salesRecommendationContext } from "../../domain/services/sales-recommendation-intent.js";
+import { hasCareProfile, salesProductFamily, salesRecommendationContext } from "../../domain/services/sales-recommendation-intent.js";
 import { contextualCareDiscovery, explicitlyContinuesCareDiscovery } from "../../domain/services/contextual-sales-discovery.js";
 import { allowsSalesDiscovery, countSalesDiscoveryRounds, isBroadShoppingRequest, isUnspecifiedShoppingRequest,
-  isBarePriceObjection, needsSalesClarification, MAX_SALES_DISCOVERY_ROUNDS, parseSalesDiscoveryQuestion, salesDiscoveryHistory, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
+  isBarePriceObjection, needsSalesClarification, MAX_SALES_DISCOVERY_ROUNDS, parseSalesDiscoveryQuestion, salesDiscoveryHistory,
+  unspecifiedShoppingStep, UNSPECIFIED_SHOPPING_QUESTION, SHOPPING_CATEGORIES_QUESTION, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
 import { ASK_PRODUCT_PREFERENCES } from "../../domain/tools/definitions/ask-product-preferences.tool.js";
 import { createSalesSearchPolicy } from "../../domain/services/sales-search-policy.js";
 import { parseStorefrontModelOutput, storefrontModelJsonSchema, STOREFRONT_MODEL_FALLBACK } from "../../domain/contracts/storefront-model-output.schema.js";
@@ -335,6 +336,37 @@ export class StorefrontLangGraphAgent {
     }
     let discoveryQuestion: SalesDiscoveryQuestion | undefined;
     const history = salesDiscoveryHistory(input.history, input.userMessage);
+    const genericStep = this.structuredRouting && !quantitySelection && !input.attachmentContext
+      && semantic.classification.domain === "STORE_COMMERCE" && !salesProductFamily(salesRecommendationContext(input.userMessage, history))
+      && ["PRODUCT_SEARCH", "RECOMMEND_PERSONALIZED", "COMPLEX_QUESTION", "GREETING"].includes(intentResult.intent)
+      ? unspecifiedShoppingStep(input.userMessage, history) : undefined;
+    if (genericStep) {
+      // An unspecified request authorizes a question, not a price assertion,
+      // cart add or checkout. This also handles a valid classifier that omitted
+      // needsProductDiscovery, without relaxing factual-read or domain guards.
+      const finish = (message: string, presented: ConversationBlock[] = [], question?: SalesDiscoveryQuestion): StorefrontAgentResult => {
+        input.callbacks?.onToken?.(message);
+        return { message, ...(question ? { discoveryQuestion: question } : {}), blocks: presented, toolsUsed, cartId: input.cartId,
+          usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+          routing: { source: semantic.source, domain: semantic.classification.domain, needsProductDiscovery: false,
+            intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed }, safetyValidation: { safe: true } };
+      };
+      if (genericStep === "ask_need") return finish(UNSPECIFIED_SHOPPING_QUESTION, [], { question: UNSPECIFIED_SHOPPING_QUESTION, replies: [] });
+      const guidance = "Posso ajudar você a escolher. Conte o que pretende fazer com o produto ou escreva *ver produtos* para explorar o catálogo.";
+      if (!requestHandlers.listCategories) return finish(guidance);
+      try {
+        toolsUsed.push("list_categories"); input.callbacks?.onToolCall?.("list_categories", {});
+        const read = await observeStorefrontOperation("tool", () => callStorefrontTool("list_categories", {}, () => requestHandlers.listCategories()), { tool: "list_categories" });
+        input.callbacks?.onToolResult?.("list_categories", read);
+        const checked = read.ok ? storefrontToolOutputSchemas.list_categories.safeParse(read.data) : undefined;
+        if (!checked?.success || !checked.data.categories.length) return finish(guidance);
+        const message = genericStep === "categories" ? SHOPPING_CATEGORIES_QUESTION
+          : "Sem problema. Escolha uma categoria no menu ou escreva *ver produtos* para conhecer o catálogo. Quando algo chamar sua atenção, eu ajudo com os detalhes.";
+        const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: input.userMessage, finalContent: message,
+          toolResults: { list_categories: checked.data }, presentationMode: "structured" });
+        return finish(message, built.blocks, genericStep === "categories" ? { question: message, replies: [] } : undefined);
+      } catch { return finish(guidance); } // Optional read failure never repeats a write or fabricates categories.
+    }
     const contextualDiscovery = this.structuredRouting && !quantitySelection && !input.attachmentContext
       && semantic.classification.domain === "STORE_COMMERCE" && intentResult.intent === "COMPLEX_QUESTION"
       && !semantic.classification.requiresTool && explicitlyContinuesCareDiscovery(input.userMessage, history);
