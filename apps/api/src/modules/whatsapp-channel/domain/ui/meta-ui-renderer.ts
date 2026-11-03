@@ -74,7 +74,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
     && typeof response.state.postCartOffer.id === "string" && response.state.postCartOffer.id.length > 0
     && typeof response.state.postCartOffer.sourceVariantId === "string" && response.state.postCartOffer.sourceVariantId.length > 0
     && response.blocks.some(block => block.type === "post_cart_offer" && object(block.data).offerId === response.state.postCartOffer?.id)
-    && (response.agentMessage.includes("adicionado ao carrinho") || response.agentMessage.includes("Vi que você adicionou"));
+    && (response.agentMessage.includes("adicionado ao carrinho") || /Vi que você (?:acabou de adicionar|adicionou)/.test(response.agentMessage));
   const redundantIntro = response.blocks.some(block => ["cart_summary", "wishlist"].includes(block.type))
     && /^(?:Este é o seu carrinho:|Seu carrinho:|Sua lista de desejos:|Confira sua lista de desejos:)$/.test(response.agentMessage.trim());
   const redundantAdd = cartJustAdded && /^Produto adicionado ao carrinho\.?$/.test(response.agentMessage.trim());

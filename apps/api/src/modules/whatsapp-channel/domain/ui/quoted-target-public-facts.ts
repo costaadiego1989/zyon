@@ -65,7 +65,21 @@ function literalSpans(source: string): Span[] {
   const whole = trimmedSpan(source);
   if (scopeSensitive(source) || /[;:!?\n]/.test(source)) return [whole];
   const match = /^(.*?),\s+com\s+([^,.]+?)\s+e\s+([^,.]+?)([.]?)\s*$/u.exec(source);
-  if (!match) return [whole];
+  if (!match) {
+    // A positive public list such as "... com conforto, nutrição e textura de
+    // rápida absorção" supplies three literal features. The scope guard above
+    // keeps any negation/condition attached to the whole statement.
+    const list = /^([^,;.]+?)\s+com\s+([^,;.]+),\s+([^,;.]+)\s+e\s+([^,;.]+?)[.]?\s*$/u.exec(source);
+    if (!list || list.slice(2).some(s => !/^[\p{L}\p{N}'’ -]+$/u.test(s)
+      || s.trim().split(/\s+/).length > 7
+      || /\b(?:e|ou|com|para|por|que|ser|estar|ter|usar|aplicar|melhor|mais|menos)\b/.test(normalize(s)))) return [whole];
+    let cursor = list[1]!.length + 5;
+    return list.slice(2).map(text => {
+      const start = source.indexOf(text, cursor);
+      cursor = start + text.length;
+      return trimmedSpan(source, start, cursor);
+    });
+  }
   const descriptive = (s: string) => {
     const words = s.trim().split(/\s+/);
     return words.length >= 2 && words.length <= 7 && /^[\p{L}\p{N}'’ -]+$/u.test(s)
@@ -144,5 +158,8 @@ export function extractSafeTargetFacts(input: PublicTargetFactsInput): PublicTar
 }
 
 export function extractSafeTargetReasons(input: PublicTargetFactsInput): string[] {
-  return extractSafeTargetFacts(input).map(fact => fact.text);
+  // Variant selectors such as "size: 50 ml" belong in details, not in the
+  // seller's reasons to buy. Use published descriptive prose for this copy.
+  return extractSafeTargetFacts({ productId: input.productId, variantId: input.variantId,
+    description: input.description, publicBlocks: input.publicBlocks, locale: input.locale }).map(fact => fact.text);
 }

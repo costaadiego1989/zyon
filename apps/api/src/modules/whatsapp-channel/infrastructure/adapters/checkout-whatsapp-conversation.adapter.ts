@@ -91,7 +91,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     messageId?: string;
   }): Promise<WhatsAppStructuredResponse> {
     const turn = await this.respondStoreTurn(input);
-    const response = this.postCartOffers ? await this.postCartOffers.decorate(input.merchantId, turn) : turn;
+    const response = this.postCartOffers ? await this.postCartOffers.decorate(input.merchantId, turn, { buyerName: input.buyer.fullName }) : turn;
     const cartBlock = response.blocks.find(block => block.type === "cart_summary");
     const stored = await this.prisma?.storefrontCart?.findUnique({
       where: { merchantId_sessionId: { merchantId: input.merchantId, sessionId: response.state.conversationId } },

@@ -40,8 +40,24 @@ test("no truncation can erase a long condition or exclusion, and fewer facts rem
   const long="Textura leve "+"muito ".repeat(40)+", mas não contém perfume nem parabenos.";
   assert.deepEqual(extractSafeTargetReasons(input({description:long})),[]);
   assert.deepEqual(extractSafeTargetReasons(input({description:"Acabamento confortável.",variantAttributes:{size:"50 ml"}})),[
-    "Acabamento confortável.","size: 50 ml"]);
+    "Acabamento confortável."]);
   assert.deepEqual(extractSafeTargetReasons(input({})),[]);
+});
+
+test("actual Creme description provides three literal features without technical variant selectors",()=>{
+  const description="Creme de barreira para complementar a rotina com conforto, nutrição e textura de rápida absorção.";
+  const facts=extractSafeTargetFacts(input({description}));
+  assert.deepEqual(facts.map(f=>f.text),["conforto","nutrição","textura de rápida absorção"]);
+  for(const f of facts)assert.equal(description.slice(f.start,f.end),f.text);
+  assert.deepEqual(extractSafeTargetReasons(input({description,variantAttributes:{size:"50 ml",volume:"50 ml"}})),facts.map(f=>f.text));
+  for(const prefix of ["Não é indicado para todos; ","Somente quando houver orientação, ","Sem perfume e "]){
+    assert.deepEqual(extractSafeTargetReasons(input({description:prefix+description})),prefix.startsWith("Não")?[]:[prefix+description]);
+  }
+});
+
+test("sales reasons omit attribute keys and never fill missing reasons with a size or other selector",()=>{
+  assert.deepEqual(extractSafeTargetReasons(input({variantAttributes:{size:"50 ml",material:"Algodão",finish:"Confortável"}})),[]);
+  assert.deepEqual(extractSafeTargetReasons(input({description:"Acabamento confortável.",variantAttributes:{size:"50 ml"}})),["Acabamento confortável."]);
 });
 
 test("public list props use the real content DTO and only facts belonging to the quoted target",()=>{

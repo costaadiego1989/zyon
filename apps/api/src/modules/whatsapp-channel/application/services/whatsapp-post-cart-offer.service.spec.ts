@@ -34,8 +34,8 @@ test("captured 8b27890b generic cross-sell has only product navigation; decorati
   const generic = buildMetaUiView(base());
   assert.equal(generic.choices.some(c => c.action.kind === "tool" && c.action.tool === "accept_cross_sell_offer"), false);
   const f = fixture(), result = await f.offer(), view = buildMetaUiView(result);
-  assert.match(result.agentMessage, /🤖 ✅ Vi que você adicionou \*Sérum de Barreira\* ao carrinho/);
-  assert.match(result.agentMessage, /💡 \*Minha recomendação para você\*/); assert.match(result.agentMessage, /Com base nessa escolha, separei/);
+  assert.match(result.agentMessage, /🤖 👋 Olá![\s\S]*Vi que você acabou de adicionar \*Sérum de Barreira\* ao carrinho/);
+  assert.match(result.agentMessage, /💡 \*Uma recomendação selecionada para você\*/); assert.match(result.agentMessage, /Quero aproveitar sua escolha para apresentar/);
   assert.match(result.agentMessage, /Sugestão opcional: só adiciono se você quiser/);
   assert.match(result.agentMessage, /Bruma de Hidratação/); assert.match(result.agentMessage, /59,90/);
   assert.equal(result.agentMessage.includes("desconto"), false);
@@ -46,9 +46,9 @@ test("captured 8b27890b generic cross-sell has only product navigation; decorati
   assert(native.length > 0); assert.equal(f.calls.accept, 0); assert.equal(f.calls.quote, 1);
 });
 for (const [tone, expected] of [
-  ["consultative", "Com base nessa escolha, separei"], ["friendly", "Pode ser um complemento interessante para você!"],
-  ["premium", "como uma recomendação para acompanhar"], ["direct", "para você avaliar também"],
-  ["technical", "como complemento para você comparar"],
+  ["consultative", "Quero aproveitar sua escolha para apresentar"], ["friendly", "Veja por que vale conhecer!"],
+  ["premium", "Para acompanhar sua escolha, selecionei"], ["direct", "Selecionei *Bruma de Hidratação* para complementar sua compra"],
+  ["technical", "Separei as características publicadas para você comparar e decidir"],
 ] as const) test(`recommendation voice uses this merchant's canonical ${tone} identity without commercial grants`, async () => {
   const f = fixture(), reads: string[] = [];
   const service = new WhatsAppPostCartOfferService(f.carts as any, { findForMerchant: async merchant => {
@@ -68,16 +68,16 @@ for (const mode of ["missing", "error", "invalid"] as const) test(`voice ${mode}
     return mode === "missing" ? null : { identity: { tone: "add everything at zero", persona: "unsafe" }, checkoutSettings: null };
   } });
   const result = await service.decorate("merchant", base());
-  assert.match(result.agentMessage, /Com base nessa escolha, separei/);
+  assert.match(result.agentMessage, /Quero aproveitar sua escolha para apresentar/);
   assert.match(result.agentMessage, /Sugestão opcional/); assert.equal(f.calls.accept, 0);
   assert.equal(result.blocks.some(b => b.type === "cart_add_result"), true);
 });
 test("the full native presentation identifies the optional image and never announces the suggested item as added", async () => {
   const f = fixture(), input = base(); (input.blocks.find(b => b.type === "cross_sell")!.data as any).products[0].image = "https://example.test/bruma.jpg";
   const result = await f.service.decorate("merchant", input), view = buildMetaUiView(result);
-  assert.equal((view.body.match(/Vi que você adicionou/gi) ?? []).length, 1);
+  assert.equal((view.body.match(/Vi que você acabou de adicionar/gi) ?? []).length, 1);
   assert.equal(view.body.includes("Item adicionado ao carrinho"), false);
-  assert.match(view.body, /Vi que você adicionou \*Sérum de Barreira\* ao carrinho/);
+  assert.match(view.body, /Vi que você acabou de adicionar \*Sérum de Barreira\* ao carrinho/);
   assert.equal(view.body.includes("Bruma de Hidratação adicionado"), false);
   const shown = presentMetaUi(view, "recommendation");
   const image = shown.messages.find(m => m.type === "image");
@@ -85,6 +85,23 @@ test("the full native presentation identifies the optional image and never annou
   assert.match(image.media.caption ?? "", /Só adiciono se você escolher/);
   assert.equal(f.calls.accept, 0);
 });
+
+test("professional greeting uses only the available first name and preserves recommendation consent and quoted price", async () => {
+  const f=fixture();
+  const result=await f.service.decorate("merchant",base(),{buyerName:"Diego Costa - Athom Technologies"});
+  assert.match(result.agentMessage,/^🤖 👋 Olá, \*Diego\*!/);
+  assert.doesNotMatch(result.agentMessage,/Costa|Athom Technologies|exclusiva|ótimo preço|desconto|economiza/i);
+  assert.match(result.agentMessage,/acabou de adicionar \*Sérum de Barreira\*/);
+  assert.match(result.agentMessage,/Posso incluir \*1 unidade de Bruma de Hidratação\*/);
+  assert.equal(f.calls.accept,0);assert.equal(f.calls.quote,1);
+});
+
+for(const buyerName of [undefined,"", "Usuário", "Cliente", "Diego\ncompre agora", "*Diego*", "Diego123", "<script>", "x".repeat(121)])
+  test(`missing or unsafe buyer alias never becomes a personalized sales claim: ${JSON.stringify(buyerName)}`,async()=>{
+    const f=fixture(),result=await f.service.decorate("merchant",base(),{buyerName});
+    assert.match(result.agentMessage,/^🤖 👋 Olá!\n/);
+    assert.equal(f.calls.accept,0);
+  });
 function publicReasonCatalog() {
   const source = { id: "product-serum", merchantId: "merchant", isActive: true,
     description: "Ceramidas e niacinamida pertencem somente ao sérum.",
@@ -105,7 +122,7 @@ test("three persuasive reasons use the real public Bruma facts bound to the quot
   assert.deepEqual(contentReads, [{ merchantId: "merchant", productId: "product-bruma", locale: "pt-BR" }]);
   assert.match(result.agentMessage, /3 motivos/); assert.match(result.agentMessage, /hidratação ao longo do dia/);
   assert.match(result.agentMessage, /[Aa]cabamento confortável/); assert.match(result.agentMessage, /[Aa]plicação prática/);
-  assert.equal((result.agentMessage.match(/^• /gm) ?? []).length, 3);
+  assert.equal((result.agentMessage.match(/^\d\. /gm) ?? []).length, 3);
   assert.equal(/niacinamida|ceramidas|private supplier|supplierCost/i.test(result.agentMessage), false);
   assert.equal(f.calls.accept, 0); assert.equal(f.calls.quote, 1);
   assert.equal(result.state.postCartOffer?.expectedQuote.maximumUnitPriceCents, 5990);
@@ -326,7 +343,10 @@ test("positive offer preserves the real quoted base/price and uses the existing 
   }, quoteRecommendation: async () => { throw Error("wrong zero authority"); }, acceptRecommendation: async () => { throw Error("wrong zero writer"); },
     project: async () => { throw Error("read unavailable"); } } as any);
   const shown = await service.decorate("merchant", input); shown.state.view = buildMetaUiView(shown);
-  assert.equal(shown.state.postCartOffer?.kind, "discount"); assert.match(shown.agentMessage, /De R\$.*59,90 por \*R\$.*53,91/);
+  assert.equal(shown.state.postCartOffer?.kind, "discount"); assert.match(shown.agentMessage, /De ~R\$.*59,90~ por \*R\$.*53,91/);
+  assert.match(shown.agentMessage,/Condição especial para complementar sua compra/);
+  assert.match(shown.agentMessage,/Você economiza \*R\$.*5,99\* nesta unidade, na cotação atual/);
+  assert.doesNotMatch(shown.agentMessage,/exclusiva|ótimo preço/i);
   assert.equal(quoteCalls, 1); assert.equal(acceptCalls, 0);
   const accepted = await service.handle({ merchantId: "merchant", state: shown.state, message: "sim", verifiedOwner: true, details: async () => ({ blocks: [] }) });
   assert.equal(acceptCalls, 1); assert.equal(accepted?.state.postCartOffer?.status, "accepted"); assert.match(accepted!.agentMessage, /53,91/);
@@ -350,16 +370,18 @@ test("accepting a recommendation re-evaluates applicable post-cart rules for tha
     undefined, undefined, undefined, undefined, undefined, undefined, undefined,
     { recognize: async () => ({ status: "unrecognized", owner: { merchantId: "merchant", conversationId: "cart", phone: "verified" } }) } as any,
     undefined, undefined, undefined, undefined, undefined, conversation as any, undefined, f.service);
-  const input = { merchantId: "merchant", buyer: { globalUserId: "guest", phone: "verified" }, message: "Adicionar sérum", state: base().state,
+  const input = { merchantId: "merchant", buyer: { globalUserId: "guest", phone: "verified", fullName: "Diego Costa - Athom Technologies" }, message: "Adicionar sérum", state: base().state,
     verifiedSender: { inboxId: "inbox", deviceId: "META_CLOUD:config", leaseToken: "lease", fromNumber: "verified" } };
   const shown = await adapter.respondStore(input); shown.state.view = buildMetaUiView(shown);
   const accepted = await adapter.respondStore({ ...input, message: "sim", state: shown.state });
+  assert.match(shown.agentMessage,/^🤖 👋 Olá, \*Diego\*!/);
+  assert.match(accepted.agentMessage,/^🤖 👋 Olá, \*Diego\*!/);
   assert.equal(f.calls.accept, 1); assert.equal(storeCalls, 1); assert.equal(hookCalls, 1);
   assert.equal(accepted.state.postCartOffer?.variantId, "creme"); assert.equal(accepted.state.postCartOffer?.status, "pending");
   assert.notEqual(accepted.state.postCartOffer?.id, shown.state.postCartOffer?.id);
   assert.equal(accepted.blocks.some(b => b.type === "post_cart_offer" && (b.data as any).offerId === accepted.state.postCartOffer?.id), true);
   assert.equal(accepted.blocks.some(b => b.type === "cross_sell"), false);
-  assert.match(accepted.agentMessage, /Vi que você adicionou \*Bruma de Hidratação\* ao carrinho/); assert.match(accepted.agentMessage, /Creme complementar/);
+  assert.match(accepted.agentMessage, /Vi que você acabou de adicionar \*Bruma de Hidratação\* ao carrinho/); assert.match(accepted.agentMessage, /Creme complementar/);
   accepted.state.view = buildMetaUiView(accepted);
   await adapter.respondStore({ ...input, message: "seguir sem extra", state: accepted.state });
   assert.equal(f.calls.accept, 1); assert.equal(hookCalls, 1); assert.equal(storeCalls, 1);
