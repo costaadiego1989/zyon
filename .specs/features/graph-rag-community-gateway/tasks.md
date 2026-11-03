@@ -59,6 +59,12 @@ T1 -> T2 -> T3, one verified commit per component. Independent Verifier after pr
 - [ ] Railway source/health/private authentication and current Athom projection verified.
 - [ ] Actual shared-channel searches and remaining acceptance states reported honestly.
 
+## Gate Check Commands
+
+Quick: run the task's selected guarded unit commands under Checks.
+Full: run C1-C6, including the disposable local integration.
+Build: run the production TypeScript command above and the full release regression.
+
 ## Checks
 
 **C1** - Request authentication rejects tamper/replay/stale input before reads (GW-01)
@@ -76,8 +82,11 @@ Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/ap
 **C5** - Real graph, signed HTTP and actual model interoperate (GW-06)
 Proof: `node --loader ./apps/api/tests/ready-prod-loader.mjs apps/api/tests/graph-rag.integration.mjs --local-disposable`
 
+**C6** - Canonical readers reject stale public sources and preserve current same-variant criteria and unavailable-provider fallback (GW-04/GW-05)
+Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test ./apps/api/src/modules/catalog/infrastructure/graph-catalog-search.spec.ts ./apps/api/src/modules/catalog/infrastructure/repositories/graph-catalog-availability.spec.ts ./apps/api/src/modules/knowledge-base/infrastructure/graph-knowledge.reader.spec.ts ./apps/api/src/modules/knowledge-base/application/use-cases/query-knowledge.graph.spec.ts`
+
 ## Handoff
 
-**Settled mid-build:** T1 five security/engine tests pass; T2 eleven transport/runtime tests pass plus strict targeted TypeScript. T3 code/package passes a real Neo4j5.26.32 plus signed HTTP plus actual pinned multilingual model; standalone gateway build, Docker build/entrypoint and API production TypeScript pass. Railway service8c56a46c-5c6e-443e-992e-bdddfa6b7f1f is empty and configured privately, not deployed. Neo4j restartcd414e5c-dd7e-452e-9d44-d7c2cfa69584 is SUCCESS; distinct query/indexer users exist and six constraints persisted. API variables/revision are unchanged; activation is off. User explicitly chose the private Community service. Foundation source at8a5ba7975; its final mutation runner needed a local Windows SIGHUP compatibility shim, not a change to the skill. Direct-driver read-role guard stays in place. Athom is the only activation allowlist entry; no new payment/order/stock operation.
-**Dispatched:** none; three tasks inline. A fresh independent Verifier follows code/proof completion.
+**Settled mid-build:** T1 five security/engine tests pass; T2 eleven transport/runtime tests pass plus strict targeted TypeScript. T3 code/package passes a real Neo4j5.26.32 plus signed HTTP plus actual pinned multilingual model; standalone gateway build, Docker build/entrypoint and API production TypeScript pass. Railway service8c56a46c-5c6e-443e-992e-bdddfa6b7f1f is configured privately, not deployed; whole-workspace upload failed at indexing (OS1450), so retry with an exact minimal git archive. Neo4j restartcd414e5c-dd7e-452e-9d44-d7c2cfa69584 is SUCCESS; distinct query/indexer users exist and six constraints persisted. API variables/revision are unchanged; activation is off. User explicitly chose the private Community service. Foundation source at8a5ba7975; its final mutation runner needed a local Windows SIGHUP compatibility shim, not a change to the skill. Direct-driver read-role guard stays in place. Athom is the only activation allowlist entry; no new payment/order/stock operation.
+**Dispatched:** fresh gateway_verifier at HEAD42a987474; code/package prerequisite6checks/build green. Runtime publication/activation remains pending; report must distinguish that gate. Reviewer returned: one canonical coverage finding closed by65cd947ec; no observed production-code security defect. Final mutation gate and runtime activation remain pending.
 **Walked:** no new UI; actual shared-channel acceptance follows the served revision.

@@ -1,0 +1,23 @@
+[
+  {
+    "file": "apps/api/src/modules/graph-rag/gateway/query-gateway.ts",
+    "old": "if (nonces.has(headers.nonce)) { send(401, { error: \"replayed\" });return; }",
+    "new": "if (false && nonces.has(headers.nonce)) { send(401, { error: \"replayed\" });return; }",
+    "proof": "node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-pattern=\"GW01 rejects tamper\" ./apps/api/src/modules/graph-rag/gateway/query-gateway.spec.ts",
+    "label": "C1 authenticated nonce replay must never execute twice"
+  },
+  {
+    "file": "apps/api/src/modules/graph-rag/gateway/community-read-engine.ts",
+    "old": "maxAgeMs: Math.min(checked.data.maxAgeMs, 300_000)",
+    "new": "maxAgeMs: checked.data.maxAgeMs",
+    "proof": "node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-pattern=\"GW02 fixed scoped engine\" ./apps/api/src/modules/graph-rag/gateway/community-read-engine.spec.ts",
+    "label": "C2 client cannot widen server maximum freshness"
+  },
+  {
+    "file": "apps/api/src/modules/graph-rag/infrastructure/community-gateway.adapter.ts",
+    "old": "if (!verifyQueryResponse(gateway.secret, auth.nonce, response.status, text, response.headers.get(\"x-zyon-response-signature\"))) return null;",
+    "new": "if (false && !verifyQueryResponse(gateway.secret, auth.nonce, response.status, text, response.headers.get(\"x-zyon-response-signature\"))) return null;",
+    "proof": "node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-pattern=\"GW03 malformed signed capability\" ./apps/api/src/modules/graph-rag/infrastructure/community-gateway.adapter.spec.ts",
+    "label": "C3 unsigned capability cannot admit a gateway"
+  }
+]
