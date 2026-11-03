@@ -138,6 +138,7 @@
     "express": "^5.2.1",
     "ioredis": "^5.11.1",
     "ipaddr.js": "^2.4.0",
+    "neo4j-driver": "6.3.0",
     "nestjs-pino": "^4.6.1",
     "papaparse": "5.7.0",
     "pg": "^8.20.0",

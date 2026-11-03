@@ -93,7 +93,7 @@ O Zyon interpreta filtros tipados, mas não consulta um grafo nem combina relaç
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
 | RAG-01 | Controlled retrieval | T1 | Verified |
-| RAG-02 | Controlled retrieval | T2 | In Tasks |
+| RAG-02 | Controlled retrieval | T2 | Verified |
 | RAG-03 | Public projection | T3 | In Tasks |
 | RAG-04 | Controlled retrieval | T4 | In Tasks |
 | RAG-05 | Canonical commerce | T6 | In Tasks |

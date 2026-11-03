@@ -63,8 +63,8 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7 -> T8
 **Gate**: quick
 **Done when**:
 
-- [ ] Reader admission rejects writer/admin roles and identical read/write identities in production.
-- [ ] Malformed, stale or foreign results do not escape the adapter.
+- [x] Reader admission rejects writer/admin roles and identical read/write identities in production.
+- [x] Malformed, stale or foreign results do not escape the adapter.
 
 ### T3: Project versioned public sources
 
@@ -192,6 +192,6 @@ Proof: `node --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-
 
 ## Handoff
 
-**Settled mid-build:** Existing plan implementation authorized; production Neo4j environment answer pending independently. T1 passed4 tests; compiler rejects invalid inputs and retains tenant scope.
+**Settled mid-build:** Existing plan implementation authorized; production Neo4j environment answer pending independently. T1 passed4 tests; compiler rejects invalid inputs and retains tenant scope. T2 passed4 tests and executed an empty scoped read on real local Neo4j5.26.32/Bolt5.8; no production reader admission claimed.
 **Dispatched:** none; eight tasks execute inline. A fresh Verifier is required after the last task.
 **Walked:** no new screen or binding capture; existing-channel acceptance follows an actually enabled environment.
