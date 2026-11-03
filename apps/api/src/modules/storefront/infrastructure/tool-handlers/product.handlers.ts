@@ -76,7 +76,8 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         ...(plan ? { attributes: plan.attributes.filter(item => item.priority === "required" || item.operator === "not_equals").map(({ priority: _priority, ...item }) => item), currency: "BRL" as const } : {}),
         inStockOnly: args.lookupOnly ? false : plan ? true : args.inStockOnly,
         isActiveOnly: true,
-        allowSemantic: !args.lookupOnly && !!plan && !/(?:\b(?:somente|apenas|exclusiv\w*|exat\w*)\b)/iu.test(ctx.userMessage ?? ""),
+        ...(!args.lookupOnly && plan && contextual && !args.cursor
+          && !/(?:\b(?:somente|apenas|exclusiv\w*|exat\w*)\b)/iu.test(ctx.userMessage ?? "") ? { allowSemantic: true } : {}),
         cursor: args.cursor,
         limit: Math.min(args.limit ?? 10, 20)
       });

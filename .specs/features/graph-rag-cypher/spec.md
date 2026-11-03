@@ -2,7 +2,7 @@
 
 **Approved**: 2026-11-03 - user: "ENTAO VAMOS IMPLEMENTAR O CYPHER VC JA TINHA FEITO UM PLANO PARA ISSO"
 
-This records the user's authorization to implement the existing GraphRAG plan. The criteria below make that plan executable; there was no separate presentation or new product approval. User selected "Preparar uma inst?ncia no Railway" during implementation. Provisioning the service in the existing project is authorized; new paid third-party subscriptions are not inferred. Earlier authorization covers Zyon production tests and releases; it does not supply a Neo4j account or authorize a new paid subscription.
+This records the user's authorization to implement the existing GraphRAG plan. The criteria below make that plan executable; there was no separate presentation or new product approval. User selected "Preparar uma instancia no Railway" during implementation. Provisioning the service in the existing project is authorized; new paid third-party subscriptions are not inferred. Earlier authorization covers Zyon production tests and releases; it does not supply a Neo4j account or authorize a new paid subscription.
 
 ## Problem Statement
 
@@ -23,7 +23,7 @@ O Zyon interpreta filtros tipados, mas não consulta um grafo nem combina relaç
 | Nova compra, cobrança ou alteração do pedido pago | Recuperação é somente leitura comercial. |
 | Dados ou documentos da Cura Viva | Projeto e autorização separados. |
 | Novo provedor de frete ou concessão de benefícios | Cotações e regras permanecem nos serviços canônicos; a capacidade por candidato continua uma entrega própria. |
-| Ativação de infraestrutura sem definição do ambiente | Instância e credenciais não existem no projeto; a pergunta foi enviada ao usuário. |
+| Ativacao da busca sem admissao de leitura | A instancia Railway foi preparada; Community nao oferece o papel reader exigido. A decisao de arquitetura/licenca permanece pendente. |
 
 ## Assumptions & Open Questions
 
@@ -35,7 +35,7 @@ O Zyon interpreta filtros tipados, mas não consulta um grafo nem combina relaç
 | Busca inicial | Ranking vetorial exato após escopo da loja, com limite de leitura e seleção parcial explícita | Evita que candidatos de outras lojas esgotem uma busca ANN global | y |
 | Infraestrutura de produção | Preparação e testes locais continuam; ativação depende do ambiente respondido e de leitura restrita comprovada | Nenhuma assinatura paga nem chave foi fornecida | y |
 
-**Open questions:** nenhuma para o código e a prova local. A configuração externa permanece uma dependência operacional registrada, sem ser inferida como aprovação de gastos.
+**Open questions:** none for code and local proof. Railway provisioning is complete. Production query activation awaits the reader-access architecture decision asked asynchronously; no paid license is inferred.
 
 ## User Stories
 

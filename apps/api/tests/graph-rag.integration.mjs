@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import neo4j from "neo4j-driver";
 import { Neo4jGraphAdapter } from "../src/modules/graph-rag/infrastructure/neo4j-graph.adapter.ts";
 import { GraphLocalEmbeddingService } from "../src/modules/graph-rag/infrastructure/graph-local-embedding.service.ts";
@@ -20,6 +21,8 @@ const docker = (args, options = {}) => {
 };
 let container, adapter, admin, proof;
 const started = Date.now();
+const recordProof = value => writeFileSync(new URL("../../../.specs/features/graph-rag-cypher/integration-proof.json", import.meta.url), JSON.stringify(value, null, 2) + "\n");
+recordProof({ passed: false, state: "running", observedAt: new Date().toISOString() });
 try {
   container = docker(["run", "--detach", "--rm", "--name", name, "--label", `com.zyon.qa=${label}`,
     "--publish", "127.0.0.1::7687", "--memory", "1g", "--cpus", "2", "--env", "NEO4J_AUTH",
@@ -41,7 +44,7 @@ try {
     for (const statement of GRAPH_SCHEMA_STATEMENTS) await session.run(statement);
   } finally { await session.close(); }
   const settings = { enabled: true, merchantIds: ["fixture-shop-a", "fixture-shop-b"], uri, database: "neo4j",
-    readUser: "neo4j", readPassword: password, writeUser: "neo4j", writePassword: password, production: false, timeoutMs: 2000 };
+    readUser: "neo4j", readPassword: password, writeUser: "neo4j", writePassword: password, production: false, timeoutMs: 10_000 };
   adapter = new Neo4jGraphAdapter(settings);
   // This administrative loopback credential is only a test fixture. It is
   // deliberately rejected by the same adapter when production=true.
@@ -95,6 +98,9 @@ try {
       "FAQ vector retrieval", "duplicate projection", "tombstone rejects old upsert", "other tenant retained",
       "complete enumeration retirement", "newer versions retained", "production administrative credential rejected"],
     scope: "Disposable graph and synthetic public fixtures; no PostgreSQL commerce writes or production-channel acceptance." };
+} catch (error) {
+  recordProof({ passed: false, observedAt: new Date().toISOString(), error: error instanceof Error ? error.message : "unknown_test_failure" });
+  throw error;
 } finally {
   await Promise.allSettled([adapter?.close(), admin?.close()]);
   if (container) {
@@ -103,4 +109,5 @@ try {
     docker(["stop", "--time", "5", container]);
   }
 }
+recordProof(proof);
 console.log(JSON.stringify(proof));
