@@ -3,9 +3,44 @@ import assert from "node:assert/strict";
 import { planStorefrontShopping, shoppingPlannerOutputSchema } from "./structured-shopping-planner.js";
 
 const usage = { promptTokens: 10, completionTokens: 20, totalTokens: 30 };
+
+const skinHistory = [
+  { role: "user" as const, content: "Quero comprar um produto" },
+  { role: "assistant" as const, content: "Que tipo de produto você procura ou qual necessidade quer atender?" },
+  { role: "user" as const, content: "Para minha pele" },
+  { role: "assistant" as const, content: "Como você descreveria sua pele?" },
+];
 export const wirePlan = (extra: Record<string, unknown> = {}) => ({ schemaVersion: 1, plan: { version: 1, query: "*",
   minPriceCents: null, maxPriceCents: null, minRating: null, attributes: [], sortBy: null, delivery: null,
   unsupportedCriteria: [], ...extra } });
+
+test("a short skin-profile answer reaches the planner with the active need and retains its scoped requirements", async () => {
+  const attributes = [{ name: "tipo de pele", value: "mista", operator: "equals", priority: "preferred" }];
+  const result = await planStorefrontShopping({ chat: async request => {
+    const input = JSON.parse(request.messages[1]!.content!);
+    assert.match(input.activeNeed, /Para minha pele/);
+    assert.match(input.activeNeed, /Mista/);
+    return { content: JSON.stringify(wirePlan({ query: "pele", attributes })), usage };
+  } } as never, { userMessage: "Mista", history: skinHistory }, { mode: "json_object" });
+  assert.equal(result.plan?.query, "pele");
+  assert.deepEqual(result.plan?.attributes, attributes);
+});
+
+test("a wildcard plan after a known skin-profile answer is rejected without retrying the provider", async () => {
+  let calls = 0;
+  const result = await planStorefrontShopping({ chat: async () => {
+    calls++; return { content: JSON.stringify(wirePlan()), usage };
+  } } as never, { userMessage: "Mista", history: skinHistory }, { mode: "json_object" });
+  assert.equal(result.plan, undefined);
+  assert.equal(calls, 1);
+  assert.deepEqual(result.usage, usage);
+});
+
+test("an explicit general-catalog request can still clear an earlier skin need", async () => {
+  const result = await planStorefrontShopping({ chat: async () => ({ content: JSON.stringify(wirePlan()), usage }) } as never,
+    { userMessage: "Quero ver todo o catálogo", history: skinHistory }, { mode: "json_object" });
+  assert.equal(result.plan?.query, "*");
+});
 
 test("planning freezes typed buyer requirements separately from narration and preserves corrections in context", async () => {
   const history = [{ role: "user" as const, content: "Meu teto é R$ 70." },
