@@ -102,7 +102,7 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7 -> T8
 **Gate**: quick
 **Done when**:
 
-- [ ] Revoked, changed or foreign sources are discarded before answering.
+- [x] Revoked, changed or foreign sources are discarded before answering.
 
 ### T6: Revalidate semantic product candidates
 

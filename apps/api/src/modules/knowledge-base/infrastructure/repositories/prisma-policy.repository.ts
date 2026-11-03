@@ -8,6 +8,16 @@ export class PrismaPolicyRepository implements PolicyRepositoryPort {
 
   constructor(private readonly prisma: PrismaClient) {}
 
+  /** Canonical public policies, including explicit removals in store settings. */
+  async publicSnapshot(merchantId: string) {
+    return this.prisma.$transaction(async tx => {
+      const row = await tx.merchantPolicy.findUnique({ where: { merchantId } });
+      const merchant = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true, updatedAt: true } });
+      return { merchantId, version: Math.max(row?.updatedAt.getTime() ?? 0, merchant?.updatedAt.getTime() ?? 0),
+        policy: resolveStorePolicies(merchant?.storeSettings, row) as MerchantPolicyData };
+    }, { isolationLevel: "RepeatableRead" });
+  }
+
   async get(merchantId: string): Promise<MerchantPolicyData | null> {
     try {
       const [row, merchant] = await Promise.all([

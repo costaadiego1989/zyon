@@ -6,6 +6,7 @@ import {
   type KnowledgeChunk,
 } from "../../domain/ports/knowledge-repository.port.js";
 import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
+import { PUBLIC_KNOWLEDGE_SEARCH, type PublicKnowledgeSearchPort } from "../../domain/ports/public-knowledge-search.port.js";
 
 export interface QueryKnowledgeInput {
   merchantId: string;
@@ -26,6 +27,7 @@ export class QueryKnowledgeUseCase {
     @Inject(EMBEDDING_PORT) private readonly embeddingService: EmbeddingPort,
     @Inject(KNOWLEDGE_REPOSITORY) private readonly knowledgeRepo: KnowledgeRepositoryPort,
     @Optional() private readonly billing?: BillingPlanMeteringService,
+    @Optional() @Inject(PUBLIC_KNOWLEDGE_SEARCH) private readonly graph?: PublicKnowledgeSearchPort,
   ) {}
 
   async execute(input: QueryKnowledgeInput): Promise<QueryKnowledgeOutput> {
@@ -33,6 +35,11 @@ export class QueryKnowledgeUseCase {
       await this.billing?.assertAllowed(input.merchantId, { kind: "feature", key: "knowledgeBase" });
     } catch {
       return { chunks: [] };
+    }
+    // An enabled merchant answers only from revalidated public sources. A failed
+    // graph must not revive stale legacy policy/config chunks.
+    if (this.graph?.enabledFor(input.merchantId)) {
+      return { chunks: await this.graph.search(input) ?? [] };
     }
     // Default: return empty if embedding unavailable
     if (!this.embeddingService.isAvailable()) {
