@@ -38,6 +38,7 @@ import { InstallationsModule } from "./modules/installations/installations.modul
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { OperationsModule } from "./modules/operations/operations.module.js";
 import { CatalogModule } from "./modules/catalog/catalog.module.js";
+import { GraphRagSyncModule } from "./modules/graph-rag/graph-rag-sync.module.js";
 import { StoreSettingsModule } from "./modules/store-settings/store-settings.module.js";
 import { ReturnsModule } from "./modules/returns/returns.module.js";
 import { StoreAnalyticsModule } from "./modules/store-analytics/store-analytics.module.js";
@@ -101,6 +102,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     OperationsModule,
     StoriesModule,
     CatalogModule,
+    GraphRagSyncModule,
     StoreSettingsModule,
     ReturnsModule,
     StoreAnalyticsModule,

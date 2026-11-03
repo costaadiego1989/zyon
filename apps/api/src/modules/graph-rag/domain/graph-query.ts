@@ -27,6 +27,7 @@ MATCH (p:ZyonGraphProduct {merchantId: $merchantId})
       -[:ZyonGraphHasVariant {merchantId: $merchantId}]->
       (v:ZyonGraphVariant {merchantId: $merchantId})
 WHERE p.active = true AND v.active = true AND v.productId = p.canonicalId
+  AND p.schemaVersion = 1 AND v.schemaVersion = 1
   AND v.sourceVersion = p.sourceVersion
   AND p.modelId = $modelId AND v.modelId = $modelId
   AND p.projectedAt >= $minProjectedAt AND v.projectedAt >= $minProjectedAt
@@ -56,6 +57,7 @@ MATCH (d:ZyonGraphDocument {merchantId: $merchantId})
       -[:ZyonGraphHasChunk {merchantId: $merchantId}]->
       (c:ZyonGraphChunk {merchantId: $merchantId})
 WHERE d.active = true AND c.active = true AND c.sourceId = d.canonicalId
+  AND d.schemaVersion = 1 AND c.schemaVersion = 1
   AND c.sourceType = d.sourceType AND d.sourceType IN $sourceTypes
   AND c.sourceVersion = d.sourceVersion
   AND d.modelId = $modelId AND c.modelId = $modelId

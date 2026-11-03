@@ -1,4 +1,9 @@
 import { Module } from "@nestjs/common";
+import { GraphRagModule } from "../graph-rag/graph-rag.module.js";
+import { GRAPH_RETRIEVAL, type GraphRetrievalPort } from "../graph-rag/domain/graph-rag.port.js";
+import { GRAPH_CATALOG_SOURCES, type GraphCatalogSourcesPort } from "../graph-rag/domain/public-graph-sources.port.js";
+import { GraphCatalogSearch } from "./infrastructure/graph-catalog-search.js";
+import { PublicGraphCatalogSources } from "./infrastructure/public-graph-catalog.sources.js";
 import type { PrismaClient } from "@prisma/client";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/infrastructure/billing/billing-plan-guard.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
@@ -101,6 +106,7 @@ import { ListMerchantProductReviewsUseCase } from "./application/use-cases/list-
 
 @Module({
   imports: [
+    GraphRagModule,
     CommerceModule,
     IntegrationsModule,
     CheckoutPersistenceModule,
@@ -113,6 +119,7 @@ import { ListMerchantProductReviewsUseCase } from "./application/use-cases/list-
   // Static product collections must precede /products/:pid in the Express router.
   controllers: [WidgetCatalogController, ProductLayoutStatusController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController, ModerationController, ProductContentHistoryController, ProductContentController],
   providers: [
+    { provide: GRAPH_CATALOG_SOURCES, useFactory: (prisma: PrismaClient) => new PublicGraphCatalogSources(prisma), inject: [PRISMA_CLIENT] },
     BillingPlanMeteringService,
     PlanLimitGuard,
     {
@@ -139,8 +146,8 @@ import { ListMerchantProductReviewsUseCase } from "./application/use-cases/list-
     },
     {
       provide: "ProductRepositoryPort",
-      useFactory: (prisma: PrismaClient) => new PrismaProductRepository(prisma),
-      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: PrismaClient, graph: GraphRetrievalPort, sources: GraphCatalogSourcesPort) => new PrismaProductRepository(prisma, new GraphCatalogSearch(graph, sources)),
+      inject: [PRISMA_CLIENT, GRAPH_RETRIEVAL, GRAPH_CATALOG_SOURCES],
     },
     {
       provide: "StockRepositoryPort",
@@ -231,6 +238,7 @@ import { ListMerchantProductReviewsUseCase } from "./application/use-cases/list-
     GetImportJobUseCase,
   ],
   exports: [
+    GRAPH_CATALOG_SOURCES,
     SearchStorefrontProductsUseCase,
     AddStorefrontItemUseCase,
     AddProductUseCase,

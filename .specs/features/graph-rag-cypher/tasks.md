@@ -127,8 +127,8 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7 -> T8
 **Gate**: quick
 **Done when**:
 
-- [ ] Disabled mode opens no graph connection and keeps legacy paths.
-- [ ] Only enabled merchants are projected and failures remain isolated.
+- [x] Disabled mode opens no graph connection and keeps legacy paths.
+- [x] Only enabled merchants are projected and failures remain isolated.
 
 ### T8: Deliver operational bootstrap and acceptance
 

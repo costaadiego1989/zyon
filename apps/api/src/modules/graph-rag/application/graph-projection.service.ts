@@ -91,6 +91,20 @@ export class GraphProjectionService {
   constructor(private readonly graph: GraphProjectionTransactions, private readonly embeddings: GraphEmbeddingPort,
     private readonly clock: () => number = Date.now) {}
 
+  /** Call only after a complete canonical enumeration. Newer versions are kept. */
+  async retireMissingCatalog(merchantId: string, sourceIds: readonly string[], observedAt: number): Promise<void> {
+    const result = await this.graph.withProjection(merchantId, tx => tx.run(`
+      MATCH (p:ZyonGraphProduct {merchantId: $merchantId})
+      WHERE p.active = true AND p.sourceVersion < $observedAt AND NOT p.canonicalId IN $sourceIds
+      RETURN p.canonicalId AS id LIMIT 5000`, { merchantId, sourceIds: [...sourceIds], observedAt }));
+    for (const record of result.records) {
+      const id = record.toObject().id;
+      if (typeof id !== "string") throw Error("graph_reconciliation_invalid_identity");
+      const outcome = await this.projectCatalog({ kind: "catalog", merchantId, id, active: false, version: observedAt });
+      if (outcome.status === "unavailable") throw Error("graph_tombstone_incomplete");
+    }
+  }
+
   async projectCatalog(value: unknown): Promise<GraphProjectionOutcome> {
     const checked = catalogProjectionSchema.safeParse(value);
     if (!checked.success || checked.data.version > this.clock() + 30_000) return { status: "unavailable", reason: "invalid_source" };

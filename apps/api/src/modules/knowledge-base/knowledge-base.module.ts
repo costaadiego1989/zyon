@@ -1,4 +1,12 @@
 import { Module } from "@nestjs/common";
+import { GraphRagModule } from "../graph-rag/graph-rag.module.js";
+import { GRAPH_RETRIEVAL, type GraphRetrievalPort } from "../graph-rag/domain/graph-rag.port.js";
+import { GRAPH_KNOWLEDGE_SOURCES, type GraphKnowledgeSourcesPort } from "../graph-rag/domain/public-graph-sources.port.js";
+import { PublicSupportKnowledgeModule } from "../support/public-support-knowledge.module.js";
+import { PUBLIC_SUPPORT_FAQ, type PublicSupportFaqPort } from "../support/domain/ports/public-support-faq.port.js";
+import { PUBLIC_KNOWLEDGE_SEARCH } from "./domain/ports/public-knowledge-search.port.js";
+import { PublishedGraphKnowledgeSources } from "./infrastructure/published-graph-knowledge.sources.js";
+import { GraphKnowledgeReader } from "./infrastructure/graph-knowledge.reader.js";
 import type { PrismaClient } from "@prisma/client";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
@@ -25,9 +33,11 @@ import { MerchantPolicyController } from "./presentation/http/merchant-policy.co
 import { KnowledgeAdminController } from "./presentation/http/knowledge-admin.controller.js";
 
 @Module({
-  imports: [CatalogModule, IntegrationsModule],
+  imports: [CatalogModule, IntegrationsModule, GraphRagModule, PublicSupportKnowledgeModule],
   controllers: [MerchantPolicyController, KnowledgeAdminController],
   providers: [
+    { provide: GRAPH_KNOWLEDGE_SOURCES, useFactory: (prisma: PrismaClient, faq: PublicSupportFaqPort) => new PublishedGraphKnowledgeSources(new PrismaPolicyRepository(prisma), faq), inject: [PRISMA_CLIENT, PUBLIC_SUPPORT_FAQ] },
+    { provide: PUBLIC_KNOWLEDGE_SEARCH, useFactory: (graph: GraphRetrievalPort, sources: GraphKnowledgeSourcesPort) => new GraphKnowledgeReader(graph, sources), inject: [GRAPH_RETRIEVAL, GRAPH_KNOWLEDGE_SOURCES] },
     BillingPlanMeteringService,
     PlanLimitGuard,
     IndexFaqUseCase,
@@ -57,6 +67,6 @@ import { KnowledgeAdminController } from "./presentation/http/knowledge-admin.co
     LocalEmbeddingService,
     { provide: EMBEDDING_PORT, useExisting: LocalEmbeddingService },
   ],
-  exports: [QueryKnowledgeUseCase, IndexFaqUseCase, IndexProductUseCase, IndexPolicyUseCase, IndexConfigUseCase, BuyerOrderContextService],
+  exports: [GRAPH_KNOWLEDGE_SOURCES, QueryKnowledgeUseCase, IndexFaqUseCase, IndexProductUseCase, IndexPolicyUseCase, IndexConfigUseCase, BuyerOrderContextService],
 })
 export class KnowledgeBaseModule {}

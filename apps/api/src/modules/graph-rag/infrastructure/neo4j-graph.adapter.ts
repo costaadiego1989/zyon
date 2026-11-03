@@ -39,6 +39,11 @@ export class Neo4jGraphAdapter implements GraphReadPort, GraphProjectionTransact
     return this.settings.enabled && this.merchants.has(merchantId) && !!this.settings.uri;
   }
 
+  async admitReader(): Promise<boolean> {
+    if (!this.settings.enabled || !this.settings.merchantIds.length || !this.settings.uri) return false;
+    try { await this.readerDriver(); return true; } catch { return false; }
+  }
+
   private requiresReadRole() {
     let loopback = false;
     try { loopback = ["localhost", "127.0.0.1", "[::1]"].includes(new URL(this.settings.uri!).hostname); } catch { /* Invalid config cannot be admitted. */ }
