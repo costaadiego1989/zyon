@@ -116,6 +116,9 @@ RUN cd /repo/apps/api && NODE_OPTIONS=--max-old-space-size=4096 pnpm exec tsc -p
 # download, and a native/runtime failure must fail the build instead of hiding RAG.
 RUN cd /repo/apps/api && node --input-type=module -e "const { LocalEmbeddingService } = await import('./dist/modules/knowledge-base/infrastructure/services/local-embedding.service.js'); const vector = await new LocalEmbeddingService().generate('Verificação da base de conhecimento da loja'); if (!vector || vector.length !== 384) process.exit(1); console.log('LOCAL EMBEDDING INFERENCE OK: 384 dimensions')"
 
+# Keep the multilingual graph index separate and ready before serving shoppers.
+RUN cd /repo/apps/api && node --input-type=module -e "const { GraphLocalEmbeddingService } = await import('./dist/modules/graph-rag/infrastructure/graph-local-embedding.service.js'); const service = new GraphLocalEmbeddingService(); const vector = await service.generate('Cuidado com a barreira da pele'); if (!vector || vector.length !== 384) process.exit(1); console.log('GRAPH EMBEDDING INFERENCE OK:', service.modelId)"
+
 # Verify nest build produced output.
 RUN test -f /repo/apps/api/dist/main.js && \
     echo "NEST BUILD OK" || \

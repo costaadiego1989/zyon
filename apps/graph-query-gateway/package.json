@@ -1,0 +1,10 @@
+{
+  "name": "@zyon/graph-query-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": ["dist"],
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": { "neo4j-driver": "6.3.0", "zod": "4.4.3" },
+  "devDependencies": { "@types/node": "^22.10.2", "typescript": "5.9.3" }
+}

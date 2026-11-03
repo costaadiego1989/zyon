@@ -26,6 +26,8 @@ Por padrão a função fica desligada. Variáveis necessárias:
 | `NEO4J_READ_USER`, `NEO4J_READ_PASSWORD` | Identidade exclusiva de leitura |
 | `NEO4J_WRITE_USER`, `NEO4J_WRITE_PASSWORD` | Identidade de projeção distinta |
 
+Para o Community aprovado pelo usuário, configurar também `GRAPH_RAG_QUERY_MODE=community_gateway`, `GRAPH_GATEWAY_URL=http://graph-query.railway.internal:8080`, `GRAPH_GATEWAY_KEY_ID=athom-v1` e `GRAPH_GATEWAY_KEY` por referência ao segredo do serviço privado. A API não recebe a senha do usuário de consulta desse serviço. As variáveis de leitura direta não são usadas neste modo.
+
 A admissão consulta os papéis reais da identidade de leitura e exige somente `reader`/`PUBLIC`. Configuração incompleta, papéis inadequados ou falha nessa verificação deixam as consultas e a sincronização desativadas. O modo `READ` do driver é roteamento, não uma permissão de segurança. Em modo local, apenas endpoints literais de loopback e `production=false` admitem a credencial administrativa do teste.
 
 As constraints de identidade estão em `GRAPH_SCHEMA_STATEMENTS` e são criadas pelo operador usando a identidade de escrita antes da ativação. O caminho de consulta nunca executa DDL. O procedimento de produção exige edição/credencial que suporte o papel reader e validação autenticada antes de configurar a API.
@@ -40,7 +42,9 @@ As constraints de identidade estão em `GRAPH_SCHEMA_STATEMENTS` e são criadas 
 - Deploy `ba042d3a-f612-4704-a3a6-5dd5161665e7`: SUCCESS. Consulta autenticada confirmou Neo4j 5.26.32 Community e `roles=NULL` para o usuário administrativo.
 - As seis constraints de identidade foram criadas e conferidas por consulta autenticada. Não foram projetados dados de compradores, pedidos ou pagamentos.
 
-**Bloqueio de ativação:** Community não oferece o papel reader requerido pelo plano. A instância está pronta para preparação privada, mas não satisfaz a admissão de leitura em produção. Nenhuma licença Enterprise foi presumida/contratada e nenhuma variável da API foi alterada. Resolver a edição/licença ou aprovar e revisar outra arquitetura de isolamento precede a ativação. O código deste documento não foi publicado na API por esse provisionamento.
+**Leitura direta:** Community não oferece o papel reader e continua reprovado nesse modo. O usuário escolheu explicitamente um serviço privado de consultas controladas, sem licença Enterprise. A implementação desse modo usa autenticação HMAC, nonce/timestamp, proteção contra replay, modelo e fingerprint de templates fixos, escopo de loja, limites de corpo/concorrrência/tempo e respostas assinadas. Não aceita Cypher livre ou escrita. A conta Community continua implicitamente administrativa; a restrição de consulta é fornecida pelo serviço separado. O modo direto preserva sua verificação de reader.
+
+Serviço privado preparado: `graph-query`, ID `8c56a46c-5c6e-443e-992e-bdddfa6b7f1f`, endpoint `graph-query.railway.internal:8080`. Usuários distintos `zyon_graph_query` e `zyon_graph_indexer` foram criados no Neo4j. O restart `cd414e5c-dd7e-452e-9d44-d7c2cfa69584` terminou em SUCCESS e preservou as seis constraints no volume. Credenciais foram configuradas sem impressão dos valores. Publicação e ativação da API permanecem pendentes da revisão independente e das provas do ambiente servido.
 
 ## Validação reproduzível
 
@@ -48,6 +52,8 @@ Na raiz do repositório, com Docker disponível:
 
 ```powershell
 node --loader ./apps/api/tests/ready-prod-loader.mjs apps/api/tests/graph-rag.integration.mjs --local-disposable
+docker build -f apps/graph-query-gateway/Dockerfile -t zyon-graph-query:qa-20261103 .
+pnpm --filter @zyon/graph-query-gateway build
 pnpm --dir apps/api exec tsc -p tsconfig.build.json --noEmit --incremental false --pretty false
 ```
 

@@ -55,7 +55,7 @@ T1 -> T2 -> T3, one verified commit per component. Independent Verifier after pr
 **Gate**: build
 **Done when**:
 
-- [ ] Actual engine/HTTP/model proof and regression pass.
+- [x] Actual engine/HTTP/model proof, standalone build, Docker build/entrypoint and production TypeScript pass. Full regression is a release gate after independent review.
 - [ ] Railway source/health/private authentication and current Athom projection verified.
 - [ ] Actual shared-channel searches and remaining acceptance states reported honestly.
 
@@ -78,6 +78,6 @@ Proof: `node --loader ./apps/api/tests/ready-prod-loader.mjs apps/api/tests/grap
 
 ## Handoff
 
-**Settled mid-build:** User explicitly chose the private Community service. Foundation source at8a5ba7975; its final mutation runner needed a local Windows SIGHUP compatibility shim, not a change to the skill. Direct-driver read-role guard stays in place. Athom is the only activation allowlist entry; no new payment/order/stock operation.
+**Settled mid-build:** T1 five security/engine tests pass; T2 eleven transport/runtime tests pass plus strict targeted TypeScript. T3 code/package passes a real Neo4j5.26.32 plus signed HTTP plus actual pinned multilingual model; standalone gateway build, Docker build/entrypoint and API production TypeScript pass. Railway service8c56a46c-5c6e-443e-992e-bdddfa6b7f1f is empty and configured privately, not deployed. Neo4j restartcd414e5c-dd7e-452e-9d44-d7c2cfa69584 is SUCCESS; distinct query/indexer users exist and six constraints persisted. API variables/revision are unchanged; activation is off. User explicitly chose the private Community service. Foundation source at8a5ba7975; its final mutation runner needed a local Windows SIGHUP compatibility shim, not a change to the skill. Direct-driver read-role guard stays in place. Athom is the only activation allowlist entry; no new payment/order/stock operation.
 **Dispatched:** none; three tasks inline. A fresh independent Verifier follows code/proof completion.
 **Walked:** no new UI; actual shared-channel acceptance follows the served revision.

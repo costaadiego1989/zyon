@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
+import { once } from "node:events";
 import neo4j from "neo4j-driver";
 import { Neo4jGraphAdapter } from "../src/modules/graph-rag/infrastructure/neo4j-graph.adapter.ts";
 import { GraphLocalEmbeddingService } from "../src/modules/graph-rag/infrastructure/graph-local-embedding.service.ts";
 import { GraphProjectionService, GRAPH_SCHEMA_STATEMENTS } from "../src/modules/graph-rag/application/graph-projection.service.ts";
 import { GraphRetrievalService } from "../src/modules/graph-rag/application/graph-retrieval.service.ts";
+import { CommunityReadEngine } from "../src/modules/graph-rag/gateway/community-read-engine.ts";
+import { createQueryGateway } from "../src/modules/graph-rag/gateway/query-gateway.ts";
+import { CommunityGatewayAdapter } from "../src/modules/graph-rag/infrastructure/community-gateway.adapter.ts";
 
 // No environment connection string, commercial database, buyer or order is used.
 // This runner owns a fresh, loopback-only disposable engine and only that engine.
@@ -19,7 +23,7 @@ const docker = (args, options = {}) => {
   if (result.status !== 0) throw Error("disposable_docker_operation_failed");
   return result.stdout.trim();
 };
-let container, adapter, admin, proof;
+let container, adapter, admin, proof, gateway, queryClient;
 const started = Date.now();
 const recordProof = value => writeFileSync(new URL("../../../.specs/features/graph-rag-cypher/integration-proof.json", import.meta.url), JSON.stringify(value, null, 2) + "\n");
 recordProof({ passed: false, state: "running", observedAt: new Date().toISOString() });
@@ -52,8 +56,15 @@ try {
   try { assert.equal(await production.admitReader(), false); } finally { await production.close(); }
   const embedding = new GraphLocalEmbeddingService();
   const projection = new GraphProjectionService(adapter, embedding);
+  const secret = randomBytes(32).toString("hex"), keyId = "fixture-key";
+  gateway = createQueryGateway({ secret, keyId, merchantIds: settings.merchantIds }, new CommunityReadEngine({ uri,
+    user: "neo4j", password, database: "neo4j", merchantIds: settings.merchantIds }));
+  gateway.server.listen(0, "127.0.0.1");await once(gateway.server, "listening");
+  const queryUri = `http://127.0.0.1:${gateway.server.address().port}`;
+  queryClient = new CommunityGatewayAdapter({ ...settings, queryMode: "community_gateway", queryGateway: { uri: queryUri, secret, keyId } }, adapter);
+  assert.equal(await queryClient.admitReader(), true);
   const retrieval = new GraphRetrievalService({ enabled: true, merchantIds: settings.merchantIds,
-    timeoutMs: 60_000, maxAgeMs: 300_000, threshold: 0.65 }, embedding, adapter);
+    timeoutMs: 60_000, maxAgeMs: 300_000, threshold: 0.65 }, embedding, queryClient);
   const version = Date.now();
   const care = merchantId => ({ kind: "catalog", merchantId, id: "p-care", version, active: true,
     name: "Creme reparador", description: "Hidratacao e protecao da barreira cutanea contra o ressecamento",
@@ -100,7 +111,7 @@ try {
   assert.deepEqual((await retrieval.searchCatalog({ merchantId: "fixture-shop-b", query })).hits, []);
   proof = { passed: true, observedAt: new Date().toISOString(), engine,
     model: embedding.modelId, dimensions: embedding.dimensions, durationMs: Date.now() - started,
-    checks: ["real multilingual inference", "tenant-first scoped Cypher", "same-variant negative attribute",
+    checks: ["real multilingual inference", "signed HTTP admission and nonce-bound responses", "tenant-first scoped Cypher", "same-variant negative attribute",
       "FAQ vector retrieval", "duplicate projection", "tombstone rejects old and conflicting same-version upsert", "document equal-version tombstone", "other tenant retained",
       "complete enumeration retirement", "newer versions retained", "production administrative credential rejected"],
     scope: "Disposable graph and synthetic public fixtures; no PostgreSQL commerce writes or production-channel acceptance." };
@@ -108,6 +119,7 @@ try {
   recordProof({ passed: false, observedAt: new Date().toISOString(), error: error instanceof Error ? error.message : "unknown_test_failure" });
   throw error;
 } finally {
+  await queryClient?.close();await gateway?.close();
   await Promise.allSettled([adapter?.close(), admin?.close()]);
   if (container) {
     const owned = JSON.parse(docker(["inspect", container]))[0];
