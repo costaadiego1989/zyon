@@ -18,6 +18,12 @@ export interface GraphConnectionSettings {
   enabled: boolean; merchantIds: readonly string[]; uri?: string; database: string;
   readUser?: string; readPassword?: string; writeUser?: string; writePassword?: string;
   production: boolean; timeoutMs: number;
+  queryMode?: "direct" | "community_gateway";
+  queryGateway?: { uri: string; keyId: string; secret: string };
+}
+export interface GraphRuntimeAdapter extends GraphReadPort, GraphProjectionTransactions {
+  admitReader(): Promise<boolean>;
+  close(): Promise<void>;
 }
 export interface GraphTransaction {
   run(text: string, parameters?: Record<string, unknown>): Promise<{ records: Array<{ toObject(): Record<string, unknown> }> }>;

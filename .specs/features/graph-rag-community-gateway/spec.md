@@ -55,9 +55,9 @@ New purchases, financial events, inventory mutations, labels/physical dispatch, 
 | --- | --- | --- |
 | GW-01 | T1 | Verified |
 | GW-02 | T1 | Verified |
-| GW-03 | T2 | In Tasks |
-| GW-04 | T2/T3 | In Tasks |
-| GW-05 | T2 | In Tasks |
+| GW-03 | T2 | Verified |
+| GW-04 | T2/T3 | T2 verified; production pending |
+| GW-05 | T2 | Verified |
 | GW-06 | T3 | In Tasks |
 
 ## Differences from the source

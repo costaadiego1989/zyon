@@ -8,6 +8,7 @@ import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
 const secret = "a".repeat(64), keyId = "athom-v1", now = 1_790_000_000_000;
 const input = { kind: "catalog", merchantId: "shop-a", query: "pele", modelId: GRAPH_EMBEDDING_ID,
   embedding: [1, ...Array(383).fill(0)], nowEpochMs: now };
+const envelope = (input: unknown) => ({ protocol: 1, templateHash: GRAPH_TEMPLATE_HASH, input });
 async function fixture() {
   const reads: any[] = [];let probes = 0, closes = 0;
   const gateway = createQueryGateway({ secret, keyId, merchantIds: ["shop-a"] }, { probe: async () => { probes++;return true; },
@@ -15,7 +16,7 @@ async function fixture() {
   gateway.server.listen(0, "127.0.0.1");await once(gateway.server, "listening");
   const address = gateway.server.address() as any, base = `http://127.0.0.1:${address.port}`;
   const request = async (value: unknown, options: { path?: string; key?: string; time?: number; headers?: any; raw?: string } = {}) => {
-    const path = options.path ?? "/v1/read", body = options.raw ?? JSON.stringify(value);
+    const path = options.path ?? "/v1/read", body = options.raw ?? JSON.stringify(path === "/v1/read" ? envelope(value) : value);
     const auth = options.headers ?? signQuery(options.key ?? secret, keyId, path, body, options.time ?? now);
     const response = await fetch(base + path, { method: "POST", headers: { "content-type": "application/json", "x-zyon-key-id": auth.keyId,
       "x-zyon-timestamp": auth.timestamp, "x-zyon-nonce": auth.nonce, "x-zyon-signature": auth.signature }, body });
@@ -46,7 +47,7 @@ test("GW01 rejects tamper stale replay foreign unknown-field and write requests 
       [{ ...input, modelId: "wrong-model" }, {}, 400], [input, { path: "/v1/write" }, 404],
       [input, { raw: "not-json" }, 400],
     ] as const) { assert.equal((await f.request(value, options)).status, status);assert.equal(f.reads.length, 0); }
-    const headers = signQuery(secret, keyId, "/v1/read", JSON.stringify(input), now);
+    const headers = signQuery(secret, keyId, "/v1/read", JSON.stringify(envelope(input)), now);
     assert.equal((await f.request({ ...input, merchantId: "shop-b" }, { headers })).status, 401);
     assert.equal(f.reads.length, 0);
     assert.equal((await f.request(input, { headers })).status, 200);

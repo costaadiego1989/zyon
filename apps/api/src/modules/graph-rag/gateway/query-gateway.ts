@@ -1,9 +1,8 @@
 import { createServer, type IncomingMessage } from "node:http";
 import { z } from "zod";
-import { graphReadSchema } from "../domain/graph-query.js";
 import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
 import type { GatewayReadEngine } from "./community-read-engine.js";
-import { GRAPH_GATEWAY_MAX_BODY_BYTES, GRAPH_QUERY_PROTOCOL, GRAPH_TEMPLATE_HASH, verifyQuery, signQueryResponse } from "./query-protocol.js";
+import { GRAPH_GATEWAY_MAX_BODY_BYTES, GRAPH_QUERY_PROTOCOL, GRAPH_TEMPLATE_HASH, gatewayReadEnvelope, verifyQuery, signQueryResponse } from "./query-protocol.js";
 
 export interface QueryGatewaySettings { keyId: string; secret: string; merchantIds: readonly string[] }
 const admission = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL), templateHash: z.literal(GRAPH_TEMPLATE_HASH),
@@ -49,10 +48,10 @@ export function createQueryGateway(settings: QueryGatewaySettings, engine: Gatew
         send(200, { protocol: GRAPH_QUERY_PROTOCOL, templateHash: GRAPH_TEMPLATE_HASH, modelId: GRAPH_EMBEDDING_ID,
           merchantIds: checked.data.merchantIds, mode: "community_controlled", operations: ["catalog", "knowledge"] }, headers.nonce);return;
       }
-      const checked = graphReadSchema.safeParse(value);
-      if (!checked.success || checked.data.modelId !== GRAPH_EMBEDDING_ID) { send(400, { error: "invalid_input" }, headers.nonce);return; }
-      if (!settings.merchantIds.includes(checked.data.merchantId)) { send(403, { error: "scope" }, headers.nonce);return; }
-      const result = await engine.read(checked.data);
+      const checked = gatewayReadEnvelope.safeParse(value);
+      if (!checked.success || checked.data.input.modelId !== GRAPH_EMBEDDING_ID) { send(400, { error: "invalid_input" }, headers.nonce);return; }
+      if (!settings.merchantIds.includes(checked.data.input.merchantId)) { send(403, { error: "scope" }, headers.nonce);return; }
+      const result = await engine.read(checked.data.input);
       send(result.status === "ready" ? 200 : 503, result, headers.nonce);
     } catch { if (!res.headersSent) send(400, { error: "invalid_or_incomplete_request" }); }
     finally { concurrent--; }

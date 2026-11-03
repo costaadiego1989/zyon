@@ -1,8 +1,12 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { GRAPH_READ_TEMPLATES } from "../domain/graph-query.js";
+import { graphReadSchema } from "../domain/graph-query.js";
+import { z } from "zod";
 export const GRAPH_QUERY_PROTOCOL = 1;
 export const GRAPH_TEMPLATE_HASH = createHash("sha256").update(JSON.stringify(GRAPH_READ_TEMPLATES)).digest("hex");
 export const GRAPH_GATEWAY_MAX_BODY_BYTES = 128 * 1024;
+export const gatewayReadEnvelope = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL),
+  templateHash: z.literal(GRAPH_TEMPLATE_HASH), input: graphReadSchema });
 const digest = (body: string) => createHash("sha256").update(body).digest("hex");
 const signature = (key: string, value: string) => createHmac("sha256", key).update(value).digest("hex");
 function equalSignature(actual: unknown, expected: string) {

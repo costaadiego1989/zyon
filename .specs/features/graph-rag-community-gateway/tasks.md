@@ -42,8 +42,8 @@ T1 -> T2 -> T3, one verified commit per component. Independent Verifier after pr
 **Gate**: quick
 **Done when**:
 
-- [ ] Tampered/foreign/malformed responses fail admission.
-- [ ] Disabled and shutdown paths open no new connections; canonical criteria remain.
+- [x] Tampered/foreign/malformed responses fail admission.
+- [x] Disabled and shutdown paths open no new connections; canonical criteria remain.
 
 ### T3: Package, deploy privately and activate with evidence
 
