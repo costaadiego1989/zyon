@@ -1,0 +1,23 @@
+[
+  {
+    "file": "apps/api/src/modules/graph-rag/domain/graph-query.ts",
+    "old": "-[:ZyonGraphHasVariant {merchantId: $merchantId}]->",
+    "new": "-[:ZyonGraphHasVariant]->",
+    "proof": "node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-pattern=\"RAG01 parameterized tenant scope\" ./apps/api/src/modules/graph-rag/domain/graph-query.spec.ts",
+    "label": "M1 C1 remove merchant scope from the product-variant relationship"
+  },
+  {
+    "file": "apps/api/src/modules/catalog/infrastructure/repositories/catalog-availability-search.ts",
+    "old": "v.product_id = p.id AND v.is_active ${semantic} ${price} ${available}",
+    "new": "v.product_id = p.id AND v.is_active ${price} ${available}",
+    "proof": "node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-pattern=\"semantic identity restriction is compiled inside the same SQL variant predicate\" ./apps/api/src/modules/catalog/infrastructure/repositories/graph-catalog-availability.spec.ts",
+    "label": "M2 C10 remove semantic candidate identity from persisted same-variant SQL eligibility"
+  },
+  {
+    "file": "apps/api/src/modules/graph-rag/application/graph-projection.service.ts",
+    "old": "WITH p WHERE p.sourceVersion < $sourceVersion OR (p.sourceVersion = $sourceVersion AND p.sourceHash = $sourceHash)",
+    "new": "WITH p WHERE p.sourceVersion <= $sourceVersion OR (p.sourceVersion = $sourceVersion AND p.sourceHash = $sourceHash)",
+    "proof": "node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-pattern=\"RAG03 tombstone ordering\" ./apps/api/src/modules/graph-rag/application/graph-projection.service.spec.ts",
+    "label": "M3 C8 allow conflicting same-version source to overwrite a persisted tombstone"
+  }
+]
