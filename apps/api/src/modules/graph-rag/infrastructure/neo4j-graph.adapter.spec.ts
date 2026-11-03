@@ -68,3 +68,15 @@ test("a projection uses the writer identity and cannot execute for an unlisted m
   assert.deepEqual(f.closed, ["zyon_writer"]);
   await assert.rejects(f.adapter.withProjection("b", async () => "must not run"), /graph_projection_unavailable/);
 });
+
+test("RAG09 closed adapter cannot recreate reader or writer drivers", async () => {
+  let created = 0;
+  const f = fixture(["reader"]);
+  const adapter = new Neo4jGraphAdapter(settings, (...args) => { created++;return f.factory(...args); }, () => now);
+  await adapter.read(input);await adapter.withProjection("a", async () => undefined);
+  assert.equal(created, 2);await adapter.close();
+  assert.equal(await adapter.admitReader(), false);
+  assert.deepEqual(await adapter.read(input), { status: "unavailable", reason: "disabled" });
+  await assert.rejects(adapter.withProjection("a", async () => undefined), /graph_projection_unavailable/);
+  assert.equal(created, 2);
+});

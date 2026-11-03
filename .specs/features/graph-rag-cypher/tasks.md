@@ -190,10 +190,18 @@ Proof: `node --loader ./apps/api/tests/ready-prod-loader.mjs apps/api/tests/grap
 **C15** - Missing production admission leaves enablement disabled (RAG-08, AC 6)
 Proof: `node --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-pattern="RAG08 production activation gate" ./apps/api/src/modules/graph-rag/graph-rag.module.spec.ts`
 
+**C16** - Unavailable graph preserves only canonically revalidated public PostgreSQL knowledge (RAG-02 AC4, RAG-04 AC6)
+Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test ./apps/api/src/modules/knowledge-base/application/use-cases/query-knowledge.graph.spec.ts`
+
+**C17** - Shutdown drains synchronization before closure and never recreates graph drivers (RAG-09)
+Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-pattern="RAG09" ./apps/api/src/modules/graph-rag/graph-rag.module.spec.ts ./apps/api/src/modules/graph-rag/infrastructure/neo4j-graph.adapter.spec.ts`
+
 ## Handoff
 
 Initial regression at d7ed68455: 2325/2328 passed. Three unchanged strict contract tests detected an unnecessary internal flag on browse/legacy requests. The implementation now emits the semantic hint only for an eligible contextual request, without changing those tests. All86 targeted tests pass. Initial C14 failed under the concurrent run, while a captured standalone rerun passed with exit0. The disposable runner now persists its result and uses a bounded10-second local transaction budget; the production budget remains2seconds. Full proofs and regression are being repeated for these concrete changes.
 
 **Settled mid-build:** Existing plan implementation authorized; user selected Preparar uma instancia no Railway; preparing the instance is authorized, commercial license choices are not inferred. T1 passed4 tests; compiler rejects invalid inputs and retains tenant scope. T2 passed4 tests and executed an empty scoped read on real local Neo4j5.26.32/Bolt5.8; no production reader admission claimed. T3 passed4 tests, strict core TypeScript, and real graph tenant/duplicate/tombstone/document checks with explicit fixture vectors. T4 passed5 tests and strict core TypeScript. Real pinned multilingual model:384 dimensions, Portuguese related cosine0.65689 versus unrelated0.03360; no synthetic runtime vectors. Railway Neo4j service43301b5a-1842-43fd-887a-bd1e9e0b2da7 deploymentba042d3a-f612-4704-a3a6-5dd5161665e7 is SUCCESS, private-only, persistent1GB volume; production graph reads remain off because Community cannot satisfy actual reader-role admission.
-**Dispatched:** none yet; eight tasks executed inline. Initial proofs precede the fresh independent Verifier.
+**Dispatched:** fresh independent Verifier, HEAD ecfae54e0b859da7fe8b2802e3b0b33162522a05, returned; report F1-F4 addressed in the single fix pass; final mutated proofs pending; no screen criteria. Initial mechanical proofs are green at that HEAD.
 **Walked:** no new screen or binding capture; existing-channel acceptance follows an actually enabled environment.
+
+User selected Community with a private controlled-query service, without an Enterprise license. This authorizes the next isolated gateway implementation/verification phase; direct Neo4j reader admission is preserved for direct-driver mode.

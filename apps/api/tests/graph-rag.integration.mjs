@@ -83,6 +83,12 @@ try {
   const tombstone = { kind: "catalog", merchantId: "fixture-shop-a", id: "p-care", version: version + 1, active: false };
   assert.equal((await projection.projectCatalog(tombstone)).status, "applied");
   assert.equal((await projection.projectCatalog(care("fixture-shop-a"))).status, "ignored");
+  assert.equal((await projection.projectCatalog({ ...care("fixture-shop-a"), version: tombstone.version })).status, "ignored");
+  const documentTombstone = { ...faq, version: version + 1, active: false, chunks: [] };
+  assert.equal((await projection.projectDocument(documentTombstone)).status, "applied");
+  assert.equal((await projection.projectDocument({ ...faq, version: documentTombstone.version })).status, "ignored");
+  const removedDocument = await retrieval.searchKnowledge({ merchantId: "fixture-shop-a", query: "Posso devolver?" });
+  assert.equal(removedDocument.status, "ready");assert.deepEqual(removedDocument.hits, []);
   const after = await retrieval.searchCatalog({ merchantId: "fixture-shop-a", query, categoryId: "skin" });
   assert.equal(after.status, "ready");assert.deepEqual(after.hits, []);
   const other = await retrieval.searchCatalog({ merchantId: "fixture-shop-b", query, categoryId: "skin" });
@@ -95,7 +101,7 @@ try {
   proof = { passed: true, observedAt: new Date().toISOString(), engine,
     model: embedding.modelId, dimensions: embedding.dimensions, durationMs: Date.now() - started,
     checks: ["real multilingual inference", "tenant-first scoped Cypher", "same-variant negative attribute",
-      "FAQ vector retrieval", "duplicate projection", "tombstone rejects old upsert", "other tenant retained",
+      "FAQ vector retrieval", "duplicate projection", "tombstone rejects old and conflicting same-version upsert", "document equal-version tombstone", "other tenant retained",
       "complete enumeration retirement", "newer versions retained", "production administrative credential rejected"],
     scope: "Disposable graph and synthetic public fixtures; no PostgreSQL commerce writes or production-channel acceptance." };
 } catch (error) {

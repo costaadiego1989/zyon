@@ -1,3 +1,4 @@
+import { PUBLIC_POLICY_LABELS as FIELD_LABELS } from "../../domain/public-knowledge-content.js";
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import { EMBEDDING_PORT, type EmbeddingPort } from "../../domain/ports/embedding.port.js";
 import { KNOWLEDGE_REPOSITORY, type KnowledgeRepositoryPort } from "../../domain/ports/knowledge-repository.port.js";
@@ -8,13 +9,7 @@ export interface IndexPolicyInput {
   policy: MerchantPolicyData;
 }
 
-const FIELD_LABELS: Record<string, string> = {
-  returns: "Política de trocas e devoluções",
-  shipping: "Política de envio e frete",
-  warranty: "Política de garantia",
-  payment: "Formas de pagamento e parcelamento",
-  general: "Informações gerais da loja",
-};
+
 
 @Injectable()
 export class IndexPolicyUseCase {

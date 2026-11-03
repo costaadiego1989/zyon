@@ -51,6 +51,16 @@ test("RAG03 tombstone ordering", async () => {
   assert.equal((await f.projector.projectCatalog(source)).status, "ignored");
   assert.equal(f.writes.length, writes + 1);
   assert.deepEqual(f.roots.get("a:product:p"), { version: now, hash: catalogProjectionHash(deleted), active: false });
+  assert.equal((await f.projector.projectCatalog({ ...source, version: now })).status, "ignored");
+  // This fake stores versions, but must also observe the actual persisted guard.
+  assert.match(f.writes[0]!.text, /WITH p WHERE p\.sourceVersion < \$sourceVersion OR \(p\.sourceVersion = \$sourceVersion AND p\.sourceHash = \$sourceHash\)/);
+  const document = { kind: "knowledge", merchantId: "a", id: "faq", sourceType: "faq", version: now - 1,
+    active: true, chunks: [{ id: "q", content: "Conteudo publico" }] };
+  await f.projector.projectDocument(document);
+  await f.projector.projectDocument({ ...document, active: false, version: now, chunks: [] });
+  assert.equal((await f.projector.projectDocument({ ...document, version: now })).status, "ignored");
+  assert.match(f.writes.find(write => write.text.startsWith("MERGE (d:"))!.text,
+    /WITH d WHERE d\.sourceVersion < \$sourceVersion OR \(d\.sourceVersion = \$sourceVersion AND d\.sourceHash = \$sourceHash\)/);
 });
 
 test("document projection admits public source types and content hashes only", async () => {

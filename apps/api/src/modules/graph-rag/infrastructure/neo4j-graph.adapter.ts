@@ -30,17 +30,18 @@ export class Neo4jGraphAdapter implements GraphReadPort, GraphProjectionTransact
   private reader?: GraphDriver;
   private writer?: GraphDriver;
   private admitted?: Promise<void>;
+  private closed = false;
   private readonly merchants: Set<string>;
 
   constructor(private readonly settings: GraphConnectionSettings, private readonly factory: GraphDriverFactory = defaultFactory,
     private readonly clock: () => number = Date.now) { this.merchants = new Set(settings.merchantIds); }
 
   enabledFor(merchantId: string): boolean {
-    return this.settings.enabled && this.merchants.has(merchantId) && !!this.settings.uri;
+    return !this.closed && this.settings.enabled && this.merchants.has(merchantId) && !!this.settings.uri;
   }
 
   async admitReader(): Promise<boolean> {
-    if (!this.settings.enabled || !this.settings.merchantIds.length || !this.settings.uri) return false;
+    if (this.closed || !this.settings.enabled || !this.settings.merchantIds.length || !this.settings.uri) return false;
     try { await this.readerDriver(); return true; } catch { return false; }
   }
 
@@ -114,6 +115,7 @@ export class Neo4jGraphAdapter implements GraphReadPort, GraphProjectionTransact
   }
 
   async close(): Promise<void> {
+    this.closed = true;
     const results = await Promise.allSettled([this.reader?.close(), this.writer?.close()]);
     this.reader = this.writer = undefined; this.admitted = undefined;
     if (results.some(result => result.status === "rejected")) throw new Error("graph_driver_close_failed");

@@ -90,6 +90,8 @@ O Zyon interpreta filtros tipados, mas não consulta um grafo nem combina relaç
 
 ## Requirement Traceability
 
+Added after independent review: WHEN application shutdown starts THEN synchronization SHALL stop accepting work and drain in `beforeApplicationShutdown`, before graph drivers close; closed adapters SHALL never recreate a driver. (RAG-09)
+
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
 | RAG-01 | Controlled retrieval | T1 | Verified |
@@ -100,6 +102,7 @@ O Zyon interpreta filtros tipados, mas não consulta um grafo nem combina relaç
 | RAG-06 | Public documents | T5 | Verified |
 | RAG-07 | Lifecycle | T7 | Verified |
 | RAG-08 | Operational proof | T8 | Verified |
+| RAG-09 | Lifecycle shutdown | Review fix | Verified |
 
 ## Sources
 

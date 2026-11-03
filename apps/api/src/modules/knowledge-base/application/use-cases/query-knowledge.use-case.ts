@@ -36,10 +36,10 @@ export class QueryKnowledgeUseCase {
     } catch {
       return { chunks: [] };
     }
-    // An enabled merchant answers only from revalidated public sources. A failed
-    // graph must not revive stale legacy policy/config chunks.
-    if (this.graph?.enabledFor(input.merchantId)) {
-      return { chunks: await this.graph.search(input) ?? [] };
+    const publicOnly = this.graph?.enabledFor(input.merchantId) === true;
+    if (publicOnly) {
+      const chunks = await this.graph!.search(input);
+      if (chunks?.length) return { chunks };
     }
     // Default: return empty if embedding unavailable
     if (!this.embeddingService.isAvailable()) {
@@ -63,7 +63,7 @@ export class QueryKnowledgeUseCase {
         input.threshold ?? 0.65
       );
 
-      return { chunks };
+      return { chunks: publicOnly ? await this.graph!.revalidateLegacy(input.merchantId, chunks) : chunks };
     } catch (err) {
       this.logger.warn(`Knowledge base query failed: ${err instanceof Error ? err.message : String(err)}`);
       return { chunks: [] };

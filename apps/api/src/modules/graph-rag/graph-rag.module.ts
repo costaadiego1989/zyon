@@ -32,7 +32,7 @@ export class GraphRagRuntime implements GraphRetrievalPort, OnModuleInit, OnAppl
     return this.readyFor(input.merchantId) ? this.retrieval.searchKnowledge(input)
       : { status: "unavailable" as const, reason: "disabled" as const };
   }
-  async onApplicationShutdown() { await this.adapter.close(); }
+  async onApplicationShutdown() { this.ready = false; await this.adapter.close(); }
 }
 @Module({ providers: [{ provide: GraphRagRuntime, useFactory: () => new GraphRagRuntime(graphRagSettings(process.env)) },
   { provide: GRAPH_RETRIEVAL, useExisting: GraphRagRuntime }], exports: [GRAPH_RETRIEVAL, GraphRagRuntime] })

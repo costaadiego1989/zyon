@@ -10,6 +10,7 @@ O Neo4j é uma projeção derivada do catálogo e do conhecimento público. Post
 - Cada candidato é conferido novamente no catálogo público por versão e hash. Uma nova consulta canônica aplica os critérios comerciais à mesma variante. O leitor de recomendações calcula o preço promocional autorizado antes de aplicar o orçamento original.
 - FAQ público de atendimento e campos explícitos das políticas têm IDs, hashes e versão. A resposta usa o conteúdo público atual, nunca o texto do grafo sem validação. Documentos removidos ou alterados são descartados. FAQs específicas de páginas de produto ainda não entram nesta primeira projeção.
 - Eventos notificam a necessidade de releitura; seus payloads não são indexados. A reconciliação ocorre a cada dois minutos. Uma enumeração incompleta não apaga fontes ausentes. Tombstones impedem eventos antigos de ressuscitar produtos. A validade máxima de leitura é cinco minutos.
+- Se o grafo falhar, a consulta tenta o índice PostgreSQL existente e relê cada FAQ/política na fonte pública atual. Textos alterados, revogados, privados ou de outra loja são descartados. O shutdown interrompe novas sincronizações e drena o trabalho ativo antes de fechar os drivers.
 - Frete por candidato, novos filtros de linguagem natural e atendimento a objeções continuam sendo capacidades distintas. Cypher não substitui classificação conversacional, cotação de frete nem consentimento para alterar o carrinho.
 
 ## Configuração da API

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { GraphKnowledgeSourcesPort, GraphPublicDocumentSource } from "../../graph-rag/domain/public-graph-sources.port.js";
 import type { PublicSupportFaqPort } from "../../support/domain/ports/public-support-faq.port.js";
 import type { MerchantPolicyData } from "../domain/ports/policy-repository.port.js";
+import { PUBLIC_POLICY_LABELS } from "../domain/public-knowledge-content.js";
 
 export interface PublicPolicySnapshotPort {
   publicSnapshot(merchantId: string): Promise<{ merchantId: string; version: number; policy: MerchantPolicyData }>;
@@ -33,7 +34,8 @@ export class PublishedGraphKnowledgeSources implements GraphKnowledgeSourcesPort
     const snapshot = await this.policies.publicSnapshot(merchantId);
     if (snapshot.merchantId !== merchantId) return null;
     const content = snapshot.policy[sourceId as typeof fields[number]]?.trim();
-    return this.document(merchantId, snapshot.version, "policy", sourceId, content ? [`${sourceId}: ${content}`] : []);
+    return this.document(merchantId, snapshot.version, "policy", sourceId,
+      content ? [`${PUBLIC_POLICY_LABELS[sourceId as keyof typeof PUBLIC_POLICY_LABELS]}: ${content}`] : []);
   }
   async list(merchantId: string) {
     const documents = await Promise.all([this.read(merchantId, "faq", "faq-collection"),
