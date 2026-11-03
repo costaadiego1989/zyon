@@ -2,7 +2,7 @@
 
 **Approved**: 2026-11-03 - user: "ENTAO VAMOS IMPLEMENTAR O CYPHER VC JA TINHA FEITO UM PLANO PARA ISSO"
 
-This records the user's authorization to implement the existing GraphRAG plan. The criteria below make that plan executable; there was no separate presentation or new product approval. Infrastructure selection is pending independently and does not block local implementation. Earlier authorization covers Zyon production tests and releases; it does not supply a Neo4j account or authorize a new paid subscription.
+This records the user's authorization to implement the existing GraphRAG plan. The criteria below make that plan executable; there was no separate presentation or new product approval. User selected "Preparar uma inst?ncia no Railway" during implementation. Provisioning the service in the existing project is authorized; new paid third-party subscriptions are not inferred. Earlier authorization covers Zyon production tests and releases; it does not supply a Neo4j account or authorize a new paid subscription.
 
 ## Problem Statement
 

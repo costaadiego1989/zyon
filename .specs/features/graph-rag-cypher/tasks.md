@@ -89,8 +89,8 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7 -> T8
 **Gate**: quick
 **Done when**:
 
-- [ ] Ranked evidence belongs to the requested merchant and the same configured vector model.
-- [ ] Missing embeddings return an explicit unavailable outcome, never synthetic vectors.
+- [x] Ranked evidence belongs to the requested merchant and the same configured vector model.
+- [x] Missing embeddings return an explicit unavailable outcome, never synthetic vectors.
 
 ### T5: Revalidate document evidence
 
@@ -192,6 +192,6 @@ Proof: `node --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-name-
 
 ## Handoff
 
-**Settled mid-build:** Existing plan implementation authorized; production Neo4j environment answer pending independently. T1 passed4 tests; compiler rejects invalid inputs and retains tenant scope. T2 passed4 tests and executed an empty scoped read on real local Neo4j5.26.32/Bolt5.8; no production reader admission claimed. T3 passed4 tests, strict core TypeScript, and real graph tenant/duplicate/tombstone/document checks with explicit fixture vectors.
+**Settled mid-build:** Existing plan implementation authorized; user selected Preparar uma instancia no Railway; preparing the instance is authorized, commercial license choices are not inferred. T1 passed4 tests; compiler rejects invalid inputs and retains tenant scope. T2 passed4 tests and executed an empty scoped read on real local Neo4j5.26.32/Bolt5.8; no production reader admission claimed. T3 passed4 tests, strict core TypeScript, and real graph tenant/duplicate/tombstone/document checks with explicit fixture vectors. T4 passed5 tests and strict core TypeScript. Real pinned multilingual model:384 dimensions, Portuguese related cosine0.65689 versus unrelated0.03360; no synthetic runtime vectors. Railway Neo4j service43301b5a-1842-43fd-887a-bd1e9e0b2da7 deploymentba042d3a-f612-4704-a3a6-5dd5161665e7 is SUCCESS, private-only, persistent1GB volume; production graph reads remain off because Community cannot satisfy actual reader-role admission.
 **Dispatched:** none; eight tasks execute inline. A fresh Verifier is required after the last task.
 **Walked:** no new screen or binding capture; existing-channel acceptance follows an actually enabled environment.

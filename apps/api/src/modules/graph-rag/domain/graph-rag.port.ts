@@ -12,7 +12,7 @@ export interface GraphKnowledgeHit extends GraphHitBase {
 }
 export type GraphReadResult = { status: "ready"; kind: "catalog" | "knowledge";
   hits: Array<GraphCatalogHit | GraphKnowledgeHit>; partial: true }
-  | { status: "unavailable"; reason: "disabled" | "invalid_input" | "reader_not_readonly" | "invalid_result" | "neo4j_unavailable" };
+  | { status: "unavailable"; reason: "disabled" | "invalid_input" | "reader_not_readonly" | "invalid_result" | "neo4j_unavailable" | "embedding_unavailable" | "timeout" };
 export interface GraphReadPort { read(input: GraphReadInput): Promise<GraphReadResult> }
 export interface GraphConnectionSettings {
   enabled: boolean; merchantIds: readonly string[]; uri?: string; database: string;
@@ -29,4 +29,16 @@ export interface GraphEmbeddingPort {
   readonly modelId: string;
   readonly dimensions: number;
   generate(text: string): Promise<number[] | null>;
+}
+export interface GraphCatalogRequest {
+  merchantId: string; query: string; limit?: number; categoryId?: string;
+  attributes?: Array<{ name: string; value: string; operator: "equals" | "not_equals" }>;
+}
+export type GraphUnavailable = Extract<GraphReadResult, { status: "unavailable" }>;
+export type GraphCatalogSelection = { status: "ready"; hits: GraphCatalogHit[]; partial: true } | GraphUnavailable;
+export type GraphKnowledgeSelection = { status: "ready"; hits: GraphKnowledgeHit[]; partial: true } | GraphUnavailable;
+export interface GraphRetrievalPort {
+  enabledFor(merchantId: string): boolean;
+  searchCatalog(input: GraphCatalogRequest): Promise<GraphCatalogSelection>;
+  searchKnowledge(input: Pick<GraphCatalogRequest, "merchantId" | "query" | "limit">): Promise<GraphKnowledgeSelection>;
 }
