@@ -14,6 +14,22 @@ const promotion = (productId: string, discountValue = 10, extra: Record<string, 
   endsAt: new Date("2099-01-01"), ...extra });
 const plan = (extra: Record<string, unknown> = {}) => shoppingSearchPlanSchema.parse({ version: 1, query: "organizador", ...extra });
 
+test("semantic related evidence survives canonical pricing without losing the original budget", async () => {
+  const rows = [product("creme", [variant("v60", 6000)])];
+  for (const ceiling of [5000, 7000]) {
+    const f = fixture(rows, [], { page: (args: any) => ({ products: rows, nextCursor: null, query: args.query,
+      searchEvidence: { version: 1, status: "verified", appliedPlan: args.criteria, message: "Selecao relacionada",
+        unconfirmedPreferences: [], retrieval: { engine: "neo4j", match: "semantic", partial: true } } }) });
+    const criteria = plan({ query: "barreira cutanea", maxPriceCents: ceiling,
+      recovery: { familyQuery: "barreira cutanea", optionalQueryTerms: [] } });
+    const out = storefrontToolOutputSchemas.search_products.parse(await f.read(criteria));
+    assert.deepEqual(out.products.map(p => p.id), ceiling === 7000 ? ["creme"] : []);
+    assert.deepEqual(out.searchEvidence?.retrieval, { engine: "neo4j", match: "semantic", partial: true });
+    assert.equal(out.searchEvidence?.matchType, ceiling === 7000 ? "similar" : "incomplete");
+    assert.deepEqual(out.searchEvidence?.appliedPlan, criteria);assert.equal(f.writes(), 0);
+  }
+});
+
 function fixture(products: ReturnType<typeof product>[], promotions = [promotion("completo")], options: any = {}) {
   const queries: any[] = [], reads: any[] = [];
   let writes = 0;
