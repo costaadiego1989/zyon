@@ -25,3 +25,8 @@ export interface GraphTransaction {
 export interface GraphProjectionTransactions {
   withProjection<T>(merchantId: string, work: (transaction: GraphTransaction) => Promise<T>): Promise<T>;
 }
+export interface GraphEmbeddingPort {
+  readonly modelId: string;
+  readonly dimensions: number;
+  generate(text: string): Promise<number[] | null>;
+}
