@@ -7,6 +7,7 @@ export const normalizeCatalogAttribute = (value: string): string => value.normal
 /** Projection must show only variants that explain the database match.
  * In particular, an unknown attribute cannot establish a negative fact. */
 export function matchesCatalogVariant(variant: ProductVariantProps, input: SearchProductsInput, productType: string): boolean {
+  if (input.candidateVariantIds && !input.candidateVariantIds.includes(variant.id)) return false;
   if (!variant.isActive || (input.currency && variant.currency !== input.currency)) return false;
   if (input.minPriceCents !== undefined && variant.basePriceInCents < input.minPriceCents) return false;
   if (input.maxPriceCents !== undefined && variant.basePriceInCents > input.maxPriceCents) return false;

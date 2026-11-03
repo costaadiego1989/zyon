@@ -50,6 +50,7 @@ export const shoppingSearchPlanSchema = z.strictObject({
 export type ShoppingSearchPlan = z.infer<typeof shoppingSearchPlanSchema>;
 
 export const shoppingSearchEvidenceSchema = z.strictObject({
+  retrieval: z.strictObject({ engine: z.literal("neo4j"), match: z.literal("semantic"), partial: z.literal(true) }).optional(),
   version: z.literal(1),
   status: z.enum(["verified", "needs_information", "unsupported"]),
   appliedPlan: shoppingSearchPlanSchema,

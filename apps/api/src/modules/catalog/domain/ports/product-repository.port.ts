@@ -32,6 +32,9 @@ export interface CreateProductInput {
 }
 
 export interface SearchProductsInput {
+  /** Trusted server-only hints, never accepted in the model's tool schema. */
+  candidateVariantIds?: readonly string[];
+  allowSemantic?: boolean;
   merchantId: string;
   query?: string;
   queryMode?: "contextual";
@@ -51,6 +54,7 @@ export interface SearchProductsInput {
 }
 
 export interface SearchProductsResult {
+  retrieval?: { engine: "neo4j"; match: "semantic"; partial: true };
   products: ProductEntity[];
   nextCursor?: string;
   total: number;

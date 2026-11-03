@@ -114,8 +114,8 @@ T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7 -> T8
 **Gate**: quick
 **Done when**:
 
-- [ ] Current commercial constraints apply to the same candidate variant.
-- [ ] Semantic selection is explicitly related and partial.
+- [x] Current commercial constraints apply to the same candidate variant.
+- [x] Semantic selection is explicitly related and partial.
 
 ### T7: Wire scoped lifecycle and synchronization
 

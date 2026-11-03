@@ -76,6 +76,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         ...(plan ? { attributes: plan.attributes.filter(item => item.priority === "required" || item.operator === "not_equals").map(({ priority: _priority, ...item }) => item), currency: "BRL" as const } : {}),
         inStockOnly: args.lookupOnly ? false : plan ? true : args.inStockOnly,
         isActiveOnly: true,
+        allowSemantic: !args.lookupOnly && !!plan && !/(?:\b(?:somente|apenas|exclusiv\w*|exat\w*)\b)/iu.test(ctx.userMessage ?? ""),
         cursor: args.cursor,
         limit: Math.min(args.limit ?? 10, 20)
       });
@@ -163,7 +164,10 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       return {
         products: localProducts,
         nextCursor: result.nextCursor, query, categoryId: args.categoryId,
-        ...(plan ? { searchEvidence: shoppingSearchEvidence(plan, localProducts.length) } : {}),
+        ...(plan ? { searchEvidence: { ...shoppingSearchEvidence(plan, localProducts.length),
+          ...(result.retrieval ? { retrieval: result.retrieval, matchType: localProducts.length ? "similar" as const : "incomplete" as const,
+            message: localProducts.length ? "Encontrei opções relacionadas ao que você procura. Confira as características de cada produto; esta é uma seleção parcial com preço e disponibilidade verificados."
+              : "Não encontrei opções disponíveis entre os produtos relacionados verificados. Podemos refinar a busca?" } : {}) } } : {}),
         ...(contextual && !localProducts.length ? { note: "Não encontrei produtos correspondentes. Pode detalhar o que procura?" } : {}),
       };
     },

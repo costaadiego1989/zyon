@@ -41,7 +41,7 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
       throw new Error("shopping_recovery_scope_unconfirmed");
     const phases = [{ query: queries?.exact ?? plan.query, similar: false }, ...(queries ? [{ query: queries.family, similar: true }] : [])];
     let products = new Map<string, Product>();
-    let truncated = !!args.cursor, unconfirmedPrice = false, readCount = 0, quoteCount = 0, similar = false;
+    let truncated = !!args.cursor, unconfirmedPrice = false, readCount = 0, quoteCount = 0, similar = false, semantic = false;
     // Both phases share three catalog pages. Only a complete, zero eligible
     // exact result permits recovery; errors and unknown prices never do.
     for (const phase of phases) {
@@ -55,10 +55,12 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
         readCount++;
         const result = storefrontToolOutputSchemas.search_products.parse(await search({ query: phase.query,
           criteria: phasePlan, inStockOnly: true, limit: 20, ...(args.categoryId ? { categoryId: args.categoryId } : {}), ...(cursor ? { cursor } : {}) }));
+        const semanticPage = result.searchEvidence?.retrieval?.match === "semantic";
+        if (semanticPage) { semantic = true; truncated = true; }
         for (const product of result.products) {
           if (product.inStock !== true || product.source === "marketplace") continue;
           if (plan.minRating !== undefined && (product.rating === undefined || product.rating === null || product.rating < plan.minRating)) continue;
-          if (recoveryPlan && !shoppingFamilyMatches(phase.query, `${product.name} ${product.description ?? ""}`)) continue;
+          if (recoveryPlan && !semanticPage && !shoppingFamilyMatches(phase.query, `${product.name} ${product.description ?? ""}`)) continue;
           const eligible = [];
           if ((product.variants?.length ?? 0) > 20) truncated = true;
           for (const variant of (product.variants ?? []).slice(0, 20)) {
@@ -120,6 +122,13 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
     const evidence = recoveryPlan ? shoppingRecoveryEvidence(recoveryPlan, selected, selected.length ? similar ? "similar" : "exact"
       : truncated ? "incomplete" : "no_match") : shoppingSearchEvidence(plan, selected.length);
     evidence.appliedPlan = plan;
+    if (semantic) {
+      evidence.retrieval = { engine: "neo4j", match: "semantic", partial: true };
+      evidence.matchType = selected.length ? "similar" : "incomplete";
+      evidence.message = selected.length
+        ? "Encontrei opções relacionadas ao que você procura. Confira as características de cada produto; os preços e a disponibilidade foram verificados."
+        : "Não encontrei opções compatíveis entre os produtos relacionados verificados. Podemos refinar a busca?";
+    }
     if (!recoveryPlan && truncated && !selected.length) evidence.message = "🔎 Não encontrei uma opção compatível entre os produtos verificados nesta seleção. Podemos refinar a busca?";
     if (truncated || matches.length > limit) evidence.message += "\nℹ️ Esta é uma seleção das opções verificadas, não uma listagem completa. Podemos refinar a busca.";
     if (unconfirmedPrice) evidence.message += "\nℹ️ Algumas condições não puderam ser verificadas. Apresentei somente opções com preço confirmado.";

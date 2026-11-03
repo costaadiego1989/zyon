@@ -96,7 +96,7 @@ O Zyon interpreta filtros tipados, mas não consulta um grafo nem combina relaç
 | RAG-02 | Controlled retrieval | T2 | Verified |
 | RAG-03 | Public projection | T3 | Verified |
 | RAG-04 | Controlled retrieval | T4 | Verified |
-| RAG-05 | Canonical commerce | T6 | In Tasks |
+| RAG-05 | Canonical commerce | T6 | Verified |
 | RAG-06 | Public documents | T5 | Verified |
 | RAG-07 | Lifecycle | T7 | In Tasks |
 | RAG-08 | Operational proof | T8 | In Tasks |

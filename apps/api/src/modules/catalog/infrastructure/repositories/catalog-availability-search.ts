@@ -75,7 +75,8 @@ export async function searchAvailableCatalog(prisma: PrismaClient, input: Search
         FROM product_stock s WHERE s.variant_id = v.id
       ) > 0)
     )` : Prisma.empty;
-    const eligibleVariant = Prisma.sql`v.product_id = p.id AND v.is_active ${price} ${available} ${input.attributes?.length ? attributes : Prisma.empty}`;
+    const semantic = input.candidateVariantIds ? Prisma.sql`AND v.id = ANY(${[...input.candidateVariantIds]}::text[])` : Prisma.empty;
+    const eligibleVariant = Prisma.sql`v.product_id = p.id AND v.is_active ${semantic} ${price} ${available} ${input.attributes?.length ? attributes : Prisma.empty}`;
     const rating = Prisma.sql`(SELECT avg(r.rating) FROM public_reviews r WHERE r.product_id = p.id)`;
     const publicReviews = Prisma.sql`public_reviews AS (${publicProductReviewsSql(input.merchantId)})`;
     const where = Prisma.sql`

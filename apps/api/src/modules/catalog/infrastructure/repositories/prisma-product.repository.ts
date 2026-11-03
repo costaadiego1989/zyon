@@ -12,6 +12,7 @@ import { lockCatalogMerchant, syncCatalogStockLedger } from "../../../../shared/
 import { searchAvailableCatalog } from "./catalog-availability-search.js";
 import { matchesCatalogVariant } from "../../domain/services/catalog-search-criteria.js";
 import { readPublicProductRatingStats } from "./public-product-reviews.reader.js";
+import type { GraphCatalogSearch } from "../graph-catalog-search.js";
 
 /**
  * Normalize text for accent- and case-insensitive matching.
@@ -31,7 +32,7 @@ function normalizeForSearch(text: string): string {
 export class PrismaProductRepository implements ProductRepositoryPort {
   private readonly logger = new Logger(PrismaProductRepository.name);
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient, private readonly graph?: GraphCatalogSearch) {}
 
   async listPublicNames(input: { merchantId: string; cursor?: string; limit: number }) {
     const limit = Number.isSafeInteger(input.limit) ? Math.max(1, Math.min(100, input.limit)) : 100;
@@ -144,7 +145,11 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   }
 
   async search(input: SearchProductsInput): Promise<SearchProductsResult> {
-    if (input.inStockOnly || input.queryMode === "contextual" || input.minPriceCents !== undefined
+    return this.graph ? this.graph.search(input, request => this.searchCanonical(request)) : this.searchCanonical(input);
+  }
+
+  private async searchCanonical(input: SearchProductsInput): Promise<SearchProductsResult> {
+    if (input.candidateVariantIds || input.inStockOnly || input.queryMode === "contextual" || input.minPriceCents !== undefined
       || input.maxPriceCents !== undefined || input.minRating !== undefined || input.attributes?.length || input.sortBy) {
       const { rows, total, nextCursor, publicRatings } = await searchAvailableCatalog(this.prisma, input);
       const products = rows.map(raw => {
