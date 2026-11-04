@@ -30,7 +30,8 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
         discountType: true, discountValue: true, promoPriceInCents: true, isActive: true, startsAt: true, endsAt: true,
         createdAt: true, updatedAt: true },
     });
-    const { minPriceCents: _min, maxPriceCents: _max, discountOnly: _discountOnly, sortBy, recovery: _recovery, ...criteria } = plan;
+    const { minPriceCents: _min, maxPriceCents: _max, minPriceExclusive: _minEx, maxPriceExclusive: _maxEx,
+      discountOnly: _discountOnly, sortBy, recovery: _recovery, ...criteria } = plan;
     const candidatePlan = { ...criteria, ...(sortBy && sortBy !== "price_asc" && sortBy !== "price_desc" ? { sortBy } : {}) };
     type Product = ReturnType<typeof storefrontToolOutputSchemas.search_products.parse>["products"][number];
     const recoveryPlan = plan.recovery ? plan : plan.attributes.some(a => a.priority === "preferred" && a.operator === "equals")
@@ -59,7 +60,8 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
         if (semanticPage) { semantic = true; truncated = true; }
         for (const product of result.products) {
           if (product.inStock !== true || product.source === "marketplace") continue;
-          if (plan.minRating !== undefined && (product.rating === undefined || product.rating === null || product.rating < plan.minRating)) continue;
+          if (plan.minRating !== undefined && (product.rating === undefined || product.rating === null
+            || (plan.minRatingExclusive ? product.rating <= plan.minRating : product.rating < plan.minRating))) continue;
           if (recoveryPlan && !semanticPage && !shoppingFamilyMatches(phase.query, `${product.name} ${product.description ?? ""}`)) continue;
           const eligible = [];
           if ((product.variants?.length ?? 0) > 20) truncated = true;
@@ -67,7 +69,7 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
             const base = variant.basePriceInCents;
             if (variant.isActive === false) continue;
             if (!Number.isSafeInteger(base) || base! < 0) { unconfirmedPrice ||= plan.discountOnly === true; continue; }
-            if ((recoveryPlan || plan.discountOnly) && !shoppingAttributesMatch(plan, variant.attributes, !!recoveryPlan && !phase.similar)) continue;
+            if (!shoppingAttributesMatch(plan, variant.attributes, !!recoveryPlan && !phase.similar)) continue;
             if (product.type !== "digital" && product.type !== "service"
               && (variant.stockQuantity ?? 0) <= (variant.stockReserved ?? 0)) continue;
             if ((recoveryPlan || plan.discountOnly) && quoteCount >= 60) { truncated = true; continue; }
@@ -88,8 +90,8 @@ export function createShoppingRecommendationReader(deps: ProductHandlerDeps, ctx
               const badge = meta.get(variant.id);
               if (plan.discountOnly && !(price < base! && badge && !badge.coupon && badge.promotionId
                 && badge.originalPriceCents === base)) continue;
-              if (plan.minPriceCents !== undefined && price < plan.minPriceCents
-                || plan.maxPriceCents !== undefined && price > plan.maxPriceCents) continue;
+              if (plan.minPriceCents !== undefined && (plan.minPriceExclusive ? price <= plan.minPriceCents : price < plan.minPriceCents)
+                || plan.maxPriceCents !== undefined && (plan.maxPriceExclusive ? price >= plan.maxPriceCents : price > plan.maxPriceCents)) continue;
               eligible.push({ variant: { ...variant, price }, badge });
             } catch {
               // A required option or a stale price in one variant cannot grant

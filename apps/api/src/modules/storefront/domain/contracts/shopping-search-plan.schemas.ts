@@ -23,7 +23,11 @@ export const shoppingSearchPlanSchema = z.strictObject({
   minPriceCents: cents.optional(),
   maxPriceCents: cents.optional(),
   minRating: z.number().min(1).max(5).optional(),
+  minPriceExclusive: z.boolean().optional(),
+  maxPriceExclusive: z.boolean().optional(),
+  minRatingExclusive: z.boolean().optional(),
   attributes: z.array(attribute).max(12).default([]),
+  attributeAnyOf: z.array(z.array(attribute.omit({ priority: true })).min(1).max(6)).max(6).optional(),
   sortBy: z.enum(["price_asc", "price_desc", "rating", "newest"]).optional(),
   delivery: z.strictObject({
     freeOnly: z.boolean().optional(),
@@ -33,8 +37,12 @@ export const shoppingSearchPlanSchema = z.strictObject({
   }).optional(),
   unsupportedCriteria: z.array(z.string().trim().min(1).max(160)).max(8).default([]),
 }).superRefine((plan, ctx) => {
+  for (const [flag, bound] of [["minPriceExclusive", "minPriceCents"], ["maxPriceExclusive", "maxPriceCents"], ["minRatingExclusive", "minRating"]] as const)
+    if (plan[flag] && plan[bound] === undefined) ctx.addIssue({ code: "custom", path: [flag], message: "exclusive_boundary_missing" });
   if (plan.minPriceCents !== undefined && plan.maxPriceCents !== undefined && plan.minPriceCents > plan.maxPriceCents)
     ctx.addIssue({ code: "custom", path: ["maxPriceCents"], message: "price_range_inverted" });
+  if (plan.minPriceCents !== undefined && plan.minPriceCents === plan.maxPriceCents && (plan.minPriceExclusive || plan.maxPriceExclusive))
+    ctx.addIssue({ code: "custom", path: ["maxPriceCents"], message: "price_range_empty" });
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const required = plan.attributes.filter(item => item.priority === "required");
   for (const item of required) {
@@ -44,6 +52,12 @@ export const shoppingSearchPlanSchema = z.strictObject({
       ctx.addIssue({ code: "custom", path: ["attributes"], message: "attribute_conditions_conflict" });
     if (siblings.some(other => other.operator !== item.operator && normalize(other.value) === normalize(item.value)))
       ctx.addIssue({ code: "custom", path: ["attributes"], message: "attribute_conditions_conflict" });
+  }
+  for (const group of plan.attributeAnyOf ?? []) {
+    if (group.every(item => required.some(other => normalize(other.name) === normalize(item.name) &&
+      (other.operator !== item.operator && normalize(other.value) === normalize(item.value)
+        || other.operator === "equals" && item.operator === "equals" && normalize(other.value) !== normalize(item.value)))))
+      ctx.addIssue({ code: "custom", path: ["attributeAnyOf"], message: "alternative_conditions_conflict" });
   }
 });
 

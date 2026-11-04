@@ -27,11 +27,12 @@ export function shoppingSearchEvidence(plan: ShoppingSearchPlan, count: number):
   const filters = [
     plan.discountOnly === true ? "promoção automática vigente e aplicada, com redução de preço confirmada" : undefined,
     plan.minPriceCents !== undefined && plan.maxPriceCents !== undefined
-      ? `preço de ${money(plan.minPriceCents)} a ${money(plan.maxPriceCents)}`
-      : plan.minPriceCents !== undefined ? `preço a partir de ${money(plan.minPriceCents)}`
-        : plan.maxPriceCents !== undefined ? `preço até ${money(plan.maxPriceCents)}` : undefined,
-    plan.minRating !== undefined ? `avaliação pública aprovada de ${plan.minRating} estrelas ou mais` : undefined,
+      ? `preço ${plan.minPriceExclusive ? "acima de" : "a partir de"} ${money(plan.minPriceCents)} e ${plan.maxPriceExclusive ? "abaixo de" : "até"} ${money(plan.maxPriceCents)}`
+      : plan.minPriceCents !== undefined ? `preço ${plan.minPriceExclusive ? "acima de" : "a partir de"} ${money(plan.minPriceCents)}`
+        : plan.maxPriceCents !== undefined ? `preço ${plan.maxPriceExclusive ? "abaixo de" : "até"} ${money(plan.maxPriceCents)}` : undefined,
+    plan.minRating !== undefined ? `avaliação pública aprovada ${plan.minRatingExclusive ? "acima de" : "de"} ${plan.minRating} estrelas${plan.minRatingExclusive ? "" : " ou mais"}` : undefined,
     ...plan.attributes.filter(item => item.priority === "required").map(attributeLabel),
+    ...(plan.attributeAnyOf ?? []).map(group => `(${group.map(a => attributeLabel({ ...a, priority: "required" })).join(" ou ")})`),
   ].filter(Boolean);
   const sort = { price_asc: "menor preço primeiro", price_desc: "maior preço primeiro", rating: "melhor avaliação primeiro", newest: "mais recentes primeiro" };
   let message = count

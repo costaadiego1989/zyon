@@ -12,6 +12,22 @@ const input = { merchantId: "shop-a", query: "barreira da pele", queryMode: "con
   minPriceCents: 2000, maxPriceCents: 10000, minRating: 4, currency: "BRL", categoryId: "skin",
   attributes: [{ name: "fragrancia", value: "sim", operator: "not_equals" }] } as const;
 const empty = { products: [], total: 0 };
+
+test("GRAPH-03 semantic candidates retain OR groups and strict canonical limits", async () => {
+  const attributeAnyOf = [[{ name: "fragrancia", value: "nao", operator: "equals" as const }]];
+  const request = { ...input, attributeAnyOf, minRatingExclusive: true, maxPriceExclusive: true } as any;
+  let graphRead: any, canonicalReads = 0;
+  const graph = new GraphCatalogSearch({ enabledFor: () => true, searchCatalog: async value => {
+    graphRead = value; return { status: "ready", hits: [hit], partial: true };
+  } } as any, { read: async () => source } as any);
+  await graph.search(request, async value => {
+    canonicalReads++;
+    assert.deepEqual(value.attributeAnyOf, attributeAnyOf);
+    assert.equal(value.minRatingExclusive, true); assert.equal(value.maxPriceExclusive, true);
+    return empty;
+  });
+  assert.deepEqual(graphRead.attributeAnyOf, attributeAnyOf); assert.equal(canonicalReads, 2);
+});
 function reader(current: unknown = source, candidates: unknown[] = [hit]) {
   return new GraphCatalogSearch({ enabledFor: () => true,
     searchCatalog: async args => { assert.equal(args.merchantId, "shop-a");return { status: "ready", hits: candidates, partial: true }; } } as any,

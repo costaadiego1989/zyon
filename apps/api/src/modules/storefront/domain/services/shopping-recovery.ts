@@ -82,10 +82,12 @@ export function shoppingFamilyMatches(query: string, facts: string): boolean {
 /** The same variant must prove every mandatory attribute, including negatives.
  * Missing data never proves an exclusion or a requested property. */
 export function shoppingAttributesMatch(plan: ShoppingSearchPlan, attributes: Record<string, string> | undefined, exact: boolean): boolean {
-  return plan.attributes.filter(a => exact || a.priority === "required" || a.operator === "not_equals").every(a => {
+  const matches = (a: { name: string; value: string; operator: "equals" | "not_equals" }) => {
     const value = Object.entries(attributes ?? {}).find(([key]) => normalizeShoppingFact(key) === normalizeShoppingFact(a.name))?.[1];
     if (value === undefined) return false;
     return a.operator === "equals" ? normalizeShoppingFact(value) === normalizeShoppingFact(a.value)
       : normalizeShoppingFact(value) !== normalizeShoppingFact(a.value);
-  });
+  };
+  return plan.attributes.filter(a => exact || a.priority === "required" || a.operator === "not_equals").every(matches)
+    && (plan.attributeAnyOf ?? []).every(group => group.some(matches));
 }

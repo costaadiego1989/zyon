@@ -28,7 +28,7 @@ T1 -> T2 -> T3 -> T4. Four tasks fit one inline batch. Fresh independent Verifie
 **Tests**: unit
 **Gate**: quick
 **Done when**:
-- [ ] C2 passes with inclusive/exclusive cases and no price or tenant relaxation.
+- [x] C2 passes: 26 tests, 0 failures. Production TypeScript passed.
 
 ### T3: Functional buyer shortcut hub
 **What**: Add registry, current-sender principal, protected profile/address reads, cancellation and existing shopping/quick-buy routing.

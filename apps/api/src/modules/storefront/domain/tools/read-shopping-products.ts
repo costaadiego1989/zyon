@@ -6,6 +6,7 @@ import type { StoreToolHandlers } from "./types.js";
  * Native tools and UI shortcuts share the same read admission. */
 export function requiresCanonicalShoppingRead(plan: ShoppingSearchPlan): boolean {
   return plan.discountOnly === true || plan.minPriceCents !== undefined || plan.maxPriceCents !== undefined
+    || plan.minRating !== undefined || !!plan.attributeAnyOf?.length
     || plan.recovery !== undefined || plan.attributes.some(a => a.priority === "preferred" && a.operator === "equals");
 }
 
