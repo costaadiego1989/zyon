@@ -558,6 +558,8 @@ export class StorefrontLangGraphAgent {
     };
     let loops = 0;
     let commercialEvidence: OpenRouterChatMessage | undefined;
+    let supportEvidence: OpenRouterChatMessage | undefined;
+    let supportReadsConfirmed = true;
     const openRouterTools = turnTools.map((t) => ({
       type: "function" as const,
       function: { name: t.name, description: t.description, parameters: t.parameters }
@@ -578,6 +580,26 @@ export class StorefrontLangGraphAgent {
           toolResults[tool.name] = result.ok ? result.data : { error: result.error };
           input.callbacks?.onToolResult?.(tool.name, result);
         }
+      }
+      if (!cartPolicy.terminal && this.structuredRouting && semantic.classification.domain === "STORE_SUPPORT"
+        && semantic.classification.requiresTool && !requiredReadToolName && input.knowledgeContext?.trim()) {
+        // RAG can let the model answer without requesting another tool. Keep
+        // the current-read gate by re-reading public support data before that
+        // narration, rather than accepting the existence of a context string.
+        for (const name of ["get_faq", "get_store_policies"] as const) {
+          const tool = executableTools.find(candidate => candidate.name === name);
+          if (!tool) { supportReadsConfirmed = false;continue; }
+          const args = name === "get_store_policies" ? { policyType: "all" } : {};
+          toolsUsed.push(name); input.callbacks?.onToolCall?.(name, args);
+          const result = await this.executeObservedTool(tool, args);
+          if (!result.ok) supportReadsConfirmed = false;
+          toolResults[name] = result.ok ? result.data : { error: result.error };
+          input.callbacks?.onToolResult?.(name, result);
+        }
+        supportEvidence = { role: "system", content: JSON.stringify({ id: "storefront.current-support-evidence", version: 1,
+          current: { faqs: toolResults.get_faq, policies: toolResults.get_store_policies },
+          rules: "Responda à dúvida de atendimento com estes dados públicos atuais. Eles prevalecem sobre trechos anteriores da base: conteúdo vazio ou removido não autoriza repetir uma condição antiga; erro significa informação não confirmada. Preserve a identificação de conteúdo MOCK/teste quando presente. Não confirme desconto, frete, pedido, reembolso ou chamado sem a ação específica correspondente." }) };
+        messages.push(supportEvidence);
       }
       if (!cartPolicy.terminal && this.structuredRouting && intentResult.intent === "NEGOTIATE_PRICE" && semantic.classification.requiresTool) {
         // This intent requires current conditions, not merely empathetic price
@@ -752,6 +774,7 @@ export class StorefrontLangGraphAgent {
             ...recentHistory.map((h) => ({ role: h.role as any, content: h.content })),
             { role: "user" as any, content: currentUserMessage },
             ...(commercialEvidence ? [commercialEvidence] : []),
+            ...(supportEvidence ? [supportEvidence] : []),
           ];
           const openRouterTools = turnTools.map((t) => ({
             type: "function" as const,
@@ -823,7 +846,7 @@ export class StorefrontLangGraphAgent {
     else if (searchPolicy.recommendationMessage) finalContent = searchPolicy.recommendationMessage;
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;
     if (canonicalOrderMessage) finalContent = canonicalOrderMessage;
-    const confirmedRead = Object.entries(toolResults).some(([name, value]) => (requiredReadToolName ? name === requiredReadToolName : CANONICAL_READ_TOOLS.has(name))
+    const confirmedRead = supportReadsConfirmed && Object.entries(toolResults).some(([name, value]) => (requiredReadToolName ? name === requiredReadToolName : CANONICAL_READ_TOOLS.has(name))
       && value !== null && typeof value === "object" && !Array.isArray(value) && !("error" in value));
     const requiredReadUnconfirmed = requiresCanonicalRead
       && toolsUsed.every(name => CANONICAL_READ_TOOLS.has(name)) && !confirmedRead
