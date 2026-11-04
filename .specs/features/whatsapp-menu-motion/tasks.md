@@ -45,15 +45,15 @@ T1 -> T2 -> T3. Three tasks fit one inline batch. Independent Verifier after pro
 **Where**: docs/plans/whatsapp-buyer-hub-and-graph-roadmap-2026-11-04.md and audit evidence
 **Depends on**: T2
 **Requirement**: PAYMENT-01
-**Tests**: existing payment/receipt contracts and final regression
+**Tests**: existing payment/receipt contracts and production TypeScript; full regression remains a release gate
 **Gate**: build
 **Done when**:
-- [ ] C4 and build pass; plan states present versus future capabilities and full acceptance matrix.
+- [x] C4 and build pass; plan states present versus future capabilities and full acceptance matrix. 99 payment/presentation tests, 150 motion contracts and production TypeScript passed. Readonly live receipt/projection/inventory evidence saved in the audit directory. Full regression remains a release gate.
 
 ## Gate Check Commands
 
 Quick: the selected proofs under Checks.
-Build: C1-C4, production TypeScript and guarded release regression.
+Build: C1-C4 and production TypeScript. Guarded full regression runs before release after final source changes.
 
 ## Checks
 
