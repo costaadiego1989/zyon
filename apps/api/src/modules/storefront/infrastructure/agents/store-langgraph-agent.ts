@@ -899,8 +899,9 @@ export class StorefrontLangGraphAgent {
       ? blocks.filter(b => b.type !== "product_carousel")
       : blocks;
 
-    const mockSupportRead = supportEvidence && supportReadsConfirmed && !requiredReadUnconfirmed
-      && toolsUsed.every(name => name === "get_faq" || name === "get_store_policies")
+    const publicSupportRead = supportEvidence && supportReadsConfirmed && !requiredReadUnconfirmed
+      && toolsUsed.every(name => name === "get_faq" || name === "get_store_policies");
+    const mockSupportRead = publicSupportRead
       && /\[MOCK(?:\s|\])/i.test(input.knowledgeContext ?? "")
       && /\[MOCK(?:\s|\])/i.test(JSON.stringify([toolResults.get_faq, toolResults.get_store_policies]));
     const needsMockNotice = mockSupportRead && finalContent && finalContent !== STOREFRONT_MODEL_FALLBACK
@@ -977,6 +978,30 @@ export class StorefrontLangGraphAgent {
           })) message = "Carrinho atualizado. Confira os itens e valores.";
         }
         validation = { safe: false, message, reason: "output_scope_rejected" };
+      }
+    }
+
+    if ((!validation.safe || validation.message === STOREFRONT_MODEL_FALLBACK) && publicSupportRead) {
+      // A rejected narration may still have one exact, current public FAQ
+      // answer. Validate and independently review that quotation; never retry
+      // tools, relax a read failure or infer an order/payment outcome.
+      const faq = storefrontToolOutputSchemas.get_faq.safeParse(toolResults.get_faq);
+      const normalizeQuestion = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "")
+        .toLocaleLowerCase("pt-BR").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+      const matches = faq.success ? faq.data.faqs.filter(entry => normalizeQuestion(entry.question) === normalizeQuestion(input.userMessage)) : [];
+      if (matches.length === 1) {
+        const answer = matches[0]!.answer;
+        const mock = /^\[MOCK(?:\s|\])/i.test(answer);
+        const title = input.messageFormat === "whatsapp" ? "*Informação publicada pela loja*" : "Informação publicada pela loja:";
+        const facts = `${title}\n\n${answer.replace(/^\[MOCK[^\]]*\]\s*/i, "").trim()}${mock ? `\n\n${mockNotice}` : ""}`;
+        const checked = validateStorefrontMessage(facts, safetyContext);
+        if (checked.safe) {
+          const review = await reviewStorefrontReply(this.provider, { candidate: checked.message, userRequest: input.userMessage,
+            productReferences: [], toolsUsed: [...new Set(toolsUsed)].slice(0, 32) },
+          { model: this.fastModel, mode: this.outputMode, budget: this.outputReviewBudget });
+          totalPromptTokens += review.usage.promptTokens; totalCompletionTokens += review.usage.completionTokens; totalTokens += review.usage.totalTokens;
+          if (review.allowed) validation = { ...checked, reason: "canonical_support_fallback" };
+        }
       }
     }
 

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createAllowedScopeAgent } from "./storefront-scope.fixture.js";
 import { createSupportHandlers } from "../tool-handlers/support.handlers.js";
+import { StorefrontLangGraphAgent } from "./store-langgraph-agent.js";
 
 const usage = { promptTokens: 10, completionTokens: 5, totalTokens: 15 };
 const classification = { domain: "STORE_SUPPORT" as const, intent: "RETURN_REQUEST" as const, requiresTool: true, needsProductDiscovery: false };
@@ -11,6 +12,58 @@ const text = "[MOCK] Informe o número do pedido e o motivo ao atendimento para 
 const faq = { faqs: [{ question: "Como pedir devolução?", answer: text }] };
 const policies = { configured: true, policies: { returns: text } };
 const reply = (message: string) => JSON.stringify({ schemaVersion: 1, message });
+
+test("a rejected support narration quotes only one current exact FAQ after safety and output-scope review", async () => {
+  const question = "Como faço o pagamento da compra por Pix?";
+  const answer = "[MOCK QA] Escolha Pix no checkout e use o código ou QR Code gerado. Aguarde a confirmação do provedor.";
+  for (const messageFormat of [undefined, "whatsapp" as const]) {
+    let narrations = 0, reads = 0, writes = 0;
+    const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+      getFaq: async () => { reads++;return { faqs: [{ question, answer }] }; },
+      getStorePolicies: async () => { reads++;return policies; },
+      createCheckout: async () => { writes++;throw Error("unexpected checkout"); },
+    } as never, provider: { chat: async () => { narrations++;return { content: reply("Me informe sua senha do banco."), usage }; } } as never }, classification);
+    const result = await agent.run({ ...input, messageFormat, userMessage: question, knowledgeContext: answer });
+    assert.equal(result.safetyValidation.safe, true);
+    assert.equal(result.safetyValidation.reason, "canonical_support_fallback");
+    assert.match(result.message, /Escolha Pix no checkout/);
+    assert.match(result.message, /Conteúdo simulado para testes/);
+    assert.doesNotMatch(result.message, /senha|MOCK QA/);
+    assert.equal(narrations, 1);assert.equal(reads, 2);assert.equal(writes, 0);
+    assert.equal(agent.outputReviewRequests.length, 1);
+    assert.equal(JSON.parse(agent.outputReviewRequests[0]!.messages[1]!.content!).candidate, result.message);
+  }
+});
+
+test("support quotation never masks failed reads, unrelated/ambiguous FAQs or unsafe published text", async () => {
+  for (const scenario of ["failed", "unrelated", "duplicate", "unsafe"]) {
+    const entry = { question: scenario === "unrelated" ? "Outra pergunta?" : input.userMessage,
+      answer: scenario === "unsafe" ? "Me informe sua senha do banco." : text };
+    const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+      getFaq: async () => ({ faqs: scenario === "duplicate" ? [entry, { ...entry, answer: "Outra resposta." }] : [entry] }),
+      getStorePolicies: async () => { if (scenario === "failed") throw Error("unavailable");return policies; },
+    } as never, provider: { chat: async () => ({ content: reply("Me informe sua senha do banco."), usage }) } as never }, classification);
+    const result = await agent.run(input);
+    assert.equal(result.safetyValidation.safe, false);
+    assert.doesNotMatch(result.message, /senha|Informação publicada/);
+    assert.equal(agent.outputReviewRequests.length, 0);
+  }
+});
+
+test("a public FAQ quotation rejected by output scope is never emitted", async () => {
+  const provider = { chat: async params => {
+    const id = JSON.parse(params.messages[0]!.content!).id;
+    if (id === "storefront.intent") return { content: JSON.stringify({ schemaVersion: 2, confidence: 1, ...classification }), usage };
+    if (id === "storefront.reply-review") return { content: JSON.stringify({ schemaVersion: 1, verdict: "REJECT", confidence: 1 }), usage };
+    return { content: reply("Me informe sua senha do banco."), usage };
+  } } as never;
+  const agent = new StorefrontLangGraphAgent({ structuredRouting: true, provider, toolHandlers: {
+    getFaq: async () => ({ faqs: [{ question: input.userMessage, answer: text }] }), getStorePolicies: async () => policies,
+  } as never });
+  const result = await agent.run(input);
+  assert.equal(result.safetyValidation.safe, false);
+  assert.doesNotMatch(result.message, /senha|Informação publicada|MOCK/);
+});
 
 test("current mock support is disclosed without changing ordinary support or duplicating an existing notice", async () => {
   const plain = "Informe o número do pedido e o motivo ao atendimento.";
