@@ -14,7 +14,7 @@ export function createSupportHandlers(deps: SupportHandlerDeps, ctx: ToolRequest
       const settings = await deps.prisma.supportSetting.findUnique({
         where: { merchantId: ctx.merchantId },
         select: { faqItems: true },
-      }).catch(() => null);
+      });
       const merchantFaq = Array.isArray(settings?.faqItems) ? settings.faqItems as Array<{ question: string; answer: string }> : [];
       // Generic example answers are not this merchant's shipping, payment or
       // returns policy. Only publish answers configured by the merchant.

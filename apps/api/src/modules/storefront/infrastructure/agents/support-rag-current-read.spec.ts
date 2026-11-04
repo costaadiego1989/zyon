@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createAllowedScopeAgent } from "./storefront-scope.fixture.js";
+import { createSupportHandlers } from "../tool-handlers/support.handlers.js";
 
 const usage = { promptTokens: 10, completionTokens: 5, totalTokens: 15 };
 const classification = { domain: "STORE_SUPPORT" as const, intent: "RETURN_REQUEST" as const, requiresTool: true, needsProductDiscovery: false };
@@ -63,14 +64,31 @@ test("provider fallback receives the same current support evidence without repea
 
 test("a successful FAQ lookup cannot mask a failed policy read or the inverse", async () => {
   for (const failed of ["faq", "policies"]) {
+    for (const format of ["malformed", "business_error"]) {
     const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
-      getFaq: async () => failed === "faq" ? { faqs: "invalid" } : faq,
-      getStorePolicies: async () => failed === "policies" ? { configured: true } : policies,
+      getFaq: async () => failed === "faq" ? format === "business_error" ? { error: "faq_unavailable" } : { faqs: "invalid" } : faq,
+      getStorePolicies: async () => failed === "policies" ? format === "business_error" ? { error: "policies_unavailable" } : { configured: true } : policies,
     } as never, provider: { chat: async () => ({ content: reply(text), usage }) } as never }, classification);
     const result = await agent.run(input);
     assert.equal(result.safetyValidation.safe, false);assert.equal(result.safetyValidation.reason, "required_read_unconfirmed");
     assert.match(result.message, /Não consegui confirmar/);
+    }
   }
+});
+
+test("the actual FAQ handler preserves a database outage through the agent current-read guard", async () => {
+  let queries = 0, handoffs = 0;
+  const support = createSupportHandlers({ prisma: { supportSetting: { findUnique: async (args: any) => {
+    queries++;assert.equal(args.where.merchantId, "merchant");throw Error("database unavailable");
+  } } }, supportHandoff: { createHandoff: async () => { handoffs++;throw Error("unexpected handoff"); } } } as never,
+  { merchantId: "merchant", sessionId: "owned" });
+  const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+    ...support, getStorePolicies: async () => policies,
+  } as never, provider: { chat: async () => ({ content: reply(text), usage }) } as never }, classification);
+  const result = await agent.run(input);
+  assert.equal(queries, 1);assert.equal(handoffs, 0);
+  assert.equal(result.safetyValidation.safe, false);assert.equal(result.safetyValidation.reason, "required_read_unconfirmed");
+  assert.match(result.message, /Não consegui confirmar/);
 });
 
 test("support preflight does not replace mandatory order reads or run on commerce and context-free turns", async () => {

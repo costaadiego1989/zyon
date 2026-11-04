@@ -11,3 +11,12 @@ test("FAQ never turns example payment, delivery or returns promises into merchan
     assert.deepEqual(await handlers.getFaq({}), { faqs: faqItems ?? [] });
   }
 });
+
+test("FAQ read outage remains an error rather than a successful empty published FAQ", async () => {
+  let queries = 0;
+  const handlers = createSupportHandlers({ prisma: { supportSetting: { findUnique: async (args: any) => {
+    queries++;assert.equal(args.where.merchantId, "merchant-a");throw Error("database unavailable");
+  } } }, supportHandoff: {} } as any, { merchantId: "merchant-a", sessionId: "conversation-a" });
+  await assert.rejects(handlers.getFaq({}), /database unavailable/);
+  assert.equal(queries, 1);
+});

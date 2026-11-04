@@ -592,7 +592,7 @@ export class StorefrontLangGraphAgent {
           const args = name === "get_store_policies" ? { policyType: "all" } : {};
           toolsUsed.push(name); input.callbacks?.onToolCall?.(name, args);
           const result = await this.executeObservedTool(tool, args);
-          if (!result.ok) supportReadsConfirmed = false;
+          if (!result.ok || !storefrontToolOutputSchemas[name].safeParse(result.data).success) supportReadsConfirmed = false;
           toolResults[name] = result.ok ? result.data : { error: result.error };
           input.callbacks?.onToolResult?.(name, result);
         }
