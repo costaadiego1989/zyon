@@ -899,7 +899,14 @@ export class StorefrontLangGraphAgent {
       ? blocks.filter(b => b.type !== "product_carousel")
       : blocks;
 
-    const messageToValidate = finalContent || FALLBACK_MESSAGE;
+    const mockSupportRead = supportEvidence && supportReadsConfirmed && !requiredReadUnconfirmed
+      && toolsUsed.every(name => name === "get_faq" || name === "get_store_policies")
+      && /\[MOCK(?:\s|\])/i.test(input.knowledgeContext ?? "")
+      && /\[MOCK(?:\s|\])/i.test(JSON.stringify([toolResults.get_faq, toolResults.get_store_policies]));
+    const needsMockNotice = mockSupportRead && finalContent && finalContent !== STOREFRONT_MODEL_FALLBACK
+      && !/\[MOCK(?:\s|\])|base de testes?|conteúdo simulad|ambiente de testes?/i.test(finalContent);
+    const mockNotice = input.messageFormat === "whatsapp" ? "_Conteúdo simulado para testes._" : "Conteúdo simulado para testes.";
+    const messageToValidate = needsMockNotice ? `${finalContent}\n\n${mockNotice}` : finalContent || FALLBACK_MESSAGE;
 
     // When list_promotions / get_daily_deals ran, the discounts they returned are
     // REAL (from the coupon repo / active product promotions). Authorize those

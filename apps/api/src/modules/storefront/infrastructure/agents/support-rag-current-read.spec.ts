@@ -12,6 +12,30 @@ const faq = { faqs: [{ question: "Como pedir devolução?", answer: text }] };
 const policies = { configured: true, policies: { returns: text } };
 const reply = (message: string) => JSON.stringify({ schemaVersion: 1, message });
 
+test("current mock support is disclosed without changing ordinary support or duplicating an existing notice", async () => {
+  const plain = "Informe o número do pedido e o motivo ao atendimento.";
+  for (const messageFormat of [undefined, "whatsapp" as const]) {
+    for (const source of ["mock", "ordinary", "revoked", "failed", "already_disclosed"]) {
+      const currentAnswer = source === "ordinary" || source === "revoked" ? plain : text;
+      const candidate = source === "already_disclosed" ? `${plain} Esta é uma base de teste simulada.` : plain;
+      const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+        getFaq: async () => ({ faqs: [{ question: "Como devolver?", answer: currentAnswer }] }),
+        getStorePolicies: async () => { if (source === "failed") throw Error("unavailable");return { configured: true, policies: { returns: currentAnswer } }; },
+      } as never, provider: { chat: async () => ({ content: reply(candidate), usage }) } as never }, classification);
+      const result = await agent.run({ ...input, messageFormat,
+        knowledgeContext: source === "ordinary" ? plain : `[MOCK QA] ${plain}` });
+      if (source === "failed") {
+        assert.equal(result.safetyValidation.safe, false);
+        assert.doesNotMatch(result.message, /simulado|MOCK/i);
+      } else {
+        assert.equal(result.safetyValidation.safe, true);
+        const notice = messageFormat === "whatsapp" ? "_Conteúdo simulado para testes._" : "Conteúdo simulado para testes.";
+        assert.equal(result.message, source === "mock" ? `${candidate}\n\n${notice}` : candidate);
+      }
+    }
+  }
+});
+
 test("current buyer question reaches support narration even when public context exceeds the history budget", async () => {
   const question = "Uma recomendação entra automaticamente no meu carrinho?";
   for (const channel of [{}, { messageFormat: "whatsapp" as const, attachmentContext: "Texto de uma lista enviada pelo comprador." }]) {
