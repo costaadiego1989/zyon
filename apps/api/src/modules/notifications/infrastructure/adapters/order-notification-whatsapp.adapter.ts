@@ -20,7 +20,7 @@ function animationUrl(type: AnimationType): string | undefined {
   try {
     const origin = new URL(process.env.API_PUBLIC_URL || process.env.PUBLIC_API_BASE_URL || process.env.PUBLIC_API_URL || "");
     if (origin.protocol !== "https:" || origin.username || origin.password) return undefined;
-    return new URL(`/whatsapp/presentation/${type === "order_paid_animation" ? "payment-paid-v1" : "order-shipped-v1"}.mp4`, origin).href;
+    return new URL(`/whatsapp/presentation/${type === "order_paid_animation" ? "payment-paid-v1" : "order-shipped-v1"}.webp`, origin).href;
   } catch { return undefined; }
 }
 
@@ -37,8 +37,8 @@ export class OrderNotificationWhatsAppAdapter implements NotificationWhatsAppSen
     const animationType = input.type === "order_paid_animation" || input.type === "order_shipped_animation" ? input.type : undefined;
     let sessionMessage = input.type === "merchant_order_paid" || Boolean(animationType);
     let buyerReceiptSession = false;
-    const videoUrl = animationType ? animationUrl(animationType) : undefined;
-    if (animationType && !videoUrl) return skipped("animation_asset_origin_unavailable");
+    const stickerUrl = animationType ? animationUrl(animationType) : undefined;
+    if (animationType && !stickerUrl) return skipped("animation_asset_origin_unavailable");
     const config = await this.configs.findByMerchantId(input.merchantId);
     const credentials = connectedMetaCloudCredentials(config, input.merchantId);
     if (!config || !credentials) return skipped("meta_connection_unavailable");
@@ -133,8 +133,7 @@ export class OrderNotificationWhatsAppAdapter implements NotificationWhatsAppSen
             method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
             headers: { Authorization: `Bearer ${latest.accessToken}`, "Content-Type": "application/json" },
             body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1),
-              ...(animationType ? { type: "video", video: { link: videoUrl,
-                caption: animationType === "order_paid_animation" ? "✅ Pagamento aprovado!" : "📦 Pedido enviado!" } }
+              ...(animationType ? { type: "sticker", sticker: { link: stickerUrl } }
                 : { type: "text", text: { body: input.freeformText } }), biz_opaque_callback_data: id }),
           });
           if (response.ok) {

@@ -90,6 +90,16 @@ test("welcome sends the greeting, then its video, then assistance blocks and nat
  assert(shown.messages[2].type==="text"&&shown.messages[2].text.body.includes("💬 *Converse à vontade*"));
 });
 
+test("animated welcome keeps greeting above the robot and help below it", () => {
+  const view = buildMetaUiView(response({ agentMessage: "👋 *Olá!*\n\nSou sua assistente.\n\n💬 *Converse à vontade*\nPergunte sobre produtos.",
+    blocks: [{ type: "welcome_animation", data: { url: "https://api.example.test/whatsapp/presentation/welcome-v2.webp" } }] as any }));
+  const shown = presentMetaUi(view, "welcome-sticker");
+  assert.equal(shown.messages[0].type, "text");
+  assert.deepEqual(shown.messages[1], { type: "sticker", media: { link: "https://api.example.test/whatsapp/presentation/welcome-v2.webp" } });
+  assert(shown.messages[0].type === "text" && shown.messages[0].text.body.includes("Olá") && !shown.messages[0].text.body.includes("Converse à vontade"));
+  assert(shown.messages[2].type === "text" && shown.messages[2].text.body.includes("Converse à vontade"));
+});
+
 test("conversational spacing leaves raw Pix and links untouched", () => {
   const prose="Este é um texto publicado com informações suficientes para ajudar a escolher um produto e entender as opções que a loja oferece neste momento. Confira as informações e me diga o que você prefere para continuar com tranquilidade. Qual produto você quer conhecer?";
   assert(formatMetaConversation(prose).includes("\n\nConfira"));

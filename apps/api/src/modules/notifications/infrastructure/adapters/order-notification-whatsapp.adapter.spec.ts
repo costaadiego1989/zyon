@@ -163,7 +163,7 @@ async function withAnimationProvider<T>(state: any, run: () => Promise<T>) {
   finally { if (previous === undefined) delete process.env.API_PUBLIC_URL; else process.env.API_PUBLIC_URL = previous; }
 }
 
-test("paid animation has a separate immutable order ledger and corrections cannot resend its video", async () => {
+test("paid animation has a separate immutable order ledger and corrections cannot resend its sticker", async () => {
   const { state, adapter } = fixture();
   await withAnimationProvider(state, async () => {
     const request = { ...input, type: "order_paid_animation" as const };
@@ -172,8 +172,8 @@ test("paid animation has a separate immutable order ledger and corrections canno
     assert.deepEqual(await adapter.execute({ ...request, idempotencyKey: "qa-order-receipt-correction-v1:order-1" }), accepted);
   });
   assert.equal(state.requests.length, 1); assert.equal(state.templateCalls.length, 0);
-  assert.equal(state.requests[0].body.type, "video");
-  assert.equal(state.requests[0].body.video.link, "https://api.example.test/whatsapp/presentation/payment-paid-v1.mp4");
+  assert.equal(state.requests[0].body.type, "sticker");
+  assert.deepEqual(state.requests[0].body.sticker, { link: "https://api.example.test/whatsapp/presentation/payment-paid-v1.webp" });
   assert.equal(state.row.response.type, "order_paid_animation"); assert.equal(state.row.response.channel, "whatsapp_session");
   assert.equal(state.row.response.orderId, "order-1"); assert.equal(state.row.response.receipt, undefined);
   assert.deepEqual(state.receiptQuery, { merchantId: "merchant-a", externalOrderId: "order-1" });
@@ -186,7 +186,8 @@ test("shipped animation binds canonical ID to external order and requires actual
     assert.equal((await adapter.execute({ ...input, orderId: "order-1", type: "order_shipped_animation" })).status, "accepted");
   });
   assert.equal(state.requests.length, 1);
-  assert.equal(state.requests[0].body.video.link, "https://api.example.test/whatsapp/presentation/order-shipped-v1.mp4");
+  assert.equal(state.requests[0].body.type, "sticker");
+  assert.deepEqual(state.requests[0].body.sticker, { link: "https://api.example.test/whatsapp/presentation/order-shipped-v1.webp" });
   assert.equal(state.row.response.orderId, "order-1"); assert.equal(state.row.response.type, "order_shipped_animation");
   assert.equal(state.orderEventQuery.where.merchantId, "merchant-a");
   assert.equal(state.orderEventQuery.where.eventType, "order.confirmed");

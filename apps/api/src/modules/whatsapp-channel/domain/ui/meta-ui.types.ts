@@ -16,6 +16,7 @@ export interface MetaUiChoice { label: string; description?: string; action: Sto
 export type MetaUiMessage =
   | { type: "text"; text: { body: string; preview_url?: boolean } }
   | { type: "image" | "video" | "document"; media: { link: string; caption?: string } }
+  | { type: "sticker"; media: { link: string } }
   | { type: "interactive"; interactive: Record<string, unknown> };
 
 export interface MetaUiView {

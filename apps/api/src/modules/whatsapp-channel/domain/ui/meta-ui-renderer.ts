@@ -109,7 +109,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
       case "text": case "message": text.push(value(d.text || d.content)); break;
       case "commerce_animation": case "payment_paid_animation": case "welcome_animation": {
         const link = safeLink(d.url);
-        if (link) view.media.push({ type: "video", media: { link } });
+        if (link) view.media.push({ type: new URL(link).pathname.endsWith(".webp") ? "sticker" : "video", media: { link } });
         break;
       }
       case "form_field": text.push(`Informe ${value(d.label || d.field)}:`); break;
@@ -442,7 +442,7 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   });
   const productPhotos: MetaUiMessage[] = catalog && options.includeMedia !== false ? choices.filter(choice => choice.image).map(choice => ({ type: "image", media: choice.image! })) : [];
   const messages: MetaUiMessage[] = [];
-  const confirmationVideos = !options.navigationOnly && options.includeMedia !== false && view.blocks.some(block => block.type === "commerce_animation") ? view.media.filter(media => media.type === "video").slice(0, 1) : [];
+  const confirmationVideos = !options.navigationOnly && options.includeMedia !== false && view.blocks.some(block => block.type === "commerce_animation") ? view.media.filter(media => media.type === "video" || media.type === "sticker").slice(0, 1) : [];
   const visibleMedia = productPhotos.length ? [...confirmationVideos, ...productPhotos].slice(0, 3)
     : options.includeMedia !== false && !options.navigationOnly ? view.media.filter(m => m.type !== "text").slice(0, 3) : [];
   // Product detail starts with its real photo and price, followed by the full
@@ -451,7 +451,7 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   if (productDetails && !welcome && visibleMedia[0]?.type === "image") messages.push(visibleMedia.shift()!);
   if (!options.navigationOnly && (!catalog || page === 0)) {
     const introduction = welcome ? parts[0]?.split(/\n{2,}/) : undefined;
-    if (introduction && introduction.length > 2 && visibleMedia[0]?.type === "video") {
+    if (introduction && introduction.length > 2 && (visibleMedia[0]?.type === "video" || visibleMedia[0]?.type === "sticker")) {
       messages.push({ type: "text", text: { body: formatMetaSpeech(introduction.slice(0, 2).join("\n\n")) } });
       messages.push(visibleMedia.shift()!);
       [introduction.slice(2).join("\n\n"), ...parts.slice(1, 2)].filter(Boolean).forEach(body => messages.push({ type: "text", text: { body: formatMetaSpeech(body) } }));

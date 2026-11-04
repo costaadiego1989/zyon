@@ -10,7 +10,7 @@ const response = (blocks: any[], state: Record<string, unknown> = {}): WhatsAppS
 });
 const origin = "https://api.example.test/v1?ignored=true";
 
-test("each confirmed addition presents a light video before native controls without changing the canonical result", () => {
+test("each confirmed addition presents an animated sticker before native controls without changing the canonical result", () => {
   const original = response([{ type: "cart_add_result", data: { cartId: "cart", variantId: "variant", status: "succeeded" } }, { type: "cross_sell", data: { products: [{ id: "socks", name: "Meia", price: 2000, image: "https://cdn.example.test/socks.jpg" }] } }]);
   const before = structuredClone(original);
   const decorated = withCartAnimations(original, origin);
@@ -19,7 +19,7 @@ test("each confirmed addition presents a light video before native controls with
   assert.equal((decorated.blocks[0].data as any).kind, "cart_added");
   assert.deepEqual(decorated.blocks.slice(1), before.blocks);
   const shown = presentMetaUi(buildMetaUiView(decorated), "addition");
-  const video = shown.messages.findIndex(message => message.type === "video");
+  const video = shown.messages.findIndex(message => message.type === "sticker" && message.media.link.endsWith("cart-added-v1.webp"));
   assert(video > 0);
   assert(shown.messages.slice(video + 1).some(message => message.type === "interactive"));
   assert(shown.numericSelections.some(action => action.kind === "tool" && action.tool === "get_product_details" && action.args.productId === "socks"));
@@ -62,5 +62,5 @@ test("invalid public media origin keeps truthful text and leaves the empty anima
 test("menu pagination and navigation do not replay confirmation media", () => {
   const view = buildMetaUiView(withCartAnimations(response([{ type: "cart_add_result", data: { status: "succeeded" } }]), origin));
   for (const options of [{ navigationOnly: true }, { includeMedia: false }])
-    assert.equal(presentMetaUi(view, "navigation", 0, options).messages.some(message => message.type === "video"), false);
+    assert.equal(presentMetaUi(view, "navigation", 0, options).messages.some(message => message.type === "video" || message.type === "sticker"), false);
 });

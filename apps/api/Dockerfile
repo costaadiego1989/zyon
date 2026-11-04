@@ -137,7 +137,10 @@ RUN test -s /repo/apps/api/assets/whatsapp/welcome-v1.mp4 && \
     test -s /repo/apps/api/assets/whatsapp/payment-paid-v1.mp4 && \
     test -s /repo/apps/api/assets/whatsapp/cart-added-v1.mp4 && \
     test -s /repo/apps/api/assets/whatsapp/cart-empty-v1.mp4 && \
-    test -s /repo/apps/api/assets/whatsapp/order-shipped-v1.mp4
+    test -s /repo/apps/api/assets/whatsapp/order-shipped-v1.mp4 && \
+    for asset in welcome-v2 cart-added-v1 cart-empty-v1 payment-paid-v1 order-shipped-v1; do \
+      test -s /repo/apps/api/assets/whatsapp/$asset.webp && test -s /repo/apps/api/assets/whatsapp/$asset.gif || exit 1; \
+    done
 
 ENV NODE_ENV=production \
     PORT=3009

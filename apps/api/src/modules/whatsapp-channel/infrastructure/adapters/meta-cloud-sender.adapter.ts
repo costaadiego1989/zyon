@@ -55,6 +55,7 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
     if (ui.type === "interactive") return { type: "interactive", interactive: ui.interactive };
     const link = new URL(ui.media.link);
     if (link.protocol !== "https:" || link.username || link.password) throw new Error("whatsapp_media_url_invalid");
+    if (ui.type === "sticker") return { type: "sticker", sticker: { link: link.href } };
     if (ui.type === "image" && this.images) {
       const id = await this.images.prepare({ link: link.href, graph: this.graph, ...credentials });
       if (id) return { type: "image", image: { id, ...(ui.media.caption ? { caption: ui.media.caption } : {}) } };

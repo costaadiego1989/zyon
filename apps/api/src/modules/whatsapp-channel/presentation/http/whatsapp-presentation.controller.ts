@@ -1,4 +1,4 @@
-import { Controller, Get, Header, StreamableFile } from "@nestjs/common";
+import { Controller, Get, Header, NotFoundException, Param, StreamableFile } from "@nestjs/common";
 import { createReadStream, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -45,5 +45,14 @@ export class WhatsAppPresentationController {
   orderShipped(): StreamableFile {
     const path = fileURLToPath(new URL("../../../../../assets/whatsapp/order-shipped-v1.mp4", import.meta.url));
     return new StreamableFile(createReadStream(path), { type: "video/mp4", disposition: "inline", length: statSync(path).size });
+  }
+
+  @Get(":asset")
+  @Header("Cache-Control", "public, max-age=31536000, immutable")
+  animation(@Param("asset") asset: string): StreamableFile {
+    // A closed list serves only shipped presentation media, never arbitrary files.
+    if (!/^(welcome-v2|cart-added-v1|cart-empty-v1|payment-paid-v1|order-shipped-v1)\.(webp|gif)$/.test(asset)) throw new NotFoundException();
+    const path = fileURLToPath(new URL(`../../../../../assets/whatsapp/${asset}`, import.meta.url));
+    return new StreamableFile(createReadStream(path), { type: asset.endsWith(".webp") ? "image/webp" : "image/gif", disposition: "inline", length: statSync(path).size });
   }
 }

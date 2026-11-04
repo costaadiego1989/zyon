@@ -35,7 +35,7 @@ test('welcome animation is HTTPS-only and appears once while text and menu stay 
   assert.equal(first.blocks.filter(b=>b.type==='welcome_animation').length,1);
   assert.equal(first.state.welcomeAnimationShown,true);
   const presentation=presentMetaUi(buildMetaUiView(first),'welcome');
-  assert(presentation.messages.some(m=>m.type==='video'));
+  assert(presentation.messages.some(m=>m.type==='sticker' && m.media.link.endsWith('welcome-v2.webp')));
   assert(presentation.messages.some(m=>m.type==='text'&&m.text.body.includes('Athom')));
   const next=await f.adapter.respondStore({merchantId:'merchant',buyer,message:'Menu',state:first.state});
   assert(!next.blocks.some(b=>b.type==='welcome_animation'));

@@ -30,6 +30,25 @@ test("sends a conversational response through the connected merchant Meta phone"
   mock.mock.restore();
 });
 
+test("animated stickers use caption-free HTTPS payloads without turning product WebP images into stickers", async t => {
+  const requests: any[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+    requests.push(JSON.parse(String(init?.body))); return Response.json({ messages: [{ id: "wamid.sticker" }] });
+  });
+  const adapter = new MetaCloudSenderAdapter({ findById: async () => activeConfig } as any);
+  const base = { deviceId: "META_CLOUD:config-meta", toNumber: "552171191446", text: "", correlationId: "animation-1" };
+  const link = "https://api.example.test/whatsapp/presentation/welcome-v2.webp";
+  assert.deepEqual(await adapter.sendText({ ...base, uiMessage: { type: "sticker", media: { link, caption: "unsupported" } } as any }), { messageId: "wamid.sticker", status: "sent" });
+  assert.deepEqual(requests[0], { messaging_product: "whatsapp", to: "552171191446", biz_opaque_callback_data: "animation-1", type: "sticker", sticker: { link } });
+  await adapter.sendMedia({ ...base, mediaUrl: "https://cdn.example.test/product.webp", mimetype: "image/webp" });
+  assert.equal(requests[1].type, "image");
+  assert.equal(requests[1].image.link, "https://cdn.example.test/product.webp");
+  for (const unsafe of ["http://api.example.test/a.webp", "https://secret:token@example.test/a.webp"]) {
+    assert.deepEqual(await adapter.sendText({ ...base, uiMessage: { type: "sticker", media: { link: unsafe } } }), { messageId: "", status: "failed" });
+  }
+  assert.equal(requests.length, 2);
+});
+
 test("does not use platform credentials when the Meta connection is unavailable", async t => {
   const mock = t.mock.method(globalThis, "fetch", async () => {
     assert.fail("must not call Graph API without an active merchant connection");

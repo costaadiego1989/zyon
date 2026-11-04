@@ -38,7 +38,7 @@ T1 -> T2 -> T3. Three tasks fit one inline batch. Independent Verifier after pro
 **Tests**: unit and asset contract
 **Gate**: quick
 **Done when**:
-- [ ] C2/C3 pass with real multiframe assets and immutable delivery guards.
+- [x] C2/C3 pass with real multiframe assets and immutable delivery guards.
 
 ### T3: Buyer payment review and complete capability roadmap
 **What**: Verify canonical receipt math and buyer actions; document hub parity and graph gaps.

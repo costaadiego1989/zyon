@@ -165,7 +165,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       state.history = [{ role: "user", content: input.message }, { role: "assistant", content: greeting }];
       const blocks: WhatsAppStructuredResponse["blocks"] = [];
       if (!state.welcomeAnimationShown) {
-        const url = presentationAssetUrl("welcome-v2.mp4");
+        const url = presentationAssetUrl("welcome-v2.webp");
         if (url) {
           blocks.push({ type: "welcome_animation", data: { url } });
           state.welcomeAnimationShown = true;
