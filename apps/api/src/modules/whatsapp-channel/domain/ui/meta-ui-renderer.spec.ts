@@ -46,6 +46,16 @@ test("catalog names stay readable and complete without a redundant back row", ()
   assert(!fallback.numericSelections.some(action => action.kind === "back"));
 });
 
+test("a long published brand name without a product suffix retains a nonblank native title", () => {
+  const name = "Laboratório de Cosméticos Profissional — ";
+  const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [{ id: "brand-only", name, price: 7319 }] } }] as any }));
+  const shown = presentMetaUi(view, "brand-suffix");
+  const row = native(shown).at(-1).action.sections[0].rows[0];
+  assert.equal(row.title, "Laboratório de…");
+  assert.equal(row.description, `${name} · R$\u00a073,19`);
+  assert.deepEqual(shown.selections[row.id], { kind: "tool", tool: "get_product_details", args: { productId: "brand-only" } });
+});
+
 test("product row shortening respects Unicode and keeps detail back navigation", () => {
   const name = "🧴 Hidratação diária intensiva com proteção";
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [{ id: "unicode", name, price: 1000 }] } }] as any }));

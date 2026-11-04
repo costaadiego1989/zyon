@@ -52,6 +52,16 @@ test("buyer WhatsApp confirmation leads with the paid fact, separates identity f
   assert.match(text, /\n🚚 Frete: /);
   assert.match(text, /\n\n✅ \*Total pago: /);
   assert.doesNotMatch(text, /Diego Costa - Athom|preparando|enviado|despachado/);
+  assert.match(text, /Você pode consultar o andamento do pedido por aqui\./);
+  assert.match(text, /Se precisar de ajuda, é só enviar uma mensagem\./);
+  assert.doesNotMatch(text, /painel|dashboard|admin/i);
+});
+
+test("buyer email directs purchase access to the store rather than a merchant dashboard", () => {
+  const html = renderOrderConfirmationTemplate(event);
+  assert.match(html, /volte à loja e abra sua área de compras/);
+  assert.match(html, /use o atendimento da loja/);
+  assert.doesNotMatch(html, /painel|dashboard|admin/i);
 });
 
 test("a large buyer receipt remains deliverable as one WhatsApp message and labels omitted item rows", () => {

@@ -12,7 +12,8 @@ const money = (amount: unknown): string => new Intl.NumberFormat("pt-BR", { styl
 const concise = (text: string, limit: number): string => Array.from(text).slice(0, limit).join("");
 const productRowTitle = (name: string): string => {
   if (Array.from(name).length <= 24) return name;
-  const product = name.includes(" — ") ? name.split(" — ").slice(1).join(" — ") : name;
+  const suffix = name.includes(" — ") ? name.split(" — ").slice(1).join(" — ").trim() : "";
+  const product = suffix || name.trim();
   if (Array.from(product).length <= 24) return product;
   const prefix = concise(product, 23);
   const boundary = prefix.lastIndexOf(" ");
