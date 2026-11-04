@@ -38,7 +38,7 @@ T1 -> T2 -> T3 -> T4. Four tasks fit one inline batch. Fresh independent Verifie
 **Tests**: unit and adapter integration
 **Gate**: quick
 **Done when**:
-- [ ] C3 passes for typed and native choices with verified, unknown and ambiguous buyers.
+- [x] C3 passes: 6 tests with actual adapter/native choices, missing proof and ambiguous/foreign contexts.
 
 ### T4: Address management and release acceptance
 **What**: Persist transactional address CRUD/default, protect stale/repeated actions, close independent findings and verify release behavior.

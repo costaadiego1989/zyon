@@ -32,6 +32,7 @@ import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from ".
 import { CheckoutShippingService } from "../../../checkout/application/services/checkout-shipping.service.js";
 import type { TrustedWhatsAppCheckoutBuyer } from "../../../checkout/application/services/trusted-checkout-buyer.js";
 import { WhatsAppPostCartOfferService } from "../../application/services/whatsapp-post-cart-offer.service.js";
+import { WhatsAppBuyerHubService } from "../../application/services/whatsapp-buyer-hub.service.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -56,6 +57,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     @Optional() @Inject(STOREFRONT_CONVERSATION_PORT) private readonly storefrontConversation?: StorefrontConversationPort,
     @Optional() private readonly checkoutShipping?: CheckoutShippingService,
     @Optional() private readonly postCartOffers?: WhatsAppPostCartOfferService,
+    @Optional() private readonly buyerHub?: WhatsAppBuyerHubService,
   ) {}
 
   async respond(input: { merchantId: string; checkoutSessionId: string; message: string }) {
@@ -111,6 +113,9 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
   }): Promise<WhatsAppStructuredResponse> {
     if (!this.store || !this.storeConfig) throw new Error("whatsapp_storefront_adapter_unavailable");
     const config = await this.storeConfig.executeForMerchant(input.merchantId);
+    const hub = await this.buyerHub?.handle(input, config.name);
+    if (hub?.kind === "reply") return hub.response;
+    if (hub?.kind === "route") input = { ...input, message: hub.message, action: hub.action, buyer: hub.buyer ?? input.buyer, state: hub.state ?? input.state };
     let state = { ...input.state };
     const identitySession = state.checkoutSessionId ? await this.sessions.getSession(input.merchantId, state.checkoutSessionId) : undefined;
     const verifiedBuyer = identitySession?.merchantId === input.merchantId && identitySession.customer?.email_verified === true && identitySession.customer.email?.trim() &&

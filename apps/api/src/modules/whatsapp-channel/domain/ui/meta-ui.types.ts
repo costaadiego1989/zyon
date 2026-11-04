@@ -52,6 +52,8 @@ export interface WhatsAppConversationState {
   pendingCheckoutEdit?: { section: "payment" | "coupon"; fingerprint: string; intentId: string; method?: "pix" | "card" };
   pendingCoupon?: { sessionId: string; fingerprint: string };
   pendingProductQuestion?: { productId: string };
+  buyerHub?: import("./buyer-hub.js").BuyerHubState;
+  buyerHubIdentity?: { command: string; expiresAt: number };
   postCartOffer?: {
     id: string; merchantId: string; cartId: string; ruleId: string; kind: "recommendation" | "discount";
     variantId: string; productId: string; sourceVariantId: string; addedName: string; name: string;

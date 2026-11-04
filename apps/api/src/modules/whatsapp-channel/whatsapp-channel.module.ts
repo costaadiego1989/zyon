@@ -8,6 +8,8 @@ import { EmbedModule } from "../embed/embed.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { WhatsAppCheckoutIdentityService } from "./application/services/whatsapp-checkout-identity.service.js";
+import { WhatsAppBuyerHubService } from "./application/services/whatsapp-buyer-hub.service.js";
+import { WhatsAppHubAddressesService } from "./application/services/whatsapp-hub-addresses.service.js";
 import { PaymentModule } from "../payment/payment.module.js";
 import { CouponsExecutionModule } from "../coupons/coupons-execution.module.js";
 import { WHATSAPP_CONVERSATION_PORT } from "./domain/ports/whatsapp-conversation.port.js";
@@ -88,6 +90,8 @@ export class MultiProviderSenderAdapter {
     HandleIncomingMessageUseCase,
     HandleMetaConversationUseCase,
     WhatsAppCheckoutIdentityService,
+    WhatsAppBuyerHubService,
+    WhatsAppHubAddressesService,
     WhatsAppPostCartOfferService,
     { provide: WHATSAPP_CONVERSATION_PORT, useClass: CheckoutWhatsAppConversationAdapter },
     HandleStatusUpdateUseCase,

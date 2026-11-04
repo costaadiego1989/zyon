@@ -92,7 +92,7 @@ export class WhatsAppCheckoutIdentityService {
   }
 }
 
-function brazilianPhoneForms(input: string): string[] {
+export function brazilianPhoneForms(input: string): string[] {
   const digits = input.replace(/\D/g, "");
   const international = digits.startsWith("55") && digits.length >= 12 ? digits : "55" + digits;
   const forms = [international, international.slice(2)];
