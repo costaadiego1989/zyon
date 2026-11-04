@@ -904,10 +904,17 @@ export class StorefrontLangGraphAgent {
     const mockSupportRead = publicSupportRead
       && /\[MOCK(?:\s|\])/i.test(input.knowledgeContext ?? "")
       && /\[MOCK(?:\s|\])/i.test(JSON.stringify([toolResults.get_faq, toolResults.get_store_policies]));
+    const disclosureText = finalContent.replace(/[*_]/g, "");
+    const normalizedDisclosure = disclosureText.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+    const deniesMockDisclosure = mockSupportRead && /\b(?:nao|nunca|jamais|sem)\b[^.!?;\n]{0,120}\b(?:conteudos? simulad|dados? simulad|base de testes?|ambiente de testes?)/.test(normalizedDisclosure);
+    const hasMockDisclosure = !deniesMockDisclosure && (/(?:^|\n)\s*\[MOCK(?:\s|\])/i.test(disclosureText)
+      || /(?:^|\n)\s*Conteúdo simulado(?: para testes)?[.:](?:\s|$)/i.test(disclosureText)
+      || /(?:^|\s)é\s+(?:uma?\s+)?(?:base de testes?|conteúdo simulado|ambiente de testes?)\b/i.test(disclosureText));
     const needsMockNotice = mockSupportRead && finalContent && finalContent !== STOREFRONT_MODEL_FALLBACK
-      && !/\[MOCK(?:\s|\])|base de testes?|conteúdo simulad|ambiente de testes?/i.test(finalContent);
+      && !hasMockDisclosure;
     const mockNotice = input.messageFormat === "whatsapp" ? "_Conteúdo simulado para testes._" : "Conteúdo simulado para testes.";
-    const messageToValidate = needsMockNotice ? `${finalContent}\n\n${mockNotice}` : finalContent || FALLBACK_MESSAGE;
+    const messageToValidate = deniesMockDisclosure ? `${mockNotice}\n\nNão consegui confirmar a orientação para esta pergunta.`
+      : needsMockNotice ? `${finalContent}\n\n${mockNotice}` : finalContent || FALLBACK_MESSAGE;
 
     // When list_promotions / get_daily_deals ran, the discounts they returned are
     // REAL (from the coupon repo / active product promotions). Authorize those
@@ -945,6 +952,7 @@ export class StorefrontLangGraphAgent {
     };
 
     let validation = validateStorefrontMessage(messageToValidate, safetyContext);
+    if (deniesMockDisclosure) validation = { ...validation, safe: false, reason: "mock_disclosure_conflict" };
     if (requiredReadUnconfirmed) validation = { ...validation, safe: false, reason: "required_read_unconfirmed" };
     if (!validation.safe) recordStorefrontDecision("validation", "rejected", "safety_rejected");
 

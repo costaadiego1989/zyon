@@ -26,13 +26,47 @@ test("a rejected support narration quotes only one current exact FAQ after safet
     const result = await agent.run({ ...input, messageFormat, userMessage: question, knowledgeContext: answer });
     assert.equal(result.safetyValidation.safe, true);
     assert.equal(result.safetyValidation.reason, "canonical_support_fallback");
-    assert.match(result.message, /Escolha Pix no checkout/);
-    assert.match(result.message, /Conteúdo simulado para testes/);
+    const expected = messageFormat === "whatsapp"
+      ? "*Informação publicada pela loja*\n\nEscolha Pix no checkout e use o código ou QR Code gerado. Aguarde a confirmação do provedor.\n\n_Conteúdo simulado para testes._"
+      : "Informação publicada pela loja:\n\nEscolha Pix no checkout e use o código ou QR Code gerado. Aguarde a confirmação do provedor.\n\nConteúdo simulado para testes.";
+    assert.equal(result.message, expected);
     assert.doesNotMatch(result.message, /senha|MOCK QA/);
     assert.equal(narrations, 1);assert.equal(reads, 2);assert.equal(writes, 0);
     assert.equal(agent.outputReviewRequests.length, 1);
     assert.equal(JSON.parse(agent.outputReviewRequests[0]!.messages[1]!.content!).candidate, result.message);
   }
+});
+
+test("a denial of current simulation is replaced by reviewed public facts instead of contradictory narration", async () => {
+  for (const messageFormat of [undefined, "whatsapp" as const]) {
+    for (const candidate of ["Solicite a troca ao atendimento. Esta orientação não usa conteúdo simulado.", "Esta não é uma base de teste."]) {
+      let reads = 0, narrations = 0;
+      const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+        getFaq: async () => { reads++;return { faqs: [{ question: input.userMessage, answer: text }] }; },
+        getStorePolicies: async () => { reads++;return policies; },
+      } as never, provider: { chat: async () => { narrations++;return { content: reply(candidate), usage }; } } as never }, classification);
+      const result = await agent.run({ ...input, messageFormat, knowledgeContext: text });
+      const expected = messageFormat === "whatsapp"
+        ? "*Informação publicada pela loja*\n\nInforme o número do pedido e o motivo ao atendimento para receber as orientações de devolução.\n\n_Conteúdo simulado para testes._"
+        : "Informação publicada pela loja:\n\nInforme o número do pedido e o motivo ao atendimento para receber as orientações de devolução.\n\nConteúdo simulado para testes.";
+      assert.equal(result.message, expected);
+      assert.equal(result.safetyValidation.safe, true);
+      assert.equal(result.safetyValidation.reason, "canonical_support_fallback");
+      assert.equal(reads, 2);assert.equal(narrations, 1);assert.equal(agent.outputReviewRequests.length, 1);
+      assert.doesNotMatch(result.message, /não usa|não é uma base/);
+    }
+  }
+});
+
+test("a simulation denial with no exact FAQ emits only an honest server notice", async () => {
+  const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+    getFaq: async () => faq, getStorePolicies: async () => policies,
+  } as never, provider: { chat: async () => ({ content: reply("Esta orientação não usa conteúdo simulado."), usage }) } as never }, classification);
+  const result = await agent.run({ ...input, knowledgeContext: text });
+  assert.equal(result.safetyValidation.safe, false);
+  assert.equal(result.safetyValidation.reason, "mock_disclosure_conflict");
+  assert.equal(result.message, "Conteúdo simulado para testes.\n\nNão consegui confirmar a orientação para esta pergunta.");
+  assert.equal(agent.outputReviewRequests.length, 0);
 });
 
 test("support quotation never masks failed reads, unrelated/ambiguous FAQs or unsafe published text", async () => {
