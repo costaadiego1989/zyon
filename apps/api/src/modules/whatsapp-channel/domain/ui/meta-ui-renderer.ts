@@ -10,6 +10,14 @@ const items = (value: unknown): Record<string, any>[] => Array.isArray(value) ? 
 const value = (input: unknown): string => typeof input === "string" ? input : input == null ? "" : String(input);
 const money = (amount: unknown): string => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(amount) || 0);
 const concise = (text: string, limit: number): string => Array.from(text).slice(0, limit).join("");
+const productRowTitle = (name: string): string => {
+  if (Array.from(name).length <= 24) return name;
+  const product = name.includes(" — ") ? name.split(" — ").slice(1).join(" — ") : name;
+  if (Array.from(product).length <= 24) return product;
+  const prefix = concise(product, 23);
+  const boundary = prefix.lastIndexOf(" ");
+  return `${boundary > 11 ? prefix.slice(0, boundary) : prefix}…`;
+};
 const variantTitle = (variant: Record<string, any>): string => {
   const attribute = value(variant.name);
   const choice = value(variant.value || variant.sku || variant.id);
@@ -422,14 +430,15 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   if (catalog) choices.push({ label: "Outras opções", action: { kind: "catalog_options" } });
   if (page > 0) choices.push({ label: catalog ? "Produtos anteriores" : "Página anterior", action: { kind: "page", page: page - 1 } });
   if (page < totalPages - 1) choices.push({ label: catalog ? "Próximos produtos" : "Mais opções", action: { kind: "page", page: page + 1 } });
-  if (options.canGoBack) choices.push({ label: "Voltar", action: { kind: "back" } });
+  if (options.canGoBack && !catalog) choices.push({ label: "Voltar", action: { kind: "back" } });
   const selections: Record<string, StoreUiAction> = {};
   const rows = choices.map((choice, index) => {
     const id = "zyon:" + createHash("sha256").update(`${revision}:${page}:${index}`).digest("hex").slice(0, 32);
     selections[id] = choice.action;
     const numbered = `${index + 1}. ${choice.label}`;
-    const description = numbered.length > 24 ? `${choice.label}${choice.description ? ` · ${choice.description}` : ""}` : choice.description;
-    return { id, title: concise(numbered, 24), ...(description ? { description: concise(description, 72) } : {}) };
+    const product = choice.action.kind === "tool" && choice.action.tool === "get_product_details";
+    const description = product || numbered.length > 24 ? `${choice.label}${choice.description ? ` · ${choice.description}` : ""}` : choice.description;
+    return { id, title: product ? productRowTitle(choice.label) : concise(numbered, 24), ...(description ? { description: concise(description, 72) } : {}) };
   });
   const productPhotos: MetaUiMessage[] = catalog && options.includeMedia !== false ? choices.filter(choice => choice.image).map(choice => ({ type: "image", media: choice.image! })) : [];
   const messages: MetaUiMessage[] = [];
@@ -449,6 +458,12 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     } else parts.slice(0, 2).forEach(body => messages.push({ type: "text", text: { body: formatMetaSpeech(body) } }));
   }
   messages.push(...visibleMedia);
+  // Very long published names cannot fit either native field. Keep the full
+  // name and commercial description on the current page, including later pages.
+  const fullProductLabels = currentChoices.filter(choice => choice.action.kind === "tool" && choice.action.tool === "get_product_details"
+    && Array.from(`${choice.label} · ${choice.description || ""}`).length > 72)
+    .map(choice => `📦 *${choice.label}*${choice.description ? `\n${choice.description}` : ""}`);
+  paragraphs(fullProductLabels.join("\n\n")).forEach(body => messages.push({ type: "text", text: { body: formatMetaSpeech(body) } }));
   if (options.includeMedia !== false && !options.navigationOnly) messages.push(...view.media.filter(m => m.type === "text"));
   if (choices.length) {
     const selectedVariation = view.choices.find(choice => choice.action.kind === "variant" && choice.label.startsWith("✓ "));

@@ -6,6 +6,56 @@ import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
 const native = (presentation: ReturnType<typeof presentMetaUi>) => presentation.messages.filter(m => m.type === "interactive").map(m => m.type === "interactive" ? m.interactive as any : null);
 
+test("catalog names stay readable and complete without a redundant back row", () => {
+  const products = [
+    { id: "repair", name: "Núcleo — Creme Reparador", price: 10990 },
+    { id: "mist", name: "Núcleo — Bruma de Hidratação", price: 9990 },
+    { id: "long", name: "Creme reparador facial de hidratação intensa com ingredientes publicados pela loja e embalagem econômica de 500 ml", price: 12000 },
+    ...Array.from({ length: 11 }, (_, index) => ({ id: `other-${index}`, name: `Produto ${index}`, price: 5000 })),
+  ];
+  const view = withMetaCartNavigation(buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products } }] as any })), true);
+  const selected = new Set<string>();
+  const first = presentMetaUi(view, "catalog-readable", 0, { canGoBack: true });
+  for (let page = 0; page < first.totalPages; page++) {
+    const shown = presentMetaUi(view, "catalog-readable", page, { canGoBack: true });
+    const rows = native(shown).at(-1).action.sections[0].rows;
+    assert(rows.length <= 10);
+    assert(!shown.numericSelections.some(action => action.kind === "back"));
+    for (const [index, row] of rows.entries()) {
+      assert.deepEqual(shown.selections[row.id], shown.numericSelections[index]);
+      assert(Array.from(row.title).length <= 24);
+      assert(Array.from(row.description || "").length <= 72);
+      const action = shown.selections[row.id];
+      if (action.kind !== "tool" || action.tool !== "get_product_details") continue;
+      selected.add(String(action.args.productId));
+      assert(!/^\d+\./.test(row.title));
+      if (action.args.productId === "repair") assert.equal(row.title, "Núcleo — Creme Reparador");
+      if (action.args.productId === "mist") {
+        assert.equal(row.title, "Bruma de Hidratação");
+        assert.equal(row.description, "Núcleo — Bruma de Hidratação · R$\u00a099,90");
+      }
+      if (action.args.productId === "long") {
+        assert.equal(row.title, "Creme reparador facial…");
+        assert(shown.messages.some(message => message.type === "text" && message.text.body.includes(products[2].name) && message.text.body.includes("120,00")));
+      }
+    }
+  }
+  assert.deepEqual([...selected].sort(), products.map(product => product.id).sort());
+  const fallback = presentMetaUi(view, "fallback", 0, { native: false, canGoBack: true });
+  assert(fallback.messages.some(message => message.type === "text" && message.text.body.includes("Núcleo — Bruma de Hidratação")));
+  assert(!fallback.numericSelections.some(action => action.kind === "back"));
+});
+
+test("product row shortening respects Unicode and keeps detail back navigation", () => {
+  const name = "🧴 Hidratação diária intensiva com proteção";
+  const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [{ id: "unicode", name, price: 1000 }] } }] as any }));
+  const rows = native(presentMetaUi(view, "unicode")).at(-1).action.sections[0].rows;
+  assert.equal(rows[0].title, "🧴 Hidratação diária…");
+  assert(rows[0].description.includes(name));
+  const details = buildMetaUiView(response({ blocks: [{ type: "product_card", data: { id: "p", name: "Produto", variants: [] } }] as any }));
+  assert(presentMetaUi(details, "detail", 0, { canGoBack: true }).numericSelections.some(action => action.kind === "back"));
+});
+
 test("malformed or stale post-cart blocks never render offer controls without a matching pending offer ID", () => {
   for (const [postCartOffer, data] of [
     [undefined, {}],
