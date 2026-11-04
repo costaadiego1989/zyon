@@ -12,6 +12,30 @@ const faq = { faqs: [{ question: "Como pedir devolução?", answer: text }] };
 const policies = { configured: true, policies: { returns: text } };
 const reply = (message: string) => JSON.stringify({ schemaVersion: 1, message });
 
+test("current buyer question reaches support narration even when public context exceeds the history budget", async () => {
+  const question = "Uma recomendação entra automaticamente no meu carrinho?";
+  for (const channel of [{}, { messageFormat: "whatsapp" as const, attachmentContext: "Texto de uma lista enviada pelo comprador." }]) {
+  const expectedQuestion = channel.attachmentContext ? `${question}\n\n${channel.attachmentContext}` : question;
+  let narrationCalls = 0;
+  const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+    getFaq: async () => faq, getStorePolicies: async () => policies,
+  } as never, provider: { chat: async params => {
+    narrationCalls++;
+    const userTurns = params.messages.filter(message => message.role === "user");
+    assert.equal(userTurns.at(-1)?.content, expectedQuestion);
+    assert.equal(userTurns.filter(message => message.content === expectedQuestion).length, 1);
+    assert.ok(params.messages.some(message => message.role === "system" && message.content?.includes("storefront.current-support-evidence")));
+    return { content: reply(text), usage };
+  } } as never }, classification);
+  const result = await agent.run({ ...input, ...channel, userMessage: question,
+    history: [{ role: "user", content: "Uma dúvida anterior." }, { role: "assistant", content: "Qual é a próxima dúvida?" }],
+    knowledgeContext: "[MOCK] Conhecimento público extenso. ".repeat(1500) });
+  assert.equal(narrationCalls, 1);
+  assert.equal(result.message, text);
+  assert.equal(result.safetyValidation.safe, true);
+  }
+});
+
 test("RAG support revalidates actual FAQ and policies before a tool-free answer and keeps its current-read gate", async () => {
   const reads: string[] = [];let modelCalls = 0, mutations = 0;
   const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {

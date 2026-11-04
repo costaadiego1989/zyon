@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { OpenRouterChatRequest, OpenRouterChatResult, OpenRouterProvider } from "@zyon/conversation-engine";
 import { StorefrontLangGraphAgent, type StorefrontAgentInput } from "./store-langgraph-agent.js";
 import { STOREFRONT_OUT_OF_SCOPE_MESSAGE, STOREFRONT_SCOPE_CLARIFICATION_MESSAGE } from "../../domain/services/storefront-conversation-scope.js";
+import { STOREFRONT_REPLY_CONTRACT_REMINDER } from "./storefront-reply-contract.js";
 
 const classifierUsage = { promptTokens: 20, completionTokens: 10, totalTokens: 30 };
 const mainUsage = { promptTokens: 40, completionTokens: 15, totalTokens: 55 };
@@ -244,7 +245,9 @@ test("long conversations classify only the latest six turns while preserving the
   assert.equal(subject.requests.length, 3);
   const classifierInput = JSON.parse(subject.requests[0].messages[1].content);
   assert.deepEqual(classifierInput.history, before.slice(-6));
-  assert.deepEqual(subject.requests[1].messages.slice(1, -1), before.slice(-10));
+  assert.deepEqual(subject.requests[1].messages.slice(1, -2), before.slice(-10));
+  assert.deepEqual(subject.requests[1].messages.at(-2), { role: "user", content: source.userMessage });
+  assert.deepEqual(subject.requests[1].messages.at(-1), { role: "system", content: STOREFRONT_REPLY_CONTRACT_REMINDER });
   assert.deepEqual(source.history, before);
   assert.equal(result.usage.totalTokens, 115);
 });

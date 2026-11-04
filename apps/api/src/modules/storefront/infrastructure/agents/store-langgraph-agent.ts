@@ -535,6 +535,12 @@ export class StorefrontLangGraphAgent {
       role: m.role as any,
       content: m.content
     }));
+    // The history budget can be exhausted by mandatory system instructions.
+    // The current question is part of this turn, never disposable history.
+    const lastMessage = messages.at(-1);
+    if (lastMessage?.role !== "user" || lastMessage.content !== currentUserMessage) {
+      messages.push({ role: "user", content: currentUserMessage });
+    }
 
     let finalContent = "";
     let canonicalSearchComplete = false;
