@@ -12,7 +12,7 @@ export class GraphCatalogSearch {
       || !this.graph.enabledFor(input.merchantId)) return original;
     try {
       const found = await this.graph.searchCatalog({ merchantId: input.merchantId, query: input.query,
-        categoryId: input.categoryId, attributes: input.attributes, limit: 20 });
+        categoryId: input.categoryId, attributes: input.attributes, attributeAnyOf: input.attributeAnyOf, limit: 20 });
       if (found.status !== "ready") return original;
       const snapshots = new Map<string, Awaited<ReturnType<GraphCatalogSourcesPort["read"]>>>();
       const ids = new Set<string>();

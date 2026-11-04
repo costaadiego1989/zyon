@@ -6,6 +6,8 @@ export const normalizeGraphText = (text: string) => text.normalize("NFD").replac
 const id = z.string().trim().min(1).max(191);
 const vector = z.array(z.number().finite()).length(GRAPH_VECTOR_DIMENSIONS)
   .refine(values => values.some(value => value !== 0) && Number.isFinite(Math.hypot(...values)), "invalid_vector_norm");
+const attribute = z.strictObject({ name: z.string().trim().min(1).max(200),
+  value: z.string().trim().min(1).max(1000), operator: z.enum(["equals", "not_equals"]) });
 
 export const graphReadSchema = z.strictObject({
   kind: z.enum(["catalog", "knowledge"]), merchantId: id, modelId: z.string().min(1).max(250),
@@ -16,8 +18,8 @@ export const graphReadSchema = z.strictObject({
   scanLimit: z.number().int().min(1).max(5000).default(2000),
   threshold: z.number().min(0).max(1).default(0.65),
   categoryId: id.optional(),
-  attributes: z.array(z.strictObject({ name: z.string().trim().min(1).max(200),
-    value: z.string().trim().min(1).max(1000), operator: z.enum(["equals", "not_equals"]) })).max(20).default([]),
+  attributes: z.array(attribute).max(20).default([]),
+  attributeAnyOf: z.array(z.array(attribute).min(1).max(6)).max(6).default([]),
 });
 export type GraphReadInput = z.input<typeof graphReadSchema>;
 export interface GraphReadCommand { kind: "catalog" | "knowledge"; text: string; parameters: Record<string, unknown> }
@@ -42,6 +44,12 @@ WHERE p.active = true AND v.active = true AND v.productId = p.canonicalId
       AND ((criterion.operator = 'equals' AND a.value = criterion.value)
         OR (criterion.operator = 'not_equals' AND a.value <> criterion.value))
   })
+  AND all(alternatives IN $attributeAnyOf WHERE any(criterion IN alternatives WHERE EXISTS {
+    MATCH (v)-[:ZyonGraphHasAttribute {merchantId: $merchantId}]->(a:ZyonGraphAttribute {merchantId: $merchantId})
+    WHERE a.sourceVersion = v.sourceVersion AND a.name = criterion.name
+      AND ((criterion.operator = 'equals' AND a.value = criterion.value)
+        OR (criterion.operator = 'not_equals' AND a.value <> criterion.value))
+  }))
 WITH p, v ORDER BY v.canonicalId LIMIT $scanLimit
 WITH p, v, vector.similarity.cosine(v.embedding, $embedding) AS vectorScore,
   toFloat(size([term IN $terms WHERE v.normalizedText CONTAINS term])) / size($terms) AS lexicalScore
@@ -86,5 +94,6 @@ export function compileGraphRead(value: unknown): GraphReadCommand {
       query: input.query, terms, embedding: [...input.embedding], limit: input.limit, scanLimit: input.scanLimit,
       threshold: input.threshold, minProjectedAt: input.nowEpochMs - input.maxAgeMs,
       categoryId: input.categoryId ?? null, sourceTypes: ["faq", "policy"],
-      attributes: input.attributes.map(a => ({ name: normalizeGraphText(a.name), value: normalizeGraphText(a.value), operator: a.operator })) } };
+      attributes: input.attributes.map(a => ({ name: normalizeGraphText(a.name), value: normalizeGraphText(a.value), operator: a.operator })),
+      attributeAnyOf: input.attributeAnyOf.map(group => group.map(a => ({ name: normalizeGraphText(a.name), value: normalizeGraphText(a.value), operator: a.operator }))) } };
 }

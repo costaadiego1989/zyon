@@ -150,7 +150,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
 
   private async searchCanonical(input: SearchProductsInput): Promise<SearchProductsResult> {
     if (input.candidateVariantIds || input.inStockOnly || input.queryMode === "contextual" || input.minPriceCents !== undefined
-      || input.maxPriceCents !== undefined || input.minRating !== undefined || input.attributes?.length || input.sortBy) {
+      || input.maxPriceCents !== undefined || input.minRating !== undefined || input.attributes?.length || input.attributeAnyOf?.length || input.sortBy) {
       const { rows, total, nextCursor, publicRatings } = await searchAvailableCatalog(this.prisma, input);
       const products = rows.map(raw => {
         const product = this.toEntity(raw);

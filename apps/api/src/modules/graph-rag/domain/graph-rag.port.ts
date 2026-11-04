@@ -39,6 +39,7 @@ export interface GraphEmbeddingPort {
 export interface GraphCatalogRequest {
   merchantId: string; query: string; limit?: number; categoryId?: string;
   attributes?: Array<{ name: string; value: string; operator: "equals" | "not_equals" }>;
+  attributeAnyOf?: Array<Array<{ name: string; value: string; operator: "equals" | "not_equals" }>>;
 }
 export type GraphUnavailable = Extract<GraphReadResult, { status: "unavailable" }>;
 export type GraphCatalogSelection = { status: "ready"; hits: GraphCatalogHit[]; partial: true } | GraphUnavailable;

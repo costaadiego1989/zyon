@@ -56,17 +56,23 @@ export async function searchAvailableCatalog(prisma: PrismaClient, input: Search
       : input.inStockOnly || input.isActiveOnly || input.status === "active" ? Prisma.sql`AND p.is_active` : Prisma.empty;
     const price = Prisma.sql`
       ${input.currency ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND pr.currency = ${input.currency})` : Prisma.empty}
-      ${input.minPriceCents != null ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND pr.base_price_in_cents >= ${input.minPriceCents})` : Prisma.empty}
-      ${input.maxPriceCents != null ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND pr.base_price_in_cents <= ${input.maxPriceCents})` : Prisma.empty}`;
+      ${input.minPriceCents != null ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND ${input.minPriceExclusive ? Prisma.sql`pr.base_price_in_cents > ${input.minPriceCents}` : Prisma.sql`pr.base_price_in_cents >= ${input.minPriceCents}`})` : Prisma.empty}
+      ${input.maxPriceCents != null ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND ${input.maxPriceExclusive ? Prisma.sql`pr.base_price_in_cents < ${input.maxPriceCents}` : Prisma.sql`pr.base_price_in_cents <= ${input.maxPriceCents}`})` : Prisma.empty}`;
     const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
     const normalizedSql = (expression: Prisma.Sql) => Prisma.sql`lower(trim(regexp_replace(normalize(${expression}, NFD), '[\u0300-\u036f]', '', 'g')))`;
-    const attributes = input.attributes?.length ? Prisma.join(input.attributes.map(condition => Prisma.sql`AND EXISTS (
+    const attribute = (condition: NonNullable<SearchProductsInput["attributes"]>[number]) => Prisma.sql`EXISTS (
       SELECT 1 FROM jsonb_each_text(CASE WHEN jsonb_typeof(v.attributes) = 'object' THEN v.attributes ELSE '{}'::jsonb END) attribute
       WHERE ${normalizedSql(Prisma.sql`attribute.key`)} = ${normalized(condition.name)}
         AND ${condition.operator === "equals"
           ? Prisma.sql`${normalizedSql(Prisma.sql`attribute.value`)} = ${normalized(condition.value)}`
           : Prisma.sql`${normalizedSql(Prisma.sql`attribute.value`)} <> ${normalized(condition.value)}`}
-    )`), " ") : Prisma.empty;
+    )`;
+    const attributePredicates = [
+      ...(input.attributes ?? []).map(condition => Prisma.sql`AND ${attribute(condition)}`),
+      ...(input.attributeAnyOf ?? []).map(group => group.length
+        ? Prisma.sql`AND (${Prisma.join(group.map(attribute), " OR ")})` : Prisma.sql`AND FALSE`),
+    ];
+    const attributes = attributePredicates.length ? Prisma.join(attributePredicates, " ") : Prisma.empty;
     const available = input.inStockOnly ? Prisma.sql`AND (
       (p.type = 'service' AND p.id = ANY(${readyServiceIds}::text[]))
       OR (p.type = 'digital' AND p.id = ANY(${readyDigitalIds}::text[]))
@@ -76,13 +82,13 @@ export async function searchAvailableCatalog(prisma: PrismaClient, input: Search
       ) > 0)
     )` : Prisma.empty;
     const semantic = input.candidateVariantIds ? Prisma.sql`AND v.id = ANY(${[...input.candidateVariantIds]}::text[])` : Prisma.empty;
-    const eligibleVariant = Prisma.sql`v.product_id = p.id AND v.is_active ${semantic} ${price} ${available} ${input.attributes?.length ? attributes : Prisma.empty}`;
+    const eligibleVariant = Prisma.sql`v.product_id = p.id AND v.is_active ${semantic} ${price} ${available} ${attributes}`;
     const rating = Prisma.sql`(SELECT avg(r.rating) FROM public_reviews r WHERE r.product_id = p.id)`;
     const publicReviews = Prisma.sql`public_reviews AS (${publicProductReviewsSql(input.merchantId)})`;
     const where = Prisma.sql`
       p.merchant_id = ${input.merchantId} AND p.deleted_at IS NULL ${active}
       ${category} ${text}
-      ${input.minRating !== undefined ? Prisma.sql`AND ${rating} >= ${input.minRating}` : Prisma.empty}
+      ${input.minRating !== undefined ? input.minRatingExclusive ? Prisma.sql`AND ${rating} > ${input.minRating}` : Prisma.sql`AND ${rating} >= ${input.minRating}` : Prisma.empty}
       AND EXISTS (
         SELECT 1 FROM product_variants v
         WHERE ${eligibleVariant}

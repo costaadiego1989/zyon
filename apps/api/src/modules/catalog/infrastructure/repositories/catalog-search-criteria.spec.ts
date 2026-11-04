@@ -20,6 +20,20 @@ function readOnlyRepository(rows: any[] = []) {
   return { repo, queries, findCalls };
 }
 
+test("GRAPH-01/GRAPH-02 SQL binds OR data on the same variant and uses strict price and rating comparisons", async () => {
+  const { repo, queries } = readOnlyRepository();
+  const hostile = "azul') or true --";
+  await repo.search({ merchantId: "owned", minPriceCents: 5000, maxPriceCents: 10000,
+    minPriceExclusive: true, maxPriceExclusive: true, minRating: 4, minRatingExclusive: true,
+    attributeAnyOf: [[{ name: "cor", value: hostile, operator: "equals" }, { name: "cor", value: "verde", operator: "equals" }]] });
+  const sql = queries[0].sql as string;
+  assert.match(sql, /pr.base_price_in_cents > \?/); assert.match(sql, /pr.base_price_in_cents < \?/);
+  assert.match(sql, /avg\(r.rating\)[\s\S]*\) > \?/);
+  assert.match(sql, /EXISTS \([\s\S]*jsonb_each_text[\s\S]* OR EXISTS \(/);
+  assert.ok(!sql.includes(hostile)); assert.ok(queries[0].values.includes(hostile));
+  assert.ok(queries[0].values.includes("owned"));
+});
+
 test("SQL binds tenant and arbitrary attribute data, conjunctively filters one variant, and ranks before page slicing", async () => {
   const { repo, queries } = readOnlyRepository();
   const hostileAttribute = "cor' OR TRUE --";

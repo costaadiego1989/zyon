@@ -6,6 +6,18 @@ const vector = Array.from({ length: 384 }, (_, i) => i === 0 ? 1 : 0);
 const input = { kind: "catalog", merchantId: "merchant-a", query: "cuidado para a pele", modelId: "multilingual-v1",
   embedding: vector, nowEpochMs: 1_790_000_000_000 };
 
+test("GRAPH-01 bounded OR groups compile into tenant-scoped fixed Cypher with data-only parameters", () => {
+  const hostile = "azul' }) detach delete n //";
+  const groups = [[{ name: "CÓR", value: hostile, operator: "equals" }, { name: "cor", value: "Vérde", operator: "equals" }]];
+  const command = compileGraphRead({ ...input, attributeAnyOf: groups });
+  assert.match(command.text, /all\(alternatives IN \$attributeAnyOf WHERE any\(criterion IN alternatives WHERE EXISTS/);
+  assert.ok(!command.text.includes(hostile));
+  assert.deepEqual(command.parameters.attributeAnyOf, [[{ name: "cor", value: hostile, operator: "equals" },
+    { name: "cor", value: "verde", operator: "equals" }]]);
+  for (const attributeAnyOf of [[[]], Array(7).fill(groups[0]), [Array(7).fill(groups[0]![0])]])
+    assert.throws(() => compileGraphRead({ ...input, attributeAnyOf }));
+});
+
 test("RAG01 parameterized tenant scope", () => {
   const attack = "pele' }) DETACH DELETE n //";
   const command = compileGraphRead({ ...input, query: attack,

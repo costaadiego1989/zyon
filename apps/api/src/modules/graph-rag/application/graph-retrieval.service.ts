@@ -7,7 +7,8 @@ export interface GraphRetrievalSettings {
   enabled: boolean; merchantIds: readonly string[]; timeoutMs: number; maxAgeMs: number; threshold: number;
 }
 const request = z.strictObject({ merchantId: graphReadSchema.shape.merchantId, query: graphReadSchema.shape.query,
-  categoryId: graphReadSchema.shape.categoryId, attributes: graphReadSchema.shape.attributes, limit: graphReadSchema.shape.limit });
+  categoryId: graphReadSchema.shape.categoryId, attributes: graphReadSchema.shape.attributes,
+  attributeAnyOf: graphReadSchema.shape.attributeAnyOf, limit: graphReadSchema.shape.limit });
 
 export class GraphRetrievalService implements GraphRetrievalPort {
   private readonly merchants: Set<string>;

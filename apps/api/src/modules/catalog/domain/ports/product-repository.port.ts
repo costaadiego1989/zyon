@@ -42,8 +42,13 @@ export interface SearchProductsInput {
   minPriceCents?: number;
   maxPriceCents?: number;
   minRating?: number;
+  minPriceExclusive?: boolean;
+  maxPriceExclusive?: boolean;
+  minRatingExclusive?: boolean;
   currency?: "BRL";
   attributes?: Array<{ name: string; value: string; operator: "equals" | "not_equals" }>;
+  /** AND across groups, OR within a group; all predicates bind one variant. */
+  attributeAnyOf?: Array<Array<{ name: string; value: string; operator: "equals" | "not_equals" }>>;
   sortBy?: "price_asc" | "price_desc" | "rating" | "newest";
   inStockOnly?: boolean;
   isActiveOnly?: boolean;
