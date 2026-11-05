@@ -59,6 +59,25 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
   });
 }
 
+function publicBusinessHours(settings: Record<string, any> | undefined): string {
+  if (!Array.isArray(settings?.businessHours)) {
+    const legacy = settings?.company?.businessHours;
+    return typeof legacy === "string" && legacy.trim() ? legacy.trim().slice(0, 500) : "";
+  }
+  const days = { seg: "Segunda-feira", ter: "Terça-feira", qua: "Quarta-feira", qui: "Quinta-feira",
+    sex: "Sexta-feira", sab: "Sábado", dom: "Domingo" } as const;
+  const time = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  return Object.entries(days).flatMap(([day, label]) => {
+    const rows = settings.businessHours.filter((row: any) => row?.day === day);
+    if (rows.length !== 1) return [];
+    const row = rows[0];
+    if (row.closed === true) return [`${label}: fechado`];
+    if (row.closed !== false || typeof row.startTime !== "string" || typeof row.endTime !== "string"
+      || !time.test(row.startTime) || !time.test(row.endTime)) return [];
+    return [`${label}: ${row.startTime} às ${row.endTime}`];
+  }).join("; ");
+}
+
 // Preserve the existing commerce guidance while migrating it incrementally.
 function buildStoreOperatingGuide(input: StoreSystemPromptInput): string {
   const { merchantName, storeCategory, storeSettings, agentIdentity, merchantPolicy, advancedRules, buyerContext, oneBuyClick } = input;
@@ -74,12 +93,15 @@ function buildStoreOperatingGuide(input: StoreSystemPromptInput): string {
     const c = storeSettings.company;
     const parts: string[] = [];
     if (c.razaoSocial) parts.push(`Empresa: ${c.razaoSocial}`);
+    if (typeof c.description === "string" && c.description.trim()) parts.push(`Apresentação publicada: ${c.description.trim().slice(0, 1200)}`);
     if (c.cnpj) parts.push(`CNPJ: ${c.cnpj}`);
     if (c.address?.city && c.address?.state) parts.push(`Localização: ${c.address.city}/${c.address.state}`);
-    if (c.businessHours) parts.push(`Horário: ${c.businessHours}`);
     if (c.phone) parts.push(`Contato: ${c.phone}`);
     if (parts.length > 0) companyContext = `\nSobre a empresa: ${parts.join(". ")}.`;
   }
+  const hours = publicBusinessHours(storeSettings);
+  companyContext += hours ? `\nHorários de atendimento cadastrados, no horário local da loja: ${hours}. Informe somente os dias publicados; um dia ausente não significa fechado. A disponibilidade do assistente virtual não altera o horário do atendimento humano.`
+    : "\nHorários de atendimento não informados. Não invente dias ou horários de funcionamento.";
 
   let policiesContext = "";
   if (storeSettings?.policies) {

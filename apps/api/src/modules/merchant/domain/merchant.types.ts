@@ -25,6 +25,7 @@ export interface MerchantStoreSettings {
     googleMaps?: string;
   };
   company?: {
+    description?: string;
     cnpj?: string;
     razaoSocial?: string;
     inscricaoEstadual?: string;

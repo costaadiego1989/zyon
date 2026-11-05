@@ -51,6 +51,12 @@ class CompanyAddressDto {
 }
 
 class CompanyDto {
+  @ApiPropertyOptional({ description: "Public store introduction used by the sales assistant" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1200)
+  description?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

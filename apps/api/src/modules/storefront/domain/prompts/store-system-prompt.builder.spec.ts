@@ -69,3 +69,38 @@ test("the JSON template retains structured context, examples and the response co
   assert.deepEqual(prompt.outputContract.required, ["schemaVersion", "message"]);
   assert.equal(prompt.outputContract.additionalProperties, false);
 });
+
+test("store introduction and canonical weekly hours reach both storefront and WhatsApp prompts", () => {
+  const settings = { company: { description: "Acessórios de informática em Teresópolis.", businessHours: "legacy incorrect hours" },
+    businessHours: [{ day: "seg", startTime: "09:00", endTime: "18:00", closed: false },
+      { day: "sab", startTime: "09:00", endTime: "13:00", closed: false },
+      { day: "dom", startTime: "", endTime: "", closed: true }] };
+  for (const messageFormat of [undefined, "whatsapp"] as const) {
+    const prompt = operatingGuide({ storeSettings: settings, messageFormat });
+    assert.match(prompt, /Apresentação publicada: Acessórios de informática em Teresópolis/);
+    assert.match(prompt, /Segunda-feira: 09:00 às 18:00/);
+    assert.match(prompt, /Sábado: 09:00 às 13:00/);
+    assert.match(prompt, /Domingo: fechado/);
+    assert.doesNotMatch(prompt, /legacy incorrect hours|\[object Object\]|Terça-feira: fechado/);
+    assert.match(prompt, /assistente virtual não altera o horário/);
+  }
+});
+
+test("hours work without company data and invalid or duplicated days cannot become public claims", () => {
+  const prompt = operatingGuide({ storeSettings: { businessHours: [
+    { day: "seg", closed: false, startTime: "25:00", endTime: "18:00" },
+    { day: "ter", closed: false, startTime: "09:00", endTime: "18:00" },
+    { day: "ter", closed: true },
+    { day: "qua", closed: false, startTime: "09:00", endTime: "17:30" },
+    { day: "invented day", closed: true },
+    { day: "qui", closed: "false", startTime: "09:00", endTime: "18:00" },
+  ] } });
+  assert.match(prompt, /Quarta-feira: 09:00 às 17:30/);
+  assert.doesNotMatch(prompt, /Segunda-feira:|Terça-feira:|Quinta-feira:|invented day|25:00/);
+});
+
+test("missing hours cannot invent a schedule and legacy text is used only without the canonical array", () => {
+  assert.match(operatingGuide({}), /Horários de atendimento não informados/);
+  assert.match(operatingGuide({ storeSettings: { company: { businessHours: "Segunda a sexta, 10h às 16h" } } }), /10h às 16h/);
+  assert.doesNotMatch(operatingGuide({ storeSettings: { businessHours: [], company: { businessHours: "obsolete hours" } } }), /obsolete hours/);
+});
