@@ -218,11 +218,16 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     if (recognizedContactAnswer) state = { ...state, stage: "store", expectsFreeInput: false };
     if (state.stage === "checkout") {
       const sessionId = state.checkoutSessionId || state.conversationId + ":checkout";
-      const checkout = await this.sessions.getSession(input.merchantId, sessionId);
+      let checkout = await this.sessions.getSession(input.merchantId, sessionId);
       if (!checkout || checkout.merchantId !== input.merchantId) throw new NotFoundException("checkout_session_not_found");
       state = await this.syncPayment(input.merchantId, state);
-      const experience = () => buildExperienceFromSession(checkout, { merchantName: config.name, serviceFee: this.experienceConfig?.platformFeeBrl });
       const currentTool = input.action?.kind === "tool" ? input.action.tool : undefined;
+      // A buyer can return after the carrier quote expired. Refresh before
+      // authorizing a new payment and ask for a new selection if it changed;
+      // an existing pending/approved payment keeps its original snapshot.
+      if (!state.payment && this.checkoutShipping && (paymentAction || currentTool === "show_checkout"))
+        checkout = await this.checkoutShipping.prepareReturningBuyer(checkout);
+      const experience = () => buildExperienceFromSession(checkout!, { merchantName: config.name, serviceFee: this.experienceConfig?.platformFeeBrl });
       if (currentTool === "show_checkout" || paymentStatusRequest) return this.checkoutUi({ message: "Confira seu pedido e as opções atuais.", experience: experience(), resumePayment: true }, state, config.name, input.message, input.merchantId);
       if (["cancel_checkout_edit", "cancel_coupon_entry"].includes(currentTool ?? "")) {
         state.pendingCheckoutEdit = undefined; state.pendingCoupon = undefined;
@@ -290,7 +295,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       }
       if (paymentAction) {
         if (input.action?.kind !== "tool" || !["pix", "card", "boleto"].includes(String(input.action.args.method))) throw new Error("whatsapp_payment_action_unavailable");
-        if (!["payment", "payment_pending"].includes(deriveChatStage(checkout))) return this.checkoutUi({ message: "Confirme os dados e a entrega antes de pagar." }, state, config.name, input.message, input.merchantId);
+        if (!["payment", "payment_pending"].includes(deriveChatStage(checkout))) return this.checkoutUi({ message: "Confirme os dados e a entrega antes de pagar.", experience: experience() }, state, config.name, input.message, input.merchantId);
         if (input.action.args.fingerprint !== paymentCartFingerprint(checkout)) return this.checkoutUi({ message: "O pedido mudou. Confira o resumo atualizado antes de preparar o pagamento." }, state, config.name, input.message, input.merchantId);
         const method = input.action.args.method as "pix" | "card" | "boleto";
         if (state.payment && ["pending", "requires_action"].includes(state.payment.status)) {

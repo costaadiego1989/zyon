@@ -86,6 +86,15 @@ test("Pix validation errors do not become a card checkout redirect", async () =>
   assert.equal(response.state.payment, undefined);
 });
 
+test("an expired freight selection is refreshed before a native payment, without creating a charge or silently selecting another rate",async()=>{
+  const f=fixture();Object.assign(f.session.customer!,{address_verified:true,address:{zip:"01001000",street:"Rua",city:"São Paulo",state:"SP",number:"1",complement:""}});
+  f.session.shipping={...options[0],expiresAt:new Date(Date.now()-1000).toISOString()};
+  (f.adapter as any).checkoutShipping={prepareReturningBuyer:async(session:any)=>Object.assign(session,{shipping:undefined,shippingOptions:options})};
+  const response=await f.send("Pix",{kind:"tool",tool:"create_payment",args:{method:"pix",fingerprint:paymentCartFingerprint(f.session)}});
+  assert.equal(f.counts().paymentCalls,0);assert.equal(response.blocks.some(b=>b.type==="shipping_options"),true);
+  assert.equal(response.blocks.some(b=>b.type==="checkout_redirect"),false);assert.equal(presentation(response).numericSelections.length,2);
+});
+
 test("a provider-specific mandatory document keeps its secure form and never asks for it in a Meta flow", async () => {
   const f=fixture();f.session.cart.items=[{...f.session.cart.items[0],productType:"digital"}];
   (f.adapter as any).createPayment={execute:async()=>{throw new BadRequestException("asaas_customer_data_incomplete");}};

@@ -251,7 +251,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         if (d.status === "succeeded" && narratedOffer && d.variantId === response.state.postCartOffer?.sourceVariantId) break;
         text.push(d.status === "succeeded" ? "✅ *Item adicionado ao carrinho*" : d.status === "unknown" ? "_A inclusão está sendo verificada._" : "Não foi possível adicionar este item."); break;
       case "shipping_options":
-        if (items(d.options).length) text.push("🚚 *Opções de entrega*\nCompare o valor e o prazo antes de escolher.");
+        if (items(d.options).length && !/\*(?:Entrega do seu pedido|Opções de entrega)\*/i.test(response.agentMessage))
+          text.push("🚚 *Opções de entrega*\nCompare o valor e o prazo antes de escolher.");
         items(d.options).forEach((o, index) => {
           const carrier = value(o.carrier), name = value(o.name);
           const label = carrier.startsWith("melhor-envio-") || carrier.startsWith("own_delivery_")
