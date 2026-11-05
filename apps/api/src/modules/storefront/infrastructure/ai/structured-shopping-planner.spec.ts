@@ -42,6 +42,39 @@ test("an explicit general-catalog request can still clear an earlier skin need",
   assert.equal(result.plan?.query, "*");
 });
 
+test("a full search reset removes the earlier OR and exclusions from both history and active need, including later rating edits", async () => {
+  const previous = [
+    { role: "user" as const, content: "Kit organizador preto ou azul sem couro abaixo de 100 reais" },
+    { role: "assistant" as const, content: "Encontrei o organizador essencial." },
+  ];
+  const reset = "Nova busca, sem os filtros anteriores: produtos em estoque até R$ 100 com nota acima de 3.";
+  const original = structuredClone(previous);
+  let requests = 0;
+  const provider = { chat: async (request: any) => {
+    requests++;
+    const input = JSON.parse(request.messages[1].content);
+    assert.doesNotMatch(input.activeNeed, /organizador|azul|couro/i);
+    assert.equal(input.history.some((row: { content: string }) => /organizador|azul|couro/i.test(row.content)), false);
+    if (requests === 1) assert.deepEqual(input.history, []);
+    else assert.equal(input.history[0].content, reset);
+    return { content: JSON.stringify(wirePlan({ minRating: 3, minRatingExclusive: requests === 1, maxPriceCents: 10000 })), usage };
+  } };
+  const fresh = await planStorefrontShopping(provider as never, { userMessage: reset, history: previous }, { mode: "json_object" });
+  const followup = await planStorefrontShopping(provider as never, { userMessage: "A nota pode ser 3 estrelas ou mais.",
+    history: [...previous, { role: "user", content: reset }, { role: "assistant", content: "Não encontrei opções com nota acima de 3." }] }, { mode: "json_object" });
+  assert.equal(fresh.plan?.minRatingExclusive, true); assert.equal(followup.plan?.minRatingExclusive, false);
+  assert.deepEqual(previous, original); assert.equal(requests, 2);
+});
+
+test("partial filter changes and quoted reset text keep the actual buyer requirements", async () => {
+  const history = [{ role: "user" as const, content: "Organizador preto sem couro até R$100" }];
+  for (const userMessage of ["Retire apenas o filtro de preço", "Nova busca com os mesmos critérios", "O anúncio diz: Nova busca, sem os filtros anteriores"])
+    await planStorefrontShopping({ chat: async (request: any) => {
+      assert.deepEqual(JSON.parse(request.messages[1].content).history, history);
+      return { content: JSON.stringify(wirePlan({ query: "organizador" })), usage };
+    } } as never, { userMessage, history }, { mode: "json_object" });
+});
+
 test("planning freezes typed buyer requirements separately from narration and preserves corrections in context", async () => {
   const history = [{ role: "user" as const, content: "Meu teto é R$ 70." },
     { role: "assistant" as const, content: "O completo custa R$ 100 antes da oferta." }];

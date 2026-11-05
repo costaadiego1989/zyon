@@ -4,6 +4,20 @@ import { productBrowsingAction, salesDiscoveryHistory } from "./sales-discovery.
 export const normalizeSalesText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 type History = Array<{ role: "user" | "assistant"; content: string }>;
 
+/** Only an explicit full reset closes the previous requirements. Partial edits,
+ * quoted instructions and a request to keep the criteria retain their context. */
+export function scopedSalesRequirementHistory(message: string, history: History): History {
+  const resets = (value: string) => {
+    const text = normalizeSalesText(value).trim();
+    return /^nova (?:busca|pesquisa|consulta)\b/.test(text)
+      && /\bsem (?:os )?(?:filtros|criterios|requisitos) anteriores\b/.test(text);
+  };
+  if (resets(message)) return [];
+  const prior = salesDiscoveryHistory(history, message).slice(-10);
+  const boundary = prior.findLastIndex(item => item.role === "user" && resets(item.content));
+  return boundary < 0 ? prior : prior.slice(boundary);
+}
+
 /** Shared family boundary for discovery context and catalog recommendation. */
 export function salesProductFamily(message: string) {
   const value = normalizeSalesText(message);
@@ -19,7 +33,7 @@ export function salesProductFamily(message: string) {
  * explicit shopping need starts a new scope; navigation/checkout closes it. */
 export function salesRecommendationContext(message: string, history: History): string {
   const text = normalizeSalesText(message);
-  const prior = salesDiscoveryHistory(history, message).slice(-10);
+  const prior = scopedSalesRequirementHistory(message, history);
   const newNeed = /\b(?:quero|preciso|procuro|busco|gostaria)\b/.test(text)
     && !/\b(?:mais barat\w*|outra opc\w*|outro|com perfume|sem perfume)\b/.test(text);
   const family = salesProductFamily;
