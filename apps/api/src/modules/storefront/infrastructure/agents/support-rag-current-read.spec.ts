@@ -226,14 +226,57 @@ test("the actual FAQ handler preserves a database outage through the agent curre
   assert.match(result.message, /Não consegui confirmar/);
 });
 
-test("support preflight does not replace mandatory order reads or run on commerce and context-free turns", async () => {
-  for (const change of [{ knowledgeContext: undefined }, { classification: { ...classification, domain: "STORE_COMMERCE" as const } },
+test("support preflight does not replace mandatory order reads or run on commerce or tool-free turns", async () => {
+  for (const change of [{ classification: { ...classification, requiresTool: false } },
+    { classification: { ...classification, domain: "STORE_COMMERCE" as const } },
     { classification: { ...classification, intent: "ORDER_STATUS" as const } }]) {
     let supportReads = 0;
     const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
       getFaq: async () => { supportReads++;return faq; }, getStorePolicies: async () => { supportReads++;return policies; },
     } as never, provider: { chat: async () => ({ content: reply("Consulte o atendimento."), usage }) } as never }, change.classification ?? classification);
-    await agent.run({ ...input, ...(Object.hasOwn(change, "knowledgeContext") ? { knowledgeContext: change.knowledgeContext } : {}) });
+    await agent.run(input);
     assert.equal(supportReads, 0);
+  }
+});
+
+test("weekend hours receive current support reads even without a matching RAG snippet", async () => {
+  for (const knowledgeContext of [undefined, "", "   "]) {
+    let reads = 0, writes = 0, narrations = 0;
+    const answer = "No sábado atendemos das 09:00 às 13:00. No domingo, fechado.";
+    const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+      getFaq: async () => { reads++;return { faqs: [] }; },
+      getStorePolicies: async () => { reads++;return { configured: false, policies: {} }; },
+      addItemToCart: async () => { writes++;throw Error("unexpected mutation"); },
+    } as never, provider: { chat: async request => {
+      narrations++;assert.equal(reads, 2);
+      assert.match(request.messages[0]!.content!, /Sábado: 09:00 às 13:00/);
+      assert.ok(request.messages.some(m => m.content?.includes("storefront.current-support-evidence")));
+      return { content: reply(answer), usage };
+    } } as never }, { ...classification, intent: "COMPLEX_QUESTION" });
+    const result = await agent.run({ ...input, knowledgeContext,
+      userMessage: "Vocês atendem no sábado e no domingo?",
+      storeSettings: { businessHours: [{ day: "sab", closed: false, startTime: "09:00", endTime: "13:00" }, { day: "dom", closed: true }] } });
+    assert.equal(result.message, answer);assert.equal(result.safetyValidation.safe, true);
+    assert.deepEqual(result.toolsUsed, ["get_faq", "get_store_policies"]);
+    assert.equal(narrations, 1);assert.equal(writes, 0);
+  }
+});
+
+test("missing RAG cannot hide mock source disclosure or bypass a failed current read", async () => {
+  for (const failed of [false, true]) {
+    let reads = 0;
+    const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
+      getFaq: async () => { reads++;if (failed) throw Error("database unavailable");return faq; },
+      getStorePolicies: async () => { reads++;return policies; },
+    } as never, provider: { chat: async () => ({ content: reply("Informe o número do pedido ao atendimento."), usage }) } as never }, classification);
+    const result = await agent.run({ ...input, knowledgeContext: undefined });
+    assert.equal(reads, 2);
+    if (failed) {
+      assert.equal(result.safetyValidation.safe, false);
+      assert.equal(result.safetyValidation.reason, "required_read_unconfirmed");
+    } else {
+      assert.equal(result.safetyValidation.safe, true);
+      assert.match(result.message, /Conteúdo simulado para testes/);
+    }
   }
 });

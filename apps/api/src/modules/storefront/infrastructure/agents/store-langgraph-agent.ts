@@ -588,10 +588,10 @@ export class StorefrontLangGraphAgent {
         }
       }
       if (!cartPolicy.terminal && this.structuredRouting && semantic.classification.domain === "STORE_SUPPORT"
-        && semantic.classification.requiresTool && !requiredReadToolName && input.knowledgeContext?.trim()) {
-        // RAG can let the model answer without requesting another tool. Keep
-        // the current-read gate by re-reading public support data before that
-        // narration, rather than accepting the existence of a context string.
+        && semantic.classification.requiresTool && !requiredReadToolName) {
+        // Current public reads are required even when retrieval has no match.
+        // A missing RAG snippet cannot prevent a known store fact from being
+        // answered or grant authority to narrate a policy without revalidation.
         for (const name of ["get_faq", "get_store_policies"] as const) {
           const tool = executableTools.find(candidate => candidate.name === name);
           if (!tool) { supportReadsConfirmed = false;continue; }
@@ -902,7 +902,6 @@ export class StorefrontLangGraphAgent {
     const publicSupportRead = supportEvidence && supportReadsConfirmed && !requiredReadUnconfirmed
       && toolsUsed.every(name => name === "get_faq" || name === "get_store_policies");
     const mockSupportRead = publicSupportRead
-      && /\[MOCK(?:\s|\])/i.test(input.knowledgeContext ?? "")
       && /\[MOCK(?:\s|\])/i.test(JSON.stringify([toolResults.get_faq, toolResults.get_store_policies]));
     const disclosureText = finalContent.replace(/[*_]/g, "");
     const normalizedDisclosure = disclosureText.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
