@@ -4,9 +4,14 @@ import { graphReadSchema } from "../domain/graph-query.js";
 import { z } from "zod";
 export const GRAPH_QUERY_PROTOCOL = 1;
 export const GRAPH_TEMPLATE_HASH = createHash("sha256").update(JSON.stringify(GRAPH_READ_TEMPLATES)).digest("hex");
+// One pinned previous release, for rolling API/gateway updates. Its catalog
+// predicates equal the new template with empty OR groups. No arbitrary hash.
+export const GRAPH_PREVIOUS_TEMPLATE_HASH = "64964b2139ff88f5cb7db3eb8d411fa9c0e310f9ae6043562a697c1f898d6f93";
+export const gatewayTemplateHash = z.enum([GRAPH_TEMPLATE_HASH, GRAPH_PREVIOUS_TEMPLATE_HASH]);
 export const GRAPH_GATEWAY_MAX_BODY_BYTES = 128 * 1024;
 export const gatewayReadEnvelope = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL),
-  templateHash: z.literal(GRAPH_TEMPLATE_HASH), input: graphReadSchema });
+  templateHash: gatewayTemplateHash, input: graphReadSchema }).refine(value => value.templateHash !== GRAPH_PREVIOUS_TEMPLATE_HASH
+    || value.input.attributeAnyOf.length === 0, "previous_template_cannot_use_alternatives");
 const digest = (body: string) => createHash("sha256").update(body).digest("hex");
 const signature = (key: string, value: string) => createHmac("sha256", key).update(value).digest("hex");
 function equalSignature(actual: unknown, expected: string) {

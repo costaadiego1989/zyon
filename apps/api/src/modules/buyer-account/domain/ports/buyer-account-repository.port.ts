@@ -3,6 +3,8 @@ import type { BuyerAgentProfile } from "../entities/buyer-agent-profile.entity.j
 
 export interface BuyerAccountRepository {
   save(account: BuyerAccount): Promise<void>;
+  /** Create only; an existing canonical profile must never be overwritten. */
+  createPhoneOnlyIfAbsent?(account: BuyerAccount): Promise<BuyerAccount | null>;
   findByEmail(email: string): Promise<BuyerAccount | null>;
   findByPhone(phone: string): Promise<BuyerAccount | null>;
   /** Bounded phone lookup for an independently authenticated WhatsApp sender. */

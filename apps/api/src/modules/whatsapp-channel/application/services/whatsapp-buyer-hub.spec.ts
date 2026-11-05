@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { WhatsAppBuyerHubService } from "./whatsapp-buyer-hub.service.js";
 import { WhatsAppCheckoutIdentityService } from "./whatsapp-checkout-identity.service.js";
 import { BUYER_HUB_COMMANDS } from "../../domain/ui/buyer-hub.js";
-import { buildMetaUiView, renderMetaUi } from "../../domain/ui/meta-ui-renderer.js";
+import { buildMetaUiView, withMetaCartNavigation } from "../../domain/ui/meta-ui-renderer.js";
 import { CheckoutWhatsAppConversationAdapter } from "../../infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
 
 export const hubInput = (message: string, extra: Record<string, unknown> = {}): any => ({ merchantId: "shop", message,
@@ -29,6 +29,7 @@ test("HUB-01 root registry produces executable native shortcuts and retains curr
   assert.deepEqual(result.response.quickReplies, BUYER_HUB_COMMANDS.map(c => c.label));
   assert.deepEqual(result.response.state.payment, before.payment); assert.equal(result.response.state.checkoutSessionId, before.checkoutSessionId);
   const view = buildMetaUiView(result.response);
+  assert.equal(withMetaCartNavigation(view, true).choices.length, 9);
   const choice = view.choices.find(c => c.label === "👤 Meus dados")!;
   assert.deepEqual(choice.action, { kind: "message", message: "👤 Meus dados" });
   const details = await f.hub.handle({ ...input, message: (choice.action as any).message }, "Athom");
@@ -80,6 +81,15 @@ test("HUB-02 canonical profile still requires the current account phone to match
   const result = await f.hub.handle(hubInput("/dados"), "Athom"); assert.equal(result?.kind, "reply");
   if (result?.kind !== "reply") assert.fail();
   assert.ok(!result.response.agentMessage.includes("buyer@example.com")); assert.deepEqual(f.addressReads, []);
+});
+
+test("HUB-02 an authenticated phone-only buyer can use saved addresses without exposing a placeholder email", async () => {
+  const f = hubFixture({ account: { ...account, globalUserId: "guest", email: "phone_5521993001883@buyer.aacp" },
+    recognition: { status: "unrecognized", owner: { merchantId: "shop", conversationId: "conversation", phone: "5521993001883" } } });
+  const result = await f.hub.handle(hubInput("/dados"), "Athom");
+  assert.equal(result?.kind, "reply"); if (result?.kind !== "reply") assert.fail();
+  assert.match(result.response.agentMessage, /Ainda não informado/); assert.ok(!result.response.agentMessage.includes("@buyer.aacp"));
+  await f.hub.handle(hubInput("/enderecos"), "Athom"); assert.deepEqual(f.addressReads, ["guest"]);
 });
 
 test("HUB-01 actual adapter intercepts the command and forwards no hub text to the model", async () => {

@@ -30,8 +30,18 @@ function identityFixture() {
   const buyers: any = { findRegisteredByPhones: async (phones: string[], hint?: string) => {
     reads.push({ phones, hint }); return state.accounts.filter((a: any) => !hint || a.email === hint);
   } };
-  return { service: new WhatsAppCheckoutIdentityService(buyers, prisma), state, reads };
+  return { service: new WhatsAppCheckoutIdentityService(buyers, prisma), state, reads, buyers };
 }
+
+test("HUB-03 a verified phone-only buyer reuses the saved address while name and email remain missing for checkout", async () => {
+  const f = identityFixture(); f.state.accounts = [];
+  f.buyers.findByPhone = async () => ({ ...account, email: `phone_${phone}@buyer.aacp`, displayName: "Cliente WhatsApp" });
+  f.state.addresses = [{ ...address, street: "Endereço do atalho", isDefault: true }];
+  const result = await f.service.recognize(input); assert.equal(result.status, "recognized"); if (result.status !== "recognized") assert.fail();
+  assert.equal(result.buyer.customer.fullName, undefined); assert.equal(result.buyer.customer.email, undefined);
+  assert.equal(result.buyer.customer.address?.street, "Endereço do atalho"); assert.equal(result.buyer.customer.address_verified, true);
+  assert.equal(result.buyer.customer.email_verified, false); assert.equal(result.buyer.preferences, undefined);
+});
 
 test("verified Meta sender reuses canonical profile without verifying the email or inventing preferences", async () => {
   const f = identityFixture(); const result = await f.service.recognize(input);

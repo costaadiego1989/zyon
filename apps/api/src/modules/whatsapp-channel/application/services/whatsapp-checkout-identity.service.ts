@@ -5,6 +5,7 @@ import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../
 import type { TrustedWhatsAppCheckoutBuyer } from "../../../checkout/application/services/trusted-checkout-buyer.js";
 import { isCompleteBuyerAddress } from "../../../checkout/domain/services/buyer-recognition.js";
 import type { WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
+import { BuyerAccount } from "../../../buyer-account/domain/entities/buyer-account.entity.js";
 
 type VerifiedSender = NonNullable<Parameters<NonNullable<WhatsAppConversationPort["respondStore"]>>[0]["verifiedSender"]>;
 export type VerifiedWhatsAppOwner = { merchantId: string; conversationId: string; phone: string };
@@ -17,6 +18,27 @@ export class WhatsAppCheckoutIdentityService {
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyers: BuyerAccountRepository,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) {}
+
+  /** The leased sender was already authenticated by recognize(). Bind account
+   * creation to its canonical merchant/phone identity, not the caller's ID. */
+  async ensurePhoneOnlyHubAccount(input: { owner: VerifiedWhatsAppOwner; globalUserId: string; fullName?: string }) {
+    if (!this.prisma || !this.buyers.createPhoneOnlyIfAbsent) return null;
+    const binding = await this.prisma.buyerIdentity.findUnique({ where: { merchantId_identityKey: {
+      merchantId: input.owner.merchantId, identityKey: `phone:${input.owner.phone}` } } });
+    if (!binding || binding.globalUserId !== input.globalUserId) return null;
+    const matches = new Map<string, BuyerAccount>();
+    for (const phone of brazilianPhoneForms(input.owner.phone)) {
+      const account = await this.buyers.findByPhone(phone);
+      if (account?.phone && brazilianPhoneForms(account.phone).some(value => brazilianPhoneForms(input.owner.phone).includes(value)))
+        matches.set(account.globalUserId, account);
+    }
+    if (matches.size > 1) return null;
+    if (matches.size === 1) return [...matches.values()][0]!;
+    const now = new Date();
+    return this.buyers.createPhoneOnlyIfAbsent(new BuyerAccount({ globalUserId: binding.globalUserId,
+      phone: input.owner.phone, email: `phone_${input.owner.phone}@buyer.aacp`, passwordHash: null,
+      displayName: input.fullName?.trim().slice(0, 100) || "Cliente WhatsApp", createdAt: now, updatedAt: now }));
+  }
 
   async recognize(input: { merchantId: string; conversationId: string; phone: string; emailHint?: string;
     verifiedSender?: VerifiedSender }): Promise<WhatsAppBuyerRecognition> {
@@ -48,6 +70,16 @@ export class WhatsAppCheckoutIdentityService {
       accounts = await this.buyers.findRegisteredByPhones(phones, hint);
     }
     if (accounts.length > 1) return { status: "ambiguous", owner };
+    if (!accounts.length && typeof this.buyers.findByPhone === "function") {
+      const guests = new Map<string, BuyerAccount>();
+      for (const phone of phones) {
+        const guest = await this.buyers.findByPhone(phone);
+        if (guest?.email.endsWith("@buyer.aacp") && guest.phone && brazilianPhoneForms(guest.phone).some(value => phones.includes(value)))
+          guests.set(guest.globalUserId, guest);
+      }
+      if (guests.size > 1) return { status: "ambiguous", owner };
+      accounts = [...guests.values()];
+    }
     const account = accounts[0];
     if (!account?.phone || !brazilianPhoneForms(account.phone).some(phone => phones.includes(phone))) return { ...noBuyer, owner };
     const [addresses, preference] = await Promise.all([
@@ -64,7 +96,8 @@ export class WhatsAppCheckoutIdentityService {
       ["cheapest", "fastest"].includes(preference.shippingPreference) && ["pix", "card"].includes(preference.paymentPreference)
       ? { shipping: preference.shippingPreference as "cheapest" | "fastest", payment: preference.paymentPreference as "pix" | "card" } : undefined;
     return { status: "recognized", owner, buyer: { merchantId: input.merchantId, conversationId: input.conversationId,
-      globalUserId: account.globalUserId, customer: { fullName: account.displayName, email: account.email,
+      globalUserId: account.globalUserId, customer: { fullName: account.email.endsWith("@buyer.aacp") ? undefined : account.displayName,
+        email: account.email.endsWith("@buyer.aacp") ? undefined : account.email,
         cpf: account.cpf, phone: proof.fromNumber.replace(/\D/g, ""), phone_verified: true, email_verified: false,
         recognized_buyer: true, isReturning: true, address, address_verified: isCompleteBuyerAddress(address) }, preferences } };
   }

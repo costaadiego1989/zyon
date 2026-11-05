@@ -49,33 +49,44 @@ Open questions: none for this increment; shared address behavior follows the req
 - HUB-01: WHEN /atalhos is requested, the system SHALL advertise only implemented registered commands, map native choices and typed commands to the same handlers, preserve cart/payment state, and route shopping/checkout commands through existing authorized operations.
 - HUB-02: WHEN a protected shortcut runs, the system SHALL derive the buyer from the current authenticated leased sender and merchant/conversation, reject missing or ambiguous identity without revealing saved data, and never trust a buyer ID supplied in text or an action.
 - HUB-03: WHEN the buyer manages saved addresses, the system SHALL support list/add/edit/default/delete with bounded validated fields, cancellation and expiry, shared storefront persistence, owner-scoped transactional mutations and duplicate-action protection; deletion SHALL require explicit confirmation and stale actions SHALL not alter current records or pending orders/payments.
+- HUB-04: WHEN an authenticated phone identity has no buyer account, the system SHALL create a phone-only account only for its canonical merchant/phone binding without overwriting an existing profile, and SHALL reuse its saved address in checkout while leaving missing name and email for normal collection.
 
 ## Requirement Traceability
 
 | Requirement ID | Story | Task | Status |
 | --- | --- | --- | --- |
-| GRAPH-01 | P1 | T1 | Pending |
-| GRAPH-02 | P1 | T1/T2 | Pending |
-| GRAPH-03 | P1 | T2 | Pending |
-| HUB-01 | P2 | T3 | Pending |
-| HUB-02 | P2 | T3 | Pending |
-| HUB-03 | P2 | T4 | Pending |
+| GRAPH-01 | P1 | T1 | Implemented; release pending |
+| GRAPH-02 | P1 | T1/T2 | Implemented; release pending |
+| GRAPH-03 | P1 | T2 | Implemented; release pending |
+| HUB-01 | P2 | T3 | Implemented; release pending |
+| HUB-02 | P2 | T3 | Implemented; release pending |
+| HUB-03 | P2 | T4 | Implemented; release pending |
+| HUB-04 | P2 | T4 | Implemented; release pending |
 
 ## Checks
 
-**C1** - GRAPH-01 predicates and parameterized query compilation
+**C1** - GRAPH-01 canonical same-variant Boolean predicates
 Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-force-exit ./apps/api/src/modules/catalog/domain/services/catalog-search-criteria.spec.ts ./apps/api/src/modules/catalog/infrastructure/repositories/catalog-search-criteria.spec.ts ./apps/api/src/modules/graph-rag/domain/graph-query.spec.ts`
 
-**C2** - GRAPH-02/GRAPH-03 planner, price/rating boundaries and preserved evidence
-Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-force-exit ./apps/api/src/modules/storefront/infrastructure/tool-handlers/advanced-shopping-criteria.spec.ts ./apps/api/src/modules/storefront/infrastructure/ai/structured-shopping-planner.spec.ts ./apps/api/src/modules/catalog/infrastructure/graph-catalog-search.spec.ts`
+**C2** - GRAPH-02 strict price and rating bounds
+Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-force-exit ./apps/api/src/modules/storefront/infrastructure/tool-handlers/advanced-shopping-criteria.spec.ts`
 
-**C3** - HUB-01/HUB-02 registered shortcuts and verified identity
+**C3** - GRAPH-03 immutable planning and compatible signed gateway
+Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-force-exit ./apps/api/src/modules/storefront/infrastructure/ai/structured-shopping-planner.spec.ts ./apps/api/src/modules/catalog/infrastructure/graph-catalog-search.spec.ts ./apps/api/src/modules/graph-rag/gateway/query-gateway.spec.ts ./apps/api/src/modules/graph-rag/application/graph-retrieval.service.spec.ts`
+
+**C4** - HUB-01 executable registry and native/typed routing
 Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-force-exit ./apps/api/src/modules/whatsapp-channel/application/services/whatsapp-buyer-hub.spec.ts`
 
-**C4** - HUB-03 persisted address lifecycle and replay safeguards
+**C5** - HUB-02 current sender and isolated buyer identity
+Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-force-exit ./apps/api/src/modules/whatsapp-channel/application/services/whatsapp-buyer-hub.spec.ts ./apps/api/src/modules/whatsapp-channel/application/use-cases/handle-meta-conversation.spec.ts`
+
+**C6** - HUB-03 transactional address lifecycle
 Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-force-exit ./apps/api/src/modules/whatsapp-channel/application/services/whatsapp-hub-addresses.spec.ts`
 
-**Build**: `pnpm --dir apps/api exec tsc -p tsconfig.build.json --noEmit --incremental false --pretty false`
+**C7** - HUB-04 phone-only account creation and address reuse without premature name/email requirements
+Proof: `node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/ready-prod-loader.mjs --test --test-force-exit ./apps/api/src/modules/whatsapp-channel/application/services/whatsapp-checkout-identity.spec.ts ./apps/api/src/modules/whatsapp-channel/application/services/whatsapp-returning-buyer.spec.ts`
+
+**Build**: `pnpm --dir apps/api exec tsc -p tsconfig.build.json --noEmit --incremental true --tsBuildInfoFile C:/tmp/zyon-graph-shortcuts-evolution.tsbuildinfo --pretty false`
 **Mutations**: 3
 
 ## Handoff

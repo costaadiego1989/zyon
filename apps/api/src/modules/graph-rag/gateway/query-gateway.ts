@@ -2,10 +2,10 @@ import { createServer, type IncomingMessage } from "node:http";
 import { z } from "zod";
 import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
 import type { GatewayReadEngine } from "./community-read-engine.js";
-import { GRAPH_GATEWAY_MAX_BODY_BYTES, GRAPH_QUERY_PROTOCOL, GRAPH_TEMPLATE_HASH, gatewayReadEnvelope, verifyQuery, signQueryResponse } from "./query-protocol.js";
+import { GRAPH_GATEWAY_MAX_BODY_BYTES, GRAPH_QUERY_PROTOCOL, gatewayTemplateHash, gatewayReadEnvelope, verifyQuery, signQueryResponse } from "./query-protocol.js";
 
 export interface QueryGatewaySettings { keyId: string; secret: string; merchantIds: readonly string[] }
-const admission = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL), templateHash: z.literal(GRAPH_TEMPLATE_HASH),
+const admission = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL), templateHash: gatewayTemplateHash,
   merchantIds: z.array(z.string().min(1).max(191)).min(1).max(20) });
 export function createQueryGateway(settings: QueryGatewaySettings, engine: GatewayReadEngine, clock: () => number = Date.now) {
   if (!/^[\w-]{1,80}$/.test(settings.keyId) || !/^[a-f0-9]{64}$/.test(settings.secret) || !settings.merchantIds.length)
@@ -45,7 +45,7 @@ export function createQueryGateway(settings: QueryGatewaySettings, engine: Gatew
         const checked = admission.safeParse(value);
         if (!checked.success || checked.data.merchantIds.some(id => !settings.merchantIds.includes(id))) { send(403, { error: "scope_or_protocol" }, headers.nonce);return; }
         if (!await engine.probe()) { send(503, { error: "unavailable" }, headers.nonce);return; }
-        send(200, { protocol: GRAPH_QUERY_PROTOCOL, templateHash: GRAPH_TEMPLATE_HASH, modelId: GRAPH_EMBEDDING_ID,
+        send(200, { protocol: GRAPH_QUERY_PROTOCOL, templateHash: checked.data.templateHash, modelId: GRAPH_EMBEDDING_ID,
           merchantIds: checked.data.merchantIds, mode: "community_controlled", operations: ["catalog", "knowledge"] }, headers.nonce);return;
       }
       const checked = gatewayReadEnvelope.safeParse(value);

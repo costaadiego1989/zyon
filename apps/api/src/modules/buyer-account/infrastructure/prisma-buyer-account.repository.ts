@@ -17,6 +17,21 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
 
   constructor(private readonly prisma: PrismaClient) {}
 
+  async createPhoneOnlyIfAbsent(account: BuyerAccount): Promise<BuyerAccount | null> {
+    if (account.passwordHash !== null || !account.phone || account.email !== `phone_${account.phone.replace(/\D/g, "")}@buyer.aacp`)
+      throw new Error("buyer_phone_only_profile_invalid");
+    try {
+      const row = await this.prisma.buyerAccount.upsert({ where: { globalUserId: account.globalUserId }, update: {}, create: {
+        globalUserId: account.globalUserId, email: account.email, passwordHash: null, displayName: account.displayName,
+        phone: encryptedBuyerPii(account).phone, phoneLookupHash: buyerPhoneLookupHash(account.phone),
+      } });
+      return toDomainAccount(row);
+    } catch (error) {
+      if (isUniqueEmailViolation(error)) return null;
+      throw error;
+    }
+  }
+
   async save(account: BuyerAccount): Promise<void> {
     const pii = encryptedBuyerPii(account);
     try {

@@ -33,6 +33,26 @@ test("back restores the welcome without repeating its original animation or a co
   assert.deepEqual(f.route.whatsappSession.conversationState.history, history);
 });
 
+for (const mode of ["current-back", "archived-back"]) test(`HUB-02 cached private hub navigation reloads the current hub without replaying private data: ${mode}`, async () => {
+  const f = fixture(), state = f.route.whatsappSession.conversationState;
+  const previous = { stage: "checkout", title: "Endereços", body: "PRIVATE_OLD_ADDRESS", choices: [], media: [], quickReplies: [],
+    blocks: [{ type: "buyer_hub_actions", data: { choices: [] } }] };
+  state.checkoutSessionId = "checkout1"; state.payment = { intentId: "original" };
+  state.previousViews = [previous]; state.view = { title: "Produtos", body: "Catálogo", choices: [], media: [], quickReplies: [], blocks: [] };
+  if (mode === "archived-back") {
+    f.input.interactiveId = "old-back"; state.selections = {};
+    f.inbox.findPriorSelection = async () => ({ action: { kind: "back" }, previousView: previous });
+  } else f.input.body = "Voltar";
+  let request: any;
+  f.conversation.respondStore = async (call: any) => { request = call; return { agentMessage: "Atalhos atuais", quickReplies: ["/dados"],
+    blocks: [{ type: "buyer_hub_actions", data: { choices: [] } }], state: { ...call.state, buyerHub: undefined } }; };
+  await f.execute();
+  assert.equal(request.message, "/atalhos"); assert.equal(request.verifiedSender.inboxId, "turn1");
+  assert.equal(request.merchantId, "m1"); assert.equal(request.state.payment.intentId, "original");
+  assert.ok(f.emitted.some(item => item.type === "text" && item.text.body.includes("Atalhos atuais")));
+  assert.ok(!JSON.stringify(f.emitted).includes("PRIVATE_OLD_ADDRESS"));
+});
+
 for (const mode of ['native', 'numeric', 'typed', 'legacy-native', 'archived-legacy']) test(`catalog secondary options preserve the conversation and original actions: ${mode}`, async () => {
   const f = fixture();
   const state = f.route.whatsappSession.conversationState;

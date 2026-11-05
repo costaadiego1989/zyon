@@ -187,3 +187,21 @@ Cada fase exige implementação e testes próprios. A correção de UI não ativ
 | Operação | Revisão exata em SUCCESS e readiness saudável | Fonte diferente, segredo em log, serviço público indevido, rollback | Hashes de source/runtime, receipts, health e preservação do pedido pago |
 
 O plano de aceitação global anterior continua aberto: corrigir este menu e validar alguns fluxos não representa aprovação de todos os cenários pendentes. Evidências locais, mockadas, de provedor e de UI real recebem estados separados.
+
+## Implementation increment: precise queries and buyer address hub
+
+A evolução iniciada em 04/11 implementa o primeiro conjunto de atalhos e amplia os predicados das consultas. A evidência de publicação e aceitação fica em `.audit/graph-shortcuts-evolution-20261104`; implementação local não equivale à aceitação global.
+
+O registro único oferece `/atalhos` (também `/atalho`), `/dados`, `/enderecos`, `/carrinho`, `/produtos`, `/categorias`, `/ofertas`, `/favoritos`, `/comprarapida`, `/ajuda` e `/cancelar`. Os comandos de compra reutilizam as operações existentes. `/dados` consulta nome, e-mail e identificação mascarada do telefone; editar identidade e demais áreas do hub continuam nas próximas fases. O menu não anuncia comandos de pedidos, recibos ou privacidade ainda indisponíveis.
+
+`/enderecos` permite listar, adicionar, editar um campo, definir padrão e excluir com confirmação. Os mesmos registros aparecem no storefront. O remetente Meta precisa estar autenticado na mensagem com lease ativo, loja e conversa corretas; cadastros ambíguos pedem somente o e-mail para selecionar uma conta do telefone comprovado. Nenhum ID digitado pelo comprador concede acesso a outra conta.
+
+Se o primeiro contato criou apenas a identidade da conversa, o acesso ao hub completa a conta somente com o telefone comprovado e a identidade canônica da loja. A criação não sobrescreve um perfil existente. O endereço salvo pode ser reaproveitado no checkout mesmo antes do primeiro e-mail real; nome e e-mail faltantes continuam sendo coletados normalmente, sem usar o e-mail técnico interno como dado do comprador.
+
+Coletas têm validade de 15 minutos e podem ser encerradas com `/cancelar` ou `/atalhos`. Cada ação possui token, conta e versão do conjunto de endereços. Gravações usam transação serializável e bloqueio da conta, com verificações da revisão e do proprietário. Repetir uma inclusão não cria outro endereço. Há limite de cinco registros; a exclusão do padrão promove o endereço restante mais antigo. Excluir o último também remove o fallback de endereço legado, evitando que ele reapareça. Pedidos e pagamentos existentes conservam o endereço e os valores já confirmados.
+
+As consultas agora aceitam `attributeAnyOf`: até seis grupos com até seis alternativas cada. As alternativas de um grupo usam OU; os grupos e os atributos obrigatórios usam E, na mesma variante. Exclusões continuam exigindo um atributo publicado; ausência não significa “sem perfume”, por exemplo. O contrato aceita dados e operadores enumerados, nunca texto executável de SQL ou Cypher.
+
+`minPriceExclusive`, `maxPriceExclusive` e `minRatingExclusive` distinguem “acima/abaixo de” de “a partir de/até/pelo menos”. Planos antigos mantêm os limites inclusivos. O SQL aplica os operadores à leitura atual; a seleção com promoção reaplica os limites ao preço autorizado. O Cypher seleciona candidatos sem substituir preço, estoque ou avaliações públicas canônicas. O gateway admite temporariamente somente os hashes dos dois templates publicados para permitir atualização gradual; o hash anterior não aceita os novos grupos de alternativas.
+
+Este incremento não conclui o planejador avançado inteiro. Frete e prazo por candidato, orçamento incluindo entrega, embeddings dos comentários de avaliações, tarefas do agente e voz continuam nas fases seguintes. Uma pergunta pode combinar somente as condições que os dados e as cotações atuais conseguem comprovar; o sistema continua declarando os requisitos não verificados.

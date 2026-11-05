@@ -294,6 +294,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
       case "coupon_list":
         items(d.coupons).forEach(c => add(value(c.code), tool("apply_coupon", { couponCode: c.code }), value(c.description)));
         if (d.progressive) text.push(`🎟️ *Condições de desconto*\n\n• ${value(d.progressive.description)}\n\n_A elegibilidade é conferida no checkout._`); break;
+      case "buyer_hub_actions":
+        items(d.choices).forEach(choice => add(value(choice.label), tool("buyer_hub", object(choice.args)), value(choice.description) || undefined)); break;
       case "quick_replies":
         if (Array.isArray(d.options)) d.options.forEach((label: unknown) => add(value(label), { kind: "message", message: value(label) })); break;
       case "product_content":
@@ -357,6 +359,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
 
 /** Native selection IDs are scoped to a persisted turn; labels never authorize actions. */
 export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): MetaUiView {
+  if (view.blocks.some(block => block.type === "buyer_hub_actions")) return view;
   const browsing: MetaUiChoice[] = [
     { label: "Ver produtos", action: tool("search_products", { query: "*" }) },
     { label: "Encontrar produto", action: { kind: "message", message: "Encontrar produto" } },

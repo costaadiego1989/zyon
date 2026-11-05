@@ -10,6 +10,7 @@ export function isMetaReadNavigation(action: StoreUiAction): boolean {
 }
 
 export function refreshMetaReadView(view?: MetaUiView): StoreUiAction | undefined {
+  if (view?.blocks.some(block => block.type === "buyer_hub_actions")) return { kind: "message", message: "/atalhos" };
   const product = view?.blocks.find(block => block.type === "product_card");
   if (product) return { kind: "tool", tool: "get_product_details", args: { productId: (product.data as any).id } };
   const catalog = view?.blocks.find(block => block.type === "product_carousel");

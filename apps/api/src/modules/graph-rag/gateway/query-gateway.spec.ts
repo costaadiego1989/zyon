@@ -2,13 +2,34 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createQueryGateway } from "./query-gateway.js";
-import { signQuery, verifyQueryResponse, GRAPH_TEMPLATE_HASH } from "./query-protocol.js";
+import { signQuery, verifyQueryResponse, GRAPH_TEMPLATE_HASH, GRAPH_PREVIOUS_TEMPLATE_HASH } from "./query-protocol.js";
 import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
 
 const secret = "a".repeat(64), keyId = "athom-v1", now = 1_790_000_000_000;
 const input = { kind: "catalog", merchantId: "shop-a", query: "pele", modelId: GRAPH_EMBEDDING_ID,
   embedding: [1, ...Array(383).fill(0)], nowEpochMs: now };
 const envelope = (input: unknown) => ({ protocol: 1, templateHash: GRAPH_TEMPLATE_HASH, input });
+
+test("GRAPH-03 rolling releases admit only the current and pinned previous template; old clients cannot supply new predicates", async () => {
+  const f = await fixture();
+  try {
+    for (const templateHash of [GRAPH_TEMPLATE_HASH, GRAPH_PREVIOUS_TEMPLATE_HASH]) {
+      const admitted = await f.request({ protocol: 1, templateHash, merchantIds: ["shop-a"] }, { path: "/v1/admission" });
+      assert.equal(admitted.status, 200); assert.equal(JSON.parse(admitted.text).templateHash, templateHash);
+      const result = await f.request(input, { raw: JSON.stringify({ protocol: 1, templateHash, input }) });
+      assert.equal(result.status, 200); assert.equal(verifyQueryResponse(secret, result.auth.nonce, 200, result.text, result.signature), true);
+    }
+    const before = f.reads.length;
+    const alternatives = [[{ name: "cor", value: "azul", operator: "equals" }]];
+    const oldWithNew = await f.request(input, { raw: JSON.stringify({ protocol: 1, templateHash: GRAPH_PREVIOUS_TEMPLATE_HASH,
+      input: { ...input, attributeAnyOf: alternatives } }) });
+    assert.equal(oldWithNew.status, 400); assert.equal(f.reads.length, before);
+    const current = await f.request({ ...input, attributeAnyOf: alternatives }); assert.equal(current.status, 200);
+    assert.deepEqual(f.reads.at(-1).attributeAnyOf, alternatives);
+    const unknown = await f.request(input, { raw: JSON.stringify({ protocol: 1, templateHash: "0".repeat(64), input }) });
+    assert.equal(unknown.status, 400);
+  } finally { await f.gateway.close(); }
+});
 async function fixture() {
   const reads: any[] = [];let probes = 0, closes = 0;
   const gateway = createQueryGateway({ secret, keyId, merchantIds: ["shop-a"] }, { probe: async () => { probes++;return true; },
