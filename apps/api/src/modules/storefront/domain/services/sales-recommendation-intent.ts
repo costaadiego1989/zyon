@@ -14,7 +14,9 @@ export function scopedSalesRequirementHistory(message: string, history: History)
   };
   if (resets(message)) return [];
   const prior = salesDiscoveryHistory(history, message).slice(-10);
-  const boundary = prior.findLastIndex(item => item.role === "user" && resets(item.content));
+  let boundary = -1;
+  for (let index = prior.length - 1; index >= 0; index--)
+    if (prior[index]!.role === "user" && resets(prior[index]!.content)) { boundary = index; break; }
   return boundary < 0 ? prior : prior.slice(boundary);
 }
 
