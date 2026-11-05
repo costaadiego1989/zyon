@@ -16,7 +16,7 @@ export const BUYER_HUB_COMMANDS = [
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 export function buyerHubCommand(message: string): string | undefined {
   const key = normalize(message);
-  if (["/atalho", "/atalhos"].includes(key)) return "/atalhos";
+  if (["/atalho", "/atalhos", "menu principal"].includes(key)) return "/atalhos";
   if (key === "/cancelar") return key;
   return BUYER_HUB_COMMANDS.find(entry => normalize(entry.command) === key || normalize(entry.label) === key)?.command;
 }

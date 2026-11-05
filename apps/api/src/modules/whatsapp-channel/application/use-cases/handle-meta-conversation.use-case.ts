@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import { WHATSAPP_CONVERSATION_PORT, type WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
 import { WHATSAPP_SESSION_REPOSITORY, type WhatsAppSessionRepository } from "../../domain/ports/whatsapp-session-repository.port.js";
 import { WHATSAPP_WEBHOOK_INBOX, type WhatsAppWebhookInbox, type WhatsAppInboxClaim } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
-import { buildMetaUiView, presentMetaUi, withMetaCartNavigation, buildMetaCatalogOptionsView, isMetaCatalogView } from "../../domain/ui/meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, withMetaCartNavigation, isMetaCatalogView } from "../../domain/ui/meta-ui-renderer.js";
 import type { MetaUiPresentation, MetaUiView, StoreUiAction, WhatsAppConversationState, WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
 import { SendWhatsAppResponseUseCase } from "./send-whatsapp-response.use-case.js";
 import type { IncomingMessageInput } from "./handle-incoming-message.use-case.js";
@@ -100,9 +100,9 @@ export class HandleMetaConversationUseCase {
           const previous = await this.inbox.findPriorSelection?.(claim, route.whatsappSession.id, input.interactiveId);
           if (previous && isMetaReadNavigation(previous.action)) {
             action = previous.action;
-            // Older catalog menus published "Outras opções" as a menu reset.
-            if (action.kind === "menu" && isMetaCatalogView(previous.view)) action = { kind: "catalog_options" };
-            if (action.kind === "page" || action.kind === "catalog_options") { recoveredView = previous.view; if (!recoveredView) action = { kind: "menu" }; }
+            // Previously sent catalog controls now open the same current hub.
+            if (action.kind === "catalog_options" || action.kind === "menu" && isMetaCatalogView(previous.view)) action = { kind: "message", message: "/atalhos" };
+            if (action.kind === "page") { recoveredView = previous.view; if (!recoveredView) action = { kind: "menu" }; }
             else if (action.kind === "back" && previous.previousView) {
               recoveredView = previous.previousView; action = { kind: "page", page: 0 };
             } else if (action.kind === "back") action = { kind: "menu" };
@@ -113,8 +113,8 @@ export class HandleMetaConversationUseCase {
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
       else if (/^(menu|in[ií]cio)$/i.test(message.trim())) action = { kind: "menu" };
       else if (!input.metaMedia || spokenMessage) action = resolveMetaStoreTextAction(message, state);
-      if (action?.kind === "menu" && !recoveredView && isMetaCatalogView(state.view) &&
-        (input.interactiveId || !state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0))) action = { kind: "catalog_options" };
+      if (action?.kind === "catalog_options" || action?.kind === "menu" && !recoveredView && isMetaCatalogView(state.view) &&
+        (input.interactiveId || !state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0))) action = { kind: "message", message: "/atalhos" };
       if (action?.kind === "message" && /^(ver carrinho|finalizar compra|finalizar pedido|continuar checkout|continuar comprando|ver produtos)$/i.test(action.message.trim())) action = metaStoreQuickReplyAction(action.message, state) ?? action;
 
       const revision = claim.id;
@@ -135,11 +135,6 @@ export class HandleMetaConversationUseCase {
         // A current menu page only changes the controls. Archived navigation
         // reloads authoritative data and must still present that fresh content.
         navigationOnly = !recoveredView;
-      }
-      else if (action?.kind === "catalog_options" && view) {
-        state = { ...state, page: 0, previousViews: [...state.previousViews, view].slice(-6) };
-        view = buildMetaCatalogOptionsView(view);
-        includeMedia = false;
       }
       else if (action?.kind === "back" && state.previousViews.length) {
         view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };

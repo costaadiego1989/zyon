@@ -360,6 +360,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
 /** Native selection IDs are scoped to a persisted turn; labels never authorize actions. */
 export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): MetaUiView {
   if (view.blocks.some(block => block.type === "buyer_hub_actions")) return view;
+  if (isMetaCatalogView(view)) return { ...view, choices: view.choices.filter(catalogProductChoice) };
   const browsing: MetaUiChoice[] = [
     { label: "Ver produtos", action: tool("search_products", { query: "*" }) },
     { label: "Encontrar produto", action: { kind: "message", message: "Encontrar produto" } },
@@ -386,17 +387,12 @@ export const isMetaCatalogView = (view?: MetaUiView): boolean => !!view && view.
 const catalogProductChoice = (choice: MetaUiChoice): boolean => choice.action.kind === "tool" &&
   (choice.action.tool === "get_product_details" || choice.action.tool === "search_products" && !!choice.action.args.cursor);
 
-/** The catalog's secondary actions retain their original server-owned identities. */
-export function buildMetaCatalogOptionsView(view: MetaUiView): MetaUiView {
-  return { stage: view.stage, title: view.title, body: "Escolha uma opção para continuar. Você também pode escrever sua pergunta.",
-    choices: view.choices.filter(choice => !catalogProductChoice(choice)), media: [], blocks: [], quickReplies: [] };
-}
-
 export function presentMetaUi(view: MetaUiView, revision: string, requestedPage = 0, options: { native?: boolean; includeMedia?: boolean; canGoBack?: boolean; navigationOnly?: boolean } = {}): MetaUiPresentation {
   const parts = paragraphs(formatMetaText(view.body || "Como posso ajudar?"));
   const productDetails = view.blocks.some(block => block.type === "product_card");
   const catalog = isMetaCatalogView(view);
-  const pinned = view.choices.filter(choice => ["Ver produtos", "Encontrar produto", "Ver carrinho", "Finalizar pedido"].includes(choice.label));
+  const mainMenu = !catalog && view.blocks.some(block => block.type === "buyer_hub_actions" && block.data.scope === "main_menu");
+  const pinned = catalog || mainMenu ? [] : view.choices.filter(choice => ["Ver produtos", "Encontrar produto", "Ver carrinho", "Finalizar pedido"].includes(choice.label));
   let allChoices = view.choices.filter(choice => !pinned.includes(choice));
   if (view.stage === "checkout") {
     const primary = (choice: MetaUiChoice) => choice.action.kind === "tool" && ["create_payment", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry"].includes(choice.action.tool);
@@ -408,9 +404,9 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   // On the visual catalog, show photographed products first while retaining
   // every product and its authorized identity across subsequent pages.
   if (catalog && allChoices.some(choice => choice.image)) allChoices.sort((a, b) => Number(!!b.image) - Number(!!a.image));
-  if (parts.length > 2) allChoices.unshift({ label: "Ler mais", action: tool("show_content", { text: parts.slice(2).join("\n\n") }) });
+  if (!catalog && parts.length > 2) allChoices.unshift({ label: "Ler mais", action: tool("show_content", { text: parts.slice(2).join("\n\n") }) });
   const media = view.media.filter(m => m.type !== "text");
-  if (media.length > 3) allChoices.unshift({ label: "Ver mais mídias", action: tool("media_page", { media: media.slice(3) }) });
+  if (!catalog && media.length > 3) allChoices.unshift({ label: "Ver mais mídias", action: tool("media_page", { media: media.slice(3) }) });
   if (productDetails) {
     const priority = (choice: MetaUiChoice): number => {
       if (choice.action.kind === "variant") return 0;
@@ -425,16 +421,17 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     };
     allChoices.sort((a, b) => priority(a) - priority(b));
   }
-  // Reserve a row for the secondary menu as well as previous/next/back.
-  const pageSize = catalog ? Math.min(allChoices.some(choice => choice.image) ? 3 : 6, 6 - pinned.length) : 7 - pinned.length;
+  // Catalog pages reserve room for pagination and the single main-menu entry.
+  // The current nine root shortcuts fit together within Meta's ten-row limit.
+  const pageSize = mainMenu ? allChoices.length <= 10 ? 10 : 8 : catalog ? allChoices.some(choice => choice.image) ? 3 : 6 : 7 - pinned.length;
   const totalPages = Math.max(1, Math.ceil(allChoices.length / pageSize));
   const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
   const currentChoices = allChoices.slice(page * pageSize, (page + 1) * pageSize);
   const choices: MetaUiChoice[] = productDetails ? [...currentChoices, ...pinned] : [...pinned, ...currentChoices];
-  if (catalog) choices.push({ label: "Outras opções", action: { kind: "catalog_options" } });
   if (page > 0) choices.push({ label: catalog ? "Produtos anteriores" : "Página anterior", action: { kind: "page", page: page - 1 } });
   if (page < totalPages - 1) choices.push({ label: catalog ? "Próximos produtos" : "Mais opções", action: { kind: "page", page: page + 1 } });
-  if (options.canGoBack && !catalog) choices.push({ label: "Voltar", action: { kind: "back" } });
+  if (catalog) choices.push({ label: "Menu principal", action: { kind: "message", message: "/atalhos" } });
+  if (options.canGoBack && !catalog && !mainMenu) choices.push({ label: "Voltar", action: { kind: "back" } });
   const selections: Record<string, StoreUiAction> = {};
   const rows = choices.map((choice, index) => {
     const id = "zyon:" + createHash("sha256").update(`${revision}:${page}:${index}`).digest("hex").slice(0, 32);
@@ -475,14 +472,14 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
       ? selectedVariation ? `Selecionado: ${selectedVariation.label.slice(2)}.\nAdicione ao carrinho ou escolha outra variação.`
         : "Escolha a variação do produto para continuar." : undefined;
     if (options.native === false) messages.push({ type: "text", text: { body: choices.map((c, i) => `${i + 1}. ${c.label}${c.description ? ` — ${c.description}` : ""}`).join("\n") + "\n\nVocê pode responder pelo número ou escrever sua pergunta." } });
-    else if (choices.length <= 3 && choices.every(c => Array.from(c.label).length <= 17)) messages.push({ type: "interactive", interactive: { type: "button", body: { text: "🧭 Como posso ajudar?" }, footer: { text: "🤖 Pode perguntar o que quiser." }, action: { buttons: rows.map(row => ({ type: "reply", reply: { id: row.id, title: concise(row.title, 20) } })) } } });
+    else if (!catalog && choices.length <= 3 && choices.every(c => Array.from(c.label).length <= 17)) messages.push({ type: "interactive", interactive: { type: "button", body: { text: "Navegue no menu e explore as opções" }, footer: { text: "🤖 Pode perguntar o que quiser." }, action: { buttons: rows.map(row => ({ type: "reply", reply: { id: row.id, title: concise(row.title, 20) } })) } } });
     else {
       const context = catalog ? "Escolha um produto para ver fotos e informações completas."
         : productDetails ? variantPrompt || "Veja as opções deste produto ou escreva sua dúvida."
           : view.blocks.some(block => block.type === "cart_summary") ? "Confira os itens e escolha como continuar."
-            : view.stage === "checkout" ? "Escolha a próxima etapa do seu pedido." : "Explore a loja ou continue a conversa.";
+            : view.stage === "checkout" ? "Escolha a próxima etapa do seu pedido." : "Navegue no menu e explore as opções";
       const productName = productDetails ? value(object(view.blocks.find(block => block.type === "product_card")?.data).name) : "";
-      messages.push({ type: "interactive", interactive: { type: "list", header: { type: "text", text: concise(productName || view.title, 60) }, body: { text: `🧭 ${context}${totalPages > 1 ? `\nPágina ${page + 1} de ${totalPages}` : ""}` }, footer: { text: "🤖 Pode perguntar o que quiser." }, action: { button: catalog ? "Ver produtos" : productDetails && variantPrompt ? "Escolher variação" : "Explorar opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows }] } } });
+      messages.push({ type: "interactive", interactive: { type: "list", header: { type: "text", text: concise(productName || view.title, 60) }, body: { text: `${context}${totalPages > 1 ? `\nPágina ${page + 1} de ${totalPages}` : ""}` }, footer: { text: "🤖 Pode perguntar o que quiser." }, action: { button: catalog ? "Ver produtos" : productDetails && variantPrompt ? "Escolher variação" : "Explorar opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows }] } } });
     }
   }
   return { messages, selections, numericSelections: choices.map(c => c.action), page, totalPages };

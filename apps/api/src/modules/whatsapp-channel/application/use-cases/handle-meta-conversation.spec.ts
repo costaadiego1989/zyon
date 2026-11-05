@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { HandleMetaConversationUseCase } from "./handle-meta-conversation.use-case.js";
 import { buildMetaUiView, withMetaCartNavigation } from "../../domain/ui/meta-ui-renderer.js";
+import { WhatsAppBuyerHubService } from "../services/whatsapp-buyer-hub.service.js";
+import { isMetaReadNavigation } from "../../domain/ui/meta-read-navigation.js";
 
 function fixture() {
   let engineCalls = 0; const emitted: any[] = [];
@@ -53,50 +55,50 @@ for (const mode of ["current-back", "archived-back"]) test(`HUB-02 cached privat
   assert.ok(!JSON.stringify(f.emitted).includes("PRIVATE_OLD_ADDRESS"));
 });
 
-for (const mode of ['native', 'numeric', 'typed', 'legacy-native', 'archived-legacy']) test(`catalog secondary options preserve the conversation and original actions: ${mode}`, async () => {
-  const f = fixture();
-  const state = f.route.whatsappSession.conversationState;
-  state.history = [{ role: 'user', content: 'Protetor diário 50fps' }];
-  state.cartHasItems = true;
-  state.payment = { intentId: 'pending-payment' };
+for (const mode of ['native', 'numeric', 'typed', 'legacy-native', 'archived-legacy', 'main-native', 'archived-main']) test(`catalog navigation opens the current main menu without checkout or greeting: ${mode}`, async () => {
+  const f = fixture(), state = f.route.whatsappSession.conversationState;
+  state.history = [{ role: 'user', content: 'Protetor diario' }];
+  state.cartHasItems = true; state.payment = { intentId: 'pending-payment' };
   const catalog = withMetaCartNavigation(buildMetaUiView({ agentMessage: 'Resultado da busca', merchantName: 'Athom', state,
-    quickReplies: ['Selecionar Produto', 'Filtrar Produtos', 'Categorias'], blocks: [{ type: 'product_carousel', data: {
+    quickReplies: ['Categorias'], blocks: [{ type: 'product_carousel', data: {
       products: [{ id: 'protetor', name: 'Protetor', price: 9990, image: 'https://example.com/protetor.jpg' }],
     } }] }), true);
   state.view = catalog;
-  state.selections = { options: { kind: mode === 'legacy-native' ? 'menu' : 'catalog_options' } };
+  const main = { kind: 'message', message: '/atalhos' };
+  state.selections = { options: mode === 'main-native' ? main : { kind: mode === 'legacy-native' ? 'menu' : 'catalog_options' } };
   state.numericSelections = [{ kind: 'catalog_options' }];
-  f.input.body = mode === 'typed' ? 'Outras opções' : mode === 'numeric' ? '1' : '4. Outras opções';
-  if (['native', 'legacy-native', 'archived-legacy'].includes(mode)) f.input.interactiveId = 'options';
-  if (mode === 'archived-legacy') {
-    state.view = { title: 'Atual', body: 'Outra conversa', choices: [], media: [], blocks: [], quickReplies: [] };
+  f.input.body = mode === 'typed' ? 'Outras opções' : mode === 'numeric' ? '1' : 'Menu principal';
+  if (['native', 'legacy-native', 'archived-legacy', 'main-native', 'archived-main'].includes(mode)) f.input.interactiveId = 'options';
+  if (mode.startsWith('archived-')) {
+    state.view = { title: 'Atual', body: 'Current public view', choices: [], media: [], blocks: [], quickReplies: [] };
     state.selections = {};
-    f.inbox.findPriorSelection = async () => ({ action: { kind: 'menu' }, view: catalog });
-    f.conversation.respondStore = async (call: any) => {
-      assert.equal(call.action.tool, 'search_products');
-      return { agentMessage: 'Atualizado', state: call.state, blocks: catalog.blocks, quickReplies: catalog.quickReplies };
-    };
+    f.inbox.findPriorSelection = async () => ({ action: mode === 'archived-main' ? main : { kind: 'menu' }, view: catalog });
   }
+  const requests: any[] = [];
+  const hub = new WhatsAppBuyerHubService({ recognize: async () => { throw Error('root must not access private identity'); } } as never, {} as never, {} as never);
+  f.conversation.respondStore = async (call: any) => {
+    requests.push(call);
+    const response = await hub.handle(call, 'Athom');
+    assert.equal(response?.kind, 'reply');
+    return response!.kind === 'reply' ? response!.response : assert.fail();
+  };
   await f.execute();
-  assert.equal(f.calls(), 0, 'secondary options must not invoke the greeting or agent');
+  assert.equal(requests.length, 1); assert.equal(requests[0].message, '/atalhos');
+  assert.equal(requests[0].action, undefined); assert.equal(requests[0].verifiedSender.inboxId, 'turn1');
   const next = f.route.whatsappSession.conversationState;
-  assert.equal(next.conversationId, 'conv1');
-  assert.deepEqual(next.history, state.history);
-  assert.equal(next.payment.intentId, 'pending-payment');
-  assert.ok(next.previousViews.at(-1).blocks.some((b: any) => b.type === 'product_carousel'));
-  assert.ok(next.numericSelections.some((a: any) => a.kind === 'message' && a.message === 'Filtrar Produtos'));
-  assert.ok(next.numericSelections.some((a: any) => a.kind === 'tool' && a.tool === 'list_categories'));
-  assert.ok(next.numericSelections.some((a: any) => a.kind === 'back'));
+  assert.equal(next.conversationId, 'conv1'); assert.equal(next.payment.intentId, 'pending-payment');
+  assert.deepEqual(next.history.slice(0, 1), state.history);
+  assert.equal(next.numericSelections.length, 9); assert.equal(next.page, 0);
+  assert.ok(!next.numericSelections.some((a: any) => ['back', 'catalog_options', 'page'].includes(a.kind)));
   assert.ok(f.emitted.every(m => m.type !== 'image'));
+  assert.ok(f.emitted.some(m => m.type === 'text' && /Menu principal/.test(m.text.body)));
   assert.ok(!f.emitted.some(m => m.type === 'text' && /Olá|Sou Assistente/.test(m.text.body)));
-  if (mode === 'native') {
-    f.claim.id = 'filter-turn'; f.claim.responseState = undefined; f.input.interactiveId = undefined;
-    f.input.body = String(next.numericSelections.findIndex((a: any) => a.kind === 'message' && a.message === 'Filtrar Produtos') + 1);
-    let message: string | undefined;
-    f.conversation.respondStore = async (call: any) => { message = call.message; return { agentMessage: 'Como deseja filtrar?', state: call.state, blocks: [], quickReplies: [] }; };
-    await f.execute();
-    assert.equal(message, 'Filtrar Produtos');
-  }
+});
+
+test('archived read admission permits only the explicit root command among messages', () => {
+  assert.equal(isMetaReadNavigation({ kind: 'message', message: '/atalhos' }), true);
+  for (const message of ['Finalizar compra', 'Adicionar ao carrinho', '/enderecos', '/atalhos excluir'])
+    assert.equal(isMetaReadNavigation({ kind: 'message', message }), false);
 });
 
 test("a partial send retries only the unsent message and never repeats commerce", async () => {

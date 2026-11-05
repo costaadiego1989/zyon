@@ -29,7 +29,7 @@ export class WhatsAppBuyerHubService {
     const action = input.action?.kind === "tool" && input.action.tool === "buyer_hub" ? input.action.args : undefined;
     const collecting = input.state.buyerHub && ["add", "edit", "delete"].includes(input.state.buyerHub.mode);
     const detectedCommand = buyerHubCommand(input.message);
-    const command = collecting && detectedCommand !== "/cancelar" && detectedCommand !== "/atalhos" ? undefined : detectedCommand;
+    const command = collecting && (!input.message.trim().startsWith("/") || detectedCommand !== "/cancelar" && detectedCommand !== "/atalhos") ? undefined : detectedCommand;
     const identityPending = input.state.buyerHubIdentity;
     const emailAnswer = identityPending && identityPending.expiresAt > Date.now()
       && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.message.trim()) ? input.message.trim() : undefined;
@@ -50,7 +50,8 @@ export class WhatsAppBuyerHubService {
     if (effective === "/atalhos") {
       if (state.buyerHub || state.buyerHubIdentity) state.expectsFreeInput = false;
       state.buyerHub = undefined; state.buyerHubIdentity = undefined;
-      return reply("🤖 ⚡ *Sua loja, por aqui*\n\n🛍️ *Comprar*\n/produtos · /categorias · /ofertas · /favoritos\n\n🛒 *Continuar a compra*\n/carrinho · /comprarapida\n\n👤 *Seu cadastro*\n/dados · /enderecos\n\n💬 *Precisa de ajuda?*\n/ajuda\n\nEscolha no menu ou escreva o comando. Para encerrar uma coleta de dados, use */cancelar*. Você também pode conversar naturalmente a qualquer momento.", BUYER_HUB_COMMANDS.map(entry => entry.label));
+      return reply("🤖 *Menu principal*\n\nToque em *Explorar opções*, logo abaixo, e escolha o que deseja fazer.\n\n🛍️ Veja produtos, categorias e ofertas.\n🛒 Acesse seu carrinho ou a compra rápida.\n👤 Consulte seus dados, endereços e favoritos.\n💬 Tire dúvidas sobre a loja.\n\nVocê também pode escrever o que precisa. Para abrir este menu novamente, digite */atalhos*.", BUYER_HUB_COMMANDS.map(entry => entry.label),
+        [{ type: "buyer_hub_actions", data: { scope: "main_menu", choices: [] } }]);
     }
     const entry = BUYER_HUB_COMMANDS.find(entry => entry.command === effective);
     if (!entry) return reply("🤖 Não reconheci esse atalho. Abra */atalhos* para continuar.");

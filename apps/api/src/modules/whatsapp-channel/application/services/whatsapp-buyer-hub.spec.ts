@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { WhatsAppBuyerHubService } from "./whatsapp-buyer-hub.service.js";
 import { WhatsAppCheckoutIdentityService } from "./whatsapp-checkout-identity.service.js";
 import { BUYER_HUB_COMMANDS } from "../../domain/ui/buyer-hub.js";
-import { buildMetaUiView, withMetaCartNavigation } from "../../domain/ui/meta-ui-renderer.js";
+import { buildMetaUiView, withMetaCartNavigation, presentMetaUi } from "../../domain/ui/meta-ui-renderer.js";
 import { CheckoutWhatsAppConversationAdapter } from "../../infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
 
 export const hubInput = (message: string, extra: Record<string, unknown> = {}): any => ({ merchantId: "shop", message,
@@ -33,6 +33,12 @@ test("HUB-01 root registry produces executable native shortcuts and retains curr
   assert.deepEqual(result.response.state.payment, before.payment); assert.equal(result.response.state.checkoutSessionId, before.checkoutSessionId);
   const view = buildMetaUiView(result.response);
   assert.equal(withMetaCartNavigation(view, true).choices.length, 9);
+  const shown = presentMetaUi(view, "root", 0, { canGoBack: true });
+  assert.equal(shown.totalPages, 1); assert.equal(shown.numericSelections.length, 9);
+  assert.equal(shown.numericSelections.some(action => action.kind === "back"), false);
+  assert.match(result.response.agentMessage, /Toque em \*Explorar opções\*/);
+  assert.match(result.response.agentMessage, /\*Menu principal\*/);
+  assert(!result.response.agentMessage.includes("/produtos · /categorias"));
   const choice = view.choices.find(c => c.label === "👤 Meus dados")!;
   assert.deepEqual(choice.action, { kind: "message", message: "👤 Meus dados" });
   const details = await f.hub.handle({ ...input, message: (choice.action as any).message }, "Athom");

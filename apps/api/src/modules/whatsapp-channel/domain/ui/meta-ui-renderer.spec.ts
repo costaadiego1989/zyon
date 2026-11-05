@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildMetaUiView, presentMetaUi, formatMetaText, formatMetaConversation, formatMetaSpeech, withMetaCartNavigation, metaWelcomeMessage, buildMetaCatalogOptionsView } from "./meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, formatMetaText, formatMetaConversation, formatMetaSpeech, withMetaCartNavigation, metaWelcomeMessage } from "./meta-ui-renderer.js";
 import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
@@ -164,8 +164,9 @@ test("catalog prioritizes actual photos and retains products without photos on l
   assert.deepEqual(products.map(a => a.kind === "tool" && a.args.productId), ["serum", "test"]);
   const menu = native(shown).find(m => m.type === "list");
   assert.equal(menu.footer.text, "🤖 Pode perguntar o que quiser.");
-  assert.equal(menu.action.sections[0].rows[0].title, "1. Ver produtos");
-  assert.equal(menu.action.sections[0].rows[1].title, "2. Encontrar produto");
+  assert.equal(menu.action.sections[0].rows[0].title, "Sérum");
+  assert.equal(menu.action.sections[0].rows[1].title, "Teste");
+  assert.match(menu.action.sections[0].rows.at(-1).title, /Menu principal/);
 });
 
 test("cart shows the real product photo alongside its authoritative amount", () => {
@@ -439,14 +440,16 @@ test("an empty cart offers shopping navigation and cannot expose a checkout cont
   assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "search_products"));
 });
 
-test("cart and checkout remain pinned on every native page without losing product choices", () => {
+test("every catalog page contains products, pagination and one main-menu entry without global shortcuts", () => {
   const base = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: Array.from({ length: 16 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 500, image: `https://img.example/${i}.jpg` })) } }] as any }));
   const view = withMetaCartNavigation(base, true);
   const seen = new Set<string>();
   const first = presentMetaUi(view, "turn", 0, { canGoBack: true });
   for (let page = 0; page < first.totalPages; page++) {
     const shown = presentMetaUi(view, "turn", page, { canGoBack: true });
-    assert.deepEqual(shown.numericSelections.slice(0, 4).map(a => a.kind === "tool" ? a.tool : a.kind === "message" ? a.message : a.kind), ["search_products", "Encontrar produto", "get_cart", "checkout"]);
+    assert.equal(shown.numericSelections.filter(action => action.kind === "message" && action.message === "/atalhos").length, 1);
+    assert.ok(shown.numericSelections.every(action => action.kind === "page" || action.kind === "message" && action.message === "/atalhos"
+      || action.kind === "tool" && action.tool === "get_product_details"));
     assert.ok(shown.numericSelections.length <= 10, "Meta lists accept at most ten rows");
     for (const action of shown.numericSelections) if (action.kind === "tool" && action.tool === "get_product_details") seen.add(String(action.args.productId));
   }
@@ -466,18 +469,19 @@ test('product detail keeps its hero and variation choices ahead of complementary
   assert.match(native(shown)[0].body.text,/Escolha a variação/);
 });
 
-test('catalog pagination contains product choices while other shortcuts stay in their own menu', () => {
+test('catalog returns to the main menu instead of exposing a second shortcut menu', () => {
   const view=withMetaCartNavigation(buildMetaUiView(response({blocks:[{type:'product_carousel',data:{products:[{id:'only',name:'Produto',price:500,image:'https://example.com/product.jpg'}]}}],quickReplies:['Selecionar Produto','Filtrar Produtos','Categorias','Ofertas do Dia']})),false);
   const shown=presentMetaUi(view,'catalog');
   assert.equal(shown.totalPages,1);
   assert.equal(shown.numericSelections.filter(a=>a.kind==='tool'&&a.tool==='get_product_details').length,1);
-  assert.ok(shown.numericSelections.some(a=>a.kind==='catalog_options'));
+  assert.ok(shown.numericSelections.some(a=>a.kind==='message'&&a.message==='/atalhos'));
+  assert.ok(!shown.numericSelections.some(a=>a.kind==='catalog_options'));
   assert.ok(!shown.numericSelections.some(a=>a.kind==='message'&&a.message==='Selecionar Produto'));
   const withoutMedia=presentMetaUi(view,'refreshed',0,{includeMedia:false});
   assert.equal(withoutMedia.messages.filter(m=>m.type==='image').length,0);
 });
 
-test('every catalog page exposes its actual secondary choices without a welcome reset', () => {
+test('all catalog products remain reachable without extra shortcut or back rows', () => {
   const view = withMetaCartNavigation(buildMetaUiView(response({ blocks: [{ type: 'product_carousel', data: {
     products: Array.from({ length: 18 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 500, image: `https://example.com/${i}.jpg` })),
   } }], quickReplies: ['Selecionar Produto', 'Filtrar Produtos', 'Categorias', 'Ofertas do Dia'] })), true);
@@ -485,19 +489,36 @@ test('every catalog page exposes its actual secondary choices without a welcome 
   const products = new Set();
   for (let page = 0; page < first.totalPages; page++) {
     const shown = presentMetaUi(view, 'catalog', page, { canGoBack: true });
-    assert.ok(shown.numericSelections.some(a => a.kind === 'catalog_options'));
-    assert.ok(shown.numericSelections.every(a => a.kind !== 'menu'));
+    assert.equal(shown.numericSelections.filter(a => a.kind === 'message' && a.message === '/atalhos').length, 1);
+    assert.ok(shown.numericSelections.every(a => a.kind === 'page' || a.kind === 'message' && a.message === '/atalhos'
+      || a.kind === 'tool' && a.tool === 'get_product_details'));
     assert.ok(shown.numericSelections.length <= 10);
     for (const action of shown.numericSelections) if (action.kind === 'tool' && action.tool === 'get_product_details') products.add(action.args.productId);
   }
   assert.equal(products.size, 18);
-  const options = buildMetaCatalogOptionsView(view);
-  assert.ok(options.choices.some(c => c.action.kind === 'message' && c.action.message === 'Filtrar Produtos'));
-  assert.ok(options.choices.some(c => c.action.kind === 'tool' && c.action.tool === 'list_categories'));
-  assert.ok(options.choices.every(c => c.action.kind !== 'tool' || c.action.tool !== 'get_product_details'));
-  const shown = presentMetaUi(options, 'options', 0, { canGoBack: true });
-  assert.ok(shown.numericSelections.some(a => a.kind === 'back'));
-  assert.ok(shown.messages.every(m => m.type !== 'image'));
+});
+
+for (const type of ['product_carousel', 'cross_sell', 'marketplace_products', 'wishlist']) test(`fresh and persisted ${type} menus show only products and main-menu navigation`, () => {
+  const products = [{ id: 'one', name: 'Produto relacionado', price: 6000 }];
+  const view = buildMetaUiView(response({ blocks: [{ type, data: type === 'wishlist' ? { items: products } : { products } }] as any,
+    quickReplies: ['Ver carrinho', 'Ver produtos', 'Categorias', 'Finalizar compra'] }));
+  const stale = { ...view, choices: [...view.choices, { label: 'Ver carrinho', action: { kind: 'tool' as const, tool: 'get_cart', args: {} } }] };
+  for (const current of [withMetaCartNavigation(view, true), stale]) for (const mode of [true, false]) {
+    const shown = presentMetaUi(current, 'hierarchy', 0, { native: mode, canGoBack: true });
+    assert.deepEqual(shown.numericSelections, [{ kind: 'tool', tool: 'get_product_details', args: { productId: 'one' } },
+      { kind: 'message', message: '/atalhos' }]);
+    assert(!JSON.stringify(shown.messages).includes('Outras opções'));
+  }
+});
+
+test('generic native controls use the requested instruction without the compass icon', () => {
+  for (const labels of [['Ajuda'], ['Uma opção com um título comprido', 'Outra opção']]) {
+    const shown = presentMetaUi(buildMetaUiView(response({ quickReplies: labels })), 'copy');
+    const menu = native(shown)[0];
+    assert.equal(menu.body.text, 'Navegue no menu e explore as opções');
+    assert.equal(menu.footer.text, '🤖 Pode perguntar o que quiser.');
+    assert(!JSON.stringify(menu).includes('🧭'));
+  }
 });
 
 test('payment actions remain first within checkout even when the response includes complementary products',()=>{

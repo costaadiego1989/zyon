@@ -4,6 +4,7 @@ import type { MetaUiView, StoreUiAction } from "./meta-ui.types.js";
  * authorize a cart, variant, option, identity or payment change. */
 export function isMetaReadNavigation(action: StoreUiAction): boolean {
   if (["page", "back", "menu", "catalog_options"].includes(action.kind)) return true;
+  if (action.kind === "message" && action.message === "/atalhos") return true;
   return action.kind === "tool" && ["search_products", "get_product_details", "list_categories", "get_reviews",
     "get_similar_products", "compare_products", "get_daily_deals", "get_cart", "get_wishlist",
     "show_content", "product_gallery", "media_page"].includes(action.tool);
