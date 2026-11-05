@@ -392,7 +392,7 @@ test("a page from an older product menu displays refreshed product information b
       description: "Descrição atual", image: "https://example.com/current.jpg", variants: [{ id: "v", stock: 2 }] } }] }; };
   f.emitted.length = 0; await f.execute();
   assert.deepEqual(action, { kind: "tool", tool: "get_product_details", args: { productId: "p" } });
-  assert.deepEqual(f.emitted.map(m => m.type), ["image", "text", "interactive"]);
+  assert.deepEqual(f.emitted.map(m => m.type), ["image", "text", "interactive", "interactive"]);
   assert.ok(f.emitted[1].text.body.includes("Descrição atual"));
   assert.equal(f.claim.responseState.state.page, 1);
 });

@@ -542,8 +542,10 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   const comparison = storefrontToolOutputSchemas.compare_products.safeParse(toolResults.compare_products);
   if (onlyReads && comparison.success && comparison.data.requiresProductNames) {
     finalContent = comparison.data.message ?? (comparison.data.missingProductNames?.length
-      ? `Não localizei no catálogo atual: ${comparison.data.missingProductNames.join(", ")}. Quais produtos disponíveis você quer comparar?`
-      : "Quais produtos você quer comparar? Escolha os itens no catálogo ou me diga os nomes.");
+      ? `Não localizei uma correspondência exata para: ${comparison.data.missingProductNames.join(", ")}. Quais produtos disponíveis você quer comparar?`
+      : comparison.data.comparison.length === 1
+        ? `Qual outro produto você quer comparar com ${comparison.data.comparison[0]!.name}?`
+        : "Quais produtos você quer comparar? Escolha os itens no catálogo ou me diga os nomes.");
     canonicalReadMessage = true;
   }
   // A declared limit/unknown criterion must survive even a fluent model reply.

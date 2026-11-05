@@ -259,7 +259,7 @@ test("resuming a pending Stripe checkout issues fresh scoped links without repla
   } finally { if (previous === undefined) delete process.env.WIDGET_BASE_URL; else process.env.WIDGET_BASE_URL = previous; }
 });
 
-test('opening a product includes its entire published description, gallery, FAQ, testimonials and videos', async () => {
+test('opening a product summarizes its description, preserves full copy on request, gallery, FAQ, testimonials and videos', async () => {
   const full = 'Descrição longa publicada. '.repeat(200);
   const adapter = new CheckoutWhatsAppConversationAdapter({} as any, {} as any,
     { execute: async () => ({ message: 'Detalhes', blocks: [{ type: 'product_card', data: { id:'product', name:'Produto', price:500,
@@ -277,7 +277,8 @@ test('opening a product includes its entire published description, gallery, FAQ,
   const result = await adapter.respondStore({merchantId:'merchant',buyer,message:'Detalhes',state:initial});
   assert.equal((result.blocks[0].data as any).description, full);
   const view = buildMetaUiView(result);
-  assert.ok(view.body.includes(full));
+  assert.ok(!view.body.includes(full));
+  assert.ok(view.choices.some(c=>c.label==='Ler descrição completa' && c.action.kind==='tool' && String(c.action.args.text).trim()===full.trim()));
   assert.ok(view.body.includes('*Como usar*'));
   assert.ok(view.body.includes('Depoimento aprovado.'));
   assert.ok(view.body.includes('https://example.com/watch'));

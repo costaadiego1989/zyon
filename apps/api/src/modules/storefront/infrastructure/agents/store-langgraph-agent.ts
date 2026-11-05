@@ -530,7 +530,13 @@ export class StorefrontLangGraphAgent {
       { role: "user" as const, content: currentUserMessage }
     ];
 
-    const trimmed = this.contextManager.fromMessages(rawMessages);
+    // Mandatory merchant/safety instructions must not consume every token of
+    // the dialogue. Reserve a bounded 1.5K for recent references/preferences;
+    // keep the usual 8K window whenever that already provides enough space.
+    const reservedWindow = ContextManager.estimateTokens(systemContent) + 1500;
+    const contextWindow = reservedWindow > this.contextManager.maxTokens
+      ? new ContextManager({ maxTokens: reservedWindow }) : this.contextManager;
+    const trimmed = contextWindow.fromMessages(rawMessages);
     const messages: OpenRouterChatMessage[] = trimmed.map((m) => ({
       role: m.role as any,
       content: m.content
