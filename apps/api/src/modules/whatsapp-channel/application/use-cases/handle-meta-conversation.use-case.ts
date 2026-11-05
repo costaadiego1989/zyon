@@ -15,6 +15,7 @@ import { MetaInboundMediaAdapter } from "../../infrastructure/adapters/meta-inbo
 import { MetaCatalogOrderAdapter } from "../../infrastructure/adapters/meta-catalog-order.adapter.js";
 import { metaStoreQuickReplyAction, resolveMetaStoreTextAction } from "../../domain/ui/meta-store-actions.js";
 import { isMetaReadNavigation, refreshMetaReadView } from "../../domain/ui/meta-read-navigation.js";
+import { metaProductContext, withMetaProductNavigation } from "../../domain/ui/meta-product-navigation.js";
 
 interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
@@ -180,6 +181,10 @@ export class HandleMetaConversationUseCase {
             { label: "Remover item", action: { kind: "tool", tool: "remove_cart_item", args: { variantId: action.args.variantId } } },
           ] };
         }
+        if (action.tool !== "edit_cart_item") {
+          const productId = typeof action.args.productId === "string" ? action.args.productId : metaProductContext(state.view)?.productId;
+          view = withMetaProductNavigation(view, state.view, state, productId);
+        }
         if (state.view) state = { ...state, previousViews: [...state.previousViews, state.view].slice(-6), page: 0 };
       } else {
         if (action?.kind === "menu") state = { ...state, pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
@@ -196,7 +201,7 @@ export class HandleMetaConversationUseCase {
           action: action?.kind === "tool" ? action : undefined });
         state = response.state;
         if (view) state = { ...state, previousViews: [...state.previousViews, view].slice(-6) };
-        view = buildMetaUiView(response); state.page = 0;
+        view = withMetaProductNavigation(buildMetaUiView(response), view, state); state.page = 0;
       }
       if (!view) throw new Error("whatsapp_ui_view_missing");
       // Returning to an archived welcome restores its text and controls. Its

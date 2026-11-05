@@ -1,4 +1,5 @@
 import type { MetaUiView, StoreUiAction } from "./meta-ui.types.js";
+import { metaProductContext } from "./meta-product-navigation.js";
 
 /** An older native menu may still open a public/read surface. It must never
  * authorize a cart, variant, option, identity or payment change. */
@@ -14,6 +15,8 @@ export function refreshMetaReadView(view?: MetaUiView): StoreUiAction | undefine
   if (view?.blocks.some(block => block.type === "buyer_hub_actions")) return { kind: "message", message: "/atalhos" };
   const product = view?.blocks.find(block => block.type === "product_card");
   if (product) return { kind: "tool", tool: "get_product_details", args: { productId: (product.data as any).id } };
+  const context = metaProductContext(view);
+  if (context) return { kind: "tool", tool: "get_product_details", args: { productId: context.productId } };
   const catalog = view?.blocks.find(block => block.type === "product_carousel");
   if (catalog) return { kind: "tool", tool: "search_products", args: { query: (catalog.data as any).query || "*", categoryId: (catalog.data as any).categoryId } };
   if (view?.blocks.some(block => block.type === "cart_summary")) return { kind: "tool", tool: "get_cart", args: {} };

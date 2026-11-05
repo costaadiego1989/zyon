@@ -1,4 +1,5 @@
 import type { StoreUiAction, WhatsAppConversationState } from "./meta-ui.types.js";
+import { metaProductContext } from "./meta-product-navigation.js";
 
 /** Resolve built-in store shortcuts; custom questions keep the shared agent. */
 export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversationState): StoreUiAction | undefined {
@@ -37,6 +38,8 @@ export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversa
 
 /** A typed label may reuse only one action from the current persisted view. */
 export function resolveMetaStoreTextAction(message: string, state: WhatsAppConversationState): StoreUiAction | undefined {
+  if (state.stage === "store" && !state.expectsFreeInput && metaProductContext(state.view) && /^menu principal$/i.test(message.trim()))
+    return { kind: "message", message: "/atalhos" };
   if (/^(ver produtos|encontrar produto|ver carrinho|finalizar compra|finalizar pedido|continuar checkout)$/i.test(message.trim())) return metaStoreQuickReplyAction(message, state);
   if (state.stage === "checkout" && !state.expectsFreeInput && /^(trocar pagamento|usar cupom|confirmar troca|manter pagamento)$/i.test(message.trim())) {
     const matches = state.view?.choices.filter(c => c.label.trim().toLocaleLowerCase("pt-BR") === message.trim().toLocaleLowerCase("pt-BR")) ?? [];

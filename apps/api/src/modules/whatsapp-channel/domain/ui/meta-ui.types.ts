@@ -28,6 +28,7 @@ export interface MetaUiView {
   blocks: Array<ConversationBlock | { type: string; data: Record<string, unknown> }>;
   quickReplies: string[];
   primaryAction?: MetaUiChoice & { body: string };
+  productContext?: { productId: string; name: string; offerId?: string };
 }
 
 export interface MetaUiPresentation {

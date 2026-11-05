@@ -19,6 +19,39 @@ function fixture() {
   return { claim, route, input, conversation, sessions, inbox, sender, emitted, calls: () => engineCalls, execute: () => new HandleMetaConversationUseCase(conversation, sessions, inbox, sender).execute(input, route) };
 }
 
+for (const tool of ["product_gallery", "show_content", "media_page"]) test(`${tool} keeps product purchase and main menu in the persisted incoming pipeline`, async () => {
+  const f = fixture(), state = f.route.whatsappSession.conversationState;
+  state.view = buildMetaUiView({ agentMessage: "Mouse", quickReplies: [], state, blocks: [{ type: "product_card", data: { id: "p", name: "Mouse", price: 6990,
+    variants: [{ id: "v", stock: 2 }] } }] });
+  state.selections = { read: { kind: "tool", tool, args: { productId: "p", images: ["https://example.com/1.jpg"], text: "Descrição completa", media: [{ type: "image", media: { link: "https://example.com/2.jpg" } }] } } };
+  f.input.interactiveId = "read";
+  await f.execute();
+  assert.equal(f.calls(), 0, "local reads do not call the model or write a cart");
+  const next = f.route.whatsappSession.conversationState;
+  assert.deepEqual(next.numericSelections.map((a: any) => a.kind === "tool" ? a.tool : a.kind), ["add_item_to_cart", "message"]);
+  assert.equal(next.view.productContext.productId, "p");
+  assert.equal(next.numericSelections[0].args.variantId, "v");
+  const ui = f.emitted.find(m => m.type === "interactive");
+  assert.deepEqual(ui.interactive.action.buttons.map((b: any) => b.reply.title), ["🛒 Adicionar", "Menu principal"]);
+});
+
+test("review reads keep exact product controls without global browse/cart actions", async () => {
+  const f = fixture(), state = f.route.whatsappSession.conversationState;
+  state.view = buildMetaUiView({ agentMessage: "Mouse", quickReplies: [], state, blocks: [{ type: "product_card", data: { id: "p", name: "Mouse", price: 6990,
+    variants: [{ id: "v", stock: 2 }] } }] });
+  state.selections = { reviews: { kind: "tool", tool: "get_reviews", args: { productId: "p" } } };f.input.interactiveId = "reviews";
+  f.conversation.respondStore = async (input: any) => {
+    assert.equal(input.action.tool, "get_reviews");
+    return { agentMessage: "Avaliações", quickReplies: ["Ver Produtos"], state: input.state,
+      blocks: [{ type: "reviews", data: { productId: "p", productName: "Mouse", reviews: [], totalReviews: 0, averageRating: 0 } }] };
+  };
+  await f.execute();
+  const actions = f.route.whatsappSession.conversationState.numericSelections;
+  assert(actions.some((a: any) => a.kind === "tool" && a.tool === "add_item_to_cart" && a.args.variantId === "v"));
+  assert(!actions.some((a: any) => a.kind === "back" || a.kind === "tool" && ["get_cart", "search_products"].includes(a.tool)));
+  assert(actions.some((a: any) => a.kind === "message" && a.message === "/atalhos"));
+});
+
 test("back restores the welcome without repeating its original animation or a commerce action", async () => {
   const f = fixture(), state = f.route.whatsappSession.conversationState;
   state.history = [{ role: "user", content: "Oi" }, { role: "assistant", content: "Boas-vindas" }];

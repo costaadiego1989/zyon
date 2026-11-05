@@ -94,14 +94,16 @@ test("a long published brand name without a product suffix retains a nonblank na
   assert.deepEqual(shown.selections[row.id], { kind: "tool", tool: "get_product_details", args: { productId: "brand-only" } });
 });
 
-test("product row shortening respects Unicode and keeps detail back navigation", () => {
+test("product row shortening respects Unicode and detail navigation uses the main menu", () => {
   const name = "🧴 Hidratação diária intensiva com proteção";
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [{ id: "unicode", name, price: 1000 }] } }] as any }));
   const rows = native(presentMetaUi(view, "unicode")).at(-1).action.sections[0].rows;
   assert.equal(rows[0].title, "🧴 Hidratação diária…");
   assert(rows[0].description.includes(name));
   const details = buildMetaUiView(response({ blocks: [{ type: "product_card", data: { id: "p", name: "Produto", variants: [] } }] as any }));
-  assert(presentMetaUi(details, "detail", 0, { canGoBack: true }).numericSelections.some(action => action.kind === "back"));
+  const actions = presentMetaUi(details, "detail", 0, { canGoBack: true }).numericSelections;
+  assert(!actions.some(action => action.kind === "back"));
+  assert(actions.some(action => action.kind === "message" && action.message === "/atalhos"));
 });
 
 test("malformed or stale post-cart blocks never render offer controls without a matching pending offer ID", () => {
