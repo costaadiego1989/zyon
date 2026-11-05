@@ -26,6 +26,18 @@ function fixture(blocks: any[], detailsId = 'protetor') {
   return { calls, storeCalls, adapter };
 }
 
+test('a natural comparison passes exact visible ids to the shared agent without mutating history', async () => {
+  const f = fixture([]);
+  const view = buildMetaUiView({ agentMessage: 'Confira', merchantName: 'Athom', quickReplies: [], state: initial,
+    blocks: [{ type: 'product_carousel', data: { products: [{ id: 'one', name: 'Bruma', price: 9990 }, { id: 'two', name: 'Bruma', price: 7990 }] } }] as any });
+  const state = { ...initial, history: [{ role: 'assistant', content: 'Duas opções' }], view };
+  const before = structuredClone(state);
+  await f.adapter.respondStore({ merchantId: 'merchant', buyer: { globalUserId: 'buyer', phone: '5521999990000' }, message: 'compare ambos os produtos', state });
+  assert.equal(f.storeCalls.length, 1);
+  assert.match(f.storeCalls[0].history[0].content, /"id":"one".*"id":"two"/);
+  assert.deepEqual(state, before);
+});
+
 test('welcome animation is HTTPS-only and appears once while text and menu stay available on later visits', async t => {
   const previous=process.env.API_PUBLIC_URL;
   t.after(()=>{if(previous===undefined)delete process.env.API_PUBLIC_URL;else process.env.API_PUBLIC_URL=previous});

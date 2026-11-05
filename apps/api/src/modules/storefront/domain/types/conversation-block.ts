@@ -171,6 +171,7 @@ export interface ProductComparisonBlock {
       name: string;
       price: number;
       priceFormatted: string;
+      description?: string;
       rating?: number;
       inStock: boolean;
       attributes: Record<string, string>;

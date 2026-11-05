@@ -12,7 +12,7 @@ export type StoreUiAction =
   | { kind: "back" }
   | { kind: "menu" };
 
-export interface MetaUiChoice { label: string; description?: string; action: StoreUiAction; image?: { link: string; caption: string } }
+export interface MetaUiChoice { label: string; description?: string; summary?: string; action: StoreUiAction; image?: { link: string; caption: string } }
 export type MetaUiMessage =
   | { type: "text"; text: { body: string; preview_url?: boolean } }
   | { type: "image" | "video" | "document"; media: { link: string; caption?: string } }
@@ -27,6 +27,7 @@ export interface MetaUiView {
   media: MetaUiMessage[];
   blocks: Array<ConversationBlock | { type: string; data: Record<string, unknown> }>;
   quickReplies: string[];
+  primaryAction?: MetaUiChoice & { body: string };
 }
 
 export interface MetaUiPresentation {

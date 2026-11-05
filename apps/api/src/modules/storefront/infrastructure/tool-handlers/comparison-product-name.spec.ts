@@ -123,4 +123,30 @@ test("product id comparisons never scan names and do not expose an inactive or f
   } } as never, { merchantId, sessionId: "comparison" });
   const result = await handlers.compareProducts({ productIds: ["essential", "foreign"], includeSimilar: false });
   assert.deepEqual(result.comparison.map(item => item.id), ["essential"]);
+  assert.deepEqual(result.missingProductIds, ["foreign"]);
+  assert.equal(result.requiresProductNames, true);
+  assert.equal(validateStorefrontToolOutput("compare_products", result).ok, true);
+});
+
+test("an empty comparison asks for the items without any repository read or mutation", async () => {
+  const handlers = createProductHandlers({ productRepo: new Proxy({}, { get: () => assert.fail("no identity, no repository operation") }) } as never,
+    { merchantId, sessionId: "comparison" });
+  const result = await handlers.compareProducts({});
+  assert.deepEqual(result.comparison, []);assert.equal(result.requiresProductNames, true);
+  assert.match(result.message!, /Quais produtos/);assert.equal(validateStorefrontToolOutput("compare_products", result).ok, true);
+});
+
+test("explicit displayed ids preserve two identically named products and reread their current prices", async () => {
+  const reads: string[] = [];
+  const handlers = createProductHandlers({ productRepo: {
+    listPublicNames: async () => assert.fail("no name guessing"),
+    findById: async (scope: string, id: string) => {
+      assert.equal(scope, merchantId);reads.push(id);
+      return { ...entity(id === "essential" ? essential : complete), name: "Bruma" };
+    },
+  } } as never, { merchantId, sessionId: "comparison" });
+  const result = await handlers.compareProducts({ productIds: ["essential", "complete"], includeSimilar: false });
+  assert.deepEqual(reads, ["essential", "complete"]);
+  assert.deepEqual(result.comparison.map(item => [item.id, item.price]), [["essential", 6000], ["complete", 10000]]);
+  assert.equal(result.requiresProductNames, false);
 });

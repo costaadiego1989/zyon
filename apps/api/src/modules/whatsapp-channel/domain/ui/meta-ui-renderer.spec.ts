@@ -6,6 +6,44 @@ import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
 const native = (presentation: ReturnType<typeof presentMetaUi>) => presentation.messages.filter(m => m.type === "interactive").map(m => m.type === "interactive" ? m.interactive as any : null);
 
+test("native add reply button resolves to the admitted variant and preserves numbered selections", () => {
+  const view = buildMetaUiView(response({ blocks: [{ type: "product_card", data: { id: "p", name: "Mouse", price: 7990,
+    variants: [{ id: "white", stock: 3 }] } }] as any }));
+  const shown = presentMetaUi(view, "fresh");
+  const button = native(shown).find(m => m.type === "button" && m.action.buttons.some((b: any) => b.reply.title === "🛒 Adicionar"));
+  const id = button.action.buttons[0].reply.id;
+  assert.deepEqual(shown.selections[id], { kind: "tool", tool: "add_item_to_cart", args: { variantId: "white", quantity: 1,
+    selectedOptionItemIds: [], selectedServiceSlotId: undefined } });
+  const fallback = presentMetaUi(view, "fresh", 0, { native: false });
+  assert.equal(native(fallback).length, 0);assert.deepEqual(shown.numericSelections, fallback.numericSelections);
+  assert.notEqual(id, native(presentMetaUi(view, "next"))[0].action.buttons[0].reply.id);
+  view.choices = view.choices.filter(c => !(c.action.kind === "tool" && c.action.tool === "add_item_to_cart"));
+  assert.ok(!native(presentMetaUi(view, "stale")).some(m => m.type === "button" && m.action.buttons.some((b: any) => b.reply.title === "🛒 Adicionar")));
+});
+
+test("unselected variants, unavailable stock, required options and missing service slots never expose the add button", () => {
+  const base = { id: "p", name: "Produto", price: 1000, variants: [{ id: "v", stock: 2 }] };
+  for (const data of [
+    { ...base, variants: [{ id: "v", stock: 2 }, { id: "other", stock: 2 }] },
+    { ...base, inStock: false }, { ...base, variants: [{ id: "v", stock: 0 }] },
+    { ...base, optionGroups: [{ id: "g", name: "Tamanho", required: true, items: [{ id: "option", name: "Grande" }] }] },
+    { ...base, serviceSchedule: { slots: [] } },
+  ]) {
+    const view = buildMetaUiView(response({ blocks: [{ type: "product_card", data }] as any }));
+    assert.equal(view.primaryAction, undefined);
+  }
+});
+
+test("comparison shows an unbroken narrow table and only product navigation", () => {
+  const shown = presentMetaUi(withMetaCartNavigation(buildMetaUiView(response({ blocks: [{ type: "product_comparison", data: { products: [
+    { id: "p1", name: "Mouse", price: 7990, description: "Conexão sem fio", attributes: {}, inStock: true },
+    { id: "p2", name: "Teclado", price: 6990, description: "Conexão USB", attributes: {}, inStock: true },
+  ] } }] as any })), true), "compare");
+  const table = shown.messages.find(m => m.type === "text" && m.text.body.includes("```"));
+  assert.ok(table?.type === "text" && table.text.body.includes("Preço") && table.text.body.includes("79,90"));
+  assert.deepEqual(shown.numericSelections.map(a => a.kind === "tool" ? a.tool : a.kind), ["get_product_details", "get_product_details", "message"]);
+});
+
 test("catalog names stay readable and complete without a redundant back row", () => {
   const products = [
     { id: "repair", name: "Núcleo — Creme Reparador", price: 10990 },
@@ -133,12 +171,15 @@ test("changing a variant gives a concise authoritative selection and keeps full 
   assert(view.choices.some(c=>c.action.kind==="tool"&&c.action.tool==="add_item_to_cart"&&c.action.args.variantId==="v50"));
 });
 
-test("product details start with the actual hero photo and retain the entire description afterwards", () => {
+test("product details start with the actual photo, summarize and keep the full description available", () => {
   const description = "Informação publicada. ".repeat(100);
-  const shown = presentMetaUi(buildMetaUiView(response({ blocks: [{ type: "product_card", data: { id: "product", name: "Produto", price: 500,
-    description, image: "https://images.unsplash.com/product.jpg", variants: [{ id: "variant", stock: 2 }] } }] })), "turn");
+  const view = buildMetaUiView(response({ blocks: [{ type: "product_card", data: { id: "product", name: "Produto", price: 500,
+    description, image: "https://images.unsplash.com/product.jpg", variants: [{ id: "variant", stock: 2 }] } }] }));
+  const shown = presentMetaUi(view, "turn");
   assert.equal(shown.messages[0].type, "image");
-  assert.ok(shown.messages.some(m => m.type === "text" && m.text.body.includes(description.trim())));
+  assert.ok(!shown.messages.some(m => m.type === "text" && m.text.body.includes(description.trim())));
+  const full = view.choices.find(c => c.label === "Ler descrição completa");
+  assert.ok(full?.action.kind === "tool" && String(full.action.args.text).trim() === description.trim());
 });
 
 test("store rich text retains native bold, italic and heading hierarchy without HTML", () => {
@@ -284,7 +325,7 @@ test("a shopper can change an available variant after selecting one and its disp
     assert.equal(add?.action.kind === "tool" && add.action.args.variantId, selectedVariantId);
     const shown = presentMetaUi(withMetaCartNavigation(view, true), "selected");
     assert.deepEqual(shown.numericSelections.slice(0, 3).map(a => a.kind === "tool" ? a.tool : a.kind), ["variant", "variant", "add_item_to_cart"]);
-    const menu = native(shown)[0];
+    const menu = native(shown).find(item => item.type === "list");
     assert.equal(menu.header.text, "Sérum");
     assert.equal(menu.action.button, "Escolher variação");
     assert.match(menu.action.sections[0].rows[0].title, /Volume: 30 ml/);

@@ -57,7 +57,7 @@ export const conversationBlockSchema = z.discriminatedUnion("type", [
   block("variant_selector", { productId: id, productName: text,
     groups: list(z.strictObject({ name: text, options: list(z.strictObject({ id, value: text, available: z.boolean() })) })) }),
   block("product_comparison", { products: list(z.strictObject({ id, name: text, price: money, priceFormatted: text,
-    rating: rating.optional(), inStock: z.boolean(), attributes: z.record(z.string(), text) })), missingProductNames: list(text).optional() }),
+    description: text.optional(), rating: rating.optional(), inStock: z.boolean(), attributes: z.record(z.string(), text) })), missingProductNames: list(text).optional() }),
   block("wishlist", { items: list(product.pick({ id: true, name: true, description: true, price: true, priceFormatted: true,
     image: true, images: true, inStock: true, rating: true, reviewCount: true })) }),
   block("reviews", { productId: text, productName: text, averageRating: rating, totalReviews: count, filter: z.enum(["positive", "negative", "recent"]).optional(),

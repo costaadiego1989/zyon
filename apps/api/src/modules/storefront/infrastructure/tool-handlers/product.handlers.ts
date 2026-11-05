@@ -275,7 +275,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       const productIds = uniqueStrings([...(Array.isArray(args.productIds) ? args.productIds : []), args.productId]).slice(0, 5);
       const productNames = uniqueStrings([...(Array.isArray(args.productNames) ? args.productNames : []), args.productName]).slice(0, 5);
       if (productIds.length === 0 && productNames.length === 0) {
-        return { error: "comparison_product_required", comparison: [], message: "Informe o produto atual ou os nomes dos produtos que deseja comparar." };
+        return { comparison: [], requiresProductNames: true, message: "Quais produtos você quer comparar? Escolha os itens no catálogo ou me diga os nomes." };
       }
 
       const products = (await Promise.all(
@@ -293,6 +293,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         } else if (!products.some(item => item.id === product.id)) products.push(product);
       }
       const missingProductNames = nameResolution.filter(item => item.status === "not_found").map(item => item.requestedName);
+      const missingProductIds = productIds.filter(id => !products.some(product => product.id === id));
 
       const requestedCount = productIds.length + productNames.length;
       const baseProduct = products[0];
@@ -318,10 +319,12 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         })),
         requestedProductNames: productNames,
         missingProductNames,
+        missingProductIds,
         nameResolution,
-        ...(nameResolution.some(item => item.status === "limited") ? { message: "A identificação por nome ficou incompleta. Escolha os produtos no catálogo para comparar; não confirmei que estejam ausentes." }
+        ...(missingProductIds.length ? { message: "Um dos produtos anteriores não está disponível no catálogo atual desta loja. Escolha os itens atuais que deseja comparar." }
+          : nameResolution.some(item => item.status === "limited") ? { message: "A identificação por nome ficou incompleta. Escolha os produtos no catálogo para comparar; não confirmei que estejam ausentes." }
           : nameResolution.some(item => item.status === "ambiguous") ? { message: "Há mais de um produto com esse nome. Peça ao comprador para escolher entre os nomes publicados antes de comparar." } : {}),
-        requiresProductNames: products.length < 2 || nameResolution.some(item => item.status !== "resolved"),
+        requiresProductNames: products.length < 2 || missingProductIds.length > 0 || nameResolution.some(item => item.status !== "resolved"),
       };
     },
 

@@ -5,6 +5,7 @@ import { commercialNoticesSchema } from "../../domain/contracts/commercial-notic
 import { storefrontShippingReferenceResultSchema } from "../../domain/contracts/storefront-shipping-reference.schemas.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 import { currentDealCardPricing } from "./current-deal-card-pricing.js";
+import { publicProductSummary } from "../../domain/services/public-product-summary.js";
 
 export interface BuildBlocksInput {
   searchPurpose?: "discovery" | "lookup";
@@ -348,9 +349,10 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           products: compareData.comparison.map((p: any) => ({
             id: p.id,
             name: p.name,
+            description: publicProductSummary(p.description),
             price: p.price,
             priceFormatted: formatPrice(p.price),
-            rating: p.rating,
+            rating: typeof p.rating === "number" ? p.rating : undefined,
             inStock: p.type === "digital" || p.type === "service" || (p.stock ?? 0) > 0,
             attributes: p.attributes ?? {},
           })),
@@ -537,6 +539,13 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   const canonicalSearch = storefrontToolOutputSchemas.search_products.safeParse(toolResults.search_products);
   const onlyReads = Object.keys(toolResults).length > 0 && Object.keys(toolResults).every(name => readTools.has(name));
   let canonicalReadMessage: true | undefined;
+  const comparison = storefrontToolOutputSchemas.compare_products.safeParse(toolResults.compare_products);
+  if (onlyReads && comparison.success && comparison.data.requiresProductNames) {
+    finalContent = comparison.data.message ?? (comparison.data.missingProductNames?.length
+      ? `Não localizei no catálogo atual: ${comparison.data.missingProductNames.join(", ")}. Quais produtos disponíveis você quer comparar?`
+      : "Quais produtos você quer comparar? Escolha os itens no catálogo ou me diga os nomes.");
+    canonicalReadMessage = true;
+  }
   // A declared limit/unknown criterion must survive even a fluent model reply.
   // The evidence is emitted by the shared canonical handler, never by the LLM.
   if (onlyReads && canonicalSearch.success && canonicalSearch.data.searchEvidence && !skipProductCarousel) {

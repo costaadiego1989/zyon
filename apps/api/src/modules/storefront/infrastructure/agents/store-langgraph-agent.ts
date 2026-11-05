@@ -963,6 +963,8 @@ export class StorefrontLangGraphAgent {
         productReferences.push(value.slice(0, 160)); };
       const products = (toolResults.search_products as { products?: Array<{ name?: unknown }> } | undefined)?.products;
       for (const product of products ?? []) addReference(product.name);
+      const comparedProducts = (toolResults.compare_products as { comparison?: Array<{ name?: unknown }> } | undefined)?.comparison;
+      for (const product of comparedProducts ?? []) addReference(product.name);
       addReference((toolResults.get_product_details as { product?: { name?: unknown } } | undefined)?.product?.name);
       const review = await reviewStorefrontReply(this.provider, { candidate: validation.message, userRequest: input.userMessage,
         productReferences, toolsUsed: [...new Set(toolsUsed)].slice(0, 32) },

@@ -10,6 +10,7 @@ import { GetProductContentUseCase } from "../../../catalog/application/use-cases
 import { createHash, randomUUID } from "node:crypto";
 import { CheckoutCartAuthorityService } from "../../../checkout/application/services/checkout-cart-authority.service.js";
 import type { StoreUiAction, WhatsAppConversationState, WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
+import { withMetaProductReferences } from "../../domain/ui/meta-product-context.js";
 import { deriveChatStage, missingFieldsForStage } from "../../../checkout/domain/services/customer-extraction.service.js";
 import { META_FIELD_LABELS, META_FIELD_FLOW_NAMES } from "../../domain/ui/meta-flow.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
@@ -335,7 +336,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       merchant_id: input.merchantId, conversation_id: state.conversationId, cart_id: state.conversationId,
       user_message: input.message, global_user_id: shopper.globalUserId,
       trusted_buyer_context: { globalUserId: shopper.globalUserId, name: shopper.fullName, phone: shopper.phone, email: shopper.email },
-      history: state.history, ui_action: canonicalAction,
+      history: withMetaProductReferences(state), ui_action: canonicalAction,
       attachment_context: input.attachmentContext,
     }, undefined, "whatsapp");
     if (response.blocks.some(block => block.type === "cart_summary")) {
