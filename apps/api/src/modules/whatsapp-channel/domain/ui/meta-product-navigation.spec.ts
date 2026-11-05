@@ -50,6 +50,9 @@ test("different products, pending variants/options, stock and checkout cannot in
   assert.equal(withMetaProductNavigation(surface(), details(s), { ...s, stage: "checkout" }, "p").productContext, undefined);
   const changed = withMetaProductNavigation(surface(), details(s), { ...s, selectedProductId: "p", selectedVariantId: "changed" }, "p");
   assert(!changed.choices.some(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart"));
+  const outOfStock = withMetaProductNavigation(details(s, { inStock: false }), details(s), s);
+  assert(!outOfStock.choices.some(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart"));
+  assert.equal(outOfStock.primaryAction, undefined);
 });
 
 test("offer recommendation and its reviews retain the quoted acceptance action and reject expired offers", () => {

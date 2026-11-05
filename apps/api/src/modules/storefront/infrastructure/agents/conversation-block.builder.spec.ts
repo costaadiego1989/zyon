@@ -3,6 +3,15 @@ import assert from "node:assert/strict";
 import { buildConversationBlocks } from "./conversation-block.builder.js";
 import { conversationBlockSchema } from "../../domain/contracts/conversation-block.schemas.js";
 
+test("a confirmed product with no published reviews keeps its identity; an unidentified/error result does not", () => {
+  const build = (get_reviews: any) => buildConversationBlocks({ merchantId: "merchant_1", userMessage: "Ver avaliações", finalContent: "Avaliações", toolResults: { get_reviews } });
+  const result = build({ productId: "p", productName: "Mouse", reviews: [], totalCount: 0, averageRating: 0 });
+  const reviews = result.blocks.find(b => b.type === "reviews");
+  assert(reviews && reviews.type === "reviews");assert.equal(reviews.data.productId, "p");assert.equal(conversationBlockSchema.safeParse(reviews).success, true);
+  assert.equal(build({ reviews: [], totalCount: 0, averageRating: 0 }).blocks.length, 0);
+  assert.equal(build({ error: "product_not_found", reviews: [] }).blocks.length, 0);
+});
+
 test("cart summary preserves the public product image after an item is added", () => {
   const { blocks } = buildConversationBlocks({
     merchantId: "merchant_1",

@@ -416,7 +416,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
 
   if (toolResults["get_reviews"]) {
     const reviewsData = toolResults["get_reviews"] as any;
-    if (reviewsData?.reviews?.length > 0) {
+    if (Array.isArray(reviewsData?.reviews) && (reviewsData.reviews.length > 0 || reviewsData.productId && reviewsData.productName)) {
       blocks.push({
         type: "reviews",
         data: {

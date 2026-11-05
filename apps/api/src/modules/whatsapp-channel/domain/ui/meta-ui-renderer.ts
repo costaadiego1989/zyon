@@ -273,7 +273,9 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         metaProductComparison(items(d.products)).forEach(body => view.media.push({ type: "text", text: { body } }));
         items(d.products).forEach(productChoice); break;
       case "reviews":
-        text.push(`⭐ *Avaliações*\n📦 *${value(d.productName)}*\n\n📊 *${d.filter === "positive" ? "Positivas" : d.filter === "negative" ? "Negativas" : "Publicadas"}:* ${value(d.totalReviews)} · Média: *${Number(d.averageRating).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5*\n_Da mais recente para a mais antiga._`);
+        text.push(`⭐ *Avaliações*\n📦 *${value(d.productName)}*\n\n${Number(d.totalReviews) > 0
+          ? `📊 *${d.filter === "positive" ? "Positivas" : d.filter === "negative" ? "Negativas" : "Publicadas"}:* ${value(d.totalReviews)} · Média: *${Number(d.averageRating).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5*\n_Da mais recente para a mais antiga._`
+          : "Ainda não há avaliações publicadas para este produto. Você pode continuar explorando ou adicionar ao carrinho quando escolher suas opções."}`);
         items(d.reviews).forEach(r => text.push(`👤 *${value(r.author)}*\n⭐ *${value(r.rating)} / 5*${/^\d{4}-\d{2}-\d{2}$/.test(value(r.date)) ? ` · 📅 ${value(r.date).split("-").reverse().join("/")}` : ""}\n\n${value(r.text)}`));
         if (d.productId) {
           add("Todas as avaliações", tool("get_reviews", { productId: d.productId }));

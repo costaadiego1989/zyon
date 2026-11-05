@@ -22,6 +22,9 @@ const identity = (action: StoreUiAction) => action.kind === "tool"
 export function withMetaProductNavigation(view: MetaUiView, source: MetaUiView | undefined,
   state: WhatsAppConversationState, requestedProductId?: string): MetaUiView {
   if (view.stage === "checkout" || state.stage === "checkout" || view.blocks.some(b => b.type === "buyer_hub_actions")) return view;
+  // A fresh product/offer result replaces the old admission, including when
+  // stock disappeared or a different variant/options selection is required.
+  if (view.blocks.some(b => b.type === "product_card" || b.type === "post_cart_offer")) return view;
   const own = metaProductContext(view), parent = metaProductContext(source);
   const productId = requestedProductId ?? own?.productId;
   if (!productId || own && own.productId !== productId) return view;
