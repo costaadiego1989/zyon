@@ -2,6 +2,7 @@ import { Injectable, Inject, NotFoundException } from "@nestjs/common";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort, type StorefrontConfigSnapshot } from "../../domain/ports/storefront-config-query.port.js";
 import { BILLING_PLAN_ACCESS, type BillingPlanAccessPort } from "../../../payment/domain/ports/billing-plan-access.port.js";
+import { checkoutTone, type CheckoutTone } from "../../../checkout/domain/services/checkout-collection-copy.js";
 
 export interface StoreConfigOutput {
   publishedPolicies?: Record<string, string>;
@@ -33,6 +34,7 @@ export interface StoreConfigOutput {
   };
   agentName?: string;
   agentGreeting?: string;
+  agentTone?: CheckoutTone;
   quickReplies?: string[];
   stories?: any[];
   storeCategory?: string;
@@ -66,7 +68,7 @@ export class GetStoreConfigUseCase {
   private async present(config: StorefrontConfigSnapshot): Promise<StoreConfigOutput> {
     const row = config.merchant;
     const theme = decodePersistedTheme(row.theme);
-    const identity = config.agentRule?.identity as { agentName?: string; greeting?: string } | null;
+    const identity = config.agentRule?.identity as { agentName?: string; greeting?: string; tone?: string } | null;
     const checkoutSettings = config.agentRule?.checkoutSettings as
       | { agentMode?: StoreConfigOutput["agentMode"]; initialDelaySeconds?: number }
       | null;
@@ -114,6 +116,7 @@ export class GetStoreConfigUseCase {
       },
       agentName: identity?.agentName ?? theme?.agentName,
       agentGreeting: identity?.greeting,
+      agentTone: checkoutTone(identity?.tone),
       quickReplies,
       stories: config.stories as any[],
       storeCategory: row.storeCategory ?? undefined,

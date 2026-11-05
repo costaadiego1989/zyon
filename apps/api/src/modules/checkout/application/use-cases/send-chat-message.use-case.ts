@@ -1,4 +1,6 @@
 import { withAiMetering } from "../../../../shared/ai-metering.js";
+import { checkoutCollectionCopy } from "../../domain/services/checkout-collection-copy.js";
+import { pendingCustomerCorrection } from "../../domain/services/customer-correction-prompts.js";
 import { Inject, Injectable, Optional, Logger, ServiceUnavailableException } from "@nestjs/common";
 import type {
   ChatMessageRequest,
@@ -327,9 +329,10 @@ export class SendChatMessageUseCase {
       reply.message,
       isHoldout ? undefined : offer,
     );
-    const safeMessage = safetyCheck.safe
-      ? reply.message
-      : "Como posso ajudar com o seu pedido?";
+    // Canonical collection prompts do not depend on LLM tool calls. In
+    // particular, the address-complete turn must publish shipping immediately.
+    const collectionMessage = pendingCustomerCorrection(working) ? undefined : checkoutCollectionCopy(missingFields[0], working, context.agentContext?.agent.tone);
+    const safeMessage = collectionMessage ?? (safetyCheck.safe ? reply.message : "Como posso ajudar com o seu pedido?");
 
     return this.chatResponseBuilder.build({
       chatRequest,

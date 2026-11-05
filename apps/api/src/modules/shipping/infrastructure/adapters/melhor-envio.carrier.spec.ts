@@ -12,6 +12,33 @@ function makeAdapter() {
   return new MelhorEnvioCarrierAdapter(envTokenResolver);
 }
 
+test("quotes the live service catalog, retains every valid carrier and caches discovery only within this merchant", async () => {
+  const previous = globalThis.fetch, calls: Array<{ url: string; method: string }> = [];
+  globalThis.fetch = (async (resource, init) => {
+    const url=String(resource); calls.push({url,method:init?.method??"GET"});
+    if(url.endsWith("/services")) return Response.json([{id:1},{id:2},{id:3},{id:31},{id:33}]);
+    const payload=JSON.parse(String(init?.body));assert.equal(payload.services,"1,2,3,31,33");
+    return Response.json([
+      {id:1,name:"PAC",error:"No coverage"},
+      ...[[2,"SEDEX","Correios"],[3,".Package","Jadlog"],[31,"Express","Loggi"],[33,"Standard","JeT"]].map(([id,name,company])=>({id,name,company:{name:company},currency:"R$",price:"12.50",delivery_time:3})),
+    ]);
+  }) as typeof fetch;
+  try {
+    const adapter=new MelhorEnvioCarrierAdapter({resolveToken:async()=>"fixture-token"});
+    const first=await adapter.fetchQuotes(baseCtx),again=await adapter.fetchQuotes(baseCtx);
+    assert.deepEqual(first.map(row=>row.carrier_key),["melhor-envio-2","melhor-envio-3","melhor-envio-31","melhor-envio-33"]);
+    assert.deepEqual(again,first);assert.equal(calls.filter(c=>c.url.endsWith("/services")).length,1);
+    await adapter.fetchQuotes({...baseCtx,merchantId:"other"}); assert.equal(calls.filter(c=>c.url.endsWith("/services")).length,2);
+  } finally {globalThis.fetch=previous;}
+});
+
+test("an unavailable service catalog never silently quotes the obsolete four-service subset", async () => {
+  const previous=globalThis.fetch;let posts=0;
+  globalThis.fetch=(async (_resource,init)=>{if(init?.method==="POST")posts++;return new Response("unavailable",{status:503});}) as typeof fetch;
+  try {assert.deepEqual(await new MelhorEnvioCarrierAdapter({resolveToken:async()=>"fixture-token"}).fetchQuotes(baseCtx),[]);assert.equal(posts,0);}
+  finally{globalThis.fetch=previous;}
+});
+
 const baseCtx = {
   originZip: "01000-000",
   destinationZip: "01310-100",

@@ -779,7 +779,7 @@ test("SendChatMessageUseCase requires this session's OTP for a duplicate unverif
   assert.equal(afterOtp?.customer?.address, undefined);
   assert.equal(verified.stage, "data_collection");
   assert.ok(verified.missing_fields?.includes("telefone"));
-  assert.ok(verified.missing_fields?.includes("CPF"));
+  assert.equal(verified.missing_fields?.includes("CPF"), false);
   assert.deepEqual(await repository.getSession("mrc_1", "chk_1"), previousSnapshot);
   assert.equal(deliveries.length, 1);
   // The conversation port is the deterministic fallback, not the LLM gateway.
@@ -1156,7 +1156,7 @@ test("SendChatMessageUseCase accepts email OTP pasted with API log metadata", as
   assert.equal(sessionAfter?.customer?.email_verified, true, "E-mail foi verificado mesmo com metadados do log");
   assert.equal(sessionAfter?.customer?.otp_code, "", "Codigo de OTP foi limpo apos validar");
   assert.equal(res.missing_fields?.[0], "telefone");
-  assert.ok(res.missing_fields?.includes("CPF"));
+  assert.equal(res.missing_fields?.includes("CPF"), false);
 });
 
 test("SendChatMessageUseCase captures contact phone after verified email without SMS OTP", async () => {

@@ -17,7 +17,7 @@ test("projects the public store config from the query port", async () => {
           storeSettings: { quick_replies: { stages: [{ stage: "welcome", replies: ["Legado"] }] } },
         },
         subscriptionStatus: "active",
-        agentRule: { identity: { agentName: "Lia", greeting: "Olá" }, checkoutSettings: { agentMode: "proactive", initialDelaySeconds: 9 } },
+        agentRule: { identity: { agentName: "Lia", greeting: "Olá", tone: "premium" }, checkoutSettings: { agentMode: "proactive", initialDelaySeconds: 9 } },
         quickReplies: { welcome: ["Ver novidades"] },
         stories: [{ id: "story_a" }],
       };
@@ -31,6 +31,7 @@ test("projects the public store config from the query port", async () => {
   assert.equal(config.favicon, "https://cdn.example/logo.png");
   assert.equal(config.agentName, "Lia");
   assert.equal(config.agentGreeting, "Olá");
+  assert.equal(config.agentTone, "premium");
   assert.deepEqual(config.quickReplies, ["Ver novidades"]);
   assert.equal(config.showBranding, false);
   assert.equal(config.voiceCheckoutEnabled, false);

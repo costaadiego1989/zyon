@@ -148,22 +148,22 @@ test("isShippingQuickReplyQuestion blocks complement quick replies", () => {
 
 test("missingFieldsForStage lists user-facing labels for each stage in order", () => {
   const empty = checkoutSession({ customer: {} });
-  assert.deepEqual(missingFieldsForStage(empty, "data_collection"), ["telefone", "email", "nome", "CPF"]);
+  assert.deepEqual(missingFieldsForStage(empty, "data_collection"), ["telefone", "email", "nome"]);
 
   const withEmail = checkoutSession({
     customer: { email: "joao@example.com", otp_code: "123456" }
   });
-  assert.deepEqual(missingFieldsForStage(withEmail, "data_collection"), ["telefone", "nome", "CPF"]);
+  assert.deepEqual(missingFieldsForStage(withEmail, "data_collection"), ["telefone", "nome"]);
 
   const withName = checkoutSession({
     customer: { fullName: "Joao", email: "joao@example.com", email_verified: true }
   });
-  assert.deepEqual(missingFieldsForStage(withName, "data_collection"), ["telefone", "CPF"]);
+  assert.deepEqual(missingFieldsForStage(withName, "data_collection"), ["telefone"]);
 
   const emailOtpPendingBeforeName = checkoutSession({
     customer: { email: "joao@example.com", otp_code: "123456", email_verified: false }
   });
-  assert.deepEqual(missingFieldsForStage(emailOtpPendingBeforeName, "data_collection"), ["telefone", "nome", "CPF"]);
+  assert.deepEqual(missingFieldsForStage(emailOtpPendingBeforeName, "data_collection"), ["telefone", "nome"]);
 
   const readyCadastro = checkoutSession({
     customer: {

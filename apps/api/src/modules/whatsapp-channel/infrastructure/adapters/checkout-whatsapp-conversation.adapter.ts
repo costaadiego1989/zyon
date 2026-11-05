@@ -11,7 +11,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { CheckoutCartAuthorityService } from "../../../checkout/application/services/checkout-cart-authority.service.js";
 import type { StoreUiAction, WhatsAppConversationState, WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
 import { withMetaProductReferences } from "../../domain/ui/meta-product-context.js";
-import { deriveChatStage, missingFieldsForStage } from "../../../checkout/domain/services/customer-extraction.service.js";
+import { deriveChatStage, missingFieldsForStage, isShippingQuickReplyQuestion } from "../../../checkout/domain/services/customer-extraction.service.js";
+import { checkoutCollectionCopy } from "../../../checkout/domain/services/checkout-collection-copy.js";
+import { pendingCustomerCorrection } from "../../../checkout/domain/services/customer-correction-prompts.js";
 import { META_FIELD_LABELS, META_FIELD_FLOW_NAMES } from "../../domain/ui/meta-flow.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { GetPaymentIntentStatusUseCase } from "../../../payment/application/get-payment-intent-status.use-case.js";
@@ -117,7 +119,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const hub = await this.buyerHub?.handle(input, config.name);
     if (hub?.kind === "reply") return hub.response;
     if (hub?.kind === "route") input = { ...input, message: hub.message, action: hub.action, buyer: hub.buyer ?? input.buyer, state: hub.state ?? input.state };
-    let state = { ...input.state };
+    let state: WhatsAppConversationState = { ...input.state, agentTone: config.agentTone };
     const identitySession = state.checkoutSessionId ? await this.sessions.getSession(input.merchantId, state.checkoutSessionId) : undefined;
     const verifiedBuyer = identitySession?.merchantId === input.merchantId && identitySession.customer?.email_verified === true && identitySession.customer.email?.trim() &&
       identitySession.customer.phone_verified === true && identitySession.customer.phone?.replace(/\D/g, "") === input.buyer.phone.replace(/\D/g, "") &&
@@ -158,7 +160,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       return withCartAnimations({ ...offerResponse, merchantName: config.name });
     }
     const firstTurn = state.history.length === 0;
-    const greeting = metaWelcomeMessage(config.agentGreeting || "", config.name, config.agentName || "Zyon");
+    const greeting = metaWelcomeMessage(config.agentGreeting || "", config.name, config.agentName || "Zyon", config.agentTone);
     if (/^\/atalhos?$/i.test(input.message.trim())) {
       const message = "⚡ *Seus atalhos*\n\nEscolha uma opção no menu abaixo para continuar mais rápido.\n\n💬 Se preferir, conte o que precisa aqui na conversa. Seu carrinho e a etapa do pedido continuam salvos.";
       state.history = [...state.history, { role: "user", content: input.message }, { role: "assistant", content: message }];
@@ -180,7 +182,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       return { agentMessage: greeting, quickReplies: config.quickReplies || [], blocks, merchantName: config.name, state };
     }
     const paymentAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout"].includes(input.action.tool);
-    const checkoutAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry", "show_checkout"].includes(input.action.tool);
+    const checkoutAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry", "show_checkout", "checkout_shipping_retry"].includes(input.action.tool);
     const browsing = (input.action?.kind === "tool" && !checkoutAction) || /^(continuar comprando|ver produtos|encontrar produto|categorias|ofertas|ver carrinho|faq|ajuda|suporte|perguntas frequentes|tirar d[uú]vidas|trocas e devolu[cç][oõ]es)$/i.test(input.message.trim());
     if (checkoutAction && state.checkoutSessionId) state.stage = "checkout";
     const paymentStatusRequest = /^verificar pagamento$/i.test(input.message.trim()) && identitySession?.merchantId === input.merchantId &&
@@ -197,7 +199,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const shippingAnswer = nextRequestedField === "frete" && (identitySession?.shippingOptions?.some(option =>
       input.message.trim() === checkoutShippingLabel(option) || input.message.trim() === `Escolho o frete ${option.carrier} ${option.method}`) ||
       /^(?:escolho o frete |entrega ·|(?:quero (?:o |a )?(?:frete|entrega) )?mais (?:barat[oa]|r[aá]pid[oa]))/i.test(input.message.trim()));
-    const checkoutInput = state.pendingCoupon || awaitingField || shippingAnswer || /^(verificar pagamento|reenviar c[oó]digo|alterar email|pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito))$/i.test(input.message.trim());
+    const shippingQuestion = nextRequestedField === "frete" && (isShippingQuickReplyQuestion(input.message) || /(?:frete (?:gr[aá]tis|gratuito)|(?:op[cç][oõ]es|prazo|valor|pre[cç]o|transportadora).*(?:frete|entrega)|(?:frete|entrega).*(?:op[cç][oõ]es|prazo|valor|pre[cç]o|transportadora))/i.test(input.message));
+    const checkoutInput = state.pendingCoupon || awaitingField || shippingAnswer || shippingQuestion || /^(calcular novamente|verificar pagamento|reenviar c[oó]digo|alterar email|pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito))$/i.test(input.message.trim());
     if (state.stage === "checkout" && (browsing || !checkoutAction && !checkoutInput)) {
       state.stage = "store"; state.pendingCoupon = undefined; state.pendingCheckoutEdit = undefined; state.expectsFreeInput = false;
     }
@@ -303,7 +306,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
           state.payment = { intentId: payment.id, sessionId, method, status: payment.status, amount_cents: payment.amountCents,
             copy_paste: payment.buyerFacing?.qrCodeCopyPaste, ticket_url: payment.buyerFacing?.invoiceUrl };
           const updated = await this.sessions.getSession(input.merchantId, sessionId);
-          return this.checkoutUi({ message: method === "pix" ? "*Pagamento por Pix*\n\nAbra o checkout do provedor ou copie o código abaixo para pagar. A confirmação será automática após a aprovação."
+          return this.checkoutUi({ message: method === "pix" ? "💠 *Pague por Pix aqui na conversa*\n\nCopie o código enviado abaixo e cole no aplicativo do seu banco, na opção *Pix Copia e Cola*.\n\n⏳ Assim que o pagamento for aprovado, aviso por aqui."
             : "*Pagamento seguro*\n\nAbra o checkout do provedor no botão abaixo para concluir seu pedido.",
             ...(updated ? { experience: buildExperienceFromSession(updated, { merchantName: config.name, serviceFee: payment.amountBreakdown ? payment.amountBreakdown.platformFeeCents / 100 : undefined }) } : {}) }, state, config.name, input.message, input.merchantId);
         } catch (error) {
@@ -313,7 +316,10 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
             return this.checkoutUi({ message: "Estamos verificando a resposta do provedor. Não faça outro pagamento enquanto essa verificação estiver pendente." }, state, config.name, input.message, input.merchantId);
           }
           if (!(error instanceof BadRequestException || error instanceof ConflictException)) throw error;
-          return this.checkoutUi({ message: "Não foi possível preparar o pagamento com os dados atuais. Confira os dados e valores do pedido no checkout seguro antes de continuar.", blocks: [{ type: "hosted_card_payment", data: {} }] }, state, config.name, input.message, input.merchantId);
+          if (error.message === "asaas_customer_data_incomplete" && !checkout.customer?.cpf) return this.checkoutUi({ missing_fields: ["CPF"],
+            message: "Este provedor exige um documento para preparar o pagamento. Informe-o somente no formulário seguro." }, state, config.name, input.message, input.merchantId);
+          return this.checkoutUi({ message: "Não foi possível preparar o pagamento agora. Seu pedido foi mantido. Confira os dados e tente novamente.",
+            ...(method === "card" ? { blocks: [{ type: "hosted_card_payment", data: {} }], initialPaymentMethod: "card" } : {}) }, state, config.name, input.message, input.merchantId);
         }
       }
       const response = await this.chat.execute({ merchant_id: input.merchantId, session_id: sessionId, conversation_id: checkout.conversationId,
@@ -522,7 +528,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     else if (session && !state.payment && ["payment", "payment_pending"].includes(deriveChatStage(session)) && !response.initialPaymentMethod) {
       const capabilities = await this.startCheckout?.getPaymentCapabilities?.(merchantId) ?? exp?.paymentMethods;
       const methods = [
-        ...(capabilities?.pix ? [{ key: "pix", label: "Pix", sub: "Checkout seguro · pagamento instantâneo" }] : []),
+        ...(capabilities?.pix ? [{ key: "pix", label: "Pix", sub: "Código Pix aqui no WhatsApp" }] : []),
         ...(capabilities?.card ? [{ key: "card", label: "Cartão de crédito", sub: "Checkout seguro do cartão" }] : []),
       ];
       if (response.preferredPaymentMethod) methods.sort((a, b) => Number(b.key === response.preferredPaymentMethod) - Number(a.key === response.preferredPaymentMethod));
@@ -533,12 +539,18 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const approved = state.payment?.status === "approved";
     const nextField = approved ? undefined : response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
     // Ask the next field explicitly. Starting a checkout must not stop at its greeting.
-    if (nextField === "email") message = "📧 *E-mail para o pedido*\n\nQual é seu e-mail de contato? Ele será usado no pagamento e nas atualizações do pedido.\n\n_Não é preciso confirmar por código._";
+    const collectionCopy = session && pendingCustomerCorrection(session) ? undefined : checkoutCollectionCopy(nextField, session ?? undefined, state.agentTone);
+    if (collectionCopy) message = collectionCopy;
     if (nextField === "código de verificação" && session?.customer?.otp_code && !/inválido|expirou|não foi possível|não consegui/i.test(message)) {
       const email = session.customer.email?.replace(/(^.).*(@.*$)/, "$1***$2") || "seu email";
       message = `*Confirme sua conta*\n\nEnviamos um código para *${email}*. Responda aqui com os *6 dígitos*.\n\n_O código vale por 10 minutos. Seus dados salvos serão usados após a confirmação._`;
     }
-    if (nextField === "nome") message = "👤 *Seu pedido*\n\nQual é seu nome completo para o pedido?";
+    if (nextField === "frete" && /frete (?:gr[aá]tis|gratuito)/i.test(userMessage)) {
+      const free = session?.shippingOptions?.some(option => option.customerPrice === 0);
+      message = `💬 ${free ? "Há uma opção grátis nesta cotação. Confira abaixo." : "Esta cotação não retornou frete grátis. Veja os valores disponíveis abaixo."}\n\n${message}`;
+    }
+    if (collectionCopy) for (let i = blocks.length - 1; i >= 0; i--) if (["form_field", "checkout_form", "quick_replies"].includes(blocks[i].type)) blocks.splice(i, 1);
+    if (nextField === "frete" && !session?.shippingOptions?.length) blocks.push({ type: "shipping_quote_retry", data: {} });
     const secureIdentifier = nextField === "CPF";
     if (secureIdentifier) message = "Para proteger seus dados, preencha seu CPF no checkout seguro. Depois, você pode continuar por aqui.";
     if (secureIdentifier) for (let i = blocks.length - 1; i >= 0; i--) if (["form_field", "checkout_form"].includes(blocks[i].type)) blocks.splice(i, 1);
@@ -571,16 +583,20 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         ? canonicalPhone : business?.whatsappNumber?.replace(/\D/g, "");
       if (businessPhone && /^\d{8,15}$/.test(businessPhone)) widget.searchParams.set("whatsappNumber", businessPhone);
       if (response.initialPaymentMethod === "card" || resumeCard) widget.searchParams.set("paymentMethod", "card");
+      if (blocks.some(block => block.type === "crypto_payment")) widget.searchParams.set("paymentMethod", "crypto");
       if ((response.initialPaymentMethod === "card" || resumeCard) && state.paymentRevision) widget.searchParams.set("paymentRevision", String(state.paymentRevision));
       const api = process.env.PUBLIC_API_BASE_URL || process.env.API_PUBLIC_URL;
       if (api) widget.searchParams.set("apiBaseUrl", api.endsWith("/v1") ? api : api.replace(/\/$/, "") + "/v1");
-      blocks.push({ type: "checkout_redirect", data: { url: widget.href, sessionId: checkoutSessionId } } as any);
+      blocks.push({ type: "checkout_redirect", data: { url: widget.href, sessionId: checkoutSessionId,
+        purpose: secureIdentifier ? "document" : blocks.some(block => block.type === "crypto_payment") ? "crypto" : "card" } } as any);
     }
     const paymentSurface = blocks.some(block => block.type === "payment_methods") || !!state.payment || !!response.initialPaymentMethod;
     const replies = [...new Set<string>([...(nextField === "código de verificação" || message?.includes("Reenviar código") ? ["Reenviar código", "Alterar email"] : []), ...(exp?.copy?.quick_replies || []), ...(response.actions || []).map((a: any) => a.label)])]
       .filter(label => !paymentSurface || !/^(pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito)|remover item|tenho um cupom de desconto)$/i.test(label.trim()));
     return { agentMessage: message, merchantName, blocks,
-      quickReplies: approved ? ["Rastrear Pedido", "Continuar Comprando"] : secureIdentifier ? ["Ver Carrinho", "Continuar Comprando"] : state.pendingCheckoutEdit || state.pendingCoupon ? [] : paymentSurface ? [...replies, ...(state.payment ? ["Verificar pagamento"] : []), "Ver Carrinho", "Continuar Comprando"] : replies,
+      quickReplies: approved ? ["Rastrear Pedido", "Continuar Comprando"] : secureIdentifier || state.pendingCheckoutEdit || state.pendingCoupon ? []
+        : nextField === "confirmar endereço" ? ["Sim", "Não"] : collectionCopy ? []
+          : paymentSurface ? [...(state.payment ? ["Verificar pagamento"] : [])] : replies,
       state: { ...state, checkoutSessionId: response.session_id || state.checkoutSessionId, checkoutConversationId: response.conversation_id || state.checkoutConversationId,
         checkoutSummaryFingerprint: summaryFingerprint,
         pendingFlow, expectsFreeInput: !!state.pendingCoupon || !secureIdentifier && !!nextField && /^(telefone|email|nome|CPF|CEP|número|complemento|código de verificação)/i.test(nextField),

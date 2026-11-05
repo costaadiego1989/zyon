@@ -190,10 +190,10 @@ test("store rich text retains native bold, italic and heading hierarchy without 
 
 test("welcome retains merchant copy and explicitly invites unrestricted conversation", () => {
   const message = metaWelcomeMessage("Olá! Encontre produtos e confira seu pedido.", "Athom", "Zyon");
-  assert.match(message, /^👋 Olá! Seja muito bem-vindo à \*Athom\*/);
-  assert.match(message, /Eu sou \*Zyon\*, assistente virtual/);
-  assert.match(message, /Converse comigo naturalmente/);
-  assert.match(message, /Digite \*\/atalho\*/);
+  assert.match(message, /^Olá! Encontre produtos/);
+  assert.match(message, /Sou \*Zyon\*, assistente virtual da \*Athom\*/);
+  assert.match(message, /conversar comigo normalmente/);
+  assert.match(message, /digite \*\/atalhos\*/);
   assert.ok(message.includes("Olá! Encontre produtos e confira seu pedido."));
 });
 
@@ -570,7 +570,8 @@ test('payment actions remain first within checkout even when the response includ
     {type:'payment_methods',data:{methods:[{key:'card',label:'Cartão de crédito'}],nativePayment:true,fingerprint:'current'}}
   ]})),true);
   const shown=presentMetaUi(view,'checkout');
-  assert.equal(shown.numericSelections[4].kind==='tool'&&shown.numericSelections[4].tool,'create_payment');
+  assert.equal(shown.numericSelections[0].kind==='tool'&&shown.numericSelections[0].tool,'create_payment');
+  assert.equal(shown.numericSelections.some(a=>a.kind==='tool'&&['get_cart','search_products','checkout'].includes(a.tool)),false);
   assert.ok(!shown.messages.some(m=>m.type==='image'));
   assert.match(native(shown)[0].body.text,/pedido/);
 });

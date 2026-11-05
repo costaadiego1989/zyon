@@ -25,6 +25,7 @@ interface MelhorEnvioService {
 @Injectable()
 export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPort {
   readonly carrierKey = "melhor-envio";
+  private readonly serviceCatalog = new Map<string, { ids: string; expiresAt: number }>();
 
   constructor(private readonly tokenResolver: MelhorEnvioTokenResolver) {}
 
@@ -74,12 +75,15 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
       to: { postal_code: toZip },
       products,
       options: { receipt: false, own_hand: false },
-      services: "1,2,17,18"
     };
 
     try {
       const accountIdentity = options?.requireMerchantAccount ? await readMelhorEnvioAccountIdentity({
         base: this.baseUrl, token, originMerchantId: ctx.merchantId }) : undefined;
+      // The old four-ID list excluded Jadlog, Loggi and other available
+      // services. Omitting `services` returns a single service on the live
+      // provider, so explicitly request its current catalog instead.
+      const servicesToQuote = await this.quoteServiceIds(ctx.merchantId, token);
       const response = await fetch(`${this.baseUrl}/api/v2/me/shipment/calculate`, {
         method: "POST",
         headers: {
@@ -88,7 +92,7 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
           "Accept": "application/json",
           "User-Agent": "AACP/1.0 (checkout@aacp.com)"
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, services: servicesToQuote }),
         signal: AbortSignal.timeout(5000),
         redirect: "error"
       });
@@ -128,6 +132,23 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
     } catch {
       return [];
     }
+  }
+
+  private async quoteServiceIds(merchantId: string, token: string): Promise<string> {
+    const key = `${this.baseUrl}:${merchantId}`;
+    const cached = this.serviceCatalog.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.ids;
+    const response = await fetch(`${this.baseUrl}/api/v2/me/shipment/services`, {
+      method: "GET", headers: this.headers(token), signal: AbortSignal.timeout(5000), redirect: "error",
+    });
+    if (!response.ok) throw new Error("shipping_service_catalog_unavailable");
+    const rows: unknown = await response.json();
+    if (!Array.isArray(rows) || !rows.length || rows.length > 100) throw new Error("shipping_service_catalog_invalid");
+    const ids = [...new Set(rows.flatMap(row => row && Number.isSafeInteger(row.id) && row.id > 0 ? [row.id as number] : []))].join(",");
+    if (!ids) throw new Error("shipping_service_catalog_empty");
+    if (this.serviceCatalog.size >= 500) this.serviceCatalog.delete(this.serviceCatalog.keys().next().value!);
+    this.serviceCatalog.set(key, { ids, expiresAt: Date.now() + 15 * 60_000 });
+    return ids;
   }
 
   async purchaseLabel(input: LabelPurchaseInput): Promise<LabelPurchaseResult> {

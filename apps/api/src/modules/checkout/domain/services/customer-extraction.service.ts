@@ -162,7 +162,9 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
   if (completed) return "completed";
   if (pendingCustomerCorrection(session)) return "data_collection";
   const c = session.customer ?? {};
-  if (!c.fullName || !c.email || !c.cpf || !hasValidContactPhone(c)) return "data_collection";
+  // Provider-specific fiscal identifiers are enforced when preparing payment.
+  // They must not block contact collection, delivery or Mercado Pago Pix.
+  if (!c.fullName || !c.email || !hasValidContactPhone(c)) return "data_collection";
   const addr = c.address ?? {};
   if (requiresPhysicalDelivery(session.cart) && (
     !addr.zip ||
@@ -186,7 +188,6 @@ const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => bool
   { label: "telefone", has: (s) => hasValidContactPhone(s.customer) },
   { label: "email", has: (s) => Boolean(s.customer?.email) },
   { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
-  { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
 ];
 
 export function isShippingQuickReplyQuestion(text: string): boolean {

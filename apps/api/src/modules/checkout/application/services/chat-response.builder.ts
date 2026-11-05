@@ -18,6 +18,7 @@ import { resolveCrossSellProduct } from "../../../cross-sell/application/service
 import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { checkoutShippingLabel } from "../../domain/services/checkout-shipping-label.js";
 
 export interface ChatReplyInput {
   reply: { message: string; objection: Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> };
@@ -159,7 +160,19 @@ export class ChatResponseBuilder {
       experience: responseExperience,
       stage: finalStage,
       missing_fields: finalMissingFields,
-      blocks: input.reply.blocks
+      blocks: input.stage === "shipping" && input.missingFields[0] === "frete" && updated.shippingOptions?.length
+        ? [...(input.reply.blocks ?? []).filter(block => block.type !== "shipping_options"), {
+          type: "shipping_options", data: { options: updated.shippingOptions.map(option => ({
+            // Both web components and the WhatsApp projection use this same
+            // canonical quote; no chat-shipping synthetic selection keys.
+            key: option.carrierKey, label: option.method || option.carrier || "Frete", cost: Math.round(option.customerPrice * 100),
+            carrier: option.carrier, name: option.method, price: option.customerPrice,
+            priceFormatted: option.customerPrice.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+            days: option.deliveryDays, sub: option.estimatedUnit === "minutes" ? `${option.estimatedValue} minutos` : `${option.deliveryDays} dias úteis`,
+            estimatedValue: option.estimatedValue, estimatedUnit: option.estimatedUnit, responseLabel: checkoutShippingLabel(option),
+          })) },
+        }]
+        : input.reply.blocks
     };
   }
 }

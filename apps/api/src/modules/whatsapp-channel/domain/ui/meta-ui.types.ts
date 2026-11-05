@@ -40,6 +40,7 @@ export interface MetaUiPresentation {
 }
 
 export interface WhatsAppConversationState {
+  agentTone?: import("@zyon/shared-types").AgentTone;
   version: 1;
   conversationId: string;
   stage: "store" | "checkout";
