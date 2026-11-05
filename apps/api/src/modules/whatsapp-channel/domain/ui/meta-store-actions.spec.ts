@@ -89,3 +89,10 @@ for (const stage of ["store", "checkout"] as const) for (const expectsFreeInput 
     assert.equal(resolveMetaStoreTextAction("123456", current), undefined, "OTP and numeric field answers must not become navigation");
   });
 }
+
+test("product read shortcuts follow the visible recommendation rather than the previously selected cart item", () => {
+  const current = { ...state(), selectedProductId: "source", view: { title: "Recomendação", body: "Produto recomendado", choices: [], media: [], blocks: [], quickReplies: [],
+    productContext: { productId: "recommended", name: "Recomendação", offerId: "offer" } } };
+  for (const label of ["Ver avaliações", "Positivas", "Negativas", "Ver respondidas", "Minhas perguntas", "Mais informações"])
+    assert.equal((metaStoreQuickReplyAction(label, current) as any).args.productId, "recommended");
+});
