@@ -77,9 +77,9 @@ export class WhatsAppBuyerHubService {
       return reply("🤖 👤 *Vamos identificar seu cadastro*\n\nEste telefone possui mais de um cadastro. Qual e-mail você usa nas compras?\n\n_Basta informar o e-mail. Para sair, use /cancelar._", ["/cancelar"]);
     }
     let buyerId = recognized.status === "recognized" ? recognized.buyer.globalUserId : input.buyer.globalUserId;
-    let account = await this.accounts.findByGlobalUserId(buyerId);
-    if (!account && recognized.status === "unrecognized") {
-      account = await this.identity.ensurePhoneOnlyHubAccount?.({ owner, globalUserId: buyerId, fullName: input.buyer.fullName }) ?? null;
+    let account = recognized.status === "recognized" ? await this.accounts.findByGlobalUserId(buyerId) : null;
+    if (recognized.status === "unrecognized") {
+      account = await this.identity.ensurePhoneOnlyHubAccount?.({ owner, globalUserId: input.buyer.globalUserId, fullName: input.buyer.fullName }) ?? null;
       if (account) buyerId = account.globalUserId;
     }
     if (!account || account.globalUserId !== buyerId || !account.phone || !brazilianPhoneForms(account.phone).some(phone => brazilianPhoneForms(owner.phone).includes(phone))

@@ -37,6 +37,18 @@ test("HUB-02 phone-only creation is bound to canonical merchant/phone identity a
   assert.equal(account?.globalUserId, "canonical"); assert.equal(account?.phone, owner.phone);
   assert.equal(account?.email, "phone_552171191446@buyer.aacp"); assert.equal(account?.passwordHash, null);
 });
+
+test("HUB-02 an unrecognized channel binding cannot authorize a registered profile appearing during phone-only resolution", async () => {
+  const owner = { merchantId: "merchant", conversationId: "conversation", phone: buyer.phone };
+  const registered = { globalUserId: "canonical", phone: buyer.phone, email: "private@example.com" };
+  for (const stage of ["lookup", "create-race"]) {
+    const service = new WhatsAppCheckoutIdentityService({
+      findByPhone: async () => stage === "lookup" ? registered : null,
+      createPhoneOnlyIfAbsent: async () => { if (stage === "lookup") assert.fail("cannot create over a registered profile"); return registered; },
+    } as never, { buyerIdentity: { findUnique: async () => ({ globalUserId: "canonical" }) } } as never);
+    assert.equal(await service.ensurePhoneOnlyHubAccount({ owner, globalUserId: "canonical" }), null);
+  }
+});
 test("a phone match exposes only an email challenge hint, without authorizing account profile", async () => {
   const service = new WhatsAppCheckoutIdentityService({ findByGlobalUserId: async () => null,
     findByPhone: async () => ({ phone: "21971191446", email: "existing@example.com", cpf: "private", address: { street: "private" } }) } as any);

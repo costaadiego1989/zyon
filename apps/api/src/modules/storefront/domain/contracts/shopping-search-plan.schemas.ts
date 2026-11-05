@@ -37,6 +37,7 @@ export const shoppingSearchPlanSchema = z.strictObject({
   }).optional(),
   unsupportedCriteria: z.array(z.string().trim().min(1).max(160)).max(8).default([]),
 }).superRefine((plan, ctx) => {
+  if (plan.attributes.length > 12 || (plan.attributeAnyOf?.length ?? 0) > 6 || plan.attributeAnyOf?.some(group => group.length > 6)) return;
   for (const [flag, bound] of [["minPriceExclusive", "minPriceCents"], ["maxPriceExclusive", "maxPriceCents"], ["minRatingExclusive", "minRating"]] as const)
     if (plan[flag] && plan[bound] === undefined) ctx.addIssue({ code: "custom", path: [flag], message: "exclusive_boundary_missing" });
   if (plan.minPriceCents !== undefined && plan.maxPriceCents !== undefined && plan.minPriceCents > plan.maxPriceCents)
@@ -44,7 +45,7 @@ export const shoppingSearchPlanSchema = z.strictObject({
   if (plan.minPriceCents !== undefined && plan.minPriceCents === plan.maxPriceCents && (plan.minPriceExclusive || plan.maxPriceExclusive))
     ctx.addIssue({ code: "custom", path: ["maxPriceCents"], message: "price_range_empty" });
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const required = plan.attributes.filter(item => item.priority === "required");
+  const required = plan.attributes.filter(item => item.priority === "required" || item.operator === "not_equals");
   for (const item of required) {
     const siblings = required.filter(other => normalize(other.name) === normalize(item.name));
     if (item.operator === "equals" && siblings.some(other => other.operator === "equals"
@@ -53,12 +54,26 @@ export const shoppingSearchPlanSchema = z.strictObject({
     if (siblings.some(other => other.operator !== item.operator && normalize(other.value) === normalize(item.value)))
       ctx.addIssue({ code: "custom", path: ["attributes"], message: "attribute_conditions_conflict" });
   }
-  for (const group of plan.attributeAnyOf ?? []) {
-    if (group.every(item => required.some(other => normalize(other.name) === normalize(item.name) &&
-      (other.operator !== item.operator && normalize(other.value) === normalize(item.value)
-        || other.operator === "equals" && item.operator === "equals" && normalize(other.value) !== normalize(item.value)))))
-      ctx.addIssue({ code: "custom", path: ["attributeAnyOf"], message: "alternative_conditions_conflict" });
-  }
+  type Constraint = { equals?: string; excluded: Set<string> };
+  type Predicate = { name: string; value: string; operator: "equals" | "not_equals" };
+  const merge = (state: Map<string, Constraint>, item: Predicate): Map<string, Constraint> | undefined => {
+    const name = normalize(item.name), value = normalize(item.value), prior = state.get(name);
+    if (item.operator === "equals" && (prior?.equals !== undefined && prior.equals !== value || prior?.excluded.has(value))
+      || item.operator === "not_equals" && prior?.equals === value) return;
+    const next = new Map(state);
+    next.set(name, { equals: item.operator === "equals" ? value : prior?.equals,
+      excluded: new Set([...(prior?.excluded ?? []), ...(item.operator === "not_equals" ? [value] : [])]) });
+    return next;
+  };
+  let mandatory: Map<string, Constraint> | undefined = new Map();
+  for (const item of required) { if (!mandatory) break; mandatory = merge(mandatory, item); }
+  const groups = plan.attributeAnyOf ?? [];
+  // At most six groups of six choices. Every branch keeps one value per
+  // canonical attribute; alternatives on different attributes remain valid.
+  const compatible = (index: number, state: Map<string, Constraint>): boolean => index === groups.length
+    || groups[index]!.some(item => { const next = merge(state, item); return !!next && compatible(index + 1, next); });
+  if (!mandatory || !compatible(0, mandatory))
+    ctx.addIssue({ code: "custom", path: ["attributeAnyOf"], message: "alternative_conditions_conflict" });
 });
 
 export type ShoppingSearchPlan = z.infer<typeof shoppingSearchPlanSchema>;

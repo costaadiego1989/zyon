@@ -29,15 +29,18 @@ export class WhatsAppCheckoutIdentityService {
     const matches = new Map<string, BuyerAccount>();
     for (const phone of brazilianPhoneForms(input.owner.phone)) {
       const account = await this.buyers.findByPhone(phone);
+      if (account && !account.email.endsWith("@buyer.aacp")) return null;
       if (account?.phone && brazilianPhoneForms(account.phone).some(value => brazilianPhoneForms(input.owner.phone).includes(value)))
         matches.set(account.globalUserId, account);
     }
     if (matches.size > 1) return null;
     if (matches.size === 1) return [...matches.values()][0]!;
     const now = new Date();
-    return this.buyers.createPhoneOnlyIfAbsent(new BuyerAccount({ globalUserId: binding.globalUserId,
+    const created = await this.buyers.createPhoneOnlyIfAbsent(new BuyerAccount({ globalUserId: binding.globalUserId,
       phone: input.owner.phone, email: `phone_${input.owner.phone}@buyer.aacp`, passwordHash: null,
       displayName: input.fullName?.trim().slice(0, 100) || "Cliente WhatsApp", createdAt: now, updatedAt: now }));
+    return created?.email.endsWith("@buyer.aacp") && created.globalUserId === binding.globalUserId && created.phone
+      && brazilianPhoneForms(created.phone).some(phone => brazilianPhoneForms(input.owner.phone).includes(phone)) ? created : null;
   }
 
   async recognize(input: { merchantId: string; conversationId: string; phone: string; emailHint?: string;
@@ -66,10 +69,12 @@ export class WhatsAppCheckoutIdentityService {
     // it never authorizes recognition of an account registered to another phone.
     const hint = input.emailHint?.trim().toLowerCase();
     let accounts = await this.buyers.findRegisteredByPhones(phones);
-    if (accounts.length > 1 && hint && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(hint)) {
-      accounts = await this.buyers.findRegisteredByPhones(phones, hint);
+    if (accounts.length > 1) {
+      if (!hint || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(hint)) return { status: "ambiguous", owner };
+      const selected = await this.buyers.findRegisteredByPhones(phones, hint);
+      if (selected.length !== 1) return { status: "ambiguous", owner };
+      accounts = selected;
     }
-    if (accounts.length > 1) return { status: "ambiguous", owner };
     if (!accounts.length && typeof this.buyers.findByPhone === "function") {
       const guests = new Map<string, BuyerAccount>();
       for (const phone of phones) {

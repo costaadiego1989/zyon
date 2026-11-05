@@ -17,6 +17,9 @@ export function hubFixture(options: any = {}) {
   const hub = new WhatsAppBuyerHubService(options.identity ?? { recognize: async (proof: any) => {
     proofs.push(proof);
     return options.recognition ?? { status: "recognized", owner, buyer: { globalUserId: "canonical", merchantId: "shop", conversationId: "conversation" } };
+  }, ensurePhoneOnlyHubAccount: async (input: any) => {
+    const guest = options.account;
+    return guest?.email.endsWith("@buyer.aacp") && input.globalUserId === guest.globalUserId ? guest : null;
   } } as never, { findByGlobalUserId: async (id: string) => { lookups.push(id); return options.account ?? account; } } as never,
   { list: async (id: string) => { addressReads.push(id); return options.addresses ?? []; } } as never);
   return { hub, lookups, addressReads, proofs };
@@ -99,4 +102,25 @@ test("HUB-01 actual adapter intercepts the command and forwards no hub text to t
   const adapter: CheckoutWhatsAppConversationAdapter = Reflect.construct(CheckoutWhatsAppConversationAdapter, args);
   const response = await adapter.respondStore(hubInput("/dados")); assert.match(response.agentMessage, /Diego/);
   assert.equal(response.state.payment?.intentId, "existing");
+});
+
+test("HUB-02 an unmatched email retains registered-account ambiguity and cannot disclose the input-linked profile", async () => {
+  const phone = "5521993001883", privateA = { globalUserId: "linked", phone, email: "a@example.com", displayName: "Private A" };
+  const privateB = { ...privateA, globalUserId: "other", email: "b@example.com", displayName: "Private B" };
+  const reads: string[] = [];
+  const accounts = { findRegisteredByPhones: async (_phones: string[], hint?: string) => hint ? [] : [privateA, privateB],
+    findByPhone: async () => null, findByGlobalUserId: async (id: string) => { reads.push(id); return privateA; } };
+  const identity = new WhatsAppCheckoutIdentityService(accounts as never, {
+    whatsAppChannelConfig: { findFirst: async () => ({ id: "config" }) },
+    whatsAppWebhookInbox: { findFirst: async () => ({ payload: { provider: "META_CLOUD", fromNumber: phone } }) },
+    whatsAppSession: { findFirst: async () => ({ id: "session" }) },
+  } as never);
+  const hub = new WhatsAppBuyerHubService(identity, accounts as never, { list: async () => assert.fail("no address read before disambiguation") } as never);
+  const input = hubInput("/dados", { buyer: { globalUserId: "linked", phone } });
+  const initial = await hub.handle(input, "Athom"); if (initial?.kind !== "reply") assert.fail();
+  assert.equal(initial.response.state.buyerHubIdentity?.command, "/dados");
+  const response = await hub.handle({ ...input, message: "unmatched@example.com", state: initial.response.state }, "Athom");
+  if (response?.kind !== "reply") assert.fail();
+  assert.equal(response.response.state.buyerHubIdentity?.command, "/dados"); assert.deepEqual(reads, []);
+  assert.ok(!response.response.agentMessage.includes(privateA.email)); assert.ok(!response.response.agentMessage.includes(privateA.displayName));
 });

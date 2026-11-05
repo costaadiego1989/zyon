@@ -8,7 +8,7 @@ import { createProductHandlers } from "./product.handlers.js";
 
 const plan = (extra: Record<string, unknown> = {}) => shoppingSearchPlanSchema.parse({ version: 1, query: "*", ...extra });
 const or = [[{ name: "cor", value: "azul", operator: "equals" }, { name: "cor", value: "verde", operator: "equals" }]];
-function fixture() {
+function fixture(options: { promotions?: unknown[]; maxDiscountPercent?: number } = {}) {
   const rows = [
     { id: "at-boundary", rating: 4, price: 10000, attributes: { cor: "azul", material: "algodão" } },
     { id: "above-rating", rating: 4.1, price: 9999, attributes: { cor: "verde", material: "algodão" } },
@@ -19,8 +19,8 @@ function fixture() {
     inStock: true, source: "local", variants: [{ id: "v:" + row.id, basePriceInCents: row.price, stockQuantity: 3,
       stockReserved: 0, attributes: row.attributes }] }));
   const queries: any[] = [];
-  const read = createShoppingRecommendationReader({ merchantRepo: { getExistingRules: async () => ({ maxDiscountPercent: 0, minimumMarginPercent: 0 }) },
-    prisma: { productPromotion: { findMany: async () => [] }, productPrice: { findMany: async (query: any) => {
+  const read = createShoppingRecommendationReader({ merchantRepo: { getExistingRules: async () => ({ maxDiscountPercent: options.maxDiscountPercent ?? 0, minimumMarginPercent: 0 }) },
+    prisma: { productPromotion: { findMany: async () => options.promotions ?? [] }, productPrice: { findMany: async (query: any) => {
       assert.equal(query.where.variant.product.merchantId, "shop");
       const p = products.find(p => p.variants[0]!.id === query.where.variantId.in[0])!;
       return [{ variantId: p.variants[0]!.id, basePriceInCents: p.price, costInCents: 1,
@@ -63,6 +63,26 @@ test("GRAPH-03 rejects missing strict bounds, impossible ranges, contradictory a
     { attributeAnyOf: Array(7).fill(or[0]) },
     { attributes: [{ name: "cor", value: "preto", operator: "equals", priority: "required" }], attributeAnyOf: or }])
     assert.equal(shoppingSearchPlanSchema.safeParse({ version: 1, query: "*", ...extra }).success, false);
+});
+
+test("GRAPH-03 rejects disjoint OR groups and retains compatible overlapping or different-attribute alternatives", () => {
+  const color = (value: string) => ({ name: "cor", value, operator: "equals" });
+  assert.equal(shoppingSearchPlanSchema.safeParse({ version: 1, query: "*", attributeAnyOf: [or[0], [color("preto"), color("branco")]] }).success, false);
+  assert.equal(shoppingSearchPlanSchema.safeParse({ version: 1, query: "*", attributeAnyOf: [or[0], [color("verde"), color("branco")]] }).success, true);
+  assert.equal(shoppingSearchPlanSchema.safeParse({ version: 1, query: "*", attributeAnyOf: [or[0],
+    [color("preto"), { name: "tamanho", value: "M", operator: "equals" }]] }).success, true);
+});
+
+test("GRAPH-02 strict minimum uses the current promotional price and excludes equality without using the original higher price", async () => {
+  const f = fixture({ maxDiscountPercent: 10, promotions: [{ id: "promo", merchantId: "shop", productId: "at-boundary",
+    isActive: true, discountType: "percent", discountValue: 10, startsAt: new Date(0), endsAt: new Date("2099-01-01") }] });
+  const inclusive = await f.read(plan({ minPriceCents: 9000, maxPriceCents: 9500 }));
+  assert.deepEqual(inclusive.products.map(p => [p.id, p.price, p.originalPrice]), [["at-boundary", 9000, 10000]]);
+  const exclusive = await f.read(plan({ minPriceCents: 9000, maxPriceCents: 9500, minPriceExclusive: true }));
+  assert.deepEqual(exclusive.products, []); assert.equal(exclusive.searchEvidence!.appliedPlan.minPriceExclusive, true);
+  assert.match(exclusive.searchEvidence!.message, /acima de/);
+  const oneCentAbove = await f.read(plan({ minPriceCents: 9998, minPriceExclusive: true, maxPriceCents: 9999 }));
+  assert.deepEqual(oneCentAbove.products.map(p => [p.id, p.price]), [["above-rating", 9999], ["wrong-color", 9999], ["missing-material", 9999]]);
 });
 
 test("GRAPH-03 product reader forwards every predicate without accepting a supplied merchant", async () => {
