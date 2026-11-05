@@ -27,8 +27,9 @@ test("complete contact details can reach payment without an email verification c
 
 test("removing checkout email verification retains required contact and delivery data", () => {
  const session:any={chatHistory:[],cart:{items:[{productType:"physical"}]},customer:{email:"buyer@example.com",phone:"11988887777"}};
- assert.deepEqual(missingFieldsForStage(session,"data_collection"),["nome","CPF"]);
- session.customer.fullName="Joao Silva";session.customer.cpf="52998224725";
+ assert.deepEqual(missingFieldsForStage(session,"data_collection"),["nome"]);
+ session.customer.fullName="Joao Silva";
+ assert.equal(session.customer.cpf,undefined);
  assert.equal(deriveChatStage(session),"shipping");
  assert.deepEqual(missingFieldsForStage(session,"shipping"),["CEP"]);
 });

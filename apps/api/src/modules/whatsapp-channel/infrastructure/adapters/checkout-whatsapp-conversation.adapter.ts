@@ -14,6 +14,7 @@ import { withMetaProductReferences } from "../../domain/ui/meta-product-context.
 import { deriveChatStage, missingFieldsForStage, isShippingQuickReplyQuestion } from "../../../checkout/domain/services/customer-extraction.service.js";
 import { checkoutCollectionCopy } from "../../../checkout/domain/services/checkout-collection-copy.js";
 import { pendingCustomerCorrection } from "../../../checkout/domain/services/customer-correction-prompts.js";
+import { containsSharedCpf } from "../../domain/ui/meta-sensitive-input.js";
 import { META_FIELD_LABELS, META_FIELD_FLOW_NAMES } from "../../domain/ui/meta-flow.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { GetPaymentIntentStatusUseCase } from "../../../payment/application/get-payment-intent-status.use-case.js";
@@ -121,6 +122,12 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     if (hub?.kind === "route") input = { ...input, message: hub.message, action: hub.action, buyer: hub.buyer ?? input.buyer, state: hub.state ?? input.state };
     let state: WhatsAppConversationState = { ...input.state, agentTone: config.agentTone };
     const identitySession = state.checkoutSessionId ? await this.sessions.getSession(input.merchantId, state.checkoutSessionId) : undefined;
+    if (!input.action && containsSharedCpf(input.message) && (!identitySession || missingFieldsForStage(identitySession, deriveChatStage(identitySession))[0] !== "telefone")) {
+      const message = "🛡️ *Seus dados*\n\nNão é necessário enviar seu CPF nesta etapa. Vamos continuar com seu pedido.";
+      if (identitySession) return this.checkoutUi({ message, experience: buildExperienceFromSession(identitySession, { merchantName: config.name }),
+        ...(pendingCustomerCorrection(identitySession) === "cpf" ? { missing_fields: ["CPF"] } : {}) }, state, config.name, "Documento não solicitado", input.merchantId);
+      return { agentMessage: message, merchantName: config.name, quickReplies: [], blocks: [], state };
+    }
     const verifiedBuyer = identitySession?.merchantId === input.merchantId && identitySession.customer?.email_verified === true && identitySession.customer.email?.trim() &&
       identitySession.customer.phone_verified === true && identitySession.customer.phone?.replace(/\D/g, "") === input.buyer.phone.replace(/\D/g, "") &&
       (identitySession.cart as { cart_ref?: string }).cart_ref === state.conversationId

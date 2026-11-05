@@ -8,6 +8,7 @@ import { buildExperienceFromSession } from "../../../checkout/application/servic
 import { deriveChatStage, missingFieldsForStage } from "../../../checkout/domain/services/customer-extraction.service.js";
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
 import type { WhatsAppConversationState } from "../../domain/ui/meta-ui.types.js";
+import { containsSharedCpf } from "../../domain/ui/meta-sensitive-input.js";
 
 const options = [
   { carrier: "Correios", method: "PAC", carrierKey: "melhor-envio-1", customerPrice: 12.5, deliveryDays: 6 },
@@ -83,6 +84,23 @@ test("Pix validation errors do not become a card checkout redirect", async () =>
   const response = await f.send("Pix", {kind:"tool",tool:"create_payment",args:{method:"pix",fingerprint:paymentCartFingerprint(f.session)}});
   assert.equal(response.blocks.some(b=>["hosted_card_payment","stripe_card","checkout_redirect"].includes(b.type)), false);
   assert.equal(response.state.payment, undefined);
+});
+
+test("a provider-specific mandatory document keeps its secure form and never asks for it in a Meta flow", async () => {
+  const f=fixture();f.session.cart.items=[{...f.session.cart.items[0],productType:"digital"}];
+  (f.adapter as any).createPayment={execute:async()=>{throw new BadRequestException("asaas_customer_data_incomplete");}};
+  const previous=process.env.WIDGET_BASE_URL;process.env.WIDGET_BASE_URL="https://widget.example.com";
+  try {
+    const response=await f.send("Pix",{kind:"tool",tool:"create_payment",args:{method:"pix",fingerprint:paymentCartFingerprint(f.session)}});
+    assert.equal((response.blocks.find(b=>b.type==="checkout_redirect")?.data as any)?.purpose,"document");
+    assert.equal(response.state.expectsFreeInput,false);assert.equal(response.blocks.some(b=>b.type==="checkout_form"),false);
+  }finally{if(previous===undefined)delete process.env.WIDGET_BASE_URL;else process.env.WIDGET_BASE_URL=previous;}
+});
+
+test("CPF detection protects documents without intercepting ordinary phone and order numbers",()=>{
+  assert.equal(containsSharedCpf("52998224725"),true);assert.equal(containsSharedCpf("529.982.247-25"),true);
+  assert.equal(containsSharedCpf("Meu CPF é 52998224725"),true);
+  assert.equal(containsSharedCpf("11999999999"),false);assert.equal(containsSharedCpf("185874665727"),false);
 });
 
 test("Stripe redirect is already bound to card and retains the checkout session", async () => {

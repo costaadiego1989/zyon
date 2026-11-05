@@ -80,7 +80,7 @@ test("store actions use the shared storefront use case and retain the verified b
     { execute: async (request: any) => { seen = request; return { message: "Produtos", suggested_next: Array.from({ length: 20 }, (_, i) => `Opção ${i}`), blocks: [] }; } } as any,
     { executeForMerchant: async () => ({ name: "Empresa", agentName: "Zyon", agentGreeting: "Saudação da empresa", quickReplies: ["Atalho da empresa"] }) } as any);
   const greeting = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Oi", state: initial });
-  assert.ok(greeting.agentMessage.includes("Saudação da empresa")); assert.match(greeting.agentMessage, /^👋 Olá! Seja muito bem-vindo à \*Empresa\*/); assert.match(greeting.agentMessage, /Eu sou \*Zyon\*/); assert.deepEqual(greeting.quickReplies, ["Atalho da empresa"]);
+  assert.match(greeting.agentMessage, /^Saudação da empresa/); assert.match(greeting.agentMessage, /Sou \*Zyon\*/); assert.doesNotMatch(greeting.agentMessage, /Seja muito bem-vindo/); assert.deepEqual(greeting.quickReplies, ["Atalho da empresa"]);
   const output = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Ver produtos", state: greeting.state,
     action: { kind: "tool", tool: "search_products", args: { categoryId: "category", cursor: "cursor" } } });
   assert.equal(seen.cart_id, initial.conversationId); assert.equal(seen.trusted_buyer_context.globalUserId, buyer.globalUserId);
@@ -191,15 +191,16 @@ test("a cart that became unavailable before checkout keeps the shopper in a reco
   assert.deepEqual(response.quickReplies, ["Ver Carrinho", "Continuar Comprando"]);
 });
 
-test("full personal identifiers continue in the same secure checkout instead of chat or Meta forms", async () => {
+test("an unsolicited full personal identifier is not forwarded or echoed and does not become a universal checkout requirement", async () => {
   const withoutCpf = { ...session, customer: { ...session.customer, cpf: undefined } };
   const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => { assert.fail("CPF must not be collected in WhatsApp chat"); } } as any,
     { getSession: async () => withoutCpf } as any, {} as any, { executeForMerchant: async () => ({ name: "Empresa" }) } as any);
   const response = await adapter.respondStore({ merchantId: "merchant", buyer, message: "52998224725",
     state: { ...initial, stage: "checkout", checkoutSessionId: "checkout", flowIds: { zyon_registration_v1: "flow" } } });
-  assert.match(response.agentMessage, /checkout seguro/); assert.equal(response.state.pendingFlow, undefined);
+  assert.match(response.agentMessage, /Não é necessário enviar seu CPF/); assert.equal(response.state.pendingFlow, undefined);
   assert.equal(response.state.expectsFreeInput, false); assert.equal(JSON.stringify(response).includes("52998224725"), false);
   assert.equal(response.blocks.some(block => block.type === "checkout_form"), false);
+  assert.equal(response.blocks.some(block => block.type === "checkout_redirect"), false);
 });
 
 test("ordinary conversation after creating a charge uses the store agent and preserves the original payment", async () => {
