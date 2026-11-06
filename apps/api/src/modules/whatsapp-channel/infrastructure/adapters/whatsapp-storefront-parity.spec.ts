@@ -137,7 +137,7 @@ test("Stripe card selection emits the secure handoff once instead of returning t
     const redirect = output.blocks.find(b => b.type === "checkout_redirect")!;
     assert.equal(new URL((redirect.data as any).url).searchParams.get("paymentMethod"), "card");
     assert.equal(output.blocks.some(b => b.type === "payment_methods"), false);
-    assert.match(output.agentMessage, /Stripe/);
+    assert.match(output.agentMessage, /Clique no botão abaixo para concluir a compra\. Seu pedido e o frete escolhido serão mantidos durante o processo de checkout\./);
   } finally { if (previousWidget === undefined) delete process.env.WIDGET_BASE_URL; else process.env.WIDGET_BASE_URL = previousWidget; }
 });
 

@@ -70,7 +70,7 @@ describe("EmbedCheckoutController.updateCustomer", () => {
     assert.equal(fakeUpdateCustomer.executed[0].sessionId, sessionId);
   });
 
-  it("rejects when cpf is missing", async () => {
+  it("requires a contact phone even when no fiscal document is provided", async () => {
     const repo = new InMemoryCheckoutRepository();
     await repo.saveSession(checkoutSession({ merchantId: "mrc_a", sessionId: "chk_a" }));
     const { ctrl } = makeController(repo);
@@ -81,7 +81,7 @@ describe("EmbedCheckoutController.updateCustomer", () => {
         session_id: "chk_a",
         customer: { fullName: "Joao", email: "x@y.com" }
       }),
-      (err: any) => err instanceof BadRequestException && err.message === "cpf_required"
+      (err: any) => err instanceof BadRequestException && err.message === "phone_required"
     );
   });
 

@@ -307,7 +307,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         if (method === "boleto" || capabilities && !capabilities[method]) return this.checkoutUi({ message: "Essa forma de pagamento não está disponível nesta loja. Escolha uma das opções atuais." }, state, config.name, input.message, input.merchantId);
         // Stripe collects card details in its embedded form on our secure page.
         // Opening it does not change the merchant's selected payment provider.
-        if (method === "card" && capabilities?.providers?.card === "stripe") return this.checkoutUi({ message: "*Pagamento seguro com cartão*\n\nAbra o botão abaixo para concluir com o formulário da Stripe. Seu pedido e o frete escolhido serão mantidos.",
+        if (method === "card" && capabilities?.providers?.card === "stripe") return this.checkoutUi({ message: "*Pagamento seguro com cartão*\n\nClique no botão abaixo para concluir a compra. Seu pedido e o frete escolhido serão mantidos durante o processo de checkout.",
           blocks: [{ type: "stripe_card", data: {} }], initialPaymentMethod: "card" }, state, config.name, input.message, input.merchantId);
         if (!this.createPayment) throw new Error("whatsapp_payment_action_unavailable");
         const generation = state.paymentGeneration ? `:${state.paymentGeneration}` : "";

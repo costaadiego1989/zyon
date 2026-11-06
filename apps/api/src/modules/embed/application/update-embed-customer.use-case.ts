@@ -24,7 +24,7 @@ export class UpdateEmbedCustomerUseCase {
     customer: {
       fullName: string;
       email: string;
-      cpf: string;
+      cpf?: string;
       phone?: string;
     };
   }): Promise<{ ok: true }> {
@@ -42,7 +42,7 @@ export class UpdateEmbedCustomerUseCase {
         ...(current.customer ?? {}),
         fullName: input.customer.fullName,
         email,
-        cpf: input.customer.cpf.replace(/\D+/g, ""),
+        ...(input.customer.cpf !== undefined ? { cpf: input.customer.cpf.replace(/\D+/g, "") } : {}),
         phone: input.customer.phone,
         ...(emailChanged ? {
           email_verified: false, otp_code: "", recognized_buyer: false, isReturning: false,

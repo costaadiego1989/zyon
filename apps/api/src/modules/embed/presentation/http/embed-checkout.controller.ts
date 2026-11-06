@@ -93,8 +93,9 @@ export class EmbedCheckoutGuardHelper {
   async assertBuyerRegisteredForPayment(merchantId: string, sessionId: string): Promise<void> {
     const session = await this.checkout.getSession(merchantId, sessionId);
     const customer = session?.customer;
-    const cpf = customer?.cpf?.replace(/\D/g, "");
-    if (!customer?.fullName?.trim() || !customer.email?.trim() || !customer.phone?.replace(/\D/g, "") || cpf?.length !== 11) {
+    // Contact readiness is independent of fiscal/provider identifiers. The
+    // selected provider enforces its document requirements in payment creation.
+    if (!customer?.fullName?.trim() || !customer.email?.trim() || !customer.phone?.replace(/\D/g, "")) {
       throw new BadRequestException("customer_registration_required");
     }
   }
@@ -357,7 +358,7 @@ export class EmbedCheckoutController {
       throw new BadRequestException("customer_required");
     }
     const c = body.customer;
-    if (typeof c.cpf !== "string" || !c.cpf.trim()) {
+    if (c.cpf !== undefined && (typeof c.cpf !== "string" || !c.cpf.trim())) {
       throw new BadRequestException("cpf_required");
     }
     if (typeof c.email !== "string" || !c.email.trim()) {
@@ -376,7 +377,7 @@ export class EmbedCheckoutController {
       customer: {
         fullName: c.fullName.trim(),
         email: c.email.trim(),
-        cpf: c.cpf.trim(),
+        ...(c.cpf !== undefined ? { cpf: c.cpf.trim() } : {}),
         phone: c.phone.trim()
       }
     });
