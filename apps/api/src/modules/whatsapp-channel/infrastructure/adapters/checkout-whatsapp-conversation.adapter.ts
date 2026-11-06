@@ -494,7 +494,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       if (block.type === "payment_methods") continue;
       blocks.push({ type: block.type, data: block.data ?? {} });
     }
-    if (exp?.suggestedProducts?.length) blocks.push({ type: "product_carousel", data: { products: exp.suggestedProducts.map((p: any) => ({ id: p.product_id || p.variant_id, name: p.name, price: p.unit_price, priceFormatted: p.unit_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), image: p.image_url })) } } as any);
+    // Recommendations are presented after a confirmed cart addition. The shared
+    // experience may retain suggestions, but checkout only exposes its next step.
     if (exp?.payment_intent && ["created", "pending", "requires_action"].includes(exp.payment_intent.status)) blocks.push({ type: "payment_intent", data: exp.payment_intent });
     let summaryFingerprint = state.checkoutSummaryFingerprint;
     if (exp?.items?.length && (!state.checkoutSessionId || ["payment", "payment_pending", "completed"].includes(exp.stage))) {

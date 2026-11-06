@@ -14,12 +14,12 @@ const options = [
   { carrier: "Correios", method: "PAC", carrierKey: "melhor-envio-1", customerPrice: 12.5, deliveryDays: 6 },
   { carrier: "Correios", method: "Sedex", carrierKey: "melhor-envio-2", customerPrice: 20, deliveryDays: 2 },
 ];
-function fixture() {
+function fixture(suggestedProducts: any[] = []) {
   const session = checkoutSession({ shipping: undefined, customer: { fullName: "Pessoa Teste", email: "test@example.com", phone: "5521999999999", phone_verified: true } });
   const state: WhatsAppConversationState = { version: 1, conversationId: "conv_1", stage: "checkout", checkoutSessionId: "chk_1", history: [], previousViews: [], revision: "previous", page: 0 };
   let chatCalls = 0, storeCalls = 0, paymentCalls = 0;
   const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => { chatCalls++; return {
-    message: "Mensagem", actions: [], experience: buildExperienceFromSession(session, {}) }; } } as any,
+    message: "Mensagem", actions: [], experience: buildExperienceFromSession(session, { suggestedProducts }) }; } } as any,
   { getSession: async () => session } as any,
   { execute: async () => { storeCalls++; throw Error("must_keep_checkout"); } } as any,
   { executeForMerchant: async () => ({ name: "Loja", agentTone: "direct" }) } as any,
@@ -30,6 +30,24 @@ function fixture() {
   return { session, state, adapter, counts: () => ({chatCalls, storeCalls, paymentCalls}), send: (message: string, action?: any, current = state) => adapter.respondStore({ merchantId: session.merchantId, buyer: { globalUserId: session.globalUserId, phone: session.customer!.phone! }, message, action, state: current }) };
 }
 const presentation = (response: any) => presentMetaUi(withMetaCartNavigation(buildMetaUiView(response), true), "current", 0, {canGoBack: true});
+
+test("checkout collection, delivery and payment do not inherit product recommendations from the shared experience", async () => {
+  for (const stage of ["data_collection", "shipping", "payment"]) {
+    const f = fixture([{ product_id: "other-product", variant_id: "other-variant", name: "Recomendação fora do checkout", unit_price: 329.9 }]);
+    if (stage === "data_collection") f.session.customer!.email = undefined;
+    if (stage === "payment") {
+      f.session.customer!.address = { zip: "01001000", street: "Rua", city: "São Paulo", state: "SP", number: "1", complement: "" };
+      f.session.customer!.address_verified = true; f.session.shipping = options[0];
+    }
+    const response = await f.send(stage === "payment" ? "Pix" : "Quero continuar");
+    assert.equal(response.blocks.some(block => block.type === "product_carousel"), false, stage);
+    const shown = presentation(response);
+    assert.doesNotMatch(JSON.stringify(shown.messages), /Recomendação fora do checkout/);
+    assert.equal(shown.numericSelections.some(action => action.kind === "variant" || action.kind === "tool" && action.tool === "get_product_details"), false, stage);
+    if (stage === "payment") assert.equal(shown.numericSelections.filter(action => action.kind === "tool" && action.tool === "create_payment").length, 2);
+    assert.equal(f.counts().paymentCalls, 0);
+  }
+});
 
 test("contact data without CPF reaches delivery, and field entry emits no generic menu", async () => {
   const f = fixture();
