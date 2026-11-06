@@ -138,6 +138,9 @@ test("Stripe redirect is already bound to card and retains the checkout session"
     const block = response.blocks.find(b=>b.type==="checkout_redirect")!;
     assert.equal((block.data as any).purpose, "card"); assert.equal(new URL((block.data as any).url).searchParams.get("paymentMethod"), "card");
     assert.equal(f.counts().paymentCalls, 0); assert.match(JSON.stringify(presentation(response).messages), /endereço já estão preenchidos/);
+    const methods = buildMetaUiView(response).choices.filter(choice => choice.action.kind === "tool" && choice.action.tool === "create_payment");
+    assert.deepEqual(methods.map(choice => choice.label), ["Pix", "Cartão de crédito"]);
+    assert(response.blocks.some(block => block.type === "payment_method_switch"));
   } finally {if(old===undefined)delete process.env.WIDGET_BASE_URL;else process.env.WIDGET_BASE_URL=old;}
 });
 

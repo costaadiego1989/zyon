@@ -121,12 +121,13 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
       }
       case "form_field": text.push(`Informe ${value(d.label || d.field)}:`); break;
       case "address_confirmation": text.push(`*Confira a entrega*\n${value(d.formatted)}\n\n_O endereço está correto?_`); add("Sim", { kind: "message", message: "Sim" }); add("Corrigir endereço", { kind: "message", message: "Não" }); break;
-      case "payment_methods":
+      case "payment_method_switch": case "payment_methods":
         items(d.methods).forEach(m => add(value(m.label), d.nativePayment && d.fingerprint
           ? tool("create_payment", { method: m.key, fingerprint: d.fingerprint }) : { kind: "message", message: value(m.label) }, value(m.sub)));
         if (d.nativePayment && d.couponAllowed) add("Usar cupom", tool("edit_checkout", { section: "coupon", fingerprint: d.fingerprint }));
         break;
       case "checkout_edit_actions":
+        items(d.methods).forEach(m => add(value(m.label), tool("create_payment", { method: m.key, fingerprint: d.fingerprint }), value(m.sub)));
         add("Trocar pagamento", tool("edit_checkout", { section: "payment", fingerprint: d.fingerprint }));
         if (d.couponAllowed) add("Usar cupom", tool("edit_checkout", { section: "coupon", fingerprint: d.fingerprint }));
         break;

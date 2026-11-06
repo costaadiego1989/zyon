@@ -62,6 +62,9 @@ test("choosing the same pending method resumes its code without cancellation or 
   const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "pix", fingerprint: paymentCartFingerprint(f.read()) } });
   assert.equal(f.calls.length, 0); assert.equal(done.state.payment?.intentId, "pix");
   assert(JSON.stringify(presentMetaUi(buildMetaUiView(done), "new").messages).includes("OLD-PIX"));
+  const methods = buildMetaUiView(done).choices.filter(choice => choice.action.kind === "tool" && choice.action.tool === "create_payment");
+  assert.deepEqual(methods.map(choice => choice.label), ["Pix", "Cartão de crédito"]);
+  assert(methods.every(choice => choice.action.kind === "tool" && choice.action.args.fingerprint === paymentCartFingerprint(f.read())));
 });
 
 test("a method button shown before automatic incentives can switch after their canonical reset", async () => {

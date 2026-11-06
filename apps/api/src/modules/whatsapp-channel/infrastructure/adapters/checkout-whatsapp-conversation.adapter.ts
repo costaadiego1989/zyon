@@ -573,8 +573,19 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       ];
       if (response.preferredPaymentMethod) methods.sort((a, b) => Number(b.key === response.preferredPaymentMethod) - Number(a.key === response.preferredPaymentMethod));
       blocks.push({ type: "payment_methods", data: { methods, fingerprint: paymentCartFingerprint(session), nativePayment: true, couponAllowed } });
+    } else if (session && !state.payment && response.initialPaymentMethod === "card") {
+      const capabilities = await this.startCheckout?.getPaymentCapabilities?.(merchantId) ?? exp?.paymentMethods;
+      blocks.push({ type: "payment_method_switch", data: { nativePayment: true, fingerprint: paymentCartFingerprint(session), methods: [
+        ...(capabilities?.pix ? [{ key: "pix", label: "Pix" }] : []),
+        ...(capabilities?.card ? [{ key: "card", label: "Cartão de crédito" }] : []),
+      ] } });
     } else if (session && state.payment && ["pending", "requires_action"].includes(state.payment.status)) {
-      blocks.push({ type: "checkout_edit_actions", data: { fingerprint: paymentCartFingerprint(session), couponAllowed: true } });
+      const capabilities = await this.startCheckout?.getPaymentCapabilities?.(merchantId) ?? exp?.paymentMethods;
+      const methods = [
+        ...(capabilities?.pix ? [{ key: "pix", label: "Pix", sub: "Código Pix aqui no WhatsApp" }] : []),
+        ...(capabilities?.card ? [{ key: "card", label: "Cartão de crédito", sub: "Checkout seguro do cartão" }] : []),
+      ];
+      blocks.push({ type: "checkout_edit_actions", data: { fingerprint: paymentCartFingerprint(session), couponAllowed: true, methods } });
     }
     const approved = state.payment?.status === "approved";
     const nextField = approved ? undefined : response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
