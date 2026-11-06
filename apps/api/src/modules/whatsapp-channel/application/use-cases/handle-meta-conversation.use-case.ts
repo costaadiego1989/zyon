@@ -16,6 +16,7 @@ import { MetaCatalogOrderAdapter } from "../../infrastructure/adapters/meta-cata
 import { metaStoreQuickReplyAction, resolveMetaStoreTextAction } from "../../domain/ui/meta-store-actions.js";
 import { isMetaReadNavigation, refreshMetaReadView } from "../../domain/ui/meta-read-navigation.js";
 import { metaProductContext, withMetaProductNavigation } from "../../domain/ui/meta-product-navigation.js";
+import { recoverMetaPaymentChoice } from "../../domain/ui/meta-payment-selection.js";
 
 interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
@@ -99,6 +100,7 @@ export class HandleMetaConversationUseCase {
         action = state.selections?.[input.interactiveId];
         if (!action) {
           const previous = await this.inbox.findPriorSelection?.(claim, route.whatsappSession.id, input.interactiveId);
+          if (previous) action = recoverMetaPaymentChoice(previous, state);
           if (previous && isMetaReadNavigation(previous.action)) {
             action = previous.action;
             // Previously sent catalog controls now open the same current hub.

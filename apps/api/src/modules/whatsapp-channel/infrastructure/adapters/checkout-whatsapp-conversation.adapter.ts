@@ -19,6 +19,7 @@ import { META_FIELD_LABELS, META_FIELD_FLOW_NAMES } from "../../domain/ui/meta-f
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { GetPaymentIntentStatusUseCase } from "../../../payment/application/get-payment-intent-status.use-case.js";
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
+import { reopenCheckout } from "../../../checkout/domain/services/reopen-checkout.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { WhatsAppCheckoutIdentityService } from "../../application/services/whatsapp-checkout-identity.service.js";
@@ -222,6 +223,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       if (!checkout || checkout.merchantId !== input.merchantId) throw new NotFoundException("checkout_session_not_found");
       state = await this.syncPayment(input.merchantId, state);
       const currentTool = input.action?.kind === "tool" ? input.action.tool : undefined;
+      if (paymentAction) { state.pendingCheckoutEdit = undefined; state.pendingCoupon = undefined; }
       // A buyer can return after the carrier quote expired. Refresh before
       // authorizing a new payment and ask for a new selection if it changed;
       // an existing pending/approved payment keeps its original snapshot.
@@ -296,18 +298,43 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       if (paymentAction) {
         if (input.action?.kind !== "tool" || !["pix", "card", "boleto"].includes(String(input.action.args.method))) throw new Error("whatsapp_payment_action_unavailable");
         if (!["payment", "payment_pending"].includes(deriveChatStage(checkout))) return this.checkoutUi({ message: "Confirme os dados e a entrega antes de pagar.", experience: experience() }, state, config.name, input.message, input.merchantId);
-        if (input.action.args.fingerprint !== paymentCartFingerprint(checkout)) return this.checkoutUi({ message: "O pedido mudou. Confira o resumo atualizado antes de preparar o pagamento." }, state, config.name, input.message, input.merchantId);
         const method = input.action.args.method as "pix" | "card" | "boleto";
-        if (state.payment && ["pending", "requires_action"].includes(state.payment.status)) {
-          state.pendingCheckoutEdit = { section: "payment", fingerprint: paymentCartFingerprint(checkout), intentId: state.payment.intentId, ...(method === "card" ? { method: "card" } : {}) };
-          return this.checkoutUi({ message: "Para trocar a forma de pagamento, precisamos cancelar o pagamento pendente. Confirme a troca para continuar." }, state, config.name, input.message, input.merchantId);
-        }
+        if (input.action.args.checkoutSessionId !== undefined && input.action.args.checkoutSessionId !== sessionId)
+          return this.checkoutUi({ message: "Este botão pertence a outro pedido. Confira as formas de pagamento do pedido atual.", experience: experience() }, state, config.name, input.message, input.merchantId);
         if (state.payment?.status === "approved") return this.checkoutUi({ message: "O pagamento já foi confirmado. Seu pedido não precisa de outro pagamento." }, state, config.name, input.message, input.merchantId);
+        const pending = state.payment && ["pending", "requires_action"].includes(state.payment.status);
+        // Automatic incentives can change the payment fingerprint. Admit only
+        // the current snapshot or its deterministic cancellation/reset; never
+        // rebind an archived button to changed items, quantities or prices.
+        const resetFingerprint = paymentCartFingerprint(pending ? reopenCheckout(checkout, "payment") : checkout);
+        if (input.action.args.fingerprint !== paymentCartFingerprint(checkout) && input.action.args.fingerprint !== resetFingerprint)
+          return this.checkoutUi({ message: "O pedido mudou. Confira o resumo atualizado e escolha como deseja pagar.", experience: experience() }, state, config.name, input.message, input.merchantId);
+        if (pending && state.payment?.method === method)
+          return this.checkoutUi({ message: `Seu pagamento por *${method === "pix" ? "Pix" : "cartão"}* já está pronto. Continue com as instruções abaixo.`, experience: experience(), resumePayment: true }, state, config.name, input.message, input.merchantId);
         const capabilities = await this.startCheckout?.getPaymentCapabilities?.(input.merchantId);
         if (method === "boleto" || capabilities && !capabilities[method]) return this.checkoutUi({ message: "Essa forma de pagamento não está disponível nesta loja. Escolha uma das opções atuais." }, state, config.name, input.message, input.merchantId);
+        let paymentChanged = false;
+        if (pending) {
+          if (!boundBuyer || !this.reopenCheckout) throw new ForbiddenException("whatsapp_checkout_edit_buyer_required");
+          let reopened: Awaited<ReturnType<ReopenEmbedCheckoutUseCase["execute"]>>;
+          try {
+            reopened = await this.reopenCheckout.execute(input.merchantId, sessionId, "payment", boundBuyer);
+          } catch (error) {
+            if (!(error instanceof ConflictException || error instanceof BadRequestException || error instanceof ForbiddenException)) throw error;
+            return this.checkoutUi({ message: "Ainda não consegui confirmar a troca. Mantive o pagamento atual e não gerei outra cobrança. Verifique o estado do pagamento abaixo.", experience: experience(), resumePayment: true }, state, config.name, input.message, input.merchantId);
+          }
+          state.payment = undefined; state.paymentGeneration = (state.paymentGeneration ?? 0) + 1;
+          state.paymentRevision = reopened.revision ?? state.paymentGeneration;
+          const updated = await this.sessions.getSession(input.merchantId, sessionId);
+          if (!updated) throw new NotFoundException("checkout_session_not_found");
+          checkout = this.checkoutShipping ? await this.checkoutShipping.prepareReturningBuyer(updated) : updated;
+          if (!["payment", "payment_pending"].includes(deriveChatStage(checkout)) || paymentCartFingerprint(checkout) !== resetFingerprint)
+            return this.checkoutUi({ message: "O pagamento anterior foi cancelado. Confira os dados e a entrega atualizados antes de escolher o novo pagamento.", experience: experience() }, state, config.name, input.message, input.merchantId);
+          paymentChanged = true;
+        }
         // Stripe collects card details in its embedded form on our secure page.
         // Opening it does not change the merchant's selected payment provider.
-        if (method === "card" && capabilities?.providers?.card === "stripe") return this.checkoutUi({ message: "*Pagamento seguro com cartão*\n\nClique no botão abaixo para concluir a compra. Seu pedido e o frete escolhido serão mantidos durante o processo de checkout.",
+        if (method === "card" && capabilities?.providers?.card === "stripe") return this.checkoutUi({ message: `*Pagamento seguro com cartão*\n\n${paymentChanged ? "🔄 O pagamento anterior foi cancelado. Agora você pode pagar com *cartão de crédito*.\n\n" : ""}Clique no botão abaixo para concluir a compra. Seu pedido e o frete escolhido serão mantidos durante o processo de checkout.`,
           blocks: [{ type: "stripe_card", data: {} }], initialPaymentMethod: "card" }, state, config.name, input.message, input.merchantId);
         if (!this.createPayment) throw new Error("whatsapp_payment_action_unavailable");
         const generation = state.paymentGeneration ? `:${state.paymentGeneration}` : "";
@@ -318,7 +345,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
           state.payment = { intentId: payment.id, sessionId, method, status: payment.status, amount_cents: payment.amountCents,
             copy_paste: payment.buyerFacing?.qrCodeCopyPaste, ticket_url: payment.buyerFacing?.invoiceUrl };
           const updated = await this.sessions.getSession(input.merchantId, sessionId);
-          return this.checkoutUi({ message: method === "pix" ? "💠 *Pague por Pix aqui na conversa*\n\nCopie o código enviado abaixo e cole no aplicativo do seu banco, na opção *Pix Copia e Cola*.\n\n⏳ Assim que o pagamento for aprovado, aviso por aqui."
+          return this.checkoutUi({ message: method === "pix" ? `${paymentChanged ? "🔄 O pagamento anterior foi cancelado. Agora vamos de *Pix*.\n\n" : ""}💠 *Pague por Pix aqui na conversa*\n\nCopie o código enviado abaixo e cole no aplicativo do seu banco, na opção *Pix Copia e Cola*.\n\n⏳ Assim que o pagamento for aprovado, aviso por aqui.`
             : "*Pagamento seguro*\n\nAbra o checkout do provedor no botão abaixo para concluir seu pedido.",
             ...(updated ? { experience: buildExperienceFromSession(updated, { merchantName: config.name, serviceFee: payment.amountBreakdown ? payment.amountBreakdown.platformFeeCents / 100 : undefined }) } : {}) }, state, config.name, input.message, input.merchantId);
         } catch (error) {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { CheckoutWhatsAppConversationAdapter } from "./checkout-whatsapp-conversation.adapter.js";
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
+import { reopenCheckout } from "../../../checkout/domain/services/reopen-checkout.js";
 import { buildMetaUiView, presentMetaUi } from "../../domain/ui/meta-ui-renderer.js";
 
 const buyer = { globalUserId: "buyer", phone: "552193001883" };
@@ -18,7 +19,7 @@ function fixture() {
   const reopen = { execute: async (merchantId: string, sessionId: string, section: string, proof: any) => {
     calls.push({ merchantId, sessionId, section, proof });
     assert.equal(proof.globalUserId, "buyer"); assert.equal(proof.customer.email_verified, true);
-    stored = { ...stored, paymentMethod: undefined, persistenceVersion: 42 };
+    stored = { ...reopenCheckout(stored, section as any), persistenceVersion: 42 };
     return { experience: { stage: "payment", items: [], copy: { quick_replies: ["Tenho um cupom de desconto"] } }, revision: 42 };
   } };
   const coupon = { executeForCheckout: async (input: any) => { calls.push(input); stored = { ...stored, persistenceVersion: 43, cart: { ...stored.cart, currentDiscount: 10 } }; return { session: stored, rules: { couponBoxEnabled: true } }; } };
@@ -33,19 +34,84 @@ function fixture() {
   return { adapter, state, calls, reopen, coupon, send, read: () => stored };
 }
 
-test("switching the pending Pix to card asks first, then reuses storefront reopening and retains shipping", async () => {
+test("selecting card cancels the pending Pix and opens the selected method while retaining shipping", async () => {
   const f = fixture(); const previous = process.env.WIDGET_BASE_URL; process.env.WIDGET_BASE_URL = "https://widget.example.com";
   try {
-    const ask = await f.send({ kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: paymentCartFingerprint(f.read()) } });
-    assert.equal(f.calls.length, 0); assert.equal(ask.blocks.some(b => b.type === "payment_intent"), false);
-    const action = buildMetaUiView(ask).choices.find(c => c.label === "Confirmar troca")!.action;
-    const done = await f.send(action, ask.state);
+    const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: paymentCartFingerprint(f.read()) } });
     assert.equal(f.calls.length, 1); assert.equal(f.calls[0].section, "payment");
     assert.equal(done.state.payment, undefined); assert.equal(done.state.paymentGeneration, 1);
     assert.equal(f.read().shipping.customerPrice, 0); assert.equal(f.read().shipping.realCost, 22.08);
     const url = new URL((done.blocks.find(b => b.type === "checkout_redirect")!.data as any).url);
     assert.equal(url.searchParams.get("paymentMethod"), "card"); assert.equal(url.searchParams.get("paymentRevision"), "42");
   } finally { if (previous === undefined) delete process.env.WIDGET_BASE_URL; else process.env.WIDGET_BASE_URL = previous; }
+});
+
+test("selecting Pix cancels the pending card before generating the selected Pix", async () => {
+  const f = fixture(); f.state.payment.method = "card"; f.state.payment.intentId = "card";
+  const order: string[] = [], original = f.reopen.execute;
+  f.reopen.execute = async (...args: any[]) => { order.push("cancel"); return (original as any)(...args); };
+  (f.adapter as any).createPayment = { execute: async (input: any) => { order.push("create"); assert.equal(input.method, "pix"); return { id: "fresh-pix", status: "requires_action", amountCents: 29079, buyerFacing: { qrCodeCopyPaste: "FRESH-PIX" } }; } };
+  const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "pix", fingerprint: paymentCartFingerprint(f.read()), checkoutSessionId: "checkout" } });
+  assert.deepEqual(order, ["cancel", "create"]); assert.equal(done.state.payment?.method, "pix");
+  assert.equal(done.state.payment?.intentId, "fresh-pix"); assert.equal(done.state.pendingCheckoutEdit, undefined);
+  assert.match(done.agentMessage, /anterior foi cancelado/); assert.equal(done.blocks.some(b => b.type === "checkout_redirect"), false);
+});
+
+test("choosing the same pending method resumes its code without cancellation or another charge", async () => {
+  const f = fixture();
+  const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "pix", fingerprint: paymentCartFingerprint(f.read()) } });
+  assert.equal(f.calls.length, 0); assert.equal(done.state.payment?.intentId, "pix");
+  assert(JSON.stringify(presentMetaUi(buildMetaUiView(done), "new").messages).includes("OLD-PIX"));
+});
+
+test("a method button shown before automatic incentives can switch after their canonical reset", async () => {
+  const f = fixture(); const originalFingerprint = paymentCartFingerprint(f.read()); f.read().cart.currentDiscount = 28.98;
+  const previous = process.env.WIDGET_BASE_URL; process.env.WIDGET_BASE_URL = "https://widget.example.com";
+  try {
+    const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: originalFingerprint } });
+    assert.equal(f.calls.length, 1); assert.equal(f.read().cart.currentDiscount, 0);
+    assert(done.blocks.some(b => b.type === "checkout_redirect"));
+  } finally { if (previous === undefined) delete process.env.WIDGET_BASE_URL; else process.env.WIDGET_BASE_URL = previous; }
+});
+
+test("an old method button cannot cancel or prepare payment after cart quantities change", async () => {
+  const f = fixture(); const originalFingerprint = paymentCartFingerprint(f.read()); f.read().cart.items[0].quantity = 2;
+  const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: originalFingerprint } });
+  assert.equal(f.calls.length, 0); assert.equal(done.state.payment?.intentId, "pix"); assert.match(done.agentMessage, /pedido mudou/);
+});
+
+test("a recovered button for another checkout never changes the active payment", async () => {
+  const f = fixture(); const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: paymentCartFingerprint(f.read()), checkoutSessionId: "foreign" } });
+  assert.equal(f.calls.length, 0); assert.equal(done.state.payment?.intentId, "pix"); assert.match(done.agentMessage, /outro pedido/);
+});
+
+test("an unconfirmed direct method switch preserves the original payment and creates no replacement", async () => {
+  const f = fixture(); f.reopen.execute = async () => { throw new ConflictException("checkout_payment_cancellation_unconfirmed"); };
+  const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: paymentCartFingerprint(f.read()) } });
+  assert.equal(done.state.payment?.intentId, "pix"); assert.equal(done.state.payment?.method, "pix");
+  assert.match(done.agentMessage, /não gerei outra cobrança/); assert.equal(done.blocks.some(b => b.type === "checkout_redirect"), false);
+});
+
+test("a target method that was disabled never cancels the pending payment", async () => {
+  const f = fixture(); (f.adapter as any).startCheckout = { getPaymentCapabilities: async () => ({ pix: true, card: false }) };
+  const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: paymentCartFingerprint(f.read()) } });
+  assert.equal(f.calls.length, 0); assert.equal(done.state.payment?.intentId, "pix"); assert.match(done.agentMessage, /não está disponível/);
+});
+
+test("a price change during provider cancellation requires a fresh selection before replacement", async () => {
+  const f = fixture(), original = f.reopen.execute;
+  f.reopen.execute = async (...args: any[]) => { const result = await (original as any)(...args); f.read().cart.items[0].price += 1; return result; };
+  const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: paymentCartFingerprint(f.read()) } });
+  assert.equal(f.calls.length, 1); assert.equal(done.state.payment, undefined);
+  assert.match(done.agentMessage, /anterior foi cancelado/); assert.equal(done.blocks.some(b => b.type === "checkout_redirect"), false);
+});
+
+test("choosing another method after approval cannot cancel or create a payment", async () => {
+  const f = fixture(); f.state.payment.status = "approved";
+  (f.adapter as any).paymentStatus = { execute: async () => ({ status: "approved" }) };
+  const done = await f.send({ kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: paymentCartFingerprint(f.read()) } });
+  assert.equal(f.calls.length, 0); assert.equal(done.state.payment?.status, "approved");
+  assert.equal(done.blocks.some(b => ["checkout_redirect", "payment_methods"].includes(b.type)), false);
 });
 
 test("keeping Pix and a stale confirmation never invoke cancellation", async () => {

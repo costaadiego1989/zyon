@@ -19,6 +19,37 @@ function fixture() {
   return { claim, route, input, conversation, sessions, inbox, sender, emitted, calls: () => engineCalls, execute: () => new HandleMetaConversationUseCase(conversation, sessions, inbox, sender).execute(input, route) };
 }
 
+for (const method of ["pix", "card"]) test(`an archived ${method} button selects that method on its original current checkout`, async () => {
+  const f = fixture(), state = f.route.whatsappSession.conversationState;
+  Object.assign(state, { stage: "checkout", checkoutSessionId: "checkout1", selections: {} });
+  f.input.interactiveId = "zyon:" + "a".repeat(32);
+  f.inbox.findPriorSelection = async () => ({ conversationId: "conv1", checkoutSessionId: "checkout1", selectionSent: true,
+    action: { kind: "tool", tool: "create_payment", args: { method, fingerprint: "b".repeat(64), amount: 1, token: "DO-NOT-REPLAY" } } });
+  let request: any;
+  f.conversation.respondStore = async (input: any) => { request = input; return { agentMessage: "Pagamento atual", blocks: [], quickReplies: [], state: input.state }; };
+  await f.execute();
+  assert.deepEqual(request.action, { kind: "tool", tool: "create_payment", args: { method, fingerprint: "b".repeat(64), checkoutSessionId: "checkout1" } });
+  assert.equal(request.verifiedSender.inboxId, f.claim.id); assert.equal(request.merchantId, "m1");
+  assert.equal(JSON.stringify(request).includes("DO-NOT-REPLAY"), false);
+});
+
+for (const mismatch of ["checkout", "cart", "missing-scope", "unsupported", "fingerprint", "confirmation", "unsent"]) test(`archived payment recovery refuses ${mismatch}`, async () => {
+  const f = fixture(), state = f.route.whatsappSession.conversationState;
+  Object.assign(state, { stage: "checkout", checkoutSessionId: "checkout1", selections: {} });
+  f.input.interactiveId = "zyon:" + "c".repeat(32);
+  const previous: any = { conversationId: "conv1", checkoutSessionId: "checkout1", selectionSent: true, action: { kind: "tool", tool: "create_payment", args: { method: "pix", fingerprint: "b".repeat(64) } } };
+  if (mismatch === "checkout") previous.checkoutSessionId = "different-checkout";
+  if (mismatch === "cart") previous.conversationId = "different-cart";
+  if (mismatch === "missing-scope") delete previous.checkoutSessionId;
+  if (mismatch === "unsupported") previous.action.args.method = "crypto";
+  if (mismatch === "fingerprint") previous.action.args.fingerprint = "arbitrary";
+  if (mismatch === "confirmation") previous.action.tool = "confirm_checkout_edit";
+  if (mismatch === "unsent") previous.selectionSent = false;
+  f.inbox.findPriorSelection = async () => previous;
+  await f.execute(); assert.equal(f.calls(), 0);
+  assert(f.emitted.some(message => message.type === "text" && /menu foi atualizado/.test(message.text.body)));
+});
+
 for (const tool of ["product_gallery", "show_content", "media_page"]) test(`${tool} keeps product purchase and main menu in the persisted incoming pipeline`, async () => {
   const f = fixture(), state = f.route.whatsappSession.conversationState;
   state.view = buildMetaUiView({ agentMessage: "Mouse", quickReplies: [], state, blocks: [{ type: "product_card", data: { id: "p", name: "Mouse", price: 6990,

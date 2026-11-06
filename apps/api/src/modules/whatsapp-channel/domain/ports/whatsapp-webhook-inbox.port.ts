@@ -33,5 +33,5 @@ export interface WhatsAppWebhookInbox {
   complete(claim: WhatsAppInboxClaim): Promise<boolean>;
   fail(claim: WhatsAppInboxClaim, errorCode: string): Promise<boolean>;
   saveResponse?(claim: WhatsAppInboxClaim, response: Record<string, unknown>): Promise<boolean>;
-  findPriorSelection?(claim: WhatsAppInboxClaim, sessionId: string, selectionId: string): Promise<{ action: StoreUiAction; view?: MetaUiView; previousView?: MetaUiView; page?: number } | null>;
+  findPriorSelection?(claim: WhatsAppInboxClaim, sessionId: string, selectionId: string): Promise<{ action: StoreUiAction; view?: MetaUiView; previousView?: MetaUiView; page?: number; checkoutSessionId?: string; conversationId?: string; selectionSent?: boolean } | null>;
 }

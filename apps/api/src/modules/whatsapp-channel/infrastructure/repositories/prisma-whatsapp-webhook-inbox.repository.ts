@@ -33,8 +33,15 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
     `);
     const saved = rows[0]?.response_state;
     const action = saved?.state?.selections?.[selectionId] as StoreUiAction | undefined;
+    const selectionSent = Array.isArray(saved?.presentation?.messages) && saved.presentation.messages.some((message: any, index: number) => {
+      if (!Array.isArray(saved.sent) || !saved.sent.some((sent: any) => sent.index === index && typeof sent.messageId === "string" && sent.messageId.trim())) return false;
+      const interactive = message?.type === "interactive" ? message.interactive : undefined;
+      return interactive?.type === "button" && Array.isArray(interactive.action?.buttons) && interactive.action.buttons.some((button: any) => button.reply?.id === selectionId)
+        || interactive?.type === "list" && Array.isArray(interactive.action?.sections) && interactive.action.sections.some((section: any) => Array.isArray(section.rows) && section.rows.some((row: any) => row.id === selectionId));
+    });
     return action ? { action, view: saved.state.view as MetaUiView | undefined,
-      previousView: saved.state.previousViews?.at(-1) as MetaUiView | undefined, page: saved.state.page as number | undefined } : null;
+      previousView: saved.state.previousViews?.at(-1) as MetaUiView | undefined, page: saved.state.page as number | undefined,
+      checkoutSessionId: saved.state.checkoutSessionId as string | undefined, conversationId: saved.state.conversationId as string | undefined, selectionSent } : null;
   }
 
   async accept(events: WhatsAppInboxEvent[]): Promise<void> {
