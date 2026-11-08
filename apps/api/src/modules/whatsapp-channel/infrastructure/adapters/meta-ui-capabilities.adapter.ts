@@ -22,29 +22,34 @@ export class MetaUiCapabilitiesAdapter {
     const credentials = connectedMetaCloudCredentials(config, merchantId);
     if (!credentials) return { catalogRetailerIds: {}, flowIds: {}, checkedAt: Date.now() };
     const key = `${merchantId}:${config!.id}:${credentials.wabaId}`;
-    if ((this.expires.get(key) ?? 0) > Date.now()) return this.cache.get(key)!;
-    const pending = this.discover(credentials).then(result => {
-      this.expires.set(key, Date.now() + (Object.keys(result.flowIds).length >= 2 ? 60 : 1) * 60_000);
-      if (Object.keys(result.flowIds).length < 2) this.nativeAssets?.enqueue(merchantId, config!.id);
-      return result;
-    });
-    if (this.nativeAssets) this.nativeAssets.enqueue(merchantId, config!.id);
-    this.cache.set(key, pending); this.expires.set(key, Date.now() + 60_000);
-    if (this.cache.size > 2000) { const oldest = this.cache.keys().next().value; if (oldest) { this.cache.delete(oldest); this.expires.delete(oldest); } }
-    const result = await pending;
+    let pending = (this.expires.get(key) ?? 0) > Date.now() ? this.cache.get(key) : undefined;
+    if (!pending) {
+      pending = this.discover(credentials).then(result => {
+        this.expires.set(key, Date.now() + (result.catalogId ? 1 : Object.keys(result.flowIds).length >= 2 ? 60 : 1) * 60_000);
+        if (Object.keys(result.flowIds).length < 2) this.nativeAssets?.enqueue(merchantId, config!.id);
+        return result;
+      });
+      if (this.nativeAssets) this.nativeAssets.enqueue(merchantId, config!.id);
+      this.cache.set(key, pending); this.expires.set(key, Date.now() + 60_000);
+      if (this.cache.size > 2000) { const oldest = this.cache.keys().next().value; if (oldest) { this.cache.delete(oldest); this.expires.delete(oldest); } }
+    }
+    const result = { ...await pending };
     if (result.catalogId && this.prisma) {
       const synced = await this.prisma.whatsAppNativeAsset.findMany({ where: { merchantId, configId: config!.id, kind: "catalog_product", status: "published", retryAfter: { gt: new Date() } }, select: { name: true, sourceHash: true } });
-      result.catalogPrices = Object.fromEntries(synced.flatMap(row => /^price:\d+$/.test(row.sourceHash) ? [[row.name, Number(row.sourceHash.slice(6))]] : []));
+      result.catalogPrices = Object.fromEntries(synced.flatMap(row => {
+        const match = /^price:(\d+);catalog:(\d+);v2:[a-f0-9]{64}$/.exec(row.sourceHash);
+        return match && match[2] === result.catalogId ? [[row.name, Number(match[1])]] : [];
+      }));
       if (!synced.length) this.expires.set(key, Date.now() + 60_000);
     }
     return result;
   }
 
-  private async discover(c: { accessToken: string; wabaId: string }): Promise<MetaUiCapabilities> {
+  private async discover(c: { accessToken: string; wabaId: string; catalogAccessToken?: string }): Promise<MetaUiCapabilities> {
     const result: MetaUiCapabilities = { catalogRetailerIds: {}, flowIds: {}, checkedAt: Date.now() };
-    const get = async (path: string): Promise<any> => {
+    const get = async (path: string, accessToken = c.accessToken): Promise<any> => {
       try {
-        const response = await fetch(`https://graph.facebook.com/v23.0/${path}`, { headers: { Authorization: `Bearer ${c.accessToken}` }, redirect: "error", signal: AbortSignal.timeout(8000) });
+        const response = await fetch(`https://graph.facebook.com/v23.0/${path}`, { headers: { Authorization: `Bearer ${accessToken}` }, redirect: "error", signal: AbortSignal.timeout(8000) });
         return response.ok ? response.json() : {};
       } catch { return {}; }
     };
@@ -54,7 +59,7 @@ export class MetaUiCapabilitiesAdapter {
       result.catalogId = String(catalogs.data[0].id);
       let after: string | undefined;
       for (let page = 0; page < 10; page++) {
-        const products = await get(`${result.catalogId}/products?fields=id,retailer_id&limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+        const products = await get(`${result.catalogId}/products?fields=id,retailer_id&limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`, c.catalogAccessToken ?? c.accessToken);
         for (const p of products.data ?? []) if (typeof p.retailer_id === "string" && p.retailer_id) result.catalogRetailerIds[p.retailer_id] = p.retailer_id;
         if (!products.paging?.next || !products.paging?.cursors?.after) break;
         after = products.paging.cursors.after;

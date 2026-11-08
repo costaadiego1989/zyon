@@ -212,10 +212,52 @@ test("catalog prioritizes actual photos and retains products without photos on l
   assert.match(menu.action.sections[0].rows.at(-1).title, /Menu principal/);
 });
 
-test("cart shows the real product photo alongside its authoritative amount", () => {
-  const view = buildMetaUiView(response({ blocks: [{ type: "cart_summary", data: { items: [{ variantId: "v", name: "Sérum", quantity: 1, subtotal: 189.9, imageUrl: "https://cdn.example/serum.jpg" }], subtotal: 189.9, total: 189.9 } }] as any }));
-  assert.ok(view.media.some(m => m.type === "image" && m.media.caption?.includes("189,90")));
-  assert.match(view.media[0].type === "image" ? view.media[0].media.caption! : "", /Item no carrinho/);
+test("cart uses one native product list while preserving authoritative quantities, totals and checkout controls", () => {
+  const input = response({ blocks: [{ type: "cart_summary", data: { items: [
+    { variantId: "v", name: "Sérum", quantity: 2, price: 189.9, subtotal: 379.8, imageUrl: "https://cdn.example/serum.jpg" },
+    { variantId: "other", name: "Bruma", quantity: 1, price: 50, subtotal: 50, imageUrl: "https://cdn.example/bruma.jpg" },
+  ], subtotal: 429.8, total: 429.8 } }] as any });
+  input.state = { ...input.state, catalogId: "12345", catalogRetailerIds: { v: "v", other: "other" }, catalogPrices: { v: 18990, other: 5000 } };
+  const before = structuredClone(input);
+  const view = buildMetaUiView(input), shown = presentMetaUi(view, "cart");
+  assert.deepEqual(input, before);
+  assert.equal(shown.messages.filter(m => m.type === "image").length, 0);
+  const catalog = native(shown).filter(m => m.type === "product_list");
+  assert.equal(catalog.length, 1);
+  assert.deepEqual(catalog[0].action, { catalog_id: "12345", sections: [{ title: "Itens da sua compra", product_items: [
+    { product_retailer_id: "v" }, { product_retailer_id: "other" },
+  ] }] });
+  assert.match(view.body, /Quantidade: 2 · R\$\s379,80/);
+  assert.match(view.body, /Total dos itens: R\$\s429,80/);
+  assert.match(catalog[0].body.text, /Enviar um carrinho.*adiciona as unidades/);
+  assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "checkout"));
+  assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "edit_cart_item" && c.action.args.quantity === 2));
+});
+
+test("unlinked, stale-price, customized and scheduled cart items never appear in the native list or as separate photos", () => {
+  const line = { variantId: "v", name: "Produto", quantity: 2, price: 10, subtotal: 20, imageUrl: "https://cdn.example/product.jpg" };
+  for (const [state, item] of [
+    [{}, line], [{ catalogId: "12345", catalogRetailerIds: { v: "v" } }, line],
+    [{ catalogId: "12345", catalogRetailerIds: { v: "v" }, catalogPrices: { v: 999 } }, line],
+    [{ catalogId: "12345", catalogRetailerIds: { v: "v" }, catalogPrices: { v: 1000 } }, { ...line, selectedOptions: [{ itemName: "Extra" }] }],
+    [{ catalogId: "12345", catalogRetailerIds: { v: "v" }, catalogPrices: { v: 1000 } }, { ...line, selectedServiceSlotId: "slot" }],
+  ] as any[]) {
+    const input = response({ blocks: [{ type: "cart_summary", data: { items: [item], subtotal: 20, total: 20 } }] as any });
+    Object.assign(input.state, state);
+    const view = buildMetaUiView(input);
+    assert.deepEqual(view.media, []); assert.match(view.body, /Total dos itens: R\$\s20,00/);
+  }
+});
+
+test("native cart lists deduplicate retailer IDs, omit unmapped lines and respect Meta's 30-product limit", () => {
+  const lines = Array.from({ length: 32 }, (_, i) => ({ variantId: `v${i}`, name: `Produto ${i}`, quantity: 1, price: 10, subtotal: 10 }));
+  const input = response({ blocks: [{ type: "cart_summary", data: { items: [...lines, lines[0], { ...lines[0], variantId: "missing" }], subtotal: 340, total: 340 } }] as any });
+  Object.assign(input.state, { catalogId: "12345", catalogRetailerIds: Object.fromEntries(lines.map(i => [i.variantId, i.variantId])), catalogPrices: Object.fromEntries(lines.map(i => [i.variantId, 1000])) });
+  const view = buildMetaUiView(input), catalog = view.media[0] as any;
+  assert.equal(catalog.interactive.action.sections[0].product_items.length, 30);
+  assert.equal(new Set(catalog.interactive.action.sections[0].product_items.map((i: any) => i.product_retailer_id)).size, 30);
+  assert.match(catalog.interactive.body.text, /primeiros 30 produtos/);
+  assert.match(view.body, /34\. \*Produto 0\*/);
 });
 
 test("adding a product confirms the authoritative cart without repeating its product photo or details", () => {

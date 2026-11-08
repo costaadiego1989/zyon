@@ -71,9 +71,12 @@ test("subscription distinguishes a definite Meta refusal from an unknown transpo
 
 test("credential codec encrypts a direct Meta token while retaining searchable routing IDs", t => {
   environment(t);
-  const credentials = { accessToken: "merchant-token", wabaId: input.wabaId, phoneNumberId: input.phoneNumberId };
+  const credentials = { accessToken: "merchant-token", catalogAccessToken: "catalog-only-token", wabaId: input.wabaId, phoneNumberId: input.phoneNumberId };
   const encrypted = encodeWhatsAppCredentials(credentials);
   assert.notEqual(encrypted.accessToken, credentials.accessToken);
+  assert.notEqual(encrypted.catalogAccessToken, credentials.catalogAccessToken);
+  assert.ok(!JSON.stringify(encrypted).includes("catalog-only-token"));
+  assert.deepEqual(encodeWhatsAppCredentials(encrypted), encrypted);
   assert.equal(encrypted.phoneNumberId, credentials.phoneNumberId);
   assert.deepEqual(decodeWhatsAppCredentials(encrypted), credentials);
 });

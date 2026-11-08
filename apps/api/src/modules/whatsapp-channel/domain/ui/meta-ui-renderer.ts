@@ -231,9 +231,23 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
       case "cart_summary":
         text.push("🛒 *Seu carrinho*");
         if (!items(d.items).length) text.push("Seu carrinho está vazio. Escolha um produto para começar.");
+        if (!cartJustAdded && response.state.catalogId) {
+          const retailerIds = [...new Set(items(d.items).flatMap(item => {
+            const retailerId = response.state.catalogRetailerIds?.[value(item.variantId)];
+            const priceCents = Math.round(Number(item.price) * 100);
+            return retailerId && Number.isSafeInteger(priceCents) && priceCents > 0
+              && response.state.catalogPrices?.[retailerId] === priceCents
+              && !items(item.selectedOptions).length && !item.selectedServiceSlotId
+              ? [retailerId] : [];
+          }))];
+          if (retailerIds.length) view.media.push({ type: "interactive", interactive: {
+            type: "product_list", header: { type: "text", text: "Produtos no carrinho" },
+            body: { text: `🛒 Confira as fotos dos seus itens${retailerIds.length < items(d.items).length || retailerIds.length > 30 ? " disponíveis nesta lista" : ""}. Para editar as quantidades da compra atual, use as opções da conversa.\n\nEnviar um carrinho pelo catálogo adiciona as unidades selecionadas à sua compra.${retailerIds.length > 30 ? "\n\nEsta lista mostra os primeiros 30 produtos. O resumo da conversa contém todos os itens." : ""}` },
+            action: { catalog_id: response.state.catalogId, sections: [{ title: "Itens da sua compra", product_items: retailerIds.slice(0, 30).map(id => ({ product_retailer_id: id })) }] },
+          } });
+        }
         items(d.items).forEach((i, index) => {
           text.push(`${index + 1}. *${value(i.productName || i.name)}*\nQuantidade: ${i.quantity} · ${money(i.subtotal)}`);
-          if (!cartJustAdded) photo(i.imageUrl || i.image_url || i.image, `*Item no carrinho*\n${value(i.productName || i.name)}\n${i.quantity} unidade(s) · ${money(i.subtotal)}`);
           items(i.selectedOptions).forEach(o => text.push(`${value(o.groupName)}: ${value(o.itemName)}`));
           if (i.selectedServiceSlotId) text.push(`Agendamento: ${value(i.selectedServiceSlotId)}`);
           add(`Editar ${value(i.productName || i.name)}`, tool("edit_cart_item", { variantId: i.variantId, quantity: i.quantity }));

@@ -4,6 +4,7 @@ export interface ConnectedMetaCloudCredentials {
   accessToken: string;
   wabaId: string;
   phoneNumberId: string;
+  catalogAccessToken?: string;
 }
 
 /**
@@ -21,5 +22,6 @@ export function connectedMetaCloudCredentials(
   const wabaId = typeof credentials.wabaId === "string" ? credentials.wabaId.trim() : "";
   const phoneNumberId = typeof credentials.phoneNumberId === "string" ? credentials.phoneNumberId.trim() : "";
   if (!accessToken || !/^\d{5,40}$/.test(wabaId) || !/^\d{5,40}$/.test(phoneNumberId)) return null;
-  return { accessToken, wabaId, phoneNumberId };
+  const catalogAccessToken = typeof credentials.catalogAccessToken === "string" ? credentials.catalogAccessToken.trim() : "";
+  return { accessToken, wabaId, phoneNumberId, ...(catalogAccessToken ? { catalogAccessToken } : {}) };
 }

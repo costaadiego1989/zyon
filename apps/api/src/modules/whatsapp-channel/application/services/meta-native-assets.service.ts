@@ -31,13 +31,14 @@ export class MetaNativeAssetsService {
     const config = await this.configs.findById(configId);
     const credentials = connectedMetaCloudCredentials(config, merchantId);
     if (!credentials) return;
-    const graph = async (path: string, init?: RequestInit) => {
+    const graphFor = (accessToken: string) => async (path: string, init?: RequestInit) => {
       const response = await fetch(`https://graph.facebook.com/v23.0/${path}`, { ...init,
-        headers: { Authorization: `Bearer ${credentials.accessToken}`, ...init?.headers }, redirect: "error", signal: AbortSignal.timeout(8000) });
+        headers: { Authorization: `Bearer ${accessToken}`, ...init?.headers }, redirect: "error", signal: AbortSignal.timeout(8000) });
       const data = await response.json().catch(() => ({})) as any;
       if (!response.ok) throw new Error(`meta_native_http_${response.status}_code_${Number(data.error?.code) || 0}`);
       return data;
     };
+    const graph = graphFor(credentials.accessToken);
     await this.prisma.$transaction(async tx => {
       const locks = await tx.$queryRaw<Array<{ locked: boolean }>>(Prisma.sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${`${credentials.wabaId}:native_assets`}, 0)) AS locked`);
       if (!locks[0]?.locked) return;
@@ -96,10 +97,11 @@ export class MetaNativeAssetsService {
         }
       }
     }, { timeout: 90_000, maxWait: 5000 });
-    await this.syncLinkedCatalog(merchantId, configId, credentials.wabaId, graph);
+    await this.syncLinkedCatalog(merchantId, configId, credentials.wabaId, graph,
+      graphFor(credentials.catalogAccessToken ?? credentials.accessToken));
   }
 
-  private async syncLinkedCatalog(merchantId: string, configId: string, wabaId: string, graph: (path: string, init?: RequestInit) => Promise<any>) {
+  private async syncLinkedCatalog(merchantId: string, configId: string, wabaId: string, graph: (path: string, init?: RequestInit) => Promise<any>, catalogGraph: (path: string, init?: RequestInit) => Promise<any>) {
     const catalogs = await graph(`${wabaId}/product_catalogs?fields=id&limit=2`);
     const catalogId = catalogs.data?.length === 1 ? String(catalogs.data[0].id) : undefined;
     const root = await this.prisma.whatsAppNativeAsset.upsert({ where: { configId_kind_name: { configId, kind: "catalog", name: "storefront" } },
@@ -120,19 +122,20 @@ export class MetaNativeAssetsService {
         const quantity = variant.stock.reduce((n, s) => n + Math.max(0, s.quantity - s.reserved), 0);
         const key = { configId, kind: "catalog_product", name: variant.id };
         const row = await this.prisma.whatsAppNativeAsset.upsert({ where: { configId_kind_name: key }, create: { ...key, merchantId, sourceHash: "pending" }, update: {} });
-        const price = `price:${variant.price.basePriceInCents}`;
-        if (row.status === "published" && row.sourceHash === price && row.retryAfter && row.retryAfter > new Date()) continue;
+        const payload = {
+          retailer_id: variant.id, name: variant.product.name, description: variant.product.description || variant.product.name,
+          brand: merchant.name, currency: "BRL", price: variant.price.basePriceInCents, availability: quantity > 0 ? "in stock" : "out of stock", inventory: quantity,
+          condition: "new", image_url: variant.media[0].url, url: `https://storefront.zyon-payments.com.br/store/${encodeURIComponent(merchant.storeSlug)}`,
+          allow_upsert: true,
+        };
+        const sourceHash = `price:${payload.price};catalog:${catalogId};v2:${createHash("sha256").update(JSON.stringify(payload)).digest("hex")}`;
+        if (row.status === "published" && row.sourceHash === sourceHash && row.retryAfter && row.retryAfter > new Date()) continue;
         try {
           // Variant IDs are immutable and scoped by the catalog/WABA. Upsert is
           // safe after an uncertain request and never uses buyer-supplied prices.
-          const result = await graph(`${catalogId}/products`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-            retailer_id: variant.id, name: variant.product.name, description: variant.product.description || variant.product.name,
-            brand: merchant.name, currency: "BRL", price: variant.price.basePriceInCents, availability: quantity > 0 ? "in stock" : "out of stock", inventory: quantity,
-            condition: "new", image_url: variant.media[0].url, url: `https://storefront.zyon-payments.com.br/store/${encodeURIComponent(merchant.storeSlug)}`,
-            allow_upsert: true,
-          }) });
+          const result = await catalogGraph(`${catalogId}/products`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
           if (!result.id) throw new Error("meta_native_catalog_upsert_unknown");
-          await this.prisma.whatsAppNativeAsset.update({ where: { id: row.id }, data: { status: "published", providerId: String(result.id), sourceHash: price, lastError: null, retryAfter: new Date(Date.now() + 3600_000) } });
+          await this.prisma.whatsAppNativeAsset.update({ where: { id: row.id }, data: { status: "published", providerId: String(result.id), sourceHash, lastError: null, retryAfter: new Date(Date.now() + 3600_000) } });
         } catch (error) {
           const code = error instanceof Error && /^meta_native_[a-z0-9_]+$/.test(error.message) ? error.message : "meta_native_catalog_unknown";
           await this.prisma.whatsAppNativeAsset.update({ where: { id: row.id }, data: { status: "unavailable", lastError: code, retryAfter: new Date(Date.now() + 3600_000) } });
