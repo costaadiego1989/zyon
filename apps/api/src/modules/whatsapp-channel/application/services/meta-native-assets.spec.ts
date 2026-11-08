@@ -5,7 +5,7 @@ import { MetaNativeAssetsService } from "./meta-native-assets.service.js";
 test("catalog sync refreshes stock, photos, price and catalog identity using only the dedicated catalog credential", async t => {
   const rows = new Map<string, any>(), writes: any[] = [];
   let catalogId = "78901";
-  const variant: any = { id: "variant", product: { name: "Mouse", description: "Mouse sem fio", metadata: {} },
+  const variant: any = { id: "variant", product: { name: "Mouse", description: "Mouse sem fio", metadata: { brand: "Logitech" } },
     price: { currency: "BRL", basePriceInCents: 6990 }, stock: [{ quantity: 3, reserved: 1 }], media: [{ url: "https://cdn.example/mouse.jpg" }] };
   t.mock.method(globalThis, "fetch", async (url: any, init: any) => {
     if (String(url).includes("/products")) {
@@ -13,7 +13,7 @@ test("catalog sync refreshes stock, photos, price and catalog identity using onl
       writes.push({ catalogId, payload: JSON.parse(init.body) });
       return Response.json({ id: "provider-product" });
     }
-    assert.equal(init.headers.Authorization, "Bearer whatsapp-only");
+    assert.equal(init.headers.Authorization, String(url).includes("/product_catalogs?") ? "Bearer catalog-only" : "Bearer whatsapp-only");
     return Response.json({ data: String(url).includes("/flows?") ? [
       { id: "10000", name: "zyon_registration_v1", status: "PUBLISHED" }, { id: "20000", name: "zyon_address_v1", status: "PUBLISHED" },
     ] : [{ id: catalogId }] });
@@ -31,6 +31,7 @@ test("catalog sync refreshes stock, photos, price and catalog identity using onl
   await service.ensure("merchant", "config");
   assert.equal(writes.length, 1); assert.equal(writes[0].payload.inventory, 2);
   assert.equal(writes[0].payload.retailer_id, "variant"); assert.equal(writes[0].payload.price, 6990);
+  assert.equal(writes[0].payload.brand, "Logitech");
   const firstHash = rows.get("catalog_product:variant").sourceHash;
   assert.match(firstHash, /^price:6990;catalog:78901;v2:[a-f0-9]{64}$/);
   await service.ensure("merchant", "config"); assert.equal(writes.length, 1, "unchanged catalog products need no repeat upsert");

@@ -53,7 +53,10 @@ export class MetaUiCapabilitiesAdapter {
         return response.ok ? response.json() : {};
       } catch { return {}; }
     };
-    const [catalogs, flows] = await Promise.all([get(`${c.wabaId}/product_catalogs?fields=id&limit=2`), get(`${c.wabaId}/flows?fields=id,name,status&limit=100`)]);
+    const [catalogs, flows] = await Promise.all([
+      get(`${c.wabaId}/product_catalogs?fields=id&limit=2`, c.catalogAccessToken ?? c.accessToken),
+      get(`${c.wabaId}/flows?fields=id,name,status&limit=100`),
+    ]);
     // An ambiguous catalog needs explicit configuration, not an arbitrary pick.
     if (catalogs.data?.length === 1 && /^\d+$/.test(String(catalogs.data[0].id))) {
       result.catalogId = String(catalogs.data[0].id);

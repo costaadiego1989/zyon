@@ -97,12 +97,12 @@ export class MetaNativeAssetsService {
         }
       }
     }, { timeout: 90_000, maxWait: 5000 });
-    await this.syncLinkedCatalog(merchantId, configId, credentials.wabaId, graph,
+    await this.syncLinkedCatalog(merchantId, configId, credentials.wabaId,
       graphFor(credentials.catalogAccessToken ?? credentials.accessToken));
   }
 
-  private async syncLinkedCatalog(merchantId: string, configId: string, wabaId: string, graph: (path: string, init?: RequestInit) => Promise<any>, catalogGraph: (path: string, init?: RequestInit) => Promise<any>) {
-    const catalogs = await graph(`${wabaId}/product_catalogs?fields=id&limit=2`);
+  private async syncLinkedCatalog(merchantId: string, configId: string, wabaId: string, catalogGraph: (path: string, init?: RequestInit) => Promise<any>) {
+    const catalogs = await catalogGraph(`${wabaId}/product_catalogs?fields=id&limit=2`);
     const catalogId = catalogs.data?.length === 1 ? String(catalogs.data[0].id) : undefined;
     const root = await this.prisma.whatsAppNativeAsset.upsert({ where: { configId_kind_name: { configId, kind: "catalog", name: "storefront" } },
       create: { merchantId, configId, kind: "catalog", name: "storefront", sourceHash: "v1" }, update: {} });
@@ -122,9 +122,11 @@ export class MetaNativeAssetsService {
         const quantity = variant.stock.reduce((n, s) => n + Math.max(0, s.quantity - s.reserved), 0);
         const key = { configId, kind: "catalog_product", name: variant.id };
         const row = await this.prisma.whatsAppNativeAsset.upsert({ where: { configId_kind_name: key }, create: { ...key, merchantId, sourceHash: "pending" }, update: {} });
+        const brand = (variant.product.metadata as Record<string, unknown> | null)?.brand;
         const payload = {
           retailer_id: variant.id, name: variant.product.name, description: variant.product.description || variant.product.name,
-          brand: merchant.name, currency: "BRL", price: variant.price.basePriceInCents, availability: quantity > 0 ? "in stock" : "out of stock", inventory: quantity,
+          brand: typeof brand === "string" && brand.trim() ? brand.trim() : merchant.name,
+          currency: "BRL", price: variant.price.basePriceInCents, availability: quantity > 0 ? "in stock" : "out of stock", inventory: quantity,
           condition: "new", image_url: variant.media[0].url, url: `https://storefront.zyon-payments.com.br/store/${encodeURIComponent(merchant.storeSlug)}`,
           allow_upsert: true,
         };

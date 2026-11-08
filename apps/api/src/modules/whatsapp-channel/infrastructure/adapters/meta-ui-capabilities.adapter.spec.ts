@@ -9,7 +9,7 @@ test("catalog credentials stay tenant-scoped and cached discovery never retains 
   t.mock.method(globalThis, "fetch", async (url: any, init: any) => {
     reads++;
     const products = String(url).includes("/products?");
-    assert.equal(init.headers.Authorization, products ? "Bearer catalog-only" : "Bearer whatsapp-only");
+    assert.equal(init.headers.Authorization, products || String(url).includes("/product_catalogs?") ? "Bearer catalog-only" : "Bearer whatsapp-only");
     return Response.json({ data: products ? [{ retailer_id: "variant" }] : String(url).includes("/product_catalogs?") ? [{ id: "78901" }] : [] });
   });
   const prisma: any = { whatsAppNativeAsset: { findMany: async (input: any) => {
