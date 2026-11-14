@@ -1,0 +1,15 @@
+{
+  "task": "T6",
+  "status": "complete",
+  "existingUnitContracts": {"executed": 12, "passed": 12, "failed": 0, "skipped": 0, "exitCode": 0},
+  "nativeIntegration": {"executed": 15, "passed": 15, "failed": 0, "skipped": 0, "exitCode": 0, "durationMs": 55952.7542},
+  "modelsCovered": 11,
+  "implementation": "Canonical checked Prisma tenant extension and AsyncLocalStorage, real owned PostgreSQL migrated through active SQL",
+  "assertions": ["hostile read filters return only the actor tenant", "foreign unique IDs return null", "foreign update/delete rejected", "foreign bulk mutation count zero", "every foreign row remains unchanged", "bulk create/update stamps actor tenant", "compound unique key pins actor", "composite FK rejection", "transaction rollback"],
+  "fixtureCorrections": ["WhatsApp session uses actual buyerPhone/deviceId fields", "lazy PrismaPromise is consumed inside the async ALS request callback"],
+  "productionChanges": false,
+  "httpCoverage": "Deferred to each future controller's own commit; no artificial production route was introduced. Final isolation criteria remain required.",
+  "cleanup": {"ownedPostgresDisposed": true, "remainingBridgeSockets": 0, "remainingBridgeChildren": 0},
+  "remoteChanges": false,
+  "logs": "C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution/t6-unit.log; t6-tenant-green.log"
+}

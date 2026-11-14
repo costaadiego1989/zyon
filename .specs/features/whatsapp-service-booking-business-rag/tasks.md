@@ -270,12 +270,12 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + integração service-tenant.integration.spec.ts: todos modelos e equivalentes HTTP; leitura/mutação/updateMany e rollback.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Contratos unit existentes + integração service-tenant.integration.spec.mjs: todos os modelos com leitura/mutação/updateMany e rollback. HTTP adversarial acompanha cada controller posterior no próprio commit.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Unit + integração service-tenant.integration.spec.ts: todos modelos e equivalentes HTTP; leitura/mutação/updateMany e rollback.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T6$" ./src/shared/persistence/tenant.middleware.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T6 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Os 12 contratos unit existentes de tenant.middleware.spec.ts e integração service-tenant.integration.spec.mjs comprovam os onze modelos novos com Prisma/ALS/SQL reais, FKs e rollback. Nenhum endpoint artificial é criado; as negativas HTTP continuam obrigatórias em cada endpoint futuro.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test ./src/shared/persistence/tenant.middleware.spec.ts` e `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-name-pattern "^T6$" ./tests/service-tenant.integration.spec.mjs`. O seletor artificial no unit existente foi corrigido para executar seus 12 casos; o root T6 seleciona a integração real. Nenhum skipped; os checks finais por ID continuam obrigatórios, incluindo HTTP quando os controllers existirem.
 **Commit**: `feat(service-business): t6 scope new models to the authenticated tenant`
 
 ### T7: Define the canonical business policy resolver
