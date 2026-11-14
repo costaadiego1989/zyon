@@ -4,8 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { createServiceTestRuntime, serviceTestEnvironment, assertServiceCaseSummary } from './service-test-runtime.mjs';
 import { assertOwnedServiceNeo4j } from './service-test-neo4j.mjs';
 import { assertOwnedServiceRedis } from './service-test-redis.mjs';
+import { SERVICE_LOCAL_TEST_MS } from './service-test-startup.mjs';
 
-test('T2', { timeout: 300_000 }, async t => {
+test('T2', { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
   await t.test('ambient endpoints and secrets never enter the worker', () => {
     const env = serviceTestEnvironment({ PATH: 'synthetic-path', DATABASE_URL: 'postgresql://external',
       REDIS_URL: 'redis://external', NEO4J_URI: 'bolt://external', OPENAI_API_KEY: 'private-canary',

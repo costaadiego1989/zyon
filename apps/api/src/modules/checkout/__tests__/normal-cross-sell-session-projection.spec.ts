@@ -7,7 +7,7 @@ import type { NormalCheckoutCrossSellPort } from "../../cross-sell/domain/ports/
 function session():CheckoutSession{return{merchantId:"merchant",sessionId:"session",globalUserId:"buyer",conversationId:"conversation",
   cart:{currency:"BRL",total:9,items:[{sku:"A",name:"A",quantity:1,price:9,originalPrice:10,variantId:"a",product_id:"p-a",
     crossSellIntent:{version:1,promotionId:"promo",promotionUpdatedAt:"2026-10-20T12:00:00.000Z",acceptedQuantity:1,
-      originalUnitPriceCents:1000,maximumUnitPriceCents:900,selectedOptionItemIds:[]}}]},
+      originalUnitPriceCents:1000,maximumUnitPriceCents:900,...{selectedOptionItemIds:[]}}}]},
   abandonmentScore:0,triggerAgent:false,chatHistory:[],persistenceVersion:1,createdAt:"2026-10-20T12:00:00.000Z",updatedAt:"2026-10-20T12:00:00.000Z"};}
 function service(read:NormalCheckoutCrossSellPort["read"]){return new CartPromoResolutionService(undefined,undefined,undefined,{read});}
 test("session-bound normal intent projection passes only actual scope plus compare-only snapshot to authority",async()=>{

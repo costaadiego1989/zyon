@@ -11,6 +11,7 @@ import {terminateOwnedNativeWorker} from './native-prisma-admission-guards.mjs';
 import {assertServiceArtifacts} from './service-test-artifacts.mjs';
 import {installCheckoutSessionVersionTrigger} from './checkout-session-version-trigger.mjs';
 import {createServiceTestNeo4j} from './service-test-neo4j.mjs';
+import {awaitServiceStartup} from './service-test-startup.mjs';
 
 export const serviceTestEnvironment=source=>constructionOnlyEnvironment(source);
 export function assertServiceCaseSummary(value){
@@ -22,9 +23,11 @@ export async function createServiceTestRuntime(options){
   assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph'].includes(k))
     &&(options.graph===undefined||typeof options.graph==='boolean'),'service_local_options_required');
   const build=assertServiceArtifacts(),apiRoot=fileURLToPath(new URL('../',import.meta.url));
-  let db,redis,graph,worker,workerExited,closed=false,appEvidence,cleanup;
-  let readyResolve,readyReject,closeResolve,closeReject;
+  let db,redis,graph,worker,workerExited,closed=false,appEvidence,cleanup,lastStage='unspawned';
+  let readyResolve,readyReject,preflightResolve,preflightReject,closeResolve,closeReject;
   const ready=new Promise((resolve,reject)=>{readyResolve=resolve;readyReject=reject;});
+  const preflight=new Promise((resolve,reject)=>{preflightResolve=resolve;preflightReject=reject;});
+  ready.catch(()=>{});preflight.catch(()=>{});
   const appClosed=new Promise((resolve,reject)=>{closeResolve=resolve;closeReject=reject;});
   // A setup failure may occur before the close acknowledgement is awaited.
   appClosed.catch(()=>{});
@@ -38,7 +41,7 @@ export async function createServiceTestRuntime(options){
     catch(e){errors.push(e);}
     try{await terminateOwnedNativeWorker(worker);}catch(e){errors.push(e);}
     for(const owned of [graph,redis,db])if(owned){try{await owned.dispose();if(owned.bridgeStatus)assert.deepEqual(owned.bridgeStatus(),{listening:false,sockets:0,children:0});}catch(e){errors.push(e);}}
-    if(errors.length)throw new AggregateError(errors,'service_runtime_cleanup_failed');
+    if(errors.length)throw new AggregateError(errors,`service_runtime_cleanup_failed:${lastStage}:${errors.map(error=>String(error.message).slice(0,1800)).join('|')}`);
     cleanup={appClosed:true,remainingContainers:0,remainingBridgeSockets:0};
   }
   try{
@@ -55,20 +58,25 @@ export async function createServiceTestRuntime(options){
     worker=spawn(process.execPath,['--import',new URL('./test-network-guard.mjs',import.meta.url).href,
       fileURLToPath(new URL('./service-test-runtime.worker.mjs',import.meta.url)),db.prismaUrl,db.runId,redis.url,redis.runId],
       {cwd:apiRoot,env:serviceTestEnvironment(process.env),windowsHide:true,stdio:['ignore','pipe','pipe','ipc']});
-    let outputBytes=0,stderr='';
+    let outputBytes=0,stderr='',stageFailure='';lastStage='spawned';
     const limit=chunk=>{outputBytes+=chunk.length;if(outputBytes>2_000_000){readyReject(new Error('service_worker_output_limit'));worker.kill();}};
     worker.stdout.on('data',limit);worker.stderr.on('data',chunk=>{limit(chunk);if(stderr.length<20_000)stderr+=chunk.toString();});
-    worker.on('error',error=>{readyReject(error);closeReject(error);});
+    worker.on('error',error=>{preflightReject(error);readyReject(error);closeReject(error);});
     worker.on('message',message=>{
-      if(message?.type==='ready')readyResolve(message);
+      if(message?.type==='stage'){lastStage=message.stage;if(message.failure)stageFailure=message.failure;
+        if(message.stage==='owned_markers_checked')preflightResolve();}
+      else if(message?.type==='ready')readyResolve(message);
       else if(message?.type==='closed')closeResolve(message.evidence);
-      else if(message?.type==='failure'){const error=new Error(message.code??'service_worker_failed');readyReject(error);closeReject(error);}
+      else if(message?.type==='failure'){const error=new Error(message.code??'service_worker_failed');preflightReject(error);readyReject(error);closeReject(error);}
     });
     workerExited=new Promise(resolve=>worker.once('close',(code,signal)=>resolve({code,signal})));
-    worker.on('exit',code=>{if(!appEvidence)readyReject(new Error(`service_worker_exit_before_ready:${code}:${stderr.slice(-4000)}`));if(code!==0)closeReject(new Error(`service_worker_exit:${code}`));});
-    const info=await deadline(ready,110_000,'service_app_ready_timeout');
+    worker.on('exit',code=>{if(!appEvidence){const error=new Error(`service_worker_exit_before_ready:${code}:${stderr.slice(-4000)}`);
+      preflightReject(error);readyReject(error);}if(code!==0)closeReject(new Error(`service_worker_exit:${code}`));});
+    let info,timings;
+    try{({info,timings}=await awaitServiceStartup(preflight,ready));}
+    catch(error){if(['service_preflight_timeout','service_app_ready_timeout'].includes(error.message))throw new Error(`${error.message}:${lastStage}:${stageFailure}`);throw error;}
     const origin=new URL(info.apiOrigin);assert.equal(origin.hostname,'127.0.0.1');assert.equal(origin.protocol,'http:');
-    assert.ok(Number(origin.port)>1024);appEvidence=Object.freeze({...info.evidence,checkedBuild:build});
+    assert.ok(Number(origin.port)>1024);appEvidence=Object.freeze({...info.evidence,checkedBuild:build,startupTimings:timings});
     return Object.freeze({db,redis,graph,apiOrigin:info.apiOrigin,evidence:()=>appEvidence,cleanupEvidence:()=>cleanup,close});
   }catch(error){try{await close();}catch(cleanup){throw new AggregateError([error,cleanup],'service_runtime_setup_cleanup_failed');}throw error;}
 }

@@ -1,0 +1,115 @@
+{
+  "scope": "local compatibility bootstrap; no business implementation",
+  "apiTypecheck": {
+    "exitCode": 0,
+    "beforeErrors": 14,
+    "afterErrors": 0
+  },
+  "checkedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "1ac9b88b441c9f805e278507acdc89a01c934702dca168ca58d532a0034e422a",
+    "artifactSha256": "3423819cc21711ddf7fccb0d994b000cd8568c082a6ea01fcc77f4cb9d2aedf4",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2483
+    },
+    "recordedAt": "2026-11-14T20:41:36.388Z"
+  },
+  "compilerAndDeadlineContracts": {
+    "executed": 4,
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0
+  },
+  "ownedRuntime": {
+    "executed": 7,
+    "passed": 7,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 109437.6391,
+    "realHttpDb": true,
+    "providerCalls": 0,
+    "appCloseAckRequired": true,
+    "naturalWorkerExit": 0,
+    "ownedResourcesRemoved": true,
+    "productionShutdownValidated": false
+  },
+  "legacyRuntime": {
+    "executed": 248,
+    "passed": 234,
+    "failed": 14,
+    "skipped": 0,
+    "newFailureSignatures": 0,
+    "comparison": "bootstrap-runtime-comparison.json"
+  },
+  "sources": [
+    {
+      "path": "apps/api/src/modules/checkout/__tests__/normal-cross-sell-session-projection.spec.ts",
+      "sha256": "bcdc8f01466a03acbe67e1d144bcac48e3bac477de6afcd35565591dfcfc4641"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/infrastructure/prisma/prisma-checkout.session-anchor.spec.ts",
+      "sha256": "f500a26968d8cfd4928862c4ae11f0f46e29ff7ce0dd72b3e430181dad5edb77"
+    },
+    {
+      "path": "apps/api/src/modules/coupons/application/use-cases/storefront-checkout-coupon-application.spec.ts",
+      "sha256": "afcdc15beca3a4fc76f4e4679b2945f212454ebd906e65a5d253e295c9e47125"
+    },
+    {
+      "path": "apps/api/src/modules/coupons/infrastructure/repositories/prisma-normal-checkout-coupon-redemption.spec.ts",
+      "sha256": "8737c5cc23b4a0ed9c1bde3abe8c1673c709320bb618943818aa75677a22f36d"
+    },
+    {
+      "path": "apps/api/src/modules/cross-sell/application/services/cross-sell-product-resolver.spec.ts",
+      "sha256": "f247474a10a24857719a001a7f8347861ce045f281ff520f05951e037241f34f"
+    },
+    {
+      "path": "apps/api/src/modules/shipping/presentation/http/embed-shipping.controller.spec.ts",
+      "sha256": "d1ed3d77656e822658f1db96b44dbc2d0e69e2a77a6d814897162b11e9823abc"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/infrastructure/agents/storefront-post-mutation-terminal.spec.ts",
+      "sha256": "38856499346db5ea225baf2fbf432dd7a462fe596d78f34421610d97dd305b14"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/infrastructure/repositories/prisma-storefront-cross-sell-cart.adapter.spec.ts",
+      "sha256": "de58bb474d5e2f575b89adc7676ac4b9869a98baa6a142708c26a3e537dc2d31"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/infrastructure/repositories/prisma-storefront-shipping-reference.reader.spec.ts",
+      "sha256": "461c74acef3c3633bbab772187c83b53c8e2fa41be6a3eee8d216038d05d2306"
+    },
+    {
+      "path": "apps/api/tests/service-test-artifacts.mjs",
+      "sha256": "23b094d36a28ed27610b7a8b5f890155d477a202563bb72af309da8ca5cfbfc2"
+    },
+    {
+      "path": "apps/api/tests/service-test-artifacts.spec.mjs",
+      "sha256": "c4c3738a2bf279acb6acc5aac69297b712240af40cd984964952db2f9c18ce5a"
+    },
+    {
+      "path": "apps/api/tests/service-test-startup.mjs",
+      "sha256": "86a5687386b9c6aa094089d4047fc8357af41f35d3066dcdc1b8e4c397ab4b53"
+    },
+    {
+      "path": "apps/api/tests/service-test-startup.spec.mjs",
+      "sha256": "7c58f183f140cb6cc997100b42c40f4838dc3cc9f6f8128debdfea1ee9116980"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.mjs",
+      "sha256": "318f081cce153d910f7ef30eb963ade2db8d753e6a1843ecce088ce795017dac"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.worker.mjs",
+      "sha256": "05ce667750d40d69c3ee2f8a80f765e2e0b05554a88c4981c827eb25d720633c"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.spec.mjs",
+      "sha256": "d95b5be4708f4cb75ce8bb54dc9ef71c2d726788e53d6e9180815428bfb03d75"
+    }
+  ],
+  "logs": "C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution"
+}

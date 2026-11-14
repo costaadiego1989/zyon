@@ -78,7 +78,7 @@ test("canonical selection IDs and slot are checked before confirming an option-b
   const f=fixture("update_cart_item",{args:{optionItemIds:["large"],serviceSlotId:"slot-current"},output:cart([selected]),
     message:"Altere a quantidade no carrinho para 2 [variantId:target] [optionItemIds:large] [serviceSlotId:slot-current]"});
   const result=await f.run();assert.equal(result.message,success);assert.equal(f.requests.length,2);assert.equal(f.counts().writes,1);
-  assert.ok(result.blocks.some(block=>block.type==="cart_summary"&&block.data.items[0]?.optionItemIds?.[0]==="large"));
+  assert.ok(result.blocks.some(block=>block.type==="cart_summary"&&Reflect.get(block.data.items[0]??{},"optionItemIds")?.[0]==="large"));
 });
 test("exact option-bearing update can coexist with another selection of the same variant",async()=>{
   const output=cart([{...item(),optionItemIds:["large"]},{...item("target",1),optionItemIds:["small"]}]);
@@ -86,14 +86,14 @@ test("exact option-bearing update can coexist with another selection of the same
     message:"Altere a quantidade no carrinho para 2 [variantId:target] [optionItemIds:large]"}),result=await f.run();
   assert.equal(result.message,success);assert.equal(f.requests.length,2);assert.equal(f.counts().writes,1);
   const summary=result.blocks.find(block=>block.type==="cart_summary");assert.ok(summary);assert.equal(summary.data.items.length,2);
-  assert.equal(summary.data.items.find(line=>line.optionItemIds?.includes("large"))?.quantity,2);
-  assert.equal(summary.data.items.find(line=>line.optionItemIds?.includes("small"))?.quantity,1);
+  assert.equal(summary.data.items.find(line=>Reflect.get(line,"optionItemIds")?.includes("large"))?.quantity,2);
+  assert.equal(summary.data.items.find(line=>Reflect.get(line,"optionItemIds")?.includes("small"))?.quantity,1);
 });
 test("exact option-bearing removal may retain a different selection of the same variant",async()=>{
   const f=fixture("remove_cart_item",{args:{optionItemIds:["large"]},output:cart([{...item("target",1),optionItemIds:["small"]}]),
     message:"Remova do carrinho [variantId:target] [optionItemIds:large]"}),result=await f.run();
   assert.equal(result.message,success);assert.equal(f.requests.length,2);assert.equal(f.counts().writes,1);
-  assert.ok(result.blocks.some(block=>block.type==="cart_summary"&&block.data.items.length===1&&block.data.items[0]?.optionItemIds?.[0]==="small"));
+  assert.ok(result.blocks.some(block=>block.type==="cart_summary"&&block.data.items.length===1&&Reflect.get(block.data.items[0]??{},"optionItemIds")?.[0]==="small"));
 });
 
 for(const operation of ["update_cart_item","remove_cart_item"] as const)test(`${operation} unknown commit stays unknown with one attempt and no provider continuation`,async()=>{

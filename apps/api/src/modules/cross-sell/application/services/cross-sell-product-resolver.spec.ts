@@ -1,22 +1,26 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
+import { ProductEntity } from "../../../catalog/domain/entities/product.entity.js";
 import { resolveCrossSellCartItem, resolveCrossSellProduct } from "./cross-sell-product-resolver.js";
 
 function productRepo(overrides: { active?: boolean; variantActive?: boolean; stock?: number; reserved?: number; type?: string } = {}): ProductRepositoryPort {
-  const product = {
+  const product = new ProductEntity({
     id: "product_1", merchantId: "merchant_1", name: "Necessaire Executiva", type: overrides.type ?? "physical",
-    isActive: overrides.active ?? true, categoryId: "acessorios",
+    isActive: overrides.active ?? true, categoryId: "acessorios", createdAt: new Date(0), updatedAt: new Date(0),
     variants: [{
       id: "variant_1", sku: "NECS-001", attributes: {}, isActive: overrides.variantActive ?? true,
       basePriceInCents: 4990, costInCents: 1200, taxPercent: 0, currency: "BRL",
       stockQuantity: overrides.stock ?? 4, stockReserved: overrides.reserved ?? 0, media: [],
     }],
-  };
+  });
+  const unsupported = async () => { throw Error("unexpected_repository_method"); };
   return {
     findById: async () => null,
-    search: async () => ({ products: [product] as any, total: 1 }),
-  } as ProductRepositoryPort;
+    search: async () => ({ products: [product], total: 1 }),
+    create: unsupported, findExistingVariantSkus: unsupported, update: unsupported,
+    softDelete: unsupported, addVariant: unsupported, listCategories: unsupported, updateVariantBySku: unsupported,
+  };
 }
 
 describe("cross-sell-product-resolver", () => {

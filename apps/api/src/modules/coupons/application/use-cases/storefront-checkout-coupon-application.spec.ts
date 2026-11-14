@@ -16,13 +16,15 @@ function fixture({ saved = 10000, verified = true, discountPercent = 10, cap = 2
   const canonical = paidOptions ? 11000 : 10000;
   const option = { groupId: "size", groupName: "Tamanho", itemId: "large", itemName: "Grande", priceModifierInCents: 1000 };
   const rules = merchantRules({ maxDiscountPercent: cap });
-  const row = { id: "checkout-row", ...checkoutSession({ merchantId: "merchant", sessionId: "checkout-id", globalUserId: "buyer", persistenceVersion: 4,
+  const session = checkoutSession({ merchantId: "merchant", sessionId: "checkout-id", globalUserId: "buyer", persistenceVersion: 4,
     customer: { email: "buyer@example.test", email_verified: verified, address: { city: "Synthetic", state: "SP", zip: "01310100" } },
     cart: { source: "storefront", cart_ref: "cart-id", currency: "BRL", total: saved / 100, currentDiscount: 0,
       ...(saved < canonical ? { discountBudget: { version: 1 as const, originalSubtotalCents: canonical, promotionDiscountCents: canonical - saved } } : {}),
       items: [{ variantId: "variant", product_id: "product", sku: "SKU", name: "Saved", price: saved / 100, quantity: 1,
         ...(saved < canonical ? { originalPrice: canonical / 100 } : {}),
-        ...(paidOptions ? { variant: JSON.stringify(["variant", ["large"]]), selected_options: [{ group_name: "Tamanho", item_name: "Grande", price_modifier: 10 }] } : {}) }] } }), version: 4, createdAt: now, updatedAt: now };
+        ...(paidOptions ? { variant: JSON.stringify(["variant", ["large"]]), selected_options: [{ group_name: "Tamanho", item_name: "Grande", price_modifier: 10 }] } : {}) }] } });
+  const row = { id: "checkout-row", ...session, customer: session.customer, shipping: session.shipping,
+    version: 4, createdAt: now, updatedAt: now };
   const source = { id: "source-row", merchantId: "merchant", sessionId: "cart-id", items: [{ variantId: "variant", productId: "product", sku: "SKU", name: "Saved", unitPriceCents: saved, quantity: 1,
     ...(paidOptions ? { selectedOptions: [option] } : {}) }],
     total: saved, discount: 0, couponCode: null as string | null, freeShipping: false, createdAt: now, updatedAt: now, expiresAt: new Date("2100-01-01") };

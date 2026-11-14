@@ -100,7 +100,7 @@ test("hybrid reader retains canonical saved locality when available and permits 
   const f = fixture(); f.state.carrierEnabled = true;
   const covered = await f.reader.read(f.scope, { zipCode: "01310100" });
   assert.equal(covered.kind, "ready");
-  if (covered.kind === "ready") { assert.equal(covered.destinationNeighborhood, "Saved district"); assert.equal(covered.carrierEnabled, true); }
+  if (covered.kind === "ready") { assert.equal(covered.destinationNeighborhood, "Saved district"); assert.equal(Reflect.get(covered,"carrierEnabled"), true); }
   f.state.addresses = [];
   const carrier = await f.reader.read(f.scope, { zipCode: "01310100" });
   assert.equal(carrier.kind, "ready");

@@ -1,0 +1,79 @@
+{
+  "executed": 248,
+  "passed": 234,
+  "failed": 14,
+  "skipped": 0,
+  "newFailures": 0,
+  "failures": [
+    {
+      "title": "quote packages come from catalog-backed session data and reject missing dimensions",
+      "sameBaselineError": true,
+      "error": "'Missing expected rejection.'"
+    },
+    {
+      "title": "manual neighborhood quote uses the owned address only for the same CEP, ignoring body district",
+      "sameBaselineError": true,
+      "error": "|- Expected values to be strictly equal: true !== false"
+    },
+    {
+      "title": "real embed flat quote does not require parcel dimensions or dispatch a carrier",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "real embed neighborhood quote does not require parcel dimensions or dispatch a carrier",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "real embed unknown district quote does not require parcel dimensions or dispatch a carrier",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "real embed explicit free tariff quote does not require parcel dimensions or dispatch a carrier",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "provider validates owned missing dimensions before a cached quote, never trusting request packages",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "foreign manual configuration is rejected before owned package validation and never dispatches",
+      "sameBaselineError": true,
+      "error": "|- The input did not match the regular expression /shipping_manual_config_scope_mismatch/. Input: 'ConflictException: marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "embed neighborhood cannot price a homonymous district in a different owned city using forged body city",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "selection refuses a previously quoted district after the owned city changes, before saving selection",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "configuration failure does not turn missing parcel dimensions into manual or carrier delivery",
+      "sameBaselineError": true,
+      "error": "|- The input did not match the regular expression /synthetic_config_failure/. Input: 'ConflictException: marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "EmbedShippingController.quote uses cart.total from session when cart_total missing from body",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "EmbedShippingController.quote rejects forged free-shipping eligibility by using session total",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    },
+    {
+      "title": "EmbedShippingController.select succeeds end-to-end",
+      "sameBaselineError": true,
+      "error": "'marketplace_checkout_scope_unavailable'"
+    }
+  ]
+}

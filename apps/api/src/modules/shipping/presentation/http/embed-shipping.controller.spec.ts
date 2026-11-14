@@ -144,7 +144,7 @@ test("selection refuses a previously quoted district after the owned city change
   const quote = await f.controller.quote({ embedClaims }, ownedQuoteBody as never);
   f.session.customer!.address!.city = "Another city"; f.sessions.saveSession(f.session);
   const before = structuredClone(f.sessions.getSession("mrc_1", sessionId));
-  const select = new SelectShippingMethodUseCase(f.quotes, f.sessions, f.configSource);
+  const select = new SelectShippingMethodUseCase(f.quotes, f.sessions, undefined, undefined, f.configSource);
   await assert.rejects(select.execute({ merchant_id: "mrc_1", session_id: sessionId, carrier_key: quote.results[0]!.carrier_key }), /shipping_quote_review_required/);
   assert.equal((await f.quotes.findById(quote.id, "mrc_1"))!.snapshot().selected_carrier_key, null);
   assert.deepEqual(f.sessions.getSession("mrc_1", sessionId), before);
