@@ -40,7 +40,7 @@ test("captured 8b27890b generic cross-sell has only product navigation; decorati
   assert.match(result.agentMessage, /Bruma de Hidratação/); assert.match(result.agentMessage, /59,90/);
   assert.equal(result.agentMessage.includes("desconto"), false);
   const choices = view.choices.filter(c => c.action.kind === "tool" && c.action.tool.includes("cross_sell_offer"));
-  assert.deepEqual(choices.map(c => c.label), ["Adicionar", "Ver detalhes", "Não, obrigado"]);
+  assert.deepEqual(choices.map(c => c.label), ["Ver detalhes", "Adicionar", "Não, obrigado"]);
   assert(choices.every(c => c.action.kind === "tool" && Object.keys(c.action.args).join() === "offerId"));
   const native = presentMetaUi(view, "turn").messages.filter(m => m.type === "interactive");
   assert(native.length > 0); assert.equal(f.calls.accept, 0); assert.equal(f.calls.quote, 1);

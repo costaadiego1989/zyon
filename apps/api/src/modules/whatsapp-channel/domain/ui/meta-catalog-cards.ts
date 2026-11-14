@@ -31,7 +31,7 @@ export function metaProductCard(product: Record<string, any>, detail: MetaUiChoi
   return { kind: "product", name: String(product.name),
     body: [`📦 *${product.name}*\n💰 *${price}*`, metaProductRating(product), summary, product.inStock === false ? "_Indisponível no momento._" : "", ...notices].filter(Boolean).join("\n\n"),
     imageUrl: safeImage(product.image || product.imageUrl || product.image_url || product.images?.[0]),
-    choices: primary && direct ? [primary, { ...detail, label: "Ver detalhes" }] : primary ? [primary] : [{ ...detail, label: "Ver detalhes" }] };
+    choices: primary && direct ? [{ ...detail, label: "Ver detalhes" }, primary] : primary ? [primary] : [{ ...detail, label: "Ver detalhes" }] };
 }
 
 /** Each card has its own persisted purchase/read controls. Three products at a
@@ -60,6 +60,8 @@ export function presentMetaCatalogCards(view: MetaUiView, revision: string, requ
   // A search can contain required-condition disclosures: never replace its
   // prose with a generic sales sentence when changing the card presentation.
   if (!options.navigationOnly && page === 0 && view.body) messages.push({ type: "text", text: { body: speech(view.body) } });
+  if (!options.navigationOnly && options.includeMedia !== false && page === 0 && view.blocks.some(b => b.type === "commerce_animation"))
+    messages.push(...view.media.filter(m => m.type === "sticker" || m.type === "video").slice(0, 1));
   for (const [index, card] of current.entries()) {
     const buttons = choices(card.choices, String(index));
     if (options.native === false) messages.push({ type: "text", text: { body: `${speech(card.body)}\n\n${card.choices.map((choice, offset) => `${numericSelections.length - card.choices.length + offset + 1}. ${choice.label}`).join("\n")}` } });

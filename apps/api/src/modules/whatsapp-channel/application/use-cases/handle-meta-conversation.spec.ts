@@ -465,7 +465,8 @@ test('a product in an older owned native menu reloads current details instead of
   f.emitted.length=0;await f.execute();
   assert.deepEqual(action,{kind:'tool',tool:'get_product_details',args:{productId:'serum'}});
   assert.ok(!f.emitted.some(m=>m.type==='text'&&m.text.body.includes('Esse menu foi atualizado')));
-  assert.equal(f.emitted[0].type,'image');assert.equal(f.emitted[0].media.link,'https://example.com/serum.jpg');
+  assert.equal(f.emitted[0].type,'interactive');assert.equal(f.emitted[0].interactive.header.image.link,'https://example.com/serum.jpg');
+  assert.match(messageBody(f.emitted[0]),/Descrição atual/);
 });
 
 test('an old known cart mutation stays rejected and its error never repeats product images', async () => {
@@ -501,7 +502,8 @@ test("a page from an older product menu displays refreshed product information b
       description: "Descrição atual", image: "https://example.com/current.jpg", variants: [{ id: "v", stock: 2 }] } }] }; };
   f.emitted.length = 0; await f.execute();
   assert.deepEqual(action, { kind: "tool", tool: "get_product_details", args: { productId: "p" } });
-  assert.deepEqual(f.emitted.map(m => m.type), ["image", "interactive", "interactive"]);
+  assert.deepEqual(f.emitted.map(m => m.type), ["interactive", "interactive"]);
+  assert.equal(f.emitted[0].interactive.header.image.link, "https://example.com/current.jpg");
   assert.ok(f.emitted.some(m => messageBody(m).includes("Descrição atual")));
   assert.equal(f.claim.responseState.state.page, 1);
 });

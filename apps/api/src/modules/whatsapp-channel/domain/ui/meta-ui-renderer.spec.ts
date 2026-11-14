@@ -184,7 +184,8 @@ test("product details start with the actual photo, summarize and keep the full d
   const view = buildMetaUiView(response({ blocks: [{ type: "product_card", data: { id: "product", name: "Produto", price: 500,
     description, image: "https://images.unsplash.com/product.jpg", variants: [{ id: "variant", stock: 2 }] } }] }));
   const shown = presentMetaUi(view, "turn");
-  assert.equal(shown.messages[0].type, "image");
+  assert.equal(shown.messages[0].type, "interactive");
+  assert.equal((shown.messages[0] as any).interactive.header.image.link, "https://images.unsplash.com/product.jpg");
   assert.ok(!shown.messages.some(m => m.type === "text" && m.text.body.includes(description.trim())));
   const full = view.choices.find(c => c.label === "Ler descrição completa");
   assert.ok(full?.action.kind === "tool" && String(full.action.args.text).trim() === description.trim());
@@ -198,7 +199,7 @@ test("welcome retains merchant copy and explicitly invites unrestricted conversa
   const message = metaWelcomeMessage("Olá! Encontre produtos e confira seu pedido.", "Athom", "Zyon");
   assert.match(message, /^Olá! Encontre produtos/);
   assert.match(message, /Sou \*Zyon\*, assistente virtual da \*Athom\*/);
-  assert.match(message, /Fique à vontade para me perguntar/);
+  assert.match(message, /Mas fique à vontade para conversar comigo da forma que achar melhor/);
   assert.match(message, /\*Menu principal\*/);
   assert.doesNotMatch(message, /\/atalhos/);
   assert.ok(message.includes("Olá! Encontre produtos e confira seu pedido."));
@@ -382,7 +383,7 @@ test("a shopper can change an available variant after selecting one and its disp
     const shown = presentMetaUi(withMetaCartNavigation(view, true), "selected");
     assert.deepEqual(shown.numericSelections.slice(0, 3).map(a => a.kind === "tool" ? a.tool : a.kind), ["variant", "variant", "add_item_to_cart"]);
     const menu = native(shown).find(item => item.type === "list");
-    assert.equal(menu.header.text, "Sérum");
+    assert.equal(menu.header, undefined);
     assert.equal(menu.action.button, "Escolher variação");
     assert.match(menu.action.sections[0].rows[0].title, /Volume: 30 ml/);
     assert.match(menu.action.sections[0].rows[1].title, /Volume: 50 ml/);

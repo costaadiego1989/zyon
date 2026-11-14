@@ -10,7 +10,7 @@ const response = (blocks: any[], state: Record<string, unknown> = {}): WhatsAppS
 });
 const origin = "https://api.example.test/v1?ignored=true";
 
-test("each confirmed addition presents its confirmation and controls before the decoration without changing the canonical result", () => {
+test("each confirmed addition presents confirmation before decoration and the recommendation controls without changing the canonical result", () => {
   const original = response([{ type: "cart_add_result", data: { cartId: "cart", variantId: "variant", status: "succeeded" } }, { type: "cross_sell", data: { products: [{ id: "socks", name: "Meia", price: 2000, image: "https://cdn.example.test/socks.jpg" }] } }]);
   const before = structuredClone(original);
   const decorated = withCartAnimations(original, origin);
@@ -21,7 +21,8 @@ test("each confirmed addition presents its confirmation and controls before the 
   const shown = presentMetaUi(buildMetaUiView(decorated), "addition");
   const video = shown.messages.findIndex(message => message.type === "sticker" && message.media.link.endsWith("cart-added-v1.webp"));
   assert(video > 0);
-  assert(shown.messages.slice(0, video).some(message => message.type === "interactive"));
+  assert(shown.messages.slice(0, video).some(message => message.type === "text" && message.text.body.includes("Item adicionado ao carrinho")));
+  assert(shown.messages.slice(video + 1).some(message => message.type === "interactive"));
   assert(shown.numericSelections.some(action => action.kind === "tool" && action.tool === "get_product_details" && action.args.productId === "socks"));
   assert.equal(withCartAnimations({ ...original, state: decorated.state }, origin).blocks[0].type, "commerce_animation", "a later successful addition gets its own confirmation");
 });

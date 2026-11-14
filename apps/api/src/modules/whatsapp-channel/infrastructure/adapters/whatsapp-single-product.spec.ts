@@ -48,12 +48,12 @@ test('welcome animation is HTTPS-only and appears once while text and menu stay 
   assert.equal(first.state.welcomeAnimationShown,true);
   const presentation=presentMetaUi(buildMetaUiView(first),'welcome');
   assert(presentation.messages.some(m=>m.type==='sticker' && m.media.link.endsWith('welcome-v2.webp')));
-  assert(presentation.messages.some(m=>m.type==='text'&&m.text.body.includes('Athom')));
+  assert(presentation.messages.some(m=>m.type==='interactive'&&String((m.interactive.body as any)?.text).includes('Athom')));
   const next=await f.adapter.respondStore({merchantId:'merchant',buyer,message:'Menu',state:first.state});
   assert(!next.blocks.some(b=>b.type==='welcome_animation'));
   process.env.API_PUBLIC_URL='http://api.example.test';
   const insecure=await f.adapter.respondStore({merchantId:'merchant',buyer,message:'Menu',state:initial});
-  assert.equal(insecure.blocks.length,0);assert(insecure.agentMessage.includes('Athom'));
+  assert.equal(insecure.blocks.some(b=>b.type==='welcome_animation'),false);assert(insecure.agentMessage.includes('Athom'));
 });
 
 test('typing the single matching product opens authoritative purchase controls through one storefront turn', async () => {
@@ -90,11 +90,12 @@ for (const command of ['/atalho', ' /ATALHOS ']) test(`shortcut command ${comman
     assert.deepEqual((result.state as any)[field], before[field]);
   assert.deepEqual(result.state.history.slice(0, -2), before.history);
   assert.equal(result.state.history.at(-2)?.content, command);
-  assert.match(result.agentMessage, /Seus atalhos/);
+  assert.match(result.agentMessage, /Menu principal/);
+  assert.doesNotMatch(result.agentMessage, /Seus atalhos|digite/);
   assert.equal(result.blocks.some(block => block.type === 'welcome_animation'), false);
   const shown = presentMetaUi(withMetaCartNavigation(buildMetaUiView(result), true), 'shortcuts');
-  assert.ok(shown.numericSelections.some(action => action.kind === 'tool' && action.tool === 'get_cart'));
-  assert.ok(shown.numericSelections.some(action => action.kind === 'tool' && action.tool === 'checkout'));
+  assert.ok(shown.numericSelections.some(action => action.kind === 'message' && action.message === '🛒 Meu carrinho'));
+  assert.ok(shown.numericSelections.some(action => action.kind === 'message' && action.message === '⚡ Compra rápida'));
 });
 
 for (const [name, blocks, action, detailsId] of [
