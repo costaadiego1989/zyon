@@ -8,6 +8,14 @@ function shoppingWords(message: string): string[] {
     .replace(/[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/);
 }
 
+/** A whole-message catalog request has no product, budget or attribute filter.
+ * Keep it separate from recommendations, whose result set is intentionally small. */
+export function isCatalogBrowsingRequest(message: string): boolean {
+  const text = shoppingWords(message).join(" ");
+  return /^(?:(?:quero|gostaria de|pode|poderia) )?(?:(?:ver|mostrar|mostre|listar|liste|conhecer) )?(?:o |os |seus |todos os )?(?:catalogo|produtos)(?: (?:da loja|disponiveis|a venda|para venda))?(?: por favor)?$/.test(text)
+    || /^(?:quais|que) produtos (?:(?:voce|voces) )?(?:tem|temos|vendem|vende|ha|estao disponiveis|estao a venda)(?: (?:a venda|para venda|na loja|disponiveis))?(?: por favor)?$/.test(text);
+}
+
 /** Browsing buttons ask for a selection or filter, not another recommendation.
  * Match whole labels only: a new concrete need must keep the sales route. */
 export function productBrowsingAction(message: string): "select" | "filter" | undefined {

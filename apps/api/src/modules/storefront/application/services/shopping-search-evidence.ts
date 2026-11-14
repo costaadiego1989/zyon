@@ -36,14 +36,14 @@ export function shoppingSearchEvidence(plan: ShoppingSearchPlan, count: number):
   ].filter(Boolean);
   const sort = { price_asc: "menor preço primeiro", price_desc: "maior preço primeiro", rating: "melhor avaliação primeiro", newest: "mais recentes primeiro" };
   let message = count
-    ? `🔎 Encontrei ${count} ${count === 1 ? "opção disponível" : "opções disponíveis"} nesta página${filters.length ? ` com ${filters.join("; ")}` : " no catálogo da loja"}.`
+    ? `🔎 Separei ${count} ${count === 1 ? "opção" : "opções"} nesta busca${filters.length ? ` com ${filters.join("; ")}` : ""}.`
     : `🔎 Não encontrei produtos disponíveis${filters.length ? ` com ${filters.join("; ")}` : " para essa consulta"}.`;
   if (plan.minRating !== undefined && !count) message += " Produtos sem avaliações aprovadas não comprovam a nota mínima.";
   if (plan.sortBy) message += `\n📋 Ordem: ${sort[plan.sortBy]}.`;
   if (preferences.length) message += `\nℹ️ Preferências ainda não confirmadas: ${preferences.join("; ")}.`;
   if (!count) message += " Podemos ajustar os critérios?";
   const fallback = count
-    ? `🔎 Encontrei ${count} opções disponíveis que atendem aos requisitos verificados nesta página.${preferences.length ? " Suas preferências ainda não foram confirmadas." : ""}`
+    ? `🔎 Separei ${count} opções nesta busca com os requisitos verificados.${preferences.length ? " Suas preferências ainda não foram confirmadas." : ""}`
     : "🔎 Não encontrei produtos disponíveis com os requisitos solicitados. Podemos ajustar os critérios?";
   return { ...common, status: "verified" as const, message: safeCopy(message, fallback) };
 }
@@ -92,7 +92,7 @@ export function shoppingRecoveryEvidence(plan: ShoppingSearchPlan, products: Arr
       return { productId: p.id, details: details.map(detail => detail.slice(0, 400)) };
     });
     const lines = products.slice(0, 3).map((p, i) => `• *${p.name.slice(0, 100)}*: ${evidence.differences![i]!.details.slice(0, 4).map(detail => detail.slice(0, 180)).join(" ") || "Opção da mesma família publicada no catálogo."}`);
-    evidence.message = `🔎 Não confirmei uma correspondência exata com todos os critérios. Estas são *alternativas semelhantes*, com os requisitos obrigatórios e preços atuais verificados.\n${lines.join("\n")}\n💬 Qual opção você quer conhecer em detalhes ou comparar?`;
+    evidence.message = `🔎 Não achei uma opção com todas as preferências. Separei *alternativas semelhantes* dentro dos requisitos obrigatórios.\n${lines.join("\n")}\nQual você quer conhecer ou comparar?`;
   } else {
     // All positive preferences were requirements in this exact phase and were
     // checked on the selected, canonically priced variant.

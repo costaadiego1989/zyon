@@ -139,6 +139,11 @@ export class HandleMetaConversationUseCase {
         // reloads authoritative data and must still present that fresh content.
         navigationOnly = !recoveredView;
       }
+      else if (action?.kind === "cart_edit_items") {
+        const response = await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
+          message: "Editar itens do carrinho", state, action: { kind: "tool", tool: "get_cart", args: {} } });
+        state = { ...response.state, page: 0 }; view = buildMetaUiView(response, { cartEditing: true });
+      }
       else if (action?.kind === "back" && state.previousViews.length) {
         view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
         const product = view?.blocks.find(b => b.type === "product_card");
@@ -177,10 +182,12 @@ export class HandleMetaConversationUseCase {
             media: images.slice(galleryPage * 3, galleryPage * 3 + 3).map(link => ({ type: "image" as const, media: { link } })), blocks: [], quickReplies: [] };
         } else {
           const quantity = Number(action.args.quantity || 1);
+          const selector = { ...(action.args.optionItemIds !== undefined ? { optionItemIds: action.args.optionItemIds } : {}),
+            ...(action.args.serviceSlotId !== undefined ? { serviceSlotId: action.args.serviceSlotId } : {}) };
           view = { title: "Editar quantidade", body: `Quantidade atual: ${quantity}`, media: [], blocks: [], quickReplies: [], choices: [
-            { label: "Adicionar uma unidade", action: { kind: "tool", tool: "update_cart_item", args: { variantId: action.args.variantId, quantity: quantity + 1 } } },
-            ...(quantity > 1 ? [{ label: "Retirar uma unidade", action: { kind: "tool" as const, tool: "update_cart_item", args: { variantId: action.args.variantId, quantity: quantity - 1 } } }] : []),
-            { label: "Remover item", action: { kind: "tool", tool: "remove_cart_item", args: { variantId: action.args.variantId } } },
+            { label: "Adicionar uma unidade", action: { kind: "tool", tool: "update_cart_item", args: { variantId: action.args.variantId, quantity: quantity + 1, ...selector } } },
+            ...(quantity > 1 ? [{ label: "Retirar uma unidade", action: { kind: "tool" as const, tool: "update_cart_item", args: { variantId: action.args.variantId, quantity: quantity - 1, ...selector } } }] : []),
+            { label: "Remover item", action: { kind: "tool", tool: "remove_cart_item", args: { variantId: action.args.variantId, ...selector } } },
           ] };
         }
         if (action.tool !== "edit_cart_item") {

@@ -36,7 +36,7 @@ import { hasCareProfile, salesProductFamily, salesRecommendationContext } from "
 import { contextualCareDiscovery, explicitlyContinuesCareDiscovery } from "../../domain/services/contextual-sales-discovery.js";
 import { allowsSalesDiscovery, countSalesDiscoveryRounds, isBroadShoppingRequest, isUnspecifiedShoppingRequest,
   isBarePriceObjection, needsSalesClarification, MAX_SALES_DISCOVERY_ROUNDS, parseSalesDiscoveryQuestion, salesDiscoveryHistory,
-  unspecifiedShoppingStep, UNSPECIFIED_SHOPPING_QUESTION, SHOPPING_CATEGORIES_QUESTION, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
+  isCatalogBrowsingRequest, unspecifiedShoppingStep, UNSPECIFIED_SHOPPING_QUESTION, SHOPPING_CATEGORIES_QUESTION, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
 import { ASK_PRODUCT_PREFERENCES } from "../../domain/tools/definitions/ask-product-preferences.tool.js";
 import { createSalesSearchPolicy } from "../../domain/services/sales-search-policy.js";
 import { parseStorefrontModelOutput, storefrontModelJsonSchema, STOREFRONT_MODEL_FALLBACK } from "../../domain/contracts/storefront-model-output.schema.js";
@@ -344,6 +344,34 @@ export class StorefrontLangGraphAgent {
     }
     let discoveryQuestion: SalesDiscoveryQuestion | undefined;
     const history = salesDiscoveryHistory(input.history, input.userMessage);
+    if (this.structuredRouting && !quantitySelection && !input.attachmentContext
+      && semantic.classification.domain === "STORE_COMMERCE" && isCatalogBrowsingRequest(input.userMessage)) {
+      let message = "Não consegui carregar o catálogo agora. Tente novamente em instantes.";
+      let blocks: ConversationBlock[] = [];
+      let confirmed = false;
+      const args = { query: "*", inStockOnly: true, limit: 10 };
+      toolsUsed.push("search_products"); input.callbacks?.onToolCall?.("search_products", args);
+      try {
+        const read = await observeStorefrontOperation("tool", () => callStorefrontTool("search_products", args,
+          checked => requestHandlers.searchProducts(checked as Parameters<StoreToolHandlers["searchProducts"]>[0])), { tool: "search_products" });
+        input.callbacks?.onToolResult?.("search_products", read);
+        const checked = read.ok ? storefrontToolOutputSchemas.search_products.safeParse(read.data) : undefined;
+        if (checked?.success) {
+          const count = checked.data.products?.length ?? 0;
+          message = count ? `Confira ${count === 1 ? "o produto" : `os ${count} produtos`} desta lista.${checked.data.nextCursor ? " Há mais opções na próxima página." : ""}\nAbra um produto para ver fotos e detalhes.`
+            : "Não encontrei produtos disponíveis para compra agora. Posso ajudar com informações sobre a loja?";
+          const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: input.userMessage, finalContent: message,
+            toolResults: { search_products: checked.data }, presentationMode: "structured" });
+          message = built.finalContent; blocks = built.blocks; confirmed = true;
+        }
+      } catch { /* A failed read never becomes a claim that the store is empty. */ }
+      input.callbacks?.onToken?.(message);
+      return { message, blocks, toolsUsed, cartId: input.cartId,
+        usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+        routing: { source: semantic.source, domain: semantic.classification.domain, needsProductDiscovery: false,
+          intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
+        safetyValidation: { safe: confirmed, ...(confirmed ? {} : { reason: "catalog_read_unconfirmed" }) } };
+    }
     const genericStep = this.structuredRouting && !quantitySelection && !input.attachmentContext
       && semantic.classification.domain === "STORE_COMMERCE" && !salesProductFamily(salesRecommendationContext(input.userMessage, history))
       ? unspecifiedShoppingStep(input.userMessage, history) : undefined;
@@ -360,7 +388,7 @@ export class StorefrontLangGraphAgent {
           routing: { source: semantic.source, domain: semantic.classification.domain, needsProductDiscovery: false,
             intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed }, safetyValidation: { safe: true } };
       };
-      if (genericStep === "ask_need") return finish(UNSPECIFIED_SHOPPING_QUESTION, [], { question: UNSPECIFIED_SHOPPING_QUESTION, replies: [] });
+      if (genericStep === "ask_need" && input.messageFormat !== "whatsapp") return finish(UNSPECIFIED_SHOPPING_QUESTION, [], { question: UNSPECIFIED_SHOPPING_QUESTION, replies: [] });
       const guidance = "Posso ajudar você a escolher. Conte o que pretende fazer com o produto ou escreva *ver produtos* para explorar o catálogo.";
       if (!requestHandlers.listCategories) return finish(guidance);
       try {
@@ -369,7 +397,7 @@ export class StorefrontLangGraphAgent {
         input.callbacks?.onToolResult?.("list_categories", read);
         const checked = read.ok ? storefrontToolOutputSchemas.list_categories.safeParse(read.data) : undefined;
         if (!checked?.success || !checked.data.categories.length) return finish(guidance);
-        const message = genericStep === "categories" ? SHOPPING_CATEGORIES_QUESTION
+        const message = genericStep !== "browse_categories" ? SHOPPING_CATEGORIES_QUESTION
           : "Sem problema. Escolha uma categoria no menu ou escreva *ver produtos* para conhecer o catálogo. Quando algo chamar sua atenção, eu ajudo com os detalhes.";
         const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: input.userMessage, finalContent: message,
           toolResults: { list_categories: checked.data }, presentationMode: "structured" });
@@ -864,7 +892,7 @@ export class StorefrontLangGraphAgent {
       && toolsUsed.every(name => CANONICAL_READ_TOOLS.has(name)) && !confirmedRead
       && !discoveryQuestion && finalContent !== STOREFRONT_MODEL_FALLBACK;
     if (requiredReadUnconfirmed)
-      finalContent = "Não consegui confirmar essa consulta agora. Nenhuma condição comercial foi confirmada nesta resposta. Tente novamente em instantes.";
+      finalContent = "Não consegui carregar essa informação agora. Tente novamente ou escolha uma opção no menu para continuar.";
     if (structuredSearchRequired && !canonicalSearchComplete && toolsUsed.includes("search_products") && !discoveryQuestion)
       finalContent = SHOPPING_SEARCH_PLAN_UNCONFIRMED;
     const built = buildConversationBlocks({ toolResults: cartPolicy.sanitizeResults(toolResults), userMessage: input.userMessage, finalContent, merchantId: input.merchantId,

@@ -28,6 +28,7 @@ const product = z.strictObject({
     items: list(z.strictObject({ id, name: text, priceModifierInCents: z.number().int() })) })).optional(),
 });
 const cartItem = z.strictObject({ variantId: id, productName: text, quantity: z.number().int().positive(),
+  variantLabel: text.optional(),
   optionItemIds: z.array(id).max(250).optional(), serviceSlotId: id.nullable().optional(), selectionLabel: text.optional(),
   price: money, subtotal: money, imageUrl: text.optional(), selectedServiceSlotId: id.optional(),
   selectedOptions: z.array(z.strictObject({ itemId: id.optional(), groupName: text, itemName: text, priceModifier: z.number() })).max(250).optional() });

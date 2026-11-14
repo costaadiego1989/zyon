@@ -6,6 +6,7 @@ import { storefrontShippingReferenceResultSchema } from "../../domain/contracts/
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 import { currentDealCardPricing } from "./current-deal-card-pricing.js";
 import { publicProductSummary } from "../../domain/services/public-product-summary.js";
+import { catalogResultCopy } from "../../domain/services/catalog-result-copy.js";
 
 export interface BuildBlocksInput {
   searchPurpose?: "discovery" | "lookup";
@@ -110,6 +111,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   } else if (toolResults["search_products"] && !skipProductCarousel) {
     const searchData = toolResults["search_products"] as any;
     if (searchData?.products?.length > 0) {
+      finalContent = catalogResultCopy(finalContent, searchData.products.length);
       if (!finalContent.trim()) {
         finalContent = "Encontrei estas opções no catálogo. Confira os detalhes para escolher a que faz sentido para você.";
       }
@@ -273,6 +275,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             selectionLabel: i.selectionLabel,
             serviceSlotId: i.serviceSlotId === null ? null : i.serviceSlotId ?? i.selectedServiceSlot?.slotId,
             productName: i.name,
+            variantLabel: i.variantLabel,
             quantity: i.quantity,
             price: i.unitPrice,
             subtotal: i.lineTotal ?? i.unitPrice * i.quantity,

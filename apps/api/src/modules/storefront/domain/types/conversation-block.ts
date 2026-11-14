@@ -71,6 +71,7 @@ export interface CartSummaryBlock {
     items: Array<{
       variantId: string;
       productName: string;
+      variantLabel?: string;
       quantity: number;
       price: number;
       subtotal: number;

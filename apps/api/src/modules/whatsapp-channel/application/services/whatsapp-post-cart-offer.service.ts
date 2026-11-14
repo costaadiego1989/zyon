@@ -15,13 +15,6 @@ const argsSchema = z.strictObject({ offerId: z.string().uuid() });
 const key = (ruleId: string, variantId: string) => JSON.stringify([ruleId, variantId]);
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-function firstName(value: unknown): string | undefined {
-  if (typeof value !== "string" || value.length > 120 || /[\r\n<>*_~`@\d\u0000-\u001f\u007f]/.test(value)) return;
-  const name = value.trim().normalize("NFC").split(/\s+/)[0];
-  if (!name || !/^[\p{L}][\p{L}'’\-]{0,29}$/u.test(name)
-    || ["usuario", "cliente", "comprador", "guest", "user", "unknown", "undefined", "null", "whatsapp", "qa"].includes(normalize(name))) return;
-  return name;
-}
 const data = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const block = (offer: Offer) => ({ type: "post_cart_offer", data: { offerId: offer.id, productId: offer.productId,
   name: offer.name, priceCents: offer.expectedQuote.maximumUnitPriceCents, imageUrl: offer.imageUrl } });
@@ -66,15 +59,15 @@ export class WhatsAppPostCartOfferService {
     // Only the validated tone selects presentation. Free-form persona cannot
     // supply a price, benefit, suitability claim or consent to add the suggestion.
     switch (tone) {
-      case "friendly": return `Quero aproveitar sua escolha para te apresentar *${offer.name}*. Separei essa recomendação da loja pensando em um complemento para o que você acabou de selecionar. Veja por que vale conhecer!`;
-      case "premium": return `Para acompanhar sua escolha, selecionei *${offer.name}*. Quero apresentar os detalhes deste complemento recomendado pela loja para você avaliar sua inclusão na compra.`;
-      case "direct": return `Selecionei *${offer.name}* para complementar sua compra. Confira a recomendação da loja e os detalhes antes de decidir.`;
-      case "technical": return `A loja recomenda *${offer.name}* como complemento ao *${offer.addedName}*. Separei as características publicadas para você comparar e decidir.`;
-      default: return `Quero aproveitar sua escolha para apresentar *${offer.name}*: um complemento recomendado pela loja para acompanhar o que você acabou de selecionar. Veja o que separei para você conhecer.`;
+      case "friendly": return `Também separei *${offer.name}* para você conhecer.`;
+      case "premium": return `Para complementar sua escolha, selecionei *${offer.name}*.`;
+      case "direct": return `Uma sugestão para sua compra: *${offer.name}*.`;
+      case "technical": return `A loja recomenda este complemento: *${offer.name}*.`;
+      default: return `Pensando na sua escolha, separei *${offer.name}* para você conhecer.`;
     }
   }
 
-  async decorate(merchantId: string, response: WhatsAppStructuredResponse, customer: { buyerName?: string } = {}): Promise<WhatsAppStructuredResponse> {
+  async decorate(merchantId: string, response: WhatsAppStructuredResponse, _customer: { buyerName?: string } = {}): Promise<WhatsAppStructuredResponse> {
     const confirmed = response.blocks.find(b => b.type === "cart_add_result" && data(b.data).status === "succeeded"
       && data(b.data).cartId === response.state.conversationId);
     if (!confirmed) return response;
@@ -113,14 +106,18 @@ export class WhatsAppPostCartOfferService {
           variantId: quote.variantId, productId: quote.productId, sourceVariantId: added.variantId,
           addedName: String(source.productName ?? source.name), name: String(candidate.name), imageUrl: candidate.image,
           expiresAt: Date.now() + 10 * 60_000, status: "pending", expectedQuote: quote };
-        const price = kind === "discount" ? `🏷️ *Condição especial para complementar sua compra*\nDe ~${money(quote.originalUnitPriceCents)}~ por *${money(quote.maximumUnitPriceCents)}* por unidade.\nVocê economiza *${money(quote.originalUnitPriceCents - quote.maximumUnitPriceCents)}* nesta unidade, na cotação atual.`
+        const price = kind === "discount" ? `🏷️ De ~${money(quote.originalUnitPriceCents)}~ por *${money(quote.maximumUnitPriceCents)}* nesta compra.`
           : `💰 *${money(quote.maximumUnitPriceCents)}* por unidade.`;
         const [suggestion, reasons] = await Promise.all([this.recommendation(merchantId, offer), this.reasons(merchantId, offer)]);
-        const why = reasons.length ? `\n\n✨ *${reasons.length === 1 ? "Veja um motivo para levar esse produto também" : `Agora, veja ${reasons.length} motivos para levar esse produto também`}*\n${reasons.map((reason, index) => `${index + 1}. ${reason.charAt(0).toLocaleUpperCase("pt-BR") + reason.slice(1)}`).join("\n")}` : "";
-        const name = firstName(customer.buyerName);
-        const message = `🤖 👋 ${name ? `Olá, *${name}*!` : "Olá!"}\n\n✅ Vi que você acabou de adicionar *${offer.addedName}* ao carrinho.\n\n💡 *Uma recomendação selecionada para você*\n${suggestion}\n\n${price}${why}\n\n💬 Posso incluir *1 unidade de ${offer.name}* no seu carrinho por *${money(quote.maximumUnitPriceCents)}*? Se preferir, posso mostrar os detalhes antes de você decidir.\n\n_Sugestão opcional: só adiciono se você quiser._`;
+        const selectedReasons: string[] = [];
+        let budget = Math.max(0, 350 - suggestion.length - price.length - 42);
+        for (const reason of reasons) {
+          if (reason.length + 3 <= budget) { selectedReasons.push(reason); budget -= reason.length + 3; }
+        }
+        const why = selectedReasons.length ? `\n\n${selectedReasons.map(reason => `• ${reason}`).join("\n")}` : "";
+        const message = `${suggestion}\n\n${price}${why}\n\nQuer incluir uma unidade?`;
         state = { ...state, postCartOffer: offer, expectsFreeInput: false,
-          history: response.state.history.map((entry, index, all) => index === all.length - 1 && entry.role === "assistant" ? { ...entry, content: message } : entry) };
+          history: response.state.history.map((entry, index, all) => index === all.length - 1 && entry.role === "assistant" ? { ...entry, content: `${offer.addedName} adicionado ao carrinho.\n\n${message}` } : entry) };
         return { ...response, agentMessage: message, quickReplies: [], state,
           blocks: [...response.blocks.filter(b => b.type !== "cross_sell"), block(offer)] };
       } catch { /* Successful cart add is never retried because offering failed. */ }

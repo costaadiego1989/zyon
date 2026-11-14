@@ -73,8 +73,11 @@ test("catalog names stay readable and complete without a redundant back row", ()
         assert.equal(row.description, "Núcleo — Bruma de Hidratação · R$\u00a099,90");
       }
       if (action.args.productId === "long") {
-        assert.equal(row.title, "Creme reparador facial…");
-        assert(shown.messages.some(message => message.type === "text" && message.text.body.includes(products[2].name) && message.text.body.includes("120,00")));
+        assert.equal(row.title, "Creme reparador facial");
+        assert(shown.messages.some(message => {
+          const body = message.type === "text" ? message.text.body : message.type === "interactive" ? String((message.interactive.body as any)?.text ?? "") : "";
+          return body.includes(products[2].name) && body.includes("120,00");
+        }));
       }
     }
   }
@@ -89,7 +92,7 @@ test("a long published brand name without a product suffix retains a nonblank na
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [{ id: "brand-only", name, price: 7319 }] } }] as any }));
   const shown = presentMetaUi(view, "brand-suffix");
   const row = native(shown).at(-1).action.sections[0].rows[0];
-  assert.equal(row.title, "Laboratório de…");
+  assert.equal(row.title, "Laboratório de");
   assert.equal(row.description, `${name} · R$\u00a073,19`);
   assert.deepEqual(shown.selections[row.id], { kind: "tool", tool: "get_product_details", args: { productId: "brand-only" } });
 });
@@ -98,7 +101,7 @@ test("product row shortening respects Unicode and detail navigation uses the mai
   const name = "🧴 Hidratação diária intensiva com proteção";
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [{ id: "unicode", name, price: 1000 }] } }] as any }));
   const rows = native(presentMetaUi(view, "unicode")).at(-1).action.sections[0].rows;
-  assert.equal(rows[0].title, "🧴 Hidratação diária…");
+  assert.equal(rows[0].title, "🧴 Hidratação diária");
   assert(rows[0].description.includes(name));
   const details = buildMetaUiView(response({ blocks: [{ type: "product_card", data: { id: "p", name: "Produto", variants: [] } }] as any }));
   const actions = presentMetaUi(details, "detail", 0, { canGoBack: true }).numericSelections;
@@ -131,13 +134,13 @@ test("assistant prose has a robot identity and contextual emphasis without chang
  const pix="000201"+"1234567890".repeat(30);assert.equal(formatMetaSpeech(pix),pix);
 });
 
-test("welcome sends the greeting, then its video, then assistance blocks and native controls", () => {
+test("welcome combines greeting and controls before the animation", () => {
  const view=buildMetaUiView(response({agentMessage:"👋 *Boas-vindas*\n\nOlá, sou a assistente da loja.\n\n*Converse à vontade*\n- Confira os produtos.",
   blocks:[{type:"welcome_animation",data:{url:"https://example.test/welcome.mp4"}}] as any,quickReplies:["Ver Produtos"]}));
  const shown=presentMetaUi(view,"welcome-order");
- assert.deepEqual(shown.messages.map(m=>m.type),["text","video","text","interactive"]);
- assert(shown.messages[0].type==="text"&&shown.messages[0].text.body.startsWith("🤖 👋"));
- assert(shown.messages[2].type==="text"&&shown.messages[2].text.body.includes("💬 *Converse à vontade*"));
+ assert.deepEqual(shown.messages.map(m=>m.type),["interactive","video"]);
+ assert.match((shown.messages[0] as any).interactive.body.text,/^🤖 👋/);
+ assert.match((shown.messages[0] as any).interactive.body.text,/💬 \*Converse à vontade\*/);
 });
 
 test("animated welcome keeps greeting above the robot and help below it", () => {
@@ -192,23 +195,23 @@ test("welcome retains merchant copy and explicitly invites unrestricted conversa
   const message = metaWelcomeMessage("Olá! Encontre produtos e confira seu pedido.", "Athom", "Zyon");
   assert.match(message, /^Olá! Encontre produtos/);
   assert.match(message, /Sou \*Zyon\*, assistente virtual da \*Athom\*/);
-  assert.match(message, /conversar comigo normalmente/);
+  assert.match(message, /Conte o que procura ou pergunte sobre produtos/);
   assert.match(message, /digite \*\/atalhos\*/);
   assert.ok(message.includes("Olá! Encontre produtos e confira seu pedido."));
 });
 
-test("catalog prioritizes actual photos and retains products without photos on later pages", () => {
+test("catalog preserves canonical ordering and loads photos only on product selection", () => {
   const view = withMetaCartNavigation(buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [
     { id: "test", name: "Teste", price: 500 }, { id: "serum", name: "Sérum", price: 18990, image: "https://cdn.example/serum.jpg" },
   ] } }] })), true);
   const shown = presentMetaUi(view, "turn");
-  assert.ok(shown.messages.some(m => m.type === "image" && m.media.link === "https://cdn.example/serum.jpg"));
+  assert.equal(shown.messages.filter(m => m.type === "image").length, 0);
   const products = shown.numericSelections.filter(a => a.kind === "tool" && a.tool === "get_product_details");
-  assert.deepEqual(products.map(a => a.kind === "tool" && a.args.productId), ["serum", "test"]);
+  assert.deepEqual(products.map(a => a.kind === "tool" && a.args.productId), ["test", "serum"]);
   const menu = native(shown).find(m => m.type === "list");
-  assert.equal(menu.footer.text, "🤖 Pode perguntar o que quiser.");
-  assert.equal(menu.action.sections[0].rows[0].title, "Sérum");
-  assert.equal(menu.action.sections[0].rows[1].title, "Teste");
+  assert.equal(menu.footer, undefined);
+  assert.equal(menu.action.sections[0].rows[0].title, "Teste");
+  assert.equal(menu.action.sections[0].rows[1].title, "Sérum");
   assert.match(menu.action.sections[0].rows.at(-1).title, /Menu principal/);
 });
 
@@ -227,11 +230,13 @@ test("cart uses one native product list while preserving authoritative quantitie
   assert.deepEqual(catalog[0].action, { catalog_id: "12345", sections: [{ title: "Itens da sua compra", product_items: [
     { product_retailer_id: "v" }, { product_retailer_id: "other" },
   ] }] });
-  assert.match(view.body, /Quantidade: 2 · R\$\s379,80/);
-  assert.match(view.body, /Total dos itens: R\$\s429,80/);
+  assert.match(view.body, /2× \*Sérum\* — R\$\s379,80/);
+  assert.match(view.body, /\*Total: R\$\s429,80\*/);
   assert.match(catalog[0].body.text, /Enviar um carrinho.*adiciona as unidades/);
   assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "checkout"));
-  assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "edit_cart_item" && c.action.args.quantity === 2));
+  assert.ok(view.choices.some(c => c.action.kind === "cart_edit_items"));
+  const editing = buildMetaUiView(input, { cartEditing: true });
+  assert.ok(editing.choices.some(c => c.action.kind === "tool" && c.action.tool === "edit_cart_item" && c.action.args.quantity === 2));
 });
 
 test("unlinked, stale-price, customized and scheduled cart items never appear in the native list or as separate photos", () => {
@@ -245,7 +250,7 @@ test("unlinked, stale-price, customized and scheduled cart items never appear in
     const input = response({ blocks: [{ type: "cart_summary", data: { items: [item], subtotal: 20, total: 20 } }] as any });
     Object.assign(input.state, state);
     const view = buildMetaUiView(input);
-    assert.deepEqual(view.media, []); assert.match(view.body, /Total dos itens: R\$\s20,00/);
+    assert.deepEqual(view.media, []); assert.match(view.body, /\*Total: R\$\s20,00\*/);
   }
 });
 
@@ -257,7 +262,8 @@ test("native cart lists deduplicate retailer IDs, omit unmapped lines and respec
   assert.equal(catalog.interactive.action.sections[0].product_items.length, 30);
   assert.equal(new Set(catalog.interactive.action.sections[0].product_items.map((i: any) => i.product_retailer_id)).size, 30);
   assert.match(catalog.interactive.body.text, /primeiros 30 produtos/);
-  assert.match(view.body, /34\. \*Produto 0\*/);
+  assert.equal((view.body.match(/1× \*Produto 0\*/g) ?? []).length, 3);
+  assert.equal((view.body.match(/\*Total:/g) ?? []).length, 1);
 });
 
 test("adding a product confirms the authoritative cart without repeating its product photo or details", () => {
@@ -265,10 +271,10 @@ test("adding a product confirms the authoritative cart without repeating its pro
     { type: "cart_add_result", data: { status: "succeeded" } },
     { type: "cart_summary", data: { items: [{ variantId: "v", name: "Protetor", quantity: 1, subtotal: 99.9, imageUrl: "https://example.com/protetor.jpg" }], subtotal: 99.9, total: 99.9 } },
   ] as any })), true), "added");
-  assert.deepEqual(shown.messages.map(m => m.type), ["text", "interactive"]);
-  const body = shown.messages[0].type === "text" ? shown.messages[0].text.body : "";
+  assert.deepEqual(shown.messages.map(m => m.type), ["interactive"]);
+  const body = (shown.messages[0] as any).interactive.body.text;
   assert.match(body, /Item adicionado ao carrinho/);
-  assert.match(body, /Quantidade: 1 · R\$\s99,90/);
+  assert.match(body, /1× \*Protetor\* — R\$\s99,90/);
   assert.ok(!body.includes("Descrição"));
   assert.ok(shown.numericSelections.some(a => a.kind === "tool" && a.tool === "checkout"));
 });
@@ -298,13 +304,14 @@ test("menu pagination preserves rich text and media controls without resending p
   assert.ok(view.body.includes("Descrição completa"));
   assert.equal(view.media.length, 1);
 });
-test("product photos follow their selectable native page, including later pages", () => {
-  const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 1000 + i, image: `https://example.com/${i}.jpg` })) } }] }));
+test("catalog pages expose every product without sending a separate photo for each", () => {
+  const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: Array.from({ length: 20 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 1000 + i, image: `https://example.com/${i}.jpg` })) } }] }));
   const first = presentMetaUi(view, "turn", 0);
   const second = presentMetaUi(view, "turn", 1, { includeMedia: true, navigationOnly: true });
-  assert.deepEqual(first.messages.filter(m => m.type === "image").map(m => m.type === "image" && m.media.link), [0, 1, 2].map(i => `https://example.com/${i}.jpg`));
-  assert.deepEqual(second.messages.filter(m => m.type === "image").map(m => m.type === "image" && m.media.link), [3, 4].map(i => `https://example.com/${i}.jpg`));
-  assert.equal(second.numericSelections[0].kind === "tool" && second.numericSelections[0].args.productId, "p3");
+  assert.deepEqual(first.messages.map(m => m.type), ["interactive"]);
+  assert.deepEqual(second.messages.map(m => m.type), ["interactive"]);
+  assert.equal(second.numericSelections[0].kind === "tool" && second.numericSelections[0].args.productId, "p7");
+  assert(native(second)[0].action.sections[0].rows.length <= 10);
 });
 test("secure checkout button preserves the entire signed URL without text-formatting its credentials", () => {
   const url = "https://widget.example/?embedToken=signed_token.signature&merchantId=own";
@@ -601,7 +608,7 @@ test('generic native controls use the requested instruction without the compass 
     const shown = presentMetaUi(buildMetaUiView(response({ quickReplies: labels })), 'copy');
     const menu = native(shown)[0];
     assert.equal(menu.body.text, 'Navegue no menu e explore as opções');
-    assert.equal(menu.footer.text, '🤖 Pode perguntar o que quiser.');
+    assert.equal(menu.footer, undefined);
     assert(!JSON.stringify(menu).includes('🧭'));
   }
 });

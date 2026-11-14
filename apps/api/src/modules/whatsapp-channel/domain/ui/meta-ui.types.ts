@@ -9,6 +9,7 @@ export type StoreUiAction =
   | { kind: "option_group"; productId: string; groupId?: string }
   | { kind: "page"; page: number }
   | { kind: "catalog_options" }
+  | { kind: "cart_edit_items" }
   | { kind: "back" }
   | { kind: "menu" };
 
@@ -29,6 +30,8 @@ export interface MetaUiView {
   quickReplies: string[];
   primaryAction?: MetaUiChoice & { body: string };
   productContext?: { productId: string; name: string; offerId?: string };
+  cartEditing?: boolean;
+  offerPresentation?: { confirmation: string; body: string; imageUrl?: string };
 }
 
 export interface MetaUiPresentation {

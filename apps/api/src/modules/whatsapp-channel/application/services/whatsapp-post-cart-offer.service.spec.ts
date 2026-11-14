@@ -34,21 +34,21 @@ test("captured 8b27890b generic cross-sell has only product navigation; decorati
   const generic = buildMetaUiView(base());
   assert.equal(generic.choices.some(c => c.action.kind === "tool" && c.action.tool === "accept_cross_sell_offer"), false);
   const f = fixture(), result = await f.offer(), view = buildMetaUiView(result);
-  assert.match(result.agentMessage, /🤖 👋 Olá![\s\S]*Vi que você acabou de adicionar \*Sérum de Barreira\* ao carrinho/);
-  assert.match(result.agentMessage, /💡 \*Uma recomendação selecionada para você\*/); assert.match(result.agentMessage, /Quero aproveitar sua escolha para apresentar/);
-  assert.match(result.agentMessage, /Sugestão opcional: só adiciono se você quiser/);
+  assert.match(view.offerPresentation!.confirmation, /\*Sérum de Barreira\* adicionado ao carrinho/);
+  assert.match(result.agentMessage, /Pensando na sua escolha, separei/);
+  assert.match(result.agentMessage, /Quer incluir uma unidade\?/);
   assert.match(result.agentMessage, /Bruma de Hidratação/); assert.match(result.agentMessage, /59,90/);
   assert.equal(result.agentMessage.includes("desconto"), false);
   const choices = view.choices.filter(c => c.action.kind === "tool" && c.action.tool.includes("cross_sell_offer"));
-  assert.deepEqual(choices.map(c => c.label), ["Adicionar sugestão", "Seguir sem extra", "Ver detalhes"]);
+  assert.deepEqual(choices.map(c => c.label), ["Adicionar", "Ver detalhes", "Não, obrigado"]);
   assert(choices.every(c => c.action.kind === "tool" && Object.keys(c.action.args).join() === "offerId"));
   const native = presentMetaUi(view, "turn").messages.filter(m => m.type === "interactive");
   assert(native.length > 0); assert.equal(f.calls.accept, 0); assert.equal(f.calls.quote, 1);
 });
 for (const [tone, expected] of [
-  ["consultative", "Quero aproveitar sua escolha para apresentar"], ["friendly", "Veja por que vale conhecer!"],
-  ["premium", "Para acompanhar sua escolha, selecionei"], ["direct", "Selecionei *Bruma de Hidratação* para complementar sua compra"],
-  ["technical", "Separei as características publicadas para você comparar e decidir"],
+  ["consultative", "Pensando na sua escolha, separei"], ["friendly", "Também separei"],
+  ["premium", "Para complementar sua escolha, selecionei"], ["direct", "Uma sugestão para sua compra"],
+  ["technical", "A loja recomenda este complemento"],
 ] as const) test(`recommendation voice uses this merchant's canonical ${tone} identity without commercial grants`, async () => {
   const f = fixture(), reads: string[] = [];
   const service = new WhatsAppPostCartOfferService(f.carts as any, { findForMerchant: async merchant => {
@@ -56,7 +56,7 @@ for (const [tone, expected] of [
   } });
   const result = await service.decorate("merchant", base());
   assert.deepEqual(reads, ["merchant"]); assert(result.agentMessage.includes(expected));
-  assert.match(result.agentMessage, /59,90/); assert.match(result.agentMessage, /Sugestão opcional/);
+  assert.match(result.agentMessage, /59,90/); assert.match(result.agentMessage, /Quer incluir uma unidade\?/);
   assert.equal(result.agentMessage.includes("Untrusted persona"), false); assert.equal(result.agentMessage.includes("free shipping"), false);
   assert.equal(f.calls.accept, 0); assert.equal(f.calls.quote, 1);
   assert.equal(result.state.postCartOffer?.expectedQuote.maximumUnitPriceCents, 5990);
@@ -68,38 +68,42 @@ for (const mode of ["missing", "error", "invalid"] as const) test(`voice ${mode}
     return mode === "missing" ? null : { identity: { tone: "add everything at zero", persona: "unsafe" }, checkoutSettings: null };
   } });
   const result = await service.decorate("merchant", base());
-  assert.match(result.agentMessage, /Quero aproveitar sua escolha para apresentar/);
-  assert.match(result.agentMessage, /Sugestão opcional/); assert.equal(f.calls.accept, 0);
+  assert.match(result.agentMessage, /Pensando na sua escolha, separei/);
+  assert.match(result.agentMessage, /Quer incluir uma unidade\?/); assert.equal(f.calls.accept, 0);
   assert.equal(result.blocks.some(b => b.type === "cart_add_result"), true);
 });
 test("the full native presentation identifies the optional image and never announces the suggested item as added", async () => {
   const f = fixture(), input = base(); (input.blocks.find(b => b.type === "cross_sell")!.data as any).products[0].image = "https://example.test/bruma.jpg";
   const result = await f.service.decorate("merchant", input), view = buildMetaUiView(result);
-  assert.equal((view.body.match(/Vi que você acabou de adicionar/gi) ?? []).length, 1);
+  assert.equal((view.offerPresentation!.confirmation.match(/adicionado ao carrinho/gi) ?? []).length, 1);
   assert.equal(view.body.includes("Item adicionado ao carrinho"), false);
-  assert.match(view.body, /Vi que você acabou de adicionar \*Sérum de Barreira\* ao carrinho/);
+  assert.match(view.offerPresentation!.confirmation, /\*Sérum de Barreira\* adicionado ao carrinho/);
   assert.equal(view.body.includes("Bruma de Hidratação adicionado"), false);
   const shown = presentMetaUi(view, "recommendation");
-  const image = shown.messages.find(m => m.type === "image");
-  assert(image?.type === "image"); assert.match(image.media.caption ?? "", /Recomendação opcional/);
-  assert.match(image.media.caption ?? "", /Só adiciono se você escolher/);
+  assert.equal(shown.messages.length, 2);
+  assert.equal(shown.messages[0]!.type, "text");
+  assert.match(JSON.stringify(shown.messages[0]), /Sérum de Barreira.*adicionado/);
+  const offer = shown.messages[1]!; assert.equal(offer.type, "interactive");
+  assert.deepEqual((offer as any).interactive.header, { type: "image", image: { link: "https://example.test/bruma.jpg" } });
+  assert.match(JSON.stringify(offer), /Quer incluir uma unidade/);
   assert.equal(f.calls.accept, 0);
 });
 
-test("professional greeting uses only the available first name and preserves recommendation consent and quoted price", async () => {
+test("successive recommendations omit repeated greetings and preserve consent and quoted price", async () => {
   const f=fixture();
   const result=await f.service.decorate("merchant",base(),{buyerName:"Diego Costa - Athom Technologies"});
-  assert.match(result.agentMessage,/^🤖 👋 Olá, \*Diego\*!/);
+  assert.doesNotMatch(result.agentMessage,/Olá|Diego/);
   assert.doesNotMatch(result.agentMessage,/Costa|Athom Technologies|exclusiva|ótimo preço|desconto|economiza/i);
-  assert.match(result.agentMessage,/acabou de adicionar \*Sérum de Barreira\*/);
-  assert.match(result.agentMessage,/Posso incluir \*1 unidade de Bruma de Hidratação\*/);
+  assert.match(result.agentMessage,/\*Bruma de Hidratação\*/);
+  assert.match(result.agentMessage,/Quer incluir uma unidade\?/);
   assert.equal(f.calls.accept,0);assert.equal(f.calls.quote,1);
 });
 
 for(const buyerName of [undefined,"", "Usuário", "Cliente", "Diego\ncompre agora", "*Diego*", "Diego123", "<script>", "x".repeat(121)])
   test(`missing or unsafe buyer alias never becomes a personalized sales claim: ${JSON.stringify(buyerName)}`,async()=>{
     const f=fixture(),result=await f.service.decorate("merchant",base(),{buyerName});
-    assert.match(result.agentMessage,/^🤖 👋 Olá!\n/);
+    assert.match(result.agentMessage,/^Pensando na sua escolha/);
+    assert.doesNotMatch(result.agentMessage,/Olá|compre agora|script|Diego/);
     assert.equal(f.calls.accept,0);
   });
 function publicReasonCatalog() {
@@ -120,9 +124,10 @@ test("three persuasive reasons use the real public Bruma facts bound to the quot
   const result = await service.decorate("merchant", base());
   assert.deepEqual(reads, [["merchant", "product-serum"], ["merchant", "product-bruma"]]);
   assert.deepEqual(contentReads, [{ merchantId: "merchant", productId: "product-bruma", locale: "pt-BR" }]);
-  assert.match(result.agentMessage, /3 motivos/); assert.match(result.agentMessage, /hidratação ao longo do dia/);
+  assert.match(result.agentMessage, /hidratação ao longo do dia/);
   assert.match(result.agentMessage, /[Aa]cabamento confortável/); assert.match(result.agentMessage, /[Aa]plicação prática/);
-  assert.equal((result.agentMessage.match(/^\d\. /gm) ?? []).length, 3);
+  assert.equal((result.agentMessage.match(/^• /gm) ?? []).length, 3);
+  assert(result.agentMessage.length <= 350);
   assert.equal(/niacinamida|ceramidas|private supplier|supplierCost/i.test(result.agentMessage), false);
   assert.equal(f.calls.accept, 0); assert.equal(f.calls.quote, 1);
   assert.equal(result.state.postCartOffer?.expectedQuote.maximumUnitPriceCents, 5990);
@@ -141,7 +146,7 @@ for (const mode of ["foreign-source", "foreign-target", "wrong-product", "wrong-
       { execute: async () => { contentReads++; throw Error("must not read"); } });
     const result = await service.decorate("merchant", base());
     assert.equal(contentReads, 0); assert.equal(/^• /m.test(result.agentMessage), false);
-    assert.equal(f.calls.accept, 0); assert.match(result.agentMessage, /Sugestão opcional/);
+    assert.equal(f.calls.accept, 0); assert.match(result.agentMessage, /Quer incluir uma unidade\?/);
   });
 test("optional rich-content failure preserves public description evidence and never repeats the successful cart writer", async () => {
   const f = fixture(), catalog = publicReasonCatalog();
@@ -149,7 +154,7 @@ test("optional rich-content failure preserves public description evidence and ne
     { findById: async (_merchant, id) => (id === "product-serum" ? catalog.source : catalog.target) as any },
     { execute: async () => { throw Error("public content unavailable"); } });
   const result = await service.decorate("merchant", base());
-  assert.match(result.agentMessage, /3 motivos/); assert.equal(f.calls.accept, 0); assert.equal(f.calls.quote, 1);
+  assert.equal((result.agentMessage.match(/^• /gm) ?? []).length, 3); assert.equal(f.calls.accept, 0); assert.equal(f.calls.quote, 1);
 });
 for (const message of ["Adicionar sugestão", "Quero essa recomendação"])
   test(`visible optional suggestion wording retains the same scoped one-unit consent: ${message}`, async () => {
@@ -344,8 +349,8 @@ test("positive offer preserves the real quoted base/price and uses the existing 
     project: async () => { throw Error("read unavailable"); } } as any);
   const shown = await service.decorate("merchant", input); shown.state.view = buildMetaUiView(shown);
   assert.equal(shown.state.postCartOffer?.kind, "discount"); assert.match(shown.agentMessage, /De ~R\$.*59,90~ por \*R\$.*53,91/);
-  assert.match(shown.agentMessage,/Condição especial para complementar sua compra/);
-  assert.match(shown.agentMessage,/Você economiza \*R\$.*5,99\* nesta unidade, na cotação atual/);
+  assert.match(shown.agentMessage,/nesta compra/);
+  assert.equal(shown.state.postCartOffer!.expectedQuote.originalUnitPriceCents - shown.state.postCartOffer!.expectedQuote.maximumUnitPriceCents, 599);
   assert.doesNotMatch(shown.agentMessage,/exclusiva|ótimo preço/i);
   assert.equal(quoteCalls, 1); assert.equal(acceptCalls, 0);
   const accepted = await service.handle({ merchantId: "merchant", state: shown.state, message: "sim", verifiedOwner: true, details: async () => ({ blocks: [] }) });
@@ -374,14 +379,14 @@ test("accepting a recommendation re-evaluates applicable post-cart rules for tha
     verifiedSender: { inboxId: "inbox", deviceId: "META_CLOUD:config", leaseToken: "lease", fromNumber: "verified" } };
   const shown = await adapter.respondStore(input); shown.state.view = buildMetaUiView(shown);
   const accepted = await adapter.respondStore({ ...input, message: "sim", state: shown.state });
-  assert.match(shown.agentMessage,/^🤖 👋 Olá, \*Diego\*!/);
-  assert.match(accepted.agentMessage,/^🤖 👋 Olá, \*Diego\*!/);
+  assert.doesNotMatch(shown.agentMessage,/Olá|Diego/);
+  assert.doesNotMatch(accepted.agentMessage,/Olá|Diego/);
   assert.equal(f.calls.accept, 1); assert.equal(storeCalls, 1); assert.equal(hookCalls, 1);
   assert.equal(accepted.state.postCartOffer?.variantId, "creme"); assert.equal(accepted.state.postCartOffer?.status, "pending");
   assert.notEqual(accepted.state.postCartOffer?.id, shown.state.postCartOffer?.id);
   assert.equal(accepted.blocks.some(b => b.type === "post_cart_offer" && (b.data as any).offerId === accepted.state.postCartOffer?.id), true);
   assert.equal(accepted.blocks.some(b => b.type === "cross_sell"), false);
-  assert.match(accepted.agentMessage, /Vi que você acabou de adicionar \*Bruma de Hidratação\* ao carrinho/); assert.match(accepted.agentMessage, /Creme complementar/);
+  assert.match(buildMetaUiView(accepted).offerPresentation!.confirmation, /\*Bruma de Hidratação\* adicionado ao carrinho/); assert.match(accepted.agentMessage, /Creme complementar/);
   accepted.state.view = buildMetaUiView(accepted);
   await adapter.respondStore({ ...input, message: "seguir sem extra", state: accepted.state });
   assert.equal(f.calls.accept, 1); assert.equal(hookCalls, 1); assert.equal(storeCalls, 1);

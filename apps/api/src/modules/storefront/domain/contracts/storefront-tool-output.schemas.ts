@@ -37,6 +37,7 @@ const suggestion = z.object({ name: text, sku: id, productId: id, price: money, 
 const suggestions = { crossSellSuggestions: list(suggestion).optional(), crossSellDisplayMode: text.optional() };
 const pricedProduct = product.extend({ price: money, inStock: z.boolean() });
 const cartItem = z.object({ variantId: id, name: text, quantity: z.number().int().positive(), unitPrice: money, lineTotal: money,
+  variantLabel: text.optional(),
   optionItemIds: z.array(id).max(250).optional(), serviceSlotId: id.nullable().optional(), selectionLabel: text.optional(),
   imageUrl: text.optional(), originalPrice: money.optional(), discountPercent: percent.optional(), coupon: z.boolean().optional(),
   selectedServiceSlot: slot.optional(), selectedOptions: z.array(z.object({ itemId: id.optional(), groupName: text, itemName: text, priceModifier: z.number() })).max(250).optional() });

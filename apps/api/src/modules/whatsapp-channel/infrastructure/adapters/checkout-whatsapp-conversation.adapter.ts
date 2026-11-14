@@ -32,6 +32,7 @@ import { PAYMENT_REPOSITORY, type PaymentRepository } from "../../../payment/dom
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../../checkout/domain/checkout-experience.config.js";
 import { metaWelcomeMessage } from "../../domain/ui/meta-ui-renderer.js";
 import { presentationAssetUrl, withCartAnimations } from "../../domain/ui/commerce-animations.js";
+import { metaCatalogCopy } from "../../domain/ui/meta-compact-presentation.js";
 import { projectPaidOrderReceipt } from "../../../notifications/domain/paid-order-receipt.js";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../../storefront/domain/ports/conversation.port.js";
 import { CheckoutShippingService } from "../../../checkout/application/services/checkout-shipping.service.js";
@@ -384,14 +385,6 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       history: withMetaProductReferences(state), ui_action: canonicalAction,
       attachment_context: input.attachmentContext,
     }, undefined, "whatsapp");
-    if (response.blocks.some(block => block.type === "cart_summary")) {
-      if (registeredBuyer) response.message += "\n\n👤 *Cadastro reconhecido*\n" + (registeredBuyer.customer.address_verified
-        ? "📍 Seu endereço salvo será usado na entrega."
-        : "📝 Vamos pedir apenas os dados que faltarem.") + (registeredBuyer.preferences
-        ? "\n⚙️ Suas preferências serão aplicadas às opções atuais de entrega e pagamento."
-        : "\n🚚 Na finalização, escolha o frete disponível para seu endereço.");
-      else if (recognition?.status === "ambiguous") response.message += "\n\n👤 *Identifique seu cadastro*\nHá mais de um cadastro neste número. Ao finalizar, informe o e-mail da conta que deseja usar. Não é preciso código de confirmação.";
-    }
     // A natural-language search with one result should expose its purchase
     // controls immediately. Read through the shared tools without recording a
     // second buyer turn or deriving a variant from the agent's prose.
@@ -457,6 +450,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
             history: [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: message }].slice(-24) } };
       }
     }
+    response.message = metaCatalogCopy(response.message, response.blocks);
     state.history = [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: response.message }].slice(-24);
     const product = response.blocks.find(b => b.type === "product_card");
     const submission = response.blocks.find(b => b.type === "review_submission");

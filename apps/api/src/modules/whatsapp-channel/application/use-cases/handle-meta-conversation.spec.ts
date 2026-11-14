@@ -5,6 +5,28 @@ import { buildMetaUiView, withMetaCartNavigation } from "../../domain/ui/meta-ui
 import { WhatsAppBuyerHubService } from "../services/whatsapp-buyer-hub.service.js";
 import { isMetaReadNavigation } from "../../domain/ui/meta-read-navigation.js";
 
+const messageBody = (message: any): string => message.type === "text" ? message.text.body : message.type === "interactive" ? message.interactive.body?.text ?? "" : "";
+
+test("cart edit reloads current quantities and preserves exact option/slot selectors through the editor", async () => {
+  const f = fixture(), state = f.route.whatsappSession.conversationState;
+  state.selections = { edit: { kind: "cart_edit_items" } }; f.input.interactiveId = "edit";
+  const requests: any[] = [];
+  f.conversation.respondStore = async (input: any) => { requests.push(input); return { agentMessage: "Seu carrinho:", quickReplies: [], state: input.state,
+    blocks: [{ type: "cart_summary", data: { items: [{ variantId: "same", productName: "Produto", quantity: 3, subtotal: 30, optionItemIds: ["extra"], serviceSlotId: null }], subtotal: 30, total: 30 } }] }; };
+  await f.execute(); assert.deepEqual(requests[0].action, { kind: "tool", tool: "get_cart", args: {} });
+  const next = f.route.whatsappSession.conversationState;
+  const [id] = Object.entries(next.selections).find(([, action]: any) => action.kind === "tool" && action.tool === "edit_cart_item")!;
+  assert(f.emitted.some(message => /3× \*Produto\*/.test(messageBody(message))));
+  f.input.interactiveId = id; f.input.inboxClaim = { id: "edit-line", merchantId: "m1", leaseToken: "lease" }; f.claim.responseState = undefined;
+  await f.execute();
+  assert.equal(requests.length, 1, "opening quantity controls does not mutate or repeat the read");
+  const choices = f.route.whatsappSession.conversationState.numericSelections;
+  const update = choices.find((a: any) => a.kind === "tool" && a.tool === "update_cart_item");
+  assert.deepEqual(update.args, { variantId: "same", quantity: 4, optionItemIds: ["extra"], serviceSlotId: null });
+  const remove = choices.find((a: any) => a.kind === "tool" && a.tool === "remove_cart_item");
+  assert.deepEqual(remove.args, { variantId: "same", optionItemIds: ["extra"], serviceSlotId: null });
+});
+
 function fixture() {
   let engineCalls = 0; const emitted: any[] = [];
   const claim: any = { id: "turn1", merchantId: "m1", leaseToken: "lease" };
@@ -47,7 +69,7 @@ for (const mismatch of ["checkout", "cart", "missing-scope", "unsupported", "fin
   if (mismatch === "unsent") previous.selectionSent = false;
   f.inbox.findPriorSelection = async () => previous;
   await f.execute(); assert.equal(f.calls(), 0);
-  assert(f.emitted.some(message => message.type === "text" && /menu foi atualizado/.test(message.text.body)));
+  assert(f.emitted.some(message => /menu foi atualizado/.test(messageBody(message))));
 });
 
 for (const tool of ["product_gallery", "show_content", "media_page"]) test(`${tool} keeps product purchase and main menu in the persisted incoming pipeline`, async () => {
@@ -94,7 +116,7 @@ test("back restores the welcome without repeating its original animation or a co
   await f.execute();
   assert.equal(f.calls(), 0);
   assert.equal(f.emitted.some(message => message.type === "video"), false);
-  assert.ok(f.emitted.some(message => message.type === "text" && message.text.body.includes("Como posso ajudar?")));
+  assert.ok(f.emitted.some(message => messageBody(message).includes("Como posso ajudar?")));
   assert.ok(f.emitted.some(message => message.type === "interactive"));
   assert.deepEqual(f.route.whatsappSession.conversationState.history, history);
 });
@@ -115,7 +137,7 @@ for (const mode of ["current-back", "archived-back"]) test(`HUB-02 cached privat
   await f.execute();
   assert.equal(request.message, "/atalhos"); assert.equal(request.verifiedSender.inboxId, "turn1");
   assert.equal(request.merchantId, "m1"); assert.equal(request.state.payment.intentId, "original");
-  assert.ok(f.emitted.some(item => item.type === "text" && item.text.body.includes("Atalhos atuais")));
+  assert.ok(f.emitted.some(item => messageBody(item).includes("Atalhos atuais")));
   assert.ok(!JSON.stringify(f.emitted).includes("PRIVATE_OLD_ADDRESS"));
 });
 
@@ -155,8 +177,8 @@ for (const mode of ['native', 'numeric', 'typed', 'legacy-native', 'archived-leg
   assert.equal(next.numericSelections.length, 9); assert.equal(next.page, 0);
   assert.ok(!next.numericSelections.some((a: any) => ['back', 'catalog_options', 'page'].includes(a.kind)));
   assert.ok(f.emitted.every(m => m.type !== 'image'));
-  assert.ok(f.emitted.some(m => m.type === 'text' && /Menu principal/.test(m.text.body)));
-  assert.ok(!f.emitted.some(m => m.type === 'text' && /Olá|Sou Assistente/.test(m.text.body)));
+  assert.ok(f.emitted.some(m => /Menu principal/.test(messageBody(m))));
+  assert.ok(!f.emitted.some(m => /Olá|Sou Assistente/.test(messageBody(m))));
 });
 
 test('archived read admission permits only the explicit root command among messages', () => {
@@ -167,6 +189,8 @@ test('archived read admission permits only the explicit root command among messa
 
 test("a partial send retries only the unsent message and never repeats commerce", async () => {
   const f = fixture(); let calls = 0;
+  const respond = f.conversation.respondStore;
+  f.conversation.respondStore = async (input: any) => ({ ...await respond(input), blocks: [{ type: "welcome_animation", data: { url: "https://example.test/welcome.webp" } }] });
   f.sender.sendUi = async (call: any) => { calls++; f.emitted.push(call.uiMessage); return calls === 2 ? { status: "failed", messageId: "" } : { status: "sent", messageId: "wamid." + calls }; };
   await assert.rejects(f.execute(), /whatsapp_send_failed/);
   await f.execute();
@@ -203,7 +227,7 @@ test("a selection from a stale menu cannot authorize a new action", async () => 
   const f = fixture(); await f.execute();
   f.claim.id = "turn2"; f.claim.responseState = undefined; f.input.interactiveId = "zyon:stale";
   await f.execute(); assert.equal(f.calls(), 1);
-  assert.ok(f.emitted.some(m => m.type === "text" && m.text.body.includes("Esse menu foi atualizado")));
+  assert.ok(f.emitted.some(m => messageBody(m).includes("Esse menu foi atualizado")));
 });
 
 test("a numeric answer during data entry remains free text", async () => {
@@ -281,7 +305,7 @@ test("back from a quantity editor reloads the actual cart instead of replaying o
   f.input.body = "0";
   await f.execute();
   assert.equal(action.tool, "get_cart");
-  assert.ok(f.emitted.some(message => message.type === "text" && /\*Produto\*[\s\S]*Quantidade: 3/.test(message.text.body)));
+  assert.ok(f.emitted.some(message => /3× \*Produto\*/.test(messageBody(message))));
 });
 
 test("back from the store menu resumes the current checkout instead of replaying its old payment controls", async () => {
@@ -430,7 +454,7 @@ test('an old known cart mutation stays rejected and its error never repeats prod
   const state=f.route.whatsappSession.conversationState;
   state.view={title:'Loja',body:'Catálogo',blocks:[{type:'product_carousel',data:{products:[]}}],quickReplies:[],media:[],choices:[{label:'Produto',image:{link:'https://example.com/product.jpg',caption:'Produto'},action:{kind:'tool',tool:'get_product_details',args:{productId:'p'}}}]};
   f.emitted.length=0;await f.execute();assert.equal(f.calls(),1);assert.equal(f.emitted.filter(m=>m.type==='image').length,0);
-  assert.ok(f.emitted.some(m=>m.type==='text'&&m.text.body.includes('Esse menu foi atualizado')));
+  assert.ok(f.emitted.some(m=>messageBody(m).includes('Esse menu foi atualizado')));
 });
 
 test('an earlier catalog page refreshes its original query instead of paging the current product or payment view',async()=>{
@@ -438,11 +462,12 @@ test('an earlier catalog page refreshes its original query instead of paging the
   f.route.whatsappSession.conversationState.payment={intentId:'current-payment'};
   f.inbox.findPriorSelection=async()=>({action:{kind:'page',page:1},view:{title:'Loja',body:'Busca anterior',choices:[],media:[],quickReplies:[],blocks:[{type:'product_carousel',data:{query:'pele',products:[]}}]}});
   let received:any;
-  f.conversation.respondStore=async(call:any)=>{received=call;return {agentMessage:'Resultados atuais',quickReplies:[],blocks:[{type:'product_carousel',data:{query:'pele',products:Array.from({length:6},(_,i)=>({id:'p'+i,name:'Produto '+i,price:500,image:'https://example.com/'+i+'.jpg'}))}}],state:call.state};};
+  f.conversation.respondStore=async(call:any)=>{received=call;return {agentMessage:'Resultados atuais',quickReplies:[],blocks:[{type:'product_carousel',data:{query:'pele',products:Array.from({length:10},(_,i)=>({id:'p'+i,name:'Produto '+i,price:500,image:'https://example.com/'+i+'.jpg'}))}}],state:call.state};};
   f.emitted.length=0;await f.execute();assert.equal(received.action.tool,'search_products');assert.equal(received.action.args.query,'pele');
   assert.equal(received.state.payment.intentId,'current-payment');
   assert.equal(f.claim.responseState.state.page,1);
-  assert.deepEqual(f.emitted.filter(m=>m.type==='image').map(m=>m.media.link),[3,4,5].map(i=>'https://example.com/'+i+'.jpg'));
+  assert.deepEqual(f.emitted.filter(m=>m.type==='image'),[]);
+  assert.equal(f.claim.responseState.state.numericSelections[0].args.productId,'p7');
 });
 
 test("a page from an older product menu displays refreshed product information before its controls", async () => {
@@ -456,7 +481,7 @@ test("a page from an older product menu displays refreshed product information b
       description: "Descrição atual", image: "https://example.com/current.jpg", variants: [{ id: "v", stock: 2 }] } }] }; };
   f.emitted.length = 0; await f.execute();
   assert.deepEqual(action, { kind: "tool", tool: "get_product_details", args: { productId: "p" } });
-  assert.deepEqual(f.emitted.map(m => m.type), ["image", "text", "interactive", "interactive"]);
-  assert.ok(f.emitted[1].text.body.includes("Descrição atual"));
+  assert.deepEqual(f.emitted.map(m => m.type), ["image", "interactive", "interactive"]);
+  assert.ok(f.emitted.some(m => messageBody(m).includes("Descrição atual")));
   assert.equal(f.claim.responseState.state.page, 1);
 });

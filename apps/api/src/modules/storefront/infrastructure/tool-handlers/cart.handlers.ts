@@ -81,6 +81,20 @@ function toCartLineDto(
   };
 }
 
+async function cartLineDtos(deps: CartHandlerDeps, merchantId: string,
+  lines: Parameters<typeof toCartLineDto>[0][], meta?: ProductPromoMeta) {
+  const result = lines.map(line => toCartLineDto(line, meta));
+  if (!lines.length) return result;
+  try {
+    const variants = await deps.prisma.productVariant.findMany({ where: { id: { in: lines.map(i => i.variantId) }, product: { merchantId } },
+      select: { id: true, attributes: true } });
+    const labels = new Map(variants.map(v => [v.id, Object.entries((v.attributes ?? {}) as Record<string, unknown>)
+      .filter(([key, value]) => /^(volume|tamanho|cor|modelo|capacidade|voltagem|size|color|colour|storage|memory)$/i.test(key)
+        && typeof value === "string" && value.length <= 80).map(([, value]) => String(value)).join(" · ")]));
+    return result.map(line => ({ ...line, ...(labels.get(line.variantId) ? { variantLabel: labels.get(line.variantId) } : {}) }));
+  } catch { return result; } // Optional labels never repeat a cart mutation.
+}
+
 export interface CartHandlerDeps {
   productRepo: ProductRepositoryPort;
   stockRepo: StockRepositoryPort;
@@ -389,7 +403,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
 
       return {
         cartId: cart.sessionId,
-        items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
+        items: await cartLineDtos(deps, ctx.merchantId, cart.items, promoMeta),
         addedItem: { variantId: resolvedVariantId, serviceSlotId: selectedServiceSlot?.slotId,
           optionItemIds: (selectedOptions ?? []).map(option => option.itemId) },
         total: cart.total / 100,
@@ -409,7 +423,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       const { cart, promoMeta, nextNudge, activeRules } = await reevaluateCartRules(deps, ctx.merchantId, ctx.sessionId, base);
       return {
         cartId: cart.sessionId,
-        items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
+        items: await cartLineDtos(deps, ctx.merchantId, cart.items, promoMeta),
         total: cart.total / 100,
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
@@ -428,7 +442,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, ctx.sessionId, removed);
       return {
         cartId: cart.sessionId,
-        items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
+        items: await cartLineDtos(deps, ctx.merchantId, cart.items, promoMeta),
         total: cart.total / 100,
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
@@ -457,7 +471,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, ctx.sessionId, updated);
       return {
         cartId: cart.sessionId,
-        items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
+        items: await cartLineDtos(deps, ctx.merchantId, cart.items, promoMeta),
         total: cart.total / 100,
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
