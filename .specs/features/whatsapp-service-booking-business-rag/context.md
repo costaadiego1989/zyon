@@ -99,6 +99,8 @@ As correções explícitas de animação antes do texto e dez produtos por lote 
 
 ## Evidence and Next Step
 
+- Active execution root after T2: `C:/tmp/zyon-service-business-20261114`, branch `feat/service-business-20261114`, from commit `6b71040e94bb4dccefb499763f97a20f26b275ea`. T1 b506dbd14 and T2 are committed. New worktree started clean. The prior R checkout remains intact with unrelated historical .specs modifications; do not import, stash or delete those changes. Worker service_batch_01 continues T3–T9 here; no duplicate worker is needed. Production remains untouched.
+
 - 2026-11-14, user approved tasks and refinements: "Aprovar o plano e iniciar implementação local". Plano de 71 critérios, 95 tarefas e 13 fases, com subagentes e preservação de produtos no WhatsApp/storefront. Registrar a aprovação em tasks.md e iniciar pelo baseline isolado. Não pedir essa autorização novamente.
 
 - Base da análise: isolated repository C:/tmp/zyon-whatsapp-final-prod-20261028, source 02204e523cabf377ad4b0f7578ebae7aac17e65a.

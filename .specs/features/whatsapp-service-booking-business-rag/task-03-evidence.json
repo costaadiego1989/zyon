@@ -1,0 +1,112 @@
+{
+  "status": "complete",
+  "scope": "local only; fixture WhatsApp; no Meta or PSP",
+  "browser": {
+    "command": "pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep T3$",
+    "exitCode": 0,
+    "executed": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "duration": "1.4m",
+    "cleanup": "awaited globalSetup teardown before process exit",
+    "startupTimings": {
+      "preflightMs": 11395,
+      "bootMs": 20971
+    }
+  },
+  "contract": {
+    "executed": 2,
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "captures": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/task3-dashboard-login.running.png",
+      "sha256": "c41629de9d950f4addb016844d22bb009484b3b712082d07a8c2a9860dba3d3e",
+      "bytes": 92996
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/task3-whatsapp-fixture-mobile.running.png",
+      "sha256": "b42c090c17b4a88f4884cec5f29a81cc23ce4749e2761a92e845f843e36e12fb",
+      "bytes": 7068
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/task3-whatsapp-fixture.running.png",
+      "sha256": "24fcfc28f76a66308aa4fec7df7244d9a2b773f53f0f82eea683faff7341962c",
+      "bytes": 10822
+    }
+  ],
+  "bootstrap": [
+    {
+      "path": "scripts/lib/dashboard-auth-build-policy.cjs",
+      "source": "C:\\tmp\\zyon-whatsapp-checkout-widget-20261105\\scripts\\lib\\dashboard-auth-build-policy.cjs",
+      "revision": "f1037635e38cb4d2e606b29eb73e5a74786a645b",
+      "sha256": "d87582d7f09978e90aae0c1976c8c1c0ae24a7c59e40bdb81a7a15e1ea64a325",
+      "sourceGitBlob": "ae6c5f51cf63af8b83c9f274fc197966220a5801"
+    }
+  ],
+  "build": {
+    "apiTypecheck": {
+      "exitCode": 0,
+      "beforeSpecErrors": 14,
+      "afterSpecErrors": 0,
+      "bootstrapCommit": "bcb863757a74e145bfc903a440e85dae432ce5fd"
+    },
+    "apiLint": {
+      "exitCode": 0,
+      "errors": 0,
+      "preexistingUnusedDisableWarnings": 2
+    },
+    "widgetTypecheck": 0,
+    "widgetBuild": 0,
+    "dashboardTypecheck": 0,
+    "storefrontTypecheck": 0,
+    "dashboardBuild": 0,
+    "storefrontBuild": 0,
+    "apiBuild": 0
+  },
+  "logDirectory": "C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution",
+  "harnessSources": [
+    {
+      "path": "apps/dashboard/e2e/service-local-reporter.mjs",
+      "sha256": "2ddb5f57c1384a244fd69eaae9de8ce6b401c5199b509c2a4ea4da62147c93a8"
+    },
+    {
+      "path": "apps/dashboard/e2e/service-local-reporter.spec.mjs",
+      "sha256": "f2f073236ffc903d7fc588dcbc0aa2b7edd7272e62fc2b63ad9cf699957c16f5"
+    },
+    {
+      "path": "apps/dashboard/e2e/service-local-scope.mjs",
+      "sha256": "67a54730174410fe1b2abfc66da9e7e2e653f5703b8a6e38c8b01411e91988c5"
+    },
+    {
+      "path": "apps/dashboard/e2e/service-local-scope.spec.mjs",
+      "sha256": "ac967538bc5e877afbde30f5639bce356b8e6942083229eeb6f9ef0608e49718"
+    },
+    {
+      "path": "apps/dashboard/e2e/service-local-setup.mjs",
+      "sha256": "7b23b090235f8679c6a07c5097bfaaceeb828a97aec6fa1264c164157a64db2e"
+    },
+    {
+      "path": "apps/dashboard/e2e/service-product-coexistence.spec.ts",
+      "sha256": "f5b066f820798e68f01f3de8a9df21450070ea87698b23a37175e03e371ab184"
+    },
+    {
+      "path": "apps/dashboard/playwright.service-local.config.ts",
+      "sha256": "5d7a87bb5baeba8d91ad299e9276bc28bc8fec11c38362d7db96f0784c96e776"
+    },
+    {
+      "path": "apps/api/eslint.config.mjs",
+      "sha256": "ae9d2583f599822a47209f64d91be27f328932fa196605da9e26070605c789aa"
+    },
+    {
+      "path": "scripts/service-local-build.mjs",
+      "sha256": "17b80a0087abb0e4b77b665fc24708ef4444180c49036ef278977b593708562e"
+    }
+  ],
+  "nativeWhatsAppValidated": false,
+  "actualPspValidated": false,
+  "productionFrontendBundle": false
+}

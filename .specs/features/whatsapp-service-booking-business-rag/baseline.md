@@ -4,6 +4,8 @@
 **Date**: 2026-11-14
 **Implementation root**: `C:/tmp/zyon-whatsapp-final-prod-20261028`
 
+**Active worktree after T2**: `C:/tmp/zyon-service-business-20261114`, branch `feat/service-business-20261114`, starting HEAD `6b71040e94bb4dccefb499763f97a20f26b275ea`. Original path above records where T1/T2 ran; the clean worktree is now canonical. Unrelated historical .specs state remains in the original checkout. Checked build reuse is permitted only with source/output hash equivalence, independent dependencies and a new T2 execution; no DB/env/lease state is transported.
+
 ## Assumptions and Boundaries
 
 Fonte API é a revisão `7229739c7b0da6bbe8da9a7746090e48ae81a7e7`. O checkout não continha frontend. Adicionamos somente as árvores Git rastreadas `apps/dashboard`, `apps/storefront` e `apps/widget_v2` da revisão limpa `f1037635e38cb4d2e606b29eb73e5a74786a645b` em `C:/tmp/zyon-whatsapp-checkout-widget-20261105`.

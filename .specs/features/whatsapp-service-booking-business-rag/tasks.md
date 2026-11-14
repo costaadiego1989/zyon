@@ -9,7 +9,7 @@ Implementar com a skill **tlc-spec-driven**, seguindo Execute e Critical Rules. 
 **Approved**: 2026-11-14 - user: "Aprovar o plano e iniciar implementação local"
 **Date**: 2026-11-14
 **Mutations**: 3
-**Build**: `pnpm --filter @zyon/api typecheck; pnpm --filter @zyon/api lint; pnpm --filter @zyon/api build; pnpm --filter @zyon/dashboard typecheck; pnpm --filter @zyon/dashboard build; pnpm --filter @zyon/storefront typecheck; pnpm --filter @zyon/storefront build; pnpm --filter @zyon/widget-v2 typecheck; pnpm --filter @zyon/widget-v2 build`
+**Build**: `pnpm --filter @zyon/api typecheck; pnpm --filter @zyon/api lint; pnpm --filter @zyon/api build; pnpm --filter @zyon/widget-v2 typecheck; pnpm --filter @zyon/widget-v2 build; pnpm --filter @zyon/dashboard typecheck; node scripts/service-local-build.mjs dashboard; pnpm --filter @zyon/storefront typecheck; node scripts/service-local-build.mjs storefront`
 
 Especificação original de 47 requisitos aprovada; este plano incorpora os refinamentos explícitos posteriores e totaliza 71 critérios. Aprovação deste documento confirma também os refinamentos. Ainda não autoriza push, deploy ou banco/provedor de produção. Empresas de produtos conservam os fluxos aprovados em ambos os canais. Não implementar antes do gate --execute e aprovação registrada nas palavras do usuário.
 
@@ -216,12 +216,12 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Contract do config + browser smoke: endpoint/credencial externos rejeitados, API local real com persistência e requests não autorizados bloqueados.
-- [ ] Gate Build passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Contract do config + browser smoke: endpoint/credencial externos rejeitados, API local real com persistência e requests não autorizados bloqueados.
+- [x] Gate Build passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Contract do config + browser smoke: endpoint/credencial externos rejeitados, API local real com persistência e requests não autorizados bloqueados.
-**Gate**: Build: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T3$"` + contract/unit correspondente e Build. Teste raiz T3 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Build: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T3$"` + `node --test apps/dashboard/e2e/service-local-scope.spec.mjs apps/dashboard/e2e/service-local-reporter.spec.mjs` e Build. Teste raiz T3 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t3 pin browser acceptance to local owned backends`
 
 ### T4: Define additive service persistence models
