@@ -1,0 +1,23 @@
+{
+  "task": "T9",
+  "status": "complete",
+  "phaseUnit": {"executed": 76, "passed": 76, "failed": 0, "skipped": 0, "exitCode": 0},
+  "harnessContracts": {"executed": 6, "passed": 6, "failed": 0, "skipped": 0, "exitCode": 0},
+  "phaseNative": {"executed": 50, "passed": 50, "failed": 0, "skipped": 0, "exitCode": 0, "durationMs": 265020.3976,
+    "byTask": {"T2": 7, "T5": 9, "T6": 15, "T8": 13, "T9": 6}},
+  "browser": {"executed": 1, "passed": 1, "failed": 0, "skipped": 0, "exitCode": 0, "preflightMs": 5450, "bootMs": 21131,
+    "environment": "Owned local API/database/Redis and actual dashboard login; WhatsApp is a labeled local fixture, with no Meta/PSP connection"},
+  "typecheck": {"api": 0, "widget": 0, "dashboard": 0, "storefront": 0},
+  "build": {"api": 0, "widget": 0, "dashboard": 0, "storefront": 0, "heavyProcessesSerialized": true},
+  "apiLint": {"exitCode": 0, "preexistingWarnings": 2},
+  "checkedBuild": {"buildExitCode": 0, "sourceCount": 2486, "inputSha256": "291ec93caff7f47ad890826d94c68ed87a0f3d68761cbabae1582b9da4dc690d", "artifactSha256": "6547c2832ab9b1b637781497fdaba0ca1a2ffad1eb909956bad93a4e0e233385"},
+  "profileProofs": ["new login retains prior product fields", "persisted exclusive mode", "canonical configured policy version", "disabled/unconfigured/review states fail closed for new booking", "role and plan independent", "legacy service evidence read from actual offer/reservation rows", "secret sentinels excluded", "foreign/anonymous denied"],
+  "prerequisiteFix": "07ba2b7b3 covers food as a product and serializes initial selection with canonical catalog writers; real controlled lock/conflict/rollback proof passed, without changing financial authority.",
+  "captures": ["captures/task3-dashboard-login.running.png", "captures/task3-whatsapp-fixture.running.png", "captures/task3-whatsapp-fixture-mobile.running.png"],
+  "cleanup": {"appClosedAcknowledged": true, "naturalWorkerExitRequired": true, "ownedContainersRemaining": 0, "ownedBridgeSocketsRemaining": 0, "providerCalls": 0},
+  "baselineLimit": "Broad pre-feature API baseline remains separately recorded as 5253 tests/5169 pass/84 fail/0 skip; no global production-readiness claim or weakened expectations.",
+  "frontendBuildLimit": "Local frontend artifacts use filtered synthetic public auth configuration; these are not production release bundles.",
+  "remoteChanges": false,
+  "finalFeatureVerification": "Root after T95; final proofs and independent verifier/screens have not run.",
+  "logs": "C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution/t9-*.log; t9-frontend-build-results.json"
+}

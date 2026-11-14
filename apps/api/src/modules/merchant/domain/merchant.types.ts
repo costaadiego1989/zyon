@@ -1,4 +1,5 @@
 import type { MerchantRules, MerchantTheme, SeoSettings, GtmSettings } from "@zyon/shared-types";
+import type { BusinessMode, ServicePolicyConfiguration } from "./service-business-policy.js";
 
 export interface MerchantStoreSettings {
   /** Server-activated scheduled split. The clock starts at proven fulfillment. */
@@ -92,7 +93,17 @@ export interface PostSaleCampaignSettings {
   reorderEnabled?: boolean;
 }
 
-export interface MerchantProfile {
+export interface MerchantBusinessProfile {
+  businessMode: BusinessMode;
+  businessModeSelectionState: "selected" | "legacy" | "review_required";
+  servicePolicyStatus: "unconfigured" | "configured" | "invalid";
+  policyVersion: number | null;
+  servicePolicy: (ServicePolicyConfiguration & { admissionsEnabled: boolean }) | null;
+  bookingBlockReason: string | null;
+  capabilities: { products: boolean; serviceAdministration: boolean; serviceBooking: boolean; reconcileExisting: boolean };
+}
+
+export interface MerchantProfile extends Partial<MerchantBusinessProfile> {
   budgetModeEnabled?: boolean;
   id: string;
   name: string;

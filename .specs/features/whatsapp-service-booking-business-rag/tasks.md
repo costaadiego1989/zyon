@@ -67,7 +67,7 @@ Não executar seleções legadas que herdam ambiente/URLs sem o guard; não usar
 
 ## Execution Plan
 
-Fases e tarefas são sequenciais. Dependência no antecessor inclui o gate integrado anterior, mesmo quando componentes não compartilham fonte. Subagentes de implementação já autorizados pelo usuário; lotes respeitam fases inteiras, sem dois autores simultâneos em componentes compartilhados. Cada fase abaixo cabe num lote de 4–9 tarefas. Verificação final usa autor independente.
+Em 2026-11-14 o usuário pediu: "por que esta demorando tanto? spawnar subagents". A execução agora prepara fases independentes em worktrees isoladas. Phase 1 continua em N; Phase 2 (T10–T16) e Phase 3 (T17–T25) podem ser preparadas em paralelo, com gates e commits após incorporar T9. T17 depende da base T9, não da UI/About T16. Phase 4 aguarda integração verde de ambas. Tarefas dentro de cada fase mantêm ordem, gate e commit próprios. Nenhum critério ou teste é reduzido; builds pesados são serializados por limite de memória. Detalhes em parallel-execution.md. Verificação final usa autor independente.
 
 ### Phase 1: Baseline and capability
 
@@ -151,7 +151,7 @@ T92 → T93 → T94 → T95
 
 ```
 T9 → T10
-T16 → T17
+T9 → T17
 T25 → T26
 T32 → T33
 T39 → T40
@@ -324,12 +324,12 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit mapper + integração de perfil após novo login; schema/consumidor compatíveis com resposta anterior.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit mapper + integração de perfil após novo login; schema/consumidor compatíveis com resposta anterior.
+- [x] Gate Build passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Unit mapper + integração de perfil após novo login; schema/consumidor compatíveis com resposta anterior.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T9$" ./src/modules/merchant/application/merchant-business-profile.mapper.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T9 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Unit merchant-business-profile.mapper.spec.ts e HTTP/DB service-business-profile.integration.spec.mjs; integração de perfil após novo login; schema/consumidor compatíveis com resposta anterior.
+**Gate**: Build: executar **Build** do cabecalho, unit mapper e regressao dos contratos da fase; HTTP/DB em `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-name-pattern "^T9$" ./tests/service-business-profile.integration.spec.mjs`. Reexecutar os gates T2/T5/T6/T7/T8 contra o mesmo build checked, os contratos de infraestrutura T2/T3 e browser T3 local. Nao unir roots diferentes sob um filtro que registre skips: o HTTP T9 tem arquivo proprio. Todos os casos devem executar, zero skipped; os checks finais por ID continuam obrigatorios. Baseline amplo preexistente continua registrado separadamente, sem alterar expectativas para forcar verde.
 **Commit**: `feat(service-business): t9 expose mode and policy in the authenticated profile`
 
 ### T10: Add the exclusive signup choice
@@ -462,7 +462,7 @@ T91 → T92
 
 **What**: Na fronteira canônica de create/update/publicação/import, resolver modalidade do tenant e recusar novas ofertas incompatíveis; cobrir todos os escritores reais, inclusive public API e caminhos diretos. Preservar produtos físicos/digitais aprovados e snapshots/processamento de ofertas históricas; legado ambíguo exige classificação explícita, sem invalidar pedido/pagamento já iniciado.
 **Where**: `apps/api/src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts`
-**Depends on**: T16
+**Depends on**: T9
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ONB-02, ONB-04, REG-01, REG-02, REG-04
 
@@ -2171,13 +2171,14 @@ Tasks: T70, T71.
 ## Handoff
 
 **Settled mid-build:** 2026-11-14 - user: "Aprovar o plano e iniciar implementação local". Aprovação recebida para os 71 critérios, 95 tarefas/13 fases, refinamentos posteriores e subagentes, preservando produtos nos dois canais. Publicação permanece etapa separada. Início por T1, sem alterar o workspace concorrente.
-**Dispatched:** Revisores somente leitura service_agenda_plan, service_dashboard_plan, business_rag_plan retornaram no HEAD 7229739c7b0da6bbe8da9a7746090e48ae81a7e7. Adendo de regressão retornou em agenda-review.md:139. 2026-11-14: worker service_batch_01 despachado para Phase 1, T1–T9, neste HEAD, com aprovação literal do usuário. Execução sequencial; nenhum outro worker/Verifier/screens desta feature. Se o worker mudar checkout em T1, registrar caminho/fonte e transportar somente estes artefatos. Aguardar seu retorno antes do lote seguinte.
+**Settled execution change:** 2026-11-14 - user: "por que esta demorando tanto? spawnar subagents". Preparos paralelos autorizados em checkouts isolados, preservando gates reais, dependências técnicas, commits atômicos e escopo local.
+**Dispatched:** Revisores somente leitura service_agenda_plan, service_dashboard_plan, business_rag_plan retornaram no HEAD 7229739c7b0da6bbe8da9a7746090e48ae81a7e7; product_baseline_triage retornou seu relatório. service_batch_01 mantém Phase 1 T1–T9 em C:/tmp/zyon-service-business-20261114, T1–T9 concluídas com gates da fase; retorno ao root pendente. Em ae2cb48e7, preparo de Phase 2 T10–T16 atribuído a service_company_ui em C:/tmp/zyon-service-company-ui-20261114 e Phase 3 T17–T25 a service_professional_agenda em C:/tmp/zyon-service-professional-agenda-20261114. Incorporar T9 antes de gates/commits dependentes; não iniciar Phase 4 até integrar ambas. Nenhum Verifier/screens final despachado.
 **Walked:** Nenhuma jornada da feature nova foi executada. Prints anteriores de produto não comprovam serviços. Capturas de proposta, se anexadas, terão rótulo de prévia local. Ao executar, registrar rota/gestos/dados/resultado e ambiente para cada Independent Test.
 
 ## Phase Execution Map
 
-Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10 → Phase 11 → Phase 12 → Phase 13
+Phase 1 → {Phase 2 || Phase 3} → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10 → Phase 11 → Phase 12 → Phase 13
 
-95 tarefas em 13 fases sequenciais. Um commit por tarefa com testes co-localizados. Construção e regressão da fase antes da seguinte. Não juntar tarefas em um commit para economizar tempo. Check final de granulação e cruzamento dos diagramas via validate_tasks.py antes de apresentar. Validar --execute somente após aprovação literal de spec e tarefas.
+95 tarefas em 13 fases; preparação paralela das fases 2/3 conforme solicitação posterior do usuário. Um commit por tarefa com testes co-localizados e gates prévios. Integrar/revalidar a base e preservar todos os critérios antes da fase seguinte dependente. Não juntar tarefas em um commit para economizar tempo. Check final de granulação e cruzamento dos diagramas via validate_tasks.py. Aprovações literais permanecem registradas.
 
 Após última tarefa: Build, check_proofs no mesmo HEAD, verificador independente com três mutações e revisão das capturas/jornadas; corrigir achados com commits e rodada final de provas. Só declarar concluído após validate_verification. Ativação remota não integra este plano local e precisa prova do release servido.

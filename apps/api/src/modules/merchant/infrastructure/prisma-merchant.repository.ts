@@ -9,6 +9,7 @@ import { toNumber } from "../../../shared/persistence/decimal.util.js";
 import { isBillingFeatureEnabled } from "../../payment/domain/billing-plans.js";
 import { z } from "zod";
 import { isInitialBusinessSelectionWrite, selectInitialBusinessMode } from "../application/initial-business-mode-selection.js";
+import { mapMerchantBusinessProfile } from "../application/merchant-business-profile.mapper.js";
 
 const existingPercent = z.union([z.number().finite(), z.custom<Prisma.Decimal>(value => Prisma.Decimal.isDecimal(value))
   .transform(value => value.toNumber())]).pipe(z.number().finite().min(0).max(100));
@@ -30,9 +31,15 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   constructor(private readonly prisma: PrismaClient) {}
 
   async getProfile(merchantId: string): Promise<MerchantProfile | undefined> {
-    const row = await this.prisma.merchant.findUnique({ where: { id: merchantId } });
+    const row = await this.prisma.merchant.findUnique({ where: { id: merchantId }, include: { serviceBusinessPolicy: true } });
     if (!row) return undefined;
+    const hasLegacyServiceData = !row.businessModeSelectedAt && (
+      await this.prisma.product.count({ where: { merchantId, type: "service" } }) > 0 ||
+      await this.prisma.serviceReservation.count({ where: { merchantId } }) > 0
+    );
     return {
+      ...mapMerchantBusinessProfile({ businessMode: row.businessMode, businessModeSelectedAt: row.businessModeSelectedAt,
+        businessModeNeedsReview: row.businessModeNeedsReview, hasLegacyServiceData, policy: row.serviceBusinessPolicy }),
       id: row.id,
       budgetModeEnabled: row.budgetModeEnabled,
       name: row.name,

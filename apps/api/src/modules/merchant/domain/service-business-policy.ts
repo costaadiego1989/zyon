@@ -54,7 +54,7 @@ export function validateServicePolicyConfiguration(value: unknown): ServicePolic
 export function resolveServiceBusinessPolicy(input: ServiceBusinessPolicyInput) {
   const businessMode = parseBusinessMode(input.businessMode);
   const needsReview = input.businessModeNeedsReview || (!input.businessModeSelectedAt && (input.hasLegacyServiceData || businessMode === "services"));
-  const selectionState = needsReview ? "review_required" : input.businessModeSelectedAt ? "selected" : "legacy";
+  const selectionState: "review_required" | "selected" | "legacy" = needsReview ? "review_required" : input.businessModeSelectedAt ? "selected" : "legacy";
   let policyStatus: "unconfigured" | "configured" | "invalid" = "unconfigured";
   let policy: ServicePolicyConfiguration | null = null;
   let policyVersion: number | null = null;
