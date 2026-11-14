@@ -362,13 +362,15 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP/DB service-business-onboarding.integration.spec.mjs: happy/invalid/foreign/forbidden/stale; provas co-localizadas com controller.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] HTTP/DB service-business-policy-http.integration.spec.mjs: happy/invalid/foreign/forbidden/stale; provas co-localizadas com controller.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: HTTP/DB service-business-onboarding.integration.spec.mjs: happy/invalid/foreign/forbidden/stale; provas co-localizadas com controller.
+**Tests**: HTTP/DB service-business-policy-http.integration.spec.mjs: happy/invalid/foreign/forbidden/stale; provas co-localizadas com controller.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T11$" ./src/modules/merchant/presentation/http/service-business-policy.controller.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T11 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t11 expose appointment policy configuration`
+
+**Evidence**: task-11-evidence.json. Unit4/4 and final native11/11, zero skips, actual AppModule/SQL. API typecheck/build0. First native attempt passed10 business cases but failed natural-exit cleanup; unchanged rerun passed including ACK/exit0/owned removal. No production shutdown fix is claimed.
 
 ### T12: Guard business mode changes
 

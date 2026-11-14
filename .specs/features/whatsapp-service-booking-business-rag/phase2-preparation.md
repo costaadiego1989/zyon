@@ -66,3 +66,7 @@ Read approved spec, design, context, tasks, execution amendment, source-review n
 ## T10 gate
 
 T9 fast-forward15e6957d019e8d7c9001da7bc11b7c54fc269f24 completed without conflicts. Future preparations are byte-verified outside the checkout at C:/tmp/zyon-service-company-preparation-20261114. T10 final browser1/1 and unit25/25, zero skips. The first OAuth seed failed on a nonexistent merchant_users.name column; the second replaced owner_name while setting pending flags. Both fixture defects were corrected using the real /auth/me writer and a JSONB flag merge. Assertions were preserved. Product/service captions now use the existing primary text token after visual review. API build artifacts were copied independently from clean T9 and verified by unchanged assertServiceArtifacts; no new API build is claimed.
+
+## T11 gate
+
+Unit4/4, API typecheck/build0 and checked coverage2488sources. Final AppModule/HTTP/DB native11/11 with ACK, natural exit0 and owned cleanup. First native execution passed all10 business scenarios but missed the unchanged5s natural-exit gate; the unchanged rerun passed in32.9s. No cleanup/guard/deadline was changed and no productive shutdown defect is claimed fixed. Gates use a dedicated MJS file so T8 retains its own root and no skipped tests.

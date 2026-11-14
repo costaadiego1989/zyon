@@ -20,16 +20,19 @@ import { ActivateMerchantStoreUseCase } from "./application/activate-merchant-st
 import { MerchantController } from "./presentation/merchant.controller.js";
 import { CryptoPaymentsController } from "./presentation/http/crypto-payments.controller.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
+import { ServiceBusinessPolicyController } from "./presentation/http/service-business-policy.controller.js";
+import { ConfigureServiceBusinessPolicyUseCase } from "./application/configure-service-business-policy.use-case.js";
 
 @Module({
   imports: [AuthModule],
-  controllers: [MerchantController, CryptoPaymentsController],
+  controllers: [MerchantController, CryptoPaymentsController, ServiceBusinessPolicyController],
   providers: [
     GetMerchantProfileUseCase,
     GetMerchantRulesUseCase,
     UpdateMerchantRulesUseCase,
     GetMerchantThemeUseCase,
     UpdateMerchantThemeUseCase,
+    ConfigureServiceBusinessPolicyUseCase,
     EnableCryptoPaymentsUseCase,
     MerchantStoreService,
     ActivateMerchantStoreUseCase,

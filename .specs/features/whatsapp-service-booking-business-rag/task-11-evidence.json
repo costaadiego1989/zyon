@@ -1,0 +1,57 @@
+{
+  "task": "T11",
+  "baseHead": "8ea231dd7",
+  "environment": "local-owned",
+  "unit": {
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0
+  },
+  "nativeFinal": {
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 32895.5706
+  },
+  "nativeFirstAttempt": {
+    "passed": 10,
+    "failed": 1,
+    "skipped": 0,
+    "failure": "service_worker_natural_exit_required",
+    "businessSubcasesPassed": 10
+  },
+  "apiTypecheckExit": 0,
+  "apiBuildExit": 0,
+  "checkedArtifact": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "7bcbce2f9eae97a17215c2c2d5e81452007d35df7e14c77a2e8c947012fbbb2b",
+    "artifactSha256": "79409b78f2b958e6f9216238f047744ad30bfce6ee12004be24b8c66720cbb77",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2488
+    },
+    "recordedAt": "2026-11-14T23:49:06.131Z"
+  },
+  "controllerPath": "/merchants/me/service-business-policy",
+  "proved": [
+    "unconfigured version0 without implicit choices",
+    "four explicit policy combinations persisted",
+    "input type/bounds and expectedVersion",
+    "products/review state denied",
+    "anonymous/staff/foreign denied",
+    "stale/racing writes retain single winner",
+    "audit failure rolls back policy/version"
+  ],
+  "teardownFinal": {
+    "appCloseAck": true,
+    "naturalWorkerExit0": true,
+    "ownedResourcesRemoved": true
+  },
+  "providerCalls": 0,
+  "cleanupSourceOrDeadlineChanged": false,
+  "productionShutdownFixClaimed": false,
+  "logs": "C:/tmp/zyon-service-company-preparation-20261114/logs/T11-2026-11-14T23-42-46.959Z"
+}
