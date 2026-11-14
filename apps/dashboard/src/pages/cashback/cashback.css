@@ -1,11 +1,10 @@
 .cashback-page { min-width: 0; }
 .cashback-page .panel, .cashback-page .data-panel__body { min-width: 0; }
-.cashback-page h2, .cashback-page h3 { font-family: var(--font-sans); letter-spacing: normal; }
-.cashback-page h2 { margin: 0 0 6px; font-size: 18px; font-weight: 600; line-height: 1.45; }
+.cashback-section-heading h2, .cashback-statements h2, .cashback-results h2, .cashback-introduction h2 { margin: 0 0 6px; font: 650 18px/1.4 var(--font-sans); letter-spacing: -.02em; }
+.cashback-page h3 { font-family: var(--font-sans); letter-spacing: normal; }
 .cashback-page h3 { margin: 22px 0 10px; font-size: 15px; font-weight: 600; }
 .cashback-page p { line-height: 1.6; }
-.cashback-page .tab-bar { margin-bottom: 22px; }
-.cashback-program-state { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin: 0 0 22px; padding: 20px 0; border-block: 1px solid var(--color-border); }
+.cashback-program-state { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-width: 0; }
 .cashback-program-state p { margin: 8px 0 0; max-width: 72ch; color: var(--color-text-muted); font-size: 13px; }
 .cashback-state-actions, .cashback-form-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .cashback-status { display: inline-flex; border-radius: 6px; background: var(--surface-2); color: var(--color-text); font: 500 12px/1.5 var(--font-sans); padding: 5px 9px; }
@@ -13,14 +12,12 @@
 .cashback-feedback { padding: 14px 18px; border: 1px solid var(--color-border); border-radius: 10px; font-size: 14px; }
 .cashback-feedback--success { background: var(--color-brand-subtle); color: var(--color-text); }
 .cashback-feedback--error { color: var(--color-error); background: var(--surface-2); }
-.cashback-period { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px 0; }
-.cashback-period label { display: grid; gap: 6px; font-size: 12px; font-weight: 500; }
-.cashback-period span { padding-bottom: 11px; font-size: 12px; color: var(--color-text-muted); }
-.cashback-period p { width: 100%; margin: 0; font-size: 13px; color: var(--color-error); }
-.cashback-field input, .cashback-field select, .cashback-field textarea, .cashback-period input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--color-border); border-radius: 8px; padding: 11px 12px; background: var(--color-bg, var(--surface-1)); color: var(--color-text); font: 400 14px/1.5 var(--font-sans); }
+.cashback-period { min-width: 0; }
+.cashback-period .cashback-field-error { margin-top: 8px; }
+.cashback-field input, .cashback-field select, .cashback-field textarea { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--color-border); border-radius: 8px; padding: 11px 12px; background: var(--color-bg, var(--surface-1)); color: var(--color-text); font: 400 14px/1.5 var(--font-sans); }
 .cashback-field textarea { resize: vertical; }
 .cashback-field select { padding-right: 28px; }
-.cashback-field input:focus-visible, .cashback-field select:focus-visible, .cashback-field textarea:focus-visible, .cashback-period input:focus-visible, .cashback-customer-link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.cashback-field input:focus-visible, .cashback-field select:focus-visible, .cashback-field textarea:focus-visible, .cashback-customer-link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
 .cashback-field [aria-invalid="true"] { border-color: var(--color-error); }
 .cashback-field input:disabled, .cashback-field select:disabled, .cashback-field textarea:disabled { opacity: .65; cursor: not-allowed; }
 .cashback-loading { padding: 24px; }
@@ -31,7 +28,8 @@
 .cashback-state { padding: 24px; }
 .cashback-introduction { max-width: 720px; padding: 20px 0 28px; }
 .cashback-introduction p { font-size: 14px; color: var(--color-text-muted); }
-.cashback-current { margin-bottom: 20px; }
+.cashback-overview, .cashback-transactions { display: grid; gap: var(--page-section-gap, 24px); min-width: 0; }
+.cashback-current, .cashback-settings, .cashback-adjustment { padding: 0; }
 .cashback-section-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px; }
 .cashback-section-heading p { margin: 0; color: var(--color-text-muted); font-size: 13px; max-width: 75ch; }
 .cashback-balances { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0 24px 24px; gap: 24px; }
@@ -43,7 +41,6 @@
 .cashback-statements dl > div, .cashback-results dl > div { display: flex; justify-content: space-between; gap: 20px; padding: 13px 0; border-bottom: 1px solid var(--color-border); font-size: 14px; }
 .cashback-statements dl > div:last-child, .cashback-results dl > div:last-child { border-bottom: 0; }
 .cashback-statements dd, .cashback-results dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.cashback-settings { margin-top: 20px; }
 .cashback-settings form { padding: 0 24px 24px; }
 .cashback-settings fieldset { padding: 24px 0; margin: 0; border: 0; border-top: 1px solid var(--color-border); min-width: 0; }
 .cashback-settings legend { float: left; padding: 0; margin: 0 0 16px; font-size: 15px; font-weight: 600; }
@@ -78,8 +75,6 @@ fieldset > .cashback-help { padding-bottom: 16px; }
 .cashback-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cashback-reference { max-width: 240px; overflow-wrap: anywhere; }
 .cashback-customer-link { display: block; padding: 4px 0; color: var(--color-brand); font: 600 14px/1.5 var(--font-sans); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-align: left; border: 0; background: none; }
-.cashback-transactions-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 0 20px 16px; }
-.cashback-transactions-filters .cashback-period { flex: 1 1 360px; }
 .cashback-customer-detail { display: grid; gap: 20px; }
 .cashback-customer-detail > .zyn-btn { justify-self: start; }
 .cashback-customer-detail .cashback-current { margin: 0; }
@@ -102,8 +97,6 @@ fieldset > .cashback-help { padding-bottom: 16px; }
   .cashback-settings form, .cashback-adjustment form { padding-inline: 18px; }
   .cashback-review { margin-inline: 12px; padding: 18px; }
   .cashback-form-actions > .zyn-btn { width: 100%; }
-  .cashback-period label { flex: 1 1 120px; }
-  .cashback-period span { flex-basis: 100%; padding: 0; }
   .cashback-state-actions { width: 100%; }
   .cashback-state-actions .zyn-btn { flex: 1 1 auto; }
   .cashback-table th, .cashback-table td { padding-inline: 16px; }

@@ -4,6 +4,7 @@ import { useApi } from "../../hooks/useApi.js";
 import type { CashbackCustomerFilter } from "../../api/endpoints/cashback.js";
 
 export type CashbackTab = "overview" | "settings" | "customers" | "transactions";
+export type CashbackPeriodPreset = "month" | "today" | "7d" | "15d" | "30d";
 interface Resource<T> { data: T | null; loading: boolean; error: string | null; }
 const emptyResource = <T,>(): Resource<T> => ({ data: null, loading: true, error: null });
 const FAILURE = "Não foi possível carregar estas informações. Tente novamente.";
@@ -14,8 +15,16 @@ function localDate(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 export function cashbackInitialPeriod(now = new Date()) {
+  return cashbackPresetPeriod("month", now);
+}
+export function cashbackPresetPeriod(preset: CashbackPeriodPreset, now = new Date()) {
   const to = localDate(now);
-  return { from: `${to.slice(0, 8)}01`, to };
+  if (preset === "month") return { from: `${to.slice(0, 8)}01`, to };
+  const days = preset === "today" ? 1 : Number(preset.slice(0, -1));
+  // Subtract calendar days from the business date, independently of the browser timezone.
+  const firstDay = new Date(`${to}T12:00:00Z`);
+  firstDay.setUTCDate(firstDay.getUTCDate() - days + 1);
+  return { from: firstDay.toISOString().slice(0, 10), to };
 }
 export function cashbackPeriodQuery(from: string, to: string) {
   return { from: `${from}T00:00:00-03:00`, to: `${to}T23:59:59.999-03:00` };
@@ -30,6 +39,7 @@ export function useCashbackPage() {
   const [transactions, setTransactions] = useState<Resource<CashbackPage<CashbackTransaction>>>(emptyResource);
   const [wallet, setWallet] = useState<Resource<CashbackWalletView>>(emptyResource);
   const [period, setPeriod] = useState(cashbackInitialPeriod);
+  const [periodPreset, setPeriodPreset] = useState<CashbackPeriodPreset | "custom">("month");
   const [customerQuery, setCustomerQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [customerFilter, setCustomerFilter] = useState<CashbackCustomerFilter>("all");
@@ -167,8 +177,9 @@ export function useCashbackPage() {
     setSelectedCustomer(customer); setTransactionPage(1); setTransactionType(""); setActionError(null); setNotice(null);
   }
   return {
-    tab, setTab, program, metrics, customers, transactions, wallet, period, validPeriod,
-    setPeriod: (next: typeof period) => { setPeriod(next); setTransactionPage(1); },
+    tab, setTab, program, metrics, customers, transactions, wallet, period, periodPreset, validPeriod,
+    setPeriod: (next: typeof period) => { setPeriod(next); setPeriodPreset("custom"); setTransactionPage(1); },
+    setPeriodPreset: (next: CashbackPeriodPreset) => { setPeriod(cashbackPresetPeriod(next)); setPeriodPreset(next); setTransactionPage(1); },
     customerQuery, setCustomerQuery: (next: string) => { setCustomerQuery(next); setCustomerPage(1); }, customerFilter,
     setCustomerFilter: (next: CashbackCustomerFilter) => { setCustomerFilter(next); setCustomerPage(1); },
     customerPage, setCustomerPage, transactionPage, setTransactionPage, transactionType,

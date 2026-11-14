@@ -6,6 +6,7 @@ import { Button } from "../../components/Button.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { FilterToolbar, FilterSelect } from "../../components/FilterToolbar.js";
+import { PeriodFilter } from "../../components/PeriodFilter.js";
 import { TabBar } from "../../components/TabBar.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import { createIdempotencyKey } from "../../api/http/idempotency.js";
@@ -13,7 +14,7 @@ import type { CashbackCustomerFilter } from "../../api/endpoints/cashback.js";
 import { CashbackSettings } from "./CashbackSettings.js";
 import { cashbackDate, cashbackDecimal, cashbackMoney, cashbackTransactionLabels } from "./cashback-form.js";
 import { useCashbackPage } from "./useCashbackPage.js";
-import type { CashbackTab } from "./useCashbackPage.js";
+import type { CashbackPeriodPreset, CashbackTab } from "./useCashbackPage.js";
 import "./cashback.css";
 
 type ViewModel = ReturnType<typeof useCashbackPage>;
@@ -29,7 +30,17 @@ function Balances({ balance }: { balance: Pick<CashbackBalance, "availableCents"
   return <dl className="cashback-balances" aria-label="Saldo atual de cashback"><div><dt>Disponível para usar</dt><dd>{cashbackMoney(balance.availableCents)}</dd></div><div><dt>Aguardando liberação</dt><dd>{cashbackMoney(balance.pendingCents)}</dd></div><div><dt>Reservado em compras</dt><dd>{cashbackMoney(balance.reservedCents)}</dd></div></dl>;
 }
 function Period({ vm }: { vm: ViewModel }) {
-  return <div className="cashback-period"><label>De<input type="date" value={vm.period.from} onChange={event => vm.setPeriod({ ...vm.period, from: event.target.value })} /></label><label>Até<input type="date" value={vm.period.to} onChange={event => vm.setPeriod({ ...vm.period, to: event.target.value })} /></label><span>Datas e horários de Brasília</span>{!vm.validPeriod && <p role="alert">Selecione um período válido, com início anterior ou igual ao fim.</p>}</div>;
+  return <div className="cashback-period">
+    <PeriodFilter
+      presets={[{ key: "month", label: "Este mês" }, { key: "today", label: "Hoje" }, { key: "7d", label: "Últimos 7 dias" }, { key: "15d", label: "Últimos 15 dias" }, { key: "30d", label: "Últimos 30 dias" }]}
+      active={vm.periodPreset}
+      onPreset={key => vm.setPeriodPreset(key as CashbackPeriodPreset)}
+      from={vm.period.from} to={vm.period.to}
+      onDate={(field, value) => vm.setPeriod({ ...vm.period, [field]: value })}
+    />
+    <p className="cashback-help">Datas e horários de Brasília</p>
+    {!vm.validPeriod && <p className="cashback-field-error" role="alert">Selecione um período válido, com início anterior ou igual ao fim.</p>}
+  </div>;
 }
 function Metrics({ data }: { data: CashbackMetrics }) {
   const movements = [
@@ -54,11 +65,11 @@ function TransactionRows({ items }: { items: CashbackTransaction[] }) {
   </tbody></table></div>;
 }
 function Transactions({ vm }: { vm: ViewModel }) {
-  return <DataPanel title={vm.selectedCustomer ? "Extrato do cliente" : "Extrato do programa"} page={vm.transactionPage} pageSize={vm.pageSize} total={vm.transactions.loading || vm.transactions.error ? 0 : vm.transactions.data?.total ?? 0} onPageChange={vm.setTransactionPage}
+  return <div className="cashback-transactions"><Period vm={vm} /><DataPanel title={vm.selectedCustomer ? "Extrato do cliente" : "Extrato do programa"} page={vm.transactionPage} pageSize={vm.pageSize} total={vm.transactions.loading || vm.transactions.error ? 0 : vm.transactions.data?.total ?? 0} onPageChange={vm.setTransactionPage}
     trailing={<Button variant="outline" size="sm" loading={vm.busy === "export"} disabled={!!vm.busy || !vm.validPeriod || !vm.transactions.data?.total} onClick={() => void vm.exportCsv("transactions")}><Download size={14} /> Exportar extrato</Button>}>
-    <div className="cashback-transactions-filters"><Period vm={vm} /><FilterSelect ariaLabel="Tipo de movimentação" value={vm.transactionType} onChange={vm.setTransactionType} options={[{ value: "", label: "Todas as movimentações" }, ...Object.entries(cashbackTransactionLabels).map(([value, label]) => ({ value, label }))]} /></div>
+    <FilterToolbar tabs={[]} activeTab="" onTabChange={() => {}} extra={<FilterSelect ariaLabel="Tipo de movimentação" value={vm.transactionType} onChange={vm.setTransactionType} options={[{ value: "", label: "Todas as movimentações" }, ...Object.entries(cashbackTransactionLabels).map(([value, label]) => ({ value, label }))]} />} />
     {!vm.validPeriod ? <p className="cashback-state">Corrija o período para consultar o extrato.</p> : vm.transactions.loading ? <Loading label="Carregando extrato…" /> : vm.transactions.error ? <ErrorState message={vm.transactions.error} retry={vm.reload} /> : !vm.transactions.data?.items.length ? <EmptyState icon={Undo2} title="Nenhuma movimentação neste período" description="Os créditos, usos, restituições e ajustes aparecerão aqui quando acontecerem. Confira o período e o tipo selecionado." /> : <TransactionRows items={vm.transactions.data.items} />}
-  </DataPanel>;
+  </DataPanel></div>;
 }
 function Adjustment({ vm }: { vm: ViewModel }) {
   const [open, setOpen] = useState(false);

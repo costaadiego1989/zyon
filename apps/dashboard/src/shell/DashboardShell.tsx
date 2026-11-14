@@ -568,17 +568,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             <option value="logout">Sair da conta</option>
           </select>
           <div className="console-desktop-heading" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {tab === "overview" ? <>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--color-brand-subtle)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <ActiveIcon size={17} color="var(--color-brand-hover)" />
-            </div>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, font: "600 10.5px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)" }}>
-                {activeSection}<span style={{ color: "var(--color-text-faint)" }}>/</span><span style={{ color: "var(--color-brand-hover)" }}>{activeItem.label}</span>
-              </div>
-              <div style={{ font: "600 22px var(--font-serif)", color: "var(--color-text)", letterSpacing: "-0.005em" }}>{activeItem.label}</div>
-            </div>
-            </> : <div className="ui-breadcrumb"><ActiveIcon size={17} aria-hidden="true" /><span>{activeSection}</span><span aria-hidden="true">/</span><span className="ui-breadcrumb__current">{activeItem.label}</span></div>}
+            <div className="ui-breadcrumb"><ActiveIcon size={17} aria-hidden="true" /><span>{activeSection}</span><span aria-hidden="true">/</span><span className="ui-breadcrumb__current">{activeItem.label}</span></div>
           </div>
           <div className="console-topbar-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {!subscriptionRequired && (me.plan === "STORE_ONLY" || me.plan === "BOTH") && storefrontHref && (
