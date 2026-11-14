@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Inject, NotFoundException, Post, Req, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Inject, NotFoundException, Optional, Post, Req, UseGuards } from "@nestjs/common";
 import type { Cart } from "@zyon/shared-types";
 import { ApplyCouponUseCase } from "../../application/use-cases/apply-coupon.use-case.js";
 import type { EmbedHttpRequest } from "../../../embed/presentation/http/embed-checkout.controller.js";
@@ -9,6 +9,8 @@ import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/
 import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../../checkout/domain/checkout-experience.config.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
+import { RequireEmbedScope } from "../../../embed/presentation/http/embed-scope.decorator.js";
 
 @UseGuards(EmbedAuthGuard)
 @Controller("embed/coupons")
@@ -19,9 +21,11 @@ export class WidgetCouponsController {
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
+    @Optional() private readonly cashback?: CashbackService,
   ) {}
 
   @Post("apply")
+  @RequireEmbedScope("coupons:apply")
   async apply(@Req() request: EmbedHttpRequest, @Body() body: {
     session_id: string;
     merchant_id: string;
@@ -52,7 +56,8 @@ export class WidgetCouponsController {
         theme: merchant?.theme,
         couponBoxEnabled: rules.couponBoxEnabled,
         rules,
-        serviceFee: this.experienceConfig.platformFeeBrl
+        serviceFee: this.experienceConfig.platformFeeBrl,
+        cashbackCents: await this.cashback?.checkoutCashbackCents(next),
       })
     };
   }

@@ -7,6 +7,7 @@ import { normalCheckoutCouponDiscountOwnerSchema, type NormalCheckoutCouponDisco
 import { toCouponEntity } from "../../modules/coupons/infrastructure/repositories/prisma-coupon.converters.js";
 import { validateCoupon } from "../../modules/coupons/domain/policies/coupon-validity.policy.js";
 import { calculateCouponDiscount } from "../../modules/coupons/domain/policies/coupon-discount-calculator.js";
+import { readCashbackCouponComposition } from "./storefront-coupon/cashback-composition.js";
 
 const ref=normalCheckoutCouponDiscountOwnerSchema.shape.merchantId;
 const conflict=():never=>{throw new Error("normal_checkout_coupon_review_required");};
@@ -20,7 +21,7 @@ const applicationSchema=z.object({eventId:ref,eventType:z.literal("coupon.applie
  * Actual current rows + generation-bound original application event are required;
  * neither nudge, references nor a stored payment sibling grants eligibility. */
 export async function readNormalCheckoutCouponOwner(tx:Prisma.TransactionClient,
-  session:CheckoutSession,canonicalCart:Cart,now:Date):Promise<NormalCheckoutCouponDiscountOwner>{
+  session:CheckoutSession,canonicalCart:Cart,now:Date, options: { cashbackRuleVersion?: number } = {}):Promise<NormalCheckoutCouponDiscountOwner>{
   const scope={merchantId:session.merchantId,sessionId:session.sessionId};
   if(canonicalCart.source==="storefront"||canonicalCart.cart_ref!==undefined||!ref.safeParse(session.globalUserId).success
     ||!(now instanceof Date)||!Number.isFinite(now.getTime()))return conflict();
@@ -48,7 +49,8 @@ export async function readNormalCheckoutCouponOwner(tx:Prisma.TransactionClient,
     ||(moneyCents(calculateCouponDiscount(coupon,canonicalCart.total))??-1)<discountCents)return conflict();
   const policy=await tx.merchantRule.findUnique({where:{merchantId:scope.merchantId},select:{merchantId:true,maxDiscountPercent:true}});
   if(!policy||policy.merchantId!==scope.merchantId||!Prisma.Decimal.isDecimal(policy.maxDiscountPercent))return conflict();
-  const combined=evaluateCombinedDiscount(canonicalCart,{maxDiscountPercent:policy.maxDiscountPercent.toNumber()},discountCents);
+  const composition = session.cart.commercialBenefitsVersion ? await readCashbackCouponComposition(tx, session, options) : undefined;
+  const combined=evaluateCombinedDiscount(canonicalCart,{maxDiscountPercent:composition?.effectiveRules.maxDiscountPercent??policy.maxDiscountPercent.toNumber()},discountCents);
   if(combined.kind!=="authorized"||combined.cartDiscountCents!==discountCents)return conflict();
   if(coupon.max_usages!==null&&await tx.couponRedemption.count({where:{merchantId:scope.merchantId,couponId:coupon.id,status:{not:"cancelled"}}})>coupon.max_usages
     ||coupon.max_per_buyer!==null&&await tx.couponRedemption.count({where:{merchantId:scope.merchantId,couponId:coupon.id,

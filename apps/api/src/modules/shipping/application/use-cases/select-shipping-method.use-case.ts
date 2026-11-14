@@ -3,7 +3,7 @@ import type { ShippingQuote } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { hasMarketplaceCheckout } from "../../../checkout/infrastructure/marketplace-checkout-scope.js";
-import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
+import { SHIPPING_QUOTE_REPOSITORY } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import type { ShippingQuoteResult, ShippingQuoteSnapshot } from "../../domain/entities/shipping-quote.entity.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
@@ -14,13 +14,15 @@ import { commitCheckoutMutation } from "../../../checkout/application/services/c
 import { manualDeliveryConfigSchema, quoteManualDelivery } from "../../domain/services/manual-delivery-quote.js";
 import { requiresPhysicalDelivery } from "../../../checkout/domain/services/cart-fulfillment.js";
 import { hasPreparedCheckoutPayment } from "../../../checkout/infrastructure/checkout-payment-scope.js";
+import type { ShippingCheckoutQuoteRepository } from "../ports/shipping-checkout-transaction.port.js";
+import { canonicalJson } from "../../../../shared/http/canonical-json.js";
 
 @Injectable()
 export class SelectShippingMethodUseCase {
   private readonly logger = new Logger(SelectShippingMethodUseCase.name);
 
   constructor(
-    @Inject(SHIPPING_QUOTE_REPOSITORY) private readonly quotes: ShippingQuoteRepository,
+    @Inject(SHIPPING_QUOTE_REPOSITORY) private readonly quotes: ShippingCheckoutQuoteRepository,
     @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkoutSessions?: CheckoutSessionRepository,
     @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
     @Optional() private readonly quoteShipping?: QuoteShippingUseCase,
@@ -28,6 +30,14 @@ export class SelectShippingMethodUseCase {
   ) {}
 
   async execute(input: { session_id: string; merchant_id: string; carrier_key: string; quote_id?: string }) {
+    if (this.quotes.withCheckoutTransaction) return this.quotes.withCheckoutTransaction(
+      { merchantId: input.merchant_id, sessionId: input.session_id }, context =>
+        new SelectShippingMethodUseCase(context.quotes, context.sessions, context.prisma,
+          this.quoteShipping?.inCheckoutTransaction(context), context.ownDeliveryConfig).executeSelection(input));
+    return this.executeSelection(input);
+  }
+
+  private async executeSelection(input: { session_id: string; merchant_id: string; carrier_key: string; quote_id?: string }) {
     const session = await this.checkoutSessions?.getSession(input.merchant_id, input.session_id);
     if (session && !requiresPhysicalDelivery(session.cart)) throw new BadRequestException("checkout_shipping_not_required");
     await this.assertGenericCheckout(input);
@@ -69,12 +79,9 @@ export class SelectShippingMethodUseCase {
     }
 
     await this.assertGenericCheckout(input);
-    await this.quotes.saveWithEvents(updated);
     const snapshot = updated.snapshot();
-    await this.persistSelectionToCheckoutSession(input, snapshot);
-
-    const selected = snapshot.results.find((r) => r.carrier_key === snapshot.selected_carrier_key);
-    const shipping = selected ? checkoutShippingOption(snapshot, selected) : undefined;
+    const shipping = await this.persistSelectionToCheckoutSession(input, snapshot);
+    await this.quotes.saveWithEvents(updated);
 
     return { ...snapshot, shipping };
   }
@@ -92,7 +99,7 @@ export class SelectShippingMethodUseCase {
   private async persistSelectionToCheckoutSession(
     input: { session_id: string; merchant_id: string },
     snapshot: ShippingQuoteSnapshot
-  ): Promise<void> {
+  ): Promise<ShippingQuote | undefined> {
     if (!this.checkoutSessions) return;
     const session = await this.checkoutSessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
@@ -100,11 +107,16 @@ export class SelectShippingMethodUseCase {
     const selectedResult = snapshot.results.find((result) => result.carrier_key === snapshot.selected_carrier_key);
     if (!selectedResult) return;
 
+    const mapped = checkoutShippingOption(snapshot, selectedResult);
+    const option = session.shippingOptions?.find(value => canonicalJson(value) === canonicalJson(mapped));
+    if (!option) throw new ConflictException("CHECKOUT_SHIPPING_OPTION_CHANGED");
+
     await this.assertGenericCheckout(input);
     await commitCheckoutMutation(this.checkoutSessions, { expected: session, next: {
       ...session,
-      shipping: checkoutShippingOption(snapshot, selectedResult),
+      shipping: structuredClone(option),
       updatedAt: new Date().toISOString()
     } });
+    return option;
   }
 }

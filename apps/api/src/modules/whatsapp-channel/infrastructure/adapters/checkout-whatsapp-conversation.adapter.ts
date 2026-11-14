@@ -40,6 +40,9 @@ import { CheckoutShippingService } from "../../../checkout/application/services/
 import type { TrustedWhatsAppCheckoutBuyer } from "../../../checkout/application/services/trusted-checkout-buyer.js";
 import { WhatsAppPostCartOfferService } from "../../application/services/whatsapp-post-cart-offer.service.js";
 import { WhatsAppBuyerHubService } from "../../application/services/whatsapp-buyer-hub.service.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
+import { parseCashbackCommand, respondToCashbackCommand } from "../../application/services/cashback-whatsapp.commands.js";
+import { parseWhatsAppBenefitCommand, WhatsAppCheckoutBenefitsService } from "../../application/services/whatsapp-checkout-benefits.service.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -65,11 +68,19 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     @Optional() private readonly checkoutShipping?: CheckoutShippingService,
     @Optional() private readonly postCartOffers?: WhatsAppPostCartOfferService,
     @Optional() private readonly buyerHub?: WhatsAppBuyerHubService,
+    @Optional() private readonly cashback?: CashbackService,
+    @Optional() private readonly benefits?: WhatsAppCheckoutBenefitsService,
   ) {}
 
-  async respond(input: { merchantId: string; checkoutSessionId: string; message: string }) {
+  async respond(input: { merchantId: string; checkoutSessionId: string; message: string; requestId?: string }) {
     const session = await this.sessions.getSession(input.merchantId, input.checkoutSessionId);
     if (!session || session.merchantId !== input.merchantId) throw new NotFoundException("checkout_session_not_found");
+    const benefitResponse = await this.benefits?.respond(session, input.message);
+    if (benefitResponse) return benefitResponse;
+    if (this.cashback) {
+      const cashbackResponse = await respondToCashbackCommand(this.cashback, session, input.message, input.requestId);
+      if (cashbackResponse) return cashbackResponse;
+    }
     const response = await this.chat.execute({
       merchant_id: input.merchantId,
       session_id: session.sessionId,
@@ -151,6 +162,31 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       ? { merchantId: owner.merchantId, conversationId: owner.conversationId, globalUserId: identitySession.globalUserId,
         customer: { phone: owner.phone, phone_verified: true as const, email_verified: false as const } } : undefined);
     const shopper = knownBuyer ? { ...input.buyer, globalUserId: knownBuyer.globalUserId, fullName: knownBuyer.customer.fullName, email: knownBuyer.customer.email } : input.buyer;
+    // The native Meta surface uses this path, not respond(). Only the same
+    // verified phone/cart owner may command a monetary operation in its session.
+    const cashbackCommand = !input.action && !input.attachmentContext && this.cashback ? parseCashbackCommand(input.message) : null;
+    const benefitCommand = !input.action && !input.attachmentContext && this.benefits ? parseWhatsAppBenefitCommand(input.message) : null;
+    if (cashbackCommand || benefitCommand) {
+      if (!identitySession || !boundBuyer || identitySession.globalUserId !== boundBuyer.globalUserId) {
+        return { agentMessage: "Confirme sua identidade no pedido para consultar e usar benefícios desta conta.",
+          quickReplies: ["Ver carrinho"], blocks: [], merchantName: config.name, state };
+      }
+      const commandResponse = cashbackCommand
+        ? await respondToCashbackCommand(this.cashback!, identitySession, input.message, input.messageId)
+        : await this.benefits!.respond(identitySession, input.message);
+      if (commandResponse) {
+        const current = await this.sessions.getSession(input.merchantId, identitySession.sessionId);
+        if (!current || current.globalUserId !== identitySession.globalUserId) throw new ForbiddenException("whatsapp_checkout_buyer_changed");
+        state = { ...state, stage: "checkout" };
+        const exp = buildExperienceFromSession(current, { merchantName: config.name, serviceFee: this.experienceConfig?.platformFeeBrl,
+          cashbackCents: await this.cashback?.checkoutCashbackCents(current) });
+        return this.checkoutUi({ message: commandResponse.agentMessage, experience: exp,
+          cashbackQuickReplies: commandResponse.quickReplies,
+          blocks: [{ type: "checkout_summary", data: { items: exp.items, totals: exp.totals,
+            shippingPending: ["data_collection", "shipping"].includes(exp.stage ?? "") && !exp.shipping } }] },
+          state, config.name, input.message, input.merchantId);
+      }
+    }
     // A name already supplied in this phone-owned checkout is usable for the
     // salutation even before payment. It does not grant account access.
     const greetingName = knownBuyer?.customer.fullName || (identitySession?.merchantId === input.merchantId
@@ -521,7 +557,17 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
   }
 
   private async checkoutUi(response: any, state: WhatsAppConversationState, merchantName: string, userMessage: string, merchantId: string): Promise<WhatsAppStructuredResponse> {
-    const exp = response.experience;
+    let exp = response.experience;
+    if (exp && this.cashback) {
+      const sessionId = response.session_id || state.checkoutSessionId;
+      const current = sessionId ? await this.sessions.getSession(merchantId, sessionId) : undefined;
+      if (current?.merchantId === merchantId) {
+        const projected = buildExperienceFromSession(current, { merchantName, serviceFee: exp.totals?.service_fee,
+          cashbackCents: await this.cashback.checkoutCashbackCents(current) });
+        exp = { ...exp, totals: projected.totals,
+          ...(projected.commercial_benefits_version === undefined ? {} : { commercial_benefits_version: projected.commercial_benefits_version }) };
+      }
+    }
     let message = response.message || exp?.agent?.greeting || exp?.copy?.message || "Vamos continuar sua compra.";
     const blocks: WhatsAppStructuredResponse["blocks"] = [];
     for (const block of response.blocks ?? []) {
@@ -655,7 +701,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     return { agentMessage: message, merchantName, blocks,
       quickReplies: approved ? ["Rastrear Pedido", "Continuar Comprando"] : secureIdentifier || state.pendingCheckoutEdit || state.pendingCoupon ? []
         : nextField === "confirmar endereço" ? ["Sim", "Não"] : collectionCopy ? []
-          : paymentSurface ? [...(state.payment ? ["Verificar pagamento"] : [])] : replies,
+          : paymentSurface ? [...(state.payment ? ["Verificar pagamento"] : []), ...(response.cashbackQuickReplies ?? [])] : replies,
       state: { ...state, checkoutSessionId: response.session_id || state.checkoutSessionId, checkoutConversationId: response.conversation_id || state.checkoutConversationId,
         checkoutSummaryFingerprint: summaryFingerprint,
         pendingFlow, expectsFreeInput: !!state.pendingCoupon || !secureIdentifier && !!nextField && /^(telefone|email|nome|CPF|CEP|número|complemento|código de verificação)/i.test(nextField),

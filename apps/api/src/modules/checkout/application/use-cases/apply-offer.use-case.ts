@@ -17,6 +17,8 @@ import { AcceptCheckoutOfferUseCase } from "./accept-checkout-offer.use-case.js"
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { readExistingMerchantRules } from "../../../merchant/application/services/read-existing-merchant-rules.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
+import { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
@@ -38,7 +40,9 @@ export class ApplyOfferUseCase {
     private readonly acceptCheckoutOffer: AcceptCheckoutOfferUseCase,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
-    @Optional() @Inject(NORMAL_CHECKOUT_CROSS_SELL) private readonly normal?: Pick<NormalCheckoutCrossSellPort, "applyOffer">
+    @Optional() @Inject(NORMAL_CHECKOUT_CROSS_SELL) private readonly normal?: Pick<NormalCheckoutCrossSellPort, "applyOffer">,
+    @Optional() private readonly cashback?: CashbackService,
+    @Optional() private readonly commercialBenefits?: CheckoutCommercialBenefitsService,
   ) {}
 
   async execute(value: ApplyOfferRequest): Promise<ApplyOfferResponse> {
@@ -59,14 +63,17 @@ export class ApplyOfferUseCase {
         const merchant=await this.merchantRepo?.getProfile(input.merchant_id);
         const rules=await this.merchantRepo?.getExistingRules?.(input.merchant_id);
         const experience=buildExperienceFromSession(committed.session,{merchantName:merchant?.name,theme:merchant?.theme,
-          couponBoxEnabled:rules?.couponBoxEnabled,serviceFee:this.experienceConfig.platformFeeBrl});
+          couponBoxEnabled:rules?.couponBoxEnabled,serviceFee:this.experienceConfig.platformFeeBrl,
+          cashbackCents:await this.cashback?.checkoutCashbackCents(committed.session)});
         return {success:true,new_total:experience.totals.total,expires_at:committed.offer.expiresAt,experience,
           ...(committed.session.cart.commercialNotices?{commercialNotices:committed.session.cart.commercialNotices}:{})};
       }catch{
         throw new ConflictException({code:"checkout_review_required",message:"A oferta foi aplicada. Atualize o pedido antes de pagar."});
       }
     }
-    await this.sessions.assertCouponBindingCommandAllowed?.(input.merchant_id, input.session_id);
+    if (!await this.commercialBenefits?.hasCombination(storedSession)) {
+      await this.sessions.assertCouponBindingCommandAllowed?.(input.merchant_id, input.session_id);
+    }
     const session = structuredClone(storedSession);
     const storedOffer = await this.offers.getOffer(input.merchant_id, input.offer_id);
     if (!storedOffer || !storedOffer.approved) return { success: false, reason: "offer_not_found_or_not_approved" };
@@ -123,6 +130,7 @@ export class ApplyOfferUseCase {
       if (decision.totalDiscountCents > 0 && decision.remainingDiscountCents === 0) notices = [commercialNotice("discount_limit_reached")];
     }
 
+    await this.commercialBenefits?.assertCanApplyAdvancedRule(session, offer);
     const applied = await this.commerce.apply(offer);
     if (!applied.success) {
       return {
@@ -131,14 +139,15 @@ export class ApplyOfferUseCase {
       };
     }
 
+    const combined = await this.commercialBenefits?.applyAdvancedRule(session, offer);
     await this.acceptCheckoutOffer.execute(input);
 
-    const updatedSession = applyOfferToSession(session, offer);
+    const updatedSession = combined ?? applyOfferToSession(session, offer);
     if (session.cart.discountBudget !== undefined) {
       delete updatedSession.cart.commercialNotices;
       if (notices) updatedSession.cart.commercialNotices = notices;
     }
-    await this.sessions.saveSession(updatedSession);
+    if (!combined) await this.sessions.saveSession(updatedSession);
 
     const followUp = buildAgentFollowUp(offer);
     const sessionWithTurn = await this.sessions.appendChatTurn(input.merchant_id, input.session_id, followUp);
@@ -146,6 +155,7 @@ export class ApplyOfferUseCase {
     const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
     const merchantRules = authorizedRules ?? await this.merchantRepo?.getRules(input.merchant_id);
     const experience = buildExperienceFromSession(sessionWithTurn, {
+      cashbackCents: await this.cashback?.checkoutCashbackCents(sessionWithTurn),
       merchantName: merchant?.name,
       theme: merchant?.theme,
       couponBoxEnabled: merchantRules?.couponBoxEnabled,

@@ -10,13 +10,16 @@ import { NORMAL_COMMERCIAL_BENEFIT_EVENT, normalCheckoutBenefitsCommandSchema, n
   normalCommercialBenefitAuthorizationSchema, type NormalCommercialBenefitAuthorization } from "../../../checkout/domain/contracts/normal-commercial-benefit-proof.schemas.js";
 import { normalAcceptedOfferTermsHash, normalCommercialBenefitReview, readNormalCommercialPolicyContext } from "../../../../shared/persistence/normal-checkout-commercial-benefits.js";
 import { commercialNotice } from "../../../storefront/domain/services/commercial-notice.js";
+import type { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
+import { readStoredCheckoutCouponBinding } from "../../../checkout/domain/services/checkout-coupon-storage.js";
+import type { NormalCheckoutDiscountOwner } from "../../../payment/domain/normal-checkout-payment-authority.schemas.js";
 
 /** Only used AFTER the real normal authority reader in the SAME fenced TX.
  * This module never opens transactions, reads body prices or calls commerce. */
 interface Current {
   stored: StoredSession; now: Date;
   coupon?: unknown;
-  discountOwner?: {kind:string};
+  discountOwner?: NormalCheckoutDiscountOwner;
   source?: {binding?: {state:string}|null};
 }
 const refuse = ():never => {throw normalCommercialBenefitReview();};
@@ -29,8 +32,8 @@ function refuseWrite(reason:WriteVerification):never{
 const jsonObject = z.record(z.string(),z.json());
 function storageCart(current:Current,cart:Cart):Prisma.InputJsonObject {
   const stored=jsonObject.parse(current.stored.cart);
-  return jsonObject.parse(JSON.parse(JSON.stringify({...cart,...(current.source?.binding?.state==="released"
-    ?{_storefrontCouponBinding:stored._storefrontCouponBinding}:{})})));
+  const binding=readStoredCheckoutCouponBinding(cart)??readStoredCheckoutCouponBinding(stored);
+  return jsonObject.parse(JSON.parse(JSON.stringify({...cart,...(binding?{_storefrontCouponBinding:binding}:{})})));
 }
 function assertVersion(current:Current,expected:number){
   if(current.stored.version!==expected||current.stored.version>=2_147_483_646||current.stored.strategyContextVersion>=2_147_483_646)return refuse();
@@ -70,9 +73,22 @@ function withDiscount(cart:Cart,discountCents:number,nudge:NonNullable<Cart["com
       {kind:"discount",label:nudge.title,amount:discountCents/100}],
     ...(decision.remainingDiscountCents===0&&decision.totalDiscountCents>0?{commercialNotices:[commercialNotice("discount_limit_reached")]}:{})};
 }
-export async function prepareNormalCommercialBenefits(tx:Prisma.TransactionClient,current:Current,cart:Cart,raw:unknown){
+async function composePolicyGrant(tx:Prisma.TransactionClient,current:Current,session:ReturnType<typeof toCheckoutSession>,
+  grant:NormalCommercialBenefitAuthorization,benefits:CheckoutCommercialBenefitsService){
+  const offer={id:`normal_policy:${grant.origin}:${grant.ruleId??grant.settingsHash}`,merchantId:current.stored.merchantId,
+    sessionId:current.stored.sessionId,type:"discount_fixed"as const,value:grant.discountCents/100,approved:true,
+    marginAfterOffer:0,reason:"Current canonical checkout policy",expiresAt:new Date(current.now.getTime()+300000).toISOString()};
+  await benefits.assertCanApplyAdvancedRuleInTransaction(tx,session,offer);
+  return (await benefits.applyAdvancedRuleInTransaction(tx,session,offer,{persistSession:false}))!.cart;
+}
+export async function prepareNormalCommercialBenefits(tx:Prisma.TransactionClient,current:Current,cart:Cart,raw:unknown,benefits?:CheckoutCommercialBenefitsService){
   const request=normalCheckoutBenefitsCommandSchema.parse(raw);assertVersion(current,request.expectedVersion);
-  const context=await readNormalCommercialPolicyContext(tx,{stored:current.stored,canonicalCart:cart,now:current.now},request.method);
+  const session=toCheckoutSession({...current.stored,cart});
+  const combined=benefits&&await benefits.hasCombinationInTransaction(tx,session);
+  if(combined)await benefits!.assertMutableInTransaction(tx,session);
+  let context=await readNormalCommercialPolicyContext(tx,{stored:current.stored,canonicalCart:cart,now:current.now},request.method);
+  if(combined){const rules=await benefits!.couponRulesInTransaction(tx,session,context.rules);
+    context=await readNormalCommercialPolicyContext(tx,{stored:current.stored,canonicalCart:cart,now:current.now},request.method,{maxDiscountPercent:rules.maxDiscountPercent});}
   if(!context.events.some(event=>event.eventName==="payment_method_selected")){
     const event=await tx.checkoutEvent.create({data:{merchantId:current.stored.merchantId,sessionId:current.stored.sessionId,
       eventName:"payment_method_selected",occurredAt:current.now,metadata:{method:request.method,source:"payment_preparation"}}});
@@ -80,37 +96,48 @@ export async function prepareNormalCommercialBenefits(tx:Prisma.TransactionClien
   }
   // Coupon/explicit-offer provenance wins over a generic stage incentive.
   // Their existing reservation/approval is never relabelled as progressive.
-  if(current.coupon||current.discountOwner?.kind==="checkout_coupon"||current.discountOwner?.kind==="accepted_offer")
+  const advancedOwner=current.discountOwner?.kind==="cashback_combination"?current.discountOwner.advanced:current.discountOwner;
+  if(advancedOwner?.kind==="accepted_offer")return {session:await save(tx,current,cart,request.method)};
+  if((current.coupon||current.discountOwner?.kind==="checkout_coupon")
+    &&(!combined||!await benefits!.allowsCommercialStackingInTransaction(tx,current.stored.merchantId)))
     return {session:await save(tx,current,cart,request.method)};
   const evaluated=checkoutBenefitsPolicy({session:context.session,rules:context.rules,advancedRules:normalCommercialRulesForMatching(context.advancedRules),
     progressivePolicy:context.progressivePolicy,paymentMethod:request.method,events:context.events.map(event=>event.eventName)});
-  if(evaluated.couponCode)return {session:await save(tx,current,cart,request.method),couponCode:evaluated.couponCode};
+  if(evaluated.couponCode)return {session:await save(tx,current,cart,request.method),...(!current.coupon?{couponCode:evaluated.couponCode}:{})};
   const grant=createNormalPolicyBenefitAuthorization({...context,method:request.method});
-  const previous=moneyCents(cart.currentDiscount??0);if(previous===null)return refuse();
+  const previous=combined?await benefits!.advancedDiscountCentsInTransaction(tx,session):moneyCents(cart.currentDiscount??0);if(previous===null)return refuse();
   if(previous>0&&current.stored.paymentMethod!==request.method&&(!grant||grant.discountCents<previous))return refuse();
-  if(grant&&grant.discountCents===previous&&current.stored.paymentMethod!==request.method)
-    return {session:await save(tx,current,cart,request.method,grant)};
+  if(grant&&grant.discountCents===previous&&current.stored.paymentMethod!==request.method){
+    const next=combined?await composePolicyGrant(tx,current,session,grant,benefits!):cart;
+    return {session:await save(tx,current,next,request.method,grant)};
+  }
   if(!grant||grant.discountCents<=previous)return {session:await save(tx,current,cart,request.method)};
   const nudge=evaluated.session.cart.commercialNudge;if(!nudge)return refuse();
-  const next=withDiscount(cart,grant.discountCents,nudge,context.rules);
+  let next=withDiscount(combined?{...cart,currentDiscount:0}:cart,grant.discountCents,nudge,context.rules);
+  if(combined)next=await composePolicyGrant(tx,current,session,grant,benefits!);
   // Shipping has an independent canonical quote/benefit owner; never copy a
   // price reduction produced solely from arbitrary ShippingQuote JSON here.
   return {session:await save(tx,current,next,request.method,grant)};
 }
 
-export async function applyNormalCommercialOffer(tx:Prisma.TransactionClient,current:Current,cart:Cart,raw:unknown){
+export async function applyNormalCommercialOffer(tx:Prisma.TransactionClient,current:Current,cart:Cart,raw:unknown,benefits?:CheckoutCommercialBenefitsService){
   const request=normalCheckoutOfferCommandSchema.parse(raw);assertVersion(current,request.expectedVersion);
-  const context=await readNormalCommercialPolicyContext(tx,{stored:current.stored,canonicalCart:cart,now:current.now});
+  const session=toCheckoutSession({...current.stored,cart});
+  const combined=benefits&&await benefits.hasCombinationInTransaction(tx,session);
+  if(combined)await benefits!.assertMutableInTransaction(tx,session);
+  let context=await readNormalCommercialPolicyContext(tx,{stored:current.stored,canonicalCart:cart,now:current.now});
+  if(combined){const rules=await benefits!.couponRulesInTransaction(tx,session,context.rules);
+    context=await readNormalCommercialPolicyContext(tx,{stored:current.stored,canonicalCart:cart,now:current.now},undefined,{maxDiscountPercent:rules.maxDiscountPercent});}
   const scope={merchantId:current.stored.merchantId,sessionId:current.stored.sessionId};
-  if(current.coupon||current.discountOwner?.kind==="checkout_coupon")return refuse();
+  if(!combined&&(current.coupon||current.discountOwner?.kind==="checkout_coupon"))return refuse();
   await tx.$queryRaw`SELECT id FROM authorized_offers WHERE merchant_id=${scope.merchantId} AND session_id=${scope.sessionId} AND id=${request.offerId} FOR UPDATE`;
   const offer=await tx.authorizedOffer.findFirst({where:{...scope,id:request.offerId}});
   if(!offer||offer.merchantId!==scope.merchantId||offer.sessionId!==scope.sessionId||!offer.approved||offer.expiresAt.getTime()<=current.now.getTime())return refuse();
   const requested=offer.type==="discount_fixed"?moneyCents(offer.value.toNumber()):offer.type==="discount_percent"
     &&offer.value.toNumber()>=0&&offer.value.toNumber()<=100?Math.round(cart.total*offer.value.toNumber()):null;
-  const previous=moneyCents(cart.currentDiscount??0);
+  const previous=combined?await benefits!.advancedDiscountCentsInTransaction(tx,session):moneyCents(cart.currentDiscount??0);
   if(requested===null||requested<=0||previous===null||requested<previous)return refuse();
-  const next=withDiscount(cart,requested,{kind:"advanced_rule",ruleId:offer.id,title:"Oferta aplicada",
+  let next=withDiscount(combined?{...cart,currentDiscount:0}:cart,requested,{kind:"advanced_rule",ruleId:offer.id,title:"Oferta aplicada",
     message:"Benefício aprovado pela loja para este pedido.",badge:"Oferta aprovada"},context.rules);
   // Never replace a different accepted owner or manufacture an idempotent
   // result for ambiguous prior acceptance. Exact existing owner may be read.
@@ -122,6 +149,10 @@ export async function applyNormalCommercialOffer(tx:Prisma.TransactionClient,cur
     buyerId:current.stored.globalUserId,checkoutVersion:current.stored.version+1,
     origin:"accepted_offer",settingsHash:context.settingsHash,stageEventIds:[],basis:normalCommercialBenefitBasis(cart),discountCents:requested,
     offer:{authorizedOfferId:offer.id,acceptedOfferRowId:accepted.id,termsHash:normalAcceptedOfferTermsHash(offer,accepted)}});
+  if(combined){const authorized={id:offer.id,...scope,type:z.enum(["discount_fixed","discount_percent"]).parse(offer.type),value:offer.value.toNumber(),
+    approved:true,marginAfterOffer:Number(offer.marginAfterOffer),reason:offer.reason,expiresAt:offer.expiresAt.toISOString()};
+    await benefits!.assertCanApplyAdvancedRuleInTransaction(tx,session,authorized);
+    next=(await benefits!.applyAdvancedRuleInTransaction(tx,session,authorized,{persistSession:false}))!.cart;}
   return {session:await save(tx,current,next,undefined,grant),offer:{id:offer.id,type:z.enum(["discount_fixed","discount_percent"]).parse(offer.type),
     value:offer.value.toNumber(),expiresAt:offer.expiresAt.toISOString()}};
 }

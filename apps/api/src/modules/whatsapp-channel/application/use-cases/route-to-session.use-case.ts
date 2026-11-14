@@ -9,7 +9,7 @@
  * - 24h inactivity = session expired
  */
 
-import { Injectable, Inject, Logger } from "@nestjs/common";
+import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import {
   WHATSAPP_SESSION_REPOSITORY,
   type WhatsAppSessionRepository,
@@ -19,6 +19,7 @@ import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 import { createHash } from "node:crypto";
+import { BuyerChannelIdentityService } from "../../../buyer-account/application/services/buyer-channel-identity.service.js";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -46,6 +47,7 @@ export class RouteToSessionUseCase {
     private readonly sessionRepo: WhatsAppSessionRepository,
     @Inject(PRISMA_CLIENT)
     private readonly prisma: PrismaClient,
+    @Optional() private readonly channelIdentities?: BuyerChannelIdentityService,
   ) {}
 
   async execute(input: {
@@ -55,10 +57,11 @@ export class RouteToSessionUseCase {
     fromAlias?: string;
   }): Promise<RouteResult> {
     const phone = this.normalizePhone(input.fromNumber);
-    const globalUserId = this.phoneToGlobalUserId(phone);
+    const canonicalAccount = await this.channelIdentities?.verifiedAccount(phone);
+    const globalUserId = canonicalAccount ?? this.phoneToGlobalUserId(phone);
 
     // 1. Auto-register buyer if not exists
-    const buyerData = await this.ensureBuyerExists(input.merchantId, phone, globalUserId, input.fromAlias, input.deviceId.startsWith("META_CLOUD:"));
+    const buyerData = await this.ensureBuyerExists(input.merchantId, phone, globalUserId, input.fromAlias, input.deviceId.startsWith("META_CLOUD:"), Boolean(canonicalAccount));
 
     // 2. Find active WA session
     let waSession = await this.sessionRepo.findActiveByPhone(input.merchantId, phone, input.deviceId);
@@ -115,6 +118,7 @@ export class RouteToSessionUseCase {
     globalUserId: string,
     alias?: string,
     meta = false,
+    hasVerifiedAccount = false,
   ): Promise<RouteResult["buyerData"]> {
     // Check if buyer identity exists for this phone
     const identityKey = `phone:${phone}`;
@@ -125,7 +129,7 @@ export class RouteToSessionUseCase {
     if (existingIdentity) {
       // Returning buyer — hydrate from last checkout session
       const lastSession = await this.prisma.checkoutSession.findFirst({
-        where: { merchantId, globalUserId: existingIdentity.globalUserId },
+        where: { merchantId, globalUserId: hasVerifiedAccount ? globalUserId : existingIdentity.globalUserId },
         orderBy: { updatedAt: "desc" },
       });
 
@@ -133,7 +137,7 @@ export class RouteToSessionUseCase {
 
       this.logger.debug(`whatsapp_buyer_found merchant=${merchantId}`);
       return {
-        globalUserId: existingIdentity.globalUserId,
+        globalUserId: hasVerifiedAccount ? globalUserId : existingIdentity.globalUserId,
         phone,
         phoneVerified: true,
         // Meta checkout hydrates account fields only after its email challenge.

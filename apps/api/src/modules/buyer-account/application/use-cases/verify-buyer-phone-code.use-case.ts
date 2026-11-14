@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
-import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { Inject, Injectable, Optional, UnauthorizedException } from "@nestjs/common";
 import { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { BuyerJwtService } from "../../domain/services/buyer-jwt.service.js";
 import { OTP_STORE, type OtpStore } from "../../domain/ports/otp-store.port.js";
 import { toBuyerAuthResponse, type BuyerAuthResponse } from "./register-buyer.use-case.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { BuyerChannelIdentityService } from "../services/buyer-channel-identity.service.js";
+import { LinkBuyerWhatsAppUseCase } from "./link-buyer-whatsapp.use-case.js";
 
 export interface VerifyBuyerPhoneCodeRequest {
   phone: string;
@@ -18,7 +20,9 @@ export class VerifyBuyerPhoneCodeUseCase {
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
     @Inject(OTP_STORE) private readonly otpStore: OtpStore,
-    private readonly jwt: BuyerJwtService
+    private readonly jwt: BuyerJwtService,
+    @Optional() private readonly channelIdentities?: BuyerChannelIdentityService,
+    @Optional() private readonly whatsappLink?: LinkBuyerWhatsAppUseCase,
   ) {}
 
   async execute(input: VerifyBuyerPhoneCodeRequest): Promise<BuyerAuthResponse> {
@@ -46,7 +50,9 @@ export class VerifyBuyerPhoneCodeUseCase {
     // Success: mark the OTP consumed so it cannot be reused.
     await this.otpStore.consume(phoneKey);
 
-    let account = await this.repo.findByPhone(normalized);
+    const canonicalId = await this.channelIdentities?.verifiedAccount(normalized);
+    let account = canonicalId ? await this.repo.findByGlobalUserId(canonicalId) : await this.repo.findByPhone(normalized);
+    if (canonicalId && !account) throw new UnauthorizedException("buyer_account_not_found");
     // Fallback: phone field may be encrypted (PII). Use the deterministic email pattern.
     if (!account) {
       account = await this.repo.findByEmail(`phone_${normalized}@buyer.aacp`).catch(() => null);
@@ -67,6 +73,9 @@ export class VerifyBuyerPhoneCodeUseCase {
       await this.repo.save(account);
     }
 
+    if (this.whatsappLink && countryCode === "BR" && [10, 11, 12, 13].includes(normalized.length)) {
+      await this.whatsappLink.recordVerifiedPhone(account.globalUserId, normalized);
+    }
     return toBuyerAuthResponse(account, this.jwt);
   }
 }

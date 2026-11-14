@@ -68,9 +68,10 @@ export function OrderConfirmation() {
             <span>{formatPrice(cart.serviceFee)}</span>
           </div>
         )}
+        {(cart.cashbackCents ?? 0) > 0 && <div className="order-confirmation__line"><span>Cashback utilizado</span><span>−{formatPrice(cart.cashbackCents! / 100)}</span></div>}
         <div className="order-confirmation__total">
           <span>Total pago</span>
-          <span>{formatPrice(checkoutTotalWithServiceFee({ subtotal: cart.total, shipping: cart.shipping?.cost, discount: cart.discount, serviceFee: cart.serviceFee }))}</span>
+          <span>{formatPrice(cart.totalToPay ?? checkoutTotalWithServiceFee({ subtotal: cart.total, shipping: cart.shipping?.cost, discount: cart.discount, serviceFee: cart.serviceFee, cashbackCents: cart.cashbackCents }))}</span>
         </div>
       </div>
 

@@ -4,7 +4,7 @@ import { ConflictException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import type { CheckoutEditSection } from "@zyon/shared-types";
-import { parseCheckoutCouponPaymentAuthority, type CheckoutCouponBinding } from "../../../modules/checkout/domain/services/checkout-coupon-binding.js";
+import { checkoutCouponCombinedDiscountCents, parseCheckoutCouponPaymentAuthority, type CheckoutCouponBinding } from "../../../modules/checkout/domain/services/checkout-coupon-binding.js";
 import { readStoredCheckoutCouponBinding, stripStoredCheckoutCouponBinding } from "../../../modules/checkout/domain/services/checkout-coupon-storage.js";
 import { assertBoundCouponReleasePaymentsResolved } from "../../../modules/checkout/domain/services/bound-coupon-release-proof.js";
 import { reopenCheckout } from "../../../modules/checkout/domain/services/reopen-checkout.js";
@@ -108,7 +108,8 @@ export async function releaseBoundCheckoutCouponForEdit(tx: Prisma.TransactionCl
     || !reservation.discountApplied.times(100).isInteger() || reservation.discountApplied.times(100).toNumber() !== binding.discountCents
     || !source || source.merchantId !== binding.merchantId || source.sessionId !== binding.cartId
     || !sourceCode || source.couponCode !== sourceCode || source.discount !== binding.discountCents
-    || Math.round((publicCart.currentDiscount ?? 0) * 100) !== binding.discountCents) return conflict();
+    || Math.round((publicCart.currentDiscount ?? 0) * 100) !== checkoutCouponCombinedDiscountCents(binding)
+    || binding.version === 2 && publicCart.commercialBenefitsVersion !== binding.commercialBenefitsVersion) return conflict();
   assertSourceBasis(row, source, binding);
   const eventId = checkoutCouponReleaseReceiptId(binding);
   if (await tx.outboxMessage.findFirst({ where: { eventId, merchantId: binding.merchantId }, select: { eventId: true } })) return conflict();

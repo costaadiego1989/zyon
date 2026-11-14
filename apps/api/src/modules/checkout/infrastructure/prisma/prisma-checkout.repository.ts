@@ -60,6 +60,7 @@ import { verifyNormalCheckoutEmailOtpInTransaction, readVerifiedNormalCheckoutBu
 import { detachNormalCheckoutBuyerEmailInTransaction } from "../../../../shared/persistence/normal-checkout-email-detachment.js";
 import type { CheckoutEmailOtpVerificationScope, CheckoutEmailOtpVerificationCommand } from "../../domain/services/checkout-email-otp-verification.js";
 import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
+import type { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -88,11 +89,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     private readonly prisma: PrismaClient | Prisma.TransactionClient,
     private readonly inTransaction = false,
     private readonly orderQuota?: OrderQuotaService,
+    private readonly commercialBenefits?: CheckoutCommercialBenefitsService,
   ) {}
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     if (this.inTransaction) return work(this);
-    return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota)));
+    return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits)));
   }
 
   async verifyEmailOtpAndRecognize(scope: CheckoutEmailOtpVerificationScope, command: CheckoutEmailOtpVerificationCommand,
@@ -278,12 +280,14 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     input = structuredClone(input);
     const work = async (tx: Prisma.TransactionClient) => {
       const { merchantId, sessionId } = input.expected;
+      await this.commercialBenefits?.lockInTransaction(tx, merchantId);
       await lockExecutionMerchant(tx, merchantId);
       await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id=${merchantId} FOR UPDATE`;
       await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
       const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
       assertNoUnprojectedWidgetReceipt(stored?.cart);
+      if (stored) await this.commercialBenefits?.assertMutableInTransaction(tx, toCheckoutSession(stored));
       if (stored && stripStoredCheckoutCouponBinding(stored.cart).source === "storefront") {
         const binding = readStoredCheckoutCouponBinding(stored.cart);
         if (binding && binding.state !== "released") assertNoCheckoutCouponBindingInput(stored.cart);
@@ -308,11 +312,15 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
             }
             await cancelUnboundStorefrontCouponSource(tx, dedicated.candidate);
           }
+          if (dedicated.invalidated) {
+            const reset = await this.commercialBenefits?.applyDedicatedCartChangeInTransaction(tx, current, dedicated.session, { persistSession: false });
+            if (reset) dedicated.session = reset;
+          }
           const cart = dedicated.binding ? { ...dedicated.session.cart, _storefrontCouponBinding: dedicated.binding } : dedicated.session.cart;
           const saved = await tx.checkoutSession.updateMany({ where: { id: stored.id, merchantId, sessionId, version: stored.version },
             data: { ...toCheckoutSessionUpdate(dedicated.session), cart: cart as unknown as Prisma.InputJsonValue } });
           if (saved.count !== 1) throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
-          const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+          const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits);
           if (dedicated.event) await repo.appendOutbox(dedicated.event);
           if (input.cancel) await repo.recordEvent(merchantId, sessionId, "checkout_abandoned", { source: "acp.protocol", reason: "buyer_initiated" });
           return (await repo.getSession(merchantId, sessionId))!;
@@ -330,7 +338,11 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
           metadata: { path: ["reason"], equals: "buyer_initiated" } }, select: { id: true } })) {
         throw new ConflictException("CHECKOUT_COMMERCIAL_SESSION_CLOSED");
       }
-      const repository = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      const repository = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits);
+      if (mutation.invalidated) {
+        const reset = await this.commercialBenefits?.applyCartChangeInTransaction(tx, mutation.session, { persistSession: false });
+        if (reset) mutation.session = reset;
+      }
       try {
         await repository.saveSessionIfUnchanged(mutation.session, input.expected);
       } catch (error) {
@@ -430,7 +442,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const saved = await tx.checkoutSession.updateMany({ where: { id: stored.id, merchantId, sessionId, version: stored.version },
         data: { ...toCheckoutSessionUpdate(prepared.session), cart: cart as unknown as Prisma.InputJsonValue } });
       if (saved.count !== 1) throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
-      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits);
       if (!prepared.history.includes("payment_method_selected")) {
         await repo.recordEvent(merchantId, sessionId, "payment_method_selected", { method, source: "payment_preparation" });
       }
@@ -446,7 +458,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
       const scope = { merchantId, sessionId };
       const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
-      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits);
       await repo.assertBuyerEditAllowed(merchantId, sessionId);
       if (stored && hasStoredCheckoutCouponBinding(stored.cart)) {
         const binding = readStoredCheckoutCouponBinding(stored.cart)!;
@@ -500,7 +512,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } }, select: { cart: true } });
       assertNoUnprojectedWidgetReceipt(stored?.cart);
       assertNoCheckoutCouponBindingInput(stored?.cart);
-      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits);
       const current = await repo.getSession(merchantId, sessionId);
       if (!current) throw new ConflictException("CHECKOUT_SESSION_NOT_FOUND");
       const scope = { merchantId, sessionId };
@@ -618,8 +630,9 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const session = await tx.checkoutSession.findUnique({
         where: { merchantId_sessionId: { merchantId, sessionId } }
       });
+      const now = await executionClock(tx);
       await tx.checkoutEvent.create({
-        data: { merchantId, sessionId, eventName: event, occurredAt: new Date(), metadata: metadata as any }
+        data: { merchantId, sessionId, eventName: event, occurredAt: now, metadata: metadata as any }
       });
       if (!session) return;
       const score = CheckoutAbandonmentService.applyEvent(session.abandonmentScore, event);
@@ -632,7 +645,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         data: {
           abandonmentScore: score.nextScore,
           triggerAgent: score.triggerAgent,
-          ...(preservesLastActivity ? {} : { updatedAt: new Date() })
+          ...(preservesLastActivity ? {} : { updatedAt: now })
         }
       });
     };

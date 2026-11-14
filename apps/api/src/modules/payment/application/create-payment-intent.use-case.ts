@@ -54,6 +54,7 @@ import { hasMarketplaceCheckout } from "../../checkout/infrastructure/marketplac
 import { CreateMarketplacePaymentService } from "./create-marketplace-payment.service.js";
 import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
 import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../shared/bookings/service-slot-holds.service.js";
+import { CashbackService } from "../../cashback/application/cashback.service.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -264,6 +265,7 @@ export class CreatePaymentIntentUseCase {
     @Optional() private readonly benefits?: CheckoutBenefitsService,
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
     @Optional() private readonly shippingQuotes?: QuoteShippingUseCase,
+    @Optional() private readonly cashback?: CashbackService,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest, context?: {
@@ -285,6 +287,7 @@ export class CreatePaymentIntentUseCase {
     if (!["pix", "card", "crypto"].includes(body.method ?? "pix")) {
       throw new BadRequestException("payment_method_not_supported");
     }
+    if (body.credit_card) throw new BadRequestException("raw_card_forbidden");
 
     let session = await this.checkout.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
@@ -309,7 +312,7 @@ export class CreatePaymentIntentUseCase {
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
     if (existing) {
       assertSameRequest(existing.snapshot(), body, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(existing, () => this.assertStock(session!)));
+      return this.resumePayment(existing, session);
     }
     if (requiresPhysicalDelivery(session.cart)) await this.shippingQuotes?.assertSelection(session);
 
@@ -354,7 +357,9 @@ export class CreatePaymentIntentUseCase {
     const itemsSubtotalCents = session.cart.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
     const shippingCents = requiresPhysicalDelivery(session.cart) ? Math.round((session.shipping?.customerPrice ?? 0) * 100) : 0;
     const discountCents = Math.round((session.cart.currentDiscount ?? 0) * 100);
-    const orderAmountCents = itemsSubtotalCents + shippingCents - discountCents;
+    const cashback = await this.cashback?.preparePayment(session, idempotencyKey);
+    const cashbackCents = cashback?.cashbackCents ?? 0;
+    const orderAmountCents = itemsSubtotalCents + shippingCents - discountCents - cashbackCents;
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
 
     // The route is selected by the merchant, then resolved again here. This
@@ -451,6 +456,11 @@ export class CreatePaymentIntentUseCase {
       cartFingerprint: paymentCartFingerprint(session),
       itemsSubtotalCents,
       discountCents,
+      ...(cashback && (cashbackCents > 0 || cashback.earningQuoteId) ? {
+        cashbackCents,
+        ...(cashback.reservationId ? { cashbackReservationId: cashback.reservationId } : {}),
+        ...(cashback.earningQuoteId ? { cashbackEarningQuoteId: cashback.earningQuoteId } : {}),
+      } : {}),
       shippingCents,
       platformFeeCents: buyerServiceFeeCents, totalCents: amountCents,
       ...(typeof body.confirmed_cart_fingerprint === "string" && /^[a-f0-9]{64}$/.test(body.confirmed_cart_fingerprint)
@@ -535,7 +545,6 @@ export class CreatePaymentIntentUseCase {
       amountBreakdown
     });
 
-    if (body.credit_card) throw new BadRequestException("raw_card_forbidden");
     let providerInput: CreateProviderPaymentInput = {
       merchantId, sessionId, intentId: intent.id,
       providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
@@ -603,14 +612,19 @@ export class CreatePaymentIntentUseCase {
       const winner = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
       if (!winner) throw new ConflictException("payment_creation_concurrent_change");
       assertSameRequest(winner.snapshot(), { ...body, method }, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(winner, () => this.assertStock(session)));
+      return this.resumePayment(winner, session);
     }
-    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(intent, () => this.assertStock(session)));
+    return this.resumePayment(intent, session);
   }
 
   private async assertStock(session: CheckoutSession): Promise<void> {
     if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
     await assertCartStock(this.prisma, session.merchantId, session.cart.items);
+  }
+
+  private async resumePayment(intent: PaymentIntentEntity, session: CheckoutSession): Promise<CreatePaymentIntentResponseBody> {
+    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout, this.cashback)
+      .execute(intent, () => this.assertStock(session)));
   }
 
   private async validateAcceptedOffer(

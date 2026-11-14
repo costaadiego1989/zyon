@@ -6,7 +6,8 @@ import {
   CheckoutSession,
   checkoutShippingFromExperience,
   crossSellBlockFromSuggestions,
-  cartFromExperience,
+  cartFromExperience as projectCartFromExperience,
+  commercialBenefitsVersionFromExperience,
   type BrandConfig,
   type AgentConfig,
   type CartItem,
@@ -37,6 +38,13 @@ import { checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
 import { CheckoutApiError } from "@/api/checkout-api-error";
 import type { CheckoutPriceReview } from "@/api/checkout-price-review";
 import type { NormalCheckoutCrossSellQuote, NormalCheckoutCrossSellTargetSelection } from "@zyon/contracts";
+
+// A complete server snapshot also clears fields omitted because their current
+// value is zero. Never retain a prior reservation while displaying a new cart.
+function cartFromExperience(experience: Experience | undefined) {
+  const cart = projectCartFromExperience(experience);
+  return { ...cart, cashbackCents: cart.cashbackCents, commercialBenefitsVersion: cart.commercialBenefitsVersion };
+}
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
@@ -274,6 +282,10 @@ export interface CartState {
   serviceFee: number;
   /** Authoritative buyer charge from the checkout API before local cart changes. */
   totalToPay?: number;
+  /** Projection of a server-confirmed cashback reservation, never charge authority. */
+  cashbackCents?: number;
+  /** Server revision changes when commercial origins change, even at the same discount amount. */
+  commercialBenefitsVersion?: number;
   shipping?: { key: string; label: string; cost: number };
   discount: number;
   benefits?: Experience["applied_benefits"];
@@ -295,6 +307,7 @@ export interface Message {
 }
 
 interface CheckoutState {
+  shippingMode?: "standard" | "marketplace";
   status: CheckoutStatus;
   error: string | null;
 
@@ -680,9 +693,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           totalToPay: cartData.totalToPay,
           shipping: cartData.shipping,
           discount: cartData.discount,
+          cashbackCents: cartData.cashbackCents,
+          ...(cartData.commercialBenefitsVersion !== undefined ? { commercialBenefitsVersion: cartData.commercialBenefitsVersion } : {}),
           commercialNotices: cartData.commercialNotices,
           status: cartStatusFromExperience(exp!),
         },
+        shippingMode: exp?.shipping_mode === "marketplace" ? "marketplace" : "standard",
         activeDiscount: activeDiscountFromNudge(exp?.commercial_nudge),
         status: "channel_gate",
         error: null,
@@ -1080,6 +1096,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }));
       }
 
+      const commercialBenefitsVersion = commercialBenefitsVersionFromExperience(res.experience);
+      if (commercialBenefitsVersion !== undefined && get().shippingMode !== "marketplace") {
+        set(state => ({ cart: { ...state.cart, commercialBenefitsVersion },
+          ...(res.experience && Object.hasOwn(res.experience, "commercial_nudge") ? { activeDiscount: activeDiscountFromNudge(res.experience.commercial_nudge) } : {}) }));
+      }
+
       const cartBlock = res.blocks?.find((b) => b.type === "cart_summary");
       if (cartBlock?.data) {
         const items = (cartBlock.data.items as CartItem[]) || [];
@@ -1364,6 +1386,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             subtotal: s.cart.total,
             shipping: cost,
             discount: s.cart.discount,
+            cashbackCents: s.cart.cashbackCents,
             serviceFee: s.cart.serviceFee,
           }),
           shipping: {

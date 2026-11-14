@@ -1,6 +1,10 @@
 import { createHttpLoggerOptions } from "./shared/logger/http-logger.config.js";
 import { AiMeteringModule } from "./modules/ai-metering/ai-metering.module.js";
 import { Module } from "@nestjs/common";
+import { CashbackCoreModule } from "./modules/cashback/cashback.module.js";
+import { CashbackHttpModule } from "./modules/cashback/cashback-http.module.js";
+import { CashbackLifecycleJob } from "./modules/cashback/infrastructure/cashback-lifecycle.job.js";
+import { CashbackCommunicationsModule } from "./modules/cashback/cashback-communications.module.js";
 import { PlatformControlModule } from "./modules/platform-control/platform-control.module.js";
 import { PlatformOverviewModule } from "./modules/platform-overview/platform-overview.module.js";
 import { PlatformMerchantDirectoryModule } from "./modules/platform-merchant-directory/platform-merchant-directory.module.js";
@@ -77,6 +81,9 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     ObservabilityModule,
     HttpModule,
     PersistenceModule,
+    CashbackCoreModule,
+    CashbackHttpModule,
+    CashbackCommunicationsModule,
     ServiceSlotHoldsModule,
     DataRetentionModule,
     MessagingModule,
@@ -139,6 +146,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     BillingPromotionsModule,
   ],
   providers: [
+    CashbackLifecycleJob,
     { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
   ],
 })

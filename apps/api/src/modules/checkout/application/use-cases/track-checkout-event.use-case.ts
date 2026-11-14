@@ -20,6 +20,7 @@ import { NORMAL_COMMERCIAL_BENEFIT_EVENT } from "../../domain/contracts/normal-c
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../../../payment/domain/ports/payment-repository.port.js";
+import { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
 
 @Injectable()
 export class TrackCheckoutEventUseCase {
@@ -33,7 +34,8 @@ export class TrackCheckoutEventUseCase {
     @Optional() @Inject(CHECKOUT_INTERVENTION_LEDGER)
     private readonly interventionLedger?: CheckoutInterventionLedgerPort,
     @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase,
-    @Optional() @Inject(PAYMENT_REPOSITORY) private readonly payments?: PaymentRepository
+    @Optional() @Inject(PAYMENT_REPOSITORY) private readonly payments?: PaymentRepository,
+    @Optional() private readonly commercialBenefits?: CheckoutCommercialBenefitsService,
   ) {}
 
   async execute(input: TrackEventRequest): Promise<TrackEventResponse> {
@@ -182,8 +184,9 @@ export class TrackCheckoutEventUseCase {
     if (!evaluation.approved || evaluation.value <= 0) return undefined;
     // Progressive discount is a TOTAL target, not additive.
     // If buyer already has a discount >= this stage's approved value, skip.
+    const advancedCents = await this.commercialBenefits?.advancedDiscountCents(session);
     const currentDiscountPercent = session.cart.total > 0
-      ? ((session.cart.currentDiscount ?? 0) / session.cart.total) * 100
+      ? ((advancedCents == null ? session.cart.currentDiscount ?? 0 : advancedCents / 100) / session.cart.total) * 100
       : 0;
     if (evaluation.value <= currentDiscountPercent) return undefined;
 
@@ -195,6 +198,21 @@ export class TrackCheckoutEventUseCase {
     // payment intent (computed server-side from the session) charges the
     // discounted amount — not just surface it as a cosmetic banner value.
     const discountValue = Math.round(session.cart.total * (evaluation.value / 100) * 100) / 100;
+    if (advancedCents != null && this.commercialBenefits) {
+      try {
+        const offer = { id: `progressive:${session.sessionId}:${stage}:${evaluation.value}`, merchantId: session.merchantId,
+          sessionId: session.sessionId, approved: true, type: "discount_percent" as const, value: evaluation.value,
+          reason: evaluation.reason, marginAfterOffer: evaluation.marginAfterOffer,
+          expiresAt: new Date(Date.now() + 5 * 60000).toISOString() };
+        await this.commercialBenefits.assertCanApplyAdvancedRule(session, offer);
+        const applied = await this.commercialBenefits.applyAdvancedRule(session, offer);
+        if (!applied) return undefined;
+        return { stage, requested_percent: requested, approved_percent: evaluation.value, reason: evaluation.reason };
+      } catch {
+        this.logger.debug("progressive_combination_not_applied");
+        return undefined;
+      }
+    }
     try {
       await this.sessions.saveSession({
         ...session,

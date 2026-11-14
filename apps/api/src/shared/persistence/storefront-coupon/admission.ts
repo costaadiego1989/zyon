@@ -15,12 +15,14 @@ import { validateReleasedCheckoutCouponGeneration } from "./generation-release.j
 import { assertStorefrontCouponSourceProjection } from "./source-projection-basis.js";
 import type { PaymentIntentSnapshot } from "../../../modules/payment/domain/payment-intent.entity.js";
 import { readPaymentCouponAuthority } from "../../../modules/payment/domain/payment-coupon-authority.js";
+import { readPaymentNormalCrossSellAuthority } from "../../../modules/payment/domain/payment-normal-cross-sell-authority.js";
 import { assertPaymentAmount } from "../../../modules/payment/domain/payment-amount.js";
 import { validateCoupon } from "../../../modules/coupons/domain/policies/coupon-validity.policy.js";
 import { calculateCouponDiscount } from "../../../modules/coupons/domain/policies/coupon-discount-calculator.js";
 import { toCouponEntity } from "../../../modules/coupons/infrastructure/repositories/prisma-coupon.converters.js";
 import { StorefrontCouponEligibilityReviewRequired, type StorefrontCouponAdmissionScope,
   type StorefrontCouponCheckoutCandidate, type StorefrontCouponReviewReason } from "./contracts.js";
+import { readCashbackCouponComposition } from "./cashback-composition.js";
 
 const ref = z.string().min(1).max(191).refine(value => value.trim() === value && !value.includes("\0"));
 const scopeSchema = z.strictObject({ merchantId: ref, checkoutSessionId: ref, cartId: ref, buyerId: ref });
@@ -50,7 +52,7 @@ function reservationCents(value: Prisma.Decimal): number {
 export async function readStorefrontCouponForCheckout(
   tx: Prisma.TransactionClient,
   session: CheckoutSession,
-  options: { requireVerifiedBuyer?: boolean; requireRegion?: boolean } = {},
+  options: { requireVerifiedBuyer?: boolean; requireRegion?: boolean; cashbackRuleVersion?: number } = {},
 ): Promise<StorefrontCouponCheckoutCandidate | undefined> {
   const cartId = session.cart.cart_ref;
   if (session.cart.source !== "storefront" || typeof cartId !== "string" || !cartId.trim()) return undefined;
@@ -64,7 +66,10 @@ export async function readStorefrontCouponForCheckout(
     || session.customer?.phone_verified === true && Boolean(session.customer.phone?.replace(/\D/g, ""));
   if (options.requireVerifiedBuyer && !verified || cart.merchantId !== scope.merchantId || cart.sessionId !== cartId
     || !(cart.expiresAt instanceof Date)) return conflict();
-  const discountCents = cents(session.cart.currentDiscount ?? 0);
+  const composition = await readCashbackCouponComposition(tx, session, { cashbackRuleVersion: options.cashbackRuleVersion });
+  const combinedDiscountCents = cents(session.cart.currentDiscount ?? 0);
+  if (composition && !composition.coupon) return conflict();
+  const discountCents = composition?.coupon?.amountCents ?? combinedDiscountCents;
   if (discountCents <= 0 || !Number.isSafeInteger(cart.discount) || cart.discount !== discountCents) return conflict();
   await assertStorefrontCouponSourceProjection(tx, { merchantId: scope.merchantId, cartId }, cart, session.cart);
   const code = checked(ref, cart.couponCode);
@@ -81,8 +86,11 @@ export async function readStorefrontCouponForCheckout(
     || reservation.status !== "applied" || reservation.orderId !== null || reservationCents(reservation.discountApplied) !== discountCents
     || reservation.buyerGlobalUserId !== null && reservation.buyerGlobalUserId !== scope.buyerId
     || options.requireVerifiedBuyer && coupon.max_per_buyer !== null && reservation.buyerGlobalUserId === null) return conflict();
+  if (composition && (composition.coupon!.id !== coupon.id || composition.coupon!.code !== code
+    || composition.coupon!.redemptionId !== reservation.id)) return conflict();
   const candidate = { ...scope, reservationBuyerId: reservation.buyerGlobalUserId, redemptionId: checked(ref, reservation.id), couponId: checked(ref, coupon.id),
-    discountCents, basisHash: paymentCartFingerprint(session), couponCode: code };
+    discountCents, basisHash: paymentCartFingerprint(session), couponCode: code,
+    ...(composition ? { combinedDiscountCents, commercialBenefitsVersion: composition.commercialBenefitsVersion } : {}) };
   const review = (reason: StorefrontCouponReviewReason): never => { throw new StorefrontCouponEligibilityReviewRequired(reason, candidate); };
   // Typed commercial review is safe ONLY after the exact source/reservation
   // identity and D have passed. Integrity, proof and storage faults stay hard.
@@ -97,9 +105,9 @@ export async function readStorefrontCouponForCheckout(
   if (cents(calculateCouponDiscount(coupon, session.cart.total)) < discountCents) return review("coupon_conditions_changed");
   const policy = await tx.merchantRule.findUnique({ where: { merchantId: scope.merchantId } });
   if (!policy) return conflict();
-  const rules = toMerchantRules(policy);
-  const decision = evaluateCombinedDiscount(session.cart, rules, discountCents);
-  if (decision.kind !== "authorized" || decision.cartDiscountCents !== discountCents) {
+  const rules = composition?.effectiveRules ?? toMerchantRules(policy);
+  const decision = evaluateCombinedDiscount(session.cart, rules, combinedDiscountCents);
+  if (decision.kind !== "authorized" || decision.cartDiscountCents !== combinedDiscountCents) {
     if (["existing_discount_above_limit", "discount_disabled_by_merchant", "capped_by_combined_discount_limit"].includes(decision.reason)) return review("discount_ceiling_changed");
     return conflict();
   }
@@ -135,6 +143,27 @@ export async function captureStorefrontCouponForPayment(
   const binding = readStoredCheckoutCouponBinding(checkout.cart);
   let frozen: CheckoutCouponPaymentAuthority | undefined;
   try { frozen = readPaymentCouponAuthority(snapshot); } catch { return conflict(); }
+  let cashbackRuleVersion: number | undefined;
+  if(frozen?.version===2){
+    // Only a persisted payment identity may pin an earlier policy. A new body,
+    // cart hint or unpersisted snapshot cannot select policy history.
+    const actual=await tx.paymentIntent.findUnique({where:{id:snapshot.id}});
+    if(!actual||actual.merchantId!==snapshot.merchantId||actual.sessionId!==snapshot.sessionId)return conflict();
+    const method=checked(z.enum(["pix","card","boleto","crypto"]),actual.method);
+    if(!isDeepStrictEqual(readPaymentCouponAuthority({...actual,method}),frozen))return conflict();
+    const normal=readPaymentNormalCrossSellAuthority(actual);
+    if(normal?.discountOwner?.kind==="cashback_combination")cashbackRuleVersion=normal.discountOwner.cashbackRuleVersion;
+    const quoteId=snapshot.amountBreakdown?.cashbackEarningQuoteId;
+    if(quoteId){
+      const quotes=await tx.$queryRaw<Array<{rule_version:number}>>`SELECT (data->>'ruleVersion')::int AS rule_version
+        FROM cashback_earning_quotes WHERE id=${quoteId} AND merchant_id=${snapshot.merchantId}
+        AND session_id=${snapshot.sessionId} AND payment_key=${snapshot.idempotencyKey}
+        AND payment_intent_id=${snapshot.id} AND fingerprint=${frozen.basisHash} AND state='bound'`;
+      if(quotes.length!==1||!Number.isSafeInteger(quotes[0]!.rule_version)||quotes[0]!.rule_version<1
+        ||cashbackRuleVersion!==undefined&&cashbackRuleVersion!==quotes[0]!.rule_version)return conflict();
+      cashbackRuleVersion=quotes[0]!.rule_version;
+    }
+  }
   const cartId = session.cart.cart_ref;
   if (session.cart.source !== "storefront" || typeof cartId !== "string" || !cartId.trim()) {
     if (binding || frozen || scope) return conflict();
@@ -154,14 +183,17 @@ export async function captureStorefrontCouponForPayment(
     || !snapshot.creation || snapshot.status !== "pending" || snapshot.providerPaymentId || snapshot.currency !== "BRL") return conflict();
   // A first-send journal is an existing authority, never a new scope/issuer.
   if (!frozen && (!scope || snapshot.creation.state !== "ready" || snapshot.creation.firstAttemptAt || (snapshot.version ?? 0) !== 0)) return conflict();
-  const discountCents = cents(session.cart.currentDiscount ?? 0);
+  const composition = await readCashbackCouponComposition(tx, session, {cashbackRuleVersion});
+  const combinedDiscountCents = cents(session.cart.currentDiscount ?? 0);
+  if (composition && !composition.coupon) return conflict();
+  const discountCents = composition?.coupon?.amountCents ?? combinedDiscountCents;
   if (discountCents <= 0 || !Number.isSafeInteger(cart.discount) || cart.discount !== discountCents) return conflict();
   await assertStorefrontCouponSourceProjection(tx, { merchantId: snapshot.merchantId, cartId }, cart, session.cart);
   const breakdown = snapshot.amountBreakdown;
   const basisHash = paymentCartFingerprint(session);
   try { if (!breakdown) return conflict(); assertPaymentAmount(breakdown, snapshot.amountCents, snapshot.currency); }
   catch { return conflict(); }
-  if (breakdown.cartFingerprint !== basisHash || breakdown.discountCents !== discountCents
+  if (breakdown.cartFingerprint !== basisHash || breakdown.discountCents !== combinedDiscountCents
     || breakdown.itemsSubtotalCents !== cents(session.cart.total)) return conflict();
 
   // Same discovery predicate as the cart-side guard: observe fresh owners only
@@ -202,11 +234,13 @@ export async function captureStorefrontCouponForPayment(
     || await tx.paymentIntent.findFirst({ where: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId,
       id: { not: snapshot.id }, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) return conflict();
   let candidate: StorefrontCouponCheckoutCandidate | undefined;
-  try { candidate = await readStorefrontCouponForCheckout(tx, session, { requireVerifiedBuyer: true, requireRegion: true }); }
+  try { candidate = await readStorefrontCouponForCheckout(tx, session, { requireVerifiedBuyer: true, requireRegion: true, cashbackRuleVersion }); }
   catch (error) { if (error instanceof StorefrontCouponEligibilityReviewRequired) return conflict(); throw error; }
-  if (!candidate || candidate.discountCents !== discountCents || candidate.basisHash !== basisHash) return conflict();
+  if (!candidate || candidate.discountCents !== discountCents || candidate.basisHash !== basisHash
+    || (candidate.combinedDiscountCents ?? candidate.discountCents) !== combinedDiscountCents) return conflict();
   const { couponCode: _couponCode, ...candidateIdentity } = candidate;
-  const identity = parseCheckoutCouponPaymentAuthority({ version: 1, bindingId: binding?.state === "active" ? binding.bindingId : randomUUID(),
+  const identity = parseCheckoutCouponPaymentAuthority({ version: candidate.commercialBenefitsVersion === undefined ? 1 : 2,
+    bindingId: binding?.state === "active" ? binding.bindingId : randomUUID(),
     ...candidateIdentity });
   if (binding?.state === "redeemed" || frozen && (!binding || binding.state !== "active" || !isDeepStrictEqual(frozen, identity))) return conflict();
   if (binding?.state === "active") {
@@ -224,11 +258,11 @@ export async function captureStorefrontCouponForPayment(
 
 /** Same-transaction composition ONLY. BEFORE is loaded here, never supplied by
  * a body/model. This neither issues a binding nor allocates/reserves more D. */
-export async function readNormalCrossSellCouponAuthority(tx:Prisma.TransactionClient,scope:{merchantId:string;sessionId:string}){
+export async function readNormalCrossSellCouponAuthority(tx:Prisma.TransactionClient,scope:{merchantId:string;sessionId:string}, options: { cashbackRuleVersion?: number } = {}){
   const stored=await tx.checkoutSession.findUnique({where:{merchantId_sessionId:scope}});
   if(!stored||stored.merchantId!==scope.merchantId||stored.sessionId!==scope.sessionId)return conflict();
   const session=toCheckoutSession(stored);
-  const candidate=await readStorefrontCouponForCheckout(tx,session,{requireVerifiedBuyer:true,requireRegion:true});
+  const candidate=await readStorefrontCouponForCheckout(tx,session,{requireVerifiedBuyer:true,requireRegion:true,...options});
   if(!candidate)return conflict();
   const row=await tx.coupon.findFirst({where:{id:candidate.couponId,merchantId:scope.merchantId,code:candidate.couponCode}});
   if(!row||row.id!==candidate.couponId||row.merchantId!==scope.merchantId||row.code!==candidate.couponCode)return conflict();
@@ -242,21 +276,28 @@ export type NormalCrossSellCouponAuthority={candidate:StorefrontCouponCheckoutCa
  * this function preserves the already accepted D exactly, never increases it. */
 export function assertNormalCrossSellCouponProjection(authority:NormalCrossSellCouponAuthority,cart:Cart,now:Date):void{
   const {candidate,coupon}=authority;
-  if(cart.source!=="storefront"||cart.cart_ref!==candidate.cartId||cents(cart.currentDiscount??0)!==candidate.discountCents
+  if(cart.source!=="storefront"||cart.cart_ref!==candidate.cartId||cents(cart.currentDiscount??0)!==(candidate.combinedDiscountCents??candidate.discountCents)
+    ||candidate.commercialBenefitsVersion!==undefined&&cart.commercialBenefitsVersion!==candidate.commercialBenefitsVersion
     ||coupon.id!==candidate.couponId||coupon.merchant_id!==candidate.merchantId||coupon.code!==candidate.couponCode
     ||!validateCoupon(coupon,cart,authority.buyerRegion,now).valid
     ||cents(calculateCouponDiscount(coupon,cart.total))<candidate.discountCents)return conflict();
 }
 export function projectNormalCrossSellCouponPresentation(authority:NormalCrossSellCouponAuthority,cart:Cart):Cart{
   const discount=authority.candidate.discountCents/100;
+  if(authority.candidate.commercialBenefitsVersion!==undefined)return {...cart,
+    currentDiscount:authority.candidate.combinedDiscountCents!/100,
+    commercialBenefitsVersion:authority.candidate.commercialBenefitsVersion};
   return {...cart,currentDiscount:discount,appliedBenefits:[{kind:"discount",label:`Cupom ${authority.candidate.couponCode}`,amount:discount}],
     commercialNudge:couponNudge(authority.coupon,discount,0,cart.total)};
 }
 /** AFTER rereads the SAME real reservation/D under the retained coupon fence.
  * Event/CAS/commit failure rolls this and both aggregates back together. */
-export async function assertNormalCrossSellCouponAfterWrite(tx:Prisma.TransactionClient,before:NormalCrossSellCouponAuthority):Promise<void>{
+export async function assertNormalCrossSellCouponAfterWrite(tx:Prisma.TransactionClient,before:NormalCrossSellCouponAuthority,
+  options: { allowCashbackRebase?: boolean } = {}):Promise<void>{
   const candidate=before.candidate;
   const after=await readNormalCrossSellCouponAuthority(tx,{merchantId:candidate.merchantId,sessionId:candidate.checkoutSessionId});
   const keys=["merchantId","checkoutSessionId","cartId","buyerId","reservationBuyerId","redemptionId","couponId","discountCents","couponCode"]as const;
   if(keys.some(key=>after.candidate[key]!==candidate[key]))return conflict();
+  if(!options.allowCashbackRebase&&(after.candidate.combinedDiscountCents!==candidate.combinedDiscountCents
+    ||after.candidate.commercialBenefitsVersion!==candidate.commercialBenefitsVersion))return conflict();
 }

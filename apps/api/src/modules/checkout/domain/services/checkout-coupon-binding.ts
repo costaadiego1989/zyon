@@ -18,19 +18,31 @@ const identityShape = {
   discountCents: positiveCents,
   basisHash: z.string().length(64).regex(/^[0-9a-f]{64}$/),
 };
-const identitySchema = z.strictObject(identityShape);
+const identityV2Shape = { ...identityShape, version: z.literal(2), combinedDiscountCents: positiveCents,
+  commercialBenefitsVersion: positiveCents };
+const identitySchema = z.union([z.strictObject(identityShape), z.strictObject(identityV2Shape)])
+  .refine(value => value.version === 1 || value.combinedDiscountCents >= value.discountCents);
 type BindingIdentity = z.output<typeof identitySchema>;
 
 function reservationBuyerMatches(identity: BindingIdentity): boolean {
   return identity.reservationBuyerId === null || identity.reservationBuyerId === identity.buyerId;
 }
 
-const bindingSchema = z.discriminatedUnion("state", [
-  z.strictObject({ ...identityShape, state: z.literal("active") }),
-  z.strictObject({ ...identityShape, state: z.literal("released") }),
-  z.strictObject({ ...identityShape, state: z.literal("redeemed"), orderId: reference }),
-]).refine(reservationBuyerMatches);
-const orderAuthoritySchema = z.strictObject({ ...identityShape, orderId: reference }).refine(reservationBuyerMatches);
+const bindingSchema = z.union([
+  z.discriminatedUnion("state", [
+    z.strictObject({ ...identityShape, state: z.literal("active") }),
+    z.strictObject({ ...identityShape, state: z.literal("released") }),
+    z.strictObject({ ...identityShape, state: z.literal("redeemed"), orderId: reference }),
+  ]),
+  z.discriminatedUnion("state", [
+    z.strictObject({ ...identityV2Shape, state: z.literal("active") }),
+    z.strictObject({ ...identityV2Shape, state: z.literal("released") }),
+    z.strictObject({ ...identityV2Shape, state: z.literal("redeemed"), orderId: reference }),
+  ]),
+]).refine(value => reservationBuyerMatches(value) && (value.version === 1 || value.combinedDiscountCents >= value.discountCents));
+const orderAuthoritySchema = z.union([z.strictObject({ ...identityShape, orderId: reference }),
+  z.strictObject({ ...identityV2Shape, orderId: reference })])
+  .refine(value => reservationBuyerMatches(value) && (value.version === 1 || value.combinedDiscountCents >= value.discountCents));
 const redemptionSchema = z.strictObject({
   id: reference,
   merchantId: reference,
@@ -76,7 +88,14 @@ function parseSnapshot<Schema extends z.ZodType>(schema: Schema, value: unknown)
 }
 
 function sameIdentity(left: BindingIdentity, right: BindingIdentity): boolean {
-  return (Object.keys(identityShape) as Array<keyof BindingIdentity>).every(key => left[key] === right[key]);
+  if (!(Object.keys(identityShape) as Array<keyof BindingIdentity>).every(key => left[key] === right[key])) return false;
+  return left.version === 1 || right.version === 2 && left.combinedDiscountCents === right.combinedDiscountCents
+    && left.commercialBenefitsVersion === right.commercialBenefitsVersion;
+}
+
+/** V1 keeps its original coupon-only amount. V2 freezes both components. */
+export function checkoutCouponCombinedDiscountCents(value: CheckoutCouponPaymentAuthority): number {
+  return value.version === 2 ? value.combinedDiscountCents : value.discountCents;
 }
 
 /** Strict detached snapshot, with no coercion, normalization or raw Zod errors. */

@@ -48,6 +48,7 @@ import { deliveryEndpoints } from "./endpoints/delivery.js";
 import { postSaleEndpoints } from "./endpoints/post-sale.js";
 import { knowledgeEndpoints } from "./endpoints/knowledge.js";
 import { financeEndpoints } from "./endpoints/finance.js";
+import { cashbackEndpoints } from "./endpoints/cashback.js";
 
 export * from "./http/index.js";
 export * from "./types.js";
@@ -113,6 +114,7 @@ export function createDashboardApi(options: {
     ...postSaleEndpoints(base, f),
     ...knowledgeEndpoints(base, f),
     ...financeEndpoints(base, f),
+    ...cashbackEndpoints(base, f),
     ...otherEndpoints(base, f),
   };
 }

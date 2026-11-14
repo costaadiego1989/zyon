@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CashbackCheckout } from "./CashbackCheckout";
 import { useCheckoutStore } from "@/store/checkout-store";
 import type { CartItem } from "@/api/checkout-session";
 import { buyerServiceFeeCopy, checkoutLocale, checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
@@ -120,6 +121,7 @@ export function SmartCart() {
     subtotal: cart.total,
     shipping: cart.shipping?.cost,
     discount: cart.discount,
+    cashbackCents: cart.cashbackCents,
     serviceFee: cart.serviceFee,
   });
   const displayedTotal = cart.shipping
@@ -127,6 +129,7 @@ export function SmartCart() {
         subtotal: cart.total,
         shipping: cart.shipping.cost,
         discount: cart.discount,
+        cashbackCents: cart.cashbackCents,
         serviceFee: cart.serviceFee,
       })
     : finalTotal;
@@ -199,6 +202,7 @@ export function SmartCart() {
               {cart.benefits.map((benefit, index) => <li key={`${benefit.kind}-${index}`}>{benefit.label} · economia de {formatPrice(benefit.amount)}</li>)}
             </ul>
           ) : null}
+          <CashbackCheckout />
           {cart.serviceFee > 0 && (
             <div data-testid="buyer-service-fee" className="checkout-cart__service-fee">
               <SummaryLine label={serviceFeeCopy.label} value={formatPrice(cart.serviceFee)} />

@@ -76,6 +76,7 @@ export type TabKey =
   | "agent-config-checkout"
   | "experiments"
   | "coupons"
+  | "cashback"
   | "stories"
   | "team"
   | "account-settings"
@@ -156,6 +157,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "funnel", label: "Funil de conversão", section: "sales", icon: BarChart3, requiredPlan: STORE, keywords: ["funil", "funnel", "conversão", "conversion"] },
   { key: "settings", label: "Checkout", section: "sales", icon: Settings2, requiredPlan: STORE, keywords: ["checkout", "configurações checkout", "widget config"] },
   { key: "coupons", label: "Cupons", section: "sales", icon: Tag, requiredPlan: STORE, keywords: ["cupons", "coupons", "desconto", "discount", "promoção"] },
+  { key: "cashback", label: "Cashback", section: "sales", icon: Undo2, keywords: ["cashback", "fidelidade", "saldo", "recompra", "crédito"] },
   { key: "cross-sell", label: "Produtos complementares", section: "sales", icon: Sparkles, requiredPlan: STORE, keywords: ["cross-sell", "cross sell", "venda cruzada", "sugestões"] },
   { key: "experiments", label: "Testes A/B", section: "sales", icon: Zap, requiredPlan: STORE, keywords: ["testes", "experimentos", "a/b", "experiments", "ab test"] },
   { key: "negotiation-policy", label: "Limites de negociação", section: "sales", icon: Handshake, requiredPlan: STORE, keywords: ["negociação", "negotiation", "barganha", "oferta"] },

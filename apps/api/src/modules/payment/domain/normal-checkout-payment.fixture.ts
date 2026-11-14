@@ -2,7 +2,14 @@ import { widgetPaymentAuthorityFixture } from "./widget-checkout-payment.fixture
 import type { NormalCheckoutPaymentAuthority } from "./normal-checkout-payment-authority.schemas.js";
 
 /** Synthetic data for source tests, never an issuer or persisted proof. */
-export function normalPaymentAuthorityFixture() {
+export function normalPaymentAuthorityFixture(): {
+  authority: NormalCheckoutPaymentAuthority;
+  scope: Omit<ReturnType<typeof widgetPaymentAuthorityFixture>["scope"], "creation"> & {
+    creation: Omit<ReturnType<typeof widgetPaymentAuthorityFixture>["scope"]["creation"], "widgetCheckoutAuthority"> & {
+      normalCrossSellAuthority: NormalCheckoutPaymentAuthority;
+    };
+  };
+} {
   const f = widgetPaymentAuthorityFixture();
   const { acceptanceEventId: _event, revisionEventId: _revision, ...base } = f.authority;
   const authority:NormalCheckoutPaymentAuthority = { ...base, origin: "normal_checkout_cross_sell" as const,

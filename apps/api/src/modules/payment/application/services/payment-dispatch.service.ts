@@ -14,6 +14,7 @@ import { MarkCommerceOrderPaidUseCase } from "../../../commerce/application/mark
 import { PaymentEventPublisher } from "../../infrastructure/payment-event-publisher.js";
 import { orderTotalCents } from "../../domain/payment-amount.js";
 import { PaymentHoldLifecycleService } from "../payment-hold-lifecycle.service.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
 
 /**
  * Shared payment intent state-machine & checkout completion logic.
@@ -28,6 +29,7 @@ export class PaymentDispatchService implements OnModuleInit {
     @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase,
     @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
     @Optional() private readonly paymentHoldLifecycle?: PaymentHoldLifecycleService,
+    @Optional() private readonly cashback?: CashbackService,
   ) {}
 
   onModuleInit(): void {
@@ -125,6 +127,11 @@ export class PaymentDispatchService implements OnModuleInit {
 
     this.metrics?.paymentFailed.inc({ method: snap.method, reason });
 
+    if (snap.amountBreakdown?.cashbackCents || snap.amountBreakdown?.cashbackEarningQuoteId) {
+      if (!this.cashback) throw new Error("cashback_service_unavailable");
+      await this.cashback.failedPayment({ merchantId: snap.merchantId, paymentIntentId: snap.id });
+    }
+
   }
 
   /**
@@ -135,11 +142,12 @@ export class PaymentDispatchService implements OnModuleInit {
     reason: string
   ): Promise<void> {
     const snap = intentEntity.snapshot();
-    if (snap.status === "refunded") return;
-    if (snap.status !== "approved") throw new Error("payment_refund_precedes_approval");
-
-    intentEntity.markRefunded(reason);
-    await savePaymentTransition(this.payments, intentEntity, reason);
+    if (snap.status !== "refunded") {
+      if (snap.status !== "approved") throw new Error("payment_refund_precedes_approval");
+      intentEntity.markRefunded(reason);
+      await savePaymentTransition(this.payments, intentEntity, reason);
+    }
+    await this.reconcileCashbackTerminal(intentEntity.snapshot());
   }
 
   /**
@@ -199,6 +207,13 @@ export class PaymentDispatchService implements OnModuleInit {
       reason,
       commerceOrderId: before.commerceOrderId,
     });
+    if (after.status === "chargeback_lost") await this.reconcileCashbackTerminal(after);
+  }
+
+  private async reconcileCashbackTerminal(snap: PaymentIntentSnapshot) {
+    if (!snap.amountBreakdown?.cashbackCents && !snap.amountBreakdown?.cashbackEarningQuoteId) return;
+    if (!this.cashback) throw new Error("cashback_service_unavailable");
+    await this.cashback.confirmedExternalRefund({ merchantId: snap.merchantId, paymentIntentId: snap.id });
   }
 
   private async markLinkedCommerceOrderPaid(

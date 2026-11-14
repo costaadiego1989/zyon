@@ -1,4 +1,4 @@
-import { BadGatewayException, ConflictException, Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { BadGatewayException, ConflictException, Inject, Injectable, Logger, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { ServiceSlotHoldsService } from "../../../shared/bookings/service-slot-holds.service.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { randomUUID } from "node:crypto";
@@ -9,6 +9,7 @@ import { PAYMENT_PROVIDER_PORT, type PaymentProviderPort } from "../domain/ports
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 import { isPaymentCreationRejectionCode, PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { CashbackService } from "../../cashback/application/cashback.service.js";
 
 @Injectable()
 export class ResumePaymentCreationService {
@@ -18,6 +19,7 @@ export class ResumePaymentCreationService {
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
     @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout?: CheckoutSessionRepository,
+    @Optional() private readonly cashback?: CashbackService,
   ) {}
 
   async execute(intent: PaymentIntentEntity, beforeCreate?: () => Promise<void>): Promise<PaymentIntentSnapshot> {
@@ -25,6 +27,14 @@ export class ResumePaymentCreationService {
     const rejection = before.creation?.reason;
     if (before.status === "failed" && isPaymentCreationRejectionCode(rejection)) {
       throw new ConflictException(rejection);
+    }
+    if ((before.amountBreakdown?.cashbackCents ?? 0) > 0 || before.amountBreakdown?.cashbackEarningQuoteId) {
+      if (!this.cashback) throw new ServiceUnavailableException("cashback_payment_binding_unavailable");
+      await this.cashback.bindPayment(before.merchantId, before.sessionId, before.idempotencyKey, before.id, {
+        cashbackCents: before.amountBreakdown?.cashbackCents ?? 0,
+        ...(before.amountBreakdown?.cashbackReservationId ? { reservationId: before.amountBreakdown.cashbackReservationId } : {}),
+        ...(before.amountBreakdown?.cashbackEarningQuoteId ? { earningQuoteId: before.amountBreakdown.cashbackEarningQuoteId } : {}),
+      });
     }
     if (before.providerPaymentId && before.status === "requires_action" && before.method === "pix" &&
       !before.buyerFacing?.qrCodeCopyPaste?.trim() && before.creation) {

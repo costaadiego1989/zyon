@@ -26,6 +26,7 @@ import { MarketplaceShipmentDashboardService } from "./application/marketplace-s
 import { PrismaMarketplaceDeliveryRepository } from "./infrastructure/repositories/prisma-marketplace-delivery.repository.js";
 import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketplace-delivery-events.handler.js";
 import { ShippingQuoteCreatedAuditHandler } from "./infrastructure/event-handlers/shipping-quote-created-audit.handler.js";
+import { CheckoutCommercialBenefitsService } from "../cashback/application/checkout-commercial-benefits.service.js";
 
 @Module({
   imports: [MerchantModule],
@@ -63,8 +64,8 @@ import { ShippingQuoteCreatedAuditHandler } from "./infrastructure/event-handler
       inject: [MELHOR_ENVIO_TOKEN_RESOLVER] },
     {
       provide: SHIPPING_QUOTE_REPOSITORY,
-      useFactory: (prisma: PrismaClient) => new PrismaShippingQuoteRepository(prisma),
-      inject: [PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient, benefits: CheckoutCommercialBenefitsService) => new PrismaShippingQuoteRepository(prisma, benefits),
+      inject: [PRISMA_CLIENT, CheckoutCommercialBenefitsService]
     },
     {
       provide: OWN_DELIVERY_CONFIG_REPOSITORY,

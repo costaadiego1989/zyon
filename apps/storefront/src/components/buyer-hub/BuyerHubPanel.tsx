@@ -16,6 +16,7 @@ import type { BuyerSupportInbox } from "@/lib/viewmodels/useBuyerSupportInbox";
 import type { BuyerConversation } from "@/lib/viewmodels/useBuyerHub/types";
 import PreferencesTab from "./tabs/PreferencesTab";
 import LoyaltyTab from "./tabs/LoyaltyTab";
+import { CashbackWallet } from "./CashbackWallet";
 import { SettingsTab } from "./tabs/SettingsTab";
 import AgentTab from "./tabs/AgentTab";
 
@@ -805,6 +806,8 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, store
                 />
               )}
               {vm.activeTab === "loyalty" && (
+                <>
+                <CashbackWallet merchantId={merchantId} />
                 <LoyaltyTab
                   loyalty={vm.loyalty.data}
                   summary={vm.summary.data ?? null}
@@ -817,6 +820,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, store
                   onRetryBenefits={() => { void vm.loadBenefits(); }}
                   loading={vm.loyalty.loading || vm.discountRules.loading || vm.benefits.loading}
                 />
+                </>
               )}
               {vm.activeTab === "settings" && (
                 <SettingsTab

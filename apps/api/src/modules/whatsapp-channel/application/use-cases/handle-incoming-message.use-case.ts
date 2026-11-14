@@ -1,5 +1,6 @@
 import { WHATSAPP_CONVERSATION_PORT, type WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
 import { whatsappProcessingErrorCode } from "../../domain/services/whatsapp-processing-error.js";
+import { createHash } from "node:crypto";
 /**
  * Handle Incoming WhatsApp Message — Main Pipeline
  *
@@ -121,6 +122,7 @@ export class HandleIncomingMessageUseCase {
       if (!session.checkoutSessionId) throw new Error("whatsapp_checkout_session_missing");
       const engineResponse = await this.conversation.respond({
         merchantId: input.merchantId, checkoutSessionId: session.checkoutSessionId, message: textForEngine,
+        requestId: createHash("sha256").update(JSON.stringify([input.merchantId, input.deviceId, input.fromNumber, input.timestamp, input.body])).digest("hex"),
       });
       const quickReplies: string[] = engineResponse.quickReplies;
       const agentText: string = engineResponse.agentMessage;

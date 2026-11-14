@@ -14,19 +14,26 @@ export function salesDefaults(type: string) {
   return { email: { subject: EMAIL_TEMPLATE_SUBJECTS[def.type], body: POST_SALE_EMAIL_BODIES[def.type] ?? def.freeformBody }, whatsapp: { body: def.freeformBody } };
 }
 const samples: Record<string, string> = { alertName: "MarketplaceOutboxDeliveryFailures", alertStatus: "ativo", alertSeverity: "crítica", observedAt: "03/10/2026, 10:00", decisionReason: "A loja confirmou a análise e informará a próxima etapa na conversa.", merchantName: "Loja Exemplo", planName: "Growth", expiresAt: "21/09/2026, 10:00", dashboardLink: "https://app.zyon-payments.com.br/#billing-plans", buyerName: "Ana", storeName: "Loja Exemplo", productName: "Camiseta", orderId: "PED-123", trackingCode: "BR123456789", otpCode: "123456", couponBlock: "Cupom VOLTE10: 10% de desconto", coupon: "VOLTE10", discount: "10%", link: "https://loja.exemplo/pedido" };
+// Cashback variables belong only to their declared marketing templates; they
+// cannot turn an operational/utility template into promotional content.
+const scopedSamples: Partial<Record<WhatsAppTemplateType, Record<string, string>>> = {
+  cashback_available: { cashbackAmount: "R$ 10,00" },
+  cashback_expiring: { cashbackAmount: "R$ 10,00", cashbackExpiresAt: "21/11/2026" },
+};
 export function prepareSalesWhatsApp(type: string, body: string) {
-  salesTemplateType(type);
+  const templateType = salesTemplateType(type);
   if ((type.startsWith("return_") || type === "exchange_completed") && /\{\{(?:couponBlock|coupon|discount)\}\}/.test(body)) throw new BadRequestException("transactional_template_required");
   if (type === "cart_recovery") return { ...prepareRecoveryWhatsApp(body), category: "MARKETING" };
+  const allowedSamples = { ...samples, ...scopedSamples[templateType] };
   const positions = new Map<string, number>();
   const variableMap: Record<string, string> = {};
   const sampleVariables: Record<string, string> = {};
   const metaBody = body.replace(/\{\{(\w+)\}\}/g, (_, name: string) => {
-    if (!Object.hasOwn(samples, name)) throw new BadRequestException("unsupported_template_variable");
+    if (!Object.hasOwn(allowedSamples, name)) throw new BadRequestException("unsupported_template_variable");
     if (!positions.has(name)) positions.set(name, positions.size + 1);
     const pos = String(positions.get(name));
     variableMap[pos] = name;
-    sampleVariables[pos] = samples[name];
+    sampleVariables[pos] = allowedSamples[name];
     return `{{${pos}}}`;
   });
   if (/[{}]/.test(metaBody.replace(/\{\{\d+\}\}/g, ""))) throw new BadRequestException("unsupported_template_variable");

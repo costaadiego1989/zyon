@@ -51,10 +51,12 @@ export class EmbedShippingController {
     const session = await this.loadOwnedSession(request.embedClaims!, sessionId);
     const rules = await this.merchantRulesRepo?.getRules(merchantId);
 
-    return this.quoteShipping.execute({ ...checkoutShippingInput(session), destination_zip: destinationZip,
+    const quote = await this.quoteShipping.execute({ ...checkoutShippingInput(session), destination_zip: destinationZip,
       ...(session.customer?.address?.zip?.replace(/\D/g, "") === destinationZip.replace(/\D/g, "")
         ? { destination_neighborhood: session.customer.address.neighborhood } : { destination_neighborhood: undefined }),
       origin_zip: rules?.originZip ?? "" });
+    await this.quoteShipping.publishCheckoutOptions?.(session, quote, this.sessions!);
+    return quote;
   }
 
   @Post("select")

@@ -33,7 +33,7 @@ export type CheckoutEventName =
 export interface CartItem {
   /** Server-persisted cross-sell preconditions. Never trust public cart copies. */
   crossSellIntent?: { version: 1; promotionId: string; promotionUpdatedAt: string; acceptedQuantity: number;
-    originalUnitPriceCents: number; maximumUnitPriceCents: number };
+    originalUnitPriceCents: number; maximumUnitPriceCents: number; selectedOptionItemIds?: string[] };
   originalPrice?: number;
   variantLabel?: string;
   fulfillmentStrategy?: import("./order-fulfillment.js").FulfillmentStrategy;
@@ -89,6 +89,10 @@ export interface Cart {
   total: number;
   items: CartItem[];
   currentDiscount?: number;
+  /** Display projection of a server-confirmed cashback reservation; never authorizes a charge. */
+  cashbackCents?: number;
+  /** Authored by the server when persisted coupon/rule composition changes. */
+  commercialBenefitsVersion?: number;
   /** Server-authored original merchandise basis; never trust a submitted copy. */
   discountBudget?: { version: 1; originalSubtotalCents: number; promotionDiscountCents: number };
   /** Presentation only, authored from a verified server-side policy decision. */
@@ -519,6 +523,7 @@ export interface CheckoutTotalsSnapshot {
   subtotal: number;
   shipping: number;
   discount: number;
+  cashback_cents?: number;
   service_fee?: number;
   /** Amount charged to the buyer: order total plus the separately disclosed service fee. */
   total_to_pay?: number;
@@ -526,6 +531,8 @@ export interface CheckoutTotalsSnapshot {
 }
 
 export interface CheckoutExperienceSnapshot {
+  /** Display revision for the authoritative persisted coupon/rule composition. */
+  commercial_benefits_version?: number;
   brand: CheckoutBrandSnapshot;
   stage?: ChatStage;
   rules?: {
@@ -1599,3 +1606,4 @@ export type { StorefrontReadUiAction, StorefrontQuestionUiAction, StorefrontPubl
 export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, RealtimeServerVoiceTurns, type RealtimeVoiceCall, type RealtimeServerVoiceEvent } from "./realtime-voice-session.js";
 
 export * from "./shopping-agent-appearance.js";
+export * from "./cashback.js";

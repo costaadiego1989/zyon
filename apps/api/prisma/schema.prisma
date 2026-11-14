@@ -4926,3 +4926,184 @@ model BuyerShoppingWorkspace {
   @@index([merchantId])
   @@map("buyer_shopping_workspaces")
 }
+
+
+// Cashback: merchant-scoped promotional credit, enabled only by explicit configuration.
+model CashbackProgram {
+  merchantId String @id @map("merchant_id")
+  status String @default("disabled")
+  draft Json?
+  published Json?
+  version Int @default(0)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  ruleVersions CashbackRuleVersion[]
+  @@map("cashback_programs")
+}
+model CashbackRuleVersion {
+  merchantId String @map("merchant_id")
+  version Int
+  rules Json
+  actorId String @map("actor_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  program CashbackProgram @relation(fields: [merchantId], references: [merchantId], onDelete: Restrict)
+  @@id([merchantId, version])
+  @@map("cashback_rule_versions")
+}
+model CashbackWallet {
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  balance Json
+  version Int @default(1)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  grants CashbackGrant[]
+  reservations CashbackReservation[]
+  entries CashbackLedgerEntry[]
+  aliases CashbackBuyerAlias[]
+  @@id([merchantId, buyerId])
+  @@map("cashback_wallets")
+}
+model CashbackGrant {
+  id String @id
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  orderId String @map("order_id")
+  data Json
+  createdAt DateTime @map("created_at") @db.Timestamptz
+  wallet CashbackWallet @relation(fields: [merchantId, buyerId], references: [merchantId, buyerId], onDelete: Restrict)
+  @@unique([merchantId, orderId])
+  @@unique([id, merchantId, buyerId])
+  @@map("cashback_grants")
+}
+model CashbackReservation {
+  id String @id
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  sessionId String @map("session_id")
+  state String
+  data Json
+  createdAt DateTime @map("created_at") @db.Timestamptz
+  wallet CashbackWallet @relation(fields: [merchantId, buyerId], references: [merchantId, buyerId], onDelete: Restrict)
+  @@map("cashback_reservations")
+}
+model CashbackLedgerEntry {
+  id String @id
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  type String
+  amountCents BigInt @map("amount_cents")
+  orderId String? @map("order_id")
+  sessionId String? @map("session_id")
+  reason String
+  actorId String? @map("actor_id")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz
+  wallet CashbackWallet @relation(fields: [merchantId, buyerId], references: [merchantId, buyerId], onDelete: Restrict)
+  @@index([merchantId, occurredAt(sort: Desc), id], map: "cashback_ledger_tenant_time")
+  @@index([merchantId, buyerId, occurredAt(sort: Desc)], map: "cashback_ledger_buyer_time")
+  @@map("cashback_ledger_entries")
+}
+model CashbackEventReceipt {
+  merchantId String @map("merchant_id")
+  commandKey String @map("command_key")
+  fingerprint String
+  result Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  @@id([merchantId, commandKey])
+  @@map("cashback_event_receipts")
+}
+model CashbackBudgetPeriod {
+  merchantId String @map("merchant_id")
+  period String
+  committedCents BigInt @default(0) @map("committed_cents")
+  issuedCents BigInt @default(0) @map("issued_cents")
+  @@id([merchantId, period])
+  @@map("cashback_budget_periods")
+}
+model CashbackEarningQuote {
+  id String @id
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  sessionId String @map("session_id")
+  paymentKey String @map("payment_key")
+  fingerprint String
+  state String
+  paymentIntentId String? @map("payment_intent_id")
+  data Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@unique([merchantId, sessionId, paymentKey])
+  @@unique([merchantId, paymentIntentId])
+  @@index([merchantId, buyerId, createdAt], map: "cashback_quote_buyer_period")
+  @@map("cashback_earning_quotes")
+}
+model CashbackBuyerAlias {
+  merchantId String @map("merchant_id")
+  aliasBuyerId String @map("alias_buyer_id")
+  canonicalBuyerId String @map("canonical_buyer_id")
+  verificationId String @map("verification_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  canonicalWallet CashbackWallet @relation(fields: [merchantId, canonicalBuyerId], references: [merchantId, buyerId], onDelete: Restrict)
+  @@id([merchantId, aliasBuyerId])
+  @@index([merchantId, canonicalBuyerId], map: "cashback_alias_canonical")
+  @@map("cashback_buyer_aliases")
+}
+
+model BuyerVerifiedPhone {
+  phone String @id
+  buyerId String @map("buyer_id")
+  verificationId String @unique @map("verification_id")
+  verifiedAt DateTime @default(now()) @map("verified_at") @db.Timestamptz
+  @@index([buyerId], map: "buyer_verified_phones_buyer_idx")
+  @@map("buyer_verified_phones")
+}
+
+model CashbackNotification {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  type String
+  sourceId String @map("source_id")
+  state String
+  reason String?
+  providerMessageId String? @map("provider_message_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@unique([merchantId, type, sourceId])
+  @@index([merchantId, state, createdAt], map: "cashback_notifications_review_idx")
+  @@map("cashback_notifications")
+}
+
+model CashbackRefundOperation {
+  merchantId String @map("merchant_id")
+  commandKey String @map("command_key")
+  orderId String @map("order_id")
+  fingerprint String
+  amountCents BigInt @map("amount_cents")
+  state String
+  providerRefundId String? @map("provider_refund_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@id([merchantId, commandKey])
+  @@map("cashback_refund_operations")
+}
+
+model CashbackCheckoutBenefits {
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  data Json
+  version Int
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@id([merchantId, sessionId])
+  @@map("cashback_checkout_benefits")
+}
+
+model CashbackBenefitEvent {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  version Int
+  data Json
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  @@unique([merchantId, sessionId, version])
+  @@index([merchantId, sessionId, occurredAt], map: "cashback_benefit_events_session")
+  @@map("cashback_benefit_events")
+}

@@ -92,14 +92,14 @@ test("source coordinator calls the internal normal reader before reservation and
   const f=fixture();f.change(state=>Reflect.set(state.row.cart.items[0]!,"crossSellIntent",{version:1}));
   const seen:number[]=[];
   const command=f.withReader(async(tx,scope)=>{assert.equal(tx,f.tx);assert.deepEqual(scope,{merchantId:"merchant",sessionId:"checkout-id"});
-    const stored=await f.tx.checkoutSession.findUnique();seen.push(stored.version);return toCheckoutSession(stored);});
+    const stored=await f.tx.checkoutSession.findUnique();seen.push(stored.version);return toCheckoutSession(stored as Parameters<typeof toCheckoutSession>[0]);});
   const result=await command.executeForCheckout(request);assert.deepEqual(seen,[4,5]);
   assert.equal(result.session.cart.currentDiscount,10);assert.equal(f.state().reservations[0]!.sessionId,"cart-id");
 });
 test("post-reserve canonical reader disagreement rolls back source/session/reservation/event as one transaction",async()=>{
   const f=fixture();f.change(state=>Reflect.set(state.row.cart.items[0]!,"crossSellIntent",{version:1}));
   const before=f.state();let reads=0;
-  const command=f.withReader(async()=>{const session=toCheckoutSession(await f.tx.checkoutSession.findUnique());
+  const command=f.withReader(async()=>{const session=toCheckoutSession(await f.tx.checkoutSession.findUnique() as Parameters<typeof toCheckoutSession>[0]);
     if(++reads===2)session.cart.currentDiscount=999;return session;});
   await assert.rejects(command.executeForCheckout(request));assert.deepEqual(f.state(),before);
 });

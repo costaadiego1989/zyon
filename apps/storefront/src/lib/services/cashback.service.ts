@@ -1,0 +1,27 @@
+import type { CashbackPage, CashbackTransaction, CashbackWalletView } from "@zyon/shared-types";
+import { apiCall } from "./http";
+
+export async function fetchCashbackWallet(merchantId: string, signal?: AbortSignal): Promise<CashbackWalletView> {
+  const wallet = await apiCall<CashbackWalletView>(`/buyer/me/cashback?merchant_id=${encodeURIComponent(merchantId)}`, { signal });
+  if (wallet.merchantId !== merchantId || wallet.currency !== "BRL") throw new Error("cashback_wallet_scope_mismatch");
+  return wallet;
+}
+
+export function fetchCashbackTransactions(merchantId: string, page = 1, signal?: AbortSignal): Promise<CashbackPage<CashbackTransaction>> {
+  const query = new URLSearchParams({ merchant_id: merchantId, page: String(page), pageSize: "10" });
+  return apiCall<CashbackPage<CashbackTransaction>>(`/buyer/me/cashback/transactions?${query}`, { signal });
+}
+
+export interface BuyerWhatsAppLink { linked: boolean; phone: string | null; }
+
+export function fetchBuyerWhatsAppLink(signal?: AbortSignal): Promise<BuyerWhatsAppLink> {
+  return apiCall<BuyerWhatsAppLink>("/buyer/me/channels/whatsapp", { signal });
+}
+
+export function requestBuyerWhatsAppLinkCode(phone: string): Promise<{ sent: true; delivered_to: string }> {
+  return apiCall("/buyer/me/channels/whatsapp/code", { method: "POST", body: JSON.stringify({ phone }) });
+}
+
+export function verifyBuyerWhatsAppLink(phone: string, code: string): Promise<BuyerWhatsAppLink> {
+  return apiCall<BuyerWhatsAppLink>("/buyer/me/channels/whatsapp/verify", { method: "POST", body: JSON.stringify({ phone, code }) });
+}

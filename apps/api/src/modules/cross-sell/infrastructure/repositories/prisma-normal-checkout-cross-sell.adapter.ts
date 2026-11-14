@@ -7,7 +7,7 @@ import { FoodOptionValidationError } from "../../../storefront/domain/food-optio
 import { commercialNotice } from "../../../storefront/domain/services/commercial-notice.js";
 import { storefrontOptionLineIdentity } from "../../../storefront/domain/contracts/storefront-claimed-cart-effect.schemas.js";
 import { toCheckoutSession } from "../../../checkout/domain/services/checkout-session-projection.js";
-import { stripStoredCheckoutCouponBinding } from "../../../checkout/domain/services/checkout-coupon-storage.js";
+import { readStoredCheckoutCouponBinding, stripStoredCheckoutCouponBinding } from "../../../checkout/domain/services/checkout-coupon-storage.js";
 import { assertNormalCrossSellCouponAfterWrite, projectNormalCrossSellCouponPresentation } from "../../../../shared/persistence/storefront-coupon/admission.js";
 import { StorefrontCouponEligibilityReviewRequired } from "../../../../shared/persistence/storefront-coupon/contracts.js";
 import { prepareNormalCommercialBenefits, applyNormalCommercialOffer } from "./prisma-normal-commercial-benefits.js";
@@ -15,6 +15,7 @@ import { readNormalCheckoutProductFulfillment, NormalCheckoutProductFulfillmentE
 import { normalCheckoutCrossSellScopeSchema, normalCheckoutCrossSellQuoteRequestSchema, normalCheckoutCrossSellAcceptanceSchema,
   normalCheckoutCrossSellQuoteSchema, normalCheckoutCrossSellAcknowledgementSchema } from "../../domain/contracts/normal-checkout-cross-sell-command.schemas.js";
 import type { NormalCheckoutCrossSellPort } from "../../domain/ports/normal-checkout-cross-sell.port.js";
+import type { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
 import { lockNormalCheckoutCrossSell, readNormalCheckoutCrossSellAuthority, normalCrossSellHash, normalCrossSellEventId,
   normalCrossSellSuggestionSchema, normalCrossSellTargetIntent, normalCrossSellEvidenceSchema,
   normalCrossSellCartMutationSchema, readNormalCrossSellEvidence, requireNormalCrossSellReview } from "./prisma-normal-checkout-cross-sell.authority.js";
@@ -41,7 +42,7 @@ async function saveNormalCrossSellSource(tx:Prisma.TransactionClient,current:Aut
   const saved=await tx.storefrontCart.updateMany({where:{id:row.id,merchantId:row.merchantId,sessionId:row.sessionId,
     items:{equals:row.items as Prisma.InputJsonValue},total:row.total,discount:row.discount,couponCode:row.couponCode,freeShipping:row.freeShipping,
     updatedAt:row.updatedAt,expiresAt:row.expiresAt},data:{items:items as unknown as Prisma.InputJsonValue,total:Number(total),
-      discount:current.coupon?current.pricing.cartDiscountCents:row.discount,couponCode:row.couponCode,freeShipping:false,updatedAt:current.now}});
+      discount:current.coupon?current.coupon.candidate.discountCents:row.discount,couponCode:row.couponCode,freeShipping:false,updatedAt:current.now}});
   if(saved.count!==1)return requireNormalCrossSellReview("source_changed");
 }
 export function projectNormalCrossSellCart(current:Authority):Cart{
@@ -53,10 +54,12 @@ export function projectNormalCrossSellCart(current:Authority):Cart{
     const target=current.pricing.targets.find(target=>storefrontOptionLineIdentity(target)===storefrontOptionLineIdentity(line));
     const {originalPrice:_original,crossSellIntent:_intent,selected_options:_options,...base}=existing??{};
     Reflect.deleteProperty(base,"category");
+    Reflect.deleteProperty(base,"cost");
     const fulfillment=readNormalCheckoutProductFulfillment({type:row.product.type,metadata:row.product.metadata},current.now);
     return {...base,sku:line.sku,variantId:line.variantId,product_id:line.productId,productType:fulfillment.productType,
       name:row.product.name,quantity:line.quantity,price:line.unitPriceCents/100,fulfillmentStrategy:fulfillment.fulfillmentStrategy,
       ...(row.product.categoryId?{category:row.product.categoryId}:{}),
+      ...(row.price.costInCents===undefined||row.price.costInCents===null?{}:{cost:row.price.costInCents/100}),
       ...(row.weightGrams===null||row.weightGrams===undefined?{}:{weightGrams:row.weightGrams}),
       ...(row.heightCm===null||row.heightCm===undefined?{}:{height_cm:row.heightCm}),
       ...(row.widthCm===null||row.widthCm===undefined?{}:{width_cm:row.widthCm}),
@@ -73,7 +76,8 @@ export function projectNormalCrossSellCart(current:Authority):Cart{
   return current.coupon?projectNormalCrossSellCouponPresentation(current.coupon,projected):projected;
 }
 function storageCart(current:Authority,cart:Cart):Prisma.InputJsonValue{
-  return {...cart,...(current.source?.binding?.state==="released"?{_storefrontCouponBinding:current.source.binding}:{})}as unknown as Prisma.InputJsonValue;
+  const binding=readStoredCheckoutCouponBinding(cart)??current.source?.binding;
+  return {...cart,...(binding?{_storefrontCouponBinding:binding}:{})}as unknown as Prisma.InputJsonValue;
 }
 async function readCommittedNormalVersion(tx:Prisma.TransactionClient,current:Authority){
   const stored=await tx.checkoutSession.findUnique({where:{merchantId_sessionId:{merchantId:current.stored.merchantId,sessionId:current.stored.sessionId}}});
@@ -86,13 +90,14 @@ async function readCommittedNormalVersion(tx:Prisma.TransactionClient,current:Au
  * first-send and frozen-order parity have passed. This writer stores only data
  * its own trusted normal reader can reconstruct; no private-widget receipt. */
 export class PrismaNormalCheckoutCrossSellAdapter implements NormalCheckoutCrossSellPort{
-  constructor(private readonly prisma:PrismaClient){}
+  constructor(private readonly prisma:PrismaClient,private readonly benefits?:CheckoutCommercialBenefitsService){}
   async prepareBenefits(rawScope:unknown,rawRequest:unknown){
     const scope=normalCheckoutCrossSellScopeSchema.parse(rawScope);
     return this.transaction(async tx=>{
+      await this.benefits?.lockInTransaction(tx,scope.merchantId);
       await lockNormalCheckoutCrossSell(tx,scope);
       const current=await readNormalCheckoutCrossSellAuthority(tx,scope);
-      const result=await prepareNormalCommercialBenefits(tx,current,projectNormalCrossSellCart(current),rawRequest);
+      const result=await prepareNormalCommercialBenefits(tx,current,projectNormalCrossSellCart(current),rawRequest,this.benefits);
       const verified=await readNormalCheckoutCrossSellAuthority(tx,scope);
       return {...result,session:toCheckoutSession({...verified.stored,cart:projectNormalCrossSellCart(verified)})};
     });
@@ -100,9 +105,10 @@ export class PrismaNormalCheckoutCrossSellAdapter implements NormalCheckoutCross
   async applyOffer(rawScope:unknown,rawRequest:unknown){
     const scope=normalCheckoutCrossSellScopeSchema.parse(rawScope);
     return this.transaction(async tx=>{
+      await this.benefits?.lockInTransaction(tx,scope.merchantId);
       await lockNormalCheckoutCrossSell(tx,scope);
       const current=await readNormalCheckoutCrossSellAuthority(tx,scope);
-      const result=await applyNormalCommercialOffer(tx,current,projectNormalCrossSellCart(current),rawRequest);
+      const result=await applyNormalCommercialOffer(tx,current,projectNormalCrossSellCart(current),rawRequest,this.benefits);
       const verified=await readNormalCheckoutCrossSellAuthority(tx,scope);
       return {...result,session:toCheckoutSession({...verified.stored,cart:projectNormalCrossSellCart(verified)})};
     });
@@ -119,6 +125,7 @@ export class PrismaNormalCheckoutCrossSellAdapter implements NormalCheckoutCross
   async quote(rawScope:unknown,rawRequest:unknown){
     const scope=normalCheckoutCrossSellScopeSchema.parse(rawScope),request=normalCheckoutCrossSellQuoteRequestSchema.parse(rawRequest);
     return this.transaction(async tx=>{
+      await this.benefits?.lockInTransaction(tx,scope.merchantId);
       await lockNormalCheckoutCrossSell(tx,scope);const current=await readNormalCheckoutCrossSellAuthority(tx,scope,request);
       return normalCheckoutCrossSellQuoteSchema.parse({version:1,...scope,suggestionId:request.suggestion_id,
         sessionVersion:current.stored.version,contextHash:current.contextHash,basisHash:current.basisHash,pricing:current.pricing});
@@ -129,6 +136,7 @@ export class PrismaNormalCheckoutCrossSellAdapter implements NormalCheckoutCross
     if(request.expected_quote.merchantId!==scope.merchantId||request.expected_quote.sessionId!==scope.sessionId)return requireNormalCrossSellReview();
     const requestHash=normalCrossSellHash({suggestion_id:request.suggestion_id,accepted_skus:[...request.accepted_skus].sort(),expected_quote:request.expected_quote});
     return this.transaction(async tx=>{
+      await this.benefits?.lockInTransaction(tx,scope.merchantId);
       await lockNormalCheckoutCrossSell(tx,scope);
       await tx.$queryRaw`SELECT id FROM cross_sell_suggestions WHERE merchant_id=${scope.merchantId} AND session_id=${scope.sessionId} AND id=${request.suggestion_id} FOR UPDATE`;
       const suggestion=normalCrossSellSuggestionSchema.parse(await tx.crossSellSuggestion.findFirst({where:{id:request.suggestion_id,...scope}}));
@@ -153,8 +161,16 @@ export class PrismaNormalCheckoutCrossSellAdapter implements NormalCheckoutCross
         ...normalCheckoutCrossSellLegacyEventFields(quote)});
       const resolved=await tx.crossSellSuggestion.updateMany({where:{id:suggestion.id,...scope,status:"pending",promoId:suggestion.promoId},data:{status:"accepted",resolvedAt:current.now}});
       if(resolved.count!==1)return requireNormalCrossSellReview("suggestion_changed");
-      const projectedCart=projectNormalCrossSellCart(current);
+      let projectedCart=projectNormalCrossSellCart(current);
       await saveNormalCrossSellSource(tx,current,projectedCart);
+      if(this.benefits&&await this.benefits.hasCombinationInTransaction(tx,toCheckoutSession(current.stored))){
+        const expected=toCheckoutSession(current.stored),next=toCheckoutSession({...current.stored,cart:projectedCart,shipping:null,shippingOptions:null});
+        await this.benefits.assertMutableInTransaction(tx,expected);
+        const composed=current.source
+          ?await this.benefits.applyDedicatedCartChangeInTransaction(tx,expected,next,{persistSession:false})
+          :await this.benefits.applyCartChangeInTransaction(tx,next,{persistSession:false});
+        if(composed)projectedCart=composed.cart;
+      }
       const saved=await tx.checkoutSession.updateMany({where:{id:current.stored.id,...scope,version:current.stored.version,
         strategyContextVersion:current.stored.strategyContextVersion,globalUserId:current.stored.globalUserId},data:{
           cart:storageCart(current,projectedCart),shipping:Prisma.DbNull,shippingOptions:Prisma.DbNull,updatedAt:current.now}});
@@ -162,7 +178,7 @@ export class PrismaNormalCheckoutCrossSellAdapter implements NormalCheckoutCross
       await readCommittedNormalVersion(tx,current);
       await tx.checkoutEvent.create({data:{...scope,eventName:"cross_sell_accepted",occurredAt:current.now,
         metadata:{suggestion_id:suggestion.id,acceptance_event_id:eventId,checkout_version:ack.persistenceVersion}}});
-      if(current.coupon)await assertNormalCrossSellCouponAfterWrite(tx,current.coupon);
+      if(current.coupon)await assertNormalCrossSellCouponAfterWrite(tx,current.coupon,{allowCashbackRebase:current.cashbackMutation});
       await tx.outboxMessage.create({data:{eventId,eventType:"cross-sell.offer.accepted",schemaVersion:1,merchantId:scope.merchantId,
         occurredAt:current.now,correlationId:eventId,causationId:suggestion.id,producer:"cross-sell",payload:payload as unknown as Prisma.InputJsonValue}});
       return ack;
@@ -171,6 +187,7 @@ export class PrismaNormalCheckoutCrossSellAdapter implements NormalCheckoutCross
   async read(rawScope:unknown,expected?:CheckoutSession):Promise<CheckoutSession>{
     const scope=normalCheckoutCrossSellScopeSchema.parse(rawScope);
     return this.transaction(async tx=>{
+      await this.benefits?.lockInTransaction(tx,scope.merchantId);
       await lockNormalCheckoutCrossSell(tx,scope);const current=await readNormalCheckoutCrossSellAuthority(tx,scope);
       if(expected&&(expected.merchantId!==scope.merchantId||expected.sessionId!==scope.sessionId||expected.globalUserId!==current.stored.globalUserId
         ||expected.persistenceVersion!==current.stored.version||!isDeepStrictEqual(expected.cart,stripStoredCheckoutCouponBinding(current.cart))))return requireNormalCrossSellReview("snapshot_changed");
@@ -180,12 +197,21 @@ export class PrismaNormalCheckoutCrossSellAdapter implements NormalCheckoutCross
   async updateCart(rawScope:unknown,rawRequest:unknown):Promise<CheckoutSession>{
     const scope=normalCheckoutCrossSellScopeSchema.parse(rawScope),request=normalCrossSellCartMutationSchema.parse(rawRequest);
     return this.transaction(async tx=>{
+      await this.benefits?.lockInTransaction(tx,scope.merchantId);
       await lockNormalCheckoutCrossSell(tx,scope);
       const current=await readNormalCheckoutCrossSellAuthority(tx,scope,undefined,{mutation:request});
-      const cart=projectNormalCrossSellCart(current);
+      let cart=projectNormalCrossSellCart(current);
       if(isDeepStrictEqual(current.cart.items,current.originalCart.items))return toCheckoutSession({...current.stored,cart});
       if(current.stored.strategyContextVersion>=2_147_483_647)return requireNormalCrossSellReview("snapshot_changed");
       await saveNormalCrossSellSource(tx,current,cart);
+      if(this.benefits){
+        const expected=toCheckoutSession(current.stored),next=toCheckoutSession({...current.stored,cart,shipping:null,shippingOptions:null});
+        await this.benefits.assertMutableInTransaction(tx,expected);
+        const composed=current.source
+          ?await this.benefits.applyDedicatedCartChangeInTransaction(tx,expected,next,{persistSession:false})
+          :await this.benefits.applyCartChangeInTransaction(tx,next,{persistSession:false});
+        if(composed)cart=composed.cart;
+      }
       const saved=await tx.checkoutSession.updateMany({where:{id:current.stored.id,...scope,version:current.stored.version,
         strategyContextVersion:current.stored.strategyContextVersion,globalUserId:current.stored.globalUserId},data:{
           cart:storageCart(current,cart),shipping:Prisma.DbNull,shippingOptions:Prisma.DbNull,updatedAt:current.now}});
@@ -193,7 +219,7 @@ export class PrismaNormalCheckoutCrossSellAdapter implements NormalCheckoutCross
       const committed=await readCommittedNormalVersion(tx,current);
       await tx.checkoutEvent.create({data:{...scope,eventName:"cart_updated",occurredAt:current.now,
         metadata:{source:"normal_checkout_cross_sell",previous_version:current.stored.version,checkout_version:current.stored.version+1}}});
-      if(current.coupon)await assertNormalCrossSellCouponAfterWrite(tx,current.coupon);
+      if(current.coupon)await assertNormalCrossSellCouponAfterWrite(tx,current.coupon,{allowCashbackRebase:current.cashbackMutation});
       return toCheckoutSession({...committed,cart,shipping:null,shippingOptions:null});
     });
   }

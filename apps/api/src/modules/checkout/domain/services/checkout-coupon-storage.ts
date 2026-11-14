@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import type { Cart } from "@zyon/shared-types";
-import { parseCheckoutCouponBinding, type CheckoutCouponBinding } from "./checkout-coupon-binding.js";
+import { checkoutCouponCombinedDiscountCents, parseCheckoutCouponBinding, type CheckoutCouponBinding } from "./checkout-coupon-binding.js";
 
 const bindingKey = "_storefrontCouponBinding";
 type Scope = { merchantId: string; sessionId: string; buyerId: string };
@@ -57,7 +57,8 @@ export function preserveStoredCheckoutCouponBinding(storedCart: unknown, nextPub
       || !isDeepStrictEqual(current, next)) return conflict();
     const discount = current.currentDiscount;
     if (binding.state !== "released" && (typeof discount !== "number" || !Number.isFinite(discount)
-      || discount !== Math.round(discount * 100) / 100 || Math.round(discount * 100) !== binding.discountCents)) return conflict();
+      || discount !== Math.round(discount * 100) / 100 || Math.round(discount * 100) !== checkoutCouponCombinedDiscountCents(binding)
+      || binding.version === 2 && current.commercialBenefitsVersion !== binding.commercialBenefitsVersion)) return conflict();
     const stored = { ...next, [bindingKey]: binding };
     return stored;
   });

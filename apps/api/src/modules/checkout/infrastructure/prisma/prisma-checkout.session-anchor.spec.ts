@@ -199,7 +199,7 @@ function sessionWithCommercialValues():CheckoutSession{
   initial.cart={currency:"BRL",source:"storefront",cart_ref:"synthetic-source",total:19,currentDiscount:1,
     discountBudget:{version:1,originalSubtotalCents:2000,promotionDiscountCents:100},
     items:[{sku:"TARGET",variantId:"synthetic-variant",product_id:"synthetic-product",variant:JSON.stringify(["synthetic-variant",["large"]]),
-      name:"Synthetic target",quantity:1,price:19,originalPrice:20,productType:"physical",fulfillmentStrategy:"physical",
+      name:"Synthetic target",quantity:1,price:19,originalPrice:20,productType:"physical",fulfillmentStrategy:"physical" as unknown as CheckoutSession["cart"]["items"][number]["fulfillmentStrategy"],
       selected_options:[{group_name:"Size",item_name:"Large",price_modifier:5}],
       crossSellIntent:{version:1,promotionId:"synthetic-promotion",promotionUpdatedAt:"2026-10-20T12:00:00.000Z",
         acceptedQuantity:1,originalUnitPriceCents:2000,maximumUnitPriceCents:1900,selectedOptionItemIds:["large"]}}]};

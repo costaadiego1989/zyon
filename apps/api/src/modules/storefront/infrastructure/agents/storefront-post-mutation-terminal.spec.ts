@@ -15,6 +15,10 @@ const item=(variantId="target",quantity=2)=>({variantId,name:variantId,quantity,
 const cart=(items:Array<ReturnType<typeof item>&{optionItemIds?:string[];serviceSlotId?:string|null}>=[item()])=>({cartId,items,
   total:items.reduce((sum,line)=>sum+line.lineTotal,0),itemCount:items.reduce((sum,line)=>sum+line.quantity,0)});
 type Operation="update_cart_item"|"remove_cart_item";
+type RunResult=Awaited<ReturnType<StorefrontLangGraphAgent["run"]>>;
+type SummaryBlock=Extract<RunResult["blocks"][number],{type:"cart_summary"}>;
+type SelectionResult=Omit<RunResult,"blocks">&{blocks:Array<Exclude<RunResult["blocks"][number],{type:"cart_summary"}>|
+  (Omit<SummaryBlock,"data">&{data:Omit<SummaryBlock["data"],"items">&{items:Array<SummaryBlock["data"]["items"][number]&{optionItemIds?:string[]}>}})>};
 function fixture(operation:Operation,options:{args?:Record<string,unknown>;output?:unknown;throws?:boolean;
   postWrite?:"whitespace"|"throw"|"unrelated";message?:string;generatedOnly?:boolean}={}){
   const requests:OpenRouterChatRequest[]=[],tokens:string[]=[],effects:Record<string,unknown>[]=[],seenArgs:unknown[]=[];
@@ -43,7 +47,7 @@ function fixture(operation:Operation,options:{args?:Record<string,unknown>;outpu
   const agent=new StorefrontLangGraphAgent({provider,structuredRouting:true,fastModel:"synthetic",model:"synthetic",budgetCents:500,
     fallbackProvider:{chat:async()=>{fallbackCalls++;throw new Error("PRIVATE_MUST_NOT_RETRY");}} as unknown as OpenRouterProvider,
     toolHandlers:{updateCartItem:handler,removeCartItem:handler} as unknown as StoreToolHandlers});
-  return {requests,tokens,effects,seenArgs,counts:()=>({attempts,writes,mainCalls,reviewCalls,fallbackCalls}),run:()=>agent.run({
+  return {requests,tokens,effects,seenArgs,counts:()=>({attempts,writes,mainCalls,reviewCalls,fallbackCalls}),run:():Promise<SelectionResult>=>agent.run({
     merchantId:"merchant",sessionId,cartId,storeCategory:"books",history:[],
     userMessage:options.message??(operation==="update_cart_item"?"Altere a quantidade no carrinho para 2 unidades [variantId:target]":"Remova do carrinho [variantId:target]"),
     callbacks:{onToken:value=>{tokens.push(value);}},

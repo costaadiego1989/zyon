@@ -13,6 +13,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   // Vendas (configurações)
   settings: ["OWNER", "ADMIN"],
   coupons: ["OWNER", "ADMIN"],
+  cashback: ["OWNER", "ADMIN"],
   "cross-sell": ["OWNER", "ADMIN"],
   experiments: ["OWNER", "ADMIN"],
   "negotiation-policy": ["OWNER", "ADMIN"],

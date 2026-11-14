@@ -9,6 +9,7 @@ import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 import { MERCHANT_PLAN_PORT, type MerchantPlanPort } from "../../domain/ports/merchant-plan.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import {
   CHECKOUT_CROSS_SELL_RECOMMENDER,
@@ -59,6 +60,7 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(PAYMENT_PLATFORM_REPOSITORY) private readonly paymentConnections?: PaymentPlatformRepository,
     @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() private readonly cashback?: CashbackService,
   ) { }
 
   async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean;
@@ -142,6 +144,7 @@ export class StartCheckoutUseCase {
       initial_mode: settings?.checkout_settings.mode === "proactive" ? "open" : "silent",
       tracking_token: `trk_${crypto.randomUUID()}`,
       experience: buildExperienceFromSession(session, {
+        cashbackCents: await this.cashback?.checkoutCashbackCents(session),
         merchantName: merchant?.name,
         theme: merchant?.theme,
         agent,

@@ -82,6 +82,7 @@ test("clearing shipping after a customer correction writes database null instead
     $queryRaw: async () => [],
     strategyAssignment: { findUnique: async () => null }, strategyIncentiveAssignment: { findUnique: async () => null },
     checkoutChatRequest: { findFirst: async () => null },
+    paymentIntent: { findFirst: async () => null },
     checkoutSession: { findUnique: async () => row,
       update: async (input: { data: Record<string, unknown> }) => { update = input.data; return { ...row, version: 2 }; } },
   };

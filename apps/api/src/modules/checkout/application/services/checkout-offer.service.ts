@@ -1,12 +1,16 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { evaluateShippingOffer } from "@zyon/shipping-engine";
-import type { ChatStage, CheckoutSession, MerchantRules } from "@zyon/shared-types";
+import type { AuthorizedOffer, ChatStage, CheckoutSession, MerchantRules } from "@zyon/shared-types";
 import type { MerchantNegotiationPolicy } from "@zyon/negotiation-engine";
 import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 import { createAuthorizedOffer } from "../use-cases/offer-factory.js";
 import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
+import { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
+import { CashbackError } from "../../../cashback/domain/cashback.js";
+import { validateCombination } from "../../../cashback/domain/cashback-combination.js";
 import { EvaluateNegotiationUseCase } from "../../../negotiation/application/evaluate-negotiation.use-case.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { AdvancedRuleEvaluator } from "../../domain/services/advanced-rule-evaluator.service.js";
@@ -66,8 +70,22 @@ export class CheckoutOfferService {
     @Optional() private readonly evaluateNegotiation?: EvaluateNegotiationUseCase,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any,
     @Optional() private readonly intentModulatedCap?: IntentModulatedCapService,
-    @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort
+    @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,
+    @Optional() private readonly cashback?: CashbackService,
+    @Optional() private readonly commercialBenefits?: CheckoutCommercialBenefitsService,
   ) { }
+
+  private async saveCandidate(session: CheckoutSession, offer: AuthorizedOffer): Promise<AuthorizedOffer> {
+    let candidate = offer;
+    if (candidate.approved && await this.commercialBenefits?.hasCombination(session)) {
+      try { await this.commercialBenefits!.assertCanApplyAdvancedRule(session, candidate); }
+      catch (error) {
+        if (!(error instanceof CashbackError)) throw error;
+        candidate = { ...candidate, approved: false, type: "none", value: 0, reason: error.code };
+      }
+    }
+    return this.repository.saveOffer(candidate);
+  }
 
   /**
    * Deterministic variant selection by session id — MUST match
@@ -187,7 +205,7 @@ export class CheckoutOfferService {
         merchantId: sessionObj.merchantId,
         sessionId: sessionObj.sessionId,
       });
-      const saved = await this.repository.saveOffer(
+      const saved = await this.saveCandidate(sessionObj,
         createAuthorizedOffer({
           merchantId: sessionObj.merchantId,
           sessionId: sessionObj.sessionId,
@@ -205,7 +223,7 @@ export class CheckoutOfferService {
     }
 
     if (isDataCollection || isIncompleteShipping) {
-      const saved = await this.repository.saveOffer(
+      const saved = await this.saveCandidate(sessionObj,
         createAuthorizedOffer({
           merchantId: sessionObj.merchantId,
           sessionId: sessionObj.sessionId,
@@ -309,7 +327,7 @@ export class CheckoutOfferService {
                 marginAfterOffer: 0
               }
             });
-            const saved = await this.repository.saveOffer(offer);
+            const saved = await this.saveCandidate(sessionObj, offer);
             return SafeAuthorizedOffer.fromRulesEngine(saved);
           }
           // No agreement — fall through to standard progressive discount
@@ -322,18 +340,26 @@ export class CheckoutOfferService {
 
     const wantsShipping = /(frete|envio|shipping)/.test(userMessage.toLowerCase());
 
-    // ANTI-STACKING GUARD: If coupon already applied, do NOT stack progressive discount.
-    // Coupon OR progressive — never both. Merchant margin protected.
+    // The explicit combination policy authorizes a candidate offer. The
+    // transactional benefit application still validates the final total.
     const hasCouponApplied = Boolean(
       (sessionObj as any).couponCode || (sessionObj.cart.currentDiscount && sessionObj.cart.currentDiscount > 0)
     );
-    if (hasCouponApplied && !wantsShipping) {
+    const combination = hasCouponApplied && this.cashback
+      ? (await this.cashback.getProgram(sessionObj.merchantId)).published?.combination : undefined;
+    let validCombination: ReturnType<typeof validateCombination> | undefined;
+    if (combination) {
+      try { validCombination = validateCombination(combination); }
+      catch (error) { if (!(error instanceof CashbackError)) throw error; }
+    }
+    const canCombine = Boolean(this.commercialBenefits && validCombination?.allowCoupons === true && validCombination.allowAdvancedRules === true);
+    if (hasCouponApplied && !wantsShipping && !canCombine) {
       this.logger.log("offer.anti_stacking: coupon already applied, skipping progressive discount", {
         merchantId: sessionObj.merchantId,
         sessionId: sessionObj.sessionId,
         currentDiscount: sessionObj.cart.currentDiscount,
       });
-      const saved = await this.repository.saveOffer(
+      const saved = await this.saveCandidate(sessionObj,
         createAuthorizedOffer({
           merchantId: sessionObj.merchantId,
           sessionId: sessionObj.sessionId,
@@ -349,6 +375,9 @@ export class CheckoutOfferService {
       );
       return SafeAuthorizedOffer.fromRulesEngine(saved);
     }
+
+    const candidateCart = canCombine ? { ...sessionObj.cart, currentDiscount: 0 } : sessionObj.cart;
+    const candidateRules = canCombine ? await this.commercialBenefits!.candidateRules(sessionObj, rules) : rules;
 
     // F0-T06: Advanced rule evaluation (deterministic, rules-engine authority)
     // Check for matching advanced rules before standard progressive discount.
@@ -421,8 +450,8 @@ export class CheckoutOfferService {
           });
 
           const evaluation = evaluateDiscountOffer(
-            sessionObj.cart,
-            rules,
+            candidateCart,
+            candidateRules,
             requestedPercent,
             maxReaisCap
           );
@@ -453,7 +482,7 @@ export class CheckoutOfferService {
             rules,
             evaluation: effectiveEvaluation
           });
-          const saved = await this.repository.saveOffer(offer);
+          const saved = await this.saveCandidate(sessionObj, offer);
           return SafeAuthorizedOffer.fromRulesEngine(saved);
         } else if (isValueAction && actionType === "offer_free_shipping") {
           // Route free shipping through shipping-engine
@@ -477,7 +506,7 @@ export class CheckoutOfferService {
             rules,
             evaluation
           });
-          const saved = await this.repository.saveOffer(offer);
+          const saved = await this.saveCandidate(sessionObj, offer);
           return SafeAuthorizedOffer.fromShippingEngine(saved);
         }
         if (isValueAction && actionType === "offer_coupon") {
@@ -500,7 +529,7 @@ export class CheckoutOfferService {
             }),
             ...(couponCode ? { discountCode: couponCode } : {})
           };
-          const saved = await this.repository.saveOffer(offer);
+          const saved = await this.saveCandidate(sessionObj, offer);
           return SafeAuthorizedOffer.fromRulesEngine(saved);
         }
       }
@@ -513,7 +542,7 @@ export class CheckoutOfferService {
         rules,
         abandonmentScore: Math.max(sessionObj.abandonmentScore, 0.7)
       })
-      : evaluateDiscountOffer(sessionObj.cart, rules, discountCapPercent);
+      : evaluateDiscountOffer(candidateCart, candidateRules, discountCapPercent);
 
     // Clip evaluated discount to merchant negotiation policy min/max bounds.
     let effectiveEvaluation = evaluation;
@@ -541,7 +570,7 @@ export class CheckoutOfferService {
       rules,
       evaluation: effectiveEvaluation
     });
-    const saved = await this.repository.saveOffer(offer);
+    const saved = await this.saveCandidate(sessionObj, offer);
     // Type-system barrier: wrap in SafeAuthorizedOffer to enforce that only engines authorize.
     return wantsShipping
       ? SafeAuthorizedOffer.fromShippingEngine(saved)

@@ -16,6 +16,8 @@ export const WHATSAPP_TEMPLATE_TYPES = [
   "loyalty",
   "reorder",
   "shopping_agent_alert",
+  "cashback_available",
+  "cashback_expiring",
   // Cart recovery
   "cart_recovery",
   // Transactional order notifications

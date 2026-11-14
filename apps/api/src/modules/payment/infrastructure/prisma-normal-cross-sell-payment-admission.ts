@@ -5,10 +5,11 @@ import { z } from "zod";
 import type { PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
 import { assertSamePaymentIdentity } from "../domain/payment-persistence.js";
 import { readPaymentCouponAuthority } from "../domain/payment-coupon-authority.js";
-import { assertNormalCrossSellOwnPaymentForFirstSend, readPaymentNormalCrossSellAuthority } from "../domain/payment-normal-cross-sell-authority.js";
+import { assertNormalCrossSellOwnPaymentForFirstSend, readPaymentNormalCrossSellAuthority, assertNormalCrossSellCouponConsistency } from "../domain/payment-normal-cross-sell-authority.js";
 import { normalCheckoutFrozenProjectionSchema, parseNormalCheckoutPaymentAuthority, type NormalCheckoutPaymentAuthority,type NormalCheckoutDiscountOwner } from "../domain/normal-checkout-payment-authority.schemas.js";
 import { readBuyerServiceFeeCents } from "./stripe-env.js";
 import { requiresPhysicalDelivery } from "../../checkout/domain/services/cart-fulfillment.js";
+import { checkoutCouponCombinedDiscountCents } from "../../checkout/domain/services/checkout-coupon-binding.js";
 
 export interface NormalCrossSellPaymentCurrent{
   stored:{merchantId:string;sessionId:string;version:number;strategyContextVersion:number;globalUserId:string;
@@ -51,6 +52,8 @@ export function createNormalCrossSellPaymentAdmission(readCanonical:NormalCrossS
         ...(cart.source===undefined?{}:{source:cart.source}),...(cart.cart_ref===undefined?{}:{cart_ref:cart.cart_ref}),
         ...(couponCode===undefined?{}:{couponCode}),...(freeShipping===undefined?{}:{freeShipping}),
         discountBudget:cart.discountBudget,...(cart.commercialNotices===undefined?{}:{commercialNotices:cart.commercialNotices}),
+        ...(cart.commercialBenefitsVersion===undefined?{}:{commercialBenefitsVersion:cart.commercialBenefitsVersion}),
+        ...(snapshot.amountBreakdown?.cashbackCents===undefined?{}:{cashbackCents:snapshot.amountBreakdown.cashbackCents}),
         items:cart.items.map(item=>({sku:item.sku,variantId:item.variantId,product_id:item.product_id,name:item.name,productType:item.productType,quantity:item.quantity,price:item.price,variant:item.variant,
           ...(item.originalPrice===undefined?{}:{originalPrice:item.originalPrice}),...(item.selected_options===undefined?{}:{selected_options:item.selected_options}),
           ...(item.crossSellIntent===undefined?{}:{crossSellIntent:item.crossSellIntent}),...(item.fulfillmentStrategy===undefined?{}:{fulfillmentStrategy:item.fulfillmentStrategy}),
@@ -62,20 +65,24 @@ export function createNormalCrossSellPaymentAdmission(readCanonical:NormalCrossS
       const coupon=readPaymentCouponAuthority(snapshot);
       const owner=source.discountOwner;
       if(projection.cart.currentDiscount>0){
-        if(coupon){if(owner||coupon.cartId!==projection.cart.cart_ref||coupon.buyerId!==projection.globalUserId
-          ||coupon.discountCents!==snapshot.amountBreakdown?.discountCents)return conflict();}
+        if(coupon){if(owner&&owner.kind!=="cashback_combination"||coupon.cartId!==projection.cart.cart_ref||coupon.buyerId!==projection.globalUserId
+          ||checkoutCouponCombinedDiscountCents(coupon)!==snapshot.amountBreakdown?.discountCents)return conflict();}
         else if(!owner)return conflict();
       }else if(owner||coupon)return conflict();
-      if(owner?.kind==="accepted_offer"?snapshot.acceptedOfferId!==undefined&&snapshot.acceptedOfferId!==owner.authorizedOfferId:!!snapshot.acceptedOfferId)return conflict();
+      const advanced=owner?.kind==="cashback_combination"?owner.advanced:owner;
+      if(advanced?.kind==="accepted_offer"?snapshot.acceptedOfferId!==undefined&&snapshot.acceptedOfferId!==advanced.authorizedOfferId:!!snapshot.acceptedOfferId)return conflict();
       if(creation.input.payerEmail!==undefined&&creation.input.payerEmail.trim().toLowerCase()!==projection.customer.email
         ||creation.input.payerName!==undefined&&creation.input.payerName.trim()!==projection.customer.fullName
         ||creation.input.payerIdentification!==undefined&&(creation.input.payerIdentification.type!=="CPF"||creation.input.payerIdentification.number.replace(/\D/g,"")!==projection.customer.cpf)
         ||creation.input.asaasCustomerId!==undefined&&creation.input.asaasCustomerId!==customer.asaasCustomerId)return conflict();
-      const captured=parseNormalCheckoutPaymentAuthority({version:1,origin:"normal_checkout_cross_sell",paymentId:snapshot.id,merchantId:snapshot.merchantId,checkoutSessionId:snapshot.sessionId,
+      const cashbackVersion=cart.commercialBenefitsVersion!==undefined||snapshot.amountBreakdown?.cashbackCents!==undefined
+        ||snapshot.amountBreakdown?.cashbackReservationId!==undefined||snapshot.amountBreakdown?.cashbackEarningQuoteId!==undefined||owner?.kind==="cashback_combination";
+      const captured=parseNormalCheckoutPaymentAuthority({version:cashbackVersion?2:1,origin:"normal_checkout_cross_sell",paymentId:snapshot.id,merchantId:snapshot.merchantId,checkoutSessionId:snapshot.sessionId,
         buyerId:stored.globalUserId,checkoutVersion:stored.version,strategyContextVersion:stored.strategyContextVersion,contextHash:source.contextHash,basisHash:source.basisHash,
         acceptanceEventIds:source.acceptanceEventIds,method:snapshot.method,currency:snapshot.currency,amountCents:snapshot.amountCents,amountBreakdown:snapshot.amountBreakdown,
         admittedAt:original?.admittedAt??source.now.toISOString(),frozenProjection:projection,...(owner?{discountOwner:owner}:{})});
       if(captured.amountBreakdown.platformFeeCents!==buyerFee())return conflict();
+      assertNormalCrossSellCouponConsistency(captured,coupon);
       readPaymentNormalCrossSellAuthority({...snapshot,creation:{...creation,normalCrossSellAuthority:captured}});
       if(original&&!isDeepStrictEqual(original,captured))return conflict();
       return captured;

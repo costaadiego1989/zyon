@@ -31,7 +31,7 @@ function fixture(){
     outboxMessage:{findFirst:async({where,select}:{where:{eventId:string};select?:Record<string,boolean>})=>{
       const row=state.outbox.find(row=>row.eventId===where.eventId);return row?(select?Object.fromEntries(Object.keys(select).map(key=>[key,row[key]])):row):null;},
       upsert:async({create}:{create:Record<string,unknown>})=>{if(state.fail==="outbox")throw Error("synthetic_outbox_failure");state.writes.push("outbox");state.outbox.push(create);return create;}}};
-  const prisma={...tx,$transaction:async(body:(tx:typeof tx)=>Promise<void>)=>{const before={row:{...state.row},usage:state.usage,outbox:[...state.outbox]};
+  const prisma={...tx,$transaction:async(body:(value:typeof tx)=>Promise<void>)=>{const before={row:{...state.row},usage:state.usage,outbox:[...state.outbox]};
     try{return await body(tx);}catch(error){Object.assign(state,before);throw error;}}}as unknown as PrismaClient;
   return{owner,source,application,state,run:()=>redeemNormalCheckoutCouponFromOrder(prisma,{merchantId:"merchant",eventId:"source"})};
 }

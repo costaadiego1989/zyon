@@ -148,11 +148,14 @@ export interface CommercialNudge {
 }
 
 export interface Experience {
+  /** Server-authored benefit origin revision. */
+  commercial_benefits_version?: number;
+  shipping_mode?: "marketplace";
   commercial_notices?: CommercialNotice[];
   policies?: { privacyUrl?: string; termsUrl?: string; refundUrl?: string; shippingUrl?: string };
   items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; original_unit_price?: number; image_url?: string; variant?: string; variant_label?: string;
     productType?:NormalCheckoutProductType;fulfillmentStrategy?:NormalCheckoutFulfillmentStrategy }>;
-  totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
+  totals?: { subtotal: number; shipping?: number; discount: number; cashback_cents?: number; service_fee?: number; total_to_pay?: number; total: number };
   shipping?: {
     carrier?: string;
     carrierKey?: string;
@@ -196,16 +199,25 @@ export interface StartResponse {
 export type CrossSellAcceptResponse = Exclude<NormalCheckoutCrossSellHttpAcceptanceResponse, { projection_status: "available" }>
   | (Omit<Extract<NormalCheckoutCrossSellHttpAcceptanceResponse, { projection_status: "available" }>, "experience"> & { experience: Experience });
 
-export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number; shipping?: { key: string; label: string; cost: number }; benefits?: Experience["applied_benefits"]; commercialNotices: CommercialNotice[] } {
+export function commercialBenefitsVersionFromExperience(experience: Pick<Experience, "commercial_benefits_version"> | undefined): number | undefined {
+  const version = experience?.commercial_benefits_version;
+  if (version !== undefined && (!Number.isSafeInteger(version) || version < 0)) throw new Error("checkout_commercial_benefits_version_invalid");
+  return version;
+}
+
+export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; cashbackCents?: number; commercialBenefitsVersion?: number; serviceFee: number; totalToPay?: number; shipping?: { key: string; label: string; cost: number }; benefits?: Experience["applied_benefits"]; commercialNotices: CommercialNotice[] } {
   if (!experience?.items || !experience.totals) throw new Error("checkout_cart_snapshot_missing");
   const shipping = checkoutShippingFromExperience(experience.shipping);
   const notices = commercialNoticesSchema.safeParse(experience.commercial_notices);
+  const commercialBenefitsVersion = commercialBenefitsVersionFromExperience(experience);
   return {
     commercialNotices: notices.success ? notices.data : [],
     items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, originalPrice: item.original_unit_price, imageUrl: item.image_url, variant: item.variant, variantLabel: item.variant_label,
       ...(item.productType===undefined?{}:{productType:item.productType}),...(item.fulfillmentStrategy===undefined?{}:{fulfillmentStrategy:item.fulfillmentStrategy}) })),
     total: experience.totals.subtotal,
     discount: experience.totals.discount,
+    ...(commercialBenefitsVersion !== undefined ? { commercialBenefitsVersion } : {}),
+    ...(experience.totals.cashback_cents !== undefined ? { cashbackCents: Number.isSafeInteger(experience.totals.cashback_cents) && experience.totals.cashback_cents >= 0 ? experience.totals.cashback_cents : 0 } : {}),
     serviceFee: typeof experience.totals.service_fee === "number" && Number.isFinite(experience.totals.service_fee) && experience.totals.service_fee >= 0
       ? experience.totals.service_fee
       : 0,
@@ -396,7 +408,7 @@ export class CheckoutSession {
     return data;
   }
 
-  async fetchCart(): Promise<{ items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number }> {
+  async fetchCart(): Promise<{ items: CartItem[]; total: number; discount: number; cashbackCents?: number; commercialBenefitsVersion?: number; serviceFee: number; totalToPay?: number }> {
     return cartFromExperience(this.experience);
   }
 

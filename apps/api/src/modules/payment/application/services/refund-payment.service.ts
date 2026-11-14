@@ -11,6 +11,7 @@ import type { CrossStoreOrderRepository } from "../../../marketplace/domain/port
 import type { CompletedOrder } from "@zyon/shared-types";
 import { refundShippingCents } from "../../../../shared/commerce/refund-shipping.js";
 import { assertPaymentAmount, type PaymentAmountBreakdown } from "../../domain/payment-amount.js";
+import { CashbackService, type CashbackRefundInput } from "../../../cashback/application/cashback.service.js";
 
 export interface RefundOrderPaymentInput {
   merchantId: string;
@@ -41,6 +42,7 @@ export interface RefundOrderPaymentResult {
 
 export interface PreparedOrderRefund extends RefundOrderPaymentResult {
   fullOrderReturn?: boolean;
+  cashbackContext?: CashbackRefundInput & { commandKey: string };
   providerRequest?: Parameters<NonNullable<PaymentProviderPort["refundPayment"]>>[0];
 }
 
@@ -72,6 +74,7 @@ export class RefundPaymentService {
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
     @Optional() @Inject(ORDER_REPOSITORY) private readonly orders?: OrderRepository,
     @Optional() @Inject(CROSS_STORE_ORDER_REPOSITORY) private readonly crossStore?: CrossStoreOrderRepository,
+    @Optional() private readonly cashback?: CashbackService,
   ) {}
 
   /**
@@ -238,6 +241,23 @@ export class RefundPaymentService {
     } else {
       requested = captured;
     }
+    let cashbackContext: PreparedOrderRefund["cashbackContext"];
+    const hasCashback = Boolean(snap.amountBreakdown?.cashbackCents || snap.amountBreakdown?.cashbackEarningQuoteId);
+    if (hasCashback) {
+      if (!this.cashback) return { refunded: false, amountCents: 0, paymentIntentId: snap.id, reason: "cashback_service_unavailable" };
+      cashbackContext = { merchantId: input.merchantId, orderId: input.externalOrderId,
+        commandKey: input.idempotencyKey ?? `refund:${snap.id}:${input.externalOrderId}`,
+        ...(input.returnedItems === undefined ? {} : { returnedItems: input.returnedItems }),
+        ...(input.amountCents === undefined ? {} : { amountCents: input.amountCents }) };
+      try {
+        const preview = await this.cashback.previewRefundOrder(cashbackContext);
+        if (!preview) return { refunded: false, amountCents: 0, paymentIntentId: snap.id, reason: "cashback_refund_snapshot_missing" };
+        requested = preview.externalRefundCents;
+      } catch (error) {
+        return { refunded: false, amountCents: 0, paymentIntentId: snap.id,
+          reason: error instanceof Error ? error.message : "cashback_refund_unproven" };
+      }
+    }
     const amountCents = requested;
     if (!Number.isSafeInteger(amountCents) || amountCents <= 0 || amountCents > captured) {
       return { refunded: false, amountCents: 0, reason: "refund_amount_invalid" };
@@ -247,7 +267,7 @@ export class RefundPaymentService {
       return { refunded: false, amountCents, paymentIntentId: snap.id, reason: "provider_refund_unsupported" };
     }
 
-    return { refunded: false, amountCents, paymentIntentId: snap.id,
+    return { refunded: false, amountCents, paymentIntentId: snap.id, ...(cashbackContext ? { cashbackContext } : {}),
       fullOrderReturn: input.returnedItems !== undefined && this.isFullOrderReturn(order, input.returnedItems), providerRequest: {
       ...paymentProviderRoute(snap.creation?.input), merchantId: input.merchantId,
       providerPaymentId: snap.providerPaymentId, amountCents, reason: input.reason, idempotencyKey: input.idempotencyKey,
@@ -262,9 +282,20 @@ export class RefundPaymentService {
 
   /** Only call after the return owns its durable one-time submission marker. */
   async refundPreparedPayment(prepared: PreparedOrderRefund): Promise<RefundOrderPaymentResult> {
-    const { providerRequest, fullOrderReturn: _fullOrderReturn, ...resultMetadata } = prepared;
+    const { providerRequest, cashbackContext, fullOrderReturn: _fullOrderReturn, ...resultMetadata } = prepared;
     if (!providerRequest || !this.provider.refundPayment) return resultMetadata;
     const { amountCents, paymentIntentId } = prepared;
+    if (cashbackContext) {
+      try {
+        if (!this.cashback) throw new Error("cashback_service_unavailable");
+        const ownership = await this.cashback.claimRefundOrder(cashbackContext, amountCents);
+        if (!ownership.claimed) return { refunded: false, amountCents, paymentIntentId,
+          reason: "cashback_refund_reconciliation_required" };
+      } catch (error) {
+        return { refunded: false, amountCents, paymentIntentId,
+          reason: error instanceof Error ? error.message : "cashback_refund_claim_failed" };
+      }
+    }
     try {
       const result = await this.provider.refundPayment(providerRequest);
       this.logger.log(
@@ -274,6 +305,18 @@ export class RefundPaymentService {
       // returned. Only a terminal success can complete the return locally;
       // pending and manual refunds must remain operationally visible.
       const refunded = result.status === "succeeded";
+      if (result.status === "failed" && cashbackContext) {
+        await this.cashback!.refundProviderFailed(cashbackContext);
+      }
+      if (refunded && cashbackContext) {
+        try {
+          if (!this.cashback) throw new Error("cashback_service_unavailable");
+          await this.cashback.processRefundOrder(cashbackContext);
+        } catch {
+          return { refunded: false, amountCents, paymentIntentId, providerRefundId: result.refundId,
+            reason: "cashback_refund_reconciliation_required" };
+        }
+      }
       return {
         refunded,
         amountCents,
@@ -301,6 +344,7 @@ export class RefundPaymentService {
     paymentIntentId?: string;
     refundReference?: string;
     amountCents?: number;
+    returnedItems?: Array<{ variantId: string; quantity: number }>;
   }): Promise<RefundReconciliationResult> {
     if (!this.orders || typeof this.provider.fetchRefundStatus !== "function") {
       return { state: "unknown", reason: "provider_refund_status_unsupported" };
@@ -335,6 +379,16 @@ export class RefundPaymentService {
         ...(input.amountCents !== undefined ? { amountCents: input.amountCents, currency: snap.currency } : {}),
         ...paymentProviderRoute(snap.creation?.input),
       });
+      if (result.state === "succeeded" && (snap.amountBreakdown?.cashbackCents || snap.amountBreakdown?.cashbackEarningQuoteId)) {
+        try {
+          if (!this.cashback) throw new Error("cashback_service_unavailable");
+          await this.cashback.processRefundOrder({ merchantId: input.merchantId, orderId: input.externalOrderId,
+            commandKey: input.refundReference ?? `refund:${snap.id}:${input.externalOrderId}`,
+            ...(input.returnedItems === undefined ? {} : { returnedItems: input.returnedItems }) });
+        } catch {
+          return { state: "pending", paymentIntentId: snap.id, reason: "cashback_refund_reconciliation_required" };
+        }
+      }
       return { state: result.state, paymentIntentId: snap.id, ...(result.providerRefundId ? { providerRefundId: result.providerRefundId } : {}) };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

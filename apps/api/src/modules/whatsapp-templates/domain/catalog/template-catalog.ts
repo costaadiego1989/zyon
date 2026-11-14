@@ -29,6 +29,7 @@ export interface WhatsAppTemplateDefinition {
 }
 
 const SAMPLES: Record<string, string> = {
+  cashbackAmount: "R$ 10,00", cashbackExpiresAt: "21/11/2026",
 alertName: "MarketplaceOutboxDeliveryFailures",
 alertStatus: "ativo",
 alertSeverity: "crítica",
@@ -58,6 +59,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
   sampleVariables: Record<string, string>;
 } {
   const ordered: Array<{ name: string; token: RegExp }> = [
+    ...["cashbackAmount", "cashbackExpiresAt"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
     ...["alertName", "alertStatus", "alertSeverity", "observedAt"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
     ...["merchantName", "planName", "expiresAt", "dashboardLink"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
     { name: "buyerName", token: /\{\{buyerName\}\}/g },
@@ -88,6 +90,8 @@ export function toPositional(named: string, storeName = "sua loja"): {
 
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
+  cashback_available: "Olá, {{buyerName}}. Você tem {{cashbackAmount}} de cashback disponível na {{storeName}}. Consulte seu saldo e as regras na sua conta da loja. O mesmo crédito pode ser usado no site e no WhatsApp.",
+  cashback_expiring: "Olá, {{buyerName}}. Seu cashback de {{cashbackAmount}} na {{storeName}} vence em {{cashbackExpiresAt}}. Consulte o saldo e as condições na sua conta da loja.",
   shopping_agent_alert: "Olá, {{buyerName}}. Seu agente pessoal encontrou uma atualização para {{productName}}. Revise a tarefa e as condições atuais: {{link}}.\n\nAtenciosamente,\n{{storeName}}",
 marketplace_operational_alert: "Zyon: alerta operacional {{alertName}} está {{alertStatus}}, gravidade {{alertSeverity}}. Início: {{observedAt}}. Consulte o painel: {{dashboardLink}}.\n\nEquipe Zyon.",
   plan_expiry_7d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete de 7 dias para que você revise a renovação em {{dashboardLink}}.\n\nEquipe Zyon.",
@@ -126,6 +130,7 @@ Consulte as informações da sua compra. O acesso a produtos digitais é enviado
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
+  cashback_available: false, cashback_expiring: false,
   shopping_agent_alert: false,
 marketplace_operational_alert: false,
   checkout_otp: false,
@@ -147,6 +152,7 @@ marketplace_operational_alert: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
+  cashback_available: "Cashback disponível", cashback_expiring: "Cashback próximo do vencimento",
   shopping_agent_alert: "Aviso do agente pessoal",
 marketplace_operational_alert: "Marketplace: alerta operacional",
   checkout_otp: "Código de confirmação do checkout",
@@ -176,7 +182,7 @@ marketplace_operational_alert: "Marketplace: alerta operacional",
 
 // Incentives, reactivation and replenishment campaigns are promotional.
 // Template category does not replace recipient consent or current Meta approval.
-const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "loyalty", "reorder", "cart_recovery", "shopping_agent_alert"]);
+const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "loyalty", "reorder", "cart_recovery", "shopping_agent_alert", "cashback_available", "cashback_expiring"]);
 
 export function categoryFor(type: WhatsAppTemplateType): WhatsAppTemplateCategory {
   if (type === "checkout_otp") return "AUTHENTICATION";

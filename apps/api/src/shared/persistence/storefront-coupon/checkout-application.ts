@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import type { Cart, MerchantRules } from "@zyon/shared-types";
+import type { Cart, CheckoutSession, MerchantRules } from "@zyon/shared-types";
 import { isDeepStrictEqual } from "node:util";
 import { evaluateCombinedDiscount, moneyCents } from "@zyon/rules-engine";
 import { z } from "zod";
@@ -19,6 +19,7 @@ import { extractOptionGroups, resolveSelectedOptions } from "../../../modules/st
 import { foodSelectionLimits, validateFoodMetadata } from "../../../modules/catalog/domain/services/food-options-validation.js";
 import type { NormalCheckoutCouponReader } from "../../../modules/coupons/domain/ports/normal-checkout-coupon-reader.port.js";
 import { paymentCartFingerprint } from "../../../modules/checkout/domain/services/payment-cart-fingerprint.js";
+import type { AuthorizedCouponResult } from "../../../modules/cashback/application/checkout-commercial-benefits.service.js";
 
 const ref = z.string().min(1).max(191).refine(value => value.trim() === value && !value.includes("\0"));
 const cents = z.number().int().min(0).max(2_147_483_647);
@@ -47,7 +48,9 @@ function jsonCart(cart: Cart): Prisma.InputJsonObject {
  * No nested transaction, client cart input, fake session alias or retry. */
 export async function applyStorefrontCheckoutCouponInTransaction(tx: Prisma.TransactionClient,
   raw: z.input<typeof inputSchema>, apply: (input: StorefrontCheckoutCouponFinancialInput) => Promise<Applied>,
-  readNormal?:NormalCheckoutCouponReader<Prisma.TransactionClient>) {
+  readNormal?:NormalCheckoutCouponReader<Prisma.TransactionClient>,
+  combination?: { rules: MerchantRules; canCombineExisting: boolean;
+    compose(session: CheckoutSession, result: AuthorizedCouponResult): Promise<CheckoutSession> }) {
   const input = inputSchema.parse(raw), scope = { merchantId: input.merchantId, sessionId: input.checkoutSessionId };
   const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
   if (!stored || stored.merchantId !== scope.merchantId || stored.sessionId !== scope.sessionId || stored.version !== input.expectedVersion) return review();
@@ -85,7 +88,7 @@ export async function applyStorefrontCheckoutCouponInTransaction(tx: Prisma.Tran
   const [{ now }] = z.array(z.object({ now: z.date() })).length(1).parse(await tx.$queryRaw`SELECT clock_timestamp() AS now`);
   if (!source || source.merchantId !== scope.merchantId || source.sessionId !== cartId || source.expiresAt <= now
     || source.couponCode !== null || source.discount !== 0 || source.freeShipping !== false
-    || (session.cart.currentDiscount ?? 0) !== 0 || session.cart.commercialNudge || session.cart.appliedBenefits?.some(value => value.amount > 0)) return review();
+    || !combination?.canCombineExisting && ((session.cart.currentDiscount ?? 0) !== 0 || session.cart.commercialNudge || session.cart.appliedBenefits?.some(value => value.amount > 0))) return review();
   const lines = linesSchema.parse(source.items), sourceItems = z.array(z.json()).parse(source.items);
   // Same deterministic row order as other catalog admission readers. Merchant
   // fence precedes the cart; these exact rows also fence direct stock/price SQL
@@ -154,18 +157,18 @@ export async function applyStorefrontCheckoutCouponInTransaction(tx: Prisma.Tran
     || !["fixed", "percent"].includes(coupon.discount_type)) return review();
   if ((await tx.couponRedemption.findMany({ where: { merchantId: scope.merchantId, sessionId: cartId, status: { not: "cancelled" } }, take: 2 })).length) return review();
   const policy = await tx.merchantRule.findUnique({ where: { merchantId: scope.merchantId } });
-  if (!policy) return review(); const rules = toMerchantRules(policy);
+  if (!policy) return review(); const rules = combination?.rules ?? toMerchantRules(policy);
   const basis = evaluateCombinedDiscount(session.cart, rules, 0);
   if (basis.kind !== "authorized") return review();
   const result = await apply({ merchant_id: scope.merchantId, session_id: cartId, code: input.code, cart: session.cart,
     merchantRules: rules, buyer_global_user_id: session.globalUserId, buyer_region: session.customer?.address?.state?.trim().toUpperCase(),
-    has_existing_commercial_benefit: false, source: "manual" });
+    has_existing_commercial_benefit: (session.cart.currentDiscount ?? 0) > 0 || Boolean(session.cart.commercialNudge), source: "manual" });
   const discount = moneyCents(result.discount_applied);
   if (discount === null || discount <= 0 || result.shipping_discount_applied !== 0 || result.coupon.id !== coupon.id
     || result.coupon.merchant_id !== scope.merchantId || result.coupon.code !== input.code) return review();
   const decision = evaluateCombinedDiscount(session.cart, rules, discount);
   if (decision.kind !== "authorized" || decision.cartDiscountCents !== discount) return review();
-  const next = checkoutWithCoupon(session, result);
+  const next = combination ? await combination.compose(session, result) : checkoutWithCoupon(session, result);
   const changed = await tx.storefrontCart.updateMany({ where: { id: source.id, merchantId: scope.merchantId, sessionId: cartId,
     items: { equals: sourceItems }, total: source.total, discount: source.discount, couponCode: source.couponCode,
     freeShipping: source.freeShipping, updatedAt: source.updatedAt }, data: { couponCode: input.code, discount, updatedAt: now } });

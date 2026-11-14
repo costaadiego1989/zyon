@@ -21,6 +21,7 @@ import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
+import { CashbackService } from "../../cashback/application/cashback.service.js";
 
 export type ReconcilePaymentIntentsInput = {
   /** Intents idle for at least this many ms are reconciled. */
@@ -54,6 +55,7 @@ export class ReconcilePaymentIntentsUseCase {
     @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase,
     @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout?: CheckoutSessionRepository,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Optional() private readonly cashback?: CashbackService,
   ) {}
 
   async execute(input: ReconcilePaymentIntentsInput = {}): Promise<ReconcilePaymentIntentsResult> {
@@ -71,7 +73,7 @@ export class ReconcilePaymentIntentsUseCase {
     for (const intent of candidates) {
       let snap = intent.snapshot();
       if (!snap.providerPaymentId) {
-        try { snap = await new ResumePaymentCreationService(this.payments, this.provider).execute(intent, async () => {
+        try { snap = await new ResumePaymentCreationService(this.payments, this.provider, undefined, this.checkout, this.cashback).execute(intent, async () => {
           if (!this.checkout || !this.prisma) throw new Error("payment_stock_authority_unavailable");
           const session = await this.checkout.getSession(snap.merchantId, snap.sessionId);
           if (!session || !snap.amountBreakdown?.cartFingerprint || snap.amountBreakdown.cartFingerprint !== paymentCartFingerprint(session)) throw new Error("payment_cart_changed");

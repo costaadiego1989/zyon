@@ -76,11 +76,15 @@ import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
 import { PrismaOtpStore } from "./infrastructure/prisma-otp-store.js";
 import { RedisOtpStore } from "./infrastructure/redis-otp-store.js";
 import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-webauthn-credential.repository.js";
+import { LinkBuyerWhatsAppUseCase } from "./application/use-cases/link-buyer-whatsapp.use-case.js";
+import { BuyerWhatsAppLinkController } from "./presentation/http/buyer-whatsapp-link.controller.js";
+import { BuyerChannelIdentityModule } from "./buyer-channel-identity.module.js";
 
 @Module({
-  imports: [AuthModule, BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule],
-  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerPrivacyController, BuyerReviewsController, BuyerAddressesController],
+  imports: [AuthModule, BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule, BuyerChannelIdentityModule],
+  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerPrivacyController, BuyerReviewsController, BuyerAddressesController, BuyerWhatsAppLinkController],
   providers: [
+    LinkBuyerWhatsAppUseCase,
     RegisterBuyerUseCase,
     RegisterBuyerWithRateLimitUseCase,
     {

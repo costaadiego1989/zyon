@@ -1,10 +1,26 @@
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
-import { parseNormalCheckoutPaymentAuthority } from "./normal-checkout-payment-authority.schemas.js";
+import { parseNormalCheckoutPaymentAuthority, type NormalCheckoutPaymentAuthority } from "./normal-checkout-payment-authority.schemas.js";
+import { checkoutCouponCombinedDiscountCents, parseCheckoutCouponPaymentAuthority, type CheckoutCouponPaymentAuthority } from "../../checkout/domain/services/checkout-coupon-binding.js";
 
 type Scope={id:string;merchantId:string;sessionId:string;amountCents:number;currency:string;method:string;amountBreakdown?:unknown;creation?:unknown};
 const keys=["normalCrossSellAuthority","normal_cross_sell_authority","normalCrossSellScope"] as const;
 const conflict=():never=>{throw new Error("payment_normal_cross_sell_authority_conflict");};
+/** Both persisted authorities must identify the same actual coupon generation.
+ * Compound ownership never replaces the storefront reservation capability. */
+export function assertNormalCrossSellCouponConsistency(authority:NormalCheckoutPaymentAuthority,coupon?:CheckoutCouponPaymentAuthority):void{
+  const owner=authority.discountOwner;
+  if(owner?.kind==="cashback_combination"){
+    const component=owner.coupon;
+    if(component?.kind==="storefront_coupon"){
+      if(!coupon||["merchantId","checkoutSessionId","buyerId","cartId","reservationBuyerId","redemptionId","couponId","discountCents"]
+        .some(key=>Reflect.get(component,key)!==Reflect.get(coupon,key))
+        ||coupon.version!==2||coupon.commercialBenefitsVersion!==owner.commercialBenefitsVersion)return conflict();
+    }else if(coupon)return conflict();
+  }else if(owner&&coupon)return conflict();
+  if(coupon&&(coupon.cartId!==authority.frozenProjection.cart.cart_ref||coupon.buyerId!==authority.buyerId
+    ||checkoutCouponCombinedDiscountCents(coupon)!==authority.amountBreakdown.discountCents))return conflict();
+}
 export function assertNoPaymentNormalCrossSellAuthorityInProviderInput(input:unknown):void{
   try{if(input&&typeof input==="object"&&keys.some(key=>key in input))return conflict();}catch{return conflict();}
 }
@@ -19,8 +35,10 @@ export function readPaymentNormalCrossSellAuthority(scope:Scope){
     if(!present)return undefined;
     if("widgetCheckoutAuthority"in creation)return conflict();
     const parsed=parseNormalCheckoutPaymentAuthority(authority!.value);
+    assertNormalCrossSellCouponConsistency(parsed,"couponAuthority"in creation?parseCheckoutCouponPaymentAuthority(creation.couponAuthority):undefined);
     const offerId=Reflect.get(scope,"acceptedOfferId");
-    if(parsed.discountOwner?.kind==="accepted_offer"?offerId!=null&&offerId!==parsed.discountOwner.authorizedOfferId:!!offerId)return conflict();
+    const advanced=parsed.discountOwner?.kind==="cashback_combination"?parsed.discountOwner.advanced:parsed.discountOwner;
+    if(advanced?.kind==="accepted_offer"?offerId!=null&&offerId!==advanced.authorizedOfferId:!!offerId)return conflict();
     if(parsed.paymentId!==scope.id||parsed.merchantId!==scope.merchantId||parsed.checkoutSessionId!==scope.sessionId
       ||parsed.amountCents!==scope.amountCents||parsed.currency!==scope.currency||parsed.method!==scope.method
       ||!isDeepStrictEqual(parsed.amountBreakdown,scope.amountBreakdown)||!rawInput||typeof rawInput!=="object"

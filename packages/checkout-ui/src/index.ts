@@ -4,3 +4,5 @@ export type { CartItemData, CartState, CartSheetProps, CartFABProps, CartLineSel
 export { parseCommercialNotices, commercialNoticeLabel } from "./commercial-notices";
 
 export { Turnstile, type TurnstileProps } from "./Turnstile";
+
+export { useModalFocus } from "./useModalFocus";

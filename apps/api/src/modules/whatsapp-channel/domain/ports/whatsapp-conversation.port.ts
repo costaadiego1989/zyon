@@ -1,6 +1,6 @@
 export const WHATSAPP_CONVERSATION_PORT = Symbol("WHATSAPP_CONVERSATION_PORT");
 export interface WhatsAppConversationPort {
-  respond(input: { merchantId: string; checkoutSessionId: string; message: string }): Promise<{
+  respond(input: { merchantId: string; checkoutSessionId: string; message: string; requestId?: string }): Promise<{
     agentMessage: string; quickReplies: string[];
   }>;
   respondStore?(input: {

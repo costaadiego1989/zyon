@@ -16,7 +16,7 @@ function productRepo(overrides: { active?: boolean; variantActive?: boolean; sto
   return {
     findById: async () => null,
     search: async () => ({ products: [product] as any, total: 1 }),
-  } as ProductRepositoryPort;
+  } as unknown as ProductRepositoryPort;
 }
 
 describe("cross-sell-product-resolver", () => {

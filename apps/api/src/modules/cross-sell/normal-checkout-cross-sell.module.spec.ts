@@ -8,6 +8,7 @@ import { NORMAL_CHECKOUT_CROSS_SELL } from "./domain/ports/normal-checkout-cross
 import { NormalCheckoutCrossSellUseCase } from "./application/use-cases/normal-checkout-cross-sell.use-case.js";
 import { PrismaNormalCheckoutCrossSellAdapter } from "./infrastructure/repositories/prisma-normal-checkout-cross-sell.adapter.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { CheckoutCommercialBenefitsService } from "../cashback/application/checkout-commercial-benefits.service.js";
 
 test("CrossSellModule exposes normal application with the real Prisma port, without querying in factory", () => {
   const providers: unknown[] = Reflect.getMetadata(MODULE_METADATA.PROVIDERS, CrossSellModule);
@@ -16,9 +17,13 @@ test("CrossSellModule exposes normal application with the real Prisma port, with
   assert.ok(exports.includes(NormalCheckoutCrossSellUseCase)); assert.ok(exports.includes(NORMAL_CHECKOUT_CROSS_SELL));
   const provider = providers.find(value => typeof value === "object" && value !== null && "provide" in value && value.provide === NORMAL_CHECKOUT_CROSS_SELL);
   assert.ok(provider && typeof provider === "object" && "inject" in provider && "useFactory" in provider);
-  assert.deepEqual(provider.inject, [PRISMA_CLIENT]);
-  const factory = provider.useFactory as (prisma: PrismaClient) => unknown;
+  assert.deepEqual(provider.inject, [PRISMA_CLIENT, { token: CheckoutCommercialBenefitsService, optional: true }]);
+  const factory = provider.useFactory as (prisma: PrismaClient, benefits?: CheckoutCommercialBenefitsService) => unknown;
   // No DB/auth proof: constructor must be a pure composition step.
   const prisma = new Proxy({}, { get() { assert.fail("factory must not query Prisma"); } }) as PrismaClient;
   assert.ok(factory(prisma) instanceof PrismaNormalCheckoutCrossSellAdapter);
+  const benefits = new Proxy({}, { get() { assert.fail("factory must not execute benefits"); } }) as CheckoutCommercialBenefitsService;
+  const adapter = factory(prisma, benefits);
+  assert.ok(adapter instanceof PrismaNormalCheckoutCrossSellAdapter);
+  assert.equal(Reflect.get(adapter, "benefits"), benefits);
 });
