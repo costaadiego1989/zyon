@@ -43,8 +43,8 @@ function observe(page, name) {
 async function dashboard(viewport) {
   const merchant = 'qa-cashback-v1-specific';
   const context = await browser.newContext({ viewport, timezoneId: 'America/Sao_Paulo', acceptDownloads: true });
-  await context.addCookies([{ name: 'aacp_access_token', value: auth.ownerTokens[merchant], domain: host,
-    path: '/', httpOnly: true, secure: auth.environment === 'homolog', sameSite: 'Lax' }]);
+  await context.addCookies([{ name: 'aacp_access_token', value: auth.ownerTokens[merchant], domain: new URL(auth.baseUrl).hostname,
+    path: '/', httpOnly: true, secure: auth.environment === 'homolog', sameSite: auth.environment === 'homolog' ? 'None' : 'Lax' }]);
   const page = await context.newPage(); observe(page, 'dashboard-' + viewport.width);
   try {
     await page.goto(origin + '/#cashback', { waitUntil: 'domcontentloaded', timeout: 90000 });
