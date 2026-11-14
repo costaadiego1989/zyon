@@ -67,8 +67,10 @@ export class AuthController {
   @ApiBody({
     schema: {
       type: "object",
-      required: ["email", "password"],
+      required: ["merchant_name", "email", "password", "business_mode"],
       properties: {
+        merchant_name: { type: "string", example: "Example Store" },
+        business_mode: { type: "string", enum: ["products", "services"], description: "Explicit commercial mode, independent of the business segment or plan." },
         email: { type: "string", format: "email", example: "merchant@example.com" },
         password: { type: "string", minLength: 8, example: "secure_password_123" },
         turnstile_token: { type: "string", maxLength: 2048, description: "Fresh Turnstile token for action signup; required in production." },

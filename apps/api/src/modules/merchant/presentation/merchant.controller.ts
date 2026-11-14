@@ -247,8 +247,13 @@ export class MerchantController {
   @Put("store-settings")
   async putStoreSettings(
     @CurrentTenant() merchantId: string,
-    @Body() body: Record<string, unknown>
+    @Body() body: Record<string, unknown>,
+    @Req() req?: unknown,
   ) {
+    if (Object.hasOwn(body, "business_mode")) {
+      const principal = currentTenantPrincipal((req ?? {}) as Parameters<typeof currentTenantPrincipal>[0]);
+      if (principal.kind !== "human" || !["owner", "admin"].includes(principal.role)) throw new ForbiddenException("business_mode_selection_forbidden");
+    }
     return this.updateTheme.updateStoreSettings(merchantId, body);
   }
 

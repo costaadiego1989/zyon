@@ -306,12 +306,12 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + onboarding HTTP/DB: service-business-onboarding.integration.spec.ts, modo inválido/ausente, duplicata e novo login.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit + onboarding HTTP/DB: service-business-onboarding.integration.spec.mjs, modo inválido/ausente, duplicata e novo login.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Unit + onboarding HTTP/DB: service-business-onboarding.integration.spec.ts, modo inválido/ausente, duplicata e novo login.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T8$" ./src/modules/auth/application/register-merchant.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T8 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Unit + onboarding HTTP/DB: service-business-onboarding.integration.spec.mjs, modo inválido/ausente, duplicata e novo login.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/auth/application/register-merchant.use-case.spec.ts ./src/modules/auth/application/auth.use-cases.spec.ts ./src/modules/auth/application/tenant-onboarding.spec.ts ./src/modules/auth/application/recovery-template-signup.spec.ts ./src/modules/auth/application/oauth-callback.use-case.spec.ts` e `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-name-pattern "^T8$" ./tests/service-business-onboarding.integration.spec.mjs`, com build API checked/atestado fresco e typecheck. Estado/resposta/rollback reais nas duas rotas settings, OAuth preliminar, flags forjados, conflitos e CAS; zero skipped. Os checks finais por ID continuam obrigatorios.
 **Commit**: `feat(service-business): t8 persist the exclusive mode during signup`
 
 ### T9: Expose mode and policy in the authenticated profile
@@ -361,16 +361,16 @@ T91 → T92
 **Done when**:
 
 - [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP/DB service-business-onboarding.integration.spec.ts: happy/invalid/foreign/forbidden/stale; provas co-localizadas com controller.
+- [ ] HTTP/DB service-business-onboarding.integration.spec.mjs: happy/invalid/foreign/forbidden/stale; provas co-localizadas com controller.
 - [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: HTTP/DB service-business-onboarding.integration.spec.ts: happy/invalid/foreign/forbidden/stale; provas co-localizadas com controller.
+**Tests**: HTTP/DB service-business-onboarding.integration.spec.mjs: happy/invalid/foreign/forbidden/stale; provas co-localizadas com controller.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T11$" ./src/modules/merchant/presentation/http/service-business-policy.controller.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T11 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t11 expose appointment policy configuration`
 
 ### T12: Guard business mode changes
 
-**What**: Mudança audita e recusa registros incompatíveis sem apagar histórico; mantém tratamento de eventos e tentativas financeiras já iniciadas.
+**What**: Mudança audita e recusa registros incompatíveis sem apagar histórico; mantém tratamento de eventos e tentativas financeiras já iniciadas. Além do helper puro T7, consultar checkouts e pagamentos canônicos ativos/pending e recusar a troca incompatível antes de escrever. O helper isolado não autoriza mudança de modalidade.
 **Where**: `apps/api/src/modules/merchant/application/change-business-mode.use-case.ts`
 **Depends on**: T11
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
@@ -415,10 +415,10 @@ T91 → T92
 **Done when**:
 
 - [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] company-settings.mapper.spec.ts + service-business-onboarding.integration.spec.ts: save/reopen/clear nas duas rotas.
+- [ ] company-settings.mapper.spec.ts + service-business-onboarding.integration.spec.mjs: save/reopen/clear nas duas rotas.
 - [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: company-settings.mapper.spec.ts + service-business-onboarding.integration.spec.ts: save/reopen/clear nas duas rotas.
+**Tests**: company-settings.mapper.spec.ts + service-business-onboarding.integration.spec.mjs: save/reopen/clear nas duas rotas.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T14$" ./src/modules/merchant/application/company-settings.mapper.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T14 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t14 preserve about in company api responses`
 
@@ -1885,15 +1885,15 @@ T91 → T92
 Um check por critério, cada nome de teste é exatamente o ID citado (um teste raiz por ID; subcasos exercitam as condições desse critério). `--test-name-pattern`/`--grep` seleciona esse teste; zero matches/skip falha no coletor, não conta como prova. Arquivos são planejados e escritos com as tarefas responsáveis. Os testes de integração usam runtime próprio T2, DB/HTTP/Redis e grafo local quando exigido. QA-02 produz capturas da aplicação local, não fotos alegadas de produção. Provas locais não concluem aceitação Meta/PSP real.
 
 **C1** - WHEN a empresa conclui o signup THEN the system SHALL persistir exatamente uma modalidade comercial, `products` ou `services`, selecionada em "O que sua empresa vende?". (ONB-01, AC 1)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-01$" ./tests/service-business-onboarding.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-01$" ./tests/service-business-onboarding.integration.spec.mjs`
 Tasks: T4, T8, T9, T10.
 
 **C2** - WHILE a modalidade é `products` the system SHALL ocultar as ações de agendamento e recusar tentativas de executá-las pela API, preservando a navegação atual de produtos. (ONB-02, AC 2)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-02$" ./tests/service-business-onboarding.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-02$" ./tests/service-business-onboarding.integration.spec.mjs`
 Tasks: T7, T9, T10, T17, T19, T94.
 
 **C3** - WHEN uma empresa de serviços configura atendimento THEN the system SHALL exigir a escolha explícita de bloqueio temporário, duração positiva em minutos quando habilitado, e pagamento `online` ou `at_attendance`. (ONB-03, AC 3)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-03$" ./tests/service-business-onboarding.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-03$" ./tests/service-business-onboarding.integration.spec.mjs`
 Tasks: T4, T7, T11, T27, T81.
 
 **C4** - IF uma troca de modalidade conflita com ofertas ativas ou agendamentos existentes THEN the system SHALL recusar a troca com a indicação do conflito, sem excluir nem converter registros. (ONB-04, AC 4)
@@ -1901,7 +1901,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T5, T7, T12, T17.
 
 **C5** - WHEN a empresa edita Dados da empresa THEN the system SHALL permitir salvar e reabrir o campo "Sobre a empresa" usando a descrição pública canônica, sem duplicar seu armazenamento. (ONB-05, AC 5)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-05$" ./tests/service-business-onboarding.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-05$" ./tests/service-business-onboarding.integration.spec.mjs`
 Tasks: T13, T14, T15, T16.
 
 **C6** - WHEN a empresa publica um serviço agendável THEN the system SHALL vincular sua duração e profissionais a recursos de agenda da própria empresa. (AGENDA-01, AC 1)

@@ -39,6 +39,8 @@ export class StoreSettingsController {
     @Body() settings: StoreSettings,
   ): Promise<StoreSettings> {
     this.assertOwnership(req, merchantId);
+    if (Object.hasOwn(settings, "business_mode") && !["owner", "admin"].includes(currentUser(req).role))
+      throw new ForbiddenException("business_mode_selection_forbidden");
     return this.updateSettings.execute(merchantId, settings);
   }
 

@@ -1,0 +1,17 @@
+{
+  "task": "T8",
+  "status": "complete",
+  "unitAndExistingAuthOAuth": {"executed": 25, "passed": 25, "failed": 0, "skipped": 0, "exitCode": 0},
+  "existingWriterContracts": {"executed": 19, "passed": 19, "failed": 0, "skipped": 0, "exitCode": 0},
+  "canonicalHttpDb": {"executed": 12, "passed": 12, "failed": 0, "skipped": 0, "exitCode": 0, "durationMs": 84967.1854},
+  "apiTypecheckExitCode": 0,
+  "apiLint": {"exitCode": 0, "preexistingWarnings": 2},
+  "checkedBuild": {"buildExitCode": 0, "checked": true, "sourceCount": 2485, "inputSha256": "9b11de46540321587f9da82c508c6d7e49380f3866844b1555ff2a817fdce260", "artifactSha256": "fe52eedbb522e12bb3b3ea3dc6881801180257bbb32da7987196a926c40004b8", "assertServiceArtifactsExitCode": 0},
+  "canonicalState": "Validated mode and server selection timestamp are stored atomically with owner creation. Initial settings selection uses persisted pending/review state and transaction-bound compare-and-set, not incoming flags.",
+  "httpCases": ["absent/invalid no partial user", "products/services and new login", "duplicate email unchanged", "canonical OAuth preliminary persistence", "initial completion and same-mode retry", "forged pending flags cannot switch", "non-pending legacy cannot reopen selection", "incompatible active offers and pending payment preserved", "concurrent different choices one coherent winner", "foreign/unauthenticated denied", "equivalent explicit-tenant writer", "staff denied"],
+  "oauthLimit": "Canonical OAuth repository is real; a synthetic local linked password permits real HTTP authentication. No Google/Microsoft token exchange or provider acceptance is claimed.",
+  "existingTests": "Three valid legacy signup fixtures gained only business_mode=products; assertions and existing failure contracts remain intact.",
+  "cleanup": {"appClosedAcknowledged": true, "naturalExitRequired": true, "ownedContainersRemaining": 0, "ownedBridgeSocketsRemaining": 0, "providerCalls": 0},
+  "remoteChanges": false,
+  "logs": "C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution/t8-*.log"
+}

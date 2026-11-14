@@ -7,7 +7,7 @@ import { OAuthCallbackUseCase } from "./oauth-callback.use-case.js";
 import { RegisterMerchantUseCase } from "./register-merchant.use-case.js";
 
 const jwt = () => ({ issue: async () => "test-token", expiresIn: () => 3600 }) as unknown as JwtService;
-const input = { merchant_name: "Example Store", email: "owner@example.test", password: "StrongPassword123!" };
+const input = { business_mode: "products", merchant_name: "Example Store", email: "owner@example.test", password: "StrongPassword123!" };
 
 test("password signup seeds templates for the server-generated merchant after account persistence", async () => {
   const repo = new InMemoryAuthRepository();

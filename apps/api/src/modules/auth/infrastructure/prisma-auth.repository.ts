@@ -4,6 +4,7 @@ import type { AuthMerchant, AuthUser } from "../domain/auth.types.js";
 import { createHash } from "node:crypto";
 import type { AuthRepository, OwnerProfile, SessionRecord } from "../domain/ports/auth-repository.port.js";
 import { EmailAlreadyRegisteredError, MerchantOwnerNotCreatedError, MerchantSlugAlreadyTakenError } from "../domain/errors.js";
+import type { BusinessMode } from "../../merchant/domain/service-business-policy.js";
 
 /**
  * L9: Mapper functions extracted from inline use.
@@ -60,12 +61,14 @@ export class PrismaAuthRepository implements AuthRepository {
     storeSlug?: string;
     email: string;
     passwordHash: string;
+    businessMode?: BusinessMode;
   }): Promise<{ merchant: AuthMerchant; user: AuthUser }> {
     try {
       const created = await this.prisma.merchant.create({
         data: {
           id: input.merchantId,
           name: input.merchantName,
+          ...(input.businessMode ? { businessMode: input.businessMode, businessModeSelectedAt: new Date() } : {}),
           billingAccountMerchantId: input.merchantId,
           storeSlug: input.storeSlug,
           storeSettings: { registration_pending: true, ...(input.storeSlug ? { slug: input.storeSlug } : {}) },

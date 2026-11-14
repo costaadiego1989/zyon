@@ -26,7 +26,7 @@ test("tenant onboarding: register Athom Tech → login → issue embed session",
 
   // 1. Register tenant
   const registered = await register.execute({
-    merchant_name: "Athom Tech",
+    business_mode: "products", merchant_name: "Athom Tech",
     email: "costaadiego1989@gmail.com",
     password: "athom2026!",
   });
@@ -72,7 +72,7 @@ test("tenant onboarding: duplicate email rejected", async () => {
   const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
 
   await register.execute({
-    merchant_name: "Athom Tech",
+    business_mode: "products", merchant_name: "Athom Tech",
     email: "costaadiego1989@gmail.com",
     password: "athom2026!",
   });
@@ -80,7 +80,7 @@ test("tenant onboarding: duplicate email rejected", async () => {
   await assert.rejects(
     () =>
       register.execute({
-        merchant_name: "Athom Tech Duplicate",
+        business_mode: "products", merchant_name: "Athom Tech Duplicate",
         email: "costaadiego1989@gmail.com",
         password: "other-pass-123",
       }),

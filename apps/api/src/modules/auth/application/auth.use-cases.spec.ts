@@ -18,7 +18,7 @@ test("register and login return JWTs for the merchant owner", async () => {
   const login = new LoginUseCase(repository, hasher, jwt);
 
   const registered = await register.execute({
-    merchant_name: "Demo Store",
+    business_mode: "products", merchant_name: "Demo Store",
     email: " Owner@Example.com ",
     password: "secret-password-123"
   });
@@ -41,14 +41,14 @@ test("auth rejects duplicate email and invalid credentials", async () => {
   const login = new LoginUseCase(repository, hasher, jwt);
 
   await register.execute({
-    merchant_name: "Demo Store",
+    business_mode: "products", merchant_name: "Demo Store",
     email: "owner@example.com",
     password: "secret-password-123"
   });
 
   // Duplicate email rejection
   try {
-    await register.execute({ merchant_name: "Other", email: "owner@example.com", password: "another-pass-123" });
+    await register.execute({ business_mode: "products", merchant_name: "Other", email: "owner@example.com", password: "another-pass-123" });
     assert.fail("Should reject duplicate email");
   } catch (err) {
     assert(err instanceof ConflictException, "Should throw ConflictException for duplicate email");
@@ -73,7 +73,7 @@ test("RegisterMerchantUseCase validates email format", async () => {
 
   try {
     await register.execute({
-      merchant_name: "Test",
+      business_mode: "products", merchant_name: "Test",
       email: "not-an-email",
       password: "secret-password-123"
     });
@@ -92,7 +92,7 @@ test("RegisterMerchantUseCase validates password strength", async () => {
 
   try {
     await register.execute({
-      merchant_name: "Test",
+      business_mode: "products", merchant_name: "Test",
       email: "owner@example.com",
       password: "short"
     });
@@ -111,7 +111,7 @@ test("RegisterMerchantUseCase validates non-empty merchant_name", async () => {
 
   try {
     await register.execute({
-      merchant_name: "",
+      business_mode: "products", merchant_name: "",
       email: "owner@example.com",
       password: "secret-password-123"
     });
@@ -132,12 +132,12 @@ test("RegisterMerchantUseCase always generates server-side merchant_id (B4 P2 re
   // Note: merchant_id is no longer in RegisterMerchantRequest interface
   // This test verifies two registrations get unique server-generated IDs
   const r1 = await register.execute({
-    merchant_name: "Store A",
+    business_mode: "products", merchant_name: "Store A",
     email: "a@example.com",
     password: "secret-password-123"
   });
   const r2 = await register.execute({
-    merchant_name: "Store B",
+    business_mode: "products", merchant_name: "Store B",
     email: "b@example.com",
     password: "secret-password-123"
   });

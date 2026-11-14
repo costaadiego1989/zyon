@@ -10,6 +10,8 @@ export interface AuthMerchant {
   name: string;
   oauthRegistrationPending?: boolean;
   ownerName?: string;
+  businessMode?: "products" | "services";
+  businessModeSelectedAt?: Date;
 }
 
 export interface AuthUser {

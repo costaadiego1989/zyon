@@ -1,5 +1,6 @@
 import type { AuthMerchant, AuthUser } from "../domain/auth.types.js";
 import type { AuthRepository, OwnerProfile, SessionRecord } from "../domain/ports/auth-repository.port.js";
+import type { BusinessMode } from "../../merchant/domain/service-business-policy.js";
 
 /**
  * L8: Removed @Injectable() — test double, never wired via module root.
@@ -18,8 +19,10 @@ export class InMemoryAuthRepository implements AuthRepository {
     storeSlug?: string;
     email: string;
     passwordHash: string;
+    businessMode?: BusinessMode;
   }): Promise<{ merchant: AuthMerchant; user: AuthUser }> {
-    const merchant = { id: input.merchantId, name: input.merchantName };
+    const merchant = { id: input.merchantId, name: input.merchantName,
+      ...(input.businessMode ? { businessMode: input.businessMode, businessModeSelectedAt: new Date() } : {}) };
     const user = {
       id: `usr_${crypto.randomUUID()}`,
       merchantId: input.merchantId,

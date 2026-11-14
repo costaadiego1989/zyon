@@ -8,6 +8,7 @@ import { decodePersistedTheme } from "../domain/services/merchant-theme.validato
 import { toNumber } from "../../../shared/persistence/decimal.util.js";
 import { isBillingFeatureEnabled } from "../../payment/domain/billing-plans.js";
 import { z } from "zod";
+import { isInitialBusinessSelectionWrite, selectInitialBusinessMode } from "../application/initial-business-mode-selection.js";
 
 const existingPercent = z.union([z.number().finite(), z.custom<Prisma.Decimal>(value => Prisma.Decimal.isDecimal(value))
   .transform(value => value.toNumber())]).pipe(z.number().finite().min(0).max(100));
@@ -103,7 +104,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     const incoming = settings as unknown as Record<string, unknown>;
     const merged: Record<string, unknown> = { ...existing };
     for (const [key, value] of Object.entries(incoming)) {
-      if (key === "budget") continue;
+      if (key === "budget" || key === "business_mode") continue;
       const prev = existing[key];
       const bothPlainObjects =
         prev != null && typeof prev === "object" && !Array.isArray(prev) &&
@@ -126,9 +127,11 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
         ...(requestedSlug ? { storeSlug: requestedSlug } : {}),
       }
     };
-    if (settings.policies) {
+    if (settings.policies || isInitialBusinessSelectionWrite(incoming)) {
       await this.prisma.$transaction(async (tx) => {
+        await selectInitialBusinessMode(tx, merchantId, incoming);
         await tx.merchant.update(update);
+        if (!settings.policies) return;
         const commercial = Object.fromEntries(["returns", "shipping"].filter(field => Object.hasOwn(settings.policies!, field)).map(field => [field, (settings.policies as Record<string, string>)[field] || null]));
         if (Object.keys(commercial).length) await tx.merchantPolicy.upsert({
           where: { merchantId }, create: { merchantId, ...commercial }, update: commercial,

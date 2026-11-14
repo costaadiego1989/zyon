@@ -11,12 +11,14 @@ import type { AuthResponse } from "../domain/auth.types.js";
 import { toAuthResponse } from "./auth-response.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { generateUniqueSlug } from "../../../shared/utils/slugify.js";
+import { parseBusinessMode, ServiceBusinessPolicyError } from "../../merchant/domain/service-business-policy.js";
 
 export interface RegisterMerchantRequest {
   merchant_name: string;
   email: string;
   password: string;
   turnstile_token?: string;
+  business_mode?: unknown;
 }
 
 export type { AuthResponse };
@@ -45,6 +47,7 @@ export class RegisterMerchantUseCase {
       if (!input.merchant_name?.trim()) {
         throw new BadRequestException("merchant_name_required");
       }
+      const businessMode = parseBusinessMode(input.business_mode);
 
       const email = normalizeEmail(input.email);
       const existing = await this.repository.findUserByEmail(email);
@@ -65,6 +68,7 @@ export class RegisterMerchantUseCase {
             storeSlug: slug,
             email,
             passwordHash,
+            businessMode,
           });
           break;
         } catch (err: unknown) {
@@ -88,6 +92,7 @@ export class RegisterMerchantUseCase {
       if (err instanceof WeakPasswordError || err instanceof InvalidEmailError) {
         throw new BadRequestException(err.code);
       }
+      if (err instanceof ServiceBusinessPolicyError) throw new BadRequestException(err.code);
       throw err;
     }
   }
