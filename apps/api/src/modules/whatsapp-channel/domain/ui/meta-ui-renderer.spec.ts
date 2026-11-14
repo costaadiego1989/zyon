@@ -44,7 +44,7 @@ test("comparison shows an unbroken narrow table and only product navigation", ()
   assert.deepEqual(shown.numericSelections.map(a => a.kind === "tool" ? a.tool : a.kind), ["get_product_details", "get_product_details", "message"]);
 });
 
-test("catalog names stay readable and complete without a redundant back row", () => {
+test("legacy catalog names stay readable and complete without a redundant back row", () => {
   const products = [
     { id: "repair", name: "Núcleo — Creme Reparador", price: 10990 },
     { id: "mist", name: "Núcleo — Bruma de Hidratação", price: 9990 },
@@ -52,6 +52,7 @@ test("catalog names stay readable and complete without a redundant back row", ()
     ...Array.from({ length: 11 }, (_, index) => ({ id: `other-${index}`, name: `Produto ${index}`, price: 5000 })),
   ];
   const view = withMetaCartNavigation(buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products } }] as any })), true);
+  view.catalogCards = undefined; // Persisted menus created before product cards.
   const selected = new Set<string>();
   const first = presentMetaUi(view, "catalog-readable", 0, { canGoBack: true });
   for (let page = 0; page < first.totalPages; page++) {
@@ -90,6 +91,7 @@ test("catalog names stay readable and complete without a redundant back row", ()
 test("a long published brand name without a product suffix retains a nonblank native title", () => {
   const name = "Laboratório de Cosméticos Profissional — ";
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [{ id: "brand-only", name, price: 7319 }] } }] as any }));
+  view.catalogCards = undefined;
   const shown = presentMetaUi(view, "brand-suffix");
   const row = native(shown).at(-1).action.sections[0].rows[0];
   assert.equal(row.title, "Laboratório de");
@@ -100,6 +102,7 @@ test("a long published brand name without a product suffix retains a nonblank na
 test("product row shortening respects Unicode and detail navigation uses the main menu", () => {
   const name = "🧴 Hidratação diária intensiva com proteção";
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [{ id: "unicode", name, price: 1000 }] } }] as any }));
+  view.catalogCards = undefined;
   const rows = native(presentMetaUi(view, "unicode")).at(-1).action.sections[0].rows;
   assert.equal(rows[0].title, "🧴 Hidratação diária");
   assert(rows[0].description.includes(name));
@@ -195,12 +198,13 @@ test("welcome retains merchant copy and explicitly invites unrestricted conversa
   const message = metaWelcomeMessage("Olá! Encontre produtos e confira seu pedido.", "Athom", "Zyon");
   assert.match(message, /^Olá! Encontre produtos/);
   assert.match(message, /Sou \*Zyon\*, assistente virtual da \*Athom\*/);
-  assert.match(message, /Conte o que procura ou pergunte sobre produtos/);
-  assert.match(message, /digite \*\/atalhos\*/);
+  assert.match(message, /Fique à vontade para me perguntar/);
+  assert.match(message, /\*Menu principal\*/);
+  assert.doesNotMatch(message, /\/atalhos/);
   assert.ok(message.includes("Olá! Encontre produtos e confira seu pedido."));
 });
 
-test("catalog preserves canonical ordering and loads photos only on product selection", () => {
+test("catalog preserves canonical ordering and places photos inside their own product cards", () => {
   const view = withMetaCartNavigation(buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [
     { id: "test", name: "Teste", price: 500 }, { id: "serum", name: "Sérum", price: 18990, image: "https://cdn.example/serum.jpg" },
   ] } }] })), true);
@@ -208,11 +212,10 @@ test("catalog preserves canonical ordering and loads photos only on product sele
   assert.equal(shown.messages.filter(m => m.type === "image").length, 0);
   const products = shown.numericSelections.filter(a => a.kind === "tool" && a.tool === "get_product_details");
   assert.deepEqual(products.map(a => a.kind === "tool" && a.args.productId), ["test", "serum"]);
-  const menu = native(shown).find(m => m.type === "list");
-  assert.equal(menu.footer, undefined);
-  assert.equal(menu.action.sections[0].rows[0].title, "Teste");
-  assert.equal(menu.action.sections[0].rows[1].title, "Sérum");
-  assert.match(menu.action.sections[0].rows.at(-1).title, /Menu principal/);
+  const cards = native(shown).filter(m => m.type === "button");
+  assert.match(cards[0].body.text, /Teste/); assert.match(cards[1].body.text, /Sérum/);
+  assert.equal(cards[1].header.image.link, "https://cdn.example/serum.jpg");
+  assert.equal(cards.at(-1).action.buttons.at(-1).reply.title, "Menu principal");
 });
 
 test("cart uses one native product list while preserving authoritative quantities, totals and checkout controls", () => {
@@ -308,10 +311,12 @@ test("catalog pages expose every product without sending a separate photo for ea
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: Array.from({ length: 20 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 1000 + i, image: `https://example.com/${i}.jpg` })) } }] }));
   const first = presentMetaUi(view, "turn", 0);
   const second = presentMetaUi(view, "turn", 1, { includeMedia: true, navigationOnly: true });
-  assert.deepEqual(first.messages.map(m => m.type), ["interactive"]);
-  assert.deepEqual(second.messages.map(m => m.type), ["interactive"]);
-  assert.equal(second.numericSelections[0].kind === "tool" && second.numericSelections[0].args.productId, "p7");
-  assert(native(second)[0].action.sections[0].rows.length <= 10);
+  assert.equal(first.messages.filter(m => m.type === "image").length, 0);
+  assert.equal(second.messages.filter(m => m.type === "image").length, 0);
+  assert.equal(native(first).filter(m => m.header?.type === "image").length, 3);
+  assert.equal(native(second).filter(m => m.header?.type === "image").length, 3);
+  assert.equal(second.numericSelections[0].kind === "tool" && second.numericSelections[0].args.productId, "p3");
+  assert(native(second).every(m => m.action.buttons.length <= 3));
 });
 test("secure checkout button preserves the entire signed URL without text-formatting its credentials", () => {
   const url = "https://widget.example/?embedToken=signed_token.signature&merchantId=own";
@@ -598,6 +603,7 @@ for (const type of ['product_carousel', 'cross_sell', 'marketplace_products', 'w
   for (const current of [withMetaCartNavigation(view, true), stale]) for (const mode of [true, false]) {
     const shown = presentMetaUi(current, 'hierarchy', 0, { native: mode, canGoBack: true });
     assert.deepEqual(shown.numericSelections, [{ kind: 'tool', tool: 'get_product_details', args: { productId: 'one' } },
+      ...(type === 'wishlist' ? [{ kind: 'tool', tool: 'remove_from_wishlist', args: { productId: 'one' } }] : []),
       { kind: 'message', message: '/atalhos' }]);
     assert(!JSON.stringify(shown.messages).includes('Outras opções'));
   }

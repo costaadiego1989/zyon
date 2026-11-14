@@ -50,7 +50,7 @@ export class WhatsAppBuyerHubService {
     if (effective === "/atalhos") {
       if (state.buyerHub || state.buyerHubIdentity) state.expectsFreeInput = false;
       state.buyerHub = undefined; state.buyerHubIdentity = undefined;
-      return reply("🤖 *Menu principal*\n\nToque em *Explorar opções*, logo abaixo, e escolha o que deseja fazer.\n\n🛍️ Veja produtos, categorias e ofertas.\n🛒 Acesse seu carrinho ou a compra rápida.\n👤 Consulte seus dados, endereços e favoritos.\n💬 Tire dúvidas sobre a loja.\n\nVocê também pode escrever o que precisa. Para abrir este menu novamente, digite */atalhos*.", BUYER_HUB_COMMANDS.map(entry => entry.label),
+      return reply("🤖 📋 *Menu principal*\n\nEscolha o que deseja fazer no menu abaixo ou continue conversando comigo.", BUYER_HUB_COMMANDS.map(entry => entry.label),
         [{ type: "buyer_hub_actions", data: { scope: "main_menu", choices: [] } }]);
     }
     const entry = BUYER_HUB_COMMANDS.find(entry => entry.command === effective);

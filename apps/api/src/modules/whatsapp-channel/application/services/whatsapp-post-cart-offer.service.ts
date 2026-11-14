@@ -17,7 +17,8 @@ const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: 
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 const data = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const block = (offer: Offer) => ({ type: "post_cart_offer", data: { offerId: offer.id, productId: offer.productId,
-  name: offer.name, priceCents: offer.expectedQuote.maximumUnitPriceCents, imageUrl: offer.imageUrl } });
+  name: offer.name, priceCents: offer.expectedQuote.maximumUnitPriceCents, imageUrl: offer.imageUrl,
+  rating: offer.rating, reviewCount: offer.reviewCount } });
 function retireViews(state: WhatsAppConversationState) {
   const clean = (view: NonNullable<WhatsAppConversationState["view"]>) => ({ ...view,
     blocks: view.blocks.filter(b => b.type !== "post_cart_offer"),
@@ -35,22 +36,24 @@ export class WhatsAppPostCartOfferService {
     @Optional() @Inject("ProductRepositoryPort") private readonly products?: Pick<ProductRepositoryPort, "findById">,
     @Optional() @Inject(GetProductContentUseCase) private readonly publicContent?: Pick<GetProductContentUseCase, "execute">) {}
 
-  private async reasons(merchantId: string, offer: Offer): Promise<string[]> {
+  private async reasons(merchantId: string, offer: Offer): Promise<{ reasons: string[]; rating?: number; reviewCount?: number }> {
     const sourceId = offer.expectedQuote.cartBasis.items.find(item => item.variantId === offer.sourceVariantId)?.productId;
-    if (!this.products || !sourceId) return [];
+    if (!this.products || !sourceId) return { reasons: [] };
     try {
       const [source, target] = await Promise.all([this.products.findById(merchantId, sourceId), this.products.findById(merchantId, offer.productId)]);
       const sourceVariant = source?.variants.find(variant => variant.id === offer.sourceVariantId);
       const targetVariant = target?.variants.find(variant => variant.id === offer.variantId);
       if (!source || !target || source.id !== sourceId || target.id !== offer.productId
         || source.merchantId !== merchantId || target.merchantId !== merchantId || !source.isActive || !target.isActive
-        || !sourceVariant?.isActive || !targetVariant?.isActive) return [];
+        || !sourceVariant?.isActive || !targetVariant?.isActive) return { reasons: [] };
       let blocks: Parameters<typeof extractSafeTargetReasons>[0]["publicBlocks"] = [];
       try { blocks = (await this.publicContent?.execute({ merchantId, productId: target.id, locale: "pt-BR" }))?.blocks ?? []; }
       catch { /* Public description remains usable when optional rich content is unavailable. */ }
-      return extractSafeTargetReasons({ productId: target.id, variantId: targetVariant.id,
-        description: target.description, variantAttributes: targetVariant.attributes, publicBlocks: blocks, locale: "pt-BR" });
-    } catch { return []; /* Missing evidence never invents a benefit or retries the confirmed cart write. */ }
+      return { reasons: extractSafeTargetReasons({ productId: target.id, variantId: targetVariant.id,
+        description: target.description, variantAttributes: targetVariant.attributes, publicBlocks: blocks, locale: "pt-BR" }),
+        ...(Number.isSafeInteger(target.reviewCount) && target.reviewCount! >= 0 ? { reviewCount: target.reviewCount,
+          ...(typeof target.averageRating === "number" && target.averageRating >= 1 && target.averageRating <= 5 ? { rating: target.averageRating } : {}) } : {}) };
+    } catch { return { reasons: [] }; /* Missing evidence never invents a benefit or retries the confirmed cart write. */ }
   }
 
   private async recommendation(merchantId: string, offer: Offer): Promise<string> {
@@ -108,7 +111,9 @@ export class WhatsAppPostCartOfferService {
           expiresAt: Date.now() + 10 * 60_000, status: "pending", expectedQuote: quote };
         const price = kind === "discount" ? `🏷️ De ~${money(quote.originalUnitPriceCents)}~ por *${money(quote.maximumUnitPriceCents)}* nesta compra.`
           : `💰 *${money(quote.maximumUnitPriceCents)}* por unidade.`;
-        const [suggestion, reasons] = await Promise.all([this.recommendation(merchantId, offer), this.reasons(merchantId, offer)]);
+        const [suggestion, presentation] = await Promise.all([this.recommendation(merchantId, offer), this.reasons(merchantId, offer)]);
+        const { reasons } = presentation;
+        offer.rating = presentation.rating; offer.reviewCount = presentation.reviewCount;
         const selectedReasons: string[] = [];
         let budget = Math.max(0, 350 - suggestion.length - price.length - 42);
         for (const reason of reasons) {

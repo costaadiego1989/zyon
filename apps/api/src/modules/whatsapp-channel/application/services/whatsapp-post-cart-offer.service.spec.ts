@@ -116,6 +116,15 @@ function publicReasonCatalog() {
     variants: [{ id: "bruma", isActive: true, attributes: { size: "50 ml" } }] };
   return { source, target };
 }
+test("recommendation stars come only from the same scoped public target product", async () => {
+  const f = fixture(), catalog = publicReasonCatalog();
+  const service = new WhatsAppPostCartOfferService(f.carts as any, undefined, { findById: async (_merchant, id) =>
+    id === catalog.source.id ? catalog.source as any : { ...catalog.target, averageRating: 4.4, reviewCount: 7 } as any });
+  const result = await service.decorate("merchant", base());
+  const shown = presentMetaUi(buildMetaUiView(result), "stars");
+  assert.match(JSON.stringify(shown.messages[1]), /★★★★☆.*4,4\/5.*7 avaliações/);
+  assert.equal(f.calls.accept, 0); assert.equal(result.state.postCartOffer!.expectedQuote.maximumUnitPriceCents, 5990);
+});
 test("three persuasive reasons use the real public Bruma facts bound to the quoted active pair, never Serum ingredients or private metadata", async () => {
   const f = fixture(), catalog = publicReasonCatalog(), reads: Array<[string, string]> = [], contentReads: any[] = [];
   const service = new WhatsAppPostCartOfferService(f.carts as any, undefined, { findById: async (merchant, id) => {

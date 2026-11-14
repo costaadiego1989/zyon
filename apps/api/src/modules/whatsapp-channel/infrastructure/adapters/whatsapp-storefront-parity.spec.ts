@@ -80,7 +80,9 @@ test("store actions use the shared storefront use case and retain the verified b
     { execute: async (request: any) => { seen = request; return { message: "Produtos", suggested_next: Array.from({ length: 20 }, (_, i) => `Opção ${i}`), blocks: [] }; } } as any,
     { executeForMerchant: async () => ({ name: "Empresa", agentName: "Zyon", agentGreeting: "Saudação da empresa", quickReplies: ["Atalho da empresa"] }) } as any);
   const greeting = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Oi", state: initial });
-  assert.match(greeting.agentMessage, /^Saudação da empresa/); assert.match(greeting.agentMessage, /Sou \*Zyon\*/); assert.doesNotMatch(greeting.agentMessage, /Seja muito bem-vindo/); assert.deepEqual(greeting.quickReplies, ["Atalho da empresa"]);
+  assert.match(greeting.agentMessage, /^Saudação da empresa/); assert.match(greeting.agentMessage, /Sou \*Zyon\*/); assert.doesNotMatch(greeting.agentMessage, /Seja muito bem-vindo/);
+  assert.equal(greeting.quickReplies.length, 9); assert(greeting.quickReplies.includes("👤 Meus dados"));
+  assert(greeting.blocks.some(b => b.type === "buyer_hub_actions" && (b.data as any).scope === "main_menu"));
   const output = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Ver produtos", state: greeting.state,
     action: { kind: "tool", tool: "search_products", args: { categoryId: "category", cursor: "cursor" } } });
   assert.equal(seen.cart_id, initial.conversationId); assert.equal(seen.trusted_buyer_context.globalUserId, buyer.globalUserId);

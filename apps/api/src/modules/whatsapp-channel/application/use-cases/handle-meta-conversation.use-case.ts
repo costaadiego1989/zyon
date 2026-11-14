@@ -240,6 +240,14 @@ export class HandleMetaConversationUseCase {
       if (result.status === "unknown") throw new Error("whatsapp_send_result_unknown");
       if (!result.messageId || !["sent", "queued"].includes(result.status)) {
         const message = saved.presentation!.messages[index];
+        if (message.type === "interactive" && message.interactive.type === "button"
+          && ["image", "video", "document"].includes(String((message.interactive.header as any)?.type))) {
+          const { header: _rejectedMedia, ...interactive } = message.interactive;
+          saved.presentation!.messages[index] = { type: "interactive", interactive };
+          saved = { ...saved, phase: "prepared", sent };
+          await this.save(claim, saved);
+          index--; continue; // Retry the exact body/actions once without optional media.
+        }
         // A definite rejection of an optional surface must not hide the rest of
         // the response. Persist its text replacement before attempting delivery.
         const fallback = message.type === "image" || message.type === "video" || message.type === "document"

@@ -223,6 +223,26 @@ test("an unknown send result is not blindly sent again", async () => {
   assert.equal(calls, 1); assert.equal(f.calls(), 1);
 });
 
+test("a rejected product-card photo retries the same actions without the optional header and never repeats commerce", async () => {
+  const f = fixture(); let reads = 0, sends = 0;
+  f.conversation.respondStore = async (input: any) => { reads++; return { agentMessage: "Confira o produto", quickReplies: [], state: input.state,
+    blocks: [{ type: "product_carousel", data: { products: [{ id: "p", name: "Mouse", price: 6990, inStock: true, image: "https://example.test/photo.jpg", variants: [{ id: "v", stock: 2 }] }] } }] }; };
+  f.sender.sendUi = async (input: any) => {
+    sends++; f.emitted.push(structuredClone(input.uiMessage));
+    if (input.uiMessage.type === "interactive" && input.uiMessage.interactive.header) return { status: "failed", messageId: "" };
+    return { status: "sent", messageId: "wamid." + sends };
+  };
+  await f.execute();
+  assert.equal(reads, 1); assert.equal(sends, 4); assert.equal(f.claim.responseState.phase, "complete");
+  const rejected = f.emitted.find(m => m.type === "interactive" && m.interactive.header);
+  const replacement = f.emitted.find(m => m.type === "interactive" && !m.interactive.header && m.interactive.body.text.includes("Mouse"));
+  assert(rejected && replacement);
+  assert.deepEqual(replacement.interactive.action, rejected.interactive.action);
+  assert.equal(replacement.interactive.body.text, rejected.interactive.body.text);
+  assert.equal(f.claim.responseState.presentation.messages[1].interactive.header, undefined);
+  assert.equal(f.claim.responseState.sent.length, 3);
+});
+
 test("a selection from a stale menu cannot authorize a new action", async () => {
   const f = fixture(); await f.execute();
   f.claim.id = "turn2"; f.claim.responseState = undefined; f.input.interactiveId = "zyon:stale";
@@ -467,7 +487,7 @@ test('an earlier catalog page refreshes its original query instead of paging the
   assert.equal(received.state.payment.intentId,'current-payment');
   assert.equal(f.claim.responseState.state.page,1);
   assert.deepEqual(f.emitted.filter(m=>m.type==='image'),[]);
-  assert.equal(f.claim.responseState.state.numericSelections[0].args.productId,'p7');
+  assert.equal(f.claim.responseState.state.numericSelections[0].args.productId,'p3');
 });
 
 test("a page from an older product menu displays refreshed product information before its controls", async () => {

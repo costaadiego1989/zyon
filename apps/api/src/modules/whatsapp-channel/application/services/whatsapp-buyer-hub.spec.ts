@@ -36,7 +36,9 @@ test("HUB-01 root registry produces executable native shortcuts and retains curr
   const shown = presentMetaUi(view, "root", 0, { canGoBack: true });
   assert.equal(shown.totalPages, 1); assert.equal(shown.numericSelections.length, 9);
   assert.equal(shown.numericSelections.some(action => action.kind === "back"), false);
-  assert.match(result.response.agentMessage, /Toque em \*Explorar opções\*/);
+  assert.match(result.response.agentMessage, /Escolha o que deseja fazer no menu abaixo/);
+  assert.doesNotMatch(result.response.agentMessage, /digite|\/atalhos/);
+  assert.equal((shown.messages.find(m => m.type === "interactive") as any).interactive.action.button, "Menu principal");
   assert.match(result.response.agentMessage, /\*Menu principal\*/);
   assert(!result.response.agentMessage.includes("/produtos · /categorias"));
   const choice = view.choices.find(c => c.label === "👤 Meus dados")!;

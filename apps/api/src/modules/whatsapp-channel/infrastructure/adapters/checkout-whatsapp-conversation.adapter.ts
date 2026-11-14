@@ -33,6 +33,7 @@ import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../..
 import { metaWelcomeMessage } from "../../domain/ui/meta-ui-renderer.js";
 import { presentationAssetUrl, withCartAnimations } from "../../domain/ui/commerce-animations.js";
 import { metaCatalogCopy } from "../../domain/ui/meta-compact-presentation.js";
+import { BUYER_HUB_COMMANDS } from "../../domain/ui/buyer-hub.js";
 import { projectPaidOrderReceipt } from "../../../notifications/domain/paid-order-receipt.js";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../../storefront/domain/ports/conversation.port.js";
 import { CheckoutShippingService } from "../../../checkout/application/services/checkout-shipping.service.js";
@@ -169,18 +170,18 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       return withCartAnimations({ ...offerResponse, merchantName: config.name });
     }
     const firstTurn = state.history.length === 0;
-    const greeting = metaWelcomeMessage(config.agentGreeting || "", config.name, config.agentName || "Zyon", config.agentTone);
+    const greeting = metaWelcomeMessage(config.agentGreeting || "", config.name, config.agentName || "Zyon", config.agentTone, config.storeCategory);
     if (/^\/atalhos?$/i.test(input.message.trim())) {
-      const message = "⚡ *Seus atalhos*\n\nEscolha uma opção no menu abaixo para continuar mais rápido.\n\n💬 Se preferir, conte o que precisa aqui na conversa. Seu carrinho e a etapa do pedido continuam salvos.";
+      const message = "📋 *Menu principal*\n\nEscolha o que deseja fazer no menu abaixo ou continue conversando comigo.";
       state.history = [...state.history, { role: "user", content: input.message }, { role: "assistant", content: message }];
-      return { agentMessage: message, quickReplies: [...(config.quickReplies || [])], blocks: [], merchantName: config.name, state };
+      return { agentMessage: message, quickReplies: BUYER_HUB_COMMANDS.map(c => c.label), blocks: [{ type: "buyer_hub_actions", data: { scope: "main_menu", choices: [] } }], merchantName: config.name, state };
     }
     state.pendingFlow = undefined;
     if ((firstTurn && /^(oi|ol[áa]|bom dia|boa tarde|boa noite)[!.\s]*$/i.test(input.message.trim())) || /^(menu|in[ií]cio)[!.\s]*$/i.test(input.message.trim())) {
       state.pendingProductQuestion = undefined;
       state.stage = "store"; state.expectsFreeInput = false;
       state.history = [{ role: "user", content: input.message }, { role: "assistant", content: greeting }];
-      const blocks: WhatsAppStructuredResponse["blocks"] = [];
+      const blocks: WhatsAppStructuredResponse["blocks"] = [{ type: "buyer_hub_actions", data: { scope: "main_menu", choices: [] } }];
       if (!state.welcomeAnimationShown) {
         const url = presentationAssetUrl("welcome-v2.webp");
         if (url) {
@@ -188,7 +189,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
           state.welcomeAnimationShown = true;
         }
       }
-      return { agentMessage: greeting, quickReplies: config.quickReplies || [], blocks, merchantName: config.name, state };
+      return { agentMessage: greeting, quickReplies: BUYER_HUB_COMMANDS.map(c => c.label), blocks, merchantName: config.name, state };
     }
     const paymentAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout"].includes(input.action.tool);
     const checkoutAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry", "show_checkout", "checkout_shipping_retry"].includes(input.action.tool);

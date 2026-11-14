@@ -32,6 +32,7 @@ export interface MetaUiView {
   productContext?: { productId: string; name: string; offerId?: string };
   cartEditing?: boolean;
   offerPresentation?: { confirmation: string; body: string; imageUrl?: string };
+  catalogCards?: Array<{ kind: "product" | "category"; name: string; body: string; imageUrl?: string; choices: MetaUiChoice[] }>;
 }
 
 export interface MetaUiPresentation {
@@ -63,7 +64,7 @@ export interface WhatsAppConversationState {
   postCartOffer?: {
     id: string; merchantId: string; cartId: string; ruleId: string; kind: "recommendation" | "discount";
     variantId: string; productId: string; sourceVariantId: string; addedName: string; name: string;
-    imageUrl?: string; expiresAt: number; status: "pending" | "accepted" | "declined" | "invalidated";
+    imageUrl?: string; rating?: number; reviewCount?: number; expiresAt: number; status: "pending" | "accepted" | "declined" | "invalidated";
     expectedQuote: import("../../../cross-sell/domain/contracts/cross-sell-storefront-quote.schemas.js").CrossSellStorefrontQuote;
   };
   declinedCrossSellKeys?: string[];

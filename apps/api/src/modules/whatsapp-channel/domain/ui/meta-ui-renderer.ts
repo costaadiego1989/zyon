@@ -9,6 +9,8 @@ import { metaProductComparison } from "./meta-product-comparison.js";
 import { metaProductContext } from "./meta-product-navigation.js";
 import { checkoutTone } from "../../../checkout/domain/services/checkout-collection-copy.js";
 import { compactMetaPresentation, metaCatalogCopy } from "./meta-compact-presentation.js";
+import { metaProductCard, metaProductRating, presentMetaCatalogCards } from "./meta-catalog-cards.js";
+import { BUYER_HUB_COMMANDS } from "./buyer-hub.js";
 
 const object = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const items = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
@@ -112,12 +114,13 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
   const fullDescriptions: string[] = [];
   const add = (label: string, action: StoreUiAction, description?: string) => view.choices.push({ label, action, description });
   const photo = (url: unknown, caption?: string) => { const link = safeLink(url); if (link && !view.media.some(m => m.type === "image" && m.media.link === link)) view.media.push({ type: "image", media: { link, caption: caption ? concise(caption, 1024) : undefined } }); };
-  const productChoice = (p: Record<string, any>) => {
+  const productChoice = (p: Record<string, any>, asCard = false) => {
     const price = p.priceFormatted || money(Number(p.price) / 100);
     add(value(p.name), tool("get_product_details", { productId: p.productId || p.id }), [price, p.sellerName, p.inStock === false ? "Indisponível" : ""].filter(Boolean).join(" · "));
     view.choices.at(-1)!.summary = typeof p.description === "string" && p.description.trim() ? publicProductSummary(p.description) : undefined;
     const link = safeLink(p.image || p.imageUrl || p.image_url || p.images?.[0]);
     if (link) view.choices.at(-1)!.image = { link, caption: concise(`*${value(p.name)}*\n💰 ${price}\n\n${publicProductSummary(p.description)}${p.inStock === false ? "\n_Indisponível_" : ""}`, 1024) };
+    if (asCard) (view.catalogCards ??= []).push(metaProductCard(p, view.choices.at(-1)!));
   };
   const contentProductLink = (productId: unknown, label: unknown, adding: boolean) => {
     const id = value(productId);
@@ -165,7 +168,11 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
       case "order_summary": text.push("*Resumo do pedido*", items(d.items).map(i => `- ${value(i.quantity)}× ${value(i.name)} — *${money(i.line_total ?? i.price)}*`).join("\n")); break;
       case "wishlist":
         if (items(d.items).length) text.push("♡ *Seus favoritos*\nAbra um produto para ver os detalhes ou use as opções da lista.");
-        items(d.items).forEach(p => { productChoice(p); if (p.id) add(`Remover: ${value(p.name)}`, tool("remove_from_wishlist", { productId: p.id })); });
+        items(d.items).forEach(p => { productChoice(p, true); if (p.id) {
+          const remove = { label: "Remover favorito", action: tool("remove_from_wishlist", { productId: p.id }) };
+          view.catalogCards?.at(-1)?.choices.push(remove);
+          add(`Remover: ${value(p.name)}`, remove.action);
+        } });
         break;
       case "post_cart_offer": {
         const offer = response.state.postCartOffer;
@@ -173,7 +180,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
           const cart = object(response.blocks.find(b => b.type === "cart_summary")?.data);
           const units = items(cart.items).reduce((n, i) => n + Number(i.quantity || 0), 0);
           view.offerPresentation = { confirmation: `✅ *${offer.addedName}* adicionado ao carrinho.${units ? `\n${units} ${units === 1 ? "unidade" : "unidades"} · *${money(cart.total)}*` : ""}`,
-            body: response.agentMessage, imageUrl: safeLink(d.imageUrl) };
+            body: [response.agentMessage, ...(offer.reviewCount !== undefined ? [metaProductRating(offer)] : [])].join("\n\n"), imageUrl: safeLink(d.imageUrl) };
           add("Adicionar", tool("accept_cross_sell_offer", { offerId: d.offerId }), "Adicionar uma unidade recomendada");
           view.productContext = { productId: offer.productId, name: value(d.name), offerId: offer.id };
           view.primaryAction = { label: "🛒 Adicionar", action: tool("accept_cross_sell_offer", { offerId: offer.id }),
@@ -184,7 +191,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         break;
       }
       case "product_carousel": case "marketplace_products": case "cross_sell":
-        items(d.products ?? d.items).forEach(productChoice);
+        items(d.products ?? d.items).forEach(p => productChoice(p, true));
         if (d.nextCursor) add("Mais produtos", tool("search_products", { query: d.query || "*", categoryId: d.categoryId, cursor: d.nextCursor, ...(d.criteria ? { criteria: d.criteria } : {}) }));
         break;
       case "product_card": {
@@ -207,7 +214,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
           fullDescriptions.push(full);
           if (!options.selectionOnly) add("Ler descrição completa", tool("show_content", { text: full }));
         }
-        if (Number(d.reviewCount) > 0 && d.rating != null) text.push(`*Avaliações*\n${Number(d.rating).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5 · ${value(d.reviewCount)} avaliação(ões)`);
+        text.push(metaProductRating(d));
         if (!(response.state.catalogId && retailerId && response.state.catalogPrices?.[retailerId] === Number(d.variants?.[0]?.price ?? d.price) && items(d.variants).length <= 1 && !items(d.optionGroups).length && !d.serviceSchedule)) photo(selectedVariant?.image || d.image || d.images?.[0], `*${value(d.name)}*\n*${price}*`);
         if (selectedVariant && selected) { const selectedLabel = `_Selecionado: ${variantTitle(selectedVariant)}_`; text.push(selectedLabel); selectionText.push(selectedLabel); }
         else if (variants.length === 1 && selectedVariant?.name && selectedVariant.name !== "SKU" && selectedVariant.value) {
@@ -244,7 +251,13 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         break;
       }
       case "category_carousel":
-        items(d.categories).forEach(c => add(value(c.name), tool("search_products", { query: "*", categoryId: c.id }), c.productCount == null ? undefined : `${c.productCount} produtos`)); break;
+        items(d.categories).forEach(c => {
+          const action = tool("search_products", { query: "*", categoryId: c.id });
+          add(value(c.name), action, c.productCount == null ? undefined : `${c.productCount} produtos`);
+          (view.catalogCards ??= []).push({ kind: "category", name: value(c.name),
+            body: `🗂️ *${value(c.name)}*${c.productCount == null ? "" : `\n${c.productCount} ${c.productCount === 1 ? "produto" : "produtos"} nesta categoria.`}`,
+            choices: [{ label: "Exibir produtos", action }] });
+        }); break;
       case "variant_selector":
         items(d.groups).forEach(g => items(g.options).filter(o => o.available !== false).forEach(o => add(`${value(g.name)}: ${value(o.value)}`, { kind: "variant", productId: value(d.productId), variantId: value(o.id) }))); break;
       case "cart_summary":
@@ -320,7 +333,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         if (d.estimatedDelivery) text.push(`Previsão: ${value(d.estimatedDelivery)}`); break;
       case "comparison_table": case "product_comparison":
         metaProductComparison(items(d.products)).forEach(body => view.media.push({ type: "text", text: { body } }));
-        items(d.products).forEach(productChoice); break;
+        items(d.products).forEach(p => productChoice(p)); break;
       case "reviews":
         text.push(`⭐ *Avaliações*\n📦 *${value(d.productName)}*\n\n${Number(d.totalReviews) > 0
           ? `📊 *${d.filter === "positive" ? "Positivas" : d.filter === "negative" ? "Negativas" : "Publicadas"}:* ${value(d.totalReviews)} · Média: *${Number(d.averageRating).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5*\n_Da mais recente para a mais antiga._`
@@ -412,7 +425,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
     if (/^adicionar.*carrinho$/i.test(label) && response.blocks.some(b => b.type === "product_card")) return;
     if (/^finalizar compra$/i.test(label) && response.blocks.some(b => b.type === "cart_summary" && !items(object(b.data).items).length)) return;
     if (/^tenho um cupom de desconto$/i.test(label.trim()) && view.choices.some(c => c.label === "Usar cupom")) return;
-    const presentedLabel = /^mover para carrinho$/i.test(label.trim()) && response.blocks.some(block => block.type === "wishlist") ? "Escolher para comprar" : label;
+    const commandLabel = label === "/atalhos" ? "Menu principal" : label === "/cancelar" ? "Cancelar" : BUYER_HUB_COMMANDS.find(c => c.command === label)?.label;
+    const presentedLabel = commandLabel ?? (/^mover para carrinho$/i.test(label.trim()) && response.blocks.some(block => block.type === "wishlist") ? "Escolher para comprar" : label);
     add(/^tenho um cupom de desconto$/i.test(label.trim()) ? "Usar cupom" : presentedLabel, metaStoreQuickReplyAction(label, { ...response.state, view }) ?? { kind: "message", message: label });
   });
   const seen = new Set<string>();
@@ -456,7 +470,7 @@ export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): Me
   ] as MetaUiChoice[] : []), ...choices] };
 }
 
-export function metaWelcomeMessage(greeting: string, merchantName: string, agentName = "Zyon", tone?: unknown): string {
+export function metaWelcomeMessage(greeting: string, merchantName: string, agentName = "Zyon", tone?: unknown, storeCategory?: string): string {
   const merchantCopy = formatMetaConversation(greeting).trim();
   const shop = formatMetaText(merchantName), agent = formatMetaText(agentName);
   const introductions = {
@@ -466,7 +480,8 @@ export function metaWelcomeMessage(greeting: string, merchantName: string, agent
     friendly: `👋 Oi! Que bom ter você na *${shop}*!\n\nSou *${agent}*, assistente virtual da loja. Vamos encontrar o que você precisa? 😊`,
     technical: `👋 Olá! Bem-vindo à *${shop}*.\n\nSou *${agent}*, assistente virtual. Posso comparar especificações e ajudar na escolha do seu pedido.`,
   };
-  return `${merchantCopy ? `${merchantCopy}\n\nSou *${agent}*, assistente virtual da *${shop}*.` : introductions[checkoutTone(tone)]}\n\nConte o que procura ou pergunte sobre produtos, entrega e seu pedido. Para abrir o menu, digite */atalhos*.`;
+  const target = /electronics|technology|eletr[oô]nic|tecnolog/i.test(storeCategory ?? "") ? "um mouse sem fio" : /fashion|moda|roupa/i.test(storeCategory ?? "") ? "uma camiseta" : "um produto";
+  return `${merchantCopy ? `${merchantCopy}\n\nSou *${agent}*, assistente virtual da *${shop}*.` : introductions[checkoutTone(tone)]}\n\n💬 *Você pode perguntar assim:*\n_“Gostaria de ${target} até R$ 150,00, na cor preta e com pelo menos 4 estrelas de avaliação.”_\n\nFique à vontade para me perguntar o que quiser sobre a loja, os produtos e seu pedido.\n\n📋 Use o *Menu principal* abaixo para explorar as opções.`;
 }
 
 export const isMetaCatalogView = (view?: MetaUiView): boolean => !!view && view.stage !== "checkout" &&
@@ -490,6 +505,8 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
       body: { text: formatMetaSpeech(offer.body) }, action: { buttons: offerChoices.map((choice, index) => ({ type: "reply", reply: { id: Object.keys(selections)[index], title: choice.label } })) } } });
     return { messages, selections, numericSelections: offerChoices.map(c => c.action), page: 0, totalPages: 1 };
   }
+  const cards = presentMetaCatalogCards(view, revision, requestedPage, options, formatMetaSpeech);
+  if (cards) return cards;
   const parts = paragraphs(formatMetaText(view.body || "Como posso ajudar?"));
   const productDetails = view.blocks.some(block => block.type === "product_card");
   const productContext = metaProductContext(view);
@@ -587,7 +604,7 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
           : view.blocks.some(block => block.type === "cart_summary") ? "Confira os itens e escolha como continuar."
             : view.stage === "checkout" ? view.blocks.some(b => b.type === "shipping_options") ? "Escolha uma das entregas cotadas acima." : "Escolha a próxima etapa do seu pedido." : "Navegue no menu e explore as opções";
       const productName = productDetails ? value(object(view.blocks.find(block => block.type === "product_card")?.data).name) : "";
-      messages.push({ type: "interactive", interactive: { type: "list", ...(productName ? { header: { type: "text", text: concise(productName, 60) } } : {}), body: { text: context }, action: { button: view.stage === "checkout" ? view.blocks.some(b => b.type === "shipping_options") ? "Escolher entrega" : "Opções do pedido" : catalog ? "Escolher produto" : productDetails && variantPrompt ? "Escolher variação" : "Ver opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows }] } } });
+      messages.push({ type: "interactive", interactive: { type: "list", ...(productName ? { header: { type: "text", text: concise(productName, 60) } } : {}), body: { text: context }, action: { button: view.stage === "checkout" ? view.blocks.some(b => b.type === "shipping_options") ? "Escolher entrega" : "Opções do pedido" : mainMenu ? "Menu principal" : catalog ? "Escolher produto" : productDetails && variantPrompt ? "Escolher variação" : "Ver opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows }] } } });
     }
   }
   return { messages: compactMetaPresentation(messages, view), selections, numericSelections: choices.map(c => c.action), page, totalPages };
