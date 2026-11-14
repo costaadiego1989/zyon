@@ -1,13 +1,15 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, Optional } from "@nestjs/common";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort, type StorefrontConfigSnapshot } from "../../domain/ports/storefront-config-query.port.js";
 import { BILLING_PLAN_ACCESS, type BillingPlanAccessPort } from "../../../payment/domain/ports/billing-plan-access.port.js";
 import { checkoutTone, type CheckoutTone } from "../../../checkout/domain/services/checkout-collection-copy.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
 
 export interface StoreConfigOutput {
   publishedPolicies?: Record<string, string>;
   policiesAvailable?: boolean;
   budgetModeEnabled: boolean;
+  cashbackEnabled: boolean;
   merchantId: string;
   name: string;
   logo?: string;
@@ -51,6 +53,7 @@ export class GetStoreConfigUseCase {
   constructor(
     @Inject(STOREFRONT_CONFIG_QUERY_PORT) private readonly configQuery: StorefrontConfigQueryPort,
     @Inject(BILLING_PLAN_ACCESS) private readonly billing?: BillingPlanAccessPort,
+    @Optional() private readonly cashback?: CashbackService,
   ) {}
 
   async execute(slug: string): Promise<StoreConfigOutput> {
@@ -85,11 +88,14 @@ export class GetStoreConfigUseCase {
         ? legacyReplies
         : ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
 
-    const voiceCheckoutEnabled = await this.isVoiceCheckoutEnabled(row.id);
+    const [voiceCheckoutEnabled, cashbackEnabled] = await Promise.all([
+      this.isVoiceCheckoutEnabled(row.id), this.isCashbackEnabled(row.id),
+    ]);
     return {
       publishedPolicies: config.publishedPolicies ?? {},
       policiesAvailable: config.policiesAvailable,
       budgetModeEnabled: row.budgetModeEnabled === true,
+      cashbackEnabled,
       merchantId: row.id,
       name: row.name,
       logo: theme?.logoUrl ?? undefined,
@@ -117,7 +123,7 @@ export class GetStoreConfigUseCase {
       agentName: identity?.agentName ?? theme?.agentName,
       agentGreeting: identity?.greeting,
       agentTone: checkoutTone(identity?.tone),
-      quickReplies,
+      quickReplies: cashbackEnabled ? quickReplies : quickReplies.filter(label => !/cashback/i.test(label)),
       stories: config.stories as any[],
       storeCategory: row.storeCategory ?? undefined,
       storeSettings: (row.storeSettings as Record<string, unknown>) ?? undefined,
@@ -126,6 +132,14 @@ export class GetStoreConfigUseCase {
       agentMode,
       agentInitialDelaySeconds: typeof checkoutSettings?.initialDelaySeconds === "number" ? checkoutSettings.initialDelaySeconds : 5,
     };
+  }
+
+  private async isCashbackEnabled(merchantId: string): Promise<boolean> {
+    try {
+      return await this.cashback?.isProgramEnabled(merchantId) === true;
+    } catch {
+      return false;
+    }
   }
 
   private async isVoiceCheckoutEnabled(merchantId: string): Promise<boolean> {

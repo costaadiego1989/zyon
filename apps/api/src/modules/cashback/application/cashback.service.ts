@@ -36,6 +36,14 @@ export class CashbackService {
     this.benefits = benefits ?? new CheckoutCommercialBenefitsService(repository);
   }
 
+  /** Public navigation reads only the current program, without loading a wallet. */
+  async isProgramEnabled(merchantId: string): Promise<boolean> {
+    return this.repository.transaction(merchantId, async tx => {
+      const program = await this.repository.program(tx, merchantId);
+      return program.merchantId === merchantId && program.status === "active" && program.published != null;
+    });
+  }
+
   async getProgram(merchantId: string, options: { includeGeneralCap?: boolean } = {}) {
     return this.repository.transaction(merchantId, async tx => {
       const p = await this.repository.program(tx, merchantId);

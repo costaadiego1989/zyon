@@ -3,7 +3,7 @@ import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import type { WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
 import { SendStoreMessageUseCase } from "../../../storefront/application/use-cases/send-store-message.use-case.js";
-import { GetStoreConfigUseCase } from "../../../storefront/application/use-cases/get-store-config.use-case.js";
+import { GetStoreConfigUseCase, type StoreConfigOutput } from "../../../storefront/application/use-cases/get-store-config.use-case.js";
 import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
 import { EmbedTokenService } from "../../../embed/domain/embed-token.service.js";
 import { GetProductContentUseCase } from "../../../catalog/application/use-cases/get-product-content.use-case.js";
@@ -33,7 +33,7 @@ import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../..
 import { metaWelcomeMessage } from "../../domain/ui/meta-ui-renderer.js";
 import { presentationAssetUrl, withCartAnimations } from "../../domain/ui/commerce-animations.js";
 import { metaCatalogCopy } from "../../domain/ui/meta-compact-presentation.js";
-import { BUYER_HUB_COMMANDS } from "../../domain/ui/buyer-hub.js";
+import { buyerHubCommands } from "../../domain/ui/buyer-hub.js";
 import { projectPaidOrderReceipt } from "../../../notifications/domain/paid-order-receipt.js";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../../storefront/domain/ports/conversation.port.js";
 import { CheckoutShippingService } from "../../../checkout/application/services/checkout-shipping.service.js";
@@ -97,9 +97,11 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       if (payment.copy_paste) parts.push("PIX copia e cola:\n" + payment.copy_paste);
       if (payment.ticket_url) parts.push("Link de pagamento: " + payment.ticket_url);
     }
+    const cashbackEnabled = await this.cashback?.isProgramEnabled?.(input.merchantId).catch(() => false) === true;
     return {
       agentMessage: parts.filter(Boolean).join("\n\n"),
-      quickReplies: [...new Set([...(experience?.copy.quick_replies ?? []), ...response.actions.map(action => action.label)])],
+      quickReplies: [...new Set([...(experience?.copy.quick_replies ?? []), ...response.actions.map(action => action.label)])]
+        .filter(label => cashbackEnabled || !/cashback/i.test(label)),
     };
   }
 
@@ -110,7 +112,9 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     attachmentContext?: string;
     messageId?: string;
   }): Promise<WhatsAppStructuredResponse> {
-    const turn = await this.respondStoreTurn(input);
+    if (!this.store || !this.storeConfig) throw new Error("whatsapp_storefront_adapter_unavailable");
+    const config = await this.storeConfig.executeForMerchant(input.merchantId);
+    const turn = await this.respondStoreTurn(input, config);
     const response = this.postCartOffers ? await this.postCartOffers.decorate(input.merchantId, turn, { buyerName: input.buyer.fullName }) : turn;
     const cartBlock = response.blocks.find(block => block.type === "cart_summary");
     const stored = await this.prisma?.storefrontCart?.findUnique({
@@ -120,7 +124,9 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const cartHasItems = this.prisma?.storefrontCart
       ? !!stored && stored.expiresAt.getTime() > Date.now() && Array.isArray(stored.items) && stored.items.length > 0
       : cartBlock ? Array.isArray((cartBlock.data as any).items) && (cartBlock.data as any).items.length > 0 : response.state.cartHasItems;
-    return { ...response, state: { ...response.state, cartHasItems } };
+    return { ...response,
+      quickReplies: response.quickReplies.filter(label => config.cashbackEnabled === true || !/cashback/i.test(label)),
+      state: { ...response.state, cartHasItems } };
   }
 
   private async respondStoreTurn(input: {
@@ -128,10 +134,9 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     merchantId: string; buyer: { globalUserId: string; phone: string; fullName?: string; email?: string };
     message: string; state: WhatsAppConversationState; action?: StoreUiAction;
     attachmentContext?: string; messageId?: string;
-  }): Promise<WhatsAppStructuredResponse> {
-    if (!this.store || !this.storeConfig) throw new Error("whatsapp_storefront_adapter_unavailable");
-    const config = await this.storeConfig.executeForMerchant(input.merchantId);
-    const hub = await this.buyerHub?.handle(input, config.name);
+  }, config: StoreConfigOutput): Promise<WhatsAppStructuredResponse> {
+    if (!this.store) throw new Error("whatsapp_storefront_adapter_unavailable");
+    const hub = await this.buyerHub?.handle(input, config.name, config.cashbackEnabled === true);
     if (hub?.kind === "reply") return hub.response;
     if (hub?.kind === "route") input = { ...input, message: hub.message, action: hub.action, buyer: hub.buyer ?? input.buyer, state: hub.state ?? input.state };
     let state: WhatsAppConversationState = { ...input.state, agentTone: config.agentTone };
@@ -218,7 +223,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     if (/^\/atalhos?$/i.test(input.message.trim())) {
       const message = "📋 *Menu principal*\n\nEscolha o que deseja fazer no menu abaixo ou continue conversando comigo.";
       state.history = [...state.history, { role: "user", content: input.message }, { role: "assistant", content: message }];
-      return { agentMessage: message, quickReplies: BUYER_HUB_COMMANDS.map(c => c.label), blocks: [{ type: "buyer_hub_actions", data: { scope: "main_menu", choices: [] } }], merchantName: config.name, state };
+      return { agentMessage: message, quickReplies: buyerHubCommands(config.cashbackEnabled).map(c => c.label), blocks: [{ type: "buyer_hub_actions", data: { scope: "main_menu", choices: [] } }], merchantName: config.name, state };
     }
     state.pendingFlow = undefined;
     const greetingRequest = !input.action && !input.attachmentContext && !state.expectsFreeInput && state.stage !== "checkout"
@@ -238,7 +243,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
           state.welcomeAnimationShown = true;
         }
       }
-      return { agentMessage: message, quickReplies: BUYER_HUB_COMMANDS.map(c => c.label), blocks, merchantName: config.name, state };
+      return { agentMessage: message, quickReplies: buyerHubCommands(config.cashbackEnabled).map(c => c.label), blocks, merchantName: config.name, state };
     }
     const paymentAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout"].includes(input.action.tool);
     const checkoutAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry", "show_checkout", "checkout_shipping_retry"].includes(input.action.tool);

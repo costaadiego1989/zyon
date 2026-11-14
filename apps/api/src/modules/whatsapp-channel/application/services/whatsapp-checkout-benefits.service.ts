@@ -26,6 +26,8 @@ export class WhatsAppCheckoutBenefitsService {
   async respond(session: CheckoutSession, message: string) {
     const command = parseWhatsAppBenefitCommand(message);
     if (!command || !await this.benefits.hasCombination(session)) return null;
+    const cashbackEnabled = await this.cashback.isProgramEnabled?.(session.merchantId).catch(() => false) === true;
+    const choices = (includeUse = false) => [...(cashbackEnabled ? ["Meu saldo de cashback", ...(includeUse ? ["Usar cashback"] : [])] : []), "Continuar compra"];
     try {
       let current = session;
       if (command.kind === "coupon") {
@@ -34,28 +36,28 @@ export class WhatsAppCheckoutBenefitsService {
         current = applied.session;
       } else {
         const offerId = [...session.chatHistory].reverse().find(turn => turn.role === "agent" && typeof turn.authorizedOfferId === "string")?.authorizedOfferId;
-        if (!offerId) return { agentMessage: "Não encontrei uma oferta disponível neste pedido. Peça uma nova condição à loja.", quickReplies: ["Meu saldo de cashback", "Continuar compra"] };
+        if (!offerId) return { agentMessage: "Não encontrei uma oferta disponível neste pedido. Peça uma nova condição à loja.", quickReplies: choices() };
         const result = await this.offers.execute({ merchant_id: session.merchantId, session_id: session.sessionId, offer_id: offerId });
         if (!result.success || !result.experience) throw new Error("checkout_offer_not_applied");
-        return this.describe(result.experience, "Oferta aplicada");
+        return this.describe(result.experience, "Oferta aplicada", choices(true));
       }
       const [rules, merchant, cashbackCents] = await Promise.all([this.merchants.getRules(session.merchantId),
         this.merchants.getProfile(session.merchantId), this.cashback.checkoutCashbackCents(current)]);
       return this.describe(buildExperienceFromSession(current, { rules, merchantName: merchant?.name,
-        serviceFee: this.config.platformFeeBrl, cashbackCents }), `Cupom ${command.code} aplicado`);
+        serviceFee: this.config.platformFeeBrl, cashbackCents }), `Cupom ${command.code} aplicado`, choices(true));
     } catch {
       return { agentMessage: "Não consegui confirmar a aplicação desse benefício. Confira as condições da loja e consulte o saldo antes de continuar.",
-        quickReplies: ["Meu saldo de cashback", "Continuar compra"] };
+        quickReplies: choices() };
     }
   }
 
-  private describe(experience: ReturnType<typeof buildExperienceFromSession>, title: string) {
+  private describe(experience: ReturnType<typeof buildExperienceFromSession>, title: string, quickReplies: string[]) {
     const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     const t = experience.totals;
     const lines = experience.items.map(item => `${item.quantity} × ${item.name}`);
     return { agentMessage: [title + ".", ...lines, `Produtos: ${money(t.subtotal)}. Descontos: ${money(t.discount)}.`,
       `Cashback: ${money((t.cashback_cents ?? 0) / 100)}. Frete: ${money(t.shipping ?? 0)}.`,
       `Taxa de serviço: ${money(t.service_fee ?? 0)}. Total a pagar: ${money(t.total_to_pay ?? t.total)}.`].join("\n"),
-      quickReplies: ["Meu saldo de cashback", "Usar cashback", "Continuar compra"] };
+      quickReplies };
   }
 }

@@ -10,7 +10,7 @@ import { metaProductContext } from "./meta-product-navigation.js";
 import { checkoutTone } from "../../../checkout/domain/services/checkout-collection-copy.js";
 import { compactMetaPresentation, metaCatalogCopy, metaAnimationsFirst, metaAnimationMedia } from "./meta-compact-presentation.js";
 import { metaProductCard, metaProductRating, presentMetaCatalogCards } from "./meta-catalog-cards.js";
-import { BUYER_HUB_COMMANDS } from "./buyer-hub.js";
+import { buyerHubCommands } from "./buyer-hub.js";
 
 const object = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const items = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
@@ -425,7 +425,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
     if (/^adicionar.*carrinho$/i.test(label) && response.blocks.some(b => b.type === "product_card")) return;
     if (/^finalizar compra$/i.test(label) && response.blocks.some(b => b.type === "cart_summary" && !items(object(b.data).items).length)) return;
     if (/^tenho um cupom de desconto$/i.test(label.trim()) && view.choices.some(c => c.label === "Usar cupom")) return;
-    const commandLabel = label === "/atalhos" ? "Menu principal" : label === "/cancelar" ? "Cancelar" : BUYER_HUB_COMMANDS.find(c => c.command === label)?.label;
+    const commandLabel = label === "/atalhos" ? "Menu principal" : label === "/cancelar" ? "Cancelar" : buyerHubCommands(true).find(c => c.command === label)?.label;
     const presentedLabel = commandLabel ?? (/^mover para carrinho$/i.test(label.trim()) && response.blocks.some(block => block.type === "wishlist") ? "Escolher para comprar" : label);
     add(/^tenho um cupom de desconto$/i.test(label.trim()) ? "Usar cupom" : presentedLabel, metaStoreQuickReplyAction(label, { ...response.state, view }) ?? { kind: "message", message: label });
   });
