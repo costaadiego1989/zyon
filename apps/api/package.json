@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "seed:cashback:validate": "node dist/seeds/cashback-validation-seed.js",
     "dev": "nest start --watch",
     "eval:ai-governance": "node tests/run-ai-governance-evals.mjs",
     "eval:ai-governance:live": "node tests/run-ai-governance-evals.mjs --live",

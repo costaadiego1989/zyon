@@ -110,6 +110,7 @@ RUN pnpm --filter @zyon/payments-evm build
 # retained by BuildKit instead of disappearing behind Nest's child-process exit.
 # Semantic errors still fail the image; no noCheck/ignore-error build is used.
 RUN cd /repo/apps/api && NODE_OPTIONS=--max-old-space-size=4096 pnpm exec tsc -p tsconfig.build.json --pretty false
+RUN node /repo/apps/api/prisma/seeds/cashback-validation-build.mjs
 
 # Cache the exact application's embedding model and verify real inference before
 # publishing an image. The first buyer conversation must not depend on a model
