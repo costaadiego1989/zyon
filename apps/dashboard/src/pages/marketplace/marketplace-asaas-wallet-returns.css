@@ -1,0 +1,11 @@
+.marketplace-asaas-wallet-returns .marketplace-refunds__state[data-state="returned"] { color: var(--color-success); }
+.marketplace-asaas-wallet-returns .marketplace-refunds__state[data-state="unknown"] { color: var(--color-text); }
+.marketplace-wallet-returns__environment { font-weight: 500; }
+.marketplace-wallet-returns__skeleton { display: grid; gap: .75rem; padding: 1rem 0; }
+.marketplace-wallet-returns__skeleton span { display: block; height: 2.5rem; border-radius: var(--radius-sm); background: var(--border); }
+.marketplace-asaas-wallet-returns .marketplace-refunds__amounts dt,
+.marketplace-asaas-wallet-returns .marketplace-refunds__amounts dd { overflow-wrap: anywhere; }
+.marketplace-asaas-wallet-returns .marketplace-refunds__table td { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .marketplace-asaas-wallet-returns .marketplace-refunds__table td:nth-child(2) { grid-column: 1 / -1; }
+}

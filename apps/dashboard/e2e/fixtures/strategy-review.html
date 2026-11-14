@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Revisão de estratégia</title></head>
+<body><div id="root"></div><script type="module">
+import React, { useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { ApiContext } from "../../src/hooks/useApi.ts";
+import { createDashboardApi } from "../../src/api-client.ts";
+import { AISuggestionsPanel } from "../../src/pages/overview/sections/AISuggestionsPanel.tsx";
+import { StrategyReviewModal } from "../../src/pages/revenue-manager/StrategyReviewModal.tsx";
+import { STRATEGY_REVIEW_EVENT } from "../../src/pages/revenue-manager/strategy-review.ts";
+import { ToastContainer } from "../../src/components/Toast.tsx";
+import "../../src/styles.css";
+const api = createDashboardApi({ baseUrl: location.origin + "/audit-api" });
+function Fixture() {
+  const [selected,setSelected]=useState(null);
+  useEffect(()=>{const open=e=>setSelected(e.detail.hypothesisId);window.addEventListener(STRATEGY_REVIEW_EVENT,open);
+    return()=>window.removeEventListener(STRATEGY_REVIEW_EVENT,open);},[]);
+  return React.createElement(ApiContext.Provider,{value:api},
+    React.createElement("main",{style:{padding:"24px",maxWidth:"1100px",margin:"auto"}},
+      React.createElement("h1",null,"Visão geral"),React.createElement("p",null,"Acompanhe sua loja e revise as próximas estratégias."),
+      React.createElement(AISuggestionsPanel,{me:{id:"merchant-test",name:"Loja Horizonte"}}),
+      selected&&React.createElement(StrategyReviewModal,{hypothesisId:selected,merchantId:"merchant-test",onClose:()=>setSelected(null)})),
+    React.createElement(ToastContainer));
+}
+createRoot(document.getElementById("root")).render(React.createElement(Fixture));
+</script></body></html>

@@ -1,0 +1,279 @@
+"use client";
+
+import { useState } from "react";
+import { Turnstile } from "@zyon/checkout-ui";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+
+type Props = {
+  merchantId?: string;
+  merchantName?: string;
+  onComplete: (globalUserId: string) => void | Promise<void>;
+  onCancel: () => void;
+  onAccountNotFound: (credentials: { email: string; otp: string }) => void;
+};
+
+function isAccountNotFound(response: unknown): boolean {
+  return typeof response === "object"
+    && response !== null
+    && "code" in response
+    && response.code === "email_otp_account_not_found";
+}
+
+export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFound }: Props) {
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [accountNotFound, setAccountNotFound] = useState<{ email: string; otp: string } | null>(null);
+
+  const handleConfirm = async () => {
+    if (loading || (TURNSTILE_SITE_KEY && !captchaToken)) return;
+    setError("");
+    setLoading(true);
+
+    try {
+      if (step === 1) {
+        const res = await fetch(`${API_BASE}/buyer/email/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, merchant_id: merchantId, turnstile_token: captchaToken }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.detail ?? errData?.message ?? "Erro ao enviar código");
+        }
+        setStep(2);
+      } else {
+        const res = await fetch(`${API_BASE}/buyer/email/login/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, code: otp, turnstile_token: captchaToken }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          if (isAccountNotFound(errData)) {
+            setAccountNotFound({ email, otp });
+            return;
+          }
+          throw new Error(errData?.detail ?? errData?.message ?? "Código inválido");
+        }
+
+        const data = await res.json();
+        const globalUserId = data.globalUserId ?? data.global_user_id;
+        if (!globalUserId) {
+          throw new Error("Login falhou: servidor não retornou identificação do usuário");
+        }
+        const token = data.accessToken ?? data.access_token ?? data.token;
+        const verifiedEmail = data.email ?? email;
+        if (token) {
+          localStorage.setItem("zyon_buyer_token", token);
+          localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token, email: verifiedEmail }));
+          window.dispatchEvent(new StorageEvent("storage", { key: "zyon_buyer_token" }));
+        }
+
+        await onComplete(globalUserId);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro inesperado");
+    } finally {
+      setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaAttempt(value => value + 1);
+    }
+  };
+
+  const cardStyle: React.CSSProperties = {
+    padding: "14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "11px",
+    background: "var(--aacp-surface, #1a1a1a)",
+    color: "var(--aacp-fg, #f5f5f7)",
+    borderRadius: "18px",
+    border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))",
+  };
+
+  const inputWrapStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "9px",
+    border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))",
+    background: "var(--aacp-surface-2, rgba(255,255,255,0.05))",
+    borderRadius: "12px",
+    padding: "9px 13px",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+    background: "transparent",
+    border: "none",
+    outline: "none",
+    color: "var(--aacp-fg, #f5f5f7)",
+    fontSize: "13.5px",
+    padding: 0,
+    fontFamily: "inherit",
+  };
+
+  return (
+    <div data-neu="surface" style={cardStyle}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span
+          style={{
+            fontFamily: "'Space Mono', monospace",
+            fontSize: "9px",
+            letterSpacing: "1px",
+            textTransform: "uppercase",
+            color: "var(--aacp-muted, #8b8b95)",
+          }}
+        >
+          Login · {step === 1 ? "e-mail" : "código de verificação"}
+        </span>
+        <span
+          style={{
+            fontFamily: "'Space Mono', monospace",
+            fontSize: "9px",
+            color: "var(--aacp-muted, #8b8b95)",
+          }}
+        >
+          Passo {step}/2
+        </span>
+      </div>
+
+      {/* Input */}
+      {step === 1 && (
+        <div data-neu="inset" style={inputWrapStyle}>
+          <input data-neu="field"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setAccountNotFound(null);
+            }}
+            placeholder="voce@email.com"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            autoFocus
+            aria-label="E-mail"
+            style={inputStyle}
+          />
+        </div>
+      )}
+
+      {step === 2 && (
+        <div data-neu="inset" style={inputWrapStyle}>
+          <input data-neu="field"
+            value={otp}
+            onChange={(e) => {
+              setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+              setAccountNotFound(null);
+            }}
+            placeholder="000000"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            autoFocus
+            aria-label="Código de verificação"
+            style={inputStyle}
+          />
+        </div>
+      )}
+
+      {step === 1 && (
+        <p style={{ margin: "-2px 2px 0", fontSize: "11.5px", color: "var(--aacp-muted, #8b8b95)", lineHeight: 1.45 }}>
+          Enviaremos um código de seis dígitos para este e-mail.
+        </p>
+      )}
+
+      <Turnstile siteKey={TURNSTILE_SITE_KEY} theme="auto" action={step === 1 ? "buyer_email_send" : "buyer_email_login"} resetKey={captchaAttempt} onChange={setCaptchaToken} />
+
+      {/* Error */}
+      {accountNotFound && (
+        <div data-neu="surface"
+          role="status"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+            margin: 0,
+            padding: "10px 11px",
+            borderRadius: "11px",
+            background: "var(--aacp-surface-2, rgba(255,255,255,0.05))",
+            color: "var(--aacp-fg, #f5f5f7)",
+            fontSize: "11.5px",
+            lineHeight: 1.45,
+          }}
+        >
+          <strong style={{ fontSize: "12px" }}>Ainda não há uma conta para este e-mail.</strong>
+          <span>O código foi confirmado e continua válido para criar sua conta.</span>
+        </div>
+      )}
+      {error && !accountNotFound && (
+        <p style={{ margin: 0, fontSize: "11.5px", color: "#f87171", padding: "0 2px" }}>{error}</p>
+      )}
+
+      {/* Buttons */}
+      <div style={{ display: "flex", gap: "8px" }}>
+        {step === 2 && (
+          <button data-neu="control"
+            type="button"
+            onClick={() => {
+              setStep(1);
+              setError("");
+              setAccountNotFound(null);
+            }}
+            style={{
+              flex: "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              color: "var(--aacp-muted, #8b8b95)",
+              padding: "10px 14px",
+              borderRadius: "11px",
+              border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))",
+              background: "var(--aacp-surface-2, rgba(255,255,255,0.05))",
+            }}
+          >
+            Voltar
+          </button>
+        )}
+        <button data-neu="primary"
+          type="button"
+          onClick={() => {
+            if (accountNotFound) {
+              onAccountNotFound(accountNotFound);
+              return;
+            }
+            void handleConfirm();
+          }}
+          disabled={loading || (!accountNotFound && Boolean(TURNSTILE_SITE_KEY) && !captchaToken)}
+          style={{
+            flex: 1,
+            border: "none",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: "12.5px",
+            fontWeight: 600,
+            color: "#fff",
+            padding: "10px 14px",
+            borderRadius: "11px",
+            background: "var(--aacp-accent, #0f766e)",
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          {loading ? "..." : accountNotFound ? "Criar conta com este código" : "Confirmar"}
+        </button>
+      </div>
+    </div>
+  );
+}

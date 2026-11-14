@@ -1,0 +1,107 @@
+import { dashboardJson } from "../http/client.js";
+import type { TenantOrder, TenantOrderDetail, CursorPage } from "../types.js";
+
+export type PurchaseShippingLabelPayload = {
+  order_id: string;
+  service_id: number;
+  from_zip: string;
+  to_zip: string;
+  to_name: string;
+  to_document: string;
+  packages: Array<{
+    weightKg: number;
+    widthCm: number;
+    heightCm: number;
+    lengthCm: number;
+    quantity: number;
+  }>;
+  invoice_key?: string;
+};
+
+export type PurchasedShippingLabel = {
+  purchase_id: string;
+  tracking_code: string;
+  label_url: string | null;
+};
+
+export type DigitalOrderAccess = { products: Array<{
+  id: string; name: string; status: string; expiresAt: string; downloadCount: number;
+  deliveries: Array<{ id: string; channel: string; status: string; reason: string | null; sentAt: string | null }>;
+}> };
+
+export function orderEndpoints(base: string, f: typeof fetch) {
+  return {
+    getServiceFulfillmentSlots(orderId: string, unitId: string): Promise<{ slots: Array<{ slotId: string; startsAt: string; timeZone: string; selectable: boolean }> }> {
+      return dashboardJson(base, `/orders/${encodeURIComponent(orderId)}/fulfillments/${encodeURIComponent(unitId)}/service-slots`, { method: "GET" }, f);
+    },
+    executeFulfillmentAction(orderId: string, unitId: string, payload: { action: string; expected_version: number; command_id: string; proof?: string; quantity?: number; schedule_slot_id?: string }): Promise<TenantOrderDetail> {
+      return dashboardJson(base, `/orders/${encodeURIComponent(orderId)}/fulfillments/${encodeURIComponent(unitId)}/actions`,
+        { method: "POST", jsonBody: payload, headers: { "Idempotency-Key": payload.command_id } }, f);
+    },
+    getDigitalOrderAccess(merchantId: string, externalOrderId: string): Promise<DigitalOrderAccess> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/orders/${encodeURIComponent(externalOrderId)}/digital-access`, { method: "GET" }, f);
+    },
+    retryDigitalDelivery(merchantId: string, deliveryId: string): Promise<{ status: "queued" }> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/digital-deliveries/${encodeURIComponent(deliveryId)}/retry`, { method: "POST" }, f);
+    },
+    async getOrders(limit?: number, cursor?: string): Promise<CursorPage<TenantOrder>> {
+      const params = new URLSearchParams();
+      if (limit) params.set("limit", String(limit));
+      if (cursor) params.set("cursor", cursor);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      return dashboardJson<CursorPage<TenantOrder>>(
+        base,
+        `/orders${query}`,
+        { method: "GET" },
+        f,
+      );
+    },
+    getOrderDetail(orderId: string): Promise<TenantOrderDetail> {
+      return dashboardJson<TenantOrderDetail>(
+        base,
+        `/orders/${encodeURIComponent(orderId)}`,
+        { method: "GET" },
+        f,
+      );
+    },
+    purchaseShippingLabel(
+      payload: PurchaseShippingLabelPayload,
+      idempotencyKey: string,
+    ): Promise<PurchasedShippingLabel> {
+      return dashboardJson<PurchasedShippingLabel>(
+        base,
+        "/shipping/labels",
+        {
+          method: "POST",
+          jsonBody: payload,
+          headers: { "Idempotency-Key": idempotencyKey },
+        },
+        f,
+      );
+    },
+    updateOrderTracking(orderId: string, payload: { tracking_code: string; carrier?: string; tracking_url?: string; status?: string }): Promise<unknown> {
+      return dashboardJson(
+        base,
+        `/orders/${encodeURIComponent(orderId)}/tracking`,
+        { method: "PUT", jsonBody: payload },
+        f,
+      );
+    },
+    updateOrderStatus(orderId: string, status: string): Promise<unknown> {
+      return dashboardJson(
+        base,
+        `/orders/${encodeURIComponent(orderId)}/status`,
+        { method: "PUT", jsonBody: { status } },
+        f,
+      );
+    },
+    cancelOrder(orderId: string, payload: { reason: string; notify_customer?: boolean; restock?: boolean }): Promise<unknown> {
+      return dashboardJson(
+        base,
+        `/orders/${encodeURIComponent(orderId)}/cancel`,
+        { method: "POST", jsonBody: payload },
+        f,
+      );
+    },
+  };
+}

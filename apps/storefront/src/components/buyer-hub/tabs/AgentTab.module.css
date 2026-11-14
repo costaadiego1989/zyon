@@ -1,0 +1,90 @@
+.agent { display: flex; flex-direction: column; gap: 30px; color: var(--aacp-fg); font-size: 14px; line-height: 1.5; }
+.agent h2, .agent h3, .agent p { margin: 0; }
+.agent h2 { font-size: 34px; line-height: 1.15; font-weight: 600; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.agent h3 { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.agent button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; cursor: pointer; min-height: 44px; padding: 10px 16px; border-radius: 999px; background: var(--aacp-surface); color: var(--aacp-fg); border: 1px solid var(--aacp-line); transition: background 180ms ease, opacity 180ms ease; }
+.agent button:hover { background: var(--aacp-surface-3); }
+.agent button:disabled { cursor: not-allowed; opacity: .5; }
+.agent button:focus-visible, .agent input:focus-visible, .agent select:focus-visible { outline: 2px solid var(--aacp-accent); outline-offset: 3px; }
+.agent .primary { background: var(--aacp-accent); color: var(--aacp-on-accent, #fff); border-color: transparent; font-weight: 550; }
+.agent .primary:hover { filter: brightness(.95); }
+.intro { display: flex; flex-direction: column; gap: 20px; padding-bottom: 22px; border-bottom: 1px solid var(--aacp-line); }
+.identity { display: flex; align-items: center; gap: 18px; }
+.identityText { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.identityLabel { font-size: 12px; color: var(--aacp-muted); }
+.agent .portraitButton { position: relative; padding: 0; width: 100px; height: 100px; flex: none; border: none; border-radius: 50%; background: var(--aacp-surface-2); box-shadow: var(--aacp-neu-inset-sm, inset 2px 2px 5px #0000000b, inset -2px -2px 5px #ffffff30); }
+.portraitEdit { display: grid; place-items: center; position: absolute; right: 0; bottom: 1px; width: 24px; height: 24px; border-radius: 50%; background: var(--aacp-fg); color: var(--aacp-bg); border: 3px solid var(--aacp-panel-bg, var(--aacp-bg)); }
+.presence { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--aacp-muted); }
+.presence i { width: 5px; height: 5px; flex: none; margin-top: 7px; border-radius: 50%; background: var(--aacp-muted); }
+.presence[data-active=true] i { background: var(--aacp-success); }
+.agent .introCopy { font-size: 15px; line-height: 1.6; color: var(--aacp-fg); max-width: 37ch; text-wrap: pretty; }
+.identityTools { display: flex; flex-wrap: wrap; gap: 10px; }
+.identityTools > button { font-size: 12px; min-height: 44px; padding: 8px 13px; }
+.storeScope { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--aacp-muted); font-size: 11px; }
+.storeScope > span { overflow-wrap: anywhere; }
+.storeScope > span:last-child { text-align: right; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.toolbar strong { display: block; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.toolbar p { color: var(--aacp-muted); font-size: 12px; margin-top: 4px; }
+.toolbar > button { white-space: nowrap; font-size: 13px; }
+.help { font-size: 12px; line-height: 1.65; color: var(--aacp-muted); max-width: 65ch; }
+.agent input:not([type=checkbox]), .agent select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 46px; border-radius: 10px; padding: 11px 12px; font: inherit; color: var(--aacp-fg); background: var(--aacp-surface-2); border: 1px solid var(--aacp-line); }
+.agent input::placeholder { color: var(--aacp-muted); opacity: 1; }
+.agent label { display: flex; flex-direction: column; gap: 7px; font-weight: 550; font-size: 13px; }
+.agent .check { flex-direction: row; align-items: center; font-weight: 400; min-height: 44px; gap: 10px; }
+.check input { width: 18px; height: 18px; accent-color: var(--aacp-accent); flex: none; }
+.form { display: flex; flex-direction: column; gap: 18px; padding-block: 8px 24px; border-bottom: 1px solid var(--aacp-line); }
+.row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+.row > label { flex: 1 1 150px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sectionHeading { display: flex; align-items: center; gap: 9px; margin-bottom: 18px !important; }
+.sectionHeading > span { font-size: 11px; font-weight: 500; display: grid; place-items: center; min-width: 21px; height: 21px; border-radius: 50%; background: var(--aacp-surface-3); }
+.list { list-style: none; padding: 0; margin: 0; }
+.list > li { padding-block: 20px; border-bottom: 1px solid var(--aacp-line); display: flex; flex-direction: column; gap: 12px; overflow-wrap: anywhere; }
+.list > li:first-child { padding-top: 0; }
+.taskTop { display: flex; align-items: center; gap: 12px; }
+.taskIcon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--aacp-surface-3); flex: none; }
+.taskInfo { flex: 1; min-width: 0; }
+.taskInfo > strong { font-size: 14px; font-weight: 600; }
+.taskInfo > p { font-size: 12px; color: var(--aacp-muted); margin-top: 3px; }
+.badge { font-size: 11px; white-space: nowrap; font-weight: 500; border: 1px solid var(--aacp-line); border-radius: 999px; padding: 3px 9px; }
+.schedule { display: flex; gap: 7px; align-items: center; color: var(--aacp-muted); font-size: 12px; }
+.taskActions { gap: 2px; margin-inline: -10px; }
+.taskActions > button { background: transparent; border-color: transparent; font-size: 12px; padding: 8px 10px; }
+.taskActions > button:hover { background: var(--aacp-surface-3); }
+.activityMeta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--aacp-muted); }
+.activityMeta > span { font-weight: 550; color: var(--aacp-fg); }
+.activityMessage { font-size: 15px; line-height: 1.65; text-wrap: pretty; }
+.activityList > li { gap: 16px; }
+.line { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.line > span:last-child { white-space: nowrap; }
+.empty { padding: 24px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.empty > strong { font-size: 16px; font-weight: 550; max-width: 30ch; }
+.empty > p { color: var(--aacp-muted); font-size: 13px; max-width: 45ch; }
+.error { padding: 14px 16px; border-radius: 10px; background: var(--aacp-surface-3); color: var(--aacp-fg); font-size: 13px; }
+.ledger { display: flex; flex-direction: column; gap: 10px; font-variant-numeric: tabular-nums; font-size: 13px; padding: 18px 0; border-block: 1px solid var(--aacp-line); }
+.ledger .total { padding-top: 8px; font-weight: 600; font-size: 18px; align-items: center; }
+.ledger .total > span:last-child { font-size: 23px; letter-spacing: -.02em; }
+.agentFooter { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 4px; color: var(--aacp-muted); font-size: 12px; }
+.agentFooter > button { border-color: transparent; font-size: 12px; background: transparent; padding-inline: 8px; }
+.skeleton { height: 18px; border-radius: 4px; background: var(--aacp-surface-3); margin-block: 12px; }
+.checkout { position: fixed; inset: 0; z-index: var(--aacp-z-checkout, 10002); background: var(--aacp-bg, #fff); color: var(--aacp-fg); display: flex; flex-direction: column; }
+.checkoutHeader { padding: 12px 16px; border-bottom: 1px solid var(--aacp-line); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.checkoutHeader > button { min-height: 44px; }
+.checkoutBody { flex: 1; min-height: 0; overflow: auto; }
+@media (max-width: 420px) {
+  .agent { gap: 28px; }
+  .identity { gap: 13px; }
+  .agent .portraitButton { width: 86px; height: 86px; }
+  .portraitButton > span:first-child { width: 82px; height: 82px; }
+  .agent h2 { font-size: 30px; }
+  .presence { font-size: 11px; }
+  .introCopy { font-size: 14px !important; }
+  .toolbar { gap: 10px; }
+  .toolbar strong { font-size: 14px; }
+  .toolbar > button { padding-inline: 12px; font-size: 12px; }
+  .row > label { flex-basis: 100%; }
+  .activityList .actions { flex-direction: column; align-items: stretch; }
+  .activityMeta { flex-wrap: wrap; gap: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .agent button { transition: none; } }

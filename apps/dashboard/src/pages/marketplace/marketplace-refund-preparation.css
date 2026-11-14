@@ -1,0 +1,17 @@
+.marketplace-refund-preparation { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.marketplace-refund-preparation p { margin: 0; line-height: 1.6; max-width: 75ch; }
+.marketplace-refund-preparation__candidates { padding: 0; list-style: none; margin: 0; }
+.marketplace-refund-preparation__candidates li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.25rem 0; border-bottom: 1px solid var(--border); }
+.marketplace-refund-preparation strong, .marketplace-refund-preparation li { overflow-wrap: anywhere; }
+.marketplace-refund-preparation__form { padding: 1.5rem; border: 1px solid var(--border); border-radius: var(--radius-md); display: flex; flex-direction: column; gap: 1.25rem; }
+.marketplace-refund-preparation__form h2 { margin: 0; font-size: 1.125rem; }
+.marketplace-refund-preparation fieldset { margin: 0; padding: 0; border: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.marketplace-refund-preparation legend { padding: 0 0 .75rem; font-weight: 600; }
+.marketplace-refund-preparation fieldset > p { grid-column: 1 / -1; }
+.marketplace-refund-preparation fieldset label { display: flex; flex-direction: column; gap: .5rem; }
+.marketplace-refund-preparation select, .marketplace-refund-preparation input:not([type="checkbox"]) { min-height: 44px; width: 100%; box-sizing: border-box; font: inherit; padding: .6rem; color: var(--color-text); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.marketplace-refund-preparation small { color: var(--color-text-muted); }
+.marketplace-refund-preparation :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.marketplace-refund-preparation summary { cursor: pointer; min-height: 44px; }
+body:has(.marketplace-refund-preparation__form) .platform-feedback-fab { display: none; }
+@media (max-width: 640px) { .marketplace-refund-preparation fieldset { grid-template-columns: minmax(0, 1fr); } .marketplace-refund-preparation__form { padding: 1rem; } .marketplace-refund-preparation__candidates li { align-items: stretch; flex-direction: column; } }

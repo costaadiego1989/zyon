@@ -1,0 +1,291 @@
+import { useEffect, useMemo, useState } from "react";
+import { useApi } from "../hooks/useApi.js";
+import { showToast } from "../components/Toast.js";
+import type { StageQuickReplies, AgentTone, AgentMode } from "@zyon/shared-types";
+import type { MerchantProfile } from "../api-client.js";
+import { changedFields } from "../lib/config-patch.js";
+
+export interface AgentConfigForm {
+  agentName: string;
+  persona: string;
+  tone: AgentTone;
+  language: string;
+  greeting: string;
+  emptyCartGreeting: string;
+  maxDiscountPercent: string;
+  minimumMarginPercent: string;
+  allowFreeShipping: boolean;
+  allowShippingDiscount: boolean;
+  freeShippingMinCartValue: string;
+  maxPartialShippingDiscount: string;
+  offerExpirationMinutes: string;
+  quickReplies: StageQuickReplies | undefined;
+  agentMode: AgentMode;
+}
+
+const DEFAULT_FORM: AgentConfigForm = {
+  agentName: "Assistente",
+  persona: "",
+  tone: "consultative",
+  language: "pt-BR",
+  greeting: "Olá! Como posso ajudá-lo?",
+  emptyCartGreeting: "O que você deseja comprar? Digite aqui que encontro para você.",
+  maxDiscountPercent: "10",
+  minimumMarginPercent: "15",
+  allowFreeShipping: false,
+  allowShippingDiscount: true,
+  freeShippingMinCartValue: "250",
+  maxPartialShippingDiscount: "20",
+  offerExpirationMinutes: "15",
+  quickReplies: undefined,
+  agentMode: "silent_until_trigger",
+};
+
+export function validateAgentConfig(form: AgentConfigForm): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (form.agentName.trim().length > 100) errors.agentName = "Máximo 100 caracteres";
+  if (form.persona.length > 200) errors.persona = "Máximo 200 caracteres";
+  if (form.greeting.length > 500) errors.greeting = "Máximo 500 caracteres";
+  if (form.emptyCartGreeting.length > 500) errors.emptyCartGreeting = "Máximo 500 caracteres";
+  const maxDiscount = Number(form.maxDiscountPercent);
+  if (Number.isNaN(maxDiscount) || maxDiscount < 0 || maxDiscount > 50) errors.maxDiscountPercent = "Informe um valor entre 0 e 50";
+  const minMargin = Number(form.minimumMarginPercent);
+  if (Number.isNaN(minMargin) || minMargin < 5 || minMargin > 80) errors.minimumMarginPercent = "Informe um valor entre 5 e 80";
+  const freeMin = Number(form.freeShippingMinCartValue);
+  if (form.allowFreeShipping && (Number.isNaN(freeMin) || freeMin < 0)) errors.freeShippingMinCartValue = "Valor inválido";
+  const partialMax = Number(form.maxPartialShippingDiscount);
+  if (form.allowShippingDiscount && (Number.isNaN(partialMax) || partialMax < 0 || partialMax > 100)) errors.maxPartialShippingDiscount = "Entre 0 e 100";
+  const expMin = Number(form.offerExpirationMinutes);
+  if (Number.isNaN(expMin) || expMin < 1 || expMin > 1440) errors.offerExpirationMinutes = "Entre 1 e 1440 minutos";
+  return errors;
+}
+
+const VALID_TONES: AgentTone[] = ["consultative", "premium", "direct", "friendly", "technical"];
+
+function isValidTone(value: unknown): value is AgentTone {
+  return typeof value === "string" && VALID_TONES.includes(value as AgentTone);
+}
+
+export type StageQrStage = { stage: string; label: string; replies: string[] };
+export type StageQrConfig = { stages: StageQrStage[]; fallback: string[] };
+
+export const DEFAULT_STAGE_QR: StageQrConfig = {
+  stages: [
+    { stage: "welcome", label: "Início", replies: ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"] },
+    { stage: "browsing", label: "Navegação", replies: ["Selecionar Produto", "Filtrar Produtos", "Categorias", "Ofertas do Dia", "Voltar ao Início"] },
+    { stage: "filter", label: "Filtros", replies: ["Por Preço", "Por Avaliação", "Mais Vendidos", "Novidades", "Frete Grátis", "Por Desconto", "Limpar Filtros"] },
+    { stage: "categories", label: "Categorias", replies: ["Ver Todas", "Filtrar Categoria", "Voltar"] },
+    { stage: "product_detail", label: "Detalhe do Produto", replies: ["Adicionar ao Carrinho", "Mais Informações", "Ver Avaliações", "Tirar Dúvidas", "Comparar", "Lista de Desejos", "Produtos Semelhantes", "Voltar"] },
+    { stage: "more_info", label: "Informações", replies: ["Especificações Técnicas", "Dimensões e Peso", "Material", "Garantia", "Prazo de Entrega", "Voltar ao Produto"] },
+    { stage: "reviews", label: "Avaliações", replies: ["Escrever Avaliação", "Positivas", "Negativas", "Ordenar por Recentes", "Voltar ao Produto"] },
+    { stage: "review_card", label: "Avaliação Selecionada", replies: ["Curtir", "Responder", "Reportar", "Voltar às Avaliações"] },
+    { stage: "questions", label: "Dúvidas", replies: ["Fazer Pergunta", "Ver Respondidas", "Minhas Perguntas", "Voltar ao Produto"] },
+    { stage: "compare", label: "Comparação", replies: ["Ver Tabela Comparativa", "Escolher Outro", "Adicionar ao Carrinho", "Voltar ao Produto"] },
+    { stage: "wishlist", label: "Lista de Desejos", replies: ["Ver Lista", "Compartilhar", "Mover para Carrinho", "Remover Item", "Voltar"] },
+    { stage: "added_to_cart", label: "Adicionado ao Carrinho", replies: ["Ver Carrinho", "Continuar Comprando", "Produtos Similares", "Aplicar Cupom", "Finalizar Compra"] },
+    { stage: "post_purchase", label: "Pós-compra", replies: ["Rastrear Pedido", "Nota Fiscal", "Alterar Endereço", "Cancelar Pedido", "Avaliar Produto", "Suporte"] },
+    { stage: "support", label: "Suporte", replies: ["FAQ", "Falar com Humano", "Reportar Problema", "Status do Pedido", "Voltar ao Início"] },
+  ],
+  fallback: ["Ver Produtos", "Categorias", "Meus Dados", "Suporte"],
+};
+
+export const TONE_PT_TO_EN: Record<string, AgentTone> = {
+  "Consultivo": "consultative",
+  "Premium": "premium",
+  "Direto": "direct",
+  "Amigável": "friendly",
+  "Técnico": "technical",
+};
+
+// Backend stores quick replies as a stage→replies map ({ welcome: [...], browsing: [...] }).
+// The editor works on DEFAULT_STAGE_QR's ordered/labelled stages. These bridge the two:
+// merge the saved map over the default stages (preserving labels/order), and flatten back.
+export function stageConfigFromMap(saved: Record<string, string[]> | undefined): StageQrConfig {
+  if (!saved || typeof saved !== "object") return DEFAULT_STAGE_QR;
+  const knownStages = new Set(DEFAULT_STAGE_QR.stages.map(stage => stage.stage));
+  return {
+    stages: [...DEFAULT_STAGE_QR.stages.map((s) =>
+      Array.isArray(saved[s.stage]) ? { ...s, replies: saved[s.stage] } : s
+    ), ...Object.entries(saved).filter(([stage, replies]) =>
+      stage !== "fallback" && !knownStages.has(stage) && Array.isArray(replies)
+    ).map(([stage, replies]) => ({ stage, label: stage, replies }))],
+    fallback: Array.isArray(saved.fallback) ? saved.fallback : DEFAULT_STAGE_QR.fallback,
+  };
+}
+
+export function stageConfigToMap(config: StageQrConfig): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  for (const s of config.stages) map[s.stage] = s.replies;
+  map.fallback = config.fallback;
+  return map;
+}
+
+export function agentIdentityChanges(form: AgentConfigForm, initial: AgentConfigForm) {
+  const identity = (value: AgentConfigForm) => ({
+    agentName: value.agentName, persona: value.persona, tone: value.tone,
+    language: value.language, greeting: value.greeting, emptyCartGreeting: value.emptyCartGreeting,
+  });
+  return changedFields(identity(form), identity(initial));
+}
+
+export function quickReplyChanges(current: StageQrConfig, initial: StageQrConfig,
+  saved: Record<string, string[]> | undefined): Record<string, string[]> | undefined {
+  const changes = changedFields(stageConfigToMap(current), stageConfigToMap(initial));
+  return Object.keys(changes).length ? { ...saved, ...changes } as Record<string, string[]> : undefined;
+}
+
+export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
+  const api = useApi();
+  const [form, setForm] = useState<AgentConfigForm>(DEFAULT_FORM);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [activeTab, setActiveTab] = useState<"identity" | "quick-replies">("identity");
+  const [stageQrConfig, setStageQrConfig] = useState<StageQrConfig>(DEFAULT_STAGE_QR);
+  const [initialForm, setInitialForm] = useState<AgentConfigForm | null>(null);
+  const [initialStageQr, setInitialStageQr] = useState<StageQrConfig>(DEFAULT_STAGE_QR);
+  const [savedQuickReplies, setSavedQuickReplies] = useState<Record<string, string[]> | undefined>();
+
+  const errors = useMemo(() => validateAgentConfig(form), [form]);
+  const hasErrors = Object.keys(errors).length > 0;
+
+  useEffect(() => {
+    if (!props.me) {
+      setInitialForm(null);
+      setLoadError(null);
+      setLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setLoaded(false);
+      setLoadError(null);
+      try {
+        const rules = await api.getMerchantRules();
+        const ar = await api.getAgentRules();
+        const behavior = await api.getCheckoutSettings();
+        if (cancelled) return;
+
+        const arUnknown = ar as unknown as Record<string, unknown>;
+        const rulesUnknown = rules as unknown as Record<string, unknown>;
+        const identity = (arUnknown.identity ?? {}) as Record<string, unknown>;
+        const checkoutSettings = (arUnknown.checkoutSettings ?? {}) as Record<string, unknown>;
+        const rawMode = behavior.mode;
+        const agentMode: AgentMode =
+          rawMode === "proactive" || rawMode === "manual_only" || rawMode === "silent_until_trigger"
+            ? rawMode
+            : "silent_until_trigger";
+
+        const nextForm: AgentConfigForm = {
+          agentName: String(identity.agentName ?? "Assistente"),
+          persona: String(identity.persona ?? ""),
+          tone: isValidTone(identity.tone) ? identity.tone : "consultative",
+          language: String(identity.language ?? "pt-BR"),
+          greeting: String(identity.greeting ?? ""),
+          emptyCartGreeting: String(identity.emptyCartGreeting ?? ""),
+          maxDiscountPercent: String(rulesUnknown.maxDiscountPercent ?? 10),
+          minimumMarginPercent: String(rulesUnknown.minimumMarginPercent ?? 15),
+          allowFreeShipping: Boolean(rulesUnknown.allowFreeShipping ?? false),
+          allowShippingDiscount: Boolean(rulesUnknown.allowShippingDiscount ?? true),
+          freeShippingMinCartValue: String(rulesUnknown.freeShippingMinCartValue ?? 250),
+          maxPartialShippingDiscount: String(rulesUnknown.maxPartialShippingDiscount ?? 20),
+          offerExpirationMinutes: String(rulesUnknown.offerExpirationMinutes ?? 15),
+          quickReplies: (rulesUnknown.quickReplies as unknown as StageQuickReplies | undefined) ?? undefined,
+          agentMode,
+        };
+        const savedReplies = rulesUnknown.quickReplies as Record<string, string[]> | undefined;
+        const nextReplies = stageConfigFromMap(savedReplies);
+        setForm(nextForm);
+        setInitialForm(nextForm);
+        setStageQrConfig(nextReplies);
+        setInitialStageQr(nextReplies);
+        setSavedQuickReplies(savedReplies);
+      } catch {
+        if (!cancelled) {
+          setLoadError("Não foi possível carregar a configuração atual do agente.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setLoaded(true);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [api, props.me, loadAttempt]);
+
+  function patch(p: Partial<AgentConfigForm>) {
+    setForm((prev) => ({ ...prev, ...p }));
+  }
+
+  async function handleSave() {
+    if (!props.me || !initialForm || loading || saving) return;
+    if (loadError) {
+      showToast("error", "Recarregue a configuração antes de salvar");
+      return;
+    }
+    if (hasErrors) {
+      showToast("error", "Corrija os erros antes de salvar");
+      return;
+    }
+    setSaving(true);
+    let writesCompleted = 0;
+    try {
+      const quickReplies = quickReplyChanges(stageQrConfig, initialStageQr, savedQuickReplies);
+      const identity = agentIdentityChanges(form, initialForm);
+      const modeChanged = form.agentMode !== initialForm.agentMode;
+      if (quickReplies) {
+        await api.putMerchantRules({ quickReplies: quickReplies as StageQuickReplies });
+        writesCompleted++;
+        setSavedQuickReplies(quickReplies);
+        setInitialStageQr(stageQrConfig);
+      }
+      if (Object.keys(identity).length || modeChanged) {
+        await api.putAgentRules({
+          ...(Object.keys(identity).length ? { identity } : {}),
+          ...(modeChanged ? { checkoutSettings: { agentMode: form.agentMode } } : {}),
+        });
+        writesCompleted++;
+      }
+      if (modeChanged) {
+        await api.patchCheckoutSettings({ mode: form.agentMode });
+        writesCompleted++;
+      }
+      setInitialForm(form);
+
+      showToast("success", "Configurações do agente salvas com sucesso");
+    } catch (e) {
+      if (writesCompleted) {
+        setLoadError("Parte da configuração foi salva. Recarregue os dados atuais antes de continuar.");
+      }
+      showToast("error", "Não foi possível concluir o salvamento. Confira os dados atuais e tente novamente.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function reload() {
+    setLoadError(null);
+    setLoadAttempt((attempt) => attempt + 1);
+  }
+
+  return {
+    form,
+    patch,
+    errors,
+    hasErrors,
+    loading,
+    saving,
+    loaded,
+    loadError,
+    reload,
+    activeTab,
+    setActiveTab,
+    stageQrConfig,
+    setStageQrConfig,
+    handleSave,
+  };
+}
