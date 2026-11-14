@@ -464,24 +464,45 @@ export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): Me
     if (choice.action.kind === "tool" && ["get_cart", "checkout"].includes(choice.action.tool)) return hasItems === undefined;
     return !browsing.some(item => actionKey(item.action) === actionKey(choice.action));
   });
+  const menu: MetaUiChoice = { label: "Menu principal", action: { kind: "message", message: "/atalhos" } };
   return { ...view, choices: [...browsing, ...(hasItems ? [
     { label: "Ver carrinho", action: tool("get_cart", {}) },
     { label: "Finalizar pedido", action: tool("checkout", {}) },
-  ] as MetaUiChoice[] : []), ...choices] };
+  ] as MetaUiChoice[] : []), ...choices,
+    ...(!choices.some(choice => actionKey(choice.action) === actionKey(menu.action)) ? [menu] : [])] };
 }
 
-export function metaWelcomeMessage(greeting: string, merchantName: string, agentName = "Zyon", tone?: unknown, storeCategory?: string): string {
+export function metaWelcomeMessage(greeting: string, merchantName: string, agentName = "Zyon", tone?: unknown, storeCategory?: string,
+  customer: { fullName?: string; returning?: boolean } = {}): string {
   const merchantCopy = formatMetaConversation(greeting).trim();
   const shop = formatMetaText(merchantName), agent = formatMetaText(agentName);
+  // A greeting uses only the known name passed by the channel. Never turn a
+  // phone, e-mail, placeholder or formatting payload into a customer's name.
+  const candidate = customer.fullName?.trim().replace(/\s+/g, " ") ?? "";
+  const firstName = /^[\p{L}\p{M}][\p{L}\p{M}'’ -]{0,99}$/u.test(candidate)
+    && !/^(?:cliente(?: whatsapp)?|comprador|usu[áa]rio|buyer|user|visitante|guest)$/i.test(candidate)
+    ? candidate.split(" ")[0] : undefined;
+  const name = firstName ? `, *${firstName}*` : "";
+  const menuPrompt = "📋 Use o *Menu principal* abaixo para explorar as opções.";
+  if (customer.returning) {
+    const returning = {
+      consultative: `👋 Olá${name}! Que bom ter você de volta à *${shop}*!\n\nComo posso ajudar hoje?`,
+      premium: `👋 Olá${name}! Bem-vindo de volta à *${shop}*.\n\nComo posso ajudar na sua próxima escolha?`,
+      direct: `👋 Olá${name}! Vamos continuar na *${shop}*.\n\nO que você procura hoje?`,
+      friendly: `👋 Oi${name}! Que bom ver você de novo na *${shop}*! 😊\n\nO que vamos encontrar hoje?`,
+      technical: `👋 Olá${name}! Bem-vindo de volta à *${shop}*.\n\nQual produto ou especificação você quer conhecer?`,
+    };
+    return `${returning[checkoutTone(tone)]}\n\n${menuPrompt}\nVocê também pode conversar comigo à vontade.`;
+  }
   const introductions = {
-    consultative: `👋 Olá! Seja muito bem-vindo à *${shop}*!\n\nEu sou *${agent}*, assistente virtual da loja. Vou ajudar você a escolher e cuidar do seu pedido.`,
-    premium: `👋 Seja bem-vindo à *${shop}*.\n\nSou *${agent}*, assistente virtual da loja. Vou acompanhar sua escolha e os detalhes do seu pedido.`,
-    direct: `👋 Olá! Você está na *${shop}*.\n\nSou *${agent}*, assistente virtual. Conte o que procura para começarmos.`,
-    friendly: `👋 Oi! Que bom ter você na *${shop}*!\n\nSou *${agent}*, assistente virtual da loja. Vamos encontrar o que você precisa? 😊`,
-    technical: `👋 Olá! Bem-vindo à *${shop}*.\n\nSou *${agent}*, assistente virtual. Posso comparar especificações e ajudar na escolha do seu pedido.`,
+    consultative: `👋 Olá${name}! Seja muito bem-vindo à *${shop}*!\n\nEu sou *${agent}*, assistente virtual da loja. Vou ajudar você a escolher e cuidar do seu pedido.`,
+    premium: `👋 Olá${name}! Seja bem-vindo à *${shop}*.\n\nSou *${agent}*, assistente virtual da loja. Vou acompanhar sua escolha e os detalhes do seu pedido.`,
+    direct: `👋 Olá${name}! Você está na *${shop}*.\n\nSou *${agent}*, assistente virtual. Conte o que procura para começarmos.`,
+    friendly: `👋 Oi${name}! Que bom ter você na *${shop}*!\n\nSou *${agent}*, assistente virtual da loja. Vamos encontrar o que você precisa? 😊`,
+    technical: `👋 Olá${name}! Bem-vindo à *${shop}*.\n\nSou *${agent}*, assistente virtual. Posso comparar especificações e ajudar na escolha do seu pedido.`,
   };
   const target = /electronics|technology|eletr[oô]nic|tecnolog/i.test(storeCategory ?? "") ? "um mouse sem fio" : /fashion|moda|roupa/i.test(storeCategory ?? "") ? "uma camiseta" : "um produto";
-  return `${merchantCopy ? `${merchantCopy}\n\nSou *${agent}*, assistente virtual da *${shop}*.` : introductions[checkoutTone(tone)]}\n\n📋 Use o *Menu principal* abaixo para explorar as opções.\n\n💬 *Segue um exemplo de como você pode interagir comigo:*\n_“Gostaria de ${target} até R$ 150,00, na cor preta e com pelo menos 4 estrelas de avaliação.”_\n\nMas fique à vontade para conversar comigo da forma que achar melhor.`;
+  return `${merchantCopy ? `${merchantCopy}${name ? `\n\n👋 Olá${name}!` : ""}\n\nSou *${agent}*, assistente virtual da *${shop}*.` : introductions[checkoutTone(tone)]}\n\n${menuPrompt}\n\n💬 *Segue um exemplo de como você pode interagir comigo:*\n_“Gostaria de ${target} até R$ 150,00, na cor preta e com pelo menos 4 estrelas de avaliação.”_\n\nMas fique à vontade para conversar comigo da forma que achar melhor.`;
 }
 
 export const isMetaCatalogView = (view?: MetaUiView): boolean => !!view && view.stage !== "checkout" &&

@@ -151,6 +151,13 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       ? { merchantId: owner.merchantId, conversationId: owner.conversationId, globalUserId: identitySession.globalUserId,
         customer: { phone: owner.phone, phone_verified: true as const, email_verified: false as const } } : undefined);
     const shopper = knownBuyer ? { ...input.buyer, globalUserId: knownBuyer.globalUserId, fullName: knownBuyer.customer.fullName, email: knownBuyer.customer.email } : input.buyer;
+    // A name already supplied in this phone-owned checkout is usable for the
+    // salutation even before payment. It does not grant account access.
+    const greetingName = knownBuyer?.customer.fullName || (identitySession?.merchantId === input.merchantId
+      && identitySession.customer?.phone_verified === true
+      && identitySession.customer.phone?.replace(/\D/g, "") === input.buyer.phone.replace(/\D/g, "")
+      && identitySession.cart.cart_ref === state.conversationId ? identitySession.customer.fullName : undefined)
+      || (recognition?.status === "recognized" ? recognition.greetingName : undefined) || input.buyer.fullName;
     const offerResponse = await this.postCartOffers?.handle({ merchantId: input.merchantId, state, message: input.message, action: input.action,
       attachmentContext: input.attachmentContext,
       verifiedOwner: owner?.merchantId === input.merchantId && owner.conversationId === state.conversationId,
@@ -170,17 +177,23 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       return withCartAnimations({ ...offerResponse, merchantName: config.name });
     }
     const firstTurn = state.history.length === 0;
-    const greeting = metaWelcomeMessage(config.agentGreeting || "", config.name, config.agentName || "Zyon", config.agentTone, config.storeCategory);
+    const greeting = metaWelcomeMessage(config.agentGreeting || "", config.name, config.agentName || "Zyon", config.agentTone, config.storeCategory,
+      { fullName: greetingName });
     if (/^\/atalhos?$/i.test(input.message.trim())) {
       const message = "📋 *Menu principal*\n\nEscolha o que deseja fazer no menu abaixo ou continue conversando comigo.";
       state.history = [...state.history, { role: "user", content: input.message }, { role: "assistant", content: message }];
       return { agentMessage: message, quickReplies: BUYER_HUB_COMMANDS.map(c => c.label), blocks: [{ type: "buyer_hub_actions", data: { scope: "main_menu", choices: [] } }], merchantName: config.name, state };
     }
     state.pendingFlow = undefined;
-    if ((firstTurn && /^(oi|ol[áa]|bom dia|boa tarde|boa noite)[!.\s]*$/i.test(input.message.trim())) || /^(menu|in[ií]cio)[!.\s]*$/i.test(input.message.trim())) {
+    const greetingRequest = !input.action && !input.attachmentContext && !state.expectsFreeInput && state.stage !== "checkout"
+      && /^(?:oi+|ol[áa]|bom dia|boa tarde|boa noite)[!.,\s👋😊]*$/iu.test(input.message.trim());
+    if (greetingRequest || /^(menu|in[ií]cio)[!.\s]*$/i.test(input.message.trim())) {
       state.pendingProductQuestion = undefined;
       state.stage = "store"; state.expectsFreeInput = false;
-      state.history = [{ role: "user", content: input.message }, { role: "assistant", content: greeting }];
+      const message = greetingRequest && !firstTurn
+        ? metaWelcomeMessage("", config.name, config.agentName || "Zyon", config.agentTone, config.storeCategory,
+          { fullName: greetingName, returning: true }) : greeting;
+      state.history = [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: message }].slice(-40);
       const blocks: WhatsAppStructuredResponse["blocks"] = [{ type: "buyer_hub_actions", data: { scope: "main_menu", choices: [] } }];
       if (!state.welcomeAnimationShown) {
         const url = presentationAssetUrl("welcome-v2.webp");
@@ -189,7 +202,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
           state.welcomeAnimationShown = true;
         }
       }
-      return { agentMessage: greeting, quickReplies: BUYER_HUB_COMMANDS.map(c => c.label), blocks, merchantName: config.name, state };
+      return { agentMessage: message, quickReplies: BUYER_HUB_COMMANDS.map(c => c.label), blocks, merchantName: config.name, state };
     }
     const paymentAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout"].includes(input.action.tool);
     const checkoutAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry", "show_checkout", "checkout_shipping_retry"].includes(input.action.tool);

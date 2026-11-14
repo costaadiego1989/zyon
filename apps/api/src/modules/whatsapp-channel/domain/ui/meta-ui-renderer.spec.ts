@@ -637,5 +637,6 @@ test('persisted JSONB key order cannot duplicate discovery shortcuts on the next
   const view=withMetaCartNavigation(persisted,false);
   assert.equal(view.choices.filter(choice=>choice.label==='Ver produtos').length,1);
   assert.equal(view.choices.filter(choice=>choice.label==='Encontrar produto').length,1);
-  assert.equal(view.choices.length,2);
+  assert.equal(view.choices.length,3);
+  assert.equal(view.choices.filter(choice=>choice.label==='Menu principal').length,1);
 });
