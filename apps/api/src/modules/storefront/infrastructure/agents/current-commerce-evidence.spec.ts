@@ -19,7 +19,7 @@ test("a required current-fact read cannot end only by promising a future consult
   assert.equal(calls, 2, "only the existing missing-tool retry is used");
   assert.deepEqual(result.toolsUsed, []); assert.deepEqual(result.blocks, []);
   assert.equal(result.safetyValidation.safe, false); assert.equal(result.safetyValidation.reason, "required_read_unconfirmed");
-  assert.match(result.message, /Não consegui confirmar/); assert.doesNotMatch(result.message, /Vou conferir/);
+  assert.match(result.message, /Não consegui carregar/); assert.doesNotMatch(result.message, /Vou conferir/);
 });
 
 test("an attempted but failed read does not count as current commercial evidence", async () => {
@@ -102,7 +102,7 @@ test("failed and malformed prefetched reads do not confirm a condition or trigge
   const result = await agent.run(input);
   assert.deepEqual(reads, ["promotions", "deals"]); assert.equal(calls, 1);
   assert.equal(result.safetyValidation.reason, "required_read_unconfirmed");
-  assert.match(result.message, /Não consegui confirmar/); assert.deepEqual(result.blocks, []);
+  assert.match(result.message, /Não consegui carregar/); assert.deepEqual(result.blocks, []);
 });
 
 test("invalid JSON after current-fact prefetch remains fail-closed without narration repair or review", async () => {

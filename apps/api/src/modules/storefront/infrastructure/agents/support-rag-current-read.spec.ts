@@ -177,7 +177,7 @@ test("a RAG context string cannot authorize a support answer after failed or mal
     const result = await agent.run(input);
     assert.equal(reads, 2);assert.equal(result.safetyValidation.safe, false);
     assert.equal(result.safetyValidation.reason, "required_read_unconfirmed");
-    assert.match(result.message, /Não consegui confirmar/);
+    assert.match(result.message, /Não consegui carregar/);
   }
 });
 
@@ -206,7 +206,7 @@ test("a successful FAQ lookup cannot mask a failed policy read or the inverse", 
     } as never, provider: { chat: async () => ({ content: reply(text), usage }) } as never }, classification);
     const result = await agent.run(input);
     assert.equal(result.safetyValidation.safe, false);assert.equal(result.safetyValidation.reason, "required_read_unconfirmed");
-    assert.match(result.message, /Não consegui confirmar/);
+    assert.match(result.message, /Não consegui carregar/);
     }
   }
 });
@@ -223,7 +223,7 @@ test("the actual FAQ handler preserves a database outage through the agent curre
   const result = await agent.run(input);
   assert.equal(queries, 1);assert.equal(handoffs, 0);
   assert.equal(result.safetyValidation.safe, false);assert.equal(result.safetyValidation.reason, "required_read_unconfirmed");
-  assert.match(result.message, /Não consegui confirmar/);
+  assert.match(result.message, /Não consegui carregar/);
 });
 
 test("support preflight does not replace mandatory order reads or run on commerce or tool-free turns", async () => {

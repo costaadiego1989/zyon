@@ -74,6 +74,6 @@ for (const options of [{ missing: true }, { noBuyer: true }, { noId: true }]) te
 for (const options of [{ error: true }, { malformed: true }]) test(`failed or malformed owned reads never fabricate status or repeat the handler: ${JSON.stringify(options)}`, async () => {
   const f = fixture(options); const result = await f.agent.run(input);
   assert.equal(f.attempts(), 1); assert.equal(result.safetyValidation.safe, false);
-  assert.match(result.message, /Não consegui confirmar/);
+  assert.match(result.message, /Não consegui carregar/);
   assert.doesNotMatch(result.message, /Correios|fones|acessórios|postado|private_database_error/);
 });
