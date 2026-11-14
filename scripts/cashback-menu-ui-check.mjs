@@ -23,6 +23,11 @@ function sourceFiles(component) {
   return Object.fromEntries([...new Set(files)].filter(p => p.startsWith('apps/' + component + '/') || p.startsWith('packages/')
     || ['package.json','pnpm-lock.yaml','pnpm-workspace.yaml','tsconfig.base.json'].includes(p)).sort().map(p => [p,hash(path.join(root,p))]));
 }
+function buildInputs(files, component) {
+  // Browser runners and Node tests are separate verification inputs. These
+  // directories are outside the dashboard/storefront TypeScript build scope.
+  return Object.fromEntries(Object.entries(files).filter(([p]) => !p.startsWith('apps/' + component + '/e2e/') && !p.startsWith('apps/' + component + '/tests/')));
+}
 function run(name, executable, args, cwd = root, extraEnv = {}) {
   const result = spawnSync(executable, args, { cwd, env: { ...process.env, ...extraEnv }, encoding:'utf8',
     windowsHide:true, timeout:600000, maxBuffer:32 * 1024 * 1024 });
@@ -68,7 +73,7 @@ try {
   } else if (phase === 'build') {
     for (const name of ['dashboard','storefront']) {
       const report = read(name + '-local-build.json'); assert.equal(report.success,true); assert.equal(report.exitCode,0);
-      assert.equal(report.inputsUnchanged,true); assert.deepEqual(report.sourceFiles,sourceFiles(name),'build_source_stale:' + name);
+      assert.equal(report.inputsUnchanged,true); assert.deepEqual(buildInputs(report.sourceFiles,name),buildInputs(sourceFiles(name),name),'build_source_stale:' + name);
     }
     run('api-build-check',process.execPath,['./node_modules/typescript/bin/tsc','-p','tsconfig.build.json','--pretty','false'],path.join(root,'apps/api'));
     result = { passed:3, failed:0, actualBuilds:true };

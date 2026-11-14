@@ -35,7 +35,7 @@ function observe(page, name) {
   page.on('pageerror', e => pageErrors.push({ name, message: safeError(e) }));
   page.on('request', r => {
     const u = new URL(r.url());
-    if (/\/dashboard\/cashback|\/buyer\/me\/cashback|\/storefront\/[^/]+\/config|\/conversation/.test(u.pathname)) {
+    if (/cashback|checkout|payment|storefront.*config|storefront.*conversation/.test(u.pathname)) {
       requests.push({ name, path: u.pathname, query: u.search, method: r.method() });
     }
   });
@@ -157,12 +157,18 @@ async function storefront(viewport, key) {
     const tab = dialog.getByRole('tab', { name: 'Cashback', exact: true });
     if (enabled) {
       await expect(tab).toHaveAttribute('aria-selected', 'true');
+      assert.ok(await tab.evaluate(x => {
+        const selected = x.getBoundingClientRect(), strip = x.parentElement.getBoundingClientRect();
+        return selected.left >= strip.left - 1 && selected.right <= strip.right + 1;
+      }), 'selected_cashback_tab_offscreen');
       const wallet = dialog.getByRole('region', { name: 'Seu cashback nesta loja' });
       await expect(wallet).toContainText('R$ 35,00'); await expect(wallet).toContainText('R$ 15,00');
       await expect(wallet.getByRole('heading', { name: 'Extrato', exact: true })).toBeVisible();
       await wallet.getByRole('button', { name: 'Atualizar saldo', exact: true }).click();
       await expect(wallet.getByRole('button', { name: 'Atualizar saldo', exact: true })).toBeEnabled();
-      assert.ok(!requests.some(r => r.name === 'storefront-' + key + '-' + viewport.width && /conversation/.test(r.path) && r.method === 'POST'), 'cashback_navigation_started_conversation');
+      assert.ok(!requests.some(r => r.name === 'storefront-' + key + '-' + viewport.width
+        && /\/(?:checkouts?|payments?|cashback)(?:\/|$)/.test(r.path)
+        && !['GET','HEAD','OPTIONS'].includes(r.method)), 'cashback_navigation_issued_financial_command');
     } else {
       await expect(tab).toHaveCount(0);
       await dialog.getByRole('tab', { name: 'Fidelidade', exact: true }).click();

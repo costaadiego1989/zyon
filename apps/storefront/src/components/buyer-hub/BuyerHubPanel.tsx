@@ -474,9 +474,14 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
 
 export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, storeName, theme, onToggleTheme, currentSessionId, onResumeConversation, supportInbox, initialTab = "profile", cashbackEnabled = false }: BuyerHubPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
   const vm = useBuyerHub(isOpen, merchantId);
   useEffect(() => { if (isOpen) vm.setActiveTab(initialTab === "cashback" && !cashbackEnabled ? "loyalty" : initialTab); }, [isOpen, initialTab, cashbackEnabled, vm.setActiveTab]);
   useEffect(() => { if (!cashbackEnabled && vm.activeTab === "cashback") vm.setActiveTab("loyalty"); }, [cashbackEnabled, vm.activeTab, vm.setActiveTab]);
+  useEffect(() => {
+    if (isOpen && vm.auth) tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [isOpen, vm.activeTab, Boolean(vm.auth), cashbackEnabled]);
   const cartView = useCart();
   const currentCart = merchantId && cartView.snapshotMerchantId === merchantId && !cartView.error && !cartView.updating
     ? cartView.cart : null;
@@ -703,6 +708,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, store
           <>
             {/* Tab bar — HORIZONTAL SCROLLABLE, NOT STRETCHED */}
             <div
+              ref={tabsRef}
               role="tablist"
               aria-label="Navegacao do hub"
               style={{
