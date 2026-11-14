@@ -8,7 +8,7 @@ import { publicProductSummary } from "../../../storefront/domain/services/public
 import { metaProductComparison } from "./meta-product-comparison.js";
 import { metaProductContext } from "./meta-product-navigation.js";
 import { checkoutTone } from "../../../checkout/domain/services/checkout-collection-copy.js";
-import { compactMetaPresentation, metaCatalogCopy } from "./meta-compact-presentation.js";
+import { compactMetaPresentation, metaCatalogCopy, metaAnimationsFirst, metaAnimationMedia } from "./meta-compact-presentation.js";
 import { metaProductCard, metaProductRating, presentMetaCatalogCards } from "./meta-catalog-cards.js";
 import { BUYER_HUB_COMMANDS } from "./buyer-hub.js";
 
@@ -520,11 +520,13 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     const selections = Object.fromEntries(offerChoices.map((choice, index) => ["zyon:" + createHash("sha256").update(`${revision}:offer:${index}`).digest("hex").slice(0, 32), choice.action]));
     const offer = view.offerPresentation;
     const messages: MetaUiMessage[] = options.navigationOnly ? [] : [{ type: "text", text: { body: formatMetaSpeech(offer.confirmation) } }];
+    if (!options.navigationOnly && options.includeMedia !== false)
+      messages.push(...metaAnimationMedia(view));
     if (options.native === false) messages.push({ type: "text", text: { body: `${formatMetaSpeech(offer.body)}\n\n${offerChoices.map((c, i) => `${i + 1}. ${c.label}`).join("\n")}` } });
     else messages.push({ type: "interactive", interactive: { type: "button",
       ...(offer.imageUrl && options.includeMedia !== false ? { header: { type: "image", image: { link: offer.imageUrl } } } : {}),
       body: { text: formatMetaSpeech(offer.body) }, action: { buttons: offerChoices.map((choice, index) => ({ type: "reply", reply: { id: Object.keys(selections)[index], title: choice.label } })) } } });
-    return { messages, selections, numericSelections: offerChoices.map(c => c.action), page: 0, totalPages: 1 };
+    return { messages: metaAnimationsFirst(messages, view), selections, numericSelections: offerChoices.map(c => c.action), page: 0, totalPages: 1 };
   }
   const cards = presentMetaCatalogCards(view, revision, requestedPage, options, formatMetaSpeech);
   if (cards) return cards;

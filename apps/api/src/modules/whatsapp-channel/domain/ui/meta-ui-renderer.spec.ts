@@ -313,9 +313,9 @@ test("catalog pages expose every product without sending a separate photo for ea
   const second = presentMetaUi(view, "turn", 1, { includeMedia: true, navigationOnly: true });
   assert.equal(first.messages.filter(m => m.type === "image").length, 0);
   assert.equal(second.messages.filter(m => m.type === "image").length, 0);
-  assert.equal(native(first).filter(m => m.header?.type === "image").length, 3);
-  assert.equal(native(second).filter(m => m.header?.type === "image").length, 3);
-  assert.equal(second.numericSelections[0].kind === "tool" && second.numericSelections[0].args.productId, "p3");
+  assert.equal(native(first).filter(m => m.header?.type === "image").length, 10);
+  assert.equal(native(second).filter(m => m.header?.type === "image").length, 10);
+  assert.equal(second.numericSelections[0].kind === "tool" && second.numericSelections[0].args.productId, "p10");
   assert(native(second).every(m => m.action.buttons.length <= 3));
 });
 test("secure checkout button preserves the entire signed URL without text-formatting its credentials", () => {
@@ -547,7 +547,11 @@ test("every catalog page contains products, pagination and one main-menu entry w
     assert.equal(shown.numericSelections.filter(action => action.kind === "message" && action.message === "/atalhos").length, 1);
     assert.ok(shown.numericSelections.every(action => action.kind === "page" || action.kind === "message" && action.message === "/atalhos"
       || action.kind === "tool" && action.tool === "get_product_details"));
-    assert.ok(shown.numericSelections.length <= 10, "Meta lists accept at most ten rows");
+    assert.equal(native(shown).filter(m => m.header?.type === "image").length, Math.min(10, 16 - page * 10));
+    for (const control of native(shown)) {
+      if (control.type === "button") assert.ok(control.action.buttons.length <= 3, "each card respects the native button limit");
+      else if (control.type === "list") assert.ok(control.action.sections[0].rows.length <= 10, "native lists respect their row limit");
+    }
     for (const action of shown.numericSelections) if (action.kind === "tool" && action.tool === "get_product_details") seen.add(String(action.args.productId));
   }
   assert.equal(seen.size, 16);
@@ -589,7 +593,8 @@ test('all catalog products remain reachable without extra shortcut or back rows'
     assert.equal(shown.numericSelections.filter(a => a.kind === 'message' && a.message === '/atalhos').length, 1);
     assert.ok(shown.numericSelections.every(a => a.kind === 'page' || a.kind === 'message' && a.message === '/atalhos'
       || a.kind === 'tool' && a.tool === 'get_product_details'));
-    assert.ok(shown.numericSelections.length <= 10);
+    assert.equal(native(shown).filter(m => m.header?.type === "image").length, Math.min(10, 18 - page * 10));
+    for (const control of native(shown)) assert.ok(control.action.buttons.length <= 3);
     for (const action of shown.numericSelections) if (action.kind === 'tool' && action.tool === 'get_product_details') products.add(action.args.productId);
   }
   assert.equal(products.size, 18);

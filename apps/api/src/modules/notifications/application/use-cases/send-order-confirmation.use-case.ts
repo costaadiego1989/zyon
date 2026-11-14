@@ -48,6 +48,15 @@ export class SendOrderConfirmationUseCase {
       const freeformText = renderOrderConfirmationWhatsApp(event);
       deliveries.push(Promise.resolve().then(async () => {
         if (this.sendWhatsApp) {
+          if (event.paidReceipt) {
+            // The canonical paid event authorizes the animation. Optional
+            // media is first, and a media failure never suppresses the receipt.
+            try {
+              const animation = await this.sendWhatsApp.execute({ merchantId: event.merchantId, orderId: event.orderId,
+                idempotencyKey: event.orderId, type: "order_paid_animation", toPhone: buyerPhone });
+              if (animation.status !== "accepted") this.logger.warn(`order_paid_animation_${animation.status} reason=${animation.reason ?? "unconfirmed"}`);
+            } catch { this.logger.warn("order_paid_animation_failed"); }
+          }
           const result = await this.sendWhatsApp.execute({
             merchantId: event.merchantId,
             orderId: event.orderId,
@@ -62,13 +71,6 @@ export class SendOrderConfirmationUseCase {
             freeformText,
           });
           if (result.status !== "accepted") this.logger.warn(`order_confirmation_whatsapp_${result.status} reason=${result.reason ?? "unconfirmed"}`);
-          if (event.paidReceipt && result.status === "accepted") {
-            // Preserve presentation order: the receipt is accepted before its
-            // celebration. Unknown receipt acceptance never starts a second path.
-            const animation = await this.sendWhatsApp.execute({ merchantId: event.merchantId, orderId: event.orderId,
-              idempotencyKey: event.orderId, type: "order_paid_animation", toPhone: buyerPhone });
-            if (animation.status !== "accepted") this.logger.warn(`order_paid_animation_${animation.status} reason=${animation.reason ?? "unconfirmed"}`);
-          }
         } else {
           await this.whatsappSender.send({ phone: buyerPhone, message: freeformText });
         }

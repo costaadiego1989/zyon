@@ -34,3 +34,16 @@ test("compact cart keeps separate variant labels, one total and three primary co
   const action = editing.choices.find(c => c.action.kind === "tool" && c.action.tool === "edit_cart_item" && c.action.args.variantId === "b")!.action as any;
   assert.deepEqual(action.args, { variantId: "b", quantity: 1, optionItemIds: ["extra"], serviceSlotId: "slot" });
 });
+
+for (const type of ["welcome_animation", "commerce_animation", "payment_paid_animation"]) test(`${type} is first even with long prose or a raw Pix payload`, () => {
+  const animation: MetaUiMessage = { type: "sticker", media: { link: "https://example.test/event.webp" } };
+  const decorated: any = { ...view, blocks: [{ type, data: { url: animation.media.link } }] };
+  for (const content of ["Compra confirmada", "Informação publicada. ".repeat(80), "000201" + "1234".repeat(40)]) {
+    const messages: MetaUiMessage[] = [{ type: "text", text: { body: content } }, animation, menu];
+    const before = structuredClone(messages);
+    const shown = compactMetaPresentation(messages, decorated);
+    assert.deepEqual(shown[0], animation);
+    assert.deepEqual(messages, before);
+    assert.ok(JSON.stringify(shown).includes(content), "the animation cannot discard or alter payment/receipt data");
+  }
+});

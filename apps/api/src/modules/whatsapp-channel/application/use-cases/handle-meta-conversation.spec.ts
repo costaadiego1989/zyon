@@ -483,12 +483,12 @@ test('an earlier catalog page refreshes its original query instead of paging the
   f.route.whatsappSession.conversationState.payment={intentId:'current-payment'};
   f.inbox.findPriorSelection=async()=>({action:{kind:'page',page:1},view:{title:'Loja',body:'Busca anterior',choices:[],media:[],quickReplies:[],blocks:[{type:'product_carousel',data:{query:'pele',products:[]}}]}});
   let received:any;
-  f.conversation.respondStore=async(call:any)=>{received=call;return {agentMessage:'Resultados atuais',quickReplies:[],blocks:[{type:'product_carousel',data:{query:'pele',products:Array.from({length:10},(_,i)=>({id:'p'+i,name:'Produto '+i,price:500,image:'https://example.com/'+i+'.jpg'}))}}],state:call.state};};
+  f.conversation.respondStore=async(call:any)=>{received=call;return {agentMessage:'Resultados atuais',quickReplies:[],blocks:[{type:'product_carousel',data:{query:'pele',products:Array.from({length:20},(_,i)=>({id:'p'+i,name:'Produto '+i,price:500,image:'https://example.com/'+i+'.jpg'}))}}],state:call.state};};
   f.emitted.length=0;await f.execute();assert.equal(received.action.tool,'search_products');assert.equal(received.action.args.query,'pele');
   assert.equal(received.state.payment.intentId,'current-payment');
   assert.equal(f.claim.responseState.state.page,1);
   assert.deepEqual(f.emitted.filter(m=>m.type==='image'),[]);
-  assert.equal(f.claim.responseState.state.numericSelections[0].args.productId,'p3');
+  assert.equal(f.claim.responseState.state.numericSelections[0].args.productId,'p10');
 });
 
 test("a page from an older product menu displays refreshed product information before its controls", async () => {

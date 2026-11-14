@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { MetaUiChoice, MetaUiMessage, MetaUiPresentation, MetaUiView, StoreUiAction } from "./meta-ui.types.js";
 import { publicProductSummary } from "../../../storefront/domain/services/public-product-summary.js";
+import { metaAnimationsFirst } from "./meta-compact-presentation.js";
 
 const safeImage = (input: unknown): string | undefined => {
   try { const url = new URL(String(input)); return url.protocol === "https:" && !url.username && !url.password ? url.href : undefined; } catch { return undefined; }
@@ -33,8 +34,8 @@ export function metaProductCard(product: Record<string, any>, detail: MetaUiChoi
     choices: primary && direct ? [{ ...detail, label: "Ver detalhes" }, primary] : primary ? [primary] : [{ ...detail, label: "Ver detalhes" }] };
 }
 
-/** Each card has its own persisted purchase/read controls. Three products at a
- * time avoid a ten-photo flood; the count always distinguishes this page. */
+/** Each returned catalog batch presents up to ten product cards, each with
+ * its own persisted purchase/read controls and an honest displayed count. */
 export function presentMetaCatalogCards(view: MetaUiView, revision: string, requestedPage: number,
   options: { native?: boolean; includeMedia?: boolean; navigationOnly?: boolean }, speech: (body: string) => string): MetaUiPresentation | undefined {
   const cards = view.catalogCards;
@@ -44,10 +45,10 @@ export function presentMetaCatalogCards(view: MetaUiView, revision: string, requ
   // an attractive card must never clip a mandatory notice to fit a button.
   if (cards.some(card => Array.from(speech(card.body)).length > 1024 || card.choices.length < 1 || card.choices.length > 3
     || card.choices.some(choice => Array.from(choice.label).length > 20))) return;
-  const pageSize = 3, totalPages = Math.ceil(cards.length / pageSize);
+  const category = cards[0]!.kind === "category";
+  const pageSize = category ? 3 : 10, totalPages = Math.ceil(cards.length / pageSize);
   const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
   const current = cards.slice(page * pageSize, (page + 1) * pageSize);
-  const category = cards[0]!.kind === "category";
   const selections: Record<string, StoreUiAction> = {}, numericSelections: StoreUiAction[] = [];
   const choices = (list: MetaUiChoice[], scope: string) => list.map((choice, index) => {
     const id = "zyon:" + createHash("sha256").update(`${revision}:cards:${page}:${scope}:${index}`).digest("hex").slice(0, 32);
@@ -80,5 +81,5 @@ export function presentMetaCatalogCards(view: MetaUiView, revision: string, requ
   const caption = `${category ? "Categorias" : "Produtos"} ${start} a ${end} de ${cards.length} nesta lista.`;
   if (options.native === false) messages.push({ type: "text", text: { body: `${caption}\n\n${navigation.map((c, index) => `${numericSelections.length - navigation.length + index + 1}. ${c.label}`).join("\n")}` } });
   else messages.push({ type: "interactive", interactive: { type: "button", body: { text: speech(caption) }, action: { buttons } } });
-  return { messages, selections, numericSelections, page, totalPages };
+  return { messages: metaAnimationsFirst(messages, view), selections, numericSelections, page, totalPages };
 }

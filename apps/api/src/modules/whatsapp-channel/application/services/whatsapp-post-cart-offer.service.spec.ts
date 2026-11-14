@@ -5,6 +5,7 @@ import { buildMetaUiView, presentMetaUi } from "../../domain/ui/meta-ui-renderer
 import type { WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
 import { crossSellStorefrontQuoteSchema } from "../../../cross-sell/domain/contracts/cross-sell-storefront-quote.schemas.js";
 import { CheckoutWhatsAppConversationAdapter } from "../../infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
+import { withCartAnimations } from "../../domain/ui/commerce-animations.js";
 
 const quote = () => crossSellStorefrontQuoteSchema.parse({ version: 1, merchantId: "merchant", cartId: "cart", variantId: "bruma", productId: "product-bruma", sku: "BRUMA", promotionId: "rule",
   promotionUpdatedAt: "2026-10-30T00:00:00.000Z", quantity: 1, originalUnitPriceCents: 5990, maximumUnitPriceCents: 5990,
@@ -86,6 +87,23 @@ test("the full native presentation identifies the optional image and never annou
   const offer = shown.messages[1]!; assert.equal(offer.type, "interactive");
   assert.deepEqual((offer as any).interactive.header, { type: "image", image: { link: "https://example.test/bruma.jpg" } });
   assert.match(JSON.stringify(offer), /Quer incluir uma unidade/);
+  assert.equal(f.calls.accept, 0);
+});
+
+test("a quoted cross-sell keeps the add animation first, then the real confirmation, then consent controls", async () => {
+  const f = fixture(), result = withCartAnimations(await f.offer(), "https://api.example.test");
+  const before = structuredClone(result);
+  for (const native of [true, false]) {
+    const shown = presentMetaUi(buildMetaUiView(result), "animated-quoted-offer", 0, { native });
+    assert.equal(shown.messages[0]?.type, "sticker");
+    assert.match(JSON.stringify(shown.messages[1]), /Sérum de Barreira.*adicionado/);
+    assert.match(JSON.stringify(shown.messages[2]), /Quer incluir uma unidade/);
+    assert.equal(shown.numericSelections.length, 3);
+    assert.equal((shown.numericSelections[1] as any).tool, "accept_cross_sell_offer");
+  }
+  for (const options of [{ includeMedia: false }, { navigationOnly: true }])
+    assert.ok(!presentMetaUi(buildMetaUiView(result), "no-media", 0, options).messages.some(m => m.type === "sticker" || m.type === "video"));
+  assert.deepEqual(result, before);
   assert.equal(f.calls.accept, 0);
 });
 

@@ -76,8 +76,21 @@ test("shipped WhatsApp remains independent of an email failure", async () => {
   await assert.rejects(useCase.execute({ type: "ORDER_SHIPPED", merchantId: event.merchantId, orderId: event.orderId,
     buyerPhone: event.buyerPhone, buyerEmail: event.buyerEmail, trackingNumber: "BR123456789AA" }), /email_rejected/);
   assert.equal(inputs.length, 2);
-  assert.deepEqual(inputs.map(input => input.type), ["order_shipped", "order_shipped_animation"]);
-  assert.equal(inputs[0].idempotencyKey, "order-1:BR123456789AA");
+  assert.deepEqual(inputs.map(input => input.type), ["order_shipped_animation", "order_shipped"]);
+  assert.equal(inputs[1].idempotencyKey, "order-1:BR123456789AA");
+});
+
+for (const outcome of ["unknown", "throw"]) test(`optional ${outcome} shipped animation cannot suppress tracking information`, async () => {
+  const calls: any[] = [];
+  const useCase = new SendOrderShippedUseCase({ send: async () => ({ status: "sent", messageId: "email" }) },
+    { send: async () => { throw Error("legacy_forbidden"); } },
+    { execute: async (input: any) => { calls.push(input); if (input.type === "order_shipped_animation") {
+      if (outcome === "throw") throw Error("media_failed");
+      return { status: "unknown", channel: "none" };
+    } return { status: "accepted", channel: "whatsapp_session", messageId: "tracking" }; } });
+  await useCase.execute({ type: "ORDER_SHIPPED", merchantId: event.merchantId, orderId: event.orderId, buyerPhone: event.buyerPhone, trackingNumber: "BR123456789AA" });
+  assert.deepEqual(calls.map(c => c.type), ["order_shipped_animation", "order_shipped"]);
+  assert.match(calls[1].freeformText, /BR123456789AA/);
 });
 
 test("delivered WhatsApp remains independent of an email failure", async () => {

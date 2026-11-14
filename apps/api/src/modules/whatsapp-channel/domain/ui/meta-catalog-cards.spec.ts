@@ -27,20 +27,21 @@ test("each product card binds its own Add and Details and shows real ratings wit
   }
 });
 
-test("ten products remain reachable in groups of three, with scoped counts and numeric parity", () => {
-  const view = buildMetaUiView(response(Array.from({ length: 10 }, (_, i) => product(i))));
+for (const count of [10, 11, 23]) test(`${count} products show ten cards per batch, with scoped counts and numeric parity`, () => {
+  const view = buildMetaUiView(response(Array.from({ length: count }, (_, i) => product(i))));
   const seen = new Set();
-  for (let page = 0; page < 4; page++) {
+  for (let page = 0; page < Math.ceil(count / 10); page++) {
     const shown = presentMetaUi(view, "r", page), fallback = presentMetaUi(view, "r", page, { native: false });
     assert.deepEqual(shown.numericSelections, fallback.numericSelections);
-    assert.equal(shown.totalPages, 4);
+    assert.equal(shown.totalPages, Math.ceil(count / 10));
+    assert.equal(shown.messages.filter((m: any) => m.type === "interactive" && m.interactive.header).length, Math.min(10, count - page * 10));
     assert(shown.numericSelections.some(a => a.kind === "message" && a.message === "/atalhos"));
     assert(!shown.numericSelections.some(a => a.kind === "back" || a.kind === "tool" && ["get_cart", "checkout", "list_categories"].includes(a.tool)));
-    assert.match(JSON.stringify(shown.messages.at(-1)), /de 10 nesta lista/);
+    assert.match(JSON.stringify(shown.messages.at(-1)), new RegExp(`de ${count} nesta lista`));
     for (const action of Object.values(shown.selections)) if (action.kind === "tool" && action.tool === "get_product_details") seen.add(action.args.productId);
     for (const m of shown.messages as any[]) if (m.type === "interactive") { assert(m.interactive.action.buttons.length <= 3); assert(Array.from(m.interactive.body.text).length <= 1024); }
   }
-  assert.equal(seen.size, 10);
+  assert.equal(seen.size, count);
 });
 
 test("variants, options, slots, out-of-stock items and foreign marketplace products cannot get an arbitrary direct add", () => {

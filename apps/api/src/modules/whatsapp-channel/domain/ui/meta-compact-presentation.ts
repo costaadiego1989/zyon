@@ -1,8 +1,28 @@
 import type { MetaUiMessage, MetaUiView } from "./meta-ui.types.js";
 import { catalogResultCopy } from "../../../storefront/domain/services/catalog-result-copy.js";
 
+const animationUrls = (view: MetaUiView) => new Set(view.blocks.filter(b => ["welcome_animation", "commerce_animation", "payment_paid_animation"].includes(b.type))
+  .map(b => (b.data as { url?: unknown }).url).filter((url): url is string => typeof url === "string"));
+
+export function metaAnimationMedia(view: MetaUiView): MetaUiMessage[] {
+  const urls = animationUrls(view);
+  return view.media.filter(m => (m.type === "sticker" || m.type === "video") && urls.has(m.media.link));
+}
+
+/** Only the event-tagged UI animation moves ahead of prose; product photos,
+ * payment codes and all other messages keep their relative order. */
+export function metaAnimationsFirst(messages: MetaUiMessage[], view: MetaUiView): MetaUiMessage[] {
+  const urls = animationUrls(view);
+  const animations = messages.filter(m => (m.type === "sticker" || m.type === "video") && urls.has(m.media.link));
+  return animations.length ? [...animations, ...messages.filter(m => !animations.includes(m))] : messages;
+}
+
 /** Combine prose with its controls; raw Pix payloads keep their own message. */
 export function compactMetaPresentation(messages: MetaUiMessage[], view: MetaUiView): MetaUiMessage[] {
+  return metaAnimationsFirst(combineMetaPresentation(messages, view), view);
+}
+
+function combineMetaPresentation(messages: MetaUiMessage[], view: MetaUiView): MetaUiMessage[] {
   const prose = messages.filter((m): m is Extract<MetaUiMessage, { type: "text" }> => m.type === "text" && !/^\s*000201\S+\s*$/.test(m.text.body));
   if (!prose.length) return messages;
   const body = prose.map(m => m.text.body).join("\n\n");

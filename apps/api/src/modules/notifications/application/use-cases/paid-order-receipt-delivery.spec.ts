@@ -26,8 +26,9 @@ test("normal confirmation hydrates contacts and charge amount from canonical ord
   const h = harness();
   await h.buyer.execute({ ...event, buyerEmail: "attacker@example.test", total: "9999.99", paidReceipt: undefined });
   assert.equal(h.emails[0].to, "buyer@example.test"); assert.match(h.emails[0].html, /13,85/);
-  assert.equal(h.whatsapp[0].variables.amount.replace(/\u00a0/g, " "), "R$ 13,85");
-  assert.match(h.whatsapp[0].variables.receiptSummary, /Taxa de serviço/);
+  const receipt = h.whatsapp.find(input => input.type === "order_confirmation");
+  assert.equal(receipt.variables.amount.replace(/\u00a0/g, " "), "R$ 13,85");
+  assert.match(receipt.variables.receiptSummary, /Taxa de serviço/);
 });
 test("unavailable canonical scope refuses all buyer and merchant deliveries", async () => {
   const h = harness(null);
@@ -44,7 +45,7 @@ test("correction sends only two receipts, keeps stable separate keys and never c
   assert.equal(h.whatsapp.find(input => input.type === "order_confirmation").idempotencyKey, purpose);
   assert.equal(h.whatsapp.find(input => input.type === "merchant_order_paid").idempotencyKey, purpose);
   assert.equal(h.whatsapp.find(input => input.type === "order_paid_animation").idempotencyKey, "185874");
-  assert(h.whatsapp.findIndex(input => input.type === "order_confirmation") < h.whatsapp.findIndex(input => input.type === "order_paid_animation"));
+  assert(h.whatsapp.findIndex(input => input.type === "order_paid_animation") < h.whatsapp.findIndex(input => input.type === "order_confirmation"));
   const keys = h.emails.map(input => input.idempotencyKey);
   await h.correction.execute({ merchantId: "m1", externalOrderId: "185874", idempotencyPurpose: purpose });
   assert.deepEqual(h.emails.slice(2).map(input => input.idempotencyKey), keys);
@@ -69,24 +70,38 @@ test("correction requires an explicit purpose bound to the same external order",
   assert.equal(h.reads.length, 0);
 });
 
-test("payment animation waits for receipt acceptance while email remains an independent channel", async () => {
+test("payment animation precedes the receipt while email remains an independent channel", async () => {
   const calls: string[] = []; let accept!: () => void;
   const pending = new Promise<void>(resolve => { accept = resolve; });
-  const wa: any = { execute: async (input: any) => { calls.push(input.type); if (input.type === "order_confirmation") await pending;
+  const wa: any = { execute: async (input: any) => { calls.push(input.type); if (input.type === "order_paid_animation") await pending;
     return { status: "accepted", channel: "whatsapp_session", messageId: "wamid" }; } };
   const buyer = new SendOrderConfirmationUseCase({ send: async () => { calls.push("email"); throw Error("email_unavailable"); } },
     { send: async () => { throw Error("legacy_forbidden"); } }, wa, { read: async () => event });
   const execution = buyer.execute(event); const rejected = assert.rejects(execution, /email_unavailable/);
   await new Promise(resolve => setImmediate(resolve));
-  assert(calls.includes("email")); assert(calls.includes("order_confirmation")); assert(!calls.includes("order_paid_animation"));
+  assert(calls.includes("email")); assert(calls.includes("order_paid_animation")); assert(!calls.includes("order_confirmation"));
   accept(); await rejected;
-  assert(calls.indexOf("order_confirmation") < calls.indexOf("order_paid_animation"));
+  assert(calls.indexOf("order_paid_animation") < calls.indexOf("order_confirmation"));
 });
 
-test("an unknown receipt acceptance does not launch a payment animation or another receipt channel", async () => {
+test("an unknown receipt acceptance never launches another receipt channel or repeats the preceding animation", async () => {
   const calls: string[] = [];
   const buyer = new SendOrderConfirmationUseCase({ send: async () => ({ status: "sent", messageId: "email" }) },
     { send: async () => { throw Error("legacy_forbidden"); } },
     { execute: async (input: any) => { calls.push(input.type); return { status: "unknown", channel: "none" }; } }, { read: async () => event });
-  await buyer.execute(event); assert.deepEqual(calls, ["order_confirmation"]);
+  await buyer.execute(event); assert.deepEqual(calls, ["order_paid_animation", "order_confirmation"]);
+});
+
+for (const outcome of ["failed", "skipped", "unknown", "throw"]) test(`optional ${outcome} paid animation cannot suppress the canonical receipt`, async () => {
+  const calls: any[] = [];
+  const buyer = new SendOrderConfirmationUseCase({ send: async () => ({ status: "sent", messageId: "email" }) },
+    { send: async () => { throw Error("legacy_forbidden"); } },
+    { execute: async (input: any) => { calls.push(input); if (input.type === "order_paid_animation") {
+      if (outcome === "throw") throw Error("media_unavailable");
+      return { status: outcome, channel: "none" } as any;
+    } return { status: "accepted", channel: "whatsapp_session", messageId: "receipt" }; } }, { read: async () => event });
+  await buyer.execute(event);
+  assert.deepEqual(calls.map(input => input.type), ["order_paid_animation", "order_confirmation"]);
+  assert.match(calls[1].freeformText, /13,85/);
+  assert.equal(calls[1].idempotencyKey, event.orderId);
 });
