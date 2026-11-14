@@ -1,0 +1,3 @@
+# Local checked-build attestations are regenerated, never release inputs.
+.sandbox-state/service-test-build.json
+.sandbox-state/service-test-build-inputs.json

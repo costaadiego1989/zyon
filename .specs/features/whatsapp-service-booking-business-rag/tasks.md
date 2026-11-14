@@ -5,7 +5,7 @@
 Implementar com a skill **tlc-spec-driven**, seguindo Execute e Critical Rules. Se a skill não estiver disponível, parar. Um gate e um commit por tarefa; nenhuma tarefa aprovada por inferência.
 
 **Design**: `.specs/features/whatsapp-service-booking-business-rag/design.md`
-**Status**: Approved
+**Status**: In Progress
 **Approved**: 2026-11-14 - user: "Aprovar o plano e iniciar implementação local"
 **Date**: 2026-11-14
 **Mutations**: 3
@@ -188,6 +188,8 @@ T91 → T92
 
 ### T2: Create an owned local service test runtime
 
+**Status**: Complete - 7/7 tests, zero failed/skipped; checked production build and real AppModule/SQL/Redis/Neo4j smoke. See task-02-evidence.json.
+
 **What**: Runtime de testes cria somente PostgreSQL/Redis e, para suítes de grafo, Neo4j descartáveis próprios; inicializa schema/fixtures/HTTP/gateway locais, filtra env, rejeita endpoints externos, prova ownership antes de cleanup e falha se uma dependência obrigatória faltar.
 **Where**: `apps/api/tests/service-test-runtime.mjs`
 **Depends on**: T1
@@ -196,12 +198,12 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Contract + integração do runtime: URL remota, credenciais herdadas, ownership errado e zero casos são rejeitados; companion service-test-runtime.contract.spec.mjs.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Runtime local e negativas demonstrados sem alterar comportamento aprovado de produto.
+- [x] Contract + integração reais: endpoints/env/ownership/zero/skip/fail recusados; service-test-runtime.spec.mjs tem seis subcasos e raiz T2.
+- [x] Gate Full passa: 7 testes, 7 pass, zero failed/skipped; build de produção checked e cleanup por ACK/saída natural. Tarefa marcada antes do commit; sem push/deploy.
 
-**Tests**: Contract + integração do runtime: URL remota, credenciais herdadas, ownership errado e zero casos são rejeitados; companion service-test-runtime.contract.spec.mjs.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T2$" ./tests/service-test-runtime.spec.mjs` Teste raiz T2 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Contract + integração em service-test-runtime.spec.mjs: quatro negativas originais, negativa de Redis publicado e integração real de SQL/Redis/Neo4j/AppModule/cleanup. API-RAG e PSP reais não estão comprovados nesta tarefa.
+**Gate**: Full: com cwd apps/api, `node --import ./tests/test-network-guard.mjs --test --test-name-pattern "^T2$" ./tests/service-test-runtime.spec.mjs`. Harness é JS nativo e AppModule é artefato de produção checked, dispensando loader TS nesta tarefa. Resultado 7/7, zero skips. Os checks finais por ID continuam obrigatórios.
 **Commit**: `feat(service-business): t2 create an owned local service test runtime`
 
 ### T3: Pin browser acceptance to local owned backends

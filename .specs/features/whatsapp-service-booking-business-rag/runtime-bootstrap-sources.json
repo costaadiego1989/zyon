@@ -1,0 +1,14 @@
+[
+  {
+    "path": "apps/api/prisma/deploy-migrations/20260929020000_checkout_session_write_version/migration.sql",
+    "sourceRevision": "f1037635e38cb4d2e606b29eb73e5a74786a645b",
+    "sha256": "dfa87b34579799984b7aa9a10770de37bcb68ccf68b552cf0d8102263432b267",
+    "matchesApiHistory": true
+  },
+  {
+    "path": "apps/api/prisma/deploy-migrations/20260924230000_strategy_turn_completions/migration.sql",
+    "sourceRevision": "f1037635e38cb4d2e606b29eb73e5a74786a645b",
+    "sha256": "7a7d9a37a639ac89a3794a4e699479f1fe47751432375a25e2399feadf27948a",
+    "matchesApiHistory": true
+  }
+]

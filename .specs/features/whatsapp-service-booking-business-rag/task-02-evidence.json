@@ -1,0 +1,61 @@
+{
+  "task": "T2",
+  "date": "2026-11-14",
+  "command": "node --import ./tests/test-network-guard.mjs --test --test-name-pattern ^T2$ ./tests/service-test-runtime.spec.mjs",
+  "cwd": "apps/api",
+  "exitCode": 0,
+  "tests": 7,
+  "passed": 7,
+  "failed": 0,
+  "skipped": 0,
+  "durationMs": 56301.1559,
+  "checkedProductionBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "0a6629fca03e2fab52b996bcc500fc85fdfb0e1b745ecf23bd776f03364e43d4",
+    "artifactSha256": "bd7a193e4b4d293064794bffd1b294f45d09bcbfb5036fa14ac50204f59e054a",
+    "recordedAt": "2026-11-14T18:53:14.282Z"
+  },
+  "realAppModule": true,
+  "repositoryOverrides": false,
+  "authOverrides": false,
+  "providerCalls": 0,
+  "actualApiRagValidated": false,
+  "actualPspValidated": false,
+  "nativeWhatsAppValidated": false,
+  "productionRuntimeShutdownValidated": false,
+  "cleanup": {
+    "appCloseAcknowledged": true,
+    "workerNaturalExit": 0,
+    "remainingContainers": 0,
+    "remainingBridgeSockets": 0
+  },
+  "harnessSources": [
+    {
+      "path": "apps/api/tests/service-test-artifacts.mjs",
+      "sha256": "7145a995f1c5daec61a736ddf0082cdf37288537dbee76a585d27d201eb5cd4d"
+    },
+    {
+      "path": "apps/api/tests/service-test-neo4j.mjs",
+      "sha256": "44b0c78fcd771486165cb28ce92bef3e73cf27c95a41e0c11a41bcbf94e5582b"
+    },
+    {
+      "path": "apps/api/tests/service-test-redis.mjs",
+      "sha256": "127cdfc88128836dd5a338191386cd7ffa166de65249a4dfffee4a5c04dd2ba4"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.mjs",
+      "sha256": "db05f50c30ad5b7d4b8b060bf8239958755e3555a670abe5fab846245e3dbb08"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.spec.mjs",
+      "sha256": "677e753bff60f75e32ae68ce163202c4b22877f8e108f202fe82ae5f94b6dbd4"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.worker.mjs",
+      "sha256": "d1fb474bb612a1be57a20b130954545450ba3cd6863cea86c050ea95afcdb626"
+    }
+  ]
+}
