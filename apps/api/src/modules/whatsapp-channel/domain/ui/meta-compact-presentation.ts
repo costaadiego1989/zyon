@@ -15,7 +15,7 @@ export function compactMetaPresentation(messages: MetaUiMessage[], view: MetaUiV
     if (Array.from(combinedBody).length > 1024) return messages;
     const combined: MetaUiMessage = { ...menu, interactive: { ...menu.interactive, body: { text: combinedBody } } };
     const remaining = messages.filter(m => !prose.includes(m as any) && m !== menu);
-    return view.blocks.some(b => ["welcome_animation", "commerce_animation", "payment_paid_animation"].includes(b.type)) ? [combined, ...remaining] : [...remaining, combined];
+    return view.blocks.some(b => ["commerce_animation", "payment_paid_animation"].includes(b.type)) ? [combined, ...remaining] : [...remaining, combined];
   }
   // Keep every fact when a long cart exceeds the interactive body's limit.
   // Merge only adjacent prose so media and raw payment payloads retain order.

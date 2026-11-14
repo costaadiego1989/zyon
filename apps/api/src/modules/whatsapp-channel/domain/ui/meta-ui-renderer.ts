@@ -481,7 +481,7 @@ export function metaWelcomeMessage(greeting: string, merchantName: string, agent
     technical: `👋 Olá! Bem-vindo à *${shop}*.\n\nSou *${agent}*, assistente virtual. Posso comparar especificações e ajudar na escolha do seu pedido.`,
   };
   const target = /electronics|technology|eletr[oô]nic|tecnolog/i.test(storeCategory ?? "") ? "um mouse sem fio" : /fashion|moda|roupa/i.test(storeCategory ?? "") ? "uma camiseta" : "um produto";
-  return `${merchantCopy ? `${merchantCopy}\n\nSou *${agent}*, assistente virtual da *${shop}*.` : introductions[checkoutTone(tone)]}\n\n📋 Use o *Menu principal* abaixo para explorar as opções.\n\n💬 *Segue um exemplo de como você deve interagir comigo:*\n_“Gostaria de ${target} até R$ 150,00, na cor preta e com pelo menos 4 estrelas de avaliação.”_\n\nMas fique à vontade para conversar comigo da forma que achar melhor.`;
+  return `${merchantCopy ? `${merchantCopy}\n\nSou *${agent}*, assistente virtual da *${shop}*.` : introductions[checkoutTone(tone)]}\n\n📋 Use o *Menu principal* abaixo para explorar as opções.\n\n💬 *Segue um exemplo de como você pode interagir comigo:*\n_“Gostaria de ${target} até R$ 150,00, na cor preta e com pelo menos 4 estrelas de avaliação.”_\n\nMas fique à vontade para conversar comigo da forma que achar melhor.`;
 }
 
 export const isMetaCatalogView = (view?: MetaUiView): boolean => !!view && view.stage !== "checkout" &&
@@ -620,5 +620,7 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
       messages.push({ type: "interactive", interactive: { type: "list", ...(productName ? { header: { type: "text", text: concise(productName, 60) } } : {}), body: { text: context }, action: { button: view.stage === "checkout" ? view.blocks.some(b => b.type === "shipping_options") ? "Escolher entrega" : "Opções do pedido" : mainMenu ? "Menu principal" : catalog ? "Escolher produto" : productDetails && variantPrompt ? "Escolher variação" : "Ver opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows: displayRows }] } } });
     }
   }
-  return { messages: compactMetaPresentation(messages, view), selections, numericSelections: choices.map(c => c.action), page, totalPages };
+  const welcomeMedia = welcome ? messages.find(m => m.type === "sticker" || m.type === "video") : undefined;
+  const ordered = welcomeMedia ? [welcomeMedia, ...messages.filter(m => m !== welcomeMedia)] : messages;
+  return { messages: compactMetaPresentation(ordered, view), selections, numericSelections: choices.map(c => c.action), page, totalPages };
 }

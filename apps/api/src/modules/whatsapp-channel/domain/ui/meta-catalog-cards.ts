@@ -7,12 +7,11 @@ const safeImage = (input: unknown): string | undefined => {
 };
 export function metaProductRating(product: { rating?: unknown; reviewCount?: unknown }): string {
   const count = product.reviewCount;
-  if (count === 0) return "☆☆☆☆☆ Ainda sem avaliações.";
+  if (count === 0) return "💬 Ainda sem avaliações.";
   if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 1) return "⭐ Confira as avaliações nos detalhes.";
   const rating = product.rating;
   if (typeof rating !== "number" || !Number.isFinite(rating) || rating < 1 || rating > 5) return `⭐ ${count} ${count === 1 ? "avaliação" : "avaliações"}. Confira as notas nos detalhes.`;
-  const stars = Math.round(rating);
-  return `${"★".repeat(stars)}${"☆".repeat(5 - stars)} *${rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5* · ${count} ${count === 1 ? "avaliação" : "avaliações"}`;
+  return `⭐ *${rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/5* · ${count} ${count === 1 ? "avaliação" : "avaliações"}`;
 }
 
 /** A card may reuse only the variant and availability supplied by the scoped

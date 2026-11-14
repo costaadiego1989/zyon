@@ -137,23 +137,22 @@ test("assistant prose has a robot identity and contextual emphasis without chang
  const pix="000201"+"1234567890".repeat(30);assert.equal(formatMetaSpeech(pix),pix);
 });
 
-test("welcome combines greeting and controls before the animation", () => {
+test("welcome presents its animation before the combined greeting and controls", () => {
  const view=buildMetaUiView(response({agentMessage:"👋 *Boas-vindas*\n\nOlá, sou a assistente da loja.\n\n*Converse à vontade*\n- Confira os produtos.",
   blocks:[{type:"welcome_animation",data:{url:"https://example.test/welcome.mp4"}}] as any,quickReplies:["Ver Produtos"]}));
  const shown=presentMetaUi(view,"welcome-order");
- assert.deepEqual(shown.messages.map(m=>m.type),["interactive","video"]);
- assert.match((shown.messages[0] as any).interactive.body.text,/^🤖 👋/);
- assert.match((shown.messages[0] as any).interactive.body.text,/💬 \*Converse à vontade\*/);
+ assert.deepEqual(shown.messages.map(m=>m.type),["video","interactive"]);
+ assert.match((shown.messages[1] as any).interactive.body.text,/^🤖 👋/);
+ assert.match((shown.messages[1] as any).interactive.body.text,/💬 \*Converse à vontade\*/);
 });
 
-test("animated welcome keeps greeting above the robot and help below it", () => {
+test("animated welcome keeps the robot before every greeting/help text even without a menu", () => {
   const view = buildMetaUiView(response({ agentMessage: "👋 *Olá!*\n\nSou sua assistente.\n\n💬 *Converse à vontade*\nPergunte sobre produtos.",
     blocks: [{ type: "welcome_animation", data: { url: "https://api.example.test/whatsapp/presentation/welcome-v2.webp" } }] as any }));
   const shown = presentMetaUi(view, "welcome-sticker");
-  assert.equal(shown.messages[0].type, "text");
-  assert.deepEqual(shown.messages[1], { type: "sticker", media: { link: "https://api.example.test/whatsapp/presentation/welcome-v2.webp" } });
-  assert(shown.messages[0].type === "text" && shown.messages[0].text.body.includes("Olá") && !shown.messages[0].text.body.includes("Converse à vontade"));
-  assert(shown.messages[2].type === "text" && shown.messages[2].text.body.includes("Converse à vontade"));
+  assert.deepEqual(shown.messages[0], { type: "sticker", media: { link: "https://api.example.test/whatsapp/presentation/welcome-v2.webp" } });
+  assert.equal(shown.messages.length, 2);
+  assert(shown.messages[1].type === "text" && shown.messages[1].text.body.includes("Olá") && shown.messages[1].text.body.includes("Converse à vontade"));
 });
 
 test("conversational spacing leaves raw Pix and links untouched", () => {

@@ -122,7 +122,7 @@ test("recommendation stars come only from the same scoped public target product"
     id === catalog.source.id ? catalog.source as any : { ...catalog.target, averageRating: 4.4, reviewCount: 7 } as any });
   const result = await service.decorate("merchant", base());
   const shown = presentMetaUi(buildMetaUiView(result), "stars");
-  assert.match(JSON.stringify(shown.messages[1]), /★★★★☆.*4,4\/5.*7 avaliações/);
+  assert.match(JSON.stringify(shown.messages[1]), /⭐.*4,4\/5.*7 avaliações/);
   assert.equal(f.calls.accept, 0); assert.equal(result.state.postCartOffer!.expectedQuote.maximumUnitPriceCents, 5990);
 });
 test("three persuasive reasons use the real public Bruma facts bound to the quoted active pair, never Serum ingredients or private metadata", async () => {

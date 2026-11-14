@@ -17,7 +17,7 @@ test("each product card binds its own Add and Details and shows real ratings wit
   assert.equal(cards.length, 2);
   for (const [index, card] of cards.entries()) {
     assert.equal(card.interactive.header.image.link, `https://example.test/p${index}.jpg`);
-    assert.match(card.interactive.body.text, /69,90/); assert.match(card.interactive.body.text, /★★★★☆ \*4,4\/5\* · 12 avaliações/);
+    assert.match(card.interactive.body.text, /69,90/); assert.match(card.interactive.body.text, /⭐ \*4,4\/5\* · 12 avaliações/);
     assert.match(card.interactive.body.text, /Mouse sem fio com receptor USB/);
     assert.doesNotMatch(card.interactive.body.text, /parcel|sem juros|1x|12x|Stripe|Mercado Pago|Asaas/i);
     const [details, add] = card.interactive.action.buttons;
@@ -66,7 +66,7 @@ test("categories expose Exibir produtos bound to that category and main-menu nav
 });
 
 test("zero, missing and invalid review evidence never become invented five-star ratings", () => {
-  assert.equal(metaProductRating({ rating: 5, reviewCount: 0 }), "☆☆☆☆☆ Ainda sem avaliações.");
+  assert.equal(metaProductRating({ rating: 5, reviewCount: 0 }), "💬 Ainda sem avaliações.");
   assert.doesNotMatch(metaProductRating({ rating: 5 }), /5\/5|Ainda sem/);
   assert.doesNotMatch(metaProductRating({ rating: NaN, reviewCount: 2 }), /NaN|5\/5/);
   assert.doesNotMatch(metaProductRating({ rating: 9, reviewCount: 12 }), /9\/5/);
@@ -75,7 +75,7 @@ test("zero, missing and invalid review evidence never become invented five-star 
 test("single-product UI has rating stars, the canonical Add action and a main-menu entry", () => {
   const input = { state, agentMessage: "Veja os detalhes", quickReplies: [], blocks: [{ type: "product_card", data: product(0) }] } as WhatsAppStructuredResponse;
   const view = buildMetaUiView(input), shown = presentMetaUi(view, "r");
-  assert.match(view.body, /★★★★☆/); assert.match(view.body, /12 avaliações/);
+  assert.match(view.body, /⭐ \*4,4\/5\*/); assert.match(view.body, /12 avaliações/);
   assert(Object.values(shown.selections).some(a => a.kind === "tool" && a.tool === "add_item_to_cart" && a.args.variantId === "v0"));
   assert(shown.numericSelections.some(a => a.kind === "message" && a.message === "/atalhos"));
 });
@@ -102,6 +102,7 @@ test("welcome retains tone and identity, explains a realistic electronics search
     assert(message.indexOf("*Menu principal*") < message.indexOf("Segue um exemplo"));
     assert(message.endsWith("Mas fique à vontade para conversar comigo da forma que achar melhor."));
     assert.match(message, /\*Athom\*/); assert.match(message, /\*Zyon\*/);
-    assert.doesNotMatch(message, /\/atalhos|digite|comando/);
+    assert.match(message, /como você pode interagir comigo/);
+    assert.doesNotMatch(message, /\/atalhos|digite|comando|você deve interagir/);
   }
 });
