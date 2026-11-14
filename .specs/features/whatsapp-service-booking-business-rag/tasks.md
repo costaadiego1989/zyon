@@ -245,19 +245,19 @@ T91 → T92
 ### T5: Write the compatible expansion migration
 
 **What**: Migração expansiva aplica sobre fixture anterior sem perder comprador/carrinho/pagamento/pedido/estoque; classificação de legado ambíguo exige resolução explícita, sem atribuir profissional fictício; não apagar tabelas antigas.
-**Where**: `apps/api/prisma/migrations/20261114000000_service_business_capability/migration.sql`
+**Where**: `apps/api/prisma/deploy-migrations/20261114000000_service_business_capability/migration.sql` (executável), com mirror byte-idêntico em `prisma/migrations`; bootstrap/testes MJS locais em `apps/api/tests/service-migration*`.
 **Depends on**: T4
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: REG-04, ONB-04, QA-03
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Integração service-migration.integration.spec.ts: fixture anterior, unicidade/FK, reexecução do processo de migração e consultas antigas preservadas.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Integração service-migration.integration.spec.mjs: fixture anterior, unicidade/FK, reexecução do processo de migração e consultas antigas preservadas.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Integração service-migration.integration.spec.ts: fixture anterior, unicidade/FK, reexecução do processo de migração e consultas antigas preservadas.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T5$" ./tests/service-migration.integration.spec.ts` Teste raiz T5 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Integração service-migration.integration.spec.mjs: fixture anterior, unicidade/FK, reexecução do processo de migração e consultas antigas preservadas. O runtime compartilhado usa o mesmo deploy SQL real, incluindo CHECK/EXCLUDE, e recusa drift.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 --test-name-pattern "^T5$" ./tests/service-migration.integration.spec.mjs` e repetir T2 após o ajuste do bootstrap SQL. Teste raiz T5 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t5 write the compatible expansion migration`
 
 ### T6: Scope new models to the authenticated tenant
@@ -379,10 +379,10 @@ T91 → T92
 **Done when**:
 
 - [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + service-migration.integration.spec.ts: catálogo/pagamento/appointment ativos, erro transacional e mudança válida.
+- [ ] Unit + service-migration.integration.spec.mjs: catálogo/pagamento/appointment ativos, erro transacional e mudança válida.
 - [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Unit + service-migration.integration.spec.ts: catálogo/pagamento/appointment ativos, erro transacional e mudança válida.
+**Tests**: Unit + service-migration.integration.spec.mjs: catálogo/pagamento/appointment ativos, erro transacional e mudança válida.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T12$" ./src/modules/merchant/application/change-business-mode.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T12 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t12 guard business mode changes`
 
@@ -1675,11 +1675,11 @@ T91 → T92
 **Done when**:
 
 - [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-migration.integration.spec.ts: unresolved resource, partial/retry, dados antigos intactos, idempotência e backfill sem autorizar produção.
+- [ ] service-migration.integration.spec.mjs: unresolved resource, partial/retry, dados antigos intactos, idempotência e backfill sem autorizar produção.
 - [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: service-migration.integration.spec.ts: unresolved resource, partial/retry, dados antigos intactos, idempotência e backfill sem autorizar produção.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T84$" ./tests/service-migration.integration.spec.ts` Teste raiz T84 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: service-migration.integration.spec.mjs: unresolved resource, partial/retry, dados antigos intactos, idempotência e backfill sem autorizar produção.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T84$" ./tests/service-migration.integration.spec.mjs` Teste raiz T84 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t84 prepare a resumable historical appointment backfill`
 
 ### T85: Read appointment and receipt facts for metrics
@@ -1855,10 +1855,10 @@ T91 → T92
 **Done when**:
 
 - [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-migration.integration.spec.ts named REG-04 e readiness.spec.ts: requisito faltante bloqueia, produto jamais ativa, desligar com in-flight preserva processamento.
+- [ ] service-migration.integration.spec.mjs named REG-04 e readiness.spec.ts: requisito faltante bloqueia, produto jamais ativa, desligar com in-flight preserva processamento.
 - [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: service-migration.integration.spec.ts named REG-04 e readiness.spec.ts: requisito faltante bloqueia, produto jamais ativa, desligar com in-flight preserva processamento.
+**Tests**: service-migration.integration.spec.mjs named REG-04 e readiness.spec.ts: requisito faltante bloqueia, produto jamais ativa, desligar com in-flight preserva processamento.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T94$" ./src/modules/merchant/application/service-activation-readiness.service.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T94 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t94 guard activation and safe disablement`
 
@@ -1897,7 +1897,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T4, T7, T11, T27, T81.
 
 **C4** - IF uma troca de modalidade conflita com ofertas ativas ou agendamentos existentes THEN the system SHALL recusar a troca com a indicação do conflito, sem excluir nem converter registros. (ONB-04, AC 4)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-04$" ./tests/service-migration.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ONB-04$" ./tests/service-migration.integration.spec.mjs`
 Tasks: T5, T7, T12, T17.
 
 **C5** - WHEN a empresa edita Dados da empresa THEN the system SHALL permitir salvar e reabrir o campo "Sobre a empresa" usando a descrição pública canônica, sem duplicar seu armazenamento. (ONB-05, AC 5)
@@ -2129,7 +2129,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T2, T29, T35, T38, T92, T93.
 
 **C62** - WHEN a feature é migrada, habilitada ou desabilitada THEN the system SHALL preservar empresas e registros existentes, manter serviços novos desabilitados para empresas de produtos e conservar o processamento dos agendamentos e pagamentos já iniciados. (REG-04, AC 4)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^REG-04$" ./tests/service-migration.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^REG-04$" ./tests/service-migration.integration.spec.mjs`
 Tasks: T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94.
 
 **C63** - WHEN a feature é validada THEN the system SHALL produzir uma matriz que relacione cada critério ao comando e à evidência de seu resultado no mesmo HEAD. (QA-01, AC 1)

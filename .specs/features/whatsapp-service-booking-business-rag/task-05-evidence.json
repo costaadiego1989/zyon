@@ -1,0 +1,18 @@
+{
+  "task": "T5",
+  "status": "complete",
+  "nativeMigration": {"executed": 9, "passed": 9, "failed": 0, "skipped": 0, "durationMs": 111153},
+  "runtimeAfterSqlParity": {"executed": 7, "passed": 7, "failed": 0, "skipped": 0, "durationMs": 238404.2266},
+  "migration": "20261114000000_service_business_capability",
+  "sqlSha256": "2d3c2cf5db72f237ee2534984a794696fe1ff43fc006e0e6ed6373bcd2f094f4",
+  "activePath": "apps/api/prisma/deploy-migrations/20261114000000_service_business_capability/migration.sql",
+  "historyMirrorByteIdentical": true,
+  "priorFixture": "Pinned pre-feature schema, synthetic commerce records and explicitly identified already-deployed ledger; historical replay is not claimed.",
+  "realCli": ["prisma migrate deploy", "prisma migrate diff"],
+  "proofs": ["commerce snapshots unchanged", "ambiguous legacy service/mixed tenants flagged for review", "no guessed professional/policy/appointment", "single completed ledger entry and replay no-op", "managed schema drift rejected", "native policy CHECKs", "shared canonical intent allocations and duplicate rejection", "composite foreign keys and transaction rollback", "confirmed interval exclusion with adjacency allowed"],
+  "sharedRuntime": "Prior schema plus the exact active SQL through real migrate deploy, rather than schema-only DDL; future HTTP tests inherit native CHECK/EXCLUDE invariants.",
+  "cleanup": {"appClosedAcknowledged": true, "naturalWorkerExitRequired": true, "ownedContainersRemaining": 0, "ownedBridgeSocketsRemaining": 0},
+  "productionTypeScriptChanged": false,
+  "remoteChanges": false,
+  "logs": "C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution/t5-migration-parity.log; t5-runtime-parity.log"
+}

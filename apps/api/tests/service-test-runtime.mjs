@@ -1,15 +1,12 @@
 import assert from 'node:assert/strict';
-import {spawn,execFile} from 'node:child_process';
-import {promisify} from 'node:util';
-import {createRequire} from 'node:module';
-import {dirname,resolve} from 'node:path';
+import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {createDisposablePostgres} from './local-disposable-postgres.mjs';
 import {createServiceTestRedis} from './service-test-redis.mjs';
 import {constructionOnlyEnvironment} from './nest-construction-only.guards.mjs';
 import {terminateOwnedNativeWorker} from './native-prisma-admission-guards.mjs';
 import {assertServiceArtifacts} from './service-test-artifacts.mjs';
-import {installCheckoutSessionVersionTrigger} from './checkout-session-version-trigger.mjs';
+import {bootstrapServiceSchema} from './service-migration-bootstrap.mjs';
 import {createServiceTestNeo4j} from './service-test-neo4j.mjs';
 import {awaitServiceStartup} from './service-test-startup.mjs';
 
@@ -46,14 +43,8 @@ export async function createServiceTestRuntime(options){
   }
   try{
     db=await createDisposablePostgres({transport:'loopback-exec'});redis=await createServiceTestRedis();
-    const require=createRequire(new URL('../package.json',import.meta.url)),pkgPath=require.resolve('prisma/package.json');
-    const cli=resolve(dirname(pkgPath),JSON.parse(require('node:fs').readFileSync(pkgPath,'utf8')).bin.prisma);
-    const diff=await promisify(execFile)(process.execPath,['--import',new URL('./test-network-guard.mjs',import.meta.url).href,
-      cli,'migrate','diff','--from-empty','--to-schema-datamodel','prisma/schema.prisma','--script'],
-      {cwd:apiRoot,env:{...serviceTestEnvironment(process.env),DATABASE_URL:db.prismaUrl},windowsHide:true,timeout:60_000,maxBuffer:8_000_000});
-    assert.ok(diff.stdout.includes('CREATE TABLE')&&diff.stdout.includes('"merchants"'),'service_full_schema_required');
-    await db.sql(diff.stdout);await installCheckoutSessionVersionTrigger(db);
     await db.sql(`CREATE TABLE synthetic_native_marker(run_id TEXT PRIMARY KEY); INSERT INTO synthetic_native_marker VALUES ('${db.runId}');`);
+    await bootstrapServiceSchema(db);
     if(options.graph)graph=await createServiceTestNeo4j();
     worker=spawn(process.execPath,['--import',new URL('./test-network-guard.mjs',import.meta.url).href,
       fileURLToPath(new URL('./service-test-runtime.worker.mjs',import.meta.url)),db.prismaUrl,db.runId,redis.url,redis.runId],
