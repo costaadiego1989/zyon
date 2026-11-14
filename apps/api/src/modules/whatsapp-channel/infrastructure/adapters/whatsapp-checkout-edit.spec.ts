@@ -156,7 +156,9 @@ test("coupon title fits Meta's row limit without losing its authoritative action
   const view = buildMetaUiView({ agentMessage: "Escolha", quickReplies: ["Tenho um cupom de desconto"], state: fixture().state, blocks: [] });
   const result = presentMetaUi(view, "turn");
   assert.equal(view.choices[0].label, "Usar cupom");
-  assert.equal(JSON.stringify(result.messages).includes("1. Usar cupom"), true);
+  const button = result.messages.find(m => m.type === "interactive") as any;
+  assert.equal(button.interactive.action.buttons[0].reply.title, "Usar cupom");
+  assert.deepEqual(result.selections[button.interactive.action.buttons[0].reply.id], view.choices[0].action);
 });
 
 test("new Pix attempts after a confirmed cancellation have new keys and retries retain that key", async () => {

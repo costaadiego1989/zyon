@@ -43,7 +43,7 @@ test("a typed, authenticated current voice message reaches the normal commerce i
 test("an unavailable transcription gives an honest typing fallback without claiming the audio was understood", async () => {
   const f = fixture(undefined); await f.execute();
   assert.equal(f.calls.length, 0, "unavailable media never enters commerce");
-  assert(f.sent.some(message => message.type === "text" && message.text.body.includes("Não consegui transcrever esse áudio agora")));
+  assert(f.sent.some(message => (message.type === "text" ? message.text.body : message.type === "interactive" ? String((message.interactive.body as any)?.text ?? "") : "").includes("Não consegui transcrever esse áudio agora")));
 });
 
 for (const scope of [{ merchantId: "foreign" }, { deviceId: "META_CLOUD:foreign" }, { inboxId: "other-turn" }, { conversationId: "foreign" }, { mediaId: "99999" }])

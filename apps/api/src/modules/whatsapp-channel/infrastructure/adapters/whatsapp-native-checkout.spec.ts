@@ -72,7 +72,7 @@ test("a free-shipping question retains checkout and publishes every quote as rea
   f.session.customer!.address_verified = true; f.session.shippingOptions = options;
   const response = await f.send("Tem frete grátis?");
   assert.equal(response.state.stage, "checkout"); assert.equal(f.counts().storeCalls, 0);
-  const shown = presentation(response), text = shown.messages.filter(m=>m.type==="text").map(m=>m.text.body).join("\n");
+  const shown = presentation(response), text = shown.messages.map(m=>m.type==="text" ? m.text.body : m.type === "interactive" ? String((m.interactive.body as any)?.text ?? "") : "").join("\n");
   assert.match(text, /PAC/); assert.match(text, /Sedex/); assert.match(text, /12,50/); assert.match(text, /20,00/); assert.match(text, /6 dias úteis/);
   assert.equal(shown.numericSelections.length, 2); assert.doesNotMatch(JSON.stringify(shown.messages), /Explorar opções|Ver carrinho|Ver produtos|Voltar/);
 });
