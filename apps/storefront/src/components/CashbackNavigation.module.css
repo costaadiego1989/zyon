@@ -1,0 +1,20 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid var(--aacp-line);
+  border-radius: 9px;
+  background: var(--aacp-card);
+  color: var(--aacp-fg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover { border-color: var(--aacp-accent); }
+.button:focus-visible { outline: 2px solid var(--aacp-accent); outline-offset: 3px; }
+.button:disabled { cursor: wait; opacity: .65; }

@@ -5,6 +5,7 @@ import type { CashbackPage, CashbackTransaction, CashbackWalletView } from "@zyo
 import { fetchCashbackTransactions, fetchCashbackWallet } from "../../lib/services/cashback.service";
 import styles from "./CashbackWallet.module.css";
 import { CashbackWhatsAppLink } from "./CashbackWhatsAppLink";
+import { hasExistingCashback } from "../../lib/cashback-navigation";
 
 const brl = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 const date = (value: string) => Number.isFinite(new Date(value).getTime()) ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "Data indisponível";
@@ -14,7 +15,7 @@ const labels: Record<CashbackTransaction["type"], string> = {
   adjustment: "Ajuste de saldo", loss: "Ajuste da loja",
 };
 
-export function CashbackWallet({ merchantId }: { merchantId?: string }) {
+export function CashbackWallet({ merchantId, existingCreditsOnly = false }: { merchantId?: string; existingCreditsOnly?: boolean }) {
   const [wallet, setWallet] = useState<CashbackWalletView | null>(null);
   const [transactions, setTransactions] = useState<CashbackPage<CashbackTransaction> | null>(null);
   const [page, setPage] = useState(1);
@@ -39,6 +40,7 @@ export function CashbackWallet({ merchantId }: { merchantId?: string }) {
   }, [merchantId, page, attempt]);
 
   const currentWallet = wallet?.merchantId === merchantId ? wallet : null;
+  if (existingCreditsOnly && !error && !hasExistingCashback(currentWallet, transactions?.total ?? 0)) return null;
   return <section className={styles.wallet} aria-label="Seu cashback nesta loja">
     <header className={styles.heading}><div><h2>Seu cashback</h2><p>Crédito para comprar novamente nesta loja, pelo site ou WhatsApp.</p></div>
       {merchantId && <button type="button" data-neu="secondary" className={styles.button} disabled={loading} onClick={() => setAttempt(value => value + 1)}>Atualizar saldo</button>}

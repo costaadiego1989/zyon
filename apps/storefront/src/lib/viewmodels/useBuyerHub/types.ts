@@ -195,6 +195,7 @@ export type TabType =
   | "tracking"
   | "conversations"
   | "preferences"
+  | "cashback"
   | "loyalty"
   | "settings";
 

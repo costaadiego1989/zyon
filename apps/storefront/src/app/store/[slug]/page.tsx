@@ -360,6 +360,7 @@ export default async function StorePage({
               budgetModeEnabled={config?.budgetModeEnabled === true}
               showBranding={config?.showBranding}
               voiceCheckoutEnabled={config?.voiceCheckoutEnabled}
+              cashbackEnabled={config?.cashbackEnabled === true}
               agentMode={config?.agentMode}
               agentInitialDelaySeconds={config?.agentInitialDelaySeconds}
               initialRichProductId={richProductId ?? undefined}
