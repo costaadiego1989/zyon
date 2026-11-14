@@ -14,6 +14,73 @@ enum MerchantPlan {
   API
 }
 
+enum MerchantBusinessMode {
+  products
+  services
+}
+
+enum ServicePaymentMode {
+  online
+  at_attendance
+}
+
+enum AvailabilityExceptionKind {
+  one_off
+  block
+}
+
+enum ServiceAppointmentOrigin {
+  whatsapp
+  storefront
+  manual
+}
+
+enum ServiceAppointmentStatus {
+  pending
+  scheduled
+  in_service
+  completed
+  no_show
+  cancelled
+}
+
+enum AppointmentPaymentStatus {
+  pending
+  approved
+  failed
+  cancelled
+  refunded
+  partially_refunded
+}
+
+enum WhatsAppAssistanceMode {
+  ai
+  waiting_human
+  human
+}
+
+enum PublicBusinessSourceType {
+  company
+  professional
+  service
+  business_hours
+  faq
+  policy
+}
+
+enum PublicSourcePublicationState {
+  draft
+  published
+  withdrawn
+}
+
+enum PublicSourceWorkStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
 model Merchant {
   shoppingWorkspaces BuyerShoppingWorkspace[]
   billingReceivables BillingReceivable[]
@@ -26,6 +93,9 @@ model Merchant {
   theme                   Json?
   storeCategory           String?      @map("store_category")
   storeSettings           Json?        @map("store_settings")
+  businessMode            MerchantBusinessMode @default(products) @map("business_mode")
+  businessModeSelectedAt  DateTime?    @map("business_mode_selected_at")
+  businessModeNeedsReview Boolean      @default(false) @map("business_mode_needs_review")
   stripeConnectAccountId  String?      @map("stripe_connect_account_id")
   cryptoPaymentsEnabled   Boolean      @default(false) @map("crypto_payments_enabled")
   melhorEnvioAccessToken  String?      @map("melhor_envio_access_token")
@@ -78,6 +148,17 @@ model Merchant {
   oneBuyClickSessions      OneBuyClickSession[]
   billingAccount           Merchant?   @relation("MerchantBillingAccount", fields: [billingAccountMerchantId], references: [id], onDelete: Restrict)
   managedStores            Merchant[]  @relation("MerchantBillingAccount")
+  serviceBusinessPolicy    ServiceBusinessPolicy?
+  serviceProfessionals     ServiceProfessional[]
+  professionalServices     ProfessionalService[]
+  professionalAvailability ProfessionalAvailability[]
+  availabilityExceptions   AvailabilityException[]
+  serviceAppointments      ServiceAppointment[]
+  appointmentPayments      AppointmentPayment[]
+  attendanceReceipts       AttendanceReceipt[]
+  appointmentAudits        AppointmentAudit[]
+  whatsappHandoffBindings  WhatsAppHandoffBinding[]
+  publicSourceWork         PublicSourceWork[]
 
   @@index([billingAccountMerchantId])
 
@@ -615,7 +696,9 @@ model SupportTicket {
   mergedIntoId     String?   @map("merged_into_id")
 
   messages SupportTicketMessage[]
+  whatsappHandoffBindings WhatsAppHandoffBinding[]
 
+  @@unique([id, merchantId])
   @@index([merchantId, status, createdAt])
   @@index([merchantId, sessionId])
   @@index([returnId])
@@ -712,6 +795,7 @@ model CompletedOrder {
   digitalEntitlements DigitalEntitlement[]
   fulfillmentActions OrderFulfillmentAction[]
   serviceReservations ServiceReservation[]
+  serviceAppointments ServiceAppointment[]
 }
 
 model MerchantApiKey {
@@ -1069,6 +1153,7 @@ model PaymentIntent {
   digitalContent      Json?    @map("digital_content")
   digitalEntitlements DigitalEntitlement[]
   marketplaceFunding MarketplaceFundingPlan?
+  appointmentPayments AppointmentPayment[]
 }
 
 // Immutable settlement snapshots. A later provider observation is recorded as
@@ -1643,7 +1728,10 @@ model Product {
   testimonials   ProductTestimonial[]
   videos         ProductVideo[]
   contentHistory ProductContentHistory[]
+  professionalServices ProfessionalService[]
+  serviceAppointments ServiceAppointment[]
 
+  @@unique([id, merchantId])
   @@index([merchantId])
   @@index([merchantId, isActive, createdAt])
   @@index([merchantId, categoryId, isActive])
@@ -1670,7 +1758,9 @@ model ProductVariant {
   price        ProductPrice?
   stock        ProductStock[]
   reservations StockReservation[]
+  serviceAppointments ServiceAppointment[]
 
+  @@unique([id, productId])
   @@unique([productId, sku])
   @@index([productId])
   @@map("product_variants")
@@ -2891,7 +2981,9 @@ model WhatsAppChannelConfig {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  handoffBindings WhatsAppHandoffBinding[]
 
+  @@unique([id, merchantId])
   @@index([whatsappNumber])
   @@index([deviceId])
   @@map("whatsapp_channel_configs")
@@ -2930,7 +3022,9 @@ model WhatsAppSession {
   postSaleContext   Json?    @map("post_sale_context")
   conversationState Json?    @map("conversation_state")
   createdAt         DateTime @default(now()) @map("created_at")
+  handoffBinding    WhatsAppHandoffBinding?
 
+  @@unique([id, merchantId])
   @@unique([merchantId, buyerPhone, deviceId])
   @@index([merchantId, status])
   @@index([lastActivityAt])
@@ -4338,10 +4432,286 @@ model ServiceReservation {
   endsAt      DateTime @map("ends_at")
   status      String   @default("reserved")
   createdAt   DateTime @default(now()) @map("created_at")
+  appointmentId String? @map("appointment_id")
+  classificationPending Boolean @default(true) @map("classification_pending")
   order CompletedOrder @relation(fields: [orderId, merchantId], references: [id, merchantId], onDelete: Cascade)
+  appointment ServiceAppointment? @relation(fields: [appointmentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
   @@unique([orderId, unitId])
+  @@unique([merchantId, appointmentId])
+  @@index([merchantId, classificationPending])
   @@index([merchantId, resourceId, status, startsAt])
   @@map("service_reservations")
+}
+
+// New service aggregates are separate from paid product fulfillment. No new
+// professional, financial policy or confirmed capacity is inferred for legacy rows.
+model ServiceBusinessPolicy {
+  merchantId String @id @map("merchant_id")
+  admissionsEnabled Boolean @default(false) @map("admissions_enabled")
+  holdEnabled Boolean? @map("hold_enabled")
+  holdMinutes Int? @map("hold_minutes")
+  paymentMode ServicePaymentMode? @map("payment_mode")
+  version Int @default(0)
+  configuredAt DateTime? @map("configured_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  @@map("service_business_policies")
+}
+
+model ServiceProfessional {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  publicName String @map("public_name")
+  publicProfile Json @default("{}") @map("public_profile")
+  isActive Boolean @default(true) @map("is_active")
+  isPublished Boolean @default(false) @map("is_published")
+  timeZone String @map("time_zone")
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  services ProfessionalService[]
+  availability ProfessionalAvailability[]
+  exceptions AvailabilityException[]
+  appointments ServiceAppointment[]
+  @@unique([id, merchantId])
+  @@index([merchantId, isActive, isPublished, id])
+  @@map("service_professionals")
+}
+
+model ProfessionalService {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  professionalId String @map("professional_id")
+  productId String @map("product_id")
+  isActive Boolean @default(true) @map("is_active")
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  professional ServiceProfessional @relation(fields: [professionalId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  product Product @relation(fields: [productId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  appointments ServiceAppointment[]
+  @@unique([id, merchantId])
+  @@unique([merchantId, professionalId, productId])
+  @@index([merchantId, productId, isActive])
+  @@map("professional_services")
+}
+
+model ProfessionalAvailability {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  professionalId String @map("professional_id")
+  weekday Int
+  startMinute Int @map("start_minute")
+  endMinute Int @map("end_minute")
+  validFrom DateTime? @map("valid_from") @db.Timestamptz(3)
+  validUntil DateTime? @map("valid_until") @db.Timestamptz(3)
+  timeZone String @map("time_zone")
+  isActive Boolean @default(true) @map("is_active")
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  professional ServiceProfessional @relation(fields: [professionalId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([id, merchantId])
+  @@index([merchantId, professionalId, isActive, weekday])
+  @@map("professional_availability")
+}
+
+model AvailabilityException {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  professionalId String @map("professional_id")
+  kind AvailabilityExceptionKind
+  startsAt DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt DateTime @map("ends_at") @db.Timestamptz(3)
+  timeZone String @map("time_zone")
+  reason String?
+  actorId String @map("actor_id")
+  isActive Boolean @default(true) @map("is_active")
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  professional ServiceProfessional @relation(fields: [professionalId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  appointments ServiceAppointment[]
+  @@unique([id, merchantId])
+  @@unique([id, professionalId, merchantId])
+  @@index([merchantId, professionalId, isActive, startsAt, endsAt])
+  @@map("availability_exceptions")
+}
+
+model ServiceAppointment {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  professionalId String @map("professional_id")
+  productId String @map("product_id")
+  variantId String @map("variant_id")
+  buyerGlobalUserId String? @map("buyer_global_user_id")
+  customerSnapshot Json @map("customer_snapshot")
+  startsAt DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt DateTime @map("ends_at") @db.Timestamptz(3)
+  timeZone String @map("time_zone")
+  durationMinutes Int @map("duration_minutes")
+  priceInCents Int @map("price_in_cents")
+  currency String
+  policyVersion Int @map("policy_version")
+  policySnapshot Json @map("policy_snapshot")
+  origin ServiceAppointmentOrigin
+  operationalStatus ServiceAppointmentStatus @default(pending) @map("operational_status")
+  version Int @default(1)
+  idempotencyKey String @map("idempotency_key")
+  requestFingerprint String @map("request_fingerprint")
+  orderId String? @map("order_id")
+  orderUnitId String? @map("order_unit_id")
+  availabilityExceptionId String? @map("availability_exception_id")
+  confirmedAt DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  startedAt DateTime? @map("started_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  noShowAt DateTime? @map("no_show_at") @db.Timestamptz(3)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  professional ServiceProfessional @relation(fields: [professionalId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  product Product @relation(fields: [productId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  variant ProductVariant @relation(fields: [variantId, productId], references: [id, productId], onDelete: Restrict, onUpdate: Restrict)
+  professionalService ProfessionalService @relation(fields: [merchantId, professionalId, productId], references: [merchantId, professionalId, productId], onDelete: Restrict, onUpdate: Restrict)
+  order CompletedOrder? @relation(fields: [orderId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  availabilityException AvailabilityException? @relation(fields: [availabilityExceptionId, professionalId, merchantId], references: [id, professionalId, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  payments AppointmentPayment[]
+  audits AppointmentAudit[]
+  legacyReservations ServiceReservation[]
+  @@unique([id, merchantId])
+  @@unique([merchantId, idempotencyKey])
+  @@unique([merchantId, orderId, orderUnitId])
+  @@index([merchantId, professionalId, operationalStatus, startsAt, endsAt])
+  @@index([merchantId, operationalStatus, startsAt])
+  @@index([merchantId, buyerGlobalUserId, startsAt])
+  @@map("service_appointments")
+}
+
+model AppointmentPayment {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  appointmentId String @map("appointment_id")
+  mode ServicePaymentMode
+  amountCents Int @map("amount_cents")
+  currency String
+  status AppointmentPaymentStatus @default(pending)
+  paymentIntentId String? @map("payment_intent_id")
+  provider String?
+  providerPaymentId String? @map("provider_payment_id")
+  providerEvidence Json? @map("provider_evidence")
+  receivedAt DateTime? @map("received_at") @db.Timestamptz(3)
+  requiresRegularization Boolean @default(false) @map("requires_regularization")
+  regularizationReason String? @map("regularization_reason")
+  version Int @default(1)
+  idempotencyKey String @map("idempotency_key")
+  requestFingerprint String @map("request_fingerprint")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  appointment ServiceAppointment @relation(fields: [appointmentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  paymentIntent PaymentIntent? @relation(fields: [paymentIntentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  receipts AttendanceReceipt[]
+  @@unique([id, merchantId])
+  @@unique([merchantId, idempotencyKey])
+  @@unique([merchantId, appointmentId, paymentIntentId])
+  @@unique([merchantId, appointmentId, provider, providerPaymentId])
+  @@index([merchantId, appointmentId, status])
+  @@index([merchantId, status, receivedAt])
+  @@map("appointment_payments")
+}
+
+model AttendanceReceipt {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  appointmentPaymentId String @map("appointment_payment_id")
+  amountCents Int @map("amount_cents")
+  currency String
+  paymentMethod String @map("payment_method")
+  operatorId String @map("operator_id")
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+  idempotencyKey String @map("idempotency_key")
+  requestFingerprint String @map("request_fingerprint")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  payment AppointmentPayment @relation(fields: [appointmentPaymentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([id, merchantId])
+  @@unique([merchantId, idempotencyKey])
+  @@index([merchantId, appointmentPaymentId])
+  @@index([merchantId, receivedAt])
+  @@map("attendance_receipts")
+}
+
+model AppointmentAudit {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  appointmentId String @map("appointment_id")
+  commandId String @map("command_id")
+  version Int
+  action String
+  actorId String? @map("actor_id")
+  origin String
+  before Json?
+  after Json?
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  appointment ServiceAppointment @relation(fields: [appointmentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([merchantId, commandId])
+  @@index([merchantId, appointmentId, occurredAt])
+  @@map("appointment_audits")
+}
+
+model WhatsAppHandoffBinding {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  configId String @map("config_id")
+  whatsappSessionId String @map("whatsapp_session_id")
+  conversationId String? @map("conversation_id")
+  ticketId String? @map("ticket_id")
+  mode WhatsAppAssistanceMode @default(ai)
+  epoch Int @default(0)
+  assignedOperatorId String? @map("assigned_operator_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  config WhatsAppChannelConfig @relation(fields: [configId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  session WhatsAppSession @relation(fields: [whatsappSessionId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  ticket SupportTicket? @relation(fields: [ticketId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([whatsappSessionId, merchantId])
+  @@unique([merchantId, ticketId])
+  @@index([merchantId, configId, mode, updatedAt])
+  @@map("whatsapp_handoff_bindings")
+}
+
+model PublicSourceWork {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  sourceType PublicBusinessSourceType @map("source_type")
+  sourceId String @map("source_id")
+  sourceVersion String @map("source_version")
+  sourceHash String @map("source_hash")
+  publicationState PublicSourcePublicationState @map("publication_state")
+  status PublicSourceWorkStatus @default(pending)
+  attempts Int @default(0)
+  nextAttemptAt DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  leaseToken String? @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+  lastErrorCode String? @map("last_error_code")
+  indexedAt DateTime? @map("indexed_at") @db.Timestamptz(3)
+  embeddingModel String? @map("embedding_model")
+  embeddingDimensions Int? @map("embedding_dimensions")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  @@unique([merchantId, sourceType, sourceId, sourceVersion])
+  @@index([merchantId, sourceType, sourceId, createdAt])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
+  @@map("public_source_work")
 }
 
 

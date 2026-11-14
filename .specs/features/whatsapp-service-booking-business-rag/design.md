@@ -70,6 +70,10 @@ Módulos API relativos a `apps/api/src/modules/`; shared em `apps/api/src/shared
 
 Contratos propostos, não entidades já implementadas. Migração expansiva, FKs compostas e índices incluem merchantId; novos modelos entram no isolamento tenant.
 
+T4 co-localiza o registro declarativo mínimo dos modelos na proteção tenant para manter o contrato existente de alinhamento. Não conclui o isolamento só pela lista: T5 comprova SQL/FKs reais e T6 middleware/DB/rollback. Nenhuma rota produtiva artificial será criada para provar Prisma; cada controller posterior deve trazer suas próprias negativas HTTP no mesmo commit. Schema puro usa validate/generate/build em T4, sem teste de texto inventado.
+
+Modalidade persistida inclui businessModeSelectedAt e businessModeNeedsReview. O default products conserva empresas de produtos; dados legados de serviço/mistos devem ser marcados para revisão explícita na migração e pelo resolver. Não se atribui profissional nem política de pagamento a essas linhas. OAuth preliminar conserva estado pendente até concluir a escolha. A política opcional começa sem valores escolhidos e com admissão desabilitada.
+
 | Model | Canonical fields and invariant |
 | --- | --- |
 | Merchant capability/policy | businessMode; holdEnabled; holdMinutes positivo se ativo; paymentMode online/at_attendance; version/configuredAt. Sem política de pagamento habilitada silenciosamente. |
@@ -85,6 +89,8 @@ Contratos propostos, não entidades já implementadas. Migração expansiva, FKs
 | PublicSourceWork | tenant/sourceType/id/version/hash/publication, estado, tentativas/erro/indexedAt. Retry e tombstone duráveis. |
 
 Appointment será autoridade única de capacidade confirmada. `ServiceReservation` vira projeção compatível dos pedidos antigos; não manter duas decisões independentes. Backfill vincula reservas anteriores a recursos explícitos; não adivinha profissional. Ativação só após atualizar todos os escritores.
+
+AppointmentPayment é vínculo de alocação, não uma nova cobrança por unidade. Um PaymentIntent canônico pode financiar várias unidades/agendamentos, como já ocorre em order-fulfillment.ts. A chave deduplica por appointment e fonte financeira; intent/provider não são globalmente únicos nessa tabela. amountCents representa a parcela da unidade e a soma das alocações deve respeitar a base canônica, sem copiar o total para cada linha. T35 deve validar/deduplicar a evidência única em PaymentIntent e seu journal; KPIs devem contar recebimento/alocação uma vez, inclusive ao filtrar profissionais. Recibos locais usam sua própria identidade auditável, sem inventar confirmação PSP. T5 cobre a cardinalidade e T35/KPI cobrem a autoridade/soma.
 
 Intervalos `[startsAt,endsAt)` UTC com fuso IANA registrado. Adjacência permitida; sobreposição proibida entre serviços do mesmo profissional. Preço/duração/política congelados no agendamento, sem reescrever história ao editar a oferta.
 

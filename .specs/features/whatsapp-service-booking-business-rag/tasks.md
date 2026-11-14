@@ -227,19 +227,19 @@ T91 → T92
 ### T4: Define additive service persistence models
 
 **What**: Schema contém contratos do design, relações tenant e índices/unique de idempotência; campos de serviço não alteram snapshots/fingerprints de produto nem tornam agenda obrigatória para produto.
-**Where**: `apps/api/prisma/schema.prisma`
+**Where**: `apps/api/prisma/schema.prisma`; registro declarativo mínimo em `apps/api/src/shared/persistence/tenant.middleware.ts`; fixture anterior em `apps/api/tests/fixtures/service-business/`.
 **Depends on**: T3
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ONB-01, ONB-03, AGENDA-01, BOOK-07, HUM-03, RAG-01
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Schema/config: prisma validate e geração local; persistência e compatibilidade provadas na tarefa seguinte.
-- [ ] Gate Build passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Schema/config: prisma validate e geração local; persistência e compatibilidade provadas na tarefa seguinte.
+- [x] Gate Build passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Schema/config: prisma validate e geração local; persistência e compatibilidade provadas na tarefa seguinte.
-**Gate**: Build: pnpm --dir apps/api exec prisma validate; Build do cabeçalho. Teste raiz T4 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Build: `pnpm --dir apps/api exec prisma validate` e geração local do client; Build do cabeçalho. Schema puro usa validação/compilação reais, sem teste raiz artificial. O contrato existente de alinhamento tenant também deve passar; T5 prova a persistência/migração e T6 as negativas de isolamento. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t4 define additive service persistence models`
 
 ### T5: Write the compatible expansion migration

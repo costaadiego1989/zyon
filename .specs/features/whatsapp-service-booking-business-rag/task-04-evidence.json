@@ -1,0 +1,67 @@
+{
+  "task": "T4",
+  "status": "complete",
+  "schemaValidate": 0,
+  "baselineSchemaValidate": 0,
+  "clientGenerate": 0,
+  "typecheck": {
+    "api": 0,
+    "widget": 0,
+    "dashboard": 0,
+    "storefront": 0
+  },
+  "build": {
+    "api": 0,
+    "widget": 0,
+    "dashboard": 0,
+    "storefront": 0
+  },
+  "apiLint": {
+    "exitCode": 0,
+    "errors": 0,
+    "preexistingWarnings": 2
+  },
+  "existingTenantContract": {
+    "executed": 12,
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0
+  },
+  "schemaDelta": {
+    "createTables": 11,
+    "dropTables": 0,
+    "dropColumns": 0,
+    "dropTypes": 0,
+    "dropIndexes": 0,
+    "executedAgainstDatabase": false
+  },
+  "checkedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "d8cf119d87445c8771fb9350758f318e80f2f4c8ffc491d1cbabd35d7c3244e6",
+    "artifactSha256": "fd96a34f9623517b3b15c5f68223b051e0085ad8830c8ee94d79a47061a79509",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2483
+    },
+    "recordedAt": "2026-11-14T21:37:01.770Z"
+  },
+  "schemaSha256": "f6c794aa356623e5f4ada2e41a2969d2183c26bd9a1df7c78add4199f99c18a9",
+  "baselineFixture": {
+    "revision": "7e2e130ee0e501727876235bb50ccec7d902b2cf",
+    "source": "apps/api/prisma/schema.prisma",
+    "sourceSha256": "d5793ff18af41d2b9b9ce6c4537b30ea974523e75a2e3b0c2e6a5b214cf7696a",
+    "fixtureSha256": "d5793ff18af41d2b9b9ce6c4537b30ea974523e75a2e3b0c2e6a5b214cf7696a",
+    "normalization": "LF and trailing whitespace only; no schema semantics changed"
+  },
+  "validator": {
+    "errors": 0,
+    "warnings": 1,
+    "reason": "Mandatory schema/tenant declarative co-location approved by orchestrator; T6 isolation proof remains required."
+  },
+  "remoteChanges": false,
+  "nativePersistenceProof": "T5",
+  "logs": "C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution/t4-*"
+}
