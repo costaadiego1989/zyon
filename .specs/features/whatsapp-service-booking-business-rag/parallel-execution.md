@@ -8,14 +8,16 @@ The user requests more implementation agents to accelerate work. This changes th
 
 | Agent | Checkout | Responsibility |
 | --- | --- | --- |
-| service_batch_01 | C:/tmp/zyon-service-business-20261114 | T9, finish Phase 1 and report exact gates; canonical integration root |
+| service_batch_01 | C:/tmp/zyon-service-booking-admission-20261114 | Phase 4 T26–T32 preparation; dependent gates/commits only after integrated green Phase 2/3 |
 | service_company_ui | C:/tmp/zyon-service-company-ui-20261114 | Phase 2 T10–T16: signup choice, policy/mode/About APIs and existing company form |
 | service_professional_agenda | C:/tmp/zyon-service-professional-agenda-20261114 | Phase 3 T17–T25: catalog mode guard, professionals and shared availability |
-| root | C:/tmp/zyon-service-booking-admission-20261114 | Prepare T26 admission code/tests against the agreed T23 contract; no task completion before integrated Phase 2/3 |
+| root | C:/tmp/zyon-service-business-20261114 | Canonical integration, resource scheduling and cross-module review |
 
-New branches start at ae2cb48e7, after T8. Prepare tests/code in parallel, without claiming dependent tasks complete. Incorporate T9 by fast-forward before the first dependent gate/commit. Before that barrier, avoid changes to shared spec/task/STATE files so the base can advance without overwriting work. Each agent records assumptions/files/success in its own preparation note.
+The initial preparation branches started at ae2cb48e7, after T8. Phase 1 returned clean at 15e6957d019e8d7c9001da7bc11b7c54fc269f24 with all required phase gates green. Phases 2/3 incorporated that base. The booking worker incorporates it before continuing the root's T26 preparation. Prepare tests/code in parallel without claiming dependent tasks complete. Before a dependency barrier, avoid changes to shared spec/task/STATE files so the base can advance without overwriting work. Each agent records assumptions/files/success in its own preparation note.
 
 T17's previous dependency on T16 was an ordering convenience; its business dependencies are the schema, policy and authenticated profile through T9. Both phases can proceed after T9. Phase 4 waits for both phases to be integrated and green. Keep tasks sequential within each assigned phase and one atomic commit per task after its gate passes.
+
+T26 source, unit cases and the native companion were prepared by root in the isolated booking checkout and handed to service_batch_01. They have not been run or committed. Preparing the rest of Phase 4 is allowed while Phases 2/3 finish; admission gates still wait for both integrated phases. Preserve later drafts outside the checked source fingerprint and restore each task before its gate/commit. No earlier task is called complete from preparation alone.
 
 ## Profile Contract
 
