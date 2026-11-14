@@ -1,0 +1,16 @@
+{
+  "task": "T8 follow-up found during T9 validation",
+  "status": "complete",
+  "defects": ["Active food offers were omitted from product conflicts", "Canonical facts were read before acquiring the merchant admission lock"],
+  "red": {"case": "pending merchant with active food offer selecting services", "expectedStatus": 409, "actualStatus": 200, "log": "t9-food-red-http.log"},
+  "fix": "Count physical/digital/food and acquire merchant FOR UPDATE before current state and facts in the same transaction; both existing settings writers reuse the helper.",
+  "nativeOnboarding": {"executed": 13, "passed": 13, "failed": 0, "skipped": 0},
+  "controlledRace": "Actual PostgreSQL catalog writer holds the merchant row and inserts a product. pg_stat_activity proves selection waits at SELECT FOR UPDATE before facts. After catalog commit selection returns409; mode/settings remain unchanged and the product remains present.",
+  "nativePhase": {"executed": 50, "passed": 50, "failed": 0, "skipped": 0, "exitCode": 0},
+  "unitPhase": {"executed": 76, "passed": 76, "failed": 0, "skipped": 0, "exitCode": 0},
+  "apiTypecheckExitCode": 0,
+  "checkedApiBuildExitCode": 0,
+  "providerCalls": 0,
+  "remoteChanges": false,
+  "log": "C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution/t9-phase-native.log"
+}

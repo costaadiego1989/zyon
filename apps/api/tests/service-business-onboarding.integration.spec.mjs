@@ -77,7 +77,7 @@ test('T8',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
       assert.equal(response.status,409);assert.deepEqual(await state(auth.merchant_id),before);
     });
     await t.test('pending state cannot override incompatible existing offers or payment attempts',async()=>{
-      for(const [name,mode,productType]of [['physical','services','physical'],['service','products','service']]){
+      for(const [name,mode,productType]of [['physical','services','physical'],['food','services','food'],['service','products','service']]){
         const auth=await register('conflict-'+name+'@example.test','products');
         await runtime.db.sql(`UPDATE merchants SET business_mode_selected_at=NULL,store_settings='{"registration_pending":true}'::jsonb WHERE id=${sqlText(auth.merchant_id)};
           INSERT INTO products(id,merchant_id,name,type,updated_at) VALUES (${sqlText('conflict-'+name)},${sqlText(auth.merchant_id)},'Synthetic conflict',${sqlText(productType)},now());`);
@@ -99,6 +99,40 @@ test('T8',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
       const results=await Promise.all(['products','services'].map(mode=>request('/merchants/me/store-settings',{business_mode:mode,company:{description:mode}},auth.access_token,'PUT')));
       assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);
       const stored=await state(auth.merchant_id);assert.equal(stored.selected,true);assert.equal(stored.settings.company.description,stored.mode);
+    });
+    await t.test('merchant lock serializes initial selection with a concurrent catalog writer',async()=>{
+      const auth=await register('locked-catalog@example.test','products');
+      await runtime.db.sql(`UPDATE merchants SET business_mode_selected_at=NULL,store_settings='{"registration_pending":true}'::jsonb WHERE id=${sqlText(auth.merchant_id)}`);
+      const before=await state(auth.merchant_id),{PrismaClient}=await import('@prisma/client');
+      const prisma=new PrismaClient({datasources:{db:{url:runtime.db.prismaUrl}}});
+      let release,held,selection;
+      const unlocked=new Promise(resolve=>{release=resolve;}),locked=new Promise(resolve=>{held=resolve;});
+      const writer=prisma.$transaction(async tx=>{
+        await tx.$queryRaw`SELECT id FROM merchants WHERE id=${auth.merchant_id} FOR UPDATE`;
+        const [{pid}]=await tx.$queryRaw`SELECT pg_backend_pid() AS pid`;
+        await tx.product.create({data:{id:'synthetic-locked-product',merchantId:auth.merchant_id,name:'Synthetic locked product',type:'physical'}});
+        held(pid);await unlocked;
+      },{timeout:10_000,maxWait:5_000});
+      writer.catch(()=>{});
+      try{
+        const holder=await Promise.race([locked,writer.then(()=>{throw new Error('fixture_writer_did_not_lock');})]);
+        assert.ok(Number.isInteger(holder));
+        selection=request('/merchants/me/store-settings',{business_mode:'services',company:{description:'Must roll back after catalog commit'}},auth.access_token,'PUT');
+        selection.catch(()=>{});
+        let waiting='';const deadline=Date.now()+3_000;
+        do{
+          waiting=await runtime.db.sql(`SELECT coalesce((SELECT query FROM pg_stat_activity WHERE ${holder}=ANY(pg_blocking_pids(pid)) AND wait_event_type='Lock' LIMIT 1),'');`);
+          if(waiting)break;
+          await new Promise(resolve=>setTimeout(resolve,20));
+        }while(Date.now()<deadline);
+        assert.match(waiting,/SELECT[\s\S]*FROM merchants[\s\S]*FOR UPDATE/i,'initial selection must wait before reading canonical facts, not at its later UPDATE');
+        release();await writer;
+        const result=await selection;assert.equal(result.status,409,JSON.stringify(result));
+        assert.deepEqual(await state(auth.merchant_id),before);
+        assert.equal(await runtime.db.sql("SELECT count(*) FROM products WHERE id='synthetic-locked-product'"),'1');
+      }finally{
+        release();try{await writer;}finally{await selection?.catch(()=>{});await prisma.$disconnect();}
+      }
     });
     await t.test('foreign and unauthenticated settings requests cannot select a mode',async()=>{
       const stranger=await register('stranger@example.test','products'),before=await state(pending.merchant_id);

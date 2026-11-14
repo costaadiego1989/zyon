@@ -9,11 +9,14 @@ export function isInitialBusinessSelectionWrite(settings: Record<string, unknown
 /** Run in the SAME transaction as the settings write. The body cannot open the
  * pending state or bypass the dedicated guarded mode-change command. */
 export async function selectInitialBusinessMode(
-  tx: Pick<Prisma.TransactionClient, "merchant" | "product" | "serviceAppointment" | "paymentIntent">,
+  tx: Pick<Prisma.TransactionClient, "$queryRaw" | "merchant" | "product" | "serviceAppointment" | "paymentIntent">,
   merchantId: string,
   incoming: Record<string, unknown>,
 ): Promise<void> {
   if (!isInitialBusinessSelectionWrite(incoming)) return;
+  // Catalog writers use this same first lock. Read facts only after admission
+  // to the merchant lock, so a concurrent offer cannot slip before the CAS.
+  await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchantId} FOR UPDATE`;
   const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: {
     businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true, storeSettings: true,
   } });
@@ -34,7 +37,7 @@ export async function selectInitialBusinessMode(
   }
   if (!pending || current.businessModeNeedsReview) throw new ConflictException("business_mode_selection_not_pending");
   const facts = {
-    activeProductOffers: await tx.product.count({ where: { merchantId, isActive: true, type: { in: ["physical", "digital"] } } }),
+    activeProductOffers: await tx.product.count({ where: { merchantId, isActive: true, type: { in: ["physical", "digital", "food"] } } }),
     activeServiceOffers: await tx.product.count({ where: { merchantId, isActive: true, type: "service" } }),
     ongoingAppointments: await tx.serviceAppointment.count({ where: { merchantId, operationalStatus: { in: ["pending", "scheduled", "in_service"] } } }),
   };
