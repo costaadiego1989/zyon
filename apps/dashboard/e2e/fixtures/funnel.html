@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Funnel regression fixture</title></head>
+<body><div id="root"></div><script type="module">
+import React, { useState } from "react";
+import { createRoot } from "react-dom/client";
+import { ApiContext } from "../../src/hooks/useApi.ts";
+import { createDashboardApi } from "../../src/api-client.ts";
+import { FunnelPage } from "../../src/pages/funnel/FunnelPage.tsx";
+import "../../src/styles.css";
+const api = createDashboardApi({ baseUrl: location.origin + "/audit-api" });
+function Fixture() {
+  const [merchant, setMerchant] = useState(new URLSearchParams(location.search).get("merchant"));
+  window.setAuditMerchant = setMerchant;
+  return React.createElement(ApiContext.Provider, { value: api }, React.createElement(FunnelPage, {
+    apiBaseUrl: location.origin + "/audit-api", me: { id: merchant, name: "Loja de teste", plan: "BOTH" },
+  }));
+}
+createRoot(document.getElementById("root")).render(React.createElement(Fixture));
+</script></body></html>

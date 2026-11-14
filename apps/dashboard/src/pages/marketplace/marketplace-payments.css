@@ -1,0 +1,42 @@
+.marketplace-payments { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.marketplace-payments p { margin: 0; line-height: 1.6; }
+.marketplace-payments__help, .marketplace-payments small { color: var(--color-text-muted); font-size: .875rem; }
+.marketplace-payments__notice:empty { display: none; }
+.marketplace-payments__error { color: var(--color-error); }
+.marketplace-payments__table-wrap { overflow-x: auto; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.marketplace-payments__table { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
+.marketplace-payments__table th, .marketplace-payments__table td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.marketplace-payments__table thead { color: var(--color-text-muted); }
+.marketplace-payments__table tbody tr:last-child > * { border-bottom: 0; }
+.marketplace-payments__id { display: block; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-weight: 400; }
+.marketplace-payments__money { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.marketplace-payments__state { display: block; font-weight: 600; }
+.marketplace-payments__state[data-state="cancelled"] { color: var(--color-success); }
+.marketplace-payments small { display: block; margin-top: .375rem; min-width: 10rem; }
+.marketplace-payments__actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.marketplace-payments .zyn-btn, .marketplace-payments select { min-height: 44px; }
+.marketplace-payments__pagination { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; }
+.marketplace-payments__confirmation { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.marketplace-payments__confirmation h2 { margin: 0; font: 600 1.125rem var(--font-sans); color: var(--color-text); }
+/* Keep the existing feedback launcher from covering a financial confirmation on mobile. */
+body:has(.marketplace-payments__confirmation) .platform-feedback-fab { display: none; }
+.marketplace-payments__reference { overflow-wrap: anywhere; font-family: var(--font-mono); }
+.marketplace-payments__confirmation select { max-width: 26rem; width: 100%; padding: .5rem; font: inherit; color: var(--color-text); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.marketplace-payments :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.marketplace-remediation { max-width: 80rem; margin: auto; padding: 1.5rem; display: grid; gap: 1.5rem; }
+.marketplace-remediation__entry { padding: 1rem; text-align: center; }
+@media (max-width: 600px) {
+  .marketplace-payments__table, .marketplace-payments__table tbody { display: block; }
+  .marketplace-payments__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .marketplace-payments__table tr { display: grid; grid-template-columns: 1fr 1fr; padding: .75rem; gap: .75rem; border-bottom: 1px solid var(--border); }
+  .marketplace-payments__table tr:last-child { border-bottom: 0; }
+  .marketplace-payments__table th, .marketplace-payments__table td { display: block; min-width: 0; padding: 0; border: 0; }
+  .marketplace-payments__table th, .marketplace-payments__table td:nth-child(n+4) { grid-column: 1 / -1; }
+  .marketplace-payments__table td[data-label]::before { content: attr(data-label); display: block; color: var(--color-text-muted); margin-bottom: .25rem; font-size: .75rem; }
+  .marketplace-payments__id { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+  .marketplace-payments__table-wrap { overflow-x: visible; }
+  .marketplace-payments__confirmation { padding: 1rem; }
+  .marketplace-payments__confirmation .marketplace-payments__actions > * { width: 100%; }
+  .marketplace-payments__pagination { justify-content: space-between; gap: .5rem; }
+  .marketplace-remediation { padding: 1rem; }
+}

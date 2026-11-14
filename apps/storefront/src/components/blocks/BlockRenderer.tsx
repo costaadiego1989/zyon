@@ -1,0 +1,86 @@
+"use client";
+
+import type { ConversationBlock } from "@/lib/types";
+import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import type { CrossSellDisplayProduct } from "@/lib/storefront-cross-sell-flow";
+import ProductCardBlock from "./ProductCardBlock";
+import ProductCarouselBlock from "./ProductCarouselBlock";
+import ComparisonTableBlock from "./ComparisonTableBlock";
+import ShippingOptionsBlock from "./ShippingOptionsBlock";
+import QuickRepliesBlock from "./QuickRepliesBlock";
+import OrderConfirmationBlock from "./OrderConfirmationBlock";
+import ReviewsBlock from "./ReviewsBlock";
+import AddReviewBlock from "./AddReviewBlock";
+import ShippingQuoteBlock from "./ShippingQuoteBlock";
+import VariantSelectorBlock from "./VariantSelectorBlock";
+import ProductComparisonBlock from "./ProductComparisonBlock";
+import WishlistBlock from "./WishlistBlock";
+import CategoryCarouselBlock from "./CategoryCarouselBlock";
+import MarketplaceProductsBlock from "./MarketplaceProductsBlock";
+import CrossSellBlock from "./CrossSellBlock";
+import CouponListBlock from "./CouponListBlock";
+import ProductContentBlock from "./ProductContentBlock";
+
+export default function BlockRenderer({
+  block,
+  onQuickReply,
+  merchantSlug,
+  crossSell,
+  onOpenCrossSell,
+}: {
+  block: ConversationBlock;
+  onQuickReply?: (option: string, uiAction?: StorefrontReadUiAction) => void;
+  merchantSlug?: string;
+  crossSell?: { present: (products: readonly CrossSellDisplayProduct[]) => CrossSellDisplayProduct[];
+    accept: (product: CrossSellDisplayProduct) => Promise<boolean> };
+  onOpenCrossSell?: (product: CrossSellDisplayProduct) => void;
+}) {
+  switch (block.type) {
+    case "product_card":
+      return <ProductCardBlock block={block} merchantSlug={merchantSlug} onQuickReply={onQuickReply} />;
+    case "product_carousel":
+      return <ProductCarouselBlock block={block} onQuickReply={onQuickReply} />;
+    case "comparison_table":
+      return <ComparisonTableBlock block={block} />;
+    case "cart_summary":
+      return null;
+    case "checkout_redirect":
+    case "checkout_prepared":
+      return null;
+    case "shipping_options":
+      return <ShippingOptionsBlock block={block} />;
+    case "quick_replies":
+      return <QuickRepliesBlock block={block} onSelect={onQuickReply} />;
+    case "order_confirmation":
+      return <OrderConfirmationBlock block={block} />;
+    case "shipping_quote_input":
+      return <ShippingQuoteBlock block={block} onQuickReply={onQuickReply} />;
+    case "variant_selector":
+      return <VariantSelectorBlock block={block} onQuickReply={onQuickReply} />;
+    case "product_comparison":
+      return <ProductComparisonBlock block={block} onQuickReply={onQuickReply} />;
+    case "wishlist":
+      return <WishlistBlock block={block} onQuickReply={onQuickReply} />;
+    case "reviews":
+      return <ReviewsBlock block={block} onQuickReply={onQuickReply} />;
+    case "add_review":
+      return <AddReviewBlock block={block} onQuickReply={onQuickReply} />;
+    case "cross_sell": {
+      const data = (block as any).data;
+      const products = crossSell ? crossSell.present(data.products)
+        : data.products.filter((product: CrossSellDisplayProduct) => !product.promoId && !product.couponCode && !(product.discountPercent && product.discountPercent > 0));
+      if (!products.length) return null;
+      return <CrossSellBlock block={{ ...block, data: { ...data, products } } as any} onQuickReply={onQuickReply} onAcceptCrossSell={crossSell?.accept} onOpenCrossSell={onOpenCrossSell} />;
+    }
+    case "category_carousel":
+      return <CategoryCarouselBlock block={block as any} onQuickReply={onQuickReply} />;
+    case "marketplace_products":
+      return <MarketplaceProductsBlock block={block as any} onQuickReply={onQuickReply} />;
+    case "coupon_list":
+      return <CouponListBlock block={block as any} onQuickReply={onQuickReply} />;
+    case "product_content":
+      return <ProductContentBlock block={block as any} merchantSlug={merchantSlug} onQuickReply={onQuickReply} />;
+    default:
+      return null;
+  }
+}

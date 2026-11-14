@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Catalog local regression</title></head>
+<body><div id="root"></div><script type="module">
+import React from "react";
+import { createRoot } from "react-dom/client";
+import "/src/styles.css";
+import { ApiContext } from "/src/hooks/useApi.ts";
+import { createDashboardApi } from "/src/api-client.ts";
+import { DashboardShell } from "/src/shell/DashboardShell.tsx";
+const api = createDashboardApi({baseUrl:location.origin+"/v1"});
+const me = {id:"merchant-test",name:"Catalog QA local",role:"OWNER",email:"qa@example.invalid",plan:"BOTH",slug:"qa-local",permissions:[]};
+createRoot(document.getElementById("root")).render(React.createElement(ApiContext.Provider,{value:api},React.createElement(DashboardShell,{me,onLogout:()=>{},onboardingCompleted:true})));
+</script></body></html>

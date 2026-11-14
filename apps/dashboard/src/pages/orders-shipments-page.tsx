@@ -1,0 +1,757 @@
+import { Modal } from "../components/Modal.js";
+import { FormField, FormTextarea } from "../components/FormField.js";
+import { SearchInput } from "../components/SearchInput.js";
+import "./orders-shipments/orders-shipments.css";
+import { PageHeader } from "../components/PageHeader.js";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CheckCircle,
+  DollarSign,
+  Download,
+  Package,
+  Receipt,
+  ShoppingCart,
+  Truck,
+} from "lucide-react";
+import { PeriodFilter } from "../components/PeriodFilter.js";
+import { EmptyState } from "../components/EmptyState.js";
+import { PageLoader } from "../components/PageLoader.js";
+import { StatCard, StatCardGroup } from "./overview/components/StatCard.js";
+import type { MerchantProfile, OrderTimelineEntry, TenantOrder, TenantOrderDetail } from "../api-client.js";
+import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPage.js";
+import { Button } from "../components/Button.js";
+import { STATUS_LABELS, computeOrderMetrics, filterOrdersByPeriod, formatMinor, formatOrderItemUnitPrice, formatDate, formatPhone } from "./orders-shipments/utils.js";
+import { OrderStatusBadge } from "./orders-shipments/components/OrderStatusBadge.js";
+import { OrderFulfillments } from "./orders-shipments/components/OrderFulfillments.js";
+import { boardColumns, boardEntries, dropAction, entryColumn, TYPE_LABELS, UNIT_LABELS, type BoardEntry, type OrderView } from "./orders-shipments/fulfillment-board.js";
+import { DigitalOrderDelivery } from "./orders-shipments/components/DigitalOrderDelivery.js";
+import { useApi } from "../hooks/useApi.js";
+import { createIdempotencyKey, DashboardHttpError } from "../api/http/index.js";
+import type { PurchaseShippingLabelPayload, PurchasedShippingLabel } from "../api/endpoints/order.js";
+
+export { STATUS_LABELS, computeOrderMetrics, filterOrders, filterOrdersByPeriod } from "./orders-shipments/utils.js";
+export type OrderPeriod = "all" | "today" | "7d" | "15d" | "30d";
+export const DEFAULT_ORDER_PERIOD: OrderPeriod = "today";
+
+// ── Kanban Column Definitions ───────────────────────────────────────────────
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  pix: "PIX",
+  credit_card: "Cartão",
+  boleto: "Boleto",
+  crypto: "Crypto",
+  qa_fixture: "Pagamento de teste",
+};
+
+const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
+  asaas: "Asaas",
+  stripe: "Stripe",
+  mercado_pago: "Mercado Pago",
+  unknown: "—",
+};
+
+export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
+  if (!props.me) {
+    return (
+      <PageHeader title="Pedidos e envios" description="Login necessário" />
+    );
+  }
+  return <OrdersShipmentsView me={props.me} />;
+}
+
+function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
+  const vm = useOrdersShipmentsPage({ me });
+  const [draggedOrder, setDraggedOrder] = useState<BoardEntry | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [view, setView] = useState<OrderView>("all");
+  const columns = boardColumns(view);
+  const [period, setPeriod] = useState<OrderPeriod>(DEFAULT_ORDER_PERIOD);
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
+
+  const filteredOrders = useMemo(() => {
+    return filterOrdersByPeriod(vm.orders, period, dateRange);
+  }, [vm.orders, period, dateRange]);
+  const [search, setSearch] = useState("");
+  const visibleOrders = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return filteredOrders.filter(order => {
+      if (view !== "all" && boardEntries([order], view).length === 0) return false;
+      const customer = order.customer as { full_name?: string; email?: string } | null;
+      return [order.external_order_id, customer?.full_name, customer?.email, order.tracking_code].some(value => value?.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(term));
+    });
+  }, [filteredOrders, search, view]);
+  const metrics = useMemo(() => computeOrderMetrics(filteredOrders), [filteredOrders]);
+
+  function handleDragStart(e: React.DragEvent, entry: BoardEntry) {
+    if (vm.busy) return;
+    setDraggedOrder(entry);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", entry.order.id);
+  }
+
+  function handleDragEnd() {
+    setDraggedOrder(null);
+    setDropTarget(null);
+  }
+
+  function handleDragOver(e: React.DragEvent, columnId: string) {
+    if (!draggedOrder) return;
+    if (!dropAction(draggedOrder, columnId)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropTarget(columnId);
+  }
+
+  function handleDragLeave() {
+    setDropTarget(null);
+  }
+
+  async function handleDrop(e: React.DragEvent, columnId: string) {
+    e.preventDefault();
+    setDropTarget(null);
+    if (!draggedOrder) return;
+    if (!dropAction(draggedOrder, columnId)) return;
+
+    const target = dropAction(draggedOrder, columnId);
+    if (!target) return;
+    if (target.action.requiresProof) vm.openOrderDetails(draggedOrder.order.id);
+    else await vm.executeFulfillment(draggedOrder.order, target.unit.id, target.action.action);
+    setDraggedOrder(null);
+  }
+
+  return (
+    <div className="page-container orders-page">
+      <PageHeader title="Pedidos e envios" description="Acompanhe os atendimentos de cada pedido, do preparo e agendamento à entrega." actions={<>
+<Button variant="outline" size="sm" disabled={!vm.hasLoaded || visibleOrders.length === 0} onClick={() => vm.exportCsv(visibleOrders)}>
+          <Download size={14} /> Exportar CSV
+        </Button>
+</>} />
+
+      {/* Stats */}
+      <StatCardGroup>
+        <StatCard label="Pedidos" value={vm.hasLoaded ? metrics.totalOrders : 0} icon={<ShoppingCart size={16} />} />
+        <StatCard label="Aprovados" value={vm.hasLoaded ? Math.round(metrics.approvalRate * 100) + "%" : "0%"} icon={<CheckCircle size={16} />} accent="var(--color-success)" />
+        <StatCard label="Receita" value={vm.hasLoaded ? formatMinor(metrics.totalRevenue, "BRL") : "R$ 0"} icon={<DollarSign size={16} />} accent="var(--color-brand)" />
+        <StatCard label="Rastreados" value={vm.hasLoaded ? metrics.trackedCount : 0} icon={<Truck size={16} />} />
+        <StatCard label="Ticket Médio" value={vm.hasLoaded ? formatMinor(metrics.averageOrderValue, "BRL") : "R$ 0"} icon={<Receipt size={16} />} accent="var(--color-brand)" />
+      </StatCardGroup>
+
+      {vm.message && !vm.expandedOrderId ? <div className="panel-error orders-feedback" role="alert"><span>{vm.message}</span><Button variant="outline" size="sm" disabled={vm.busy} onClick={() => void vm.reload()}>Tentar novamente</Button></div> : null}
+
+      <PeriodFilter
+        presets={[{ key: "all", label: "Todos" }, { key: "today", label: "Hoje" }, { key: "7d", label: "Últimos 7 dias" }, { key: "15d", label: "Últimos 15 dias" }, { key: "30d", label: "Últimos 30 dias" }]}
+        active={period}
+        onPreset={key => { setPeriod(key as typeof period); setDateRange({ from: "", to: "" }); }}
+        from={dateRange.from} to={dateRange.to}
+        onDate={(field, value) => { setDateRange(range => ({ ...range, [field]: value })); setPeriod("all"); }}
+      />
+
+      <div className="orders-toolbar"><p>Selecione um tipo para acompanhar cada item. Arraste para uma etapa disponível ou abra o pedido para registrar o atendimento.</p><SearchInput value={search} onChange={setSearch} placeholder="Buscar pedido, cliente ou rastreio" width={320} /></div>
+      <nav className="orders-views" aria-label="Tipo de atendimento">{(["all", "physical", "service", "digital", "food"] as const).map(type => <Button key={type} size="sm" variant={view === type ? "primary" : "outline"} aria-pressed={view === type} onClick={() => setView(type)}>{type === "all" ? "Todos os pedidos" : TYPE_LABELS[type]}</Button>)}</nav>
+      {/* Kanban Board */}
+      {!vm.hasLoaded && vm.message ? null : !vm.hasLoaded ? (
+        <div className="orders-loading">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", height: 400, animation: "pulse 1.5s ease-in-out infinite" }} />
+          ))}
+        </div>
+      ) : visibleOrders.length === 0 ? (
+        <div className="panel">
+          <EmptyState icon={Package} title={vm.orders.length ? "Nenhum pedido com estes filtros" : "Os pedidos da sua loja aparecem aqui"} description={vm.orders.length ? "Altere a busca, o tipo ou o período para localizar o pedido." : "Após uma venda no checkout, acompanhe o pagamento, o envio e a entrega por este painel."} action={vm.orders.length ? <Button variant="outline" onClick={() => { setSearch(""); setView("all"); setPeriod("all"); setDateRange({ from: "", to: "" }); }}>Limpar filtros</Button> : undefined} />
+        </div>
+      ) : (
+        <div className="orders-kanban" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(230px, 1fr))` }} role="region" aria-label="Pedidos por etapa" tabIndex={0}>
+          {columns.map((col) => {
+            const colOrders = boardEntries(visibleOrders, view).filter(entry => entryColumn(entry) === col.id);
+            const isValidTarget = draggedOrder ? Boolean(dropAction(draggedOrder, col.id)) : false;
+            const isHovering = dropTarget === col.id;
+
+            return (
+              <div
+                key={col.id}
+                onDragOver={(e) => handleDragOver(e, col.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, col.id)}
+                style={{
+                  background: isHovering ? "var(--surface-3)" : "var(--surface-1)",
+                  border: `1px solid ${isHovering ? col.color : isValidTarget && draggedOrder ? "var(--color-border-strong)" : "var(--color-border)"}`,
+                  borderRadius: "var(--radius-md)",
+                  padding: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  minHeight: 400,
+                  transition: "all 0.15s ease",
+                  boxShadow: isHovering ? `0 0 0 2px ${col.color}40` : "none",
+                }}
+              >
+                {/* Column header */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 4px 8px", borderBottom: `2px solid ${col.color}` }}>
+                  <span style={{ font: "600 12px var(--font-sans)", color: col.color }}>{col.label}</span>
+                  <span style={{ font: "700 11px var(--font-mono)", color: "var(--color-text-muted)", background: "var(--surface-2)", borderRadius: "var(--radius-full)", padding: "2px 8px" }}>
+                    {colOrders.length}
+                  </span>
+                </div>
+
+                {/* Cards */}
+                {colOrders.length === 0 ? (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-muted)", font: "12px var(--font-sans)", padding: "40px 8px", textAlign: "center" }}>
+                    {draggedOrder && isValidTarget ? "Solte aqui" : "Nenhum pedido"}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {colOrders.map((entry) => (
+                      <KanbanCard
+                        key={`${entry.order.id}:${entry.unit?.id ?? "order"}`}
+                        order={entry.order}
+                        unit={entry.unit}
+                        onDragStart={(e) => handleDragStart(e, entry)}
+                        onDragEnd={handleDragEnd}
+                        onClick={() => { if (!vm.busy) vm.openOrderDetails(entry.order.id); }}
+                        isDragging={draggedOrder?.order.id === entry.order.id && draggedOrder?.unit?.id === entry.unit?.id}
+                        disabled={vm.busy}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Side Panel */}
+      {vm.expandedOrderId && <OrderSidePanel vm={vm} merchantId={me.id} />}
+    </div>
+  );
+}
+
+// ── Kanban Card ─────────────────────────────────────────────────────────────
+
+function KanbanCard({ order, unit, onDragStart, onDragEnd, onClick, isDragging, disabled }: {
+  order: TenantOrder;
+  unit?: BoardEntry["unit"];
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onClick: () => void;
+  isDragging: boolean;
+  disabled: boolean;
+}) {
+  const customer = order.customer as { full_name?: string; email?: string } | null;
+  const name = customer?.full_name || customer?.email || "—";
+
+  return (
+    <div
+      className="order-kanban-card"
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={"Ver pedido " + order.external_order_id + " de " + name}
+      onKeyDown={event => { if (!disabled && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}
+      draggable={!disabled && Boolean((unit ? [unit] : order.fulfillment?.units.length === 1 ? order.fulfillment.units : []).some(item => item.allowedActions.some(action => !["refresh_digital", "reschedule_service"].includes(action.action))))}
+      aria-disabled={disabled}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      style={{
+        background: "var(--surface-2)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-sm)",
+        padding: "12px 14px",
+        cursor: disabled ? "not-allowed" : "grab",
+        opacity: isDragging ? 0.5 : 1,
+        transition: "all 0.15s ease",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+      onMouseEnter={(e) => { if (!isDragging) { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border-strong)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)"; } }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ font: "600 11px var(--font-mono)", color: "var(--color-text-muted)" }}>
+          #{order.external_order_id.slice(-6)}
+        </span>
+        <span style={{ font: "700 12px var(--font-mono)", color: "var(--color-text)" }}>
+          {formatMinor(order.total, order.currency)}
+        </span>
+      </div>
+
+      <div style={{ font: "500 12px var(--font-sans)", color: "var(--color-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {name}
+      </div>
+
+      <div className="order-kanban-card__types">{unit ? <span>{unit.name} · {UNIT_LABELS[unit.status]}</span> : [...new Set(order.fulfillment?.units.map(item => item.productType) ?? [])].map(type => <span key={type}>{TYPE_LABELS[type]}</span>)}</div>
+      {order.fulfillment && <div className="order-kanban-card__types">{unit ? `${unit.completedQuantity} de ${unit.quantity}` : `${order.fulfillment.completedQuantity} de ${order.fulfillment.totalQuantity}`} unidades concluídas{order.fulfillment.units.some(item => item.attention) ? " · Atenção" : ""}</div>}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
+          {formatDate(order.completed_at)}
+        </span>
+        {order.tracking_code && (
+          <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-success)", background: "var(--color-success-bg)", padding: "2px 6px", borderRadius: 4 }}>
+            Com rastreio
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Side Panel ──────────────────────────────────────────────────────────────
+
+function OrderSidePanel({ vm, merchantId }: { vm: ReturnType<typeof useOrdersShipmentsPage>; merchantId: string }) {
+  const order = vm.orders.find((o) => o.id === vm.expandedOrderId);
+  if (!order) return null;
+
+  const detail = vm.orderDetail?.id === order.id ? vm.orderDetail : null;
+
+  const cart = order.cart as { items?: Array<{ name?: string; title?: string; quantity?: number; price?: number; unit_price?: number }> };
+  const items = Array.isArray(cart?.items) ? cart.items : [];
+  const customer = order.customer as {
+    full_name?: string;
+    email?: string;
+    phone?: string;
+    address?: {
+      zip?: string;
+      street?: string;
+      number?: string;
+      complement?: string;
+      neighborhood?: string;
+      city?: string;
+      state?: string;
+    };
+  } | null;
+  const address = customer?.address;
+  const hasAddress = Boolean(
+    address && (address.street || address.city || address.zip),
+  );
+
+  const sectionStyle: React.CSSProperties = { padding: "16px 0", borderBottom: "1px solid var(--color-border)" };
+  const labelStyle: React.CSSProperties = { font: "600 15px var(--font-sans)", color: "var(--color-text)", marginBottom: 16 };
+  const valueStyle: React.CSSProperties = { font: "13px var(--font-sans)", color: "var(--color-text)" };
+
+  return (
+    <Modal isOpen title={order.payment_method === "qa_fixture" ? "Pedido de demonstração" : "Pedido " + order.external_order_id} subtitle={order.payment_method === "qa_fixture" ? String(customer?.full_name ?? "Itens, atendimento e histórico de atualizações.") : "Itens, cliente, entrega e histórico de atualizações."} presentation="center" size="lg" onClose={() => { if (!vm.busy) vm.closeOrderDetails(); }} footer={<Button variant="outline" disabled={vm.busy} onClick={vm.closeOrderDetails}>Fechar</Button>}>
+      <div className="order-detail configuration-form">
+        {vm.message && <div className="panel-error" role="alert">{vm.message}</div>}
+        {order.payment_method === "qa_fixture" && <p className="order-detail__hint" role="note">Pedido de demonstração. O pagamento e os contatos são de teste. Nenhuma cobrança ou mensagem é enviada por este pedido.</p>}
+        {/* Status + Total */}
+        <div style={{ ...sectionStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={labelStyle}>Status atual</div>
+            <OrderStatusBadge status={order.status} />
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={labelStyle}>Total</div>
+            <span style={{ font: "700 18px var(--font-mono)", color: "var(--color-text)" }}>{formatMinor(order.total, order.currency)}</span>
+          </div>
+        </div>
+
+        {/* Items */}
+        <div style={sectionStyle}>
+          <div style={labelStyle}>Itens ({items.length})</div>
+          {items.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {items.map((item, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: 8, background: "var(--surface-3)", border: "1px solid var(--color-border)" }}>
+                  <span style={valueStyle}>{item.name ?? item.title ?? "Item"} <span style={{ color: "var(--color-text-muted)" }}>×{item.quantity ?? 1}</span></span>
+                  <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-secondary)" }}>{formatOrderItemUnitPrice(item, order.currency)}</span>
+                </div>
+              ))}
+            </div>
+          ) : <p style={{ ...valueStyle, color: "var(--color-text-muted)" }}>Nenhum item</p>}
+        </div>
+
+        <OrderFulfillments key={order.id} order={detail ?? order} busy={vm.busy} execute={(unitId, action, proof, quantity, slotId) => vm.executeFulfillment(detail ?? order, unitId, action, proof, quantity, slotId)} />
+
+        {(order.fulfillment?.units.some(unit => unit.productType === "digital") || !order.fulfillment?.units.length) && <DigitalOrderDelivery key={`${merchantId}:${order.external_order_id}`} merchantId={merchantId} orderId={order.external_order_id} />}
+
+        {/* Customer */}
+        <div style={sectionStyle}>
+          <div style={labelStyle}>Cliente</div>
+          {customer ? (
+            <div className="order-detail__grid">
+              {customer.full_name && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Nome</span><div style={valueStyle}>{customer.full_name}</div></div>}
+              {customer.email && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>E-mail</span><div style={valueStyle}>{customer.email}</div></div>}
+              {customer.phone && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Telefone</span><div style={valueStyle}>{formatPhone(customer.phone)}</div></div>}
+            </div>
+          ) : <p style={{ ...valueStyle, color: "var(--color-text-muted)" }}>Sem dados do cliente</p>}
+        </div>
+
+        {/* Payment */}
+        <div style={sectionStyle}>
+          <div style={labelStyle}>Pagamento</div>
+          <div className="order-detail__grid">
+            <div>
+              <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Método</span>
+              <div style={valueStyle}>{order.payment_method ? PAYMENT_METHOD_LABELS[order.payment_method] || order.payment_method : "—"}</div>
+            </div>
+            <div>
+              <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Provedor</span>
+              <div style={valueStyle}>{order.payment_method === "qa_fixture" ? "Simulado" : order.payment_provider ? PAYMENT_PROVIDER_LABELS[order.payment_provider] || order.payment_provider : "—"}</div>
+            </div>
+            {order.paid_at && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Data do pagamento</span>
+                <div style={valueStyle}>{formatDate(order.paid_at)}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Address */}
+        {hasAddress && (
+          <div style={sectionStyle}>
+            <div style={labelStyle}>Endereço</div>
+            <div className="order-detail__grid">
+              {address?.street && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Rua</span><div style={valueStyle}>{address.street}{address.number ? `, ${address.number}` : ""}</div></div>}
+              {address?.complement && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Complemento</span><div style={valueStyle}>{address.complement}</div></div>}
+              {address?.neighborhood && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Bairro</span><div style={valueStyle}>{address.neighborhood}</div></div>}
+              {address?.city && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Cidade</span><div style={valueStyle}>{address.city}/{address.state}</div></div>}
+              {address?.zip && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>CEP</span><div style={valueStyle}>{address.zip}</div></div>}
+            </div>
+          </div>
+        )}
+
+        <OrderTimelineSection
+          detail={detail}
+          loading={vm.orderDetailLoading}
+          error={vm.orderDetailError}
+          onRetry={vm.reloadOrderDetail}
+          sectionStyle={sectionStyle}
+          labelStyle={labelStyle}
+        />
+
+        {/* Tracking */}
+        {(order.fulfillment?.units.some(unit => unit.strategy === "carrier") || Boolean(order.tracking_code)) && <div style={sectionStyle}>
+          <div style={labelStyle}>Rastreamento</div>
+          {order.tracking_code ? (
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--color-success-bg)", border: "1px solid var(--color-success)", marginBottom: 12 }}>
+              <div style={{ font: "600 13px var(--font-mono)", color: "var(--color-success)" }}>{order.tracking_code}</div>
+              <div style={{ font: "500 11px var(--font-sans)", color: "var(--color-success)", marginTop: 4 }}>Código registrado no pedido</div>
+            </div>
+          ) : (
+            <p style={{ ...valueStyle, color: "var(--color-text-muted)", marginBottom: 12 }}>Sem código de rastreio</p>
+          )}
+          <ShippingLabelPurchaseAction
+            order={order}
+            customer={customer}
+            vm={vm}
+          />
+          <div className="order-detail__tracking">
+            <FormField label="Código de rastreamento" placeholder="Ex.: AB123456789BR" value={order.tracking_code || vm.trackingDrafts[order.id] || ""} onChange={value => vm.updateTrackingDraft(order.id, value)} disabled={Boolean(order.tracking_code) || vm.busy} hint="Use o código informado pela transportadora." />
+            <Button variant="primary" disabled={Boolean(order.tracking_code) || vm.busy || !(vm.trackingDrafts[order.id] ?? "").trim()} onClick={() => void vm.saveManualTracking(order)}>Salvar rastreio</Button>
+          </div>
+          <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 10 }}>
+            A etiqueta exige uma cotação confirmada e as dimensões reais dos itens. Este painel não gera etiquetas com dados estimados.
+          </p>
+        </div>}
+
+        <CancelOrderAction order={order} vm={vm} />
+
+        {order.cancellation_reason ? (
+          <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error-border)", marginTop: 12 }}>
+            <div style={{ font: "600 11px var(--font-sans)", color: "var(--color-error)", marginBottom: 4 }}>Motivo do cancelamento</div>
+            <div style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>{order.cancellation_reason}</div>
+          </div>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
+function CancelOrderAction({ order, vm }: { order: TenantOrder; vm: ReturnType<typeof useOrdersShipmentsPage> }) {
+  const [reason, setReason] = useState("");
+  const [notifyCustomer, setNotifyCustomer] = useState(true);
+  const [restock, setRestock] = useState(false);
+  const cancellable = ["pending", "processing", "approved", "paid"].includes(order.status);
+
+  if (!cancellable) return null;
+
+  return (
+    <div style={{ padding: "16px 0", borderBottom: "1px solid var(--color-border)" }}>
+      <h3 className="order-detail__section-title">Cancelar pedido</h3>
+      <FormTextarea label="Motivo do cancelamento" value={reason} onChange={setReason} maxLength={500} disabled={vm.busy} placeholder="Explique por que este pedido precisa ser cancelado." hint="O motivo ficará registrado no histórico do pedido." />
+      <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 8 }}><input type="checkbox" disabled={vm.busy} checked={notifyCustomer} onChange={(event) => setNotifyCustomer(event.target.checked)} /> Solicitar notificação ao cliente</label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 12 }}><input type="checkbox" disabled={vm.busy} checked={restock} onChange={(event) => setRestock(event.target.checked)} /> Solicitar reposição de estoque</label>
+      <Button variant="danger" size="md" loading={vm.cancelBusyOrderId === order.id} disabled={!reason.trim() || vm.busy} onClick={() => void vm.cancelOrder(order, { reason, notifyCustomer, restock })}>Cancelar pedido</Button>
+    </div>
+  );
+}
+
+type ShippingLabelForm = {
+  service_id: string;
+  from_zip: string;
+  to_zip: string;
+  to_name: string;
+  to_document: string;
+  invoice_key: string;
+  packages: Array<{
+    weightKg: string;
+    widthCm: string;
+    heightCm: string;
+    lengthCm: string;
+    quantity: string;
+  }>;
+};
+
+function ShippingLabelPurchaseAction({
+  order,
+  customer,
+  vm,
+}: {
+  order: TenantOrder;
+  customer: {
+    full_name?: string;
+    address?: { zip?: string };
+  } | null;
+  vm: ReturnType<typeof useOrdersShipmentsPage>;
+}) {
+  const api = useApi();
+  const [open, setOpen] = useState(false);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [carrierReady, setCarrierReady] = useState(false);
+  const [confirmed, setConfirmed] = useState<PurchasedShippingLabel | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const idempotencyKey = useRef(createIdempotencyKey());
+  const [form, setForm] = useState<ShippingLabelForm>(() => ({
+    service_id: "",
+    from_zip: "",
+    to_zip: customer?.address?.zip ?? "",
+    to_name: customer?.full_name ?? "",
+    to_document: "",
+    invoice_key: "",
+    packages: [{ weightKg: "", widthCm: "", heightCm: "", lengthCm: "", quantity: "1" }],
+  }));
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setLoadingConfig(true);
+    setConfigError(null);
+    void api.getDeliveryConfig()
+      .then((config) => {
+        if (!active) return;
+        setCarrierReady(config.melhorEnvioEnabled && config.melhorEnvioConnected);
+        setForm((current) => ({
+          ...current,
+          from_zip: current.from_zip || config.originZip,
+        }));
+      })
+      .catch(() => {
+        if (active) setConfigError("Não foi possível confirmar a conexão do Melhor Envio.");
+      })
+      .finally(() => {
+        if (active) setLoadingConfig(false);
+      });
+    return () => { active = false; };
+  }, [api, open]);
+
+  function updateField<K extends Exclude<keyof ShippingLabelForm, "packages">>(key: K, value: ShippingLabelForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updatePackage(key: keyof ShippingLabelForm["packages"][number], value: string) {
+    setForm((current) => ({
+      ...current,
+      packages: current.packages.map((pkg, index) => index === 0 ? { ...pkg, [key]: value } : pkg),
+    }));
+  }
+
+  function preparedPayload(): Omit<PurchaseShippingLabelPayload, "order_id"> | null {
+    const serviceId = Number(form.service_id);
+    const fields = [form.from_zip, form.to_zip, form.to_name, form.to_document];
+    const pkg = form.packages[0];
+    const packageValues = pkg
+      ? [Number(pkg.weightKg), Number(pkg.widthCm), Number(pkg.heightCm), Number(pkg.lengthCm), Number(pkg.quantity)]
+      : [];
+
+    if (!Number.isInteger(serviceId) || serviceId <= 0 || fields.some((value) => !value.trim()) || packageValues.some((value) => !Number.isFinite(value) || value <= 0)) {
+      return null;
+    }
+
+    return {
+      service_id: serviceId,
+      from_zip: form.from_zip.trim(),
+      to_zip: form.to_zip.trim(),
+      to_name: form.to_name.trim(),
+      to_document: form.to_document.trim(),
+      packages: [{
+        weightKg: packageValues[0]!,
+        widthCm: packageValues[1]!,
+        heightCm: packageValues[2]!,
+        lengthCm: packageValues[3]!,
+        quantity: packageValues[4]!,
+      }],
+      ...(form.invoice_key.trim() ? { invoice_key: form.invoice_key.trim() } : {}),
+    };
+  }
+
+  async function purchase() {
+    const payload = preparedPayload();
+    if (!payload) {
+      setError("Informe o serviço da cotação, CEPs, destinatário, documento e dimensões reais do pacote.");
+      return;
+    }
+    if (!acknowledged) {
+      setError("Confirme que deseja solicitar a compra da etiqueta.");
+      return;
+    }
+    setError(null);
+    try {
+      const result = await vm.purchaseShippingLabel(order, payload, idempotencyKey.current);
+      setConfirmed(result);
+    } catch (cause) {
+      const isUnknown = !(cause instanceof DashboardHttpError) || cause.status === 0 || cause.status >= 500;
+      setUncertain(isUnknown);
+      setError(
+        isUnknown
+          ? "A compra não foi confirmada. Consulte o Melhor Envio antes de tentar novamente para evitar uma etiqueta duplicada."
+          : "A compra não foi confirmada. Revise os dados da cotação e tente novamente.",
+      );
+      // A rejected HTTP request can be corrected and submitted with a fresh
+      // key. Unknown outcomes keep the key and block another charge attempt.
+      if (!isUnknown) idempotencyKey.current = createIdempotencyKey();
+    }
+  }
+
+  if (confirmed) {
+    return (
+      <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--color-success-bg)", border: "1px solid var(--color-success)", marginBottom: 12 }}>
+        <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-success)" }}>Etiqueta confirmada</div>
+        <div style={{ font: "12px var(--font-mono)", color: "var(--color-success)", marginTop: 4 }}>{confirmed.tracking_code}</div>
+        {confirmed.label_url && <a href={confirmed.label_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 8, font: "600 12px var(--font-sans)", color: "var(--color-success)" }}>Abrir etiqueta</a>}
+      </div>
+    );
+  }
+
+  if (order.tracking_code) return null;
+
+  if (!open) {
+    return <Button variant="outline" size="sm" disabled={vm.shippingLabelBusyOrderId === order.id} onClick={() => setOpen(true)} style={{ marginBottom: 12 }}>Comprar e gerar etiqueta</Button>;
+  }
+
+  const packageDraft = form.packages[0]!;
+  const disabled = loadingConfig || !carrierReady || uncertain || vm.shippingLabelBusyOrderId === order.id;
+  const fieldStyle: React.CSSProperties = { width: "100%", minWidth: 0, height: 44, padding: "0 10px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-3)", color: "var(--color-text)", font: "13px var(--font-sans)" };
+  const labelStyle: React.CSSProperties = { display: "grid", gap: 8, font: "500 13px var(--font-sans)", color: "var(--color-text-muted)" };
+
+  return (
+    <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)" }}>
+      <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", marginBottom: 6 }}>Comprar etiqueta via Melhor Envio</div>
+      <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", margin: "0 0 12px" }}>Use somente o serviço da cotação confirmada e as medidas reais do pacote. Esta ação pode gerar cobrança no Melhor Envio.</p>
+      {loadingConfig && <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Verificando conexão do Melhor Envio…</p>}
+      {configError && <p className="panel-error" role="alert">{configError}</p>}
+      {!loadingConfig && !configError && !carrierReady && <p className="panel-error" role="alert">Conecte e ative o Melhor Envio em Entregas antes de comprar uma etiqueta.</p>}
+      <fieldset disabled={disabled} className="order-label-fields"><div className="order-detail__grid">
+        <label style={labelStyle}>Serviço da cotação<input type="number" min="1" value={form.service_id} onChange={(event) => updateField("service_id", event.target.value)} placeholder="Ex.: 1" style={fieldStyle} /></label>
+        <label style={labelStyle}>CEP de origem<input value={form.from_zip} onChange={(event) => updateField("from_zip", event.target.value)} placeholder="00000-000" style={fieldStyle} /></label>
+        <label style={labelStyle}>CEP do destinatário<input value={form.to_zip} onChange={(event) => updateField("to_zip", event.target.value)} placeholder="00000-000" style={fieldStyle} /></label>
+        <label style={labelStyle}>CPF/CNPJ destinatário<input value={form.to_document} onChange={(event) => updateField("to_document", event.target.value)} placeholder="Somente números" style={fieldStyle} /></label>
+        <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>Nome do destinatário<input value={form.to_name} onChange={(event) => updateField("to_name", event.target.value)} style={fieldStyle} /></label>
+        <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>Chave NF-e (opcional)<input value={form.invoice_key ?? ""} onChange={(event) => updateField("invoice_key", event.target.value)} style={fieldStyle} /></label>
+      </div>
+      <div style={{ marginTop: 12, font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>Pacote (medidas reais)</div>
+      <div className="order-detail__grid" style={{ marginTop: 12 }}>
+        <label style={labelStyle}>Peso (kg)<input type="number" min="0.001" step="0.001" value={packageDraft.weightKg} onChange={(event) => updatePackage("weightKg", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Largura (cm)<input type="number" min="0.1" step="0.1" value={packageDraft.widthCm} onChange={(event) => updatePackage("widthCm", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Altura (cm)<input type="number" min="0.1" step="0.1" value={packageDraft.heightCm} onChange={(event) => updatePackage("heightCm", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Comprimento (cm)<input type="number" min="0.1" step="0.1" value={packageDraft.lengthCm} onChange={(event) => updatePackage("lengthCm", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Quantidade de volumes<input type="number" min="1" step="1" value={packageDraft.quantity} onChange={(event) => updatePackage("quantity", event.target.value)} style={fieldStyle} /></label>
+      </div>
+      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12, font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+        <input type="checkbox" disabled={vm.busy} checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
+        <span>Confirmo que os dados e a cotação foram revisados e quero solicitar a compra desta etiqueta.</span>
+      </label>
+      </fieldset>
+      {error && <p className="panel-error" role="alert" style={{ marginTop: 10 }}>{error}</p>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <Button variant="primary" size="sm" disabled={disabled || !acknowledged} onClick={() => void purchase()}>{vm.shippingLabelBusyOrderId === order.id ? "Solicitando…" : "Comprar e gerar"}</Button>
+        <Button variant="outline" size="sm" disabled={vm.shippingLabelBusyOrderId === order.id} onClick={() => setOpen(false)}>Cancelar</Button>
+      </div>
+    </div>
+  );
+}
+
+function OrderTimelineSection({
+  detail,
+  loading,
+  error,
+  onRetry,
+  sectionStyle,
+  labelStyle,
+}: {
+  detail: TenantOrderDetail | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  sectionStyle: React.CSSProperties;
+  labelStyle: React.CSSProperties;
+}) {
+  return (
+    <section style={sectionStyle} aria-labelledby="order-timeline-title">
+      <div id="order-timeline-title" style={labelStyle}>Histórico do pedido</div>
+      {loading ? <PageLoader variant="section" /> : null}
+      {!loading && error ? (
+        <div role="alert" style={{ display: "grid", gap: 10, padding: 12, borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error-border)" }}>
+          <span style={{ font: "12px/1.5 var(--font-sans)", color: "var(--color-text)" }}>{error}</span>
+          <div><Button variant="outline" size="sm" onClick={onRetry}>Tentar novamente</Button></div>
+        </div>
+      ) : null}
+      {!loading && !error && detail ? (
+        detail.timeline.length > 0 ? (
+          <ol style={{ display: "grid", gap: 0, margin: 0, padding: 0, listStyle: "none" }}>
+            {detail.timeline.map((event) => <TimelineEntry key={event.id} event={event} />)}
+          </ol>
+        ) : <p style={{ margin: 0, font: "12px/1.5 var(--font-sans)", color: "var(--color-text-muted)" }}>Ainda não há eventos registrados para este pedido.</p>
+      ) : null}
+    </section>
+  );
+}
+
+function TimelineEntry({ event }: { event: OrderTimelineEntry }) {
+  const location = typeof event.data?.location === "string" ? event.data.location : null;
+  const label = timelineLabel(event);
+  const rawDescription = event.description?.trim();
+  const description = event.type === "fulfillment" && rawDescription ? FULFILLMENT_ACTION_LABELS[rawDescription] ?? rawDescription : rawDescription;
+  return (
+    <li style={{ display: "grid", gridTemplateColumns: "10px minmax(0, 1fr)", gap: 10, padding: "10px 0", borderTop: "1px solid var(--color-border)" }}>
+      <span aria-hidden style={{ width: 8, height: 8, borderRadius: "50%", marginTop: 5, background: event.type === "tracking" ? "var(--color-brand)" : "var(--color-text-faint)" }} />
+      <div style={{ display: "grid", gap: 3 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+          <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>{label}</span>
+          <time dateTime={event.occurredAt} style={{ flex: "0 0 auto", font: "10px var(--font-mono)", color: "var(--color-text-faint)" }}>{formatDate(event.occurredAt)}</time>
+        </div>
+        {description ? <span style={{ font: "12px/1.45 var(--font-sans)", color: "var(--color-text-muted)" }}>{description}</span> : null}
+        {location ? <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>{location}</span> : null}
+      </div>
+    </li>
+  );
+}
+
+function timelineLabel(event: OrderTimelineEntry): string {
+  const status = event.status?.trim();
+  if (event.type === "fulfillment") return status ? `Atendimento: ${UNIT_LABELS[status] ?? status.replaceAll("_", " ")}` : "Atualização do atendimento";
+  const statusLabel = status ? STATUS_LABELS[status] ?? status.replaceAll("_", " ") : undefined;
+  if (event.type === "tracking") return statusLabel ? `Rastreio: ${statusLabel}` : "Atualização de rastreio";
+  if (event.type === "payment") return statusLabel ? `Pagamento: ${statusLabel}` : "Atualização de pagamento";
+  if (event.type === "checkout") return statusLabel ? `Checkout: ${statusLabel}` : "Atualização do checkout";
+  if (event.type === "order") return statusLabel ? `Pedido: ${statusLabel}` : "Atualização do pedido";
+  return statusLabel ?? "Atualização registrada";
+}
+
+const FULFILLMENT_ACTION_LABELS: Record<string, string> = {
+  confirm_schedule: "Agendamento confirmado",
+  start_service: "Atendimento iniciado",
+  complete_service: "Atendimento concluído",
+  reschedule_service: "Atendimento reagendado",
+  no_show: "Ausência registrada",
+  start_preparation: "Preparação iniciada",
+  mark_ready: "Pronto para retirada ou envio",
+  collect: "Retirada registrada",
+  dispatch_local: "Entrega própria iniciada",
+  deliver_local: "Entrega própria registrada",
+  refresh_digital: "Disponibilização digital verificada",
+};

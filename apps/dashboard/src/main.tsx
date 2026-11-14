@@ -1,0 +1,369 @@
+import React, { useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  type MerchantProfile as MerchantDashboardProfile,
+  type MerchantTheme,
+  DashboardHttpError,
+  SESSION_EXPIRED_EVENT,
+  resolveDashboardApiBaseUrl
+} from "./api-client.js";
+import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
+import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js";
+import { friendlyAuthError } from "./auth/auth-error.js";
+import { authModeFromUrl, authUrlForMode } from "./auth/auth-navigation.js";
+import { DashboardShell } from "./shell/DashboardShell.js";
+import { LoadingSplash } from "./components/LoadingSplash.js";
+import { PlanSelection } from "./pages/onboarding-wizard/steps/PlanSelection.js";
+import { MarketplaceRemediationActions } from "./pages/onboarding-wizard/MarketplaceRemediationActions.js";
+import { MarketplacePaymentsPage } from "./pages/marketplace/MarketplacePaymentsPage.js";
+import { MarketplaceShipmentsPage } from "./pages/marketplace/MarketplaceShipmentsPage.js";
+import { MarketplaceRefundsPage } from "./pages/marketplace/MarketplaceRefundsPage.js";
+import { MarketplaceAsaasWalletReturnsPage } from "./pages/marketplace/MarketplaceAsaasWalletReturnsPage.js";
+import { MarketplaceContributionsPage } from "./pages/marketplace/MarketplaceContributionsPage.js";
+import { MarketplaceSellerFeesPage } from "./pages/marketplace/MarketplaceSellerFeesPage.js";
+import { Button } from "./components/Button.js";
+import type { TabKey } from "./shell/nav-config.js";
+import { ApiContext, useApiInstance } from "./hooks/useApi.js";
+import { reportError } from "./lib/observability/error-reporter.js";
+import { readSubscriptionIntent, clearSubscriptionIntent } from "./auth/subscription-intent.js";
+import { installDeploymentRecovery } from "./lib/deployment-recovery.js";
+import "./styles.css";
+
+installDeploymentRecovery();
+
+const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
+
+// Public build-time key. Missing production configuration must fail closed;
+// only explicitly unconfigured local development can skip the widget.
+const TURNSTILE_SITE_KEY =
+  (import.meta.env as Record<string, string | undefined>).VITE_TURNSTILE_SITE_KEY ?? "";
+
+const BASE_THEME: MerchantTheme = {
+  accentColor: "#0F766E",
+  textColor: "#F7FAF7",
+  backgroundColor: "#0A0F0A",
+  fontFamily: "Manrope, sans-serif",
+};
+
+interface AppProps {
+  api: ReturnType<typeof useApiInstance>;
+}
+
+function App({ api }: AppProps) {
+  const [me, setMe] = useState<MerchantDashboardProfile | null>(null);
+  const [authMode, setCurrentAuthMode] = useState<AuthMode>(() => authModeFromUrl(window.location.href));
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [merchantName, setMerchantName] = useState("");
+  const [authHint, setAuthHint] = useState<string | null>(null);
+  const [oauthProfile, setOauthProfile] = useState<OAuthCallbackResult["profile"] | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [initialTab, setInitialTab] = useState<TabKey | undefined>(undefined);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(true);
+  const [planSelectionPending, setPlanSelectionPending] = useState(false);
+  const [subscriptionRequired, setSubscriptionRequired] = useState(false);
+  const [remediationOpen, setRemediationOpen] = useState(() => window.location.hash === "#marketplace-payments");
+  const [shipmentRemediationOpen, setShipmentRemediationOpen] = useState(() => window.location.hash === "#marketplace-shipments");
+  const [refundRemediationOpen, setRefundRemediationOpen] = useState(() => window.location.hash === "#marketplace-refunds");
+  const [walletReturnRemediationOpen, setWalletReturnRemediationOpen] = useState(() => window.location.hash === "#marketplace-asaas-wallet-returns");
+  const [contributionRemediationOpen, setContributionRemediationOpen] = useState(() => window.location.hash === "#marketplace-contributions");
+  const [sellerFeeRemediationOpen, setSellerFeeRemediationOpen] = useState(() => window.location.hash === "#marketplace-fees");
+  const [hostFeeRemediationOpen, setHostFeeRemediationOpen] = useState(() => window.location.hash === "#marketplace-host-fees");
+  const [subscriptionIntent, setSubscriptionIntent] = useState(readSubscriptionIntent);
+  const onboardingRedirectedRef = useRef(false);
+  function setAuthMode(mode: AuthMode) {
+    window.history.replaceState(window.history.state, "", authUrlForMode(window.location.href, mode));
+    setCurrentAuthMode(mode);
+    setCaptchaToken(null);
+    setAuthHint(null);
+  }
+  useEffect(() => {
+    const syncFeeRoute = () => {
+      setSellerFeeRemediationOpen(window.location.hash === "#marketplace-fees");
+      setHostFeeRemediationOpen(window.location.hash === "#marketplace-host-fees");
+    };
+    window.addEventListener("hashchange", syncFeeRoute);
+    return () => window.removeEventListener("hashchange", syncFeeRoute);
+  }, []);
+
+  async function refreshSession() {
+    setCheckingSession(true);
+    try {
+      const profile = await api.merchantProfile();
+      const settings = await api.getStoreSettings();
+      const choosingPlan = settings.plan_selection_pending === true;
+      setPlanSelectionPending(choosingPlan);
+      if (!choosingPlan && (settings.registration_pending === true || settings.oauth_registration_pending === true)) {
+        const owner = await api.getMe();
+        setOauthProfile({ name: owner.name ?? "", email: owner.email ?? "" });
+        setAuthMode("signup");
+        setMe(null);
+        setSubscriptionRequired(false);
+        return;
+      }
+      setMe(profile);
+      setAuthHint(null);
+      try {
+        const subscription = await api.getBillingSubscription();
+        setSubscriptionRequired(subscription.trial_expired === true);
+      } catch (error) {
+        // A transient billing lookup must not unlock a confirmed restriction.
+        reportError({ source: "main.refreshSession.billing", error, severity: "warning" });
+      }
+      try {
+        const onboarding = await api.getOnboardingState();
+        setOnboardingCompleted(onboarding.completed);
+        // Open onboarding on first session resolution if incomplete.
+        // One-shot flag prevents re-directing when user manually navigates away.
+        if (!onboarding.completed && !onboardingRedirectedRef.current && window.location.hash !== "#marketplace-host-fees") {
+          onboardingRedirectedRef.current = true;
+          setInitialTab("onboarding");
+        }
+      } catch (err) {
+        // Onboarding state is best-effort; never block console access.
+        reportError({ source: "main.refreshSession.onboarding", error: err, severity: "warning" });
+      }
+    } catch (err) {
+      if (err instanceof DashboardHttpError && err.status === 401) {
+        setMe(null);
+      } else {
+        setMe(null);
+      }
+      setSubscriptionRequired(false);
+    } finally {
+      setCheckingSession(false);
+    }
+  }
+
+  useEffect(() => {
+    if (window.location.pathname.includes("/oauth/callback")) {
+      setCheckingSession(false);
+      return;
+    }
+    void refreshSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    function handleSessionExpired() {
+      if (checkingSession || !me) return;
+      setMe(null);
+      setAuthMode("login");
+      setAuthHint("Sessão expirada. Entre novamente.");
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, [checkingSession, me]);
+
+  useEffect(() => {
+    if (!me) return;
+    let active = true;
+    let inFlight = false;
+    const refreshBillingAccess = () => {
+      if (inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      void api.getBillingSubscription().then(subscription => {
+        if (active) setSubscriptionRequired(subscription.trial_expired === true);
+      }).catch(() => { /* Keep the last server-confirmed access state. */ })
+        .finally(() => { inFlight = false; });
+    };
+    const timer = window.setInterval(refreshBillingAccess, 60_000);
+    window.addEventListener("focus", refreshBillingAccess);
+    document.addEventListener("visibilitychange", refreshBillingAccess);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshBillingAccess);
+      document.removeEventListener("visibilitychange", refreshBillingAccess);
+    };
+  }, [api, me?.id]);
+
+  async function submitAuth(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setAuthHint(null);
+    try {
+      if (authMode === "signup") {
+        await api.register({
+          merchant_name: merchantName.trim(),
+          email: email.trim(),
+          password,
+          turnstile_token: captchaToken ?? undefined,
+        });
+      } else {
+        await api.login(email.trim(), password, captchaToken ?? undefined);
+      }
+      setPassword("");
+      setCaptchaToken(null);
+      await refreshSession();
+    } catch (e) {
+      setMe(null);
+      setCaptchaToken(null);
+      setAuthHint(friendlyAuthError(e));
+    } finally {
+      setBusy(false);
+      setCheckingSession(false);
+    }
+  }
+
+  async function handleRegister(payload: { merchant_name: string; email: string; password: string; turnstile_token?: string }) {
+    await api.register(payload);
+  }
+
+  async function handleSaveTheme(theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) {
+    const fullTheme: MerchantTheme = {
+      ...BASE_THEME,
+      accentColor: theme.accentColor,
+      logoUrl: theme.logoUrl || undefined,
+      headerTitle: theme.headerTitle,
+      agentName: theme.agentName,
+    };
+    await api.putMerchantTheme(fullTheme);
+  }
+
+  async function handleSaveCompanyData(data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown>; oauth_registration_pending?: boolean; owner_name?: string }) {
+    await api.putStoreSettings({ ...data, registration_pending: true, plan_selection_pending: true });
+    const storeName = data.company.razaoSocial;
+    if (typeof storeName === "string" && storeName.trim()) await api.putStoreName(storeName.trim());
+  }
+
+  async function handleSaveOwner(data: { name: string; phone: string }) {
+    await api.updateMe(data);
+  }
+
+  async function handleSignupComplete() {
+    setOauthProfile(null);
+    await refreshSession();
+  }
+
+  async function handlePlanComplete() {
+    if (planSelectionPending) {
+      await api.completeOnboardingStep("account");
+      await api.putStoreSettings({ registration_pending: false, oauth_registration_pending: false, plan_selection_pending: false });
+    }
+    clearSubscriptionIntent();
+    setSubscriptionIntent(null);
+    window.history.replaceState({}, "", "/");
+    setPlanSelectionPending(false);
+    setOauthProfile(null);
+    await refreshSession();
+  }
+
+  async function logout() {
+    setBusy(true);
+    try {
+      await api.logout();
+    } catch (err) {
+      // local state still clears the console when the API is unreachable.
+      reportError({ source: "main.logout", error: err, severity: "warning" });
+    } finally {
+      setMe(null);
+      setPassword("");
+      setBusy(false);
+      setAuthMode("login");
+    }
+  }
+
+  // Check if we're on OAuth callback route
+  if (window.location.pathname.includes("/oauth/callback")) {
+    return (
+      <OAuthCallback
+        apiBaseUrl={API_BASE_URL}
+        onSuccess={(result) => {
+          void refreshSession();
+        }}
+        onError={(msg) => {
+          setAuthHint(msg);
+          setCheckingSession(false);
+        }}
+      />
+    );
+  }
+
+  if (checkingSession) return <LoadingSplash />;
+
+  if (me && (!me.role || me.role === "OWNER") && !subscriptionRequired && (planSelectionPending || subscriptionIntent)) {
+    if (hostFeeRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setHostFeeRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceSellerFeesPage family="host" me={me} />
+    </main>;
+    if (sellerFeeRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setSellerFeeRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceSellerFeesPage me={me} />
+    </main>;
+    if (contributionRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setContributionRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceContributionsPage me={me} />
+    </main>;
+    if (walletReturnRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setWalletReturnRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceAsaasWalletReturnsPage me={me} />
+    </main>;
+    if (refundRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setRefundRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceRefundsPage me={me} />
+    </main>;
+    if (shipmentRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setShipmentRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceShipmentsPage me={me} />
+    </main>;
+    // Existing financial obligations remain accessible without opening commercial features.
+    if (remediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplacePaymentsPage me={me} />
+    </main>;
+    return <main className="signup-plans"><PlanSelection merchantName={me.name} initialPlan={subscriptionIntent ?? undefined} requirePaidPlan={subscriptionRequired} onDone={handlePlanComplete} onExit={subscriptionRequired || (planSelectionPending && new URLSearchParams(window.location.search).get("billing") !== "success") ? undefined : handlePlanComplete} />
+      <MarketplaceRemediationActions visible={subscriptionRequired && me.role === "OWNER"} actions={[
+        { id: "payments", label: "Gerenciar cobranças existentes do marketplace", onSelect: () => { setRemediationOpen(true); window.location.hash = "marketplace-payments"; } },
+        { id: "shipments", label: "Gerenciar remessas existentes do marketplace", onSelect: () => { setShipmentRemediationOpen(true); window.location.hash = "marketplace-shipments"; } },
+        { id: "refunds", label: "Gerenciar estornos existentes do marketplace", onSelect: () => { setRefundRemediationOpen(true); window.location.hash = "marketplace-refunds"; } },
+        { id: "wallet-returns", label: "Gerenciar retornos Asaas do marketplace", onSelect: () => { setWalletReturnRemediationOpen(true); window.location.hash = "marketplace-asaas-wallet-returns"; } },
+        { id: "contributions", label: "Gerenciar aportes para estornos do marketplace", onSelect: () => { setContributionRemediationOpen(true); window.location.hash = "marketplace-contributions"; } },
+        { id: "seller-fees", label: "Gerenciar taxas existentes do marketplace", onSelect: () => { setSellerFeeRemediationOpen(true); window.location.hash = "marketplace-fees"; } },
+        { id: "host-fees", label: "Gerenciar taxas existentes da loja principal", onSelect: () => { setHostFeeRemediationOpen(true); window.location.hash = "marketplace-host-fees"; } },
+      ]} />
+    </main>;
+  }
+
+  if (!me) {
+    return (
+      <AuthScreen
+        mode={authMode}
+        setMode={setAuthMode}
+        busy={busy}
+        hint={authHint}
+        email={email}
+        setEmail={setEmail}
+        password={password}
+        setPassword={setPassword}
+        merchantName={merchantName}
+        setMerchantName={setMerchantName}
+        onSubmit={submitAuth}
+        onRegister={handleRegister}
+        onSaveTheme={handleSaveTheme}
+        onSaveCompanyData={handleSaveCompanyData}
+        onSaveOwner={handleSaveOwner}
+        onComplete={handleSignupComplete}
+        oauthProfile={oauthProfile}
+        turnstileSiteKey={TURNSTILE_SITE_KEY}
+        captchaToken={captchaToken}
+        setCaptchaToken={setCaptchaToken}
+      />
+    );
+  }
+
+  return <DashboardShell me={me} initialTab={initialTab} onLogout={logout} onboardingCompleted={onboardingCompleted} subscriptionRequired={subscriptionRequired} onRefreshSubscription={refreshSession} />;
+}
+
+function AppRoot() {
+  const api = useApiInstance(API_BASE_URL);
+  return (
+    <ApiContext.Provider value={api}>
+      <App api={api} />
+    </ApiContext.Provider>
+  );
+}
+
+createRoot(document.getElementById("root")!).render(<AppRoot />);

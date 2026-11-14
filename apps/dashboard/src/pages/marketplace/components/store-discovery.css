@@ -1,0 +1,301 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Store Discovery Grid — Enterprise Dark Theme
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.store-discovery__container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.store-discovery__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.store-discovery__loading p {
+  font: 400 13px var(--font-sans);
+}
+
+/* Search Bar */
+.store-discovery__search-bar {
+  display: flex;
+  gap: 12px;
+}
+
+.store-discovery__search-input-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.store-discovery__search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.store-discovery__search-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px 0 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-1);
+  color: var(--ink);
+  font: 400 13px var(--font-sans);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.store-discovery__search-input:focus {
+  border-color: var(--color-brand);
+}
+
+.store-discovery__search-input::placeholder {
+  color: var(--muted);
+}
+
+/* Category Filter Chips */
+.store-discovery__filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.store-discovery__filter-chip {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface-1);
+  color: var(--muted);
+  font: 500 12px var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.store-discovery__filter-chip:hover {
+  border-color: var(--color-brand);
+  color: var(--ink);
+}
+
+.store-discovery__filter-chip.active {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #fff;
+}
+
+/* Grid */
+.store-discovery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* Card */
+.store-discovery__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-2, var(--surface-1));
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.store-discovery__card:hover {
+  border-color: var(--color-brand);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Logo */
+.store-discovery__logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.store-discovery__logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.store-discovery__logo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-brand);
+  color: #fff;
+  font: 600 20px var(--font-sans);
+}
+
+/* Info */
+.store-discovery__info {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.store-discovery__name {
+  font: 600 14px var(--font-sans);
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.store-discovery__meta {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
+
+.store-discovery__category {
+  font: 500 11px var(--font-sans);
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+}
+
+.store-discovery__commission {
+  font: 400 11px var(--font-mono);
+  color: var(--muted);
+}
+
+/* Status */
+.store-discovery__status {
+  min-height: 22px;
+}
+
+.store-discovery__badge--connected {
+  font: 500 11px var(--font-sans);
+  color: var(--color-success, #22c55e);
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+/* Action Buttons */
+.store-discovery__action-btn {
+  width: 100%;
+  padding: 8px 16px;
+  border-radius: var(--radius-md, 8px);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+}
+
+.store-discovery__action-btn.connect {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.store-discovery__action-btn.connect:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.store-discovery__action-btn.disconnect {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.store-discovery__action-btn.disconnect:hover:not(:disabled) {
+  border-color: var(--color-error, #ef4444);
+  color: var(--color-error, #ef4444);
+}
+
+.store-discovery__action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Empty State */
+.store-discovery__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  gap: 8px;
+  text-align: center;
+}
+
+.store-discovery__empty-icon {
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.store-discovery__empty h3 {
+  font: 600 16px var(--font-sans);
+  color: var(--ink);
+  margin: 0;
+}
+
+.store-discovery__empty p {
+  font: 400 13px var(--font-sans);
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Load More */
+.store-discovery__load-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.store-discovery__load-more-btn {
+  padding: 10px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-1);
+  color: var(--ink);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.15s;
+}
+
+.store-discovery__load-more-btn:hover:not(:disabled) {
+  border-color: var(--color-brand);
+}
+
+.store-discovery__load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Spin animation */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

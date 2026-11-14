@@ -1,0 +1,6 @@
+.marketplace-debt-principal { min-width: 11rem; font: 13px/1.5 var(--font-sans); color: var(--color-text); }
+.marketplace-debt-principal dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .375rem .75rem; margin: 0; }
+.marketplace-debt-principal dt { color: var(--color-text-muted); }
+.marketplace-debt-principal dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.marketplace-debt-principal small { display: block; margin-top: .5rem; color: var(--color-text-muted); font-size: .75rem; }
+.settlement-panel__debt > .marketplace-debt-principal { margin-bottom: 1rem; }

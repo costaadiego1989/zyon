@@ -1,0 +1,292 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { CheckoutSession, cartFromExperience } from "../src/api/checkout-session.js";
+import { CheckoutApiError } from "../src/api/checkout-api-error.js";
+
+test("ordinary legacy mapping stays compatible and preserves server-owned non-scheduled fulfillment when present",()=>{
+  const legacy={items:[{sku:"old",name:"Legacy",quantity:1,unit_price:10}],totals:{subtotal:10,discount:0,total:10}};
+  const old=cartFromExperience(legacy).items[0]!;assert.equal("productType"in old,false);assert.equal("fulfillmentStrategy"in old,false);
+  for(const [productType,fulfillmentStrategy]of [["physical","carrier"],["food","pickup"],["digital","digital"],["service","service"]]as const){
+    const typed={...legacy,items:[{...legacy.items[0]!,productType,fulfillmentStrategy}]};
+    const line=cartFromExperience(typed).items[0]!;assert.equal(line.productType,productType);assert.equal(line.fulfillmentStrategy,fulfillmentStrategy);
+  }
+});
+
+test("widget starts and updates the signed checkout session without reading or mutating public carts", async () => {
+  const original = globalThis.fetch;
+  const requests: Array<{ url: string; body: any; headers: any }> = [];
+  const experience = { items: [{ sku: "real-sku", variant: "with-cheese", name: "Sanduíche", quantity: 2, unit_price: 22.5 }], totals: { subtotal: 45, discount: 5, service_fee: 1.37, total_to_pay: 41.37, total: 40 } };
+  globalThis.fetch = async (url, init) => {
+    const request = { url: String(url), body: JSON.parse(init!.body as string), headers: init!.headers };
+    requests.push(request);
+    assert.equal(new Headers(request.headers).get("Authorization"), "Bearer signed-token");
+    if (request.url.endsWith("/embed/start")) return Response.json({ session_id: "bound-session", experience });
+    if (request.url.endsWith("/embed/cart")) return Response.json({ session_id: "bound-session", experience: {
+      items: [{ ...experience.items[0], quantity: 1 }], totals: { subtotal: 22.5, discount: 0, service_fee: 1.37, total_to_pay: 23.87, total: 22.5 },
+    } });
+    if (request.url.endsWith("/embed/payment/intents")) return Response.json({ id: "intent", method: "pix", status: "pending", amountCents: 2250,
+      buyerFacing: { qrCodeCopyPaste: "fixture-pix" } });
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", cartRef: "untrusted-browser-ref", apiBaseUrl: "https://api.example" });
+    const started = await api.start();
+    assert.equal(requests[0]!.body.cart_ref, undefined);
+    assert.deepEqual(await api.fetchCart(), cartFromExperience(started.experience));
+    assert.equal(requests.length, 1);
+    assert.equal((await api.fetchCart()).items[0]!.sku, "real-sku");
+    assert.equal((await api.fetchCart()).total, 45);
+    assert.equal((await api.fetchCart()).discount, 5);
+    assert.equal((await api.fetchCart()).serviceFee, 1.37);
+    assert.equal((await api.fetchCart()).totalToPay, 41.37);
+    await api.createPaymentIntent("pix");
+    const firstPaymentKey = requests.at(-1)!.body.idempotency_key;
+    await api.updateCartItemQty("real-sku", 1, "with-cheese");
+    assert.deepEqual(requests.at(-1)!.body, { session_id: "bound-session", items: [{ sku: "real-sku", quantity: 1, variant: "with-cheese" }] });
+    assert.equal((await api.fetchCart()).total, 22.5);
+    assert.equal((await api.fetchCart()).serviceFee, 1.37);
+    assert.equal((await api.fetchCart()).totalToPay, 23.87);
+    await api.createPaymentIntent("pix");
+    assert.notEqual(requests.at(-1)!.body.idempotency_key, firstPaymentKey);
+    const retryKey = requests.at(-1)!.body.idempotency_key;
+    await api.createPaymentIntent("pix");
+    assert.equal(requests.at(-1)!.body.idempotency_key, retryKey);
+  } finally { globalThis.fetch = original; }
+});
+
+test("display reports verify exact text, deduplicate in flight, and send only authenticated publication references", async () => {
+  const original = globalThis.fetch;
+  const calls: { path: string; init?: RequestInit }[] = [];
+  let fail = true;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ path: String(url), init });
+    if (String(url).endsWith("/embed/start")) return Response.json({ session_id: "session", conversation_id: "conversation" });
+    if (String(url).endsWith("/embed/chat/display")) {
+      if (fail) { fail = false; return Response.json({}, { status: 503 }); }
+      return Response.json({ status: "recorded" });
+    }
+    throw new Error("unexpected endpoint");
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "store", apiBaseUrl: "https://api.example" });
+    await api.start();
+    const text = "Posso explicar a etapa atual.";
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    const text_hash = Array.from(new Uint8Array(bytes), v => v.toString(16).padStart(2, "0")).join("");
+    const ref = { turn_id: "publication", text_hash };
+    await api.reportChatDisplay(ref, "Modified text");
+    await api.reportChatDisplay({ turn_id: "bad", text_hash: "invalid" }, text);
+    assert.equal(calls.length, 1);
+    await assert.rejects(api.reportChatDisplay(ref, text));
+    await Promise.all(Array.from({ length: 6 }, () => api.reportChatDisplay(ref, text)));
+    await api.reportChatDisplay(ref, text);
+    assert.equal(calls.length, 3);
+    const request = calls[2];
+    assert.equal(request.init!.method, "POST");
+    assert.equal((request.init!.headers as Record<string, string>).Authorization, "Bearer signed-token");
+    assert.deepEqual(JSON.parse(request.init!.body as string), { session_id: "session", conversation_id: "conversation",
+      display_ref: ref, definition: "widget-visible-text-v1" });
+    assert.equal(api.requiresChatRecovery, false);
+  } finally { globalThis.fetch = original; }
+});
+
+test("missing API cart snapshot is an error instead of a fabricated empty checkout", () => {
+  assert.throws(() => cartFromExperience(undefined), /checkout_cart_snapshot_missing/);
+});
+
+test("widget rejects a Pix response without a usable payload and never retries automatically", async () => {
+  const original = globalThis.fetch;
+  let paymentCalls = 0;
+  globalThis.fetch = async url => {
+    if (String(url).endsWith("/embed/start")) return Response.json({ session_id: "pix-session",
+      experience: { items: [], totals: { subtotal: 10, total: 10 } } });
+    paymentCalls++;
+    return Response.json({ id: "intent", method: "pix", status: "requires_action", amountCents: 1000,
+      buyerFacing: { qrCodeCopyPaste: "  " } });
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", apiBaseUrl: "https://api.example" });
+    await api.start();
+    await assert.rejects(() => api.createPaymentIntent("pix"), /pix_payload_unavailable/);
+    assert.equal(paymentCalls, 1);
+  } finally { globalThis.fetch = original; }
+});
+
+test("widget preserves every quoted crypto transfer in payment intent", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/embed/start")) {
+      return Response.json({
+        session_id: "crypto-session",
+        experience: {
+          items: [{ sku: "sku", name: "Produto", quantity: 1, unit_price: 10 }],
+          totals: { subtotal: 10, total: 10, total_to_pay: 10 },
+        },
+      });
+    }
+    if (String(url).endsWith("/embed/payment/intents")) {
+      return Response.json({
+        id: "crypto-intent",
+        method: "crypto",
+        status: "requires_action",
+        amountCents: 1000,
+        buyerFacing: {
+          chain: "polygon",
+          transfers: [
+            { kind: "merchant", destinationAddress: "0x1111111111111111111111111111111111111111", amountAtomic: "990000", amountDisplay: "0.990000 USDC" },
+            { kind: "platform_fee", destinationAddress: "0x2222222222222222222222222222222222222222", amountAtomic: "10000", amountDisplay: "0.010000 USDC" },
+          ],
+        },
+      });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", apiBaseUrl: "https://api.example" });
+    await api.start();
+    const intent = await api.createPaymentIntent("crypto");
+    assert.deepEqual(intent.crypto_transfers, [
+      { kind: "merchant", destination_address: "0x1111111111111111111111111111111111111111", amount_atomic: "990000", amount_display: "0.990000 USDC" },
+      { kind: "platform_fee", destination_address: "0x2222222222222222222222222222222222222222", amount_atomic: "10000", amount_display: "0.010000 USDC" },
+    ]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+
+test("widget preserves the public suspension code when checkout cannot start", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ code: "merchant_sales_suspended" }, { status: 403 });
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", apiBaseUrl: "https://api.example" });
+    await assert.rejects(
+      () => api.start(),
+      (error: unknown) => error instanceof CheckoutApiError
+        && error.operation === "embed_start"
+        && error.status === 403
+        && error.code === "merchant_sales_suspended",
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("widget reads Nest payment failure codes from the default message payload", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/embed/start")) {
+      return Response.json({
+        session_id: "payment-failure-session",
+        experience: {
+          items: [{ sku: "sku", name: "Produto", quantity: 1, unit_price: 10 }],
+          totals: { subtotal: 10, discount: 0, total: 10, total_to_pay: 10 },
+        },
+      });
+    }
+    if (String(url).endsWith("/embed/payment/intents")) {
+      return Response.json({ message: "payment_provider_not_configured" }, { status: 400 });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", apiBaseUrl: "https://api.example" });
+    await api.start();
+    await assert.rejects(
+      () => api.createPaymentIntent("pix"),
+      (error: unknown) => error instanceof CheckoutApiError
+        && error.operation === "embed_payment"
+        && error.status === 400
+        && error.code === "payment_provider_not_configured",
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("widget renews only an expired checkout capability and retries the same payment idempotently", async () => {
+  const original = globalThis.fetch;
+  const requests: Array<{ url: string; headers: Headers; body?: Record<string, unknown> }> = [];
+  let paymentCalls = 0;
+  globalThis.fetch = async (url, init) => {
+    const headers = new Headers(init?.headers);
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : undefined;
+    requests.push({ url: String(url), headers, body });
+    if (String(url).endsWith("/embed/start")) return Response.json({ session_id: "bound-session", experience: { items: [], totals: { subtotal: 10, total: 10 } } });
+    if (String(url).endsWith("/embed/payment/intents")) {
+      paymentCalls += 1;
+      if (paymentCalls === 1) return Response.json({ code: "embed_session_token_expired" }, { status: 401 });
+      return Response.json({ id: "intent", method: "card", status: "requires_action", amountCents: 1000, buyerFacing: { invoiceUrl: "https://pay.example/intent" } });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    let continuationInput = "";
+    const api = new CheckoutSession({ embedToken: "expired-token", merchantId: "merchant", apiBaseUrl: "https://api.example",
+      onRefreshEmbedToken: async (previous) => { continuationInput = previous; return "renewed-token"; } });
+    await api.start();
+    await api.createPaymentIntent("credito");
+    const payments = requests.filter((request) => request.url.endsWith("/embed/payment/intents"));
+    assert.equal(continuationInput, "expired-token");
+    assert.equal(payments.length, 2);
+    assert.equal(payments[0]!.headers.get("Authorization"), "Bearer expired-token");
+    assert.equal(payments[1]!.headers.get("Authorization"), "Bearer renewed-token");
+    assert.equal(payments[0]!.body?.idempotency_key, payments[1]!.body?.idempotency_key);
+  } finally { globalThis.fetch = original; }
+});
+
+test("checkout edit includes buyer proof and renews an expired capability before retrying", async () => {
+  const original = globalThis.fetch;
+  const edits: Array<{ headers: Headers; body: Record<string, unknown> }> = [];
+  globalThis.fetch = async (url, init) => {
+    if (String(url).endsWith("/embed/start")) return Response.json({ session_id: "bound-session", experience: { items: [], totals: { subtotal: 10, total: 10 } } });
+    if (String(url).endsWith("/embed/checkout/edit")) {
+      edits.push({ headers: new Headers(init?.headers), body: JSON.parse(init?.body as string) });
+      if (edits.length === 1) return Response.json({ code: "embed_session_token_expired" }, { status: 401 });
+      return Response.json({ experience: { items: [], totals: { subtotal: 10, total: 10 } }, revision: 1 });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "expired-token", merchantId: "merchant", apiBaseUrl: "https://api.example", buyerAccessToken: "buyer-proof",
+      onRefreshEmbedToken: async () => "renewed-token" });
+    await api.start();
+    await api.reopenCheckout("address");
+    assert.equal(edits.length, 2);
+    assert.equal(edits[0]!.body.buyer_access_token, "buyer-proof");
+    assert.equal(edits[1]!.headers.get("Authorization"), "Bearer renewed-token");
+  } finally { globalThis.fetch = original; }
+});
+
+test("widget preserves chat retry time from the conversation rate limit", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/embed/start")) {
+      return Response.json({
+        session_id: "rate-limited-session",
+        experience: {
+          items: [],
+          totals: { subtotal: 0, discount: 0, service_fee: 0, total_to_pay: 0, total: 0 },
+        },
+      });
+    }
+    if (String(url).endsWith("/embed/chat")) {
+      return Response.json({ code: "ai_interaction_rate_limited", retry_after_seconds: 23 }, { status: 429 });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", apiBaseUrl: "https://api.example" });
+    await api.start();
+    await assert.rejects(
+      () => api.chat("olá"),
+      (error: unknown) => error instanceof CheckoutApiError
+        && error.operation === "embed_chat"
+        && error.status === 429
+        && error.code === "ai_interaction_rate_limited"
+        && error.retryAfterSeconds === 23,
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});

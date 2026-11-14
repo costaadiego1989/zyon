@@ -1,0 +1,124 @@
+"use client";
+import { useEffect, useRef } from "react";
+import { CheckoutProductDetailContext } from "./lib/checkout-product-detail-context";
+import type { OpenCheckoutProductDetail } from "./lib/checkout-product-detail";
+import { useCheckoutStore } from "./store/checkout-store";
+import { CheckoutLayout } from "./layouts/CheckoutLayout";
+import { MascotOverlay } from "./components/MascotOverlay";
+import { setupAbandonmentTracking, trackEvent } from "./lib/tracking";
+import { onOrderCompleted } from "./lib/lifecycle";
+import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "./lib/triggers";
+import type { DiscountStage } from "./components/DiscountBanner";
+import { CheckoutUnavailable } from "./components/CheckoutUnavailable";
+
+export interface InlineCheckoutProps {
+  embedToken: string;
+  merchantId: string;
+  apiBaseUrl: string;
+  embedApiBaseUrl?: string;
+  cartRef?: string;
+  globalUserId?: string;
+  buyerAccessToken?: string;
+  onRefreshEmbedToken?: (previousEmbedToken: string) => Promise<string | null>;
+  oneBuyClickPreferences?: {
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  };
+  initialChannel?: "chat" | "voice";
+  theme?: "dark" | "light";
+  onClose?: () => void;
+  onOpenProductDetail?: OpenCheckoutProductDetail;
+}
+
+export function InlineCheckout(props: InlineCheckoutProps) {
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const status = useCheckoutStore((s) => s.status);
+  const error = useCheckoutStore((s) => s.error);
+  const init = useCheckoutStore((s) => s.init);
+  const brand = useCheckoutStore((s) => s.brand);
+  const sessionId = useCheckoutStore((s) => s.sessionId);
+
+  useEffect(() => {
+    if (!props.embedToken || !props.merchantId) return;
+    void init({
+      embedToken: props.embedToken,
+      merchantId: props.merchantId,
+      cartRef: props.cartRef,
+      apiBaseUrl: props.apiBaseUrl,
+      embedApiBaseUrl: props.embedApiBaseUrl,
+      globalUserId: props.globalUserId,
+      buyerAccessToken: props.buyerAccessToken,
+      onRefreshEmbedToken: props.onRefreshEmbedToken,
+      oneBuyClickPreferences: props.oneBuyClickPreferences,
+      initialChannel: props.initialChannel,
+    });
+  }, [init, props.embedToken, props.merchantId, props.apiBaseUrl, props.embedApiBaseUrl, props.cartRef, props.globalUserId, props.buyerAccessToken, props.onRefreshEmbedToken, props.oneBuyClickPreferences, props.initialChannel]);
+
+  useEffect(() => {
+    if (props.theme === "light") {
+      document.body.classList.add("theme-light");
+      document.body.classList.remove("theme-dark");
+    } else {
+      document.body.classList.add("theme-dark");
+      document.body.classList.remove("theme-light");
+    }
+    return () => {
+      document.body.classList.remove("theme-dark", "theme-light");
+    };
+  }, [props.theme]);
+
+  useEffect(() => {
+    const cleanup = setupAbandonmentTracking();
+    return cleanup;
+  }, []);
+
+  const triggerConfig = useCheckoutStore((s) => s.triggerConfig);
+  const triggerMessages = useCheckoutStore((s) => s.triggerMessages);
+  useEffect(() => {
+    if (!triggerConfig) return;
+
+    const stageMap: Partial<Record<TriggerName, DiscountStage>> = {
+      idle_30_seconds: "initial_coupon",
+      exit_intent_detected: "exit_intent",
+    };
+
+    const onTrigger = (trigger: TriggerName) => {
+      const stage = stageMap[trigger];
+      if (!stage) return;
+      const msg = triggerMessages?.[trigger];
+      useCheckoutStore.getState().setActiveDiscount(stage, 0, msg?.couponCode, msg?.message);
+    };
+
+    const cleanupIdle = setupIdleTrigger(triggerConfig, onTrigger);
+    const cleanupExit = setupExitIntentTrigger(triggerConfig, onTrigger);
+    return () => { cleanupIdle(); cleanupExit(); };
+  }, [triggerConfig, triggerMessages, status]);
+
+  useEffect(() => {
+    if (status === "completed" && sessionId) {
+      void trackEvent("order_completed");
+      onOrderCompleted(sessionId);
+    }
+  }, [status, sessionId]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (brand.accentColor) root.style.setProperty("--aacp-accent", brand.accentColor);
+    if (brand.fontFamily) root.style.setProperty("--aacp-font", brand.fontFamily);
+  }, [brand]);
+
+  if (status === "loading") {
+    return <MascotOverlay message="Preparando seu checkout..." sub="Só um instante" />;
+  }
+
+  if (status === "error") {
+    return <CheckoutUnavailable error={error} onClose={props.onClose} />;
+  }
+
+  const open: OpenCheckoutProductDetail | undefined = props.onOpenProductDetail ? request => {
+    if (!mounted.current || request.merchantId !== props.merchantId || !request.isCurrent()) return;
+    props.onOpenProductDetail?.({ ...request, isCurrent: () => mounted.current && request.merchantId === props.merchantId && request.isCurrent() });
+  } : undefined;
+  return <CheckoutProductDetailContext.Provider value={open}><CheckoutLayout forcedTheme={props.theme} onClose={props.onClose} /></CheckoutProductDetailContext.Provider>;
+}

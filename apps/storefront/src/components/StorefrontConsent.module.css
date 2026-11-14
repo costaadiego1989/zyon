@@ -1,0 +1,76 @@
+.footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 16px;
+  flex: none;
+  padding: 0 12px env(safe-area-inset-bottom, 0px);
+  background: var(--aacp-bg);
+  border-top: 1px solid var(--aacp-line);
+}
+.footer a, .footer button, .links a {
+  color: var(--aacp-fg);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.footer a, .footer button { min-height: 44px; display: inline-flex; align-items: center; }
+.footer button { background: transparent; border: 0; padding: 0; cursor: pointer; }
+.dialog {
+  --consent-border: color-mix(in srgb, var(--aacp-fg) 22%, transparent);
+  width: 100%;
+  max-width: 100%;
+  max-height: 85dvh;
+  margin: auto 0 0;
+  padding: 0;
+  border: 1px solid var(--consent-border);
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  background: var(--aacp-panel-bg, var(--aacp-bg));
+  color: var(--aacp-fg);
+  font-family: var(--aacp-font, system-ui, sans-serif);
+  overscroll-behavior: contain;
+  box-shadow: 0 -8px 40px rgb(0 0 0 / 24%);
+}
+.dialog[open] { display: flex; flex-direction: column; animation: consent-sheet-up .28s cubic-bezier(.22, 1, .36, 1) both; }
+.dialog::backdrop { background: rgb(0 0 0 / 45%); animation: consent-scrim-in .2s ease both; }
+.handle { display: flex; justify-content: center; padding: 10px 0 4px; flex: none; }
+.handle span { width: 38px; height: 4px; border-radius: 4px; background: var(--aacp-fg); opacity: .3; }
+.heading, .body, .actions { width: min(720px, 100%); box-sizing: border-box; margin-inline: auto; }
+.heading { display: flex; align-items: center; gap: 8px; padding: 12px 20px 0; flex: none; }
+.heading h2 { margin: 0; font-size: 20px; line-height: 1.3; text-wrap: balance; }
+.body { padding: 4px 20px 16px; overflow-y: auto; min-height: 0; font-size: 14px; line-height: 1.5; }
+.body p { margin: 8px 0 12px; text-wrap: pretty; }
+.essential { padding: 12px 0; border-block: 1px solid var(--consent-border); }
+.essential h3 { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 14px; }
+.essential h3 span { font-size: 12px; font-weight: 400; }
+.essential p { margin-bottom: 0; font-size: 13px; }
+.option { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 0; cursor: pointer; }
+.option input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--aacp-accent); }
+.option strong { display: block; font-size: 14px; }
+.option small { display: block; margin-top: 4px; font-size: 13px; line-height: 1.4; }
+.channels { margin: 12px 0 0; padding: 0; border: 0; }
+.channels legend { font-size: 14px; font-weight: 700; }
+.channels p, .storage { font-size: 13px; }
+.channelOptions { display: flex; gap: 24px; flex-wrap: wrap; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.links a { min-height: 32px; display: inline-flex; align-items: center; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 20px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid var(--consent-border); flex: none; }
+.actions button { min-height: 44px; padding: 10px 12px; border: 1px solid var(--consent-border); border-radius: 10px; background: var(--aacp-card); color: var(--aacp-fg); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.actions button:hover { background: var(--aacp-surface-2, var(--aacp-card)); }
+.actions button:disabled { opacity: .6; cursor: wait; }
+.dialog button:focus-visible, .dialog input:focus-visible, .dialog a:focus-visible, .footer :focus-visible { outline: 2px solid var(--aacp-fg); outline-offset: 3px; }
+.notice { background: var(--aacp-bg); color: var(--aacp-fg); font-size: 12px; line-height: 1.4; padding: 8px 12px; flex: none; }
+.notice button { color: inherit; background: transparent; border: 0; text-decoration: underline; min-height: 44px; cursor: pointer; }
+@media (max-width: 640px) {
+  .dialog { max-height: calc(100dvh - 48px); }
+  .heading { padding: 12px 16px 0; }
+  .heading h2 { font-size: 18px; }
+  .body { padding-inline: 16px; }
+  .actions { gap: 8px; padding-inline: 16px; }
+}
+@keyframes consent-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes consent-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dialog[open], .dialog::backdrop { animation: none; } }
