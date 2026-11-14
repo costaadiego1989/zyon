@@ -24,12 +24,16 @@ selected = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.b
             'scripts/lib/dashboard-auth-build-policy.cjs', 'scripts/vercel-deploy-guard.mjs']
 archive = git('archive', '--format=zip', revision, '--', *selected)
 sources = {}
+excluded_nonruntime_docs = []
 with zipfile.ZipFile(io.BytesIO(archive)) as z:
     for info in z.infolist():
         if info.is_dir():
             continue
         name = PurePosixPath(info.filename)
         assert not name.is_absolute() and '..' not in name.parts, 'unsafe_source_archive_path'
+        if '.specs' in name.parts:
+            excluded_nonruntime_docs.append(info.filename)
+            continue
         assert not any(part in {'.git', '.audit', '.specs', '.vercel', '.next', 'node_modules', 'dist', 'dist-app'} for part in name.parts), 'generated_or_private_source_refused'
         assert not any(part.startswith('.env') and part != '.env.example' for part in name.parts), 'private_env_source_refused'
         assert '.claude' not in info.filename.lower() and not info.filename.endswith('.private.json'), 'private_artifact_source_refused'
@@ -38,7 +42,7 @@ with zipfile.ZipFile(io.BytesIO(archive)) as z:
     assert app + '/vercel.json' in sources and len(sources) > 1000
     target.mkdir()
     for info in z.infolist():
-        if info.is_dir():
+        if info.is_dir() or info.filename not in sources:
             continue
         output = target / info.filename
         assert output.resolve().is_relative_to(target.resolve())
@@ -52,6 +56,7 @@ record = {'component': component, 'revision': revision, 'target': str(target), '
           'appRoot': app, 'projectId': project_id, 'projectName': project_name,
           'teamId': 'team_580RxQPCo0VLxu9vdZdJgb1S', 'teamSlug': 'diegos-projects-b6fd2a25',
           'sourceFiles': sources, 'sourceArchiveSha256': hashlib.sha256(archive).hexdigest(),
+          'excludedNonRuntimeDocuments': excluded_nonruntime_docs,
           'operatorLinkMetadataOnly': '.vercel/project.json', 'deployed': False}
 evidence = root / '.specs/features/cashback-release/evidence'
 manifest = evidence / ('frontend-export-' + component + '-' + revision[:12] + '.json')
