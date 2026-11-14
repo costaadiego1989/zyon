@@ -1,0 +1,26 @@
+{
+  "task": "T10",
+  "baseHead": "15e6957d019e8d7c9001da7bc11b7c54fc269f24",
+  "environment": "local-owned",
+  "unit": { "passed": 25, "failed": 0, "skipped": 0, "files": ["src/auth/SignupWizard.spec.tsx", "src/api/http/session-fetch.spec.ts", "src/api-client.spec.ts"] },
+  "browser": { "passed": 1, "failed": 0, "skipped": 0, "case": "T10", "gestureDurationSeconds": 30.2, "totalMinutes": 1.2 },
+  "browserCommand": "pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep T10$",
+  "verifiedBehavior": ["required exclusive accessible selection", "keyboard selection", "registration and completion payload", "error and retry retain selection", "reload retains selection", "both commercial modes persisted in real API and SQL", "product mode has no service administration or booking", "pending OAuth completion selects services"],
+  "screenshots": ["captures/task10-signup-products.running.png", "captures/task10-signup-services.running.png"],
+  "apiArtifact": {
+    "kind": "independent copy of verified T9 checked build outputs",
+    "newBuildClaimed": false,
+    "checked": true,
+    "inputSha256": "291ec93caff7f47ad890826d94c68ed87a0f3d68761cbabae1582b9da4dc690d",
+    "artifactSha256": "6547c2832ab9b1b637781497fdaba0ca1a2ffad1eb909956bad93a4e0e233385",
+    "compilerSourceCount": 2486,
+    "prismaClient": "independently generated locally"
+  },
+  "priorGateFailures": ["synthetic OAuth seed attempted nonexistent merchant_users.name", "synthetic pending-state fixture replaced canonical owner_name"],
+  "assertionsWeakenedDeletedOrSkipped": false,
+  "providerCalls": 0,
+  "realOAuthProviderExchange": false,
+  "metaConnected": false,
+  "pspConnected": false,
+  "pushOrDeployment": false
+}

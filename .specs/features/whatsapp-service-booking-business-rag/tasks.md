@@ -342,13 +342,15 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Vitest SignupWizard.business-mode.spec.tsx e browser signup: render, seleção, payload, erro e reload.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Vitest SignupWizard.business-mode.spec.tsx e browser signup: render, seleção, payload, erro e reload.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Vitest SignupWizard.business-mode.spec.tsx e browser signup: render, seleção, payload, erro e reload.
 **Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/auth/SignupWizard.spec.tsx -t "^T10$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T10$"` Teste raiz T10 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t10 add the exclusive signup choice`
+
+**Evidence**: task-10-evidence.json. Vitest25/25 (T10:1/1 and24 existing transport cases), browser1/1, zero failures/skips in the final gate. Local screenshots in captures/task10-signup-products.running.png and task10-signup-services.running.png. Real owned AppModule/SQL; pending OAuth is synthetic and no provider exchange is claimed.
 
 ### T11: Expose appointment policy configuration
 

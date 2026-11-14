@@ -16,7 +16,7 @@ describe("session authentication without cookies", () => {
       }
       return bearer === "Bearer test-session" ? Response.json({}) : Response.json({ code: "missing_bearer_token" }, { status: 401 });
     }) as typeof fetch });
-    await api.register({ merchant_name: "Test", email: "test@example.test", password: "Test123456" });
+    await api.register({ merchant_name: "Test", email: "test@example.test", password: "Test123456", business_mode: "products" });
     await api.updateMe({ name: "Test", phone: "11999999999" });
     await api.putStoreSettings({ registration_pending: true });
     expect(calls).toHaveLength(3);

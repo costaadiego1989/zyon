@@ -8,6 +8,7 @@ import {
   resolveDashboardApiBaseUrl
 } from "./api-client.js";
 import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
+import type { SignupWizardProps } from "./auth/SignupWizard.js";
 import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
 import { authModeFromUrl, authUrlForMode } from "./auth/auth-navigation.js";
@@ -185,16 +186,7 @@ function App({ api }: AppProps) {
     setBusy(true);
     setAuthHint(null);
     try {
-      if (authMode === "signup") {
-        await api.register({
-          merchant_name: merchantName.trim(),
-          email: email.trim(),
-          password,
-          turnstile_token: captchaToken ?? undefined,
-        });
-      } else {
-        await api.login(email.trim(), password, captchaToken ?? undefined);
-      }
+      await api.login(email.trim(), password, captchaToken ?? undefined);
       setPassword("");
       setCaptchaToken(null);
       await refreshSession();
@@ -208,7 +200,7 @@ function App({ api }: AppProps) {
     }
   }
 
-  async function handleRegister(payload: { merchant_name: string; email: string; password: string; turnstile_token?: string }) {
+  async function handleRegister(payload: Parameters<SignupWizardProps["onRegister"]>[0]) {
     await api.register(payload);
   }
 
@@ -223,7 +215,7 @@ function App({ api }: AppProps) {
     await api.putMerchantTheme(fullTheme);
   }
 
-  async function handleSaveCompanyData(data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown>; oauth_registration_pending?: boolean; owner_name?: string }) {
+  async function handleSaveCompanyData(data: Parameters<NonNullable<SignupWizardProps["onSaveCompanyData"]>>[0]) {
     await api.putStoreSettings({ ...data, registration_pending: true, plan_selection_pending: true });
     const storeName = data.company.razaoSocial;
     if (typeof storeName === "string" && storeName.trim()) await api.putStoreName(storeName.trim());

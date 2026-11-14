@@ -6,13 +6,20 @@ import { maskPhone, maskCpfCnpj, validateCpfCnpj } from "../utils/masks.js";
 import { STORE_CATEGORIES, ROLES, VOLUMES } from "../lib/signup-options.js";
 import { SegmentSelect } from "../components/SegmentSelect.js";
 import { isAuthCaptchaReady, requiresAuthCaptcha } from "./auth-config.js";
+import type { DashboardRegisterPayload } from "../api/types.js";
+
+export type SignupBusinessMode = "products" | "services";
+const BUSINESS_MODE_DRAFT = "zyon.signup.business-mode";
+export function readSignupBusinessMode(value: string | null): SignupBusinessMode | "" {
+  return value === "products" || value === "services" ? value : "";
+}
 
 export interface SignupWizardProps {
   busy: boolean;
   hint: string | null;
-  onRegister: (payload: { merchant_name: string; email: string; password: string; turnstile_token?: string }) => Promise<void>;
+  onRegister: (payload: DashboardRegisterPayload) => Promise<void>;
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
-  onSaveCompanyData?: (data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown>; oauth_registration_pending?: boolean; owner_name?: string }) => Promise<void>;
+  onSaveCompanyData?: (data: { business_mode: SignupBusinessMode; slug?: string; company: Record<string, unknown>; social?: Record<string, unknown>; oauth_registration_pending?: boolean; owner_name?: string }) => Promise<void>;
   onSaveOwner?: (data: { name: string; phone: string }) => Promise<void>;
   onComplete: () => Promise<void>;
   onSwitchToLogin: () => void;
@@ -35,6 +42,7 @@ interface BusinessDraft {
   segment: string;
   volume: string;
   taxId: string;
+  businessMode: SignupBusinessMode | "";
 }
 
 interface AccountDraft {
@@ -60,12 +68,21 @@ export function SignupWizard(props: SignupWizardProps) {
   const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [person, setPerson] = useState<PersonDraft>({ name: props.oauthProfile?.name ?? "", role: "" });
-  const [business, setBusiness] = useState<BusinessDraft>({ name: "", segment: "", volume: "", taxId: "" });
+  const [business, setBusiness] = useState<BusinessDraft>(() => {
+    let businessMode: SignupBusinessMode | "" = "";
+    try { businessMode = readSignupBusinessMode(window.sessionStorage.getItem(BUSINESS_MODE_DRAFT)); } catch { /* Storage is optional; explicit selection still works. */ }
+    return { name: "", segment: "", volume: "", taxId: "", businessMode };
+  });
   const [account, setAccount] = useState<AccountDraft>({ email: props.oauthProfile?.email ?? "", password: "", confirmPassword: "", phone: "" });
 
   const busy = props.busy || localBusy;
   const hint = error ?? props.hint;
   useEffect(() => { if (step > 1) titleRef.current?.focus({ preventScroll: true }); }, [step]);
+  useEffect(() => {
+    try {
+      if (business.businessMode) window.sessionStorage.setItem(BUSINESS_MODE_DRAFT, business.businessMode);
+    } catch { /* A blocked browser store must not prevent signup. */ }
+  }, [business.businessMode]);
 
   function goNext() {
     setError(null);
@@ -76,6 +93,7 @@ export function SignupWizard(props: SignupWizardProps) {
       return;
     }
     if (step === 2) {
+      if (!business.businessMode) { setError("Escolha se sua empresa vende produtos ou serviços."); return; }
       if (!business.name.trim()) { setError("Informe o nome da loja."); return; }
       if (!business.taxId.trim()) { setError("Informe o CPF ou CNPJ."); return; }
       if (!validateCpfCnpj(business.taxId)) { setError("CPF ou CNPJ inválido. Verifique os dígitos."); return; }
@@ -93,6 +111,7 @@ export function SignupWizard(props: SignupWizardProps) {
   async function handleSubmit() {
     if (busy) return;
     setError(null);
+    if (!business.businessMode) { setError("Escolha se sua empresa vende produtos ou serviços."); setStep(2); return; }
     if (!account.email.trim() || (!isOAuth && !account.password)) { setError("Email e senha são obrigatórios."); return; }
     if (!isOAuth && account.password.length < 8) { setError("Mínimo 8 caracteres, com letra e número."); return; }
     if (!isOAuth && account.password !== account.confirmPassword) { setError("As senhas não coincidem."); return; }
@@ -109,6 +128,7 @@ export function SignupWizard(props: SignupWizardProps) {
           merchant_name: business.name.trim(),
           email: account.email.trim(),
           password: account.password,
+          business_mode: business.businessMode,
           turnstile_token: props.captchaToken ?? undefined,
         });
         accountCreated.current = true;
@@ -122,6 +142,7 @@ export function SignupWizard(props: SignupWizardProps) {
       });
       if (props.onSaveCompanyData) {
         await props.onSaveCompanyData({
+          business_mode: business.businessMode,
           oauth_registration_pending: isOAuth,
           owner_name: person.name.trim(),
           company: {
@@ -133,6 +154,7 @@ export function SignupWizard(props: SignupWizardProps) {
         });
       }
       await props.onComplete();
+      try { window.sessionStorage.removeItem(BUSINESS_MODE_DRAFT); } catch { /* Storage is optional. */ }
     } catch (err) {
       setError(friendlyAuthError(err));
     } finally {
@@ -271,6 +293,7 @@ function PersonFields({ draft, onChange }: { draft: PersonDraft; onChange: (d: P
 function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (d: BusinessDraft) => void }) {
   return (
     <>
+      <BusinessModeChoice value={draft.businessMode} onChange={businessMode => onChange({ ...draft, businessMode })} />
       <div className="auth-field">
         <label className="auth-field__label" htmlFor="signup-store">Nome da loja</label>
         <input id="signup-store" autoComplete="organization" value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder="Loja Aurora" className="auth-field__input" />
@@ -305,6 +328,19 @@ function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (
       </div>
     </>
   );
+}
+
+export function BusinessModeChoice({ value, onChange }: { value: SignupBusinessMode | ""; onChange: (mode: SignupBusinessMode) => void }) {
+  return <fieldset className="auth-business-mode" aria-describedby="signup-business-mode-hint">
+    <legend className="auth-field__label">O que sua empresa vende?</legend>
+    <p id="signup-business-mode-hint">Escolha uma modalidade. O segmento e o plano são definidos separadamente.</p>
+    <div className="auth-business-mode__options">
+      {(["products", "services"] as const).map(mode => <label key={mode}>
+        <input type="radio" name="signup-business-mode" value={mode} checked={value === mode} onChange={() => onChange(mode)} required />
+        <span><strong>{mode === "products" ? "Produtos" : "Serviços"}</strong><small>{mode === "products" ? "Catálogo, carrinho e vendas" : "Profissionais e agendamentos"}</small></span>
+      </label>)}
+    </div>
+  </fieldset>;
 }
 
 function AccountFields({ draft, onChange, oauth = false }: { draft: AccountDraft; onChange: (d: AccountDraft) => void; oauth?: boolean }) {

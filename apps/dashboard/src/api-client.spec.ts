@@ -162,6 +162,7 @@ describe("createDashboardApi", () => {
     });
 
     await api.register({
+      business_mode: "products",
       merchant_name: "Northstar",
       email: "owner@example.com",
       password: "secret"
@@ -174,6 +175,7 @@ describe("createDashboardApi", () => {
         credentials: "include",
         method: "POST",
         body: JSON.stringify({
+          business_mode: "products",
           merchant_name: "Northstar",
           email: "owner@example.com",
           password: "secret"

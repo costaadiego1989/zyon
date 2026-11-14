@@ -216,7 +216,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 
 | Requirement ID | Story | Tasks | Status |
 | --- | --- | --- | --- |
-| ONB-01 | Capability selection | T4, T8, T9, T10 | Pending |
+| ONB-01 | Capability selection | T4, T8, T9, T10 | Implemented locally |
 | ONB-02 | Conditional navigation and API | T7, T9, T10, T17, T19, T94 | Pending |
 | ONB-03 | Merchant appointment policy | T4, T7, T11, T27, T81 | Pending |
 | ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | Pending |

@@ -28,6 +28,20 @@ export default async function setup(){
     process.env.SERVICE_LOCAL_RUN_ID=runtime.db.runId;
     const plugin={name:'service-local-owned-fixtures',configureServer(vite){
       vite.middlewares.use((request,response,next)=>{
+        if(request.url==='/__service/signup-oauth'&&request.method==='POST'){
+          // Owned synthetic pending-OAuth state. No OAuth provider is contacted.
+          void(async()=>{
+            const email='t10-oauth@example.test',password='SyntheticPassword123!';
+            const registered=await fetch(runtime.apiOrigin+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({merchant_name:'OAuth Sintético',email,password,business_mode:'products'})});
+            if(!registered.ok)throw Error('synthetic_signup_seed_failed');
+            const auth=await registered.json();
+            const owner=await fetch(runtime.apiOrigin+'/auth/me',{method:'PUT',headers:{'content-type':'application/json',authorization:'Bearer '+auth.access_token},body:JSON.stringify({name:'Pessoa Sintética OAuth',phone:'11999999999'})});
+            if(!owner.ok)throw Error('synthetic_signup_owner_seed_failed:'+owner.status);
+            const literal=value=>"'"+String(value).replaceAll("'","''")+"'";
+            await runtime.db.sql(`UPDATE merchants SET business_mode_selected_at=NULL,store_settings=coalesce(store_settings,'{}'::jsonb)||'{"registration_pending":true,"oauth_registration_pending":true}'::jsonb WHERE id=${literal(auth.merchant_id)};`);
+            response.setHeader('Content-Type','application/json');response.end(JSON.stringify({email,password,access_token:auth.access_token}));
+          })().catch(()=>{response.statusCode=500;response.end('synthetic_signup_seed_failed');});return;
+        }
         if(request.url==='/__service/manifest'){
           response.setHeader('Content-Type','application/json');response.end(JSON.stringify({origin,apiOrigin:runtime.apiOrigin,
             runId:runtime.db.runId,kind:'local-owned',metaConnected:false,pspConnected:false}));return;

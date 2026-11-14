@@ -98,3 +98,14 @@
 @media(max-width:850px) { .signup-experience__layout { grid-template-columns:1fr; } .signup-story { padding:24px 30px 28px; } .signup-story__copy { margin:22px 0 0; } .signup-story__copy h1 { margin:12px 0 0; font-size:32px; line-height:1.2; } .signup-story__copy h1 br { display:none; } .signup-story__copy h1 em { margin-right:.2em; } .signup-story__copy > p,.signup-story__product,.signup-story__offer,.signup-story__eyebrow { display:none; } .signup-story__brand > span { display:block; } .signup-workspace { padding:20px 30px; } .signup-workspace__form { max-width:540px; margin:28px auto 40px; } }
 @media(max-width:540px) { .signup-story { padding:20px; } .signup-story__copy h1 { font-size:28px; } .signup-story__brand img { width:81px; } .signup-story__brand > span { font-size:9px; } .signup-workspace { padding:12px 20px 20px; } .signup-workspace__nav { font-size:10px; } .signup-workspace__nav > span { gap:2px; } .signup-experience .auth-form__title { font-size:28px; } .signup-experience .auth-form__subtitle { font-size:12px; } .signup-experience .auth-progress__label { font-size:8px; } .signup-experience .auth-progress__label svg { width:11px; } .signup-experience .auth-business-row { grid-template-columns:1fr; } .signup-workspace__footer { font-size:9px; } }
 @media(prefers-reduced-motion:reduce) { .signup-experience *, .signup-experience *::before,.signup-experience *::after { animation:none!important; transition:none!important; } }
+.signup-experience .auth-business-mode { border:0; padding:0; margin:0; min-width:0; }
+.signup-experience .auth-business-mode legend { padding:0; }
+.signup-experience .auth-business-mode p { font-size:12px; line-height:1.5; color:#495953; margin:6px 0 10px; }
+.signup-experience .auth-business-mode__options { display:flex; flex-wrap:wrap; gap:10px; }
+.signup-experience .auth-business-mode__options label { display:flex; align-items:center; gap:10px; flex:1 1 180px; padding:12px; border:1px solid #becbc5; border-radius:8px; cursor:pointer; transition:background-color 150ms ease-out,border-color 150ms ease-out; }
+.signup-experience .auth-business-mode__options label:has(input:checked) { border-color:#0f766e; background:#eff9f6; }
+.signup-experience .auth-business-mode__options input { appearance:auto; width:18px; height:18px; min-height:0; margin:0; padding:0; accent-color:#0f766e; flex:none; }
+.signup-experience .auth-business-mode__options input:focus-visible { outline:2px solid #0f766e; outline-offset:4px; }
+.signup-experience .auth-business-mode__options strong { display:block; font-size:14px; color:var(--signup-ink); }
+.signup-experience .auth-business-mode__options small { display:block; font-size:12px; color:#495953; margin-top:3px; }
+@media(prefers-reduced-motion:reduce) { .signup-experience .auth-business-mode__options label { transition:none; } }

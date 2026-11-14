@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Github, Eye, EyeOff } from "lucide-react";
 import { AuthExperience } from "./SignupExperience.js";
-import { SignupWizard } from "./SignupWizard.js";
+import { SignupWizard, type SignupWizardProps } from "./SignupWizard.js";
 import { Turnstile } from "./Turnstile.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
@@ -24,9 +24,9 @@ export interface AuthScreenProps {
   merchantName: string;
   setMerchantName: (value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
-  onRegister: (payload: { merchant_name: string; email: string; password: string; turnstile_token?: string }) => Promise<void>;
+  onRegister: SignupWizardProps["onRegister"];
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
-  onSaveCompanyData?: (data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown>; oauth_registration_pending?: boolean; owner_name?: string }) => Promise<void>;
+  onSaveCompanyData?: SignupWizardProps["onSaveCompanyData"];
   onSaveOwner?: (data: { name: string; phone: string }) => Promise<void>;
   onComplete: () => Promise<void>;
   oauthProfile?: { name: string; email: string } | null;

@@ -24,6 +24,7 @@ export type DashboardLoginAuth = {
 };
 
 export type DashboardRegisterPayload = {
+  business_mode: "products" | "services";
   merchant_name: string;
   email: string;
   password: string;
