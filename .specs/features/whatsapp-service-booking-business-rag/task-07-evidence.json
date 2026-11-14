@@ -1,0 +1,11 @@
+{
+  "task": "T7",
+  "status": "complete",
+  "unit": {"executed": 14, "passed": 14, "failed": 0, "skipped": 0, "exitCode": 0},
+  "strictFocusedTypecheckExitCode": 0,
+  "coverage": ["exclusive business mode", "legacy product compatibility", "explicit service classification", "unconfigured and invalid policy", "four hold/payment combinations", "positive integral PostgreSQL-compatible hold minutes", "policy version", "disabled admissions preserve reconciliation", "incompatible active offers/appointments"],
+  "gateCorrection": "Quick API and focused strict TypeScript for a pure domain function; no artificial HTTP/DB integration. T8/T9 and the phase Build remain required.",
+  "financialAuthorityChanged": false,
+  "remoteChanges": false,
+  "logs": "C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution/t7-unit.log; t7-types.log"
+}

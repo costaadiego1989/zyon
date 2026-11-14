@@ -79,3 +79,13 @@
 **Success criteria**: two real tenants cover all eleven models, hostile read/update/delete filters never expose or alter foreign rows, bulk writes are tenant-stamped, composite foreign references fail and preceding transaction writes roll back. Existing tenant unit contracts remain green. Only owned PostgreSQL/bridge are used and removed.
 
 **Gate result**: PASS. Existing unit contracts 12/12 and real migrated PostgreSQL integration 15/15, zero failures/skips, exit0. All eleven models use the canonical checked extension. Reads, mutations, bulk stamping, compound keys, native FKs, unchanged foreign rows and transaction rollback are asserted. Two initial driver errors were corrected without changing assertions: actual WhatsApp session fields and consumption of lazy PrismaPromise inside the async ALS callback. The first incorrect driver returned the unconsumed promise outside ALS; it was not a demonstrated production middleware defect. Productive middleware therefore remains unchanged. Owned database/bridge disposal is asserted. HTTP negatives remain in each future endpoint task.
+
+## T7: Canonical Business Policy
+
+**Assumptions**: this is a pure domain resolver, with no database or HTTP responsibility. Stored modality, explicit legacy-service evidence and policy/version determine new-admission capabilities. Existing reconciliation is always preserved; this resolver does not authorize financial settlement or bypass the global paid guard. Segment, role and plan do not infer business mode.
+
+**Files to touch**: merchant/domain/service-business-policy.ts and its unit spec; feature tasks/evidence. The generated Full gate is corrected to Quick plus strict focused TypeScript validation because there is no endpoint or repository in this component. T8/T9 retain real HTTP/DB and T9 the phase Build.
+
+**Success criteria**: products remain the default legacy journey; ambiguous service/mixed legacy needs explicit classification; no service booking without explicit valid policy and admissions enabled; four hold/payment combinations, positive integer hold duration, invalid modes/configuration and incompatible mode-change facts are covered. Disabling new admissions never disables existing reconciliation.
+
+**Gate result**: PASS. Unit 14/14 with zero failed/skipped; focused strict TypeScript exit0. RED missing-module gate preceded implementation. The resolver exposes explicit classification/configuration/admission states, clears inactive hold duration and validates PostgreSQL Int-compatible positive minutes. All four combinations and legacy/invalid/in-flight outcomes assert domain results. No payment writer, existing product flow or global paid guard changed. Full HTTP/DB and phase Build remain T8/T9.

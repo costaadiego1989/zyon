@@ -288,12 +288,12 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit service-business-policy.spec.ts: produtos, serviços, legado, quatro combinações, limites e in-flight durante desativação.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit service-business-policy.spec.ts: produtos, serviços, legado, quatro combinações, limites e in-flight durante desativação.
+- [x] Gate Quick API passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Unit service-business-policy.spec.ts: produtos, serviços, legado, quatro combinações, limites e in-flight durante desativação.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T7$" ./src/modules/merchant/domain/service-business-policy.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T7 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Quick API: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-name-pattern "^T7$" ./src/modules/merchant/domain/service-business-policy.spec.ts` e `pnpm --dir apps/api exec tsc --noEmit --strict --skipLibCheck --module NodeNext --target ES2022 src/modules/merchant/domain/service-business-policy.ts src/modules/merchant/domain/service-business-policy.spec.ts`. Funcao de dominio pura nao requer HTTP/DB artificial; T8/T9 mantem Full e o fim da fase mantem Build completo. Nenhum skipped; checks finais por ID continuam obrigatorios.
 **Commit**: `feat(service-business): t7 define the canonical business policy resolver`
 
 ### T8: Persist the exclusive mode during signup
