@@ -82,6 +82,7 @@ import { DefaultCrossSellResolverAdapter } from "./infrastructure/default-cross-
 import { CatalogCacheService } from "./infrastructure/cache/catalog-cache.service.js";
 import { PrismaProductRepository } from "./infrastructure/repositories/prisma-product.repository.js";
 import { PrismaServiceProfessionalRepository } from "./infrastructure/repositories/prisma-service-professional.repository.js";
+import { ServiceProfessionalsController } from "./presentation/http/service-professionals.controller.js";
 import { PrismaStockRepository } from "./infrastructure/repositories/prisma-stock.repository.js";
 import { PrismaProductPromotionRepository } from "./infrastructure/repositories/prisma-product-promotion.repository.js";
 import { EmbeddingService } from "./infrastructure/services/embedding.service.js";
@@ -118,7 +119,7 @@ import { ListMerchantProductReviewsUseCase } from "./application/use-cases/list-
     CheckoutSettingsModule,
   ],
   // Static product collections must precede /products/:pid in the Express router.
-  controllers: [WidgetCatalogController, ProductLayoutStatusController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController, ModerationController, ProductContentHistoryController, ProductContentController],
+  controllers: [WidgetCatalogController, ProductLayoutStatusController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController, ModerationController, ProductContentHistoryController, ProductContentController, ServiceProfessionalsController],
   providers: [
     { provide: PrismaServiceProfessionalRepository, useFactory: (prisma: PrismaClient) => new PrismaServiceProfessionalRepository(prisma), inject: [PRISMA_CLIENT] },
     { provide: GRAPH_CATALOG_SOURCES, useFactory: (prisma: PrismaClient) => new PublicGraphCatalogSources(prisma), inject: [PRISMA_CLIENT] },

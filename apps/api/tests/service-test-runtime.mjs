@@ -20,7 +20,7 @@ export async function createServiceTestRuntime(options){
   assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph'].includes(k))
     &&(options.graph===undefined||typeof options.graph==='boolean'),'service_local_options_required');
   const build=assertServiceArtifacts(),apiRoot=fileURLToPath(new URL('../',import.meta.url));
-  let db,redis,graph,worker,workerExited,closed=false,appEvidence,cleanup,lastStage='unspawned';
+  let db,redis,graph,worker,workerExited,closed=false,appEvidence,cleanup,lastStage='unspawned',cleanupDiagnostics=[];
   let readyResolve,readyReject,preflightResolve,preflightReject,closeResolve,closeReject;
   const ready=new Promise((resolve,reject)=>{readyResolve=resolve;readyReject=reject;});
   const preflight=new Promise((resolve,reject)=>{preflightResolve=resolve;preflightReject=reject;});
@@ -38,7 +38,7 @@ export async function createServiceTestRuntime(options){
     catch(e){errors.push(e);}
     try{await terminateOwnedNativeWorker(worker);}catch(e){errors.push(e);}
     for(const owned of [graph,redis,db])if(owned){try{await owned.dispose();if(owned.bridgeStatus)assert.deepEqual(owned.bridgeStatus(),{listening:false,sockets:0,children:0});}catch(e){errors.push(e);}}
-    if(errors.length)throw new AggregateError(errors,`service_runtime_cleanup_failed:${lastStage}:${errors.map(error=>String(error.message).slice(0,1800)).join('|')}`);
+    if(errors.length)throw new AggregateError(errors,`service_runtime_cleanup_failed:${lastStage}:${errors.map(error=>String(error.message).slice(0,1800)).join('|')}:${JSON.stringify(cleanupDiagnostics)}`);
     cleanup={appClosed:true,remainingContainers:0,remainingBridgeSockets:0};
   }
   try{
@@ -51,7 +51,17 @@ export async function createServiceTestRuntime(options){
       {cwd:apiRoot,env:serviceTestEnvironment(process.env),windowsHide:true,stdio:['ignore','pipe','pipe','ipc']});
     let outputBytes=0,stderr='',stageFailure='';lastStage='spawned';
     const limit=chunk=>{outputBytes+=chunk.length;if(outputBytes>2_000_000){readyReject(new Error('service_worker_output_limit'));worker.kill();}};
-    worker.stdout.on('data',limit);worker.stderr.on('data',chunk=>{limit(chunk);if(stderr.length<20_000)stderr+=chunk.toString();});
+    let diagnosticBuffer='';
+    worker.stdout.on('data',limit);worker.stderr.on('data',chunk=>{
+      limit(chunk);if(stderr.length<20_000)stderr+=chunk.toString();
+      diagnosticBuffer+=chunk.toString();const lines=diagnosticBuffer.split('\n');diagnosticBuffer=lines.pop().slice(-4000);
+      for(const line of lines)if(line.startsWith('service_cleanup_resources:')){
+        const value=JSON.parse(line.slice('service_cleanup_resources:'.length));
+        assert.ok(['before_closed_ack','disconnected'].includes(value.stage)&&Array.isArray(value.resourceTypes)&&value.resourceTypes.every(type=>typeof type==='string'));
+        cleanupDiagnostics.push(value);
+        console.info('service_cleanup_resources',JSON.stringify(value));
+      }
+    });
     worker.on('error',error=>{preflightReject(error);readyReject(error);closeReject(error);});
     worker.on('message',message=>{
       if(message?.type==='stage'){lastStage=message.stage;if(message.failure)stageFailure=message.failure;

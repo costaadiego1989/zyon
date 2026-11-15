@@ -8,9 +8,24 @@ import {assertConstructionOnlyAmbient} from './nest-construction-only.guards.mjs
 import {installConstructionProviderTrap} from './nest-construction-provider-trap.mjs';
 import {createOwnedJourneyClientTracker,journeyBounded as bounded} from './storefront-journey-owned-clients.mjs';
 import {fileURLToPath} from 'node:url';
+import {createHook} from 'node:async_hooks';
 
 const [databaseUrl,databaseRunId,redisUrl,redisRunId,...extra]=process.argv.slice(2);
 const stage=(name,details={})=>process.send?.({type:'stage',stage:name,...details});
+const diagnosticTimers=new Map();
+createHook({init(id,type,_trigger,resource){if(type==='Timeout')diagnosticTimers.set(id,{resource,frames:new Error().stack.split('\n').filter(line=>line.trimStart().startsWith('at ')).slice(1,10)});},destroy(id){diagnosticTimers.delete(id);}}).enable();
+const cleanupResources=stage=>{
+  const handles=process._getActiveHandles().map(handle=>{
+    const type=handle.constructor?.name??'unknown';
+    if(type!=='Server')return{type};
+    const address=handle.address();
+    return{type,listening:handle.listening,connections:handle._connections,
+      loopback:address&&typeof address==='object'?['127.0.0.1','::1'].includes(address.address):null,
+      appHttpServer:handle===app?.getHttpServer()};
+  });
+  const timers=[...diagnosticTimers.values()].filter(({resource})=>!resource._destroyed&&resource.hasRef()).map(({resource,frames})=>({delayMs:resource._idleTimeout,ref:resource.hasRef(),frames}));
+  process.stderr.write('service_cleanup_resources:'+JSON.stringify({stage,resourceTypes:process.getActiveResourcesInfo(),handles,timers})+'\n');
+};
 stage('worker_started');
 assert.equal(extra.length,0);assertConstructionOnlyAmbient(process.env);assertServiceArtifacts();stage('artifacts_checked');
 const database=assertNativePrismaUrl(databaseUrl);assertSyntheticRedisIdentity(redisUrl,redisRunId,redisRunId);
@@ -66,10 +81,10 @@ try{
     repositoryOverrides:false,authOverrides:false,providerCalls:0,embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
   process.on('message',async message=>{
     if(message?.type!=='close')return;
-    try{const evidence=await close();process.send({type:'closed',evidence},()=>process.disconnect());}
+    try{const evidence=await close();cleanupResources('before_closed_ack');process.send({type:'closed',evidence},()=>process.disconnect());}
     catch(error){process.send({type:'failure',code:error.message},()=>{process.exitCode=1;process.disconnect();});}
   });
-  process.on('disconnect',()=>{if(!closed)close().catch(()=>{process.exitCode=1;});});
+  process.on('disconnect',()=>{cleanupResources('disconnected');if(!closed)close().catch(()=>{process.exitCode=1;});});
 }catch(error){
   stage('failure_cleanup_started',{failure:String(error.message).slice(0,1000)});
   try{await close();}catch(cleanup){error=new AggregateError([error,cleanup],'service_setup_cleanup_failed');}

@@ -1,0 +1,17 @@
+{
+  "task": "T19",
+  "status": "complete",
+  "parentCommit": "4bb4bdd16",
+  "integratedBase": "1f315a744",
+  "unit": {"executed": 3, "passed": 3, "failed": 0, "skipped": 0, "exitCode": 0},
+  "realHttpDatabase": {"executed": 6, "businessScenarios": 5, "passed": 6, "failed": 0, "skipped": 0, "exitCode": 0, "durationMs": 103459.3852},
+  "build": {"exitCode": 0, "checked": true, "sourceCount": 2498, "inputSha256": "411a43063bc531d53c6363b34af460620ba3c710fe7dd39507842845352db24c", "artifactSha256": "f9a66c41b3342bb619695bd338e822d2e046f3a618dff9815a206dc10dd21333"},
+  "proofs": ["real list/create/edit/deactivate routes persist complete profile and version", "unchanged historical appointment snapshot", "invalid and stale mutations leave canonical state unchanged", "foreign path refused and foreign resource on own path not disclosed", "products mode and staff writes refused for existing own-tenant resources", "staff GET opt-in works through the actual AuthGuard", "bounded tenant pagination", "API plan can manage service professionals without an invented catalog tier", "public change event follows persistence and contains identity/version/publication only"],
+  "composition": {"canonicalAppModule": true, "catalogControllerRegistered": true, "repositoryOverrides": false, "authOverrides": false, "artificialPrismaHttpFacade": false},
+  "cleanup": {"appCloseAck": true, "naturalWorkerExitCode": 0, "naturalExitDeadlineMs": 5000, "remainingContainers": 0, "remainingBridgeSockets": 0, "referencedTimersBeforeAck": 0, "referencedTimersAtDisconnect": 0},
+  "providerCalls": 0,
+  "priorFailures": {"missingHistoricalFixtureLink": "required ProfessionalService triple added without changing assertions", "cleanupFailuresAfterFixtureFix": 3, "auditBarrierWasNotACleanupFix": true, "diagnosticTimerOwner": "RecoveryScannerJob.scan jitter", "separateLifecycleCommit": "b95f343ce", "previousBuildNotReusedAfterSourceChange": true},
+  "preservation": {"futureTaskSourceOutsideFingerprint": true, "ownDirtyFilesPreservedByHashBeforeBaseMerge": true, "uncommittedCanonicalSourceImported": false, "existingAssertionsWeakenedOrSkipped": false},
+  "logs": ".cache/phase3-gates/t19-*.log",
+  "scope": {"localOnly": true, "remoteAction": false, "productionShutdownAcceptance": false, "embeddingOrRagAcceptance": false, "finalFeatureAcceptance": false}
+}

@@ -510,6 +510,8 @@ T97 → T95
 
 ### T19: Expose professional management
 
+**Status**: Complete - unit3/3, actual AppModule HTTP/DB6/6, zero failed/skipped; checked build0/2498, close ACK/natural exit0 and owned cleanup. See task-19-evidence.json.
+
 **What**: Um controller de recurso com rotas tipadas de listar/criar/editar/desativar; aplica permissão explícita e modo, paginação/limites; emite eventos públicos após persistência.
 **Where**: `apps/api/src/modules/catalog/presentation/http/service-professionals.controller.ts`
 **Depends on**: T18
@@ -518,9 +520,9 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP real de cada rota com happy/invalid/foreign/products/forbidden, preservando histórico.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] HTTP real de cada rota com happy/invalid/foreign/products/forbidden, preservando histórico.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: HTTP real de cada rota com happy/invalid/foreign/products/forbidden, preservando histórico.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T19$" ./src/modules/catalog/presentation/http/service-professionals.controller.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T19 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
