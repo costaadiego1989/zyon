@@ -1,3 +1,4 @@
+import type { PublicBusinessReconciler } from "./public-business-reconciler.js";
 import { Logger, type OnModuleInit, type BeforeApplicationShutdown } from "@nestjs/common";
 import type { GraphCatalogSourcesPort, GraphKnowledgeSourcesPort } from "../domain/public-graph-sources.port.js";
 import type { DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
@@ -11,7 +12,8 @@ export class GraphRagSynchronization implements OnModuleInit, BeforeApplicationS
   private readonly logger = new Logger(GraphRagSynchronization.name);
   constructor(private readonly runtime: GraphRagRuntime, private readonly catalog: GraphCatalogSourcesPort,
     private readonly knowledge: GraphKnowledgeSourcesPort, private readonly events: DomainEventBus,
-    private readonly tenant: TenantContextService) {}
+    private readonly tenant: TenantContextService,
+    private readonly publicBusiness?: Pick<PublicBusinessReconciler, "reconcile">) {}
   onModuleInit() {
     if (this.stopping || !this.runtime.settings.enabled) return;
     for (const eventType of ["product.upserted", "product.deleted", "product.content.updated", "support.faq_updated", "merchant.config_updated", "knowledge.policy_updated"]) {
@@ -25,10 +27,16 @@ export class GraphRagSynchronization implements OnModuleInit, BeforeApplicationS
   }
   async reconcile() { for (const merchantId of this.runtime.settings.merchantIds) await this.synchronize(merchantId); }
   async synchronize(merchantId: string): Promise<void> {
-    if (this.stopping || !this.runtime.readyFor(merchantId)) return;
+    if (this.stopping || !this.runtime.settings.enabled || !this.runtime.settings.merchantIds.includes(merchantId)) return;
     const running = this.running.get(merchantId);
     if (running) return running;
     const work = this.tenant.run({ merchantId, userId: "graph-rag-sync", role: "system" }, async () => {
+      try {
+        await this.publicBusiness?.reconcile(merchantId, () => this.stopping);
+      } catch {
+        this.logger.warn("Public source reconciliation incomplete; durable work remains retryable");
+      }
+      if (this.stopping || !this.runtime.readyFor(merchantId)) return;
       try {
         const observedAt = Date.now(), sourceIds = new Set<string>();
         let cursor: string | undefined;

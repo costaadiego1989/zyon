@@ -1,3 +1,4 @@
+import { enqueueCanonicalPublicBusinessSources } from "../../graph-rag/infrastructure/public-business-write.js";
 import { meteredAiFetch } from "../../../shared/ai-metering.js";
 import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException, ForbiddenException, Param, Res } from "@nestjs/common";
 import type { MerchantTheme } from "@zyon/shared-types";
@@ -240,7 +241,11 @@ export class MerchantController {
     const name = body.name?.trim();
     if (!name || name.length < 2) throw new BadRequestException("name_too_short");
     if (name.length > 80) throw new BadRequestException("name_too_long");
-    await this.prisma.merchant.update({ where: { id: merchantId }, data: { name } });
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
+      await tx.merchant.update({ where: { id: merchantId }, data: { name } });
+      await enqueueCanonicalPublicBusinessSources(tx, merchantId, [{ sourceType: "company", sourceId: merchantId }]);
+    });
     return { name };
   }
 

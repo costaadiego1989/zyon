@@ -1,3 +1,5 @@
+import { PublicBusinessReconciler } from "./application/public-business-reconciler.js";
+import { PrismaPublicBusinessSourcePages } from "./infrastructure/prisma-public-business-source-pages.js";
 import { GraphRagSynchronization } from "./application/graph-sync.service.js";
 import { Module } from "@nestjs/common";
 import { CatalogModule } from "../catalog/catalog.module.js";
@@ -18,8 +20,14 @@ import { PublicSourceWorkService } from "./application/public-source-work.servic
   { provide: PublicSourceWorkService,
     useFactory: (prisma: PrismaClient, tenant: TenantContextService, sources: PrismaPublicBusinessSources) => new PublicSourceWorkService(prisma, tenant, sources),
     inject: [PRISMA_CLIENT, TenantContextService, PrismaPublicBusinessSources] },
+  { provide: PrismaPublicBusinessSourcePages,
+    useFactory: (prisma: PrismaClient, tenant: TenantContextService) => new PrismaPublicBusinessSourcePages(prisma, tenant),
+    inject: [PRISMA_CLIENT, TenantContextService] },
+  { provide: PublicBusinessReconciler,
+    useFactory: (pages: PrismaPublicBusinessSourcePages, work: PublicSourceWorkService) => new PublicBusinessReconciler(pages, work),
+    inject: [PrismaPublicBusinessSourcePages, PublicSourceWorkService] },
   { provide: GraphRagSynchronization,
   useFactory: (runtime: GraphRagRuntime, catalog: GraphCatalogSourcesPort, knowledge: GraphKnowledgeSourcesPort,
-    events: DomainEventBus, tenant: TenantContextService) => new GraphRagSynchronization(runtime, catalog, knowledge, events, tenant),
-  inject: [GraphRagRuntime, GRAPH_CATALOG_SOURCES, GRAPH_KNOWLEDGE_SOURCES, DOMAIN_EVENT_BUS, TenantContextService] }] })
+    events: DomainEventBus, tenant: TenantContextService, publicBusiness: PublicBusinessReconciler) => new GraphRagSynchronization(runtime, catalog, knowledge, events, tenant, publicBusiness),
+  inject: [GraphRagRuntime, GRAPH_CATALOG_SOURCES, GRAPH_KNOWLEDGE_SOURCES, DOMAIN_EVENT_BUS, TenantContextService, PublicBusinessReconciler] }] })
 export class GraphRagSyncModule {}

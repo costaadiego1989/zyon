@@ -116,25 +116,28 @@ export class StoreSettingsController {
     if (body.strategies !== undefined && (!Array.isArray(body.strategies) || body.strategies.length > 1 || (body.strategies.length === 1 && !CROSS_SELL_STRATEGIES.includes(body.strategies[0]!)))) {
       throw new BadRequestException("Escolha uma única estratégia para orientar as recomendações.");
     }
-    const merchant = await this.prisma.merchant.findUnique({ where: { id: user.merchantId }, select: { storeSettings: true } });
-    const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
-    const current = normalizeCrossSellConfig(settings.crossSell);
-    const updated: CrossSellConfig = {
-      ...current,
-      ...body,
-      touchpoints: { ...current.touchpoints, ...body.touchpoints },
-      limits: { ...current.limits, ...body.limits },
-      discount: { ...current.discount, ...body.discount },
-      display: { ...current.display, ...body.display },
-    };
-    if (updated.enabled && (!Object.values(updated.touchpoints).some(value => value === true) || updated.strategies.length !== 1)) {
-      throw new BadRequestException("Escolha pelo menos um momento e uma única estratégia antes de ativar as sugestões.");
-    }
-    await this.prisma.merchant.update({
-      where: { id: user.merchantId },
-      data: { storeSettings: { ...settings, crossSell: updated } as any },
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM merchants WHERE id=${user.merchantId} FOR UPDATE`;
+      const merchant = await tx.merchant.findUnique({ where: { id: user.merchantId }, select: { storeSettings: true } });
+      const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
+      const current = normalizeCrossSellConfig(settings.crossSell);
+      const updated: CrossSellConfig = {
+        ...current,
+        ...body,
+        touchpoints: { ...current.touchpoints, ...body.touchpoints },
+        limits: { ...current.limits, ...body.limits },
+        discount: { ...current.discount, ...body.discount },
+        display: { ...current.display, ...body.display },
+      };
+      if (updated.enabled && (!Object.values(updated.touchpoints).some(value => value === true) || updated.strategies.length !== 1)) {
+        throw new BadRequestException("Escolha pelo menos um momento e uma única estratégia antes de ativar as sugestões.");
+      }
+      await tx.merchant.update({
+        where: { id: user.merchantId },
+        data: { storeSettings: { ...settings, crossSell: updated } as any },
+      });
+      return updated;
     });
-    return updated;
   }
 
   private assertOwnership(req: any, merchantId: string): void {

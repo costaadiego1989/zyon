@@ -1,3 +1,4 @@
+import { enqueueCanonicalPublicBusinessSources } from "../../../graph-rag/infrastructure/public-business-write.js";
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { assertExpectedVersion, validateProfessionalInput, type ServiceProfessionalInput } from "../../domain/services/service-professional-input.js";
@@ -30,6 +31,10 @@ export class PrismaServiceProfessionalRepository {
       } satisfies Prisma.ServiceProfessionalUncheckedCreateInput;
       const professional = await tx.serviceProfessional.create({ data });
       if (input.productIds?.length) await tx.professionalService.createMany({ data: input.productIds.map((productId): Prisma.ProfessionalServiceCreateManyInput => ({ merchantId: actor.merchantId, professionalId: professional.id, productId })) });
+      await enqueueCanonicalPublicBusinessSources(tx, actor.merchantId, [
+        { sourceType: "professional", sourceId: professional.id },
+        ...(input.productIds ?? []).map(sourceId => ({ sourceType: "service" as const, sourceId })),
+      ]);
       return tx.serviceProfessional.findFirstOrThrow({ where: { id: professional.id, merchantId: actor.merchantId }, include });
     });
   }
@@ -43,6 +48,7 @@ export class PrismaServiceProfessionalRepository {
       const before = await tx.serviceProfessional.findFirst({ where: { id, merchantId: actor.merchantId } });
       if (!before) throw new NotFoundException("service_professional_not_found");
       if (before.version !== expectedVersion) throw new ConflictException("service_professional_stale");
+      const previousLinks = await tx.professionalService.findMany({ where: { merchantId: actor.merchantId, professionalId: id, isActive: true }, select: { productId: true } });
       const input = validateProfessionalInput({ publicName: before.publicName, publicProfile: before.publicProfile, timeZone: before.timeZone, isActive: before.isActive, isPublished: before.isPublished, ...raw });
       await this.assertOffers(tx, actor.merchantId, input.productIds ?? []);
       const changed = await tx.serviceProfessional.updateMany({ where: { id, merchantId: actor.merchantId, version: expectedVersion }, data: {
@@ -54,6 +60,10 @@ export class PrismaServiceProfessionalRepository {
         await tx.professionalService.updateMany({ where: { merchantId: actor.merchantId, professionalId: id, isActive: true, productId: { notIn: input.productIds } }, data: { isActive: false, version: { increment: 1 } } });
         for (const productId of input.productIds) await tx.professionalService.upsert({ where: { merchantId_professionalId_productId: { merchantId: actor.merchantId, professionalId: id, productId } }, create: { merchantId: actor.merchantId, professionalId: id, productId }, update: { isActive: true, version: { increment: 1 } } });
       }
+      await enqueueCanonicalPublicBusinessSources(tx, actor.merchantId, [
+        { sourceType: "professional", sourceId: id },
+        ...[...previousLinks.map(link => link.productId), ...(input.productIds ?? [])].map(sourceId => ({ sourceType: "service" as const, sourceId })),
+      ]);
       return tx.serviceProfessional.findFirstOrThrow({ where: { id, merchantId: actor.merchantId }, include });
     });
   }

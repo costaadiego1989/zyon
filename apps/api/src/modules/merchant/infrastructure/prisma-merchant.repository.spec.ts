@@ -29,6 +29,11 @@ class FakePrisma {
     update: async ({ data }: any) => { this.settings = structuredClone(data.storeSettings); return {}; },
   };
   $transaction = async (run: (tx: FakePrisma) => Promise<any>) => run(this);
+  $queryRaw = async (parts: TemplateStringsArray, ...values: unknown[]) => {
+    assert.match(parts.join("?"), /SELECT id FROM merchants.*FOR UPDATE/);
+    assert.deepEqual(values, ["mrc_1"]);
+    return [{ id: "mrc_1" }];
+  };
 
   merchantRule = {
     upsert: async ({ where, create, update }: any) => {

@@ -24,30 +24,35 @@ export class UpdateSeoSettingsUseCase {
   async execute(merchantId: string, input: UpdateSeoInput): Promise<UpdateSeoOutput> {
     this.validate(input);
 
-    const row = await this.prisma.merchant.findUnique({
-      where: { id: merchantId },
-      select: { storeSettings: true },
-    });
+    const { mergedSeo, mergedGtm, updated } = await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
+      const row = await tx.merchant.findUnique({
+        where: { id: merchantId },
+        select: { storeSettings: true },
+      });
 
-    const existing = (row?.storeSettings ?? {}) as MerchantStoreSettings;
+      const existing = (row?.storeSettings ?? {}) as MerchantStoreSettings;
 
-    const mergedSeo: SeoSettings = { ...existing.seo, ...input.seo };
-    const mergedGtm: GtmSettings = {
-      ...existing.gtm,
-      ...input.gtm,
-      pixelIds: { ...existing.gtm?.pixelIds, ...input.gtm?.pixelIds },
-    };
+      const mergedSeo: SeoSettings = { ...existing.seo, ...input.seo };
+      const mergedGtm: GtmSettings = {
+        ...existing.gtm,
+        ...input.gtm,
+        pixelIds: { ...existing.gtm?.pixelIds, ...input.gtm?.pixelIds },
+      };
 
-    const updatedSettings: MerchantStoreSettings = {
-      ...existing,
-      seo: mergedSeo,
-      gtm: mergedGtm,
-    };
+      const updatedSettings: MerchantStoreSettings = {
+        ...existing,
+        seo: mergedSeo,
+        gtm: mergedGtm,
+      };
 
-    const updated = await this.prisma.merchant.update({
-      where: { id: merchantId },
-      data: { storeSettings: updatedSettings as unknown as object },
-      select: { updatedAt: true },
+      const updated = await tx.merchant.update({
+        where: { id: merchantId },
+        data: { storeSettings: updatedSettings as unknown as object },
+        select: { updatedAt: true },
+      });
+
+      return { mergedSeo, mergedGtm, updated };
     });
 
     this.logger.log(`SEO/GTM settings updated for merchant ${merchantId}`);

@@ -40,6 +40,58 @@ export async function enqueuePublicSourceProjection(tx: QueueTransaction, mercha
   return work;
 }
 
+/** Set-based equivalent for one canonical write affecting many identities.
+ * The merchant lock serializes the same revision/hash rules as the single
+ * source helper. Completed history and unchanged public content stay intact. */
+export async function enqueuePublicSourceProjections(tx: QueueTransaction, merchantId: string, sources: PublicWorkInput[]) {
+  if (!sources.length) return;
+  if (sources.length === 1) { await enqueuePublicSourceProjection(tx, merchantId, sources[0]!); return; }
+  const key = (source: Pick<PublicWorkInput, "sourceType" | "sourceId">) => JSON.stringify([source.sourceType, source.sourceId]);
+  const unique = new Set<string>();
+  for (const source of sources) {
+    validateSource(merchantId, source);
+    if (unique.has(key(source))) throw new Error("public_work_duplicate_identity");
+    unique.add(key(source));
+  }
+  const merchants = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
+  if (merchants.length !== 1) throw new Error("public_work_merchant_missing");
+  const identities = JSON.stringify(sources.map(({ sourceType, sourceId }) => ({ sourceType, sourceId })));
+  const previous = await tx.$queryRaw<Array<{
+    sourceType: PublicBusinessSourceType; sourceId: string; sourceVersion: string | null;
+    sourceHash: string | null; publicationState: string | null; hasLegacy: boolean;
+  }>>`SELECT i."sourceType",i."sourceId",p.source_version AS "sourceVersion",
+      p.source_hash AS "sourceHash",p.publication_state::text AS "publicationState",
+      EXISTS(SELECT 1 FROM public_source_work old WHERE old.merchant_id=${merchantId}
+        AND old.source_type=i."sourceType"::"PublicBusinessSourceType" AND old.source_id=i."sourceId"
+        AND old.source_version NOT LIKE 'public-v1:%' AND old.status<>'completed') AS "hasLegacy"
+    FROM jsonb_to_recordset(${identities}::jsonb) AS i("sourceType" text,"sourceId" text)
+    LEFT JOIN LATERAL(SELECT source_version,source_hash,publication_state FROM public_source_work current
+      WHERE current.merchant_id=${merchantId} AND current.source_type=i."sourceType"::"PublicBusinessSourceType"
+        AND current.source_id=i."sourceId" AND current.source_version LIKE 'public-v1:%'
+      ORDER BY current.source_version DESC LIMIT 1) p ON TRUE`;
+  if (previous.length !== sources.length) throw new Error("public_work_history_incomplete");
+  const history = new Map(previous.map(row => [key(row), row]));
+  const changes = sources.flatMap(source => {
+    const row = history.get(key(source));
+    if (!row) throw new Error("public_work_history_incomplete");
+    if (row.sourceVersion && row.sourceHash === source.sourceHash && row.publicationState === source.publicationState && !row.hasLegacy) return [];
+    return [{ merchantId, sourceType: source.sourceType, sourceId: source.sourceId,
+      sourceVersion: nextPublicWorkVersion(row.sourceVersion), sourceHash: source.sourceHash, publicationState: source.publicationState }];
+  });
+  if (!changes.length) return;
+  const byType = new Map<PublicBusinessSourceType, string[]>();
+  for (const source of changes) {
+    const ids = byType.get(source.sourceType) ?? [];ids.push(source.sourceId);byType.set(source.sourceType, ids);
+  }
+  const affected = [...byType].map(([sourceType, ids]) => ({ sourceType, sourceId: { in: ids } }));
+  for (let offset = 0; offset < changes.length; offset += 1000)
+    await tx.publicSourceWork.createMany({ data: changes.slice(offset, offset + 1000) });
+  await tx.knowledgeChunk.deleteMany({ where: { merchantId, OR: affected } });
+  await tx.publicSourceWork.updateMany({ where: { merchantId, OR: affected,
+    sourceVersion: { not: { startsWith: "public-v1:" } }, status: { not: "completed" } },
+    data: { status: "completed", lastErrorCode: "legacy_superseded", leaseToken: null, leaseExpiresAt: null, nextAttemptAt: null } });
+}
+
 export class PublicSourceWorkService {
   constructor(private readonly prisma: PrismaClient, private readonly tenant: TenantContextService, private readonly sources: PrismaPublicBusinessSources) {}
   private assertScope(merchantId: string) {

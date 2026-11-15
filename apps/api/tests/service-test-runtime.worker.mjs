@@ -52,7 +52,7 @@ async function close(){
   try{if(tracker)await tracker.close();}catch(e){errors.push(e);}
   const provider=trap?.evidence();
   try{if(trap)await trap.dispose();}catch(e){errors.push(e);}
-  if(provider?.providerCalls)errors.push(new Error('service_provider_attempt_forbidden'));
+  if(provider?.providerCalls)errors.push(new Error('service_provider_attempt_forbidden:'+JSON.stringify(trap.diagnostics())));
   if(errors.length)throw new AggregateError(errors,'service_app_cleanup_failed:'+errors.map(error=>String(error.message).slice(0,1400)).join('|'));
   return{appClosed:true,providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0};
 }

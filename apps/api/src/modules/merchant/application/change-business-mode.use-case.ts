@@ -1,3 +1,4 @@
+import { invalidateServiceBusinessPublicationWithin } from "../../graph-rag/infrastructure/public-business-write.js";
 import { enqueueCompanySettingsWork } from "./company-settings-write.js";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
@@ -60,6 +61,7 @@ export class ChangeBusinessModeUseCase {
       // Closing new admission never deletes a policy, appointment or payment.
       await tx.serviceBusinessPolicy.updateMany({ where: { merchantId, admissionsEnabled: true }, data: { admissionsEnabled: false, version: { increment: 1 } } });
       await enqueueCompanySettingsWork(tx, merchantId, merchant.storeSettings, merchant.storeSettings, merchant.businessMode, input.businessMode);
+      await invalidateServiceBusinessPublicationWithin(tx, merchantId);
       await tx.merchantAuditEvent.create({ data: {
         merchantId, actorType: "human", actorId, action: "business_mode.changed", resourceType: "merchant", resourceId: merchantId,
         metadata: { before: merchant.businessMode, after: input.businessMode, reviewResolved: merchant.businessModeNeedsReview },

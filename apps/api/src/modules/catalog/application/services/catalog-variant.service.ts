@@ -1,3 +1,4 @@
+import { enqueueCanonicalPublicBusinessSources } from "../../../graph-rag/infrastructure/public-business-write.js";
 import { BadRequestException, ConflictException, Injectable, Inject, Logger, NotFoundException, Optional } from "@nestjs/common";
 import type { PrismaClient, Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
@@ -85,6 +86,7 @@ export class CatalogVariantService {
         saved.push({ id, sku: v.sku.trim(), stockQuantity: stock.reduce((sum, s) => sum + s.quantity, 0) });
       }
       if (retired.length) await tx.productVariant.updateMany({ where: { id: { in: retired.map(v => v.id) }, productId }, data: { isActive: false } });
+      if (product.type === "service" || changes?.type === "service") await enqueueCanonicalPublicBusinessSources(tx, merchantId, [{ sourceType: "service", sourceId: productId }]);
       return { variants: saved };
     }, { timeout: 15_000 });
     await this.publish(merchantId, productId);

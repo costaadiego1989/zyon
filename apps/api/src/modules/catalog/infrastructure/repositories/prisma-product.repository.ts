@@ -1,3 +1,4 @@
+import { enqueueCanonicalPublicBusinessSources } from "../../../graph-rag/infrastructure/public-business-write.js";
 import { BadRequestException, ConflictException, Injectable, Logger } from "@nestjs/common";
 import { PrismaClient, Prisma } from "@prisma/client";
 import {
@@ -107,6 +108,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
         },
       });
       for (const variant of p.variants) await syncCatalogStockLedger(tx, { merchantId: input.merchantId, variantId: variant.id, source: "catalog_create" });
+      if (p.type === "service") await enqueueCanonicalPublicBusinessSources(tx, input.merchantId, [{ sourceType: "service", sourceId: p.id }]);
       return tx.product.findUniqueOrThrow({ where: { id: p.id }, include: { variants: { include: { price: true, stock: true, media: true } } } });
     });
 
@@ -298,18 +300,22 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       }
       if (data.type && data.type !== before.type && before.variants.some(v => v.stock.some(s => s.reserved > 0))) throw new ConflictException("stock_reserved_type_cannot_be_changed");
       if (data.categoryId && !await tx.productCategory.findFirst({ where: { id: data.categoryId, merchantId }, select: { id: true } })) throw new BadRequestException("category_not_found");
-      return tx.product.update({
+      const saved = await tx.product.update({
         where: { id: productId, merchantId }, data: prismaData,
         include: { variants: { include: { price: true, stock: true, media: true } } },
       });
+      if (before.type === "service" || data.type === "service") await enqueueCanonicalPublicBusinessSources(tx, merchantId, [{ sourceType: "service", sourceId: productId }]);
+      return saved;
     });
     return this.toEntity(product);
   }
 
   async softDelete(merchantId: string, productId: string): Promise<void> {
-    await this.prisma.product.update({
-      where: { id: productId, merchantId },
-      data: { isActive: false, deletedAt: new Date() },
+    await this.prisma.$transaction(async tx => {
+      await lockCatalogMerchant(tx, merchantId);
+      const before = await tx.product.findFirst({ where: { id: productId, merchantId }, select: { type: true } });
+      await tx.product.update({ where: { id: productId, merchantId }, data: { isActive: false, deletedAt: new Date() } });
+      if (before?.type === "service") await enqueueCanonicalPublicBusinessSources(tx, merchantId, [{ sourceType: "service", sourceId: productId }]);
     });
   }
 
@@ -370,6 +376,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
 
       await syncCatalogStockLedger(tx, { merchantId, variantId: created.id, source: "catalog_variant" });
       const saved = await tx.productVariant.findUniqueOrThrow({ where: { id: created.id }, include: { price: true, stock: true, media: true } });
+      if (product.type === "service") await enqueueCanonicalPublicBusinessSources(tx, merchantId, [{ sourceType: "service", sourceId: productId }]);
       return this.mapVariant(saved);
     });
   }
@@ -432,6 +439,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       if (data.categoryId !== undefined) productData.category = data.categoryId ? { connect: { id: data.categoryId } } : { disconnect: true };
       if (Object.keys(productData).length > 0) {
         await tx.product.update({ where: { id: variant.productId }, data: productData });
+        if (product.type === "service") await enqueueCanonicalPublicBusinessSources(tx, merchantId, [{ sourceType: "service", sourceId: variant.productId }]);
       }
     });
 

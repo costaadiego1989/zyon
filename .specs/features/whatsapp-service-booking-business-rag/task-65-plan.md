@@ -1,6 +1,6 @@
-# T65 preparation
+# T65 writer integration
 
-T65 depends on the green T25 writers and is not complete. Preparation stays outside the productive fingerprint until that barrier. T63 and T64 are complete; C/T96 is integrated at 5b5c07715 and P/T21 at 10787f3fc.
+T25 is integrated at1a415411a. All26 prepared file hashes matched before restoration. T65 is in progress; no completion or indexing claim. T63/T64 and C96/C97 remain regression gates.
 
 An isolated draft in .cache/t65-prepared passed7/7 pure orchestration tests: six kinds without a graph dependency, bounded paging/resume, replay after normalization failure, tenant cursor separation/restart, stop after an awaited read, and invalid/looping pages. These are preparatory unit results, not the T65 gate. The transaction-bound reader/helper draft records its base SHA in reader-manifest.json; productive source is unchanged.
 
@@ -55,3 +55,24 @@ T66 owns embeddings, graph submission and publish fencing. The old ZyonGraphDocu
 - Exact PostgreSQL blocker PID proves auth/rules edits wait before reading JSON; both canonical source and unrelated owner/rule settings persist after release. Foreign tenant data and commerce snapshots are unchanged.
 - Bounded retry/offline reconciliation and natural application shutdown pass without fragile sleeps or provider traffic. No skips or weakened original assertions.
 - Full gate, checked build and atomic commit only after T25 is integrated. T65 does not claim T66 indexing or final RAG acceptance.
+
+## Executed integration progress
+
+- Productive restored files are in .cache/t65-restored-inputs.json. Additional source refinement limits policy enqueue to edited public keys/aliases. Whole-container null/scalar replacement dirties its affected canonical fields; omission preserves them. Two actual HTTP children cover policy fallback A-to-B and complete link withdrawal. Total native preparation39children, still pending execution.
+- Existing unit fixtures changed only their database interface: merchant rules now supports the merchant SELECT FOR UPDATE; policy persistence now supports transactional work storage and both scalar/list chunk predicates. All original business assertions remain byte-identical. First selected run112tests/106pass/6missing-fake-interface failures; after repair112/112pass, zero skips. No productive bypass was introduced. The helper then gained the null-container correction from incremental review; final units must be repeated before commit.
+- Storefront preparation passed. First attempt refused before build because this ignored launcher's filtered environment omitted its explicit cached-tool LOCALAPPDATA path. The launcher now provides only that local path; build then passed normally. No compiler or test budget changed.
+- Fresh API capture/build/record passed:2521 checked compiler sources; source23f2058a50f0b641ed66e5ab4a9c447ef4be4c3b9f267b8a7d147d9bb4430b49, artifact11c067f8e9872d0f5aa2fc8cd2106c30ace7fc8d19287b9d13755047e2615047. Native Full gate is running; no result yet.
+- Peer review found a residual legacy FAQ/policy embedding generation race: an old generation can complete after a newer writer commit. T65 claims atomic invalidation at source commit only. T66/T68 must fence or revalidate legacy publication and the separate new namespace; neither queue nor invalidation alone proves fresh retrieval.
+- Potential category fanout timeout for large service catalogs is not yet reproduced. An external causal case is being prepared against default5s, with exact source/work/chunk/rollback assertions; do not classify an unexecuted risk as a test result.
+
+## Native failures and bounded batch correction
+
+First native Full:83tests/74pass/9fail/0skip. Unchanged64(12),63(14),96(17) were green. New65 failed its final guard: HTTP quota was exhausted, one new negative fixture reached the earlier tenant403 guard before its intended strict-field400 validator, and unrelated automatic paid product SEO attempted transport. No external request escaped the trap; no weakening or provider/auth override was used.
+
+The40-child writer rerun (41including root) produced37pass/4fail/0skip. Two new whole-container cases hit a fixture audit path mismatch (canonical /merchants/:mid/store-settings versus its concrete HTTP URL); the fixture now supplies that canonical path while preserving the original exact audit assertion. The tenant negative keeps the exact400 validation assertion with its own merchantID and adds a separate exact403/code assertion for the foreign body. A new per-runtime/token helper honors real quota headers before requests and before taking controlled race locks; it does not retry a mutation, reset Redis, change limits or suppress a429 assertion.
+
+The diagnostic-only trap now records at most3 stack traces without URLs, headers, payloads or credentials, retaining its exact evidence counts and mandatory refusal. All18 old construction contracts passed unchanged. A minimal product/FAQ diagnostic completed with0 provider attempts; its policy call was denied403 by the plan, so it does not prove policy indexing. Full writer traces identified GenerateProductSeoUseCase.callLlm through AddProductUseCase.autoGenerateSeo on the Growth fixture. The actual offline-AI scenario now seeds the existing merchant governance policy grants=[] and requires a real denied product_seo decision; transport remains trapped and repositories/auth/providers stay original.
+
+The category case confirmed a productive integration defect: HTTP500 after5182ms,54 attempted work rows, actual TX age5011ms, unchanged default5s and complete source/work/chunk/finance rollback. Logs: .cache/t65-gates/2026-11-15T21-49-54.058Z/writers.log. A500 alone was not the diagnosis: diagnostic sequence and transaction observation established progress and the deadline boundary.
+
+Correction retains canonical hashes/revisions for every identity. The canonical reader loads each source family in sets and applies the same allowlist projection; singleton external reads delegate to it with the original tenant guard. A transaction-bound bulk queue applies the same latest-counter/hash/legacy rules under the merchant lock, loads latest history/legacy presence in one parameterized query, creates batches1000, invalidates only changed identities and consumes only their pending legacy markers. Completed history and unchanged public chunks remain intact. No arbitrary batch threshold, opaque substitute evidence or larger timeout is introduced. The112 selected units passed after this correction. Fresh checked/native reruns are required; the1005 case now also checks exact revision2 and same-public-content replay preservation. This proves only exercised sizes, not constant time for unlimited catalogs.

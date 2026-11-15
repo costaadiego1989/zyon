@@ -1,3 +1,5 @@
+import { lockCatalogMerchant } from "../../../../shared/persistence/catalog-stock-ledger.js";
+import { enqueueCanonicalPublicBusinessSources } from "../../../graph-rag/infrastructure/public-business-write.js";
 import { Injectable, Inject , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -10,26 +12,15 @@ export class DeleteCategoryUseCase {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(merchantId: string, categoryId: string): Promise<void> {
-    const category = await this.prisma.productCategory.findUnique({
-      where: { id: categoryId },
+    await this.prisma.$transaction(async tx => {
+      await lockCatalogMerchant(tx, merchantId);
+      const category = await tx.productCategory.findFirst({ where: { id: categoryId, merchantId } });
+      if (!category) throw new Error("category_not_found");
+      const affected = await tx.product.findMany({ where: { merchantId, categoryId, type: "service" }, select: { id: true } });
+      await tx.productCategory.updateMany({ where: { merchantId, parentId: categoryId }, data: { parentId: null } });
+      await tx.product.updateMany({ where: { merchantId, categoryId }, data: { categoryId: null } });
+      await tx.productCategory.delete({ where: { id: categoryId, merchantId } });
+      await enqueueCanonicalPublicBusinessSources(tx, merchantId, affected.map(row => ({ sourceType: "service", sourceId: row.id })));
     });
-
-    if (!category || category.merchantId !== merchantId) {
-      throw new Error("category_not_found");
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.productCategory.updateMany({
-        where: { parentId: categoryId },
-        data: { parentId: null },
-      }),
-      this.prisma.product.updateMany({
-        where: { categoryId },
-        data: { categoryId: null },
-      }),
-      this.prisma.productCategory.delete({
-        where: { id: categoryId },
-      }),
-    ]);
   }
 }

@@ -8,6 +8,7 @@ function database() {
     storeSettings: { company: { razaoSocial: "Fornecedor" }, policies: { privacy: "Privacidade própria", returns: "Devolução vigente", shipping: "Envio vigente" } },
     legacy: { returns: "Devolução anterior", shipping: "Envio anterior", warranty: "Garantia cadastrada", payment: null, general: null },
     deletedChunks: [] as string[],
+    publicWork: [] as any[],
   };
   let failDelete = false;
   const assertMerchant = (id: string) => assert.equal(id, "store-own");
@@ -24,9 +25,31 @@ function database() {
       assertMerchant(where.merchantId);
       assert.equal(where.sourceType, "policy");
       if (failDelete) throw new Error("chunk deletion failed");
-      state.deletedChunks.push(...where.sourceId.in);
+      state.deletedChunks.push(...(typeof where.sourceId === "string" ? [where.sourceId] : where.sourceId.in));
       return { count: 1 };
     } },
+    publicSourceWork: {
+      findFirst: async ({ where }: any) => {
+        assertMerchant(where.merchantId);
+        const rows = state.publicWork.filter(row => row.sourceType === where.sourceType && row.sourceId === where.sourceId
+          && (where.sourceVersion.startsWith ? row.sourceVersion.startsWith(where.sourceVersion.startsWith) : !row.sourceVersion.startsWith(where.sourceVersion.not.startsWith))
+          && (!where.status || row.status !== where.status.not));
+        return rows.sort((a, b) => b.sourceVersion.localeCompare(a.sourceVersion))[0] ?? null;
+      },
+      create: async ({ data }: any) => {
+        assertMerchant(data.merchantId);
+        const row = { id: String(state.publicWork.length + 1), status: "pending", ...structuredClone(data) };
+        state.publicWork.push(row);return structuredClone(row);
+      },
+      updateMany: async ({ where, data }: any) => {
+        assertMerchant(where.merchantId);let count = 0;
+        for (const row of state.publicWork) if (row.sourceType === where.sourceType && row.sourceId === where.sourceId
+          && !row.sourceVersion.startsWith(where.sourceVersion.not.startsWith) && row.status !== where.status.not) {
+          Object.assign(row, structuredClone(data));count++;
+        }
+        return { count };
+      },
+    },
     $queryRaw: async (parts: TemplateStringsArray, ...values: unknown[]) => {
       assert.match(parts.join("?"), /SELECT id FROM merchants.*FOR UPDATE/);
       assert.deepEqual(values, ["store-own"]);

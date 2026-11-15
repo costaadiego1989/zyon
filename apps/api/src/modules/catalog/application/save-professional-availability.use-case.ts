@@ -1,3 +1,4 @@
+import { enqueueCanonicalPublicBusinessSources } from "../../graph-rag/infrastructure/public-business-write.js";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { assertExpectedVersion } from "../domain/services/service-professional-input.js";
@@ -25,6 +26,7 @@ export class SaveProfessionalAvailabilityUseCase {
       if (input.rows.length) await tx.professionalAvailability.createMany({ data: input.rows.map(row => ({ ...row, merchantId: actor.merchantId, professionalId, version: expectedVersion + 1 })) });
       const changed = await tx.serviceProfessional.updateMany({ where: { id: professionalId, merchantId: actor.merchantId, version: expectedVersion }, data: { timeZone: input.timeZone, version: { increment: 1 } } });
       if (changed.count !== 1) throw new ConflictException("service_professional_stale");
+      await enqueueCanonicalPublicBusinessSources(tx, actor.merchantId, [{ sourceType: "professional", sourceId: professionalId }]);
       return { professionalId, version: expectedVersion + 1, timeZone: input.timeZone, rows: await tx.professionalAvailability.findMany({ where: { merchantId: actor.merchantId, professionalId, isActive: true }, orderBy: [{ weekday: "asc" }, { startMinute: "asc" }] }) };
     });
     await this.events?.publish({ eventType: "service.availability.changed", merchantId: actor.merchantId, schemaVersion: 1, payload: { professionalId, version: result.version } });

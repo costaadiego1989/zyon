@@ -9,6 +9,8 @@ export async function installConstructionProviderTrap(databasePort, redisPort) {
   const allowed = new Set([databasePort, redisPort]);
   assert.ok([...allowed].every(port => Number.isInteger(port) && port > 1024 && port <= 65535));
   const counts = { fetchCalls: 0, unownedSocketAttempts: 0, sentinelRequests: 0 };
+  const diagnostics = [];
+  const record = kind => { if (diagnostics.length < 3) diagnostics.push({ kind, frames: new Error().stack.split('\n').slice(2, 8) }); };
   const sockets = new Set();
   const server = createServer((_request, response) => {
     counts.sentinelRequests++; response.writeHead(503); response.end("construction_provider_forbidden");
@@ -18,7 +20,7 @@ export async function installConstructionProviderTrap(databasePort, redisPort) {
   const address = server.address();
   assert.ok(address && typeof address !== "string" && address.address === "127.0.0.1");
   const fetch = globalThis.fetch, connect = net.Socket.prototype.connect;
-  globalThis.fetch = async () => { counts.fetchCalls++; throw new Error("construction_provider_fetch_forbidden"); };
+  globalThis.fetch = async () => { counts.fetchCalls++; record('fetch'); throw new Error("construction_provider_fetch_forbidden"); };
   net.Socket.prototype.connect = function (...args) {
     const normalized = Array.isArray(args[0]) ? args[0] : args;
     const first = normalized[0];
@@ -26,13 +28,14 @@ export async function installConstructionProviderTrap(databasePort, redisPort) {
       : typeof normalized[1] === "string" ? normalized[1] : "127.0.0.1";
     const port = Number(first && typeof first === "object" ? first.port : first);
     if (!["127.0.0.1", "::1", "[::1]"].includes(host) || !allowed.has(port) || first?.path) {
-      counts.unownedSocketAttempts++; throw new Error("construction_unowned_socket_forbidden");
+      counts.unownedSocketAttempts++; record('socket'); throw new Error("construction_unowned_socket_forbidden");
     }
     return connect.apply(this, args);
   };
   return {
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
     evidence: () => ({ ...counts, providerCalls: counts.fetchCalls + counts.unownedSocketAttempts + counts.sentinelRequests }),
+    diagnostics: () => structuredClone(diagnostics),
     async dispose() {
       try {
         for (const socket of sockets) socket.destroy();

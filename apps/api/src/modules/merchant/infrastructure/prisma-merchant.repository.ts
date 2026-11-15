@@ -1,3 +1,4 @@
+import { enqueueCanonicalPublicBusinessSources, enqueueOtherPublicSettingsSources, invalidateServiceBusinessPublicationWithin, publicServiceBusinessPublished } from "../../graph-rag/infrastructure/public-business-write.js";
 import { NotFoundException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { StageQuickReplies } from "@zyon/shared-types";
@@ -82,9 +83,10 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   }
 
   async updateStoreCategory(merchantId: string, storeCategory: string): Promise<void> {
-    await this.prisma.merchant.update({
-      where: { id: merchantId },
-      data: { storeCategory }
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
+      await tx.merchant.update({ where: { id: merchantId }, data: { storeCategory } });
+      await enqueueCanonicalPublicBusinessSources(tx, merchantId, [{ sourceType: "company", sourceId: merchantId }]);
     });
   }
 
@@ -102,13 +104,13 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     const incoming = normalizeCompanySettingsPatch(settings);
     await this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
-      const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true, businessMode: true } });
+      const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true, businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true } });
       if (!current) throw new NotFoundException("merchant_not_found");
       const { budget: _budget, ...storedPatch } = incoming;
       const merged = mergeCompanySettingsPatch(current.storeSettings, storedPatch);
       const requestedSlug = typeof incoming.slug === "string" ? incoming.slug.trim().toLowerCase() : undefined;
       await selectInitialBusinessMode(tx, merchantId, incoming);
-      const selected = await tx.merchant.findUnique({ where: { id: merchantId }, select: { businessMode: true } });
+      const selected = await tx.merchant.findUnique({ where: { id: merchantId }, select: { businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true } });
       if (!selected) throw new NotFoundException("merchant_not_found");
       assertCompanyServiceNamesMode(incoming, selected.businessMode);
       await tx.merchant.update({ where: { id: merchantId }, data: {
@@ -125,10 +127,11 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
         if (Object.keys(commercial).length) await tx.merchantPolicy.upsert({
           where: { merchantId }, create: { merchantId, ...commercial }, update: commercial,
         });
-        // Never leave a retrieval chunk containing superseded promises.
-        await tx.knowledgeChunk.deleteMany({ where: { merchantId, sourceType: "policy", sourceId: { in: Object.keys(settings.policies) } } });
+        // The canonical public helper invalidates changed resolved content.
       }
       await enqueueCompanySettingsWork(tx, merchantId, current.storeSettings, merged, current.businessMode, selected.businessMode);
+      await enqueueOtherPublicSettingsSources(tx, merchantId, incoming);
+      if (publicServiceBusinessPublished(current) !== publicServiceBusinessPublished(selected)) await invalidateServiceBusinessPublicationWithin(tx, merchantId);
     });
     return this.getStoreSettings(merchantId);
   }
@@ -153,12 +156,15 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     const next = { ...DEFAULT_RULES, ...defined(current as unknown as Record<string, unknown>), ...defined(rules as unknown as Record<string, unknown>) } as MerchantRules;
     const update = { where: { merchantId }, create: toCreate(merchantId, next), update: toUpdate(next) };
     if (rules.policies !== undefined) {
-      next.policies = { ...current.policies, ...rules.policies };
       const row = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
         const merchant = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+        const stored = (merchant?.storeSettings as MerchantStoreSettings | null) ?? {};
+        next.policies = { ...stored.checkoutPolicyLinks, ...rules.policies };
         await tx.merchant.update({ where: { id: merchantId }, data: {
-          storeSettings: { ...((merchant?.storeSettings as MerchantStoreSettings | null) ?? {}), checkoutPolicyLinks: next.policies } as unknown as Prisma.InputJsonValue,
+          storeSettings: { ...stored, checkoutPolicyLinks: next.policies } as unknown as Prisma.InputJsonValue,
         } });
+        await enqueueOtherPublicSettingsSources(tx, merchantId, { checkoutPolicyLinks: rules.policies });
         return tx.merchantRule.upsert(update);
       });
       return { ...toRules(row), policies: next.policies };

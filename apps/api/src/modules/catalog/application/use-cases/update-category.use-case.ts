@@ -1,3 +1,5 @@
+import { lockCatalogMerchant } from "../../../../shared/persistence/catalog-stock-ledger.js";
+import { enqueueCanonicalPublicBusinessSources } from "../../../graph-rag/infrastructure/public-business-write.js";
 import { Injectable, Inject , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -21,51 +23,57 @@ export class UpdateCategoryUseCase {
       sortOrder?: number;
     },
   ) {
-    const category = await this.prisma.productCategory.findUnique({
-      where: { id: categoryId },
-    });
-
-    if (!category || category.merchantId !== merchantId) {
-      throw new Error("category_not_found");
-    }
-
-    if (data.parentId !== undefined && data.parentId !== null) {
-      if (data.parentId === categoryId) {
-        throw new Error("category_cannot_be_parent_to_itself");
-      }
-      const parent = await this.prisma.productCategory.findUnique({
-        where: { id: data.parentId },
+    const updated = await this.prisma.$transaction(async tx => {
+      await lockCatalogMerchant(tx, merchantId);
+      const category = await tx.productCategory.findUnique({
+        where: { id: categoryId, merchantId },
       });
-      if (!parent || parent.merchantId !== merchantId) {
-        throw new Error("parent_category_not_found");
+
+      if (!category || category.merchantId !== merchantId) {
+        throw new Error("category_not_found");
       }
-    }
 
-    const updateData: Record<string, unknown> = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.parentId !== undefined) updateData.parentId = data.parentId;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
-    if (data.isActive !== undefined) updateData.isActive = data.isActive;
-    if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
+      if (data.parentId !== undefined && data.parentId !== null) {
+        if (data.parentId === categoryId) {
+          throw new Error("category_cannot_be_parent_to_itself");
+        }
+        const parent = await tx.productCategory.findUnique({
+          where: { id: data.parentId, merchantId },
+        });
+        if (!parent || parent.merchantId !== merchantId) {
+          throw new Error("parent_category_not_found");
+        }
+      }
 
-    const updated = await this.prisma.productCategory.update({
-      where: { id: categoryId },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        parentId: true,
-        description: true,
-        imageUrl: true,
-        isActive: true,
-        sortOrder: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      const updateData: Record<string, unknown> = {};
+      if (data.name !== undefined) updateData.name = data.name;
+      if (data.parentId !== undefined) updateData.parentId = data.parentId;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+      if (data.isActive !== undefined) updateData.isActive = data.isActive;
+      if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
+
+      const updated = await tx.productCategory.update({
+        where: { id: categoryId, merchantId },
+        data: updateData,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          parentId: true,
+          description: true,
+          imageUrl: true,
+          isActive: true,
+          sortOrder: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      const affected = await tx.product.findMany({ where: { merchantId, categoryId, type: "service" }, select: { id: true } });
+      await enqueueCanonicalPublicBusinessSources(tx, merchantId, affected.map(row => ({ sourceType: "service", sourceId: row.id })));
+      return updated;
     });
-
     return {
       id: updated.id,
       name: updated.name,

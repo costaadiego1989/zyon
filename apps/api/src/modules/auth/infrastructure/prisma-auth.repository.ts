@@ -324,18 +324,15 @@ export class PrismaAuthRepository implements AuthRepository {
   }
 
   async setStoreSettings(merchantId: string, settings: Record<string, unknown>): Promise<void> {
-    const merchant = await this.prisma.merchant.findUnique({
-      where: { id: merchantId },
-      select: { storeSettings: true },
-    });
-    const existing = (merchant?.storeSettings as Record<string, unknown>) ?? {};
     const storeSlug = typeof settings.slug === "string" ? settings.slug.trim().toLowerCase() : undefined;
-    await this.prisma.merchant.update({
-      where: { id: merchantId },
-      data: {
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
+      const merchant = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+      const existing = (merchant?.storeSettings as Record<string, unknown>) ?? {};
+      await tx.merchant.update({ where: { id: merchantId }, data: {
         storeSettings: { ...existing, ...settings } as any,
         ...(storeSlug ? { storeSlug } : {}),
-      },
+      } });
     });
   }
 

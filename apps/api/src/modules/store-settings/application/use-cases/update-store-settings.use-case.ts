@@ -1,3 +1,4 @@
+import { enqueueOtherPublicSettingsSources, invalidateServiceBusinessPublicationWithin, publicServiceBusinessPublished } from "../../../graph-rag/infrastructure/public-business-write.js";
 import { Injectable, Inject, Logger, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -36,17 +37,19 @@ export class UpdateStoreSettingsUseCase {
       const incoming = settings as unknown as Record<string, unknown>;
       return await this.prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
-        const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true, businessMode: true } });
+        const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true, businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true } });
         if (!current) throw new NotFoundException("merchant_not_found");
         const storedSettings = mergeCompanySettingsPatch(current.storeSettings, incoming);
         await selectInitialBusinessMode(tx, merchantId, incoming);
-        const selected = await tx.merchant.findUnique({ where: { id: merchantId }, select: { businessMode: true } });
+        const selected = await tx.merchant.findUnique({ where: { id: merchantId }, select: { businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true } });
         if (!selected) throw new NotFoundException("merchant_not_found");
         assertCompanyServiceNamesMode(incoming, selected.businessMode);
         await tx.merchant.update({ where: { id: merchantId }, data: {
           storeSettings: storedSettings as Prisma.InputJsonObject, ...(settings.slug ? { storeSlug: settings.slug } : {}),
         } });
         await enqueueCompanySettingsWork(tx, merchantId, current.storeSettings, storedSettings, current.businessMode, selected.businessMode);
+        await enqueueOtherPublicSettingsSources(tx, merchantId, incoming);
+        if (publicServiceBusinessPublished(current) !== publicServiceBusinessPublished(selected)) await invalidateServiceBusinessPublicationWithin(tx, merchantId);
         return { ...storedSettings, company: mapCompanySettings(storedSettings.company, undefined, selected.businessMode) } as MerchantStoreSettings;
       });
     } catch (error: unknown) {
