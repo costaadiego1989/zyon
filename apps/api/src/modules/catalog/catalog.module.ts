@@ -85,6 +85,7 @@ import { PrismaServiceProfessionalRepository } from "./infrastructure/repositori
 import { ServiceProfessionalsController } from "./presentation/http/service-professionals.controller.js";
 import { ServiceProfessionalEligibilityController } from "./presentation/http/service-professional-eligibility.controller.js";
 import { ServiceAvailabilityController } from "./presentation/http/service-availability.controller.js";
+import { ServiceAvailabilityManagementController } from "./presentation/http/service-availability-management.controller.js";
 import { SaveProfessionalAvailabilityUseCase } from "./application/save-professional-availability.use-case.js";
 import { SaveAvailabilityExceptionUseCase } from "./application/save-availability-exception.use-case.js";
 import { PrismaStockRepository } from "./infrastructure/repositories/prisma-stock.repository.js";
@@ -123,7 +124,7 @@ import { ListMerchantProductReviewsUseCase } from "./application/use-cases/list-
     CheckoutSettingsModule,
   ],
   // Static product collections must precede /products/:pid in the Express router.
-  controllers: [WidgetCatalogController, ProductLayoutStatusController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController, ModerationController, ProductContentHistoryController, ProductContentController, ServiceAvailabilityController, ServiceProfessionalEligibilityController, ServiceProfessionalsController],
+  controllers: [WidgetCatalogController, ProductLayoutStatusController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController, ModerationController, ProductContentHistoryController, ProductContentController, ServiceAvailabilityManagementController, ServiceAvailabilityController, ServiceProfessionalEligibilityController, ServiceProfessionalsController],
   providers: [
     { provide: SaveAvailabilityExceptionUseCase, useFactory: (prisma: PrismaClient, events: DomainEventBus) => new SaveAvailabilityExceptionUseCase(prisma, events), inject: [PRISMA_CLIENT, DOMAIN_EVENT_BUS] },
     { provide: SaveProfessionalAvailabilityUseCase, useFactory: (prisma: PrismaClient, events: DomainEventBus) => new SaveProfessionalAvailabilityUseCase(prisma, events), inject: [PRISMA_CLIENT, DOMAIN_EVENT_BUS] },

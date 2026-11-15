@@ -14,7 +14,7 @@ export async function createProfessionalHttpFixture(){
       const result={status:response.status,body:await response.json()};
       // The global interceptor records audits asynchronously. Await actual
       // persisted effects of entered mutation handlers before snapshots/close.
-      if(auth&&method!=='GET'&&path.includes('/service-professionals')&&[200,201,400,404,409].includes(response.status)){
+      if(auth&&method!=='GET'&&path.includes('/service-professionals')&&[200,201,400,404,409,500].includes(response.status)){
         assert.equal(response.headers.get('x-correlation-id'),correlationId);
         const deadline=Date.now()+5000;let audit;
         do{audit=await prisma.merchantAuditEvent.findFirst({where:{merchantId:auth.merchant_id,correlationId}});}while(!audit&&Date.now()<deadline);

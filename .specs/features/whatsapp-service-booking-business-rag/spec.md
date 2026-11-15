@@ -272,13 +272,13 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | Pending |
 | ATEND-02 | Professional administration | T18, T19, T76 | In Progress (T18 and T19 complete) |
 | ATEND-03 | Service categories | T20, T77 | In Progress (T20 complete) |
-| ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21, T23 and T24 complete) |
-| ATEND-05 | One-off times | T22, T25, T78 | In Progress (T22 complete) |
+| ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21, T23, T24 and T25 complete) |
+| ATEND-05 | One-off times | T22, T25, T78 | In Progress (T22 and T25 complete) |
 | ATEND-06 | Manual appointments | T31, T41, T74, T79 | Pending |
 | ATEND-07 | Attendance lifecycle | T32, T41, T74, T80 | Pending |
-| ATEND-08 | Management authorization | T6, T11, T19, T25, T41, T47, T52, T59, T73, T75, T83, T87 | In Progress (T19 complete) |
-| ATEND-09 | Unavailability blocks | T22, T25, T78 | In Progress (T22 complete) |
-| ATEND-10 | Explicit outside-hours appointment | T25, T31, T79 | Pending |
+| ATEND-08 | Management authorization | T6, T11, T19, T25, T41, T47, T52, T59, T73, T75, T83, T87 | In Progress (T19 and T25 complete) |
+| ATEND-09 | Unavailability blocks | T22, T25, T78 | In Progress (T22 and T25 complete) |
+| ATEND-10 | Explicit outside-hours appointment | T25, T31, T79 | In Progress (T25 complete) |
 | KPI-01 | Business-specific dashboard | T82, T87, T88, T89, T90, T91 | Pending |
 | KPI-02 | Appointment cohort and counts | T85, T86, T89 | Pending |
 | KPI-03 | Capacity occupancy | T86, T89 | Pending |

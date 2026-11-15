@@ -1,0 +1,421 @@
+{
+  "task": "T25",
+  "status": "complete",
+  "gate": "Full plus end-of-Phase3 Build",
+  "parentCommit": "12b47767ce3e61ee69a57a9d8b47c76f80133102",
+  "unit": {
+    "executed": 3,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "selectedInsidePhaseAggregate": true
+  },
+  "phaseUnits": {
+    "executed": 52,
+    "passed": 52,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "durationMs": 16114.2332,
+    "exitCode": 0,
+    "log": ".cache/phase3-gates/t25-phase3-units.log",
+    "sha256": "f315e308cfdb17358919bf9efa65d26251c7923648a4a414adc5edda48574a44"
+  },
+  "appModuleHttpDatabase": {
+    "name": "T25 HTTP",
+    "executed": 11,
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "durationMs": 60607.3278,
+    "exitCode": 0,
+    "log": ".cache/phase3-gates/t25-http.log",
+    "sha256": "9855989e74cc5f48af5db0bfa60e88c9af4b60d5444318f3bde1f7f5a6cd7b1b"
+  },
+  "phaseNative": {
+    "executed": 72,
+    "passed": 72,
+    "failed": 0,
+    "skipped": 0,
+    "postgresOnly": 31,
+    "appModuleHttpDatabase": 41,
+    "results": [
+      {
+        "name": "T18 PG",
+        "executed": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 22056.8536,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-reg-t18.log",
+        "sha256": "6eb797aa7870d1eca9e8e9b031cd038da551f92174c73c81d31effbf7745c7bd"
+      },
+      {
+        "name": "T20 PG",
+        "executed": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 37428.8445,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-reg-t20.log",
+        "sha256": "9eba74d6c30a76fb1ed7b198857ed5316c08b33bcfdbb26574cd4e897bdd229c"
+      },
+      {
+        "name": "T21 PG",
+        "executed": 5,
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 22755.6758,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-reg-t21.log",
+        "sha256": "32933dc173645d3b9f15f749e21b14bfaf7baf79f2d3f9932d3681bacf2fae10"
+      },
+      {
+        "name": "T22 PG",
+        "executed": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 18750.7723,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-reg-t22.log",
+        "sha256": "7c7ede35b624869a5d7ef0301aa03fa9c1c77634c6154917d363915f2422e814"
+      },
+      {
+        "name": "T23 PG",
+        "executed": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 28827.5587,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-reg-t23.log",
+        "sha256": "12f1a59ff6db9c86a51284c10b07d78b55969c40de66a27c0f4e90fad67b9b2a"
+      },
+      {
+        "name": "T25 HTTP",
+        "executed": 11,
+        "passed": 11,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 60607.3278,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-http.log",
+        "sha256": "9855989e74cc5f48af5db0bfa60e88c9af4b60d5444318f3bde1f7f5a6cd7b1b"
+      },
+      {
+        "name": "T17 HTTP",
+        "executed": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 71613.9466,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-reg-t17-http.log",
+        "sha256": "f52fa6a8cff235d7ce462074d5acd6b9ab852a00565e7fa8010ed21b4daae7c0"
+      },
+      {
+        "name": "T19 HTTP",
+        "executed": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 36641.1278,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-reg-t19-http.log",
+        "sha256": "ee399521aadb54828f2c6a2567742b66df77ac5da72bc9da3ce94ee57c07ff46"
+      },
+      {
+        "name": "T20 HTTP",
+        "executed": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 32567.088,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-reg-t20-http.log",
+        "sha256": "edbd523142a13fb6f329187e27b94aad74cb3e630e14660faf8d6ab3ac80333e"
+      },
+      {
+        "name": "T24 HTTP",
+        "executed": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 32942.2747,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t25-reg-t24-http.log",
+        "sha256": "5b7bce6e0a4c69e30752667c16a6f875ce2105b88d7bde3840ed92a8fade4e89"
+      }
+    ]
+  },
+  "build": {
+    "exitCode": 0,
+    "checked": true,
+    "sourceCount": 2518,
+    "inputSha256": "6b61dd9ded40a22f235e0f6e346fda85b6d1adfa49202d2f23dc6dfa83a96127",
+    "artifactSha256": "812addf7a73f9832c56a610e5602a14b65e160fcd9133bd67b14716f1252bb68",
+    "recordedAt": "2026-11-15T16:49:57.105Z",
+    "finalIntegralAssertionExitCode": 0,
+    "rebuildAfterDiskRecovery": false
+  },
+  "apps": [
+    {
+      "app": "api",
+      "typecheckExitCode": 0,
+      "buildExitCode": 0
+    },
+    {
+      "app": "widget-v2",
+      "typecheckExitCode": 0,
+      "buildExitCode": 0
+    },
+    {
+      "app": "dashboard",
+      "typecheckExitCode": 0,
+      "buildExitCode": 0
+    },
+    {
+      "app": "storefront",
+      "typecheckExitCode": 0,
+      "buildExitCode": 0
+    }
+  ],
+  "lint": {
+    "app": "api",
+    "exitCode": 0,
+    "inheritedWarnings": 2,
+    "files": [
+      "crypto-payment.controller.ts:31",
+      "tenant.middleware.ts:353"
+    ]
+  },
+  "frontendInputs": {
+    "files": 1478,
+    "changed": [],
+    "aggregateSha256": "a557ec7c91b2ef40ddfa5d3797e82d59d21a9f343e49643553ad94c9e9b01f5e",
+    "sharedTypesDeclarationSha256": "5af34020264ae67742fd24c28da8b8c595e6bfc43f980f9e96ef716f06e6c6c7"
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/merchants/:mid/service-professionals/:professionalId/availability",
+      "roles": [
+        "owner",
+        "admin"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/merchants/:mid/service-professionals/:professionalId/availability",
+      "roles": [
+        "owner",
+        "admin"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/merchants/:mid/service-professionals/:professionalId/availability-exceptions",
+      "roles": [
+        "owner",
+        "admin"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/merchants/:mid/service-professionals/:professionalId/availability-exceptions/:exceptionId",
+      "roles": [
+        "owner",
+        "admin"
+      ]
+    }
+  ],
+  "proofs": [
+    "real save/edit grid, one_off, block, reload, dates and slots agree with canonical transaction reader",
+    "all four routes reject anonymous, foreign, products and staff actors against existing resources without agenda side effects",
+    "invalid envelopes, stale versions, forged actor/body identities and non-minute new boundaries preserve full state",
+    "exact-PID canonical confirmation contention rejects conflicting block; independent professional-only HTTP wait proves the row lock before persistence",
+    "historical exception withdrawal after actual profile timezone edit preserves original precise fields and appointment snapshot",
+    "synthetic owned SQL constraint fails after grid deactivation and the actual HTTP mutation rolls all rows/version back",
+    "cursor pages return103 active scoped exceptions exactly once in100/3 bounded pages",
+    "actual authenticated admin with API plan saves and reloads all four routes"
+  ],
+  "runtime": {
+    "canonicalAppModule": true,
+    "repositoryOverrides": false,
+    "authOverrides": false,
+    "allowRemoteModels": false,
+    "providerCalls": 0,
+    "appClosedAcknowledged": true,
+    "naturalWorkerExitCode": 0,
+    "referencedTimersBeforeAck": 0,
+    "referencedTimersAtDisconnect": 0,
+    "remainingOwnedContainers": 0,
+    "remainingBridgeSockets": 0
+  },
+  "setupFailure": {
+    "stage": "before AppModule/business children",
+    "reason": "redis:7-alpine missing from local image cache",
+    "businessCasesExecuted": 0,
+    "log": ".cache/phase3-gates/t25-http-missing-redis-setup-failure.log",
+    "restoration": "Root restored the same contractual local test tag; factory --pull=never unchanged",
+    "currentTestIdentity": {
+      "observedAtUtc": "2026-11-15T21:10:38.2239408Z",
+      "purpose": "T25 local test dependency recovered centrally after missing-image setup failure",
+      "tag": "redis:7-alpine",
+      "id": "sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe",
+      "repoDigests": [
+        "redis@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe"
+      ],
+      "created": "2026-11-09T20:09:32.419853068Z",
+      "version": "REDIS_VERSION=7.4.12",
+      "historicalDigestKnown": false,
+      "historicalIdentityClaim": false,
+      "factoryPullPolicyUnchanged": "never"
+    }
+  },
+  "diskRecovery": {
+    "integralVerification": {
+      "verifiedAt": "2026-11-15T21:00:09.098Z",
+      "artifact": {
+        "checked": true,
+        "inputSha256": "6b61dd9ded40a22f235e0f6e346fda85b6d1adfa49202d2f23dc6dfa83a96127",
+        "artifactSha256": "812addf7a73f9832c56a610e5602a14b65e160fcd9133bd67b14716f1252bb68",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2518
+        }
+      },
+      "frontInputFiles": 1478,
+      "frontInputChanged": [],
+      "sharedTypesDeclarationUnchanged": true,
+      "buildLogComplete": true,
+      "timestamps": [
+        {
+          "path": "apps/api/.sandbox-state/service-test-build-inputs.json",
+          "bytes": 137,
+          "modifiedAt": "2026-11-15T16:48:34.458Z",
+          "sha256": "4194948e4012fc316f6b8308f8adf47ec6a235ed7eba8cc48846a3b88b31f2aa"
+        },
+        {
+          "path": "apps/api/.sandbox-state/service-test-build.json",
+          "bytes": 349,
+          "modifiedAt": "2026-11-15T16:49:57.105Z",
+          "sha256": "6c97329c2bd1ff922b3a99d3f7574cb940aa51e66f2e3376ee8fa076a1143f35"
+        },
+        {
+          "path": "apps/api/dist/app.module.js",
+          "bytes": 8561,
+          "modifiedAt": "2026-11-15T16:49:48.813Z",
+          "sha256": "dc223ab04febf5ee09bf63175c392fd81336e9f59286367baf3544eb695792ef"
+        },
+        {
+          "path": "apps/api/dist/modules/catalog/presentation/http/service-availability-management.controller.js",
+          "bytes": 7088,
+          "modifiedAt": "2026-11-15T16:49:30.016Z",
+          "sha256": "0c7e934fd3081e1467d4b14c2312eb72ebdb2c9923e383238f020b44887f9a4b"
+        },
+        {
+          "path": "packages/shared-types/dist/index.js",
+          "bytes": 3342,
+          "modifiedAt": "2026-11-15T16:48:38.058Z",
+          "sha256": "1b378b61bb7e440d458a902a953321f8312659ecea875061d9bc7e230aba595e"
+        },
+        {
+          "path": "packages/shared-types/dist/index.d.ts",
+          "bytes": 43683,
+          "modifiedAt": "2026-11-15T16:48:38.076Z",
+          "sha256": "5af34020264ae67742fd24c28da8b8c595e6bfc43f980f9e96ef716f06e6c6c7"
+        },
+        {
+          "path": "apps/widget_v2/dist/index.js",
+          "bytes": 468434,
+          "modifiedAt": "2026-11-15T16:31:34.676Z",
+          "sha256": "d0f48a90afcc1880cc04eb50cf3d0f5755f08cc6a21f34cc08c175697fc8b249"
+        },
+        {
+          "path": "apps/dashboard/dist/index.html",
+          "bytes": 575,
+          "modifiedAt": "2026-11-15T16:37:52.010Z",
+          "sha256": "4d9d7523d702e11ef24a7fe738f0473f4b930b1bcfa729190e684bd17c474194"
+        },
+        {
+          "path": "apps/storefront/.next/BUILD_ID",
+          "bytes": 21,
+          "modifiedAt": "2026-11-15T16:46:09.189Z",
+          "sha256": "639d094c8b26a226b0284ef601a7493eff3f92e72b6849a158c4dcf0ad5bcb4a"
+        },
+        {
+          "path": "apps/storefront/.next/build-manifest.json",
+          "bytes": 994,
+          "modifiedAt": "2026-11-15T16:45:55.482Z",
+          "sha256": "88e9b246079407597fa53ab07654351b5f5057c0a3075ec952ced10d4a8fe558"
+        },
+        {
+          "path": "apps/storefront/.next/server/app-paths-manifest.json",
+          "bytes": 936,
+          "modifiedAt": "2026-11-15T16:45:49.413Z",
+          "sha256": "8eebe060afab22f704a093c02988b92d520a1b9129ee487d5adcca214e3d8990"
+        },
+        {
+          "path": ".cache/phase3-gates/t25-build-verified-launcher.log",
+          "bytes": 2212,
+          "modifiedAt": "2026-11-15T16:49:57.106Z",
+          "sha256": "4aa60daedb317f4f42499b6d5a19cdbf38a279e0271cfa4a401efee3af6861d5"
+        }
+      ],
+      "rebuildRequired": false
+    },
+    "sourceOutputsUnchanged": true,
+    "certifiedBuildReused": true,
+    "automaticCacheDeletionWasRejected": true,
+    "deletionBypassAttempted": false
+  },
+  "resourceOrchestration": {
+    "buildCommitMiB": 5168,
+    "appModuleNativeCommitMiB": 2048,
+    "postgresOnlyCommitMiB": 1024,
+    "physicalInformational": true,
+    "defaultHeapUnchanged": true,
+    "testAndTransactionDeadlinesChanged": false,
+    "unrelatedProcessesTerminated": false,
+    "refusalsRetained": true
+  },
+  "schemaChanged": false,
+  "assertionsWeakened": false,
+  "testsSkippedOrDeleted": false,
+  "scope": {
+    "localOnly": true,
+    "remoteAction": false,
+    "providerAcceptance": false,
+    "embeddingOrRetrievalProof": false,
+    "finalFeatureAcceptance": false
+  },
+  "logs": [
+    ".cache/phase3-gates/t25-typecheck-verified-launcher.log",
+    ".cache/phase3-gates/t25-lint-verified-launcher.log",
+    ".cache/phase3-gates/t25-build-verified-launcher.log",
+    ".cache/phase3-gates/t25-shared-types-build.log",
+    ".cache/phase3-gates/t25-widget-v2-typecheck.log",
+    ".cache/phase3-gates/t25-widget-v2-build.log",
+    ".cache/phase3-gates/t25-dashboard-typecheck.log",
+    ".cache/phase3-gates/t25-dashboard-build.log",
+    ".cache/phase3-gates/t25-storefront-typecheck.log",
+    ".cache/phase3-gates/t25-storefront-build.log"
+  ]
+}
