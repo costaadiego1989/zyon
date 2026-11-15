@@ -27,6 +27,11 @@ function database() {
       state.deletedChunks.push(...where.sourceId.in);
       return { count: 1 };
     } },
+    $queryRaw: async (parts: TemplateStringsArray, ...values: unknown[]) => {
+      assert.match(parts.join("?"), /SELECT id FROM merchants.*FOR UPDATE/);
+      assert.deepEqual(values, ["store-own"]);
+      return [{ id: "store-own" }];
+    },
     $transaction: async (run: (tx: any) => Promise<any>) => {
       const original = structuredClone(state);
       try { return await run(prisma); } catch (error) { state = original; throw error; }

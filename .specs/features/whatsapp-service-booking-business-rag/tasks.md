@@ -400,11 +400,11 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + HTTP/DB About pelas duas APIs existentes: string/limite/objeto/merge/clear/rollback.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit + service-company-about-write.integration.spec.mjs pelas duas APIs existentes e alias: string/limite/objeto/merge/clear/rollback.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Unit + HTTP/DB About pelas duas APIs existentes: string/limite/objeto/merge/clear/rollback.
+**Tests**: Unit + service-company-about-write.integration.spec.mjs pelas duas APIs existentes e alias: string/limite/objeto/merge/clear/rollback.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T13$" ./src/modules/merchant/application/update-merchant-theme.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T13 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t13 normalize the canonical about write`
 

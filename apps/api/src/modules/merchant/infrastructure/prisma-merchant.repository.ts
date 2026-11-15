@@ -1,3 +1,4 @@
+import { NotFoundException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { StageQuickReplies } from "@zyon/shared-types";
 import type { MerchantProfile, MerchantRules, MerchantStoreSettings, MerchantTheme } from "../domain/merchant.types.js";
@@ -8,8 +9,9 @@ import { decodePersistedTheme } from "../domain/services/merchant-theme.validato
 import { toNumber } from "../../../shared/persistence/decimal.util.js";
 import { isBillingFeatureEnabled } from "../../payment/domain/billing-plans.js";
 import { z } from "zod";
-import { isInitialBusinessSelectionWrite, selectInitialBusinessMode } from "../application/initial-business-mode-selection.js";
+import { selectInitialBusinessMode } from "../application/initial-business-mode-selection.js";
 import { mapMerchantBusinessProfile } from "../application/merchant-business-profile.mapper.js";
+import { normalizeCompanySettingsPatch, mergeCompanySettingsPatch, enqueueCompanySettingsWork } from "../application/company-settings-write.js";
 
 const existingPercent = z.union([z.number().finite(), z.custom<Prisma.Decimal>(value => Prisma.Decimal.isDecimal(value))
   .transform(value => value.toNumber())]).pipe(z.number().finite().min(0).max(100));
@@ -102,53 +104,35 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     return { ...stored, budget: { enabled: row?.budgetModeEnabled ?? false, email: row?.budgetEmail ?? "", whatsapp: row?.budgetWhatsapp ?? "" } };
   }
 
-  async updateStoreSettings(merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
-    const current = await this.prisma.merchant.findUnique({
-      where: { id: merchantId },
-      select: { storeSettings: true },
-    });
-    const existing = (current?.storeSettings as Record<string, unknown>) ?? {};
-    const incoming = settings as unknown as Record<string, unknown>;
-    const merged: Record<string, unknown> = { ...existing };
-    for (const [key, value] of Object.entries(incoming)) {
-      if (key === "budget" || key === "business_mode") continue;
-      const prev = existing[key];
-      const bothPlainObjects =
-        prev != null && typeof prev === "object" && !Array.isArray(prev) &&
-        value != null && typeof value === "object" && !Array.isArray(value);
-      merged[key] = bothPlainObjects
-        ? { ...(prev as Record<string, unknown>), ...(value as Record<string, unknown>) }
-        : value;
-    }
-
-    const requestedSlug = typeof merged.slug === "string" ? merged.slug.trim().toLowerCase() : undefined;
-    const update = {
-      where: { id: merchantId },
-      data: {
+  async updateStoreSettings(merchantId: string, settings: MerchantStoreSettings): Promise<MerchantStoreSettings> {
+    const incoming = normalizeCompanySettingsPatch(settings);
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
+      const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+      if (!current) throw new NotFoundException("merchant_not_found");
+      const { budget: _budget, ...storedPatch } = incoming;
+      const merged = mergeCompanySettingsPatch(current.storeSettings, storedPatch);
+      const requestedSlug = typeof incoming.slug === "string" ? incoming.slug.trim().toLowerCase() : undefined;
+      await selectInitialBusinessMode(tx, merchantId, incoming);
+      await tx.merchant.update({ where: { id: merchantId }, data: {
         ...(settings.budget ? {
           budgetModeEnabled: settings.budget.enabled,
           ...(settings.budget.email !== undefined ? { budgetEmail: settings.budget.email || null } : {}),
           ...(settings.budget.whatsapp !== undefined ? { budgetWhatsapp: settings.budget.whatsapp || null } : {}),
         } : {}),
-        storeSettings: merged as unknown as object,
+        storeSettings: merged as Prisma.InputJsonObject,
         ...(requestedSlug ? { storeSlug: requestedSlug } : {}),
-      }
-    };
-    if (settings.policies || isInitialBusinessSelectionWrite(incoming)) {
-      await this.prisma.$transaction(async (tx) => {
-        await selectInitialBusinessMode(tx, merchantId, incoming);
-        await tx.merchant.update(update);
-        if (!settings.policies) return;
+      } });
+      if (settings.policies) {
         const commercial = Object.fromEntries(["returns", "shipping"].filter(field => Object.hasOwn(settings.policies!, field)).map(field => [field, (settings.policies as Record<string, string>)[field] || null]));
         if (Object.keys(commercial).length) await tx.merchantPolicy.upsert({
           where: { merchantId }, create: { merchantId, ...commercial }, update: commercial,
         });
         // Never leave a retrieval chunk containing superseded promises.
-        await tx.knowledgeChunk.deleteMany({ where: { merchantId, sourceType: "policy", sourceId: { in: Object.keys(settings.policies!) } } });
-      });
-    } else {
-      await this.prisma.merchant.update(update);
-    }
+        await tx.knowledgeChunk.deleteMany({ where: { merchantId, sourceType: "policy", sourceId: { in: Object.keys(settings.policies) } } });
+      }
+      await enqueueCompanySettingsWork(tx, merchantId, current.storeSettings, merged);
+    });
     return this.getStoreSettings(merchantId);
   }
 

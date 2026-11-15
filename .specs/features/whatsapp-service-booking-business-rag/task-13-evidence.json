@@ -1,0 +1,71 @@
+{
+  "task": "T13",
+  "baseHead": "ef0e05650",
+  "environment": "local-owned",
+  "unit": {
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0
+  },
+  "existingRegression": {
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "files": [
+      "store-policy-persistence.spec.ts",
+      "prisma-merchant.repository.spec.ts"
+    ],
+    "fakeCompatibility": "Only existing policy fake gained merchant FOR UPDATE query capacity; business payloads and assertions unchanged."
+  },
+  "apiBuildExit": 0,
+  "checkedArtifact": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "52b9e00cfb90c8d0e16eb086417d55de423211cf21c9f3ba57fcdc1960ac35ac",
+    "artifactSha256": "98bd2302f8027de078f4e157ea92da2119f6fa87c3a9a280c751fdaf0fe1d2bb",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2492
+    },
+    "recordedAt": "2026-11-15T00:32:47.798Z"
+  },
+  "nativeFirst": {
+    "passed": 12,
+    "failed": 4,
+    "skipped": 0,
+    "reason": "Single-tenant matrix exceeded canonical60requests/min; three subcases plus root failed429. Cleanup normal."
+  },
+  "nativeFinal": {
+    "passed": 16,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 101528.8452
+  },
+  "fixturePacing": "Before the next request for that token, wait for unchanged real X-RateLimit-Reset when remaining<=5. No response retry, quota reset/increase, guard change or assertion change.",
+  "routes": [
+    "/merchants/me/store-settings",
+    "/merchants/:id/store-settings",
+    "/settings/store"
+  ],
+  "proved": [
+    "description string/object validation and1200 limit before writes",
+    "canonical recursive merge omission and explicit empty clear",
+    "transactional source work plus scoped stale chunk invalidation",
+    "work creation and chunk deletion failures roll back settings work and chunks",
+    "unchanged public snapshot creates no duplicate work",
+    "private login absent from stored company and source hash across all routes",
+    "explicit persisted public company.email included in hash",
+    "removing last public company field creates withdrawn hash of empty object",
+    "foreign and anonymous denied; alias ETag equals fresh GET"
+  ],
+  "teardownFinal": {
+    "appCloseAck": true,
+    "naturalWorkerExit0": true,
+    "ownedResourcesRemoved": true
+  },
+  "providerCalls": 0,
+  "logs": "C:/tmp/zyon-service-company-preparation-20261114/logs/T13-2026-11-15T00-30-21.978Z",
+  "nativeFinalLog": "C:/tmp/zyon-service-company-preparation-20261114/logs/T13-native-paced.log"
+}

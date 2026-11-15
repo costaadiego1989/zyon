@@ -1,10 +1,11 @@
-import { Injectable, Inject, Logger, ConflictException } from "@nestjs/common";
+import { Injectable, Inject, Logger, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { MerchantStoreSettings } from "../../../merchant/domain/merchant.types.js";
 import { slugify } from "../../../../shared/utils/slugify.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
-import { isInitialBusinessSelectionWrite, selectInitialBusinessMode } from "../../../merchant/application/initial-business-mode-selection.js";
+import { selectInitialBusinessMode } from "../../../merchant/application/initial-business-mode-selection.js";
+import { normalizeCompanySettingsPatch, mergeCompanySettingsPatch, enqueueCompanySettingsWork } from "../../../merchant/application/company-settings-write.js";
 
 export type StoreSettings = MerchantStoreSettings;
 
@@ -15,6 +16,7 @@ export class UpdateStoreSettingsUseCase {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(merchantId: string, settings: MerchantStoreSettings): Promise<MerchantStoreSettings> {
+    settings = normalizeCompanySettingsPatch(settings) as MerchantStoreSettings;
     // Validate and normalize slug if provided
     if (settings.slug) {
       settings.slug = slugify(settings.slug);
@@ -31,16 +33,18 @@ export class UpdateStoreSettingsUseCase {
 
     try {
       const incoming = settings as unknown as Record<string, unknown>;
-      const { business_mode: _mode, ...storedSettings } = incoming;
-      const update = {
-        where: { id: merchantId },
-        data: { storeSettings: storedSettings as object, ...(settings.slug ? { storeSlug: settings.slug } : {}) },
-      };
-      if (isInitialBusinessSelectionWrite(incoming)) await this.prisma.$transaction(async tx => {
+      return await this.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
+        const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+        if (!current) throw new NotFoundException("merchant_not_found");
+        const storedSettings = mergeCompanySettingsPatch(current.storeSettings, incoming);
         await selectInitialBusinessMode(tx, merchantId, incoming);
-        await tx.merchant.update(update);
+        await tx.merchant.update({ where: { id: merchantId }, data: {
+          storeSettings: storedSettings as Prisma.InputJsonObject, ...(settings.slug ? { storeSlug: settings.slug } : {}),
+        } });
+        await enqueueCompanySettingsWork(tx, merchantId, current.storeSettings, storedSettings);
+        return storedSettings as MerchantStoreSettings;
       });
-      else await this.prisma.merchant.update(update);
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         throw new ConflictException("slug_already_taken");
@@ -48,6 +52,5 @@ export class UpdateStoreSettingsUseCase {
       throw error;
     }
 
-    return settings;
   }
 }

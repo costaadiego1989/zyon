@@ -6,6 +6,7 @@ import {
 } from "../domain/ports/merchant-repository.port.js";
 import { validateMerchantTheme } from "../domain/services/merchant-theme.validators.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { normalizeCompanySettingsPatch } from "./company-settings-write.js";
 
 const VALID_STORE_CATEGORIES = [
   // Varejo físico
@@ -62,6 +63,7 @@ export class UpdateMerchantThemeUseCase {
   }
 
   async updateStoreSettings(merchantId: string, settings: Record<string, unknown>) {
+    settings = normalizeCompanySettingsPatch(settings);
     if (!settings || typeof settings !== "object" || Array.isArray(settings)) throw new BadRequestException("invalid_store_settings");
     if (settings.policies !== undefined) {
       const policies = settings.policies as Record<string, unknown>;

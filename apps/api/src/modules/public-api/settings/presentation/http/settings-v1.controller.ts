@@ -238,10 +238,13 @@ export class SettingsV1Controller {
     // Enforce If-Match header for optimistic concurrency
     this.entityTags.assertIfMatch(ifMatch, current);
 
-    const updated = await this.updateStoreSettings.execute(
+    await this.updateStoreSettings.execute(
       merchantId,
-      { ...current, ...body } as any,
+      body as Parameters<UpdateStoreSettingsUseCase["execute"]>[1],
     );
+    // The response and ETag use the same presentation as GET. The writer
+    // merges only the submitted canonical patch, never this read projection.
+    const updated = await this.getStoreSettings.execute(merchantId);
 
     this.entityTags.set(response, updated);
     return SettingsEntityMapper.toStoreSettingsResponse(updated);
