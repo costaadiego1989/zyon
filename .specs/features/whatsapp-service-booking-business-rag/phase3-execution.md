@@ -13,3 +13,13 @@ The supplemental product-types-only regression failed before any business case b
 The first launcher attempts also remain recorded: recursive scripts selected a global pnpm that tried package-manager auto-install, blocked by the network fence; the temporary Windows shim initially lost quotes. The successful launcher uses the existing cached9.15.0 CLI and its existing .bin/pnpm.CMD under a sanitized guarded environment. Packages, lock and build checks were not changed. Future T18–T25 drafts are hash-preserved outside productive fingerprints and will be restored in task order.
 
 Evidence: task-17-evidence.json. Logs: .cache/phase3-gates/t17-*.log. Final verifier and global proofs belong to root after T95.
+
+## T18: Professional Repository
+
+PASS: unit4/4, actual owned PostgreSQL and tenant middleware7/7, zero failed/skipped. Checked API build exited0 with2,491 productive sources. The repository is registered through the canonical CatalogModule factory; its resource endpoints belong to T19. No artificial HTTP facade was created.
+
+Professionals have a typed public description/specialties profile, timezone, publication/activity state, canonical service associations and expectedVersion. Creation does not create a login. Tenant-scoped updates and version races preserve resource/link identities. Deactivation withdraws publication and preserves appointments, prices and links. A real foreign composite FK failure rolled back the preceding mutation. Own resources and bridge sockets were removed.
+
+The first DB run failed7/7 because a mapped nested Prisma input repeated merchantId inherited by the professional relation; later scenario assertions cascaded. TypeScript structural assignment accepted the inferred mapped extra property without an any cast. The fix creates the scalar professional and typed createMany links in the same transaction, with a satisfies check and an explicit Prisma input return type. Schema and all tests/assertions were preserved. A new checked build and the unchanged full native scenario passed after the fix.
+
+Root reviewed the approved entitlement contract: Atendimento is gated by services mode and explicit role, without a newly invented STORE_ONLY/BOTH tier. Existing applicable entitlements and sales quotas remain. T19 will prove API-plan professional operations as well as staff read opt-in and forbidden mutations. Evidence: task-18-evidence.json.

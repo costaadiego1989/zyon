@@ -4,7 +4,7 @@ Worker: service_professional_agenda. Branch: feat/service-professional-agenda-20
 
 Future T18–T25 preparatory new files are preserved under .cache/service-phase3-prepared with a SHA256 manifest. They are outside productive source/build fingerprints and will be restored, hash-checked, by their task before each independent gate/commit. No stash, discard or foreign source is involved. T17's first integration gate sees only T17 productive changes.
 
-Current execution: T17 Full gate passed and is marked complete before its atomic commit. See task-17-evidence.json and phase3-execution.md. Next is T18; restore its6 preserved files with hashes, then unit/native/build in its own tree. Parent coordinates heavy slots; no concurrent API build/AppModule is authorized while another owner holds the slot. Extra product-types regression is pending canonical SQL asset research by root, not silently passed.
+Current execution: T17 committed as f263e4035. T18 Full gate passed after the real Prisma input correction: unit4/4, native7/7 and checked build0; status is closed before its atomic commit. Next is T19, restoring its4 preserved files with hashes. Parent coordinates heavy slots. Root restored the digital SQL separately as8701e0ddf and proved8/8 there; the earlier P supplemental failure remains recorded honestly and the integrated final Build will incorporate root's recovery.
 
 ## T17
 
@@ -30,17 +30,19 @@ Shared lock contract agreed with root: export lockServiceProfessional(tx, mercha
 
 Assumptions: owner/admin maintain profiles and service links; staff reads are explicit. Profile fields are public description and specialties, no auth account or private contact copy. Edit uses expectedVersion. Deactivation withdraws public eligibility and preserves appointments, service links and snapshots. Product and category remain canonical.
 
-Files: prisma-service-professional.repository.ts and companion unit spec; domain/services/service-professional-input.ts; shared/bookings/service-business-access.ts and service-professional-lock.ts; tests/service-professionals.integration.spec.mjs. Success: own DB create/edit/deactivate, foreign/invalid/mode, constraints, concurrent versions, rollback and unchanged appointment history.
+Files: prisma-service-professional.repository.ts and companion unit spec; domain/services/service-professional-input.ts; shared/bookings/service-business-access.ts and service-professional-lock.ts; tests/service-professionals.integration.spec.mjs; minimum CatalogModule provider factory. Success: own DB create/edit/deactivate, foreign/invalid/mode, constraints, concurrent versions, rollback and unchanged appointment history.
 
 ## T19 Preparation
 
 Files: presentation/http/service-professionals.controller.ts and companion spec; minimum CatalogModule registration; tests/service-professionals-http.integration.spec.mjs. Success: real authenticated HTTP list/create/edit/deactivate, owner/admin role, staff read only, products/foreign/invalid/stale denied with unchanged DB; public event carries only source identity, version and publication state after persistence.
 
-Replay step: add the existing RequirePlanGuard and RequirePlan(STORE_ONLY,BOTH) to the new professional, eligibility, availability-read and availability-management controllers. This preserves subscription as a separate server axis; service capability alone does not grant a plan. Add a real API-plan negative alongside mode/role negatives. The preserved drafts currently contain auth/ownership/mode/role only, so this step must precede their endpoint gates.
+Plan contract reviewed by root: approved Atendimento is conditioned on services mode, with no newly approved commercial tier. Existing operations orders/customers/payments do not inherit StoreBuilder's RequirePlan; CHECKOUT_ONLY is already treated as BOTH there. The preserved drafts correctly contain auth/ownership/mode/role only. Do not add STORE_ONLY/BOTH by analogy or invent an API-plan exclusion. Preserve applicable existing limits/entitlements and new-sales quotas; no billing rule is changed here. During T19 replay, add real API-plan-positive professional CRUD coverage so accidental inheritance of catalog plan policy cannot stay green.
 
 ## T20 Preparation
 
 Files: domain/services/professional-service-link.ts/spec.ts; tests/service-professional-links.integration.spec.mjs; minimal eligibility HTTP route in its own controller and CatalogModule registration. Success: explicit same-tenant active/published professional, active canonical service and variant, positive canonical variant price, active same-tenant category, validated duration from metadata.serviceSchedule. Category is classification and never a capacity resource or price authority.
+
+Replay fixture correction: service-eligibility-http's new draft mixes root Product.merchantId with nested category.create. Use a separate real category create followed by scalar categoryId on the product, consistent with the generated unchecked Product input. Preserve every eligibility assertion. This avoids repeating the T18 checked/unchecked nested-input mismatch; production schema and catalog writers remain unchanged.
 
 ## T23 Contract
 

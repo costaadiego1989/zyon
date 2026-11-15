@@ -81,6 +81,7 @@ import { TenantStorefrontCatalogAdapter } from "./infrastructure/tenant-storefro
 import { DefaultCrossSellResolverAdapter } from "./infrastructure/default-cross-sell-resolver.adapter.js";
 import { CatalogCacheService } from "./infrastructure/cache/catalog-cache.service.js";
 import { PrismaProductRepository } from "./infrastructure/repositories/prisma-product.repository.js";
+import { PrismaServiceProfessionalRepository } from "./infrastructure/repositories/prisma-service-professional.repository.js";
 import { PrismaStockRepository } from "./infrastructure/repositories/prisma-stock.repository.js";
 import { PrismaProductPromotionRepository } from "./infrastructure/repositories/prisma-product-promotion.repository.js";
 import { EmbeddingService } from "./infrastructure/services/embedding.service.js";
@@ -119,6 +120,7 @@ import { ListMerchantProductReviewsUseCase } from "./application/use-cases/list-
   // Static product collections must precede /products/:pid in the Express router.
   controllers: [WidgetCatalogController, ProductLayoutStatusController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController, ModerationController, ProductContentHistoryController, ProductContentController],
   providers: [
+    { provide: PrismaServiceProfessionalRepository, useFactory: (prisma: PrismaClient) => new PrismaServiceProfessionalRepository(prisma), inject: [PRISMA_CLIENT] },
     { provide: GRAPH_CATALOG_SOURCES, useFactory: (prisma: PrismaClient) => new PublicGraphCatalogSources(prisma), inject: [PRISMA_CLIENT] },
     BillingPlanMeteringService,
     PlanLimitGuard,

@@ -1,0 +1,15 @@
+{
+  "task": "T18",
+  "status": "complete",
+  "parentCommit": "f263e4035",
+  "unit": {"executed": 4, "passed": 4, "failed": 0, "skipped": 0, "exitCode": 0},
+  "repositoryDatabaseMiddleware": {"executed": 7, "passed": 7, "failed": 0, "skipped": 0, "exitCode": 0, "durationMs": 16187.1824},
+  "build": {"exitCode": 0, "checked": true, "sourceCount": 2491, "inputSha256": "b9277559c33dee503cfb1034c1bc152036e4fee313c2ad985c9b1b9a716a7eb2", "artifactSha256": "c72d6c56d30678653c84678351d3b13dadc7d7951c91e1ae7f712368bf22884a"},
+  "proofs": ["professional has no login dependency", "typed public profile allowlist", "same-tenant canonical service links", "foreign/wrong-type/duplicate associations rejected", "stale and concurrent edits have one winner", "deactivation preserves appointments and prices", "actual composite FK rejects cross-tenant linkage and rolls back preceding mutation", "bounded tenant list and staff read only", "product mode cannot create professionals"],
+  "composition": {"canonicalCatalogModuleFactoryRegistered": true, "newHttpRoute": false, "artificialPrismaHttpFacade": false},
+  "firstNativeFailure": {"executed": 7, "passed": 0, "failed": 7, "skipped": 0, "cause": "nested unchecked ProfessionalService input inherits professionalId and merchantId; inferred mapped extra merchantId passed structural TypeScript but Prisma rejected it", "fix": "typed scalar professional create plus typed link createMany in the same transaction", "schemaChanged": false, "assertionsChanged": false, "relationalPayloadAnyCast": false, "log": ".cache/phase3-gates/t18-native-first-failure.log"},
+  "cleanup": {"prismaDisconnected": true, "ownedPostgresDisposed": true, "bridgeListening": false, "bridgeSockets": 0, "bridgeChildren": 0},
+  "planContract": "No new commercial tier is approved for Atendimento; preserve mode/auth/tenant/role and existing applicable entitlements instead of inheriting the catalog plan decorator.",
+  "scope": {"localOnly": true, "remoteChanges": false, "globalFeatureAcceptance": false},
+  "logs": ".cache/phase3-gates/t18-*.log"
+}

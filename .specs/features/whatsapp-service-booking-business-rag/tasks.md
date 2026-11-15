@@ -484,6 +484,8 @@ T91 → T92
 
 ### T18: Persist professionals without login coupling
 
+**Status**: Complete - unit4/4 and owned DB/middleware7/7, zero failed/skipped; checked build0 and owned cleanup. See task-18-evidence.json.
+
 **What**: CRUD canônico tenant-scoped, perfil/publicação/vínculo e desativação com histórico; profissional não exige usuário de login.
 **Where**: `apps/api/src/modules/catalog/infrastructure/repositories/prisma-service-professional.repository.ts`
 **Depends on**: T17
@@ -492,11 +494,11 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Repository integration service-professionals.integration.spec.ts: create/edit/deactivate, vínculos/constraints/foreign e rollback.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Repository integration service-professionals.integration.spec.mjs: create/edit/deactivate, vínculos/constraints/foreign e rollback.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Repository integration service-professionals.integration.spec.ts: create/edit/deactivate, vínculos/constraints/foreign e rollback.
+**Tests**: Repository integration service-professionals.integration.spec.mjs: create/edit/deactivate, vínculos/constraints/foreign e rollback.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T18$" ./src/modules/catalog/infrastructure/repositories/prisma-service-professional.repository.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T18 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t18 persist professionals without login coupling`
 
