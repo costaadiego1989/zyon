@@ -35,6 +35,7 @@ export type DashboardRegisterPayload = {
 export type MerchantRole = "OWNER" | "ADMIN" | "STAFF";
 
 export type MerchantProfile = {
+  businessMode?: "products" | "services";
   id: string;
   name: string;
   slug?: string;

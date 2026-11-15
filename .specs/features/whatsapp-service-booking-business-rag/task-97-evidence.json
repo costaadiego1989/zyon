@@ -1,0 +1,174 @@
+{
+  "task": "T97",
+  "baseHead": "4c1a58566d062d90154d8630f269952feb72f08d",
+  "capturedAt": "2026-11-15T14:04:33.034642+00:00",
+  "environment": "local-owned-only",
+  "unit": {
+    "passed": 41,
+    "field": 10,
+    "hook": 4,
+    "existingRegression": 27,
+    "failed": 0,
+    "skipped": 0,
+    "workers": 1,
+    "fieldRepeatedAfterLayout": {
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0
+    },
+    "MOriginalSpecSha256": "a4e55213f54975d8ebec89c4d4a2ea64dde5ab8e833a11bdd393011515483bbe"
+  },
+  "affectedTypes": {
+    "dashboardExit": 0,
+    "log": "C:/tmp/zyon-service-company-service-names-preparation-20261114/logs/T97-final-2026-11-15T13-35-03.077Z/dashboard-typecheck.log"
+  },
+  "affectedBuild": {
+    "dashboardExit": 0,
+    "officialCommand": "node scripts/service-local-build.mjs dashboard",
+    "log": "C:/tmp/zyon-service-company-service-names-preparation-20261114/logs/T97-finish-2026-11-15T13-57-01.969Z/dashboard-build.log",
+    "existingWarnings": [
+      "six static/dynamic marketplace import overlap warnings",
+      "existing chunk size warning"
+    ]
+  },
+  "apiBuild": {
+    "reusedFrom": "T96",
+    "newApiBuildClaimed": false,
+    "checked": true,
+    "inputSha256": "f31f6ce585e9e447e444f711256d615dac7f0ca6c5dc5ca4eb97eab639a8a56c",
+    "artifactSha256": "36a1153ca9b9906dfc846f598b1e150c7d2a114bb871f34951b76e755725a2cc",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2506
+    }
+  },
+  "finalCriterionProof": {
+    "criterion": "ONB-06",
+    "freshExecution": true,
+    "browser": {
+      "executed": 1,
+      "passed": 1,
+      "skipped": 0,
+      "retries": 0,
+      "actualLocalApi": true,
+      "execution": "fresh-local-gate",
+      "receiptPath": "C:\\tmp\\zyon-service-company-ui-20261114\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\company-services-proof\\2026-11-15T13-57-24.018Z\\browser-receipt.json"
+    },
+    "native": {
+      "executed": 17,
+      "passed": 17,
+      "skipped": 0,
+      "actualAppModule": true,
+      "actualSql": true,
+      "actualCanonicalRagReader": true,
+      "actualNextHtml": true
+    },
+    "fullEvidencePath": "C:\\tmp\\zyon-service-company-ui-20261114\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\company-services-proof\\2026-11-15T13-57-24.018Z\\evidence.json",
+    "fullEvidenceSha256": "d31e556d9d2e56eddd6a0b2438d4db53c72e51f1d32a2475995d03cb6741b9f7",
+    "frontendInputCount": 678,
+    "frontendInputInventorySha256": "aa5ba03ef628c9612cf0f38cca5926ec0d60c54dcecfc0be1432352354633c26",
+    "workingTreeAtProof": true,
+    "preCommitRevision": "4c1a58566d062d90154d8630f269952feb72f08d",
+    "toolSha256": "cd5080a61c5d0d97e2da9f1f77b90951ba3c27bb2fbdad4a9cb12b2d3875d804"
+  },
+  "screenshots": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/company-services.running.png",
+      "bytes": 43270,
+      "sha256": "0a963c42717f03f4d8ff06fb8ccc9ba7d9524453832fc85f80ca5567806567af"
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/company-services-mobile.running.png",
+      "bytes": 17891,
+      "sha256": "95a50d3e5ba74adec4e35d8f96d30b61aa2e9cfb1999a3305897154e62ca49dd"
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/company-services-products.running.png",
+      "bytes": 85018,
+      "sha256": "5ca95a0267f6290aa5cc49870c18c7d91460753a0d25e61d9e26c77a87d362ef"
+    }
+  ],
+  "finalFieldSha256": "cfb051301011e99fdf4df820d574f765576e8a83a3c07506952f8f948dbd66a1",
+  "visualCorrection": "Root approved only field layout: full-width draft input and add button below/left on all widths; Help/global styling/model untouched",
+  "attempts": [
+    {
+      "at": "2026-11-15T03:42:02.040Z",
+      "executed": 1,
+      "passed": 0,
+      "failed": 1,
+      "automaticRetries": 0,
+      "cause": "new test asserted while real form still loading; trace verifies canonical services profile/names and theme completion at deadline",
+      "correction": "await actual theme response before unchanged assertions; no assertion/timeout/SUT change",
+      "cleanup": {
+        "appAck": true,
+        "naturalExit0": true,
+        "owned": 0
+      },
+      "diagnostics": "C:\\tmp\\zyon-service-company-ui-20261114\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\company-services-proof\\2026-11-15T03-42-02.040Z"
+    },
+    {
+      "at": "2026-11-15T03:53:08.891Z",
+      "executed": 0,
+      "gateComplete": false,
+      "cause": "confirmed machine sleep/resume and clock jumps across9.4h; existing global setup/teardown timeout",
+      "providerCalls": null,
+      "naturalAppExit": null,
+      "manualOwnedCleanup": {
+        "remaining": 0,
+        "verifiedUuidLabelsAndMarkers": true,
+        "unrelatedResourcesTouched": false
+      },
+      "diagnostics": "C:\\tmp\\zyon-service-company-ui-20261114\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\company-services-proof\\2026-11-15T03-53-08.891Z",
+      "powerPolicyChanged": false,
+      "budgetsChanged": false
+    },
+    {
+      "at": "2026-11-15T13:26:39.982Z",
+      "executed": 1,
+      "passed": 1,
+      "failed": 0,
+      "automaticRetries": 0,
+      "cleanup": 0,
+      "historical": true,
+      "visualReview": "Help overlapped desktop add control; root requested only layout change",
+      "archive": "C:\\tmp\\zyon-service-company-ui-20261114\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\company-services-proof\\2026-11-15T13-26-39.982Z\\historical-screens.json"
+    },
+    {
+      "at": "2026-11-15T13:57:24.018Z",
+      "executed": 1,
+      "passed": 1,
+      "failed": 0,
+      "automaticRetries": 0,
+      "finalLayout": true,
+      "nativePassed": 17,
+      "cleanup": 0
+    }
+  ],
+  "interruptedBuildAttempt": {
+    "session": 37280,
+    "unitFieldExit": 0,
+    "typecheckExit": 0,
+    "buildExit": null,
+    "buildNotClaimed": true,
+    "resumedOnlyBuildAndCollectorSession": 4685
+  },
+  "logs": {
+    "unit41": "C:/tmp/zyon-service-company-service-names-preparation-20261114/logs/T97-units-2026-11-15T03-39-09.689Z",
+    "fieldLayoutAndTypes": "C:/tmp/zyon-service-company-service-names-preparation-20261114/logs/T97-final-2026-11-15T13-35-03.077Z",
+    "finalBuildAndProof": "C:/tmp/zyon-service-company-service-names-preparation-20261114/logs/T97-finish-2026-11-15T13-57-01.969Z"
+  },
+  "teardown": {
+    "browserAppCloseAck": true,
+    "browserNaturalExit0": true,
+    "nativeAppCloseAck": true,
+    "nativeNaturalExit0": true,
+    "ownedResourcesRemoved": true,
+    "referencedTimersAfterClose": 0
+  },
+  "providerCalls": 0,
+  "limits": [
+    "RAG evidence is actual canonical public-source context; embedding/graph retrieval/answers remain their later tasks includingT72",
+    "no final feature verifier/global proof, production, Meta or PSP acceptance",
+    "indirect auth/rules JSON writer locking remains assigned toT65; not changed byT97"
+  ]
+}

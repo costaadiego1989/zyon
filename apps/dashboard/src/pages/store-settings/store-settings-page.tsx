@@ -16,6 +16,7 @@ import { useSeoSettingsTab } from "./useSeoSettingsTab.js";
 import { SeoGtmTab } from "./components/SeoGtmTab.js";
 import { maskPhone, maskCEP, maskCNPJ } from "../../utils/masks.js";
 import { CompanyAboutField } from "./CompanyAboutField.js";
+import { ServiceNamesField } from "./ServiceNamesField.js";
 
 const DAY_LABELS: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
@@ -59,7 +60,7 @@ export function StoreSettingsPage() {
 
         {/* Content */}
         <fieldset className="store-settings-fieldset" disabled={busy}>
-          {state.activeTab === "company" && <CompanyTab company={state.company} businessHours={state.businessHours} cepLoading={state.cepLoading} onCompanyChange={setCompany} onHoursChange={setBusinessHours} onCepChange={handleCepChange} />}
+          {state.activeTab === "company" && <CompanyTab businessMode={state.businessMode} disabled={busy} company={state.company} businessHours={state.businessHours} cepLoading={state.cepLoading} onCompanyChange={setCompany} onHoursChange={setBusinessHours} onCepChange={handleCepChange} />}
           {state.activeTab === "policies" && <PoliciesTab policies={state.policies} onChange={setPolicies} onGenerate={generatePolicy} generatingPolicy={state.generatingPolicy} />}
           {state.activeTab === "social" && <SocialTab social={state.social} onChange={setSocial} />}
           {state.activeTab === "seo-gtm" && (seoState.loading ? <div className="admin-skeleton" aria-label="Carregando busca e rastreamento" aria-busy="true"><div className="skeleton-cell" /></div> : seoState.loadError ? <EmptyState icon={Settings} title="Busca e rastreamento indisponíveis" description="Não foi possível carregar estas configurações. Os dados das outras abas continuam disponíveis." action={<Button variant="outline" onClick={seoVm.reload}>Tentar novamente</Button>} /> :
@@ -108,7 +109,9 @@ export function StoreSettingsPage() {
   );
 }
 
-function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHoursChange, onCepChange }: {
+function CompanyTab({ businessMode, disabled, company, businessHours, cepLoading, onCompanyChange, onHoursChange, onCepChange }: {
+  businessMode: "products" | "services";
+  disabled: boolean;
   company: CompanyForm;
   businessHours: BusinessHour[];
   cepLoading: boolean;
@@ -128,6 +131,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
           <FormField label="Razão social" placeholder="Empresa LTDA" value={company.razaoSocial} onChange={(v) => onCompanyChange({ ...company, razaoSocial: v })} />
         </div>
         <div style={{ marginTop: 24 }}><CompanyAboutField value={company.description} onChange={description => onCompanyChange({ ...company, description })} /></div>
+        {businessMode === "services" && <div style={{ marginTop: 24 }}><ServiceNamesField businessMode={businessMode} value={company.serviceNames} onChange={serviceNames => onCompanyChange({ ...company, serviceNames })} disabled={disabled} /></div>}
         <div className="admin-fields" style={{ marginTop: 24 }}>
           <FormField label="CNPJ" placeholder="00.000.000/0000-00" value={maskCNPJ(company.cnpj)} onChange={(v) => onCompanyChange({ ...company, cnpj: v.replace(/\D/g, "") })} />
           <FormField label="Inscrição estadual" placeholder="000.000.000" value={company.inscricaoEstadual} onChange={(v) => onCompanyChange({ ...company, inscricaoEstadual: v })} />

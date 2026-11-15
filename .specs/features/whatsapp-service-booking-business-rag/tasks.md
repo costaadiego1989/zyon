@@ -1935,12 +1935,13 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Serviços: clicar+, editar/remover, salvar, reabrir, limpar e recuperar rascunho de falha funcionam com API/DB local real; oculto em products e nomes antigos não vazam para novo modo.
-- [ ] Unit e browser com gestos reais passam; capturas desktop/mobile mostram o controle e a condição de modalidade; nenhum teste anterior removido/relaxado.
-- [ ] Coletor final ONB-06 executa prova nativa de contexto público e browser, falha com zero/skipped e registra revisão/ambiente; gate e commit próprios.
+- [x] Serviços: clicar+, editar/remover, salvar, reabrir, limpar e recuperar rascunho de falha funcionam com API/DB local real; oculto em products e nomes antigos não vazam para novo modo.
+- [x] Unit e browser com gestos reais passam; capturas desktop/mobile mostram o controle e a condição de modalidade; nenhum teste anterior removido/relaxado.
+- [x] Coletor final ONB-06 executa prova nativa de contexto público e browser, falha com zero/skipped e registra revisão/ambiente; gate e commit próprios.
 
 **Tests**: service-names-field.spec.tsx, hook tests e e2e/service-company-service-names.spec.ts; service-company-services-proof.mjs seleciona ONB-06 nativo e browserT97 sem confundir mocks com RAG/provider real.
 **Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/store-settings/service-names-field.spec.tsx -t "T97"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-company-service-names.spec.ts --grep "T97$"`; tipos/build afetados e check final ONB-06 obrigatórios. O arquivo focal contém dez gestos sob describeT97; selecionar o full title inclui seus filhos, sem filtro exato que gere zero casos.
+**Status**: Complete locally:41 unit cases (10 field,4 hook,27 existing regressions), dashboard typecheck/build0 and fresh ONB-06 collector browser1/native17,0skip/0retry, provider/owned cleanup0. Desktop/mobile captures show the left-aligned plus control. See task-97-evidence.json; retrieval/provider/production and final feature verification remain pending.
 **Commit**: `feat(service-business): t97 edit service names in company settings`
 
 ## Checks

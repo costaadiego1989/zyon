@@ -6,6 +6,7 @@ import { showToast } from "../../components/Toast.js";
 import { normalizeBudgetSettings, readBudgetSettings, validateBudgetSettings, type BudgetErrors } from "./budget-settings.js";
 
 export interface StoreSettingsState {
+  businessMode: "products" | "services";
   company: CompanyForm;
   policies: PoliciesForm;
   social: SocialForm;
@@ -37,6 +38,7 @@ export interface StylesForm {
 }
 
 export interface CompanyForm {
+  serviceNames: string[];
   description: string;
   storeName: string;
   cnpj: string;
@@ -76,6 +78,7 @@ export interface SocialForm {
 }
 
 const EMPTY_COMPANY: CompanyForm = {
+  serviceNames: [],
   description: "",
   storeName: "", cnpj: "", razaoSocial: "", inscricaoEstadual: "", email: "",
   phone: "", street: "", number: "", complement: "", neighborhood: "",
@@ -102,6 +105,7 @@ export function useStoreSettingsPage() {
   const logoBaseline = useRef("");
   const [reloadTick, setReloadTick] = useState(0);
   const [state, setState] = useState<StoreSettingsState>({
+    businessMode: "products",
     company: EMPTY_COMPANY,
     policies: EMPTY_POLICIES,
     social: EMPTY_SOCIAL,
@@ -142,7 +146,9 @@ export function useStoreSettingsPage() {
 
         if (cancelled) return;
         const budget = readBudgetSettings(settings);
+        const businessMode = profile.businessMode === "services" ? "services" : "products";
         const company: CompanyForm = settings?.company ? {
+          serviceNames: businessMode === "services" && Array.isArray(settings.company.serviceNames) ? settings.company.serviceNames.filter((name: unknown): name is string => typeof name === "string") : [],
           description: typeof settings.company.description === "string" ? settings.company.description : "",
           storeName: profile.name ?? "", cnpj: settings.company.cnpj ?? "", razaoSocial: settings.company.razaoSocial ?? "",
           inscricaoEstadual: settings.company.inscricaoEstadual ?? "", email: settings.company.email ?? "", phone: settings.company.phone ?? "",
@@ -155,6 +161,7 @@ export function useStoreSettingsPage() {
         setState((prev) => ({
           ...prev,
           company,
+          businessMode,
           policies: settings?.policies ? { ...EMPTY_POLICIES, ...settings.policies } : EMPTY_POLICIES,
           social: settings?.social ? { ...EMPTY_SOCIAL, ...settings.social } : EMPTY_SOCIAL,
           businessHours: settings?.businessHours ?? EMPTY_BUSINESS_HOURS,
@@ -210,6 +217,10 @@ export function useStoreSettingsPage() {
       setState(p => ({ ...p, saveResult: "error", saveError: "Sobre a empresa deve ter até 1.200 caracteres." }));
       return;
     }
+    if (state.activeTab === "company" && state.businessMode === "services" && !validServiceNames(state.company.serviceNames)) {
+      setState(p => ({ ...p, saveResult: "error", saveError: "Revise os nomes dos serviços: até 100 nomes únicos, com 1 a 160 caracteres cada." }));
+      return;
+    }
     const isBudget = state.activeTab === "budget";
     const budget = { enabled: state.budgetMode, email: state.budgetEmail, whatsapp: state.budgetWhatsapp };
     if (isBudget) {
@@ -243,7 +254,7 @@ export function useStoreSettingsPage() {
         } as any);
       } else {
         // Save store settings
-        const company = companyFormPatch(state.company, companyBaseline.current);
+        const company = companyFormPatch(state.company, companyBaseline.current, state.businessMode);
         const payload = state.activeTab === "company" ? {
           ...(Object.keys(company).length ? { company } : {}),
           ...(JSON.stringify(state.businessHours) !== JSON.stringify(hoursBaseline.current) ? { businessHours: state.businessHours } : {}),
@@ -255,16 +266,20 @@ export function useStoreSettingsPage() {
         if (state.activeTab === "company" && Object.hasOwn(company, "description") && saved?.company?.description !== state.company.description.trim()) {
           throw new Error("company_description_not_confirmed");
         }
+        if (state.activeTab === "company" && Object.hasOwn(company, "serviceNames") && JSON.stringify(saved?.company?.serviceNames) !== JSON.stringify(company.serviceNames)) {
+          throw new Error("company_service_names_not_confirmed");
+        }
         settingsSaved = true;
         if (state.activeTab === "company" && state.company.storeName && state.company.storeName !== companyBaseline.current.storeName) {
           await api.putStoreName(state.company.storeName);
         }
         if (state.activeTab === "company") {
           const description = Object.hasOwn(company, "description") ? saved.company.description as string : state.company.description;
-          companyBaseline.current = { ...state.company, description };
+          const serviceNames = Object.hasOwn(company, "serviceNames") ? saved.company.serviceNames as string[] : state.company.serviceNames;
+          companyBaseline.current = { ...state.company, description, serviceNames };
           hoursBaseline.current = state.businessHours;
           logoBaseline.current = state.logoUrl;
-          setState(p => ({ ...p, company: { ...p.company, description } }));
+          setState(p => ({ ...p, company: { ...p.company, description, serviceNames } }));
         }
       }
       setState((p) => ({ ...p, saveResult: "success", saving: false }));
@@ -321,15 +336,22 @@ export function useStoreSettingsPage() {
   };
 }
 
-function companyFormPatch(current: CompanyForm, baseline: CompanyForm): Record<string, unknown> {
+function companyFormPatch(current: CompanyForm, baseline: CompanyForm, businessMode: "products" | "services"): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
   for (const key of ["description", "cnpj", "razaoSocial", "inscricaoEstadual", "email", "phone"] as const) {
     if (current[key] !== baseline[key]) patch[key] = current[key];
   }
+  if (businessMode === "services" && JSON.stringify(current.serviceNames) !== JSON.stringify(baseline.serviceNames)) patch.serviceNames = current.serviceNames.map(name => name.trim());
   const address: Record<string, string> = {};
   for (const key of ["street", "number", "complement", "neighborhood", "city", "state", "zip"] as const) {
     if (current[key] !== baseline[key]) address[key] = current[key];
   }
   if (Object.keys(address).length) patch.address = address;
   return patch;
+}
+
+function validServiceNames(names: string[]): boolean {
+  if (names.length > 100) return false;
+  const seen = new Set<string>();
+  return names.every(raw => { const name = raw.trim(), key = name.normalize("NFKC").toLocaleLowerCase("pt-BR"); if (!name || name.length > 160 || seen.has(key)) return false; seen.add(key); return true; });
 }
