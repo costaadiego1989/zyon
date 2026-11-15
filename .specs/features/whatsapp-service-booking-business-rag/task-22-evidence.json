@@ -1,0 +1,120 @@
+{
+  "task": "T22",
+  "status": "complete",
+  "parentCommit": "4ba8d2952",
+  "unit": {
+    "executed": 6,
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0
+  },
+  "databaseMiddleware": {
+    "executed": 8,
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "durationMs": 17727.2318
+  },
+  "build": {
+    "exitCode": 0,
+    "checked": true,
+    "sourceCount": 2503,
+    "inputSha256": "31f82fc53ddc9f7b71bb27f08a131cf57f4d1407595fdcbef3565305ef87e0f1",
+    "artifactSha256": "151776549b0aacf79c9362e25bb7b31de7a1bc4103ff7e314989db237e2818e0"
+  },
+  "proofs": [
+    "one-off and block share professional lock/version, explicit UTC half-open intervals and trusted actor",
+    "blocked or confirmed overlapping intervals reject with unchanged rows/version, adjacency succeeds",
+    "foreign exception and professional IDs remain scoped with unchanged foreign row",
+    "later failure in a caller-owned transaction rolls back exception and resource version together",
+    "exact holder PID plus pg_blocking_pids observes professional-only lock wait before persistence/version/event",
+    "canonical merchant-then-professional confirmation transaction delays block, whose final decision rejects confirmed overlap",
+    "new active and new inactive intervals reject nonzero seconds/milliseconds",
+    "existing withdrawal after actual professional timezone edit/deactivation retains starts/ends/kind/timezone/reason and historical appointment snapshot",
+    "reactivation still requires the current profile timezone"
+  ],
+  "redEvidence": [
+    {
+      "kind": "minute-precision",
+      "executed": 4,
+      "passed": 2,
+      "failed": 2,
+      "skipped": 0,
+      "exitCode": 1
+    },
+    {
+      "kind": "new-withdrawal-contract-units",
+      "executed": 6,
+      "passed": 3,
+      "failed": 3,
+      "skipped": 0,
+      "exitCode": 1,
+      "cause": "new inactive precision bypass and current-zone guard blocked historical withdrawal"
+    },
+    {
+      "kind": "initial-native-observer",
+      "executed": 6,
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "exitCode": 1,
+      "cause": "new race holder inserted under professional-only lock, so merchant FK KEY SHARE preceded observer professional query",
+      "productionChangedForObserver": false,
+      "assertionsWeakened": false
+    }
+  ],
+  "composition": {
+    "canonicalCatalogModuleFactoryRegistered": true,
+    "transactionExport": "saveAvailabilityException(tx,actor,professionalId,expectedVersion,input)",
+    "nestedTransaction": false,
+    "newHttpEndpoint": false,
+    "httpWritesTask": "T25",
+    "artificialPrismaHttpFacade": false
+  },
+  "locking": {
+    "merchantBeforeProfessional": true,
+    "sameSharedProfessionalLock": true,
+    "exactHolderPidObserved": true,
+    "observerBoundMs": 2000,
+    "transactionDeadlineChanged": false
+  },
+  "historicalWithdrawal": {
+    "preserved": [
+      "startsAt",
+      "endsAt",
+      "kind",
+      "timeZone",
+      "reason"
+    ],
+    "changed": [
+      "isActive",
+      "actorId",
+      "version",
+      "updatedAt"
+    ],
+    "newInactivePrecisionBypass": false
+  },
+  "cleanup": {
+    "prismaDisconnected": true,
+    "ownedPostgresDisposed": true,
+    "bridgeListening": false,
+    "bridgeSockets": 0,
+    "bridgeChildren": 0
+  },
+  "schemaChanged": false,
+  "appointmentSnapshotsRewritten": false,
+  "logs": [
+    ".cache/phase3-gates/t22-minute-red.log",
+    ".cache/phase3-gates/t22-db-observer-first-failure.log",
+    ".cache/phase3-gates/t22-build-before-withdrawal-fix.log",
+    ".cache/phase3-gates/t22-build-verified-launcher.log",
+    ".cache/phase3-gates/t22-db.log"
+  ],
+  "scope": {
+    "localOnly": true,
+    "remoteAction": false,
+    "finalFeatureAcceptance": false
+  }
+}

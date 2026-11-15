@@ -273,11 +273,11 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | ATEND-02 | Professional administration | T18, T19, T76 | In Progress (T18 and T19 complete) |
 | ATEND-03 | Service categories | T20, T77 | In Progress (T20 complete) |
 | ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21 complete) |
-| ATEND-05 | One-off times | T22, T25, T78 | Pending |
+| ATEND-05 | One-off times | T22, T25, T78 | In Progress (T22 complete) |
 | ATEND-06 | Manual appointments | T31, T41, T74, T79 | Pending |
 | ATEND-07 | Attendance lifecycle | T32, T41, T74, T80 | Pending |
 | ATEND-08 | Management authorization | T6, T11, T19, T25, T41, T47, T52, T59, T73, T75, T83, T87 | In Progress (T19 complete) |
-| ATEND-09 | Unavailability blocks | T22, T25, T78 | Pending |
+| ATEND-09 | Unavailability blocks | T22, T25, T78 | In Progress (T22 complete) |
 | ATEND-10 | Explicit outside-hours appointment | T25, T31, T79 | Pending |
 | KPI-01 | Business-specific dashboard | T82, T87, T88, T89, T90, T91 | Pending |
 | KPI-02 | Appointment cohort and counts | T85, T86, T89 | Pending |
@@ -294,7 +294,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | Pending |
 | QA-03 | Persisted state proof | T2, T5, T26, T92, T95 | Pending |
 | QA-04 | RAG evaluation | T72, T94, T95 | Pending |
-| EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 complete) |
+| EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 and T22 complete) |
 | EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | Pending |
 | EDGE-03 | Optional media failure | T38, T39 | Pending |
 | EDGE-04 | In-flight AI response | T48, T51, T56 | In Progress (T48 durable epoch complete; dispatch/resume pending) |

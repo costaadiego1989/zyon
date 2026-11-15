@@ -570,6 +570,8 @@ T97 → T95
 
 ### T22: Save one-off times and unavailability blocks
 
+**Status**: Complete - unit6/6, checked API build0/2503 and actual owned DB/tenant middleware8/8; no skips, owned cleanup0. Evidence: task-22-evidence.json.
+
 **What**: Um comando tipado one_off/block usa lock de profissional; avulso não sobrepõe bloqueio/confirmado; bloqueio não cancela compromisso e remove oferta pública.
 **Where**: `apps/api/src/modules/catalog/application/save-availability-exception.use-case.ts`
 **Depends on**: T21
@@ -578,9 +580,9 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + HTTP/DB service-availability.integration.spec.ts: corrida com confirmação, intervalos adjacentes, outro tenant e rollback.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit + HTTP/DB service-availability.integration.spec.ts: corrida com confirmação, intervalos adjacentes, outro tenant e rollback.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Unit + HTTP/DB service-availability.integration.spec.ts: corrida com confirmação, intervalos adjacentes, outro tenant e rollback.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T22$" ./src/modules/catalog/application/save-availability-exception.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T22 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
