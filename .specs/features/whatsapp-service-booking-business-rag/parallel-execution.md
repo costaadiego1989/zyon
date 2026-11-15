@@ -9,7 +9,7 @@ The user requests more implementation agents to accelerate work. This changes th
 | Agent | Checkout | Responsibility |
 | --- | --- | --- |
 | service_batch_01 | C:/tmp/zyon-service-booking-admission-20261114 | Phase7 T48–T55 next; preserves and hands off Phase4 drafts to P afterT25; isolated T97 field preparation already returned10/10 |
-| service_company_ui | C:/tmp/zyon-service-company-ui-20261114 | Phase2 T10–T16 complete; T96 integrated and T97 company service-name field/browser/screens in progress |
+| service_company_ui | C:/tmp/zyon-service-company-ui-20261114 | Phase2 and T96 complete; T97 green, atomic commit pending. Next whole Phase8 T56–T62 preparation after merging root, with execution gates only after T55. |
 | service_professional_agenda | C:/tmp/zyon-service-professional-agenda-20261114 | Phase3 T17–T25, then Phase4 T26–T32 using M's preserved preparation |
 | root | C:/tmp/zyon-service-business-20261114 | Canonical integration, resource scheduling and cross-module review |
 
@@ -35,6 +35,8 @@ T9 adds fields to the existing authenticated /merchants/me profile: businessMode
 Source-review notes: C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution/source-review-notes.md. Preserve all existing product journeys and the preexisting regression comparison; focused green tests are not a global production-readiness claim.
 
 ## Remaining Technical Fronts
+
+After the green T97 atomic commit, C prepares the whole seven-task Phase8 T56–T62 batch: exact-case close/resume, fixed main-menu human action, scoped queue API/permissions, hook, drawer and Conversations tab. It uses the reviewed existing WhatsApp/support modules and M's Phase7 contracts. Before T55 is integrated, drafts remain outside checked application fingerprints; no dependent gate or completion is claimed. M retains Phase7, P retains Phase3 then Phase4, and root retains Phase9/integration. No extra worker is spawned and the one-heavy-slot rule remains.
 
 Further dependency review confirms that the human binding and delivery front uses the existing WhatsApp/support/session modules and the T4 schema/T9 base; it does not depend on professional availability T25. T48 therefore depends on T9. To keep four fronts advancing, M begins the whole Phase7 T48-T55 batch after incorporating the committed root base. Its original booking drafts are hash-preserved outside fingerprints and will be handed to P for Phase4 afterT25. C retains company forms/list and later UI; Root retains RAG. Booking admission still waits for the original green T16+T25 barrier. All per-task gates, atomic commits, final coexistence proofs and local-only scope remain unchanged. No dependency is waived for a business operation.
 
