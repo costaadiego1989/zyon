@@ -22,10 +22,12 @@ import { CryptoPaymentsController } from "./presentation/http/crypto-payments.co
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { ServiceBusinessPolicyController } from "./presentation/http/service-business-policy.controller.js";
 import { ConfigureServiceBusinessPolicyUseCase } from "./application/configure-service-business-policy.use-case.js";
+import { BusinessModeController } from "./presentation/http/business-mode.controller.js";
+import { ChangeBusinessModeUseCase } from "./application/change-business-mode.use-case.js";
 
 @Module({
   imports: [AuthModule],
-  controllers: [MerchantController, CryptoPaymentsController, ServiceBusinessPolicyController],
+  controllers: [MerchantController, CryptoPaymentsController, ServiceBusinessPolicyController, BusinessModeController],
   providers: [
     GetMerchantProfileUseCase,
     GetMerchantRulesUseCase,
@@ -33,6 +35,7 @@ import { ConfigureServiceBusinessPolicyUseCase } from "./application/configure-s
     GetMerchantThemeUseCase,
     UpdateMerchantThemeUseCase,
     ConfigureServiceBusinessPolicyUseCase,
+    ChangeBusinessModeUseCase,
     EnableCryptoPaymentsUseCase,
     MerchantStoreService,
     ActivateMerchantStoreUseCase,

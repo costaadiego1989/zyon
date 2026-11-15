@@ -70,3 +70,11 @@ T9 fast-forward15e6957d019e8d7c9001da7bc11b7c54fc269f24 completed without confli
 ## T11 gate
 
 Unit4/4, API typecheck/build0 and checked coverage2488sources. Final AppModule/HTTP/DB native11/11 with ACK, natural exit0 and owned cleanup. First native execution passed all10 business scenarios but missed the unchanged5s natural-exit gate; the unchanged rerun passed in32.9s. No cleanup/guard/deadline was changed and no productive shutdown defect is claimed fixed. Gates use a dedicated MJS file so T8 retains its own root and no skipped tests.
+
+## T12 native correction
+
+The first native attempt had4pass/12fail including root, zero skips. All expected rejection statuses and the observed merchant-lock case were correct, but the new snapshot wrongly expected no canonical HTTP failure audit. Root authorized separating only known http.put/failed records for this route and actor, with explicit persisted metadata assertions; all other audit events and domain state remain compared. The new cart fixture also omitted mandatory updated_at and now uses the existing at timestamp. No production source, API artifact, guard or deadline changed for this correction. Canonical unlinked legacy reserved capacity uses the same closed-order exclusions as ServiceSlotHoldsService/order-fulfillment; completed/cancelled/no_show appointment history remains compatible.
+
+## T12 gate
+
+Final unit3/3 and actual AppModule/HTTP/DB17/17, zero skips, checked API build0 with2490 production sources. Canonical HTTP audit is awaited by correlation before snapshots/close; invalid400 keeps domain/finance intact, while staff403 is explicitly denied before tenantPrincipal and produces no interceptor audit. The first16/16 corrected run passed; expanded matrix initially had15pass/2fail due only to a new incorrect staff-audit expectation, now corrected after code review/root confirmation. One mistaken-cwd rerun was interrupted immediately and only its two verified owned containers removed. Final runner ACK, natural exit0 and owned cleanup all passed; no production/guard/deadline changes or general shutdown-fix claim.

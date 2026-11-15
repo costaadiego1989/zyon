@@ -1,0 +1,80 @@
+{
+  "task": "T12",
+  "baseHead": "b7ac8ab37",
+  "environment": "local-owned",
+  "unit": {
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0
+  },
+  "nativeFinal": {
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 85168.1703
+  },
+  "nativeAttempts": [
+    {
+      "log": "T12-2026-11-14T23-59-41.666Z/native.log",
+      "passed": 4,
+      "failed": 12,
+      "reason": "New fixture omitted cart.updated_at and compared legitimate HTTP error audit to unchanged domain snapshot."
+    },
+    {
+      "log": "T12-native-corrected.log",
+      "passed": 16,
+      "failed": 0
+    },
+    {
+      "log": "T12-native-full-matrix.log",
+      "passed": 15,
+      "failed": 2,
+      "reason": "New staff assertion wrongly expected interceptor audit although AuthGuard rejects before tenantPrincipal."
+    },
+    {
+      "log": "T12-native-final.log",
+      "interrupted": true,
+      "reason": "Wrong edit cwd detected immediately; owned runtime interrupted. Its two containers verified using original ownership helpers and removed before final run."
+    },
+    {
+      "log": "T12-native-final-corrected.log",
+      "passed": 17,
+      "failed": 0
+    }
+  ],
+  "apiBuildExit": 0,
+  "checkedArtifact": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "5676a8a0239be8163a498a47151e5cd4f621a996c2ca7684f314635d7e5df1bb",
+    "artifactSha256": "96ed70fabfe830f69436773abcf5a3834aa04c3c3de2c814034c5c98501adcc9",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2490
+    },
+    "recordedAt": "2026-11-15T00:02:11.532Z"
+  },
+  "controllerPath": "/merchants/me/business-mode",
+  "proved": [
+    "active physical digital food and service offers block incompatible mode",
+    "ongoing appointment and unclassified reserved legacy capacity block products",
+    "completed cancelled no_show appointments and closed-order legacy reservations remain unchanged",
+    "pending/requires_action finance and active checkout/cart guard",
+    "merchant FOR UPDATE precedes facts and observes concurrent catalog writer",
+    "atomic actor audit and admission closure retain terminal finance",
+    "domain audit failure rolls back mode and policy",
+    "anonymous foreign and staff denied; missing/invalid body400 preserves merchant policy finance",
+    "canonical HTTP audit asserted by correlation; staff pre-principal guard403 has no audit of that correlation"
+  ],
+  "teardownFinal": {
+    "appCloseAck": true,
+    "naturalWorkerExit0": true,
+    "ownedResourcesRemoved": true
+  },
+  "providerCalls": 0,
+  "cleanupSourceOrDeadlineChanged": false,
+  "productionShutdownFixClaimed": false,
+  "logs": "C:/tmp/zyon-service-company-preparation-20261114/logs/"
+}
