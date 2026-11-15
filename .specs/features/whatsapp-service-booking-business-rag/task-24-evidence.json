@@ -1,0 +1,137 @@
+{
+  "task": "T24",
+  "status": "complete",
+  "parentCommit": "34b7110af",
+  "unit": {
+    "executed": 3,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0
+  },
+  "appModuleHttpDatabase": {
+    "executed": 8,
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "durationMs": 79821.4178
+  },
+  "build": {
+    "exitCode": 0,
+    "checked": true,
+    "sourceCount": 2506,
+    "inputSha256": "bee8c84a1f753d3ce1a690a60b9c756a5f8d3b63cd13d03455bd8225c643e224",
+    "artifactSha256": "2b8546947687a646afd20436721c07503c0909192c8fb79f47f87817391289e6"
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/merchants/:mid/service-availability/dates",
+      "roles": [
+        "owner",
+        "admin",
+        "staff"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/merchants/:mid/service-availability/slots",
+      "roles": [
+        "owner",
+        "admin",
+        "staff"
+      ]
+    }
+  ],
+  "proofs": [
+    "real date-first response omits slots and selected-date read returns canonical time/duration/timezone",
+    "server clock cannot be forged by query and professional/policy versions are returned",
+    "same-tenant staff reads pass actual AuthGuard opt-in with unchanged persisted resources",
+    "same-tenant admin with an API subscription creates its professional and reads dates/slots without a newly invented catalog tier",
+    "both routes refuse anonymous/foreign/products access and existing products-mode resources cannot bypass mode guard",
+    "malformed date/window/resource/version and forged clock are rejected; empty and stale remain successful distinct states",
+    "actual owned table failure is HTTP500 without fabricated dates or slots and recovers after restore",
+    "actual private block reason and customer snapshot canaries do not appear in either served response and remain unchanged"
+  ],
+  "composition": {
+    "canonicalCatalogModuleControllerRegistered": true,
+    "canonicalReader": "getProfessionalAvailability(tx,input)",
+    "callerTransactionIsolation": "RepeatableRead",
+    "repositoryOverrides": false,
+    "authOverrides": false,
+    "queryTenantSource": "authenticated tenant principal",
+    "newPlanRestriction": false
+  },
+  "runtime": {
+    "canonicalAppModule": true,
+    "embeddingRuntime": {
+      "allowRemoteModels": false
+    },
+    "providerCalls": 0,
+    "appClosedAcknowledged": true,
+    "naturalWorkerExitCode": 0,
+    "referencedTimersBeforeAck": 0,
+    "referencedTimersAtDisconnect": 0,
+    "remainingContainers": 0,
+    "remainingBridgeSockets": 0
+  },
+  "resourceOrchestration": {
+    "buildSnapshot": {
+      "observedAtUtc": "2026-11-15T16:05:53.333541+00:00",
+      "source": "Windows GlobalMemoryStatusEx read-only",
+      "physicalTotalMiB": 16087,
+      "physicalAvailableMiB": 2373,
+      "commitAvailableMiB": 5488,
+      "memoryLoadPercent": 85,
+      "defaultHeapMiB": 4144,
+      "requiredCommitMiB": 5168,
+      "physicalInformationalOnly": true,
+      "canStart": true
+    },
+    "nativePreflightRefusal": {
+      "observedAtUtc": "2026-11-15T16:08:49.862857+00:00",
+      "source": "Windows GlobalMemoryStatusEx read-only",
+      "physicalTotalMiB": 16087,
+      "physicalAvailableMiB": 3617,
+      "commitAvailableMiB": 4522,
+      "memoryLoadPercent": 77,
+      "phase": "T24 AppModule HTTP DB",
+      "defaultHeapMiB": 4144,
+      "requiredCommitMiB": 5168,
+      "physicalInformationalOnly": true,
+      "canStart": false
+    },
+    "nativeFamilySnapshot": {
+      "observedAtUtc": "2026-11-15T16:11:05.715026+00:00",
+      "source": "Windows GlobalMemoryStatusEx read-only",
+      "physicalTotalMiB": 16087,
+      "physicalAvailableMiB": 1690,
+      "commitAvailableMiB": 4477,
+      "memoryLoadPercent": 89,
+      "phase": "T24 AppModule native model-disabled family",
+      "requiredCommitMiB": 2048,
+      "physicalInformationalOnly": true,
+      "defaultHeapUnchanged": true,
+      "canStart": true
+    },
+    "refusalStartedWorker": false,
+    "nativeFamilyRequiredCommitMiB": 2048,
+    "physicalMemoryInformational": true,
+    "defaultHeapUnchanged": true,
+    "testAndTransactionDeadlinesChanged": false,
+    "unrelatedProcessTerminated": false
+  },
+  "schemaChanged": false,
+  "assertionsWeakened": false,
+  "logs": [
+    ".cache/phase3-gates/t24-unit.log",
+    ".cache/phase3-gates/t24-build-verified-launcher.log",
+    ".cache/phase3-gates/t24-http.log"
+  ],
+  "scope": {
+    "localOnly": true,
+    "remoteAction": false,
+    "finalFeatureAcceptance": false
+  }
+}

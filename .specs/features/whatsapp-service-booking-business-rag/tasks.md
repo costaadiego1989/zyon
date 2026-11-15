@@ -610,6 +610,8 @@ T97 → T95
 
 ### T24: Expose date and slot reads
 
+**Status**: Complete - unit3/3, checked API build0/2506 and real AppModule/HTTP/DB8/8; staff/admin(API plan), both route guards, errors/privacy, no skips and owned cleanup0. Evidence: task-24-evidence.json.
+
 **What**: Controller apresenta queries datas e slots com contexto confiável e limite; política/version/clock; leituras de canais/manual chamam mesma função.
 **Where**: `apps/api/src/modules/catalog/presentation/http/service-availability.controller.ts`
 **Depends on**: T23
@@ -618,9 +620,9 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP real dates/slots: happy/empty/error/stale/products/foreign; query budget e paginação.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] HTTP real dates/slots: happy/empty/error/stale/products/foreign; query budget e paginação.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: HTTP real dates/slots: happy/empty/error/stale/products/foreign; query budget e paginação.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T24$" ./src/modules/catalog/presentation/http/service-availability.controller.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T24 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.

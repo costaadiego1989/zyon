@@ -234,11 +234,11 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | ONB-05 | About field in company data | T13, T14, T15, T16 | Implemented locally |
 | ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | In Progress (T96 and T97 complete; T72 pending) |
 | AGENDA-01 | Professional resources | T4, T18, T20, T21, T76 | In Progress (T18, T20 and T21 complete) |
-| AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 complete) |
-| AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 complete) |
+| AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
+| AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | Pending |
 | AGENDA-05 | Shared capacity | T23, T26, T34 | In Progress (T23 complete) |
-| AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 complete) |
+| AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 and T24 complete) |
 | AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | Pending |
 | BOOK-01 | Provisional hold | T27 | Pending |
 | BOOK-02 | Expiry | T27 | Pending |
@@ -272,7 +272,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | Pending |
 | ATEND-02 | Professional administration | T18, T19, T76 | In Progress (T18 and T19 complete) |
 | ATEND-03 | Service categories | T20, T77 | In Progress (T20 complete) |
-| ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21 and T23 complete) |
+| ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21, T23 and T24 complete) |
 | ATEND-05 | One-off times | T22, T25, T78 | In Progress (T22 complete) |
 | ATEND-06 | Manual appointments | T31, T41, T74, T79 | Pending |
 | ATEND-07 | Attendance lifecycle | T32, T41, T74, T80 | Pending |
