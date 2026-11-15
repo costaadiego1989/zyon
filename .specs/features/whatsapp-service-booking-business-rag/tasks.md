@@ -1914,12 +1914,13 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Lista pública validada persiste e reabre por todas as rotas equivalentes; omissão preserva,[] limpa, entrada inválida/foreign/product não altera fonte, trabalho, chunks ou demais dados.
-- [ ] Retirada/troca para products remove a lista da apresentação/contexto e invalida sua evidência antiga sem apagar histórico; mudança e trabalho são atômicos com rollback comprovado.
-- [ ] Unit + HTTP/DB reais locais passam, sem skipped, com checked build íntegro e commit próprio; sem ação remota.
+- [x] Lista pública validada persiste e reabre por todas as rotas equivalentes; omissão preserva,[] limpa, entrada inválida/foreign/product não altera fonte, trabalho, chunks ou demais dados.
+- [x] Retirada/troca para products remove a lista da apresentação/contexto e invalida sua evidência antiga sem apagar histórico; mudança e trabalho são atômicos com rollback comprovado.
+- [x] Unit + HTTP/DB reais locais passam, sem skipped, com checked build íntegro e commit próprio; sem ação remota.
 
 **Tests**: company-service-names.spec.ts; service-company-service-names.integration.spec.mjs com services/products, três rotas, auth/tenant, merge/clear/limits, concorrência/rollback e modo/contexto.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T96$" ./src/modules/merchant/application/company-service-names.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/service-company-service-names.integration.spec.mjs`; checked API build quando a fonte muda. Check final ONB-06 permanece obrigatório.
+**Status**: Complete locally: unit7/7, regression21/21, checked API build0/2506 and native17/17,0skip, actual AppModule/SQL/Next HTML and canonical reader, natural exit/owned cleanup/provider0. See task-96-evidence.json; T97 UI and final feature acceptance remain pending.
 **Commit**: `feat(service-business): t96 persist service names in company data`
 
 ### T97: Edit the service-name list in the existing company form

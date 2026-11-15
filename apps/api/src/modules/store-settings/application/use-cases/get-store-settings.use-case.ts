@@ -16,13 +16,13 @@ export class GetStoreSettingsUseCase {
   async execute(merchantId: string): Promise<MerchantStoreSettings> {
     const row = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
-      select: { storeSettings: true, name: true },
+      select: { storeSettings: true, name: true, businessMode: true },
     });
 
     if (!row) return {};
 
     const stored = (row.storeSettings ?? {}) as MerchantStoreSettings;
 
-    return { ...stored, company: mapCompanySettings(stored.company, row.name) };
+    return { ...stored, company: mapCompanySettings(stored.company, row.name, row.businessMode) };
   }
 }

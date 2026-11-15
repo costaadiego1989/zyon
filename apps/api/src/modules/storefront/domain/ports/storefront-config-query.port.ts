@@ -1,6 +1,8 @@
 export const STOREFRONT_CONFIG_QUERY_PORT = Symbol("STOREFRONT_CONFIG_QUERY_PORT");
 
 export interface StorefrontConfigMerchant {
+  /** Canonical mode; absent legacy snapshots fail closed for service-name publication. */
+  businessMode?: "products" | "services";
   budgetModeEnabled?: boolean;
   id: string;
   name: string;

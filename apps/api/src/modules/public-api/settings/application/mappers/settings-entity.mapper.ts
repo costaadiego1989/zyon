@@ -1,3 +1,4 @@
+import { readPublicCompanyServiceNames } from "../../../../merchant/application/company-settings-write.js";
 import { mapCompanySettings } from "../../../../merchant/application/company-settings.mapper.js";
 
 /**
@@ -60,9 +61,12 @@ export class SettingsEntityMapper {
    */
   static toStoreSettingsResponse(settings: any, updatedAt?: Date | null): any {
     const company = mapCompanySettings(settings.company);
+    // The canonical getter already filtered these names by the stored mode.
+    const serviceNames = readPublicCompanyServiceNames(settings.company?.serviceNames);
     return {
       company: settings.company
         ? {
+            ...(serviceNames ? { service_names: serviceNames } : {}),
             description: company.description ?? null,
             cnpj: company.cnpj ?? null,
             razao_social: company.razaoSocial ?? null,

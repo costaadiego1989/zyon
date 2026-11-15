@@ -13,7 +13,7 @@ function database() {
   const assertMerchant = (id: string) => assert.equal(id, "store-own");
   const prisma = {
     merchant: {
-      findUnique: async ({ where }: any) => { assertMerchant(where.id); return { storeSettings: structuredClone(state.storeSettings), name: "Loja", users: [] }; },
+      findUnique: async ({ where }: any) => { assertMerchant(where.id); return { storeSettings: structuredClone(state.storeSettings), name: "Loja", businessMode: "products", users: [] }; },
       update: async ({ where, data }: any) => { assertMerchant(where.id); state.storeSettings = structuredClone(data.storeSettings); return {}; },
     },
     merchantPolicy: {

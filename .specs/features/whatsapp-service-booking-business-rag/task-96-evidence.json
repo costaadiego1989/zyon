@@ -1,0 +1,113 @@
+{
+  "task": "T96",
+  "baseHead": "ab61e4dbc",
+  "capturedAt": "2026-11-15T03:29:31.054127+00:00",
+  "environment": "local-owned-only",
+  "unit": {
+    "passed": 7,
+    "failed": 0,
+    "skipped": 0,
+    "redObserved": {
+      "passed": 2,
+      "failed": 3,
+      "skipped": 0,
+      "log": "C:/tmp/zyon-service-company-service-names-preparation-20261114/T96-unit-red.log"
+    }
+  },
+  "existingUnitRegression": {
+    "passed": 21,
+    "failed": 0,
+    "skipped": 0,
+    "onlyFakeCompatibilityChange": "canonical businessMode products fact added; all preexisting payloads and assertions unchanged"
+  },
+  "apiBuildExit": 0,
+  "checkedArtifact": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "f31f6ce585e9e447e444f711256d615dac7f0ca6c5dc5ca4eb97eab639a8a56c",
+    "artifactSha256": "36a1153ca9b9906dfc846f598b1e150c7d2a114bb871f34951b76e755725a2cc",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2506
+    },
+    "recordedAt": "2026-11-15T03:12:08.684Z"
+  },
+  "native": {
+    "passed": 17,
+    "businessSubcases": 16,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 279099.8177,
+    "canonicalAppModule": true,
+    "repositoryOverrides": false,
+    "authOverrides": false,
+    "actualSql": true,
+    "actualCanonicalPublicSourceReader": true,
+    "actualBuiltNextPublicHtml": true
+  },
+  "proved": [
+    "three authenticated settings routes validate/normalize/roundtrip100names of160characters, omit preserves and [] clears",
+    "duplicates use trim+NFKC+lowercaseptBR and malformed entries roll back every field/work/chunk",
+    "products refuses explicit names and clear; getters, PUT presentation, public storefront and canonical reader omit historical names",
+    "merchant lock races on all three real HTTP routes observe exact SELECT FOR UPDATE blocked by owned holder PID then reject newly canonical products",
+    "outbox and chunk failures roll back source/work/unrelated fields; mode-change failure rolls back merchant/policy/work/chunks",
+    "warmed identical public Next URL and API immediately remove names after actual mode change, with raw JSON history preserved",
+    "names do not create catalog products or appointments; independent historical product stock/price/order/payment/checkout rows are unchanged",
+    "no private login email becomes canonical RAG source; existing UUID/company-only writer signal remains intact"
+  ],
+  "diagnosticAttempt": {
+    "passed": 15,
+    "failed": 2,
+    "skipped": 0,
+    "businessPassed": 15,
+    "businessTotal": 16,
+    "cleanupPassed": true,
+    "log": "C:/tmp/zyon-service-company-service-names-preparation-20261114/logs/T96-full-2026-11-15T03-03-54.894Z/native.log",
+    "fixtureCorrections": [
+      "canonical audit path template for explicit merchant route with unchanged correlation/actor/status/outcome",
+      "non-key-update synthetic holder allows real idempotency FK claim while still requiring writer FOR UPDATE blocked by exact holder PID"
+    ],
+    "productiveSourceChangedForRetry": false,
+    "assertionsOrGuardsWeakened": false
+  },
+  "teardown": {
+    "nextNaturalExit0": true,
+    "appCloseAck": true,
+    "naturalWorkerExit0": true,
+    "ownedResourcesRemoved": true,
+    "referencedTimersAfterClose": 0
+  },
+  "providerCalls": 0,
+  "logs": {
+    "full": "C:/tmp/zyon-service-company-service-names-preparation-20261114/logs/T96-full-2026-11-15T03-03-54.894Z",
+    "nativeFinal": "C:/tmp/zyon-service-company-service-names-preparation-20261114/logs/T96-native-2026-11-15T03-21-58.952Z"
+  },
+  "deferredIndirectJsonWritersForT65": [
+    {
+      "path": "apps/api/src/modules/auth/infrastructure/prisma-auth.repository.ts",
+      "method": "setStoreSettings -> updateOwnerProfile",
+      "callers": [
+        "apps/api/src/modules/auth/application/update-me.use-case.ts",
+        "apps/api/src/modules/auth/presentation/auth.controller.ts PUT /auth/me"
+      ],
+      "externalServiceNamesAccepted": false
+    },
+    {
+      "path": "apps/api/src/modules/merchant/infrastructure/prisma-merchant.repository.ts",
+      "method": "updateRules policies branch",
+      "callers": [
+        "apps/api/src/modules/merchant/application/merchant.use-cases.ts UpdateMerchantRulesUseCase",
+        "apps/api/src/modules/merchant/presentation/merchant.controller.ts rules route"
+      ],
+      "externalServiceNamesAccepted": false
+    }
+  ],
+  "limitations": [
+    "T97 UI/browser/screenshots not yet gated",
+    "indirect auth/rules whole-JSON concurrency is assigned to T65; no all-writer preservation claim",
+    "canonical reader context is proven; embedding/index/retrieval/answers and providers remain their later tasks",
+    "no final feature proofs, independent verifier or production acceptance"
+  ]
+}

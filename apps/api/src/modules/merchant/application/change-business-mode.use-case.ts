@@ -1,3 +1,4 @@
+import { enqueueCompanySettingsWork } from "./company-settings-write.js";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
@@ -28,7 +29,7 @@ export class ChangeBusinessModeUseCase {
     return this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
       const merchant = await tx.merchant.findUnique({ where: { id: merchantId }, select: {
-        businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true,
+        businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true, storeSettings: true,
       } });
       if (!merchant) throw new NotFoundException("merchant_not_found");
       if (merchant.businessMode !== input.expectedBusinessMode) throw new ConflictException("business_mode_version_conflict");
@@ -58,6 +59,7 @@ export class ChangeBusinessModeUseCase {
       if (selected.count !== 1) throw new ConflictException("business_mode_version_conflict");
       // Closing new admission never deletes a policy, appointment or payment.
       await tx.serviceBusinessPolicy.updateMany({ where: { merchantId, admissionsEnabled: true }, data: { admissionsEnabled: false, version: { increment: 1 } } });
+      await enqueueCompanySettingsWork(tx, merchantId, merchant.storeSettings, merchant.storeSettings, merchant.businessMode, input.businessMode);
       await tx.merchantAuditEvent.create({ data: {
         merchantId, actorType: "human", actorId, action: "business_mode.changed", resourceType: "merchant", resourceId: merchantId,
         metadata: { before: merchant.businessMode, after: input.businessMode, reviewResolved: merchant.businessModeNeedsReview },

@@ -8,6 +8,7 @@ import {
   MaxLength,
   ValidateNested,
   IsArray,
+  ArrayMaxSize,
   IsNumber,
   Min,
   IsIn,
@@ -51,6 +52,13 @@ class CompanyAddressDto {
 }
 
 class CompanyDto {
+  @ApiPropertyOptional({ type: [String], maxItems: 100, description: "Public service names; services businesses only" })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  serviceNames?: string[];
+
   @ApiPropertyOptional({ description: "Public store introduction used by the sales assistant" })
   @IsOptional()
   @IsString()

@@ -27,6 +27,7 @@ export interface MerchantStoreSettings {
   };
   company?: {
     description?: string;
+    serviceNames?: string[];
     cnpj?: string;
     razaoSocial?: string;
     inscricaoEstadual?: string;

@@ -85,6 +85,14 @@ export class GetStoreConfigUseCase {
         ? legacyReplies
         : ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
 
+    const storedSettings = (row.storeSettings as Record<string, unknown>) ?? undefined;
+    let publicSettings = storedSettings;
+    const company = storedSettings?.company;
+    if (row.businessMode !== "services" && company && typeof company === "object" && !Array.isArray(company)) {
+      const publicCompany = { ...company as Record<string, unknown> };
+      delete publicCompany.serviceNames;
+      publicSettings = { ...storedSettings, company: publicCompany };
+    }
     const voiceCheckoutEnabled = await this.isVoiceCheckoutEnabled(row.id);
     return {
       publishedPolicies: config.publishedPolicies ?? {},
@@ -120,7 +128,7 @@ export class GetStoreConfigUseCase {
       quickReplies,
       stories: config.stories as any[],
       storeCategory: row.storeCategory ?? undefined,
-      storeSettings: (row.storeSettings as Record<string, unknown>) ?? undefined,
+      storeSettings: publicSettings,
       showBranding: !(config.subscriptionStatus === "active" || config.subscriptionStatus === "trialing"),
       voiceCheckoutEnabled,
       agentMode,

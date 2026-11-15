@@ -69,7 +69,7 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
     return {
       publishedPolicies: resolveStorePolicies(merchant.storeSettings, settledValue(legacyPolicies)),
       policiesAvailable: legacyPolicies.status === "fulfilled",
-      merchant: { id: merchant.id, name: merchant.name, theme: merchant.theme, storeCategory: merchant.storeCategory, storeSettings: merchant.storeSettings, budgetModeEnabled: merchant.budgetModeEnabled },
+      merchant: { id: merchant.id, name: merchant.name, businessMode: merchant.businessMode, theme: merchant.theme, storeCategory: merchant.storeCategory, storeSettings: merchant.storeSettings, budgetModeEnabled: merchant.budgetModeEnabled },
       subscriptionStatus: settledValue(subscription)?.status,
       checkoutMode: settledValue(checkoutSettings)?.mode,
       agentRule: settledValue(agentRule) ?? undefined,

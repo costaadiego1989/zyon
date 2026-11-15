@@ -5,7 +5,8 @@ import type { MerchantStoreSettings } from "../../../merchant/domain/merchant.ty
 import { slugify } from "../../../../shared/utils/slugify.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { selectInitialBusinessMode } from "../../../merchant/application/initial-business-mode-selection.js";
-import { normalizeCompanySettingsPatch, mergeCompanySettingsPatch, enqueueCompanySettingsWork } from "../../../merchant/application/company-settings-write.js";
+import { normalizeCompanySettingsPatch, mergeCompanySettingsPatch, enqueueCompanySettingsWork, assertCompanyServiceNamesMode } from "../../../merchant/application/company-settings-write.js";
+import { mapCompanySettings } from "../../../merchant/application/company-settings.mapper.js";
 
 export type StoreSettings = MerchantStoreSettings;
 
@@ -35,15 +36,18 @@ export class UpdateStoreSettingsUseCase {
       const incoming = settings as unknown as Record<string, unknown>;
       return await this.prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
-        const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+        const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true, businessMode: true } });
         if (!current) throw new NotFoundException("merchant_not_found");
         const storedSettings = mergeCompanySettingsPatch(current.storeSettings, incoming);
         await selectInitialBusinessMode(tx, merchantId, incoming);
+        const selected = await tx.merchant.findUnique({ where: { id: merchantId }, select: { businessMode: true } });
+        if (!selected) throw new NotFoundException("merchant_not_found");
+        assertCompanyServiceNamesMode(incoming, selected.businessMode);
         await tx.merchant.update({ where: { id: merchantId }, data: {
           storeSettings: storedSettings as Prisma.InputJsonObject, ...(settings.slug ? { storeSlug: settings.slug } : {}),
         } });
-        await enqueueCompanySettingsWork(tx, merchantId, current.storeSettings, storedSettings);
-        return storedSettings as MerchantStoreSettings;
+        await enqueueCompanySettingsWork(tx, merchantId, current.storeSettings, storedSettings, current.businessMode, selected.businessMode);
+        return { ...storedSettings, company: mapCompanySettings(storedSettings.company, undefined, selected.businessMode) } as MerchantStoreSettings;
       });
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

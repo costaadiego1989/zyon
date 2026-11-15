@@ -12,7 +12,7 @@ import { z } from "zod";
 import { selectInitialBusinessMode } from "../application/initial-business-mode-selection.js";
 import { mapMerchantBusinessProfile } from "../application/merchant-business-profile.mapper.js";
 import { mapCompanySettings } from "../application/company-settings.mapper.js";
-import { normalizeCompanySettingsPatch, mergeCompanySettingsPatch, enqueueCompanySettingsWork } from "../application/company-settings-write.js";
+import { normalizeCompanySettingsPatch, mergeCompanySettingsPatch, enqueueCompanySettingsWork, assertCompanyServiceNamesMode } from "../application/company-settings-write.js";
 
 const existingPercent = z.union([z.number().finite(), z.custom<Prisma.Decimal>(value => Prisma.Decimal.isDecimal(value))
   .transform(value => value.toNumber())]).pipe(z.number().finite().min(0).max(100));
@@ -91,10 +91,10 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   async getStoreSettings(merchantId: string): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
     const row = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
-      select: { storeSettings: true, name: true, budgetModeEnabled: true, budgetEmail: true, budgetWhatsapp: true },
+      select: { businessMode: true, storeSettings: true, name: true, budgetModeEnabled: true, budgetEmail: true, budgetWhatsapp: true },
     });
     const stored = (row?.storeSettings ?? {}) as MerchantStoreSettings;
-    return { ...stored, company: mapCompanySettings(stored.company, row?.name),
+    return { ...stored, company: mapCompanySettings(stored.company, row?.name, row?.businessMode),
       budget: { enabled: row?.budgetModeEnabled ?? false, email: row?.budgetEmail ?? "", whatsapp: row?.budgetWhatsapp ?? "" } };
   }
 
@@ -102,12 +102,15 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     const incoming = normalizeCompanySettingsPatch(settings);
     await this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
-      const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+      const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true, businessMode: true } });
       if (!current) throw new NotFoundException("merchant_not_found");
       const { budget: _budget, ...storedPatch } = incoming;
       const merged = mergeCompanySettingsPatch(current.storeSettings, storedPatch);
       const requestedSlug = typeof incoming.slug === "string" ? incoming.slug.trim().toLowerCase() : undefined;
       await selectInitialBusinessMode(tx, merchantId, incoming);
+      const selected = await tx.merchant.findUnique({ where: { id: merchantId }, select: { businessMode: true } });
+      if (!selected) throw new NotFoundException("merchant_not_found");
+      assertCompanyServiceNamesMode(incoming, selected.businessMode);
       await tx.merchant.update({ where: { id: merchantId }, data: {
         ...(settings.budget ? {
           budgetModeEnabled: settings.budget.enabled,
@@ -125,7 +128,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
         // Never leave a retrieval chunk containing superseded promises.
         await tx.knowledgeChunk.deleteMany({ where: { merchantId, sourceType: "policy", sourceId: { in: Object.keys(settings.policies) } } });
       }
-      await enqueueCompanySettingsWork(tx, merchantId, current.storeSettings, merged);
+      await enqueueCompanySettingsWork(tx, merchantId, current.storeSettings, merged, current.businessMode, selected.businessMode);
     });
     return this.getStoreSettings(merchantId);
   }
