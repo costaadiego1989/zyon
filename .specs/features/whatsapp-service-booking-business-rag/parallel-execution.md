@@ -36,6 +36,8 @@ Source-review notes: C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/ex
 
 ## Remaining Technical Fronts
 
+While M awaits the original booking barrier, root assigns it only the isolated controlled ServiceNamesField and unit preparation for user-directed T97. Drafts stay outside M's application fingerprint and do not complete T97. C remains the owner of T96/T97 integration, hook/API wiring, browser, screenshots, gates and atomic commits. Booking drafts remain intact. This shares preparation without spawning duplicate workers or weakening task dependencies.
+
 The renewed user instruction, "prossiga de onde parou spawnar subagentes para acelerar", keeps all three workers active. Root begins the independent RAG front T63-T71 in N instead of waiting for Conversations UI T62. T63 depends on integrated company writes T13 and professionals T18. T65 additionally waits T25 so reconciliation covers the completed professional/availability writers. Human handoff T48 depends on the Phase3 base T25, not the unrelated buyer screen T47. These are technical ordering changes; product scope and all95 atomic tasks,71 criteria, real gates and final independent verification remain.
 
 C and P retain their current assignments. M retains booking preparation/gates after integrated green Phases2/3. After P/T25, root may assign Phase7/8 to P. Future Atendimento UI can be prepared by C after Phase2, but its gates wait for its RAG evaluation and actual booking endpoints. Only explicitly dispatched work is active; future assignments here are not completion claims. Root coordinates shared files, integration and the single heavy slot.
