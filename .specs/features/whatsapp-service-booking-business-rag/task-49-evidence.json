@@ -1,0 +1,112 @@
+{
+  "task": "T49",
+  "environment": "local-owned",
+  "baseHead": "a523245f46fc2bc8f57877df7f0730e0c67bf201",
+  "unit": {
+    "tests": 125,
+    "pass": 125,
+    "fail": 0,
+    "skipped": 0
+  },
+  "nativeFinal": {
+    "tests": 19,
+    "pass": 19,
+    "fail": 0,
+    "skipped": 0,
+    "T2": 7,
+    "T49": 12
+  },
+  "sameArtifactT48Regression": {
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0
+  },
+  "initialBuild": {
+    "exitCode": 1,
+    "diagnostics": [
+      "Response DTO source union did not yet include whatsapp",
+      "Optional appointment reference used buyerId instead of canonical buyerGlobalUserId"
+    ],
+    "fixed": "Response-only DTO and exact canonical field; no input-origin trust or ownership relaxation."
+  },
+  "initialNative": {
+    "tests": 27,
+    "pass": 22,
+    "fail": 5,
+    "skipped": 0,
+    "T48": {
+      "pass": 8,
+      "fail": 0
+    },
+    "T2": "Physical Redis socket capture failed; original cause was suppressed and remains unknown. Added bounded safe causal diagnostics, no timeout/ownership change.",
+    "T49": "Two replay fixtures regenerated timestamp under the same eventId and correctly got409. Preserve the exact original payload for200 replay; add explicit409 altered-payload assertion, preserving state and original expectations."
+  },
+  "apiBuildExit": 0,
+  "checkedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "db66ff43591beb3a0c344467dbd8e7fc204517a3a7bd09e3e4e64349c55f484c",
+    "artifactSha256": "3d1dbde19743bbd85c9712b606f7c868bf5cc04839db3fd17c11c3ae5d5b15c1",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2510
+    },
+    "recordedAt": "2026-11-15T14:12:46.790Z"
+  },
+  "buildAndInitialNativeLogs": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t49-gates\\2026-11-15T14-09-31.895Z",
+  "finalNativeLogs": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t49-native-retry\\2026-11-15T14-26-46.082Z",
+  "runtime": {
+    "canonicalAppModule": true,
+    "repositoryOverrides": false,
+    "authOverrides": false,
+    "realSignedWebhook": true,
+    "realInboxWorker": true,
+    "realOwnedPostgresRedisNeo4j": true,
+    "realTenantMiddleware": true,
+    "providerCalls": 0,
+    "localProviderOverrides": [
+      "whatsapp-channel.WHATSAPP_SENDER_PORT",
+      "MetaInboundMediaAdapter"
+    ],
+    "localSubmissions": "Synthetic queued results asserted per case; no delivered/read claim",
+    "mediaScope": "Synthetic typed transcript by media id; signed intake/scope/router proof, no actual Meta media fetch/transcription proof",
+    "appClosedAck": true,
+    "naturalExitCode": 0,
+    "remainingContainers": 0,
+    "remainingBridgeSockets": 0
+  },
+  "harnessInputs": [
+    {
+      "path": "apps/api/tests/service-test-runtime.mjs",
+      "sha256": "4bc51b64a1eb9e950a8275c1954a51e3702e314a6194712a60d1cadabe029fd4"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.worker.mjs",
+      "sha256": "6cbb8180a4702421d912b0fa04a38fcf168e74159c98be8ba1867e07c673653c"
+    },
+    {
+      "path": "apps/api/tests/service-whatsapp-provider-fixture.mjs",
+      "sha256": "ae12bcdb544d91c6bf908c7eafdfa6b17ee2ca5951a5fa1d6638d4f5b95b77c5"
+    },
+    {
+      "path": "apps/api/tests/service-whatsapp-provider-fixture.contract.spec.mjs",
+      "sha256": "68ccc4f7c5dce8258e3492283228bcaf833a2da3d2e709edf30725e211433c11"
+    },
+    {
+      "path": "apps/api/tests/storefront-journey-owned-clients.mjs",
+      "sha256": "b4e0251f1cfc6f6dba53c7c56052ea4968358255d730e55fc70e5b6145f163d2"
+    },
+    {
+      "path": "apps/api/tests/whatsapp-handoff-fixture.mjs",
+      "sha256": "df14f967bd7167d6944ac1006b10897d55fbe341cd6bd784e720571e844d21e3"
+    },
+    {
+      "path": "apps/api/tests/whatsapp-human-intake.integration.spec.mjs",
+      "sha256": "1c70ebb52c70b9eb437f798192c7539f9297b339c0897e2bd1885c3e9d3d2d0d"
+    }
+  ],
+  "scope": "Exact-conversation intake and transactional context only. Human-mode incoming routing/AI effect fences/claims/operator delivery are later tasks. No real provider/production/whole-feature acceptance."
+}

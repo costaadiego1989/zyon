@@ -74,9 +74,12 @@ export function createOwnedJourneyClientTracker(app, redisPort) {
         if (streams.has(client)) proof.assertCaptured(client, socket); else entries.push({ owner: client, socket });
       }
       try { await proof.captureAll(entries); }
-      catch {
+      catch (cause) {
         const changed = entries.filter(({ owner, socket }) => owner.status !== "ready" || socketFor(owner) !== socket || socket.closed || socket.destroyed || socket.connecting);
         throw Error("journey_owned_redis_capture_failed:" + JSON.stringify({ totalClients: clients.size, queues: queues.size, workers: workers.size, changedCount: changed.length,
+          cause: { name: cause?.name, code: typeof cause?.code === "string" ? cause.code.slice(0, 60) : null,
+            check: /^construction_[a-z_]+$/.test(cause?.message ?? "") ? cause.message : null, killed: cause?.killed === true,
+            signal: ["SIGTERM", "SIGKILL"].includes(cause?.signal) ? cause.signal : null },
           clients: (changed.length ? changed : entries).slice(0, 5).map(({ owner, socket }) => ({ ...journeyRedisDiagnostic(clients.get(owner), owner, socket), socketGenerationChanged: socketFor(owner) !== socket })) }));
       }
       for (const { owner, socket } of entries) {

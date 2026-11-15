@@ -28,6 +28,7 @@ import { SupportController } from "./presentation/http/support.controller.js";
 import { SupportMessagesController } from "./presentation/http/support-messages.controller.js";
 import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
 import { SupportRealtimePublisher } from "./application/support-realtime.publisher.js";
+import { WhatsAppHandoffModule } from "../whatsapp-channel/whatsapp-handoff.module.js";
 
 /**
  * SUPP-H1/H2: SendSupportMessageUseCase split across cohesive files.
@@ -36,7 +37,7 @@ import { SupportRealtimePublisher } from "./application/support-realtime.publish
  */
 @Module({
   // EmbedModule provides EmbedAuthGuard used by chat/faq endpoints (P0 fix)
-  imports: [EmbedModule, IntegrationsModule, HttpModule, KnowledgeBaseModule],
+  imports: [EmbedModule, IntegrationsModule, HttpModule, KnowledgeBaseModule, WhatsAppHandoffModule],
   controllers: [SupportController, SupportMessagesController],
   providers: [
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },

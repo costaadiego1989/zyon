@@ -17,8 +17,12 @@ import { metaStoreQuickReplyAction, resolveMetaStoreTextAction } from "../../dom
 import { isMetaReadNavigation, refreshMetaReadView } from "../../domain/ui/meta-read-navigation.js";
 import { metaProductContext, withMetaProductNavigation } from "../../domain/ui/meta-product-navigation.js";
 import { recoverMetaPaymentChoice } from "../../domain/ui/meta-payment-selection.js";
+import { WhatsAppHumanIntakeService, type WhatsAppHumanNotice } from "../services/whatsapp-human-intake.service.js";
+import type { MetaInboundMediaResult } from "../../infrastructure/adapters/meta-inbound-media.adapter.js";
 
-interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
+export interface PreparedWhatsAppMedia { attempted: true; result?: MetaInboundMediaResult }
+
+interface SavedTurn { purpose?: "human_handoff"; handoff?: WhatsAppHumanNotice; phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
 /** Match the exact durable authenticated envelope before paying for media or
  * granting current-speech authority. MIME alone is never provenance. */
@@ -54,9 +58,37 @@ export class HandleMetaConversationUseCase {
     @Optional() private readonly capabilities?: MetaUiCapabilitiesAdapter,
     @Optional() private readonly inboundMedia?: MetaInboundMediaAdapter,
     @Optional() private readonly catalogOrders?: MetaCatalogOrderAdapter,
+    @Optional() private readonly humanIntake?: WhatsAppHumanIntakeService,
   ) {}
 
-  async execute(input: IncomingMessageInput, route: RouteResult, responseProducer?: () => Promise<WhatsAppStructuredResponse>): Promise<void> {
+  async prepareAudioForHandoff(input: IncomingMessageInput, route: RouteResult): Promise<PreparedWhatsAppMedia | undefined> {
+    const claim = input.inboxClaim;
+    if (!claim || claim.responseState || !input.metaMedia || !/^audio\//i.test(input.metaMedia.mimeType ?? "") || !matchesMetaMediaEnvelope(input, claim)) return;
+    const conversationId = route.whatsappSession.conversationState?.conversationId;
+    if (!conversationId) return;
+    return { attempted: true, result: await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia, { inboxId: claim.id, conversationId }) };
+  }
+
+  async resumeHandoffNotice(input: IncomingMessageInput, route: RouteResult): Promise<boolean> {
+    const claim = input.inboxClaim;
+    const saved = claim?.responseState as unknown as SavedTurn | undefined;
+    if (saved?.purpose !== "human_handoff") return false;
+    if (!claim || saved.sessionId !== route.whatsappSession.id || !saved.presentation || !saved.state) throw new Error("whatsapp_response_scope_mismatch");
+    await this.dispatchPrepared(input, route, claim, saved);return true;
+  }
+
+  async sendHandoffNotice(input: IncomingMessageInput, route: RouteResult, notice: WhatsAppHumanNotice): Promise<void> {
+    const claim = input.inboxClaim;
+    if (!claim || !this.inbox.saveResponse || Date.now() - input.timestamp > 24 * 60 * 60 * 1000) throw new Error("whatsapp_handoff_notice_unavailable");
+    if (await this.resumeHandoffNotice(input, route)) return;
+    const state = route.whatsappSession.conversationState;
+    if (!state) throw new Error("whatsapp_handoff_conversation_missing");
+    const saved: SavedTurn = { purpose: "human_handoff", handoff: notice, phase: "prepared", state, sessionId: route.whatsappSession.id,
+      sessionApplied: true, sent: [], presentation: { messages: [{ type: "text", text: { body: notice.reply } }], selections: {}, numericSelections: [], page: 0, totalPages: 1 } };
+    await this.save(claim, saved);await this.dispatchPrepared(input, route, claim, saved);
+  }
+
+  async execute(input: IncomingMessageInput, route: RouteResult, responseProducer?: () => Promise<WhatsAppStructuredResponse>, preparedMedia?: PreparedWhatsAppMedia): Promise<void> {
     if (Date.now() - input.timestamp > 24 * 60 * 60 * 1000) throw new Error("whatsapp_service_window_expired");
     const claim = input.inboxClaim;
     if (!claim || !this.inbox.saveResponse || !this.conversation.respondStore) throw new Error("whatsapp_durable_ui_unavailable");
@@ -67,10 +99,12 @@ export class HandleMetaConversationUseCase {
     if (!saved?.presentation || !saved.state) {
       await this.save(claim, { phase: "generating" });
       let state: WhatsAppConversationState = route.whatsappSession.conversationState ?? { version: 1, conversationId: randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] };
-      if (this.capabilities) state = { ...state, ...await this.capabilities.get(input.merchantId, input.deviceId) };
       const mediaScopeValid = matchesMetaMediaEnvelope(input, claim);
-      const interpreted = !responseProducer && input.metaMedia && mediaScopeValid ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia,
+      const interpreted = preparedMedia ? preparedMedia.result : !responseProducer && input.metaMedia && mediaScopeValid ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia,
         { inboxId: claim.id, conversationId: state.conversationId }) : undefined;
+      const notice = mediaScopeValid ? await this.humanIntake?.requestVoice(input, interpreted) : undefined;
+      if (notice) { await this.sendHandoffNotice(input, route, notice); return; }
+      if (this.capabilities) state = { ...state, ...await this.capabilities.get(input.merchantId, input.deviceId) };
       // Only the internal typed result, bound to this exact authenticated turn,
       // supplies current speech. Raw inbox input/IDs are never overwritten.
       const spokenMessage = interpreted?.kind === "audio_transcript" && mediaScopeValid && interpreted.scope?.merchantId === input.merchantId
@@ -223,6 +257,10 @@ export class HandleMetaConversationUseCase {
       saved = { phase: "prepared", presentation, state, sessionId: route.whatsappSession.id, previousRevision: route.whatsappSession.conversationState?.revision ?? "", sent: [] };
       await this.save(claim, saved);
     }
+    await this.dispatchPrepared(input, route, claim, saved);
+  }
+
+  private async dispatchPrepared(input: IncomingMessageInput, route: RouteResult, claim: WhatsAppInboxClaim, saved: SavedTurn): Promise<void> {
     if (!saved.sessionApplied) {
       const current = route.whatsappSession.conversationState?.revision ?? "";
       // A late receipt can resume an earlier turn after a newer buyer message.

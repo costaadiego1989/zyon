@@ -29,7 +29,7 @@ export class SupportTicketResponseDto {
   @ApiProperty({ description: 'Merchant ID' })
   merchant_id!: string;
 
-  @ApiProperty({ description: 'Checkout session ID (optional)', required: false })
+  @ApiProperty({ description: 'Origin conversation/session ID (optional)', required: false })
   session_id?: string;
 
   @ApiProperty({ description: 'Initial buyer message' })
@@ -38,8 +38,8 @@ export class SupportTicketResponseDto {
   @ApiProperty({ description: 'Ticket status', enum: ['open', 'in_progress', 'resolved', 'closed'] })
   status!: 'open' | 'in_progress' | 'resolved' | 'closed';
 
-  @ApiProperty({ description: 'Ticket source', enum: ['widget', 'dashboard', 'system', 'return_request'] })
-  source!: 'widget' | 'dashboard' | 'system' | 'return_request';
+  @ApiProperty({ description: 'Ticket source', enum: ['widget', 'dashboard', 'system', 'return_request', 'whatsapp'] })
+  source!: 'widget' | 'dashboard' | 'system' | 'return_request' | 'whatsapp';
 
   @ApiProperty({ description: 'Creation timestamp (ISO 8601)' })
   created_at!: string;

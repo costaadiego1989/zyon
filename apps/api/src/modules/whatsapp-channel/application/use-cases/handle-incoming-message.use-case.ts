@@ -10,7 +10,7 @@ import { whatsappProcessingErrorCode } from "../../domain/services/whatsapp-proc
  */
 
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
-import { RouteToSessionUseCase } from "./route-to-session.use-case.js";
+import { RouteToSessionUseCase, type RouteResult } from "./route-to-session.use-case.js";
 import { SendWhatsAppResponseUseCase } from "./send-whatsapp-response.use-case.js";
 import {
   resolveNumberedInput,
@@ -18,6 +18,7 @@ import {
 } from "../services/whatsapp-menu-renderer.service.js";
 import { renderNumberedMenu } from "../../domain/templates/whatsapp-templates.js";
 import { HandleMetaConversationUseCase } from "./handle-meta-conversation.use-case.js";
+import { WhatsAppHumanIntakeService } from "../services/whatsapp-human-intake.service.js";
 import {
   WHATSAPP_SESSION_REPOSITORY,
   type WhatsAppSessionRepository,
@@ -60,6 +61,7 @@ export class HandleIncomingMessageUseCase {
     @Optional() @Inject(POST_SALE_REPLY_HANDLER_PORT)
     private readonly postSaleReply?: PostSaleReplyHandlerPort,
     @Optional() private readonly metaConversation?: HandleMetaConversationUseCase,
+    @Optional() private readonly humanIntake?: WhatsAppHumanIntakeService,
   ) {}
 
   async execute(input: IncomingMessageInput): Promise<void> {
@@ -72,85 +74,107 @@ export class HandleIncomingMessageUseCase {
         fromAlias: input.fromAlias,
       });
 
-      // Process inline under the durable inbox lease.
-      const session = route.whatsappSession;
-
-      // ─── Post-sale reply intercept ────────────────────────────────────
-      // If the buyer was asked for NPS/review via post-sale, capture reply
-      // before routing to the checkout engine.
-      if (session.postSaleContext && this.postSaleReply) {
-        if (input.provider === "META_CLOUD" && this.metaConversation) {
-          await this.metaConversation.execute(input, route, async () => {
-            let text = "";
-            const handled = await this.handlePostSaleReply(session, input, async response => { text = response.text; });
-            if (!handled) throw new Error("whatsapp_post_sale_context_invalid");
-            return { agentMessage: text, blocks: [], quickReplies: [], state: {
-              ...(session.conversationState ?? { version: 1, conversationId: crypto.randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] }),
-              expectsFreeInput: true,
-            } };
-          });
-          return;
-        }
-        const handled = await this.handlePostSaleReply(session, input);
-        if (handled) return; // reply captured; don't fall through to checkout
-      }
-      // ────────────────────────────────────────────────────────────────────
-
-      if (input.provider === "META_CLOUD") {
-        if (!this.metaConversation) throw new Error("whatsapp_native_conversation_unavailable");
-        await this.metaConversation.execute(input, route);
-        return;
-      }
-
-      // Resolve numbered input
-      const menuState = buildMenuState(
-        session.currentOptions,
-        { currentOptions: session.previousOptions, previousOptions: [], page: session.currentPage, context: "menu" },
-      );
-      const resolved = resolveNumberedInput(input.body, menuState);
-
-      let textForEngine: string;
-      switch (resolved.action) {
-        case "select": textForEngine = resolved.text; break;
-        case "back": textForEngine = "Voltar ao menu anterior"; break;
-        case "more": textForEngine = "Mostrar mais produtos"; break;
-        default: textForEngine = input.body; break;
-      }
-
-      // Get response from engine
-      if (!session.checkoutSessionId) throw new Error("whatsapp_checkout_session_missing");
-      const engineResponse = await this.conversation.respond({
-        merchantId: input.merchantId, checkoutSessionId: session.checkoutSessionId, message: textForEngine,
-      });
-      const quickReplies: string[] = engineResponse.quickReplies;
-      const agentText: string = engineResponse.agentMessage;
-
-      const responseText = quickReplies.length ? `${agentText}\n\n${renderNumberedMenu(quickReplies, true)}` : agentText;
-
-      // Save menu state
-      await this.sessionRepo.updateMenuState(
-        session.id,
-        quickReplies,
-        session.currentOptions,
-        session.currentPage,
-      );
-
-      // Send response via WhatsApp
-      await this.sendResponse.execute({
-        merchantId: input.merchantId,
-        deviceId: input.deviceId,
-        toNumber: input.fromNumber,
-        text: responseText,
-        provider: input.provider,
-      });
-
-      this.logger.log(`whatsapp_response_sent merchant=${input.merchantId}`);
+      const run = () => this.processRouted(input, route);
+      if (this.humanIntake) await this.humanIntake.runTurn(input, route, run);
+      else await run();
     } catch (error) {
       this.logger.error(`whatsapp_pipeline_failed merchant=${input.merchantId} code=${whatsappProcessingErrorCode(error)}`);
 
       // Let the durable inbox retry; sending a fallback here would be another side effect.
       throw error;
     }
+  }
+
+  private async processRouted(input: IncomingMessageInput, route: RouteResult): Promise<void> {
+    // Process inline under the durable inbox lease.
+    const session = route.whatsappSession;
+    if (this.humanIntake && input.provider === "META_CLOUD" && await this.metaConversation?.resumeHandoffNotice(input, route)) return;
+    const preparedMedia = this.humanIntake && input.provider === "META_CLOUD" ? await this.metaConversation?.prepareAudioForHandoff(input, route) : undefined;
+    const notice = await this.humanIntake?.requestText(input) ?? (preparedMedia ? await this.humanIntake?.requestVoice(input, preparedMedia.result) : undefined);
+    if (notice) {
+      if (input.provider === "META_CLOUD") {
+        if (!this.metaConversation) throw new Error("whatsapp_native_conversation_unavailable");
+        await this.metaConversation.sendHandoffNotice(input, route, notice);
+      } else {
+        await this.sendResponse.execute({ merchantId: input.merchantId, deviceId: input.deviceId,
+          toNumber: input.fromNumber, text: notice.reply, provider: input.provider });
+      }
+      return;
+    }
+
+
+    // ─── Post-sale reply intercept ────────────────────────────────────
+    // If the buyer was asked for NPS/review via post-sale, capture reply
+    // before routing to the checkout engine.
+    if (session.postSaleContext && this.postSaleReply) {
+      const speech = this.humanIntake?.currentSpeech();
+      const postSaleInput = speech ? { ...input, body: speech } : input;
+      if (input.provider === "META_CLOUD" && this.metaConversation) {
+        await this.metaConversation.execute(input, route, async () => {
+          let text = "";
+          const handled = await this.handlePostSaleReply(session, postSaleInput, async response => { text = response.text; });
+          if (!handled) throw new Error("whatsapp_post_sale_context_invalid");
+          return { agentMessage: text, blocks: [], quickReplies: [], state: {
+            ...(session.conversationState ?? { version: 1, conversationId: crypto.randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] }),
+            expectsFreeInput: true,
+          } };
+        }, preparedMedia);
+        return;
+      }
+      const handled = await this.handlePostSaleReply(session, postSaleInput);
+      if (handled) return; // reply captured; don't fall through to checkout
+    }
+    // ────────────────────────────────────────────────────────────────────
+
+    if (input.provider === "META_CLOUD") {
+      if (!this.metaConversation) throw new Error("whatsapp_native_conversation_unavailable");
+      await this.metaConversation.execute(input, route, undefined, preparedMedia);
+      return;
+    }
+
+    // Resolve numbered input
+    const menuState = buildMenuState(
+      session.currentOptions,
+      { currentOptions: session.previousOptions, previousOptions: [], page: session.currentPage, context: "menu" },
+    );
+    const resolved = resolveNumberedInput(input.body, menuState);
+
+    let textForEngine: string;
+    switch (resolved.action) {
+      case "select": textForEngine = resolved.text; break;
+      case "back": textForEngine = "Voltar ao menu anterior"; break;
+      case "more": textForEngine = "Mostrar mais produtos"; break;
+      default: textForEngine = input.body; break;
+    }
+
+    // Get response from engine
+    if (!session.checkoutSessionId) throw new Error("whatsapp_checkout_session_missing");
+    const engineResponse = await this.conversation.respond({
+      merchantId: input.merchantId, checkoutSessionId: session.checkoutSessionId, message: textForEngine,
+    });
+    const quickReplies: string[] = engineResponse.quickReplies;
+    const agentText: string = engineResponse.agentMessage;
+
+    const responseText = quickReplies.length ? `${agentText}\n\n${renderNumberedMenu(quickReplies, true)}` : agentText;
+
+    // Save menu state
+    await this.sessionRepo.updateMenuState(
+      session.id,
+      quickReplies,
+      session.currentOptions,
+      session.currentPage,
+    );
+
+    // Send response via WhatsApp
+    await this.sendResponse.execute({
+      merchantId: input.merchantId,
+      deviceId: input.deviceId,
+      toNumber: input.fromNumber,
+      text: responseText,
+      provider: input.provider,
+    });
+
+    this.logger.log(`whatsapp_response_sent merchant=${input.merchantId}`);
   }
 
   /**

@@ -18,6 +18,9 @@ export class WhatsAppDeliveryService {
     @Inject(WHATSAPP_SENDER_PORT) private readonly sender: WhatsAppSenderPort,
   ) {}
 
+  /** Internal authenticated inbox context for legacy providers. */
+  currentClaim(): WhatsAppInboxClaim | undefined { return this.context.getStore()?.claim; }
+
   async capture(input: SendResponseInput): Promise<boolean> {
     const context = this.context.getStore();
     if (!context) return false;

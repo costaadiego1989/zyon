@@ -1066,12 +1066,12 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP/DB whatsapp-human-handoff.integration.spec.ts: botão/texto/voz durante checkout, repetição, falha transacional e tenant.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Signed HTTP/DB companion proves button/text/authorized synthetic voice during checkout, replay, real outbox rollback, exact tenant/thread, and optional appointment ownership without financial/booking commands.
+- [x] Gate Full passes: unit125/125; final nativeT49=12/12 and defaultT2=7/7; T48regression8/8 on the same artifact; zero skipped. Checked build0/2510, AppModule/auth/SQL and owned cleanup0. See task-49-evidence.json; local commit only, no push/deploy.
 
-**Tests**: HTTP/DB whatsapp-human-handoff.integration.spec.ts: botão/texto/voz durante checkout, repetição, falha transacional e tenant.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T49$" ./src/modules/support/application/support-handoff.service.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T49 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Dedicated `whatsapp-human-intake.service.spec.ts`, unchanged support/Meta/voice companions, provider-fixture contracts and signed HTTP/DB `tests/whatsapp-human-intake.integration.spec.mjs`: button/text/authorized synthetic voice during checkout, replay, actual outbox rollback, exact tenant/thread and ordinary post-sale speech. Repeat T48 native and default T2 owned-runtime gates after the harness extension.
+**Gate**: Full: protected Node runner for the new intake unit, existing support-handoff/handle-meta-conversation/meta-audio-context units and `tests/service-whatsapp-provider-fixture.contract.spec.mjs`; checked API build and artifact; protected native runner for `tests/whatsapp-human-intake.integration.spec.mjs`, `tests/whatsapp-handoff-binding.integration.spec.mjs`, `tests/service-test-runtime.spec.mjs`. Zero skipped. The complete AppModule serves real signed webhook/auth/inbox/SQL. Explicit child-only sender/media DI fixtures and local submissions are separate from external provider delivery/transcription; auth/repositories are not overridden. Final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t49 create or reuse a whatsapp support handoff`
 
 ### T50: Route incoming human-mode messages to support

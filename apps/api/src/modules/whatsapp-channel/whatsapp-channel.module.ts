@@ -57,6 +57,8 @@ import { PrismaWhatsAppOnboardingStore } from "./infrastructure/repositories/pri
 import { WHATSAPP_SIGNUP_AUTHORIZATION } from "./domain/ports/whatsapp-signup-authorization.port.js";
 import { MetaSignupAuthorizationAdapter } from "./infrastructure/adapters/meta-signup-authorization.adapter.js";
 import { WhatsAppHandoffModule } from "./whatsapp-handoff.module.js";
+import { SupportModule } from "../support/support.module.js";
+import { WhatsAppHumanIntakeService } from "./application/services/whatsapp-human-intake.service.js";
 
 /**
  * Multi-tenant sender resolver.
@@ -83,11 +85,12 @@ export class MultiProviderSenderAdapter {
 }
 
 @Module({
-  imports: [WhatsAppHandoffModule, forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, AgentRuleReaderModule, forwardRef(() => PostSaleModule)],
+  imports: [WhatsAppHandoffModule, forwardRef(() => SupportModule), forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, AgentRuleReaderModule, forwardRef(() => PostSaleModule)],
   controllers: [WhatsAppWebhookController, WhatsAppConfigController, WhatsAppDeliveryController, WhatsAppPresentationController],
   providers: [
     GetWhatsAppUsageUseCase,
     WhatsAppDeliveryService,
+    WhatsAppHumanIntakeService,
     HandleIncomingMessageUseCase,
     HandleMetaConversationUseCase,
     WhatsAppCheckoutIdentityService,

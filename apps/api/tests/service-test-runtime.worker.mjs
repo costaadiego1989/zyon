@@ -9,6 +9,7 @@ import {installConstructionProviderTrap} from './nest-construction-provider-trap
 import {createOwnedJourneyClientTracker,journeyBounded as bounded} from './storefront-journey-owned-clients.mjs';
 import {fileURLToPath} from 'node:url';
 import {createHook} from 'node:async_hooks';
+import {createLocalWhatsAppProviderFixture,validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
 
 const [databaseUrl,databaseRunId,redisUrl,redisRunId,...extra]=process.argv.slice(2);
 const stage=(name,details={})=>process.send?.({type:'stage',stage:name,...details});
@@ -27,7 +28,12 @@ const cleanupResources=stage=>{
   process.stderr.write('service_cleanup_resources:'+JSON.stringify({stage,resourceTypes:process.getActiveResourcesInfo(),handles,timers})+'\n');
 };
 stage('worker_started');
-assert.equal(extra.length,0);assertConstructionOnlyAmbient(process.env);assertServiceArtifacts();stage('artifacts_checked');
+assert.ok(extra.length<=1);let localWhatsApp;
+if(extra.length){
+  assert.ok(extra[0].length<=8192);const parsed=JSON.parse(extra[0]);assert.match(parsed.metaSecret,/^[a-f0-9]{64}$/);
+  const{metaSecret,...providerOptions}=parsed;localWhatsApp={metaSecret,...validateLocalWhatsAppOptions(providerOptions)};
+}
+assertConstructionOnlyAmbient(process.env);assertServiceArtifacts();stage('artifacts_checked');
 const database=assertNativePrismaUrl(databaseUrl);assertSyntheticRedisIdentity(redisUrl,redisRunId,redisRunId);
 inspectNativePrismaClient(fileURLToPath(new URL('../',import.meta.url)));
 const {PrismaClient}=await import('@prisma/client'),verify=new PrismaClient({datasources:{db:{url:databaseUrl}},log:[]});
@@ -35,7 +41,7 @@ try{assert.deepEqual(await verify.$queryRaw`SELECT run_id FROM synthetic_native_
 const {Redis}=await import('ioredis');const redis=new Redis(redisUrl,{lazyConnect:true,maxRetriesPerRequest:0,retryStrategy:()=>null});
 try{await redis.connect();assertSyntheticRedisIdentity(redisUrl,redisRunId,await redis.get('aacp:synthetic:run'));}finally{redis.disconnect();}
 stage('owned_markers_checked');
-let app,tracker,trap,closed=false;
+let app,tracker,trap,closed=false,fixture,fixtureOverrideNames=[];
 async function close(){
   if(closed)return;closed=true;const errors=[];
   stage('closing_capture');
@@ -48,7 +54,7 @@ async function close(){
   try{if(trap)await trap.dispose();}catch(e){errors.push(e);}
   if(provider?.providerCalls)errors.push(new Error('service_provider_attempt_forbidden'));
   if(errors.length)throw new AggregateError(errors,'service_app_cleanup_failed:'+errors.map(error=>String(error.message).slice(0,1400)).join('|'));
-  return{appClosed:true,providerCalls:provider?.providerCalls??0};
+  return{appClosed:true,providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0};
 }
 try{
   trap=await installConstructionProviderTrap(Number(database.port),Number(new URL(redisUrl).port));
@@ -65,8 +71,20 @@ try{
   assert.equal(transformersEnvironment.allowRemoteModels,false);
   stage('offline_embeddings_configured',{allowRemoteModels:transformersEnvironment.allowRemoteModels});
   const {AppModule}=await import('../dist/app.module.js');
-  stage('constructing_app');
-  app=await bounded(NestFactory.create(AppModule,{abortOnError:false,logger:false,rawBody:true}),45_000,'service_app_construct_timeout');
+  let fixtureInstallation,channelToken,mediaType;
+  if(localWhatsApp){
+    const{WhatsAppChannelModule}=await import('../dist/modules/whatsapp-channel/whatsapp-channel.module.js');
+    const{WHATSAPP_SENDER_PORT}=await import('../dist/modules/whatsapp-channel/domain/ports/whatsapp-sender.port.js');
+    const{WHATSAPP_SENDER_PORT:notificationToken}=await import('../dist/modules/notifications/domain/ports/whatsapp-sender.port.js');
+    const{MetaInboundMediaAdapter}=await import('../dist/modules/whatsapp-channel/infrastructure/adapters/meta-inbound-media.adapter.js');
+    assert.notEqual(WHATSAPP_SENDER_PORT,notificationToken,'notification_transport_must_remain_original');
+    channelToken=WHATSAPP_SENDER_PORT;mediaType=MetaInboundMediaAdapter;process.env.META_APP_SECRET=localWhatsApp.metaSecret;
+    fixture=createLocalWhatsAppProviderFixture({voiceTranscripts:localWhatsApp.voiceTranscripts},event=>process.send({type:'local_whatsapp_event',event}));
+    fixtureInstallation=fixture.install(WhatsAppChannelModule,channelToken,mediaType);fixtureOverrideNames=fixtureInstallation.overrides;
+  }
+  try{stage('constructing_app');app=await bounded(NestFactory.create(AppModule,{abortOnError:false,logger:false,rawBody:true}),45_000,'service_app_construct_timeout');}
+  finally{fixtureInstallation?.restore();}
+  if(fixture){assert.equal(app.get(channelToken),fixture.sender);if(localWhatsApp.voiceTranscripts&&Object.keys(localWhatsApp.voiceTranscripts).length)assert.equal(app.get(mediaType),fixture.media);}
   stage('app_constructed');
   tracker=createOwnedJourneyClientTracker(app,Number(new URL(redisUrl).port));
   const {apiVersioningMiddleware}=await import('../dist/shared/http/api-versioning.js');app.use(apiVersioningMiddleware);
@@ -78,7 +96,7 @@ try{
   const address=app.getHttpServer().address();assert.equal(address.address,'127.0.0.1');
   assert.equal(trap.evidence().providerCalls,0);
   process.send({type:'ready',apiOrigin:`http://127.0.0.1:${address.port}`,evidence:{canonicalAppModule:true,
-    repositoryOverrides:false,authOverrides:false,providerCalls:0,embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
+    repositoryOverrides:false,authOverrides:false,providerCalls:0,localProviderOverrides:fixtureOverrideNames,embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
   process.on('message',async message=>{
     if(message?.type!=='close')return;
     try{const evidence=await close();cleanupResources('before_closed_ack');process.send({type:'closed',evidence},()=>process.disconnect());}

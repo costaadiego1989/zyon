@@ -1,7 +1,7 @@
 /**
  * SUPP-H3: Handoff logic — ticket creation + message formatting.
  */
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
@@ -14,6 +14,9 @@ import {
 } from "../domain/ports/support-ticket-repository.port.js";
 import { SupportTicketEventPublisher } from "./support-ticket-event.publisher.js";
 import { productQuestionIntakeSchema, productQuestionMessageMetadataSchema, type BuyerProductQuestion } from "../domain/product-question-history.js";
+import { PrismaWhatsAppHandoffRepository } from "../../whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.js";
+import { WhatsAppTurnContext } from "../../whatsapp-channel/domain/services/whatsapp-turn-context.js";
+import { persistWhatsAppSupportIntake, type WhatsAppSupportIntake } from "./whatsapp-support-intake.js";
 
 export interface HandoffInput {
   merchantId: string;
@@ -38,12 +41,19 @@ export class SupportHandoffService {
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly tickets: SupportTicketRepository,
     private readonly publisher: SupportTicketEventPublisher,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Optional() private readonly whatsappBindings?: PrismaWhatsAppHandoffRepository,
+    @Optional() private readonly whatsappTurn?: WhatsAppTurnContext,
   ) {}
 
   async createHandoff(
     input: HandoffInput,
     contextReply?: string,
   ): Promise<HandoffResult> {
+    const turn = this.whatsappTurn?.current();
+    if (turn) {
+      if (turn.scope.merchantId !== input.merchantId) throw new ServiceUnavailableException("whatsapp_handoff_scope_mismatch");
+      return this.createWhatsAppHandoff({ ...turn, message: turn.message });
+    }
     if (this.prisma) return this.persistHandoff(input, contextReply);
     const ticket = await this.tickets.save(
       SupportTicketEntity.create({
@@ -61,6 +71,13 @@ export class SupportHandoffService {
       ticketId: ticket.id,
       reply: formatHandoffReply(ticket, contextReply),
     };
+  }
+
+  async createWhatsAppHandoff(input: WhatsAppSupportIntake) {
+    if (!this.prisma || !this.whatsappBindings) throw new ServiceUnavailableException("whatsapp_handoff_unavailable");
+    const result = await persistWhatsAppSupportIntake(this.whatsappBindings, input);
+    if (result.created) this.publisher.publishCreated(result.ticket);
+    return result;
   }
 
   private async persistHandoff(input: HandoffInput, contextReply?: string): Promise<HandoffResult> {
