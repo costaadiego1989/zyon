@@ -15,6 +15,10 @@ Keep the current public source reader, work service and runtime. Add a bounded p
 
 The graph namespace is ZyonPublicSourceV1/ZyonPublicChunkV1/ZyonPublicHasChunkV1. Legacy ZyonGraphDocument timestamps and catalog projection contracts remain separate.
 
+The two existing local embedding models both produce384 dimensions but use different models. Before new SQL chunks are written, C prepares isolated legacy repository namespace guards for review. Legacy pgvector and JSON ranking must exclude public-business-v1 rows before ranking/LIMIT, and legacy upsert/delete must preserve that namespace. New readers/writers select their exact namespace/model ABI; dimension alone is insufficient. This preparation does not change productive SQL or complete66. Existing source-writer invalidation may intentionally retire all representations of changed canonical content.
+
+Local native prerequisite: a real cached pgvector pg16 image exists. C prepares an external additive test-only database profile, with immutable local image identity, Debian UID999, no pulls/ports/external network and the original ownership/cleanup guards. It must verify an available duplex bridge rather than assume Alpine nc exists. Normal production-schema/ledger bootstrap and exact drift assertion run first; only then may the owned profile add the real vector extension/384 column and assert its exact catalog/operator shape. Default Alpine behavior remains byte/contract compatible. No current profile, extension or native result is accepted from that preparation.
+
 For each bounded claim:
 
 1. Normalize an opaque legacy signal and release it without calling embeddings or Neo4j. A canonical claim is compared with the current source, current canonical work and publication state before preparation.

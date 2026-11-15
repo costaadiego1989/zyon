@@ -31,6 +31,8 @@ An isolated draft in .cache/t65-prepared passed7/7 pure orchestration tests: six
 
 Two adjacent whole-JSON writers can otherwise overwrite a concurrent company edit: PrismaAuthRepository.setStoreSettings, reached by updateOwnerProfile/UpdateMeUseCase/PUT auth/me with owner_name/owner_phone only; and PrismaMerchantRepository.updateRules with checkoutPolicyLinks only. Their direct inputs cannot set serviceNames. T65 must lock and merge their actual stored JSON, with real controlled races proving that the list and unrelated settings survive. Preserve rules/defaults, owner data privacy and product behavior.
 
+The final inventory found two additional whole-JSON paths: UpdateSeoSettingsUseCase.execute and StoreSettingsController.updateCrossSellConfig. They also read settings before a separate update and can overwrite concurrent public company data. The preparation wraps only those existing read/merge/write blocks in merchant-locked transactions, preserving their validation and results. The same native controlled-race child now exercises all four paths, with exact PostgreSQL blocker proof and resulting settings assertions. No new recommendation or SEO rule is introduced.
+
 ## Files and approach
 
 Temporary preparation assignment: C prepares only FAQ and policy writer drafts plus their new rollback coverage in an external folder, after its completed Phase8 preparation. Root retains variant/category/company/settings/mode integration and the canonical companion. No productive files, task gates or completion change before T25. C reports base/draft hashes and exact insertion points; root reviews and merges the drafts. Phase8 remains C's next execution batch after T55.
