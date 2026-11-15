@@ -231,7 +231,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | ONB-02 | Conditional navigation and API | T7, T9, T10, T17, T19, T94 | In Progress (T17 and T19 complete) |
 | ONB-03 | Merchant appointment policy | T4, T7, T11, T27, T81 | Pending |
 | ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | In Progress (T17 complete) |
-| ONB-05 | About field in company data | T13, T14, T15, T16 | Pending |
+| ONB-05 | About field in company data | T13, T14, T15, T16 | Implemented locally |
 | ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | Pending |
 | AGENDA-01 | Professional resources | T4, T18, T20, T21, T76 | In Progress (T18 complete) |
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | Pending |

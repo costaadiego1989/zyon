@@ -460,12 +460,12 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] store-settings-page.about.spec.tsx e browser QA-02: foco, limite, salvar/reabrir, feedback de erro.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] store-settings-page.spec.tsx e browser QA-02: foco, limite, salvar/reabrir, feedback de erro.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: store-settings-page.about.spec.tsx e browser QA-02: foco, limite, salvar/reabrir, feedback de erro.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/store-settings/store-settings-page.spec.tsx -t "^T16$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T16$"` Teste raiz T16 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: store-settings-page.spec.tsx e browser QA-02: foco, limite, salvar/reabrir, feedback de erro.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/store-settings/store-settings-page.spec.tsx -t "^T16$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-company-about.spec.ts --grep "T16$"` Teste raiz T16 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t16 render about in company data`
 
 ### T17: Guard new catalog writes by business mode

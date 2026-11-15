@@ -15,6 +15,7 @@ import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type Policie
 import { useSeoSettingsTab } from "./useSeoSettingsTab.js";
 import { SeoGtmTab } from "./components/SeoGtmTab.js";
 import { maskPhone, maskCEP, maskCNPJ } from "../../utils/masks.js";
+import { CompanyAboutField } from "./CompanyAboutField.js";
 
 const DAY_LABELS: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
@@ -126,6 +127,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
           <FormField label="Nome da loja" placeholder="Minha Loja" value={company.storeName} onChange={(v) => onCompanyChange({ ...company, storeName: v })} />
           <FormField label="Razão social" placeholder="Empresa LTDA" value={company.razaoSocial} onChange={(v) => onCompanyChange({ ...company, razaoSocial: v })} />
         </div>
+        <div style={{ marginTop: 24 }}><CompanyAboutField value={company.description} onChange={description => onCompanyChange({ ...company, description })} /></div>
         <div className="admin-fields" style={{ marginTop: 24 }}>
           <FormField label="CNPJ" placeholder="00.000.000/0000-00" value={maskCNPJ(company.cnpj)} onChange={(v) => onCompanyChange({ ...company, cnpj: v.replace(/\D/g, "") })} />
           <FormField label="Inscrição estadual" placeholder="000.000.000" value={company.inscricaoEstadual} onChange={(v) => onCompanyChange({ ...company, inscricaoEstadual: v })} />

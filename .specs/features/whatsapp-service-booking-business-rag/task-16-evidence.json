@@ -1,0 +1,186 @@
+{
+  "task": "T16",
+  "baseHead": "a440e9aef",
+  "integratedApiMerge": "dcd8b8cc2",
+  "scope": "About in the existing company form; service-name supplement96/97 is separate and still pending",
+  "environment": "local-owned",
+  "componentUnit": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "phaseApiUnits": {
+    "passed": 21,
+    "failed": 0,
+    "skipped": 0,
+    "log": "T16-api-unit-2026-11-15T02-05-21.407Z"
+  },
+  "phaseUiUnits": {
+    "passed": 27,
+    "failed": 0,
+    "skipped": 0,
+    "log": "T16-ui-unit-2026-11-15T01-10-14.101Z"
+  },
+  "phaseNative": {
+    "passed": 65,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 284829.0288,
+    "cases": {
+      "T8": 13,
+      "T11": 11,
+      "T12": 17,
+      "T13": 16,
+      "T14": 8
+    },
+    "log": "T16-native-2026-11-15T01-53-56.082Z"
+  },
+  "phaseBrowser": {
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0,
+    "cases": [
+      "T16",
+      "T10",
+      "T3"
+    ],
+    "log": "T16-browser-2026-11-15T02-00-56.156Z"
+  },
+  "browserProof": [
+    "real signin and full company settings route",
+    "label click focus and public guidance",
+    "native1200 maxlength gesture plus actual API save",
+    "exact About-only payload retains concurrent public email",
+    "reload clear error draft retained and actual retry persisted",
+    "desktop/mobile with About visible and no horizontal overflow"
+  ],
+  "builds": {
+    "api": {
+      "typecheckExit": 0,
+      "typecheckLog": "T16-api-typecheck-2026-11-15T01-49-48.016Z",
+      "lintExit": 0,
+      "lintWarnings": 2,
+      "lintWarningsPreexisting": true,
+      "lintLog": "T16-api-lint-2026-11-15T02-05-27.220Z",
+      "buildReused": true,
+      "newCBuildClaimed": false,
+      "artifactOwnerHead": "e8a8f48be",
+      "checkedArtifact": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "411a43063bc531d53c6363b34af460620ba3c710fe7dd39507842845352db24c",
+        "artifactSha256": "f9a66c41b3342bb619695bd338e822d2e046f3a618dff9815a206dc10dd21333",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2498
+        },
+        "recordedAt": "2026-11-15T01:36:59.302Z"
+      },
+      "sourceAndOutputAssertion": "Full unchanged assertServiceArtifacts in C passed;5272immutable output files copied/byte verified, own Prisma retained."
+    },
+    "widget": {
+      "typecheckExit": 0,
+      "buildExit": 0
+    },
+    "dashboard": {
+      "typecheckExit": 0,
+      "buildExit": 0
+    },
+    "storefront": {
+      "typecheckExit": 0,
+      "buildExit": 0
+    },
+    "originalLog": "T16-build-2026-11-15T01-11-53.268Z",
+    "resumeLog": "T16-build-fronts-2026-11-15T01-27-10.081Z",
+    "frontendReuse": {
+      "reused": true,
+      "reason": "API alignment1f315+19 changed no frontend build inputs",
+      "inputCount": 1471,
+      "sha256": "7a210887bec9dbb698eff7eb718aa191b729ea273b11bf70a2a87e6e3b444692",
+      "changed": [],
+      "new": [],
+      "missing": []
+    }
+  },
+  "attempts": [
+    {
+      "kind": "launcher-selection",
+      "executed": 0,
+      "exit": 1,
+      "reason": "External launcher used ^T16$ against Playwright fulltitle. Corrected to approved T16$; test/zero-case guard unchanged."
+    },
+    {
+      "kind": "actual-browser",
+      "passed": 0,
+      "failed": 1,
+      "reason": "Final reload exhausted canonical60/min tenant quota; original trace was read and confirmed GET429/Retry-After50. All prior gestures including retry200 passed."
+    },
+    {
+      "kind": "fixture-adjustment",
+      "rootAuthorized": true,
+      "changes": [
+        "fixed bounded wait on actual Reset before reload when remaining<20",
+        "120s only on long T16 case to include real60s window",
+        "scroll About into view for mobile capture"
+      ],
+      "unchanged": [
+        "assertions",
+        "production quotas/guards",
+        "global browser timeout",
+        "5s natural-exit guard",
+        "no automatic retries or renewable polling"
+      ]
+    },
+    {
+      "kind": "external-frontend-launcher",
+      "exit": 1,
+      "reason": "LOCALAPPDATA was filtered before official build helper cache preflight; restored only toolcache env in external launcher and resumed only three missing frontend checks."
+    }
+  ],
+  "teardownFinal": {
+    "appCloseAck": true,
+    "naturalWorkerExit0": true,
+    "ownedResourcesRemoved": true,
+    "timersAtAck": []
+  },
+  "recoveryScannerFix": "Upstream separate job shutdown fix integrated via1f315+P19, validated by current phase native/browser. Original T11 unchanged rerun was not a production fix.",
+  "providerCalls": 0,
+  "captures": [
+    {
+      "path": "artifacts/company-about.running.png",
+      "sha256": "58d66811c99cca9bba77ab4ce2a9dd71852599bda28b04bdf539c22a0fbb4222",
+      "bytes": 84718,
+      "environment": "local synthetic owned runtime"
+    },
+    {
+      "path": "artifacts/company-about-mobile.running.png",
+      "sha256": "106f4e8f1ba33de616834001418a3f1e340a8459aeb84d3e1538cf5632577ca5",
+      "bytes": 14087,
+      "environment": "local synthetic owned runtime"
+    },
+    {
+      "path": "captures/task10-signup-products.running.png",
+      "sha256": "b46937596770f291e921f72e931f49b081cbeab790499768ea43cf8017fe3172",
+      "bytes": 84531,
+      "environment": "local synthetic owned runtime"
+    },
+    {
+      "path": "captures/task10-signup-services.running.png",
+      "sha256": "35da79a857546914d98f1dcc3c90ecc64ab778f8aca4e39afa779c9b29871f87",
+      "bytes": 84036,
+      "environment": "local synthetic owned runtime"
+    },
+    {
+      "path": "captures/task3-dashboard-login.running.png",
+      "sha256": "1cf9a1ac1a04285b2256ee4547d18045dcdb80f47896ecd167012c49ad41d7f7",
+      "bytes": 93164,
+      "environment": "local synthetic owned runtime"
+    }
+  ],
+  "logsRoot": "C:\\tmp\\zyon-service-company-preparation-20261114\\logs",
+  "featureFinalProofsOrVerifierRun": false,
+  "productionActions": false
+}
