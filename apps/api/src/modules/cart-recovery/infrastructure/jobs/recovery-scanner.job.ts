@@ -17,6 +17,7 @@ import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../
 // threshold, rather than waiting for a fifteen-minute polling window.
 const SCAN_INTERVAL_MS = 60 * 1000;
 const QUIET_PERIOD_MS = 5 * 60 * 1000;
+type ScanResult = { scanned: number; attempted: number; errors: number };
 
 /**
  * RecoveryScannerJob
@@ -31,6 +32,9 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RecoveryScannerJob.name);
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
   private initialHandle: ReturnType<typeof setTimeout> | null = null;
+  private stopped = false;
+  private readonly activeScans = new Set<Promise<ScanResult>>();
+  private readonly jitterCancels = new Set<() => void>();
 
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
@@ -57,7 +61,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
    * supported startup path for tests and local development.
    */
   start(): void {
-    if (this.intervalHandle || this.initialHandle) return;
+    if (this.stopped || this.intervalHandle || this.initialHandle) return;
     // Run an initial scan shortly after boot so recovery doesn't wait a full
     // interval after a restart, then schedule the recurring scan.
     this.initialHandle = setTimeout(() => {
@@ -80,7 +84,8 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
   /**
    * Clean up interval on module destroy (NestJS lifecycle hook).
    */
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
+    this.stopped = true;
     if (this.initialHandle) {
       clearTimeout(this.initialHandle);
       this.initialHandle = null;
@@ -90,6 +95,8 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       this.intervalHandle = null;
       this.logger.log("recovery-scanner: interval cleared");
     }
+    for (const cancel of this.jitterCancels) cancel();
+    await Promise.all(this.activeScans);
   }
 
   /**
@@ -97,17 +104,32 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
    * Isolated: each session is processed independently; failures are logged, not fatal.
    * Multi-instance safety: use a short random jitter to minimize collision probability.
    */
-  async scan(): Promise<{ scanned: number; attempted: number; errors: number }> {
+  scan(): Promise<ScanResult> {
+    if (this.stopped) return Promise.resolve({ scanned: 0, attempted: 0, errors: 0 });
+    const scan = this.runScan();
+    this.activeScans.add(scan);
+    void scan.then(() => this.activeScans.delete(scan), () => this.activeScans.delete(scan));
+    return scan;
+  }
+
+  private async runScan(): Promise<ScanResult> {
     // Apply a short jitter to minimize multi-instance collisions without
     // turning the five-minute recovery promise into a multi-minute delay.
     const jitter = Math.random() * 5 * 1000;
-    await new Promise(resolve => setTimeout(resolve, jitter));
+    await new Promise<void>(resolve => {
+      const finish = () => { this.jitterCancels.delete(cancel); resolve(); };
+      const timer = setTimeout(finish, jitter);
+      const cancel = () => { clearTimeout(timer); finish(); };
+      this.jitterCancels.add(cancel);
+    });
 
     const stats = { scanned: 0, attempted: 0, errors: 0 };
+    if (this.stopped) return stats;
 
     try {
       // Query sessions with triggerAgent=true
       const candidates = await this.sessions.findSessionsWithTrigger();
+      if (this.stopped) return stats;
       stats.scanned = candidates.length;
 
       // Keep the asynchronous recovery path observable in production without
@@ -119,6 +141,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       });
 
       for (const session of candidates) {
+        if (this.stopped) break;
         try {
           await this.processSession(session);
           stats.attempted++;
@@ -145,8 +168,10 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
   }
 
   private async processSession(session: CheckoutSession): Promise<void> {
+    if (this.stopped) return;
     // Dedup: skip if attempt already exists for this session
     const existingAttempt = await this.attempts.existsForSession(session.merchantId, session.sessionId);
+    if (this.stopped) return;
     if (existingAttempt) {
       this.logger.debug(`recovery-scanner: attempt already exists`, {
         merchantId: session.merchantId,
@@ -195,8 +220,10 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.warn("recovery-scanner: buyer history lookup failed (using defaults)", { error: err instanceof Error ? err.message : String(err) });
     }
+    if (this.stopped) return;
 
     const merchantPolicy = await this.merchantRules.getRules(session.merchantId);
+    if (this.stopped) return;
     if (!merchantPolicy) {
       this.logger.warn(
         `recovery-scanner: merchant policy not found`,
@@ -217,6 +244,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.warn("recovery-scanner: event lookup failed", { error: err instanceof Error ? err.message : String(err) });
     }
+    if (this.stopped) return;
     if (eventNames.length === 0) {
       this.logger.debug("recovery-scanner: no measured session events; skipping", {
         merchantId: session.merchantId,
@@ -234,6 +262,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       this.logger.warn("recovery-scanner: strategy configuration unavailable", { merchantId: session.merchantId });
       return;
     }
+    if (this.stopped) return;
     if (forcedStrategy?.type === "no_action") {
       this.logger.debug("recovery-scanner: configured strategy cannot dispatch", {
         merchantId: session.merchantId,
@@ -261,6 +290,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         buyerName = account?.displayName || undefined;
       } catch { /* contact optional */ }
     }
+    if (this.stopped) return;
 
     // Resolve store name for the approved-template/email routing request.
     let merchantName: string | undefined;
@@ -271,11 +301,12 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       });
       merchantName = m?.name || undefined;
     } catch { /* name optional */ }
+    if (this.stopped) return;
 
     // Re-read authoritative state immediately before any channel routing. A
     // score created earlier must never override a resumed session, a completed
     // order, an approved payment, or an empty cart.
-    if (!await this.isStillEligible(session)) return;
+    if (!await this.isStillEligible(session) || this.stopped) return;
 
     // Reuse the module's composition, including connection/template checks.
     const result = await this.attemptRecovery.execute({
@@ -318,6 +349,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
 
   private async isStillEligible(scanned: CheckoutSession): Promise<boolean> {
     const current = await this.sessions.getSession(scanned.merchantId, scanned.sessionId);
+    if (this.stopped) return false;
     if (!current) return false;
     const items = (current.cart as { items?: unknown[] } | null | undefined)?.items;
     if (!Array.isArray(items) || items.length === 0) {
@@ -334,6 +366,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         where: { merchantId: current.merchantId, sessionId: current.sessionId },
         select: { id: true },
       });
+      if (this.stopped) return false;
       if (completed) {
         this.logger.debug("recovery-scanner: order already completed", { merchantId: current.merchantId, sessionId: current.sessionId });
         return false;
@@ -342,6 +375,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         where: { merchantId: current.merchantId, sessionId: current.sessionId, status: "approved" },
         select: { id: true },
       });
+      if (this.stopped) return false;
       if (approvedPayment) {
         this.logger.debug("recovery-scanner: payment already approved", { merchantId: current.merchantId, sessionId: current.sessionId });
         return false;

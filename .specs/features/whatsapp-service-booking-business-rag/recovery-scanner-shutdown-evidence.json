@@ -1,0 +1,17 @@
+{
+  "change": "recovery-scanner lifecycle follow-up discovered during T19",
+  "parentCommit": "1a643054d",
+  "status": "quick_gate_complete_runtime_pending",
+  "red": {"executed": 5, "passed": 0, "failed": 5, "skipped": 0, "exitCode": 1},
+  "green": {"executed": 37, "passed": 37, "failed": 0, "skipped": 0, "exitCode": 0},
+  "greenBreakdown": {"newLifecycle": 6, "existingScanner": 10, "existingChannelFlow": 21},
+  "proofs": ["destroy resolves only the job-owned jitter and drains its scan", "pending candidate query is awaited and cannot start later processing", "stop during final eligibility prevents further reads and dispatch", "start/init/direct scan cannot resurrect a destroyed job", "already dispatched recovery is awaited and retains the legacy processed-candidate counter"],
+  "legacyAssertionsChanged": false,
+  "businessRulesChanged": false,
+  "preservedRules": ["quiet period", "candidate eligibility", "completed-order and approved-payment authority", "merchant strategy", "channel routing", "quotas", "attempt deduplication", "legacy attempted counter"],
+  "build": {"status": "pending", "runtimeFixClaimed": false},
+  "native": {"status": "pending_after_checked_build", "t19LastBeforeFix": {"passed": 5, "failed": 1, "skipped": 0, "failure": "natural worker exit required within unchanged five-second deadline after close ACK"}},
+  "diagnostic": {"timerOwner": "RecoveryScannerJob.scan jitter", "timerDelayMs": 556.1837688983807, "timerReferencedAfterAppClose": true, "serverListening": false, "serverConnections": 0, "serverIsAppHttpServer": false, "databaseReopenAfterJitter": "inference not directly proven"},
+  "logs": [".cache/phase3-gates/recovery-scanner-shutdown-red.log", ".cache/phase3-gates/recovery-scanner-green.log", ".cache/phase3-gates/t19-native-scanner-diagnostic-failure.log"],
+  "scope": {"localOnly": true, "t19ControllerIncluded": false, "forcedHarnessUnrefOrCloseAdded": false, "cleanupDeadlineChanged": false, "remoteAction": false}
+}
