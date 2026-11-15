@@ -37,6 +37,8 @@ export interface RouteResult {
   };
 }
 
+interface SessionRoutingInput { merchantId: string; deviceId: string; fromNumber: string; fromAlias?: string }
+
 @Injectable()
 export class RouteToSessionUseCase {
   private readonly logger = new Logger(RouteToSessionUseCase.name);
@@ -48,24 +50,27 @@ export class RouteToSessionUseCase {
     private readonly prisma: PrismaClient,
   ) {}
 
-  async execute(input: {
-    merchantId: string;
-    deviceId: string;
-    fromNumber: string;
-    fromAlias?: string;
-  }): Promise<RouteResult> {
+  async execute(input: SessionRoutingInput): Promise<RouteResult> {
     const phone = this.normalizePhone(input.fromNumber);
     const globalUserId = this.phoneToGlobalUserId(phone);
 
     // 1. Auto-register buyer if not exists
     const buyerData = await this.ensureBuyerExists(input.merchantId, phone, globalUserId, input.fromAlias, input.deviceId.startsWith("META_CLOUD:"));
 
+    const route = (repository: WhatsAppSessionRepository) => this.routeBuyer(input, phone, buyerData, repository);
+    return this.sessionRepo.withRoutingLock
+      ? this.sessionRepo.withRoutingLock({ merchantId: input.merchantId, buyerPhone: phone, deviceId: input.deviceId }, route)
+      : route(this.sessionRepo);
+  }
+
+  private async routeBuyer(input: SessionRoutingInput, phone: string, buyerData: RouteResult["buyerData"], repository: WhatsAppSessionRepository): Promise<RouteResult> {
+
     // 2. Find active WA session
-    let waSession = await this.sessionRepo.findActiveByPhone(input.merchantId, phone, input.deviceId);
+    let waSession = await repository.findActiveByPhone(input.merchantId, phone, input.deviceId);
 
     // 3. Check expiry (24h)
     if (waSession && this.isExpired(waSession)) {
-      await this.sessionRepo.expire(waSession.id);
+      await repository.expire(waSession.id);
       waSession = null;
     }
 
@@ -74,7 +79,7 @@ export class RouteToSessionUseCase {
       const meta = input.deviceId.startsWith("META_CLOUD:");
       const checkoutSessionId = meta ? undefined : await this.createCheckoutSession(input.merchantId, buyerData.globalUserId, buyerData);
 
-      waSession = await this.sessionRepo.create({
+      waSession = await repository.create({
         merchantId: input.merchantId,
         buyerPhone: phone,
         buyerAlias: input.fromAlias,
@@ -94,7 +99,7 @@ export class RouteToSessionUseCase {
     }
 
     // 5. Update activity
-    await this.sessionRepo.update(waSession.id, { lastActivityAt: new Date() });
+    await repository.update(waSession.id, { lastActivityAt: new Date() });
 
     return {
       whatsappSession: waSession,

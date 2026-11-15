@@ -1,0 +1,66 @@
+{
+  "task": "T48",
+  "environment": "local-owned",
+  "baseHead": "c67d0051a12d149a7057c5cff103922fb735f059",
+  "unit": {
+    "tests": 13,
+    "pass": 13,
+    "fail": 0,
+    "skipped": 0,
+    "existingSessionAnchorCases": 8
+  },
+  "native": {
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "skipped": 0
+  },
+  "initialNative": {
+    "tests": 1,
+    "pass": 0,
+    "fail": 1,
+    "skipped": 0,
+    "failure": "New fixture omitted required CheckoutSession createdAt/updatedAt; no business subcase ran. Fixed only fixture timestamps and reused identical checked artifact."
+  },
+  "apiBuildExit": 0,
+  "checkedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "b31899fade34909cee7d327a8cee598f4a35b7be8c1a994c21769f30ba96adda",
+    "artifactSha256": "1ad76af85b7748f39a7e756fd2f6ee80464b961b260dc84a6cfce7ccac3ca577",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2507
+    },
+    "recordedAt": "2026-11-15T03:36:56.757Z"
+  },
+  "unitAndBuildLogs": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t48-gates\\2026-11-15T03-28-34.949Z",
+  "finalNativeLogs": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t48-gates\\2026-11-15T03-39-19.367Z",
+  "runtime": {
+    "canonicalAppModule": true,
+    "repositoryOverrides": false,
+    "authOverrides": false,
+    "healthReadyHttp": true,
+    "realOwnedPostgres": true,
+    "realTenantMiddleware": true,
+    "controlledAdvisoryLockContention": true,
+    "providerCalls": 0,
+    "appClosedAck": true,
+    "naturalExitCode": 0,
+    "remainingContainers": 0,
+    "remainingBridgeSockets": 0
+  },
+  "harnessInputs": [
+    {
+      "path": "apps/api/tests/whatsapp-handoff-fixture.mjs",
+      "sha256": "49413c1a870821b901e493e3ee055fa02ef480a97cc75e925a399e1b238de9ab"
+    },
+    {
+      "path": "apps/api/tests/whatsapp-handoff-binding.integration.spec.mjs",
+      "sha256": "1855eed8c9b067d785ddbf893efaa4c104a9c20d60ece5f76e02a7671cfa6048"
+    }
+  ],
+  "scope": "Persistence and renewal foundation only. Actual signed human-intake webhook, human routing, AI/tool/dispatch suppression and delivery remain later tasks; no real Meta/provider, production or feature acceptance claim."
+}

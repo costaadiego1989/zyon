@@ -30,6 +30,8 @@ export interface WhatsAppSessionEntity {
 }
 
 export interface WhatsAppSessionRepository {
+  /** Production routing and handoff share this lock before expiry/creation. */
+  withRoutingLock?<T>(identity: { merchantId: string; buyerPhone: string; deviceId: string }, work: (repository: WhatsAppSessionRepository) => Promise<T>): Promise<T>;
   findActiveByPhone(merchantId: string, buyerPhone: string, deviceId?: string): Promise<WhatsAppSessionEntity | null>;
   create(data: Omit<WhatsAppSessionEntity, "id" | "createdAt">): Promise<WhatsAppSessionEntity>;
   update(id: string, data: Partial<WhatsAppSessionEntity>): Promise<WhatsAppSessionEntity>;

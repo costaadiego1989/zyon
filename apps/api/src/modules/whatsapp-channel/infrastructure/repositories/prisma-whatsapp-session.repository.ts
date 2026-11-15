@@ -2,33 +2,56 @@
  * Prisma WhatsApp Session Repository
  */
 
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject, ConflictException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { WhatsAppSessionRepository, WhatsAppSessionEntity, PostSaleContextData } from "../../domain/ports/whatsapp-session-repository.port.js";
+import { lockWhatsAppSessionIdentity } from "./prisma-whatsapp-handoff.repository.js";
 
 @Injectable()
 export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepository {
+  private transaction?: Prisma.TransactionClient;
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
-  async findActiveByPhone(merchantId: string, buyerPhone: string, deviceId?: string): Promise<WhatsAppSessionEntity | null> {
-    const row = await (this.prisma as any).whatsAppSession?.findFirst({
-      where: { merchantId, buyerPhone, ...(deviceId ? { deviceId } : {}), status: "active" },
-      orderBy: { lastActivityAt: "desc" },
+  private get client(): Prisma.TransactionClient { return this.transaction ?? this.prisma; }
+
+  async withRoutingLock<T>(identity: { merchantId: string; buyerPhone: string; deviceId: string }, work: (repository: WhatsAppSessionRepository) => Promise<T>): Promise<T> {
+    return this.prisma.$transaction(async tx => {
+      await lockWhatsAppSessionIdentity(tx, identity);
+      const repository = new PrismaWhatsAppSessionRepository(this.prisma);
+      repository.transaction = tx;
+      return work(repository);
     });
+  }
+
+  async findActiveByPhone(merchantId: string, buyerPhone: string, deviceId?: string): Promise<WhatsAppSessionEntity | null> {
+    const row = await this.client.whatsAppSession.findFirst({
+      where: { merchantId, buyerPhone, ...(deviceId ? { deviceId } : {}),
+        ...(this.transaction ? { OR: [{ status: "active" }, { handoffBinding: { mode: { in: ["waiting_human", "human"] } } }] } : { status: "active" }) },
+      orderBy: { lastActivityAt: "desc" },
+      include: { handoffBinding: { select: { mode: true } } },
+    });
+    if (row && this.transaction && row.handoffBinding && row.handoffBinding.mode !== "ai") {
+      // A customer-service window is not a new commerce conversation.
+      const retained = await this.client.whatsAppSession.update({ where: { id: row.id }, data: { status: "active", lastActivityAt: new Date() } });
+      return this.toDomain(retained);
+    }
     return row ? this.toDomain(row) : null;
   }
 
   async create(data: Omit<WhatsAppSessionEntity, "id" | "createdAt">): Promise<WhatsAppSessionEntity> {
-    const row = await this.prisma.$transaction(async tx => {
+    const write = async (tx: Prisma.TransactionClient) => {
       // The unique key includes expired rows. Serialize renewal on that same
       // key so retries and concurrent first messages cannot create duplicates
       // or overwrite a conversation that another worker has already renewed.
-      const key = JSON.stringify(["whatsapp-session", data.merchantId, data.buyerPhone, data.deviceId]);
-      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text`);
+      await lockWhatsAppSessionIdentity(tx, data);
       const existing = await tx.whatsAppSession.findUnique({ where: {
         merchantId_buyerPhone_deviceId: { merchantId: data.merchantId, buyerPhone: data.buyerPhone, deviceId: data.deviceId },
       } });
+      const binding = existing ? await tx.whatsAppHandoffBinding.findFirst({ where: { merchantId: data.merchantId, whatsappSessionId: existing.id } }) : null;
+      if (existing && binding && binding.mode !== "ai") {
+        return tx.whatsAppSession.update({ where: { id: existing.id }, data: { status: "active", lastActivityAt: data.lastActivityAt } });
+      }
       if (existing?.status === "active") return existing;
       const fresh = {
         merchantId: data.merchantId,
@@ -43,10 +66,19 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
         status: data.status,
         conversationState: data.conversationState ? JSON.parse(JSON.stringify(data.conversationState)) as Prisma.InputJsonValue : Prisma.DbNull,
       };
-      return existing
-        ? tx.whatsAppSession.update({ where: { id: existing.id }, data: { ...fresh, postSaleContext: Prisma.DbNull } })
-        : tx.whatsAppSession.create({ data: fresh });
-    });
+      const renewed = existing
+        ? await tx.whatsAppSession.update({ where: { id: existing.id }, data: { ...fresh, postSaleContext: Prisma.DbNull } })
+        : await tx.whatsAppSession.create({ data: fresh });
+      if (binding) {
+        if (binding.epoch === 2_147_483_647) throw new ConflictException("handoff_epoch_exhausted");
+        const state = data.conversationState;
+        await tx.whatsAppHandoffBinding.update({ where: { id: binding.id }, data: {
+          epoch: binding.epoch + 1, conversationId: state?.conversationId ?? data.checkoutSessionId ?? null,
+        } });
+      }
+      return renewed;
+    };
+    const row = this.transaction ? await write(this.transaction) : await this.prisma.$transaction(write);
     return this.toDomain(row);
   }
 
@@ -58,7 +90,7 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
     if (data.buyerAlias !== undefined) updateData.buyerAlias = data.buyerAlias;
     if (data.conversationState !== undefined) updateData.conversationState = data.conversationState;
 
-    const row = await (this.prisma as any).whatsAppSession.update({
+    const row = await this.client.whatsAppSession.update({
       where: { id },
       data: updateData,
     });
@@ -66,14 +98,14 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
   }
 
   async expire(id: string): Promise<void> {
-    await (this.prisma as any).whatsAppSession.update({
+    await this.client.whatsAppSession.update({
       where: { id },
       data: { status: "expired" },
     });
   }
 
   async updateMenuState(id: string, currentOptions: string[], previousOptions: string[], page: number): Promise<void> {
-    await (this.prisma as any).whatsAppSession.update({
+    await this.client.whatsAppSession.update({
       where: { id },
       data: {
         currentOptions: JSON.stringify(currentOptions),
@@ -84,19 +116,19 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
   }
 
   async setPostSaleContext(id: string, context: PostSaleContextData): Promise<void> {
-    await (this.prisma as any).whatsAppSession.update({
+    await this.client.whatsAppSession.update({
       where: { id },
       data: {
-        postSaleContext: context,
+        postSaleContext: { ...context },
       },
     });
   }
 
   async clearPostSaleContext(id: string): Promise<void> {
-    await (this.prisma as any).whatsAppSession.update({
+    await this.client.whatsAppSession.update({
       where: { id },
       data: {
-        postSaleContext: null,
+        postSaleContext: Prisma.DbNull,
       },
     });
   }

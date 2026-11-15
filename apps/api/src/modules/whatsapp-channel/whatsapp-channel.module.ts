@@ -56,6 +56,7 @@ import { TwilioOnboardingAdapter } from "./infrastructure/adapters/twilio-onboar
 import { PrismaWhatsAppOnboardingStore } from "./infrastructure/repositories/prisma-whatsapp-onboarding.repository.js";
 import { WHATSAPP_SIGNUP_AUTHORIZATION } from "./domain/ports/whatsapp-signup-authorization.port.js";
 import { MetaSignupAuthorizationAdapter } from "./infrastructure/adapters/meta-signup-authorization.adapter.js";
+import { WhatsAppHandoffModule } from "./whatsapp-handoff.module.js";
 
 /**
  * Multi-tenant sender resolver.
@@ -82,7 +83,7 @@ export class MultiProviderSenderAdapter {
 }
 
 @Module({
-  imports: [forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, AgentRuleReaderModule, forwardRef(() => PostSaleModule)],
+  imports: [WhatsAppHandoffModule, forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, AgentRuleReaderModule, forwardRef(() => PostSaleModule)],
   controllers: [WhatsAppWebhookController, WhatsAppConfigController, WhatsAppDeliveryController, WhatsAppPresentationController],
   providers: [
     GetWhatsAppUsageUseCase,

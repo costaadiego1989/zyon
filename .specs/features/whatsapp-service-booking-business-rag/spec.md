@@ -252,7 +252,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | Pending |
 | HUM-01 | Fixed menu entry | T57 | Pending |
 | HUM-02 | Handoff intake | T49, T50, T57 | Pending |
-| HUM-03 | AI pause | T4, T48, T49, T50, T51 | Pending |
+| HUM-03 | AI pause | T4, T48, T49, T50, T51 | In Progress (T48 complete; intake/routing/dispatch pending) |
 | HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | Pending |
 | HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | Pending |
 | HUM-06 | Automatic AI resume | T56, T61 | Pending |
@@ -297,7 +297,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 complete) |
 | EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | Pending |
 | EDGE-03 | Optional media failure | T38, T39 | Pending |
-| EDGE-04 | In-flight AI response | T48, T51, T56 | Pending |
+| EDGE-04 | In-flight AI response | T48, T51, T56 | In Progress (T48 durable epoch complete; dispatch/resume pending) |
 | EDGE-05 | Retrieved-content injection | T70, T71 | Pending |
 
 **Coverage:** 72 identified requirements: the original approved71 plus the directly requested ONB-06 service-name list. Product refinements are recorded in context.md; original approvals remain unchanged.

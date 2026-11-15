@@ -1046,12 +1046,12 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] DB handoff integration: próximo inbound, restart, duplicata, binding estrangeiro e corrida com sessão renovada.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] DB handoff integration: próximo inbound, restart, duplicata, binding estrangeiro e corrida com sessão renovada.
+- [x] Gate Full passa: unit13/13 and native8/8, zero skipped, checked API build0/2507 sources, AppModule health/ready HTTP and owned cleanup. Existing assertions preserved; see task-48-evidence.json. Commit local próprio; sem push/deploy.
 
-**Tests**: DB handoff integration: próximo inbound, restart, duplicata, binding estrangeiro e corrida com sessão renovada.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T48$" ./src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T48 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Unit T48 and existing session-anchor regressions; `apps/api/tests/whatsapp-handoff-binding.integration.spec.mjs` uses owned SQL/middleware and the canonical AppModule, including health/ready HTTP, restart, duplicate, foreign binding, rollback and controlled session-renewal race.
+**Gate**: Full: protected Node runner for `./src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.spec.ts` and `./src/modules/whatsapp-channel/application/use-cases/route-to-session.session-anchor.spec.ts`; checked API build and artifact; `node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/whatsapp-handoff-binding.integration.spec.mjs` from apps/api. No skipped cases. T48 introduces persistence, not a new HTTP command: actual signed webhook intake/routing negatives remain mandatory in T49/T50; no artificial production route is added. All final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t48 persist the channel handoff binding`
 
 ### T49: Create or reuse a WhatsApp support handoff
