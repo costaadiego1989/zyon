@@ -37,6 +37,7 @@ export interface StylesForm {
 }
 
 export interface CompanyForm {
+  description: string;
   storeName: string;
   cnpj: string;
   razaoSocial: string;
@@ -75,6 +76,7 @@ export interface SocialForm {
 }
 
 const EMPTY_COMPANY: CompanyForm = {
+  description: "",
   storeName: "", cnpj: "", razaoSocial: "", inscricaoEstadual: "", email: "",
   phone: "", street: "", number: "", complement: "", neighborhood: "",
   city: "", state: "", zip: "",
@@ -95,6 +97,9 @@ const EMPTY_BUSINESS_HOURS: BusinessHour[] = [
 export function useStoreSettingsPage() {
   const api = useApi();
   const working = useRef(false);
+  const companyBaseline = useRef<CompanyForm>(EMPTY_COMPANY);
+  const hoursBaseline = useRef(EMPTY_BUSINESS_HOURS);
+  const logoBaseline = useRef("");
   const [reloadTick, setReloadTick] = useState(0);
   const [state, setState] = useState<StoreSettingsState>({
     company: EMPTY_COMPANY,
@@ -137,23 +142,19 @@ export function useStoreSettingsPage() {
 
         if (cancelled) return;
         const budget = readBudgetSettings(settings);
+        const company: CompanyForm = settings?.company ? {
+          description: typeof settings.company.description === "string" ? settings.company.description : "",
+          storeName: profile.name ?? "", cnpj: settings.company.cnpj ?? "", razaoSocial: settings.company.razaoSocial ?? "",
+          inscricaoEstadual: settings.company.inscricaoEstadual ?? "", email: settings.company.email ?? "", phone: settings.company.phone ?? "",
+          street: settings.company.address?.street ?? "", number: settings.company.address?.number ?? "", complement: settings.company.address?.complement ?? "",
+          neighborhood: settings.company.address?.neighborhood ?? "", city: settings.company.address?.city ?? "", state: settings.company.address?.state ?? "", zip: settings.company.address?.zip ?? "",
+        } : { ...EMPTY_COMPANY, storeName: profile.name ?? "" };
+        companyBaseline.current = company;
+        hoursBaseline.current = settings?.businessHours ?? EMPTY_BUSINESS_HOURS;
+        logoBaseline.current = loadedLogoUrl;
         setState((prev) => ({
           ...prev,
-          company: settings?.company ? {
-            storeName: profile.name ?? "",
-            cnpj: settings.company.cnpj ?? "",
-            razaoSocial: settings.company.razaoSocial ?? "",
-            inscricaoEstadual: settings.company.inscricaoEstadual ?? "",
-            email: settings.company.email ?? "",
-            phone: settings.company.phone ?? "",
-            street: settings.company.address?.street ?? "",
-            number: settings.company.address?.number ?? "",
-            complement: settings.company.address?.complement ?? "",
-            neighborhood: settings.company.address?.neighborhood ?? "",
-            city: settings.company.address?.city ?? "",
-            state: settings.company.address?.state ?? "",
-            zip: settings.company.address?.zip ?? "",
-          } : { ...EMPTY_COMPANY, storeName: profile.name ?? "" },
+          company,
           policies: settings?.policies ? { ...EMPTY_POLICIES, ...settings.policies } : EMPTY_POLICIES,
           social: settings?.social ? { ...EMPTY_SOCIAL, ...settings.social } : EMPTY_SOCIAL,
           businessHours: settings?.businessHours ?? EMPTY_BUSINESS_HOURS,
@@ -205,6 +206,10 @@ export function useStoreSettingsPage() {
 
   async function handleSave() {
     if (working.current || state.loading || state.loadError) return;
+    if (state.activeTab === "company" && state.company.description !== companyBaseline.current.description && state.company.description.length > 1200) {
+      setState(p => ({ ...p, saveResult: "error", saveError: "Sobre a empresa deve ter até 1.200 caracteres." }));
+      return;
+    }
     const isBudget = state.activeTab === "budget";
     const budget = { enabled: state.budgetMode, email: state.budgetEmail, whatsapp: state.budgetWhatsapp };
     if (isBudget) {
@@ -238,32 +243,28 @@ export function useStoreSettingsPage() {
         } as any);
       } else {
         // Save store settings
-        const payload = {
-          social: Object.fromEntries(Object.entries(state.social).filter(([, v]) => v)),
-          company: {
-            ...(state.company.cnpj && { cnpj: state.company.cnpj }),
-            ...(state.company.razaoSocial && { razaoSocial: state.company.razaoSocial }),
-            ...(state.company.inscricaoEstadual && { inscricaoEstadual: state.company.inscricaoEstadual }),
-            ...(state.company.email && { email: state.company.email }),
-            ...(state.company.phone && { phone: state.company.phone }),
-            address: {
-              street: state.company.street,
-              number: state.company.number,
-              complement: state.company.complement,
-              neighborhood: state.company.neighborhood,
-              city: state.company.city,
-              state: state.company.state,
-              zip: state.company.zip,
-            },
-          },
-          businessHours: state.businessHours,
-          policies: Object.fromEntries(Object.entries(state.policies).filter(([, v]) => v)),
-          ...(state.logoUrl && { logoUrl: state.logoUrl }),
-        };
-        await api.putStoreSettings(payload);
+        const company = companyFormPatch(state.company, companyBaseline.current);
+        const payload = state.activeTab === "company" ? {
+          ...(Object.keys(company).length ? { company } : {}),
+          ...(JSON.stringify(state.businessHours) !== JSON.stringify(hoursBaseline.current) ? { businessHours: state.businessHours } : {}),
+          ...(state.logoUrl !== logoBaseline.current ? { logoUrl: state.logoUrl } : {}),
+        } : state.activeTab === "policies" ? {
+          policies: Object.fromEntries(Object.entries(state.policies).filter(([, value]) => value)),
+        } : { social: Object.fromEntries(Object.entries(state.social).filter(([, value]) => value)) };
+        const saved = await api.putStoreSettings(payload) as Record<string, any>;
+        if (state.activeTab === "company" && Object.hasOwn(company, "description") && saved?.company?.description !== state.company.description.trim()) {
+          throw new Error("company_description_not_confirmed");
+        }
         settingsSaved = true;
-        if (state.company.storeName) {
+        if (state.activeTab === "company" && state.company.storeName && state.company.storeName !== companyBaseline.current.storeName) {
           await api.putStoreName(state.company.storeName);
+        }
+        if (state.activeTab === "company") {
+          const description = Object.hasOwn(company, "description") ? saved.company.description as string : state.company.description;
+          companyBaseline.current = { ...state.company, description };
+          hoursBaseline.current = state.businessHours;
+          logoBaseline.current = state.logoUrl;
+          setState(p => ({ ...p, company: { ...p.company, description } }));
         }
       }
       setState((p) => ({ ...p, saveResult: "success", saving: false }));
@@ -318,4 +319,17 @@ export function useStoreSettingsPage() {
     generatePolicy,
     dismiss: () => setState((p) => ({ ...p, saveResult: null })),
   };
+}
+
+function companyFormPatch(current: CompanyForm, baseline: CompanyForm): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  for (const key of ["description", "cnpj", "razaoSocial", "inscricaoEstadual", "email", "phone"] as const) {
+    if (current[key] !== baseline[key]) patch[key] = current[key];
+  }
+  const address: Record<string, string> = {};
+  for (const key of ["street", "number", "complement", "neighborhood", "city", "state", "zip"] as const) {
+    if (current[key] !== baseline[key]) address[key] = current[key];
+  }
+  if (Object.keys(address).length) patch.address = address;
+  return patch;
 }

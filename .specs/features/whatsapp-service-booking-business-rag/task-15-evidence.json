@@ -1,0 +1,23 @@
+{
+  "task": "T15",
+  "baseHead": "46b946514",
+  "environment": "local-jsdom-unit",
+  "tests": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 9020
+  },
+  "proofKind": "Actual React hook mounted with createRoot/act and the existing dashboard API client using synthetic fetch fixtures; not HTTP/DB integration.",
+  "proved": [
+    "loading and canonical description hydration",
+    "minimal changed company fields only; omitted concurrent email and policies preserved",
+    "save canonical response confirmation, reload and explicit empty clear",
+    "failed save retains draft and retry succeeds",
+    "other tabs omit company About",
+    "new1201 character edit rejected before API",
+    "unchanged1201 legacy About omitted while phone edit succeeds",
+    "failed read blocks edit and retry hydrates latest canonical data"
+  ],
+  "dependencyChanges": false
+}

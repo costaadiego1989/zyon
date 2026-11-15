@@ -88,3 +88,7 @@ The three existing routes prove canonical nested merge/omit/clear,1200 validatio
 ## T14 gate
 
 Six preparatory files restored with hashes verified, then the Prisma getter replaced against the exact saved T13 fragment. Unit3/3 plus8 existing regressions passed; checked API build0 with2493sources and real AppModule/HTTP/DB8/8, zero skips. Both getters no longer query users; shared public mapper preserves stored contact and legacy description while excluding nested private canaries. All three routes prove save/reopen/clear and explicit public contact; ACK, natural exit0 and owned cleanup passed. This checked API artifact may be reused for T16 only with unchanged full assertServiceArtifacts validation and an explicit reuse record, as root authorized.
+
+## T15 gate
+
+Two preparatory files restored with verified hashes. QuickUI1/1, no skips, actual hook through React createRoot/act plus existing dashboard client and synthetic API fixtures. Canonical description hydrates, minimal payload preserves omitted concurrent data, save/reload/clear/error/retry work, and other tabs omit About. A new1201 edit is rejected; an unchanged legacy1201 description remains visible and omitted when saving another company field. This is unit fixture evidence; actual HTTP/DB was proven in T13/T14 and full browser remains T16.

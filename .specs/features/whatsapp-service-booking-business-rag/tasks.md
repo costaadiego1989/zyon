@@ -438,11 +438,11 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] useStoreSettingsPage.about.spec.ts: API fixture, carregamento, clear, erro e nova leitura.
-- [ ] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] useStoreSettingsPage.spec.ts: API fixture, carregamento, clear, erro e nova leitura.
+- [x] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: useStoreSettingsPage.about.spec.ts: API fixture, carregamento, clear, erro e nova leitura.
+**Tests**: useStoreSettingsPage.spec.ts: API fixture, carregamento, clear, erro e nova leitura.
 **Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/pages/store-settings/useStoreSettingsPage.spec.ts -t "^T15$"` Teste raiz T15 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t15 roundtrip about through the existing company form`
 
