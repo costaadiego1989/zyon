@@ -19,7 +19,7 @@ An isolated draft in .cache/t65-prepared passed7/7 pure orchestration tests: six
 
 | Source | Existing writer | Integration requirement |
 | --- | --- | --- |
-| Company and hours | PrismaMerchantRepository.updateStoreSettings; store-settings UpdateStoreSettingsUseCase; public-api settings use case | Keep three routes, nested merge, mode guard and legacy signal; enqueue current company/hours and changed public policies in the same transaction. |
+| Company and hours | PrismaMerchantRepository.updateStoreSettings; store-settings UpdateStoreSettingsUseCase; public-api settings use case | Keep three routes, nested merge, mode guard and the existing company signal; enqueue changed hours/public policies in the same transaction, then normalize company explicitly. |
 | Company name/category | Existing merchant category/profile writers | Canonical stored identity contributes to company projection; do not use owner email/phone as public contact fallback. |
 | Mode/publication | ChangeBusinessModeUseCase | Withdraw affected new service/professional sources on products, retain history; no active commercial mode guard is weakened. |
 | Professional and offer links | PrismaServiceProfessionalRepository.create/update/deactivate | Queue professional and affected old/new linked service identities in that same transaction; public link/name changes must not leave stale service evidence. |
