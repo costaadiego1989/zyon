@@ -53,6 +53,7 @@ export class HandleStripePlatformEventUseCase {
   }
 
   async subscriptionUpdated(input: {
+    module?: string;
     merchantId?: string;
     customerId: string;
     subscriptionId: string;
@@ -64,6 +65,7 @@ export class HandleStripePlatformEventUseCase {
     currentPeriodEnd?: string;
     cancelAtPeriodEnd: boolean;
   }): Promise<void> {
+    if (input.module) return;
     const merchantId =
       input.merchantId ??
       (await this.repository.findMerchantByStripeSubscriptionId(

@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { ProductEntity } from "../../catalog/domain/entities/product.entity.js";
+import type { ProductRepositoryPort } from "../../catalog/domain/ports/product-repository.port.js";
+import type { MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
+import type { PaymentPlatformRepository } from "../../payment/domain/ports/payment-platform-repository.port.js";
+import type { WhatsAppConfigRepository } from "../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
+import { applicationFixture } from "../application/__tests__/fixture.js";
+import { createMetaAdsRuntime } from "./runtime.js";
+import { PrismaMetaAdsRepository } from "./prisma-meta-ads.repository.js";
+import { MetaMcpAdapter } from "./meta-mcp.adapter.js";
+test("production composition persists real Prisma state and cannot bypass visual commercial review", async () => {
+  const f = await applicationFixture(); const originalFetch = globalThis.fetch; let stored = 0; const urls: string[] = [];
+  try {
+    const product = new ProductEntity({ id: "product-a", merchantId: "store-a", name: "Produto", description: "Dados", type: "physical", isActive: true, createdAt: f.clock(), updatedAt: f.clock(), variants: [{ id: "variant-a", sku: "A", attributes: {}, isActive: true, basePriceInCents: 10000, costInCents: 0, taxPercent: 0, currency: "BRL", stockQuantity: 5, stockReserved: 0, media: [{ id: "image-a", url: "https://media.example.test/a.png", type: "IMAGE", order: 0 }] }] });
+    globalThis.fetch = async (url) => { urls.push(String(url)); assert.ok(["https://api.openai.com/v1/images/edits", "https://api.openai.com/v1/responses"].includes(String(url))); return new Response(JSON.stringify(String(url).endsWith("/edits") ? { data: [{ b64_json: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l6sAAAAASUVORK5CYII=" }], usage: { input_tokens_details: { text_tokens: 100, image_tokens: 200 }, output_tokens: 300 } } : { status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ product_matches: true, observed_prices_cents: [9900], currency: "BRL", unverified_claims: false, uncertain: false }) }] }], usage: { input_tokens: 1000, input_tokens_details: { cached_tokens: 0 }, output_tokens: 100 } })); };
+    const runtime = createMetaAdsRuntime({ prisma: f.prisma, catalog: { findByVariantIds: async () => [product] } as unknown as ProductRepositoryPort, merchants: { getProfile: async () => ({ id: "store-a", name: "Loja", slug: "loja-a", storeSettings: { company: { email: "owner@example.test" } } }) } as unknown as MerchantRepository, billing: { getBilling: async () => ({ merchantId: "store-a", status: "active", planKey: "growth" }) } as unknown as PaymentPlatformRepository, whatsapp: { findByMerchantId: async () => null } as unknown as WhatsAppConfigRepository, storage: { isConfigured: () => true, upload: async () => { stored++; return { url: "https://media.example.test/out.png", key: "test", bucket: "test" }; } }, env: { STOREFRONT_PUBLIC_URL: "https://store.example.test", META_ADS_IMAGE_API_KEY: "fake-test-key", META_ADS_IMAGE_SOURCE_HOSTS: "media.example.test" } });
+    assert.ok(runtime.service.repo instanceof PrismaMetaAdsRepository); assert.ok(runtime.service.provider instanceof MetaMcpAdapter);
+    const campaign = await runtime.service.campaigns.create("store-a", { name: "Campanha", destination: "store", priority: "paid_sales", variantIds: ["variant-a"], mediaIds: [], budget: null, headline: "Produto", primaryText: "Conheca", country: "BR" }, "composition-a"); const job = await runtime.service.generations.request("store-a", campaign.id, { imageCount: 1, idempotencyKey: "composition-image" }); const result = await runtime.service.generations.run("store-a", job.id);
+    assert.equal(result.status, "failed"); assert.equal(result.error, "creative_terms_mismatch"); assert.equal(stored, 0); assert.deepEqual(urls, ["https://api.openai.com/v1/images/edits", "https://api.openai.com/v1/responses"]); const state = await f.repo.read("store-a"); assert.equal(state.credits.monthlyAvailable, 30); assert.equal(Object.keys(state.media).length, 0); const usage = await f.repo.listRecords("store-a", "usage"); assert.equal(usage.length, 2); assert.equal(JSON.stringify(usage).includes("fake-test-key"), false);
+  } finally { globalThis.fetch = originalFetch; await f.close(); }
+});

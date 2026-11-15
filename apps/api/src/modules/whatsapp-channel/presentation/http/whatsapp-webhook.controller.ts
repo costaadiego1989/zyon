@@ -63,6 +63,7 @@ interface BubbleWhatsStatusPayload {
 import { WhatsAppDeliveryService } from "../../application/services/whatsapp-delivery.service.js";
 
 interface MetaInboundMessage {
+  referral?: { source_id?: string; source_type?: string };
   id?: string;
   from?: string;
   timestamp?: string;
@@ -176,6 +177,7 @@ export class WhatsAppWebhookController {
             ...(message.interactive?.nfm_reply?.response_json ? { flowResponse: this.metaFlowResponse(message.interactive.nfm_reply.response_json) } : {}),
             messageType: message.type ?? "text",
             timestamp: Number(message.timestamp ?? 0) * 1000 || Date.now(),
+            ...(message.referral?.source_type === "ad" && /^\d{1,40}$/.test(message.referral.source_id ?? "") ? { adReferral: { adId: message.referral.source_id! } } : {}),
           });
         }
       }

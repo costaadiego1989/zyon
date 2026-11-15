@@ -96,6 +96,7 @@ export type TabKey =
   | "negotiation-policy"
   | "revenue-lift"
   | "revenue-manager"
+  | "meta-ads-agent"
   | "cart-recovery"
   | "inventory"
   | "chargebacks"
@@ -188,6 +189,7 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ─── INTELIGÊNCIA IA ─── features avançadas/analytics
   { key: "revenue-manager", label: "Otimização com IA", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["otimizador", "revenue manager", "ia", "hipóteses", "otimização"] },
+  { key: "meta-ads-agent", label: "Anúncios com IA", section: "intelligence", icon: Sparkles, requiredPlan: STORE, keywords: ["anúncios", "meta", "facebook", "instagram", "tráfego", "campanhas", "criativos"] },
   { key: "revenue-lift", label: "Impacto na receita", section: "intelligence", icon: TrendingUp, requiredPlan: STORE, keywords: ["revenue lift", "impacto", "incremento", "holdout", "atribuição"] },
   { key: "intent-memory", label: "Memória de intenção", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["intent", "intenção", "memória", "memory", "perfil"] },
   { key: "post-sale", label: "Pós-venda", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["pós-venda", "post-sale", "follow-up", "reviews", "nps", "engajamento"] },

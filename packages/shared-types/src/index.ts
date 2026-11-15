@@ -1607,3 +1607,4 @@ export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, 
 
 export * from "./shopping-agent-appearance.js";
 export * from "./cashback.js";
+export * from "./meta-ads-agent.js";

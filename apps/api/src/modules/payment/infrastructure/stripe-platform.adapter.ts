@@ -22,6 +22,7 @@ export class StripePlatformAdapter implements StripePlatformPort {
     const end = item?.current_period_end ?? raw.current_period_end;
     return {
       merchantId: subscription.metadata.merchant_id,
+      ...(subscription.metadata.zyon_module ? { module: subscription.metadata.zyon_module } : {}),
       customerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
       subscriptionId: subscription.id,
       priceId: item?.price.id,

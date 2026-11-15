@@ -124,6 +124,14 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     return (await this.withPublicRatings(merchantId, [this.toEntity(product)]))[0];
   }
 
+  async findByVariantIds(merchantId: string, variantIds: string[]): Promise<ProductEntity[]> {
+    const products = await this.prisma.product.findMany({
+      where: { merchantId, deletedAt: null, variants: { some: { id: { in: variantIds } } } },
+      include: { variants: { include: { price: true, stock: true, media: true } }, reviews: { where: { approved: true }, select: { rating: true } } },
+    });
+    return products.map(product => this.toEntity(product));
+  }
+
   async findExistingVariantSkus(
     merchantId: string,
     skus: string[],

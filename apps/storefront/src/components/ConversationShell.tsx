@@ -47,6 +47,7 @@ import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
 import { VoiceChannelButton } from "./conversation/VoiceChannelButton";
 import QuickPurchasePreferencesDialog, { type QuickPurchasePreferences } from "./QuickPurchasePreferencesDialog";
 import { AttachmentPicker } from "./conversation/AttachmentPicker";
+import { MetaAdsAttribution } from "./MetaAdsAttribution";
 import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 
 type Channel = "chat" | "voice";
@@ -853,6 +854,7 @@ export default function ConversationShell({
   };
   return (
     <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "var(--aacp-radius, 19px)", padding: "1px" }}>
+      <MetaAdsAttribution merchantId={merchantId} conversationId={conversationId} />
       <PerimeterBorder radius="var(--aacp-radius, 19px)" />
       {/* Content */}
       <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "max(0px, calc(var(--aacp-radius, 19px) - 1px))", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>

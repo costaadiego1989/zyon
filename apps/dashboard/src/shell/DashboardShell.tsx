@@ -106,6 +106,7 @@ const CouponsPage = lazy(() => import("../pages/coupons/index.js").then(m => ({ 
 const CashbackPage = lazy(() => import("../pages/cashback/index.js").then(m => ({ default: m.CashbackPage })));
 const RevenueLiftPage = lazy(() => import("../pages/revenue-lift/index.js").then(m => ({ default: m.RevenueLiftPage })));
 const RevenueManagerPage = lazy(() => import("../pages/revenue-manager/index.js").then(m => ({ default: m.RevenueManagerPage })));
+const MetaAdsAgentPage = lazy(() => import("../pages/meta-ads-agent/index.js").then(m => ({ default: m.MetaAdsAgentPage })));
 const CartRecoveryPage = lazy(() => import("../pages/cart-recovery/index.js").then(m => ({ default: m.CartRecoveryPage })));
 const M2MAgentsPage = lazy(() => import("../pages/m2m-agents/M2MAgentsPage.js").then(m => ({ default: m.M2MAgentsPage })));
 const ProtocolPage = lazy(() => import("../pages/checkout-protocol/ProtocolPage.js").then(m => ({ default: m.ProtocolPage })));
@@ -139,6 +140,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const resolveInitialTab = (): TabKey => {
     const hash = window.location.hash.slice(1).split("?")[0];
     if (hash) return hash as TabKey;
+    if (new URLSearchParams(window.location.search).get("tab") === "meta-ads-agent") return "meta-ads-agent";
     return initialTab ?? "overview";
   };
   const [requestedTab, setTab] = useState<TabKey>(resolveInitialTab);
@@ -763,6 +765,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
+            {tab === "meta-ads-agent" ? <RouteGuard me={me} require="meta-ads-agent"><MetaAdsAgentPage apiBaseUrl={API_BASE_URL} merchantId={me.id} /></RouteGuard> : null}
             {tab === "cart-recovery" ? <RouteGuard me={me} require="cart-recovery"><CartRecoveryPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "m2m-agents" ? (
               <RouteGuard me={me} require="m2m-agents">

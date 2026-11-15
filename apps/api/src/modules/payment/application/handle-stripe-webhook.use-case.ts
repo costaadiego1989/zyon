@@ -80,6 +80,8 @@ export class HandleStripeWebhookUseCase {
 
   /** Exposed for testing — bypasses signature verification. */
   async dispatchEvent(event: Stripe.Event): Promise<HandleStripeWebhookResult> {
+    const object = event.data.object as { metadata?: Record<string, string>; parent?: { subscription_details?: { metadata?: Record<string, string> } } };
+    if (object.metadata?.zyon_module || object.parent?.subscription_details?.metadata?.zyon_module) return { outcome: "ignored", reason: "non_base_billing_module" };
     const merchantId = await this.resolveMerchantId(event);
     const eventKey: ProviderEventKey = { provider: "stripe", merchantId, eventId: event.id };
 
@@ -304,15 +306,15 @@ export class HandleStripeWebhookUseCase {
     ) {
       return "ignored_non_billing_checkout";
     }
+    const subscriptionId = idFrom(session.subscription);
+    const current = subscriptionId && this.billingStripe ? await this.billingStripe.retrieveBillingSubscription(subscriptionId) : undefined;
+    if (current?.module) return "ignored_non_base_billing_module";
     await this.platformEvents.checkoutCompleted({
       merchantId,
       customerId: idFrom(session.customer),
       subscriptionId: idFrom(session.subscription),
     });
-    const subscriptionId = idFrom(session.subscription);
-    if (subscriptionId && this.billingStripe) {
-      await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscriptionId));
-    }
+    if (current) await this.platformEvents.subscriptionUpdated(current);
     return "billing_checkout_completed";
   }
 
@@ -322,7 +324,9 @@ export class HandleStripeWebhookUseCase {
     if (!this.platformEvents) return "ignored_platform_events_disabled";
     if (this.billingStripe) {
       // Read current state so delayed events cannot restore a cancelled plan.
-      await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscription.id));
+      const current = await this.billingStripe.retrieveBillingSubscription(subscription.id);
+      if (current.module) return "ignored_non_base_billing_module";
+      await this.platformEvents.subscriptionUpdated(current);
       return "billing_subscription_updated";
     }
     const raw = subscription as Stripe.Subscription & {
@@ -347,6 +351,7 @@ export class HandleStripeWebhookUseCase {
     const subscriptionId = idFrom(invoice.parent?.subscription_details?.subscription ?? invoice.subscription);
     if (!subscriptionId || !this.billingStripe || !this.platformEvents) return "ignored_non_subscription_invoice";
     const current = await this.billingStripe.retrieveBillingSubscription(subscriptionId);
+    if (current.module) return "ignored_non_base_billing_module";
     await this.platformEvents.subscriptionUpdated(current);
     const planKey = planFromPriceId(current.priceId);
     if (event.type === "invoice.paid" && !event.account && invoice.status === "paid" && invoice.billing_reason === "subscription_create" && current.status === "active" && current.merchantId &&

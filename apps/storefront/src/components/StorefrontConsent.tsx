@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getValidBuyer, type ValidBuyer } from "@/lib/buyer-auth";
 import { canSyncContactChoice, consentStorageKey, readStorefrontConsent, STOREFRONT_CONSENT_VERSION, writeStorefrontConsent, type ContactChannel, type StorefrontConsent } from "@/lib/storefront-consent";
 import { GoogleTagManager } from "./GoogleTagManager";
 import { FacebookPixel, TiktokPixel } from "./PixelTrackers";
 import styles from "./StorefrontConsent.module.css";
+import { MetaAdsConsentContext } from "./meta-ads-consent-context";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
@@ -28,6 +29,14 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, storeSlug, 
   const [retry, setRetry] = useState(0);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const hasTrackers = Boolean(gtmId || fbPixelId || tiktokPixelId);
+  const adRevokers = useRef(new Set<() => Promise<void>>());
+  const registerAdRevoker = useCallback((revoke: () => Promise<void>) => { adRevokers.current.add(revoke); return () => { adRevokers.current.delete(revoke); }; }, []);
+  const adConsent = useMemo(() => ({ storeKey, merchantId, pixelId: fbPixelId, version: STOREFRONT_CONSENT_VERSION, ready, granted: ready && choice?.optionalCookies === true, registerRevoker: registerAdRevoker }), [storeKey, merchantId, fbPixelId, ready, choice?.optionalCookies, registerAdRevoker]);
+  const revokeAndReload = useCallback(async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([Promise.allSettled([...adRevokers.current].map(revoke => revoke())), new Promise<void>(resolve => { timer = setTimeout(resolve, 2500); })]); }
+    finally { clearTimeout(timer); window.location.reload(); }
+  }, []);
 
   useEffect(() => {
     const saved = readStorefrontConsent(storeKey);
@@ -49,9 +58,10 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, storeSlug, 
       refreshBuyer();
       if (event.key !== consentStorageKey(storeKey)) return;
       const next = readStorefrontConsent(storeKey);
-      if (choiceRef.current?.optionalCookies && !next?.optionalCookies) { window.location.reload(); return; }
+      const revoking = choiceRef.current?.optionalCookies && !next?.optionalCookies;
       choiceRef.current = next;
       setChoice(next);
+      if (revoking) { void revokeAndReload(); return; }
       if (next) setOpen(false);
     };
     refreshBuyer();
@@ -62,7 +72,7 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, storeSlug, 
       window.removeEventListener("focus", refreshBuyer);
       delete document.documentElement.dataset.consentStore;
     };
-  }, [storeKey]);
+  }, [storeKey, revokeAndReload]);
 
   useEffect(() => {
     if (!ready || !merchantId || !buyer) { setSavedChannels([]); setSyncing(false); return; }
@@ -128,7 +138,7 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, storeSlug, 
     setOpen(true);
   };
 
-  const save = (accepted: boolean) => {
+  const save = async (accepted: boolean) => {
     reviewingSavedChoiceRef.current = false;
     const previous = choiceRef.current;
     const next: StorefrontConsent = {
@@ -143,7 +153,7 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, storeSlug, 
     setNotice(persisted ? null : "Seu navegador não permite salvar preferências. A escolha vale nesta visita.");
     if (previous?.optionalCookies && !next.optionalCookies) {
       // Reload stops third-party code that has already been executed; unmounting a Script does not.
-      window.location.reload();
+      await revokeAndReload();
     }
   };
 
@@ -153,7 +163,7 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, storeSlug, 
       <FacebookPixel pixelId={fbPixelId} />
       <TiktokPixel pixelId={tiktokPixelId} />
     </>}
-    {children}
+    <MetaAdsConsentContext.Provider value={adConsent}>{children}</MetaAdsConsentContext.Provider>
     <nav className={styles.footer} aria-label="Privacidade e consentimento">
       <button type="button" onClick={edit}>Cookies e contato</button>
       {storeSlug && <a href={`/store/${encodeURIComponent(storeSlug)}/politicas`} target="_blank" rel="noopener noreferrer">Políticas da loja</a>}

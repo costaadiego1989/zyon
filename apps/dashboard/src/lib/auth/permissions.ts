@@ -37,6 +37,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   "erp-integrations": ["OWNER", "ADMIN"],
   // Inteligência IA
   "revenue-manager": ["OWNER", "ADMIN"],
+  "meta-ads-agent": ["OWNER", "ADMIN"],
   "revenue-lift": ["OWNER", "ADMIN"],
   "intent-memory": ["OWNER", "ADMIN"],
   "post-sale": ["OWNER", "ADMIN"],

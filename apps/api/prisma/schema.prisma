@@ -17,6 +17,8 @@ enum MerchantPlan {
 model Merchant {
   shoppingWorkspaces BuyerShoppingWorkspace[]
   billingReceivables BillingReceivable[]
+  metaAdsAgentStore MetaAdsAgentStore?
+  metaAdsAgentRecords MetaAdsAgentRecord[]
   id                      String       @id
   // Stores in a Scale account share the platform subscription, never their
   // commercial integrations. A root store points to itself after migration.
@@ -82,6 +84,30 @@ model Merchant {
   @@index([billingAccountMerchantId])
 
   @@map("merchants")
+}
+
+model MetaAdsAgentStore {
+  merchantId String @id @map("merchant_id")
+  version Int @default(0)
+  state Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("meta_ads_agent_stores")
+}
+
+model MetaAdsAgentRecord {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  key String
+  kind String
+  payload Json
+  createdAt DateTime @default(now()) @map("created_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, key])
+  @@index([merchantId, kind, createdAt])
+  @@map("meta_ads_agent_records")
 }
 
 model MelhorEnvioWallet {

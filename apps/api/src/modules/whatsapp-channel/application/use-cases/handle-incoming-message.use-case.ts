@@ -1,6 +1,7 @@
 import { WHATSAPP_CONVERSATION_PORT, type WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
 import { whatsappProcessingErrorCode } from "../../domain/services/whatsapp-processing-error.js";
 import { createHash } from "node:crypto";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 /**
  * Handle Incoming WhatsApp Message — Main Pipeline
  *
@@ -35,6 +36,8 @@ export interface IncomingMessageInput {
   flowResponse?: Record<string, unknown>;
   interactiveId?: string;
   inboxClaim?: import("../../domain/ports/whatsapp-webhook-inbox.port.js").WhatsAppInboxClaim;
+  /** Set only by the signature-verified Meta ingress, never by chat text. */
+  adReferral?: { adId: string };
   merchantId: string;
   deviceId: string;
   fromNumber: string;
@@ -61,6 +64,7 @@ export class HandleIncomingMessageUseCase {
     @Optional() @Inject(POST_SALE_REPLY_HANDLER_PORT)
     private readonly postSaleReply?: PostSaleReplyHandlerPort,
     @Optional() private readonly metaConversation?: HandleMetaConversationUseCase,
+    @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly events?: DomainEventBus,
   ) {}
 
   async execute(input: IncomingMessageInput): Promise<void> {
@@ -75,6 +79,9 @@ export class HandleIncomingMessageUseCase {
 
       // Process inline under the durable inbox lease.
       const session = route.whatsappSession;
+      if (input.provider === "META_CLOUD" && input.adReferral && session.checkoutSessionId) {
+        await this.events?.publish({ eventType: "whatsapp.ad_referral", merchantId: input.merchantId, payload: { adId: input.adReferral.adId, sessionId: session.checkoutSessionId } });
+      }
 
       // ─── Post-sale reply intercept ────────────────────────────────────
       // If the buyer was asked for NPS/review via post-sale, capture reply
