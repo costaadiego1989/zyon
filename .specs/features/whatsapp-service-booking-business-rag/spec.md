@@ -300,7 +300,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | EDGE-04 | In-flight AI response | T48, T51, T56 | Pending |
 | EDGE-05 | Retrieved-content injection | T70, T71 | Pending |
 
-**Coverage:** 71 identified requirements, including the original 47 and explicit scope additions from the user's later messages. Product refinements are recorded in context.md; formal task mapping follows this revision.
+**Coverage:** 72 identified requirements: the original approved71 plus the directly requested ONB-06 service-name list. Product refinements are recorded in context.md; original approvals remain unchanged.
 
 ## Implicit Requirement Dimensions
 

@@ -1878,7 +1878,7 @@ T97 → T95
 
 ### T95: Collect revision-bound acceptance evidence
 
-**What**: Coletor valida cobertura dos 71 IDs, teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
+**What**: Coletor valida cobertura dos 72 IDs, teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
 **Depends on**: T94, T97
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
