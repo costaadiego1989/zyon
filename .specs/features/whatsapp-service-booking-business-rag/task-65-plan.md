@@ -35,6 +35,8 @@ Two adjacent whole-JSON writers can otherwise overwrite a concurrent company edi
 
 Temporary preparation assignment: C prepares only FAQ and policy writer drafts plus their new rollback coverage in an external folder, after its completed Phase8 preparation. Root retains variant/category/company/settings/mode integration and the canonical companion. No productive files, task gates or completion change before T25. C reports base/draft hashes and exact insertion points; root reviews and merges the drafts. Phase8 remains C's next execution batch after T55.
 
+After returning those drafts, C reviews the root's publication-dirty bulk helper and prepares additional external mode rollback/review-resolution cases. These use the same owned fixture and remain unexecuted until T25. C does not author root productive code or act as the final independent Verifier.
+
 T65 requires graph synchronization/work/source-reader integration, a transaction-bound internal enqueue helper, and the actual writers above. New pure orchestration checks belong in graph-sync.service.spec.ts; actual AppModule/SQL/HTTP coverage belongs in a dedicated source-writer integration runner. The exact T25 writer list and remaining public API/ERP variant delegates must be reconciled before restoring drafts.
 
 Use the existing public projection allowlist and canonical reader for current content. The internal transaction-bound read helper does not authorize public access; external readers keep the tenant guard before every lookup. Queue only public fingerprints, not administrative JSON or raw errors. Polling covers offline/restart gaps and historical missing-source tombstones. New pending work must survive a disabled or unavailable graph; activation remains explicitly tenant scoped.
