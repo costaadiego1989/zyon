@@ -93,6 +93,9 @@ As correções explícitas de animação antes do texto e dez produtos por lote 
 
 ## Open Product Decisions
 
+- New explicit instruction, 2026-11-14: "ah outras coisas em empresas tipo serviço adicionar quais serviços em formato de lista clica no mais e vai adicionando uma lista de serviços isso tambem e contexto para rag prossiga de onde parou".
+- Clarification: user chose "Lista simples em Dados da empresa (recomendado)" and reiterated "lembrando que e só para empresas de serviços". Store a public list of service names in company data. Show add/edit/remove list controls only for services; enforce the same mode at the canonical API and public RAG projection. On mode change to products, invalidate the service-list context while preserving historical stored data. Do not create priced/scheduled catalog offers from this informational list.
+
 - Nenhuma decisão de produto pendente para apresentar o plano de tarefas: horários avulsos e bloqueios foram confirmados. Comparecimento, início, conclusão e ausência reutilizam transições operacionais explícitas já existentes, separadas do financeiro.
 - Datas reais, equipe, políticas e material da empresa piloto são insumos de ativação. Os testes locais usam identidades e fatos sintéticos marcados, sem pacientes reais.
 - Conteúdo educativo em segmentos regulados exige fontes publicadas sob responsabilidade da empresa. A ausência de fonte não autoriza resposta clínica improvisada.

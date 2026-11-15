@@ -9,6 +9,7 @@ Implementar com a skill **tlc-spec-driven**, seguindo Execute e Critical Rules. 
 **Approved**: 2026-11-14 - user: "Aprovar o plano e iniciar implementação local"
 **Date**: 2026-11-14
 **Mutations**: 3
+**User-directed addition**: 2026-11-14 - "Lista simples em Dados da empresa (recomendado)"; "lembrando que e só para empresas de serviços". Adds ONB-06 and T96/T97 to the original approved plan:72 criteria/97 tasks. These two local tasks are directly requested; original approvals are preserved. They run after T16 without blocking the original T16+T25 booking barrier and must finish before T95/final verification.
 **Build**: `pnpm --filter @zyon/api typecheck; pnpm --filter @zyon/api lint; pnpm --filter @zyon/api build; pnpm --filter @zyon/widget-v2 typecheck; pnpm --filter @zyon/widget-v2 build; pnpm --filter @zyon/dashboard typecheck; node scripts/service-local-build.mjs dashboard; pnpm --filter @zyon/storefront typecheck; node scripts/service-local-build.mjs storefront`
 
 Especificação original de 47 requisitos aprovada; este plano incorpora os refinamentos explícitos posteriores e totaliza 71 critérios. Aprovação deste documento confirma também os refinamentos. Ainda não autoriza push, deploy ou banco/provedor de produção. Empresas de produtos conservam os fluxos aprovados em ambos os canais. Não implementar antes do gate --execute e aprovação registrada nas palavras do usuário.
@@ -164,6 +165,9 @@ T71 → T72
 T77 → T78
 T84 → T85
 T91 → T92
+T16 → T96
+T96 → T97
+T97 → T95
 ```
 
 ## Task Breakdown
@@ -1876,7 +1880,7 @@ T91 → T92
 
 **What**: Coletor valida cobertura dos 71 IDs, teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
-**Depends on**: T94
+**Depends on**: T94, T97
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: QA-01, QA-02, QA-03, QA-04
 
@@ -1889,6 +1893,42 @@ T91 → T92
 **Tests**: service-acceptance-report.spec.mjs named QA-01: HEAD divergente/zero casos/skip/claim sem prova/critical falho/print preview mislabeled bloqueiam; relatório final só completo após check_proofs e verificação independente.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T95$" ./tests/service-acceptance-report.spec.mjs` Teste raiz T95 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t95 collect revision-bound acceptance evidence`
+
+### T96: Persist a public service-name list only for service businesses
+
+**What**: Expandir o JSON canônico company.serviceNames com lista simples pública; validar e normalizar nomes, preservar omissão e limpar com[]. Aplicar guard da modalidade sob lock nos três writers/aliases existentes, roundtrip por ambos getters, trabalho durável/invalidação transacional e retirada do contexto ao mudar para produtos, preservando JSON histórico e todos os dados de comércio.
+**Where**: `apps/api/src/modules/merchant/application/company-settings-write.ts`; mappers/types/DTOs existentes estritamente necessários e o writer de troca de modalidade.
+**Depends on**: T16
+**Reuses**: company.description/merge/mapper/outbox de T13/T14, modalidade canônica T12 e runtime local T2; sem nova tabela, catálogo duplicado, preço ou agenda.
+**Requirement**: ONB-06, RAG-11, REG-01
+
+**Done when**:
+
+- [ ] Lista pública validada persiste e reabre por todas as rotas equivalentes; omissão preserva,[] limpa, entrada inválida/foreign/product não altera fonte, trabalho, chunks ou demais dados.
+- [ ] Retirada/troca para products remove a lista da apresentação/contexto e invalida sua evidência antiga sem apagar histórico; mudança e trabalho são atômicos com rollback comprovado.
+- [ ] Unit + HTTP/DB reais locais passam, sem skipped, com checked build íntegro e commit próprio; sem ação remota.
+
+**Tests**: company-service-names.spec.ts; service-company-service-names.integration.spec.mjs com services/products, três rotas, auth/tenant, merge/clear/limits, concorrência/rollback e modo/contexto.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T96$" ./src/modules/merchant/application/company-service-names.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/service-company-service-names.integration.spec.mjs`; checked API build quando a fonte muda. Check final ONB-06 permanece obrigatório.
+**Commit**: `feat(service-business): t96 persist service names in company data`
+
+### T97: Edit the service-name list in the existing company form
+
+**What**: Controle acessível de nomes em Dados da empresa sóservices, com botão+ e editar/remover, foco/feedback, payload mínimo e reload/erro/retry. Usa company.serviceNames sem criar ofertas agendáveis. Capturas reais desktop/mobile e prova final da lista pública no RAG.
+**Where**: `apps/dashboard/src/pages/store-settings/ServiceNamesField.tsx`; hook/form/types e fixture/browser existentes estritamente necessários.
+**Depends on**: T96
+**Reuses**: CompanyAboutField, useStoreSettingsPage, perfil businessMode, componentes existentes e browser local T3; UI de produtos e catálogo comercial preservados.
+**Requirement**: ONB-06, QA-02, REG-01
+
+**Done when**:
+
+- [ ] Serviços: clicar+, editar/remover, salvar, reabrir, limpar e recuperar rascunho de falha funcionam com API/DB local real; oculto em products e nomes antigos não vazam para novo modo.
+- [ ] Unit e browser com gestos reais passam; capturas desktop/mobile mostram o controle e a condição de modalidade; nenhum teste anterior removido/relaxado.
+- [ ] Coletor final ONB-06 executa prova nativa de contexto público e browser, falha com zero/skipped e registra revisão/ambiente; gate e commit próprios.
+
+**Tests**: ServiceNamesField.spec.tsx, hook tests e e2e/service-company-service-names.spec.ts; service-company-services-proof.mjs seleciona ONB-06 nativo e browserT97 sem confundir mocks com RAG/provider real.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/store-settings/ServiceNamesField.spec.tsx -t "^T97$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-company-service-names.spec.ts --grep "T97$"`; tipos/build afetados e check final ONB-06 obrigatórios.
+**Commit**: `feat(service-business): t97 edit service names in company settings`
 
 ## Checks
 
@@ -2177,6 +2217,10 @@ Tasks: T48, T51, T56.
 **C71** - IF a fonte contém instruções para executar ferramentas ou revelar dados THEN the system SHALL tratá-la somente como conteúdo recuperado, sem conceder autoridade operacional. (EDGE-05, AC 5)
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^EDGE-05$" ./tests/service-boundary.integration.spec.ts`
 Tasks: T70, T71.
+
+**C72** - WHILE a modalidade canônica é `services` the system SHALL permitir adicionar pelo botão "+", editar, remover, salvar e reabrir uma lista de nomes de serviços em Dados da empresa e usar somente os nomes públicos salvos como contexto do RAG, ocultando e recusando sua edição para empresas de produtos e retirando esse contexto quando a modalidade mudar para produtos. (ONB-06, AC 1)
+Proof: `pnpm --dir apps/api exec node ./tests/service-company-services-proof.mjs`
+Tasks: T96, T97, T63, T72.
 
 ## Handoff
 

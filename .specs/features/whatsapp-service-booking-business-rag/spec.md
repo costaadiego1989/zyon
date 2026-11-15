@@ -5,6 +5,7 @@
 **Status:** Approved specification and refinements; tasks approved and Phase 1 implementation started locally.
 **Amendment:** 2026-11-14 - user requested an About field in existing company data, a Conversations tab inside WhatsApp, a service-only Atendimento management page, manual scheduling and business-specific dashboard metrics. User also explicitly required preservation of the approved product journeys in WhatsApp and storefront. Original 47-requirement approval remains recorded above; additions are explicit for task review and have no fabricated approval date.
 **Date:** 2026-11-14
+**User-directed addition:** 2026-11-14 - a simple service-name list in company data, confirmed by "Lista simples em Dados da empresa (recomendado)" and "lembrando que e só para empresas de serviços". Adds ONB-06 to the original71 criteria; original approvals remain verbatim. This local addition is directly requested and does not authorize production actions.
 **Size:** Complex
 
 ## Problem Statement
@@ -212,6 +213,16 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 - IF um operador assume enquanto uma resposta da IA está em processamento THEN the system SHALL impedir o envio dessa resposta automática após a mudança de modo. [EDGE-04]
 - IF a fonte contém instruções para executar ferramentas ou revelar dados THEN the system SHALL tratá-la somente como conteúdo recuperado, sem conceder autoridade operacional. [EDGE-05]
 
+### P1: Public service names in company data
+
+**User Story:** Como empresa de serviços, quero cadastrar uma lista simples do que ofereço em Dados da empresa para apresentar meu negócio e dar contexto ao assistente.
+
+**Acceptance Criteria:**
+
+1. WHILE a modalidade canônica é `services` the system SHALL permitir adicionar pelo botão "+", editar, remover, salvar e reabrir uma lista de nomes de serviços em Dados da empresa e usar somente os nomes públicos salvos como contexto do RAG, ocultando e recusando sua edição para empresas de produtos e retirando esse contexto quando a modalidade mudar para produtos. [ONB-06]
+
+**Independent Test:** Na empresa de serviços adicionar dois nomes, editar/remover, salvar e recarregar com persistência real; provar os nomes na fonte pública atual, omissão preservando dados e lista vazia limpando contexto. Na empresa de produtos não mostrar o controle, recusar escrita direta e impedir uso de nomes históricos pelo RAG. A lista não cria preço, duração, disponibilidade ou oferta comercial.
+
 ## Requirement Traceability
 
 | Requirement ID | Story | Tasks | Status |
@@ -221,6 +232,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | ONB-03 | Merchant appointment policy | T4, T7, T11, T27, T81 | Pending |
 | ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | In Progress (T17 complete) |
 | ONB-05 | About field in company data | T13, T14, T15, T16 | Pending |
+| ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | Pending |
 | AGENDA-01 | Professional resources | T4, T18, T20, T21, T76 | In Progress (T18 complete) |
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | Pending |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | Pending |
