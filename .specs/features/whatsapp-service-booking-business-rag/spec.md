@@ -233,7 +233,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | In Progress (T17 complete) |
 | ONB-05 | About field in company data | T13, T14, T15, T16 | Implemented locally |
 | ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | Pending |
-| AGENDA-01 | Professional resources | T4, T18, T20, T21, T76 | In Progress (T18 complete) |
+| AGENDA-01 | Professional resources | T4, T18, T20, T21, T76 | In Progress (T18 and T20 complete) |
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | Pending |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | Pending |
 | AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | Pending |
@@ -271,7 +271,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | RAG-11 | Existing forms feed context | T13, T14, T15, T63, T64, T65 | Pending |
 | ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | Pending |
 | ATEND-02 | Professional administration | T18, T19, T76 | In Progress (T18 and T19 complete) |
-| ATEND-03 | Service categories | T20, T77 | Pending |
+| ATEND-03 | Service categories | T20, T77 | In Progress (T20 complete) |
 | ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | Pending |
 | ATEND-05 | One-off times | T22, T25, T78 | Pending |
 | ATEND-06 | Manual appointments | T31, T41, T74, T79 | Pending |

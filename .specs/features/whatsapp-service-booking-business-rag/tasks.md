@@ -530,6 +530,8 @@ T97 → T95
 
 ### T20: Validate professional and service associations
 
+**Status**: Complete - unit7/7, owned DB/middleware4/4 and actual HTTP/AppModule4/4; checked build0/2500, zero failed/skipped and full cleanup. See task-20-evidence.json.
+
 **What**: Resolver vínculo e duração da oferta canônica service; categoria reutiliza ProductCategory e nunca produz capacidade duplicada ou preço novo.
 **Where**: `apps/api/src/modules/catalog/domain/services/professional-service-link.ts`
 **Depends on**: T19
@@ -538,11 +540,11 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit professional-service-link.spec.ts + DB: profissional/oferta/categoria estrangeiros, despublicados e categorias compartilhadas.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit professional-service-link.spec.ts + DB: profissional/oferta/categoria estrangeiros, despublicados e categorias compartilhadas.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Unit professional-service-link.spec.ts + DB: profissional/oferta/categoria estrangeiros, despublicados e categorias compartilhadas.
+**Tests**: Unit professional-service-link.spec.ts; service-professional-links.integration.spec.mjs and service-eligibility-http.integration.spec.mjs: foreign/unpublished/shared category, canonical duration/price, privacy canary, pagination and actual staff/anonymous guards.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T20$" ./src/modules/catalog/domain/services/professional-service-link.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T20 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t20 validate professional and service associations`
 

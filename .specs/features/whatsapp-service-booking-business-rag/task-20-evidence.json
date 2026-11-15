@@ -1,0 +1,17 @@
+{
+  "task": "T20",
+  "status": "complete",
+  "parentCommit": "e8a8f48be",
+  "unit": {"executed": 7, "passed": 7, "failed": 0, "skipped": 0, "exitCode": 0},
+  "databaseMiddleware": {"executed": 4, "passed": 4, "failed": 0, "skipped": 0, "exitCode": 0, "durationMs": 19384.6861},
+  "actualHttpAppModule": {"executed": 4, "passed": 4, "failed": 0, "skipped": 0, "exitCode": 0, "durationMs": 55040.7092},
+  "build": {"exitCode": 0, "checked": true, "sourceCount": 2500, "inputSha256": "15bbb0ee6012071671c96300326f9694855ceaeeb98bde5d91836646aec39f6e", "artifactSha256": "e2ca360bf99e69c2b65c1fe9655f649a72bdab540ba5c69ab596a4e6cfab29a4"},
+  "proofs": ["same professional and category retain distinct canonical service durations and variant prices", "foreign professional/offer/variant/category cannot resolve", "inactive or unpublished resource/link/offer/variant/category is ineligible", "public profile output copies only typed description/specialties and drops the actual DB private canary", "bounded real eligibility pagination", "actual staff GET works only within its tenant and anonymous GET fails", "products mode and malformed queries are refused", "withdrawal removes eligibility without duplicate category capacity"],
+  "canonicalSources": {"duration": "Product.metadata.serviceSchedule", "price": "ProductVariant.price", "timeZone": "ServiceProfessional.timeZone", "categoryCreatesCapacity": false, "variantRequiresNewTenantField": false},
+  "composition": {"catalogControllerRegistered": true, "canonicalAppModule": true, "repositoryOverrides": false, "authOverrides": false, "artificialPrismaHttpFacade": false},
+  "fixtureCorrection": {"separateCategoryCreateThenProductCategoryId": true, "assertionsWeakenedOrSkipped": false},
+  "cleanup": {"databaseAndBridgesDisposed": true, "appCloseAck": true, "naturalWorkerExitCode": 0, "referencedTimersAfterClose": 0, "remainingContainers": 0, "remainingBridgeSockets": 0, "providerCalls": 0},
+  "legacyStaticScheduleHelperChanged": false,
+  "logs": [".cache/phase3-gates/t20-build-verified-launcher.log", ".cache/phase3-gates/t20-db.log", ".cache/phase3-gates/t20-http.log"],
+  "scope": {"localOnly": true, "remoteAction": false, "finalFeatureAcceptance": false}
+}

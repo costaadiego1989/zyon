@@ -46,7 +46,9 @@ Files: domain/services/professional-service-link.ts/spec.ts; tests/service-profe
 
 Replay fixture correction: service-eligibility-http's new draft mixes root Product.merchantId with nested category.create. Use a separate real category create followed by scalar categoryId on the product, consistent with the generated unchecked Product input. Preserve every eligibility assertion. This avoids repeating the T18 checked/unchecked nested-input mismatch; production schema and catalog writers remain unchanged.
 
-T20 replay refinements are prepared only outside the productive tree in .cache/phase3-gates/t20-professional-service-link-public-prepared.ts and .spec.ts, t20-eligibility-public-prepared.ts and t20-eligibility-http-public-prepared.mjs. They add a typed output projection of description/specialties, a private JSON canary, real eligibility pagination and staff/anonymous HTTP coverage, plus the separate category fixture create. Original preserved sources and existing assertions remain intact. Restore T20 originals first and then review/apply these own drafts; none is gated or committed yet.
+T20 replay refinements were first prepared outside the productive tree in .cache/phase3-gates/t20-professional-service-link-public-prepared.ts and .spec.ts, t20-eligibility-public-prepared.ts and t20-eligibility-http-public-prepared.mjs. They add a typed output projection of description/specialties, a private JSON canary, real eligibility pagination and staff/anonymous HTTP coverage, plus the separate category fixture create. Original preserved sources and existing assertions remain intact.
+
+After C copied and integrally attested the T19 artifact, the six T20 originals were restored with matching manifest hashes and the own refinements replayed. The actual CatalogModule registers eligibility reads. The completed Full gate passed unit7/7, checked build0, DB/middleware4/4 and HTTP/AppModule4/4, with zero skips and full owned cleanup. Evidence: task-20-evidence.json.
 
 ## T23 Contract
 
@@ -61,6 +63,10 @@ Root review corrected a preparatory T23 expectation before commit: subtracting o
 ## T21 Preparation
 
 Files: application/save-professional-availability.use-case.ts/spec.ts; domain/services/professional-availability-input.ts; tests/service-recurring-availability.integration.spec.mjs. Success: replace recurring grid with expected professional version, IANA timezone and effective UTC boundaries; bounded valid intervals, one concurrent winner, old rows inactive and appointment snapshots unchanged; public change event contains identity/version only. Merchant lock precedes professional lock.
+
+Root clarified the existing HH:mm contract: new recurring validity and active one_off/block inputs require exact minute boundaries and reject nonzero seconds/milliseconds with availability_minute_precision_required. Generic parseServiceInstant remains precise, and historical occupancy/reconciliation is never rounded. Existing isActive=false exception withdrawal may retain its historical precise timestamps. T23 candidates remain anchored to offered time, emit only representable minute starts and intersect historical occupancy at full ISO precision. A10:00:30.123-10:30:30.123 appointment blocks both10:00 and10:30 from a10:00 grid, preserving11:00/11:30.
+
+Own refinements remain outside the productive tree in .cache/phase3-gates: t21-professional-availability-input-minute-prepared.ts, t21-save-availability-minute-prepared.spec.ts, t21-recurring-minute-history-prepared.mjs, t22-exception-minute-prepared.spec.ts, t22-exceptions-composable-prepared.mjs, t22-composable-prepared.ts and t23-availability-minute-history-prepared.spec.ts. Original manifest files remain unchanged. Apply/review only in task order; no future gate/completion is claimed.
 
 ## T22 Preparation
 
