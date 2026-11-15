@@ -18,9 +18,15 @@ export interface PublicServiceSchedule {
   slots: Array<SelectedServiceSlot & { selectable: boolean }>;
 }
 
+const wallTimeFormatters = new Map<string, Intl.DateTimeFormat>();
 function wallTime(date: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-    .formatToParts(date);
+  let formatter = wallTimeFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    if (wallTimeFormatters.size >= 128) wallTimeFormatters.delete(wallTimeFormatters.keys().next().value!);
+    wallTimeFormatters.set(timeZone, formatter);
+  }
+  const parts = formatter.formatToParts(date);
   const part = (name: string) => Number(parts.find(item => item.type === name)?.value);
   return Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"));
 }

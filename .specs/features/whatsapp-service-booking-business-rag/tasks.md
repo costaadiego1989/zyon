@@ -590,6 +590,8 @@ T97 → T95
 
 ### T23: Resolve canonical professional availability
 
+**Status**: Complete - unit15/15, checked API build0/2505 and actual owned DB/tenant middleware7/7; max8928 slots passed the ordinary transaction deadline, no skips and owned cleanup0. Evidence: task-23-evidence.json.
+
 **What**: Unir grade/avulsos e subtrair bloqueios/ocupações por profissional; datas primeiro, slots da data, duração/fuso; distinguir indisponível/vazio/stale; janela e volume limitados.
 **Where**: `apps/api/src/modules/catalog/domain/services/professional-availability.ts`
 **Depends on**: T22
@@ -598,9 +600,9 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] professional-availability.spec.ts + service-availability.integration.spec.ts: dois serviços/recurso, profissionais paralelos, limites/fuso e falha.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] professional-availability.spec.ts + service-availability.integration.spec.ts: dois serviços/recurso, profissionais paralelos, limites/fuso e falha.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: professional-availability.spec.ts + service-availability.integration.spec.ts: dois serviços/recurso, profissionais paralelos, limites/fuso e falha.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T23$" ./src/modules/catalog/domain/services/professional-availability.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T23 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.

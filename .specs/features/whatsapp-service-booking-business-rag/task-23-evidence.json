@@ -1,0 +1,162 @@
+{
+  "task": "T23",
+  "status": "complete",
+  "parentCommit": "b42f50b3e",
+  "unit": {
+    "executed": 15,
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0
+  },
+  "databaseMiddleware": {
+    "executed": 7,
+    "passed": 7,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "durationMs": 24573.5592,
+    "maximumWindowCaseMs": 476.1924,
+    "maximumWindowSlots": 8928,
+    "maximumWindowDates": 31,
+    "ordinaryTransactionTimeoutMs": 5000,
+    "transactionDeadlineChanged": false
+  },
+  "build": {
+    "exitCode": 0,
+    "checked": true,
+    "sourceCount": 2505,
+    "inputSha256": "4c6a13cbb1d5826144b4256442a2724ad2e4da83d27f7033359ab2d72492eb7d",
+    "artifactSha256": "d4e6455152c605d796cda1acb9bd9d88048cb21957d3873d89bedf8afb6b2606",
+    "heapFlagAdded": false,
+    "compilerCoverageReduced": false
+  },
+  "proofs": [
+    "dates and selected-date slots use canonical professional capacity with validated canonical offer duration and variant price",
+    "a twenty-minute appointment for another service preserves the previously offered free ten-thirty thirty-minute slot",
+    "parallel professionals remain independent and pending appointments do not occupy confirmed capacity",
+    "recurring occurrences and one-off intervals retain original anchors across clipping blocks occupancy and query-window changes",
+    "rule timezone constructs instants while current professional timezone presents dates, including midnight crossing",
+    "isolated date and multi-date fifty-minute alternatives remain identical across continuous adjacent days",
+    "overlapping unconfirmed alternatives are allowed and ISO starts/ends deduplicate output",
+    "precise historical occupancy is intersected without rounding and precise legacy offered starts do not become rounded options",
+    "empty stale invalid foreign and actual database failure remain distinct; renamed owned table failure recovers after restoration",
+    "full valid thirty-one-day five-minute capacity returns all8928 slots under the unmodified default transaction deadline",
+    "formatter reuse preserves ordinary offsets, half-hour DST gaps/folds and static legacy schedule contracts"
+  ],
+  "anchorContract": {
+    "origin": "each original recurring occurrence and one-off start",
+    "union": "coverage/capacity only",
+    "reanchorAfterSubtraction": false,
+    "reanchorAfterClipping": false,
+    "reanchorAfterWindowChange": false,
+    "constructZone": "stored rule timezone",
+    "presentationZone": "current professional timezone",
+    "overlappingAlternativesAllowed": true,
+    "newGlobalOrigin": false,
+    "newSchemaColumn": false
+  },
+  "redEvidence": {
+    "executed": 13,
+    "passed": 7,
+    "failed": 6,
+    "skipped": 0,
+    "exitCode": 1,
+    "cause": "original draft lost cross-zone dates, original fifty-minute origins, validity phase and precise legacy offered-start semantics",
+    "assertionsWeakened": false
+  },
+  "legacyHelper": {
+    "behaviorChanged": false,
+    "formatterObjectsReused": true,
+    "formatterLimit": 128,
+    "resultOrAvailabilityCache": false,
+    "regressionChecksAdded": true,
+    "emptyStaticSlotsStillUnavailable": true
+  },
+  "preparatoryMeasurements": {
+    "before": {
+      "resolverMs": 2940.6934,
+      "rss": 319557632,
+      "slots": 8928,
+      "dates": 31,
+      "heapCapMiB": null
+    },
+    "after": {
+      "resolverMs": 601.9503,
+      "rss": 117780480,
+      "slots": 8928,
+      "dates": 31,
+      "heapCapMiB": 256
+    },
+    "identicalFlagsComparison": false,
+    "transactionProof": false
+  },
+  "resourceOrchestration": {
+    "earlierPhysicalOnlyRefusalsStartedWorker": false,
+    "earlierGenericCommitRefusal": {
+      "physicalMiB": 410,
+      "commitMiB": 6012,
+      "requiredPhysicalMiB": 512,
+      "requiredCommitMiB": 6144
+    },
+    "finalBuildSnapshot": {
+      "observedAtUtc": "2026-11-15T15:24:09.637221+00:00",
+      "source": "Windows GlobalMemoryStatusEx read-only",
+      "physicalTotalMiB": 16087,
+      "physicalAvailableMiB": 642,
+      "commitAvailableMiB": 5464,
+      "memoryLoadPercent": 96,
+      "defaultHeapMiB": 4144,
+      "requiredCommitMiB": 5168,
+      "requiredPhysicalMiB": 512,
+      "canStart": true
+    },
+    "nativeSnapshot": {
+      "observedAtUtc": "2026-11-15T15:28:49.285785+00:00",
+      "source": "Windows GlobalMemoryStatusEx read-only",
+      "physicalTotalMiB": 16087,
+      "physicalAvailableMiB": 3797,
+      "commitAvailableMiB": 9626,
+      "memoryLoadPercent": 76,
+      "phase": "T23 native DB-only",
+      "requiredPhysicalMiB": 512,
+      "requiredCommitMiB": 5168,
+      "canStart": true
+    },
+    "compilerAndTestDeadlinesChanged": false,
+    "unrelatedProcessTerminated": false
+  },
+  "composition": {
+    "canonicalReader": "getProfessionalAvailability(tx,input)",
+    "transactionOwner": "caller",
+    "newHttpEndpoint": false,
+    "httpReadTask": "T24",
+    "artificialPrismaHttpFacade": false,
+    "sqlSeedProvesReadNotHttpCatalogCreation": true,
+    "fullScheduleMetadataShape": true,
+    "holdsOverlayTask": "T27/T40"
+  },
+  "cleanup": {
+    "prismaDisconnected": true,
+    "ownedPostgresDisposed": true,
+    "bridgeListening": false,
+    "bridgeSockets": 0,
+    "bridgeChildren": 0
+  },
+  "schemaChanged": false,
+  "appointmentSnapshotsRewritten": false,
+  "logs": [
+    ".cache/phase3-gates/t23-original-origins-red.log",
+    ".cache/phase3-gates/t23-helper-before-cache.log",
+    ".cache/phase3-gates/t23-helper-after-cache.log",
+    ".cache/phase3-gates/t23-pure-max-before-cache.log",
+    ".cache/phase3-gates/t23-pure-max-after-cache-heap256.log",
+    ".cache/phase3-gates/t23-build-verified-launcher.log",
+    ".cache/phase3-gates/t23-db.log"
+  ],
+  "scope": {
+    "localOnly": true,
+    "remoteAction": false,
+    "finalFeatureAcceptance": false
+  }
+}
