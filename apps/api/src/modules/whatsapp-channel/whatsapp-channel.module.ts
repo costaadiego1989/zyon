@@ -59,6 +59,7 @@ import { MetaSignupAuthorizationAdapter } from "./infrastructure/adapters/meta-s
 import { WhatsAppHandoffModule } from "./whatsapp-handoff.module.js";
 import { SupportModule } from "../support/support.module.js";
 import { WhatsAppHumanIntakeService } from "./application/services/whatsapp-human-intake.service.js";
+import { WhatsAppHumanMessageRouter } from "./application/services/whatsapp-human-message-router.js";
 
 /**
  * Multi-tenant sender resolver.
@@ -91,6 +92,7 @@ export class MultiProviderSenderAdapter {
     GetWhatsAppUsageUseCase,
     WhatsAppDeliveryService,
     WhatsAppHumanIntakeService,
+    WhatsAppHumanMessageRouter,
     HandleIncomingMessageUseCase,
     HandleMetaConversationUseCase,
     WhatsAppCheckoutIdentityService,

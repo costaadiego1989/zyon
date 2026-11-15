@@ -1,0 +1,130 @@
+{
+  "task": "T50",
+  "status": "complete",
+  "environment": "local-owned",
+  "baseHead": "09ca487abf9f4b2cbfa753a75ee652fca1703572",
+  "unit": {
+    "tests": 135,
+    "pass": 135,
+    "fail": 0,
+    "skipped": 0
+  },
+  "compiledContracts": {
+    "tests": 2,
+    "pass": 2,
+    "fail": 0,
+    "skipped": 0
+  },
+  "nativeFinal": {
+    "tests": 25,
+    "pass": 25,
+    "fail": 0,
+    "skipped": 0,
+    "T49": 12,
+    "T50": 10,
+    "TwilioReplay": 3
+  },
+  "checkedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "a4b6ce93e34de999090a5b6961a1db2934dfb2f3a9f524f61d02b8920e52209e",
+    "artifactSha256": "d9bd21987b45a0d6102d12461bc888d614d362d64019ad29a52c1689828d5f1d",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2511
+    },
+    "recordedAt": "2026-11-15T15:58:07.574Z"
+  },
+  "logs": {
+    "unit": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t50-gates\\2026-11-15T15-53-37.390Z\\unit.log",
+    "compiledContracts": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t50-twilio-contract-green.log",
+    "nativeFinal": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t50-gates\\2026-11-15T16-01-43.462Z\\native.log",
+    "build": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t50-gates\\2026-11-15T15-53-49.992Z\\build.log"
+  },
+  "initialGreenBaseline": {
+    "unit": 130,
+    "native": 22,
+    "build": {
+      "checked": true,
+      "inputSha256": "de31fe5e27c9432254eee0716e7411cad5eb468d4bafec49d7eb422de86a1a46",
+      "artifactSha256": "8101805651c06350d4445755b1807a6bcb8bfd514e35813b0423773106510d9c",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2511
+      }
+    },
+    "archiveManifest": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t50-baseline-artifact\\manifest.json",
+    "archiveManifestSha256": "5786a10cf3accbd09f7ab766ae3e4f58377a5afadff4579bccc9373e6e333394",
+    "preservedFiles": 2606
+  },
+  "twilioCausalRed": {
+    "tests": 3,
+    "pass": 1,
+    "fail": 2,
+    "skipped": 0,
+    "log": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t50-twilio-red\\2026-11-15T15-47-21.049Z\\native.log",
+    "ingestTimestamp": 1794757677092,
+    "laterObservedClock": 1794757677422,
+    "expectedReplayHttp": 200,
+    "actualReplayHttp": 409,
+    "changedPayloadHttp": 409
+  },
+  "initialFixtureFailure": {
+    "log": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t50-twilio-red\\2026-11-15T15-43-05.367Z\\native.log",
+    "reason": "OutboxMessage uses eventId, not id. New fixture stopped before its subcases; only those new fields were corrected, preserving assertions and the API artifact."
+  },
+  "fix": "Duplicate kindmessage/providerTWILIO equivalence ignores only parser-local ingest timestamp. All other canonical fields remain strict. Existing payload/hash stay immutable, including legacy rows; no signature/account/config/lease changes.",
+  "orchestration": {
+    "scope": "Ignored launchers only. Root now uses fresh Windows virtual commit >= default V8 heap+1024MiB (5168); physical RAM informational. No OS/heap/compiler/deadline/startup/ownership/network/cleanup guard changes.",
+    "preChildRefusals": [
+      {
+        "physicalMiB": 998,
+        "commitMiB": 6482,
+        "reason": "Earlier physical threshold; no native child."
+      },
+      {
+        "physicalMiB": 383,
+        "commitMiB": 6718,
+        "reason": "Earlier physical threshold; no unit child."
+      },
+      {
+        "physicalMiB": 1327,
+        "commitMiB": 3126,
+        "reason": "Insufficient virtual commit; no final-native child."
+      }
+    ],
+    "finalNativePreflight": {
+      "physicalMiB": 1206,
+      "commitMiB": 5246,
+      "observedAtUtc": "2026-11-15T16:01:43.514152+00:00"
+    }
+  },
+  "runtime": {
+    "actualAppModule": true,
+    "authenticatedWebhookInboxWorkerSql": true,
+    "repositoryOverrides": false,
+    "authOverrides": false,
+    "externalProviderCalls": 0,
+    "closeAck": true,
+    "naturalExitCode": 0,
+    "ownedRemainingContainers": 0,
+    "ownedRemainingBridgeSockets": 0,
+    "syntheticTransportsOnly": true
+  },
+  "limits": [
+    "No real provider delivery/read/media-fetch/transcription proof.",
+    "T51 in-flight AI/effect/final-dispatch fences remain pending; no production-readiness claim."
+  ],
+  "harnessSha256": {
+    "apps/api/tests/whatsapp-human-message-router.integration.spec.mjs": "d401e6e4b2f669b56f448e702e452a6f53ffcd39804ebdd15b91df4523f5946e",
+    "apps/api/tests/whatsapp-twilio-replay.integration.spec.mjs": "0142acf731ce4825d41798adcc578f4ab277a77cf47f4e6af4abdb95b1b50e70",
+    "apps/api/tests/whatsapp-twilio-fingerprint.contract.spec.mjs": "8250a74afc1b0eb993fcb18448a5266055bbf10cdca3148b09e5ed25a4f7bd37",
+    "apps/api/tests/whatsapp-human-intake.integration.spec.mjs": "1c70ebb52c70b9eb437f798192c7539f9297b339c0897e2bd1885c3e9d3d2d0d",
+    "apps/api/tests/whatsapp-handoff-fixture.mjs": "df14f967bd7167d6944ac1006b10897d55fbe341cd6bd784e720571e844d21e3",
+    "apps/api/tests/service-whatsapp-provider-fixture.mjs": "ae12bcdb544d91c6bf908c7eafdfa6b17ee2ca5951a5fa1d6638d4f5b95b77c5",
+    "apps/api/tests/service-test-runtime.mjs": "4bc51b64a1eb9e950a8275c1954a51e3702e314a6194712a60d1cadabe029fd4",
+    "apps/api/tests/service-test-runtime.worker.mjs": "6cbb8180a4702421d912b0fa04a38fcf168e74159c98be8ba1867e07c673653c"
+  }
+}

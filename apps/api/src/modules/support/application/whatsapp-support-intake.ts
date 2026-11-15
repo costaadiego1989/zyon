@@ -7,6 +7,8 @@ import { whatsappE164 } from "../../whatsapp-channel/domain/services/whatsapp-ph
 import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
 import { appendSupportEvent, lockSupportResource, persistSupportMessage } from "./support-persistence.js";
 
+export const WHATSAPP_HANDOFF_ACK = "🤝 *Atendimento humano solicitado*\n\nSeu pedido foi registrado. A equipe responderá por aqui assim que estiver disponível. Seu carrinho está preservado.";
+
 /** Server-only input, built after authentication and (for voice) the existing
  * typed media-envelope validation. No public endpoint accepts this shape. */
 export interface WhatsAppSupportIntake {
@@ -76,6 +78,6 @@ export async function persistWhatsAppSupportIntake(bindings: PrismaWhatsAppHando
       ticket: { id: ticket.id, merchantId: ticket.merchantId, sessionId: session.id, buyerMessage: ticket.buyerMessage,
         source: "whatsapp" as const, status: ticket.status === "in_progress" ? "in_progress" as const : "open" as const,
         createdAt: ticket.createdAt.toISOString(), updatedAt: ticket.updatedAt.toISOString() },
-      reply: "🤝 *Atendimento humano solicitado*\n\nSeu pedido foi registrado. A equipe responderá por aqui assim que estiver disponível. Seu carrinho está preservado." };
+      reply: WHATSAPP_HANDOFF_ACK };
   });
 }

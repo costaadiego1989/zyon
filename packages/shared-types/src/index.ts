@@ -1342,6 +1342,8 @@ export interface SupportReturnItem {
 
 export type SupportMessageMetadata =
   | { kind: "text" }
+  | { kind: "whatsapp_incoming"; schemaVersion: 1; configId: string; whatsappSessionId: string; inboxId: string;
+      origin: "text" | "button" | "voice" | "media"; bindingId: string; epoch: number; media?: { inboxId: string } }
   | { kind: "whatsapp_intake"; schemaVersion: 1; configId: string; whatsappSessionId: string; inboxId: string;
       origin: "text" | "button" | "voice"; epoch: number; appointmentId?: string; policyVersion?: number }
   | { kind: "product_question"; schemaVersion: 1; merchantId: string; ticketId: string; productId: string; buyerId: string; sessionId: string;

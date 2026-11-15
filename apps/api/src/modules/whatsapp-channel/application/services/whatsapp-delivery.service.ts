@@ -5,6 +5,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../domain/ports/whatsapp-sender.port.js";
 import type { WhatsAppInboxClaim } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
 import type { SendResponseInput } from "../use-cases/send-whatsapp-response.use-case.js";
+import type { HumanInputReceipt } from "./whatsapp-human-message-router.js";
 
 export class WhatsAppDeliveryUncertainError extends Error {
   constructor() { super("whatsapp_delivery_requires_reconciliation"); }
@@ -12,7 +13,7 @@ export class WhatsAppDeliveryUncertainError extends Error {
 
 @Injectable()
 export class WhatsAppDeliveryService {
-  private readonly context = new AsyncLocalStorage<{ claim: WhatsAppInboxClaim; captured: boolean }>();
+  private readonly context = new AsyncLocalStorage<{ claim: WhatsAppInboxClaim; captured: boolean; withoutReply?: boolean }>();
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(WHATSAPP_SENDER_PORT) private readonly sender: WhatsAppSenderPort,
@@ -20,6 +21,17 @@ export class WhatsAppDeliveryService {
 
   /** Internal authenticated inbox context for legacy providers. */
   currentClaim(): WhatsAppInboxClaim | undefined { return this.context.getStore()?.claim; }
+
+  /** Receipt of an incoming human conversation is not an outgoing message. */
+  async acknowledgeHumanInput(receipt: HumanInputReceipt): Promise<void> {
+    const context = this.context.getStore();
+    if (!context || context.captured || context.claim.id !== receipt.inboxId) throw new Error("whatsapp_human_receipt_scope_mismatch");
+    const updated = await this.prisma.whatsAppDelivery.updateMany({ where: { id: context.claim.id,
+      merchantId: context.claim.merchantId, configId: context.claim.configId, state: "processing", processingToken: context.claim.leaseToken },
+      data: { state: "acknowledged", response: { purpose: "human_received", receipt: { ...receipt } } } });
+    if (updated.count !== 1) throw new WhatsAppDeliveryUncertainError();
+    context.captured = true;context.withoutReply = true;
+  }
 
   async capture(input: SendResponseInput): Promise<boolean> {
     const context = this.context.getStore();
@@ -46,11 +58,12 @@ export class WhatsAppDeliveryService {
         if ((error as { code?: string }).code !== "P2002") throw error;
         throw new WhatsAppDeliveryUncertainError();
       }
-      const context = { claim, captured: false };
+      const context: { claim: WhatsAppInboxClaim; captured: boolean; withoutReply?: boolean } = { claim, captured: false };
       try {
         if (!await ownsLease()) throw new WhatsAppDeliveryUncertainError();
         await this.context.run(context, run);
         if (!context.captured) throw new Error("whatsapp_response_missing");
+        if (context.withoutReply) return;
         const updated = await this.prisma.whatsAppDelivery.updateMany({
           where: { id: claim.id, state: "processing", processingToken: claim.leaseToken }, data: { state: "ready" },
         });
@@ -62,7 +75,7 @@ export class WhatsAppDeliveryService {
       row = await this.prisma.whatsAppDelivery.findUniqueOrThrow({ where: { id: claim.id } });
     }
     if (row.merchantId !== claim.merchantId || row.configId !== claim.configId) throw new Error("whatsapp_delivery_scope_mismatch");
-    if (row.state === "sent") return;
+    if (row.state === "sent" || row.state === "acknowledged") return;
     if (row.state !== "ready") {
       await this.prisma.whatsAppDelivery.updateMany({ where: { id: claim.id, state: { in: ["processing", "sending"] } }, data: { state: row.state === "sending" ? "submission_unknown" : "processing_unknown" } });
       throw new WhatsAppDeliveryUncertainError();

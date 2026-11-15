@@ -19,6 +19,7 @@ import {
 import { renderNumberedMenu } from "../../domain/templates/whatsapp-templates.js";
 import { HandleMetaConversationUseCase } from "./handle-meta-conversation.use-case.js";
 import { WhatsAppHumanIntakeService } from "../services/whatsapp-human-intake.service.js";
+import { WhatsAppHumanMessageRouter } from "../services/whatsapp-human-message-router.js";
 import {
   WHATSAPP_SESSION_REPOSITORY,
   type WhatsAppSessionRepository,
@@ -62,6 +63,7 @@ export class HandleIncomingMessageUseCase {
     private readonly postSaleReply?: PostSaleReplyHandlerPort,
     @Optional() private readonly metaConversation?: HandleMetaConversationUseCase,
     @Optional() private readonly humanIntake?: WhatsAppHumanIntakeService,
+    @Optional() private readonly humanRouter?: WhatsAppHumanMessageRouter,
   ) {}
 
   async execute(input: IncomingMessageInput): Promise<void> {
@@ -88,6 +90,16 @@ export class HandleIncomingMessageUseCase {
   private async processRouted(input: IncomingMessageInput, route: RouteResult): Promise<void> {
     // Process inline under the durable inbox lease.
     const session = route.whatsappSession;
+    const humanRoute = await this.humanRouter?.route(input);
+    if (humanRoute?.kind === "received") return;
+    if (humanRoute?.kind === "notice") {
+      if (input.provider === "META_CLOUD") {
+        if (!this.metaConversation) throw new Error("whatsapp_native_conversation_unavailable");
+        await this.metaConversation.sendHandoffNotice(input, route, humanRoute.notice);
+      } else await this.sendResponse.execute({ merchantId: input.merchantId, deviceId: input.deviceId,
+        toNumber: input.fromNumber, text: humanRoute.notice.reply, provider: input.provider });
+      return;
+    }
     if (this.humanIntake && input.provider === "META_CLOUD" && await this.metaConversation?.resumeHandoffNotice(input, route)) return;
     const preparedMedia = this.humanIntake && input.provider === "META_CLOUD" ? await this.metaConversation?.prepareAudioForHandoff(input, route) : undefined;
     const notice = await this.humanIntake?.requestText(input) ?? (preparedMedia ? await this.humanIntake?.requestVoice(input, preparedMedia.result) : undefined);

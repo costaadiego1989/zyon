@@ -1086,12 +1086,12 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] DB/HTTP incoming duplicates, texto/voz, sem geração/cobrança/cart mutation; erro não perde entrada.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] DB/HTTP incoming duplicates, texto/voz, sem geração/cobrança/cart mutation; erro não perde entrada.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: DB/HTTP incoming duplicates, texto/voz, sem geração/cobrança/cart mutation; erro não perde entrada.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T50$" ./src/modules/whatsapp-channel/application/services/whatsapp-human-message-router.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T50 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: `apps/api/src/modules/whatsapp-channel/application/services/whatsapp-human-message-router.spec.ts` and `apps/api/tests/whatsapp-human-message-router.integration.spec.mjs`: DB/HTTP incoming duplicates, texto/voz, sem geração/cobrança/cart mutation; erro não perde entrada. Existing T49 unit/native companions remain regressions. Additional fingerprint unit, compiled whatsapp-twilio-fingerprint.contract.spec.mjs and signed whatsapp-twilio-replay.integration.spec.mjs cover local ingest-time equivalence, immutable legacy payload/hash and strict provider/kind/field conflicts.
+**Gate**: Full: protected Node runner for `./src/modules/whatsapp-channel/application/services/whatsapp-human-message-router.spec.ts` plus unchanged T49 unit companions and prisma-whatsapp-webhook-inbox.fingerprint.spec.ts; checked API build and artifact; protected Node runner for ./tests/whatsapp-twilio-fingerprint.contract.spec.mjs against that artifact; `node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/whatsapp-human-message-router.integration.spec.mjs ./tests/whatsapp-human-intake.integration.spec.mjs ./tests/whatsapp-twilio-replay.integration.spec.mjs` from apps/api. Root T50 and every subcase execute, none skipped. The MJS companion uses real signed/authenticated HTTP, AppModule, inbox worker and SQL; the local sender/media fixtures do not prove provider delivery or real transcription. Final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t50 route incoming human-mode messages to support`
 
 ### T51: Fence every automatic WhatsApp dispatch

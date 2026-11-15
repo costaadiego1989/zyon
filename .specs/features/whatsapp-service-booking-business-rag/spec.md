@@ -251,8 +251,8 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T49 trusted intake/reference complete; operations/UI pending) |
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | Pending |
 | HUM-01 | Fixed menu entry | T57 | Pending |
-| HUM-02 | Handoff intake | T49, T50, T57 | In Progress (T49 intake complete; router/menu pending) |
-| HUM-03 | AI pause | T4, T48, T49, T50, T51 | In Progress (T48/T49 complete; routing/dispatch pending) |
+| HUM-02 | Handoff intake | T49, T50, T57 | In Progress (T49 intake and T50 router complete; menu pending) |
+| HUM-03 | AI pause | T4, T48, T49, T50, T51 | In Progress (T48/T49/T50 complete; in-flight dispatch pending) |
 | HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | Pending |
 | HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | Pending |
 | HUM-06 | Automatic AI resume | T56, T61 | Pending |

@@ -2,6 +2,7 @@ import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { canonicalJson } from "../../../../shared/http/canonical-json.js";
 import type { MetaUiView, StoreUiAction } from "../../domain/ui/meta-ui.types.js";
 import {
   INBOX_LEASE_MS, INBOX_MAX_ATTEMPTS,
@@ -13,6 +14,20 @@ interface ClaimRow {
   merchant_id: string; config_id: string; device_id: string; stream_key: string;
   payload: WhatsAppInboxEvent["payload"]; payload_hash: string; lease_token: string; attempts: number;
   response_state?: Record<string, unknown>;
+}
+
+/** Twilio supplies no timestamp in this webhook: its parser stamps ingestion
+ * locally. Preserve the original payload/hash (including legacy rows), while
+ * comparing all provider data canonically across JSONB key ordering. */
+export function isEquivalentTwilioReplay(previous: unknown, candidate: unknown): boolean {
+  const message = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value)
+    && (value as Record<string, unknown>).provider === "TWILIO"
+    && ["merchantId", "deviceId", "fromNumber", "body", "messageType"].every(key => typeof (value as Record<string, unknown>)[key] === "string")
+    && Number.isSafeInteger((value as Record<string, unknown>).timestamp) && Number((value as Record<string, unknown>).timestamp) >= 0;
+  if (!message(previous) || !message(candidate)) return false;
+  const { timestamp: _previousIngest, ...original } = previous;
+  const { timestamp: _candidateIngest, ...replayed } = candidate;
+  return canonicalJson(original) === canonicalJson(replayed);
 }
 
 @Injectable()
@@ -58,10 +73,11 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
           ON CONFLICT ("dedup_key") DO NOTHING
         `);
         if (inserted === 0) {
-          const rows = await tx.$queryRaw<Array<{ payload_hash: string }>>(Prisma.sql`
-            SELECT "payload_hash" FROM "whatsapp_webhook_inbox" WHERE "dedup_key" = ${event.dedupKey}
+          const rows = await tx.$queryRaw<Array<{ payload_hash: string; payload: unknown }>>(Prisma.sql`
+            SELECT "payload_hash", "payload" FROM "whatsapp_webhook_inbox" WHERE "dedup_key" = ${event.dedupKey}
           `);
-          if (rows[0]?.payload_hash !== event.payloadHash) {
+          if (rows[0]?.payload_hash !== event.payloadHash
+            && !(event.kind === "message" && isEquivalentTwilioReplay(rows[0]?.payload, event.payload))) {
             throw new ConflictException("webhook_event_payload_conflict");
           }
         }
