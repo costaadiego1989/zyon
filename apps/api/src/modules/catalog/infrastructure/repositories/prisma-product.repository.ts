@@ -9,6 +9,7 @@ import {
 import { ProductEntity, ProductVariantProps } from "../../domain/entities/product.entity.js";
 import { productInputError } from "../../domain/services/product-input-validation.js";
 import { lockCatalogMerchant, syncCatalogStockLedger } from "../../../../shared/persistence/catalog-stock-ledger.js";
+import { assertCatalogBusinessMode } from "../../../../shared/persistence/catalog-business-mode.js";
 import { searchAvailableCatalog } from "./catalog-availability-search.js";
 import { matchesCatalogVariant } from "../../domain/services/catalog-search-criteria.js";
 import { readPublicProductRatingStats } from "./public-product-reviews.reader.js";
@@ -48,6 +49,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   async create(input: CreateProductInput): Promise<ProductEntity> {
     const product = await this.prisma.$transaction(async (tx) => {
       await lockCatalogMerchant(tx, input.merchantId);
+      await assertCatalogBusinessMode(tx, input.merchantId, input.type ?? "physical");
       const error = productInputError(input);
       if (error) throw new BadRequestException(error);
       const existing = await tx.productVariant.findMany({ where: { sku: { in: input.variants.map(v => v.sku.trim()) }, product: { merchantId: input.merchantId } }, select: { sku: true } });
@@ -287,8 +289,13 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       await lockCatalogMerchant(tx, merchantId);
       const before = await tx.product.findFirst({ where: { id: productId, merchantId, deletedAt: null }, include: { variants: { where: { isActive: true }, include: { price: true, stock: true } } } });
       if (!before) throw new BadRequestException("product_not_found");
-      const error = productInputError({ merchantId, name: data.name ?? before.name, type: data.type ?? before.type, metadata: (data.metadata ?? before.metadata ?? undefined) as Record<string, unknown> | undefined, variants: before.variants.map(v => ({ sku: v.sku, attributes: v.attributes as Record<string,string>, basePriceInCents: v.price?.basePriceInCents ?? 0, costInCents: v.price?.costInCents ?? undefined, weightGrams: v.weightGrams ?? undefined })) });
-      if (error) throw new BadRequestException(error);
+      // Withdrawal remains possible while legacy classification is unresolved.
+      const withdrawing = data.isActive === false && Object.entries(data).every(([key, value]) => key === "isActive" || value === undefined);
+      if (!withdrawing) {
+        await assertCatalogBusinessMode(tx, merchantId, data.type ?? before.type);
+        const error = productInputError({ merchantId, name: data.name ?? before.name, type: data.type ?? before.type, metadata: (data.metadata ?? before.metadata ?? undefined) as Record<string, unknown> | undefined, variants: before.variants.map(v => ({ sku: v.sku, attributes: v.attributes as Record<string,string>, basePriceInCents: v.price?.basePriceInCents ?? 0, costInCents: v.price?.costInCents ?? undefined, weightGrams: v.weightGrams ?? undefined })) });
+        if (error) throw new BadRequestException(error);
+      }
       if (data.type && data.type !== before.type && before.variants.some(v => v.stock.some(s => s.reserved > 0))) throw new ConflictException("stock_reserved_type_cannot_be_changed");
       if (data.categoryId && !await tx.productCategory.findFirst({ where: { id: data.categoryId, merchantId }, select: { id: true } })) throw new BadRequestException("category_not_found");
       return tx.product.update({
@@ -330,6 +337,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     // Verify product belongs to merchant
     const product = await tx.product.findFirst({ where: { id: productId, merchantId, deletedAt: null } });
     if (!product) throw new Error("product_not_found");
+    await assertCatalogBusinessMode(tx, merchantId, product.type);
     const error = productInputError({ merchantId, name: product.name, type: product.type, metadata: (product.metadata ?? undefined) as Record<string, unknown> | undefined, variants: [variant] });
     if (error) throw new BadRequestException(error);
     if (await tx.productVariant.findFirst({ where: { sku: variant.sku.trim(), product: { merchantId } } })) throw new ConflictException(`sku_already_exists:${variant.sku.trim()}`);
@@ -390,6 +398,9 @@ export class PrismaProductRepository implements ProductRepositoryPort {
 
     await this.prisma.$transaction(async (tx) => {
       await lockCatalogMerchant(tx, merchantId);
+      const product = await tx.product.findFirst({ where: { id: variant.productId, merchantId, deletedAt: null }, select: { type: true } });
+      if (!product) throw new BadRequestException("product_not_found");
+      await assertCatalogBusinessMode(tx, merchantId, product.type);
       await tx.$queryRaw`SELECT v.id FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.id = ${variant.id} AND p.merchant_id = ${merchantId} FOR UPDATE OF v`;
       // Variant physical attributes
       const variantData: Prisma.ProductVariantUpdateInput = {};

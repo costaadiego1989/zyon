@@ -464,6 +464,8 @@ T91 → T92
 
 ### T17: Guard new catalog writes by business mode
 
+**Status**: Complete - unit6/6, AppModule HTTP/DB12/12, catalog/ERP60/60 and normal owned checkout48/48. API types/build0, zero skipped, close ACK/natural exit0/owned cleanup. Supplemental product-types setup failure stays pending with root; see task-17-evidence.json.
+
 **What**: Na fronteira canônica de create/update/publicação/import, resolver modalidade do tenant e recusar novas ofertas incompatíveis; cobrir todos os escritores reais, inclusive public API e caminhos diretos. Preservar produtos físicos/digitais aprovados e snapshots/processamento de ofertas históricas; legado ambíguo exige classificação explícita, sem invalidar pedido/pagamento já iniciado.
 **Where**: `apps/api/src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts`
 **Depends on**: T9
@@ -472,9 +474,9 @@ T91 → T92
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP/DB onboarding/coexistence: signup seguido de create/update/import/publicação via cada entrada real, ambos modos; histórico/carrinho/pagamento de produto preservados. Se houver escritor que evita o repositório, incorporá-lo ao mesmo guard antes de concluir a tarefa.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] HTTP/DB onboarding/coexistence: signup seguido de create/update/import/publicação via cada entrada real, ambos modos; histórico/carrinho/pagamento de produto preservados. Se houver escritor que evita o repositório, incorporá-lo ao mesmo guard antes de concluir a tarefa.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: HTTP/DB onboarding/coexistence: signup seguido de create/update/import/publicação via cada entrada real, ambos modos; histórico/carrinho/pagamento de produto preservados. Se houver escritor que evita o repositório, incorporá-lo ao mesmo guard antes de concluir a tarefa.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T17$" ./src/modules/catalog/infrastructure/repositories/prisma-product.repository.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T17 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.

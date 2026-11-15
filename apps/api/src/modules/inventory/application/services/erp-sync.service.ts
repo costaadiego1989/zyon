@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { AppliedInventorySale } from "../../domain/events/sale-completed.event.js";
 import { decryptErpSecret, encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
+import { assertCatalogBusinessMode } from "../../../../shared/persistence/catalog-business-mode.js";
 
 type SupportedErp = "omie" | "bling" | "tiny";
 type SyncKind = "full" | "sale";
@@ -441,6 +442,7 @@ export class ErpSyncService {
         variant = matches[0] ?? null;
       }
       if (variant && variant.product.type !== "physical") return;
+      await assertCatalogBusinessMode(tx, connection.merchantId, "physical");
 
       if (!variant) {
         const product = await tx.product.create({ data: { merchantId: connection.merchantId, name: snapshot.productName, type: "physical", isActive: false } });

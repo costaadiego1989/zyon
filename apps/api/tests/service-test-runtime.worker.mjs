@@ -43,6 +43,12 @@ try{
     AACP_PII_ENC_KEY:randomBytes(32).toString('hex'),LOCAL_LLM_API_KEY:randomBytes(32).toString('hex'),
     LOCAL_LLM_BASE_URL:trap.baseUrl,LOCAL_LLM_MODEL:'synthetic-only',LOG_LEVEL:'silent'});
   const {NestFactory}=await import('@nestjs/core'),{ValidationPipe}=await import('@nestjs/common');
+  // The owned runtime exercises the real missing-model fallback. A catalog
+  // event must never download embedding assets or weaken the provider trap.
+  const {env:transformersEnvironment}=await import('@huggingface/transformers');
+  transformersEnvironment.allowRemoteModels=false;
+  assert.equal(transformersEnvironment.allowRemoteModels,false);
+  stage('offline_embeddings_configured',{allowRemoteModels:transformersEnvironment.allowRemoteModels});
   const {AppModule}=await import('../dist/app.module.js');
   stage('constructing_app');
   app=await bounded(NestFactory.create(AppModule,{abortOnError:false,logger:false,rawBody:true}),45_000,'service_app_construct_timeout');
@@ -57,7 +63,7 @@ try{
   const address=app.getHttpServer().address();assert.equal(address.address,'127.0.0.1');
   assert.equal(trap.evidence().providerCalls,0);
   process.send({type:'ready',apiOrigin:`http://127.0.0.1:${address.port}`,evidence:{canonicalAppModule:true,
-    repositoryOverrides:false,authOverrides:false,providerCalls:0}});
+    repositoryOverrides:false,authOverrides:false,providerCalls:0,embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
   process.on('message',async message=>{
     if(message?.type!=='close')return;
     try{const evidence=await close();process.send({type:'closed',evidence},()=>process.disconnect());}

@@ -1,0 +1,20 @@
+{
+  "task": "T17",
+  "status": "complete",
+  "base": "15e6957d019e8d7c9001da7bc11b7c54fc269f24",
+  "unit": {"executed": 6, "passed": 6, "failed": 0, "skipped": 0, "exitCode": 0},
+  "appModuleHttpDatabase": {"executed": 12, "passed": 12, "failed": 0, "skipped": 0, "exitCode": 0, "durationMs": 112683.708},
+  "existingCatalogErpUnits": {"executed": 60, "passed": 60, "failed": 0, "skipped": 0, "exitCode": 0},
+  "normalCheckoutOwned": {"coverageMode": "baseline-and-identity", "passed": 48, "exitCode": 0, "providerCalls": 0, "cleanupErrors": 0, "disposableDatabaseRemoved": true, "bridgeClosed": true},
+  "typecheckExitCode": 0,
+  "build": {"exitCode": 0, "checked": true, "sourceCount": 2487, "inputSha256": "b4679e99804fba3d4ef7276e6fa8de30aed58571c43a84dd10e2deed82a7fa06", "artifactSha256": "9b63fd39dea3dd498060291e76691abe9838cea7eb091c95d00970b38e40fdcc"},
+  "writers": ["canonical create", "canonical update and publication", "add variant", "replace and update variant editor", "spreadsheet create and duplicate-SKU update", "public API create/update/publication", "ERP physical snapshot create/update"],
+  "businessProofs": ["physical/digital/food remain products", "service offers require services mode", "canonical pending signup cannot publish by default", "ordinary legacy products remain allowed", "service reservation without current offer still requires classification", "foreign/anonymous denied", "merchant lock forces a fresh mode decision", "withdrawal and historical financial records remain available"],
+  "runtime": {"canonicalAppModule": true, "repositoryOverrides": false, "authOverrides": false, "embeddingRuntime": {"allowRemoteModels": false}, "providerCalls": 0, "appClosedAcknowledged": true, "naturalWorkerExitCode": 0, "remainingContainers": 0, "remainingBridgeSockets": 0},
+  "firstNativeFailure": {"reported": 12, "passed": 10, "failed": 2, "skipped": 0, "causes": ["new CSV fixture used unsupported weight_grams header", "real product event tried first-use model download and provider trap rejected it"], "resolution": "existing peso g alias; test-worker-only supported Transformers offline configuration, with all trap/assertions preserved", "log": ".cache/phase3-gates/t17-native-first-failure.log"},
+  "supplementalProductTypes": {"status": "setup_failed", "executedBusinessCases": 0, "exitCode": 1, "missingAsset": "apps/api/prisma/deploy-migrations/20261003021500_digital_order_fulfillment/migration.sql", "absentAtBase": true, "cleanupErrors": 0, "disposableDatabaseRemoved": true, "bridgeClosed": true, "followup": "Root is researching the canonical asset for final REG coverage; this supplemental run is not green or waived"},
+  "launcher": {"version": "9.15.0", "directCachedCli": true, "recursiveShim": "existing cached node_modules/.bin/pnpm.CMD", "environmentSanitized": true, "networkGuard": true, "downloads": 0, "initialFailedAttemptsRecorded": true},
+  "scope": {"localOnly": true, "productionAccess": false, "remoteChanges": false, "embeddingOrRagAcceptance": false, "globalRegressionGreen": false},
+  "futurePreparation": {"files": 33, "location": ".cache/service-phase3-prepared", "outsideBuildFingerprint": true, "manifestSha256": "F08598661A0373E5C336D0D59FE675638BCEA7F5FADE20BF5DFE07D7FF18C55D"},
+  "logs": ".cache/phase3-gates/t17-*.log"
+}

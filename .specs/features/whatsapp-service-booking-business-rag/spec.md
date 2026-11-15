@@ -217,9 +217,9 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | Requirement ID | Story | Tasks | Status |
 | --- | --- | --- | --- |
 | ONB-01 | Capability selection | T4, T8, T9, T10 | Implemented locally |
-| ONB-02 | Conditional navigation and API | T7, T9, T10, T17, T19, T94 | Pending |
+| ONB-02 | Conditional navigation and API | T7, T9, T10, T17, T19, T94 | In Progress (T17 complete) |
 | ONB-03 | Merchant appointment policy | T4, T7, T11, T27, T81 | Pending |
-| ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | Pending |
+| ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | In Progress (T17 complete) |
 | ONB-05 | About field in company data | T13, T14, T15, T16 | Pending |
 | AGENDA-01 | Professional resources | T4, T18, T20, T21, T76 | Pending |
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | Pending |
@@ -274,10 +274,10 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | KPI-05 | Consistent filters | T85, T87, T88, T91 | Pending |
 | KPI-06 | Explicit attendance evidence | T32, T85, T86, T89 | Pending |
 | KPI-07 | Unknown and empty metrics | T86, T87, T88, T89, T91 | Pending |
-| REG-01 | Separate business journeys in both channels | T7, T9, T17, T28, T43, T45, T46, T47, T62, T82, T83, T90, T91, T93 | Pending |
-| REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | Pending |
+| REG-01 | Separate business journeys in both channels | T7, T9, T17, T28, T43, T45, T46, T47, T62, T82, T83, T90, T91, T93 | In Progress (T17 complete) |
+| REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | In Progress (T17 complete) |
 | REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | Pending |
-| REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | Pending |
+| REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17 complete) |
 | QA-01 | Criteria proofs | T1, T95 | Pending |
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | Pending |
 | QA-03 | Persisted state proof | T2, T5, T26, T92, T95 | Pending |

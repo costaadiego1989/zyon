@@ -5,6 +5,7 @@ import type { S3UploadService } from "../../../../shared/storage/s3-upload.servi
 import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 import { lockCatalogMerchant, syncCatalogStockLedger } from "../../../../shared/persistence/catalog-stock-ledger.js";
 import { productInputError } from "../../domain/services/product-input-validation.js";
+import { assertCatalogBusinessMode } from "../../../../shared/persistence/catalog-business-mode.js";
 
 export type VariantChanges = {
   sku?: string;
@@ -39,6 +40,7 @@ export class CatalogVariantService {
       await tx.$queryRaw`SELECT v.id FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.product_id = ${productId} AND p.merchant_id = ${merchantId} ORDER BY v.id FOR UPDATE OF v`;
       const product = await tx.product.findFirst({ where: { id: productId, merchantId, deletedAt: null }, include: { variants: { include: { stock: true } } } });
       if (!product) throw new NotFoundException("product_not_found");
+      await assertCatalogBusinessMode(tx, merchantId, changes?.type ?? product.type);
       const error = productInputError({ merchantId, name: changes?.name ?? product.name, type: changes?.type ?? product.type, metadata: (changes?.metadata ?? product.metadata ?? undefined) as Record<string, unknown> | undefined, variants: variants.map(v => ({ ...v, costInCents: v.costInCents ?? undefined, weightGrams: v.weightGrams ?? undefined, lengthCm: v.lengthCm ?? undefined, widthCm: v.widthCm ?? undefined, heightCm: v.heightCm ?? undefined })) });
       if (error) throw new BadRequestException(error);
       const ids = variants.flatMap(v => v.id ? [v.id] : []);
@@ -106,6 +108,9 @@ export class CatalogVariantService {
     }
     const result = await this.prisma.$transaction(async (tx) => {
       await lockCatalogMerchant(tx, merchantId);
+      const product = await tx.product.findFirst({ where: { id: productId, merchantId, deletedAt: null }, select: { type: true } });
+      if (!product) throw new NotFoundException("product_not_found");
+      await assertCatalogBusinessMode(tx, merchantId, product.type);
       const owner = { id: variantId, productId, product: { merchantId } };
       if (!await tx.productVariant.findFirst({ where: owner, select: { id: true } })) throw new NotFoundException("variant_not_found");
       if (changes.basePriceInCents !== undefined || changes.costInCents !== undefined) {
