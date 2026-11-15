@@ -1,3 +1,5 @@
+import { mapCompanySettings } from "../../../../merchant/application/company-settings.mapper.js";
+
 /**
  * Settings Entity Mapper
  *
@@ -57,23 +59,25 @@ export class SettingsEntityMapper {
    * Normalizes field names to snake_case.
    */
   static toStoreSettingsResponse(settings: any, updatedAt?: Date | null): any {
+    const company = mapCompanySettings(settings.company);
     return {
       company: settings.company
         ? {
-            cnpj: settings.company.cnpj ?? null,
-            razao_social: settings.company.razaoSocial ?? null,
-            inscricao_estadual: settings.company.inscricaoEstadual ?? null,
-            email: settings.company.email ?? null,
-            phone: settings.company.phone ?? null,
-            address: settings.company.address
+            description: company.description ?? null,
+            cnpj: company.cnpj ?? null,
+            razao_social: company.razaoSocial ?? null,
+            inscricao_estadual: company.inscricaoEstadual ?? null,
+            email: company.email ?? null,
+            phone: company.phone ?? null,
+            address: company.address
               ? {
-                  street: settings.company.address.street ?? null,
-                  number: settings.company.address.number ?? null,
-                  complement: settings.company.address.complement ?? null,
-                  neighborhood: settings.company.address.neighborhood ?? null,
-                  city: settings.company.address.city ?? null,
-                  state: settings.company.address.state ?? null,
-                  zip: settings.company.address.zip ?? null,
+                  street: company.address.street ?? null,
+                  number: company.address.number ?? null,
+                  complement: company.address.complement ?? null,
+                  neighborhood: company.address.neighborhood ?? null,
+                  city: company.address.city ?? null,
+                  state: company.address.state ?? null,
+                  zip: company.address.zip ?? null,
                 }
               : null,
           }

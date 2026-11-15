@@ -135,6 +135,8 @@ export class CompanyAddressResponse {
 }
 
 export class CompanyResponse {
+  @ApiPropertyOptional({ description: 'Public company introduction', maxLength: 1200 })
+  description!: string | null;
   @ApiPropertyOptional({ example: '12.345.678/0001-90' })
   cnpj!: string | null;
 

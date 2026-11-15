@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { MerchantStoreSettings } from "../../../merchant/domain/merchant.types.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { mapCompanySettings } from "../../../merchant/application/company-settings.mapper.js";
 
 export type StoreSettings = MerchantStoreSettings;
 
@@ -15,20 +16,13 @@ export class GetStoreSettingsUseCase {
   async execute(merchantId: string): Promise<MerchantStoreSettings> {
     const row = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
-      select: { storeSettings: true, name: true, users: { select: { email: true }, take: 1 } },
+      select: { storeSettings: true, name: true },
     });
 
     if (!row) return {};
 
     const stored = (row.storeSettings ?? {}) as MerchantStoreSettings;
 
-    if (!stored.company?.razaoSocial && row.name) {
-      stored.company = { ...stored.company, razaoSocial: row.name };
-    }
-    if (!stored.company?.email && row.users?.[0]?.email) {
-      stored.company = { ...stored.company, email: row.users[0].email };
-    }
-
-    return stored;
+    return { ...stored, company: mapCompanySettings(stored.company, row.name) };
   }
 }

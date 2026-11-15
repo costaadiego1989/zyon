@@ -1,0 +1,50 @@
+{
+  "task": "T14",
+  "baseHead": "90bd491ed",
+  "environment": "local-owned",
+  "unit": {
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0
+  },
+  "existingRegression": {
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0
+  },
+  "apiBuildExit": 0,
+  "checkedArtifact": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "5e911dfd6dd00bd2362eb720afe0ecba0f6950c1b34d27d65c17bb9b1cf0ff44",
+    "artifactSha256": "a1887fc37b58e790332ba30a9eced518951d3018ae0f61292fca92a386d3a22c",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2493
+    },
+    "recordedAt": "2026-11-15T00:53:40.766Z"
+  },
+  "native": {
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 78393.26
+  },
+  "proved": [
+    "shared explicit public-company mapper used by both getters and alias presenter",
+    "neither getter reads users or fills company.email from authentication",
+    "persisted public email phone legal and address fields preserved",
+    "nested credential/private-note canaries excluded",
+    "save reopen and explicit clear across three existing routes",
+    "legacy canonical description read without hiding/truncation; writes retain1200 cap"
+  ],
+  "teardown": {
+    "appCloseAck": true,
+    "naturalWorkerExit0": true,
+    "ownedResourcesRemoved": true
+  },
+  "providerCalls": 0,
+  "logs": "C:/tmp/zyon-service-company-preparation-20261114/logs/T14-2026-11-15T00-51-35.055Z"
+}

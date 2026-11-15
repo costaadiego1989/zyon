@@ -11,6 +11,7 @@ import { isBillingFeatureEnabled } from "../../payment/domain/billing-plans.js";
 import { z } from "zod";
 import { selectInitialBusinessMode } from "../application/initial-business-mode-selection.js";
 import { mapMerchantBusinessProfile } from "../application/merchant-business-profile.mapper.js";
+import { mapCompanySettings } from "../application/company-settings.mapper.js";
 import { normalizeCompanySettingsPatch, mergeCompanySettingsPatch, enqueueCompanySettingsWork } from "../application/company-settings-write.js";
 
 const existingPercent = z.union([z.number().finite(), z.custom<Prisma.Decimal>(value => Prisma.Decimal.isDecimal(value))
@@ -90,18 +91,11 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   async getStoreSettings(merchantId: string): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
     const row = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
-      select: { storeSettings: true, name: true, budgetModeEnabled: true, budgetEmail: true, budgetWhatsapp: true, users: { select: { email: true }, take: 1 } },
+      select: { storeSettings: true, name: true, budgetModeEnabled: true, budgetEmail: true, budgetWhatsapp: true },
     });
-    const stored = (row?.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? {};
-
-    if (!stored.company?.razaoSocial && row?.name) {
-      stored.company = { ...stored.company, razaoSocial: row.name };
-    }
-    if (!stored.company?.email && row?.users?.[0]?.email) {
-      stored.company = { ...stored.company, email: row.users[0].email };
-    }
-
-    return { ...stored, budget: { enabled: row?.budgetModeEnabled ?? false, email: row?.budgetEmail ?? "", whatsapp: row?.budgetWhatsapp ?? "" } };
+    const stored = (row?.storeSettings ?? {}) as MerchantStoreSettings;
+    return { ...stored, company: mapCompanySettings(stored.company, row?.name),
+      budget: { enabled: row?.budgetModeEnabled ?? false, email: row?.budgetEmail ?? "", whatsapp: row?.budgetWhatsapp ?? "" } };
   }
 
   async updateStoreSettings(merchantId: string, settings: MerchantStoreSettings): Promise<MerchantStoreSettings> {
