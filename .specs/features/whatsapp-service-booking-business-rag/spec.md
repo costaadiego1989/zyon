@@ -233,7 +233,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | In Progress (T17 complete) |
 | ONB-05 | About field in company data | T13, T14, T15, T16 | Implemented locally |
 | ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | Pending |
-| AGENDA-01 | Professional resources | T4, T18, T20, T21, T76 | In Progress (T18 and T20 complete) |
+| AGENDA-01 | Professional resources | T4, T18, T20, T21, T76 | In Progress (T18, T20 and T21 complete) |
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | Pending |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | Pending |
 | AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | Pending |
@@ -258,7 +258,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | HUM-06 | Automatic AI resume | T56, T61 | Pending |
 | HUM-07 | Unavailable team/provider | T54, T55, T58 | Pending |
 | HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | Pending |
-| RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66 | Pending |
+| RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66 | In Progress (T21 complete) |
 | RAG-02 | Retirement | T65, T67, T68 | Pending |
 | RAG-03 | Retry and source durability | T64, T66, T67 | Pending |
 | RAG-04 | Source provenance | T66, T68, T69 | Pending |
@@ -272,7 +272,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | Pending |
 | ATEND-02 | Professional administration | T18, T19, T76 | In Progress (T18 and T19 complete) |
 | ATEND-03 | Service categories | T20, T77 | In Progress (T20 complete) |
-| ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | Pending |
+| ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21 complete) |
 | ATEND-05 | One-off times | T22, T25, T78 | Pending |
 | ATEND-06 | Manual appointments | T31, T41, T74, T79 | Pending |
 | ATEND-07 | Attendance lifecycle | T32, T41, T74, T80 | Pending |

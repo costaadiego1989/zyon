@@ -550,6 +550,8 @@ T97 → T95
 
 ### T21: Save recurring professional availability
 
+**Status**: Complete - unit5/5, owned DB/middleware5/5, zero failed/skipped; checked build0/2502 and full owned cleanup. See task-21-evidence.json.
+
 **What**: Um comando salva grade/fuso/vigência versionados com validação de intervalos/limites, autorização e evento público apropriado; não reescreve compromissos existentes.
 **Where**: `apps/api/src/modules/catalog/application/save-professional-availability.use-case.ts`
 **Depends on**: T20
@@ -558,9 +560,9 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + service-availability.integration.spec.ts: DST/fuso, intervalo inválido, versão, histórico, concorrência e eventos.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit + service-availability.integration.spec.ts: DST/fuso, intervalo inválido, versão, histórico, concorrência e eventos.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Unit + service-availability.integration.spec.ts: DST/fuso, intervalo inválido, versão, histórico, concorrência e eventos.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T21$" ./src/modules/catalog/application/save-professional-availability.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T21 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.

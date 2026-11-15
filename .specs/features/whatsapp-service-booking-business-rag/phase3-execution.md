@@ -41,3 +41,9 @@ PASS: unit7/7, owned PostgreSQL/tenant middleware4/4 and actual AppModule HTTP/d
 The registered eligibility endpoint applies real auth, tenant, services mode and staff read opt-in with bounded cursor pagination. Its public profile output projects only typed description/specialties. An actual private JSON canary was absent from the served response. The new fixture uses a separate category create and scalar categoryId rather than mixing checked/unchecked nested input; no assertion was weakened. Close ACK, natural exit0, provider0 and owned database/bridge cleanup passed.
 
 C attested the integral T19 source/artifact hashes before this task restored any future source. The old static offer-slot helper is unchanged; channel composition must still use canonical professional availability for duration-only services. Evidence: task-20-evidence.json.
+
+## T21: Recurring Professional Availability
+
+PASS: unit5/5 and real owned PostgreSQL/tenant middleware5/5, zero failed/skipped. Checked API build exited0 with2,502 productive sources. The canonical command/factory saves timezone, bounded recurring intervals and effective dates under merchant-then-professional locks with expectedVersion. Old rows remain inactive and unchanged appointment snapshots survive replacement, including a precise historical timestamp.
+
+A new minute-precision check first failed with3pass/2fail against the generic-only validator. New validity now requires exact minutes; the generic parser still preserves seconds/milliseconds for history and reconciliation. Actual invalid writes leave rows, resource version and event count unchanged. A same-version race has one winner, one active coherent grid and one postcommit identity/version event. Owned Prisma/database/bridge cleanup passed. HTTP write routes remain T25; no facade was introduced. Evidence: task-21-evidence.json.

@@ -1,0 +1,18 @@
+{
+  "task": "T21",
+  "status": "complete",
+  "parentCommit": "6227fde82",
+  "unit": {"executed": 5, "passed": 5, "failed": 0, "skipped": 0, "exitCode": 0},
+  "databaseMiddleware": {"executed": 5, "passed": 5, "failed": 0, "skipped": 0, "exitCode": 0, "durationMs": 28649.0547},
+  "build": {"exitCode": 0, "checked": true, "sourceCount": 2502, "inputSha256": "f7aa566a36f92d740a02f3bf44ac278f87c529f5bdc69c9b8ad1af4013099083", "artifactSha256": "27f23393d6d87f105a316a2ba702c03e5963911f07d5a92692fd3fda9db22027"},
+  "proofs": ["same-tenant recurring grid/timezone/validity saved with expected resource version", "old recurring rows retained inactive with their timezone and bounds", "existing appointment snapshots preserved through timezone/grid replacement", "stale invalid foreign staff and products writes preserve rows and version", "two same-version concurrent replacements yield one coherent winner and one event", "event identity/version observed only after committed resource state", "new validity timestamps reject nonzero seconds or milliseconds", "generic historical instant parser and actual precise appointment snapshot remain unchanged"],
+  "minutePrecisionRed": {"executed": 5, "passed": 3, "failed": 2, "skipped": 0, "exitCode": 1, "cause": "new exact-minute validity rule was absent", "assertionsWeakened": false},
+  "composition": {"canonicalCatalogModuleFactoryRegistered": true, "newHttpEndpoint": false, "httpWritesTask": "T25", "artificialPrismaHttpFacade": false},
+  "locking": {"merchantBeforeProfessional": true, "sameSharedProfessionalLock": true},
+  "cleanup": {"prismaDisconnected": true, "ownedPostgresDisposed": true, "bridgeListening": false, "bridgeSockets": 0, "bridgeChildren": 0},
+  "genericParserChanged": false,
+  "schemaChanged": false,
+  "appointmentSnapshotsRewritten": false,
+  "logs": [".cache/phase3-gates/t21-minute-red.log", ".cache/phase3-gates/t21-build-verified-launcher.log", ".cache/phase3-gates/t21-db.log"],
+  "scope": {"localOnly": true, "remoteAction": false, "finalFeatureAcceptance": false}
+}
