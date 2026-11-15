@@ -9,7 +9,7 @@ The user requests more implementation agents to accelerate work. This changes th
 | Agent | Checkout | Responsibility |
 | --- | --- | --- |
 | service_batch_01 | C:/tmp/zyon-service-booking-admission-20261114 | Phase7 T48–T55 next; preserves and hands off Phase4 drafts to P afterT25; isolated T97 field preparation already returned10/10 |
-| service_company_ui | C:/tmp/zyon-service-company-ui-20261114 | Phase 2 T10–T16: signup choice, policy/mode/About APIs and existing company form |
+| service_company_ui | C:/tmp/zyon-service-company-ui-20261114 | Phase2 T10–T16 complete; T96 integrated and T97 company service-name field/browser/screens in progress |
 | service_professional_agenda | C:/tmp/zyon-service-professional-agenda-20261114 | Phase3 T17–T25, then Phase4 T26–T32 using M's preserved preparation |
 | root | C:/tmp/zyon-service-business-20261114 | Canonical integration, resource scheduling and cross-module review |
 
