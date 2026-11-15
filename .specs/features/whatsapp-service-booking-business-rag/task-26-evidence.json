@@ -1,0 +1,150 @@
+{
+  "task": "T26",
+  "status": "complete",
+  "base": {
+    "ownT25": "423ed1d3c",
+    "integratedT65": "691b89c3e19fbd0a69340addc102de5da64d1b1d",
+    "alignment": "17192587aa77a12b50626e3226f98ba28985b795",
+    "ownPreparedFilesPreservedBySha": 5,
+    "frozenTransferFilesPreserved": 45
+  },
+  "unit": {
+    "executed": 18,
+    "passed": 18,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "durationMs": 1044.024,
+    "exitCode": 0,
+    "log": ".cache/phase3-gates/t26-combined-unit.log",
+    "sha256": "ef1f86bad71490ffc3e7346e6a65b359f092417060ed61431144af458e8c6975"
+  },
+  "postgresDatabase": {
+    "executed": 17,
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "durationMs": 15632.0714,
+    "exitCode": 0,
+    "log": ".cache/phase3-gates/t26-native.log",
+    "sha256": "92b795246fbb14e49cc99dcf84a789c29b34ce3aa570b95ea3323024d24d17cf"
+  },
+  "build": {
+    "exitCode": 0,
+    "checked": true,
+    "sourceCount": 2523,
+    "inputSha256": "b067775a5d909d307a09d327b0065981d8dc08062d6db3383053d7893478a514",
+    "artifactSha256": "c2866fdd5e78c009b062b80de9dd5019ee59c21cccd3bd02d3c4dc9bce8d64ba",
+    "recordedAt": "2026-11-15T22:20:47.504Z",
+    "artifactAssertion": "mandatory integral assertServiceArtifacts at native entry",
+    "standaloneTypecheckRepeated": false
+  },
+  "proofs": [
+    "actual root PrismaClient is refused before writes; actual interactive transactions succeed",
+    "three local origin-labelled commands compete for one confirmed professional interval",
+    "different services and starts cannot overlap while adjacency and parallel professionals succeed",
+    "command replay preserves one appointment/audit/outbox and changed identity cannot reuse its receipt",
+    "actual existing foreign merchant/professional/product/variant identities are refused with unchanged foreign rows",
+    "pending attempts do not consume confirmed SQL capacity",
+    "exact merchant and professional holder PIDs block the actual SQL resource queries; clock is not captured before the wait",
+    "a controlled fresh clock reaching slot start rejects with zero appointment/audit/outbox effects; an available post-lock decision uses one timestamp for all three records",
+    "unclassified legacy reservations remain explicitly blocked until an actual closed order resolves the admission conflict",
+    "actual PostgreSQL outbox trigger failure rolls back admission and audit and leaves the slot available",
+    "synthetic persisted approval must match buyer, unit, price, currency, professional/version, policy/version, date, instants, timezone and duration",
+    "three distinct synthetic approved order deliveries share one professional capacity authority while all real persisted financial fixture records remain present"
+  ],
+  "redEvidence": [
+    {
+      "log": ".cache/phase3-gates/t26-clock-red.log",
+      "passed": 10,
+      "failed": 3,
+      "includingRoot": true
+    },
+    {
+      "log": ".cache/phase3-gates/t26-root-client-red.log",
+      "passed": 12,
+      "failed": 2,
+      "includingRoot": true
+    },
+    {
+      "log": ".cache/phase3-gates/t26-paid-evidence-red.log",
+      "passed": 14,
+      "failed": 4,
+      "includingRoot": true
+    }
+  ],
+  "transactionContract": {
+    "callerOwned": true,
+    "rootClientRejected": true,
+    "nestedTransaction": false,
+    "lockOrder": [
+      "merchant",
+      "professional"
+    ],
+    "professionalLock": "lockServiceProfessional(tx,merchantId,professionalId)",
+    "clock": "internal optional function, default server clock, captured once after resource locks and validation",
+    "transactionTimeoutOverride": false,
+    "ordinaryPrismaTransactionMilliseconds": 5000,
+    "sqlObserverMilliseconds": 2000
+  },
+  "runtime": {
+    "family": "owned PostgreSQL only; no AppModule or artificial HTTP endpoint",
+    "networkGuard": true,
+    "ownMarkerVerified": true,
+    "officialPriorSchemaLedgerAndMigration": true,
+    "prismaDisconnected": true,
+    "remainingBridgeSockets": 0,
+    "remainingBridgeChildren": 0,
+    "remainingOwnedContainers": 0,
+    "forcedWorkerExit": false,
+    "providerTransportCreated": false,
+    "syntheticFinancialEvidence": true,
+    "actualChannelOrWebhookProof": false
+  },
+  "resourceOrchestration": {
+    "build": {
+      "observedAtUtc": "2026-11-15T22:18:35.581022+00:00",
+      "source": "Windows GlobalMemoryStatusEx read-only",
+      "physicalTotalMiB": 16087,
+      "physicalAvailableMiB": 2100,
+      "commitAvailableMiB": 7579,
+      "memoryLoadPercent": 86,
+      "diskFreeBytes": 42546892800,
+      "stage": "T26 combined units and official checked API build",
+      "requiredCommitMiB": 5168
+    },
+    "native": {
+      "observedAtUtc": "2026-11-15T22:21:42.647820+00:00",
+      "source": "Windows GlobalMemoryStatusEx read-only",
+      "physicalTotalMiB": 16087,
+      "physicalAvailableMiB": 2312,
+      "commitAvailableMiB": 7647,
+      "memoryLoadPercent": 85,
+      "diskFreeBytes": 42542600192,
+      "stage": "T26 PG-only native after combined checked build",
+      "requiredCommitMiB": 1024
+    },
+    "defaultHeapUnchanged": true,
+    "testAndTransactionDeadlinesExpanded": false,
+    "foreignProcessesAndContainersPreserved": true
+  },
+  "pendingComposition": {
+    "holds": "T27 adds optional current owned lease enforcement; this task establishes confirmed SQL capacity",
+    "whatsappAutomation": "compose committed green T51 admitWhatsAppEffectInTransaction before the first real transaction locks; no nonexistent import or outer transaction wrapper",
+    "financialOrchestration": "T29-T31 and Phase5 add their actual payment/confirmation paths",
+    "finalAcceptance": false
+  },
+  "schemaChanged": false,
+  "mandatoryVariantTenantFieldAdded": false,
+  "professionalServiceIdInvented": false,
+  "assertionsWeakened": false,
+  "testsSkippedOrDeleted": false,
+  "scope": {
+    "localOnly": true,
+    "push": false,
+    "deploy": false,
+    "realProvider": false,
+    "finalFeatureAcceptance": false
+  }
+}

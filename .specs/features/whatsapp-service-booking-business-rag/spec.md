@@ -237,17 +237,17 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | Pending |
-| AGENDA-05 | Shared capacity | T23, T26, T34 | In Progress (T23 complete) |
+| AGENDA-05 | Shared capacity | T23, T26, T34 | In Progress (T23 and T26 complete) |
 | AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 and T24 complete) |
 | AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | Pending |
 | BOOK-01 | Provisional hold | T27 | Pending |
 | BOOK-02 | Expiry | T27 | Pending |
-| BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | Pending |
+| BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | In Progress (T26 complete) |
 | BOOK-04 | Pay at attendance | T30, T40, T46 | Pending |
 | BOOK-05 | Pay online | T29, T35, T40 | Pending |
 | BOOK-06 | Late payment | T36 | Pending |
 | BOOK-07 | On-site receipt | T4, T37, T41, T80 | Pending |
-| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T35, T36, T37, T38, T84 | Pending |
+| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T35, T36, T37, T38, T84 | In Progress (T26 complete) |
 | BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T49 trusted intake/reference complete; operations/UI pending) |
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | Pending |
 | HUM-01 | Fixed menu entry | T57 | Pending |
@@ -292,7 +292,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17 complete) |
 | QA-01 | Criteria proofs | T1, T95 | Pending |
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | Pending |
-| QA-03 | Persisted state proof | T2, T5, T26, T92, T95 | Pending |
+| QA-03 | Persisted state proof | T2, T5, T26, T92, T95 | In Progress (T26 complete) |
 | QA-04 | RAG evaluation | T72, T94, T95 | Pending |
 | EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 and T22 complete) |
 | EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | Pending |
