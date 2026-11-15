@@ -155,9 +155,11 @@ T9 → T17
 T25 → T26
 T32 → T33
 T39 → T40
-T47 → T48
+T25 → T48
 T55 → T56
-T62 → T63
+T13 → T63
+T18 → T63
+T25 → T65
 T71 → T72
 T77 → T78
 T84 → T85
@@ -1028,7 +1030,7 @@ T91 → T92
 
 **What**: Binding tenant/config/sessão/ticket e modo/epoch separado de lifecycle, CAS/idempotência; buscar sessão ativa não apaga checkout nem pausa.
 **Where**: `apps/api/src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.ts`
-**Depends on**: T47
+**Depends on**: T25
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: HUM-03, EDGE-04
 
@@ -1298,7 +1300,7 @@ T91 → T92
 
 **What**: Union tipada de company/hours/professional/service/faq/policy e allowlist por fonte; origem/version/hash/publication; nada de paciente, operador, credenciais, chat, pagamento ou bloqueio privado.
 **Where**: `apps/api/src/modules/graph-rag/domain/public-business-source.ts`
-**Depends on**: T62
+**Depends on**: T13, T18
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: RAG-01, RAG-07, RAG-10, RAG-11
 
@@ -1334,7 +1336,7 @@ T91 → T92
 
 **What**: Assinaturas/reconciliador cobrem os escritores reais já ligados ao contrato de outbox nas tarefas anteriores, incluindo políticas/FAQ/company/profissional/serviço; não depender de seed ou evento inexistente.
 **Where**: `apps/api/src/modules/graph-rag/application/graph-sync.service.ts`
-**Depends on**: T64
+**Depends on**: T64, T25
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: RAG-01, RAG-02, RAG-11
 
@@ -2180,12 +2182,13 @@ Tasks: T70, T71.
 
 **Settled mid-build:** 2026-11-14 - user: "Aprovar o plano e iniciar implementação local". Aprovação recebida para os 71 critérios, 95 tarefas/13 fases, refinamentos posteriores e subagentes, preservando produtos nos dois canais. Publicação permanece etapa separada. Início por T1, sem alterar o workspace concorrente.
 **Settled execution change:** 2026-11-14 - user: "por que esta demorando tanto? spawnar subagents". Preparos paralelos autorizados em checkouts isolados, preservando gates reais, dependências técnicas, commits atômicos e escopo local.
+**Root parallel front:** T63-T71 public business RAG in N. T63 uses completed T13/T18; T65 also waits T25 to cover all actual new writers. Human handoff Phase7 may start after T25 rather than the unrelated buyer UI T47. Final coexistence requires every front; no criterion/gate is removed.
 **Dispatched:** Revisores somente leitura service_agenda_plan, service_dashboard_plan, business_rag_plan e product_baseline_triage retornaram. service_batch_01 retornou Phase 1 T1–T9 completa e limpa em 15e6957d019e8d7c9001da7bc11b7c54fc269f24. Phase 2 T10–T16 está com service_company_ui em C:/tmp/zyon-service-company-ui-20261114 e Phase 3 T17–T25 com service_professional_agenda em C:/tmp/zyon-service-professional-agenda-20261114; ambos incorporaram T9. Novo despacho de service_batch_01: Phase 4 T26–T32 em C:/tmp/zyon-service-booking-admission-20261114, usando preparo T26 do root, com gates/commits dependentes somente após integrar ambas as fases verdes. Root mantém integração em C:/tmp/zyon-service-business-20261114. Nenhum Verifier/screens final despachado.
 **Walked:** Nenhuma jornada da feature nova foi executada. Prints anteriores de produto não comprovam serviços. Capturas de proposta, se anexadas, terão rótulo de prévia local. Ao executar, registrar rota/gestos/dados/resultado e ambiente para cada Independent Test.
 
 ## Phase Execution Map
 
-Phase 1 → {Phase 2 || Phase 3} → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10 → Phase 11 → Phase 12 → Phase 13
+Phase 1 → {Phase 2 || Phase 3}; {T13, T18} → Phase 9 (T65 also waits T25); {Phase 2, Phase 3} → Phase 4 → Phase 5 → Phase 6; Phase 3 → Phase 7 → Phase 8; Phase 9 → Phase 10 → Phase 11 → Phase 12; {Phase 6, Phase 8, Phase 12} → Phase 13
 
 95 tarefas em 13 fases; preparação paralela das fases 2/3 conforme solicitação posterior do usuário. Um commit por tarefa com testes co-localizados e gates prévios. Integrar/revalidar a base e preservar todos os critérios antes da fase seguinte dependente. Não juntar tarefas em um commit para economizar tempo. Check final de granulação e cruzamento dos diagramas via validate_tasks.py. Aprovações literais permanecem registradas.
 
