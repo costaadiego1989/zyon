@@ -11,6 +11,8 @@ An isolated draft in .cache/t65-prepared passed7/7 pure orchestration tests: six
 - Writes and their public work/invalidation commit together under the existing merchant row lock. This precedes professional and source-row locks. Embeddings, graph requests and in-memory event subscribers never hold the canonical write transaction.
 - Private profile details, appointment data, availability exceptions/reasons, live slots, stock and prices do not become source text. A resource version or merchant timestamp changing without a public hash/publication change does not create a public revision.
 - Existing T13/T96 UUID/company-only signals retain their contracts. Reconciliation explicitly normalizes the canonical six-source projection; it never compares a legacy UUID to the public-v1 sequence or equates the two fingerprint formats.
+- Existing three settings routes keep their one legacy company signal per actual company edit. Do not add a second canonical company job in those same writers: the unchanged T64 native test deliberately proves three legacy signals before normalization. New hours/policy jobs apply only when those public fields change. New professional/service writers may use the canonical transaction helper directly.
+- ClaimNext deliberately accepts legacy pending work, as proven by T64. A future index worker must recognize and normalize that identity before any embedding/graph submission, and must never treat the legacy leased hash/version as canonical provenance. Do not silently filter legacy claims or weaken the existing regression.
 - Local implementation only. Queue completion, graph indexing, model responses, browser fixtures, real Meta delivery and production publication remain different proofs.
 
 ## Actual writer inventory

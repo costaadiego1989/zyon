@@ -1,0 +1,21 @@
+{
+  "scope": "local integration checkpoint only",
+  "head": "b0c15ce11",
+  "integrated": {
+    "T21": {"worker": "4ba8d2952", "canonical": "10787f3fc"},
+    "T96": {"worker": "4c1a58566", "canonical": "5b5c07715"},
+    "T48": {"worker": "a523245f4", "canonical": "b0c15ce11"}
+  },
+  "combinedAffectedUnit": {
+    "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern '^(T21|T48|T96)$' ./src/modules/catalog/application/save-professional-availability.use-case.spec.ts ./src/modules/merchant/application/company-service-names.spec.ts ./src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.spec.ts",
+    "executed": 17,
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0
+  },
+  "workerGates": "See unchanged task-21, task-96 and task-48 evidence. Their separate checked artifacts and native results are not relabeled as a new combined API build.",
+  "notCompleted": ["T22", "T25", "T49", "T65", "T66", "T97"],
+  "productionChanged": false,
+  "finalFeatureAcceptance": false
+}
