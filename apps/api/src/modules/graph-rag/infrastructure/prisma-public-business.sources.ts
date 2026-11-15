@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { TenantContextService } from "../../../shared/tenant/tenant-context.service.js";
 import { resolveStorePolicies } from "../../../shared/legal/store-policies.js";
 import { PUBLIC_POLICY_LABELS } from "../../knowledge-base/domain/public-knowledge-content.js";
@@ -14,12 +14,19 @@ type SourceBody<T> = T extends PublicBusinessSourceInput ? Omit<T, "merchantId" 
 /** Canonical public snapshots only. Operational data is read by its own tools. */
 export class PrismaPublicBusinessSources {
   constructor(private readonly prisma: PrismaClient, private readonly tenant: TenantContextService) {}
-
-  async read(merchantId: string, sourceType: PublicBusinessSourceType, sourceId: string): Promise<PublicBusinessSourceProjection | null> {
+  private assertInput(merchantId: string, sourceType: PublicBusinessSourceType, sourceId: string) {
     if (this.tenant.get()?.merchantId !== merchantId) throw new Error("public_source_foreign_tenant");
     if (![merchantId, sourceId].every(validId) || !(sourceTypes as readonly string[]).includes(sourceType))
       throw new Error("public_source_invalid");
-    return this.prisma.$transaction(async tx => {
+  }
+
+  async read(merchantId: string, sourceType: PublicBusinessSourceType, sourceId: string): Promise<PublicBusinessSourceProjection | null> {
+    this.assertInput(merchantId, sourceType, sourceId);
+    return this.prisma.$transaction(tx => this.readWithin(tx, merchantId, sourceType, sourceId), { isolationLevel: "RepeatableRead" });
+  }
+
+  async readWithin(tx: Prisma.TransactionClient, merchantId: string, sourceType: PublicBusinessSourceType, sourceId: string): Promise<PublicBusinessSourceProjection | null> {
+    this.assertInput(merchantId, sourceType, sourceId);
       const merchant = await tx.merchant.findUnique({ where: { id: merchantId }, select: {
         id: true, name: true, storeCategory: true, storeSettings: true, updatedAt: true,
         businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true,
@@ -72,6 +79,5 @@ export class PrismaPublicBusinessSources {
       const content = resolveStorePolicies(merchant.storeSettings, policy)[field]?.trim() ?? "";
       return project({ sourceType, sourceVersion: version(merchant.updatedAt, policy?.updatedAt), publicationState: content ? "published" : "withdrawn",
         row: { title: PUBLIC_POLICY_LABELS[field], content } });
-    }, { isolationLevel: "RepeatableRead" });
   }
 }

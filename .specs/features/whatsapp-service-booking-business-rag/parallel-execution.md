@@ -8,9 +8,9 @@ The user requests more implementation agents to accelerate work. This changes th
 
 | Agent | Checkout | Responsibility |
 | --- | --- | --- |
-| service_batch_01 | C:/tmp/zyon-service-booking-admission-20261114 | Phase 4 T26–T32 preparation; dependent gates/commits only after integrated green Phase 2/3 |
+| service_batch_01 | C:/tmp/zyon-service-booking-admission-20261114 | Phase7 T48–T55 next; preserves and hands off Phase4 drafts to P afterT25; isolated T97 field preparation already returned10/10 |
 | service_company_ui | C:/tmp/zyon-service-company-ui-20261114 | Phase 2 T10–T16: signup choice, policy/mode/About APIs and existing company form |
-| service_professional_agenda | C:/tmp/zyon-service-professional-agenda-20261114 | Phase 3 T17–T25: catalog mode guard, professionals and shared availability |
+| service_professional_agenda | C:/tmp/zyon-service-professional-agenda-20261114 | Phase3 T17–T25, then Phase4 T26–T32 using M's preserved preparation |
 | root | C:/tmp/zyon-service-business-20261114 | Canonical integration, resource scheduling and cross-module review |
 
 The initial preparation branches started at ae2cb48e7, after T8. Phase 1 returned clean at 15e6957d019e8d7c9001da7bc11b7c54fc269f24 with all required phase gates green. Phases 2/3 incorporated that base. The booking worker incorporates it before continuing the root's T26 preparation. Prepare tests/code in parallel without claiming dependent tasks complete. Before a dependency barrier, avoid changes to shared spec/task/STATE files so the base can advance without overwriting work. Each agent records assumptions/files/success in its own preparation note.
@@ -35,6 +35,8 @@ T9 adds fields to the existing authenticated /merchants/me profile: businessMode
 Source-review notes: C:/Users/Admin/Desktop/AACP/.audit/service-plan-20261114/execution/source-review-notes.md. Preserve all existing product journeys and the preexisting regression comparison; focused green tests are not a global production-readiness claim.
 
 ## Remaining Technical Fronts
+
+Further dependency review confirms that the human binding and delivery front uses the existing WhatsApp/support/session modules and the T4 schema/T9 base; it does not depend on professional availability T25. T48 therefore depends on T9. To keep four fronts advancing, M begins the whole Phase7 T48-T55 batch after incorporating the committed root base. Its original booking drafts are hash-preserved outside fingerprints and will be handed to P for Phase4 afterT25. C retains company forms/list and later UI; Root retains RAG. Booking admission still waits for the original green T16+T25 barrier. All per-task gates, atomic commits, final coexistence proofs and local-only scope remain unchanged. No dependency is waived for a business operation.
 
 While M awaits the original booking barrier, root assigns it only the isolated controlled ServiceNamesField and unit preparation for user-directed T97. Drafts stay outside M's application fingerprint and do not complete T97. C remains the owner of T96/T97 integration, hook/API wiring, browser, screenshots, gates and atomic commits. Booking drafts remain intact. This shares preparation without spawning duplicate workers or weakening task dependencies.
 

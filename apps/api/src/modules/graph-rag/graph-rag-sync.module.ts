@@ -9,11 +9,15 @@ import { GraphRagModule, GraphRagRuntime } from "./graph-rag.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { PrismaPublicBusinessSources } from "./infrastructure/prisma-public-business.sources.js";
+import { PublicSourceWorkService } from "./application/public-source-work.service.js";
 
 @Module({ imports: [CatalogModule, KnowledgeBaseModule, GraphRagModule], providers: [
   { provide: PrismaPublicBusinessSources,
     useFactory: (prisma: PrismaClient, tenant: TenantContextService) => new PrismaPublicBusinessSources(prisma, tenant),
     inject: [PRISMA_CLIENT, TenantContextService] },
+  { provide: PublicSourceWorkService,
+    useFactory: (prisma: PrismaClient, tenant: TenantContextService, sources: PrismaPublicBusinessSources) => new PublicSourceWorkService(prisma, tenant, sources),
+    inject: [PRISMA_CLIENT, TenantContextService, PrismaPublicBusinessSources] },
   { provide: GraphRagSynchronization,
   useFactory: (runtime: GraphRagRuntime, catalog: GraphCatalogSourcesPort, knowledge: GraphKnowledgeSourcesPort,
     events: DomainEventBus, tenant: TenantContextService) => new GraphRagSynchronization(runtime, catalog, knowledge, events, tenant),

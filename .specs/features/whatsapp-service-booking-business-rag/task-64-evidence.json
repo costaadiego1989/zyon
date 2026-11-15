@@ -1,0 +1,83 @@
+{
+  "task": "T64",
+  "environment": "local-owned",
+  "baseHead": "bab7082ce",
+  "unit": {
+    "tests": 24,
+    "pass": 24,
+    "fail": 0,
+    "skipped": 0
+  },
+  "nativeFinal": {
+    "tests": 12,
+    "pass": 12,
+    "fail": 0,
+    "skipped": 0
+  },
+  "nativeInitialCombined": {
+    "tests": 26,
+    "pass": 24,
+    "fail": 2,
+    "skipped": 0
+  },
+  "initialFailure": "New fixture passed the synchronous foreign-scope guard call directly to assert.rejects. Correct rejection escaped before the assertion; changed only its async wrapper, preserving expected error and all state assertions.",
+  "existingT63Regression": {
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0,
+    "sameCheckedArtifact": true
+  },
+  "apiBuildExit": 0,
+  "checkedArtifact": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "d8d542fbf2991d01541c184b2353eb29e552423f44af4e1a2daf2bef27cf9fd1",
+    "artifactSha256": "40c9dab2542570e4ca41722d3876825c1519ab10b0c8905c3d031923a215f48e",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2504
+    },
+    "recordedAt": "2026-11-15T02:21:23.274Z"
+  },
+  "apiSourceChangedAfterBuild": false,
+  "actualWriters": [
+    "PUT /merchants/me/store-settings",
+    "PUT /merchants/:id/store-settings",
+    "PUT /settings/store"
+  ],
+  "legacyContract": "Existing UUID/company-only hashes preserved. Signals normalize explicitly from the authoritative current public projection, never by comparing UUID order or treating old/new hashes as equivalent.",
+  "proved": [
+    "durable signals saved by actual three settings APIs with the index worker offline",
+    "monotonic bounded work revisions under merchant lock and equal-content dedup without losing legacy invalidation",
+    "source/work/chunks SQL rollback and committed source survives failed normalization",
+    "A-to-B-to-A including multiple actual API edits while indexing is offline",
+    "canonical privacy and private timestamp churn without duplicate work",
+    "concurrent SKIP LOCKED lease claim, PostgreSQL server clock, expiry/reclaim and stale-owner rejection",
+    "bounded safe-code retry, due-time selection, exact lease-owner completion and supersession",
+    "tenant ownership, other tenant chunks and canonical product cart/price/stock snapshots preserved"
+  ],
+  "fixtureTiming": "Persisted bounded delay asserted, then due-state future/past controlled in the owned PostgreSQL; no dependency on completing assertions inside a two-second window.",
+  "teardown": {
+    "appCloseAck": true,
+    "naturalWorkerExit0": true,
+    "ownedResourcesRemoved": true,
+    "cleanupDeadlineChanged": false
+  },
+  "providerCalls": 0,
+  "repositoryOverrides": false,
+  "authOverrides": false,
+  "logs": {
+    "initial": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t64-gates\\2026-11-15T02-19-10.210Z",
+    "final": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t64-gates\\2026-11-15T02-27-42.306Z"
+  },
+  "notClaimed": [
+    "automatic all-source reconciliation T65",
+    "embedding or graph projection T66",
+    "live LLM quality",
+    "provider delivery",
+    "production acceptance"
+  ],
+  "review": "M read-only review found offline A-to-B-to-A dedup loss and a short real-time fixture window; both addressed without weakening assertions. Not the final Verifier."
+}

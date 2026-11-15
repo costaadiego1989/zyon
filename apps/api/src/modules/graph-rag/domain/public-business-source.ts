@@ -27,6 +27,15 @@ export interface PublicBusinessSourceProjection extends PublicSourceIdentity {
   text: string;
 }
 
+export function withdrawnPublicBusinessSource(merchantId: string, sourceType: PublicBusinessSourceType,
+  sourceId: string, sourceVersion: string): PublicBusinessSourceProjection {
+  if ([merchantId, sourceId, sourceVersion].some(value => typeof value !== "string" || !value.trim())
+    || !(sourceTypes as readonly string[]).includes(sourceType)) invalid();
+  const identity = { merchantId, sourceType, sourceId, publicationState: "withdrawn" as const };
+  const sourceHash = createHash("sha256").update(JSON.stringify(stable({ ...identity, publicData: {} }))).digest("hex");
+  return { ...identity, sourceVersion, sourceHash, publicData: {}, text: "" };
+}
+
 const sourceTypes = ["company", "business_hours", "professional", "service", "faq", "policy"] as const;
 function invalid(): never { throw new Error("public_source_invalid"); }
 function record(value: unknown): Record<string, unknown> {

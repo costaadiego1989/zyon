@@ -156,7 +156,7 @@ T9 → T17
 T25 → T26
 T32 → T33
 T39 → T40
-T25 → T48
+T9 → T48
 T55 → T56
 T13 → T63
 T18 → T63
@@ -1038,7 +1038,7 @@ T97 → T95
 
 **What**: Binding tenant/config/sessão/ticket e modo/epoch separado de lifecycle, CAS/idempotência; buscar sessão ativa não apaga checkout nem pausa.
 **Where**: `apps/api/src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.ts`
-**Depends on**: T25
+**Depends on**: T9
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: HUM-03, EDGE-04
 
@@ -1326,6 +1326,8 @@ T97 → T95
 
 ### T64: Queue source work durably with canonical writes
 
+**Status**: Complete - unit24/24 including T63, checked API build0/2504, queue native12/12 and T63 regression14/14 on the same artifact, zero skipped/cleanup0. Actual three settings writers retain their legacy durable signals; explicit canonical normalization and leases are proven. Full reconciliation/graph indexing remain T65/T66. See task-64-evidence.json.
+
 **What**: Registro idempotente de trabalho/outbox por fonte/version e retry após falha; escritores canônicos usam transação existente, não depender só de evento em memória.
 **Where**: `apps/api/src/modules/graph-rag/application/public-source-work.service.ts`
 **Depends on**: T63
@@ -1334,12 +1336,12 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] DB business-rag.integration.spec.ts: gravação com worker fora, crash, retry, duplicata e rollback de fonte/trabalho.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Sinais dos três writers reais persistem com worker offline e normalizam pela fonte pública atual, preservando contrato legado e gerando revisão nova inclusive em A-B-A offline.
+- [x] PostgreSQL/middleware reais provaram rollback fonte/work/chunks, falha de normalização sem perder cadastro salvo, dedup, claim concorrente, relógio/lease/CAS/stale/retry, escopo e snapshots de produtos.
+- [x] Gate Full passou:24units,12native+14regressão, build checked0/2504 e cleanup0. Primeira negativa teve apenas wrapper incorreto de uma fixture nova para throw síncrono; corrigido sem alterar erro/asserções ou fonte API, rerun12/12 no mesmo artifact. Sem ação remota.
 
-**Tests**: DB business-rag.integration.spec.ts: gravação com worker fora, crash, retry, duplicata e rollback de fonte/trabalho.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T64$" ./src/modules/graph-rag/application/public-source-work.service.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T64 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: public-source-work.service.spec.ts e business-rag-work.integration.spec.mjs; repetir business-rag.integration.spec.mjs porque o reader canônico ganhou reutilização da transação para normalização. Proveniência/eventos de todos os demais writers e embedding/grafo ainda não têm aceite.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T64$" ./src/modules/graph-rag/application/public-source-work.service.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag-work.integration.spec.mjs ./tests/business-rag.integration.spec.mjs`, após captura/build/record checked. Nenhum skipped/zero; checks finais por ID continuam obrigatórios.
 **Commit**: `feat(service-business): t64 queue source work durably with canonical writes`
 
 ### T65: Connect reconciliation to the actual source writers
@@ -2232,13 +2234,14 @@ Tasks: T96, T97, T63, T72.
 
 **Settled mid-build:** 2026-11-14 - user: "Aprovar o plano e iniciar implementação local". Aprovação recebida para os 71 critérios, 95 tarefas/13 fases, refinamentos posteriores e subagentes, preservando produtos nos dois canais. Publicação permanece etapa separada. Início por T1, sem alterar o workspace concorrente.
 **Settled execution change:** 2026-11-14 - user: "por que esta demorando tanto? spawnar subagents". Preparos paralelos autorizados em checkouts isolados, preservando gates reais, dependências técnicas, commits atômicos e escopo local.
-**Root parallel front:** T63-T71 public business RAG in N. T63 uses completed T13/T18; T65 also waits T25 to cover all actual new writers. Human handoff Phase7 may start after T25 rather than the unrelated buyer UI T47. Final coexistence requires every front; no criterion/gate is removed.
+**Root parallel front:** T63-T71 public business RAG in N. T63 uses completed T13/T18; T65 also waits T25 to cover all actual new writers. Human handoff Phase7 may start after the independent schema/session base T9. Final coexistence requires every front; no criterion/gate is removed.
+**Next parallel dispatch:** service_batch_01 switches to whole Phase7 T48-T55 in M after incorporating the committed T64 base; T48 depends on T9 because the binding/support/session domain is independent of availability. Its T26-T32 drafts are hash-preserved and handed to P for execution after P/T25. C retains T96/T97 integration and its returned M field10/10. Root coordinates the same one-heavy-slot limit and final author-independent verification. No human gateway/provider action is authorized by this local dispatch.
 **Dispatched:** Revisores somente leitura service_agenda_plan, service_dashboard_plan, business_rag_plan e product_baseline_triage retornaram. service_batch_01 retornou Phase 1 T1–T9 completa e limpa em 15e6957d019e8d7c9001da7bc11b7c54fc269f24. Phase 2 T10–T16 está com service_company_ui em C:/tmp/zyon-service-company-ui-20261114 e Phase 3 T17–T25 com service_professional_agenda em C:/tmp/zyon-service-professional-agenda-20261114; ambos incorporaram T9. Novo despacho de service_batch_01: Phase 4 T26–T32 em C:/tmp/zyon-service-booking-admission-20261114, usando preparo T26 do root, com gates/commits dependentes somente após integrar ambas as fases verdes. Root mantém integração em C:/tmp/zyon-service-business-20261114. Nenhum Verifier/screens final despachado.
 **Walked:** Nenhuma jornada da feature nova foi executada. Prints anteriores de produto não comprovam serviços. Capturas de proposta, se anexadas, terão rótulo de prévia local. Ao executar, registrar rota/gestos/dados/resultado e ambiente para cada Independent Test.
 
 ## Phase Execution Map
 
-Phase 1 → {Phase 2 || Phase 3}; {T13, T18} → Phase 9 (T65 also waits T25); {Phase 2, Phase 3} → Phase 4 → Phase 5 → Phase 6; Phase 3 → Phase 7 → Phase 8; Phase 9 → Phase 10 → Phase 11 → Phase 12; {Phase 6, Phase 8, Phase 12} → Phase 13
+Phase 1 → {Phase 2 || Phase 3 || Phase 7}; {T13, T18} → Phase 9 (T65 also waits T25); {Phase 2, Phase 3} → Phase 4 → Phase 5 → Phase 6; Phase 7 → Phase 8; Phase 9 → Phase 10 → Phase 11 → Phase 12; {Phase 6, Phase 8, Phase 12} → Phase 13
 
 95 tarefas em 13 fases; preparação paralela das fases 2/3 conforme solicitação posterior do usuário. Um commit por tarefa com testes co-localizados e gates prévios. Integrar/revalidar a base e preservar todos os critérios antes da fase seguinte dependente. Não juntar tarefas em um commit para economizar tempo. Check final de granulação e cruzamento dos diagramas via validate_tasks.py. Aprovações literais permanecem registradas.
 
