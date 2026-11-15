@@ -1304,20 +1304,22 @@ T97 → T95
 
 ### T63: Project only approved public business fields
 
+**Status**: Complete - unit16/16, checked API build0/2500 productive sources and owned AppModule/SQL14/14, zero skipped, natural exit/cleanup0. See task-63-evidence.json. Embedding/index/retrieval and T96/T97 form/API remain later gates.
+
 **What**: Union tipada de company/hours/professional/service/faq/policy e allowlist por fonte; origem/version/hash/publication; nada de paciente, operador, credenciais, chat, pagamento ou bloqueio privado.
 **Where**: `apps/api/src/modules/graph-rag/domain/public-business-source.ts`
 **Depends on**: T13, T18
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
-**Requirement**: RAG-01, RAG-07, RAG-10, RAG-11
+**Requirement**: RAG-01, RAG-07, RAG-10, RAG-11, ONB-06
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] public-business-source.spec.ts + business-rag.integration.spec.ts com canários privados em cada entidade e três negócios.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Seis fontes tipadas e reader canônico registrado no AppModule, com tenant/publicação/version/hash, sem preço/estoque/slots ou campos privados; serviceNames sóservices.
+- [x] public-business-source.spec.ts16/16 e business-rag.integration.spec.mjs14/14 com canários privados, três negócios, retirada/retorno, variante ativa, legado e snapshots de produtos preservados.
+- [x] Gate Full passou com build checked0/2500, ACK/natural exit0 e cleanup próprio, zero skips. Primeiro gate verde foi repetido após corrigir a publicação por variante encontrada na revisão. Sem push/deploy.
 
-**Tests**: public-business-source.spec.ts + business-rag.integration.spec.ts com canários privados em cada entidade e três negócios.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T63$" ./src/modules/graph-rag/domain/public-business-source.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T63 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: public-business-source.spec.ts + business-rag.integration.spec.mjs, com classes compiladas, PostgreSQL/middleware e AppModule reais próprios. Não cria endpoint HTTP artificial de leitura do corpus.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T63$" ./src/modules/graph-rag/domain/public-business-source.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag.integration.spec.mjs`, após captura/build/record do artefato checked. Teste raiz T63 cobre os subcasos e falha com skipped/zero; checks finais por ID continuam obrigatórios.
 **Commit**: `feat(service-business): t63 project only approved public business fields`
 
 ### T64: Queue source work durably with canonical writes
@@ -1928,8 +1930,8 @@ T97 → T95
 - [ ] Unit e browser com gestos reais passam; capturas desktop/mobile mostram o controle e a condição de modalidade; nenhum teste anterior removido/relaxado.
 - [ ] Coletor final ONB-06 executa prova nativa de contexto público e browser, falha com zero/skipped e registra revisão/ambiente; gate e commit próprios.
 
-**Tests**: ServiceNamesField.spec.tsx, hook tests e e2e/service-company-service-names.spec.ts; service-company-services-proof.mjs seleciona ONB-06 nativo e browserT97 sem confundir mocks com RAG/provider real.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/store-settings/ServiceNamesField.spec.tsx -t "^T97$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-company-service-names.spec.ts --grep "T97$"`; tipos/build afetados e check final ONB-06 obrigatórios.
+**Tests**: service-names-field.spec.tsx, hook tests e e2e/service-company-service-names.spec.ts; service-company-services-proof.mjs seleciona ONB-06 nativo e browserT97 sem confundir mocks com RAG/provider real.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/store-settings/service-names-field.spec.tsx -t "T97"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-company-service-names.spec.ts --grep "T97$"`; tipos/build afetados e check final ONB-06 obrigatórios. O arquivo focal contém dez gestos sob describeT97; selecionar o full title inclui seus filhos, sem filtro exato que gere zero casos.
 **Commit**: `feat(service-business): t97 edit service names in company settings`
 
 ## Checks

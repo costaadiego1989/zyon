@@ -7,6 +7,11 @@ import { PUBLIC_SUPPORT_FAQ, type PublicSupportFaqPort } from "./domain/ports/pu
 
 const faq = z.object({ id: z.string().max(191).optional(), question: z.string().trim().min(1).max(3000),
   answer: z.string().trim().min(1).max(4000) });
+export function parsePublicSupportFaqItems(value: unknown) {
+  return z.array(faq).max(100).parse(value ?? []).map(item => ({
+    id: item.id || createHash("sha256").update(item.question).digest("hex"), question: item.question, answer: item.answer,
+  }));
+}
 /** Separate persistence boundary: importing public FAQs must not import chat or KB. */
 export class PrismaPublicSupportFaq implements PublicSupportFaqPort {
   constructor(private readonly prisma: PrismaClient, private readonly clock: () => number = Date.now) {}
@@ -14,9 +19,7 @@ export class PrismaPublicSupportFaq implements PublicSupportFaqPort {
     const row = await this.prisma.supportSetting.findUnique({ where: { merchantId },
       select: { merchantId: true, updatedAt: true, faqItems: true } });
     if (row && row.merchantId !== merchantId) throw new Error("public_faq_scope_mismatch");
-    const items = z.array(faq).max(100).parse(row?.faqItems ?? []).map(item => ({
-      id: item.id || createHash("sha256").update(item.question).digest("hex"), question: item.question, answer: item.answer,
-    }));
+    const items = parsePublicSupportFaqItems(row?.faqItems);
     return { merchantId, version: row?.updatedAt.getTime() ?? this.clock(), items };
   }
 }

@@ -1,0 +1,70 @@
+{
+  "task": "T63",
+  "environment": "local-owned",
+  "baseHead": "c4c418bbe",
+  "unit": {
+    "tests": 16,
+    "pass": 16,
+    "fail": 0,
+    "skipped": 0
+  },
+  "native": {
+    "tests": 14,
+    "pass": 14,
+    "fail": 0,
+    "skipped": 0
+  },
+  "checkedArtifact": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "4fbdf5a9cfb5f8de80ecff75c1cc966d1717c72cc6a8c5df86607e3bf52fac8b",
+    "artifactSha256": "0cb4dad3253240427063350c0708466a532d1d8b75ccc2708bbe2efb10ae14ce",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2500
+    },
+    "recordedAt": "2026-11-15T01:46:38.715Z"
+  },
+  "apiBuildExit": 0,
+  "logs": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t63-gates\\2026-11-15T01-41-24.675Z",
+  "firstGate": {
+    "buildExit": 0,
+    "unitPassed": 16,
+    "nativePassed": 13,
+    "skipped": 0,
+    "logs": ".cache/t63-gates/2026-11-15T01-21-00.221Z",
+    "subsequentReview": "Existing any-active-variant publication rule was missing; source and native case were added, so a fresh build/gate followed."
+  },
+  "proved": [
+    "six typed public source types across clinic salon and consulting fixtures",
+    "actual Prisma repeatable-read snapshots and tenant middleware",
+    "canonical company contacts without owner login fallback or nested private data",
+    "serviceNames only in canonical services mode; retained historical JSON excluded from products",
+    "canonical mode and profile/variant publication withdrawal and reopening change snapshot identity",
+    "category and linked professional tenant identity checks",
+    "all-inactive service variants withdrawn; one active variant sufficient without price or physical stock",
+    "public descriptions stored before the new1200 write cap remain readable",
+    "FAQ duplicate identity ambiguous and explicit policy clear preserves withdrawal",
+    "product cart price stock and other baseline records unchanged"
+  ],
+  "teardown": {
+    "appCloseAck": true,
+    "naturalWorkerExit0": true,
+    "ownedResourcesRemoved": true,
+    "cleanupDeadlineChanged": false
+  },
+  "providerCalls": 0,
+  "sourceApiEndpointAdded": false,
+  "repositoryOverrides": false,
+  "authOverrides": false,
+  "notClaimed": [
+    "embedding ingestion",
+    "Neo4j retrieval",
+    "live LLM quality",
+    "provider or production acceptance",
+    "service-name form/API controls from T96/T97"
+  ],
+  "review": "Read-only M review found publication-version dependency and variant withdrawal gaps; both addressed before final gate. This is not the final independent Verifier."
+}
