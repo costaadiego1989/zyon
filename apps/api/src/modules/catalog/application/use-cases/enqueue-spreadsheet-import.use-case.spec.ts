@@ -68,6 +68,21 @@ const baseInput = {
 };
 
 describe("EnqueueSpreadsheetImportUseCase", () => {
+  it("enqueue failure persists failed state and returns a safe terminal error", async () => {
+    let persisted: ImportJobSnapshot | undefined;
+    const repo = makeRepoDouble({ update: async (id, merchantId, patch) => {
+      persisted = { id, merchantId, status: "queued", fileName: "products.csv", totalRows: 0,
+        successRows: 0, failedRows: 0, columnMapping: {}, errors: [], createdAt: new Date(), ...patch };
+      return persisted;
+    } });
+    const queue = { enqueue: async () => { throw new Error("private provider connection detail"); } };
+    const result = await new EnqueueSpreadsheetImportUseCase(repo, queue, makeS3Double()).execute(baseInput);
+    assert.deepEqual(result, { jobId: "job_test_1", status: "failed" });
+    assert.equal(persisted?.merchantId, "mrc_1");
+    assert.equal(persisted?.status, "failed");
+    assert.deepEqual(persisted?.errors, [{ row: 0, reason: "queue_unavailable" }]);
+    assert.ok(persisted?.finishedAt instanceof Date);
+  });
   it("creates a queued job and enqueues when CSV is valid", async () => {
     const capture = { called: false, jobId: undefined as string | undefined, merchantId: undefined as string | undefined };
     const repo = makeRepoDouble();

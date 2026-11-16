@@ -78,6 +78,12 @@ export class EnqueueSpreadsheetImportUseCase {
         this.logger.warn(
           `Failed to enqueue import job ${job.id}: ${err instanceof Error ? err.message : String(err)}`,
         );
+        const failed = await this.repo.update(job.id, input.merchantId, {
+          status: "failed",
+          errors: [{ row: 0, reason: "queue_unavailable" }],
+          finishedAt: new Date(),
+        });
+        return { jobId: failed.id, status: failed.status };
       }
     }
 
