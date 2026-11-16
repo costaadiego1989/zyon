@@ -163,7 +163,7 @@ export async function buildCrossSellSuggestions(
               sku: variant.id,
               productId: p.id,
               price: price! / 100,
-              recommendationRuleId: suggestion.promo_id,
+              recommendationRuleId: suggestion.promo_id || undefined,
               imageUrl: variant.media?.[0]?.url,
             });
           } catch { /* A recommendation failure never retries the successful add. */ }
