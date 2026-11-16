@@ -143,6 +143,8 @@ export class StorefrontProductContentController {
         description: true,
         type: true,
         metadata: true,
+        advancedContentEnabled: true,
+        testimonialsVisible: true,
         seoTitle: true,
         metaDescription: true,
         ogTitle: true,
@@ -178,11 +180,12 @@ export class StorefrontProductContentController {
       resolveLocaleFromAcceptLanguage(acceptLanguage)
     );
 
-    const content = advanced ? await this.getProductContent.execute({
+    const content = advanced && product.advancedContentEnabled !== false ? await this.getProductContent.execute({
       merchantId: merchant.id,
       productId: product.id,
       locale,
     }) : { locale, blocks: [], faqs: [], testimonials: [], videos: [] };
+    if (product.testimonialsVisible === false) content.testimonials = [];
 
     // Rich-content CTAs carry only a server-selected variant identifier. The
     // conversation/cart path still rechecks price, stock and checkout rules;

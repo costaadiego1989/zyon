@@ -17,10 +17,8 @@ import type { ProductTestimonial } from "../../../api/endpoints/product-content.
  *  - Approve / reject pending entries via `onModerate`
  *  - Toggle whether the testimonials block is rendered on the storefront
  *
- * The toggle is local to the editor; the visibility state is part of the
- * `AdvancedLayoutSurface` toggle (AdvancedLayoutEnableToggle) and does NOT
- * require a separate write — when the merchant flips the section toggle off,
- * the storefront hides every testimonial regardless of `isPublished`.
+ * Both visibility controls are persisted by useAdvancedLayout. Public content
+ * also requires each testimonial to be published and approved.
  */
 export interface ProductTestimonialEditorProps {
   testimonials: ProductTestimonial[];

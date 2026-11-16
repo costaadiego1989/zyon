@@ -66,13 +66,12 @@ export interface UseAdvancedLayoutResult {
    * expanded so blocks / FAQ / videos / reviews can be added right away.
    * Flipping it OFF collapses the section to a single toggle row (matching
    * the visual contract of `PromotionSection`) and hides every tab + draft
-   * surface. Stored per (merchant, product) so the choice survives reloads
-   * and product switches.
+   * surface. Saved products persist this choice on the server.
    */
   enabled: boolean;
   setEnabled: (v: boolean) => void;
   /**
-   * Reviews toggle. **Default OFF** — the merchant must explicitly flip it on
+   * Reviews toggle. New products default OFF; legacy public choices are preserved.
    * to start rendering the testimonials block on the storefront. Independent
    * from any per-FAQ / per-video `isPublished` so flipping it never blocks
    * other tabs.
@@ -170,12 +169,19 @@ export function useAdvancedLayout({ merchantId, productId }: UseAdvancedLayoutAr
   );
 
   const ready = !!merchantId && !!productId;
+  const scope = `${merchantId ?? ""}:${productId ?? ""}`;
+  const scopeRef = useRef(scope); scopeRef.current = scope;
+  const readVersion = useRef(0);
+  const visibilityBusy = useRef(false);
+  const draftVisibility = useRef<{ enabled?: boolean; testimonialsVisible?: boolean }>({});
 
   // Re-hydrate the toggles from storage whenever the product changes
   // (cadastro -> edicao).
   useEffect(() => {
-    setEnabledState(readEnabledFromStorage(merchantId, productId));
-    setTestimonialsVisibleState(readTestimonialsVisibleFromStorage(merchantId, productId));
+    if (!ready) {
+      setEnabledState(readEnabledFromStorage(merchantId, productId));
+      setTestimonialsVisibleState(readTestimonialsVisibleFromStorage(merchantId, productId));
+    }
   }, [merchantId, productId]);
 
   // Detect transition from draft (productId null) to saved: in that moment the
@@ -196,7 +202,7 @@ export function useAdvancedLayout({ merchantId, productId }: UseAdvancedLayoutAr
         surface.blocks.length > 0 ||
         surface.faqs.length > 0 ||
         surface.testimonials.length > 0 ||
-        surface.videos.length > 0;
+        surface.videos.length > 0 || Object.keys(draftVisibility.current).length > 0;
       if (hasDraft) {
         void (async () => {
           try {
@@ -209,28 +215,55 @@ export function useAdvancedLayout({ merchantId, productId }: UseAdvancedLayoutAr
     }
   }, [ready, surface]);
 
+  const saveVisibility = useCallback(async (flags: { enabled?: boolean; testimonialsVisible?: boolean }) => {
+    if (!ready || visibilityBusy.current) return;
+    visibilityBusy.current = true;
+    const target = scopeRef.current;
+    readVersion.current++; setStatus("saving"); setErrorMsg(null);
+    try {
+      const saved = await api.updateContentVisibility(merchantId!, productId!, flags);
+      if (scopeRef.current !== target) return;
+      readVersion.current++;
+      setEnabledState(saved.enabled); setTestimonialsVisibleState(saved.testimonialsVisible); setStatus("idle");
+    } catch {
+      if (scopeRef.current === target) {
+        const message = "Não foi possível salvar a visibilidade. A configuração anterior foi mantida.";
+        setErrorMsg(message); setStatus("error"); showToast("error", message);
+      }
+    } finally { visibilityBusy.current = false; }
+  }, [api, merchantId, productId, ready]);
+
   const setTestimonialsVisible = useCallback(
     (next: boolean) => {
+      if (ready) { void saveVisibility({ testimonialsVisible: next }); return; }
+      draftVisibility.current.testimonialsVisible = next;
       setTestimonialsVisibleState(next);
       writeTestimonialsVisibleToStorage(merchantId, productId, next);
     },
-    [merchantId, productId],
+    [merchantId, productId, ready, saveVisibility],
   );
 
   const setEnabled = useCallback(
     (next: boolean) => {
+      if (ready) { void saveVisibility({ enabled: next }); return; }
+      draftVisibility.current.enabled = next;
       setEnabledState(next);
       writeEnabledToStorage(merchantId, productId, next);
     },
-    [merchantId, productId],
+    [merchantId, productId, ready, saveVisibility],
   );
 
   const reload = useCallback(async () => {
     if (!ready) return;
+    const target = scopeRef.current, version = ++readVersion.current;
     setStatus("loading");
     setErrorMsg(null);
     try {
       const out = await api.listContent(merchantId!, productId!);
+      if (scopeRef.current !== target || readVersion.current !== version) return;
+      if (out.visibility) {
+        setEnabledState(out.visibility.enabled); setTestimonialsVisibleState(out.visibility.testimonialsVisible);
+      }
       const next: AdvancedLayoutSurface = {
         blocks: out.blocks ?? [],
         faqs: out.faqs ?? [],
@@ -241,6 +274,7 @@ export function useAdvancedLayout({ merchantId, productId }: UseAdvancedLayoutAr
       setSurface(next);
       setStatus("idle");
     } catch (err) {
+      if (scopeRef.current !== target || readVersion.current !== version) return;
       const message = err instanceof Error ? err.message : "Erro ao carregar conteúdo avançado";
       setErrorMsg(message);
       setStatus("error");
@@ -606,12 +640,19 @@ export function useAdvancedLayout({ merchantId, productId }: UseAdvancedLayoutAr
       snapshot.faqs.length === 0 &&
       snapshot.testimonials.length === 0 &&
       snapshot.videos.length === 0
+      && Object.keys(draftVisibility.current).length === 0
     ) {
       return;
     }
     setStatus("saving");
     setErrorMsg(null);
     try {
+      if (Object.keys(draftVisibility.current).length) {
+        const saved = await api.updateContentVisibility(merchantId!, productId!, draftVisibility.current);
+        readVersion.current++;
+        setEnabledState(saved.enabled); setTestimonialsVisibleState(saved.testimonialsVisible);
+        draftVisibility.current = {};
+      }
       if (snapshot.blocks.length > 0) {
         await api.replaceContentBlocks(merchantId!, productId!, {
           blocks: snapshot.blocks.map((b) => ({

@@ -260,3 +260,67 @@ test("A/B approval keeps its idempotency key on explicit retry after a server fa
   await expect(dialog).toHaveCount(0); expect(writes).toHaveLength(2);
   expect(writes[1].body).toEqual(writes[0].body);
 });
+
+test("Visibility controls persist across fresh browser contexts and keep confirmed state on failure", async ({ page, context, browser }) => {
+  test.setTimeout(60_000);
+  const writes: any[] = [];
+  let flags = { enabled: true, testimonialsVisible: true }, fail = false;
+  const routeContent = async (target: typeof context) => {
+    await target.route("**/v1/**", async route => {
+      const request = route.request(), path = new URL(request.url()).pathname;
+      if (path.endsWith("/content/visibility")) {
+        const body = request.postDataJSON(); writes.push(body);
+        if (fail) return route.fulfill({ status: 503, json: { message: "temporary_failure" } });
+        flags = { ...flags, ...body }; return route.fulfill({ json: flags });
+      }
+      return route.fulfill({ json: { blocks: [], faqs: [], testimonials: [], videos: [], visibility: flags } });
+    });
+  };
+  await routeContent(context);
+  await page.goto("/athom-content-editor.html?mode=visibility", { waitUntil: "domcontentloaded" });
+  const advanced = page.getByRole("switch", { name: /Conteúdo avançado/ });
+  await expect(advanced).toBeChecked();
+  await page.getByRole("tab", { name: "Depoimentos", exact: true }).click();
+  const testimonials = page.getByRole("switch", { name: /Exibir depoimentos no card do produto/ });
+  await expect(testimonials).toBeChecked();
+  await testimonials.click(); await expect(testimonials).not.toBeChecked();
+  expect(writes).toEqual([{ testimonialsVisible: false }]);
+  await advanced.click(); await expect(advanced).not.toBeChecked();
+  expect(flags).toEqual({ enabled: false, testimonialsVisible: false });
+  const fresh = await browser.newContext();
+  try {
+    await routeContent(fresh); const other = await fresh.newPage();
+    await other.goto("http://127.0.0.1:18175/athom-content-editor.html?mode=visibility", { waitUntil: "domcontentloaded" });
+    const control = other.getByRole("switch", { name: /Conteúdo avançado/ });
+    await expect(control).not.toBeChecked();
+    await expect(control).toBeEnabled();
+    fail = true; await control.click();
+    await expect(other.getByText(/A configuração anterior foi mantida/)).toBeVisible();
+    await expect(control).not.toBeChecked(); expect(flags.enabled).toBe(false);
+    fail = false; await control.click(); await expect(control).toBeChecked();
+    await other.getByRole("tab", { name: "Depoimentos", exact: true }).click();
+    await expect(other.getByRole("switch", { name: /Exibir depoimentos no card do produto/ })).not.toBeChecked();
+    await other.reload(); await expect(control).toBeChecked();
+  } finally { await fresh.close(); }
+});
+
+test("Visibility draft choice is saved when a new product gets its canonical identity", async ({ page }) => {
+  const writes: any[] = []; let flags = { enabled: true, testimonialsVisible: false };
+  await page.route("**/v1/**", route => {
+    if (new URL(route.request().url()).pathname.endsWith("/content/visibility")) {
+      const body = route.request().postDataJSON(); writes.push(body); flags = { ...flags, ...body };
+      return route.fulfill({ json: flags });
+    }
+    return route.fulfill({ json: { blocks: [], faqs: [], testimonials: [], videos: [], visibility: flags } });
+  });
+  await page.goto("/athom-content-editor.html?mode=visibility&draft=1", { waitUntil: "domcontentloaded" });
+  await page.getByRole("tab", { name: "Depoimentos", exact: true }).click();
+  const control = page.getByRole("switch", { name: /Exibir depoimentos no card do produto/ });
+  await expect(control).not.toBeChecked(); await control.click(); await expect(control).toBeChecked();
+  expect(writes).toEqual([]);
+  await page.getByRole("button", { name: "Salvar produto QA", exact: true }).click();
+  await expect.poll(() => writes).toEqual([{ testimonialsVisible: true }]);
+  await expect(control).toBeChecked();
+  await page.goto("/athom-content-editor.html?mode=visibility", { waitUntil: "domcontentloaded" });
+  await page.getByRole("tab", { name: "Depoimentos", exact: true }).click(); await expect(control).toBeChecked();
+});

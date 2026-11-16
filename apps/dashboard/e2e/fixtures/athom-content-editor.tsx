@@ -10,8 +10,15 @@ import type { MerchantProfile } from "../../src/api-client.js";
 import { IntegrationsPage } from "../../src/pages/integrations-page.js";
 import { PromotionSection } from "../../src/pages/product-detail/components/PromotionSection.js";
 import { ExperimentsPage } from "../../src/pages/experiments/ExperimentsPage.js";
+import { AdvancedLayoutTab } from "../../src/pages/product-detail/components/AdvancedLayoutTab.js";
 
 const api = createDashboardApi({ baseUrl: window.location.origin });
+
+function VisibilityFixture() {
+  const [productId, setProductId] = useState<string | null>(new URLSearchParams(location.search).has("draft") ? null : "qa-product");
+  return <><AdvancedLayoutTab merchantId="qa-merchant" productId={productId} />
+    {!productId && <button onClick={() => setProductId("qa-product")}>Salvar produto QA</button>}</>;
+}
 
 function Fixture() {
   const [faqs, setFaqs] = useState<ProductFaq[]>([]);
@@ -61,5 +68,7 @@ createRoot(document.getElementById("root")!).render(<ApiContext.Provider value={
       : new URLSearchParams(location.search).get("mode") === "promotion"
         ? <PromotionSection merchantId="qa-merchant" productId="qa-product" variantSkus={[]} />
         : new URLSearchParams(location.search).get("mode") === "experiments"
-          ? <ExperimentsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} /> : <Fixture />}
+          ? <ExperimentsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} />
+          : new URLSearchParams(location.search).get("mode") === "visibility"
+            ? <VisibilityFixture /> : <Fixture />}
 </ApiContext.Provider>);

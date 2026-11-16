@@ -122,6 +122,7 @@ export function AdvancedLayoutTab({ merchantId, productId }: AdvancedLayoutTabPr
       }}
     >
       <AdvancedLayoutEnableToggle layout={layout} />
+      {!layout.enabled && layout.errorMsg && <p role="alert">{layout.errorMsg}</p>}
       <div style={{ marginTop: 18 }}>{body}</div>
     </section>
   );
