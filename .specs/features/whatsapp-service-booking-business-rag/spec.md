@@ -297,9 +297,9 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | HUM-06 | Automatic AI resume | T56, T61 | Pending |
 | HUM-07 | Unavailable team/provider | T54, T55, T58 | Pending |
 | HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | Pending |
-| RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Existing indexing implemented; T104 bounded-write repair and final proof pending |
-| RAG-02 | Retirement | T65, T67, T68, T104 | Existing retirement implemented; T104 bounded-write repair and final proofs pending |
-| RAG-03 | Retry and source durability | T64, T66, T67, T104 | Existing durable retry implemented; T104 bounded-write repair and final proofs pending |
+| RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Implemented locally including T104 bounded-write repair; final proof pending |
+| RAG-02 | Retirement | T65, T67, T68, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
+| RAG-03 | Retry and source durability | T64, T66, T67, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
 | RAG-04 | Source provenance | T66, T68, T69 | In Progress (T66 producer and T68 admission complete; T69 response propagation pending) |
 | RAG-05 | Compound live queries | T70, T71 | Pending |
 | RAG-06 | Insufficient/conflicting evidence | T68, T71 | In Progress (T68 admission complete; T71 final consumer pending) |

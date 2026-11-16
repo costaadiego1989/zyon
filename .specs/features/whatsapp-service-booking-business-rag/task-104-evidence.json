@@ -1,0 +1,69 @@
+{
+  "task": "T104",
+  "status": "complete_locally",
+  "base": "ce8af091ebaa570313c585c6c3f9ee207c407482",
+  "build": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+    "artifactSha256": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2543
+    },
+    "recordedAt": "2026-11-16T15:05:24.964Z"
+  },
+  "results": [
+    {
+      "kind": "components",
+      "path": ".cache/t69-gates/2026-11-16T14-49-01.502Z/unit.log",
+      "sha256": "aad051e441eb6ddea784ad33684d4166215e8e066dde180042726217afbba3aa",
+      "passed": 879,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "kind": "index",
+      "path": ".cache/t69-gates/2026-11-16T15-07-08.925Z/index.log",
+      "sha256": "a3ca1cafaf4bb089ed4edbe1f651d73512531a61e2accc7b04d81a662c947d4a",
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "kind": "revalidation",
+      "path": ".cache/t69-gates/2026-11-16T15-11-56.661Z/revalidation.log",
+      "sha256": "16bc5897755525ce3a8578fed425faecaf3036de5cefa23fe02007ee03730c69",
+      "passed": 37,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "source": [
+    {
+      "path": "apps/api/src/modules/graph-rag/application/public-business-projection.service.ts",
+      "sha256": "8f9fdad96a23b83b0fb7f8be1e3a2aa772dd46f96129766d9be7760395b34cf6"
+    },
+    {
+      "path": "apps/api/src/modules/graph-rag/application/public-business-projection.submit.spec.ts",
+      "sha256": "9ee81786520399e1e61c6552e2ff504f280c00e48c28b561d75efaee7c5133a5"
+    }
+  ],
+  "nativeTotal": 51,
+  "actualNeo4jVersion": "5.26-community",
+  "nativeProfiles": [
+    "default",
+    "pgvector16"
+  ],
+  "configuredGraphDeadlineMs": 2000,
+  "oldAssertionsChanged": false,
+  "warmupAdded": false,
+  "observerUsedInGreenGate": false,
+  "providerCalls": 0,
+  "nativeCleanup": "existing owned guards passed; natural runtime exit and zero remaining owned resources asserted",
+  "baselineFailures": ".cache/t69-current-revalidation-failure.json",
+  "independentIncrementalReview": "P source-only review no blocking issue; final feature verifier still pending",
+  "productionReady": false
+}

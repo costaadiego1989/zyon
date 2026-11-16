@@ -1424,14 +1424,15 @@ T104 → T69
 **What**: Submit root version/lock admission, old-chunk retirement and current-chunk upsert as one atomic parameterized statement, retaining the unchanged transaction deadline and all canonical worker guards. Resolve the reproduced cold-projection failure without warming tests, retries inside the graph adapter or timeout changes.
 **Where**: `apps/api/src/modules/graph-rag/application/public-business-projection.service.ts`
 **Depends on**: T66
+**Status**: Complete locally;879components/51native/checked2543 allgreen, same2000ms/no warm-up. See task-104-evidence.json; final feature verification pending.
 **Reuses**: Existing public-v1 schema/unique constraints, projection port, prepared public parameters, worker revision/lease/canonical admission, native Neo4j and old index/revalidation fixtures. No catalog/document namespace or provider change.
 **Requirement**: RAG-01, RAG-02, RAG-03
 
 **Done when**:
 
-- [ ] Applied/stale/withdrawn/unavailable outcomes and exact public fields remain intact; one atomic statement retains version compare-and-set, source-root write lock and tenant-scoped retirement/upsert.
-- [ ] Existing unchanged native index14 and canonical revalidation37 cases pass on both profiles under the same2000ms deadline, with no warm-up, skipped assertions or altered failure policy. A failed attempt remains recorded and cannot close the task.
-- [ ] New/old component cohort and fresh official checked API build pass on this source; preserve dirty69, mark104complete and stage only its source/tests/status for one atomic local commit.
+- [x] Applied/stale/withdrawn/unavailable outcomes and exact public fields remain intact; one atomic statement retains version compare-and-set, source-root write lock and tenant-scoped retirement/upsert.
+- [x] Existing unchanged native index14 and canonical revalidation37 cases pass on both profiles under the same2000ms deadline, with no warm-up, skipped assertions or altered failure policy. A failed attempt remains recorded and cannot close the task.
+- [x] New/old component cohort and fresh official checked API build pass on this source; preserve dirty69, mark104complete and stage only its source/tests/status for one atomic local commit.
 
 **Tests**: New `public-business-projection.submit.spec.ts` root T104 (four outcome children), old preparation/worker/adapter contracts unchanged; actual `business-rag-index.integration.spec.mjs`, `business-rag-revalidation.integration.spec.mjs` and `business-rag-public-support-http.integration.spec.mjs` unchanged.
 **Gate**: Full: unfiltered current combined graph/catalog/knowledge/support/storefront component cohort including the new graph companion; fresh unchanged official checked API build; existing owned index14 and revalidation37 commands through the current guarded launchers. Exact source/output binding, real SQL/Neo4j state, normal cleanup, no provider calls. Record actual executed counts and gate logs, not planned registrations.

@@ -8,24 +8,28 @@ export const PUBLIC_BUSINESS_GRAPH_SCHEMA = [
   "CREATE CONSTRAINT zyon_public_source_v1_identity IF NOT EXISTS FOR (n:ZyonPublicSourceV1) REQUIRE (n.merchantId,n.sourceType,n.sourceId) IS UNIQUE",
   "CREATE CONSTRAINT zyon_public_chunk_v1_identity IF NOT EXISTS FOR (n:ZyonPublicChunkV1) REQUIRE (n.merchantId,n.sourceType,n.sourceId,n.chunkId) IS UNIQUE",
 ];
-const rootQuery = `MERGE (s:ZyonPublicSourceV1 {merchantId:$merchantId,sourceType:$sourceType,sourceId:$sourceId})
+const projectionQuery = `MERGE (s:ZyonPublicSourceV1 {merchantId:$merchantId,sourceType:$sourceType,sourceId:$sourceId})
 ON CREATE SET s.publicRevision=-1
 SET s._projectionLock=true REMOVE s._projectionLock
 WITH s WHERE s.publicRevision < $publicRevision OR (s.publicRevision=$publicRevision AND s.sourceHash=$sourceHash)
 SET s.active=$active,s.publicRevision=$publicRevision,s.sourceHash=$sourceHash,
     s.modelId=$modelId,s.dimensions=$dimensions,s.projectedAt=$projectedAt,s.schemaVersion=1
+WITH s
+CALL {
+  WITH s
+  MATCH (s)-[:ZyonPublicHasChunkV1 {merchantId:$merchantId}]->
+    (previous:ZyonPublicChunkV1 {merchantId:$merchantId,sourceType:$sourceType,sourceId:$sourceId})
+  SET previous.active=false,previous.publicRevision=$publicRevision,previous.projectedAt=$projectedAt
+  REMOVE previous.embedding,previous.normalizedText
+}
+FOREACH (item IN CASE WHEN $active THEN $chunks ELSE [] END |
+  MERGE (c:ZyonPublicChunkV1 {merchantId:$merchantId,sourceType:$sourceType,sourceId:$sourceId,chunkId:item.id})
+  SET c.active=true,c.publicRevision=$publicRevision,c.sourceHash=$sourceHash,c.contentHash=item.contentHash,
+      c.modelId=$modelId,c.dimensions=$dimensions,c.projectedAt=$projectedAt,c.schemaVersion=1,
+      c.embedding=item.embedding,c.normalizedText=item.normalizedText
+  MERGE (s)-[:ZyonPublicHasChunkV1 {merchantId:$merchantId}]->(c)
+)
 RETURN true AS admitted`;
-const retireQuery = `MATCH (s:ZyonPublicSourceV1 {merchantId:$merchantId,sourceType:$sourceType,sourceId:$sourceId})
--[:ZyonPublicHasChunkV1 {merchantId:$merchantId}]->(c:ZyonPublicChunkV1 {merchantId:$merchantId,sourceType:$sourceType,sourceId:$sourceId})
-SET c.active=false,c.publicRevision=$publicRevision,c.projectedAt=$projectedAt
-REMOVE c.embedding,c.normalizedText`;
-const upsertQuery = `MATCH (s:ZyonPublicSourceV1 {merchantId:$merchantId,sourceType:$sourceType,sourceId:$sourceId})
-UNWIND $chunks AS item
-MERGE (c:ZyonPublicChunkV1 {merchantId:$merchantId,sourceType:$sourceType,sourceId:$sourceId,chunkId:item.id})
-SET c.active=true,c.publicRevision=$publicRevision,c.sourceHash=$sourceHash,c.contentHash=item.contentHash,
-    c.modelId=$modelId,c.dimensions=$dimensions,c.projectedAt=$projectedAt,c.schemaVersion=1,
-    c.embedding=item.embedding,c.normalizedText=item.normalizedText
-MERGE (s)-[:ZyonPublicHasChunkV1 {merchantId:$merchantId}]->(c)`;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const validId = (value: unknown): value is string => typeof value === "string" && Boolean(value.trim()) && value.length <= 191;
 const types = ["company", "business_hours", "professional", "service", "faq", "policy"];
@@ -94,10 +98,8 @@ export class PublicBusinessProjectionService {
     const parameters = { ...projection, projectedAt: this.clock() };
     try {
       return await this.graph.withProjection(projection.merchantId, async tx => {
-        const root = await tx.run(rootQuery, parameters);
+        const root = await tx.run(projectionQuery, parameters);
         if (!root.records.length) return { status: "ignored" as const };
-        await tx.run(retireQuery, parameters);
-        if (projection.active && projection.chunks.length) await tx.run(upsertQuery, parameters);
         return { status: "applied" as const };
       });
     } catch { return { status: "unavailable" as const, reason: "graph_unavailable" as const }; }
