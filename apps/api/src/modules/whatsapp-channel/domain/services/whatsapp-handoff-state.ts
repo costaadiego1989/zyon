@@ -56,3 +56,22 @@ export function isCurrentAiTurn(current: Readonly<HandoffState>, token: Readonly
   return validState(current) && validEpoch(token.epoch) && current.mode === "ai" && sameScope(current, token)
     && current.id === token.bindingId && current.epoch === token.epoch;
 }
+
+/** Caller verifies the active ticket and actor and commits CAS/audit/outbox.
+ * Replay admits only the same operator and the original or current epoch. */
+export function claimHumanHandoff(current: Readonly<HandoffState>, scope: HandoffScope, ticketId: string,
+  expectedEpoch: number, operatorId: string): HandoffTransition {
+  assertScope(current, scope);
+  if (!validId(ticketId) || current.ticketId !== ticketId) throw new HandoffStateError("handoff_ticket_mismatch");
+  if (!validId(operatorId)) throw new HandoffStateError("handoff_operator_required");
+  if (!validEpoch(expectedEpoch)) throw new HandoffStateError("handoff_epoch_conflict");
+  if (current.mode === "human") {
+    if (current.assignedOperatorId !== operatorId) throw new HandoffStateError("handoff_claimed");
+    if (expectedEpoch !== current.epoch && expectedEpoch !== current.epoch - 1) throw new HandoffStateError("handoff_epoch_conflict");
+    return { state: Object.freeze({ ...current }), changed: false };
+  }
+  if (current.mode !== "waiting_human") throw new HandoffStateError("handoff_not_waiting");
+  if (expectedEpoch !== current.epoch) throw new HandoffStateError("handoff_epoch_conflict");
+  if (current.epoch === 2_147_483_647) throw new HandoffStateError("handoff_epoch_exhausted");
+  return { state: Object.freeze({ ...current, mode: "human", assignedOperatorId: operatorId, epoch: current.epoch + 1 }), changed: true };
+}

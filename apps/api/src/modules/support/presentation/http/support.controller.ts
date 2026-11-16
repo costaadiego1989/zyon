@@ -37,6 +37,7 @@ import { ListSupportTicketsUseCase } from "../../application/list-support-ticket
 import { UpdateSupportSettingsUseCase } from "../../application/update-support-settings.use-case.js";
 import { UpdateSupportTicketStatusUseCase } from "../../application/update-support-ticket-status.use-case.js";
 import { CreateSupportTicketUseCase } from "../../application/create-support-ticket.use-case.js";
+import { ClaimWhatsAppConversationUseCase } from "../../application/claim-whatsapp-conversation.use-case.js";
 import {
   CreateSupportTicketDto,
   PublicSupportChatDto,
@@ -69,6 +70,7 @@ export class SupportController {
     @Optional() private readonly identities?: AiUserIdentityService,
     @Optional() private readonly embedTokens?: EmbedTokenService,
     @Optional() private readonly checkoutGuards?: EmbedCheckoutGuardHelper,
+    @Optional() private readonly claimWhatsAppConversation?: ClaimWhatsAppConversationUseCase,
   ) {}
 
   /**
@@ -347,6 +349,19 @@ export class SupportController {
       sessionId: body.session_id,
       message: body.message,
     });
+  }
+
+  @ApiBearerAuth("service_api_key")
+  @ApiCookieAuth("console_session")
+  @ApiOperation({ summary: "Claim the active WhatsApp conversation" })
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @RequireTenantAccess({ humanOnly: true, humanRoles: ["owner", "admin", "staff"] })
+  @RequireTenantRoles("owner", "admin", "staff")
+  @Post("tickets/:ticketId/whatsapp/claim")
+  claimWhatsApp(@Req() request: unknown, @Param("ticketId") ticketId: string, @Body() body: unknown) {
+    if (!this.claimWhatsAppConversation) throw new ServiceUnavailableException("whatsapp_claim_unavailable");
+    return this.claimWhatsAppConversation.execute(
+      currentTenantPrincipal(request as Parameters<typeof currentTenantPrincipal>[0]), ticketId, body);
   }
 
   @ApiBearerAuth("service_api_key")

@@ -12,6 +12,7 @@ import { ListSupportTicketsUseCase } from "./application/list-support-tickets.us
 import { UpdateSupportSettingsUseCase } from "./application/update-support-settings.use-case.js";
 import { UpdateSupportTicketStatusUseCase } from "./application/update-support-ticket-status.use-case.js";
 import { CreateSupportTicketUseCase } from "./application/create-support-ticket.use-case.js";
+import { ClaimWhatsAppConversationUseCase } from "./application/claim-whatsapp-conversation.use-case.js";
 import { SendTicketMessageUseCase } from "./application/send-ticket-message.use-case.js";
 import { ListTicketMessagesUseCase } from "./application/list-ticket-messages.use-case.js";
 import { TransferTicketUseCase } from "./application/transfer-ticket.use-case.js";
@@ -47,6 +48,7 @@ import { WhatsAppHandoffModule } from "../whatsapp-channel/whatsapp-handoff.modu
     ListSupportTicketsUseCase,
     UpdateSupportTicketStatusUseCase,
     CreateSupportTicketUseCase,
+    ClaimWhatsAppConversationUseCase,
     SendTicketMessageUseCase,
     ListTicketMessagesUseCase,
     TransferTicketUseCase,

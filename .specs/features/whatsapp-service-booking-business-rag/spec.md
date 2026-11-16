@@ -1,227 +1,227 @@
 # WhatsApp Service Booking and Business RAG Specification
 
-**Approved**: 2026-11-14 - user: "Aprovar a especificação apresentada"
-**Refinements approved**: 2026-11-14 - user: "Aprovar o plano e iniciar implementação local". Approval covers all 71 criteria and the 95-task plan, including later explicit refinements.
+**Approved**: 2026-11-14 - user: "Aprovar a especificaÃ§Ã£o apresentada"
+**Refinements approved**: 2026-11-14 - user: "Aprovar o plano e iniciar implementaÃ§Ã£o local". Approval covers all 71 criteria and the 95-task plan, including later explicit refinements.
 **Status:** Approved specification and refinements; tasks approved and Phase 1 implementation started locally.
 **Amendment:** 2026-11-14 - user requested an About field in existing company data, a Conversations tab inside WhatsApp, a service-only Atendimento management page, manual scheduling and business-specific dashboard metrics. User also explicitly required preservation of the approved product journeys in WhatsApp and storefront. Original 47-requirement approval remains recorded above; additions are explicit for task review and have no fabricated approval date.
 **Date:** 2026-11-14
-**User-directed addition:** 2026-11-14 - a simple service-name list in company data, confirmed by "Lista simples em Dados da empresa (recomendado)" and "lembrando que e só para empresas de serviços". Adds ONB-06 to the original71 criteria; original approvals remain verbatim. This local addition is directly requested and does not authorize production actions.
+**User-directed addition:** 2026-11-14 - a simple service-name list in company data, confirmed by "Lista simples em Dados da empresa (recomendado)" and "lembrando que e sÃ³ para empresas de serviÃ§os". Adds ONB-06 to the original71 criteria; original approvals remain verbatim. This local addition is directly requested and does not authorize production actions.
 **Size:** Complex
 
 ## Problem Statement
 
-O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e suporte. A experiência ainda não comprova uma agenda com vários profissionais, atendimento humano na mesma conversa e conhecimento alimentado automaticamente pelo cadastro da empresa. A validação de comércio não comprova prontidão para atendimento de clínicas ou outros prestadores de serviços.
+O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slots e suporte. A experiÃªncia ainda nÃ£o comprova uma agenda com vÃ¡rios profissionais, atendimento humano na mesma conversa e conhecimento alimentado automaticamente pelo cadastro da empresa. A validaÃ§Ã£o de comÃ©rcio nÃ£o comprova prontidÃ£o para atendimento de clÃ­nicas ou outros prestadores de serviÃ§os.
 
 ## Goals
 
-- [ ] Configurar uma empresa como vendedora exclusiva de produtos ou serviços desde o signup.
-- [ ] Concluir agendamento por texto ou voz, escolhendo profissional, data e horário reais.
-- [ ] Aplicar a política de bloqueio e pagamento configurada pela empresa, sem duplicar vagas ou pagamentos.
-- [ ] Operar atendimento humano pelo módulo WhatsApp, com pausa e retomada persistidas da IA.
-- [ ] Alimentar um RAG genérico com os dados públicos cadastrados e medir respostas por fontes e resultados verificáveis.
-- [ ] Gerenciar profissionais, categorias, disponibilidade e agendamentos manuais em Atendimento, exclusivo para empresas de serviços.
-- [ ] Exibir KPIs de serviço com estados operacionais e financeiros separados, preservando o painel de empresas de produtos.
+- [ ] Configurar uma empresa como vendedora exclusiva de produtos ou serviÃ§os desde o signup.
+- [ ] Concluir agendamento por texto ou voz, escolhendo profissional, data e horÃ¡rio reais.
+- [ ] Aplicar a polÃ­tica de bloqueio e pagamento configurada pela empresa, sem duplicar vagas ou pagamentos.
+- [ ] Operar atendimento humano pelo mÃ³dulo WhatsApp, com pausa e retomada persistidas da IA.
+- [ ] Alimentar um RAG genÃ©rico com os dados pÃºblicos cadastrados e medir respostas por fontes e resultados verificÃ¡veis.
+- [ ] Gerenciar profissionais, categorias, disponibilidade e agendamentos manuais em Atendimento, exclusivo para empresas de serviÃ§os.
+- [ ] Exibir KPIs de serviÃ§o com estados operacionais e financeiros separados, preservando o painel de empresas de produtos.
 
 ## Out of Scope
 
 | Feature | Reason |
 | --- | --- |
-| Empresa vender produtos e serviços simultaneamente | Usuário escolheu modalidade exclusiva. |
-| Agenda externa, Google Calendar ou prontuário eletrônico | Usuário escolheu agenda interna do Zyon. |
-| Cancelamento/remarcação automáticos pelo comprador | Piloto usa a central humana e a política publicada. |
-| Diagnóstico, prescrição e decisão autônoma de tratamento | O atendimento informativo não substitui atuação profissional. |
-| Prontuários, exames e conversas privadas como corpus público | O RAG público usa informações públicas do negócio. |
-| Central separada para editar conhecimento do RAG | O usuário determinou uso dos cadastros normais da empresa. |
-| Publicação desta feature ou criação de cadastros clínicos em produção | Requer ação remota explicitamente autorizada, após a implementação aprovada e verificada. |
-| Alterar os pedidos pagos e o estoque existentes da Athom | A validação deve preservar o estado real atual. |
+| Empresa vender produtos e serviÃ§os simultaneamente | UsuÃ¡rio escolheu modalidade exclusiva. |
+| Agenda externa, Google Calendar ou prontuÃ¡rio eletrÃ´nico | UsuÃ¡rio escolheu agenda interna do Zyon. |
+| Cancelamento/remarcaÃ§Ã£o automÃ¡ticos pelo comprador | Piloto usa a central humana e a polÃ­tica publicada. |
+| DiagnÃ³stico, prescriÃ§Ã£o e decisÃ£o autÃ´noma de tratamento | O atendimento informativo nÃ£o substitui atuaÃ§Ã£o profissional. |
+| ProntuÃ¡rios, exames e conversas privadas como corpus pÃºblico | O RAG pÃºblico usa informaÃ§Ãµes pÃºblicas do negÃ³cio. |
+| Central separada para editar conhecimento do RAG | O usuÃ¡rio determinou uso dos cadastros normais da empresa. |
+| PublicaÃ§Ã£o desta feature ou criaÃ§Ã£o de cadastros clÃ­nicos em produÃ§Ã£o | Requer aÃ§Ã£o remota explicitamente autorizada, apÃ³s a implementaÃ§Ã£o aprovada e verificada. |
+| Alterar os pedidos pagos e o estoque existentes da Athom | A validaÃ§Ã£o deve preservar o estado real atual. |
 
 ## Assumptions & Open Questions
 
 | Assumption / decision | Chosen default | Rationale | Confirmed? |
 | --- | --- | --- | --- |
-| Modalidade comercial | Produtos ou serviços, exclusivamente | User: "Escolha exclusiva: produtos ou serviços" | y |
-| Agenda | Interna, com vários profissionais | User: "Vários profissionais com agenda interna do Zyon" | y |
-| Reserva temporária e pagamento | Configurados pela própria empresa | User: "configura tempo de bloqueio se bloqueia ou nao se pagamento sera automatizado ou na hora" | y |
-| Sem bloqueio | Desativa somente reserva provisória; confirmado ocupa a vaga | User: "Sem bloqueio temporário; agendamento confirmado ocupa a vaga (recomendado)" | y |
-| Cancelar/remarcar | Atendimento humano conforme política cadastrada | User escolheu "opção 1" para solicitação à central humana | y |
-| Central | Dentro do módulo WhatsApp, na mesma conversa, com IA pausada | User: "devemos criar essa central no modulo de whatsapp" | y |
-| Retorno da IA | Automático ao encerrar o atendimento humano | User: "Automaticamente quando o humano encerrar" | y |
-| RAG | Genérico, alimentado pelo cadastro e pelas alterações da empresa | User: "todo cadastro vai gerando dados para o rag e alimentando" | y |
-| Campo de apresentação | "Sobre a empresa" em Dados da empresa | Solicitação explícita do usuário; reaproveitar armazenamento canônico existente | y |
+| Modalidade comercial | Produtos ou serviÃ§os, exclusivamente | User: "Escolha exclusiva: produtos ou serviÃ§os" | y |
+| Agenda | Interna, com vÃ¡rios profissionais | User: "VÃ¡rios profissionais com agenda interna do Zyon" | y |
+| Reserva temporÃ¡ria e pagamento | Configurados pela prÃ³pria empresa | User: "configura tempo de bloqueio se bloqueia ou nao se pagamento sera automatizado ou na hora" | y |
+| Sem bloqueio | Desativa somente reserva provisÃ³ria; confirmado ocupa a vaga | User: "Sem bloqueio temporÃ¡rio; agendamento confirmado ocupa a vaga (recomendado)" | y |
+| Cancelar/remarcar | Atendimento humano conforme polÃ­tica cadastrada | User escolheu "opÃ§Ã£o 1" para solicitaÃ§Ã£o Ã  central humana | y |
+| Central | Dentro do mÃ³dulo WhatsApp, na mesma conversa, com IA pausada | User: "devemos criar essa central no modulo de whatsapp" | y |
+| Retorno da IA | AutomÃ¡tico ao encerrar o atendimento humano | User: "Automaticamente quando o humano encerrar" | y |
+| RAG | GenÃ©rico, alimentado pelo cadastro e pelas alteraÃ§Ãµes da empresa | User: "todo cadastro vai gerando dados para o rag e alimentando" | y |
+| Campo de apresentaÃ§Ã£o | "Sobre a empresa" em Dados da empresa | SolicitaÃ§Ã£o explÃ­cita do usuÃ¡rio; reaproveitar armazenamento canÃ´nico existente | y |
 | Conversas humanas | Aba dentro de WhatsApp | User: "uma tab dentro de whatsapp ja e o suficiente" | y |
-| Gestão de serviços | Nova página Atendimento somente para serviços | User: "pagina nova de atendimento mas so para emrpesas que vendem serviços" | y |
-| Dashboard | KPIs ajustados à modalidade | User: "kpis e metricas do dashboard devem se ajustar para este tipo de negocio" | y |
-| Isolamento técnico | Reaproveitar autenticação, tenant, inbox, pagamentos e fontes canônicas existentes | Padrão do repositório; a feature não concede acesso por texto do usuário | y |
-| Dados para teste | Fatos e identidades sintéticos rotulados; nenhum paciente real | Permite testes locais sem criar oferta clínica real na Athom | y |
+| GestÃ£o de serviÃ§os | Nova pÃ¡gina Atendimento somente para serviÃ§os | User: "pagina nova de atendimento mas so para emrpesas que vendem serviÃ§os" | y |
+| Dashboard | KPIs ajustados Ã  modalidade | User: "kpis e metricas do dashboard devem se ajustar para este tipo de negocio" | y |
+| Isolamento tÃ©cnico | Reaproveitar autenticaÃ§Ã£o, tenant, inbox, pagamentos e fontes canÃ´nicas existentes | PadrÃ£o do repositÃ³rio; a feature nÃ£o concede acesso por texto do usuÃ¡rio | y |
+| Dados para teste | Fatos e identidades sintÃ©ticos rotulados; nenhum paciente real | Permite testes locais sem criar oferta clÃ­nica real na Athom | y |
 
-**Open questions:** none for specification review. Cadastros, conteúdo aprovado e política real de cada empresa são insumos de ativação, não respostas inventadas pelo sistema.
+**Open questions:** none for specification review. Cadastros, conteÃºdo aprovado e polÃ­tica real de cada empresa sÃ£o insumos de ativaÃ§Ã£o, nÃ£o respostas inventadas pelo sistema.
 
 ## User Stories
 
 ### P1: Business capability and onboarding
 
-**User Story:** Como empresa, quero informar o que vendo e configurar meu atendimento para mostrar somente os recursos aplicáveis ao meu negócio.
+**User Story:** Como empresa, quero informar o que vendo e configurar meu atendimento para mostrar somente os recursos aplicÃ¡veis ao meu negÃ³cio.
 
 **Acceptance Criteria:**
 
 1. WHEN a empresa conclui o signup THEN the system SHALL persistir exatamente uma modalidade comercial, `products` ou `services`, selecionada em "O que sua empresa vende?". [ONB-01]
-2. WHILE a modalidade é `products` the system SHALL ocultar as ações de agendamento e recusar tentativas de executá-las pela API, preservando a navegação atual de produtos. [ONB-02]
-3. WHEN uma empresa de serviços configura atendimento THEN the system SHALL exigir a escolha explícita de bloqueio temporário, duração positiva em minutos quando habilitado, e pagamento `online` ou `at_attendance`. [ONB-03]
-4. IF uma troca de modalidade conflita com ofertas ativas ou agendamentos existentes THEN the system SHALL recusar a troca com a indicação do conflito, sem excluir nem converter registros. [ONB-04]
-5. WHEN a empresa edita Dados da empresa THEN the system SHALL permitir salvar e reabrir o campo "Sobre a empresa" usando a descrição pública canônica, sem duplicar seu armazenamento. [ONB-05]
+2. WHILE a modalidade Ã© `products` the system SHALL ocultar as aÃ§Ãµes de agendamento e recusar tentativas de executÃ¡-las pela API, preservando a navegaÃ§Ã£o atual de produtos. [ONB-02]
+3. WHEN uma empresa de serviÃ§os configura atendimento THEN the system SHALL exigir a escolha explÃ­cita de bloqueio temporÃ¡rio, duraÃ§Ã£o positiva em minutos quando habilitado, e pagamento `online` ou `at_attendance`. [ONB-03]
+4. IF uma troca de modalidade conflita com ofertas ativas ou agendamentos existentes THEN the system SHALL recusar a troca com a indicaÃ§Ã£o do conflito, sem excluir nem converter registros. [ONB-04]
+5. WHEN a empresa edita Dados da empresa THEN the system SHALL permitir salvar e reabrir o campo "Sobre a empresa" usando a descriÃ§Ã£o pÃºblica canÃ´nica, sem duplicar seu armazenamento. [ONB-05]
 
-**Independent Test:** Signup em cada modalidade; leitura após novo login; tentativa direta de agendar em empresa de produtos; configuração inválida; troca de modalidade com registros ativos.
+**Independent Test:** Signup em cada modalidade; leitura apÃ³s novo login; tentativa direta de agendar em empresa de produtos; configuraÃ§Ã£o invÃ¡lida; troca de modalidade com registros ativos.
 
 ### P1: Professionals, dates and slots
 
-**User Story:** Como comprador, quero escolher um profissional e ver datas e horários disponíveis para reservar o serviço certo.
+**User Story:** Como comprador, quero escolher um profissional e ver datas e horÃ¡rios disponÃ­veis para reservar o serviÃ§o certo.
 
 **Acceptance Criteria:**
 
-1. WHEN a empresa publica um serviço agendável THEN the system SHALL vincular sua duração e profissionais a recursos de agenda da própria empresa. [AGENDA-01]
-2. WHEN o comprador abre um serviço THEN the system SHALL apresentar datas com disponibilidade atual para o serviço e profissional selecionados. [AGENDA-02]
-3. WHEN o comprador escolhe uma data THEN the system SHALL mostrar somente os slots disponíveis dessa data, informando início, duração e fuso do atendimento. [AGENDA-03]
-4. WHEN o comprador seleciona um horário THEN the system SHALL revalidar o slot e mostrar serviço, profissional, data, hora e valor antes da confirmação. [AGENDA-04]
-5. IF dois serviços do mesmo profissional disputam intervalos sobrepostos THEN the system SHALL permitir no máximo um agendamento confirmado nesse intervalo. [AGENDA-05]
-6. IF a agenda está vazia, desatualizada ou indisponível THEN the system SHALL informar o estado correspondente sem criar horário ou declarar indisponibilidade total a partir de uma falha de leitura. [AGENDA-06]
-7. WHEN texto ou áudio descreve uma data ou profissional ambíguo THEN the system SHALL pedir a escolha explícita entre as opções atuais antes de reservar ou cobrar. [AGENDA-07]
+1. WHEN a empresa publica um serviÃ§o agendÃ¡vel THEN the system SHALL vincular sua duraÃ§Ã£o e profissionais a recursos de agenda da prÃ³pria empresa. [AGENDA-01]
+2. WHEN o comprador abre um serviÃ§o THEN the system SHALL apresentar datas com disponibilidade atual para o serviÃ§o e profissional selecionados. [AGENDA-02]
+3. WHEN o comprador escolhe uma data THEN the system SHALL mostrar somente os slots disponÃ­veis dessa data, informando inÃ­cio, duraÃ§Ã£o e fuso do atendimento. [AGENDA-03]
+4. WHEN o comprador seleciona um horÃ¡rio THEN the system SHALL revalidar o slot e mostrar serviÃ§o, profissional, data, hora e valor antes da confirmaÃ§Ã£o. [AGENDA-04]
+5. IF dois serviÃ§os do mesmo profissional disputam intervalos sobrepostos THEN the system SHALL permitir no mÃ¡ximo um agendamento confirmado nesse intervalo. [AGENDA-05]
+6. IF a agenda estÃ¡ vazia, desatualizada ou indisponÃ­vel THEN the system SHALL informar o estado correspondente sem criar horÃ¡rio ou declarar indisponibilidade total a partir de uma falha de leitura. [AGENDA-06]
+7. WHEN texto ou Ã¡udio descreve uma data ou profissional ambÃ­guo THEN the system SHALL pedir a escolha explÃ­cita entre as opÃ§Ãµes atuais antes de reservar ou cobrar. [AGENDA-07]
 
-**Independent Test:** Dois profissionais, três serviços e duas datas; serviços diferentes com o mesmo profissional; competição concorrente pelo mesmo intervalo; slot vencido; leitura com erro; áudio ambíguo.
+**Independent Test:** Dois profissionais, trÃªs serviÃ§os e duas datas; serviÃ§os diferentes com o mesmo profissional; competiÃ§Ã£o concorrente pelo mesmo intervalo; slot vencido; leitura com erro; Ã¡udio ambÃ­guo.
 
 ### P1: Booking and payment policies
 
-**User Story:** Como empresa, quero controlar reserva provisória e recebimento sem permitir inconsistência entre agenda, pedido e pagamento.
+**User Story:** Como empresa, quero controlar reserva provisÃ³ria e recebimento sem permitir inconsistÃªncia entre agenda, pedido e pagamento.
 
 **Acceptance Criteria:**
 
-1. WHERE bloqueio temporário está habilitado the system SHALL reservar provisoriamente o intervalo pelo tempo configurado, exibindo seu vencimento pelo relógio do servidor. [BOOK-01]
-2. WHEN uma reserva provisória vence ou é abandonada THEN the system SHALL liberar somente o bloqueio provisório correspondente, sem liberar um agendamento já confirmado. [BOOK-02]
-3. WHERE bloqueio temporário está desabilitado the system SHALL revalidar a capacidade no ato da confirmação, sem garantir a vaga durante a seleção. [BOOK-03]
-4. WHERE pagamento é `at_attendance` the system SHALL confirmar o agendamento atomicamente com a ocupação do horário e registrar pagamento pendente, sem criar cobrança antecipada. [BOOK-04]
-5. WHERE pagamento é `online` the system SHALL confirmar o agendamento somente após a confirmação financeira do provedor e a aquisição válida da vaga. [BOOK-05]
-6. IF pagamento é aprovado após a vaga se tornar indisponível THEN the system SHALL manter o pagamento real registrado e sinalizar regularização para a empresa, sem confirmar vaga inexistente nem cobrar novamente. [BOOK-06]
-7. WHEN a empresa registra recebimento no atendimento THEN the system SHALL guardar valor, forma, operador e momento da quitação, sem apresentar esse registro como confirmação de um provedor externo. [BOOK-07]
-8. IF mensagem, confirmação ou webhook é repetido THEN the system SHALL manter um único agendamento e uma única aplicação do mesmo evento financeiro. [BOOK-08]
-9. WHEN o comprador solicita cancelar ou remarcar THEN the system SHALL encaminhar à central humana com o vínculo do agendamento e a política publicada da empresa. [BOOK-09]
-10. WHEN uma reserva de serviço é concluída THEN the system SHALL emitir confirmação com serviço, profissional, data, hora, fuso e situação financeira, sem tratá-la como produto enviado ou baixar estoque físico. [BOOK-10]
+1. WHERE bloqueio temporÃ¡rio estÃ¡ habilitado the system SHALL reservar provisoriamente o intervalo pelo tempo configurado, exibindo seu vencimento pelo relÃ³gio do servidor. [BOOK-01]
+2. WHEN uma reserva provisÃ³ria vence ou Ã© abandonada THEN the system SHALL liberar somente o bloqueio provisÃ³rio correspondente, sem liberar um agendamento jÃ¡ confirmado. [BOOK-02]
+3. WHERE bloqueio temporÃ¡rio estÃ¡ desabilitado the system SHALL revalidar a capacidade no ato da confirmaÃ§Ã£o, sem garantir a vaga durante a seleÃ§Ã£o. [BOOK-03]
+4. WHERE pagamento Ã© `at_attendance` the system SHALL confirmar o agendamento atomicamente com a ocupaÃ§Ã£o do horÃ¡rio e registrar pagamento pendente, sem criar cobranÃ§a antecipada. [BOOK-04]
+5. WHERE pagamento Ã© `online` the system SHALL confirmar o agendamento somente apÃ³s a confirmaÃ§Ã£o financeira do provedor e a aquisiÃ§Ã£o vÃ¡lida da vaga. [BOOK-05]
+6. IF pagamento Ã© aprovado apÃ³s a vaga se tornar indisponÃ­vel THEN the system SHALL manter o pagamento real registrado e sinalizar regularizaÃ§Ã£o para a empresa, sem confirmar vaga inexistente nem cobrar novamente. [BOOK-06]
+7. WHEN a empresa registra recebimento no atendimento THEN the system SHALL guardar valor, forma, operador e momento da quitaÃ§Ã£o, sem apresentar esse registro como confirmaÃ§Ã£o de um provedor externo. [BOOK-07]
+8. IF mensagem, confirmaÃ§Ã£o ou webhook Ã© repetido THEN the system SHALL manter um Ãºnico agendamento e uma Ãºnica aplicaÃ§Ã£o do mesmo evento financeiro. [BOOK-08]
+9. WHEN o comprador solicita cancelar ou remarcar THEN the system SHALL encaminhar Ã  central humana com o vÃ­nculo do agendamento e a polÃ­tica publicada da empresa. [BOOK-09]
+10. WHEN uma reserva de serviÃ§o Ã© concluÃ­da THEN the system SHALL emitir confirmaÃ§Ã£o com serviÃ§o, profissional, data, hora, fuso e situaÃ§Ã£o financeira, sem tratÃ¡-la como produto enviado ou baixar estoque fÃ­sico. [BOOK-10]
 
-**Independent Test:** Quatro combinações de bloqueio/pagamento; expiração por relógio controlado; duas confirmações concorrentes; pagamento tardio; webhook repetido; quitação local auditada; evento de confirmação e ausência de saída de estoque físico.
+**Independent Test:** Quatro combinaÃ§Ãµes de bloqueio/pagamento; expiraÃ§Ã£o por relÃ³gio controlado; duas confirmaÃ§Ãµes concorrentes; pagamento tardio; webhook repetido; quitaÃ§Ã£o local auditada; evento de confirmaÃ§Ã£o e ausÃªncia de saÃ­da de estoque fÃ­sico.
 
 ### P1: WhatsApp human support center
 
-**User Story:** Como comprador, quero pedir um atendente na mesma conversa; como empresa, quero assumir, responder e encerrar pelo módulo WhatsApp.
+**User Story:** Como comprador, quero pedir um atendente na mesma conversa; como empresa, quero assumir, responder e encerrar pelo mÃ³dulo WhatsApp.
 
 **Acceptance Criteria:**
 
-1. WHEN o comprador abre o Menu principal THEN the system SHALL apresentar a opção "Falar com atendente" sem ultrapassar o limite de opções de cada controle nativo. [HUM-01]
-2. WHEN o comprador pede atendente por botão, texto ou voz, inclusive durante o checkout, THEN the system SHALL abrir ou reutilizar um atendimento vinculado à empresa e conversa autenticadas antes de confirmar o encaminhamento. [HUM-02]
-3. WHILE o atendimento está aguardando ou sob atendimento humano the system SHALL pausar as respostas automáticas da IA sem perder carrinho, agendamento ou pagamento. [HUM-03]
-4. WHEN operador autorizado acessa a central do módulo WhatsApp THEN the system SHALL permitir consultar a fila, assumir uma conversa, responder e encerrar somente atendimentos de sua empresa. [HUM-04]
+1. WHEN o comprador abre o Menu principal THEN the system SHALL apresentar a opÃ§Ã£o "Falar com atendente" sem ultrapassar o limite de opÃ§Ãµes de cada controle nativo. [HUM-01]
+2. WHEN o comprador pede atendente por botÃ£o, texto ou voz, inclusive durante o checkout, THEN the system SHALL abrir ou reutilizar um atendimento vinculado Ã  empresa e conversa autenticadas antes de confirmar o encaminhamento. [HUM-02]
+3. WHILE o atendimento estÃ¡ aguardando ou sob atendimento humano the system SHALL pausar as respostas automÃ¡ticas da IA sem perder carrinho, agendamento ou pagamento. [HUM-03]
+4. WHEN operador autorizado acessa a central do mÃ³dulo WhatsApp THEN the system SHALL permitir consultar a fila, assumir uma conversa, responder e encerrar somente atendimentos de sua empresa. [HUM-04]
 5. WHEN operador envia resposta THEN the system SHALL persistir a mensagem e seu estado de entrega na conversa original, sem considerar aceite do provedor como leitura pelo comprador. [HUM-05]
-6. WHEN operador encerra o atendimento THEN the system SHALL restaurar o modo IA e informar a devolução uma única vez, mesmo com eventos repetidos. [HUM-06]
-7. IF a fila, a entrega ou a equipe está indisponível THEN the system SHALL informar o estado real, sem prometer atendimento imediato ou resposta já enviada. [HUM-07]
-8. WHEN o operador abre o módulo WhatsApp THEN the system SHALL oferecer a aba "Conversas" para operar o atendimento humano existente sem exigir uma central separada para o RAG. [HUM-08]
+6. WHEN operador encerra o atendimento THEN the system SHALL restaurar o modo IA e informar a devoluÃ§Ã£o uma Ãºnica vez, mesmo com eventos repetidos. [HUM-06]
+7. IF a fila, a entrega ou a equipe estÃ¡ indisponÃ­vel THEN the system SHALL informar o estado real, sem prometer atendimento imediato ou resposta jÃ¡ enviada. [HUM-07]
+8. WHEN o operador abre o mÃ³dulo WhatsApp THEN the system SHALL oferecer a aba "Conversas" para operar o atendimento humano existente sem exigir uma central separada para o RAG. [HUM-08]
 
-**Independent Test:** Pedido durante coleta de dados; fila e tomada de conversa; resposta real na mesma thread; operador de outro tenant negado; fechamento duplicado; geração de IA em andamento ao iniciar handoff.
+**Independent Test:** Pedido durante coleta de dados; fila e tomada de conversa; resposta real na mesma thread; operador de outro tenant negado; fechamento duplicado; geraÃ§Ã£o de IA em andamento ao iniciar handoff.
 
 ### P1: Automatic generic business RAG
 
-**User Story:** Como empresa de qualquer ramo de serviços, quero que meus cadastros publicados alimentem o conhecimento do assistente sem manutenção manual de seeds.
+**User Story:** Como empresa de qualquer ramo de serviÃ§os, quero que meus cadastros publicados alimentem o conhecimento do assistente sem manutenÃ§Ã£o manual de seeds.
 
 **Acceptance Criteria:**
 
-1. WHEN cadastro público da empresa, profissional, serviço, horário de funcionamento, FAQ ou política é publicado ou alterado THEN the system SHALL registrar atualização idempotente da projeção de conhecimento com tenant, origem e versão. [RAG-01]
-2. WHEN uma fonte é retirada ou despublicada THEN the system SHALL impedir seu uso como evidência ativa e retirar sua projeção, sem recuperar texto antigo como resposta atual. [RAG-02]
-3. IF embeddings ou grafo estão indisponíveis THEN the system SHALL conservar o cadastro canônico e registrar a indexação pendente para nova tentativa, sem desfazer o cadastro nem inventar uma resposta. [RAG-03]
-4. WHEN o assistente compõe uma resposta factual THEN the system SHALL usar fontes públicas da empresa autenticada e conservar as referências de origem e versão para auditoria. [RAG-04]
-5. WHEN a pergunta combina área de atuação, serviço, profissional, preço e disponibilidade THEN the system SHALL combinar recuperação semântica com leituras canônicas de serviço, preço e agenda, sem extrair confirmação financeira ou vaga de um embedding. [RAG-05]
-6. IF não há fonte suficiente ou há conflito entre fontes THEN the system SHALL explicitar a lacuna e pedir esclarecimento ou encaminhar ao humano, sem atribuir à empresa um serviço, credencial ou política não publicada. [RAG-06]
-7. The system SHALL excluir credenciais, prontuários, dados pessoais privados e conversas de clientes do corpus público e das respostas a outros compradores. [RAG-07]
-8. WHILE a recuperação usa Neo4j Community the system SHALL executar somente consultas parametrizadas e aprovadas no gateway privado, sem executar Cypher livre fornecido pelo modelo ou comprador. [RAG-08]
-9. WHEN um cenário de segmento regulado exige diagnóstico, prescrição ou decisão profissional individual THEN the system SHALL encaminhar ao profissional e limitar a resposta informativa ao conteúdo publicado aplicável. [RAG-09]
-10. WHEN uma nova empresa de um ramo de serviços é cadastrada THEN the system SHALL aplicar o mesmo fluxo de ingestão e consulta sem FAQ, nomes ou especialidades médicos hardcoded. [RAG-10]
-11. WHEN a empresa mantém apresentação, políticas, profissionais e horários em seus cadastros normais THEN the system SHALL alimentar o contexto desses registros sem exigir duplicação de conteúdo em uma central de RAG. [RAG-11]
+1. WHEN cadastro pÃºblico da empresa, profissional, serviÃ§o, horÃ¡rio de funcionamento, FAQ ou polÃ­tica Ã© publicado ou alterado THEN the system SHALL registrar atualizaÃ§Ã£o idempotente da projeÃ§Ã£o de conhecimento com tenant, origem e versÃ£o. [RAG-01]
+2. WHEN uma fonte Ã© retirada ou despublicada THEN the system SHALL impedir seu uso como evidÃªncia ativa e retirar sua projeÃ§Ã£o, sem recuperar texto antigo como resposta atual. [RAG-02]
+3. IF embeddings ou grafo estÃ£o indisponÃ­veis THEN the system SHALL conservar o cadastro canÃ´nico e registrar a indexaÃ§Ã£o pendente para nova tentativa, sem desfazer o cadastro nem inventar uma resposta. [RAG-03]
+4. WHEN o assistente compÃµe uma resposta factual THEN the system SHALL usar fontes pÃºblicas da empresa autenticada e conservar as referÃªncias de origem e versÃ£o para auditoria. [RAG-04]
+5. WHEN a pergunta combina Ã¡rea de atuaÃ§Ã£o, serviÃ§o, profissional, preÃ§o e disponibilidade THEN the system SHALL combinar recuperaÃ§Ã£o semÃ¢ntica com leituras canÃ´nicas de serviÃ§o, preÃ§o e agenda, sem extrair confirmaÃ§Ã£o financeira ou vaga de um embedding. [RAG-05]
+6. IF nÃ£o hÃ¡ fonte suficiente ou hÃ¡ conflito entre fontes THEN the system SHALL explicitar a lacuna e pedir esclarecimento ou encaminhar ao humano, sem atribuir Ã  empresa um serviÃ§o, credencial ou polÃ­tica nÃ£o publicada. [RAG-06]
+7. The system SHALL excluir credenciais, prontuÃ¡rios, dados pessoais privados e conversas de clientes do corpus pÃºblico e das respostas a outros compradores. [RAG-07]
+8. WHILE a recuperaÃ§Ã£o usa Neo4j Community the system SHALL executar somente consultas parametrizadas e aprovadas no gateway privado, sem executar Cypher livre fornecido pelo modelo ou comprador. [RAG-08]
+9. WHEN um cenÃ¡rio de segmento regulado exige diagnÃ³stico, prescriÃ§Ã£o ou decisÃ£o profissional individual THEN the system SHALL encaminhar ao profissional e limitar a resposta informativa ao conteÃºdo publicado aplicÃ¡vel. [RAG-09]
+10. WHEN uma nova empresa de um ramo de serviÃ§os Ã© cadastrada THEN the system SHALL aplicar o mesmo fluxo de ingestÃ£o e consulta sem FAQ, nomes ou especialidades mÃ©dicos hardcoded. [RAG-10]
+11. WHEN a empresa mantÃ©m apresentaÃ§Ã£o, polÃ­ticas, profissionais e horÃ¡rios em seus cadastros normais THEN the system SHALL alimentar o contexto desses registros sem exigir duplicaÃ§Ã£o de conteÃºdo em uma central de RAG. [RAG-11]
 
-**Independent Test:** Neurologia, salão e consultoria com conteúdo sintético; atualizações e remoções; contradições; falha de grafo; fonte de outro tenant; dados privados; prompt injection; consultas compostas com agenda operacional.
+**Independent Test:** Neurologia, salÃ£o e consultoria com conteÃºdo sintÃ©tico; atualizaÃ§Ãµes e remoÃ§Ãµes; contradiÃ§Ãµes; falha de grafo; fonte de outro tenant; dados privados; prompt injection; consultas compostas com agenda operacional.
 
 ### P1: Service management page
 
-**User Story:** Como empresa de serviços, quero organizar minha equipe, categorias e agenda e registrar agendamentos manuais no mesmo domínio usado pelo comprador.
+**User Story:** Como empresa de serviÃ§os, quero organizar minha equipe, categorias e agenda e registrar agendamentos manuais no mesmo domÃ­nio usado pelo comprador.
 
 **Acceptance Criteria:**
 
-1. WHEN uma empresa de serviços abre a navegação administrativa THEN the system SHALL oferecer a página "Atendimento", negando sua gestão a empresas de produtos também nas rotas da API. [ATEND-01]
-2. WHEN operador autorizado mantém profissionais THEN the system SHALL permitir cadastrar, editar e desativar profissionais da própria empresa, preservando o histórico de agendamentos. [ATEND-02]
-3. WHEN operador mantém categorias de atendimento THEN the system SHALL vincular categorias e serviços publicados sem transformar categoria em recurso de capacidade. [ATEND-03]
-4. WHEN a empresa publica disponibilidade de um profissional THEN the system SHALL considerar grade, duração do serviço, fuso e indisponibilidades na mesma leitura usada pelo WhatsApp, storefront e agendamento manual. [ATEND-04]
-5. WHEN operador cria um horário avulso THEN the system SHALL validá-lo no fuso do profissional e impedir sobreposição com intervalos confirmados ou bloqueados. [ATEND-05]
-6. WHEN operador cria um agendamento manual THEN the system SHALL aplicar a mesma capacidade, política financeira, identidade de cliente e idempotência usadas no fluxo de autoatendimento. [ATEND-06]
-7. WHEN operador inicia, conclui ou registra ausência de um atendimento THEN the system SHALL persistir a transição operacional explícita sem inferir quitação financeira ou comparecimento pelo pagamento. [ATEND-07]
-8. IF um operador tenta gerir profissional, categoria, grade ou agendamento de outra empresa THEN the system SHALL recusar a operação sem expor o registro solicitado. [ATEND-08]
-9. WHEN operador bloqueia uma indisponibilidade THEN the system SHALL retirar o intervalo da oferta pública sem cancelar ou sobrepor silenciosamente agendamentos confirmados. [ATEND-09]
-10. WHEN operador agenda fora da grade regular THEN the system SHALL permitir a criação explícita de horário avulso na mesma operação, sem sobreposição e sob a política de pagamento vigente. [ATEND-10]
+1. WHEN uma empresa de serviÃ§os abre a navegaÃ§Ã£o administrativa THEN the system SHALL oferecer a pÃ¡gina "Atendimento", negando sua gestÃ£o a empresas de produtos tambÃ©m nas rotas da API. [ATEND-01]
+2. WHEN operador autorizado mantÃ©m profissionais THEN the system SHALL permitir cadastrar, editar e desativar profissionais da prÃ³pria empresa, preservando o histÃ³rico de agendamentos. [ATEND-02]
+3. WHEN operador mantÃ©m categorias de atendimento THEN the system SHALL vincular categorias e serviÃ§os publicados sem transformar categoria em recurso de capacidade. [ATEND-03]
+4. WHEN a empresa publica disponibilidade de um profissional THEN the system SHALL considerar grade, duraÃ§Ã£o do serviÃ§o, fuso e indisponibilidades na mesma leitura usada pelo WhatsApp, storefront e agendamento manual. [ATEND-04]
+5. WHEN operador cria um horÃ¡rio avulso THEN the system SHALL validÃ¡-lo no fuso do profissional e impedir sobreposiÃ§Ã£o com intervalos confirmados ou bloqueados. [ATEND-05]
+6. WHEN operador cria um agendamento manual THEN the system SHALL aplicar a mesma capacidade, polÃ­tica financeira, identidade de cliente e idempotÃªncia usadas no fluxo de autoatendimento. [ATEND-06]
+7. WHEN operador inicia, conclui ou registra ausÃªncia de um atendimento THEN the system SHALL persistir a transiÃ§Ã£o operacional explÃ­cita sem inferir quitaÃ§Ã£o financeira ou comparecimento pelo pagamento. [ATEND-07]
+8. IF um operador tenta gerir profissional, categoria, grade ou agendamento de outra empresa THEN the system SHALL recusar a operaÃ§Ã£o sem expor o registro solicitado. [ATEND-08]
+9. WHEN operador bloqueia uma indisponibilidade THEN the system SHALL retirar o intervalo da oferta pÃºblica sem cancelar ou sobrepor silenciosamente agendamentos confirmados. [ATEND-09]
+10. WHEN operador agenda fora da grade regular THEN the system SHALL permitir a criaÃ§Ã£o explÃ­cita de horÃ¡rio avulso na mesma operaÃ§Ã£o, sem sobreposiÃ§Ã£o e sob a polÃ­tica de pagamento vigente. [ATEND-10]
 
-**Independent Test:** Cadastro e desativação de profissional com histórico; categoria com serviços; mesma agenda nos três canais; agendamento manual em disputa com comprador; ações operacionais com pagamento local pendente; acesso de outro tenant.
+**Independent Test:** Cadastro e desativaÃ§Ã£o de profissional com histÃ³rico; categoria com serviÃ§os; mesma agenda nos trÃªs canais; agendamento manual em disputa com comprador; aÃ§Ãµes operacionais com pagamento local pendente; acesso de outro tenant.
 
 ### P1: Service dashboard metrics
 
-**User Story:** Como empresa de serviços, quero ver minha operação e meus recebimentos por indicadores adequados, sem confundir agendamento com venda paga ou atendimento realizado.
+**User Story:** Como empresa de serviÃ§os, quero ver minha operaÃ§Ã£o e meus recebimentos por indicadores adequados, sem confundir agendamento com venda paga ou atendimento realizado.
 
 **Acceptance Criteria:**
 
 1. WHEN a empresa abre o dashboard THEN the system SHALL selecionar os indicadores da modalidade comercial persistida, mantendo os indicadores atuais para produtos. [KPI-01]
-2. WHEN o painel contabiliza agendamentos do período THEN the system SHALL contar cada agendamento uma vez por estado operacional, usando o início agendado no fuso da empresa como coorte declarada. [KPI-02]
-3. WHEN o painel calcula ocupação THEN the system SHALL dividir minutos ocupados confirmados pelos minutos ofertados únicos por profissional no período, sem duplicar capacidade de serviços que compartilham esse profissional. [KPI-03]
-4. WHEN o painel mostra valores de serviços THEN the system SHALL separar valor agendado, valor a receber e recebimento confirmado, usando evidências financeiras próprias de pagamento online ou registro local. [KPI-04]
-5. WHEN operador filtra período, profissional ou categoria THEN the system SHALL aplicar os mesmos limites de tenant e período aos totais e detalhamentos retornados pela API. [KPI-05]
-6. WHEN o painel mostra concluídos ou ausências THEN the system SHALL usar somente os estados operacionais registrados, sem inferir conclusão por pagamento ou ausência pelo decurso do horário. [KPI-06]
-7. IF uma leitura de métricas falha ou o denominador de uma taxa não existe THEN the system SHALL distinguir dados indisponíveis de zero e mostrar taxa não calculável sem fabricar percentuais. [KPI-07]
+2. WHEN o painel contabiliza agendamentos do perÃ­odo THEN the system SHALL contar cada agendamento uma vez por estado operacional, usando o inÃ­cio agendado no fuso da empresa como coorte declarada. [KPI-02]
+3. WHEN o painel calcula ocupaÃ§Ã£o THEN the system SHALL dividir minutos ocupados confirmados pelos minutos ofertados Ãºnicos por profissional no perÃ­odo, sem duplicar capacidade de serviÃ§os que compartilham esse profissional. [KPI-03]
+4. WHEN o painel mostra valores de serviÃ§os THEN the system SHALL separar valor agendado, valor a receber e recebimento confirmado, usando evidÃªncias financeiras prÃ³prias de pagamento online ou registro local. [KPI-04]
+5. WHEN operador filtra perÃ­odo, profissional ou categoria THEN the system SHALL aplicar os mesmos limites de tenant e perÃ­odo aos totais e detalhamentos retornados pela API. [KPI-05]
+6. WHEN o painel mostra concluÃ­dos ou ausÃªncias THEN the system SHALL usar somente os estados operacionais registrados, sem inferir conclusÃ£o por pagamento ou ausÃªncia pelo decurso do horÃ¡rio. [KPI-06]
+7. IF uma leitura de mÃ©tricas falha ou o denominador de uma taxa nÃ£o existe THEN the system SHALL distinguir dados indisponÃ­veis de zero e mostrar taxa nÃ£o calculÃ¡vel sem fabricar percentuais. [KPI-07]
 
-**Independent Test:** Agenda sintética conhecida com dois profissionais, serviços compartilhados, cancelamentos, ausência, concluídos não pagos e pagamentos sem comparecimento; fronteira de fuso; filtros; indisponibilidade; painel de produtos inalterado.
+**Independent Test:** Agenda sintÃ©tica conhecida com dois profissionais, serviÃ§os compartilhados, cancelamentos, ausÃªncia, concluÃ­dos nÃ£o pagos e pagamentos sem comparecimento; fronteira de fuso; filtros; indisponibilidade; painel de produtos inalterado.
 
 ### P1: Preserve approved product journeys
 
-**User Story:** Como empresa de produtos, quero continuar usando os fluxos já aprovados enquanto empresas de serviços recebem uma jornada própria.
+**User Story:** Como empresa de produtos, quero continuar usando os fluxos jÃ¡ aprovados enquanto empresas de serviÃ§os recebem uma jornada prÃ³pria.
 
 **Acceptance Criteria:**
 
-1. WHEN uma empresa usa WhatsApp ou storefront THEN the system SHALL selecionar a jornada pela modalidade canônica da empresa, sem aplicar políticas de agenda, pagamento no atendimento ou controles de profissional à compra de produtos. [REG-01]
-2. WHEN a nova jornada de serviços é validada THEN the system SHALL comprovar nos dois canais a preservação de catálogo, busca e comparação, detalhes e avaliações, carrinho e cross-sell, identidade e endereço, frete e checkout, incluindo Pix, cartão e troca do método de pagamento de produtos. [REG-02]
-3. WHEN pagamentos de produtos e agendamentos de serviços são processados na mesma revisão THEN the system SHALL preservar totais, recibos, transições de pedido, eventos e baixa de estoque físico de produtos, impedindo que eventos de serviço produzam envio ou saída de estoque físico. [REG-03]
-4. WHEN a feature é migrada, habilitada ou desabilitada THEN the system SHALL preservar empresas e registros existentes, manter serviços novos desabilitados para empresas de produtos e conservar o processamento dos agendamentos e pagamentos já iniciados. [REG-04]
+1. WHEN uma empresa usa WhatsApp ou storefront THEN the system SHALL selecionar a jornada pela modalidade canÃ´nica da empresa, sem aplicar polÃ­ticas de agenda, pagamento no atendimento ou controles de profissional Ã  compra de produtos. [REG-01]
+2. WHEN a nova jornada de serviÃ§os Ã© validada THEN the system SHALL comprovar nos dois canais a preservaÃ§Ã£o de catÃ¡logo, busca e comparaÃ§Ã£o, detalhes e avaliaÃ§Ãµes, carrinho e cross-sell, identidade e endereÃ§o, frete e checkout, incluindo Pix, cartÃ£o e troca do mÃ©todo de pagamento de produtos. [REG-02]
+3. WHEN pagamentos de produtos e agendamentos de serviÃ§os sÃ£o processados na mesma revisÃ£o THEN the system SHALL preservar totais, recibos, transiÃ§Ãµes de pedido, eventos e baixa de estoque fÃ­sico de produtos, impedindo que eventos de serviÃ§o produzam envio ou saÃ­da de estoque fÃ­sico. [REG-03]
+4. WHEN a feature Ã© migrada, habilitada ou desabilitada THEN the system SHALL preservar empresas e registros existentes, manter serviÃ§os novos desabilitados para empresas de produtos e conservar o processamento dos agendamentos e pagamentos jÃ¡ iniciados. [REG-04]
 
-**Independent Test:** Dois tenants sintéticos, um de cada modalidade, no WhatsApp e storefront; matriz de comércio aprovada antes/depois; migração sobre fixture de dados anteriores; desativação de novas reservas com pagamentos pendentes e agendamentos confirmados preservados.
+**Independent Test:** Dois tenants sintÃ©ticos, um de cada modalidade, no WhatsApp e storefront; matriz de comÃ©rcio aprovada antes/depois; migraÃ§Ã£o sobre fixture de dados anteriores; desativaÃ§Ã£o de novas reservas com pagamentos pendentes e agendamentos confirmados preservados.
 
 ### P1: Evidence and acceptance
 
-**User Story:** Como responsável pelo produto, quero comprovar UI, reservas, pagamentos e conhecimento antes de liberar uma empresa real.
+**User Story:** Como responsÃ¡vel pelo produto, quero comprovar UI, reservas, pagamentos e conhecimento antes de liberar uma empresa real.
 
 **Acceptance Criteria:**
 
-1. WHEN a feature é validada THEN the system SHALL produzir uma matriz que relacione cada critério ao comando e à evidência de seu resultado no mesmo HEAD. [QA-01]
-2. WHEN o fluxo visual é demonstrado THEN the system SHALL fornecer prints das telas e conversas correspondentes, marcando separadamente prévias locais e capturas reais. [QA-02]
-3. WHEN os testes financeiros e de concorrência são executados THEN the system SHALL comprovar unicidade de reserva, estado financeiro verdadeiro e isolamento de tenant, sem depender apenas da mensagem da IA. [QA-03]
-4. WHEN o RAG é avaliado THEN the system SHALL medir respostas apoiadas por fonte, tratamento de ausência/contradição e uso correto de ferramentas em três ramos, exigindo aprovação de todos os casos críticos antes da ativação. [QA-04]
+1. WHEN a feature Ã© validada THEN the system SHALL produzir uma matriz que relacione cada critÃ©rio ao comando e Ã  evidÃªncia de seu resultado no mesmo HEAD. [QA-01]
+2. WHEN o fluxo visual Ã© demonstrado THEN the system SHALL fornecer prints das telas e conversas correspondentes, marcando separadamente prÃ©vias locais e capturas reais. [QA-02]
+3. WHEN os testes financeiros e de concorrÃªncia sÃ£o executados THEN the system SHALL comprovar unicidade de reserva, estado financeiro verdadeiro e isolamento de tenant, sem depender apenas da mensagem da IA. [QA-03]
+4. WHEN o RAG Ã© avaliado THEN the system SHALL medir respostas apoiadas por fonte, tratamento de ausÃªncia/contradiÃ§Ã£o e uso correto de ferramentas em trÃªs ramos, exigindo aprovaÃ§Ã£o de todos os casos crÃ­ticos antes da ativaÃ§Ã£o. [QA-04]
 
-**Independent Test:** Relatório de provas, mutações independentes, revisão de telas e UAT por texto/voz no WhatsApp e storefront, com revisão profissional do corpus quando aplicável.
+**Independent Test:** RelatÃ³rio de provas, mutaÃ§Ãµes independentes, revisÃ£o de telas e UAT por texto/voz no WhatsApp e storefront, com revisÃ£o profissional do corpus quando aplicÃ¡vel.
 
 ## Edge Cases
 
-- IF um ID de profissional, empresa ou horário pertence a outro tenant THEN the system SHALL rejeitar a ação sem expor dados desse tenant. [EDGE-01]
-- IF uma política muda durante uma reserva THEN the system SHALL exigir uma nova confirmação da condição comercial atual antes de criar cobrança ou reserva final. [EDGE-02]
-- IF a mídia de confirmação falha THEN the system SHALL preservar a entrega do texto e o estado canônico já confirmado. [EDGE-03]
-- IF um operador assume enquanto uma resposta da IA está em processamento THEN the system SHALL impedir o envio dessa resposta automática após a mudança de modo. [EDGE-04]
-- IF a fonte contém instruções para executar ferramentas ou revelar dados THEN the system SHALL tratá-la somente como conteúdo recuperado, sem conceder autoridade operacional. [EDGE-05]
+- IF um ID de profissional, empresa ou horÃ¡rio pertence a outro tenant THEN the system SHALL rejeitar a aÃ§Ã£o sem expor dados desse tenant. [EDGE-01]
+- IF uma polÃ­tica muda durante uma reserva THEN the system SHALL exigir uma nova confirmaÃ§Ã£o da condiÃ§Ã£o comercial atual antes de criar cobranÃ§a ou reserva final. [EDGE-02]
+- IF a mÃ­dia de confirmaÃ§Ã£o falha THEN the system SHALL preservar a entrega do texto e o estado canÃ´nico jÃ¡ confirmado. [EDGE-03]
+- IF um operador assume enquanto uma resposta da IA estÃ¡ em processamento THEN the system SHALL impedir o envio dessa resposta automÃ¡tica apÃ³s a mudanÃ§a de modo. [EDGE-04]
+- IF a fonte contÃ©m instruÃ§Ãµes para executar ferramentas ou revelar dados THEN the system SHALL tratÃ¡-la somente como conteÃºdo recuperado, sem conceder autoridade operacional. [EDGE-05]
 
 ### P1: Public service names in company data
 
-**User Story:** Como empresa de serviços, quero cadastrar uma lista simples do que ofereço em Dados da empresa para apresentar meu negócio e dar contexto ao assistente.
+**User Story:** Como empresa de serviÃ§os, quero cadastrar uma lista simples do que ofereÃ§o em Dados da empresa para apresentar meu negÃ³cio e dar contexto ao assistente.
 
 **Acceptance Criteria:**
 
-1. WHILE a modalidade canônica é `services` the system SHALL permitir adicionar pelo botão "+", editar, remover, salvar e reabrir uma lista de nomes de serviços em Dados da empresa e usar somente os nomes públicos salvos como contexto do RAG, ocultando e recusando sua edição para empresas de produtos e retirando esse contexto quando a modalidade mudar para produtos. [ONB-06]
+1. WHILE a modalidade canÃ´nica Ã© `services` the system SHALL permitir adicionar pelo botÃ£o "+", editar, remover, salvar e reabrir uma lista de nomes de serviÃ§os em Dados da empresa e usar somente os nomes pÃºblicos salvos como contexto do RAG, ocultando e recusando sua ediÃ§Ã£o para empresas de produtos e retirando esse contexto quando a modalidade mudar para produtos. [ONB-06]
 
-**Independent Test:** Na empresa de serviços adicionar dois nomes, editar/remover, salvar e recarregar com persistência real; provar os nomes na fonte pública atual, omissão preservando dados e lista vazia limpando contexto. Na empresa de produtos não mostrar o controle, recusar escrita direta e impedir uso de nomes históricos pelo RAG. A lista não cria preço, duração, disponibilidade ou oferta comercial.
+**Independent Test:** Na empresa de serviÃ§os adicionar dois nomes, editar/remover, salvar e recarregar com persistÃªncia real; provar os nomes na fonte pÃºblica atual, omissÃ£o preservando dados e lista vazia limpando contexto. Na empresa de produtos nÃ£o mostrar o controle, recusar escrita direta e impedir uso de nomes histÃ³ricos pelo RAG. A lista nÃ£o cria preÃ§o, duraÃ§Ã£o, disponibilidade ou oferta comercial.
 
 ## Requirement Traceability
 
@@ -253,7 +253,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | HUM-01 | Fixed menu entry | T57 | Pending |
 | HUM-02 | Handoff intake | T49, T50, T57 | In Progress (T49 intake and T50 router complete; menu pending) |
 | HUM-03 | AI pause | T4, T48, T49, T50, T51 | Complete locally (T4/T48-T51; final integrated verification pending) |
-| HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | Pending |
+| HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52 exact claim complete; T53 send and T61 console pending) |
 | HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | Pending |
 | HUM-06 | Automatic AI resume | T56, T61 | Pending |
 | HUM-07 | Unavailable team/provider | T54, T55, T58 | Pending |
@@ -318,21 +318,21 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 
 ## Sources
 
-- Pedido e respostas do usuário em 2026-11-14; transcrição de decisões em context.md.
-- Código inspecionado: `apps/api/src/modules/catalog/domain/services/service-schedule.ts`, `apps/api/src/shared/bookings/service-slot-holds.service.ts`, `apps/api/src/shared/persistence/order-fulfillment.ts`.
-- Suporte existente: `apps/api/src/modules/support/application/support-handoff.service.ts`, `send-ticket-message.use-case.ts`; navegação em `whatsapp-channel/domain/ui/buyer-hub.ts`.
+- Pedido e respostas do usuÃ¡rio em 2026-11-14; transcriÃ§Ã£o de decisÃµes em context.md.
+- CÃ³digo inspecionado: `apps/api/src/modules/catalog/domain/services/service-schedule.ts`, `apps/api/src/shared/bookings/service-slot-holds.service.ts`, `apps/api/src/shared/persistence/order-fulfillment.ts`.
+- Suporte existente: `apps/api/src/modules/support/application/support-handoff.service.ts`, `send-ticket-message.use-case.ts`; navegaÃ§Ã£o em `whatsapp-channel/domain/ui/buyer-hub.ts`.
 - RAG atual: `apps/api/src/modules/graph-rag/application/graph-projection.service.ts`, `graph-retrieval.service.ts` e `domain/graph-query.ts`.
-- Signup atual inspecionado no workspace principal: `apps/dashboard/src/lib/signup-options.ts` e `apps/api/src/modules/auth/application/register-merchant.use-case.ts`; reconciliação com a revisão publicada será uma verificação do design.
-- Não foram fornecidas novas capturas vinculantes para esta feature. As telas novas serão julgadas pelos resultados exigidos e pela identidade visual existente; as prévias das correções de UI são evidência separada.
-- [CFM: uso de IA como apoio e decisão profissional humana](https://portal.cfm.org.br/noticias/regras-sobre-uso-da-ia-na-medicina-entram-em-vigor-no-dia-26-de-agosto), consultado em 2026-11-14.
-- [WHO: limitações e governança de modelos generativos em saúde](https://www.who.int/news/item/18-01-2024-who-releases-ai-ethics-and-governance-guidance-for-large-multi-modal-models), consultado em 2026-11-14.
+- Signup atual inspecionado no workspace principal: `apps/dashboard/src/lib/signup-options.ts` e `apps/api/src/modules/auth/application/register-merchant.use-case.ts`; reconciliaÃ§Ã£o com a revisÃ£o publicada serÃ¡ uma verificaÃ§Ã£o do design.
+- NÃ£o foram fornecidas novas capturas vinculantes para esta feature. As telas novas serÃ£o julgadas pelos resultados exigidos e pela identidade visual existente; as prÃ©vias das correÃ§Ãµes de UI sÃ£o evidÃªncia separada.
+- [CFM: uso de IA como apoio e decisÃ£o profissional humana](https://portal.cfm.org.br/noticias/regras-sobre-uso-da-ia-na-medicina-entram-em-vigor-no-dia-26-de-agosto), consultado em 2026-11-14.
+- [WHO: limitaÃ§Ãµes e governanÃ§a de modelos generativos em saÃºde](https://www.who.int/news/item/18-01-2024-who-releases-ai-ethics-and-governance-guidance-for-large-multi-modal-models), consultado em 2026-11-14.
 
 ## Success Criteria
 
-- [ ] Cadastro em uma modalidade não habilita ações da outra.
-- [ ] WhatsApp e storefront preservam os fluxos de produtos aprovados enquanto serviços seguem sua jornada específica.
-- [ ] Profissional não recebe dois agendamentos confirmados em intervalos sobrepostos.
-- [ ] Quatro combinações de bloqueio/pagamento preservam agenda e situação financeira reais.
-- [ ] Atendimento humano é operado no módulo WhatsApp e a IA retoma automaticamente ao encerrar.
-- [ ] Cadastros públicos de três ramos alimentam o RAG sem seeds manuais como mecanismo normal.
-- [ ] Todos os casos críticos, os testes vinculados aos critérios e a verificação independente passam antes de ativação.
+- [ ] Cadastro em uma modalidade nÃ£o habilita aÃ§Ãµes da outra.
+- [ ] WhatsApp e storefront preservam os fluxos de produtos aprovados enquanto serviÃ§os seguem sua jornada especÃ­fica.
+- [ ] Profissional nÃ£o recebe dois agendamentos confirmados em intervalos sobrepostos.
+- [ ] Quatro combinaÃ§Ãµes de bloqueio/pagamento preservam agenda e situaÃ§Ã£o financeira reais.
+- [ ] Atendimento humano Ã© operado no mÃ³dulo WhatsApp e a IA retoma automaticamente ao encerrar.
+- [ ] Cadastros pÃºblicos de trÃªs ramos alimentam o RAG sem seeds manuais como mecanismo normal.
+- [ ] Todos os casos crÃ­ticos, os testes vinculados aos critÃ©rios e a verificaÃ§Ã£o independente passam antes de ativaÃ§Ã£o.

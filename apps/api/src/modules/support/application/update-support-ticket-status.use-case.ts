@@ -16,6 +16,7 @@ export class UpdateSupportTicketStatusUseCase {
       await lockSupportResource(tx, `support:${ticketId}`);
       const ticket = await tx.supportTicket.findFirst({ where: { id: ticketId, merchantId } });
       if (!ticket) throw new NotFoundException("support_ticket_not_found");
+      if (ticket.source === "whatsapp" && status === "in_progress") throw new ConflictException("use_whatsapp_conversation_claim");
       if (ticket.status === status) return;
       if (["closed", "resolved"].includes(status) && ticket.returnId) {
         const ret = await tx.return.findFirst({ where: { id: ticket.returnId, merchantId } });
@@ -24,7 +25,7 @@ export class UpdateSupportTicketStatusUseCase {
       if (["closed", "resolved"].includes(ticket.status)) throw new ConflictException("ticket_resolved");
       await tx.supportTicket.update({ where: { id: ticketId }, data: { status, assignedTo: status === "in_progress" ? operatorId : undefined, resolvedAt: ["closed", "resolved"].includes(status) ? new Date() : null } });
       await persistSupportMessage(tx, { ticketId, merchantId, senderType: "system",
-        content: status === "in_progress" ? "A loja iniciou seu atendimento. Você pode responder nesta conversa." : status === "open" ? "Seu atendimento está aguardando a loja." : "Atendimento concluído. O histórico continua disponível.",
+        content: status === "in_progress" ? "A loja iniciou seu atendimento. VocÃª pode responder nesta conversa." : status === "open" ? "Seu atendimento estÃ¡ aguardando a loja." : "Atendimento concluÃ­do. O histÃ³rico continua disponÃ­vel.",
         metadata: { kind: "case_update", event: status } });
     });
     return (await this.repository.get(merchantId, ticketId))!;

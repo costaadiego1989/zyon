@@ -1,0 +1,155 @@
+{
+  "task": "T52",
+  "status": "complete_local_full_gate",
+  "baseHead": "ed75cbd6a757af7704b6c2fec7a65fd74ffdeea3",
+  "environment": "local-owned",
+  "unit": {
+    "tests": 31,
+    "pass": 31,
+    "fail": 0,
+    "skipped": 0,
+    "newClaimDomainCases": 10,
+    "unchangedExistingCompanions": 21,
+    "log": ".cache/t52-gates/2026-11-16T03-02-48.496Z/unit.log",
+    "files": [
+      "./src/modules/whatsapp-channel/domain/services/whatsapp-handoff-claim.spec.ts",
+      "./src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.spec.ts",
+      "./src/modules/support/application/support-tickets.use-cases.spec.ts",
+      "./src/modules/support/application/support-handoff.service.spec.ts",
+      "./src/modules/support/presentation/http/support.controller.spec.ts",
+      "./src/modules/support/infrastructure/gateways/support.gateway.spec.ts"
+    ]
+  },
+  "checkedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "bddc8a29d520c8fd025b14f1d4c13aed8c6f7fa3ddcb73f03db800b0158f56b8",
+    "artifactSha256": "490a06ab9fb98e6a5403b520ab3816a3150b8f19c910c1f6e5604860c406f746",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2529
+    },
+    "recordedAt": "2026-11-16T03:10:14.348Z"
+  },
+  "buildLog": ".cache/t52-gates/2026-11-16T03-07-37.248Z/build.log",
+  "newTestCorrection": {
+    "approvalUser": "Sim, corrigir esse teste para 403 (recomendado)",
+    "replyCall": "call_ef8af0f77f6746789f47388d26a49fd9",
+    "appliedCandidateSha256": "dcef33d068a0f44e76400b0af385d63e9865366e477c94b0565848b0f65d2101",
+    "originalRealTestSha256": "88cc4b6bbf2d94e4ceef00cfc92e9e83174f966155661a87c0dc4b8273189bb1",
+    "scope": "Only the proposed test separation: same-tenant extra DTO400, foreign payload403 with exact guard code; all other payload/no-write assertions unchanged.",
+    "existingGuardSource": "apps/api/src/shared/tenant/tenant.guard.ts:54",
+    "existingGuardCode": "tenant_mismatch_body",
+    "proposal": "apps/api/.cache/t52-oracle-proposal/proposal.patch",
+    "initialFailureLog": ".cache/t52-gates/2026-11-16T03-11-31.572Z/native.log",
+    "diagnosticsOnly": [
+      ".cache/t52-gates/2026-11-16T03-16-02.756Z/native.log",
+      "apps/api/.cache/t52-oracle-proposal/candidate.log"
+    ],
+    "diagnosticNotGate": true,
+    "appliedRealSha256": "dcef33d068a0f44e76400b0af385d63e9865366e477c94b0565848b0f65d2101"
+  },
+  "productionSourceChangedForCorrection": false,
+  "scope": "Exact tenant/config/session/ticket/operator/epoch claim, CAS, audit/outbox; both business modes.",
+  "limits": [
+    "No real provider/production proof.",
+    "T53 operator sends and T56 close/resume remain pending."
+  ],
+  "completedAtUtc": "2026-11-16T03:30:06.793754+00:00",
+  "nativeReal": {
+    "tests": 10,
+    "pass": 10,
+    "fail": 0,
+    "skipped": 0,
+    "log": ".cache/t52-gates/2026-11-16T03-24-48.775Z/native.log",
+    "auth": "Real registration/login/JWT roles and actual accepted support API key; human-only guard preserved.",
+    "cases": [
+      "Unauthenticated401; all invalid DTO400 including same-tenant merchantId; foreign body403 tenant_mismatch_body; exact no-write.",
+      "Foreign tenant404 and widget404, no assistance binding minted.",
+      "Two real owner/staff sessions race to one201 and one409 with exact binding/ticket owner, epoch2 and audit/outbox.",
+      "Same actor original/current epoch replay returns identical canonical response without a write; stale/future409.",
+      "Product merchant uses the same exact claim without touching checkout/session.",
+      "Closed/resolved409 and merged404 do not revive cases.",
+      "Actual claimed-outbox constraint failure500 rolls back binding, ticket, message and first outbox.",
+      "Real valid Growth support API key first reads support200 then receives human_session_required403 on claim.",
+      "Generic WhatsApp in_progress refuses409 while existing widget generic update200 is preserved."
+    ],
+    "providerCalls": 0,
+    "authOverrides": false,
+    "repositoryOverrides": false,
+    "actualAppModule": true,
+    "closeAck": true,
+    "naturalExitCode": 0,
+    "ownedCleanupErrors": 0,
+    "remainingContainers": 0,
+    "remainingBridgeSockets": 0
+  },
+  "assumptions": [
+    "Claim is available to actual owner/admin/staff for product and service merchants.",
+    "No buyer/model payload supplies operator, tenant, source or destination.",
+    "The unlocked lookup only identifies the lock scope; actual authority is re-read under identity/session then support locks.",
+    "CAS, ticket assignment, system audit and outbox share the same actual transaction.",
+    "No checkout lifecycle renewal or external submission occurs in claim."
+  ],
+  "transactionInvariants": [
+    "Exact merchant/config/WhatsApp session/ticket/source/open/merge/operator revalidated.",
+    "Binding waiting_human epoch1 moves once to human epoch2 and assignedOperatorId matches ticket.assignedTo.",
+    "Same-operator retry only accepts original/current epoch and emits no additional message/outbox.",
+    "Foreign or widget scope never becomes a WhatsApp claim; role authorization is independent of business mode."
+  ],
+  "commands": {
+    "cwd": "apps/api",
+    "unit": "node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/whatsapp-channel/domain/services/whatsapp-handoff-claim.spec.ts ./src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.spec.ts ./src/modules/support/application/support-tickets.use-cases.spec.ts ./src/modules/support/application/support-handoff.service.spec.ts ./src/modules/support/presentation/http/support.controller.spec.ts ./src/modules/support/infrastructure/gateways/support.gateway.spec.ts",
+    "native": "node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/whatsapp-operator-claim.integration.spec.mjs",
+    "checkedBuild": "pnpm --dir apps/api build, captured/recorded through service-test-artifacts.mjs after real exit0"
+  },
+  "logs": {
+    "unit": ".cache/t52-gates/2026-11-16T03-02-48.496Z/unit.log",
+    "build": ".cache/t52-gates/2026-11-16T03-07-37.248Z/build.log",
+    "nativeReal": ".cache/t52-gates/2026-11-16T03-24-48.775Z/native.log"
+  },
+  "logSha256": {
+    "unit": "8a62a360589d19bee41820b47274eafa1ba29e5ae10461e9a41347e4c7975f1b",
+    "build": "2ff78329f325e8dbf479173b59302c00f0d223688115f4aa8988215f87eff115",
+    "nativeReal": "536a6eea98bcdeff3656eda0a0723fff99eddb22c81d22fe7dec299c9e12d6c9"
+  },
+  "allTaskGatesPassed": true,
+  "testSelfCheck": {
+    "specDerivedClaimsAndNegativeDurableOutcomes": true,
+    "zeroSkipped": true,
+    "allExistingTestsPreserved": true,
+    "newTestExpectationCorrectionExplicitlyApproved": true,
+    "separateDiagnosticNotCountedAsGate": true,
+    "moduleRouteProviderSameTask": true,
+    "integratedFinalVerifierPending": true
+  },
+  "scopeFiles": [
+    ".specs/STATE.md",
+    ".specs/features/whatsapp-service-booking-business-rag/spec.md",
+    ".specs/features/whatsapp-service-booking-business-rag/tasks.md",
+    ".specs/features/whatsapp-service-booking-business-rag/task-52-plan.md",
+    ".specs/features/whatsapp-service-booking-business-rag/task-52-evidence.json",
+    "apps/api/src/modules/support/application/claim-whatsapp-conversation.use-case.ts",
+    "apps/api/src/modules/support/application/update-support-ticket-status.use-case.ts",
+    "apps/api/src/modules/support/presentation/http/support.controller.ts",
+    "apps/api/src/modules/support/support.module.ts",
+    "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-handoff-state.ts",
+    "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-handoff-claim.spec.ts",
+    "apps/api/tests/whatsapp-operator-claim.integration.spec.mjs",
+    "apps/api/tests/whatsapp-operator-http-fixture.mjs",
+    "packages/shared-types/src/index.ts"
+  ],
+  "sourceAndTestSha256": {
+    "apps/api/src/modules/support/application/claim-whatsapp-conversation.use-case.ts": "b2041f77c209bc52f8b6ddd4a553d018eeb1711352173203fb9eb291bc75fdb3",
+    "apps/api/src/modules/support/application/update-support-ticket-status.use-case.ts": "2bd2e2bb6d27dde4eaed021de32c66d84eb04bc70724a76a22e1809fdaff85a5",
+    "apps/api/src/modules/support/presentation/http/support.controller.ts": "5da574105f00215d9aabf7def5c8058769b4b17485c2d8866938206529cf0292",
+    "apps/api/src/modules/support/support.module.ts": "cc29e8f9249529c6ae96acc980c3a10b9353013ff212f7eae2452a971fb823ae",
+    "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-handoff-state.ts": "5a392f012b722353ebe33362c391754abda8c48b108256b794ccfd950090b9da",
+    "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-handoff-claim.spec.ts": "6792fe49e719c78c57b5c3b5abdc459401b9a02a5ac8017de2b532904df98851",
+    "apps/api/tests/whatsapp-operator-claim.integration.spec.mjs": "dcef33d068a0f44e76400b0af385d63e9865366e477c94b0565848b0f65d2101",
+    "apps/api/tests/whatsapp-operator-http-fixture.mjs": "b5f57cd545784b8b78f4d21071b3d77c22b0a11839775b32503de8342329a6e4",
+    "packages/shared-types/src/index.ts": "09c1fb271fcb2c087970ea3a6fb01bb0c479f3f358181aeacf0cc62d7f67d4cc"
+  }
+}
