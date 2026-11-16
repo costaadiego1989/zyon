@@ -128,6 +128,7 @@ export class ExecutionService {
       });
       throw error;
     }
+    if (input.authority?.kind === 'automatic') access.executionAuthority = input.authority;
     access.assertWriteAuthorized = async () => {
       await this.lease(merchantId, execution.id, input, access);
       if (exposureReserved) await this.authorityDeps!.exposure.dispatched(merchantId, execution.id);

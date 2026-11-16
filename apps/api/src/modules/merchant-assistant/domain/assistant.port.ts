@@ -41,5 +41,5 @@ export interface AssistantRepository {
   readThread(scope:AssistantScope,id:string):Promise<StoredAssistantThread>;
   turns(scope:AssistantScope,id:string,page?:{limit?:number;before?:number}):Promise<{turns:StoredAssistantTurn[];nextCursor:string|null}>;
   atomic<T>(scope:AssistantScope,id:string,work:(tx:AssistantTransaction)=>Promise<T>):Promise<T>;
-  pending(now:Date,limit:number):Promise<Array<{scope:AssistantScope;threadId:string;turnId:string}>>;
+  pending(now:Date,limit:number,contexts?:string[]):Promise<Array<{scope:AssistantScope;threadId:string;turnId:string}>>;
 }

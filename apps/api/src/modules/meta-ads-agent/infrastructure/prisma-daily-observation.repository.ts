@@ -18,8 +18,10 @@ export class PrismaDailyObservationRepository implements DailyObservationReposit
     const id = dailyObservationKey(identity.merchantId, identity.accountId, identity), now = this.clock();
     await this.db.$executeRaw`INSERT INTO meta_ads_daily_runs(id,merchant_id,account_id,local_day,timezone,created_at,updated_at,next_attempt_at)
       VALUES(${id},${identity.merchantId},${identity.accountId},${identity.localDay},${identity.timezone},${now},${now},${now})
-      ON CONFLICT(merchant_id,account_id,local_day,timezone) DO NOTHING`;
-    return this.read(identity.merchantId, id);
+      ON CONFLICT DO NOTHING`;
+    const run = await this.read(identity.merchantId, id);
+    if (run.accountId !== identity.accountId || run.localDay !== identity.localDay || run.timezone !== identity.timezone) throw new MetaAdsError('daily_identity_conflict', 409);
+    return run;
   }
   async read(merchantId: string, id: string): Promise<DailyRun> {
     requireIdentifier(merchantId); requireIdentifier(id); const row = await this.db.metaAdsDailyRun.findFirst({ where: { id, merchantId } });

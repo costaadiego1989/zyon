@@ -3,7 +3,7 @@ import { MetaAdsError, type MetaAdsRepository, type CommerceContextPort, type Cl
 import type { ExecutionAuthorityPort, ExecutionAuthorityRequest, ResolvedExecutionAuthority } from '../domain/execution-authority.port.js';
 import type { MetaBudgetControlPort } from '../domain/budget-control.port.js';
 import { requireIdentifier, requireEntitlement, stableDigest } from '../domain/offer.js';
-import { totalMetaExposure } from '../domain/exposure.js';
+import { hasUnreservedFinancialExecution, totalMetaExposure } from '../domain/exposure.js';
 import { approvalProductVersion, assertReviewedProposal } from './proposal.service.js';
 import { normalizeCampaignDraft, type CampaignService } from './campaign.service.js';
 import type { ConnectionService } from './connection.service.js';
@@ -75,10 +75,12 @@ export class ExecutionAuthorityService implements ExecutionAuthorityPort {
           await this.deps.exposure.observe(merchantId, proof);
         }
         const snapshot = await this.deps.repo.read(merchantId);
-        for (const other of Object.values(snapshot.campaigns)) if (other.id !== campaign.id && other.createdByAgent && other.managed && other.remoteCampaignId && !Object.hasOwn(snapshot.exposure?.allocations ?? {}, other.id) && !Object.values(snapshot.exposure?.pending ?? {}).some(op => op.campaignId === other.id)) {
+        if (hasUnreservedFinancialExecution(snapshot, campaign.id)) throw new MetaAdsError('automatic_budget_control_unavailable', 409);
+        for (const other of Object.values(snapshot.campaigns)) if (other.id !== campaign.id && other.createdByAgent && other.managed && other.remoteCampaignId) {
           await this.deps.exposure.observe(merchantId, await this.deps.budgetControl.read(access, other));
         }
         const current = await this.deps.repo.read(merchantId);
+        if (hasUnreservedFinancialExecution(current, campaign.id)) throw new MetaAdsError('automatic_budget_control_unavailable', 409);
         const allocations = Object.fromEntries(Object.entries(current.exposure?.allocations ?? {}).filter(([, a]) => a.campaignId === campaign.id));
         const pending = Object.fromEntries(Object.entries(current.exposure?.pending ?? {}).filter(([, op]) => op.campaignId === campaign.id));
         const own = totalMetaExposure({ allocations, pending }), total = totalMetaExposure(current.exposure);

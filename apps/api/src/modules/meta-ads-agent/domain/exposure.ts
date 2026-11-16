@@ -1,5 +1,14 @@
 import type { MetaAdsBudget } from '@zyon/shared-types';
-import { MetaAdsError } from './types.js';
+import { MetaAdsError, type MetaAdsStoreState } from './types.js';
+
+/** A manual write can commit funds without an automatic reservation. */
+export function hasUnreservedFinancialExecution(state: MetaAdsStoreState, campaignId: string): boolean {
+  return Object.values(state.executions).some(execution => {
+    if (execution.campaignId === campaignId || !['reserved', 'sending', 'publishing', 'execution_unknown'].includes(execution.status) || Object.hasOwn(state.exposure?.pending ?? {}, execution.id)) return false;
+    const proposal = state.proposals[execution.proposalId];
+    return !proposal || ['prepare', 'publish', 'budget'].includes(proposal.kind);
+  });
+}
 
 /** Internal server evidence from a confirmed provider read. Never a client/model DTO. */
 export interface MetaBudgetEvidence {

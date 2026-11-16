@@ -1,4 +1,4 @@
-import type { AssistantArtifact, AssistantCampaignProgress, MetaAdsCampaignDraft, MetaAdsFundingDiagnosis, MetaAdsAutomationPolicyInput, MetaAdsAutomationReview } from '@zyon/shared-types';
+import type { AssistantArtifact, AssistantCampaignProgress, MetaAdsCampaignDraft, MetaAdsCampaign, MetaAdsExecution, MetaAdsFundingDiagnosis, MetaAdsAutomationPolicyInput, MetaAdsAutomationReview, MetaAdsDailyReport } from '@zyon/shared-types';
 import { AssistantError, validateAssistantScope, type AssistantRepository, type AssistantScope } from '../../merchant-assistant/domain/assistant.port.js';
 import type { AssistantContextPort, AssistantToolInput, AssistantToolResult } from '../../merchant-assistant/domain/context.port.js';
 import type { AssistantToolDescriptor } from '../../merchant-assistant/domain/model.port.js';
@@ -14,7 +14,11 @@ interface Dependencies {
   authorizeActor: (scope: AssistantScope) => Promise<void>;
   authorizeTool: (scope: AssistantScope, name: string) => Promise<void>;
   funding?: (merchantId: string) => Promise<MetaAdsFundingDiagnosis>;
-  reviewAutomation?: (merchantId: string, input: MetaAdsAutomationPolicyInput) => Promise<MetaAdsAutomationReview>;
+  reviewAutomation?: (merchantId: string, input: MetaAdsAutomationPolicyInput, actorId: string) => Promise<MetaAdsAutomationReview>;
+  executeProposal?: (merchantId: string, proposalId: string, actorId: string) => Promise<MetaAdsExecution>;
+  campaignSaved?: (scope: AssistantScope, campaign: MetaAdsCampaign, preference: AssistantCampaignProgress['approvalPreference']) => Promise<void>;
+  enabled?: () => boolean;
+  dailyReports?: (merchantId: string, localDay?: string) => Promise<MetaAdsDailyReport[]>;
   clock?: () => Date;
 }
 const string = { type: 'string' };
@@ -49,7 +53,8 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     await this.deps.authorizeActor(scope);
   }
   async authorizeInvocation(scope: AssistantScope): Promise<void> {
-    await this.authorize(scope); await this.deps.service.billing.requireAccess(scope.merchantId);
+    await this.authorize(scope); if (this.deps.enabled && !this.deps.enabled()) throw new AssistantError('assistant_unavailable', 503);
+    await this.deps.service.billing.requireAccess(scope.merchantId);
   }
   tools(): AssistantToolDescriptor[] {
     return [
@@ -60,11 +65,12 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
       tool('merchant_ads_new_campaign', 'Iniciar outro planejamento somente quando o lojista pedir explicitamente uma nova campanha. Nunca usar ao responder dúvidas ou correções.'),
       tool('merchant_ads_generate', 'Solicitar imagens pela franquia existente. Nunca compra extras. O retorno pode estar na fila.', { imageCount: { type: 'integer', minimum: 1, maximum: 10 } }, ['imageCount']),
       tool('merchant_ads_propose', 'Preparar uma proposta revisável. Não aprova nem publica. Prepare mantém objetos pausados após aprovação.', { kind: enumOf('prepare', 'publish', 'pause', 'budget', 'audience', 'creative'), reasoning: string, after: { type: 'object', properties: { budget: budgetSchema, country: string }, additionalProperties: false } }, ['kind', 'reasoning']),
-      tool('merchant_ads_execute', 'Executar somente proposta já aprovada pelo gesto próprio do lojista. Nunca representa autorização pelo chat.', { proposalId: string }, ['proposalId']),
+      tool('merchant_ads_execute', 'Executar somente proposta coberta por aprovação individual ou política automática válida. O texto do chat não concede autorização.', { proposalId: string }, ['proposalId']),
       tool('merchant_ads_status', 'Ler configuração atual na Meta, com conta e horário. ACTIVE não prova entrega ou vendas.'),
       tool('merchant_ads_analyze_existing', 'Analisar campanha existente somente em leitura, sem passar a gerenciá-la.', { remoteId: string, since: string, until: string }, ['remoteId', 'since', 'until']),
       ...(this.deps.funding ? [tool('merchant_ads_funding', 'Ler diagnóstico financeiro atual. Zyon não recebe recarga para a Meta.')] : []),
       ...(this.deps.reviewAutomation ? [tool('merchant_ads_review_automation', 'Preparar limites para revisão do lojista. Não aceita nem ativa a política.', { scope: { type: 'object' }, limits: { type: 'object' } }, ['scope', 'limits'])] : []),
+      ...(this.deps.dailyReports ? [tool('merchant_ads_daily_reports', 'Ler o relatório diário real do último dia fechado ou de uma data local. O fuso e o período pertencem ao relatório; ausência não é gasto zero.', { localDay: string })] : []),
     ];
   }
   private async thread(input: AssistantToolInput) {
@@ -112,6 +118,7 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
         : await this.deps.service.campaigns.create(scope.merchantId, full, this.key(input));
       progress.campaignId = saved.id; progress.draft = saved.draft;
       await this.progress(input, progress);
+      await this.deps.campaignSaved?.(scope, saved, approvalPreference);
       return result({ progress }, { type: 'campaign_progress', progress }, { type: 'campaign', campaign: saved });
     }
     await this.progress(input, progress); return result({ progress }, { type: 'campaign_progress', progress });
@@ -136,13 +143,22 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
         await this.progress(input, progress); return result({ progress }, { type: 'campaign', campaign }, { type: 'campaign_progress', progress });
       }
       case 'merchant_ads_funding': { const diagnosis = await this.deps.funding!(merchantId); return result(diagnosis, { type: 'funding', diagnosis }); }
-      case 'merchant_ads_review_automation': { const review = await this.deps.reviewAutomation!(merchantId, args as unknown as MetaAdsAutomationPolicyInput); return result(review, { type: 'automation_review', review }); }
+      case 'merchant_ads_review_automation': { const review = await this.deps.reviewAutomation!(merchantId, args as unknown as MetaAdsAutomationPolicyInput, input.scope.actorId); return result(review, { type: 'automation_review', review }); }
+      case 'merchant_ads_daily_reports': {
+        let day: string | undefined;
+        if (args.localDay !== undefined) {
+          day = text(args.localDay, 10);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(Date.parse(day)) || new Date(day).toISOString().slice(0, 10) !== day) throw new AssistantError('assistant_tool_arguments_invalid');
+        }
+        const reports = await this.deps.dailyReports!(merchantId, day);
+        return result({ reports, source: 'zyon_daily_observation' }, ...reports.map(report => ({ type: 'daily_report' as const, report })));
+      }
       case 'merchant_ads_analyze_existing': {
         const metrics = await service.analyzeExisting(merchantId, text(args.remoteId, 80), text(args.since, 10), text(args.until, 10));
         return result({ ...metrics, accountId: (await service.connection.view(merchantId)).account?.id ?? null, checkedAt: this.clock().toISOString() });
       }
       case 'merchant_ads_execute': {
-        const execution = await service.executions.execute(merchantId, requireIdentifier(args.proposalId), input.scope.actorId);
+        const execution = this.deps.executeProposal ? await this.deps.executeProposal(merchantId, requireIdentifier(args.proposalId), input.scope.actorId) : await service.executions.execute(merchantId, requireIdentifier(args.proposalId), input.scope.actorId);
         const proposal = (await service.repo.read(merchantId)).proposals[requireIdentifier(args.proposalId)];
         return result({ execution }, { type: 'proposal', proposal: publicProposal(proposal), execution });
       }

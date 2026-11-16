@@ -87,9 +87,10 @@ export class PrismaAssistantRepository implements AssistantRepository {
       return work(new ThreadTransaction(db,threadOf(row),this.now));
     },{maxWait:20000,timeout:20000});
   }
-  async pending(now:Date,limit=100){
+  async pending(now:Date,limit=100,contexts?:string[]){
     pageLimit(limit);
-    const rows=await this.db.merchantAssistantTurn.findMany({where:{OR:[{status:'queued'},{status:'running',leaseUntil:{lt:now}}]},
+    if(contexts?.length===0)return [];
+    const rows=await this.db.merchantAssistantTurn.findMany({where:{...(contexts?{thread:{context:{in:contexts}}}:{}),OR:[{status:'queued'},{status:'running',leaseUntil:{lt:now}}]},
       orderBy:[{createdAt:'asc'},{id:'asc'}],take:limit,include:{thread:{select:{actorId:true,context:true}}}});
     return rows.map(row=>({scope:{merchantId:row.merchantId,actorId:row.thread.actorId,context:row.thread.context},threadId:row.threadId,turnId:row.id}));
   }

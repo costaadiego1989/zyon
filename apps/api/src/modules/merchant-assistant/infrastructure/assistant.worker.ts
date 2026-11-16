@@ -8,6 +8,8 @@ interface Dependencies {
   repo: AssistantRepository; admission: TurnAdmissionService;
   respond: (input: AssistantResponseInput) => Promise<AssistantResponse>;
   clock?: () => Date; id?: () => string; enabled?: boolean;
+  accepts?: (scope: AssistantScope) => boolean;
+  contexts?: () => string[];
 }
 /** PostgreSQL owns the queue and fencing. Timers only request a drain. */
 export class AssistantWorker {
@@ -27,8 +29,9 @@ export class AssistantWorker {
     return this.active ??= this.process().catch(() => undefined).finally(() => { this.active = undefined; });
   }
   private async process(): Promise<void> {
-    for (const job of await this.deps.repo.pending(this.clock(), 20)) {
+    for (const job of await this.deps.repo.pending(this.clock(), 20, this.deps.contexts?.())) {
       if (this.stopping) return;
+      if (this.deps.accepts && !this.deps.accepts(job.scope)) continue;
       try { await this.run(job); } catch { /* Durable queue/receipts remain for a later owner. */ }
     }
   }

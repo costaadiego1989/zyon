@@ -37,6 +37,20 @@ test('ADAS-43 missing or incompatible native metric values remain unknown rather
   const result = await f.adapter.metrics(access(), campaign(), '2026-11-15', '2026-11-15');
   assert.equal(result.spendCents, null); assert.equal(result.attributedRevenueCents, null); assert.equal(result.attributedPurchases, null); assert.equal(result.conversations, null);
 });
+
+test('ADAS-34 native MCP accepts an automatic pending proposal only with the exact server authority and live write lease', async () => {
+  const f = fixture(), p = { ...proposal('pause'), status: 'pending_review' as const, approvedBy: null, approvedAt: null }; let checks = 0;
+  const scoped = { ...access(), executionAuthority: { kind: 'automatic', proposalId: p.id, proposalDigest: p.digest, connectionEpoch: p.connectionEpoch, policyId: 'policy-a', policyVersion: 1 }, assertWriteAuthorized: async () => { checks++; } };
+  const result = await f.adapter.execute(scoped as never, campaign(), p, async () => {});
+  assert.equal(result.status, 'remote_paused'); assert.equal(checks, 1); assert.equal(p.approvedBy, null); assert.equal(p.status, 'pending_review');
+});
+
+test('ADAS-31 native MCP refuses a forged or unfenced automatic authorization without weakening manual approval', async () => {
+  const f = fixture(), p = { ...proposal('pause'), status: 'pending_review' as const, approvedBy: null, approvedAt: null };
+  const authority = { kind: 'automatic', proposalId: p.id, proposalDigest: p.digest, connectionEpoch: p.connectionEpoch, policyId: 'policy-a', policyVersion: 1 };
+  for (const scoped of [{ ...access(), executionAuthority: authority }, { ...access(), executionAuthority: { ...authority, proposalDigest: 'changed' }, assertWriteAuthorized: async () => {} }]) await assert.rejects(f.adapter.execute(scoped as never, campaign(), p, async () => {}), { code: 'proposal_not_approved' });
+  assert.equal(f.calls.some(call => call.name === 'ads_update_entity'), false);
+});
 type Call = { name: string; args: Record<string, unknown> };
 const toolNames = ["ads_get_ad_accounts", "ads_get_ad_account_pages", "ads_get_user_pages", "ads_catalog_list_catalogs", "ads_get_datasets", "ads_get_field_context", "ads_get_ad_entities", "ads_create_campaign", "ads_create_ad_set", "ads_create_creative", "ads_create_ad", "ads_activate_entity", "ads_update_entity", "ads_get_opportunity_score", "ads_account_get_activity_logs"];
 function fixture(override?: (call: Call) => unknown | Promise<unknown>, omitted: string[] = []) {

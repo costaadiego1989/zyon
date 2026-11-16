@@ -2,6 +2,38 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { authorityFixture } from './__tests__/authority-fixture.js';
 
+test('ADAS-35 refreshed other-campaign budget prevents spending against a stale aggregate allocation', async () => {
+  const f = await authorityFixture(); try {
+    const original = (await f.repo.read('store-a')).campaigns[f.campaignId];
+    const other = await f.service.campaigns.create('store-a', { ...original.draft, name: 'Outra campanha', mediaIds: [] }, 'other-tracked');
+    await f.repo.mutate('store-a', [], state => { Object.assign(state.campaigns[other.id], { remoteCampaignId: '201', remoteAccountId: '100', remoteAdSetId: '301', remoteAdIds: ['501'], status: 'remote_paused' }); return { result: null }; });
+    const review = await f.policies.review('store-a', 'owner-a', { scope: { ...f.policy.scope, campaignIds: [f.campaignId, other.id] }, limits: f.policy.limits });
+    const policy = (await f.policies.accept('store-a', 'owner-a', { scope: review.scope, limits: review.limits, version: review.version, digest: review.digest, idempotencyKey: 'two-campaign-policy' })).policy!;
+    f.remoteAmount(5000); await f.exposure.observe('store-a', f.reading());
+    await f.exposure.observe('store-a', { ...f.reading(), campaignId: other.id, remoteCampaignId: '201' });
+    f.budgetControl.read = async (_access, campaign) => ({ ...f.reading(), campaignId: campaign.id, remoteCampaignId: '201', adSetId: '301', adIds: ['501'], amountCents: 15000 });
+    const proposal = await f.propose('budget', { budget: f.budget });
+    await assert.rejects(f.authority.resolve('store-a', proposal.id, { kind: 'automatic', policyId: policy.id, policyVersion: policy.version, policyDigest: policy.digest }), { code: 'authorization_limit_exceeded' });
+    assert.equal((await f.repo.read('store-a')).exposure!.allocations[other.id].amountCents, 15000); assert.equal(f.calls.includes('execute'), false);
+  } finally { await f.close(); }
+});
+
+test('ADAS-36 a manual financial write outside the ledger fences automatic exposure while protective pause remains available', async () => {
+  const f = await authorityFixture(); let release!: () => void, entered!: () => void; const hold = new Promise<void>(yes => { release = yes; }), started = new Promise<void>(yes => { entered = yes; }); let running: ReturnType<typeof f.service.executions.execute> | undefined;
+  try {
+    const original = (await f.repo.read('store-a')).campaigns[f.campaignId];
+    const other = await f.service.campaigns.create('store-a', { ...original.draft, name: 'Preparação manual', budget: { ...f.budget, amountCents: 20000 }, mediaIds: [] }, 'manual-financial');
+    await f.repo.mutate('store-a', [], state => { state.media['other-media'] = { ...state.media['media-a'], id: 'other-media', campaignId: other.id }; state.campaigns[other.id].draft.mediaIds = ['other-media']; return { result: null }; });
+    const p = await f.service.proposals.create('store-a', other.id, { kind: 'prepare', after: {}, reasoning: 'Aprovação individual fora da política', idempotencyKey: 'manual-financial-prepare' });
+    await f.service.proposals.approve('store-a', p.id, 'owner-a', p.digest);
+    const publication = await f.propose('publish'), pause = await f.propose('pause');
+    f.provider.prepare = async access => { await access.assertWriteAuthorized!(); entered(); await hold; return { status: 'remote_paused', objects: [{ type: 'campaign', id: '201' }, { type: 'ad_set', id: '301' }, { type: 'ad', id: '501' }] }; };
+    running = f.service.executions.execute('store-a', p.id, 'owner-a'); await started;
+    await assert.rejects(f.authority.resolve('store-a', publication.id, f.automatic), { code: 'automatic_budget_control_unavailable' });
+    assert.equal((await f.authority.resolve('store-a', pause.id, f.automatic)).kind, 'automatic'); assert.equal(f.calls.includes('execute'), false);
+  } finally { release(); await running?.catch(() => undefined); await f.close(); }
+});
+
 test('ADAS-31 manual authority requires the exact reviewed and approved proposal receipt', async () => {
   const f = await authorityFixture(); try {
     const proposal = await f.propose(); await assert.rejects(f.authority.resolve('store-a', proposal.id, { kind: 'manual', actorId: 'owner-a' }), /approval_required/);

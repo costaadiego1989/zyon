@@ -148,6 +148,8 @@ export interface MetaOAuthPort {
   exchange(code: string, redirectUri: string): Promise<{ accessToken: string; scopes: string[]; expiresAt: string | null }>;
 }
 export interface MetaAccess {
+  /** Server-only proof. Never serialized into provider tool arguments or supplied by a model. */
+  executionAuthority?: Pick<Extract<import('./execution-authority.port.js').ResolvedExecutionAuthority, { kind: 'automatic' }>, 'kind' | 'proposalId' | 'proposalDigest' | 'connectionEpoch' | 'policyId' | 'policyVersion'>;
   /** Server-only lease check, awaited immediately before each external write. */
   assertWriteAuthorized?: () => Promise<void>;
   merchantId: string;

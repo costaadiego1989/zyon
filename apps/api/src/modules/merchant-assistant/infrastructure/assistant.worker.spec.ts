@@ -7,6 +7,21 @@ import { MerchantAiGateway } from './merchant-ai.gateway.js';
 import { AssistantWorker } from './assistant.worker.js';
 const serialized = (value: unknown) => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? String(item) : item);
 
+test('ADAS-42 private daily queue cannot starve a human turn behind more than one polling page', async () => {
+  const f = await fixture(); try {
+    f.setNow('2026-11-14T11:00:00Z');
+    for (let i = 0; i < 21; i++) {
+      const scope = { merchantId: 'store-a', actorId: 'service:meta-ads-agent', context: `meta-ads-daily:${String(i).padStart(64, '0')}` };
+      const thread = await f.conversations.createThread(scope);
+      await f.conversations.atomic(scope, thread.id, tx => tx.append({ id: `private-turn-${i}`, requestKey: `private-${i}`, inputHash: 'a'.repeat(64), message: 'Análise privada', budgetAmountMicros: 1n }));
+    }
+    f.setNow('2026-11-14T12:00:00Z');
+    const worker = new AssistantWorker({ repo: f.conversations, admission: f.admission, contexts: () => ['meta-ads'], accepts: scope => scope.context === 'meta-ads', respond: input => f.service.respond(input), clock: f.clock });
+    await worker.drain(); assert.equal((await f.saved()).status, 'completed'); assert.equal((await f.saved()).reply, 'Qual resultado deseja para sua campanha?'); assert.equal(f.calls(), 1);
+    const remaining = await f.conversations.pending(f.clock(), 100); assert.equal(remaining.length, 21); assert.equal(remaining.every(job => job.scope.actorId === 'service:meta-ads-agent'), true);
+  } finally { await f.close(); }
+});
+
 async function fixture() {
   const f = await metaAssistantFixture();
   await f.conversations.atomic(assistantScope, f.thread.id, tx => tx.update(f.turn.id, { status: 'queued', leaseToken: null, leaseUntil: null }));

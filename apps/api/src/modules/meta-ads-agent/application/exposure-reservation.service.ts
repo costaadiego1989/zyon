@@ -1,6 +1,6 @@
 import type { MetaAdsAutomationPolicy, MetaAdsBudget } from '@zyon/shared-types';
 import { MetaAdsError, type MetaAdsRepository, type CommerceContextPort, type MetaAdsStoreState, type MetaAdsRecord, type Clock } from '../domain/types.js';
-import { totalMetaExposure, type ExposureReservation, type MetaBudgetEvidence } from '../domain/exposure.js';
+import { hasUnreservedFinancialExecution, totalMetaExposure, type ExposureReservation, type MetaBudgetEvidence } from '../domain/exposure.js';
 import { automationReviewDigest, isAutomationPolicyCurrent } from '../domain/automation-policy.js';
 import { requireEntitlement, requireIdentifier, stableDigest } from '../domain/offer.js';
 import { normalizeCampaignDraft } from './campaign.service.js';
@@ -49,6 +49,7 @@ export class ExposureReservationService {
         return { result: result ?? pending! };
       }
       requireEntitlement(plan, state, this.clock()); const policy = this.policy(state, input, records); const campaign = this.campaign(state, input.campaignId, records);
+      if (hasUnreservedFinancialExecution(state, campaign.id)) throw new MetaAdsError('automatic_budget_control_unavailable', 409);
       const binding = records.get(`automatic-policy-campaign:${policy.id}:${campaign.id}`)?.payload as { policyId?: string; policyVersion?: number; campaignId?: string } | undefined;
       if (!policy.scope.campaignIds.includes(campaign.id) && !(policy.scope.allowNewCampaigns && binding?.policyId === policy.id && binding.policyVersion === policy.version && binding.campaignId === campaign.id) || !policy.scope.actions.includes(input.action) || campaign.draft.destination !== policy.scope.destination || campaign.draft.priority !== policy.scope.priority || campaign.draft.country !== policy.scope.country || campaign.draft.variantIds.some(id => !policy.scope.variantIds.includes(id))) throw new MetaAdsError('authorization_limit_exceeded', 409);
       const budget = normalizeCampaignDraft({ ...campaign.draft, budget: input.targetBudget }).budget;
@@ -75,6 +76,7 @@ export class ExposureReservationService {
       const pending = own(ledger(state).pending, operationId);
       if (!pending || !['reserved', 'sending'].includes(pending.status)) throw new MetaAdsError('exposure_reconciliation_required', 409);
       requireEntitlement(plan, state, this.clock()); const policy = this.policy(state, pending, records); this.campaign(state, pending.campaignId, records);
+      if (hasUnreservedFinancialExecution(state, pending.campaignId)) throw new MetaAdsError('automatic_budget_control_unavailable', 409);
       if (totalMetaExposure(state.exposure) > policy.limits.storeCeilingCents && !(pending.action === 'budget' && pending.targetBudget.amountCents < pending.beforeCents)) throw new MetaAdsError('authorization_limit_exceeded', 409);
       pending.status = 'sending'; pending.updatedAt = this.clock().toISOString(); return { result: pending };
     });

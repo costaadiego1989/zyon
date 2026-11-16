@@ -2,6 +2,33 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { AI_TOOLS } from '../../ai-governance/ai-access-policy.js';
 import { assistantProduct, assistantScope, metaAssistantFixture } from './__tests__/assistant-fixture.js';
+import { MetaAdsAssistantAdapter } from './meta-ads-assistant.adapter.js';
+import { PrismaDailyObservationRepository } from '../infrastructure/prisma-daily-observation.repository.js';
+import { latestClosedObservationDay } from '../domain/daily-observation-calendar.js';
+
+test('ADAS-47 chat reads the canonical closed-day report with its actual account period and sources', async () => {
+  const f = await metaAssistantFixture(); try {
+    await f.connect(); const daily = new PrismaDailyObservationRepository(f.prisma, f.clock), day = latestClosedObservationDay(f.clock(), 'America/Sao_Paulo');
+    const run = await daily.admit({ merchantId: 'store-a', accountId: '100', ...day }), lease = (await daily.claim('store-a', run.id))!;
+    const report = { id: run.id, accountId: '100', localDay: day.localDay, timezone: day.timezone, since: day.since, until: day.until, status: 'partial' as const, analysisStatus: 'pending' as const, collectedAt: null, updatedAt: f.clock().toISOString(), campaigns: [], notes: ['meta_metrics_unavailable'] };
+    await daily.checkpoint(lease, { report }); await daily.finish(lease, 'partial');
+    const scopes: string[] = [];
+    const adapter = new MetaAdsAssistantAdapter({ service: f.service, conversations: f.conversations, authorizeActor: scope => f.adapter.authorize(scope), authorizeTool: async (_scope, name) => { scopes.push(name); }, clock: f.clock,
+      dailyReports: async (merchantId, localDay) => (await daily.list(merchantId, '100')).flatMap(row => row.report && (!localDay || row.localDay === localDay) ? [row.report] : []) });
+    const result = await adapter.execute({ ...f.input, name: 'merchant_ads_daily_reports', args: { localDay: day.localDay } });
+    assert.deepEqual(result.data, { reports: [report], source: 'zyon_daily_observation' }); assert.deepEqual(result.artifacts, [{ type: 'daily_report', report }]);
+    assert.deepEqual(scopes, ['merchant_ads_daily_reports']); assert.ok((AI_TOOLS as readonly string[]).includes('merchant_ads_daily_reports')); assert.equal(f.calls.includes('execute'), false);
+  } finally { await f.close(); }
+});
+
+test('ADAS-48 report tool rejects foreign scope invalid day and client account before reading protected reports', async () => {
+  const f = await metaAssistantFixture(); try {
+    let reads = 0; const adapter = new MetaAdsAssistantAdapter({ service: f.service, conversations: f.conversations, authorizeActor: scope => f.adapter.authorize(scope), authorizeTool: async () => {}, clock: f.clock, dailyReports: async () => { reads++; return []; } });
+    await assert.rejects(adapter.execute({ ...f.input, scope: { ...assistantScope, merchantId: 'store-b' }, name: 'merchant_ads_daily_reports', args: {} }), /assistant_forbidden/);
+    for (const args of [{ localDay: '2026-02-30' }, { accountId: '200' }]) await assert.rejects(adapter.execute({ ...f.input, name: 'merchant_ads_daily_reports', args }), /assistant_tool_arguments_invalid/);
+    assert.equal(reads, 0);
+  } finally { await f.close(); }
+});
 
 const draft = { name: 'Camisa da loja', variantIds: ['variant-a'], destination: 'store', priority: 'paid_sales', country: 'BR', approvalPreference: 'manual', budget: { amountCents: 10000, currency: 'BRL', cadence: 'lifetime', startsAt: '2026-11-16T03:00:00Z', endsAt: '2026-11-23T03:00:00Z' }, headline: 'Camisa de algodão', primaryText: 'Conheça a camisa da loja' };
 test('ADAS-24 catalog returns canonical store product price stock image and identity', async () => {

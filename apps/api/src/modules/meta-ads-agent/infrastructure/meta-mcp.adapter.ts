@@ -187,7 +187,9 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
   }
   async execute(access: MetaAccess, campaign: MetaAdsCampaign, proposal: MetaAdsProposal, onProgress: (objects: Objects) => Promise<void>): Promise<ProviderExecutionResult> {
     this.owned(campaign);
-    if (proposal.status !== "approved" || proposal.campaignId !== campaign.id || proposal.connectionEpoch !== access.connectionEpoch) throw new MetaAdsError("proposal_not_approved", 403);
+    const authority = access.executionAuthority;
+    const automatic = proposal.status === 'pending_review' && proposal.approvedBy === null && proposal.approvedAt === null && authority?.kind === 'automatic' && authority.proposalId === proposal.id && authority.proposalDigest === proposal.digest && authority.connectionEpoch === access.connectionEpoch && typeof access.assertWriteAuthorized === 'function';
+    if ((!automatic && proposal.status !== "approved") || proposal.campaignId !== campaign.id || proposal.connectionEpoch !== access.connectionEpoch) throw new MetaAdsError("proposal_not_approved", 403);
     const objects = refs(campaign);
     let completedWrite = false;
     try {

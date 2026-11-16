@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { metaAssistantFixture } from '../application/__tests__/assistant-fixture.js';
 import { latestClosedObservationDay } from '../domain/daily-observation-calendar.js';
+import { shiftObservationDate } from '../domain/daily-observation-calendar.js';
 import { PrismaDailyObservationRepository } from './prisma-daily-observation.repository.js';
 
 async function fixture() { const f = await metaAssistantFixture(); f.setNow('2026-11-16T03:00:00Z'); const repo = new PrismaDailyObservationRepository(f.prisma, f.clock); const identity = { merchantId: 'store-a', accountId: '100', ...latestClosedObservationDay(f.clock(), 'America/Sao_Paulo') }; return { ...f, daily: repo, identity }; }
@@ -12,6 +13,17 @@ test('ADAS-42 concurrent admission and claim create one logical daily run with o
     const claims = await Promise.all([f.daily.claim('store-a', runs[0].id), f.daily.claim('store-a', runs[0].id)]);
     assert.equal(claims.filter(Boolean).length, 1); assert.equal(claims.find(Boolean)!.fence, 1); assert.equal(await f.prisma.metaAdsDailyRun.count(), 1);
     assert.equal((await f.daily.read('store-a', runs[0].id)).status, 'running');
+  } finally { await f.close(); }
+});
+test('ADAS-42 many concurrent schedulers cannot race the primary and logical daily uniqueness constraints', async () => {
+  const f = await fixture(); try {
+    const ids = new Set<string>();
+    for (let i = 0; i < 8; i++) {
+      const identity = { ...f.identity, localDay: shiftObservationDate(f.identity.localDay, -i) };
+      const rows = await Promise.all(Array.from({ length: 8 }, () => f.daily.admit(identity)));
+      assert.equal(new Set(rows.map(row => row.id)).size, 1); assert.equal(rows.every(row => row.merchantId === identity.merchantId && row.accountId === identity.accountId && row.localDay === identity.localDay && row.timezone === identity.timezone), true); ids.add(rows[0].id);
+    }
+    assert.equal(ids.size, 8); assert.equal(await f.prisma.metaAdsDailyRun.count(), 8);
   } finally { await f.close(); }
 });
 test('ADAS-43 lease takeover preserves checkpoint and rejects the expired token and fence', async () => {

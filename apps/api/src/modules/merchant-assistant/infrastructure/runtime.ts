@@ -67,13 +67,28 @@ export function createMerchantAssistantRuntime(deps: Dependencies) {
   };
   const gateway = new MerchantAiGateway({ repo, admission, config: () => configuration(deps.env), clock, rates, transport: deps.transport,
     authorizeModel: async (scope, resource) => { await asActor(scope, () => deps.governance.authorize({ merchantId: scope.merchantId, source: 'merchant_assistant' }, 'model', resource)); } });
-  const worker = new AssistantWorker({ repo, admission, clock, enabled: enabled(), respond: async input => {
+  const worker = new AssistantWorker({ repo, admission, clock, enabled: enabled(), contexts: () => contexts.ids(), accepts: scope => contexts.has(scope.context), respond: async input => {
     if (!enabled()) throw new AssistantError('assistant_unavailable', 503);
     const context = await contexts.resolve(input.scope);
     return asActor(input.scope, () => new AssistantService({ repo, context, knowledge, model: gateway, clock }).respond(input));
   } });
   const api = new AssistantApiService({ repo, context: scope => contexts.resolve(scope), admission, knowledge, enabled,
     dashboardUrl: deps.env.META_ADS_DASHBOARD_URL || deps.env.DASHBOARD_URL || '', wake: () => { queueMicrotask(() => { void worker.drain(); }); } });
-  return { repo, contexts, knowledge, admission, gateway, worker, api, authorizeActor, authorizeTool, asActor };
+  const createDailyAnalysis = (authorizeStore: (merchantId: string) => Promise<void>) => {
+    const authorize = async (scope: AssistantScope) => {
+      validateAssistantScope(scope);
+      if (scope.actorId !== 'service:meta-ads-agent' || !/^meta-ads-daily:[a-f0-9]{64}$/.test(scope.context)) throw new AssistantError('assistant_forbidden', 403);
+      await authorizeStore(scope.merchantId);
+    };
+    const asService = async <T>(scope: AssistantScope, work: () => Promise<T>): Promise<T> => {
+      await authorize(scope); return deps.tenant.run({ merchantId: scope.merchantId, userId: scope.actorId, role: 'service' }, work);
+    };
+    const dailyAdmission = new TurnAdmissionService(repo, authorize,
+      () => ({ turnMicros: budget(deps.env.MERCHANT_ASSISTANT_TURN_BUDGET_MICROS, 50000n), monthlyMicros: budget(deps.env.MERCHANT_ASSISTANT_MONTHLY_BUDGET_MICROS, 2000000n) }), clock);
+    const model = new MerchantAiGateway({ repo, admission: dailyAdmission, config: () => configuration(deps.env), clock, rates, transport: deps.transport,
+      authorizeModel: async (scope, resource) => { await asService(scope, () => deps.governance.authorize({ merchantId: scope.merchantId, source: 'meta_ads_daily_analysis' }, 'model', resource)); } });
+    return { repo, admission: dailyAdmission, model, authorize, asService, clock };
+  };
+  return { repo, contexts, knowledge, admission, gateway, worker, api, authorizeActor, authorizeTool, asActor, createDailyAnalysis };
 }
 export type MerchantAssistantRuntime = ReturnType<typeof createMerchantAssistantRuntime>;
