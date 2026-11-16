@@ -7,6 +7,7 @@ import { ApiContext } from "../../src/hooks/useApi.js";
 import { createDashboardApi } from "../../src/api-client.js";
 import { OrdersShipmentsPage } from "../../src/pages/orders-shipments-page.js";
 import type { MerchantProfile } from "../../src/api-client.js";
+import { IntegrationsPage } from "../../src/pages/integrations-page.js";
 
 const api = createDashboardApi({ baseUrl: window.location.origin });
 
@@ -52,5 +53,7 @@ function Fixture() {
 }
 createRoot(document.getElementById("root")!).render(<ApiContext.Provider value={api}>
   {new URLSearchParams(location.search).get("mode") === "orders"
-    ? <OrdersShipmentsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} /> : <Fixture />}
+    ? <OrdersShipmentsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} />
+    : new URLSearchParams(location.search).get("mode") === "integrations"
+      ? <IntegrationsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} /> : <Fixture />}
 </ApiContext.Provider>);

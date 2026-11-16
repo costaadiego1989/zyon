@@ -237,7 +237,7 @@ export class WebhooksV1Controller {
     @Body() body?: TestWebhookDto,
   ) {
     const merchantId = currentTenantPrincipal(request).tenantId;
-    const delivery = await this.testEndpoint.execute(merchantId, id);
+    const delivery = await this.testEndpoint.execute(merchantId, id, body?.event_type);
     return WebhookEntityMapper.toDeliveryResponse(delivery);
   }
 }

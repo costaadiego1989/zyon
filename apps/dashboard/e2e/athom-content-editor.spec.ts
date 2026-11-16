@@ -116,3 +116,27 @@ test("Orders explain429 without technical JSON and recover on retry", async ({ p
   await expect(page.getByText("Os pedidos da sua loja aparecem aqui", { exact: true })).toBeVisible();
   expect(calls).toBe(2);
 });
+
+test("Webhook Testar forwards a subscribed event and displays the queued delivery", async ({ page }) => {
+  const writes: any[] = [];
+  const endpoint = { id: "selected", url: "https://example.test/selected", enabled: true, events: ["customer.upserted"], signing_secret_hint: "redacted", created_at: "2026-11-16T12:00:00Z", updated_at: "2026-11-16T12:00:00Z" };
+  await page.route("**/v1/**", route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/integrations/api-keys")) return route.fulfill({ json: [] });
+    if (url.pathname.endsWith("/selected/test")) {
+      const body = route.request().postDataJSON(); writes.push(body);
+      if (body?.event_type !== "customer.upserted") return route.fulfill({ status: 400, json: { code: "webhook_event_not_enabled_for_endpoint" } });
+      return route.fulfill({ json: { id: "delivery-qa", endpoint_id: endpoint.id, endpoint_url: endpoint.url, event_id: "event-qa", event_type: body.event_type,
+        status: "pending", attempts: 0, created_at: endpoint.created_at, updated_at: endpoint.updated_at } });
+    }
+    return route.fulfill({ json: { data: url.pathname.endsWith("/webhook-endpoints") ? [endpoint] : [], next_cursor: null, has_more: false } });
+  });
+  await page.goto("/athom-content-editor.html?mode=integrations");
+  await page.getByRole("tab", { name: "Webhooks", exact: true }).click();
+  await page.getByRole("button", { name: "Testar", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Teste solicitado");
+  expect(writes).toEqual([{ event_type: "customer.upserted" }]);
+  await page.getByRole("tab", { name: "Histórico de entregas", exact: true }).click();
+  const row = page.getByRole("row").filter({ hasText: "customer.upserted" });
+  await expect(row).toContainText("Pendente"); await expect(row).toContainText(endpoint.url);
+});
