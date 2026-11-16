@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import {randomBytes} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
-import {Module} from '@nestjs/common';
+import {Controller,Get,Module,Req,UseGuards} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
 import express,{type Request,type Response,type NextFunction} from 'express';
 import {testDatabase} from '../src/modules/meta-ads-agent/infrastructure/__tests__/database.js';
@@ -12,6 +12,7 @@ import {PrismaMerchantStoreRepository} from '../src/modules/merchant/infrastruct
 import {JwtService} from '../src/modules/auth/domain/services/jwt.service.js';
 import {AuthCookieService} from '../src/modules/auth/domain/services/auth-cookie.service.js';
 import {AuthGuard} from '../src/modules/auth/presentation/auth.guard.js';
+import {currentTenantPrincipal} from '../src/shared/auth/tenant-principal.js';
 import {TenantContextService} from '../src/shared/tenant/tenant-context.service.js';
 import {AiGovernanceService} from '../src/modules/ai-governance/ai-governance.service.js';
 import {ProductEntity} from '../src/modules/catalog/domain/entities/product.entity.js';
@@ -85,7 +86,8 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
   compose();await seed();
   const proxy=<T extends object>(select:()=>T)=>new Proxy({} as T,{get(_target,key){const target=select(),value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}});
   Reflect.defineMetadata('design:paramtypes',[JwtService,AuthCookieService],AuthGuard);
-  @Module({controllers:[MetaAdsAgentController,FundingController,AutomationReportController,MerchantAssistantController],providers:[AuthGuard,MetaAdsHttpErrorFilter,AssistantHttpErrorFilter,{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:cookies},{provide:MetaAdsAgentService,useValue:proxy(()=>meta.service)},{provide:FundingService,useValue:proxy(()=>meta.funding)},{provide:AutomationPolicyService,useValue:proxy(()=>meta.policies)},{provide:DAILY_OBSERVATION_REPOSITORY,useValue:proxy(()=>meta.daily)},{provide:AssistantApiService,useValue:proxy(()=>assistant.api)}]})class BrowserModule{}
+  @Controller('agentic-test') @UseGuards(AuthGuard) class SessionController{@Get('session') session(@Req() request:Request){const principal=currentTenantPrincipal(request);return{merchantId:principal.tenantId,userId:principal.userId,role:principal.role};}}
+  @Module({controllers:[MetaAdsAgentController,FundingController,AutomationReportController,MerchantAssistantController,SessionController],providers:[AuthGuard,MetaAdsHttpErrorFilter,AssistantHttpErrorFilter,{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:cookies},{provide:MetaAdsAgentService,useValue:proxy(()=>meta.service)},{provide:FundingService,useValue:proxy(()=>meta.funding)},{provide:AutomationPolicyService,useValue:proxy(()=>meta.policies)},{provide:DAILY_OBSERVATION_REPOSITORY,useValue:proxy(()=>meta.daily)},{provide:AssistantApiService,useValue:proxy(()=>assistant.api)}]})class BrowserModule{}
   const app=await NestFactory.create(BrowserModule,{logger:false,forceCloseConnections:true});app.setGlobalPrefix('v1');app.enableCors({origin:front,credentials:true});app.use(express.json({limit:'64kb'}));
   let closing:Promise<void>|undefined;
   const close=()=>closing??=(async()=>{await stopWorkers();await app.close();await db.close();})();
