@@ -39,6 +39,7 @@ function selectedIds(value: unknown, minimum: number): string[] {
 const result = (data: unknown, ...artifacts: AssistantArtifact[]): AssistantToolResult => ({ data, artifacts });
 
 export class MetaAdsAssistantAdapter implements AssistantContextPort {
+  readonly knowledgeScope = { context: 'meta_ads', audience: 'merchant' as const };
   readonly descriptor = { id: 'meta-ads', label: 'Anúncios com IA', capabilities: ['catalog', 'campaigns', 'creative_generation', 'recommendations'] };
   private readonly clock: () => Date;
   constructor(private readonly deps: Dependencies) { this.clock = deps.clock ?? (() => new Date()); }

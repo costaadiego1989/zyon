@@ -1,6 +1,7 @@
 import type { AssistantArtifact, AssistantContextDescriptor } from '@zyon/shared-types';
 import type { AssistantScope } from './assistant.port.js';
 import type { AssistantToolDescriptor } from './model.port.js';
+import type { AssistantKnowledgeScope } from './knowledge.port.js';
 
 export interface AssistantToolInput {
   scope: AssistantScope; threadId: string; turnId: string; leaseToken: string;
@@ -10,6 +11,7 @@ export interface AssistantToolResult { data: unknown; artifacts: AssistantArtifa
 /** Only server composition registers contexts; neither model nor request chooses authority. */
 export interface AssistantContextPort {
   readonly descriptor: AssistantContextDescriptor;
+  readonly knowledgeScope: AssistantKnowledgeScope;
   authorize(scope: AssistantScope): Promise<void>;
   authorizeInvocation(scope: AssistantScope): Promise<void>;
   tools(): AssistantToolDescriptor[];

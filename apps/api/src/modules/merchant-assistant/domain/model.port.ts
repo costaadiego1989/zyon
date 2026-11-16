@@ -1,5 +1,6 @@
 import type {AssistantScope} from './assistant.port.js';
 import type {RetrievedAssistantKnowledge} from './knowledge.port.js';
+import type {AssistantCampaignProgress} from '@zyon/shared-types';
 
 export interface AssistantModelMessage {
   role:'user'|'assistant'|'tool';content:string;tool_call_id?:string;
@@ -9,6 +10,7 @@ export interface AssistantToolDescriptor {name:string;description:string;inputSc
 export interface AssistantModelInput {
   scope:AssistantScope;threadId:string;turnId:string;leaseToken:string;
   messages:AssistantModelMessage[];knowledge:RetrievedAssistantKnowledge[];tools:AssistantToolDescriptor[];
+  state?:{contextLabel:string;now:string;campaign:AssistantCampaignProgress|null};
 }
 export interface AssistantModelResult {
   reply:string|null;referenceIds:string[];

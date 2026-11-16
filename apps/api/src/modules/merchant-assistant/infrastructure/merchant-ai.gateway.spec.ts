@@ -33,6 +33,14 @@ test('ADAS-49 existing provider and metering receive the scoped RAG context and 
     assert.equal(JSON.stringify(f.requests[0].body).includes('synthetic-provider-key'),false);
   }finally{await f.close();}
 });
+test('ADAS-23 server campaign state reaches the existing motor separately from user instructions',async()=>{
+  const f=await fixture();try{
+    await f.gateway.complete({...f.input,state:{contextLabel:'Anúncios com IA',now:'2026-11-16T12:00:00Z',campaign:{campaignId:null,draft:{priority:'roas'},awaitingFields:['budget']}}});
+    const state=f.requests[0].body.messages.find((m:any)=>m.role==='system'&&m.content.startsWith('ESTADO DO SERVIDOR'));
+    assert.ok(state);assert.match(state.content,/"priority":"roas"/);assert.match(state.content,/"awaitingFields":\["budget"\]/);
+    assert.ok(f.requests[0].body.messages[0].content.includes('não interprete')||f.requests[0].body.messages[0].content.includes('Não interprete'));
+  }finally{await f.close();}
+});
 test('model denial and wrong thread scope do not reach the provider or add a paid attempt',async()=>{
   const f=await fixture();try{f.deny();await assert.rejects(f.gateway.complete(f.input),{code:'assistant_model_forbidden'});assert.equal(f.requests.length,0);
     assert.deepEqual((await f.repo.turns(scope,f.thread.id)).turns[0].providerRequests,[]);
