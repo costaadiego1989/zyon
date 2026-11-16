@@ -315,7 +315,12 @@ export class QuoteShippingUseCase {
       const ownDeliveryOptions: ShippingQuoteResult[] = [];
 
       let destinationNeighborhood = input.destination_neighborhood;
-      if (config.mode === "flat") {
+      // Origin is resolved from merchant configuration before this calculation.
+      // Equal valid CEPs establish the same flat-delivery geography without a
+      // network lookup; they do not establish a measured radius distance.
+      const sameOriginCep = /^(?!0{8}$)\d{8}$/.test(input.origin_zip ?? "")
+        && input.origin_zip === input.destination_zip.replace(/\D/g, "");
+      if (config.mode === "flat" && !sameOriginCep) {
         const [origin, destination] = await Promise.all([
           lookupAddressByViaCep(input.origin_zip ?? ""), lookupAddressByViaCep(input.destination_zip),
         ]);
