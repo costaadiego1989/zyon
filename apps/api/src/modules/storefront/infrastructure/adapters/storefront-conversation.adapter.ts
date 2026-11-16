@@ -275,6 +275,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           { ...input, merchantId, sessionId }, event, deviceMeta,
         ),
         applyCoupon: (args) => shortcutHandlers.applyCoupon(args),
+        removeCoupon: (args) => shortcutHandlers.removeCoupon(args),
         addItemToCart: (args) => shortcutHandlers.addItemToCart(args),
         addExistingItemToCart: (args, expected) => observeStorefrontHandlers(composeStoreToolHandlers(this.handlerDeps,
           { ...ctx, existingLineForAdd: structuredClone(expected) }), input.cartId || input.sessionId).addItemToCart(args),

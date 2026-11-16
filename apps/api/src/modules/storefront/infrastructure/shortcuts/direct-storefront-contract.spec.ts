@@ -133,7 +133,8 @@ test("adapter reads auxiliary cart state with a real merchant scope", async () =
   const calls: unknown[] = [];
   const adapter = Object.create(StorefrontConversationAdapter.prototype) as StorefrontConversationAdapter;
   Object.assign(adapter, { handlerDeps: { prisma: {} }, agent: { prepare: async () => ({ allowed: true,
-    run: async () => ({ message: "Olá", blocks: [], toolsUsed: [], cartId: "cart" }) }) },
+    run: async () => ({ message: "Olá", blocks: [], toolsUsed: [], cartId: "cart",
+      routing: { domain: "STORE_COMMERCE", source: "structured", intent: "GREETING", confidence: 1, needsProductDiscovery: false, modelTier: "fast", modelUsed: "synthetic" } }) }) },
     cartRepo: { getOrCreate: async (...args: unknown[]) => { calls.push(args); return { merchantId: "merchant", sessionId: "cart", total: 1000, couponCode: null, items: [{ variantId: "v1", name: "Produto", quantity: 1 }] }; } } });
   await adapter.reply({ ...input, userMessage: "Olá" });
   assert.deepEqual(calls, [["merchant", "cart"]]);

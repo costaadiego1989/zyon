@@ -10,7 +10,7 @@ import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
 import { conversationBlockSchema } from "../../domain/contracts/conversation-block.schemas.js";
 import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
-import { cartMessageAuthorizesAdd, createCartTurnPolicy } from "../../domain/tools/cart-turn-policy.js";
+import { cartMessageAuthorizesAdd, cartMessageAuthorizesCouponRemoval, createCartTurnPolicy } from "../../domain/tools/cart-turn-policy.js";
 import type { StorefrontExistingCartLine } from "../../domain/ports/storefront-cart.port.js";
 
 export interface DeterministicShortcutDeps {
@@ -18,6 +18,7 @@ export interface DeterministicShortcutDeps {
   copyService: AgentCopyService;
   emitFunnelEvent: (merchantId: string, sessionId: string, event: string) => Promise<void>;
   applyCoupon?: (args: { cartId?: string; couponCode: string }) => Promise<any>;
+  removeCoupon?: (args: { cartId: string }) => Promise<unknown>;
   addItemToCart?: (args: { cartId?: string; variantId: string; quantity: number; selectedOptionItemIds?: string[] }) => Promise<any>;
   addExistingItemToCart?: (args: { cartId: string; variantId: string; quantity: number }, expected: StorefrontExistingCartLine) => Promise<unknown>;
   getCartBlock?: (cartId: string) => Promise<ConversationBlock | null>;
@@ -352,6 +353,29 @@ async function resolveDetailsShortcut(
  * (which sometimes fails to emit the tool call). The discount is authorized
  * server-side by the coupon use-case; this shortcut only parses the code.
  */
+async function resolveCouponRemovalShortcut(
+  deps: Pick<DeterministicShortcutDeps, "removeCoupon" | "getCartBlock">,
+  input: StorefrontConversationInput,
+): Promise<StorefrontConversationOutput | null> {
+  if (input.attachmentContext || input.uiAction || !deps.removeCoupon
+    || !cartMessageAuthorizesCouponRemoval(input.userMessage)) return null;
+  const cartId = input.cartId ?? input.sessionId;
+  const uncertain = (): StorefrontConversationOutput => ({ message: STOREFRONT_CONTRACT_FALLBACK, blocks: [], cartId, suggestedNext: ["Ver Carrinho"] });
+  try {
+    const args = { cartId };
+    const checked = await callStorefrontTool("remove_coupon", args, () => deps.removeCoupon!(args), { cartId });
+    if (!checked.ok) return uncertain();
+    const blocks: ConversationBlock[] = [];
+    if (deps.getCartBlock) {
+      try {
+        const block = conversationBlockSchema.safeParse(await deps.getCartBlock(cartId));
+        if (block.success && block.data.type === "cart_summary" && block.data.data.cartId === cartId) blocks.push(block.data);
+      } catch { /* A failed refresh cannot erase an acknowledged removal or retry it. */ }
+    }
+    return { message: "Cupom removido. Confira o total atualizado no carrinho.", blocks, cartId, suggestedNext: ["Ver Carrinho", "Finalizar Compra"] };
+  } catch { return uncertain(); }
+}
+
 export async function resolveCouponShortcut(
   deps: Pick<DeterministicShortcutDeps, "applyCoupon" | "getCartBlock">,
   input: StorefrontConversationInput,
@@ -429,6 +453,7 @@ export async function resolveDeterministicShortcut(
   if (isUnspecifiedShoppingRequest(input.userMessage)) return null;
   const normalizedMsg = input.userMessage.trim().toLowerCase();
   return (
+    (await resolveCouponRemovalShortcut(deps, input)) ??
     (await resolveExistingCartIncrement(deps, input)) ??
     (await resolveAddToCartShortcut(deps, input)) ??
     (options.structuredReadRouting ? null : await resolveOffersShortcut(deps, input, normalizedMsg)) ??

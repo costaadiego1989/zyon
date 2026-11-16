@@ -141,6 +141,10 @@ export function cartMessageAuthorizesAdd(message: string, attachmentContext?: st
   return authorizedWrites(message, attachmentContext).has("add_item_to_cart");
 }
 
+export function cartMessageAuthorizesCouponRemoval(message: string, attachmentContext?: string): boolean {
+  return authorizedWrites(message, attachmentContext).has("remove_coupon");
+}
+
 function errorCode(result: ToolResult): string | undefined {
   if (!result.ok) return result.code ?? result.error;
   if (result.data && typeof result.data === "object" && "error" in result.data) return String(result.data.error);
