@@ -106,7 +106,9 @@ test("Orders explain429 without technical JSON and recover on retry", async ({ p
     return calls === 1 ? route.fulfill({ status: 429, headers: { "Retry-After": "3" }, json: { code: "rate_limit_exceeded", internal: "technical-payload-must-not-appear" } })
       : route.fulfill({ json: { data: [], next_cursor: null, has_more: false } });
   });
-  await page.goto("/athom-content-editor.html?mode=orders");
+  const rejected = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/orders" && response.status() === 429);
+  await page.goto("/athom-content-editor.html?mode=orders", { waitUntil: "domcontentloaded" });
+  await (await rejected).finished();
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("Aguarde 3 segundos");
   await expect(alert).not.toContainText("technical-payload");
@@ -129,7 +131,9 @@ for (const [label, header, expected] of [
       return route.fulfill({ status: 429, headers: header === undefined ? {} : { "Retry-After": header },
         json: { code: "rate_limit_exceeded", internal: "private-rate-body-must-not-appear" } });
     });
+    const rejected = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/orders" && response.status() === 429);
     await page.goto("/athom-content-editor.html?mode=orders", { waitUntil: "domcontentloaded" });
+    await (await rejected).finished();
     const alert = page.getByRole("alert");
     await expect(alert).toContainText(expected); await expect(alert).not.toContainText("private-rate-body");
     await expect(alert).not.toContainText("rate_limit_exceeded"); expect(calls).toBe(1);
