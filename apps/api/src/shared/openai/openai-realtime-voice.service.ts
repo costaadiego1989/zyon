@@ -1,6 +1,6 @@
 import { BadGatewayException, Injectable, Optional, ServiceUnavailableException, type OnModuleDestroy } from "@nestjs/common";
 import { AiMeteringService, credentialScope } from "../../modules/ai-metering/ai-metering.service.js";
-import type { AiMeteringContext } from "../ai-metering.js";
+import { withAiMetering, type AiMeteringContext } from "../ai-metering.js";
 import { createHash } from "node:crypto";
 import WebSocket from "ws";
 import { AiUserRateLimitService } from "../http/ai-user-rate-limit.service.js";
@@ -156,7 +156,9 @@ export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
     socket.on("message", (data) => {
       try { const event = JSON.parse(data.toString()); events = events.then(async () => {
         if (measurement) await this.metering?.observeVoice(measurement.context, credentialScope("openai", "Bearer " + apiKey), measurement.model, event, measurement.transcriptionModel);
-        await gate.handle(event);
+        await withAiMetering(measurement?.context ?? {
+          merchantId: input.merchantId, conversationId: input.conversationId, source: "voice_checkout", costCenter: "voice",
+        }, () => gate.handle(event));
       }).catch(() => close()); }
       catch { void close(); }
     });
