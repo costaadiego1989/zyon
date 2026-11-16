@@ -8,3 +8,4 @@
 - Autoria unica; Verifier independente apos ultima tarefa e provas. Nenhum worker delegado.
 - Planejamento/evidencias: .specs/features/agentic-dashboard-assistant; ignorados pelo Git, nunca forcar inclusao.
 - Sem push/deploy, banco remoto, chamadas pagas ou ativacao do piloto Athom.
+- T15 follow-up: current billing URL template uses each scoped connected account; 12 controlled tests and scoped lint passed. User confirmed format-only reuse per company. No shared sample-account URL.

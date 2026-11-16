@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { MetaAccess } from '../domain/types.js';
 import type { VerifiedMetaPaymentDestination } from '../domain/funding.port.js';
-import { MetaFundingAdapter, validatedMetaPaymentUrl } from './meta-funding.adapter.js';
+import { MetaFundingAdapter, validatedMetaPaymentUrl, reviewedMetaPaymentDestination } from './meta-funding.adapter.js';
 
 const now = () => new Date('2026-11-16T12:00:00Z');
 const access = (): MetaAccess => ({ merchantId: 'store-a', accessToken: 'scoped-store-token', clientConversationId: 'AbCdEfGhIjKlMnOpQr12', connectionEpoch: 1, accountId: '100', pageId: null, datasetId: null, catalogId: null, whatsappId: null });
-function fixture() {
+function fixture(useReviewedRoute = false) {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const requests: Array<{ url: string; method: string }> = [];
   let account: Record<string, unknown> = { ad_account_id: '100', ad_account_name: 'Loja A', currency: 'BRL', account_status: 'ACTIVE', is_queryable: true, is_ads_mcp_enabled: true, has_payment_method: true };
@@ -37,7 +37,7 @@ function fixture() {
     }
     return new Response(JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result }), { headers: { 'Content-Type': 'application/json' } });
   };
-  const adapter = new MetaFundingAdapter({ graphVersion: 'v27.0', request, clock: now, paymentDestination: async () => destination });
+  const adapter = new MetaFundingAdapter({ graphVersion: 'v27.0', request, clock: now, ...(useReviewedRoute ? {} : { paymentDestination: async () => destination }) });
   return { adapter, calls, requests, graph, denied, account: (value: Record<string, unknown>) => { account = { ...account, ...value }; }, graphId: (value: string) => { graphId = value; }, denyMcp: () => { mcpDenied = true; }, destination: (value: VerifiedMetaPaymentDestination) => { destination = value; }, rotateConversation: (value: string) => { nextConversationId = value; } };
 }
 test('ADAS-02 prepaid account keeps amount due distinct from unverified available funds', async () => {
@@ -108,4 +108,15 @@ test('ADAS-22 authorized financial read preserves the latest MCP conversation id
   const result = await f.adapter.read(scoped);
   assert.equal(scoped.clientConversationId, 'ZxCvBnMaSdFgHjKlQw12');
   assert.ok(!JSON.stringify(result).includes('ZxCvBnMaSdFgHjKlQw12')); assert.equal(result.accountId, '100');
+});
+test('ADAS-05 current reviewed billing route is built from the connected account and refuses mismatched or hidden routing parameters', async () => {
+  const scoped = reviewedMetaPaymentDestination('100'); assert.ok(scoped);
+  const url = new URL(scoped.url); assert.equal(url.origin, 'https://business.facebook.com'); assert.equal(url.pathname, '/latest/billing_hub/payment_settings/');
+  assert.equal(url.searchParams.get('asset_id'), '100'); assert.equal(url.searchParams.get('payment_account_id'), '100');
+  assert.equal(url.searchParams.get('nav_ref'), 'billing_hub'); assert.equal(url.searchParams.get('placement'), 'campaign_manager');
+  assert.equal(validatedMetaPaymentUrl(scoped, '100', now()), scoped.url);
+  assert.equal(reviewedMetaPaymentDestination('100&asset_id=200'), null);
+  for (const suffix of ['&next=https://evil.example.test', '&asset_id=200', '&placement=evil']) assert.equal(validatedMetaPaymentUrl({ ...scoped, url: scoped.url + suffix }, '100', now()), null);
+  assert.equal(validatedMetaPaymentUrl({ ...scoped, url: scoped.url.replace('payment_account_id=100', 'payment_account_id=200') }, '100', now()), null);
+  const f = fixture(true); assert.equal((await f.adapter.read(access())).paymentUrl, scoped.url);
 });

@@ -11,7 +11,15 @@ function minorUnits(value: unknown): number | null {
   if (typeof value !== 'string' || !/^\d{1,16}$/.test(value)) return null;
   const amount = Number(value); return Number.isSafeInteger(amount) && amount >= 0 ? amount : null;
 }
-/** URL boundaries do not attest navigation. A missing account-specific attestation stays null. */
+/** Route observed in the merchant's logged-in Meta UI on this date. IDs come from server scope. */
+export function reviewedMetaPaymentDestination(selected: string): VerifiedMetaPaymentDestination | null {
+  if (typeof selected !== 'string' || selected !== selected.trim() || !/^\d+$/.test(selected)) return null;
+  const url = new URL('https://business.facebook.com/latest/billing_hub/payment_settings/');
+  url.searchParams.set('payment_account_id', selected); url.searchParams.set('asset_id', selected);
+  url.searchParams.set('nav_ref', 'billing_hub'); url.searchParams.set('placement', 'campaign_manager');
+  return { accountId: selected, url: url.href, verifiedAt: '2026-11-16T00:00:00.000Z' };
+}
+/** URL boundaries do not attest payment or delivery. Unreviewed destinations stay null. */
 export function validatedMetaPaymentUrl(destination: VerifiedMetaPaymentDestination | null, selected: string, now: Date): string | null {
   if (!destination || destination.accountId !== selected) return null;
   const verified = Date.parse(destination.verifiedAt);
@@ -19,6 +27,11 @@ export function validatedMetaPaymentUrl(destination: VerifiedMetaPaymentDestinat
   try {
     const url = new URL(destination.url);
     if (url.protocol !== 'https:' || url.port || url.username || url.password || url.hash) return null;
+    if (url.hostname === 'business.facebook.com' && url.pathname === '/latest/billing_hub/payment_settings/') {
+      const required = ['payment_account_id', 'asset_id', 'nav_ref', 'placement'];
+      if ([...url.searchParams.keys()].length !== required.length || required.some(key => !url.searchParams.has(key)) || url.searchParams.get('asset_id') !== selected || url.searchParams.get('payment_account_id') !== selected || url.searchParams.get('nav_ref') !== 'billing_hub' || url.searchParams.get('placement') !== 'campaign_manager') return null;
+      return url.href;
+    }
     let key: string;
     if (url.hostname === 'www.facebook.com' && url.pathname === '/ads/manager/account_settings/account_billing/') key = 'act';
     else if (url.hostname === 'business.facebook.com' && ['/billing_hub/payment_settings', '/billing_hub/payment_settings/', '/billing_hub/accounts/details', '/billing_hub/accounts/details/'].includes(url.pathname)) key = 'asset_id';
@@ -85,7 +98,7 @@ export class MetaFundingAdapter implements MetaFundingPort {
     const risk = graph.disable_reason === 3 || graph.disable_reason === '3';
     const blockCode = unsettled ? 'account_unsettled' : risk ? 'payment_risk' : paymentMethod === 'missing' ? 'payment_method_missing' : null;
     let destination: VerifiedMetaPaymentDestination | null = null;
-    try { destination = await this.deps.paymentDestination?.(selected) ?? null; } catch { /* Unverified navigation never enables a payment button. */ }
+    try { destination = this.deps.paymentDestination ? await this.deps.paymentDestination(selected) : reviewedMetaPaymentDestination(selected); } catch { /* Unverified navigation never enables a payment button. */ }
     input.clientConversationId = access.clientConversationId;
     return { accountId: selected, accountName: typeof account?.ad_account_name === 'string' ? account.ad_account_name.slice(0, 160) : selected,
       currency: denomination, billingType: graph.is_prepay_account === true ? 'prepaid' : graph.is_prepay_account === false ? 'postpaid' : 'unknown',
