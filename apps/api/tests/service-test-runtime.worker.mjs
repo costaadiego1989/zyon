@@ -10,6 +10,7 @@ import {createOwnedJourneyClientTracker,journeyBounded as bounded} from './store
 import {fileURLToPath} from 'node:url';
 import {createHook} from 'node:async_hooks';
 import {createLocalWhatsAppProviderFixture,validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
+import {createPublicSupportModelFixture} from './service-public-support-model-fixture.mjs';
 
 const [databaseUrl,databaseRunId,redisUrl,redisRunId,...extra]=process.argv.slice(2);
 const stage=(name,details={})=>process.send?.({type:'stage',stage:name,...details});
@@ -28,10 +29,17 @@ const cleanupResources=stage=>{
   process.stderr.write('service_cleanup_resources:'+JSON.stringify({stage,resourceTypes:process.getActiveResourcesInfo(),handles,timers})+'\n');
 };
 stage('worker_started');
-assert.ok(extra.length<=1);let localWhatsApp;
+assert.ok(extra.length<=1);let localWhatsApp;let localSupportQueryModel=false;
 if(extra.length){
-  assert.ok(extra[0].length<=8192);const parsed=JSON.parse(extra[0]);assert.match(parsed.metaSecret,/^[a-f0-9]{64}$/);
-  const{metaSecret,...providerOptions}=parsed;localWhatsApp={metaSecret,...validateLocalWhatsAppOptions(providerOptions)};
+  assert.ok(extra[0].length<=8192);const parsed=JSON.parse(extra[0]);
+  assert.ok(parsed&&typeof parsed==='object'&&!Array.isArray(parsed));
+  const{supportQueryModel,...whatsappOptions}=parsed;
+  assert.ok(supportQueryModel===undefined||supportQueryModel===true,'local_support_query_flag_invalid');
+  localSupportQueryModel=supportQueryModel===true;
+  if(Object.keys(whatsappOptions).length){
+    assert.match(whatsappOptions.metaSecret,/^[a-f0-9]{64}$/);
+    const{metaSecret,...providerOptions}=whatsappOptions;localWhatsApp={metaSecret,...validateLocalWhatsAppOptions(providerOptions)};
+  }else assert.ok(localSupportQueryModel,'local_provider_fixture_required');
 }
 assertConstructionOnlyAmbient(process.env);assertServiceArtifacts();stage('artifacts_checked');
 const database=assertNativePrismaUrl(databaseUrl);assertSyntheticRedisIdentity(redisUrl,redisRunId,redisRunId);
@@ -41,7 +49,7 @@ try{assert.deepEqual(await verify.$queryRaw`SELECT run_id FROM synthetic_native_
 const {Redis}=await import('ioredis');const redis=new Redis(redisUrl,{lazyConnect:true,maxRetriesPerRequest:0,retryStrategy:()=>null});
 try{await redis.connect();assertSyntheticRedisIdentity(redisUrl,redisRunId,await redis.get('aacp:synthetic:run'));}finally{redis.disconnect();}
 stage('owned_markers_checked');
-let app,tracker,trap,closed=false,fixture,fixtureOverrideNames=[];
+let app,tracker,trap,closed=false,fixture,fixtureOverrideNames=[],modelFixture,modelTokens,modelOverrideNames=[];
 async function close(){
   if(closed)return;closed=true;const errors=[];
   stage('closing_capture');
@@ -54,7 +62,7 @@ async function close(){
   try{if(trap)await trap.dispose();}catch(e){errors.push(e);}
   if(provider?.providerCalls)errors.push(new Error('service_provider_attempt_forbidden:'+JSON.stringify(trap.diagnostics())));
   if(errors.length)throw new AggregateError(errors,'service_app_cleanup_failed:'+errors.map(error=>String(error.message).slice(0,1400)).join('|'));
-  return{appClosed:true,providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0};
+  return{appClosed:true,providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0,...(modelFixture?{localSupportModel:modelFixture.evidence()}:{} )};
 }
 try{
   trap=await installConstructionProviderTrap(Number(database.port),Number(new URL(redisUrl).port));
@@ -82,9 +90,27 @@ try{
     fixture=createLocalWhatsAppProviderFixture({voiceTranscripts:localWhatsApp.voiceTranscripts},event=>process.send({type:'local_whatsapp_event',event}));
     fixtureInstallation=fixture.install(WhatsAppChannelModule,channelToken,mediaType);fixtureOverrideNames=fixtureInstallation.overrides;
   }
+  let modelInstallation;
+  if(localSupportQueryModel){
+    const{KnowledgeBaseModule}=await import('../dist/modules/knowledge-base/knowledge-base.module.js');
+    const{QueryKnowledgeUseCase}=await import('../dist/modules/knowledge-base/application/use-cases/query-knowledge.use-case.js');
+    const{KNOWLEDGE_REPOSITORY}=await import('../dist/modules/knowledge-base/domain/ports/knowledge-repository.port.js');
+    const{EMBEDDING_PORT}=await import('../dist/modules/knowledge-base/domain/ports/embedding.port.js');
+    const{BillingPlanMeteringService}=await import('../dist/modules/payment/domain/billing-plan-guard.js');
+    const{PUBLIC_KNOWLEDGE_SEARCH}=await import('../dist/modules/knowledge-base/domain/ports/public-knowledge-search.port.js');
+    const{RevalidatePublicSourceService}=await import('../dist/modules/knowledge-base/application/use-cases/revalidate-public-source.service.js');
+    const{SupportModule}=await import('../dist/modules/support/support.module.js');
+    const{CHAT_COMPLETION_PORT}=await import('../dist/modules/support/domain/ports/chat-completion.port.js');
+    const{SendSupportMessageUseCase}=await import('../dist/modules/support/application/send-support-message.use-case.js');
+    modelTokens={KnowledgeBaseModule,QueryKnowledgeUseCase,KNOWLEDGE_REPOSITORY,EMBEDDING_PORT,BillingPlanMeteringService,
+      PUBLIC_KNOWLEDGE_SEARCH,RevalidatePublicSourceService,SupportModule,CHAT_COMPLETION_PORT,SendSupportMessageUseCase};
+    modelFixture=createPublicSupportModelFixture(databaseRunId,event=>process.send({type:'local_support_model_event',event}));
+    modelInstallation=modelFixture.install(modelTokens);modelOverrideNames=modelInstallation.overrides;
+  }
   try{stage('constructing_app');app=await bounded(NestFactory.create(AppModule,{abortOnError:false,logger:false,rawBody:true}),45_000,'service_app_construct_timeout');}
-  finally{fixtureInstallation?.restore();}
+  finally{modelInstallation?.restore();fixtureInstallation?.restore();}
   if(fixture){assert.equal(app.get(channelToken),fixture.sender);if(localWhatsApp.voiceTranscripts&&Object.keys(localWhatsApp.voiceTranscripts).length)assert.equal(app.get(mediaType),fixture.media);}
+  if(modelFixture)modelFixture.assertBindings(app,modelTokens);
   stage('app_constructed');
   tracker=createOwnedJourneyClientTracker(app,Number(new URL(redisUrl).port));
   const {apiVersioningMiddleware}=await import('../dist/shared/http/api-versioning.js');app.use(apiVersioningMiddleware);
@@ -96,7 +122,7 @@ try{
   const address=app.getHttpServer().address();assert.equal(address.address,'127.0.0.1');
   assert.equal(trap.evidence().providerCalls,0);
   process.send({type:'ready',apiOrigin:`http://127.0.0.1:${address.port}`,evidence:{canonicalAppModule:true,
-    repositoryOverrides:false,authOverrides:false,providerCalls:0,localProviderOverrides:fixtureOverrideNames,embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
+    repositoryOverrides:false,authOverrides:false,providerCalls:0,localProviderOverrides:fixtureOverrideNames,...(modelFixture?{localModelOverrides:modelOverrideNames}:{}),embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
   process.on('message',async message=>{
     if(message?.type!=='close')return;
     try{const evidence=await close();cleanupResources('before_closed_ack');process.send({type:'closed',evidence},()=>process.disconnect());}

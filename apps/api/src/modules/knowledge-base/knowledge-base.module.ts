@@ -31,11 +31,16 @@ import { OnFaqUpdatedHandler } from "./infrastructure/event-handlers/on-faq-upda
 import { OnConfigUpdatedHandler } from "./infrastructure/event-handlers/on-config-updated.handler.js";
 import { MerchantPolicyController } from "./presentation/http/merchant-policy.controller.js";
 import { KnowledgeAdminController } from "./presentation/http/knowledge-admin.controller.js";
+import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
+import { RevalidatePublicSourceService } from "./application/use-cases/revalidate-public-source.service.js";
+import { PrismaPublicEvidenceSources } from "./infrastructure/prisma-public-evidence.sources.js";
 
 @Module({
   imports: [CatalogModule, IntegrationsModule, GraphRagModule, PublicSupportKnowledgeModule],
   controllers: [MerchantPolicyController, KnowledgeAdminController],
   providers: [
+    { provide: RevalidatePublicSourceService, useFactory: (prisma: PrismaClient, tenant: TenantContextService) =>
+      new RevalidatePublicSourceService(new PrismaPublicEvidenceSources(prisma, tenant)), inject: [PRISMA_CLIENT, TenantContextService] },
     { provide: GRAPH_KNOWLEDGE_SOURCES, useFactory: (prisma: PrismaClient, faq: PublicSupportFaqPort) => new PublishedGraphKnowledgeSources(new PrismaPolicyRepository(prisma), faq), inject: [PRISMA_CLIENT, PUBLIC_SUPPORT_FAQ] },
     { provide: PUBLIC_KNOWLEDGE_SEARCH, useFactory: (graph: GraphRetrievalPort, sources: GraphKnowledgeSourcesPort) => new GraphKnowledgeReader(graph, sources), inject: [GRAPH_RETRIEVAL, GRAPH_KNOWLEDGE_SOURCES] },
     BillingPlanMeteringService,

@@ -20,12 +20,14 @@ export function assertServiceCaseSummary(value){
   return Object.freeze({...value});
 }
 export async function createServiceTestRuntime(options){
-  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile'].includes(k))
+  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile','supportQueryModel'].includes(k))
     &&(options.graph===undefined||typeof options.graph==='boolean')
+    &&(options.supportQueryModel===undefined||options.supportQueryModel===true)
     &&(options.postgresProfile===undefined||options.postgresProfile==='pgvector16'),'service_local_options_required');
   const whatsapp=options.whatsapp===undefined?undefined:validateLocalWhatsAppOptions(options.whatsapp);
-  const fixtureSecret=whatsapp?randomBytes(32).toString('hex'):undefined,localEvents=[];
-  const fixtureArgument=whatsapp?JSON.stringify({...whatsapp,metaSecret:fixtureSecret}):undefined;
+  const supportQueryModel=options.supportQueryModel===true;
+  const fixtureSecret=whatsapp?randomBytes(32).toString('hex'):undefined,localEvents=[],localModelEvents=[];
+  const fixtureArgument=whatsapp||supportQueryModel?JSON.stringify({...(whatsapp?{...whatsapp,metaSecret:fixtureSecret}:{}),...(supportQueryModel?{supportQueryModel:true}:{})}):undefined;
   assert.ok(fixtureArgument===undefined||fixtureArgument.length<=8192,'local_whatsapp_fixture_size_invalid');
   const build=assertServiceArtifacts(),apiRoot=fileURLToPath(new URL('../',import.meta.url));
   let vectorEvidence;
@@ -78,6 +80,13 @@ export async function createServiceTestRuntime(options){
         assert.ok(whatsapp&&message.event?.sequence===localEvents.length+1&&['sendText','sendMedia','voiceInterpret'].includes(message.event.kind),'local_whatsapp_event_invalid');
         assert.ok(localEvents.length<2000,'local_whatsapp_event_limit');localEvents.push(message.event);
       }
+      else if(message?.type==='local_support_model_event'){
+        const event=message.event;
+        assert.ok(supportQueryModel&&event?.runId===db.runId&&event.sequence===localModelEvents.length+1
+          &&['queryEmbedding','chatCompletion'].includes(event.kind),'local_support_model_event_invalid');
+        assert.ok(localModelEvents.length<40&&Buffer.byteLength(JSON.stringify(event))<=100000,'local_support_model_event_bounds');
+        localModelEvents.push(event);
+      }
       else if(message?.type==='stage'){lastStage=message.stage;if(message.failure)stageFailure=message.failure;
         if(message.stage==='owned_markers_checked')preflightResolve();}
       else if(message?.type==='ready')readyResolve(message);
@@ -93,6 +102,9 @@ export async function createServiceTestRuntime(options){
     const origin=new URL(info.apiOrigin);assert.equal(origin.hostname,'127.0.0.1');assert.equal(origin.protocol,'http:');
     assert.ok(Number(origin.port)>1024);appEvidence=Object.freeze({...info.evidence,checkedBuild:build,startupTimings:timings,...(vectorEvidence?{postgresVector:vectorEvidence}:{})});
     return Object.freeze({db,redis,graph,apiOrigin:info.apiOrigin,evidence:()=>whatsapp?Object.freeze({...appEvidence,localProviderEvents:localEvents.length}):appEvidence,cleanupEvidence:()=>cleanup,close,
+      ...(supportQueryModel?{supportQueryModel:Object.freeze({events:()=>structuredClone(localModelEvents),
+        counts:()=>({queryEmbeddings:localModelEvents.filter(event=>event.kind==='queryEmbedding').length,
+          completions:localModelEvents.filter(event=>event.kind==='chatCompletion').length})})}:{}),
       ...(whatsapp?{whatsapp:Object.freeze({events:()=>structuredClone(localEvents),signature:body=>{
         assert.equal(typeof body,'string');assert.ok(body.length<=1_000_000);return 'sha256='+createHmac('sha256',fixtureSecret).update(body).digest('hex');
       }})}:{})});

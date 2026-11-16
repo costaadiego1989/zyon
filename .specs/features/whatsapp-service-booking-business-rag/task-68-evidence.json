@@ -1,0 +1,96 @@
+{
+  "task": "T68",
+  "scope": "local; no production/provider/customer action",
+  "appBase": "b37511cfb",
+  "checkedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "4c61abc64d679b31119b4c76f63515220e506e4f7dc53a0efd2bd7055af9f9bf",
+    "artifactSha256": "0c20cdc3026a0c0be03e55e3574fc940f63bc2eb424d1d1c1bd1bfe056470268",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2541
+    },
+    "recordedAt": "2026-11-16T07:52:47.021Z",
+    "supervisedOwnerAttempt": "b2d0be9f6764c5af5abb1df3923523716e635455d43eff0cd14129d8a2448e87"
+  },
+  "supervisorReceipt": ".cache/phase3-gates/t68-supervisor-20261116T074938389786Z/supervisor.json",
+  "gates": {
+    "unit": {
+      "log": ".cache/t68-gates/2026-11-16T07-54-24.984Z/unit.log",
+      "sha256": "13611432c9f2160df443a7ee4db68dabd2eb0e17255a5c486d6a868eda124864",
+      "tests": 639,
+      "pass": 639,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 93496.0121
+    },
+    "revalidation": {
+      "log": ".cache/t68-gates/2026-11-16T08-08-23.525Z/revalidation.log",
+      "sha256": "672f4ed25688e19539209ff5ccdf5a147aae730cdc2673dad325dbec8e4a1114",
+      "tests": 37,
+      "pass": 37,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 195786.3701
+    },
+    "index": {
+      "log": ".cache/t68-gates/2026-11-16T08-11-39.602Z/index.log",
+      "sha256": "b78a1a439583ad583ee1d1272d12f1c47bf1d7add7f2fa355be3d61a32a6f9b0",
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "durationMs": 66531.3509
+    }
+  },
+  "actualNativeTotal": 51,
+  "providerCalls": 0,
+  "authOrRepositoryOverrides": false,
+  "naturalOwnedCleanup": true,
+  "modelBoundary": "Public Support test only: fake queryembedding384 and completionport; actualQuery/repository/billing/tenant/canonical; globalindexer embedding unmodified. Core pinnedmodelvector is synthetic, actualPostgreSQL/pgvector/Neo4j. No real modelquality/providerdelivery claim.",
+  "sutCausalReds": [
+    ".cache/t68-units/2026-11-16T03-12-17.550Z/unit.log",
+    ".cache/t68-units/2026-11-16T04-12-02.086Z/unit.log",
+    ".cache/t68-units/2026-11-16T04-24-31.585Z/unit.log"
+  ],
+  "fixtureFailuresPreserved": [
+    {
+      "log": ".cache/t68-gates/2026-11-16T07-55-58.764Z/revalidation.log",
+      "tests": 34,
+      "pass": 18,
+      "fail": 16,
+      "reason": "wrong snapshot table, unsupported policy fixture field, global multi-module model token lookup"
+    },
+    {
+      "log": ".cache/t68-gates/2026-11-16T08-03-43.646Z/revalidation.log",
+      "tests": 37,
+      "pass": 32,
+      "fail": 5,
+      "reason": "real HTTP clear correctly nulls legacy field; adversarial old-field fixture needed explicit delayed legacy-only seed"
+    }
+  ],
+  "fixtureCorrectionIntegrity": {
+    "firstBackup": ".cache/t68-first-native-fixture-fix-20261116T080240298647Z/manifest.json",
+    "assertionIntegrity": ".cache/t68-first-native-fixture-fix-20261116T080240298647Z/assertion-integrity.json",
+    "secondBackup": ".cache/t68-explicit-empty-legacy-seed-20261116T080823194803Z/manifest.json",
+    "expectedResultsUnchanged": true,
+    "fieldIdentity": "same explicit-empty scenario moved from unsupported general to supported returns;2actual-read targets follow fixture identity",
+    "strongerSetup": "realHTTP clears current policy and preserves public empty marker; only then simulated owned legacy-only writer restores oldfield. Existingoldvalue/withdrawal/noresurrection assertions retained,2new assertions."
+  },
+  "remainingBoundaries": [
+    "T69 provenance through reader/finalresponseaudit",
+    "T70 new public-family retrieval and privategateway",
+    "T71 canonical live tools, product/config and defaultFAQ compatibility, post-model sourcewithdrawal",
+    "T72 generic modelquality evaluation",
+    "finalsameHEADproofs/mutations/nonauthorVerifier/screens/walk"
+  ]
+}

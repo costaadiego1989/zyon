@@ -52,6 +52,7 @@ import { EmbedTokenService } from "../../../embed/domain/embed-token.service.js"
 import { EmbedCheckoutGuardHelper } from "../../../embed/presentation/http/embed-checkout.controller.js";
 import { embedCheckoutSessionId } from "../../../embed/domain/embed-checkout-session.js";
 import { readTrustedStorefrontOrigin } from "../../../embed/presentation/http/embed-auth.guard.js";
+import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 
 type EmbedRequest = { embedClaims?: EmbedTokenClaims; headers?: Record<string, string | undefined> };
 
@@ -71,6 +72,7 @@ export class SupportController {
     @Optional() private readonly embedTokens?: EmbedTokenService,
     @Optional() private readonly checkoutGuards?: EmbedCheckoutGuardHelper,
     @Optional() private readonly claimWhatsAppConversation?: ClaimWhatsAppConversationUseCase,
+    @Optional() private readonly tenantContext: TenantContextService = new TenantContextService(),
   ) {}
 
   /**
@@ -172,13 +174,21 @@ export class SupportController {
   async chatPublic(@Body() body: PublicSupportChatDto, @Req() request: EmbedRequest) {
     const merchantId = body.merchant_id;
     const identity = await this.admit(request, merchantId);
-    const settings = await this.getSettings.execute(merchantId);
-    const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
-    const result = await this.sendSupportMessage.execute(
-      { merchant_id: merchantId, session_id: body.session_id, message: body.message },
-      { faqItems, brandName: merchantId, buyerGlobalUserId: identity.userId.startsWith("buyer:") ? identity.userId.slice(6) : undefined },
-    );
-    return { ...result, ai_user_token: identity.token };
+    const current = this.tenantContext.get();
+    if (current && current.merchantId !== merchantId) throw new ForbiddenException("public_support_tenant_mismatch");
+    // The public route selects public store data. Bind its admitted identity
+    // after token/origin/rate checks; never grant a merchant/operator role.
+    return this.tenantContext.run({ merchantId, userId: identity.userId, role: "buyer",
+      ...(identity.userId.startsWith("buyer:") ? { buyerGlobalUserId: identity.userId.slice(6) } : {}),
+      ...(current?.correlationId ? { correlationId: current.correlationId } : {}) }, async () => {
+      const settings = await this.getSettings.execute(merchantId);
+      const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
+      const result = await this.sendSupportMessage.execute(
+        { merchant_id: merchantId, session_id: body.session_id, message: body.message },
+        { faqItems, brandName: merchantId, buyerGlobalUserId: identity.userId.startsWith("buyer:") ? identity.userId.slice(6) : undefined },
+      );
+      return { ...result, ai_user_token: identity.token };
+    });
   }
 
   private async admit(request: EmbedRequest, merchantId: string) {

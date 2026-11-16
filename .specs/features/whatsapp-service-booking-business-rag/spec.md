@@ -259,12 +259,12 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | HUM-07 | Unavailable team/provider | T54, T55, T58 | Pending |
 | HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | Pending |
 | RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66 | In Progress (indexing tasks complete; final proof pending) |
-| RAG-02 | Retirement | T65, T67, T68 | Pending |
+| RAG-02 | Retirement | T65, T67, T68 | Implemented locally (T65/T67/T68 complete; final proofs pending) |
 | RAG-03 | Retry and source durability | T64, T66, T67 | Implemented locally (T64, T66, T67 complete; final proofs pending) |
-| RAG-04 | Source provenance | T66, T68, T69 | In Progress (T66 producer complete) |
+| RAG-04 | Source provenance | T66, T68, T69 | In Progress (T66 producer and T68 admission complete; T69 response propagation pending) |
 | RAG-05 | Compound live queries | T70, T71 | Pending |
-| RAG-06 | Insufficient/conflicting evidence | T68, T71 | Pending |
-| RAG-07 | Public/private isolation | T6, T63, T68, T69 | Pending |
+| RAG-06 | Insufficient/conflicting evidence | T68, T71 | In Progress (T68 admission complete; T71 final consumer pending) |
+| RAG-07 | Public/private isolation | T6, T63, T68, T69 | In Progress (T68 admission complete; T69 response propagation pending) |
 | RAG-08 | Controlled Cypher | T2, T70 | Pending |
 | RAG-09 | Professional boundary | T71, T72 | Pending |
 | RAG-10 | Generic onboarding | T63, T67, T71, T72 | Pending |
