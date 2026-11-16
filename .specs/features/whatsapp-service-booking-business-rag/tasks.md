@@ -142,7 +142,8 @@ T63 → T64 → T65 → T66 → T67 → T68 → T69 → T70 → T71
 ### Phase 10: Generic evaluation and service administration
 
 ```
-T72 → T73 → T74 → T75 → T76 → T77
+T73 → T74 → T75 → T76 → T77
+T71 → T72
 ```
 
 ### Phase 11: Availability operations and navigation
@@ -177,6 +178,10 @@ T13 → T63
 T18 → T63
 T25 → T65
 T71 → T72
+T25 → T73
+T59 → T73
+T72 → T95
+T41 → T79
 T77 → T78
 T84 → T85
 T91 → T92
@@ -1597,18 +1602,18 @@ T107 → T106
 
 **What**: Cliente tipado para contratos implementados, expectedVersion/idempotencyKey; não recalcula vagas/saldo nem envia tenant livre; erros discriminados e nenhum token de conexão.
 **Where**: `apps/dashboard/src/api/endpoints/service-attendance.ts`
-**Depends on**: T72
+**Depends on**: T25, T59
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-01, ATEND-08
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-attendance.api.spec.ts: requests/DTOs, invalid/forbidden/conflict/network e retries somente seguros.
-- [ ] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] service-attendance.api.spec.ts: requests/DTOs, invalid/forbidden/conflict/network e retries somente seguros.
+- [x] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: service-attendance.api.spec.ts: requests/DTOs, invalid/forbidden/conflict/network e retries somente seguros.
-**Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/api/endpoints/service-attendance.spec.ts -t "^T73$"` Teste raiz T73 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/api/endpoints/service-attendance.spec.ts` plus recorded unchanged API-client companions, unfiltered and zero skipped. Derive exact professional/association/availability/policy/category DTOs and routes from the already implemented controllers; no speculative endpoints, free tenant field, client price/capacity authority or connection token. Appointment-operation wrappers are added only with their actual T41 contracts before T79/T80. All remaining feature/build/browser/proof gates and T72 evaluation remain mandatory.
 **Commit**: `feat(service-business): t73 type the service administration api client`
 
 ### T74: Manage service administration view state
@@ -1705,7 +1710,7 @@ T107 → T106
 
 **What**: Cliente/serviço/profissional/data/slot e opção avulso explícita, resumo/política; submit idempotente; não marcar online pago/confirmado sem prova.
 **Where**: `apps/dashboard/src/pages/service-attendance/components/ManualAppointmentDrawer.tsx`
-**Depends on**: T78
+**Depends on**: T78, T41
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-06, ATEND-10
 
@@ -2203,7 +2208,7 @@ T107 → T106
 
 **What**: Coletor valida cobertura de todos os critérios atuais da especificação (81 neste plano), teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks. T108 native guard evidence and original affected consumer reruns remain distinct.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
-**Depends on**: T94, T97, T98, T101, T103, T106
+**Depends on**: T94, T97, T98, T101, T103, T106, T72
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: QA-01, QA-02, QA-03, QA-04
 
@@ -2547,6 +2552,24 @@ Tasks: T107.
 Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; independent70/components, types/lint/build and six native captures reviewed PASS. See task-107-evidence.json; no105/106/final-feature claim.
 
 ## Handoff
+
+**Dispatched C Phase10 source preparation (before sending):** existing service_ui_resume retains whole Phase10 ownership; after93 component closure may prepare76 ProfessionalsPanel and criterion tests in ignored cache only, using actual73/74 contracts and existing design components. T75Browser dependency stays open, no productive76/mark/commit. Preserve105eight/75source/107proofs. No test/build/browser/API import/runtime until Root explicit handover. Root owns73/74/fix integration and private99 review. No nested agents or remote actions.
+
+**Root t73 integration, local only:** T73 original53a5 client18 actual operations integrated;48/48 QuickUI, no speculative appointment endpoint. Explicit-null parent finding has a user-approved separate fix aafc4ac00, to be integrated after74. RootT99 eleven API paths and own plan/evidence remain byte-exact and unstaged. Completed51/108. User requested code and small tests only; no new full build/browser or repeated memory question. All final gates remain required.
+
+**Approved SDK correction green / C75 lightweight component dispatch (before sending):** actualapprovedT73nullwirefixpassed49/49unfiltered4files(39new+10old),0skip/fail/natural0at00:09Z/admission1863; Cfixatomicmetadata/commitpending, original73+74/source81preserved. Rootwillintegratefocused53a5+add8736+greenfixwhilepreserving11API99source+privateevidence. CmaynowrunONEsmall75component-onlycohortafteritsplan/tests/sourcefrozen, usingnewactualPagecomponentandappropriateunchanged73/74companionsunfiltered(existing1024guard/concurrency/DOMcontrols). Recordconcretecountsbeforeexecution; this mayproveactualRTLtab/filter/guard/empty/error/accessibilitygesturesbutNO75Fullmark/commit/browser/visualscreenshotclaim. No types/build/renderer/nativeAPIfixture orroutewiring, perusercode+smalltests. Keepsource56cachecorrections/105/107intact. Allotherworkerssourceonly; Rootgitintegrationnotparalleltestruntime. SDK49gatealreadytrue, no anotherisolated49rerun. New75+current74integrationcohortcanincludethefixedtransportonceifneeded; neverweakenoromitoldcases.
+
+**Approved narrow T73 expectation correction (2026-11-17 UTC / user16local):** user: "Corrigir essa expectativa (recomendado)" (reply call_8c2dbee1ab4c41bb905ff23cd0ee3de7). Authorizesonlytheexistingnewcategory-updateassertionwirekey parentId:null→parent_id:null asreviewedpatch27cf560301d3b436d65ef3565bc3d08d832f68b6fa26ecef893eda8db8945a8f; allinputs/otherfields/otherassertionsunchanged. SDKadaptsONLYexplicitnullparenttothecurrentcontroller'ssupportedalias; no backend/productflowchange. CmayapplyexactreviewedcandidateafterbeforeSHA/reversalproof, addoneindependentclearregression, runONEunfiltered73cohort(expected49=39new+10old)underexisting1024guard, thenfocusedfixcommitwithapproval/evidence. Preserve74add8736/81proof/1058/d949/75source; no silentoldcaseinputsubstitution. Rootwillintegrate73original+74+greenfix, notclaimknownbugresolvedbeforeactualgate. No fullbuild/browser/provider/production/foreignactions.
+
+**C73 QuickUI returned / Root99 expanded component gate (before execution):** C73actual48/48unfiltered4files(38new+10unchangedclientcompanions),0skip/fail/natural0at23:46:56Z;1024admission4949/1567physical; originalsourcecommit53a5cd57awaitsRootfocused integration. C74sourceonlyoverreal73contracts, no fictionalappointmentoroptimisticconfirmedstate. RootnowownsONE36case99componentcohort(27preserved+9newactualusecase/realTenantContextcases) underoriginal1024guard/networkguard/ready-prod-loader/concurrency1. Existing10productive/test/migrationhashesunchanged; extraapplicationfixtureSHApinnedbylauncher, no implementationchange. This addsactualapplicationstate/no-op/clear/scope/errorcoverage; noHTTProle/SQLrollback/fullcheckedclaim. Earlieractualmigration9andSchema0remainvalid source/schemaunchanged. Allotherworkerssource/cacheonly; no fullbuild/browser/memoryprompt peruserpreference. Scope/eventDuplicate/replay/fixturefindingsfromM56source-reviewwillbefixedincachedraftbeforeanyintegration, notsilentlyignored.
+
+**Source-only T56 review / P31 preparation dispatch (before sending):** userpreferscode+smalltests, no newfullbuild/browser/secondmemoryquestion. C73productiveclient/testsagainstimplemented25contractsactive; nextsoleQuickUIawaitsitsready source/counts, Root99migration9alreadyreturnedgreen. Mmayread C's actualcacheT56close/resumehelper/usecase/tests against48-55contracts andreturnspecificclosure/epoch/idempotency/privacy/authoritygaps only, notanotherframework/doc orfinalVerifier. PreserveM18source. P, aftercompletednormalalignment0b345b70/20T30reapplied, mayprepareactualT31manual-admissioncommand+criteriontestsincacheonlyusingreal26admission/23availability/30policyauthority; no inventedHTTPcontract, forcedoverlap/price/paidstate, orsourceintegrationbefore30Full. Preservecurrent20WIP/71packets. Rootwritesactual99applicationcomponent9casesderivedHUM09(addedtoexisting27=36), no productionchange; sourceonlyuntilC73Quickreturn. Allruntimegatesstrictlyserialized, no API/native/model/provider/production/foreign/OSactions.
+
+**User small-tests steering / independent client implementation dispatch (before sending):** useranswered"Continue com código e testes menores" to resourcequestion; no furtherfullbuild/browserattemptormemorypromptnow. Existing99PG-onlymigrationgatecontinues(alreadylaunched1024/4157,noAppModule); allfullgatesremainpendingnotwaived. T73typedadminclientdependsactualimplementedprofessional/availability/policy/categorycontracts25andpermissions59, notgenericRAGevaluation72. Removeonlyartificial72→73ordering, preserve71→72andaddexplicit72→95finalacceptance; add41→79to preventspeculativemanualbookingAPIs. WholePhase10ownedbyC: actual73→74→75→76→77 preparation/Quickgates canadvanceindependently;72stillwaits71andisrequiredforfeaturecompletion. No scope/criteria/pricing/rolechange, unsupportedappointmentwrappersoromittedgate. Cmayimplementactual73afterminimalplan/exactcontrollerDTOinventory/criteriontests, thenone1024QuickUIcohortwhenRoot99migrationreturns;74follows73green.75-77sourcepreparationallowedafterdependenciesbutnoheavyUIruntime/buildnow. Source56draftretained, notdiscarded; wholePhase8waits55aftercompleted59. Root/P/Mnoothergates; allproduction/provider/foreignactionsoutofscope.
+
+**Root99 migration gate dispatch (before execution):** Root99component27/27andschemavalidation0passed/natural0,10sourcehashesunchanged;59integrateddbb9afd5c/50complete. CorrectedreadonlyDockerinventory3scopedlabelsreturnedzero containers, noownsyntheticleak/cleanupaction; noforeignresourceschanged. RootnowownsONEunchangedT5migrationcohort(root+8=9)oncurrent99schema/migration underexisting1024PG-onlyadmission/networkguard/localUUIDownership/loopbackmarker/defaultCLI90s/test600s. Actualdeployallpendingmigrations+currentPrismaschema-parity+legacycommerce/stock/persistencepreservation/cleanup, noAppModule/generatednewclient/oldartifact/HTTPauthclaim. No sourceassertion/path/deadlinechange; task99FullstillrequiresnewHTTP10/freshcheckedAPI. P/C/Msource/cacheonly, no concurrentruntime ornewbuildprobe. Askeduseraboutoptionalmemoryrelease asynchronously; no assumedanswer.
+
+**T59 integration complete / corrected readonly inventory (before inspection):** C59integratedasRootdbb9afd5c,50/108locallycomplete; exactly7focusedUI/metadatafiles/noAPI99staged, all11protectedownpathsbyteequalbackup21a6844d. MetadataonlyconflictsresolvedpreservingRootstatusandC59trace/graph; failedUTF8defaultdecodeassertstoppedbeforestaging, correctedexplicitUTF8fromimmutablebackup. Root99unit27+schema0unchanged, allknownrunnersclosed. MreadonlyDockerattemptfailedGo-templatequotingbeforerows(noabsence/ownershipclaim); RootmayperformONEcorrectedlabel-filteredIDinventorywithoutembeddedquotedlabelkeys, sanitizeonlyID/name/state/threeownedlabelvalues. Labelsarecandidatesnotcheckoutownership; requirecache/runproofbeforeanycleanup. No start/stop/delete/dataquery/globalDocker/OS/processaction ornewbuildprobe. Pnormalalignmentcompleted0b345b70/T30reapplieduncommitted, no source/gatecompletionclaimbeyondexisting24.
 
 **T59 integrated locally / T99 current partial evidence:** originalC3e26a3b0 QuickUI75/75unfiltered, oldfunctions/constants/testsbyteexact, no route/tab/backendauthchange. Rootnow50/108complete(T59added); T56waits55and59. RootreviewedhelperrolesagainstexistingAPI: supportOWNER/ADMIN/STAFF, configurationOWNER/ADMIN, service-managementOWNER/ADMIN+canonicalservices/selected; unknownsensitiveprofile/targetdenied. All10Root99APIpaths+own99planremainbyteequalto21a6844dbackup; noAPI/source99stagedin59. Root99component27/27passed/0skip/fail/natural0 at23:13:43Z(logce9d4aca) and ownPrismaschemavalidation0 at23:15:44Z(logcee181ad); actualmigration/fullchecked/HTTP10remainpending. T70all19sourceparkedexactcfc76532, notdiscarded/completed. M55latest3072admissionrefused2467beforechild/e6420e68; no retries/source191repetition. Pbaselinealigned0b345b70 treeequalsaa30; own30reapplied/fingerprintmergedpreservingRootexports, native324pending. Allknownteamgatesclosed; source/cacheworkonlyuntilnextexplicithandover. No production/provider/foreignprocess/OSaction.
 
