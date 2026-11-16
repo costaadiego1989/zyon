@@ -6,23 +6,31 @@ import { buildMetrics, assessData } from "../domain/analytics.js";
 import type { ConnectionService } from "../application/connection.service.js";
 import type { BillingService } from "../application/billing.service.js";
 import { recommendationEvidence, validSuggestion } from "./recommendation.adapter.js";
+import type { DailyObservationEngine } from './daily-observation.engine.js';
 
 type PurchaseReport = Pick<AttributedPurchase, "campaignId" | "fact">;
 export class ObservationWorker {
   private timer: ReturnType<typeof setInterval> | undefined;
   private active: Promise<void> | undefined;
+  private admissionTimer: ReturnType<typeof setInterval> | undefined;
   private stopping = false;
   constructor(private readonly repo: MetaAdsRepository, private readonly commerce: Pick<CommerceContextPort, "getPlan">,
     private readonly connection: Pick<ConnectionService, "access">, private readonly provider: Pick<MetaAdsProviderPort, "metrics">,
     private readonly attribution: { report(merchantId: string, since: string, until: string, timezone?: string): Promise<PurchaseReport[]> }, private readonly recommendations: RecommendationPort,
-    private readonly billing: Pick<BillingService, "ensureEligibility">, private readonly config: { enabled: boolean; pageSize?: number }, private readonly clock: Clock = () => new Date()) {}
+    private readonly billing: Pick<BillingService, "ensureEligibility">, private readonly config: { enabled: boolean; pageSize?: number }, private readonly clock: Clock = () => new Date(), private readonly daily?: DailyObservationEngine) {}
   onModuleInit(): void {
     if (!this.config.enabled) return;
+    if (this.daily) {
+      const admit = () => { void this.daily!.admitDue().then(() => this.drain()).catch(() => undefined); };
+      this.admissionTimer = setInterval(admit, 30000); this.admissionTimer.unref();
+      this.timer = setInterval(() => { void this.drain(); }, 3000); this.timer.unref(); admit(); return;
+    }
     this.timer = setInterval(() => { void this.drain(); }, 60000); this.timer.unref(); void this.drain();
   }
-  async onModuleDestroy(): Promise<void> { this.stopping = true; clearInterval(this.timer); await this.active; }
-  drain(): Promise<void> { if (this.stopping) return Promise.resolve(); return this.active ??= this.run().catch(() => undefined).finally(() => { this.active = undefined; }); }
+  async onModuleDestroy(): Promise<void> { this.stopping = true; clearInterval(this.timer); clearInterval(this.admissionTimer); await this.active; await this.daily?.stop(); }
+  drain(): Promise<void> { if (this.stopping) return Promise.resolve(); return this.active ??= (this.daily ? this.daily.drain() : this.run()).catch(() => undefined).finally(() => { this.active = undefined; }); }
   async run(): Promise<void> {
+    if (this.daily) { await this.daily.admitDue(); await this.daily.drain(); return; }
     const size = Math.max(1, Math.min(100, this.config.pageSize ?? 100)); let after: string | undefined;
     while (!this.stopping) {
       const stores = await this.repo.listStoreIds(size, after); if (!stores.length) break;

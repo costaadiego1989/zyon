@@ -13,11 +13,11 @@ function id(value: unknown): string {
   return value;
 }
 function list(value: unknown): Json[] { if (!Array.isArray(value)) throw new McpFailure("meta_response_invalid", false); return value as Json[]; }
-function money(value: unknown): number | null {
-  if (value === undefined || value === null || value === "") return null;
-  const number = Number(value); return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) : null;
+function count(value: unknown): number | null {
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? (value as Json).value : value;
+  if (typeof raw !== 'number' && typeof raw !== 'string' || !/^\d+$/.test(String(raw))) return null;
+  const number = Number(raw); return Number.isSafeInteger(number) && number >= 0 ? number : null;
 }
-function count(value: unknown): number | null { const amount = money(value); return amount === null ? null : amount / 100; }
 function budgetValue(value: unknown): unknown {
   if (value && typeof value === 'object') {
     const cents = metaCurrencyCents(value, 'BRL');
@@ -253,14 +253,29 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
   }
   async metrics(access: MetaAccess, campaign: MetaAdsCampaign, since: string, until: string): Promise<ProviderMetricSnapshot> {
     const session = this.session(access, "assess_and_optimize_performance", true); await session.start(); const account = await this.account(session, access);
-    const fields = ["id", "spend", "offsite_conversion_fb_pixel_purchase", "offsite_conversion_fb_pixel_purchase_values", "onsite_conversion_messaging_conversation_started_7d"];
+    const fields = ["id", "amount_spent", "offsite_conversion_fb_pixel_purchase", "offsite_conversion_fb_pixel_purchase_values", "actions:onsite_conversion.messaging_conversation_started_7d"];
     const context = await session.call("ads_get_field_context", { field_names: fields });
-    const available = fields.filter(name => list(context.fields).some(field => field.name === name));
-    if (!available.includes("spend")) throw new MetaAdsError("meta_metrics_unavailable", 503);
+    const available = fields.filter(name => list(context.fields).some(field => field.name === name && Array.isArray(field.levels) && field.levels.includes('campaign')));
+    if (!available.includes('id')) throw new MetaAdsError("meta_metrics_unavailable", 503);
     const rows = await this.entities(session, access, "campaign", available, [id(campaign.remoteCampaignId)], { time_range: JSON.stringify({ since, until }), action_attribution_windows: ["7d_click", "1d_view"] });
-    const row = rows.find(r => String(r.id ?? r.campaign_id) === campaign.remoteCampaignId) ?? {};
-    const metadata = await this.entities(session, access, "account", ["timezone_name"]);
-    return { campaignId: campaign.id, currency: String(account.currency), since, until, timezone: String(metadata[0]?.timezone_name ?? "unknown"), attributionWindow: "7d_click+1d_view",
-      spendCents: money(row.spend), attributedRevenueCents: money(row.offsite_conversion_fb_pixel_purchase_values), attributedPurchases: count(row.offsite_conversion_fb_pixel_purchase), conversations: count(row.onsite_conversion_messaging_conversation_started_7d) ?? 0 };
+    const row = rows.find(r => String(r.id ?? r.campaign_id) === campaign.remoteCampaignId);
+    if (!row) throw new MetaAdsError('meta_metrics_unavailable', 503);
+    const metadata = await this.entities(session, access, "account", ['id', 'timezone_name'], [id(access.accountId)]);
+    const selected = metadata.find(r => String(r.id ?? r.account_id ?? '').replace(/^act_/, '') === access.accountId);
+    const currency = String(account.currency);
+    return { campaignId: campaign.id, currency, since, until, timezone: typeof selected?.timezone_name === 'string' ? selected.timezone_name : 'unknown', attributionWindow: "7d_click+1d_view",
+      spendCents: available.includes('amount_spent') ? metaCurrencyCents(row.amount_spent, currency) : null,
+      attributedRevenueCents: available.includes('offsite_conversion_fb_pixel_purchase_values') ? metaCurrencyCents(row.offsite_conversion_fb_pixel_purchase_values, currency) : null,
+      attributedPurchases: available.includes('offsite_conversion_fb_pixel_purchase') ? count(row.offsite_conversion_fb_pixel_purchase) : null,
+      conversations: available.includes('actions:onsite_conversion.messaging_conversation_started_7d') ? count(row['actions:onsite_conversion.messaging_conversation_started_7d']) : null };
+  }
+  async accountTimezone(access: MetaAccess): Promise<string> {
+    const session = this.session(access, 'assess_and_optimize_performance', true); await session.start(); await this.account(session, access);
+    const context = await session.call('ads_get_field_context', { field_names: ['id', 'timezone_name'] });
+    if (!list(context.fields).some(field => field.name === 'timezone_name' && Array.isArray(field.levels) && field.levels.includes('ad_account'))) throw new MetaAdsError('meta_timezone_unavailable', 409);
+    const rows = await this.entities(session, access, 'account', ['id', 'timezone_name'], [id(access.accountId)]);
+    const row = rows.find(r => String(r.id ?? r.account_id ?? '').replace(/^act_/, '') === access.accountId);
+    if (typeof row?.timezone_name !== 'string' || !row.timezone_name) throw new MetaAdsError('meta_timezone_unavailable', 409);
+    return row.timezone_name;
   }
 }

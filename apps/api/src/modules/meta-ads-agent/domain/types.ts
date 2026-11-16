@@ -195,7 +195,7 @@ export interface ProviderMetricSnapshot {
   spendCents: number | null;
   attributedRevenueCents: number | null;
   attributedPurchases: number | null;
-  conversations: number;
+  conversations: number | null;
 }
 export interface MetaAdsProviderPort {
   discover(access: MetaAccess): Promise<MetaDiscovery>;
@@ -298,7 +298,9 @@ export const META_ADS_SESSION_BINDING = Symbol("MetaAdsSessionBinding");
 export interface ConversionsPort { send(access: MetaAccess, signal: PurchaseSignal): Promise<{ status: "sent" | "failed" | "unknown"; error: string | null }>; }
 export interface RecommendationPort {
   configured?(): boolean;
-  recommend(input: { merchantId: string; campaigns: Array<{ campaign: MetaAdsCampaign; metrics: MetaAdsMetrics }> }): Promise<{ recommendations: MetaAdsRecommendation[]; usage: TextModelUsage | null }>;
+  /** Stable analysis keys recover known paid steps without replaying unknown calls. */
+  durable?: boolean;
+  recommend(input: { merchantId: string; analysisKey?: string; campaigns: Array<{ campaign: MetaAdsCampaign; metrics: MetaAdsMetrics }> }): Promise<{ recommendations: MetaAdsRecommendation[]; usage: TextModelUsage | null }>;
 }
 
 export type Clock = () => Date;

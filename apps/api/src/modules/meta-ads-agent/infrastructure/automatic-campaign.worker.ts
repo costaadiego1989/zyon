@@ -64,6 +64,21 @@ export class AutomaticCampaignWorker {
     requireIdentifier(recommendationId); const state = await this.deps.repo.read(merchantId), recommendation = state.recommendations[recommendationId];
     const campaign = recommendation && state.campaigns[recommendation.campaignId], metrics = campaign && state.metrics[campaign.id];
     if (!campaign || !recommendation || !metrics || !recommendation.proposedAction || assessData(campaign.draft.priority, metrics).status !== 'available' || !validSuggestion(recommendation, campaign) || stableDigest(recommendation.evidence) !== stableDigest(recommendationEvidence(metrics)) || this.clock().getTime() - Date.parse(metrics.updatedAt) > 86400000) throw new MetaAdsError('recommendation_data_insufficient', 409);
+    if (recommendation.proposedAction === 'creative') {
+      const policy = await this.current(merchantId);
+      const outcome = (status: string, error: string | null = null): AutomaticOutcome => ({ proposalId: '', executionId: null, status, reason: recommendation.hypothesis, error });
+      if (!policy || !policy.scope.actions.includes('creative')) return outcome('creative_review_required');
+      const binding = (await this.deps.repo.getRecord<{ policyVersion: number }>(merchantId, `automatic-policy-campaign:${policy.id}:${campaign.id}`))?.payload;
+      if (!policy.scope.campaignIds.includes(campaign.id) && !(policy.scope.allowNewCampaigns && binding?.policyVersion === policy.version) || campaign.draft.destination !== policy.scope.destination || campaign.draft.priority !== policy.scope.priority || campaign.draft.country !== policy.scope.country || campaign.draft.variantIds.some(id => !policy.scope.variantIds.includes(id))) throw new MetaAdsError('authorization_limit_exceeded', 409);
+      const budget = campaign.draft.budget;
+      if (!budget || budget.cadence !== policy.limits.cadence || budget.amountCents > policy.limits.campaignCeilingCents || !budget.endsAt || Date.parse(budget.startsAt) < Date.parse(policy.limits.startsAt) || Date.parse(budget.endsAt) > Date.parse(policy.limits.endsAt)) throw new MetaAdsError('authorization_limit_exceeded', 409);
+      const job = await this.deps.generations.request(merchantId, campaign.id, { imageCount: 1, idempotencyKey: `auto-creative-${stableDigest(recommendationId)}` });
+      if (['reserved', 'running'].includes(job.status)) return outcome('generation_pending');
+      if (job.status === 'unknown') return outcome('execution_unknown', 'image_provider_outcome_unknown');
+      if (job.status !== 'succeeded') return outcome('blocked', job.error ?? 'image_generation_incomplete');
+      const latest = await this.current(merchantId); if (latest?.id !== policy.id || latest.version !== policy.version) throw new MetaAdsError('automatic_authority_unavailable', 409);
+      if (stableDigest(campaign.draft.mediaIds) !== stableDigest(job.mediaIds)) await this.deps.campaigns.save(merchantId, campaign.id, { ...campaign.draft, mediaIds: job.mediaIds });
+    }
     const proposal = await this.deps.proposals.create(merchantId, campaign.id, { kind: recommendation.proposedAction, after: recommendation.proposedFields, reasoning: recommendation.hypothesis, idempotencyKey: `auto-rec-${stableDigest(recommendationId)}` });
     return this.processProposal(merchantId, proposal.id);
   }

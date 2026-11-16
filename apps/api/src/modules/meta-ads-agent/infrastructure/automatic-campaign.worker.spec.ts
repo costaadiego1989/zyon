@@ -73,3 +73,25 @@ test('ADAS-34 accepted new campaign intent generates prepares and publishes once
     assert.equal(state.exposure!.allocations[campaign.id].amountCents, 10000); assert.deepEqual(state.exposure!.pending, {});
   } finally { await f.close(); }
 });
+
+test('ADAS-47 automatic creative recommendation waits for one new verified image before replacement', async () => {
+  const f = await fixture(); try {
+    const r = await f.measured(true);
+    await f.repo.mutate('store-a', [], state => { state.recommendations[r.id].proposedAction = 'creative'; return { result: null }; });
+    const queued = await f.worker.recommendation('store-a', r.id); assert.equal(queued.status, 'generation_pending'); assert.equal(queued.proposalId, ''); assert.equal(f.calls.includes('execute'), false);
+    await f.worker.recommendation('store-a', r.id); let state = await f.repo.read('store-a'); assert.equal(Object.values(state.generations).length, 1); assert.equal(state.credits.monthlyAvailable, 29);
+    await f.generations.run('store-a', Object.values(state.generations)[0].id);
+    let replacement: string | undefined; f.provider.execute = async (access, _campaign, proposal) => { await access.assertWriteAuthorized!(); replacement = (proposal.after.media as Array<{ id: string }>)[0].id; return { status: 'remote_paused', objects: [{ type: 'campaign', id: '200' }] }; };
+    const result = await f.worker.recommendation('store-a', r.id); assert.equal(result.status, 'remote_paused'); assert.ok(replacement); assert.notEqual(replacement, 'media-a');
+    state = await f.repo.read('store-a'); assert.equal(state.media[replacement!].commercialReview!.status, 'verified'); assert.equal(Object.keys(state.executions).length, 1); assert.equal(state.credits.monthlyAvailable, 29);
+  } finally { await f.close(); }
+});
+
+test('ADAS-28 manual creative review never spends an image credit or proposes replacement using old media', async () => {
+  const f = await fixture(); try {
+    const r = await f.measured(true); await f.policies.revoke('store-a', 'owner-a', { policyId: f.policy.id, version: f.policy.version, idempotencyKey: 'manual-creative' });
+    await f.repo.mutate('store-a', [], state => { state.recommendations[r.id].proposedAction = 'creative'; return { result: null }; });
+    const result = await f.worker.recommendation('store-a', r.id), state = await f.repo.read('store-a');
+    assert.equal(result.status, 'creative_review_required'); assert.equal(result.proposalId, ''); assert.equal(Object.keys(state.generations).length, 0); assert.equal(Object.keys(state.proposals).length, 0); assert.equal(state.credits.monthlyAvailable, 30);
+  } finally { await f.close(); }
+});

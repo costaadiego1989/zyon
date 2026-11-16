@@ -185,7 +185,7 @@ export interface MetaAdsMetrics {
   attributedRevenueCents: number | null;
   confirmedRevenueCents: number | null;
   paidOrders: number;
-  conversations: number;
+  conversations: number | null;
   costPerPurchaseCents: number | null;
   roas: number | null;
   contributionCents: number | null;

@@ -9,7 +9,7 @@ import type { DailyRun, DailyLease, DailyCheckpoint, DailyObservationRepository 
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 const page = (limit: number) => { if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new MetaAdsError('daily_page_invalid'); return limit; };
 function map(row: MetaAdsDailyRun): DailyRun {
-  return { ...row, ...observationPeriod(row.localDay, row.timezone), status: row.status as DailyRun['status'], analysisStatus: row.analysisStatus as DailyRun['analysisStatus'],
+  return { ...row, ...observationPeriod(row.localDay, row.timezone), status: row.status as DailyRun['status'], analysisStatus: row.analysisStatus === 'running' ? 'sending' : row.analysisStatus as DailyRun['analysisStatus'],
     leaseUntil: row.leaseUntil?.toISOString() ?? null, nextAttemptAt: row.nextAttemptAt.toISOString(), progress: row.progress as Record<string, unknown>, report: row.report as unknown as MetaAdsDailyReport | null, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }
 export class PrismaDailyObservationRepository implements DailyObservationRepository {
@@ -54,7 +54,7 @@ export class PrismaDailyObservationRepository implements DailyObservationReposit
   async checkpoint(lease: DailyLease, patch: DailyCheckpoint): Promise<DailyLease> {
     return this.db.$transaction(async tx => {
       const result = await tx.metaAdsDailyRun.updateMany({ where: this.where(lease), data: { updatedAt: this.clock(),
-        ...(patch.progress === undefined ? {} : { progress: json(patch.progress) }), ...(patch.report === undefined ? {} : { report: json(patch.report) }), ...(patch.analysisStatus === undefined ? {} : { analysisStatus: patch.analysisStatus }) } });
+        ...(patch.progress === undefined ? {} : { progress: json(patch.progress) }), ...(patch.report === undefined ? {} : { report: json(patch.report) }), ...(patch.analysisStatus === undefined ? {} : { analysisStatus: patch.analysisStatus === 'sending' ? 'running' : patch.analysisStatus }) } });
       if (result.count !== 1) throw new MetaAdsError('daily_lease_lost', 409);
       return map(await tx.metaAdsDailyRun.findUniqueOrThrow({ where: { id: lease.id } })) as DailyLease;
     });

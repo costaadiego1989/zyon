@@ -14,6 +14,29 @@ test('ADAS-29 native MCP budget currency wrappers normalize major BRL units to e
   const snapshot = await f.adapter.snapshot(access(), campaign());
   assert.deepEqual(snapshot.budget, { daily_budget: 0, lifetime_budget: 10005, spend_cap: 0 });
 });
+
+test('ADAS-44 native metric fields use canonical names and exact currency or integer values', async () => {
+  const f = fixture(call => {
+    if (call.name === 'ads_get_ad_entities' && call.args.level === 'account') return { ad_entities: JSON.stringify([{ id: '100', timezone_name: 'America/Sao_Paulo' }]) };
+    if (call.name === 'ads_get_field_context') return { unknown_fields: [], fields: (call.args.field_names as string[]).map(name => ({ name, levels: name === 'timezone_name' ? ['ad_account'] : ['campaign', 'ad_account'], type: ['amount_spent', 'offsite_conversion_fb_pixel_purchase_values'].includes(name) ? 'CURRENCY' : name.includes('conversion') ? 'INTEGER' : 'STRING' })) };
+    if (call.name === 'ads_get_ad_entities' && call.args.level === 'campaign') return { ad_entities: JSON.stringify([{ id: '200', amount_spent: { value: '10.05', unit: 'BRL' }, offsite_conversion_fb_pixel_purchase_values: { value: 99, unit: 'BRL' }, offsite_conversion_fb_pixel_purchase: { value: 2 }, 'actions:onsite_conversion.messaging_conversation_started_7d': { value: 3 } }]) };
+    return undefined;
+  });
+  const result = await f.adapter.metrics(access(), campaign(), '2026-11-15', '2026-11-15');
+  assert.equal(result.spendCents, 1005); assert.equal(result.attributedRevenueCents, 9900); assert.equal(result.attributedPurchases, 2); assert.equal(result.conversations, 3); assert.equal(result.timezone, 'America/Sao_Paulo');
+  const fields = f.calls.find(c => c.name === 'ads_get_ad_entities' && c.args.level === 'campaign')!.args.fields as string[];
+  assert.ok(fields.includes('amount_spent')); assert.ok(fields.includes('actions:onsite_conversion.messaging_conversation_started_7d')); assert.equal(fields.includes('spend'), false);
+});
+
+test('ADAS-43 missing or incompatible native metric values remain unknown rather than confirmed zeros', async () => {
+  const f = fixture(call => {
+    if (call.name === 'ads_get_ad_entities' && call.args.level === 'account') return { ad_entities: JSON.stringify([{ id: '100', timezone_name: 'America/Sao_Paulo' }]) };
+    if (call.name === 'ads_get_ad_entities' && call.args.level === 'campaign') return { ad_entities: JSON.stringify([{ id: '200', amount_spent: { value: '10', unit: 'USD' } }]) };
+    return undefined;
+  });
+  const result = await f.adapter.metrics(access(), campaign(), '2026-11-15', '2026-11-15');
+  assert.equal(result.spendCents, null); assert.equal(result.attributedRevenueCents, null); assert.equal(result.attributedPurchases, null); assert.equal(result.conversations, null);
+});
 type Call = { name: string; args: Record<string, unknown> };
 const toolNames = ["ads_get_ad_accounts", "ads_get_ad_account_pages", "ads_get_user_pages", "ads_catalog_list_catalogs", "ads_get_datasets", "ads_get_field_context", "ads_get_ad_entities", "ads_create_campaign", "ads_create_ad_set", "ads_create_creative", "ads_create_ad", "ads_activate_entity", "ads_update_entity", "ads_get_opportunity_score", "ads_account_get_activity_logs"];
 function fixture(override?: (call: Call) => unknown | Promise<unknown>, omitted: string[] = []) {
