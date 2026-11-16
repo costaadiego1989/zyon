@@ -644,6 +644,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const rawBrand = exp?.brand ?? {};
       const theme = rawBrand.theme ?? {};
       const brand: BrandConfig = {
+        trustBadges: rawBrand.trustBadges ?? theme.trustBadges,
         name: rawBrand.name ?? theme.name,
         subtitle: rawBrand.subtitle,
         logoUrl: rawBrand.logoUrl ?? theme.logoUrl ?? rawBrand.logo_url,

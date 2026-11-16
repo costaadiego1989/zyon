@@ -15,6 +15,7 @@ export interface StoreConfigOutput {
   logo?: string;
   favicon?: string;
   theme: {
+    trustBadges?: string[];
     accentColor: string;
     secondaryColor?: string;
     textColor: string;
@@ -101,6 +102,7 @@ export class GetStoreConfigUseCase {
       logo: theme?.logoUrl ?? undefined,
       favicon: (theme as any)?.faviconUrl ?? theme?.logoUrl ?? undefined,
       theme: {
+        trustBadges: theme?.trustBadges,
         accentColor: theme?.accentColor ?? "#0F766E",
         secondaryColor: theme?.secondaryColor,
         textColor: theme?.textColor ?? "#111827",

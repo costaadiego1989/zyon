@@ -5,6 +5,7 @@ import { readRealtimeVoiceCall } from "@zyon/shared-types";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
+import { MerchantTrustBadges } from "../../../widget_v2/src/components/MerchantTrustBadges";
 import { useAgentBlockDelay } from "../../../widget_v2/src/lib/use-agent-block-delay";
 import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
@@ -1173,6 +1174,7 @@ export default function ConversationShell({
         </div>
       )}
       {/* Whitelabel badge — free-plan merchants, both chat and intro modes */}
+      <MerchantTrustBadges badges={merchantTheme?.trustBadges} />
       <WhitelabelBadge show={showBranding} />
       {/* Policy Modal */}
       {policyModal && (

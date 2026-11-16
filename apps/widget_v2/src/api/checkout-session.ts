@@ -26,6 +26,7 @@ export interface CheckoutSessionConfig {
 }
 
 export interface BrandConfig {
+  trustBadges?: string[];
   name?: string;
   subtitle?: string;
   logoUrl?: string;
@@ -64,6 +65,7 @@ export interface CryptoPaymentsConfig {
 }
 
 export interface BrandTheme {
+  trustBadges?: string[];
   name?: string;
   logoUrl?: string;
   accentColor?: string;

@@ -55,6 +55,7 @@ export const NEUMORPHIC_THEME = {
 
 /** Theme mapping shared by the dashboard preview, storefront and both checkout hosts. */
 export interface MerchantThemeAppearance {
+  trustBadges?: string[];
   mode?: string; density?: string; borderRadius?: number;
   accentColor?: string; secondaryColor?: string; backgroundColor?: string; textColor?: string;
   surfaceColor?: string; surfaceElevatedColor?: string; borderColor?: string; mutedTextColor?: string;
