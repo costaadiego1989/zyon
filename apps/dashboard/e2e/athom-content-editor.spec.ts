@@ -45,9 +45,27 @@ test("FAQ empty fields do not dispatch creation", async ({ page }) => {
   const server = await faqServer(page); await page.goto("/athom-content-editor.html");
   await page.getByRole("button", { name: "Adicionar FAQ", exact: true }).click();
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Pergunta e resposta são obrigatórias");
   await expect(page.getByRole("textbox", { name: "Pergunta", exact: true })).toBeVisible();
   expect(server.writes).toHaveLength(0);
 });
+
+for (const missing of ["question", "answer"] as const) {
+  test(`FAQ empty ${missing} alone retains the draft and blocks creation`, async ({ page }) => {
+    const server = await faqServer(page); await page.goto("/athom-content-editor.html");
+    const editor = page.getByRole("region", { name: "FAQs", exact: true });
+    await editor.getByRole("button", { name: "Adicionar FAQ", exact: true }).click();
+    const question = missing === "question" ? " \u00a0" : "Pergunta válida?";
+    const answer = missing === "answer" ? " \n" : "Resposta válida.";
+    await editor.getByRole("textbox", { name: "Pergunta", exact: true }).fill(question);
+    await editor.getByRole("textbox", { name: "Resposta", exact: true }).fill(answer);
+    await editor.getByRole("button", { name: "Salvar", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("Pergunta e resposta são obrigatórias");
+    await expect(editor.getByRole("textbox", { name: "Pergunta", exact: true })).toHaveValue(question);
+    await expect(editor.getByRole("textbox", { name: "Resposta", exact: true })).toHaveValue(answer);
+    expect(server.writes).toHaveLength(0); expect(server.records.size).toBe(0);
+  });
+}
 
 async function videoServer(page: Page) {
   const records = new Map<string, any>(), writes: any[] = [];

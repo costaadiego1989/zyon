@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ProductFaqEditor } from "../../src/pages/product-detail/components/ProductFaqEditor.js";
 import { ProductVideoEditor } from "../../src/pages/product-detail/components/ProductVideoEditor.js";
+import { ToastContainer } from "../../src/components/Toast.js";
 import type { ProductFaq, ProductVideo } from "../../src/api/endpoints/product-content.js";
 import { ApiContext } from "../../src/hooks/useApi.js";
 import { createDashboardApi } from "../../src/api-client.js";
@@ -30,6 +31,7 @@ function Fixture() {
   useEffect(() => { void fetch("/__qa/faqs").then(response => response.json()).then(setFaqs); }, []);
   useEffect(() => { void fetch("/__qa/videos").then(response => response.json()).then(setVideos); }, []);
   return <main style={{ maxWidth: 800, padding: 24 }}><h1>Editor de conteúdo QA</h1>
+    <ToastContainer />
     <section aria-label="FAQs"><ProductFaqEditor faqs={faqs} busy={busy}
       onSave={async faq => {
         setBusy(true);
