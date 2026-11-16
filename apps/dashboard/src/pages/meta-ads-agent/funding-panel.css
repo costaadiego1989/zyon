@@ -1,3 +1,21 @@
-.mga-payment-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border: 1px solid var(--color-brand); border-radius: 8px; color: var(--color-on-brand); background: var(--color-brand); text-decoration: none; font-weight: 600; }
-.mga-payment-link:hover { background: var(--color-brand-hover); }
+.mga-payment-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 14px; border: 1px solid var(--color-border-strong); border-radius: 8px; color: var(--color-text); background: var(--color-surface); text-decoration: none; font-size: 13px; font-weight: 600; }
+.mga-payment-link:hover { background: var(--color-surface-raised); }
 .mga-payment-link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.meta-ads-agent .mga-funding { display: grid; grid-template-columns: minmax(0,1fr) auto; column-gap: 16px; padding: 16px 20px 8px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); margin-bottom: 24px; }
+.mga-funding-heading { display: flex; align-items: center; gap: 12px; }
+.mga-funding-heading > svg { flex: none; color: var(--color-text-secondary); }
+.meta-ads-agent .mga-funding h2 { font-size: 14px; margin: 0; }
+.mga-funding > .mga-funding-heading { grid-column: 1; grid-row: 1; }
+.meta-ads-agent .mga-funding-separation { grid-column: 1 / -1; grid-row: 2; font-size: 12px; margin: 12px 0 0; max-width: 75ch; }
+.mga-funding > .mga-actions { grid-column: 2; grid-row: 1; gap: 8px; margin: 0; }
+.mga-funding > :is(details,[role="alert"],[role="status"]) { grid-column: 1 / -1; }
+.mga-funding-details > .mga-actions { gap: 8px; margin: 12px 0 0; }
+.mga-funding-details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; color: var(--color-text-secondary); font-size: 12px; }
+.mga-funding-details > summary::after { content: '+'; margin-left: auto; font-size: 16px; }
+.mga-funding-details[open] > summary::after { content: '−'; }
+.mga-funding-details[open] { margin-top: 12px; border-top: 1px solid var(--color-border); }
+.mga-funding-details p, .mga-funding-details li { font-size: 13px; }
+.mga-funding-details .mga-ledger { margin: 12px 0; }
+.meta-ads-agent .mga-funding-block { font-size: 13px; margin: 12px 0; }
+@media(max-width:1120px) { .meta-ads-agent .mga-funding { grid-template-columns: minmax(0,1fr); } .mga-funding > .mga-actions { grid-column: 1; grid-row: 3; margin-top: 12px; } }
+@media(max-width:480px) { .meta-ads-agent .mga-funding { padding: 16px 16px 8px; } .mga-funding .mga-actions > :is(a,button) { flex: 1 1 100%; } }

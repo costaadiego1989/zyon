@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { MetaAdsFundingDiagnosis } from '@zyon/shared-types';
 import { money } from './presentation.js';
 import './funding-panel.css';
+import { CreditCard, ExternalLink } from 'lucide-react';
 
 function paymentDestination(value:string|null,accountId:string):string|null {
   try {
@@ -21,12 +22,17 @@ export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh}:Fu
   const current=diagnosis?.snapshot&&!snapshot?null:diagnosis;
   const url=snapshot?paymentDestination(snapshot.paymentUrl,snapshot.accountId):null;
   async function refresh(){if(lock.current||busy)return;lock.current=true;setRefreshing(true);setRefreshError('');try{await onRefresh();}catch{setRefreshError('Não foi possível atualizar. Consulte os pagamentos na Meta e tente verificar novamente.');}finally{lock.current=false;setRefreshing(false);}}
-  return <section className="mga-panel mga-funding" aria-label="Verba dos anúncios"><h2>Verba dos anúncios</h2>
-    <p>Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.</p><p>Os créditos de imagens também não incluem a verba de anúncios.</p>
-    {!account?<p>Conecte e selecione sua conta de anúncios para consultar os pagamentos.</p>:<><p><strong>{account.name}</strong> · Conta {account.id}</p>
+  return <section className="mga-panel mga-funding" aria-label="Verba dos anúncios">
+    <div className="mga-funding-heading"><CreditCard size={18} aria-hidden="true"/><div><h2>Verba dos anúncios</h2>{account&&<small>{account.name} · Conta {account.id}</small>}</div></div>
+    <p className="mga-funding-separation">Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.</p>
+    {!account?<p>Conecte e selecione sua conta de anúncios para consultar os pagamentos.</p>:<>
       {loading&&<p role="status">Consultando pagamentos da conta…</p>}
+      {current?.status==='blocked'&&<p className="mga-funding-block" role="alert"><strong>Publicação bloqueada.</strong> Resolva a pendência financeira na Meta.</p>}
+      <div className="mga-actions">{url?<a className="mga-payment-link" href={url} target="_blank" rel="noopener noreferrer">Abrir pagamentos na Meta<ExternalLink size={14} aria-hidden="true"/></a>:<button type="button" disabled>Acesso aos pagamentos indisponível</button>}
+        <button type="button" className="mga-secondary" disabled={loading||busy||refreshing} onClick={()=>void refresh()}>{refreshing?'Verificando…':'Verificar novamente'}</button></div>
+      <details className="mga-funding-details"><summary>Detalhes dos pagamentos</summary>
+      <p>Os créditos de imagens também não incluem a verba de anúncios.</p>
       {current?.status==='unknown'&&<p>Não foi possível verificar os pagamentos desta conta. Confira as informações no painel da Meta.</p>}
-      {current?.status==='blocked'&&<p role="alert"><strong>Publicação bloqueada.</strong> Resolva a restrição financeira na Meta antes de publicar. A ajuda e a consulta continuam disponíveis.</p>}
       {current?.message&&<p>{current.message}</p>}
       {snapshot?.billingType==='prepaid'&&<p>Pré-paga: adicione fundos na Meta para financiar os anúncios. As opções e a confirmação aparecem na sua conta da Meta.</p>}
       {snapshot?.billingType==='postpaid'&&<p>Pós-paga: confira seu método de pagamento e os valores devidos na Meta. Esse modelo não exige recarga pré-paga.</p>}
@@ -37,9 +43,8 @@ export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh}:Fu
         <div><dt>Valor devido à Meta</dt><dd>{snapshot.currency?money(snapshot.amountDueCents,snapshot.currency):'Indisponível'}</dd></div>
       </dl><small>Consulta em <time dateTime={snapshot.checkedAt}>{new Date(snapshot.checkedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time> · Fonte: {snapshot.source}</small></>}
       {!!current?.nextSteps.length&&<ul>{current.nextSteps.map(step=><li key={step}>{step}</li>)}</ul>}
-      <div className="mga-actions">{url?<a className="mga-payment-link" href={url} target="_blank" rel="noopener noreferrer">Abrir pagamentos na Meta</a>:<button type="button" disabled>Acesso aos pagamentos indisponível</button>}
-        <button type="button" className="mga-secondary" disabled={loading||busy||refreshing} onClick={()=>void refresh()}>{refreshing?'Verificando…':'Verificar novamente'}</button></div>
       <small>O pagamento não é confirmado por este botão. Verificar novamente apenas consulta a conta; não adiciona saldo nem compra créditos.</small>
+      </details>
     </>}
     {(error||refreshError)&&<p role="alert">{error||refreshError}</p>}
   </section>;

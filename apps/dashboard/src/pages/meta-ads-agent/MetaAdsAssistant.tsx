@@ -14,6 +14,7 @@ export interface MetaAdsAssistantProps {
   merchantId:string; apiBaseUrl:string; overview:MetaAdsOverview; api:MetaAdsAgentApi;
   client?:MerchantAssistantApi; pollMs?:number; children?:ReactNode;
   onUpdated:()=>void|Promise<void>; onModeChanged?:(mode:'manual'|'automatic'|'unknown')=>void;
+  startRequest?:number;
 }
 const fields:Record<string,string>={priority:'Prioridade',variantIds:'Produtos',destination:'Destino',budget:'Orçamento',country:'Região',approvalPreference:'Aprovação'};
 const terminal=(turn:AssistantTurn)=>!['queued','running'].includes(turn.status);
@@ -26,7 +27,8 @@ function mergeThread(previous:AssistantThread|null,next:AssistantThread):Assista
 const https=(value:string)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:null;}catch{return null;}};
 const compact=()=>typeof window!=='undefined'&&(typeof matchMedia==='function'?matchMedia('(max-width: 900px)').matches:window.innerWidth<=900);
 export function MetaAdsAssistant(props:MetaAdsAssistantProps){return <MetaAdsAssistantView key={`${props.merchantId}:${props.apiBaseUrl}`} {...props}/>;}
-function MetaAdsAssistantView({apiBaseUrl,overview,api,client:supplied,pollMs=2500,children,onUpdated,onModeChanged}:MetaAdsAssistantProps) {
+function MetaAdsAssistantView({apiBaseUrl,overview,api,client:supplied,pollMs=2500,children,onUpdated,onModeChanged,startRequest=0}:MetaAdsAssistantProps) {
+  const workspace=useRef<HTMLDivElement>(null);
   const client=useRef<MerchantAssistantApi|null>(null),lifetime=useRef<AbortController|null>(null),alive=useRef(false),sequence=useRef(0),sendLock=useRef(false);
   const threadRef=useRef<AssistantThread|null>(null),pending=useRef<AssistantTurnInput|null>(null),keys=useRef(new Map<string,string>()),updated=useRef(onUpdated);updated.current=onUpdated;
   const [thread,setThread]=useState<AssistantThread|null>(null),[loading,setLoading]=useState(true),[chatError,setChatError]=useState(''),[submitting,setSubmitting]=useState(false);
@@ -103,6 +105,8 @@ function MetaAdsAssistantView({apiBaseUrl,overview,api,client:supplied,pollMs=25
   const policyProps={accountId:account?.id??null,state:automation,review,productNames,campaignNames,disabled:!overview.entitled||loading||submitting||!!policyError,error:policyError,onChooseAutomatic:()=>send('Quero configurar o modo automático. Pergunte os produtos, as campanhas, as ações e os limites financeiros antes de apresentar uma política para meu aceite.'),onAccept:accept,onManual:manual};
   function navigateOutside(target:HTMLElement|null){if(compact())setExpanded(false);setTimeout(()=>target?.focus(),0);}
   function reviewProposal(id:string){setFocusedProposal(id);if(compact())setExpanded(false);setTimeout(()=>proposalHeading.current?.focus(),0);}
+  useEffect(()=>{if(startRequest)setExpanded(true);},[startRequest]);
+  useEffect(()=>{if(startRequest&&expanded)workspace.current?.querySelector<HTMLTextAreaElement>('.chat-dock-composer textarea')?.focus();},[startRequest,expanded]);
   function artifact(value:AssistantArtifact,index:number):ReactNode {
     switch(value.type){
       case 'campaign':{const current=overview.campaigns.find(c=>c.id===value.campaign.id);return <CampaignChatArtifact key={`campaign-${value.campaign.id}`} campaign={current??{...value.campaign,managed:false}} overview={overview} api={api} busy={processing||submitting} onUpdated={refresh} onRequest={send}/>;}
@@ -118,13 +122,13 @@ function MetaAdsAssistantView({apiBaseUrl,overview,api,client:supplied,pollMs=25
   }
   function details(turn:AssistantTurn){return <>{turn.artifacts.map(artifact)}{!!turn.references.length&&<div className="mga-chat-references"><strong>Fontes consultadas</strong><ul>{turn.references.map(reference=><li key={`${reference.id}:${reference.version}`}><button type="button" className="mga-secondary" onClick={()=>void openSource(reference.id)}>Ver fonte: {reference.title}</button><small>Revisada em {reference.reviewedAt.split('-').reverse().join('/')} · Versão {reference.version}</small><p>{reference.excerpt}</p></li>)}</ul></div>}</>;}
   const proposal=overview.proposals.find(p=>p.id===focusedProposal);
-  return <div className="mga-agentic-shell"><div className="mga-agentic-content">
+  return <div className="mga-agentic-shell" ref={workspace}><div className="mga-agentic-content">
     <div ref={fundingHeading} tabIndex={-1}><FundingPanel account={account} diagnosis={funding} error={fundingError} onRefresh={async()=>{const port=client.current,signal=lifetime.current?.signal;if(!port||!signal)return;const value=await port.refreshFunding(signal);if(alive.current&&!signal.aborted){setFunding(value);setFundingError('');}}}/></div>
+    {children}
     <div ref={policyHeading} tabIndex={-1}><AutomationPolicyPanel {...policyProps}/></div>
     <details className="mga-setup"><summary>Relatórios diários</summary>{reportError&&<p role="alert">{reportError}</p>}{reports.length?<><label>Dia do relatório<select aria-label="Dia do relatório" value={reportId} onChange={e=>setReportId(e.target.value)}>{reports.map(report=><option key={report.id} value={report.id}>{report.localDay.split('-').reverse().join('/')} · {report.timezone}</option>)}</select></label>{chosenReport&&<DailyReportArtifact report={chosenReport} campaignNames={campaignNames} onReview={reviewProposal}/>}</>:<p>O relatório será disponibilizado após o fechamento do dia no fuso da conta. Ausência de relatório não confirma gasto zero.</p>}</details>
     {proposal&&<section className="mga-panel"><h2 ref={proposalHeading} tabIndex={-1}>Proposta do relatório</h2><ProposalReview proposal={proposal} execution={overview.executions.find(e=>e.proposalId===proposal.id)} entitled={overview.entitled} connectionEpoch={overview.connection.epoch} api={api} onUpdated={refresh}/></section>}
     {sourceError&&<p role="alert">{sourceError}</p>}{source&&<section className="mga-panel" aria-label="Fonte da resposta"><h2 ref={sourceHeading} tabIndex={-1}>{source.title}</h2><small>Versão atual {source.version} · Revisada em {source.reviewedAt.split('-').reverse().join('/')}</small>{source.sections.map(section=><p key={section.id}>{section.content}</p>)}{source.externalSources.map(origin=>{const url=https(origin.url);return url?<p key={url}><a href={url} target="_blank" rel="noopener noreferrer">{origin.title}</a></p>:null;})}<button type="button" className="mga-secondary" onClick={()=>setSource(null)}>Fechar fonte</button></section>}
-    {children}
   </div><ChatDock expanded={expanded} onExpandedChange={setExpanded} context={thread?.context??{id:'meta-ads',label:'Anúncios com IA',capabilities:[]}} turns={thread?.turns??[]} loading={loading} busy={processing||submitting||!overview.entitled} error={chatError} onSend={send} onRetry={retry} renderTurnDetails={details}
     headerExtra={<div className="mga-chat-context"><button type="button" className="mga-secondary" disabled={submitting} onClick={()=>void refresh()}>Atualizar conversa</button>{thread?.campaign&&<p>Planejamento: {thread.campaign.draft.name??'Campanha da loja'} · {thread.campaign.awaitingFields.map(field=>fields[field]??field).join(', ')||'pronto para revisão'}</p>}{!overview.entitled&&<p>Histórico disponível. Novas mensagens exigem o adicional ativo.</p>}</div>}
     empty={<><p>Vamos montar sua campanha juntos. Qual resultado você quer buscar e quais produtos deseja anunciar?</p><p>Também posso explicar pagamentos, criativos e resultados.</p></>}
