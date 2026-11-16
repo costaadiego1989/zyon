@@ -74,3 +74,42 @@ export function canAccessTab(role: Role | undefined, tab: TabKey): boolean {
 export function filterNavByRole(items: NavItem[], role: Role | undefined): NavItem[] {
   return items.filter((item) => canAccessTab(role, item.key));
 }
+
+export type SupportPermissionProfile = Pick<import("../../api-client.js").MerchantProfile,
+  "id" | "user_id" | "role" | "businessMode" | "businessModeSelectionState">;
+export type SensitiveSupportCapability = "whatsapp-conversations" | "whatsapp-configuration" | "service-attendance:manage";
+
+const knownSupportRole = (role: unknown): role is Role => role === "OWNER" || role === "ADMIN" || role === "STAFF";
+function hasPermissionProfile(profile: SupportPermissionProfile | null | undefined): profile is SupportPermissionProfile {
+  return Boolean(profile && typeof profile.id === "string" && profile.id.trim()
+    && typeof profile.user_id === "string" && profile.user_id.trim() && knownSupportRole(profile.role));
+}
+
+/** Conversation access follows the existing authenticated support policy.
+ * It never grants connection credentials, templates or configuration. */
+export function canUseWhatsAppConversations(role: unknown): boolean {
+  return knownSupportRole(role) && canAccessTab(role, "support");
+}
+export function canConfigureWhatsApp(role: unknown): boolean {
+  return knownSupportRole(role) && canAccessTab(role, "whatsapp-seller");
+}
+
+/** Management follows the existing service HTTP write allowlist, separately
+ * from staff-readable availability and conversation access. Subscription
+ * checks and authenticated server authorization remain separate. */
+export function canManageServiceAttendance(profile: SupportPermissionProfile | null | undefined): boolean {
+  return hasPermissionProfile(profile) && (profile.role === "OWNER" || profile.role === "ADMIN")
+    && profile.businessMode === "services" && profile.businessModeSelectionState === "selected";
+}
+
+/** Sensitive targets opt in explicitly; never inherit the legacy unknown-tab
+ * or pre-session fallback. This helper does not mount a route or a tab. */
+export function canAccessSensitiveSupportCapability(profile: SupportPermissionProfile | null | undefined, capability: unknown): boolean {
+  if (!hasPermissionProfile(profile)) return false;
+  switch (capability) {
+    case "whatsapp-conversations": return canUseWhatsAppConversations(profile.role);
+    case "whatsapp-configuration": return canConfigureWhatsApp(profile.role);
+    case "service-attendance:manage": return canManageServiceAttendance(profile);
+    default: return false;
+  }
+}

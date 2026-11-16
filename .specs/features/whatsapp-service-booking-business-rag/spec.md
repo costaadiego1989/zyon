@@ -301,11 +301,11 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | HUM-01 | Fixed menu entry | T57 | Pending |
 | HUM-02 | Handoff intake | T49, T50, T57 | In Progress (T49 intake and T50 router complete; menu pending) |
 | HUM-03 | AI pause | T4, T48, T49, T50, T51 | Complete locally (T4/T48-T51; final integrated verification pending) |
-| HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52 exact claim complete; T53 send and T61 console pending) |
+| HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52 exact claim,T53send,T59permissionprimitives complete; queue/UI pending) |
 | HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | In Progress (T53 queue and T54 local transport complete; receipts and console pending) |
 | HUM-06 | Automatic AI resume | T56, T61 | Pending |
 | HUM-07 | Unavailable team/provider | T54, T55, T58 | In Progress (T54 local failure and unknown states complete; receipts and team notices pending) |
-| HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | Pending |
+| HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | In Progress (T59permissionprimitives complete; tab/route wiring pending) |
 | RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Implemented locally including T104 bounded-write repair; final proof pending |
 | RAG-02 | Retirement | T65, T67, T68, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
 | RAG-03 | Retry and source durability | T64, T66, T67, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
@@ -324,7 +324,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | ATEND-05 | One-off times | T22, T25, T78 | In Progress (T22 and T25 complete) |
 | ATEND-06 | Manual appointments | T31, T41, T74, T79 | Pending |
 | ATEND-07 | Attendance lifecycle | T32, T41, T74, T80 | Pending |
-| ATEND-08 | Management authorization | T6, T11, T19, T25, T41, T47, T52, T59, T73, T75, T83, T87 | In Progress (T19 and T25 complete) |
+| ATEND-08 | Management authorization | T6, T11, T19, T25, T41, T47, T52, T59, T73, T75, T83, T87 | In Progress (T19/T25backend andT59clientmanagement primitive complete; remainingHTTP/UI pending) |
 | ATEND-09 | Unavailability blocks | T22, T25, T78 | In Progress (T22 and T25 complete) |
 | ATEND-10 | Explicit outside-hours appointment | T25, T31, T79 | In Progress (T25 complete) |
 | KPI-01 | Business-specific dashboard | T82, T87, T88, T89, T90, T91 | Pending |

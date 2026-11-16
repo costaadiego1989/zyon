@@ -1,0 +1,72 @@
+{
+  "task": "T59",
+  "status": "COMPLETE LOCAL QuickUI; no route/tab/backend authorization wiring",
+  "taskMarkedBeforeAtomicCommit": true,
+  "atomicTaskCommit": "The focused local commit containing this evidence; hash reported separately",
+  "dependencies": "completedT9+T53; technical order59->56->57->58->60->61->62 recorded before source",
+  "sourceBase": "fbfa6d5a3 with preservedT105WIP",
+  "productiveScope": [
+    "apps/dashboard/src/lib/auth/permissions.ts"
+  ],
+  "implementation": [
+    "Known role plus existing support permission for conversations",
+    "Known role plus existing whatsapp-seller permission for configuration",
+    "Separate OWNER/ADMIN service-management allowlist from existing HTTP guards, canonicalservices+selected classification",
+    "Explicit sensitive target whitelist; missing/invalid authenticated profile or target denied",
+    "Plan does not grant role/mode; no invented capability fields"
+  ],
+  "legacyPreservation": {
+    "wholeSourcePrefixByteExact": true,
+    "sourcePrefixSha256": "b65f6e6558f768ed02f5fcd430c86a3f71b3b0982cb335b0c47d2972b4902483",
+    "oldTestSourceContiguousByteExact": true,
+    "oldTestSourceSha256": "d1044903687b4d4fa593b50aa9d3d2b2e8e95e85869a1f50d9e6fdffe4bf7769",
+    "unchangedCompanion": "src/shell/subscription-route-policy.spec.ts"
+  },
+  "quickUi": {
+    "directory": ".cache/t59-execution/components-2026-11-16T23-12-31.425Z",
+    "startedAtUtc": "2026-11-16T23:12:31.425Z",
+    "completedAtUtc": "2026-11-16T23:12:35.986Z",
+    "exit": 0,
+    "files": 2,
+    "passed": 75,
+    "failed": 0,
+    "skipped": 0,
+    "durationSeconds": 1.5,
+    "composition": "5originalpermissions+15unchangedsubscriptioncompanions+55newcriterioncases",
+    "unfiltered": true,
+    "minimumCommitMiB": 1024,
+    "availableCommitMiB": 4471,
+    "physicalAvailableMiB": 1378,
+    "naturalExit": true,
+    "remainingOwnNodeCmd": 0,
+    "postCloseInspection": ".cache/t59-execution/components-2026-11-16T23-12-31.425Z/post-close-inspection.json"
+  },
+  "sourceCheckpoint": ".cache/t59-execution/source-checkpoint.json",
+  "files": [
+    {
+      "path": "apps/dashboard/src/lib/auth/permissions.ts",
+      "sha256": "3be1cb64a3678b311361ef9aa5e7ec12378468de17b8cb51d35dbadd8e49c7f3"
+    },
+    {
+      "path": "apps/dashboard/src/lib/auth/permissions.spec.ts",
+      "sha256": "4efa13cff6c14a1dd703f53318c215ffc11f67bc139313e008e32084d2d32c44"
+    },
+    {
+      "path": "apps/dashboard/src/shell/subscription-route-policy.spec.ts",
+      "sha256": "585167fb465fc8f4516a000e4622487bd9753699b5ac14b2645234a03fa84241"
+    }
+  ],
+  "guardsPreserved": true,
+  "t105EightPreserved": true,
+  "t107D949AndSixCapturesPreserved": true,
+  "t56And106": "ignoredsourcecacheonly, no productiveintegration or execution",
+  "typesBuildBrowserNativeExecutedFor59": false,
+  "screenshotsGeneratedFor59": false,
+  "notClaimed": [
+    "fullPhase8/Phase16/feature completion",
+    "UIroute/tab behavior or server authorization proof",
+    "phaseendingtypes/build/browser or finalsameHEADverification",
+    "provider/production acceptance"
+  ],
+  "foreignRemoteProviderActions": 0
+}

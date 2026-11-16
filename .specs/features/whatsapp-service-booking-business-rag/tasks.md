@@ -127,7 +127,10 @@ T48 → T49 → T50 → T51 → T52 → T53 → T54 → T55
 ### Phase 8: WhatsApp Conversations tab and automatic return
 
 ```
-T56 → T57 → T58 → T59 → T60 → T61 → T62
+T59 → T56 → T57 → T58 → T60 → T61 → T62
+T59 → T60
+T53 → T59
+T9 → T59
 ```
 
 ### Phase 9: Public knowledge lifecycle and controlled retrieval
@@ -1238,7 +1241,7 @@ T107 → T106
 
 **What**: Fechar ticket e mudar modo/epoch + retorno outbox atomicamente; só vínculo ativo; ticket antigo/duplicata não retoma outro caso nem reenvia cobrança.
 **Where**: `apps/api/src/modules/support/application/close-whatsapp-conversation.use-case.ts`
-**Depends on**: T55
+**Depends on**: T55, T59
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: HUM-06, EDGE-04
 
@@ -1292,25 +1295,27 @@ T107 → T106
 
 **What**: Regra explícita service-attendance e WhatsApp conversas para operador autorizado; Staff não recebe tokens/templates/config; plano não substitui autorização/modo.
 **Where**: `apps/dashboard/src/lib/auth/permissions.ts`
-**Depends on**: T58
+**Depends on**: T9, T53
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: HUM-04, HUM-08, ATEND-08
 
+**Status**: Complete LOCAL QuickUI -75/75unfiltered in2files (5oldpermissions+15oldsubscriptioncompanions+55criterioncases),0skip/fail,natural0; oldfunctions/constants/testassertions byte-preserved. No route/tab/backend change. See task-59-evidence.json.
+
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] permissions.spec.ts: role×mode×capability×plan e fallback de rota desconhecida negado onde sensível.
-- [ ] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] permissions.spec.ts: role×mode×capability×plan e fallback de rota desconhecida negado onde sensível.
+- [x] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: permissions.spec.ts: role×mode×capability×plan e fallback de rota desconhecida negado onde sensível.
-**Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/lib/auth/permissions.spec.ts -t "^T59$"` Teste raiz T59 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/lib/auth/permissions.spec.ts` plus any actual unchanged permission companion required by the existing file structure, selected unfiltered. Record concrete files/counts before execution; every new T59 criterion case and old permission case executes, zero skipped. No route/tab wiring or backend authorization change is granted by a client helper. Final criterion checks and phase-ending dashboard types/build/browser remain mandatory.
 **Commit**: `feat(service-business): t59 separate conversation and configuration permissions`
 
 ### T60: Load and reconcile the conversation queue
 
 **What**: Hook reusa APIs/WS suporte, server filter/cursor, reconcilia clientMessageId e status sem duplicação; loading/empty/error/unknown distintos.
 **Where**: `apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.ts`
-**Depends on**: T59
+**Depends on**: T59, T58
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: HUM-04, HUM-05, HUM-08
 
@@ -2542,6 +2547,16 @@ Tasks: T107.
 Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; independent70/components, types/lint/build and six native captures reviewed PASS. See task-107-evidence.json; no105/106/final-feature claim.
 
 ## Handoff
+
+**T59 integrated locally / T99 current partial evidence:** originalC3e26a3b0 QuickUI75/75unfiltered, oldfunctions/constants/testsbyteexact, no route/tab/backendauthchange. Rootnow50/108complete(T59added); T56waits55and59. RootreviewedhelperrolesagainstexistingAPI: supportOWNER/ADMIN/STAFF, configurationOWNER/ADMIN, service-managementOWNER/ADMIN+canonicalservices/selected; unknownsensitiveprofile/targetdenied. All10Root99APIpaths+own99planremainbyteequalto21a6844dbackup; noAPI/source99stagedin59. Root99component27/27passed/0skip/fail/natural0 at23:13:43Z(logce9d4aca) and ownPrismaschemavalidation0 at23:15:44Z(logcee181ad); actualmigration/fullchecked/HTTP10remainpending. T70all19sourceparkedexactcfc76532, notdiscarded/completed. M55latest3072admissionrefused2467beforechild/e6420e68; no retries/source191repetition. Pbaselinealigned0b345b70 treeequalsaa30; own30reapplied/fingerprintmergedpreservingRootexports, native324pending. Allknownteamgatesclosed; source/cacheworkonlyuntilnextexplicithandover. No production/provider/foreignprocess/OSaction.
+
+**C59 QuickUI returned / Root99 component slot (before execution):** Cnewpermissionprimitivespassed75/75unfiltered(permissions60=5old+55new/subscriptionroute15),0skip/fail/natural0 at23:12:35Z; original1024admission4471/1378physical. Oldpermissionsfunctions/constants/testprefixbyteexact,105eight/d949intact, knownownnodecmd0. Cmayclose59metadata/atomiccommitonly; no56runtimebefore55. RootnowownsONEprepared99component27cohort via .cache/run-t99-unit.mjs underexisting1024guard/networkguard/ownedloader/concurrency1; current10T99sourcehashesfrozenfromadoptiond3a6c3cd. Ifgreen, oneboundedownPrismaschemavalidationmayfollowunderfresh1024guard/sanitizedenv/owncachedbinaries, no generate/build/artifactrecord/DB/browseroroldstampuse. NoTask99Fullcompletionfromthesepartialgates. PbaselinealignmentandMownershipinspection/sourceonly, no otherteamrunners/provider/production/foreignactions.
+
+**Source adoption / bounded resource ownership and P alignment dispatch (before sending):** RootT99tenfilesadoptedexactsourcecandidate d3a6c3cd after19T70pathsparkedwithmanifestcfc76532; noRootparser/test/buildyet, new99cohort27preparednotrun. Cowns59actualQuickUIwindow. Pmaynowperformreviewedcommittedbaselinealignmenttoaa30initsowncheckout: preserve20WIP+14older71files, normalmerge(notfalseFF; mergebaseee4532), keepownsourceparkedoutofintegrationcommit, preserveRootapprovedmetadata andbothshared-typesexports, thenreapplyownT30sourcewithfreshhashmanifest. No Rootdirty70/99source/artifacts/depscopied, no parser/test/build/native/probe, no30Fullclaim. Mmayreadexistinglocaltestlabel/ownershipcontractsandmakeONEread-onlyDockerinventoryofpositivelyscopedfeaturecontainers tofindpossibleoldsyntheticruntimeleaks; no start/stop/delete/globalDocker/OS/processmutation orcustomerdata read. Reportexactlabel+run/checkout-evidencebeforeanycleanupisconsidered; absenceisvalid/no retry. This read-onlyinspectionisnotparallelapp/testexecution; Cunitownershipunchanged. Rootwillrun99units/schemaonlyafterCreturns; no testsrepeatedmerelyforcounts. Allproduction/provider/foreignactionsremainoutofscope.
+
+**Technical Phase8 reorder / C59 implementation dispatch (before sending):** M55attemptrefusedactual2467<3072at22:57:55Zbeforechild/receipt e6420e68, no capture/compiler/Job/record; all18source/191greenpreserved andslotreturned. T59permissionprimitivesdependoncurrentprofile9andexistingauthenticatedsupport53, notunimplementedqueue58. ExecutewholePhase8as59→56→57→58→60→61→62 inC; addexplicit58dependencyto60, preservingeverycriterion/role/plan/mode/serverguard. This technicalorderingchange grantsno newrole/configaccess andremovesnoFullgate. Cmaynowprepareminimalactual59plan/tests/source againstexistingpermissionscontracts, thenONE1024-admitted unfilteredold+newpermissioncomponentgate(noAPI/runtime/build). Existingfunctions/oracles/configprivacymustremain, no route/tabwiringbefore62; staffconversationaccesscanonlyfollowexistingauthorizedsupportpolicy. C59completionneedsactualQuickUIgate/atomiccommit; other56-62draftsremaincacheuntiltheirdependenciesgreen. Root/P/M/99source-onlyduringCexecution; no repeatedbuildprobes. Root70all19sourceverified/parkedcfc76532insideownedcachebefore99integration; no data lost or sourceclaimedcomplete. No production/provider/foreignprocess/OSaction.
+
+**Resume 2026-11-16 / dispatch M55 build and P/C preparation (before sending):** user: "prossiga tem muita coisa ainda para fazer". Rootcurrentmemorysnapshot22:54:15Zobserved6169commit/2367physical, actualchangefromprior3103strictrefusal and4027->1486monitoredbreach. To unblockConversations, M55nowownsONE unchangedreviewedoriginal3072/live1536/300ms/max500gap supervisedfullAPIattempt; Rootindependentlyverifiedall6retargetedhelpersinvertbyteexact(68db5f37original/c0812dc8worker). No automaticfallback/retry orguaranteedfit; earlierreservebreachretained, fullcommand/defaultheap/coverage/currentinput-output/jobownership/natural0/recordseparationunchanged. MmustreportactualreceiptbeforeRootpermitsfinalize, then77native/phasegatesbefore55commit. No191rerunabsentsourcedrift. P30source/cache-onlyprepareexactFullnativeinventory+ownbuildreadiness preserving19WIP+declaredfixturead6 and71packets; noexecution. Csource/cache-onlyprepareactualPhase8close/menu/conversationimplementation/testsagainst55contracts, pending55integration;105WIP/93/107preserved,noUIruntime. Rootwillpreserve/park19own70WIPexactlyandintegrateunblockedT99privatephonesourceintoNunderexistingapprovedscope(dep53complete), ownplan/10fileinventorybeforeediting, noRootimports/build/runtimewhileMowns slot. Root70Fullremainsmandatorybefore71; parkedsourceisnotdiscardedorcomplete. Allremote/provider/foreignprocess/OSactionsremainunauthorized.
 
 **Root independent log read at checkpoint:** actual M191TAPtail/hash3229ea8c, C93Vitestsummary9files/result0/postclose0/hashe91bfd0a, P24TAPtail/hash6864fd71 independently reread afterworkerreturn. Counts191/93/24confirmed, no newexecution. Root19T70APIpathsbyteequalbackup; metadataupdates do not stageunverifiedAPI/source. Allthreeworkersreturned, no additionalrunnerauthorized. This is currentcomponentevidence, notFull/production/finalVerifierproof.
 
