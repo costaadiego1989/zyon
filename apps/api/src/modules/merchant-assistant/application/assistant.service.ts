@@ -41,7 +41,7 @@ export class AssistantService {
     const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = []; let toolFacts = false;
     for (let round = 0; round <= 5; round++) {
       const state = await this.current(input);
-      const response = await this.deps.model.complete({ ...input, messages: structuredClone(messages), knowledge, tools,
+      const response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,
         state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress } });
       if (response.toolCalls.length) {
         if (round === 5) throw new AssistantError('assistant_tool_round_limit', 429);

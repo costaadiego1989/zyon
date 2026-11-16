@@ -11,6 +11,8 @@ export interface AssistantModelInput {
   scope:AssistantScope;threadId:string;turnId:string;leaseToken:string;
   messages:AssistantModelMessage[];knowledge:RetrievedAssistantKnowledge[];tools:AssistantToolDescriptor[];
   state?:{contextLabel:string;now:string;campaign:AssistantCampaignProgress|null};
+  /** Server-selected orchestration step, scoped to this durable turn. */
+  step?:number;
 }
 export interface AssistantModelResult {
   reply:string|null;referenceIds:string[];

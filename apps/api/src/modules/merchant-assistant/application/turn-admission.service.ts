@@ -33,7 +33,14 @@ export class TurnAdmissionService {
     const now=this.clock(),month=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1));
     return this.repo.atomic(scope,threadId,async tx=>{
       const prior=await tx.request(input.idempotencyKey);
-      if(prior){if(prior.inputHash!==hash)throw new AssistantError('assistant_idempotency_conflict',409);return {turn:prior,revision:tx.thread.revision,replayed:true};}
+      if(prior){
+        if(prior.inputHash!==hash)throw new AssistantError('assistant_idempotency_conflict',409);
+        if(prior.status==='failed'&&(prior.usageCostMicros??0n)===0n&&prior.budgetState==='released'&&prior.ordinal===tx.thread.revision&&!await tx.active()){
+          if(prior.budgetAmountMicros>budget.turnMicros||await tx.committedCostSince(month)+prior.budgetAmountMicros>budget.monthlyMicros)throw new AssistantError('assistant_ai_budget_exhausted',429);
+          return {turn:await tx.update(prior.id,{status:'queued',budgetState:'reserved',error:null,leaseToken:null,leaseUntil:null}),revision:tx.thread.revision,replayed:true};
+        }
+        return {turn:prior,revision:tx.thread.revision,replayed:true};
+      }
       const active=await tx.active();
       if(active)throw new AssistantError(active.status==='unknown'?'assistant_outcome_unknown':'assistant_turn_pending',409);
       if(tx.thread.revision!==input.expectedRevision)throw new AssistantError('assistant_revision_conflict',409);
@@ -54,15 +61,16 @@ export class TurnAdmissionService {
     });
   }
 
-  async failed(scope:AssistantScope,threadId:string,turnId:string,token:string){
+  async failed(scope:AssistantScope,threadId:string,turnId:string,token:string,errorCode='assistant_call_failed'){
     return this.repo.atomic(scope,threadId,async tx=>{
       const turn=await tx.turn(turnId);
       if(turn&&['unknown','failed','completed'].includes(turn.status))return turn;
       lease(turn,token,this.clock());
-      const unknown=turn.budgetState==='dispatched'||turn.providerRequests.some(attempt=>['sending','unknown'].includes(attempt.status));
-      return tx.update(turnId,{status:unknown?'unknown':'failed',budgetState:unknown?'unknown':'released',
+      const unknown=turn.providerRequests.some(attempt=>['sending','unknown'].includes(attempt.status));
+      const settled=(turn.usageCostMicros??0n)>0n;
+      return tx.update(turnId,{status:unknown?'unknown':'failed',budgetState:unknown?'unknown':settled?'settled':'released',
         providerRequests:turn.providerRequests.map(attempt=>attempt.status==='sending'?{...attempt,status:'unknown'}:attempt),
-        error:unknown?'assistant_outcome_unknown':'assistant_call_failed',leaseToken:null,leaseUntil:null});
+        error:unknown?'assistant_outcome_unknown':/^assistant_[a-z0-9_]{1,100}$/.test(errorCode)?errorCode:'assistant_call_failed',leaseToken:null,leaseUntil:null});
     });
   }
 }

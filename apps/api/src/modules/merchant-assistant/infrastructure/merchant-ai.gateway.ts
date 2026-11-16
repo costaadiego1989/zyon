@@ -47,6 +47,7 @@ export class MerchantAiGateway implements AssistantModelPort {
   private readonly clock:()=>Date;
   constructor(private readonly deps:Dependencies){this.clock=deps.clock??(()=>new Date());}
   async complete(input:AssistantModelInput):Promise<AssistantModelResult>{
+    if(input.step!==undefined&&(!Number.isSafeInteger(input.step)||input.step<0||input.step>5))throw new AssistantError('assistant_model_step_invalid');
     const config=this.deps.config();
     if(!config.apiKey||!config.model)throw new AssistantError('assistant_model_unavailable',503);
     let provider:string;try{const url=new URL(config.baseUrl);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw new Error();provider=providerName(config.baseUrl);}
@@ -64,24 +65,32 @@ export class MerchantAiGateway implements AssistantModelPort {
     const maximum=(BigInt(inputBytes+4096)*inputRate+1600n*rates.outputMicrosPerMillion+999999n)/1000000n;
     const operation=await this.deps.repo.atomic(input.scope,input.threadId,async tx=>{
       const turn=await tx.turn(input.turnId);assertAssistantTurnLease(turn,input.leaseToken,this.clock());
+      if(input.step!==undefined){
+        const prior=turn.providerRequests.filter(attempt=>attempt.kind==='model'&&attempt.key.startsWith(`model-step-${input.step}-`)).at(-1);
+        if(prior?.status==='completed'){
+          if(!prior.result)throw new AssistantError('assistant_model_result_unavailable',409);
+          return {key:prior.key,kind:'model' as const,cached:{...structuredClone(prior.result),costMicros:BigInt(prior.result.costMicros),providerRequestId:prior.providerRequestId??null}};
+        }
+      }
       const calls=turn.providerRequests.filter(attempt=>attempt.kind==='model').length;
       if(calls>=6)throw new AssistantError('assistant_model_call_limit',429);
       if(turn.providerRequests.some(attempt=>attempt.kind==='model'&&['sending','unknown'].includes(attempt.status)))throw new AssistantError('assistant_operation_already_dispatched',409);
       if((turn.usageCostMicros??0n)+maximum>turn.budgetAmountMicros)throw new AssistantError('assistant_ai_budget_exhausted',429);
-      return {key:`model-${calls+1}`,kind:'model' as const};
+      return {key:input.step===undefined?`model-${calls+1}`:`model-step-${input.step}-${calls+1}`,kind:'model' as const,cached:null};
     });
+    if(operation.cached)return operation.cached;
     let sent=false,known=false,rejected=false;let payload:unknown;let responseId:string|null=null;
-    const finish=async(status:'completed'|'rejected',cost:bigint)=>this.deps.repo.atomic(input.scope,input.threadId,async tx=>{
+    const finish=async(status:'completed'|'rejected',cost:bigint,normalized?:Pick<AssistantModelResult,'reply'|'referenceIds'|'toolCalls'>)=>this.deps.repo.atomic(input.scope,input.threadId,async tx=>{
       const turn=await tx.turn(input.turnId);assertAssistantTurnLease(turn,input.leaseToken,this.clock());
       const attempt=turn.providerRequests.find(item=>item.key===operation.key);
       if(!attempt||attempt.status!=='sending')throw new AssistantError('assistant_operation_invalid',409);
       const total=(turn.usageCostMicros??0n)+cost,overrun=total>turn.budgetAmountMicros;
-      const saved=await tx.update(turn.id,{providerRequests:turn.providerRequests.map(item=>item.key===operation.key?{...item,status,...(responseId?{providerRequestId:responseId}:{})}:item),usageCostMicros:total,
+      const saved=await tx.update(turn.id,{providerRequests:turn.providerRequests.map(item=>item.key===operation.key?{...item,status,...(responseId?{providerRequestId:responseId}:{}),...(normalized?{result:{...normalized,costMicros:String(cost)}}:{})}:item),usageCostMicros:total,
         ...(overrun?{status:'unknown' as const,budgetState:'unknown' as const,error:'assistant_cost_reconciliation_required',leaseToken:null,leaseUntil:null}:{})});
       return {turn:saved,overrun};
     });
     const transport:typeof fetch=async(url,init)=>{
-      await this.deps.admission.dispatched(input.scope,input.threadId,input.turnId,input.leaseToken,operation);sent=true;
+      await this.deps.admission.dispatched(input.scope,input.threadId,input.turnId,input.leaseToken,{key:operation.key,kind:operation.kind});sent=true;
       const response=await (this.deps.transport??fetch)(url,init);
       try{payload=await response.clone().json();const id=(payload as {id?:unknown})?.id;if(typeof id==='string'&&/^[a-zA-Z0-9_.:-]{1,200}$/.test(id))responseId=id;}catch{payload=undefined;}
       if(response.status>=400&&response.status<500){rejected=true;await finish('rejected',0n);}
@@ -99,14 +108,17 @@ export class MerchantAiGateway implements AssistantModelPort {
         responseFormat:provider==='deepseek'?{type:'json_object'}:{type:'json_schema',json_schema:{name:'merchant_assistant_reply',strict:true,schema:{type:'object',properties:{reply:{type:'string'},referenceIds:{type:'array',items:{type:'string'}}},required:['reply','referenceIds'],additionalProperties:false}}}});
       const usage=normalizeUsage(payload),cost=usage?estimateCost(usage,prices):undefined;
       if(!result.usageKnown||cost===undefined)throw new AssistantError('assistant_outcome_unknown',409);
-      const settled=await finish('completed',cost);known=true;
-      if(settled.overrun)throw new AssistantError('assistant_cost_reconciliation_required',409);
       const calls=result.toolCalls??[];
-      if(calls.length>5)throw new AssistantError('assistant_tool_call_limit',429);
-      for(const call of calls)if(!input.tools.some(tool=>tool.name===call.name)||typeof call.id!=='string'||!/^[a-zA-Z0-9_.:-]{1,200}$/.test(call.id)||!call.args||typeof call.args!=='object'||Array.isArray(call.args)||Buffer.byteLength(JSON.stringify(call.args))>8000)
-        throw new AssistantError('assistant_tool_forbidden',403);
-      const reply=calls.length?{reply:null,referenceIds:[]}:parseReply(result.content);
-      return {...reply,toolCalls:calls,providerRequestId:responseId,costMicros:cost};
+      let normalized:Pick<AssistantModelResult,'reply'|'referenceIds'|'toolCalls'>;
+      try{
+        if(calls.length>5)throw new AssistantError('assistant_tool_call_limit',429);
+        for(const call of calls)if(!input.tools.some(tool=>tool.name===call.name)||typeof call.id!=='string'||!/^[a-zA-Z0-9_.:-]{1,200}$/.test(call.id)||!call.args||typeof call.args!=='object'||Array.isArray(call.args)||Buffer.byteLength(JSON.stringify(call.args))>8000)
+          throw new AssistantError('assistant_tool_forbidden',403);
+        normalized={...(calls.length?{reply:null,referenceIds:[]}:parseReply(result.content)),toolCalls:calls};
+      }catch(error){await finish('completed',cost);known=true;throw error;}
+      const settled=await finish('completed',cost,normalized);known=true;
+      if(settled.overrun)throw new AssistantError('assistant_cost_reconciliation_required',409);
+      return {...normalized,providerRequestId:responseId,costMicros:cost};
     }catch(error){
       if(rejected)throw new AssistantError('assistant_model_rejected',502);
       if(!sent||known){if(error instanceof AssistantError)throw error;throw new AssistantError('assistant_model_unavailable',503);}
