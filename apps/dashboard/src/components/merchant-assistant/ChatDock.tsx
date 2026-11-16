@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { AssistantContextDescriptor, AssistantTurn } from '@zyon/shared-types';
 import './chat-dock.css';
 
@@ -15,22 +15,32 @@ export function ChatDock({context,turns,loading,busy,error,empty,headerExtra,onS
   const open=expanded??localOpen;
   const [message,setMessage]=useState(''); const [sending,setSending]=useState(false); const [sendError,setSendError]=useState('');
   const lock=useRef(false), focus=useRef<'composer'|'trigger'|null>(null); const composer=useRef<HTMLTextAreaElement>(null), trigger=useRef<HTMLButtonElement>(null); const id=useId();
+  const dock=useRef<HTMLElement>(null);
+  useLayoutEffect(()=>{
+    const element=dock.current;if(!open||!element)return;
+    const measure=()=>element.style.setProperty('--chat-dock-height',`${Math.max(240,window.innerHeight-Math.max(20,element.getBoundingClientRect().top)-20)}px`);
+    measure();window.addEventListener('resize',measure);window.addEventListener('scroll',measure,true);
+    const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(measure);if(element.parentElement)observer?.observe(element.parentElement);
+    return()=>{window.removeEventListener('resize',measure);window.removeEventListener('scroll',measure,true);observer?.disconnect();};
+  },[open]);
   useEffect(()=>{if(focus.current==='composer') composer.current?.focus(); if(focus.current==='trigger') trigger.current?.focus(); focus.current=null;},[open]);
   function toggle(next:boolean) {focus.current=next?'composer':'trigger';setLocalOpen(next);onExpandedChange?.(next);}
   async function send() {
     const text=message.trim(); if(lock.current||busy||loading||!text||text.length>8000) return;
+    composer.current?.focus();
     lock.current=true;setSending(true);setSendError('');
     try {await onSend(text);setMessage(current=>current===message?'':current);} catch {setSendError('Não foi possível confirmar o envio. Você pode retomar sem perder a mensagem.');}
     finally {lock.current=false;setSending(false);}
   }
   async function retry() {
     if(!onRetry||lock.current||busy)return;
+    composer.current?.focus();
     const failedSend=!!sendError,previous=message;lock.current=true;setSending(true);
     try{await onRetry();setSendError('');if(failedSend)setMessage(current=>current===previous?'':current);}
     catch{setSendError('Não foi possível retomar. Sua mensagem permanece disponível para outra tentativa.');}
     finally{lock.current=false;setSending(false);}
   }
-  return <aside className={`chat-dock ${open?'chat-dock-open':'chat-dock-collapsed'}`} aria-label={`Assistente de ${context.label}`} data-context={context.id}>
+  return <aside ref={dock} className={`chat-dock ${open?'chat-dock-open':'chat-dock-collapsed'}`} aria-label={`Assistente de ${context.label}`} data-context={context.id}>
     <button type="button" className="chat-dock-trigger" aria-label="Abrir assistente" aria-controls={id} aria-expanded={open} hidden={open} ref={trigger} onClick={()=>toggle(true)}>Conversar com a IA</button>
     <section id={id} className="chat-dock-panel" hidden={!open} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();toggle(false);}}}>
       <header className="chat-dock-header"><div><strong>Assistente Zyon</strong><span>{context.label}</span></div><button type="button" className="chat-dock-close" aria-label="Recolher assistente" onClick={()=>toggle(false)}>Recolher</button></header>

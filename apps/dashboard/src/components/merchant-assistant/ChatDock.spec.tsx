@@ -29,10 +29,22 @@ test('ADAS-13 keyboard collapse and reopen preserve draft and processing with pr
   const trigger=screen.container.querySelector('[aria-label="Abrir assistente"]') as HTMLButtonElement; expect(document.activeElement).toBe(trigger);
   await screen.click('Abrir assistente'); expect(document.activeElement).toBe(screen.container.querySelector('textarea')); expect(screen.container.textContent).toContain('Processando'); expect(screen.container.textContent).toContain('Olá');
 });
+
+test('ADAS-13 sending from the keyboard returns focus before the focused submit control becomes disabled',async()=>{
+  screen=ui();let admitted!:()=>void;const send=vi.fn(()=>new Promise<void>(yes=>{admitted=yes;}));await screen.render(<ChatDock context={context} turns={[]} onSend={send}/>);await screen.change('Mensagem para a IA','Ajuda por teclado');
+  const button=screen.container.querySelector('button[type=submit]') as HTMLButtonElement;button.focus();await screen.click('Enviar mensagem');
+  expect(button.disabled).toBe(true);expect(document.activeElement).toBe(screen.container.querySelector('textarea'));expect(send).toHaveBeenCalledTimes(1);
+  await act(async()=>admitted());
+});
 test('ADAS-14 recoverable send error preserves draft and retry is an explicit gesture', async () => {
   screen=ui(); const retry=vi.fn(); const send=vi.fn().mockRejectedValue(new Error('offline'));
   await screen.render(<ChatDock context={context} turns={[]} onSend={send} onRetry={retry}/>); await screen.change('Mensagem para a IA','Não perder'); await screen.click('Enviar mensagem');
   expect((screen.container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('Não perder'); expect(screen.container.querySelector('[role=alert]')?.textContent).toContain('retomar'); await screen.click('Retomar envio'); expect(retry).toHaveBeenCalledTimes(1); expect(send).toHaveBeenCalledTimes(1);
+});
+
+test('ADAS-13 retry returns focus before its control becomes disabled and before the request completes',async()=>{
+  screen=ui();let resumed!:()=>void;const retry=vi.fn(()=>new Promise<void>(yes=>{resumed=yes;}));await screen.render(<ChatDock context={context} turns={[]} onSend={vi.fn().mockRejectedValue(new Error('offline'))} onRetry={retry}/>);await screen.change('Mensagem para a IA','Retomar por teclado');await screen.click('Enviar mensagem');
+  const button=Array.from(screen.container.querySelectorAll('button')).find(button=>button.textContent==='Retomar envio')!;button.focus();await screen.click('Retomar envio');expect(document.activeElement).toBe(screen.container.querySelector('textarea'));expect(retry).toHaveBeenCalledTimes(1);await act(async()=>resumed());
 });
 test('ADAS-13 incoming replies do not steal focus and text remains escaped', async () => {
   screen=ui(); await screen.render(<ChatDock context={context} turns={[]} onSend={async()=>{}}/>); const input=screen.container.querySelector('textarea')!; input.focus();

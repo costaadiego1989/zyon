@@ -90,10 +90,15 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
   @Controller('agentic-test') @UseGuards(AuthGuard) class SessionController{@Get('session') session(@Req() request:Request){const principal=currentTenantPrincipal(request);return{merchantId:principal.tenantId,userId:principal.userId,role:principal.role};}}
   @Module({controllers:[MetaAdsAgentController,FundingController,AutomationReportController,MerchantAssistantController,SessionController],providers:[AuthGuard,MetaAdsHttpErrorFilter,AssistantHttpErrorFilter,{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:cookies},{provide:MetaAdsAgentService,useValue:proxy(()=>meta.service)},{provide:FundingService,useValue:proxy(()=>meta.funding)},{provide:AutomationPolicyService,useValue:proxy(()=>meta.policies)},{provide:DAILY_OBSERVATION_REPOSITORY,useValue:proxy(()=>meta.daily)},{provide:AssistantApiService,useValue:proxy(()=>assistant.api)}]})class BrowserModule{}
   const app=await NestFactory.create(BrowserModule,{logger:false,forceCloseConnections:true});app.setGlobalPrefix('v1');app.enableCors({origin:front,credentials:true});app.use(express.json({limit:'64kb'}));
-  let closing:Promise<void>|undefined;
-  const close=()=>closing??=(async()=>{provider.setImageHold(false);await stopWorkers();await app.close();await db.close();})();
+  let closing:Promise<void>|undefined,dropNextTurnResponse=false;
+  const close=()=>closing??=(async()=>{provider.setImageHold(false);provider.setModelHold(false);await stopWorkers();await app.close();await db.close();})();
   app.use(async(req:Request,res:Response,next:NextFunction)=>{
-    if(!req.path.startsWith('/__test/'))return next();
+    if(!req.path.startsWith('/__test/')){
+      if(dropNextTurnResponse&&req.method==='POST'&&/^\/v1\/merchant-assistant\/contexts\/meta-ads\/threads\/[^/]+\/turns$/.test(req.path)){
+        const send=res.json.bind(res);res.json=body=>{if(res.statusCode>=200&&res.statusCode<300){dropNextTurnResponse=false;res.type('application/json').end('{"incomplete":');return res;}return send(body);};
+      }
+      return next();
+    }
     if(req.path==='/__test/health')return res.json({ready:true,scope:'dedicated-loopback-fixture'});
     if(req.headers['x-agentic-test-nonce']!==nonce||req.headers.origin&&req.headers.origin!==front)return res.status(403).json({code:'test_control_forbidden'});
     try{
@@ -102,20 +107,24 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
         const token=await jwt.issue({merchantId:store,userId:actor,email:actor==='owner-a'?'owner@example.test':'staff@example.test',role:actor==='owner-a'?'owner':'staff'});res.setHeader('Set-Cookie',cookies.create({access_token:token,expires_in:3600,token_type:'Bearer'}));return res.json({merchantId:store});
       }
       if(req.path==='/__test/reset'&&req.method==='POST'){
-        provider.setImageHold(false);await stopWorkers();await db.sql.query('DELETE FROM merchant_assistant_threads; DELETE FROM meta_ads_daily_runs; DELETE FROM meta_ads_agent_records; DELETE FROM meta_ads_agent_stores; DELETE FROM ai_governance_decisions; DELETE FROM merchant_auth_sessions');now=new Date('2026-11-16T12:00:00Z');provider.reset();compose();await seed();startWorkers();return res.json({reset:true});
+        provider.setImageHold(false);provider.setModelHold(false);dropNextTurnResponse=false;await stopWorkers();await db.sql.query('DELETE FROM merchant_assistant_threads; DELETE FROM meta_ads_daily_runs; DELETE FROM meta_ads_agent_records; DELETE FROM meta_ads_agent_stores; DELETE FROM ai_governance_decisions; DELETE FROM merchant_auth_sessions');now=new Date('2026-11-16T12:00:00Z');provider.reset();compose();await seed();startWorkers();return res.json({reset:true});
       }
       if(req.path==='/__test/funding'&&req.method==='POST'){
         if(!['prepaid','postpaid','unknown'].includes(req.body?.mode))return res.status(400).end();provider.fundingMode=req.body.mode;provider.blocked=req.body.blocked===true;return res.json({configured:true});
       }
       if(req.path==='/__test/images'&&req.method==='POST'){if(typeof req.body?.hold!=='boolean')return res.status(400).end();provider.setImageHold(req.body.hold);return res.json({configured:true});}
+      if(req.path==='/__test/model'&&req.method==='POST'){if(typeof req.body?.hold!=='boolean')return res.status(400).end();provider.setModelHold(req.body.hold);return res.json({configured:true});}
+      if(req.path==='/__test/metrics'&&req.method==='POST'){if(typeof req.body?.unavailable!=='boolean')return res.status(400).end();provider.metricsUnavailable=req.body.unavailable;return res.json({configured:true});}
+      if(req.path==='/__test/drop-turn-response'&&req.method==='POST'){dropNextTurnResponse=true;return res.json({configured:true});}
       if(req.path==='/__test/automatic'&&req.method==='POST'){await meta.automatic.drain();return res.json({drained:true});}
       if(req.path==='/__test/clock'&&req.method==='POST'){
         const value=new Date(req.body?.now);if(!Number.isFinite(value.getTime())||value.getUTCFullYear()!==2026)return res.status(400).end();now=value;await meta.observation.run();return res.json({now:clock().toISOString()});
       }
       if(req.path==='/__test/facts'){
         const row=(await db.sql.query(`SELECT (SELECT count(*) FROM merchant_assistant_threads) threads,(SELECT count(*) FROM merchant_assistant_turns) turns,(SELECT count(*) FROM merchant_auth_sessions) sessions,(SELECT COALESCE(sum(usage_cost_micros),0) FROM merchant_assistant_turns) cost,(SELECT count(*) FROM ai_governance_decisions) decisions`)).rows[0];
-        const states=await Promise.all(['store-a','store-b'].map(async merchantId=>{const state=await meta.service.repo.read(merchantId),executions=Object.values(state.executions);const authorities=await Promise.all(executions.map(async execution=>(await meta.service.repo.getRecord<{authority:unknown}>(merchantId,`execution-input:${execution.id}`))?.payload.authority));return{merchantId,campaigns:Object.values(state.campaigns),proposals:Object.values(state.proposals),executions,generations:Object.values(state.generations),credits:{monthlyAvailable:state.credits.monthlyAvailable,extraAvailable:state.credits.extraAvailable},automation:state.automation,policy:await meta.policies.view(merchantId),exposure:state.exposure??{allocations:{},pending:{}},authorities};}));
-        return res.json({databaseHost:'127.0.0.1',threads:Number(row.threads),turns:Number(row.turns),authSessions:Number(row.sessions),confirmedAiCostMicros:Number(row.cost),governanceDecisions:Number(row.decisions),retrievedReferenceIds:[...new Set(provider.retrievedReferenceIds)],writes:provider.writes,images:provider.images,reviewCalls:provider.reviewCalls,modelCalls:provider.modelCalls,states});
+        const usage=(await db.sql.query('SELECT merchant_id,count(*) turns,COALESCE(sum(usage_cost_micros),0) cost,array_agg(status ORDER BY ordinal) statuses FROM merchant_assistant_turns GROUP BY merchant_id')).rows;
+        const states=await Promise.all(['store-a','store-b'].map(async merchantId=>{const state=await meta.service.repo.read(merchantId),executions=Object.values(state.executions),measured=usage.find(row=>row.merchant_id===merchantId);const authorities=await Promise.all(executions.map(async execution=>(await meta.service.repo.getRecord<{authority:unknown}>(merchantId,`execution-input:${execution.id}`))?.payload.authority));return{merchantId,campaigns:Object.values(state.campaigns),proposals:Object.values(state.proposals),executions,generations:Object.values(state.generations),credits:{monthlyAvailable:state.credits.monthlyAvailable,extraAvailable:state.credits.extraAvailable},automation:state.automation,policy:await meta.policies.view(merchantId),exposure:state.exposure??{allocations:{},pending:{}},authorities,assistant:{turns:Number(measured?.turns??0),cost:Number(measured?.cost??0),statuses:measured?.statuses??[]}};}));
+        return res.json({databaseHost:'127.0.0.1',threads:Number(row.threads),turns:Number(row.turns),authSessions:Number(row.sessions),confirmedAiCostMicros:Number(row.cost),governanceDecisions:Number(row.decisions),retrievedReferenceIds:[...new Set(provider.retrievedReferenceIds)],writes:provider.writes,images:provider.images,reviewCalls:provider.reviewCalls,modelCalls:provider.modelCalls,modelPending:provider.modelPending,states});
       }
       if(req.path==='/__test/pixel')return res.type('png').send(pixel);
       if(req.path==='/__test/shutdown'&&req.method==='POST'){res.once('finish',()=>{void close().then(()=>process.exit(0)).catch(()=>process.exit(1));});return res.json({closing:true});}

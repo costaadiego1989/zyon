@@ -8,9 +8,12 @@ export class AgenticBrowserProvider {
   retrievedReferenceIds:string[]=[];writes:Array<{tool:string;accountId:string;entityId:string}>=[];
   entities=new Map<string,Json>();private next=1000;
   private holdImages=false;private imageWaiters:Array<()=>void>=[];
+  metricsUnavailable=false;private holdModel=false;private modelWaiters:Array<()=>void>=[];
+  get modelPending(){return this.modelWaiters.length;}
+  setModelHold(value:boolean){this.holdModel=value;if(!value)for(const release of this.modelWaiters.splice(0))release();}
   setImageHold(value:boolean){this.holdImages=value;if(!value)for(const release of this.imageWaiters.splice(0))release();}
   constructor(readonly clock:()=>Date){}
-  reset(){this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;}
+  reset(){this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;}
   private model(body:Json):Response {
     this.modelCalls++;
     const messages=body.messages as Json[];
@@ -26,6 +29,10 @@ export class AgenticBrowserProvider {
     if(body.tools?.some((t:Json)=>t.function.name==='propose_campaign_changes'))return completion(null,{name:'propose_campaign_changes',args:{recommendations:[]}});
     if(/fundos|pagar|pagamento|verba|saldo/i.test(text)&&!called.includes('merchant_ads_funding'))return completion(null,{name:'merchant_ads_funding',args:{}});
     const reply=(value:string)=>completion({reply:value,referenceIds:refs.map(ref=>ref.id)});
+    if(/relat[oó]rio di[aá]rio/i.test(text)){
+      if(!called.includes('merchant_ads_daily_reports'))return completion(null,{name:'merchant_ads_daily_reports',args:{localDay:'2026-11-16'}});
+      return reply('Este é o relatório do dia encerrado. A receita atribuída não comprova aumento causal das vendas.');
+    }
     if(/configurar o modo autom[aá]tico/i.test(text))return reply('Quais produtos, ações e limites financeiros deseja autorizar?');
     if(/Autorizar Camisa/i.test(text)){
       if(!called.includes('merchant_ads_catalog'))return completion(null,{name:'merchant_ads_catalog',args:{query:'Camisa'}});
@@ -52,7 +59,7 @@ export class AgenticBrowserProvider {
   }
   request:typeof fetch=async(input,init)=>{
     const url=new URL(String(input));const body=init?.body?JSON.parse(String(init.body)):{};
-    if(url.href==='https://api.openai.com/v1/chat/completions')return this.model(body);
+    if(url.href==='https://api.openai.com/v1/chat/completions'){if(this.holdModel)await new Promise<void>(resolve=>this.modelWaiters.push(resolve));return this.model(body);}
     if(url.href==='https://api.openai.com/v1/images/edits'){this.images++;if(this.holdImages)await new Promise<void>(resolve=>this.imageWaiters.push(resolve));return json({data:[{b64_json:pixel.toString('base64')}],usage:{input_tokens_details:{text_tokens:1,image_tokens:1},output_tokens_details:{image_tokens:1}}});}
     if(url.href==='https://api.openai.com/v1/responses'){this.reviewCalls++;return json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({product_matches:true,observed_prices_cents:[],currency:'NONE',unverified_claims:false,uncertain:false})}]}],usage:{input_tokens:10,input_tokens_details:{cached_tokens:0},output_tokens:5}});}
     const storeB=new Headers(init?.headers).get('authorization')?.includes('store-b');const accountId=storeB?'101':'100';
@@ -75,6 +82,7 @@ export class AgenticBrowserProvider {
       else if(['ads_get_user_pages','ads_get_ad_account_pages'].includes(name))value={pages:[{page_id:storeB?'111':'110',page_name:'Página da loja'}]};
       else if(name==='ads_catalog_list_catalogs')value={catalogs:[]};
       else if(name==='ads_get_ad_entities'){
+        if(this.metricsUnavailable&&args.fields?.includes('amount_spent'))return json({jsonrpc:'2.0',id:body.id,result:{structuredContent:{error:'Metrics unavailable',error_category:'VALIDATION'},content:[]}});
         const campaignFilter=args.filtering?.find((filter:Json)=>filter.field==='campaign_id')?.value;
         let rows=args.level==='account'?[{id:accountId,timezone_name:'America/Sao_Paulo',account_id:accountId}]:[...this.entities.values()].filter(row=>row.level===args.level&&row.account_id===accountId);
         if(args.object_ids?.length)rows=rows.filter(row=>args.object_ids.includes(row.id));if(campaignFilter)rows=rows.filter(row=>campaignFilter.includes(row.campaign_id));

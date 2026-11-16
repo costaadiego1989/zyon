@@ -1,7 +1,7 @@
 .chat-dock { min-width: 0; width: 100%; color: var(--color-text); font: 14px/1.6 var(--font-sans); overflow-wrap: anywhere; position: sticky; top: 20px; align-self: start; }
 .chat-dock * { box-sizing: border-box; }
 .chat-dock [hidden] { display: none !important; }
-.chat-dock-panel { height: calc(100dvh - 110px); max-height: 960px; min-height: 420px; display: flex; flex-direction: column; border: 1px solid var(--color-border-strong); background: var(--color-surface); border-radius: 8px; overflow: hidden; }
+.chat-dock-panel { height: var(--chat-dock-height,calc(100dvh - 110px)); max-height: 960px; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--color-border-strong); background: var(--color-surface); border-radius: 8px; overflow: hidden; }
 .chat-dock-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--color-border); }
 .chat-dock-header strong,.chat-dock-header span { display: block; }
 .chat-dock-header span,.chat-dock small { color: var(--color-text-secondary); }
