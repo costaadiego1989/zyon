@@ -372,3 +372,19 @@ test("Coupon calendar dates survive creation and API reload in a Brazil browser"
     await page.reload(); await expect(legacy).toContainText("Até 29/02/2028"); await expect(created).toContainText("De 28/02/2028");
   } finally { await context.close(); }
 });
+
+test("Customer KPI renders unavailable measurements and authoritative rates on the actual page", async ({ page }) => {
+  test.setTimeout(60_000);
+  let rate: unknown;
+  await page.route("**/v1/**", route => new URL(route.request().url()).pathname.endsWith("/analytics/customers")
+    ? route.fulfill({ json: { total_customers: 0, new_customers: 0, repeat_rate: rate } })
+    : route.fulfill({ json: { data: [], next_cursor: null, has_more: false } }));
+  const card = page.getByRole("article").filter({ has: page.getByText("Taxa de Recompra (7 dias)", { exact: true }) });
+  for (const [sample, expected] of [[undefined, "—"], [null, "—"], [-1, "—"], [0, "0"], [0.25, "25"], [1, "100"]] as const) {
+    rate = sample;
+    await page.goto("/athom-content-editor.html?mode=customers", { waitUntil: "domcontentloaded" });
+    await expect(page.getByText("Sua lista de clientes começa aqui", { exact: true })).toBeVisible();
+    await expect(card.locator(".stat-card__value")).toHaveText(expected);
+    await expect(card).not.toContainText("NaN");
+  }
+});
