@@ -10,6 +10,8 @@ Implementar com a skill **tlc-spec-driven**, seguindo Execute e Critical Rules. 
 **Date**: 2026-11-14
 **Mutations**: 3
 
+**Observed runtime prerequisite repair:** repeated105and54 setup failures occurred before business cases when the fresh Windows Get-NetTCPConnection subprocess exceeded its existing10s bound. T108 replaces only that collection implementation with fixed numeric native netstat output and keeps PID/exact established loopback tuple/live socket identity checks and deadline unchanged. Current81criteria/108tasks, no new business criterion. Harness MJS is outside productive compiler inputs, explicitly documented in service-test-artifacts.mjs43; prove it with portable parsing/error contracts, real Windows TCP capture, unchanged ownership/teardown contracts, then rerun the affected original consumers. No PowerShell deadline increase, ownership bypass, OS/global changes or new provider traffic.
+
 **Discovered catalog repair (2026-11-16):** T105 actual browser captures exposed an existing unguarded Growth-only advanced-rules GET on the Starter fixture. Add CAT-05/C81/T107, current81criteria/107tasks. This enforces the existing hasFeature/API policy, without changing entitlement, price, business mode or backend permission. Keep105's four-control deliverable separate. Whole Phase16 ordering becomes105→107→106, each real gate and atomic commit. Exact network observation and original diagnostic captures remain evidence, never masked by raising the plan or deleting the toast.
 
 **User-directed catalog refinement (2026-11-16):** user: "está sim mas trar checkbox por toggle e poder vincular um profissional a um serviço se ja nao tiver". CAT-03/CAT-04 and T105/T106 extend the local plan to80criteria/106tasks. The business-mode UI is accepted with these refinements; no final release approval. Toggle role/gesture expectations follow this explicit control change while all behavioral assertions remain. Existing professional productIds/expectedVersion is the sole association writer.
@@ -195,6 +197,10 @@ T101 → T95
 T103 → T95
 T66 → T104
 T104 → T69
+T2 → T108
+T108 → T70
+T108 → T54
+T108 → T105
 T98 → T105
 T105 → T106
 T18 → T106
@@ -1193,7 +1199,7 @@ T107 → T106
 
 **What**: Enviar pelo canal/config/thread autenticados, respeitar janela/conexão; correlacionar providerMessageId; falha/unknown distintos, retry sem duplicação cega.
 **Where**: `apps/api/src/modules/whatsapp-channel/application/services/whatsapp-support-outbox.consumer.ts`
-**Depends on**: T53
+**Depends on**: T53, T108
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: HUM-05, HUM-07
 
@@ -1505,11 +1511,31 @@ T107 → T106
 **Gate**: Full: the unfiltered component cohort through the existing guarded loader, a fresh complete checked API build with unchanged compiler settings, then `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag-support-provenance.integration.spec.mjs ./tests/business-rag-storefront-provenance.integration.spec.mjs` and the existing T68 native companions. No name filter, skipped case, stale artifact or undeclared provider override; record exact executed counts and owned cleanup. Final per-criterion proofs remain mandatory after the last task.
 **Commit**: `feat(service-business): t69 keep provenance through the knowledge reader`
 
+### T108: Collect bounded native Windows socket evidence without CIM startup
+
+**What**: Trocar só a coleta Windows que dispara Get-NetTCPConnection por uma leitura numérica fresca de netstat.exe do sistema, com argv fixo, sem shell/DNS, mesmo timeout10000/maxBuffer1000000. Filtrar PID do próprio processo e Established, validar formato/portas/endpoints e reutilizar assertConstructionRedisNativePeer sem alterar suas negativas. Preservar referência de Socket e inspeção de estado antes/depois de await; erro/malformed/duplicata/peer diferente nunca concede ownership. Não registrar saídas globais/privadas do comando.
+**Where**: `apps/api/tests/nest-construction-only.guards.mjs`
+**Depends on**: T2
+**Reuses**: Windows system netstat -ano, existing live Node/ioredis guard proofs, unchanged assertConstructionRedisNativePeer/captured socket WeakMap/teardown/ambient network traps. JS harness runs directly and is not a Nest compilation input.
+**Requirement**: QA-01, QA-03
+
+**Done when**:
+
+- [x] Parser and command contracts reject malformed or foreign ownership, preserve duplicate ambiguity, use numeric established TCP and current PID only, keep fixed command/deadline/buffer, sanitize errors and never use stale output or a fallback that grants authority.
+- [x] Real current Windows loopback sockets with blank getter simulation are corroborated by the OS and retain the exact captured socket through closure; new and all old construction/owned-client contracts pass without skips or assertion edits. A non-Windows collector refuses the unsupported operation; portable parser contracts still execute.
+- [x] Full JS guard gate and syntax/build check pass, evidence records actual counts/durations/ownership and unchanged productive compiler inputs. Mark before one atomic local repair commit. Original105browser2/54API9 remain required in their own tasks; no green feature from this repair alone.
+
+**Tests**: New `tests/windows-owned-tcp.contract.spec.mjs`, unchanged `tests/nest-construction-only.contract.spec.mjs` and `tests/storefront-journey-owned-clients.contract.mjs`; real local TCP/ioredis only, no Docker/provider or AppModule auth override. Native Windows branch is actually exercised here; non-Windows denial is a tested branch, not a skip.
+**Gate**: Full JS build/contract: `pnpm --dir apps/api exec node --check ./tests/windows-owned-tcp.mjs`; `pnpm --dir apps/api exec node --check ./tests/nest-construction-only.guards.mjs`; `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/windows-owned-tcp.contract.spec.mjs ./tests/nest-construction-only.contract.spec.mjs ./tests/storefront-journey-owned-clients.contract.mjs`. No productive TypeScript/package/schema changes; whole checked API artifacts remain separately admitted by their unchanged inventories for affected consumers. Record parser/command files and exact source review before first run.
+**Status**: Complete locally:30/30 old/new contracts,0skip/fail/cancel, both JS syntax checks and real Windows native socket proof passed. See task-108-evidence.json; original54/105 consumer reruns and final feature verification remain pending.
+
+**Commit**: `fix(service-business): t108 collect bounded native socket evidence`
+
 ### T70: Extend parameterized Cypher templates for services
 
 **What**: Templates aprovados unem serviço/profissional/conhecimento público com parâmetros tenant, limite/timeout; gateway Community privado mantém rejeição de escrita e Cypher livre; disponibilidade continua ferramenta operacional.
 **Where**: `apps/api/src/modules/graph-rag/domain/graph-query.ts`
-**Depends on**: T69
+**Depends on**: T69, T108
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: RAG-05, RAG-08, EDGE-05
 
@@ -2111,7 +2137,7 @@ T107 → T106
 
 **What**: Usar o ToggleSwitch existente nos controles booleanos do cadastro de produtos e serviços, com label/estado/foco acessíveis e a mesma regra de valor/payload. Não transformar seleção de itens em preferência booleana nem alterar disponibilidade canônica.
 **Where**: `apps/dashboard/src/pages/product-detail/components/ProductForm.tsx`, `apps/dashboard/src/pages/product-detail/components/ServiceScheduleEditor.tsx`
-**Depends on**: T98
+**Depends on**: T98, T108
 **Reuses**: ToggleSwitch, ProductForm, existing catalog/service schedule fixtures and local screenshot runner. If another catalog boolean lives in ProductBlockEditor, include only its control and preserve the block payload.
 **Requirement**: CAT-03, REG-02, QA-02
 
@@ -2165,7 +2191,7 @@ T107 → T106
 
 ### T95: Collect revision-bound acceptance evidence
 
-**What**: Coletor valida cobertura de todos os critérios atuais da especificação (81 neste plano), teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
+**What**: Coletor valida cobertura de todos os critérios atuais da especificação (81 neste plano), teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks. T108 native guard evidence and original affected consumer reruns remain distinct.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
 **Depends on**: T94, T97, T98, T101, T103, T106
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
@@ -2510,6 +2536,12 @@ Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.servi
 Tasks: T107.
 
 ## Handoff
+
+**T108 Full30 passed / dispatched concrete source review (before sending):** standard sanitized runner .cache/run-t108-gate.mjs guard completed syntax checks and30/30 whole old/new contracts,0skip/fail/cancel. Finalrun .cache/t108-gates/2026-11-16T17-06-54.040Z; real native TCP forced-blank-getter ownership/closure passed, existing two old files unedited. Before finalrun a new malformed-prefix case strengthened the parser to reject partial TCP rows rather than ignore an ambiguous trailing row; no old assertion altered. P may review the exact three-file108delta and actual proof before commit, no edits/runners. Root retains sole execution, unrelated70API unstaged. Original affected C105browser2/M54API9 remain pending after108integration, so this is not feature completion.
+
+**Root acquired sole T108 execution / dispatched source review (before sending):** C returned after its fourth105attempt failed before readiness with zero business cases; no remaining C Node/owned containers and no AggregateError, do not claim admitted app ACK. M already idle, allsource54/105 frozen with partial evidence. Root owns a narrow T108 JS-only repair in N (Root70TypeScript remains unstaged/unexecuted). P may review existing proof and proposed fixed native netstat collector read-only against official Microsoft docs; no productive edit/import/test/build/OS/process modification. Preserve every existing ownership assertion/10s bound, old logs and failed setup counts. Root implements/tests then commits108 independently; affected C/M consumers rerun after integration. No new user approval needed for implementation of the existing native ownership contract, no external/OS/global action or test-oracle edit.
+
+**Dispatched conditional107 continuation and extended C window (before sending):** C owns whole Phase16. Finish105 green/atomic first; then preserve its exact committed105 and align only Rootcommittede4e5783dc metadata (no Rootdirty70API), recording/resolving metadata status without discarding105proofs. CurrentCAT05/C81/T107 formal files are in that commit. Source-only107plan must precede productive edit, then its own unfiltered units/types/lint/dashboardbuild/actual local browser and atomic commit. Existing105 third trace confirms advanced-rules403 for both modes; keep Starter negative, no billing upgrade to conceal it or toast hiding. Only existing hasFeature/cancelled effect policy, noAPI/schema/plan changes. Fresh own API fa8c/1d61 can be re-admitted byte-exact because107 is UI only; do not rebuild unchanged API or use foreign artifacts. C retains sole window through107 for readable final captures; M54API9 rerun follows its return.106productive source remains blocked by107gate/commit. Root/P/M/99no runners. Original diagnostic images and failures remain, no final screen/feature/provider claim.
 
 **Catalog107 repair planned, not dispatched:** C105 browser observed Starter's rule-loading toast; source PromotionSection effect always calls advanced-rules but render already uses hasFeature, backend gates Growth. Added narrow107 after105/before106 and CAT05/C81 without changing the policy. C may finish frozen105 and report exact network observation first. No productive107 or106 edit yet; no skipped105gate, plan upgrade, toast hiding, API changes or claimed repair from the source hypothesis. Counts81criteria/107tasks, completed46 until actual105gate/commit.
 

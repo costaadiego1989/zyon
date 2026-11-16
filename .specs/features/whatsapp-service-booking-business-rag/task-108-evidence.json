@@ -1,0 +1,59 @@
+{
+  "task": "T108",
+  "status": "complete_locally",
+  "base": "e4e5783dc12b939e6784442254c619b0fc990ba9",
+  "createdUtc": "2026-11-16T17:10:05.375481+00:00",
+  "scope": "JS-only native ownership collector repair; no productive compiler input, guard oracle, deadline or global OS change",
+  "gate": {
+    "command": "node .cache/run-t108-gate.mjs guard",
+    "log": ".cache\\t108-gates\\2026-11-16T17-09-07.069Z\\guard.log",
+    "sha256": "417ed9b2f7eda155e4677ad3d2d3f40de78db90a523d39fcdd248967dd810c7a",
+    "counts": {
+      "tests": 30.0,
+      "pass": 30.0,
+      "fail": 0.0,
+      "cancelled": 0.0,
+      "skipped": 0.0,
+      "duration_ms": 5047.9598
+    },
+    "syntaxNativeExit": 0,
+    "syntaxGuardExit": 0,
+    "nativePlatform": "win32",
+    "providerCalls": 0
+  },
+  "preserved": {
+    "nativeOwnershipGuardSha256": "29c94e4502eddafe5178ec5b0833a6c0ec9d0b2b6d979cecb45eded5112ff7d7",
+    "gitEolNormalized": true,
+    "oldContractFilesUnchanged": true,
+    "timeoutMs": 10000,
+    "maxBufferBytes": 1000000,
+    "duplicateRowsRetained": true,
+    "sameSocketIdentity": true
+  },
+  "review": {
+    "author": "root",
+    "incrementalReviewer": "service_professional_agenda",
+    "finding": "new live fixture acquisition outside finally",
+    "resolution": "moved acquisition/getter overrides under finally and reran full30",
+    "finalVerifier": false
+  },
+  "files": [
+    {
+      "path": "apps/api/tests/windows-owned-tcp.mjs",
+      "sha256": "2fa88b89a3b2541eb14546c4f942ee6d15ce0ab0978ac50c22cf546def490f7d"
+    },
+    {
+      "path": "apps/api/tests/windows-owned-tcp.contract.spec.mjs",
+      "sha256": "cd4a8d8b9a26d22622a634c373371b396b870e6b32acdd2bcdfc4ef33e7f3312"
+    },
+    {
+      "path": "apps/api/tests/nest-construction-only.guards.mjs",
+      "sha256": "7b45a8a7f03b18c05d4d90387c1701db91dc91d539c329488ae62b4974b93fd2"
+    }
+  ],
+  "limits": [
+    "Original T54 API9 and T105 browser2 remain pending after committed repair integration.",
+    "Root T70 API source remains unstaged/unexecuted.",
+    "No provider delivery, production or full-feature completion."
+  ]
+}

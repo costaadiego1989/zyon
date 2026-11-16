@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { Socket } from "node:net";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { nativePrismaWorkerEnvironment } from "./native-prisma-admission-guards.mjs";
+import { readOwnedWindowsTcpRows } from "./windows-owned-tcp.mjs";
 
 const flags = ["--local-disposable", "--prisma-loopback-exec", "--construction-only"];
 const disabled = ["DATA_RETENTION_ENABLED", "BILLING_PROMOTIONS_ENABLED", "BILLING_ADMIN_NOTIFICATION_ENABLED",
@@ -106,11 +105,7 @@ export function createConstructionRedisSocketProof(port) {
       let rows;
       if (missingPeers.length) {
         assert.equal(process.platform, "win32", "construction_native_tcp_evidence_windows_only");
-        const result = await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
-          `Get-NetTCPConnection -OwningProcess ${process.pid} -State Established -ErrorAction Stop | Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,OwningProcess,State | ConvertTo-Json -Compress`],
-        { windowsHide: true, timeout: 10_000, maxBuffer: 1_000_000, encoding: "utf8" });
-        const parsed = JSON.parse(result.stdout);
-        rows = Array.isArray(parsed) ? parsed : [parsed];
+        rows = await readOwnedWindowsTcpRows();
       }
       for (const { owner, socket } of entries) {
         if (captured.has(owner)) assert.equal(captured.get(owner), socket, "construction_redis_socket_identity_required");

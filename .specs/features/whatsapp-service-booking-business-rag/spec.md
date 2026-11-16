@@ -20,6 +20,8 @@
 
 **Discovered catalog defect:** local105 browser captures exposed an advanced-rules error while editing a Starter offer. Existing PromotionSection fetches the Growth-only endpoint without checking the same hasFeature flag already used by its UI; the API entitlement stays authoritative. CAT-05/T107 repair that inconsistency before professional-link UI, without changing plans, prices or backend guards. Current81criteria/107tasks. The new assertion records the existing feature policy, not a new business choice; exact HTTP status and final visual proof remain part of its gate.
 
+**Runtime prerequisite repair:** T108 replaces only the repeated slow Windows native socket collector while preserving its ownership contract and10s deadline. Current81criteria/108tasks. Its30old/new guard contracts and actual Windows connection pass locally; original54API9/105browser2 remain required separately, with no production or full-feature approval.
+
 ## Problem Statement
 
 O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slots e suporte. A experiÃªncia ainda nÃ£o comprova uma agenda com vÃ¡rios profissionais, atendimento humano na mesma conversa e conhecimento alimentado automaticamente pelo cadastro da empresa. A validaÃ§Ã£o de comÃ©rcio nÃ£o comprova prontidÃ£o para atendimento de clÃ­nicas ou outros prestadores de serviÃ§os.
@@ -336,7 +338,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | In Progress (T17 complete) |
 | REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | Pending |
 | REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17 complete) |
-| QA-01 | Criteria proofs | T1, T95 | Pending |
+| QA-01 | Criteria proofs | T1, T108, T95 | Pending; native collector repair does not close feature proof |
 | CAT-01 | Product-mode creation options | T98 | Complete locally;55unit+2real browser, no skips; final screen review later |
 | CAT-02 | Service-mode creation and defaults | T98 | Complete locally; defaults/reset/payload/history and actual stale-mode409 proved |
 | CAT-03 | Catalog boolean toggles | T105 | Pending |
@@ -347,7 +349,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | Pending |
-| QA-03 | Persisted state proof | T2, T5, T26, T92, T95 | In Progress (T26 complete) |
+| QA-03 | Persisted state proof | T2, T5, T26, T108, T92, T95 | In Progress (T26 complete) |
 | QA-04 | RAG evaluation | T72, T94, T95 | Pending |
 | EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 and T22 complete) |
 | EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | Pending |
