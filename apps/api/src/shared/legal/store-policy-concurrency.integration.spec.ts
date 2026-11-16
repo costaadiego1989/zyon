@@ -8,7 +8,7 @@ import { PrismaPolicyRepository } from "../../modules/knowledge-base/infrastruct
 const db = createPrismaClient("postgresql://postgres@127.0.0.1:15565/athom_qa");
 after(async () => { await db.$disconnect(); });
 const fields = ["returns", "shipping", "warranty", "payment", "general"] as const;
-const initial = { privacy: "Privacy unchanged", terms: "Terms unchanged", ...Object.fromEntries(fields.map(key => [key, "old " + key])) };
+const initial: Record<string, string> = { privacy: "Privacy unchanged", terms: "Terms unchanged", ...Object.fromEntries(fields.map(key => [key, "old " + key])) };
 async function fixture(t: TestContext) {
   const ids = ["qa_athom_policy_" + randomUUID(), "qa_athom_policy_" + randomUUID()];
   for (const id of ids) {
@@ -38,6 +38,20 @@ test("store settings synchronize all five policies and explicit clearing preserv
   const current = await f.policies.get(f.id);
   assert.deepEqual(current, { returns: patch.returns, shipping: patch.shipping, warranty: null, payment: null, general: patch.general });
   assert.deepEqual((await f.policies.publicSnapshot(f.id)).policy, { privacy: initial.privacy, terms: initial.terms, returns: patch.returns, shipping: patch.shipping, general: patch.general });
+});
+
+test("undefined store policy fields preserve both sources while explicit empty text clears only its field", async t => {
+  const f = await fixture(t);
+  await f.settings.updateStoreSettings(f.id, { policies: { privacy: undefined, terms: undefined, warranty: undefined,
+    general: "Latest general", payment: "" } });
+  const saved = await f.policies.get(f.id);
+  assert.deepEqual(saved, { returns: initial.returns, shipping: initial.shipping, warranty: initial.warranty, payment: null, general: "Latest general" });
+  const { payment: _removed, ...preserved } = initial;
+  assert.deepEqual((await f.policies.publicSnapshot(f.id)).policy, { ...preserved, general: "Latest general" });
+  const settings: any = (await db.merchant.findUniqueOrThrow({ where: { id: f.id } })).storeSettings;
+  assert.equal(settings.policies.warranty, initial.warranty); assert.equal(settings.policies.privacy, initial.privacy);
+  assert.equal(settings.policies.terms, initial.terms); assert.equal(settings.marker, "preserved");
+  assert.deepEqual((await f.policies.publicSnapshot(f.other)).policy, initial);
 });
 test("concurrent independent policy and company patches preserve every committed field", async t => {
   const f = await fixture(t);

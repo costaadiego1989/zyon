@@ -102,10 +102,11 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
         select: { storeSettings: true },
       });
       const existing = (current?.storeSettings as Record<string, unknown>) ?? {};
-      const incoming = settings as unknown as Record<string, unknown>;
+      const policyPatch = settings.policies && Object.fromEntries(Object.entries(settings.policies).filter(([, value]) => value !== undefined));
+      const incoming = { ...settings, ...(policyPatch ? { policies: policyPatch } : {}) } as unknown as Record<string, unknown>;
       const merged: Record<string, unknown> = { ...existing };
       for (const [key, value] of Object.entries(incoming)) {
-        if (key === "budget") continue;
+        if (key === "budget" || value === undefined) continue;
         const prev = existing[key];
         const bothPlainObjects =
           prev != null && typeof prev === "object" && !Array.isArray(prev) &&
@@ -128,14 +129,14 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
           ...(requestedSlug ? { storeSlug: requestedSlug } : {}),
         }
       };
-      if (settings.policies) {
+      if (policyPatch) {
         await tx.merchant.update(update);
-        const commercial = Object.fromEntries(["returns", "shipping", "warranty", "payment", "general"].filter(field => Object.hasOwn(settings.policies!, field)).map(field => [field, (settings.policies as Record<string, string>)[field] || null]));
+        const commercial = Object.fromEntries(["returns", "shipping", "warranty", "payment", "general"].filter(field => Object.hasOwn(policyPatch, field)).map(field => [field, policyPatch[field] || null]));
         if (Object.keys(commercial).length) await tx.merchantPolicy.upsert({
           where: { merchantId }, create: { merchantId, ...commercial }, update: commercial,
         });
         // Never leave a retrieval chunk containing superseded promises.
-        await tx.knowledgeChunk.deleteMany({ where: { merchantId, sourceType: "policy", sourceId: { in: Object.keys(settings.policies!) } } });
+        await tx.knowledgeChunk.deleteMany({ where: { merchantId, sourceType: "policy", sourceId: { in: Object.keys(policyPatch) } } });
       } else {
         await tx.merchant.update(update);
       }
