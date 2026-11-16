@@ -10,7 +10,8 @@ const message = z.string().max(4000).refine(value => value.trim().length > 0);
 const history = z.array(z.strictObject({ role: z.enum(["user", "assistant"]), content: z.string().max(8000) })).max(100);
 const attachment = z.string().max(24000).optional();
 const identity = z.strictObject({ agentName: z.string().max(200).optional(), persona: z.string().max(4000).optional(),
-  tone: z.string().max(200).optional(), greeting: z.string().max(4000).optional(), language: z.string().max(80).optional() });
+  tone: z.string().max(200).optional(), greeting: z.string().max(4000).optional(), language: z.string().max(80).optional(),
+  emptyCartGreeting: z.string().max(500).optional() });
 const buyer = z.strictObject({ globalUserId: id, name: z.string().max(200).optional(),
   phone: z.string().max(40).optional(), email: z.string().max(320).optional() });
 export const oneBuyClickContextSchema = z.strictObject({ enabled: z.boolean(),

@@ -40,6 +40,16 @@ test("contract: an ordinary storefront turn retains the existing wire response",
   assert.equal(f.calls.generated.length, 1);
 });
 
+test("contract: saved empty-cart greeting does not fail a buyer message", async () => {
+  const f = fixture();
+  const identity = { agentName: "Athom", greeting: "Olá", emptyCartGreeting: "O que deseja comprar?" };
+  f.prisma.agentRule.findFirst = async () => ({ identity, checkoutSettings: {} }) as never;
+  const output = await f.useCase.execute(input);
+  assert.deepEqual(output, { message: validReply.message, blocks: [], cart_id: "conversation",
+    conversation_id: "conversation", suggested_next: ["Ver produtos"] });
+  assert.deepEqual((f.calls.generated[0] as { agentIdentity: unknown }).agentIdentity, identity);
+});
+
 test("contract: the canonical stacking restriction reaches the conversation context without granting a benefit", async () => {
   for (const allowed of [false, true]) {
     const f = fixture();
