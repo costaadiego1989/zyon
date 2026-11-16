@@ -19,10 +19,10 @@ function formatDiscount(type: string, value: number): string {
   if (type === "percent") return String(value || 0) + "%";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 }
-function formatDate(iso: string): string {
-  // A date without a time is a calendar date; avoid shifting it to the previous day.
-  const date = new Date(iso.length === 10 ? iso + "T12:00:00" : iso);
-  return Number.isNaN(date.getTime()) ? "Data indisponível" : date.toLocaleDateString("pt-BR");
+export function formatCouponDate(iso: string): string {
+  // The date-only form is serialized by the API as UTC midnight.
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "Data indisponível" : date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 export function CouponsPage(_props: CouponsPageProps) {
   const vm = useCouponsPage();
@@ -78,7 +78,7 @@ export function CouponsPage(_props: CouponsPageProps) {
               <Button variant="ghost" size="sm" disabled={!!vm.mutatingId} onClick={() => { vm.clearDeleteError(); setDeleteTarget({ id: coupon.id, code: coupon.code }); }} aria-label={"Arquivar cupom " + coupon.code}><Trash2 size={14} /> Arquivar</Button>
             </div>
           </div>
-          <dl className="coupon-row__details"><div><dt>Benefício</dt><dd>{formatDiscount(coupon.discountType, coupon.discountValue)}</dd></div><div><dt>Resgates</dt><dd>{coupon.usedCount ?? 0}{coupon.maxUses ? " de " + coupon.maxUses : " · sem limite"}</dd></div><div><dt>Validade</dt><dd>{coupon.startsAt ? "De " + formatDate(coupon.startsAt) : "Sem início definido"}<br />{coupon.expiresAt ? "Até " + formatDate(coupon.expiresAt) : "Sem data final"}</dd></div>
+          <dl className="coupon-row__details"><div><dt>Benefício</dt><dd>{formatDiscount(coupon.discountType, coupon.discountValue)}</dd></div><div><dt>Resgates</dt><dd>{coupon.usedCount ?? 0}{coupon.maxUses ? " de " + coupon.maxUses : " · sem limite"}</dd></div><div><dt>Validade</dt><dd>{coupon.startsAt ? "De " + formatCouponDate(coupon.startsAt) : "Sem início definido"}<br />{coupon.expiresAt ? "Até " + formatCouponDate(coupon.expiresAt) : "Sem data final"}</dd></div>
             <div><dt>Compra mínima</dt><dd>{coupon.minCartValue ? formatDiscount("fixed", coupon.minCartValue) : "Sem mínimo"}</dd></div>
             <div><dt>Usos por comprador</dt><dd>{coupon.maxPerBuyer ?? "Sem limite"}</dd></div>
             {!!coupon.allowedSkus?.length && <div><dt>SKUs elegíveis</dt><dd>{coupon.allowedSkus.join(", ")}</dd></div>}
