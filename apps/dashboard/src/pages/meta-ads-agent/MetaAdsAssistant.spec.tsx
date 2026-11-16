@@ -29,6 +29,20 @@ test('ADAS-10 send gesture displays admitted processing and confirmed reply from
 test('ADAS-10 polling completes a persisted running turn through reads without another paid submission',async()=>{
   screen=ui();const f=fixture(thread([turn({status:'running',reply:null})]));await screen.render(<MetaAdsAssistant {...f.props} pollMs={10}/>);f.client.thread.mockResolvedValue(thread([turn({reply:'Coleta concluída'})]));await act(async()=>{await new Promise(resolve=>setTimeout(resolve,45));});expect(screen.container.textContent).toContain('Coleta concluída');expect(f.client.submit).not.toHaveBeenCalled();
 });
+
+test('ADAS-26 completing a queued campaign turn refreshes canonical overview once without another submission',async()=>{
+  screen=ui();const f=fixture(thread([turn({status:'running',reply:null})]));await screen.render(<MetaAdsAssistant {...f.props} pollMs={10}/>);
+  f.client.thread.mockResolvedValue(thread([turn({reply:'Rascunho salvo',artifacts:[{type:'campaign',campaign:campaign()}]})]));
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,70));});
+  expect(screen.container.textContent).toContain('Rascunho salvo');expect(f.props.onUpdated).toHaveBeenCalledTimes(1);expect(f.client.funding).toHaveBeenCalledTimes(2);expect(f.client.submit).not.toHaveBeenCalled();
+});
+
+test('ADAS-28 queued generation refreshes canonical results until complete without paying again',async()=>{
+  screen=ui();const f=fixture();f.props.overview.generations=[{id:'g',campaignId:'c',status:'reserved'} as never];await screen.render(<MetaAdsAssistant {...f.props} pollMs={10}/>);
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,45));});expect(f.props.onUpdated.mock.calls.length).toBeGreaterThan(0);expect(f.client.submit).not.toHaveBeenCalled();
+  f.props.overview={...f.props.overview,generations:[]};await screen.render(<MetaAdsAssistant {...f.props} pollMs={10}/>);const count=f.props.onUpdated.mock.calls.length;
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,45));});expect(f.props.onUpdated).toHaveBeenCalledTimes(count);
+});
 test('ADAS-14 explicit retry keeps the same admitted input identity and clears recovered send error',async()=>{
   screen=ui();const f=fixture();f.client.submit.mockRejectedValueOnce(new Error('lost'));await screen.render(<MetaAdsAssistant {...f.props}/>);await screen.change('Mensagem para a IA','Preserve esta intenção');await screen.click('Enviar mensagem');expect((screen.container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('Preserve esta intenção');await screen.click('Retomar envio');expect(f.client.submit.mock.calls[0][2]).toEqual(f.client.submit.mock.calls[1][2]);expect(screen.container.textContent).toContain('Processando');expect(screen.container.textContent).not.toContain('Você pode retomar sem perder');
 });

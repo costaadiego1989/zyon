@@ -17,10 +17,30 @@ export class AgenticBrowserProvider {
     this.retrievedReferenceIds.push(...refs.map(ref=>ref.id));
     const userIndex=messages.findLastIndex(m=>m.role==='user');const text=String(messages[userIndex]?.content??'');
     const called=messages.slice(userIndex+1).flatMap(m=>m.tool_calls??[]).map(call=>call.function.name);
+    const stateMessage=messages.find(m=>m.role==='system'&&m.content.startsWith('ESTADO DO SERVIDOR'));
+    const state=stateMessage?JSON.parse(stateMessage.content.slice(stateMessage.content.indexOf('\n')+1)):{};
+    const toolResult=(name:string)=>{const call=messages.slice(userIndex+1).flatMap(m=>m.tool_calls??[]).find(call=>call.function.name===name);const message=messages.findLast(m=>m.role==='tool'&&m.tool_call_id===call?.id);return message?JSON.parse(message.content):{};};
     const completion=(content:unknown,tool?:{name:string;args:Json})=>json({id:randomUUID(),choices:[{finish_reason:tool?'tool_calls':'stop',message:tool?{content:null,tool_calls:[{id:'call-'+randomUUID(),type:'function',function:{name:tool.name,arguments:JSON.stringify(tool.args)}}]}:{content:JSON.stringify(content)}}],usage:{prompt_tokens:100,completion_tokens:40,total_tokens:140}});
     if(body.tools?.some((t:Json)=>t.function.name==='propose_campaign_changes'))return completion(null,{name:'propose_campaign_changes',args:{recommendations:[]}});
     if(/fundos|pagar|pagamento|verba|saldo/i.test(text)&&!called.includes('merchant_ads_funding'))return completion(null,{name:'merchant_ads_funding',args:{}});
-    return completion({reply:refs.length?'A verba dos anúncios é paga diretamente à Meta e é separada da assinatura e dos créditos de imagens. Confira o tipo de cobrança da conta no painel Verba dos anúncios. Use o botão de pagamentos da conta conectada e depois Verificar novamente; esse botão não adiciona saldo na Zyon.':'Qual resultado você quer buscar e quais produtos deseja anunciar?',referenceIds:refs.map(ref=>ref.id)});
+    const reply=(value:string)=>completion({reply:value,referenceIds:refs.map(ref=>ref.id)});
+    if(/fundos|pagar|pagamento|verba|saldo/i.test(text))return reply('A verba dos anúncios é paga diretamente à Meta e é separada da assinatura e dos créditos de imagens. Confira o tipo de cobrança da conta no painel Verba dos anúncios. Use o botão de pagamentos da conta conectada e depois Verificar novamente; esse botão não adiciona saldo na Zyon.');
+    if(/vender.*camisas/i.test(text)){
+      if(!called.includes('merchant_ads_catalog'))return completion(null,{name:'merchant_ads_catalog',args:{query:'Camisa'}});
+      if(!called.includes('merchant_ads_save_draft')){const products=toolResult('merchant_ads_catalog').products??[];return completion(null,{name:'merchant_ads_save_draft',args:{name:'Camisas da semana',variantIds:products.map((p:Json)=>p.variantId),destination:'store',priority:'paid_sales',country:'BR',approvalPreference:/automaticamente|autom[aá]tico/i.test(text)?'automatic':'manual',headline:'Camisas para o seu dia',primaryText:'Conheça as camisas da nossa loja.',mediaIds:[]}});}
+      return reply('Encontrei a Camisa no catálogo. Qual orçamento deseja investir: diário ou total, com quais datas?');
+    }
+    if(/^100$/.test(text.trim()))return reply('Esse orçamento é diário ou total? Quais são as datas de início e término?');
+    if(/(?:100|80) no total/i.test(text)){
+      if(!called.includes('merchant_ads_save_draft'))return completion(null,{name:'merchant_ads_save_draft',args:{budget:{amountCents:/80 no total/i.test(text)?8000:10000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-16T12:00:00.000Z',endsAt:'2026-11-23T12:00:00.000Z'}}});
+      return reply('Rascunho salvo para revisão com o orçamento total e as datas confirmadas.');
+    }
+    if(/selecione o criativo gerado/i.test(text)){
+      if(!called.includes('merchant_ads_overview'))return completion(null,{name:'merchant_ads_overview',args:{}});
+      if(!called.includes('merchant_ads_save_draft'))return completion(null,{name:'merchant_ads_save_draft',args:{mediaIds:(toolResult('merchant_ads_overview').media??[]).filter((m:Json)=>m.campaignId===state.campaign?.campaignId).map((m:Json)=>m.id)}});
+      return reply('Criativo selecionado no mesmo rascunho. Revise antes de solicitar o preparo pausado.');
+    }
+    return reply('Qual resultado você quer buscar e quais produtos deseja anunciar?');
   }
   request:typeof fetch=async(input,init)=>{
     const url=new URL(String(input));const body=init?.body?JSON.parse(String(init.body)):{};

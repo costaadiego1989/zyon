@@ -4,4 +4,7 @@ export function control(path:string,body?:unknown){return cy.env(['agenticNonce'
 export function reset(){return control('reset',{});}
 export function enter(){cy.visit('/');cy.contains('button','Entrar na loja de teste').click();cy.get('h1').should('contain.text','Anúncios com IA');cy.get('.chat-dock-composer textarea').should('exist');}
 export function openChat(){cy.get('[aria-label="Abrir assistente"]').then(button=>{if(!button[0].hidden)cy.wrap(button).click();});}
-export function ask(message:string){openChat();cy.get('[aria-label="Mensagem para a IA"]').clear().type(message);cy.contains('button','Enviar mensagem').click();cy.get('.chat-dock-turn').last().find('.chat-dock-reply').should('not.contain.text','Processando sua mensagem');}
+export function ask(message:string){openChat();cy.get('.chat-dock-history').then(history=>{
+  const count=history.find('.chat-dock-turn').length;cy.get('[aria-label="Mensagem para a IA"]').clear().type(message);cy.contains('button','Enviar mensagem').click();
+  cy.get('.chat-dock-turn').should('have.length',count+1).last().find('.chat-dock-reply').should('not.contain.text','Processando sua mensagem').and('not.contain.text','Este turno não foi concluído').and('not.contain.text','Resultado ainda desconhecido');
+});}

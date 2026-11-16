@@ -59,6 +59,15 @@ function MetaAdsAssistantView({apiBaseUrl,overview,api,client:supplied,pollMs=25
   useEffect(()=>{onModeChanged?.(policyError||!automation?'unknown':automation.mode);},[automation?.mode,policyError,onModeChanged]);
   useEffect(()=>{if(source){if(compact())setExpanded(false);sourceHeading.current?.focus();}},[source]);
   const processing=!!thread?.turns.some(turn=>!terminal(turn));
+  const observedPending=useRef(new Set<string>());
+  useEffect(()=>{
+    let completed=false;for(const turn of thread?.turns??[]){if(!terminal(turn))observedPending.current.add(turn.id);else if(observedPending.current.delete(turn.id))completed=true;}
+    if(completed)void Promise.allSettled([loadPanels(),Promise.resolve(updated.current())]);
+  },[thread,loadPanels]);
+  const pendingWork=overview.generations.some(job=>['reserved','running'].includes(job.status))||overview.executions.some(job=>['reserved','sending','publishing'].includes(job.status));
+  useEffect(()=>{if(!pendingWork)return;let cancelled=false;let timer:ReturnType<typeof setTimeout>;
+    const poll=async()=>{try{await updated.current();}catch{/* Keep the last confirmed operation visible. */}if(!cancelled)timer=setTimeout(poll,pollMs);};timer=setTimeout(poll,pollMs);return()=>{cancelled=true;clearTimeout(timer);};
+  },[pendingWork,pollMs]);
   useEffect(()=>{if(!processing)return;let cancelled=false;let timer:ReturnType<typeof setTimeout>;
     const poll=async()=>{await loadChat();if(!cancelled)timer=setTimeout(poll,pollMs);};timer=setTimeout(poll,pollMs);return()=>{cancelled=true;clearTimeout(timer);};
   },[processing,pollMs,loadChat]);
