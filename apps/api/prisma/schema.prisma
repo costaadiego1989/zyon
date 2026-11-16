@@ -19,6 +19,8 @@ model Merchant {
   billingReceivables BillingReceivable[]
   metaAdsAgentStore MetaAdsAgentStore?
   metaAdsAgentRecords MetaAdsAgentRecord[]
+  assistantThreads MerchantAssistantThread[]
+  metaAdsDailyRuns MetaAdsDailyRun[]
   id                      String       @id
   // Stores in a Scale account share the platform subscription, never their
   // commercial integrations. A root store points to itself after migration.
@@ -108,6 +110,76 @@ model MetaAdsAgentRecord {
   @@unique([merchantId, key])
   @@index([merchantId, kind, createdAt])
   @@map("meta_ads_agent_records")
+}
+
+model MerchantAssistantThread {
+  id String @id
+  merchantId String @map("merchant_id")
+  actorId String @map("actor_id")
+  context String
+  revision Int @default(0)
+  campaignProgress Json? @map("campaign_progress")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  turns MerchantAssistantTurn[]
+
+  @@unique([id, merchantId], map: "merchant_assistant_threads_id_scope_key")
+  @@unique([merchantId, actorId, context], map: "merchant_assistant_threads_actor_context_key")
+  @@map("merchant_assistant_threads")
+}
+
+model MerchantAssistantTurn {
+  id String @id
+  merchantId String @map("merchant_id")
+  threadId String @map("thread_id")
+  ordinal Int
+  requestKey String @map("request_key")
+  inputHash String @map("input_hash")
+  message String
+  status String @default("queued")
+  reply String?
+  references Json @default("[]")
+  artifacts Json @default("[]")
+  error String?
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @db.Timestamptz(3) @map("lease_until")
+  budgetAmountMicros BigInt @default(0) @map("budget_amount_micros")
+  budgetState String @default("none") @map("budget_state")
+  usageCostMicros BigInt? @map("usage_cost_micros")
+  providerRequests Json @default("[]") @map("provider_requests")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  thread MerchantAssistantThread @relation(fields: [threadId, merchantId], references: [id, merchantId], onDelete: Cascade, map: "merchant_assistant_turns_thread_scope_fkey")
+
+  @@unique([threadId, requestKey], map: "merchant_assistant_turns_request_key")
+  @@unique([threadId, ordinal], map: "merchant_assistant_turns_ordinal_key")
+  @@index([merchantId, createdAt], map: "merchant_assistant_turns_merchant_created_idx")
+  @@index([status, leaseUntil], map: "merchant_assistant_turns_pending_idx")
+  @@map("merchant_assistant_turns")
+}
+
+model MetaAdsDailyRun {
+  id String @id
+  merchantId String @map("merchant_id")
+  accountId String @map("account_id")
+  localDay String @map("local_day")
+  timezone String
+  status String @default("queued")
+  analysisStatus String @default("pending") @map("analysis_status")
+  fence Int @default(0)
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @db.Timestamptz(3) @map("lease_until")
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3) @map("next_attempt_at")
+  progress Json @default("{}")
+  report Json?
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, accountId, localDay, timezone], map: "meta_ads_daily_runs_day_scope_key")
+  @@index([status, nextAttemptAt], map: "meta_ads_daily_runs_pending_idx")
+  @@map("meta_ads_daily_runs")
 }
 
 model MelhorEnvioWallet {
