@@ -15,7 +15,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(directory, 'hook.ts'
 }).outputText;
 class Expired extends Error {}
 
-function fixture(initial: Record<string, string> = {}) {
+function fixture(initial: Record<string, string> = {}, idleSeconds?: number) {
   const values = new Map(Object.entries(initial));
   let denyWrites = false;
   const storage = { getItem: (key: string) => values.get(key) ?? null,
@@ -39,7 +39,7 @@ function fixture(initial: Record<string, string> = {}) {
     if (name.endsWith('scoped-conversation')) return scoped;
     if (name.endsWith('prepare-conversation-turn')) return { prepareConversationTurn };
     if (name.endsWith('storefront-read-ui-action')) return { assertStorefrontReadUiAction: noop };
-    if (name.endsWith('widget-config')) return { useWidgetConfig: () => ({ config: {} }) };
+    if (name.endsWith('widget-config')) return { useWidgetConfig: () => ({ config: { idleSeconds } }) };
     if (name.endsWith('cart-store')) return { useCart: () => ({ cart: { cartId: null, itemCount: 0 },
       updateFromBlocks: noop, updateItemQuantity: noop, clearCart: () => calls.push(['clear']),
       captureConversationCartProjection: (scope: any) => { calls.push(['captureProjection', scope]); return () => true; } }) };
@@ -52,7 +52,7 @@ function fixture(initial: Record<string, string> = {}) {
       ensureConversationAccess: async (id: string) => { calls.push(['preflight', id]); await preflight(id); } };
     if (name.endsWith('intervention-tracker')) return { canFireTrigger: () => false, recordTriggerFired: noop, noteActivity: noop };
     if (name.endsWith('analytics')) return { trackConversationStart: noop };
-    if (name === './effects') return { useNudgeTriggers: noop, useProactiveMode: noop, useReturnOrderTracking: noop };
+    if (name === './effects') return { useNudgeTriggers: (...args: unknown[]) => calls.push(['nudgeEffect', ...args]), useProactiveMode: noop, useReturnOrderTracking: noop };
     if (name.endsWith('conversation.service')) return { restoreThemePreference: () => null, trackFunnelEvent: noop };
     if (name.endsWith('conversation.handlers')) return { handleQuickReply: noop, handleUpdateQuantity: noop, handleFireNudge: noop,
       initConversation: async (params: any) => { const result = await params.ensureConversation();
@@ -67,6 +67,12 @@ function fixture(initial: Record<string, string> = {}) {
       if (previousStorage) Object.defineProperty(globalThis, 'sessionStorage', previousStorage); else Reflect.deleteProperty(globalThis, 'sessionStorage');
     } };
 }
+
+test('view model passes configured idle duration to the nudge effect', () => {
+  const f = fixture({}, 600);
+  try { assert.equal(f.calls.find(call => call[0] === 'nudgeEffect')[4], 600); }
+  finally { f.cleanup(); }
+});
 
 test('view model initializes and prepares with one owner before capturing its cart projection', async () => {
   const f = fixture();

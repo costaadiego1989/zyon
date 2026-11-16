@@ -25,6 +25,7 @@ export interface WidgetConfig {
   handoffMessage: string;
   handoffChannels: string[];
   cooldownSeconds?: number;
+  idleSeconds?: number;
   maxInterventionsPerSession?: number;
   maxDiscountPercent?: number;
   progressiveDiscount?: { enabled: boolean; stages: Record<string, number> };

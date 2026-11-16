@@ -45,7 +45,7 @@ export function setupIdleTrigger(
     idleTimer = setTimeout(() => {
       onTrigger("idle_30_seconds");
       reportTriggerEvent("idle_30_seconds", config);
-    }, (config.idleSeconds ?? 300) * 1000);
+    }, (config.idleSeconds ?? 180) * 1000);
   };
   const events = ["mousemove", "keydown", "scroll", "click", "touchstart"];
   events.forEach((e) => document.addEventListener(e, resetIdle, { passive: true }));

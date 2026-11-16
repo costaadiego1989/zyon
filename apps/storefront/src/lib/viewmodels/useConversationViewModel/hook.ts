@@ -506,7 +506,7 @@ export function useConversationViewModel(
     [merchantId],
   );
 
-  useNudgeTriggers(merchantId, conversationIdRef, fireNudge);
+  useNudgeTriggers(merchantId, conversationIdRef, fireNudge, widgetConfig?.idleSeconds);
   useProactiveMode(agentMode, agentInitialDelaySeconds, initConversation, selectChannel);
   useReturnOrderTracking(returnOrderId);
 
