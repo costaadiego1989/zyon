@@ -41,6 +41,8 @@ Regras visíveis, contagens, filtros, política, preços e vagas ficam em funç�
 
 ## Business Capability and Compatibility
 
+2026-11-16 additions use the same architecture. The private staff WhatsApp alert has separate settings/receipt persistence from public FAQ and operator replies, and a minimal authenticated Conversations link. Agendamentos is a separate services-only daily board over ServiceAppointment; Atendimento remains administration. Services replace the primary Orders navigation without deleting historical orders; products retain their existing Orders flow. See support-appointments-addendum-20261116.md for scope, locks, privacy and evidence boundaries. The directly requested additions bring the current plan to78 criteria/103 tasks; the original dated scope above is retained as history.
+
 - Modalidade canônica persistida no signup e retornada no perfil. Segmento, plano e modalidade são eixos distintos. Escolha exclusiva acessível.
 - Empresas existentes de produtos conservam a jornada atual. Serviços legados exigem classificação/migração explícita. Ambiguidade ou catálogo misto não será convertido ou apagado silenciosamente; novas ações de agenda ficam desabilitadas até resolver, preservando operação histórica.
 - Guarda de modalidade e autorização no servidor. Tenant vem de ator/sessão confiável. Mudança com registros incompatíveis retorna conflito; não apaga histórico.

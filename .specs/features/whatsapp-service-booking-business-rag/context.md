@@ -93,6 +93,9 @@ As correções explícitas de animação antes do texto e dez produtos por lote 
 
 ## Open Product Decisions
 
+- 2026-11-16, direct user addition: recognize natural requests for a human attendant, notify a configured fallback telephone, add a services-only appointments Kanban replacing the primary Orders entry, and remove service creation from product businesses. Implementation is local and preserves the approved product/storefront/WhatsApp journeys.
+- Channel answer: user selected "WhatsApp, com link para a conversa (recomendado)". The staff recipient is private; the customer remains in the same conversation. T98 covers catalog creation; T99-T103 cover private settings, durable staff alert, settings UI, canonical appointments view model and daily board/navigation. HUM-02/T57 explicitly includes semantic paraphrases and authenticated voice using the current verified intake. No remaining channel question.
+
 - New explicit instruction, 2026-11-14: "ah outras coisas em empresas tipo serviço adicionar quais serviços em formato de lista clica no mais e vai adicionando uma lista de serviços isso tambem e contexto para rag prossiga de onde parou".
 - Clarification: user chose "Lista simples em Dados da empresa (recomendado)" and reiterated "lembrando que e só para empresas de serviços". Store a public list of service names in company data. Show add/edit/remove list controls only for services; enforce the same mode at the canonical API and public RAG projection. On mode change to products, invalidate the service-list context while preserving historical stored data. Do not create priced/scheduled catalog offers from this informational list.
 

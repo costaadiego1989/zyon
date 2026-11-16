@@ -5,10 +5,16 @@
 **Status:** Approved specification and refinements; tasks approved and Phase 1 implementation started locally.
 **Amendment:** 2026-11-14 - user requested an About field in existing company data, a Conversations tab inside WhatsApp, a service-only Atendimento management page, manual scheduling and business-specific dashboard metrics. User also explicitly required preservation of the approved product journeys in WhatsApp and storefront. Original 47-requirement approval remains recorded above; additions are explicit for task review and have no fabricated approval date.
 **Date:** 2026-11-14
-**User-directed catalog addition:** 2026-11-16 - user: "ah e outra coisa em cadastrar produto cadastrar serviço so aparece para empresas de serviço para empresas sem ser de serviço nao precisa mais mostrar a opção de produto de sreviço para cadastrar". Adds CAT-01/CAT-02 and T98 as directly requested local UI work, reusing the already-approved canonical exclusive business mode and T17 API guard. Current scope is74 criteria/98 tasks. Original approvals remain verbatim; no new production authority. The separately requested human-alert telephone and service Kanban are being inventoried; notification channel is with the user and has not been silently chosen.
-
 **User-directed addition:** 2026-11-14 - a simple service-name list in company data, confirmed by "Lista simples em Dados da empresa (recomendado)" and "lembrando que e sÃ³ para empresas de serviÃ§os". Adds ONB-06 to the original71 criteria; original approvals remain verbatim. This local addition is directly requested and does not authorize production actions.
 **Size:** Complex
+
+**User-directed catalog addition:** 2026-11-16 - user: "ah e outra coisa em cadastrar produto cadastrar serviço so aparece para empresas de serviço para empresas sem ser de serviço nao precisa mais mostrar a opção de produto de sreviço para cadastrar". Adds CAT-01/CAT-02 and T98 as directly requested local UI work, reusing the already-approved canonical exclusive business mode and T17 API guard. Current scope is74 criteria/98 tasks. Original approvals remain verbatim; no new production authority. The separately requested human-alert telephone and service Kanban are being added to the local plan.
+
+**Human-alert channel settled:** 2026-11-16 - user: "WhatsApp, com link para a conversa (recomendado)". The configured fallback telephone receives a minimal team notification with an authenticated dashboard link. The customer stays in the original WhatsApp conversation. The private recipient is separate from public company/RAG data. No SMS integration or production send is authorized by this local implementation decision.
+
+**User-directed support and appointments additions:** 2026-11-16 - user requested natural-language human requests, a fallback phone in support settings and a separate services-only Kanban of scheduled services replacing the primary Orders entry. HUM-02/T57 explicitly include semantic paraphrases with the existing authenticated intake authority. HUM-09/HUM-10 and ATEND-11/ATEND-12 add four criteria and T99-T103, for78 criteria/103 tasks. These are directly requested local additions; original approvals and product-preservation gates remain.
+
+**Discovered regression repair:** 2026-11-16 - required native revalidation reproduced a Neo4j client transaction timeout during cold initial projection. T104 tests a single atomic write statement under the unchanged deadline, version lock and source-retirement contract. This is an implementation repair within RAG-01/02/03, with no added business criterion or relaxed test. Current execution count78criteria/104tasks. The hypothesis is not declared fixed until actual unchanged native gates pass.
 
 ## Problem Statement
 
@@ -194,6 +200,28 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 **Independent Test:** Dois tenants sintÃ©ticos, um de cada modalidade, no WhatsApp e storefront; matriz de comÃ©rcio aprovada antes/depois; migraÃ§Ã£o sobre fixture de dados anteriores; desativaÃ§Ã£o de novas reservas com pagamentos pendentes e agendamentos confirmados preservados.
 
+### P1: Private human-support alerts
+
+**User Story:** Como empresa, quero receber um aviso de pedido de atendimento humano no WhatsApp da equipe, mantendo o cliente na conversa original.
+
+**Acceptance Criteria:**
+
+1. WHEN um operador autorizado configura ou remove o telefone de fallback em Atendimento/Suporte THEN the system SHALL persistir um destinatário privado da própria empresa, independente da modalidade, sem publicá-lo no storefront/RAG nem modificar o conteúdo ou a versão pública do FAQ. [HUM-09]
+2. WHEN um novo atendimento humano é confirmado com telefone de fallback configurado THEN the system SHALL enfileirar uma única notificação de WhatsApp por atendimento/época com link autenticado para a conversa, mantendo o cliente no canal original e expondo falha ou resultado incerto sem afirmar entrega nem duplicar envio incerto. [HUM-10]
+
+**Independent Test:** Salvar e limpar telefone pela UI/API; comparar FAQ e fontes públicas antes/depois; pedido humano por texto/voz/tool gera um atendimento e um alerta; rollback, duplicação, indisponibilidade e resultado incerto mantêm os estados verdadeiros. O transporte de teste é local.
+
+### P1: Service appointments board
+
+**User Story:** Como prestador de serviços, quero acompanhar os agendamentos em Kanban ou lista sem misturá-los com pedidos de produtos ou configurações da agenda.
+
+**Acceptance Criteria:**
+
+1. WHEN um operador autorizado abre Agendamentos THEN the system SHALL oferecer Kanban e lista da mesma consulta canônica de ServiceAppointment, com os seis estados operacionais, filtros coerentes de período/profissional/serviço e estado financeiro separado, preservando versão e registro anterior quando uma ação falha. [ATEND-11]
+2. WHEN uma empresa de serviços acessa a navegação principal THEN the system SHALL apresentar Agendamentos no lugar da entrada principal de Pedidos e conservar Atendimento para gestão, enquanto empresas de produtos preservam Pedidos e não acessam Agendamentos por menu ou URL, sem apagar o histórico de pedidos de qualquer modalidade. [ATEND-12]
+
+**Independent Test:** Mesmos IDs/contagem nos dois modos de visualização, seis estados e pagamentos separados, filtros/fuso, ações permitidas e conflito versionado, navegação/URL nas duas modalidades, histórico preservado e capturas locais desktop/mobile.
+
 ### P1: Catalog creation matches the selected business mode
 
 **User story:** A empresa encontra o cadastro correspondente à modalidade que escolheu, com os mesmos controles visuais e a autoridade de catálogo existentes.
@@ -269,9 +297,9 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | HUM-06 | Automatic AI resume | T56, T61 | Pending |
 | HUM-07 | Unavailable team/provider | T54, T55, T58 | Pending |
 | HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | Pending |
-| RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66 | In Progress (indexing tasks complete; final proof pending) |
-| RAG-02 | Retirement | T65, T67, T68 | Implemented locally (T65/T67/T68 complete; final proofs pending) |
-| RAG-03 | Retry and source durability | T64, T66, T67 | Implemented locally (T64, T66, T67 complete; final proofs pending) |
+| RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Existing indexing implemented; T104 bounded-write repair and final proof pending |
+| RAG-02 | Retirement | T65, T67, T68, T104 | Existing retirement implemented; T104 bounded-write repair and final proofs pending |
+| RAG-03 | Retry and source durability | T64, T66, T67, T104 | Existing durable retry implemented; T104 bounded-write repair and final proofs pending |
 | RAG-04 | Source provenance | T66, T68, T69 | In Progress (T66 producer and T68 admission complete; T69 response propagation pending) |
 | RAG-05 | Compound live queries | T70, T71 | Pending |
 | RAG-06 | Insufficient/conflicting evidence | T68, T71 | In Progress (T68 admission complete; T71 final consumer pending) |
@@ -304,6 +332,10 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | QA-01 | Criteria proofs | T1, T95 | Pending |
 | CAT-01 | Product-mode creation options | T98 | Complete locally;55unit+2real browser, no skips; final screen review later |
 | CAT-02 | Service-mode creation and defaults | T98 | Complete locally; defaults/reset/payload/history and actual stale-mode409 proved |
+| HUM-09 | Private support fallback recipient | T99, T101 | Pending; explicitly requested2026-11-16 |
+| HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Pending; channel confirmed2026-11-16 |
+| ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |
+| ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | Pending |
 | QA-03 | Persisted state proof | T2, T5, T26, T92, T95 | In Progress (T26 complete) |
 | QA-04 | RAG evaluation | T72, T94, T95 | Pending |

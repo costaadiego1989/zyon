@@ -9,7 +9,12 @@ Implementar com a skill **tlc-spec-driven**, seguindo Execute e Critical Rules. 
 **Approved**: 2026-11-14 - user: "Aprovar o plano e iniciar implementação local"
 **Date**: 2026-11-14
 **Mutations**: 3
-**User-directed catalog addition (2026-11-16):** user explicitly requested that service registration appear only for service companies and be removed from product-mode creation choices. CAT-01/CAT-02 and independently deliverable T98 extend the current local plan to74criteria/98tasks. This follows the same canonical business mode and T17 guard; no new domain state, product purchase behavior, remote action or production activation. The remaining two new requests are inventory/amendment work, with only the notification channel still awaiting a user choice.
+
+**Discovered implementation repair:** T104 retains the existing RAG-01/02/03 contract while reducing public projection planning/round-trip overhead after an actual reproduced client deadline failure. No new product decision, assertion change, warm-up or timeout increase. Current78criteria/104tasks; completed task counts remain unchanged until real gates pass. See task-104-plan.md.
+
+**User-directed support/appointments addition (2026-11-16):** private fallback WhatsApp alerts and a separate service-only appointments Kanban are explicitly requested. HUM-09/HUM-10 and ATEND-11/ATEND-12 extend the current plan to78 criteria/103 tasks (T99-T103). User selected "WhatsApp, com link para a conversa (recomendado)". T57 additionally proves natural-language/model-tool handoff under the existing HUM-02 criterion. Original approvals remain unchanged; all work remains local and preserves product journeys. See support-appointments-addendum-20261116.md for the audited boundaries.
+
+**User-directed catalog addition (2026-11-16):** user explicitly requested that service registration appear only for service companies and be removed from product-mode creation choices. CAT-01/CAT-02 and independently deliverable T98 extend the current local plan to74criteria/98tasks. This follows the same canonical business mode and T17 guard; no new domain state, product purchase behavior, remote action or production activation. The remaining two new requests are inventory/amendment work, with the channel confirmed as WhatsApp and concrete additions recorded in T99-T103.
 **User-directed addition**: 2026-11-14 - "Lista simples em Dados da empresa (recomendado)"; "lembrando que e só para empresas de serviços". Adds ONB-06 and T96/T97 to the original approved plan:72 criteria/97 tasks. These two local tasks are directly requested; original approvals are preserved. They run after T16 without blocking the original T16+T25 booking barrier and must finish before T95/final verification.
 **Build**: `pnpm --filter @zyon/api typecheck; pnpm --filter @zyon/api lint; pnpm --filter @zyon/api build; pnpm --filter @zyon/widget-v2 typecheck; pnpm --filter @zyon/widget-v2 build; pnpm --filter @zyon/dashboard typecheck; node scripts/service-local-build.mjs dashboard; pnpm --filter @zyon/storefront typecheck; node scripts/service-local-build.mjs storefront`
 
@@ -146,7 +151,7 @@ T85 → T86 → T87 → T88 → T89 → T90 → T91
 ### Phase 13: Coexistence evidence and activation gates
 
 ```
-T92 → T93 → T94 → T95
+T92 → T93 → T94
 ```
 
 ### Phase boundaries
@@ -171,6 +176,21 @@ T96 → T97
 T97 → T95
 T17 → T98
 T98 → T95
+T53 → T99
+T99 → T100
+T55 → T100
+T99 → T101
+T100 → T101
+T62 → T101
+T41 → T102
+T74 → T102
+T102 → T103
+T80 → T103
+T83 → T103
+T101 → T95
+T103 → T95
+T66 → T104
+T104 → T69
 ```
 
 ## Task Breakdown
@@ -1215,7 +1235,7 @@ T98 → T95
 
 ### T57: Add a fixed human action to the main menu
 
-**What**: Falar com atendente visível no principal para products/services, respeitando capacidade/paginação; menus de produto continuam só ações pertinentes e Menu principal.
+**What**: Falar com atendente visível no principal para products/services, respeitando capacidade/paginação; menus de produto continuam só ações pertinentes e Menu principal. Explicitly cover natural paraphrases through the LLM tool and authenticated voice, including during checkout. Preserve deterministic shortcuts, reject negation/quotation/hypothetical or ambiguous clinician requests, use only server-owned current turn, and prove the canonical buyer acknowledgement after tool-created handoff without weakening AI fences.
 **Where**: `apps/api/src/modules/whatsapp-channel/domain/ui/buyer-hub.ts`
 **Depends on**: T56
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
@@ -1227,7 +1247,7 @@ T98 → T95
 - [ ] buyer-hub.spec.ts + handoff integration por botão/texto/voz, limites nativos e menus já aprovados.
 - [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: buyer-hub.spec.ts + handoff integration por botão/texto/voz, limites nativos e menus já aprovados.
+**Tests**: buyer-hub.spec.ts + handoff integration por botão/texto/voz, limites nativos e menus já aprovados. Add real semantic tool-to-intake-to-buyer-ACK text/voice cases, negation/quote/ambiguity negatives and unchanged checkout/cart/binding snapshots; captured model transport is synthetic, actual intake/fences/SQL are real.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T57$" ./src/modules/whatsapp-channel/domain/ui/buyer-hub.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T57 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t57 add a fixed human action to the main menu`
 
@@ -1399,6 +1419,24 @@ T98 → T95
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T66$" ./src/modules/graph-rag/application/public-business-projection.service.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag-index.integration.spec.mjs ./tests/business-rag-vector-profile.integration.spec.mjs` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T66 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t66 index source versions idempotently`
 
+### T104: Reduce bounded public projection write overhead
+
+**What**: Submit root version/lock admission, old-chunk retirement and current-chunk upsert as one atomic parameterized statement, retaining the unchanged transaction deadline and all canonical worker guards. Resolve the reproduced cold-projection failure without warming tests, retries inside the graph adapter or timeout changes.
+**Where**: `apps/api/src/modules/graph-rag/application/public-business-projection.service.ts`
+**Depends on**: T66
+**Reuses**: Existing public-v1 schema/unique constraints, projection port, prepared public parameters, worker revision/lease/canonical admission, native Neo4j and old index/revalidation fixtures. No catalog/document namespace or provider change.
+**Requirement**: RAG-01, RAG-02, RAG-03
+
+**Done when**:
+
+- [ ] Applied/stale/withdrawn/unavailable outcomes and exact public fields remain intact; one atomic statement retains version compare-and-set, source-root write lock and tenant-scoped retirement/upsert.
+- [ ] Existing unchanged native index14 and canonical revalidation37 cases pass on both profiles under the same2000ms deadline, with no warm-up, skipped assertions or altered failure policy. A failed attempt remains recorded and cannot close the task.
+- [ ] New/old component cohort and fresh official checked API build pass on this source; preserve dirty69, mark104complete and stage only its source/tests/status for one atomic local commit.
+
+**Tests**: New `public-business-projection.submit.spec.ts` root T104 (four outcome children), old preparation/worker/adapter contracts unchanged; actual `business-rag-index.integration.spec.mjs`, `business-rag-revalidation.integration.spec.mjs` and `business-rag-public-support-http.integration.spec.mjs` unchanged.
+**Gate**: Full: unfiltered current combined graph/catalog/knowledge/support/storefront component cohort including the new graph companion; fresh unchanged official checked API build; existing owned index14 and revalidation37 commands through the current guarded launchers. Exact source/output binding, real SQL/Neo4j state, normal cleanup, no provider calls. Record actual executed counts and gate logs, not planned registrations.
+**Commit**: `fix(service-business): t104 reduce public projection write overhead`
+
 ### T67: Backfill and retire public source projections
 
 **What**: Backfill tenant-scoped de dados existentes e tombstones ao retirar/publicar; retomável/versionado e sem reativar texto antigo, sem central manual.
@@ -1441,18 +1479,19 @@ T98 → T95
 
 **What**: KnowledgeChunk e auditoria conservam sourceType/id/version/hash/model/publication; adaptar tipo compartilhado e consumidores estritamente necessários sem vazar conteúdo privado.
 **Where**: `apps/api/src/modules/knowledge-base/infrastructure/graph-knowledge.reader.ts`
-**Depends on**: T68
+**Depends on**: T68, T104
+**Status**: In Progress; paused for discoveredT104 repair. Pre104checked395d/d33d andnative9passed; ordinary/observed revalidation22/20pass/2fail diagnosed cold Neo4j client deadline. Current104source invalidates that artifact. C98validation returned; Root component879 runs33665, fresh checked/native still required.
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: RAG-04, RAG-07
 
 **Done when**:
 
 - [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Reader contract + business-rag.integration.spec.ts: metadata end-to-end até resposta auditada, tenant e fonte exata.
+- [ ] Reader/query/support/storefront contracts plus both native provenance companions demonstrate metadata through the actual persisted response audit, exact tenant/source/correlation, privacy and visible audit-write failure.
 - [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Reader contract + business-rag.integration.spec.ts: metadata end-to-end até resposta auditada, tenant e fonte exata.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T69$" ./src/modules/knowledge-base/infrastructure/graph-knowledge.reader.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T69 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: New provenance contracts for graph reader, QueryKnowledge, response audit, Support consumer, Storefront consumer and public caller scope; unchanged old companions run without filters. Native `business-rag-support-provenance.integration.spec.mjs` (five tests) and `business-rag-storefront-provenance.integration.spec.mjs` (four) exercise actual HTTP/auth/Prisma/audit with declared model-only fixtures. Existing T68 admission, public HTTP and index companions remain required.
+**Gate**: Full: the unfiltered component cohort through the existing guarded loader, a fresh complete checked API build with unchanged compiler settings, then `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag-support-provenance.integration.spec.mjs ./tests/business-rag-storefront-provenance.integration.spec.mjs` and the existing T68 native companions. No name filter, skipped case, stale artifact or undeclared provider override; record exact executed counts and owned cleanup. Final per-criterion proofs remain mandatory after the last task.
 **Commit**: `feat(service-business): t69 keep provenance through the knowledge reader`
 
 ### T70: Extend parameterized Cypher templates for services
@@ -1601,7 +1640,7 @@ T98 → T95
 
 ### T78: Edit availability and blocks from one panel
 
-**What**: Grade/fuso/avulso/bloqueio com preview canônico; conflito confirmado bloqueia salvar sem cancelar; descontinuar escrita independente do ServiceScheduleEditor quando nova autoridade ativa.
+**What**: Grade/fuso/avulso/bloqueio com preview canônico; conflito confirmado bloqueia salvar sem cancelar; descontinuar escrita independente do ServiceScheduleEditor quando nova autoridade ativa. For canonical service businesses, align the existing catalog editor with professional-owned availability: retain modality/location/duration and direct availability to Atendimento instead of presenting legacy per-variant slots as another capacity authority. Preserve historical metadata and product flows; do not silently convert stored schedules.
 **Where**: `apps/dashboard/src/pages/service-attendance/components/AvailabilityPanel.tsx`
 **Depends on**: T77
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
@@ -1673,7 +1712,7 @@ T98 → T95
 
 ### T82: Separate Atendimento from the existing Suporte navigation
 
-**What**: Nova chave service-attendance apenas services, support rotulada Suporte preservando FAQ/chamados; foco de catálogo Serviços; plano/modo/role independentes e histórico preservado.
+**What**: Nova chave service-attendance apenas services, support rotulada Suporte preservando FAQ/chamados; foco de catálogo Serviços; plano/modo/role independentes e histórico preservado. Add service-only Agendamentos as the primary Orders replacement while retaining separate Atendimento management and an authorized historical Orders path. Product Orders navigation remains unchanged; T103 owns the actual new board route.
 **Where**: `apps/dashboard/src/shell/nav-config.ts`
 **Depends on**: T81
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
@@ -1691,7 +1730,7 @@ T98 → T95
 
 ### T83: Guard and mount the service route in the shell
 
-**What**: Lazy render com guarda explícita, hash direto/reload/back/aba; produto não abre Atendimento por URL; rota antiga de suporte e WhatsApp continuam.
+**What**: Lazy render com guarda explícita, hash direto/reload/back/aba; produto não abre Atendimento por URL; rota antiga de suporte e WhatsApp continuam. Preserve the same mode/role/plan guard for the new appointments route mounted by T103; no mode guessed from product counts or segment labels.
 **Where**: `apps/dashboard/src/shell/DashboardShell.tsx`
 **Depends on**: T82
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
@@ -1905,24 +1944,6 @@ T98 → T95
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T94$" ./src/modules/merchant/application/service-activation-readiness.service.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T94 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t94 guard activation and safe disablement`
 
-### T95: Collect revision-bound acceptance evidence
-
-**What**: Coletor valida cobertura dos 72 IDs, teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
-**Where**: `apps/api/tests/service-acceptance-report.mjs`
-**Depends on**: T94, T97, T98
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
-**Requirement**: QA-01, QA-02, QA-03, QA-04
-
-**Done when**:
-
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-acceptance-report.spec.mjs named QA-01: HEAD divergente/zero casos/skip/claim sem prova/critical falho/print preview mislabeled bloqueiam; relatório final só completo após check_proofs e verificação independente.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
-
-**Tests**: service-acceptance-report.spec.mjs named QA-01: HEAD divergente/zero casos/skip/claim sem prova/critical falho/print preview mislabeled bloqueiam; relatório final só completo após check_proofs e verificação independente.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T95$" ./tests/service-acceptance-report.spec.mjs` Teste raiz T95 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
-**Commit**: `feat(service-business): t95 collect revision-bound acceptance evidence`
-
 ### T96: Persist a public service-name list only for service businesses
 
 **What**: Expandir o JSON canônico company.serviceNames com lista simples pública; validar e normalizar nomes, preservar omissão e limpar com[]. Aplicar guard da modalidade sob lock nos três writers/aliases existentes, roundtrip por ambos getters, trabalho durável/invalidação transacional e retirada do contexto ao mudar para produtos, preservando JSON histórico e todos os dados de comércio.
@@ -1978,6 +1999,120 @@ T98 → T95
 **Tests**: New `src/pages/product-detail/components/ProductForm.business-mode.spec.tsx` (root CAT-01), `src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts` (root CAT-02), with necessary actual-page/hook companion for the submit payload; unchanged old product-detail/validation/service-schedule fixtures. New `e2e/service-catalog-business-mode.spec.ts` on existing `playwright.service-local.config.ts`, using synthetic local API/identity fixtures and actual click/type/reset/save gestures. No real provider/API deployment.
 **Gate**: Browser plus UI build: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/components/ProductForm.business-mode.spec.tsx src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx src/pages/product-detail-page.spec.ts src/pages/product-detail/utils/product-validation.spec.ts src/pages/product-detail/utils/service-schedule-validation.spec.ts` without a skip-producing name filter; `pnpm --dir apps/dashboard typecheck`; existing affected-file lint and dashboard build command; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-business-mode.spec.ts`. Existing task-specific protected environment/resources/owned cleanup apply. Worker must record any concrete test-command adaptation before execution and preserve every old assertion.
 **Commit**: `feat(service-business): t98 match catalog creation to business mode`
+
+### Phase 14: Private support notification refinement
+
+### T99: Persist the private support fallback recipient
+
+**What**: Add a private per-merchant support-notification setting and authorized read/update/clear endpoint, separately from public FAQ settings and store configuration. Normalize explicit phone input; do not borrow company/budget/sender phones. Register schema and tenant protection together.
+**Where**: `apps/api/src/modules/support/presentation/http/support-notification-settings.controller.ts`
+**Depends on**: T53
+**Reuses**: Existing support authorization, Prisma tenant conventions, phone normalization, audit and private-settings API patterns. Preserve SupportSetting/public-source persistence unchanged.
+**Requirement**: HUM-09
+
+**Done when**:
+
+- [ ] Actual authorized HTTP save/read/clear changes only the private setting. Anonymous/foreign/forbidden/invalid inputs perform no write or disclosure.
+- [ ] FAQ content/updatedAt, public source work/chunks and public storefront/RAG configuration remain identical, including when no FAQ row exists; FAQ saves preserve the private setting.
+- [ ] Full owned HTTP/SQL and schema/build/lint gates pass, old settings tests remain intact, then mark complete and create one local commit.
+
+**Tests**: New `tests/support-notification-settings.integration.spec.mjs` root HUM-09 plus controller/domain tests; real owned SQL, public configuration/source canaries, concurrent FAQ/private saves and rollback.
+**Gate**: Full plus schema build: unfiltered new controller/domain tests and old support-settings cohort; `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/support-notification-settings.integration.spec.mjs`; unchanged official checked API/schema build and lint. Record concrete component paths before execution. No production DB or provider.
+**Commit**: `feat(service-business): t99 persist private support fallback recipient`
+
+### T100: Queue and dispatch one staff alert per human case
+
+**What**: Create a separate durable case/epoch alert in the canonical new-case transaction, then send a minimal staff WhatsApp notice with an authenticated Conversations link through the verified merchant channel. Preserve receipt identity, current recipient/config, eligibility and unknown-result semantics; ticket survives notification failure.
+**Where**: `apps/api/src/modules/support/application/services/support-case-alert.consumer.ts`
+**Depends on**: T99, T55
+**Reuses**: Existing canonical intake transaction, outbox, channel/config authority and delivery conventions; separate purpose from operator replies, buyer notices and orders. No fictitious orderId, new external account mapping or raw customer text in alerts.
+**Requirement**: HUM-10, HUM-07
+
+**Done when**:
+
+- [ ] Committed new case produces exactly one alert; duplicate/replayed intake, rollback, another tenant and stale epoch cannot create or adopt an alert.
+- [ ] Local captured transport proves recipient, minimal content/link and original verified channel. Unavailable/failed/unknown results retain truthful durable state; no uncertain automatic resend or delivery/read claim from acceptance.
+- [ ] Full component/owned SQL-outbox gates and existing handoff/delivery regressions pass; old assertions intact; mark complete before one atomic commit.
+
+**Tests**: New `tests/support-case-alert.integration.spec.mjs` root HUM-10 and consumer/receipt tests; actual owned SQL/outbox and strictly local provider capture, including rollback, config/recipient changes, missing window/template, uncertain commit and dedupe.
+**Gate**: Full: unfiltered consumer/receipt and existing handoff/delivery cohorts; `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/support-case-alert.integration.spec.mjs`; unchanged official checked API build/lint. Record exact component selectors first; no provider call.
+**Commit**: `feat(service-business): t100 alert staff on new human case`
+
+### T101: Configure support alerts in the existing settings UI
+
+**What**: Add private fallback phone save/clear controls to the existing support settings flow for both business modes, and show truthful alert availability/result in Conversations without publishing the phone to buyers or the RAG.
+**Where**: `apps/dashboard/src/pages/support-settings/support-notification-settings.tsx`
+**Depends on**: T99, T100, T62
+**Reuses**: Existing settings form, validation/errors, typed private API, Conversations case detail and design-system controls; no new RAG administration page.
+**Requirement**: HUM-09, HUM-10, QA-02
+
+**Done when**:
+
+- [ ] Actual save/clear/reload gestures persist the private recipient, preserve FAQ edits, obey role/tenant and display validation/forbidden/network states honestly.
+- [ ] Conversations shows queued/accepted/unavailable/failed/unknown without equating acceptance with delivery; no repeated alert per incoming message.
+- [ ] Unfiltered old/new components, dashboard build/typecheck and local desktop/mobile browser gestures/screenshots pass; mark complete before an atomic local commit.
+
+**Tests**: New `src/pages/support-settings/support-notification-settings.spec.tsx` and `e2e/support-notification-settings.spec.ts`; old FAQ/settings/Conversations tests unchanged. Actual local authenticated API/persistence; no external sends.
+**Gate**: Browser/UI build: `pnpm --dir apps/dashboard exec vitest run src/pages/support-settings/support-notification-settings.spec.tsx` plus old FAQ/settings/Conversations files recorded before execution; dashboard typecheck/local build; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/support-notification-settings.spec.ts`.
+**Commit**: `feat(service-business): t101 configure human support alerts`
+
+### Phase 15: Appointments daily board
+
+### T102: Map canonical appointments to coherent board views
+
+**What**: Create a tested appointment-specific view model/query state for Kanban/list over the same authorized ServiceAppointment result. Preserve six operational statuses, separate financial states, timezone/range/professional/service filters, counts/pagination, allowed actions and expectedVersion.
+**Where**: `apps/dashboard/src/pages/service-appointments/appointment-board.ts`
+**Depends on**: T41, T74
+**Reuses**: Typed service administration client/hook and Orders visual conventions; no TenantOrder fulfillment mapping, client-side capacity authority or implicit historical backfill.
+**Requirement**: ATEND-11
+
+**Done when**:
+
+- [ ] Both views represent the exact same canonical appointment IDs and totals under the same filters. Order-only history cannot produce a card; multiple appointments per order remain distinct.
+- [ ] Six statuses and payment badges remain independent; stale requests/actions cannot overwrite current state. Failed/conflicting commands retain original appointment/version/finance.
+- [ ] Unfiltered new view-model/hook and existing Orders-board regressions pass with dashboard typecheck; mark complete before one atomic local commit.
+
+**Tests**: New `src/pages/service-appointments/appointment-board.spec.ts` root T102 and related hook tests, covering more rows than one page, status/payment combinations, timezone boundaries, races and failed actions. Existing fulfillment-board tests unchanged.
+**Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/pages/service-appointments/appointment-board.spec.ts` plus old fulfillment-board and service-hook files recorded before execution; dashboard typecheck.
+**Commit**: `feat(service-business): t102 model canonical appointments board`
+
+### T103: Present the service-only appointments Kanban and list
+
+**What**: Add Agendamentos with Kanban/list, detail/actions and filters, using the canonical view model. Replace only the service-business primary Orders menu entry, preserve separate Atendimento management and authorized historical Orders access, and enforce mode/role/plan across menu/direct URL/mobile/merchant switches.
+**Where**: `apps/dashboard/src/pages/service-appointments-page.tsx`
+**Depends on**: T102, T80, T83
+**Reuses**: Orders layout/tokens, existing service detail commands, filters, drawers, keyboard/button controls, shell navigation/guards and local browser fixtures. No operational state inferred from payment/clock, no charge/refund from drag.
+**Requirement**: ATEND-11, ATEND-12, REG-01, REG-02, QA-02
+
+**Done when**:
+
+- [ ] Actual browser list/Kanban/filter/detail/action gestures share IDs/counts and canonical versioned commands; conflicts retain prior data. Keyboard/mobile alternatives work without drag.
+- [ ] Services see Agendamentos and separate Atendimento; products keep existing Orders and cannot open the service route. Plan/role restrictions, reload/back/direct URL/command palette/merchant switching hold; stored Orders history is unchanged.
+- [ ] Old/new component regressions, dashboard build/typecheck and local authenticated browser gates pass; share genuine desktop/mobile screenshots and mark complete before an atomic local commit.
+
+**Tests**: New `src/pages/service-appointments-page.spec.tsx`, `e2e/service-appointments-board.spec.ts` root ATEND-11 and `e2e/service-appointments-navigation.spec.ts` root ATEND-12, plus unchanged Orders/shell regressions. Real local API/SQL synthetic appointments and order-only historical sentinel; no PSP/provider.
+**Gate**: Browser/UI build: unfiltered new page/view-model and existing Orders/shell/service-management files recorded before execution; dashboard typecheck/local build; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-appointments-board.spec.ts e2e/service-appointments-navigation.spec.ts`.
+**Commit**: `feat(service-business): t103 present service appointments kanban`
+
+### Phase 16: Revision-bound final acceptance
+
+### T95: Collect revision-bound acceptance evidence
+
+**What**: Coletor valida cobertura dos 72 IDs, teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
+**Where**: `apps/api/tests/service-acceptance-report.mjs`
+**Depends on**: T94, T97, T98, T101, T103
+**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Requirement**: QA-01, QA-02, QA-03, QA-04
+
+**Done when**:
+
+- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [ ] service-acceptance-report.spec.mjs named QA-01: HEAD divergente/zero casos/skip/claim sem prova/critical falho/print preview mislabeled bloqueiam; relatório final só completo após check_proofs e verificação independente.
+- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+
+**Tests**: service-acceptance-report.spec.mjs named QA-01: HEAD divergente/zero casos/skip/claim sem prova/critical falho/print preview mislabeled bloqueiam; relatório final só completo após check_proofs e verificação independente.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T95$" ./tests/service-acceptance-report.spec.mjs` Teste raiz T95 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Commit**: `feat(service-business): t95 collect revision-bound acceptance evidence`
 
 ## Checks
 
@@ -2105,7 +2240,7 @@ Tasks: T58, T59, T60, T62, T82.
 
 **C31** - WHEN cadastro público da empresa, profissional, serviço, horário de funcionamento, FAQ ou política é publicado ou alterado THEN the system SHALL registrar atualização idempotente da projeção de conhecimento com tenant, origem e versão. (RAG-01, AC 1)
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag.integration.spec.mjs ./tests/business-rag-work.integration.spec.mjs ./tests/business-rag-writers.integration.spec.mjs ./tests/business-rag-index.integration.spec.mjs`
-Tasks: T4, T21, T63, T64, T65, T66.
+Tasks: T4, T21, T63, T64, T65, T66, T104.
 
 **C32** - WHEN uma fonte é retirada ou despublicada THEN the system SHALL impedir seu uso como evidência ativa e retirar sua projeção, sem recuperar texto antigo como resposta atual. (RAG-02, AC 2)
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^RAG-02$" ./tests/business-rag.integration.spec.ts`
@@ -2113,7 +2248,7 @@ Tasks: T65, T67, T68.
 
 **C33** - IF embeddings ou grafo estão indisponíveis THEN the system SHALL conservar o cadastro canônico e registrar a indexação pendente para nova tentativa, sem desfazer o cadastro nem inventar uma resposta. (RAG-03, AC 3)
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag-work.integration.spec.mjs ./tests/business-rag-index.integration.spec.mjs ./tests/business-rag-backfill.integration.spec.mjs`
-Tasks: T64, T66, T67.
+Tasks: T64, T66, T67, T104.
 
 **C34** - WHEN o assistente compõe uma resposta factual THEN the system SHALL usar fontes públicas da empresa autenticada e conservar as referências de origem e versão para auditoria. (RAG-04, AC 4)
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^RAG-04$" ./tests/business-rag.integration.spec.ts`
@@ -2279,12 +2414,110 @@ Tasks: T98.
   Proof: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx`
 Tasks: T98.
 
+**C75** - WHEN an authorized operator saves or clears the private support fallback recipient THEN the system SHALL preserve public FAQ versions and keep the recipient outside public storefront/RAG data. (HUM-09, AC 1)
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 --test-name-pattern "^HUM-09$" ./tests/support-notification-settings.integration.spec.mjs`
+Tasks: T99, T101.
+
+**C76** - WHEN a new human case is confirmed THEN the system SHALL queue one private staff WhatsApp alert per case/epoch and preserve truthful unavailable/unknown delivery state without moving the customer conversation. (HUM-10, AC 2)
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 --test-name-pattern "^HUM-10$" ./tests/support-case-alert.integration.spec.mjs`
+Tasks: T100, T101.
+
+**C77** - WHEN the operator opens Agendamentos THEN the system SHALL show coherent canonical appointment Kanban/list views with six operational statuses, separate finance, filters and versioned actions. (ATEND-11, AC 1)
+Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-appointments-board.spec.ts --grep "ATEND-11$"`
+Tasks: T41, T74, T102, T103.
+
+**C78** - WHEN a service business opens navigation THEN the system SHALL use Agendamentos as its primary Orders replacement, preserve separate Atendimento and historical orders, and deny the service route to product businesses. (ATEND-12, AC 2)
+Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-appointments-navigation.spec.ts --grep "ATEND-12$"`
+Tasks: T82, T83, T103.
+
 ## Handoff
 
-**Completed98 C:** Aligned committed rootb5adc21f3 in local merge2ea6cf0f7, preserving both STATE histories and eight cache manifests. Only CAT-01/02,T98,C73/74 and17→98→95 composed; no dirty69/99 source copied. Final55unit(19new+36old), dashboardtypes/build0, affectedlint14/0/0, realbrowser2/2/0skip and unchanged cleanup guards passed. Own officialAPIbuild2542 input5d6dda5d/artifact2bcd67b5 and ownPrisma6.19.3; no artifact reuse. TS2741/new locator diagnostics and ENV422/4404 preserved in task-98-evidence.json. Four primary local captures shared; original clear product mobile carries original-run/SHA and same UI/API provenance. Root viewed legibility; no user UI approval or final sameHEAD screen review is claimed. All heavy resources closed and slot returned before metadata/commit. Phase8 awaits55; Root's later99–104 and69 remain separate.
+**Dispatched Phase8 cache preparation refresh (before sending):** C98is complete/returned. C may refresh its existing wholePhase8T56-T62 preparation in ignored cache only while M55is pending. No productive edits/imports/tests/builds/browser/provider. Read frozenM54proof/types, record exact proposed files/contracts and review: all WhatsApp ticket close/status/transfer writers must respect canonical close+resume; resumed-AI notice needs its own current epoch/purpose proof, no fake inbox or reused human-message authority; semantic tool-created handoff must use the confirmed server-only notice path, not arbitrary model text; staff Conversations access must be separate from credential controls/requests. Preserve original batch dependency55, gates, all old buyer menus/product routes and phone99-101scope. Not finalVerifier; Root retains native43260sole window.
+
+**Current104/69 checked build green, native next (before execution):** unchanged full standard API command0/2543 at .cache/t69-gates/2026-11-16T14-58-30.444Z, current inputfa8cefd9/artifact1d6187f5 recorded15:05:24Z. Components879green;44tasks remain complete,104/69notcomplete. Root now runs existing unfiltered index14 under fresh2048MiB native admission, then only after green the unchanged revalidation37. No warm-up/observer/timeout changes, no source/test mutation during native. C98source is integratedf287; all other workers idle/source-only and Root99unexecuted.
+
+**Root98 integrated;104fresh build (before execution):** Root f28703c69 integrates C98source4ddb706d1 after Full55/2/types/build/lint/defaultCAPI2bcd/cleanupgreen. All36own files SHA-backed; only3metadata temporarily restored, STATE-only conflict section-scoped, no69/104APIfile staged.33nonmetadata own files byte-identical after integration; pending78criteria/104task additions restored with completed98block/C73-C74checks.44tasks complete. Component879/879 passed on the same untouched API source; UI98 has no API/package/lock changes. Root retains sole window and now starts one fresh unchanged standard checked API build after its5168MiB admission. If refused, no stale record/native accepted; exact previously reviewed monitored path remains the alternative. No source/test changes during capture/build.104/69remain open until their full native gates.
+
+**Returned P104 review:** no blocking source issue identified for17+/15- query delta; old tests diff0. CALLunit preserves source-row cardinality, FOREACHscope/5.26semantics and same tenant/source lock/CAS reviewed against primary docs. Newunits are boundary mapping only, not Cypher/performance proof. Native14/37unchanged still required; finalVerifier not dispatched.
+
+**Sole execution window Root104 components (before execution):** C98 reported complete55unit/types/lint/dashboardbuild, ownAPIchecked2bcd and actual browser2/2exit0 with natural cleanup. C finishes evidence/local98commit using metadata/git only; no more runner/build/browser. Root now takes the sole window for the unchanged unfiltered component launcher, whose graph glob includes the new5-case104companion (879expected, actual runner authoritative). API source/old tests frozen; C98integration waits for this run to finish. P/M/Root99 remain source-only. P104source review returned no blocking issue, no execution claim. Old395d/d33dAPIartifact is stale after104 and cannot serve native tests until fresh checked build.
+
+**Dispatched incremental T104 query review (before sending):** P may review only the current17-add/15-remove projection-query repair and its new five-case boundary companion/plan in N. No edits/imports/parser/tests/build/native; C98 browser57843 is sole execution owner. Focus source-root lock/CAS, no-row unit-subquery cardinality, scoped retirement, withdrawal, single atomic rollback and legacy namespace preservation. Actual native performance remains unproven; this is not finalVerifier. Root's old395d/d33d build and874components are now historical for the pre104source; new source requires a fresh complete checked gate and unfiltered cohort before104/69completion. No old assertion/deadline/testfixture changed.
+
+**Root69 observed failure diagnosed; window returned:** the observed rerun again ended22/20pass/2fail, with the same pgvector16 seed projection failure. Actual compiled-adapter observation captured Neo4jError code Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration, duration3114ms, against unchanged2000ms transaction configuration. Default profile15 and publicHTTP4 passed; no source/query/driver/assertion/deadline was changed. Error propagation kept the projection unavailable and job failed truthfully; do not count the incomplete37green or infer a new69source regression from the cold local deadline alone. No blind rerun loop, warming/skip/timeout increase or test-oracle change. All owned resources closed naturally and session79830 ended1.69Full/index14/coexist23/commit remain pending. Preserve new checked395d/d33d and native9pass as separate evidence.
+
+**Dispatched C98 independent validation (before sending):** C receives the sole window after Root79830 natural cleanup.69is not committed/aligned, so do not reuse its artifact; use a fresh fully guarded official C API build on its committedb5adc+own98 source, plus actual own Prisma, exact frontend types/build/lint/unfiltered55 rerun and local browser/screenshots. One fresh resource admission; if refused, preserve proof and return without polling. This independent T98 depends on completed17, not69. P/M/Root99 stay source/read-only, Root no compiler/native while C owns it. Original product API/human support/RAG gates remain required for the complete feature; no remote/provider action.
+
+**Native69 failure and observed rerun (before execution):** current ordinary revalidation ended22tests/20pass/2fail/0skip/cancel; pgvector16 initial projection reportedgraph_unavailable before15children, while publicHTTP4/default15passed. Cause is not proven and all failures stay recorded. Root reviewed the ignored observer: it delegates actual compiled withProjection with identical this/args/result/error, logs only safe status/duration/errorcode, never changes driver/query/retry/timeout. A logging failure makes the process non-green. Exact copy of existing launcher has one changed line adding the observation import to the same unfiltered37 command; default launcher/assertions/deadlines remain untouched. Run one observed revalidation to capture the collapsed graph error; no dependent completion before resolving any reproduced failure. Same checked395d/d33d source frozen, Root sole window.
+
+**Dispatched C artifact-reuse preparation (before sending):** while Root69 native gates run, C may inspect source/manifest contracts read-only and prepare an ignored proposal for immutable checked-artifact transfer after69is committed and C is aligned. Exact canonical input hash, entire generated outputs, schema/Prisma ownership and current source checks are mandatory. Do not copy dependencies, share mutable clients, relabel an old build, execute a helper/test/build or mutate N outputs. No API compatibility is claimed yet. If the existing validators cannot establish complete binding, retain the requirement for a fresh official C build. T98 stays open and this is no finalVerifier dispatch.
+
+**Dispatched incremental T99 source review (before sending):** P/service_professional_agenda, whose T30 preparation is preserved and has no process running, may review the isolated T99 source/tests in C:/tmp/zyon-support-alerts-20261116. Read-only inspection of private schema/tenant/auth/FAQ-RAG exclusion and criterion-derived fixtures; no source edits/imports/tests/builds/containers and no finalVerifier role. Root69 keeps sole native window. Return concrete issues/paths without treating unexecuted tests as evidence.
+
+**Root69 current checked build green:** unchanged full API build2543, input395d3e5a/artifactd33d4ef7, supervisor20261116T133527312720Z natural0/noBreach/noForce/jobEmpty, initial6478/min3484MiB/maxgap313ms. Exact bound finalization completed0 and checked record published13:42:38.272Z. Native provenance9 now runs session42842 after fresh6983MiB admission; Root still owns sole window. After its natural cleanup, run existing revalidation37/index14/coexistence23 sequentially on this artifact.874units remain actual/current (no dirty API file mtime after unit start). No T69 completion yet. T99 source/tests are isolated in C:/tmp/zyon-support-alerts-20261116, zero tests/build/imports there, not in69fingerprint.
+
+**Sole window Root69 after C return (before execution):** C's one fresh static admission refused4404MiB at13:34:45Z, with no child/compiler/browser or owned process. Its first window remains55units/lint green, no T98 completion. Two earlier large processes have naturally exited and physical availability improved; Root may make one fresh-admitted attempt of the unchanged reviewed3072/live1536/maxgap500 owned-Job checked69 supervisor. No weaker threshold or repeated loop; no source/test mutation in N during capture/build. Root99 remains separate source/docs only, P/M/C start no runners. A monitor refusal yields no attestation regardless of reserve. Native gates wait for successful reviewed natural0 receipt and exact binding.
+
+**T98 execution handover renewed (before sending):** C returned its first window with55units/lint green and resource-refused compiler/browser, no owned active process and no task completion. Read-only inspection now shows the two previously observed large unrelated/unknown Node processes and their parents no longer exist; C did not terminate them. This is a material environment change, not permission to kill foreign work. C may take the sole window for one fresh unchanged admission and resume recorded types/build/browser if admitted. Root T99 only source/doc work in its separate checkout; Root69/P30/M54 no runners. Preserve earlier ENV/TypeScript fixture diagnostics and all gates.
+
+**Independent source continuation T99 (before implementation):** the memory refusal prevents current compiler/browser gates, not the already-authorized private-setting source task after completedT53. Root preserves dirty69 in N and prepares T99 in a separate local checkout C:/tmp/zyon-support-alerts-20261116 from committedb5adc21f3, with the current explicit-addition spec/tasks copied as local metadata only. No uncommitted69 source, dependency/artifact copying, test/build/container or task completion. Exact assumptions/files/tests are recorded in task-99-plan.md before source edits. Root owns Phase14 preparation; C remains author of98 and its gate checkpoint; P30/M54 retain their isolated deltas. No source99 is staged into task69.
+
+**Settled mid-build (2026-11-16):** user selected "WhatsApp, com link para a conversa (recomendado)" for the fallback-phone alert. Implement a private support-notification recipient with a minimal authenticated conversation link, preserving the original customer thread. No pending channel choice, no SMS implementation. The new service Kanban and semantic/notification additions are explicit user requests; concrete task/criterion amendments follow the audited canonical models and preserve all original gates.
+
+**Heavy69 returned:** the unchanged supervised build at .cache/phase3-gates/t69-supervisor-20261116T124255838431Z ended ENVREFUSAL_DURING_OWNED_BUILD. Initial4548/min4432MiB did not breach the reserve, but a6375ms scheduling/journal sample gap exceeded the existing500ms observation bound. The owned job was terminated and empty; no child exit0 or build attestation. No compiler flag, test deadline or monitor threshold changed. Current874/874 components remain valid source-based evidence; the old checked artifact is stale. Root starts no new heavy process while C owns the UI gate window.
+
+**Dispatched T98 UI gates (before sending):** C/service_company_ui now owns the sole execution window for the recorded T98 component/typecheck/build/browser gates, after fresh admission by the unchanged applicable resource guards. Root69/P30/M54 start no runners/builds/native/containers while C holds it. Source can finish before capture; freeze it during gates. Browser fixtures and screenshots remain synthetic/local, no real provider or production calls. Preserve old component cohorts unfiltered; report actual counts/commands/receipts and any resource refusal. Do not invent a dashboard lint script or lower build thresholds. Return the slot after natural owned cleanup. No T98 completion/commit before its gate.
+
+**Dispatched T98 UI continuation (before sending):** C/service_company_ui may implement the directly requested catalog creation UI now as T98, independently after completedT17, using the two exact CAT criteria above. First preserve own clean source/metadata/checkpoint and cache inventory; align an isolated branch to committedRootb5adc21f3 without copying Rootdirty69 or shared caches/artifacts. Compare lock/schema and component base hashes, preserve any own metadata in SHA backup. Compose only the new T98 specification/task/check records into its metadata; do not mark69complete. Read impeccable current product register/use existing tokens; the optional upgrade was already declined by the user. Source/plan only initially; Root will explicitly hand over the UI test/browser/build window after no heavy69process remains and fresh resource admission. No new provider/production/remote actions. Other phone/kanban additions remain separate amendment work. This worker is an author, not finalVerifier.
+
+**Heavy69 resumed (before execution):** user explicitly resumed local implementation. Fresh read-only Windows commitment5783MiB at12:39Z, previous suite complete874/874 and no owned heavy process active. Root rechecked exact69supervisor e35d44bc/worker ca5e5c97 against the already-reviewed literal-retarget manifest. Run one unchanged full checked69 build-only on current b5adc21f3+dirty69, monitoring existing initial3072/live1536/300ms/maxgap500/ownedJob rules. No source/test file mutation during capture/build; all src/spec files also fingerprinted. No finalization/native until actual receipt natural0/noBreach/noForce/jobEmpty/source-output binding is reviewed. P30/M54 source-only in isolated worktrees, C additions inventory/cache-only; no other runners/builds/containers. New amendment metadata does not enter productive fingerprints.
+
+**User resumed execution and requested additions (2026-11-16):** user: "entao prossiga ate fecharmos com isso" and "prossiga com o que falta ja mapeado" explicitly revoke the temporary review-only restriction and resume the existing approved local implementation/commits/tests. User additionally requested semantic recognition of human-attendant requests plus a configured fallback notification telephone, a services-only scheduled-services kanban page inspired by Orders replacing the service-business Orders navigation, and service creation offered only to service businesses. Record these additions as a scoped amendment after auditing existing code and resolving genuine missing product choices; no fabricated approval of an unwritten amended spec. Existing97task implementation continues independently. Local-only/production/product-preservation bounds remain.
+
+**Dispatched continuation (before sending):** P/service_professional_agenda resumes its existing Phase4 T30-T32 from committed29, with plan/source only while Root owns the next full checked69 window. M/service_batch_01 resumes existing Phase7 T54-T55 from committed53, plan/source only and original-account/lease/privacy invariants. Neither may start a compiler/native/container/focused runner until Root hands over sufficient resources. C/service_company_ui receives read-only/cache-only inventory for the three new additions: reuse current Orders kanban, service status/actions, catalog business-mode choices, handoff notifications/settings/semantic intent. Return exact source paths and unresolved product choices; no productive edits/tests/build/container. Not finalVerifier. Root owns amendment/spec/DI integration and current69 gate.
+
+**Read-only review result (2026-11-16):** the already-running combined component cohort finished naturally874/874,0fail/cancelled/skipped/todo,294503.3406ms, .cache/t69-gates/2026-11-16T12-12-37.214Z/unit.log SHA404fc5a05e83006c978fe80b58de1541d7fe319cf1fee94d717194a039eff5a5. This is source-level component proof at b5adc21f3 plus dirty69, not a new checked artifact/full69/production proof. No heavy process remains. P and M returned read-only reviews; neither created productive30/54files, only their permitted STATE checkpoints. C's cache-only70proposal is returned, not imported. No new code/test/build/commit after the user's review-only instruction.
+
+**Reviewed remaining work, with concrete source evidence:** T70/71 public corpus selection is not yet wired: QueryKnowledge currently selects legacy graph/SQL (query-knowledge.use-case.ts:66,92), and the legacy repository deliberately excludes public-business-v1 (prisma-knowledge.repository.ts:186,214). Preserve that namespace separation and add a pinned public selector; do not broaden the legacy query. T71 verified-channel scope remains missing at WhatsApp adapter:395 and Storefront socket gateway:113 while PrismaPublicEvidenceSources:31 requires TenantALS; socket buyer identity at:39 is retained for rate limiting but not passed into the message use case. Establish scope only from the verified live channel/capability, including buyer validation, then prove actual channel routes. These are mapped incomplete feature paths, not a production incident claim.
+
+**Reviewed T54 provider gaps:** BubbleWhats sender:16-18 uses global URL/token and its outbound body:45 contains no config/device binding; original-account authority needs a server-owned mapping before new human dispatch can claim it. Sender:29-32 prepends55 to explicit international numbers while fence:51 uses the original recipient; the existing whatsappE164 contract preserves explicit country codes. Twilio sender:40 recognizes lowercase twilio:, whereas authenticated intake accept-bubblewhats-webhook.use-case.ts:120 and handoff repository:47 can legitimately use uppercase TWILIO: when deviceId is absent. Root independently read both sides. Reproduce with owned fixtures before fixing; no provider blocking/policy/runtime production conclusion was applied during review.
+
+**Reviewed T30 draft gap:** current appointment admission requires name plus phone OR email (service-appointment-admission.service.ts:43-53), rejects root Prisma clients:129 and executes the authority fence before merchant locks:133. Its internal clock is a callback read after locks:165. The old external packet must be recomposed with those contracts, current29callbacks and original transaction budgets; copying its Date/now/15s snapshot or stricter payment-contact helper would regress the approved contract. Explicit new capability and real post-lock expiry/current-policy proof remain to implement; no30source was changed.
+
+**User restriction (2026-11-16):** user: "Continue só a revisão por enquanto" after actual Windows commitment fell to858MiB. Current mode is READ-ONLY review: no new productive edits, tests, compiler/native/container starts or commits. Preserve Root69/P30/M54 WIP and the original approved objective. Root full component suite58276 was already running when the question explicitly said it would finish; allow only that existing run to settle naturally and record its actual result, without retry. P/M were notified to stop new edits/tests and report current files/findings. A future user instruction must revoke this restriction before implementation/testing resumes; elapsed time or recovered memory alone is not permission. This note supersedes older heavy/implementation handovers.
+
+**Integrated green29/53:** Root43/97complete, HEADb5adc21f3 after T29e6dd37db4/source1e695f037 and T53b5adc21f3/source0432700ac. Full29=46unit+102native, checked2541 a983/46ba; Full53=31unit+13HTTP-WS-SQL, checked2542 1bd5/9132; zero skips/providers/naturalcleanup. Productive bases matched before cherries. Only additive29metadata insertion conflicted and was retained;53 merged cleanly. Backup all28own69files in .cache/t69-before-green29-53-20261116T120800793794Z;26nonmetadata byte-identical, restored metadata composes both completed task blocks. No69source staged into integrations. Separate gates do not prove this combined source: fresh checked/full69 now required; Root sole-heavy, P30/M54source-pure only.
+
+**Continuation within existing batches:** P's assigned Phase4T26-T32 may continue T30 source/pure after its atomic green29; M's assigned Phase7T48-T55 may continue T54 source/pure after atomic green53. Root sent these continuation notes immediately before recording this line; neither is a new worker/Verifier dispatch. No heavy/native/container/build is granted: Root69 owns the next window. Each next task still requires its plan, unchanged approved scope, actual gate and separate commit. T30 explicit appointments:confirm/no implicit legacy scope; T54 exact original private delivery lease/no adoption after awaits/no public leakage.
+
+**Heavy returned M53:** actual official13/13 passed0fail/skip/provider, ACK/naturalexit0/timers[]/ownedcleanup0 at .cache/t53-gates/2026-11-16T12-00-54.299Z/native.log. Integral before/after checked1bd5/9132 coverage2542 unchanged;31unit current. M closes only evidence/status/atomic53 and starts no54native. P likewise closes green29. Root now owns the next heavy window, but first integrates both reviewed atomic commits with fresh own69SHAbackup and exact metadata composition; then one combined complete checked69/full unfiltered components/native9+37+14. No other checked/native/container concurrently.
+
+**Heavy handover M53 (before sending):** P29 official journal10 passed after exactly approved0473 TTL correction,43.7s/0skip/provider/natural owned Postgres+Redis+bridge cleanup. P returned all heavy; Full29 now46unit+102native on unchanged checked2541 a983/46ba, closing own atomic commit only. Root69 focused approved-scope cohort50/50 green (11-59-26.719Z), no source/guard change. M53 now receives sole-heavy for integral admission of own checked1bd5/9132 and actual official protected13 with applied11074 helper; if input/artifact differs, stop and fresh full checked build is required. No Root/P/C checked/native/container until M returns. Root will SHA-back up latest69metadata before integrating green29/53; combined fresh checked69 follows both.
+
+**Heavy returned and next P29 handover:** second Root69 regression also crossed a Windows suspension (System resume08:55local) and failed; no successful gate claimed. After resume default15cases passed, but the next profile correctly refused the artifact because applying the approved two src/spec literals changed the complete source fingerprint0551→7a5e. This was an orchestrator timing mistake: test files under src are fingerprinted even though production compiler coverage excludes them. Preserve the failed logs; never bypass the guard or revert approval to use the old artifact. Root must perform fresh complete checked build after integrations and approved test application, then repeat full69. Root owns no active heavy process now. P29 receives sole-heavy to verify its own current artifact and run the official journal10 with approved TTL candidate; full/commit only actual green102+46. M53 source/pure waits P return. Root source/backup/integration only; no checked/native/container concurrently.
+
+**Settled test corrections (2026-11-16):** user: "Sim, corrigir essa checagem" approves exactly M53 strict-null JSON parser audit candidate11074da2/proposal2c3bd330, preserving HTTP400/no-write/every other oracle. User: "Sim, corrigir para null" approves exactly Root69 candidate d4d4a093 replacing only two no-context undefined expectations with the existing null contract; API/guards unchanged. User: "Sim, corrigir o teste de expiração (recomendado)" approves exactly P29 TTL candidate0473f8ca/proposalbe497f7e measuring configured four minutes by logical expiresAt and Redis TIME, keeping PTTL>0/all old negatives. Actual official gates remain required; prior external diagnostics are not completion. No new runtime policy, remote action or other test correction authorized by these replies.
+
+**Dispatched (approved test application, before sending):** M53 and P29 may apply only their exact hash-pinned user-approved candidates after checking frozen originals and record approval verbatim in their own task metadata. Focused pure verification and source/evidence preparation allowed. Root currently owns heavy69; no checked/native/container until explicit handover after current owned cleanup. Then P29 runs real journal10 on its unchanged checked source and M53 real protected13 on its unchanged checked source, each with original guards/no filters and own atomic commit only after Fullgreen. Root applies its exact two null literals now; no full69 claim before all actual gates.
+
+**Root69 finalization admission:** actual supervisor093724410819Z SHA c78da9d1 and worker606a814d were reviewed: natural compiler0,2542 checked sources,input0551eacdd2746b83f451b25b9c13dab027e4bd47363605733e25089a4bc4ce3b; artifact03d8fffa1465ea78dbb2d4d63392a8532bc127069a3028bf053c01a285bc8229; jobEmpty/noBreach/noForce/noMonitorFailure,min3521/maxGap313/374samples, all resume/terminal/final observations. No attestation recorded by build mode. Root admits separate finalize-root-reviewed on this exact owned directory, with unchanged binding/output/handle checks; native may start only after finalization and integral artifact admission exit0. Scope/test approvals remain pending, no69Full/completion claim.
+
+**Root69 build-path admission:** standard checked launcher refused before capture/compiler at commitment3976<5168. Root verified the five existing T68 reviewed helper bytes against their pinned manifest, then changed only literal T68/t68 task labels and file paths for69; root/workspace/owner remain identical. Manifest .cache/t69-monitored-reuse-manifest.json records every source/target SHA and substitution count. Adopt the already-reviewed monitored alternative initial3072/live1536 sampled300/maxgap500, official full eight-package/Prisma/Nest command/default heap/coverage unchanged, exact owned Job only; any breach/force/monitor failure is not green. Execute build-only, then inspect actual receipt before separate finalization. No native69 from old68 artifact, no source mutation during compilation. Root remains sole-heavy.
+
+**Heavy handover (Root69, before execution):** P returned all heavy processes after corrected checked2541 a983/46ba,46unit and92independentnative(7HTTP+48product+11holds+26core),0skip/provider/naturalcleanup. Journal10 remains pending explicit TTL-oracle approval, no29commit/integration. Root now owns sole-heavy for fresh T69 full official checked build using the existing guarded launcher retarget8dd0afcf; compiler/defaultheap/coverage and static5168 preflight unchanged. Then actual newSupport5/storefront4 native provenance and old68companions on that exact artifact. No M/P/C heavy runs until explicit return. Official69 scope oracle98af and M53helper4f27 remain frozen; tests may not be skipped or normalized while approvals are pending.
+
+**Dispatched (T70 external Cypher preparation, before sending):** C/service_company_ui may prepare a cache-only implementation proposal for the whole next T70 deliverable, after reading current public-source projections, graph templates, private Community gateway and service canonical interfaces. Map parameterized public source/service/professional queries, tenant and pinned ABI admission, bounded limits/timeouts, rejected write/subquery/procedure/arbitrary text and operational availability boundaries. Include concrete spec-derived test proposals and exact files/base hashes. No productive edits/imports/tests/build/container, no T70 completion before green T69; no separate RAG admin. This preparation is not final verification.
+
+**Pending T29 oracle (2026-11-16):** P preserved actual journal RED10/7/3 and proposed only changing a new incorrect physical Redis key TTL assertion to logical expiresAt bounded by actual Redis TIME plus configured four minutes, retaining physical PTTL>0 and every old assertion. Root reviewed proposal be497f7e/candidate0473f8ca against existing Lua retention+86400000 and T27 logical-expiry negatives. User question is pending; official8d86c21c remains unchanged. P may run independent suites on its fresh corrected financial build, but journal/full/commit require explicit approval then actual green execution.
+
+**Dispatched (P29 independent base/sole-heavy, before sending):** M53 completed diagnostic13 and returned heavy while officialhelper awaits explicit useroracleapproval. Root69 source/pure continues, not green. To keep authorized independent booking work moving, P29 may align own SHA-backed10deltas onto committedgreen68 ee4532ece (not Rootdirty69; no dependency on53) with rechecked4sourcebases/lock/schema and ownmetadata-only composition, then unchanged fullchecked + planned102native under fresh existingguards. No otherheavy whilePowns; no nulloracle/53helper change or scope30implementation. Fullgreen?atomic29. Root will integrate29 preserving own69; later combinedproofs remain required.
 
 
-**Completed53:** M finishes this atomic task from combined68 ee4532ec:31unit/13officialHTTP-WebSocket-SQL/checked2542 input1bd5c4 artifact9132e3,0skip/provider/naturalcleanup. Heavy returned before metadata/commit. Send-only explicit staff role policy preserves default denials; queued is not delivered/read. Own branch feat/whatsapp-operator-message-20261116. Exact null400 pre-auth audit0 correction approved by user "Sim, corrigir essa checagem"; official13 passed after exact candidate11074 was applied. Root69/P29 later combined source is not proven by this artifact. Next M54 is source/pure only until parent heavy dispatch; no production action.
+**Dispatched (T69 external native model-fixture helper, before sending):** C may prepare cache-only native proposal for actual storefront RAG HTTP + modeltransport interception using existing STOREFRONT_PROVIDER_FETCH_FACTORY and real Query/repo/auth/canonical/runtime. Preserve supportQueryModel oldwire/4tests; separate opt-in storefront model flag, no repo/auth/facade/publicroute overrides. Derive real route/input from existing journey/receiver code and ensure no help shortcut masks RAG. No imports/tests/build/container. Root owns source69/actualgate.
+
+
+**Dispatched (M53 actual combined-base alignment + sole-heavy, before sending):** green68commit ee4532ecefc60d51d22fa25c99baf253b9690131 is final. M may align own SHA-backed13deltas onto a new branch at thiscommit without unrelated stash/reset; restore only backed-up owntracked changes if needed, switch, reapply code-only3way patch/newfiles, compose both28 and53shared-types exports and own53metadata only. Recheckallbases/schema/lock and preserve everyoldoracle; actual53 is SupportMessagesController, no fictionaltenant13collision. Then existing fullchecked and planned real12HTTP/SocketIO/SQL gate under ordinaryfresh5168checked/2048nativepreflight (or exactreviewedmonitoredretarget if necessary, no newguardtooling/flags). Root/P nootherheavy; root69source/pure permitted after68commit. Complete53 only actualFullgreen/atomiccommit.
+
 
 **Completed68:** Full639components/51actualnative(37new+14index), checked2541 input4c61abc6/artifact0c20cdc3,0fail/skip/provider/naturalcleanup; task-68-evidence.json preserves allcausalREDs, fixturecorrections and actualboundaries.41/97complete after atomic68; rootheavyreturned. No newbuyerUI or production action. Next M53 aligns thiscommit before checked/native12; P29source7unitready/102nativeunrun waits68+53base. Root69implementation may start only after thisgreen68commit.
 
@@ -2384,7 +2617,6 @@ Tasks: T98.
 **Settled test correction:** 2026-11-16 - user: "Sim, corrigir esse teste para 403 (recomendado)" (reply call_ef8af0f77f6746789f47388d26a49fd9). Approved exactly the T52 candidate dcef33d068a0f44e76400b0af385d63e9865366e477c94b0565848b0f65d2101: foreign body merchantId expects403 tenant_mismatch_body from the existing global guard; authenticated own merchantId remains an extra DTO field rejected400, with all other invalid-input400 and exact no-write assertions unchanged. No runtime/source guard or other oracle changes. A fresh real10-case gate is required after application; earlier overlays remain diagnostics only.
 **Settled test correction:** 2026-11-15 - user: "Sim, corrigir essa linha (recomendado)" (reply call_895e4cba1100411cbc83b4423b42623d). Approved only the old widget email-OTP assertion strategyContextVersion equals its previous value rather than previous+1; saved.version6 and every other oracle remain unchanged. Concrete external candidate176/176 and identical before/after49-case failure were reviewed. Apply exactly that line and require the real protected176-case runner before marking T51 complete. No production/source behavior or remote action is authorized by this correction.
 **Settled mid-build:** 2026-11-14 - user: "Aprovar o plano e iniciar implementação local". Aprovação recebida para os 71 critérios, 95 tarefas/13 fases, refinamentos posteriores e subagentes, preservando produtos nos dois canais. Publicação permanece etapa separada. Início por T1, sem alterar o workspace concorrente.
-**Approved test correction T53:** 2026-11-16 - user: "Sim, corrigir essa checagem". Exact candidate11074da25dcb87e1ebf11df7a7c495bebaa12f5e879f90e754b8ed76730651ab/patch2c3bd330b831b8d36614de6113868bf421fb28499c9afd7e32d4ad2d8f1d2515 applied after original4f27 hash verification: only strict JSON null400 pre-auth auditCount0; other audit waiters,400/no-write and all business assertions unchanged. Diagnostic13/13 remains separate from the gate; official13 subsequently passed on the unchanged1bd5/9132 artifact before this atomic commit.
 **Settled execution change:** 2026-11-14 - user: "por que esta demorando tanto? spawnar subagents". Preparos paralelos autorizados em checkouts isolados, preservando gates reais, dependências técnicas, commits atômicos e escopo local.
 **Root parallel front:** T63-T71 public business RAG in N. T63 uses completed T13/T18; T65 also waits T25 to cover all actual new writers. Human handoff Phase7 may start after the independent schema/session base T9. Final coexistence requires every front; no criterion/gate is removed.
 **Next parallel dispatch:** service_batch_01 switches to whole Phase7 T48-T55 in M after incorporating the committed T64 base; T48 depends on T9 because the binding/support/session domain is independent of availability. Its T26-T32 drafts are hash-preserved and handed to P for execution after P/T25. C retains T96/T97 integration and its returned M field10/10. Root coordinates the same one-heavy-slot limit and final author-independent verification. No human gateway/provider action is authorized by this local dispatch.
@@ -2392,10 +2624,6 @@ Tasks: T98.
 **Previous dispatch snapshot:** service_batch_01 owns Phase7T48-T55 in M;48/49/50 complete and integrated,51 original-authority/transaction/dispatch work in progress. service_professional_agenda completed Phase3T17-T25 (52unit/72native/all4apps types-build0) and executes Phase4T26-T32 from the verified45-file packet; T26 is locally complete with18units/17native/checked2523 and T27 with31units/28native/checked2531; T28 follows. service_company_ui completed Phase2+96/97 and prepares Phase8T56-T62 externally until55, with reviewed temporary RAG helpers in cache. Root integrates N and owns Phase9;63/64/65 complete,65 has528unit/88native/checked2521 green. All36 locally completed tasks and evidence are in STATE.md. Root66 is complete in its own atomic commit: checked2528 e746f146/01c2d8b2, pure603+5 and actual index14+preservation106 all passed, provider0/naturalcleanup0; earlier setup refusals remain recorded. rag66_fixture_review was dispatched2026-11-15T21:35 local for read-only incremental fixture review at HEADa451adf1c plus the current dirty66 files; returned with two oracle findings (live lease during observed lock wait and foreign sentinel preservation), both strengthened by root and passed in actual index14/14; no source or runner authority and no final Verifier role. This dispatch note was recorded after the tool call, not before. No final Verifier/screens dispatched; all work local. Incremental rag66_fixture_review returned read-only T67 draft/fixture review at base12c67c6a9 with one incomplete-foreign-snapshot finding; root strengthened the snapshot, native proof still pending; no edit/runner authority and no final Verifier role. service_company_ui prepares T68 reader inventory/design/tests externally only, no source/runner authority; dispatch record was written after its tool call. T67 reviewer returned one canonical snapshot finding, fixed by root with all assertions retained; actual67 native proof remains pending.
 **Previous dispatch snapshot:** service_batch_01 owns Phase7T48-T55 in M:48/49/50 integrated,51 complete locally in this atomic commit after the explicitly approved one-line old widget oracle correction and real176-case gate. T51 final552unit/91native/normal48/widget176/contracts6 all green, checked2528, zero skipped/provider/owned cleanup. Next52 has only external preparation. Root owns N integration and Phase9;66 is separately committed12c67c6a975d88f5cb3b2a47dea83116f6e58af5,67 is in progress. P27 separately committed27db2fe5a4a27340485d3b9d855dd77d55e7fb28; it needs the final51 guarded composition after integration. C prepares Phase8 externally until55. These separate later commits are not in the M51 artifact. Final Verifier/screens remain undispatched; local implementation only.
 **Previous dispatch snapshot:** M/service_batch_01 owns Phase7T48-T55:48-51 committed and52 completes in this atomic commit (31unit/10realHTTP-DB/checked2529, zero skip/provider/cleanup). Root integrated51 in N a3858b6398383d08182a851fc4d505457f56f5a8 and67 is da31c1156; P28 aligns committed bases and the actual-TX51 hooks. M52 artifact is its independent ed75cbd6a ancestry, not a combined67/P27 build. Next53 will start with source/pure only; root coordinates the single heavy slot. C prepares Phase8 externally until55. Final Verifier/screens remain undispatched and no remote publication is authorized.
-**Settled test correction (T29 TTL):** 2026-11-16 - user: "Sim, corrigir o teste de expiração (recomendado)". Approved only candidate0473f8ca554c3c3916f1b466c622f1e8bb23a70e82eadfc99eee79183b28ab44 / patchbe497f7eeacb9319cf141800b246b4502ce9de48519a7f40ac976ae76690e0e3 over original8d86c21cb610914ee331219e0d15f01d0634f698db4470b69e2b0e94d7b513ad. The new TTL expectation now checks effective held.expiresAt between actual Redis TIME before/after plus configured4min; physical PTTL stays positive. Existing storage retention+24h and all26 inherited journal assertions/negative cases remain. Exact candidate applied; productive source/artifacta983/46ba unchanged. Real journal10 rerun and Full29 remain required before completion; Root69 currently owns heavy.
-
-**P28 completion (2026-11-16, before atomic commit):** T28 Full14unit/83actualnative (9HTTP+48product+26coexistence), checked2538/input64339018/artifacte5fa3d58,0fail/skip/provider/naturalcleanup. Scheduled offers use canonical professional/policy/calendar and actual embed capabilities; unscheduled services, literal old fingerprints, physical/digital/food and approved history preserved. Same-TX51 hook now covers holds/quote; actual takeover refuses subsequent writes. First seed-only failures and13preflight/2probe/2build ENV refusals retained. One successful monitored normal build/default heap was finalized through real Win32 publication; rollback unexercised. Next29 source/preparation only until Root grants another heavy slot. Root68/M53 have separate source/gates and are not in this artifact.
-
 **Walked:** Nenhuma jornada da feature nova foi executada. Prints anteriores de produto não comprovam serviços. Capturas de proposta, se anexadas, terão rótulo de prévia local. Ao executar, registrar rota/gestos/dados/resultado e ambiente para cada Independent Test.
 
 ## Phase Execution Map

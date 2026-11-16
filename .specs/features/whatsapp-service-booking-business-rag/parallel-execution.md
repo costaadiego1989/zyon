@@ -6,6 +6,8 @@ The user requests more implementation agents to accelerate work. This changes th
 
 ## Ownership
 
+Current checkpoint2026-11-16:43/103 tasks locally complete. C owns T98 source/gates and the sole execution window; P prepares T30-T32 source from committed29; M prepares T54-T55 source from committed53; Root retains dirty69 and its pending combined checked/native proof. No other worker starts a runner/build/container while C holds the window. Later direct additions T99-T103 and the T57 semantic clarification are recorded, not dispatched as completed work. Final95 moved after the added phases so acceptance cannot omit them. Channel is confirmed WhatsApp plus authenticated Conversations link; no SMS or production send is authorized.
+
 | Agent | Checkout | Responsibility |
 | --- | --- | --- |
 | service_batch_01 | C:/tmp/zyon-service-booking-admission-20261114 | Phase7 T48–T55 next; preserves and hands off Phase4 drafts to P afterT25; isolated T97 field preparation already returned10/10 |
