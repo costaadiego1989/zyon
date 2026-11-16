@@ -54,7 +54,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const connection = new ConnectionService(repo, commerce, new MetaOAuthAdapter(env), new CredentialCodec(env.META_ADS_CREDENTIAL_ENCRYPTION_KEY), provider, env.META_ADS_OAUTH_REDIRECT_URI ?? "", clock);
   const billing = new BillingService(repo, commerce, new StripeAddonAdapter(env), () => readOffer(env), clock);
   const campaigns = new CampaignService(repo, commerce, connection, provider, clock);
-  const generations = new GenerationService(repo, commerce, new ImageGenerationAdapter(env, input.storage, request, new CreativeReviewAdapter(env)), clock);
+  const generations = new GenerationService(repo, commerce, new ImageGenerationAdapter(env, input.storage, request, new CreativeReviewAdapter(env, request)), clock);
   const proposals = new ProposalService(repo, commerce, campaigns, connection, provider, clock);
   const automationEnabled = () => env.META_ADS_AGENT_ENABLED === 'true' && env.META_ADS_AGENT_AUTOMATION_ENABLED === 'true';
   const authorizeActor = async (merchantId: string, actorId: string) => {
