@@ -324,3 +324,18 @@ test("Visibility draft choice is saved when a new product gets its canonical ide
   await page.goto("/athom-content-editor.html?mode=visibility", { waitUntil: "domcontentloaded" });
   await page.getByRole("tab", { name: "Depoimentos", exact: true }).click(); await expect(control).toBeChecked();
 });
+
+test("Team rendering preserves valid dates and shows unavailable dates in actual rows", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.route("**/v1/**", route => route.fulfill({ json: { members: [
+    { member_id: "m1", user_id: "u1", email: "owner-qa@example.test", role: "OWNER", joined_at: null },
+    { id: "m2", userId: "u2", email: "admin-qa@example.test", role: "ADMIN", joinedAt: "2024-02-29T12:00:00Z" },
+    { member_id: "m3", user_id: "u3", email: "invalid-qa@example.test", role: "STAFF", joined_at: "2026-04-31T12:00:00Z" },
+  ], invites: [] } }));
+  await page.goto("/athom-content-editor.html?mode=team", { waitUntil: "domcontentloaded" });
+  const cell = (email: string) => page.getByRole("row").filter({ hasText: email }).getByRole("cell").nth(2);
+  await expect(cell("owner-qa@example.test")).toHaveText("—");
+  await expect(cell("admin-qa@example.test")).toHaveText("29/02/2024");
+  await expect(cell("invalid-qa@example.test")).toHaveText("—");
+  await expect(page.getByText("Invalid Date", { exact: true })).toHaveCount(0);
+});

@@ -19,6 +19,12 @@ test("preserves existing dashboard team member responses and absent dates", asyn
   ], invites: [] });
 });
 
+test("preserves a non-null camel-case team member joined date exactly", async () => {
+  const member = { id: "membership-valid", userId: "user-valid", email: "admin@example.test", role: "ADMIN", joinedAt: "2024-02-29T12:00:00Z" };
+  const api = merchantEndpoints("https://api.example.test", (async () => new Response(JSON.stringify({ members: [member], invites: [] }))) as typeof fetch);
+  await expect(api.listTeam("merchant-valid")).resolves.toEqual({ members: [member], invites: [] });
+});
+
 test("submits product feedback through the authenticated merchant endpoint", async () => {
   const requests: Array<{ url: string; method?: string; body?: string | null; credentials?: RequestCredentials }> = [];
   const api = merchantEndpoints(

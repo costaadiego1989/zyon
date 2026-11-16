@@ -11,10 +11,11 @@ import { FilterToolbar } from "../components/FilterToolbar.js";
 import { FormField, FormSelect } from "../components/FormField.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole, type TeamMember } from "./useTeamPage.js";
 import { maskPhone } from "../utils/masks.js";
+import { isExistingIsoDate } from "../lib/calendar-date.js";
 import "./administration-pages.css";
 
 export function formatTeamJoinedAt(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!isExistingIsoDate(value)) return "—";
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date.toLocaleDateString("pt-BR") : "—";
 }
