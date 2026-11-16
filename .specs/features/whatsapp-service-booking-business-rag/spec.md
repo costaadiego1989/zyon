@@ -229,7 +229,7 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | --- | --- | --- | --- |
 | ONB-01 | Capability selection | T4, T8, T9, T10 | Implemented locally |
 | ONB-02 | Conditional navigation and API | T7, T9, T10, T17, T19, T94 | In Progress (T17 and T19 complete) |
-| ONB-03 | Merchant appointment policy | T4, T7, T11, T27, T81 | Pending |
+| ONB-03 | Merchant appointment policy | T4, T7, T11, T27, T81 | In Progress (T4, T7, T11 and T27 complete) |
 | ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | In Progress (T17 complete) |
 | ONB-05 | About field in company data | T13, T14, T15, T16 | Implemented locally |
 | ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | In Progress (T96 and T97 complete; T72 pending) |
@@ -240,9 +240,9 @@ O Zyon já vende produtos pelo WhatsApp e tem componentes de serviços, slots e 
 | AGENDA-05 | Shared capacity | T23, T26, T34 | In Progress (T23 and T26 complete) |
 | AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 and T24 complete) |
 | AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | Pending |
-| BOOK-01 | Provisional hold | T27 | Pending |
-| BOOK-02 | Expiry | T27 | Pending |
-| BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | In Progress (T26 complete) |
+| BOOK-01 | Provisional hold | T27 | Implemented (T27; final proof pending) |
+| BOOK-02 | Expiry | T27 | Implemented (T27; final proof pending) |
+| BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | In Progress (T26 and T27 complete) |
 | BOOK-04 | Pay at attendance | T30, T40, T46 | Pending |
 | BOOK-05 | Pay online | T29, T35, T40 | Pending |
 | BOOK-06 | Late payment | T36 | Pending |

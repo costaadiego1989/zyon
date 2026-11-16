@@ -1,0 +1,335 @@
+{
+  "task": "T27",
+  "status": "complete",
+  "base": {
+    "admission": "491f35560df5c220fd2658f25c33a12a65cc41bf",
+    "canonicalT66": "12c67c6a975d88f5cb3b2a47dea83116f6e58af5",
+    "alignment": "3e40bad51",
+    "ownFilesPreserved": 10,
+    "preservationManifestSha256": "9D8DE5ED393198E0B46601CF611F7872CB2DE614B437B27016C3686A73C3B7A8",
+    "sourcePreservation": [
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/phase4-preparation.md",
+        "beforeSha256": "A283F2DDB0A625FB116B4AB82E7AA2B908FF57086B8C64C790B15E5DBD6168C5",
+        "currentSha256": "A283F2DDB0A625FB116B4AB82E7AA2B908FF57086B8C64C790B15E5DBD6168C5"
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-appointment-admission.service.ts",
+        "beforeSha256": "C209FB450D70ACF752D74CA3DBD3AC278362BE39FEFC74C9199B616DBF0D34AC",
+        "currentSha256": "C209FB450D70ACF752D74CA3DBD3AC278362BE39FEFC74C9199B616DBF0D34AC"
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-slot-holds.service.ts",
+        "beforeSha256": "B74F6657CBE5FD8A5B088FBB8946DD5315DB6565E04567C1AC5D9C1E1412BE82",
+        "currentSha256": "B74F6657CBE5FD8A5B088FBB8946DD5315DB6565E04567C1AC5D9C1E1412BE82"
+      },
+      {
+        "path": "apps/api/src/shared/bookings/professional-service-lease.spec.ts",
+        "beforeSha256": "7636A5882827035D380843AD19264EA5F2AD0EDCB498F186E61178EF0FD5548E",
+        "currentSha256": "7636A5882827035D380843AD19264EA5F2AD0EDCB498F186E61178EF0FD5548E"
+      },
+      {
+        "path": "apps/api/src/shared/bookings/professional-service-lease.ts",
+        "beforeSha256": "13D19BCF24E6F2EF4245DB580788508264031877781E24955CC069F1D29204BE",
+        "currentSha256": "13D19BCF24E6F2EF4245DB580788508264031877781E24955CC069F1D29204BE"
+      },
+      {
+        "path": "apps/api/src/shared/bookings/read-professional-checkout.ts",
+        "beforeSha256": "EFF5E2E4788149A58E0A7919566EA92768A182AA2EE7DB5308BA8B5FCEF0782E",
+        "currentSha256": "EFF5E2E4788149A58E0A7919566EA92768A182AA2EE7DB5308BA8B5FCEF0782E"
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-checkout-selection.spec.ts",
+        "beforeSha256": "8BFDC53C63F573326BC646FF24EDED311676DF5C84B694AE63A23B3515391B78",
+        "currentSha256": "8BFDC53C63F573326BC646FF24EDED311676DF5C84B694AE63A23B3515391B78"
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-checkout-selection.ts",
+        "beforeSha256": "6932B516E4732FB24DC76DF1B159771913786717833976DEBBF5788A91B4E5D0",
+        "currentSha256": "6932B516E4732FB24DC76DF1B159771913786717833976DEBBF5788A91B4E5D0"
+      },
+      {
+        "path": "apps/api/tests/service-booking-fixtures.ts",
+        "beforeSha256": "6E11FDD9BEA36A05F5A861759A0F66919057C0E20D4DD3C52C2D22578C94478C",
+        "currentSha256": "6E11FDD9BEA36A05F5A861759A0F66919057C0E20D4DD3C52C2D22578C94478C"
+      },
+      {
+        "path": "apps/api/tests/service-holds.integration.spec.ts",
+        "beforeSha256": "35BC126EAF0116956E875F7786397D258170142D6C3C27D2A1C5B67079D4B084",
+        "currentSha256": "DA1E8668270BF199BDB9B30E5854FA790FA7C7C3D03CE415503746A6A51B541B"
+      }
+    ],
+    "frozenTransferFiles": 45
+  },
+  "unit": {
+    "executed": 31,
+    "passed": 31,
+    "failed": 0,
+    "skipped": 0,
+    "components": [
+      {
+        "executed": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 847.4831,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t27-selection-final-unit.log",
+        "sha256": "cf94a22bb35167fc320376a1a4b84ffd2418e44c576425f82b9fb54b45cd0f49"
+      },
+      {
+        "executed": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 698.2808,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t27-lease-final-unit.log",
+        "sha256": "3abd78a7fdb6da274cb72753e0c6025bc699e4673348e384a962952c3735acda"
+      },
+      {
+        "executed": 18,
+        "passed": 18,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 1313.8207,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t27-admission-final-unit.log",
+        "sha256": "5cbe9523ec323438c50eb4806c4bf039e221ddd045d5461befc721052704baba"
+      }
+    ]
+  },
+  "redisPostgres": {
+    "executed": 11,
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "durationMs": 19333.8465,
+    "exitCode": 0,
+    "log": ".cache/phase3-gates/t27-native-final-v2.log",
+    "sha256": "fd7cc90c13b63c2f21a0a463a05d174b1e23ac9619d3057ab3407bdffc134ca2"
+  },
+  "admissionPostgresRegression": {
+    "executed": 17,
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "durationMs": 16353.5712,
+    "exitCode": 0,
+    "log": ".cache/phase3-gates/t27-admission-regression-native.log",
+    "sha256": "3c7868f79aa3e9f94a8aa10adca7d98b8067336024feb3059d85c38d09caceec"
+  },
+  "nativeTotal": 28,
+  "build": {
+    "exitCode": 0,
+    "checked": true,
+    "sourceCount": 2531,
+    "inputSha256": "978e9fefd1b17bca56e9cac5f6dcf463280e84bc1b44f39749c9417f568da950",
+    "artifactSha256": "9ba8abd706b7dbaa652d2eb57191d50b642067c74dce368cb2236cb394751200",
+    "recordedAt": "2026-11-16T01:34:38.057Z",
+    "log": ".cache/phase3-gates/t27-build-verified-launcher.log",
+    "logSha256": "6d814a147205ab7f61c8508f19c39b3acc7e382f05e326f19322b8c58ec43331",
+    "integralArtifactReattestedAfterEachFixtureFix": true,
+    "buildsExecuted": 1,
+    "standaloneTypecheckRepeated": false
+  },
+  "preparationFailures": [
+    {
+      "executed": 11,
+      "passed": 3,
+      "failed": 8,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 19992.0473,
+      "exitCode": 1,
+      "log": ".cache/phase3-gates/t27-native.log",
+      "sha256": "a14277eeeed03bb5ee7f37529a7a8efc3417cd49f24c6e33b73e1e7ae113798b",
+      "classification": "fixture preparation failure, not causal RED of T27",
+      "cause": "new checkout seed omitted required createdAt/updatedAt; seven cases stopped before their holds service call",
+      "cleanupFailures": 0
+    },
+    {
+      "executed": 11,
+      "passed": 8,
+      "failed": 3,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 17311.4718,
+      "exitCode": 1,
+      "log": ".cache/phase3-gates/t27-native-final.log",
+      "sha256": "09a616e657f2ea0f6c889c5be7c5f3de46013d03d4713caaeeac513315740451",
+      "classification": "fixture preparation failure, not causal RED of T27",
+      "cause": "synthetic online payment seed omitted required PaymentIntent.id; the two online cases stopped before final admission",
+      "cleanupFailures": 0
+    }
+  ],
+  "proofs": [
+    "all four hold/payment combinations run through the actual ServiceSlotHoldsService and final canonical admission",
+    "hold-off leaves the selected real lazy Redis client unconnected during acquire/retry/get/state/assertBeforePayment/admission",
+    "hold-on expiry uses configured seven/thirteen-minute policy and Redis TIME; retry never renews the expiration",
+    "expired, foreign-owner and changed versioned identity leases cannot authorize final admission",
+    "an opaque display hash cannot relabel another professional resource into the selected canonical lease",
+    "actual persisted checkout cart and global buyer must match; changed input leaves the source row unchanged and creates no lease",
+    "the checkout reader does not capture its clock before an exact professional-holder PID wait; crossing start produces no lease or appointment",
+    "confirmed SQL capacity remains occupied after cache release or expiration; wrong-fingerprint release preserves the owned provisional lease",
+    "online positives use explicitly synthetic persisted approved order/payment/unit evidence; local positives create no payment intent",
+    "canonical T26 root-client, foreign identity, overlap, adjacency, fresh-clock, paid snapshot and rollback assertions all remain green"
+  ],
+  "contracts": {
+    "lockOrder": [
+      "merchant",
+      "checkout anchor when present",
+      "sorted professional"
+    ],
+    "professionalLock": "lockServiceProfessional(tx,merchantId,professionalId)",
+    "clock": "one internal server decision instant after canonical resource locks",
+    "newTransactionTimeoutMilliseconds": 5000,
+    "sqlObserverMilliseconds": 2000,
+    "historicalVariantTimeoutsPreserved": true,
+    "historicalVariantLeaseDefaultsPreserved": true,
+    "resourceNamespace": "professional:<canonical id>",
+    "leaseIdentity": "tenant,offer,variant,professional,calendar version,policy version,date,ISO instants,timeZone,duration",
+    "leaseIdentityIsBearerCapability": false,
+    "priceAndCapacityRevalidatedInSql": true
+  },
+  "runtime": {
+    "ownedPriorSchemaLedgerAndOfficialMigration": true,
+    "ownedMarkersVerified": true,
+    "redisDigest": "redis@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe",
+    "historicalRedisDigestIdentityClaimed": false,
+    "postgresImageId": "sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e",
+    "networkGuard": true,
+    "prismaDisconnected": true,
+    "remainingBridgeSockets": 0,
+    "remainingBridgeChildren": 0,
+    "remainingOwnedContainers": 0,
+    "naturalExitCode": 0,
+    "providerTransportCreated": false,
+    "syntheticFinancialEvidence": true,
+    "appModuleEndpointIntroduced": false,
+    "artificialHttpFacade": false
+  },
+  "resources": {
+    "unit": {
+      "task": "T27",
+      "family": "isolated TypeScript unit workers",
+      "thresholdCommitMiB": 2048,
+      "memory": {
+        "observedAtUtc": "2026-11-16T01:31:42.739931+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 374,
+        "commitAvailableMiB": 4327,
+        "memoryLoadPercent": 97
+      },
+      "diskFreeBytes": 41373433856,
+      "exclusiveOwner": "P27 root grant",
+      "status": "accepted"
+    },
+    "build": {
+      "task": "T27",
+      "family": "official checked API build",
+      "defaultV8HeapMiB": 4144,
+      "thresholdCommitMiB": 5168,
+      "memory": {
+        "observedAtUtc": "2026-11-16T01:32:13.051258+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 2963,
+        "commitAvailableMiB": 6836,
+        "memoryLoadPercent": 81
+      },
+      "diskFreeBytes": 41385521152,
+      "exclusiveOwner": "P27 root grant",
+      "status": "accepted"
+    },
+    "firstNative": {
+      "task": "T27",
+      "family": "owned PostgreSQL and Redis; no AppModule/model/browser",
+      "thresholdCommitMiB": 2048,
+      "memory": {
+        "observedAtUtc": "2026-11-16T01:35:51.090636+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 3000,
+        "commitAvailableMiB": 7052,
+        "memoryLoadPercent": 81
+      },
+      "diskFreeBytes": 41374707712,
+      "redisImageRepoDigests": {
+        "value": [
+          "redis@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe"
+        ],
+        "Count": 1
+      },
+      "postgresImageId": "sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e",
+      "buildInputSha256": "978e9fefd1b17bca56e9cac5f6dcf463280e84bc1b44f39749c9417f568da950",
+      "buildArtifactSha256": "9ba8abd706b7dbaa652d2eb57191d50b642067c74dce368cb2236cb394751200",
+      "sourceCount": 2531,
+      "exclusiveOwner": "P27 root grant",
+      "status": "accepted"
+    },
+    "finalNative": {
+      "task": "T27",
+      "attempt": "financial fixture id completed; assertions and productive source unchanged",
+      "family": "owned PostgreSQL and Redis",
+      "thresholdCommitMiB": 2048,
+      "memory": {
+        "observedAtUtc": "2026-11-16T01:42:25.035717+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 2269,
+        "commitAvailableMiB": 6830,
+        "memoryLoadPercent": 85
+      },
+      "diskFreeBytes": 41366171648,
+      "integralArtifactReattested": true,
+      "sourceCount": 2531,
+      "exclusiveOwner": "P27 root grant",
+      "status": "accepted"
+    },
+    "admissionRegression": {
+      "task": "T27",
+      "regression": "T26 canonical admission",
+      "family": "owned PostgreSQL only; no AppModule/Redis/Neo4j/model/browser",
+      "thresholdCommitMiB": 1024,
+      "memory": {
+        "observedAtUtc": "2026-11-16T01:44:29.051153+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1659,
+        "commitAvailableMiB": 6684,
+        "memoryLoadPercent": 89
+      },
+      "diskFreeBytes": 41367265280,
+      "exclusiveOwner": "P27 root grant",
+      "status": "accepted"
+    },
+    "compilerAndHeapFlagsChanged": false,
+    "testOrTransactionDeadlinesExpanded": false,
+    "foreignResourcesPreserved": true
+  },
+  "pendingComposition": {
+    "whatsappAutomation": "T51 is not committed while its old-oracle approval is pending. Compose its admitted transaction callback before canonical locks and prove the actual new booking writer after both green; do not import dirty/nonexistent source.",
+    "finalCriterionSelectors": "C13/C14 retain the planned final BOOK-01/BOOK-02 collector; the local task Gate now names the actual companions without skipped roots.",
+    "buyerRoutesAndUi": "T28 onward and later buyer/controller tasks",
+    "realFinancialOrChannelAcceptance": false,
+    "finalFeatureAcceptance": false
+  },
+  "schemaChanged": false,
+  "mandatoryVariantTenantFieldAdded": false,
+  "professionalServiceIdInvented": false,
+  "assertionsWeakened": false,
+  "testsSkippedOrDeleted": false,
+  "scope": {
+    "localOnly": true,
+    "push": false,
+    "deploy": false,
+    "realProvider": false
+  }
+}

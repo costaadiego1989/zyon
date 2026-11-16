@@ -5,9 +5,13 @@ import type { CheckoutSession } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../persistence/persistence.module.js";
 import { lockCheckoutSessionAnchor } from "../persistence/checkout-session-lock.js";
 import { publicServiceSchedule, resolveSelectedServiceSlot, type PublicServiceSchedule } from "../../modules/catalog/domain/services/service-schedule.js";
-import { RedisServiceSlots, serviceSlotStore, type SlotHold, type SlotRequest } from "./redis-service-slots.js";
+import { hasProfessionalServiceSelection, professionalHoldRequests, readProfessionalCheckoutSelections } from "./service-checkout-selection.js";
+import { readProfessionalCheckout } from "./read-professional-checkout.js";
+import { acquireProfessionalLease, assertProfessionalLease } from "./professional-service-lease.js";
+import { slotFingerprint, RedisServiceSlots, serviceSlotStore, type SlotHold, type SlotRequest } from "./redis-service-slots.js";
 
 export function sessionSlotRequests(session: CheckoutSession): SlotRequest[] {
+  if (hasProfessionalServiceSelection(session)) return professionalHoldRequests(readProfessionalCheckoutSelections(session));
   return session.cart.items.filter(item => item.fulfillmentStrategy === "scheduled_service").map(item => {
     if (item.productType !== "service" || !item.variantId || !item.fulfillmentSchedule || item.quantity !== 1) throw new BadRequestException("service_schedule_required");
     const { slotId, startsAt, endsAt } = item.fulfillmentSchedule;
@@ -21,7 +25,23 @@ export async function lockServiceResource(tx: Prisma.TransactionClient, merchant
 export class ServiceSlotHoldsService {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient, @Optional() private readonly testStore?: RedisServiceSlots) {}
   private store() { return this.testStore ?? serviceSlotStore(); }
+  /** New service selection, separate from historical variant-only schedules. */
+  private async professionalSelection(tx: Prisma.TransactionClient, session: CheckoutSession) {
+    await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${session.merchantId} FOR UPDATE`;
+    await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
+    await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${session.merchantId} AND session_id = ${session.sessionId} FOR UPDATE`;
+    const persisted = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } } });
+    if (!persisted || !isDeepStrictEqual(persisted.cart, JSON.parse(JSON.stringify(session.cart)))
+      || persisted.globalUserId !== session.globalUserId) throw new ConflictException("checkout_service_slot_changed");
+    return readProfessionalCheckout(tx, session);
+  }
   async acquire(session: CheckoutSession): Promise<SlotHold | undefined> {
+    if (hasProfessionalServiceSelection(session)) return this.prisma.$transaction(async tx => {
+      if (await tx.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } })) return undefined;
+      const current = await this.professionalSelection(tx, session);
+      return acquireProfessionalLease(session.merchantId, current.selections, current.policy,
+        { ownerId: session.sessionId, store: () => this.store() });
+    });
     const slots = sessionSlotRequests(session);
     if (!slots.length) return undefined;
     return this.prisma.$transaction(async tx => {
@@ -45,6 +65,11 @@ export class ServiceSlotHoldsService {
     }, { timeout: 15000 });
   }
   async assertBeforePayment(session: CheckoutSession): Promise<void> {
+    if (hasProfessionalServiceSelection(session)) return this.prisma.$transaction(async tx => {
+      const current = await this.professionalSelection(tx, session);
+      await assertProfessionalLease(session.merchantId, current.selections, current.policy,
+        { ownerId: session.sessionId, store: () => this.store() });
+    });
     const slots = sessionSlotRequests(session);
     if (!slots.length) return;
     for (const slot of slots) {
@@ -56,9 +81,26 @@ export class ServiceSlotHoldsService {
     await this.store().assertActive(session.merchantId, session.sessionId, slots);
   }
   async get(session: CheckoutSession): Promise<SlotHold | undefined> {
+    if (hasProfessionalServiceSelection(session)) return this.prisma.$transaction(async tx => {
+      if (await tx.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } })) return undefined;
+      const current = await this.professionalSelection(tx, session);
+      if (!current.policy.holdEnabled) return undefined;
+      const held = await this.store().get(session.merchantId, session.sessionId);
+      return held && slotFingerprint(held.slots) === slotFingerprint(professionalHoldRequests(current.selections)) ? held : undefined;
+    });
     return sessionSlotRequests(session).length ? this.store().get(session.merchantId, session.sessionId) : undefined;
   }
   async state(session: CheckoutSession) {
+    if (hasProfessionalServiceSelection(session)) {
+      if (await this.prisma.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } }))
+        return { requires_hold: false, service_slot_hold: null };
+      return this.prisma.$transaction(async tx => {
+        const current = await this.professionalSelection(tx, session);
+        const held = current.policy.holdEnabled ? await this.store().get(session.merchantId, session.sessionId) : undefined;
+        return { requires_hold: current.policy.holdEnabled,
+          service_slot_hold: held && slotFingerprint(held.slots) === slotFingerprint(professionalHoldRequests(current.selections)) ? held : null };
+      });
+    }
     const required = sessionSlotRequests(session).length > 0 && !await this.prisma.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } });
     return { requires_hold: required, service_slot_hold: required ? await this.get(session) ?? null : null };
   }

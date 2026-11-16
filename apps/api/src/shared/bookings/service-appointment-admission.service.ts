@@ -5,6 +5,8 @@ import { resolveServiceBusinessPolicy } from "../../modules/merchant/domain/serv
 import { getProfessionalAvailability } from "../../modules/catalog/application/get-professional-availability.js";
 import { fulfillmentPaymentEligible } from "../persistence/order-fulfillment.js";
 import { lockServiceProfessional } from "./service-professional-lock.js";
+import { assertProfessionalLease, type ProfessionalLeaseOwner } from "./professional-service-lease.js";
+import { professionalSlotId, type ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
 import { hasUnclassifiedServiceReservations } from "./service-legacy-readiness.js";
 
 export interface ServiceAppointmentAdmissionInput {
@@ -31,6 +33,8 @@ export interface ServiceAppointmentAdmissionInput {
 interface AdmissionContext {
   /** Internal clock, read once after resource locks. Never take a buyer timestamp. */
   clock?: () => Date;
+  leaseOwner?: ProfessionalLeaseOwner;
+  leaseSelections?: ProfessionalCheckoutSelection[];
   /** Internal unit-test seam. HTTP/channel callers use the canonical default. */
   readAvailability?: typeof getProfessionalAvailability;
 }
@@ -169,6 +173,17 @@ export async function admitServiceAppointment(
     && Date.parse(candidate.startsAt) === startsAt.getTime() && Date.parse(candidate.endsAt) === endsAt.getTime());
   if (availability.status !== "ready" || !slot || startsAt <= now) throw new ConflictException("service_slot_unavailable");
   if (availability.policyVersion !== input.policyVersion) throw new ConflictException("service_policy_changed");
+  if (input.confirmation.kind !== "pending" && business.policy.holdEnabled) {
+    const selected = { productId: input.productId, variantId: input.variantId, professionalId: input.professionalId,
+      professionalVersion: input.professionalVersion, policyVersion: input.policyVersion, date: input.date,
+      startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), timeZone: slot.timeZone,
+      durationMinutes: slot.durationMinutes, priceInCents: variant.price.basePriceInCents, currency: variant.price.currency };
+    const own = { ...selected, slotId: professionalSlotId(input.merchantId, selected) };
+    const leaseSelections = context.leaseSelections ?? [own];
+    if (!leaseSelections.some(candidate => candidate.slotId === own.slotId && professionalSlotId(input.merchantId, candidate) === own.slotId))
+      throw new ConflictException("service_hold_selection_mismatch");
+    await assertProfessionalLease(input.merchantId, leaseSelections, business.policy, context.leaseOwner);
+  }
   await assertApprovedOrderUnit(tx, input, slot);
   const status = input.confirmation.kind === "pending" ? "pending" : "scheduled";
   const appointment = await tx.serviceAppointment.create({ data: {
