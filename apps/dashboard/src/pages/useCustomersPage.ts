@@ -44,7 +44,7 @@ export interface CustomersPageViewModel {
 export type CustomerKpis = {
   totalCustomers: number;
   newCustomersLast7Days: number;
-  repeatRateLast7Days: number;
+  repeatRateLast7Days: number | null;
 };
 
 const PAGE_SIZE = 10;
@@ -70,7 +70,8 @@ export function toCustomerKpis(
   return {
     totalCustomers: allTime.total_customers,
     newCustomersLast7Days: last7Days.new_customers,
-    repeatRateLast7Days: last7Days.repeat_rate,
+    repeatRateLast7Days: typeof last7Days.repeat_rate === "number" && Number.isFinite(last7Days.repeat_rate)
+      && last7Days.repeat_rate >= 0 && last7Days.repeat_rate <= 1 ? last7Days.repeat_rate : null,
   };
 }
 

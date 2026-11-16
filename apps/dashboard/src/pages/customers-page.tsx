@@ -53,6 +53,11 @@ export function toCustomerRows(customers: TenantCustomer[]): CustomerRow[] {
   });
 }
 
+export function formatCustomerRepeatRate(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1
+    ? String(Math.round(value * 100)) : "—";
+}
+
 export function formatDate(value: string): string {
   if (!value) return "-";
   const date = new Date(value);
@@ -124,7 +129,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         />
         <StatCard
           label="Taxa de Recompra (7 dias)"
-          value={metrics ? `${Math.round(metrics.repeatRateLast7Days * 100)}` : "—"}
+          value={formatCustomerRepeatRate(metrics?.repeatRateLast7Days)}
           suffix="%"
           icon={<Repeat size={16} />}
           accent="var(--color-brand)"
