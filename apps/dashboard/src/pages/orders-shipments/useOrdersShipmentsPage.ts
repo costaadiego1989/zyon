@@ -346,15 +346,17 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   // Budget requests
   const [budgetRequests, setBudgetRequests] = useState<any[]>([]);
   const [budgetLoading, setBudgetLoading] = useState(false);
+  const [budgetLoadError, setBudgetLoadError] = useState("");
 
   const loadBudgets = useCallback(async () => {
     if (!props.me) return;
     setBudgetLoading(true);
+    setBudgetLoadError("");
     try {
       const data = await api.getBudgetRequests(props.me.id);
       setBudgetRequests(data);
-    } catch (e) {
-      setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
+    } catch {
+      setBudgetLoadError("Não foi possível carregar os orçamentos. Tente novamente.");
     } finally {
       setBudgetLoading(false);
     }
@@ -414,6 +416,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     updateTrackingDraft,
     budgetRequests,
     budgetLoading,
+    budgetLoadError,
     updateBudgetStatus,
   };
 }

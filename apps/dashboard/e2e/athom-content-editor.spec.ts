@@ -101,6 +101,7 @@ test("Video persists new content without an update ID and edits the saved ID", a
 
 test("Orders explain429 without technical JSON and recover on retry", async ({ page }) => {
   let calls = 0;
+  await page.route("**/v1/storefront/budget-requests?*", route => route.fulfill({ json: [] }));
   await page.route("**/v1/orders?*", route => {
     calls++;
     return calls === 1 ? route.fulfill({ status: 429, headers: { "Retry-After": "3" }, json: { code: "rate_limit_exceeded", internal: "technical-payload-must-not-appear" } })
@@ -126,6 +127,7 @@ for (const [label, header, expected] of [
 ] as const) {
   test("Orders use safe rate-limit text for " + label, async ({ page }) => {
     test.setTimeout(60_000); let calls = 0;
+    await page.route("**/v1/storefront/budget-requests?*", route => route.fulfill({ json: [] }));
     await page.route("**/v1/orders?*", route => {
       calls++;
       return route.fulfill({ status: 429, headers: header === undefined ? {} : { "Retry-After": header },
@@ -139,6 +141,27 @@ for (const [label, header, expected] of [
     await expect(alert).not.toContainText("rate_limit_exceeded"); expect(calls).toBe(1);
   });
 }
+
+test("Orders retain the primary diagnostic after a delayed empty budget failure", async ({ page }) => {
+  test.setTimeout(60_000);
+  let releaseBudget!: () => void;
+  const budgetGate = new Promise<void>(resolve => { releaseBudget = resolve; });
+  await page.route("**/v1/storefront/budget-requests?*", async route => {
+    await budgetGate; await route.fulfill({ status: 404, body: "" });
+  });
+  await page.route("**/v1/orders?*", route => route.fulfill({ status: 429, headers: { "Retry-After": "7" },
+    json: { code: "rate_limit_exceeded", internal: "must-not-leak" } }));
+  const orderResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/orders");
+  await page.goto("/athom-content-editor.html?mode=orders", { waitUntil: "domcontentloaded" });
+  await (await orderResponse).finished();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("Aguarde 7 segundos");
+  const budgetResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/storefront/budget-requests");
+  releaseBudget(); await (await budgetResponse).finished();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(alert).toContainText("Aguarde 7 segundos");
+  await expect(alert).not.toContainText("must-not-leak");
+});
 
 test("Webhook Testar forwards a subscribed event and displays the queued delivery", async ({ page }) => {
   const writes: any[] = [];
