@@ -1,0 +1,379 @@
+{
+  "task": "T107",
+  "status": "COMPLETE LOCAL T107: independent70components, types, affected7-file lint, official dashboard build and actual3/3 browser plus nativecleanup passed; six native captures reviewed PASS by Root before marking",
+  "taskCompletionClaimed": true,
+  "atomicTaskCommit": "The focused atomic local commit containing this evidence; hash reported separately after commit",
+  "reviewedCorrectedAttempt": {
+    "sourceCheckpoint": ".cache/t107-execution/reviewed-full-source-checkpoint.json",
+    "typesDirectory": ".cache/t107-execution/types-2026-11-16T20-06-43.121Z",
+    "observedAtUtc": "2026-11-16T20:06:43.254981+00:00",
+    "minimumCommitMiB": 5168,
+    "availableCommitMiB": 1880,
+    "typecheckChildStarted": false,
+    "buildStarted": false,
+    "correctedBrowserStarted": false,
+    "browserAdmissionProbedAgain": false,
+    "guardChanged": false,
+    "latest105BackupManifest": ".cache/t107-reviewed-105-parking-20261116T170637/manifest.json",
+    "latest105Restore": "8/8 exact SHA after refusal",
+    "componentInputs": "same productive d949,15casesa1d4 and committed98old55baseline;70proof not repeated"
+  },
+  "latestIndependentComponents": {
+    "directory": ".cache/t107-execution/components-2026-11-16T19-29-31.763Z",
+    "passed": 70,
+    "failed": 0,
+    "skipped": 0,
+    "files": 7,
+    "durationSeconds": 31.91,
+    "productiveSourceSha256": "d9497d245a21e1cf0c340febd1aaf421802318c31d1479c523ebcd1bc2c98243",
+    "independent105Baseline": "four productive105files temporarily restored to committed98; new105tests safely parked"
+  },
+  "latestLintBeforeFixtureRepair": {
+    "directory": ".cache/t107-execution/lint-2026-11-16T19-31-43.259Z",
+    "files": 6,
+    "errors": 0,
+    "warnings": 0,
+    "currentCorrectedHelpersCovered": false
+  },
+  "secondTypeAdmissionRefusal": {
+    "directory": ".cache/t107-execution/types-2026-11-16T19-31-06.160Z",
+    "minimumCommitMiB": 5168,
+    "availableCommitMiB": 4918,
+    "typecheckChildStarted": false,
+    "buildStarted": false,
+    "context": "one authorized new attempt after Root compiler stop; guard unchanged"
+  },
+  "firstStandaloneBrowser": {
+    "directory": ".cache/t107-execution/browser-2026-11-16T19-32-36.071Z",
+    "completedAtUtc": "2026-11-16T19:41:57.229Z",
+    "executed": 3,
+    "passed": 0,
+    "failed": 3,
+    "exit": 1,
+    "additionalError": "service_browser_cleanup_failed AggregateError; inner cause unavailable",
+    "appAckProviderZeroNaturalExitClaimed": false,
+    "remainingOwnNodeCmd": 0,
+    "remainingPostgresTestContainers": 0,
+    "remainingRedisTestContainers": 0,
+    "readOnlyClosureInspection": true,
+    "foreignResourceMutations": 0,
+    "traceManifest": ".cache/t107-execution/browser-2026-11-16T19-32-36.071Z/trace-artifact-manifest.json",
+    "causalReview": ".cache/t107-execution/first-browser-causal-review.md",
+    "successfulAcceptanceCaptures": 0,
+    "missedCompletedServiceResponseHypothesis": "disproven for this run; session/bootstrap+module phase consumed10s before any product/promotion request",
+    "rafAdvancedInAllFailureSamples": true
+  },
+  "restored105": {
+    "manifest": ".cache/t107-final-fixture-105-parking-20261116T174638/manifest.json",
+    "receipt": ".cache/t107-execution/browser-2026-11-16T20-50-54.054Z/t105-restore.json",
+    "shaMatched": "8/8 exact",
+    "productiveOrTestDeltaLost": false
+  },
+  "sourceOnlyFixtureRepair": {
+    "directory": ".cache/t107-source-repair-20261116T165030",
+    "beforeAndAfterManifests": true,
+    "patches": "three changed source diffs plus unchanged config diff",
+    "productive107Unchanged": true,
+    "testsExecutedAfterRepair": false,
+    "browserCasesUnchanged": 3,
+    "componentCasesUnchanged": 15,
+    "oldPayloadSql403ReloadRequestStartAssertionsRetained": true,
+    "originalBudgetsRetained": "5s/10s/60s/600s",
+    "reviewV2": {
+      "manifest": ".cache/t107-source-repair-20261116T165030/review-v2-manifest.json",
+      "dedicatedConfig": "apps/dashboard/playwright.service-entitlements-local.config.ts",
+      "thinWrapper": "apps/dashboard/e2e/service-catalog-entitlements-setup.mjs",
+      "staticOption": "catalogEntitlements:true",
+      "defaultSharedPreparation": false,
+      "cleanupBounds": "depth3/nodes6/codes3/length96/input1024; known names; original throw retained",
+      "policyDeclaration": "upsert empty grants",
+      "formalGateAndC81ProofUpdated": true,
+      "validateTasksExecute": "0errors/2existingwarnings",
+      "executed": false
+    }
+  },
+  "sourceBase": "4f90aa2e7, scoped integration of Root metadata5e168c03b",
+  "ordering": "T107 -> T105 -> T106, recorded by Root before T107 source authorization",
+  "productiveSource": "apps/dashboard/src/pages/product-detail/components/PromotionSection.tsx only",
+  "components": {
+    "directory": ".cache/t107-execution/components-2026-11-16T19-03-46.421Z",
+    "completedAtUtc": "2026-11-16T19:04:17.327Z",
+    "exit": 0,
+    "filesPassed": 7,
+    "passed": 70,
+    "failed": 0,
+    "skipped": 0,
+    "composition": "55 unchanged prior catalog cases +15 independent CAT-05 cases",
+    "durationSeconds": 27.65,
+    "admissionMinimumCommitMiB": 1024,
+    "observedAvailableCommitMiB": 3136,
+    "naturalExit": true,
+    "remainingRunner": false
+  },
+  "metadataIntegration": {
+    "backup": ".cache/t107-before-metadata-20261116T160510/manifest.json",
+    "preservedFiles": 21,
+    "unchangedNonmetadataWip": "19/19 SHA256 matched after integration",
+    "conflicts": "STATE/tasks resolved to exact authorized Root5e168c03b blobs; C prior metadata remains in SHA backup",
+    "stagedAfterIntegration": 0
+  },
+  "t105": "remains incomplete; seventh original browser2 failed, complete traces retained; four productive file hashes unchanged",
+  "lint": {
+    "directory": ".cache/t107-execution/lint-2026-11-16T19-10-40.489Z",
+    "exit": 0,
+    "files": 6,
+    "errors": 0,
+    "warnings": 0,
+    "unchangedExistingRules": true
+  },
+  "typecheckAdmissionRefusal": {
+    "directory": ".cache/t107-execution/types-2026-11-16T19-10-24.768Z",
+    "minimumCommitMiB": 5168,
+    "availableCommitMiB": 4970,
+    "typecheckChildStarted": false,
+    "retried": false,
+    "guardChanged": false
+  },
+  "preparedBrowser": {
+    "sourceCheckpoint": ".cache/t107-execution/pre-full-source-checkpoint.json",
+    "independentCases": 3,
+    "declaredFixtures": [
+      "Starter products",
+      "Starter services",
+      "Growth products"
+    ],
+    "plannedNativeViewportCaptures": 6,
+    "executed": false,
+    "usesUncommitted105Helpers": false
+  },
+  "executionOwner": "All T107 runners ended naturally; heavy slot returned Root for70; C metadata/atomiccommit only, no105/106runtime authorized",
+  "remaining": [],
+  "remoteProviderActions": 0,
+  "resumedFullGates": {
+    "handover": "Root explicit after actual resource change20:22:40Z",
+    "independentSourceCheckpoint": ".cache/t107-execution/final-fixture-browser-source.json",
+    "types": {
+      "directory": ".cache/t107-execution/types-2026-11-16T20-24-47.196Z",
+      "exit": 0,
+      "minimumCommitMiB": 5168,
+      "availableCommitMiB": 6667
+    },
+    "build": {
+      "directory": ".cache/t107-execution/build-2026-11-16T20-27-06.305Z",
+      "exit": 0,
+      "minimumCommitMiB": 5168,
+      "availableCommitMiB": 7032,
+      "modules": 2119,
+      "existingWarnings": "dynamic/static Marketplace imports and chunk-size"
+    },
+    "lint": {
+      "directory": ".cache/t107-execution/lint-2026-11-16T21-07-51.694Z",
+      "files": 7,
+      "errors": 0,
+      "warnings": 0
+    },
+    "fixtureSyntax": {
+      "command": "node --check apps/dashboard/e2e/service-catalog-entitlement-fixture.mjs",
+      "exit": 0
+    },
+    "compilationProofReuse": "Only e2e fixture changed after successful types/build/70; productive d949/componenta1d4/committed98 baseline exact; no unnecessary repeat",
+    "newSpecSyntax": {
+      "sha256": "73ee4699810234f14e0bbf5a37908b1fb7c83769298a5cf888493cb98ea11516",
+      "errors": 0
+    }
+  },
+  "secondStandaloneBrowser": {
+    "directory": ".cache/t107-execution/browser-2026-11-16T20-30-08.125Z",
+    "passed": 0,
+    "failed": 3,
+    "skipped": 0,
+    "exit": 1,
+    "completedAtUtc": "2026-11-16T20:33:11.371Z",
+    "nativeCleanupPassed": true,
+    "globalErrors": 0,
+    "causalReview": ".cache/t107-execution/second-browser-causal-review.md",
+    "causes": "New fixture SQL json/jsonb fallback500; missing checkout_settings row yielded existing advanced-rule412 edge",
+    "noSettingsApiEdgeRepaired": false
+  },
+  "focusedFixtureCorrection": {
+    "directory": ".cache/t107-second-fixture-repair-20261116T174125",
+    "beforeSha256": "9d1b643916a089f03406faf6b26407e8274c4531e5303851d949f0e5fa74c18b",
+    "afterSha256": "b50c17babf5543587597ab3e8494180e3201fcc2d3286cfa1f6dfec238711747",
+    "changes": "Correct jsonb snapshot fallback; actual authenticated checkout-settingsGET200 and persisted default precondition under original10s",
+    "backendChanged": false,
+    "originalOraclesRetained": true,
+    "backupRaceDisclosed": "Racy copy preserved; exact reviewed pre-change bytes reconstructed by reversing only accepted patch and verifying immutable SHA before proof use"
+  },
+  "latestOwnArtifactAdmission": {
+    "directory": ".cache/t107-execution/artifact-2026-11-16T21-04-22.323Z",
+    "inputSha256": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+    "artifactSha256": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+    "checkedSources": 2543,
+    "borrowedRootArtifact": false
+  },
+  "latestNewSpecCorrection": {
+    "beforeSha256": "09f8a2b8ef38f8b344742a3feef9f04d0ba06172037372119693943d7cbf3163",
+    "afterSha256": "73ee4699810234f14e0bbf5a37908b1fb7c83769298a5cf888493cb98ea11516",
+    "directory": ".cache/t107-third-spec-repair-20261116T181100",
+    "changes": "Buffered pregesture actual request-start and response observers;10s start phase then existing10s response; actual save status plus real Fechar aviso gesture before captures",
+    "syntaxErrors": 0,
+    "lint": ".cache/t107-execution/lint-2026-11-16T21-07-51.694Z",
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "oldOraclesRetained": true,
+    "nextBrowserStarted": true,
+    "captionPlacement": "Root accepted exact test-owned bottom8->top8,left8; no SUTstyle/pointerevents manipulation"
+  },
+  "thirdStandaloneBrowser": {
+    "directory": ".cache/t107-execution/browser-2026-11-16T20-50-54.054Z",
+    "startedAtUtc": "2026-11-16T20:50:54.306Z",
+    "completedAtUtc": "2026-11-16T20:56:19.878Z",
+    "durationMs": 322965.913,
+    "passed": 1,
+    "failed": 2,
+    "skipped": 0,
+    "flaky": 0,
+    "exit": 1,
+    "globalErrors": 0,
+    "minimumCommitMiB": 2048,
+    "availableCommitMiB": 4444,
+    "nativeCleanupPassed": true,
+    "appAckProviderZeroNaturalExitClaimed": true,
+    "remainingOwnNodeCmd": 0,
+    "remainingPostgresTestContainers": 0,
+    "remainingRedisTestContainers": 0,
+    "foreignResourceMutations": 0,
+    "cases": [
+      {
+        "case": "Starter products",
+        "status": "failed",
+        "durationMs": 30851,
+        "cause": "mobile target center-hit assertion false after basic201/SQL/desktop capture; real success toast overlays target in failurePNG",
+        "reopenAndDirect403Reached": false
+      },
+      {
+        "case": "Starter services",
+        "status": "failed",
+        "durationMs": 26912,
+        "cause": "product/promotion response waits expire after cold module chain; requests begin9.67s into10s wait and remain pending",
+        "fastResponseMissHypothesis": "disproven"
+      },
+      {
+        "case": "Growth products",
+        "status": "passed",
+        "durationMs": 22440,
+        "proof": "real advancedGET200, modalPUT200 exactpayload, API/SQL and reload state, two native viewport captures"
+      }
+    ],
+    "traceManifest": ".cache/t107-execution/browser-2026-11-16T20-50-54.054Z/trace-artifact-manifest.json",
+    "causalReview": ".cache/t107-execution/third-browser-causal-review.md",
+    "capturesGenerated": 3,
+    "completeSixCaptureSet": false,
+    "sourceOrDeadlineChangedDuringRun": false
+  },
+  "latestStandaloneBrowser": {
+    "directory": ".cache/t107-execution/browser-2026-11-16T21-08-37.467Z",
+    "startedAtUtc": "2026-11-16T21:08:37.633Z",
+    "completedAtUtc": "2026-11-16T21:13:11.003Z",
+    "durationMs": 270014.832,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "exit": 0,
+    "globalErrors": 0,
+    "minimumCommitMiB": 2048,
+    "availableCommitMiB": 8957,
+    "nativeCleanupPassed": true,
+    "appAckProviderZeroNaturalExitClaimed": true,
+    "remainingOwnNodeCmd": 0,
+    "remainingPostgresTestContainers": 0,
+    "remainingRedisTestContainers": 0,
+    "foreignResourceMutations": 0,
+    "cases": [
+      {
+        "case": "Starter products",
+        "passed": true,
+        "durationMs": 34771
+      },
+      {
+        "case": "Starter services",
+        "passed": true,
+        "durationMs": 14749
+      },
+      {
+        "case": "Growth products",
+        "passed": true,
+        "durationMs": 29644
+      }
+    ],
+    "allOriginalOracles": "real login/GET200, basic201 exactpayload, SQL, Starter noadvancedrequeststart/response and nofalsealert, reload, direct403/unchangedSQL; Growth GET200/PUT200 exactpayload/API/SQL/reload",
+    "captureManifest": ".cache/t107-execution/browser-2026-11-16T21-08-37.467Z/capture-manifest.json",
+    "postCloseInspection": ".cache/t107-execution/browser-2026-11-16T21-08-37.467Z/post-close-inspection.json",
+    "sourceFrozenExact": 8,
+    "sourceCheckpoint": ".cache/t107-execution/request-phase-browser-source.json"
+  },
+  "visualReview": {
+    "reviewer": "Root orchestrator, distinct from author C",
+    "verdict": "PASS",
+    "scope": "T107 only; actual six1440x1000/390x844 native images;12percent Starter lock/basic state and7percent Growth rule readable; no toast/target/overflow obstruction; visible test-owned LOCALcaption",
+    "beforeTaskMarkAndCommit": true,
+    "notFinalFeatureOr105106Approval": true
+  },
+  "captures": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-entitlements-growth-products-desktop.running.png",
+      "sha256": "0b824e188eb1cb9baf80eb7b67e60bcce5b0d48e98958e51fb3a6c207c42faaf",
+      "width": 1440,
+      "height": 1000,
+      "actualNativeLocalSynthetic": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-entitlements-growth-products-mobile.running.png",
+      "sha256": "8ef39feda6826d857f1ac92032a09a2c7829fbd33375bc5fcefbac39d9a829f9",
+      "width": 390,
+      "height": 844,
+      "actualNativeLocalSynthetic": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-entitlements-starter-products-desktop.running.png",
+      "sha256": "cda9b8899a81be592ff1cff325e73b85cf16abbfb2f566832286d2dc438fd4c3",
+      "width": 1440,
+      "height": 1000,
+      "actualNativeLocalSynthetic": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-entitlements-starter-products-mobile.running.png",
+      "sha256": "20423e2d5da93cdf9f8b1daae4e70ddf5a32cf72a297bbd4a6cf175f583c1b7e",
+      "width": 390,
+      "height": 844,
+      "actualNativeLocalSynthetic": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-entitlements-starter-services-desktop.running.png",
+      "sha256": "49db9b629a986d4cb0154165239addbded0c414734b2d5d19e6f7f48bb6eb53f",
+      "width": 1440,
+      "height": 1000,
+      "actualNativeLocalSynthetic": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-entitlements-starter-services-mobile.running.png",
+      "sha256": "c8fc5dd8dc0c4b84fe082900a1c1fed4e6e752f2e7e4cd8d279b9f797841df2c",
+      "width": 390,
+      "height": 844,
+      "actualNativeLocalSynthetic": true
+    }
+  ],
+  "t105Preservation": {
+    "manifest": ".cache/t107-request-phase-105-parking-20261116T180430/manifest.json",
+    "files": 8,
+    "backupsShaVerified": true,
+    "independentReplay": "six tracked own105/overlap files at committedHEAD and two new105tests parked before green gate",
+    "restore": "exact8 immediately after task107commit; no105delta staged"
+  },
+  "notClaimed": [
+    "T105/T106 completion",
+    "whole feature/finalVerifier/production/provider acceptance",
+    "repair of existing absent checkout-settings412 edge"
+  ]
+}

@@ -2,6 +2,7 @@ import {createServer} from 'vite';
 import {installCompanyFixture} from './service-company-fixture.mjs';
 import {installCompanyServicesFixture} from './service-company-services-fixture.mjs';
 import {installCatalogBusinessModeFixture} from './service-catalog-fixture.mjs';
+import {installCatalogEntitlementFixture,prepareCatalogEntitlementFixtures} from './service-catalog-entitlement-fixture.mjs';
 import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServiceTestRuntime} from '../../api/tests/service-test-runtime.mjs';
@@ -11,14 +12,29 @@ const directory=dirname(fileURLToPath(import.meta.url)),dashboard=resolve(direct
 const origin=assertLocalServiceOrigin('http://127.0.0.1:5187');
 const html=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fixture WhatsApp local</title><style>body{margin:0;font:16px/1.6 system-ui;background:#edf1ef;color:#162b22}main{max-width:620px;margin:40px auto;padding:28px;background:white;border-radius:12px}strong{display:block;font-size:13px;color:#385545}h1{font-size:24px}button{padding:12px 18px;background:#167848;color:white;border:0;border-radius:7px;font:inherit;cursor:pointer}p{max-width:60ch}output{display:block;margin-top:24px}@media(max-width:640px){main{margin:16px;padding:24px}}</style><main><strong>Fixture local de teste · Sem conexão com a Meta</strong><h1>WhatsApp</h1><p>Este ambiente prepara os testes de produtos e agendamentos com a API e o banco locais. As jornadas serão adicionadas nas tarefas seguintes.</p><button id="check">Verificar API local</button><output id="result" aria-live="polite">Aguardando verificação.</output></main><script>document.getElementById('check').onclick=async()=>{const target=document.getElementById('result');try{const response=await fetch('/v1/ready');const data=await response.json();if(!response.ok||data.status!=='ready')throw Error();target.textContent='API local pronta. Banco conectado.';}catch{target.textContent='API local indisponível.';}};</script></html>`;
 
-export default async function setup(){
+export default async function setup(options={}){
   const previousEnvironment=process.env;
   process.env=serviceBrowserEnvironment(previousEnvironment);
   let runtime,server;
   const close=async()=>{
     const errors=[];
     try{await server?.close();}catch(error){errors.push(error);}
-    try{await runtime?.close();}catch(error){errors.push(error);}
+    try{await runtime?.close();}catch(error){
+      try{
+        let nodes=0;const names=new Set(['Error','AggregateError','AssertionError','AbortError','TypeError','TimeoutError']);
+        const safe=(value,depth)=>{
+          nodes++;const message=typeof value?.message==='string'?value.message.slice(0,1024):'';
+          const result={name:names.has(value?.name)?value.name:'Error',codes:[...new Set(message.match(/\b(?:service_[a-z0-9_]+|ERR_[A-Z0-9_]+)\b/g)??[])].filter(code=>code.length<=96).slice(0,3),
+            ...(typeof value?.actual==='number'||typeof value?.actual==='boolean'?{actual:value.actual}:{}),...(typeof value?.expected==='number'||typeof value?.expected==='boolean'?{expected:value.expected}:{})};
+          if(depth<3&&Array.isArray(value?.errors)){
+            const errors=[];for(const child of value.errors){if(nodes>=6)break;errors.push(safe(child,depth+1));}if(errors.length)result.errors=errors;
+          }
+          return result;
+        };
+        console.error('service_browser_cleanup_diagnostic',JSON.stringify(safe(error,0)));
+      }catch{/* Diagnostics never replace the original cleanup failure. */}
+      errors.push(error);
+    }
     process.env=previousEnvironment;
     if(errors.length)throw new AggregateError(errors,'service_browser_cleanup_failed');
   };
@@ -26,6 +42,7 @@ export default async function setup(){
     runtime=await createServiceTestRuntime({local:true});
     console.log('Local service runtime startup:',JSON.stringify(runtime.evidence().startupTimings));
     assertLocalServiceOrigin(runtime.apiOrigin);
+    const entitlementFixtures=options.catalogEntitlements===true?await prepareCatalogEntitlementFixtures(runtime):undefined;
     process.env.VITE_API_BASE_URL=origin;
     process.env.SERVICE_LOCAL_ORIGIN=origin;
     process.env.SERVICE_LOCAL_RUN_ID=runtime.db.runId;
@@ -33,6 +50,7 @@ export default async function setup(){
       installCompanyFixture(vite,runtime);
       installCompanyServicesFixture(vite,runtime);
       installCatalogBusinessModeFixture(vite,runtime);
+      if(entitlementFixtures)installCatalogEntitlementFixture(vite,runtime,entitlementFixtures);
       vite.middlewares.use((request,response,next)=>{
         if(request.url==='/__service/signup-oauth'&&request.method==='POST'){
           // Owned synthetic pending-OAuth state. No OAuth provider is contacted.

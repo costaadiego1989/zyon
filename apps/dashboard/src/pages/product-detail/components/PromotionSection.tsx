@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Percent, DollarSign, Ticket, BadgePercent, Sparkles } from "lucide-react";
 import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import { CouponCombobox } from "./CouponCombobox.js";
@@ -62,6 +62,10 @@ export interface PromotionSectionProps {
 export function PromotionSection({ merchantId, productId, variantSkus, onPendingPromoChange, onPendingRulesChange }: PromotionSectionProps) {
   const catalog = useCatalogApi();
   const { hasFeature } = usePlanFeatures();
+  const advancedRulesEnabled = hasFeature("advancedRules");
+  const rulesContext = useMemo(() => ({ merchantId, productId, advancedRulesEnabled }), [merchantId, productId, advancedRulesEnabled]);
+  const currentRulesContext = useRef<typeof rulesContext | null>(rulesContext);
+  currentRulesContext.current = rulesContext;
   const isCreateMode = !productId;
 
   const now = useMemo(() => new Date(), []);
@@ -154,23 +158,30 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
 
   useEffect(() => {
     let cancelled = false;
+    currentRulesContext.current = rulesContext;
     setRules([]);
-    setRulesLoaded(!productId);
-    if (productId) {
+    setEditorOpen(false);
+    setEditingRule(null);
+    setSavingRules(false);
+    setRulesLoaded(!productId || !advancedRulesEnabled);
+    if (productId && advancedRulesEnabled) {
       catalog.getProductAdvancedRules(merchantId, productId).then(({ rules: saved }) => {
-        if (cancelled) return;
+        if (cancelled || currentRulesContext.current !== rulesContext) return;
         setRules(saved);
         setRulesLoaded(true);
         if (saved.length > 0) setEnabled(true);
       }).catch((error) => {
-        if (!cancelled) {
+        if (!cancelled && currentRulesContext.current === rulesContext) {
           showToast("error", "Não foi possível carregar as regras deste produto");
           reportError({ source: "PromotionSection.loadRules", error });
         }
       });
     }
-    return () => { cancelled = true; };
-  }, [catalog, merchantId, productId]);
+    return () => {
+      cancelled = true;
+      if (currentRulesContext.current === rulesContext) currentRulesContext.current = null;
+    };
+  }, [catalog, merchantId, productId, advancedRulesEnabled, rulesContext]);
 
   const buildPromotionPayload = useCallback((): CreatePromotionPayload => {
     const payload: CreatePromotionPayload = {
@@ -202,8 +213,8 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
   // Create mode: lift configured advanced rules up to the parent.
   useEffect(() => {
     if (!isCreateMode || !onPendingRulesChange) return;
-    onPendingRulesChange(rules.length > 0 ? { rules, productSkus: variantSkus } : null);
-  }, [isCreateMode, onPendingRulesChange, rules, variantSkus]);
+    onPendingRulesChange(advancedRulesEnabled && rules.length > 0 ? { rules, productSkus: variantSkus } : null);
+  }, [isCreateMode, onPendingRulesChange, rules, variantSkus, advancedRulesEnabled]);
 
   async function handleSavePromotion() {
     if (isCreateMode || !productId) return; // create mode defers to parent post-save
@@ -263,21 +274,24 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
   async function persistRules(next: AdvancedRule[]) {
     // Create mode: don't hit the API (no productId yet). The parent lifts the
     // rules via onPendingRulesChange and persists them after the product saves.
-    if (isCreateMode || !productId || !rulesLoaded) return;
+    if (isCreateMode || !productId || !rulesLoaded || !advancedRulesEnabled || currentRulesContext.current !== rulesContext) return;
     setSavingRules(true);
     try {
       await catalog.upsertProductAdvancedRules(merchantId, productId, {
         rules: next,
         productSkus: variantSkus,
       });
+      if (currentRulesContext.current !== rulesContext) return;
       showToast("success", "Regras avançadas salvas");
     } catch (e) {
+      if (currentRulesContext.current !== rulesContext) return;
       const saved = await catalog.getProductAdvancedRules(merchantId, productId).catch(() => null);
+      if (currentRulesContext.current !== rulesContext) return;
       if (saved) setRules(saved.rules);
       showToast("error", "Regras avançadas indisponíveis no momento");
       reportError({ source: "PromotionSection.upsertAdvancedRules", error: e });
     } finally {
-      setSavingRules(false);
+      if (currentRulesContext.current === rulesContext) setSavingRules(false);
     }
   }
 
@@ -436,7 +450,7 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
             <h4 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 8 }}>
               <Sparkles size={13} /> Regras avançadas
             </h4>
-            {hasFeature("advancedRules") ? (
+            {advancedRulesEnabled ? (
               <div className="cfg-page">
                 <RulesList
                   rules={rules}
