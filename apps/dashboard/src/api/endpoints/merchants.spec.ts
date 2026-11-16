@@ -1,6 +1,24 @@
 import { expect, test } from "vitest";
 import { merchantEndpoints } from "./merchants.js";
 
+test("maps team member API identities and joined_at for the dashboard", async () => {
+  const api = merchantEndpoints("https://api.example.test", (async () => new Response(JSON.stringify({ members: [
+    { member_id: "membership-1", user_id: "user-1", email: "owner@example.test", role: "OWNER", joined_at: "2026-11-16T12:00:00Z" },
+  ], total: 1 }))) as typeof fetch);
+  await expect(api.listTeam("merchant-1")).resolves.toEqual({ members: [
+    { id: "membership-1", userId: "user-1", email: "owner@example.test", role: "OWNER", joinedAt: "2026-11-16T12:00:00Z" },
+  ], invites: [] });
+});
+
+test("preserves existing dashboard team member responses and absent dates", async () => {
+  const api = merchantEndpoints("https://api.example.test", (async () => new Response(JSON.stringify({ members: [
+    { id: "membership-2", userId: "user-2", email: "staff@example.test", role: "STAFF", joinedAt: null },
+  ], invites: [] }))) as typeof fetch);
+  await expect(api.listTeam("merchant-2")).resolves.toEqual({ members: [
+    { id: "membership-2", userId: "user-2", email: "staff@example.test", role: "STAFF", joinedAt: null },
+  ], invites: [] });
+});
+
 test("submits product feedback through the authenticated merchant endpoint", async () => {
   const requests: Array<{ url: string; method?: string; body?: string | null; credentials?: RequestCredentials }> = [];
   const api = merchantEndpoints(

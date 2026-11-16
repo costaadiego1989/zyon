@@ -12,7 +12,7 @@ export interface TeamMember {
   userId: string;
   email: string;
   role: MemberRole;
-  joinedAt: string;
+  joinedAt: string | null;
 }
 
 export interface PendingInvite {

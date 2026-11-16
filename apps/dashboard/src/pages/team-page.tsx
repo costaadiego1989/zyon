@@ -13,6 +13,12 @@ import { useTeamPage, ROLE_LABELS, type MemberRole, type TeamMember } from "./us
 import { maskPhone } from "../utils/masks.js";
 import "./administration-pages.css";
 
+export function formatTeamJoinedAt(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleDateString("pt-BR") : "—";
+}
+
 export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useTeamPage({ me: props.me });
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -60,7 +66,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
         <div className="table-wrap"><table className="data-table"><thead><tr><th>E-mail</th><th>Função</th><th>Na equipe desde</th><th><span className="sr-only">Ações</span></th></tr></thead><tbody>
           {filtered.slice((currentPage - 1) * 10, currentPage * 10).map(m => <tr key={m.id}>
             <td className="admin-email">{m.email}</td><td>{m.role === "OWNER" ? <span className="badge ok">{ROLE_LABELS[m.role]}</span> : <select className="admin-role-select" aria-label={`Função de ${m.email}`} value={m.role} disabled={busy} onChange={e => void vm.updateRole(m.userId, e.target.value as MemberRole)}><option value="ADMIN">Administrador</option><option value="STAFF">Agente</option></select>}</td>
-            <td className="admin-muted">{new Date(m.joinedAt).toLocaleDateString("pt-BR")}</td><td>{m.role !== "OWNER" && <Button className="admin-icon-action" variant="ghost" disabled={busy} aria-label={`Remover ${m.email}`} onClick={() => { vm.setMessage(null); setRemoval(m); }}><Trash2 size={16} /></Button>}</td>
+            <td className="admin-muted">{formatTeamJoinedAt(m.joinedAt)}</td><td>{m.role !== "OWNER" && <Button className="admin-icon-action" variant="ghost" disabled={busy} aria-label={`Remover ${m.email}`} onClick={() => { vm.setMessage(null); setRemoval(m); }}><Trash2 size={16} /></Button>}</td>
           </tr>)}
         </tbody></table></div>
       </DataPanel>
