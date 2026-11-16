@@ -12,7 +12,10 @@ export interface TriggerConfig {
   sessionId?: string;
 }
 
-let idleTimer: ReturnType<typeof setTimeout> | null = null;
+export interface IdleActivity {
+  lastActivityAt: number;
+  triggered: boolean;
+}
 
 function reportTriggerEvent(triggerName: TriggerName, config: TriggerConfig): void {
   if (!config.sessionId || !config.merchantId) return;
@@ -39,17 +42,26 @@ function reportTriggerEvent(triggerName: TriggerName, config: TriggerConfig): vo
 export function setupIdleTrigger(
   config: TriggerConfig,
   onTrigger: (t: TriggerName) => void,
+  activity: IdleActivity = { lastActivityAt: Date.now(), triggered: false },
 ): () => void {
-  const resetIdle = () => {
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleIdle = () => {
     if (idleTimer) clearTimeout(idleTimer);
+    if (activity.triggered) return;
     idleTimer = setTimeout(() => {
+      activity.triggered = true;
       onTrigger("idle_30_seconds");
       reportTriggerEvent("idle_30_seconds", config);
-    }, (config.idleSeconds ?? 180) * 1000);
+    }, Math.max(0, activity.lastActivityAt + (config.idleSeconds ?? 180) * 1000 - Date.now()));
+  };
+  const resetIdle = () => {
+    activity.lastActivityAt = Date.now();
+    activity.triggered = false;
+    scheduleIdle();
   };
   const events = ["mousemove", "keydown", "scroll", "click", "touchstart"];
   events.forEach((e) => document.addEventListener(e, resetIdle, { passive: true }));
-  resetIdle();
+  scheduleIdle();
   return () => {
     if (idleTimer) clearTimeout(idleTimer);
     events.forEach((e) => document.removeEventListener(e, resetIdle));
