@@ -23,7 +23,7 @@ const base = { merchant_id: "merchant", session_id: "session", destination_zip: 
   packages: [{ weightKg: 0.5, heightCm: 10, widthCm: 15, lengthCm: 20, quantity: 1 }], items: [{ sku: "sku", quantity: 1 }] };
 
 function fixture() {
-  const state = { enabled: true, fail: false, calls: 0, originZip: "01001000", saved: 0,
+  const state = { enabled: true, fail: false, calls: 0, originZip: "01001000" as string | undefined, saved: 0,
     config: { id: "local", merchantId: "merchant", enabled: true, mode: "flat", flatPriceCents: 800,
       freeAboveCents: null, neighborhoods: null, radiusZones: null, estimatedValue: 60, estimatedUnit: "minutes" } as OwnDeliveryConfig };
   const sessions = new InMemoryCheckoutRepository();
@@ -66,6 +66,15 @@ describe("hybrid delivery quotes", () => {
     f.state.config.freeAboveCents = 5000;
     const free = await f.service.execute({ ...base, destination_zip: "25953001", cart_total: 50 });
     assert.equal(free.results.length, 1); assert.equal(free.results[0].price, 0); assert.equal(free.results[0].real_cost, 750); assert.equal(free.results[0].is_free, true);
+  });
+
+  it("same CEP does not infer a missing merchant origin from the caller", async t => {
+    t.mock.method(globalThis, "fetch", async () => { throw Error("owned_address_outage"); });
+    for (const originZip of [undefined, "", "25953002"]) {
+      const f = fixture(); f.state.enabled = false; f.state.originZip = originZip;
+      const quote = await f.service.execute({ ...base, origin_zip: "25953001", destination_zip: "25953001" });
+      assert.deepEqual(quote.results, []);
+    }
   });
 
   it("same CEP outage optimization never grants unknown geography or disabled delivery", async t => {

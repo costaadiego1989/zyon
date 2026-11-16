@@ -283,7 +283,9 @@ export class QuoteShippingUseCase {
       ? mergeFreeShipping(paid, applyFreeShippingPolicy(paid, input.cart_total, {
           enabled: true, min_cart_total: config.rules.freeShippingMinCartValue ?? Infinity,
         })) : paid;
-    return dedupeQuoteResults(await this.appendOwnDeliveryOptions(final, { ...input, session_id: "", origin_zip: config.originZip }, config.ownDelivery));
+    return dedupeQuoteResults(await this.appendOwnDeliveryOptions(final, {
+      ...input, session_id: "", origin_zip: (config.rules?.originZip ?? "").replace(/\D/g, ""),
+    }, config.ownDelivery));
   }
 
   private async assertGenericCheckout(input: QuoteShippingInput): Promise<void> {
