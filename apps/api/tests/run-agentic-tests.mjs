@@ -22,7 +22,8 @@ export async function discoverTests(roots) {
 
 export async function runSuite(files,{cwd=apiRoot,loader=path.join(apiRoot,'tests/ready-prod-loader.mjs'),stdout=process.stdout,stderr=process.stderr}={}) {
   if(!files.length){stderr.write('agentic_runner_no_test_ran\n');return 1;}
-  const args=[...(loader?['--loader',loader]:[]),'--test-reporter=tap','--test','--test-concurrency=1',...files];
+  const loaderUrl=loader?(loader.startsWith('file:')?loader:pathToFileURL(path.resolve(loader)).href):null;
+  const args=[...(loaderUrl?['--loader',loaderUrl]:[]),'--test-reporter=tap','--test','--test-concurrency=1',...files];
   return new Promise(resolve=>{
     const env={...process.env};
     // A runner invoked by its own contract test must start an independent harness.

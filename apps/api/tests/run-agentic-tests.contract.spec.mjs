@@ -54,3 +54,11 @@ test('discovery does not traverse a directory junction outside the selected sour
     assert.deepEqual(await discoverTests([selected]),[]);
   });
 });
+test('runner loads TypeScript specs through the project loader on Windows',async()=>{
+  await fixture('',async f=>{
+    const file=path.join(f.directory,'typed.spec.ts');
+    await writeFile(file,`import {test} from 'node:test'; import assert from 'node:assert/strict'; const expected:number=2; test('typed source executes',()=>assert.equal(expected,2));`);
+    assert.equal(await runSuite([file],{cwd:f.directory,stdout:f.capture,stderr:f.capture}),0);
+    assert.match(f.output(),/# pass 1/);
+  });
+});
