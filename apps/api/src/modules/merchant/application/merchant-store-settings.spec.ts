@@ -21,3 +21,14 @@ test("store settings rejects unknown policies and invalid values without saving"
     await assert.rejects(service.updateStoreSettings("athom", { policies }), /invalid_store_policy/);
   assert.deepEqual(writes, []);
 });
+
+test("store settings preserves supported policies at the inclusive text limit", async () => {
+  const state = new Map<string, unknown>([["other", { policies: { warranty: "Other warranty" } }]]);
+  const service = new UpdateMerchantThemeUseCase({ updateStoreSettings: async (id: string, value: unknown) => {
+    state.set(id, structuredClone(value)); return value;
+  } } as never);
+  const text = "x".repeat(10000);
+  await service.updateStoreSettings("athom", { policies: { warranty: text } });
+  assert.deepEqual(state.get("athom"), { policies: { warranty: text } });
+  assert.deepEqual(state.get("other"), { policies: { warranty: "Other warranty" } });
+});
