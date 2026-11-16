@@ -1,6 +1,8 @@
 import type { MetaAdsDailyReport } from '@zyon/shared-types';
 import type { ClosedObservationDay } from './daily-observation-calendar.js';
 
+export const DAILY_OBSERVATION_REPOSITORY = Symbol('DailyObservationRepository');
+
 export type DailyAnalysisStatus = 'pending' | 'sending' | MetaAdsDailyReport['analysisStatus'];
 export interface DailyRun extends ClosedObservationDay {
   id: string; merchantId: string; accountId: string; status: 'queued' | 'running' | 'partial' | 'completed';
