@@ -317,7 +317,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | RAG-09 | Professional boundary | T71, T72 | Pending |
 | RAG-10 | Generic onboarding | T63, T67, T71, T72 | Pending |
 | RAG-11 | Existing forms feed context | T13, T14, T15, T63, T64, T65 | Pending |
-| ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | In Progress (T73 typed client complete; management route and UI pending) |
+| ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | In Progress (T73 typed client and T74 view-state complete; management route and UI pending) |
 | ATEND-02 | Professional administration | T18, T19, T76, T106 | In Progress (T18 and T19 complete) |
 | ATEND-03 | Service categories | T20, T77 | In Progress (T20 complete) |
 | ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21, T23, T24 and T25 complete) |

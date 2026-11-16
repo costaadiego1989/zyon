@@ -1,0 +1,75 @@
+{
+  "task": "T74",
+  "status": "complete-local-QuickUI",
+  "taskMarkedBeforeAtomicCommit": true,
+  "sourceBase": "53a5cd572",
+  "unitGate": {
+    "command": "pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/useServiceAttendancePage.spec.ts src/api/endpoints/service-attendance.spec.ts src/api/http/client.spec.ts src/api/http/session-fetch.spec.ts src/api/endpoints/catalog.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx --maxWorkers=1 --minWorkers=1 --no-file-parallelism",
+    "cases": 81,
+    "newCases": 23,
+    "unchangedCases": 58,
+    "files": 6,
+    "failed": 0,
+    "skipped": 0,
+    "durationSeconds": 10.38,
+    "exit": 0,
+    "completedAt": "2026-11-16T23:57:54.347Z",
+    "log": ".cache/t74-execution/components-2026-11-16T23-57-42.502Z/output.log",
+    "admission": {
+      "minimumCommitMiB": 1024,
+      "memory": {
+        "observedAtUtc": "2026-11-16T23:57:42.608310+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1245,
+        "commitAvailableMiB": 7382,
+        "memoryLoadPercent": 92
+      }
+    }
+  },
+  "proofLevel": "Hook state under React/jsdom with injected synthetic HTTP transport; no actual browser, server persistence or production proof",
+  "sourceHashes": {
+    "apps/dashboard/src/api/index.ts": "395266308d652417786e7cbf218f9d50c52b12faf88c78d5a145a5c878a1f12b",
+    "apps/dashboard/src/api/endpoints/service-attendance.ts": "80b83bf58ba674b76ae0a41617a4058f2a7ebf17fd927312df924b1f0a00a0e0",
+    "apps/dashboard/src/api/endpoints/service-attendance.spec.ts": "88ec4903a77d31af49fb7723fb589df1b92bc8a5e65b3b58972383e5f6d7e93d",
+    "apps/dashboard/src/api/http/client.ts": "0d6f608de35488f5b9bb7f17b0ef556a3c389c0090ee534b8017c815cdc6f17c",
+    "apps/dashboard/src/api/http/client.spec.ts": "e5c91739eb82058eff4c021a8d9cdd74fa5ec6eec6f5bc8dfc424fd9bb0eb4c0",
+    "apps/dashboard/src/api/http/session-fetch.spec.ts": "136aa1a8ec33a95b063c32e84fdfc4225e5ecf80b9ad1cdd443bf2a646738d62",
+    "apps/dashboard/src/api/endpoints/catalog.ts": "dfb9b378e050f517fc0ceedfd67333b6c373baaf4581a1ecaf912b13c142f988",
+    "apps/dashboard/src/api/endpoints/catalog.spec.ts": "a2e3130ac72f2ce976149bbca60351f25686127a45f4b6cace9f68827d9dc275",
+    "apps/dashboard/src/pages/product-detail/components/ProductForm.tsx": "24d3ff078552d0d083c76e2b6ab56204b977e54dfadfb4e1185c51c6fcfdcca4",
+    "apps/dashboard/src/pages/product-detail/components/ServiceScheduleEditor.tsx": "9ee4148604581899b5d8da018352e5af63511c0a35217253a08a4457cec057d8",
+    "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.tsx": "2a06818b5e23243bb0ac4a951a7f0d096e7809ba28b151a62258b09f17492e95",
+    "apps/dashboard/src/pages/product-detail/product-detail.css": "bdc42de43697a5a6f33a782e5d2976587aa50506f024c8c189d37734c964da25",
+    "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.spec.tsx": "43788aeda05c559aea8e298be6bb563acfb80f58950a8b99d9c5c7d2b5adad1b",
+    "apps/dashboard/src/pages/product-detail/components/ProductForm.toggles.spec.tsx": "130e1579ab738dbcb4c13b894ed917ad28a991bf4eedaec93dd0e7c9c43453c4",
+    "apps/dashboard/e2e/service-catalog-toggles.spec.ts": "6264168b377ff4c1d51c4740c48ac0fba87854bc1e925cfa0a372223b1ffaef8",
+    "apps/dashboard/playwright.service-local.config.ts": "a534345dda7cf513bc7c525cb0b00c5b9fc2973f222a6fd2cb573d48b7bac026",
+    "apps/dashboard/src/pages/product-detail/components/PromotionSection.tsx": "d9497d245a21e1cf0c340febd1aaf421802318c31d1479c523ebcd1bc2c98243",
+    "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.ts": "5adbeb56f47872faab0e310d8232d267600b4a2dc1263b86ec5da2243d5e80eb",
+    "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.spec.ts": "6410900282df2b6509374f9989ab74c95dec5d5997e43c27ec4eb1b39e277133",
+    "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx": "4f58e7437fb6c98630b149015c99da39368706a801af5bebb46ffdcf60cf7cdf",
+    "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.ts": "c559bc42a0e1d5b718ed80b3f9e637ee4bec7b69a6e7e707a3a318fa3b29e9bc",
+    "apps/dashboard/src/lib/auth/permissions.ts": "3be1cb64a3678b311361ef9aa5e7ec12378468de17b8cb51d35dbadd8e49c7f3",
+    "apps/dashboard/src/hooks/useApi.ts": "87814e3fde1d67e9c0401826e7f910beb8495b89a61f276e1febe550be8b9a34"
+  },
+  "preservation": {
+    "all23InputsExact": true,
+    "oldAssertionsUntouched": true,
+    "t105EightExact": true,
+    "t107d949AndCapturesUntouched": true,
+    "t59AndT73SourceUntouchedDuringGate": true,
+    "knownOwnNodeCmdAfterGate": 0
+  },
+  "knownWarnings": [
+    "Existing PrefixInput border/borderRight React warning in unchanged legacy editor companion"
+  ],
+  "knownIndependentFinding": "Root found T73 category parentId:null wire normalization bug while T74 source was frozen. T73 needs separate minimal mapping correction to existing parent_id:null plus explicit new criterion regression; no backend or product policy change. This 81-case gate records its exact pre-fix T73 baseline, not a claim that that edge was fixed.",
+  "remaining": [
+    "T73 null-parent regression fix",
+    "T75-77 actual browser gates/screens",
+    "T41 actual booking operations before T79/T80",
+    "T72 evaluation after T71",
+    "Phase build and final same-HEAD proofs"
+  ]
+}

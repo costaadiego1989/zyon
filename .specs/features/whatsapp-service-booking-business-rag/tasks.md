@@ -1626,12 +1626,12 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] useServiceAttendancePage.spec.ts: stale responses, filtro/URL/refresh, rollback visual e erro de comando.
-- [ ] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] useServiceAttendancePage.spec.ts: stale responses, filtro/URL/refresh, rollback visual e erro de comando.
+- [x] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: useServiceAttendancePage.spec.ts: stale responses, filtro/URL/refresh, rollback visual e erro de comando.
-**Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/useServiceAttendancePage.spec.ts -t "^T74$"` Teste raiz T74 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/useServiceAttendancePage.spec.ts src/api/endpoints/service-attendance.spec.ts src/api/http/client.spec.ts src/api/http/session-fetch.spec.ts src/api/endpoints/catalog.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx` unfiltered, zero skipped; recorded unchanged transport and legacy company-mode hook companions. No appointment operation before actual T41 contracts; remaining phase/browser/build/final gates stay mandatory.
 **Commit**: `feat(service-business): t74 manage service administration view state`
 
 ### T75: Create the service-only Atendimento page shell
@@ -2552,6 +2552,10 @@ Tasks: T107.
 Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; independent70/components, types/lint/build and six native captures reviewed PASS. See task-107-evidence.json; no105/106/final-feature claim.
 
 ## Handoff
+
+**Dispatched M T99 incremental source review (before sending):** existing operator_delivery_resume may read only eleven RootT99 source/test/migration paths and current support authorization/tenant boundaries, write ignored M cache findings. Focus concrete foreign read/write, role escalation, public source leakage, null/version/no-op/concurrency/rollback gaps; do not alter source/oracles, import/run tests/build/native/browser or probe resources. This is interim source review, not final independent feature verification; original author may identify gaps and Root decides corrections. Preserve all18 M55 WIP and55proofs.
+
+**Root t74 integration, local only:** T74 originaladd8736 view-state integrated;81/81 QuickUI historical gate against original73. Synchronous profile/mode/context fences, serialized actual commands and server availability. Separate approved73 null-parent fix follows; no appointment authority or optimistic confirmation. Completed52/108. User requested code and small tests only; no new full build/browser or repeated memory question. All final gates remain required.
 
 **Dispatched C Phase10 source preparation (before sending):** existing service_ui_resume retains whole Phase10 ownership; after93 component closure may prepare76 ProfessionalsPanel and criterion tests in ignored cache only, using actual73/74 contracts and existing design components. T75Browser dependency stays open, no productive76/mark/commit. Preserve105eight/75source/107proofs. No test/build/browser/API import/runtime until Root explicit handover. Root owns73/74/fix integration and private99 review. No nested agents or remote actions.
 
