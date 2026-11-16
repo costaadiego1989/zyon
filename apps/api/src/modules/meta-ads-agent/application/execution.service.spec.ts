@@ -6,6 +6,115 @@ import { ConnectionService } from "./connection.service.js";
 import { CampaignService } from "./campaign.service.js";
 import { ProposalService } from "./proposal.service.js";
 import { ExecutionService } from "./execution.service.js";
+import { authorityFixture } from './__tests__/authority-fixture.js';
+
+async function automaticFixture(prepared = true) {
+  const f = await authorityFixture(prepared);
+  const executor = new ExecutionService(f.repo, f.commerce, f.service.campaigns, f.service.connection, f.provider, f.clock, undefined,
+    { authority: f.authority, exposure: f.exposure, budgetControl: f.budgetControl });
+  return { ...f, executor };
+}
+
+test('ADAS-34 automatic execution records service policy authority without fictional human approval', async () => {
+  const f = await automaticFixture();
+  try {
+    let writes = 0; f.provider.execute = async access => { await access.assertWriteAuthorized!(); writes++; return { status: 'remote_paused', objects: [{ type: 'campaign', id: '200' }] }; };
+    const p = await f.propose(); const result = await f.executor.executeAutomatic('store-a', p.id, f.automatic);
+    const state = await f.repo.read('store-a'), audit = (await f.repo.getRecord<Record<string, unknown>>('store-a', `execution-result:${result.id}:1`))!.payload;
+    assert.equal(writes, 1); assert.equal(result.status, 'remote_paused'); assert.equal(state.proposals[p.id].status, 'executed');
+    assert.equal(state.proposals[p.id].approvedBy, null); assert.equal(state.proposals[p.id].approvedAt, null);
+    assert.equal(audit.actorId, 'service:meta-ads-agent'); assert.equal(audit.approvedBy, null);
+    assert.equal((audit.authority as Record<string, unknown>).policyId, f.policy.id);
+    assert.equal((audit.authority as Record<string, unknown>).policyVersion, f.policy.version);
+    assert.equal(await f.repo.getRecord('store-a', `proposal-approval:${p.id}`), null);
+  } finally { await f.close(); }
+});
+
+test('ADAS-31 optional automatic wiring preserves the exact manual approval guard', async () => {
+  const f = await automaticFixture();
+  try { const p = await f.propose(); await assert.rejects(f.executor.execute('store-a', p.id, 'owner-a'), { code: 'approval_required' }); assert.equal(Object.keys((await f.repo.read('store-a')).executions).length, 0); assert.equal(f.calls.includes('execute'), false); }
+  finally { await f.close(); }
+});
+
+test('ADAS-07 confirmed financial block prevents manual and automatic publication with no write', async () => {
+  const f = await automaticFixture();
+  try {
+    const p = await f.propose('publish'); f.financialBlocked(true);
+    await assert.rejects(f.executor.executeAutomatic('store-a', p.id, f.automatic), { code: 'meta_funding_blocked' });
+    await f.service.proposals.approve('store-a', p.id, 'owner-a', p.digest);
+    await assert.rejects(f.executor.execute('store-a', p.id, 'owner-a'), { code: 'meta_funding_blocked' });
+    assert.equal(f.calls.includes('execute'), false); assert.equal(Object.keys((await f.repo.read('store-a')).executions).length, 0);
+  } finally { await f.close(); }
+});
+
+test('ADAS-38 revocation between prepare objects fences the next physical write and retains created IDs', async () => {
+  const f = await automaticFixture(false);
+  try {
+    let writes = 0;
+    f.provider.prepare = async (access, _campaign, _media, progress) => {
+      await access.assertWriteAuthorized!(); writes++; await progress([{ type: 'campaign', id: '200' }]);
+      await f.policies.revoke('store-a', 'owner-a', { policyId: f.policy.id, version: f.policy.version, idempotencyKey: 'revoke-between-writes' });
+      await access.assertWriteAuthorized!(); writes++; return { status: 'remote_paused', objects: [] };
+    };
+    const p = await f.propose('prepare'), result = await f.executor.executeAutomatic('store-a', p.id, f.automatic), state = await f.repo.read('store-a');
+    assert.equal(writes, 1); assert.equal(result.status, 'execution_unknown'); assert.deepEqual(result.objects, [{ type: 'campaign', id: '200' }]);
+    assert.equal(state.campaigns[f.campaignId].remoteCampaignId, '200'); assert.equal(state.exposure!.pending[result.id].status, 'unknown');
+    assert.equal(state.proposals[p.id].approvedBy, null);
+  } finally { await f.close(); }
+});
+
+test('ADAS-36 automatic budget holds exposure until exact remote confirmation', async () => {
+  const f = await automaticFixture();
+  try {
+    await f.exposure.observe('store-a', f.reading()); let during = 0;
+    f.provider.execute = async access => { await access.assertWriteAuthorized!(); const state = await f.repo.read('store-a'); during = Object.values(state.exposure!.pending)[0].targetBudget.amountCents; f.remoteAmount(8000); return { status: 'remote_paused', objects: [{ type: 'campaign', id: '200' }] }; };
+    const p = await f.propose('budget', { budget: { ...f.budget, amountCents: 8000 } }), result = await f.executor.executeAutomatic('store-a', p.id, f.automatic);
+    const state = await f.repo.read('store-a'); assert.equal(during, 8000); assert.equal(result.status, 'remote_paused');
+    assert.deepEqual(state.exposure!.pending, {}); assert.equal(state.exposure!.allocations[f.campaignId].amountCents, 8000);
+    assert.equal(state.campaigns[f.campaignId].draft.budget!.amountCents, 8000);
+    assert.equal((await f.exposure.read('store-a', result.id)).status, 'confirmed');
+  } finally { await f.close(); }
+});
+
+test('ADAS-50 unknown automatic budget cannot release money or resend and reconciles after revocation', async () => {
+  const f = await automaticFixture();
+  try {
+    await f.exposure.observe('store-a', f.reading()); let writes = 0;
+    f.provider.execute = async access => { await access.assertWriteAuthorized!(); writes++; f.remoteAmount(8000); throw new Error('uncertain scoped-test-token'); };
+    const p = await f.propose('budget', { budget: { ...f.budget, amountCents: 8000 } }), result = await f.executor.executeAutomatic('store-a', p.id, f.automatic);
+    assert.equal(result.status, 'execution_unknown'); assert.equal((await f.exposure.read('store-a', result.id)).status, 'unknown');
+    await f.policies.revoke('store-a', 'owner-a', { policyId: f.policy.id, version: f.policy.version, idempotencyKey: 'revoke-after-send' });
+    assert.equal((await f.executor.executeAutomatic('store-a', p.id, f.automatic)).id, result.id); assert.equal(writes, 1);
+    f.provider.reconcile = async (_access, _campaign, execution) => ({ status: 'remote_paused', objects: execution.objects });
+    const reconciled = await f.executor.reconcile('store-a', result.id); assert.equal(reconciled.status, 'remote_paused');
+    const state = await f.repo.read('store-a'); assert.deepEqual(state.exposure!.pending, {}); assert.equal(state.exposure!.allocations[f.campaignId].amountCents, 8000); assert.equal(writes, 1);
+    assert.equal(JSON.stringify(await f.repo.getRecord('store-a', `execution-input:${result.id}`)).includes('scoped-test-token'), false);
+  } finally { await f.close(); }
+});
+
+test('ADAS-37 unavailable remote control prevents automatic publication before reservation or send', async () => {
+  const f = await automaticFixture();
+  try { const p = await f.propose('publish'); f.controlAvailable(false); await assert.rejects(f.executor.executeAutomatic('store-a', p.id, f.automatic), { code: 'automatic_budget_control_unavailable' }); const state = await f.repo.read('store-a'); assert.equal(Object.keys(state.executions).length, 0); assert.deepEqual(state.exposure?.pending ?? {}, {}); assert.equal(f.calls.includes('execute'), false); }
+  finally { await f.close(); }
+});
+
+test('ADAS-39 role loss after reservation prevents physical execution and cancels unsent exposure', async () => {
+  const f = await automaticFixture();
+  try {
+    let writes = 0; const reserve = f.exposure.reserve.bind(f.exposure);
+    f.exposure.reserve = async (...args) => { const result = await reserve(...args); f.role(false); return result; };
+    f.provider.execute = async () => { writes++; return { status: 'remote_paused', objects: [] }; };
+    const p = await f.propose('publish'); await assert.rejects(f.executor.executeAutomatic('store-a', p.id, f.automatic), { code: 'meta_ads_role_forbidden' });
+    const state = await f.repo.read('store-a'); assert.equal(writes, 0); assert.deepEqual(state.exposure!.pending, {});
+    const execution = Object.values(state.executions)[0]; assert.equal(execution.status, 'failed'); assert.equal((await f.exposure.read('store-a', execution.id)).status, 'cancelled');
+  } finally { await f.close(); }
+});
+
+test('ADAS-34 automatic entry is unavailable without server authority wiring', async () => {
+  const f = await fixture();
+  try { const p = await f.review(); await assert.rejects(f.service.executeAutomatic('store-a', p.id, { kind: 'automatic', policyId: 'policy-forged', policyVersion: 1, policyDigest: 'f'.repeat(64) }), { code: 'automatic_authority_unavailable' }); assert.equal(Object.keys((await f.repo.read('store-a')).executions).length, 0); }
+  finally { await f.close(); }
+});
 
 async function fixture(prepared = true) {
   const f = await applicationFixture(); let sequence = 0;

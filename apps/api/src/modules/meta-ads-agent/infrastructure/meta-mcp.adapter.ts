@@ -3,6 +3,7 @@ import { MetaAdsError, type MetaAdsProviderPort, type MetaAccess, type MetaDisco
 import type { MetaAdsEnvironment } from "../domain/offer.js";
 import { stableDigest } from "../domain/offer.js";
 import { McpFailure, MetaMcpSession, decoded, entityRows } from "./meta-mcp.transport.js";
+import { metaCurrencyCents } from './meta-money.js';
 
 type Json = Record<string, unknown>;
 type Objects = MetaAdsExecution["objects"];
@@ -17,6 +18,14 @@ function money(value: unknown): number | null {
   const number = Number(value); return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) : null;
 }
 function count(value: unknown): number | null { const amount = money(value); return amount === null ? null : amount / 100; }
+function budgetValue(value: unknown): unknown {
+  if (value && typeof value === 'object') {
+    const cents = metaCurrencyCents(value, 'BRL');
+    if (cents === null) throw new MetaAdsError('meta_currency_invalid', 409);
+    return cents;
+  }
+  return value ?? null;
+}
 function refs(campaign: MetaAdsCampaign): Objects {
   return [...(campaign.remoteCampaignId ? [{ type: "campaign" as const, id: campaign.remoteCampaignId }] : []), ...(campaign.remoteAdSetId ? [{ type: "ad_set" as const, id: campaign.remoteAdSetId }] : []), ...campaign.remoteAdIds.map(value => ({ type: "ad" as const, id: value }))];
 }
@@ -107,7 +116,7 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
     const sets = campaign.remoteAdSetId ? (await this.entities(session, access, "adset", ["id", "status", "effective_status", "targeting"], [campaign.remoteAdSetId])).filter(set => String(set.id ?? set.ad_set_id ?? set.ad_object_id) === campaign.remoteAdSetId) : [];
     const ads = campaign.remoteAdIds.length ? (await this.entities(session, access, "ad", ["id", "status", "effective_status", "creative_id"], campaign.remoteAdIds)).filter(ad => campaign.remoteAdIds.includes(String(ad.id ?? ad.ad_id ?? ad.ad_object_id))) : [];
     return { campaignId: campaign.remoteCampaignId, status: String(row.status ?? "UNKNOWN"), effectiveStatus: String(row.effective_status ?? "UNKNOWN"),
-      budget: { daily_budget: row.daily_budget ?? null, lifetime_budget: row.lifetime_budget ?? null, spend_cap: row.spend_cap ?? null }, targeting: (sets[0]?.targeting ?? {}) as Json,
+      budget: { daily_budget: budgetValue(row.daily_budget), lifetime_budget: budgetValue(row.lifetime_budget), spend_cap: budgetValue(row.spend_cap) }, targeting: (sets[0]?.targeting ?? {}) as Json,
       adSetId: campaign.remoteAdSetId, adIds: ads.map(ad => String(ad.id ?? ad.ad_id ?? ad.ad_object_id)), creativeIds: ads.flatMap(ad => typeof ad.creative_id === "string" ? [ad.creative_id] : []),
       objectStates: [...sets.map(set => ({ type: "ad_set" as const, id: String(set.id ?? set.ad_set_id ?? set.ad_object_id), status: String(set.status ?? "UNKNOWN"), effectiveStatus: String(set.effective_status ?? "UNKNOWN") })),
         ...ads.map(ad => ({ type: "ad" as const, id: String(ad.id ?? ad.ad_id ?? ad.ad_object_id), status: String(ad.status ?? "UNKNOWN"), effectiveStatus: String(ad.effective_status ?? "UNKNOWN") }))] };
