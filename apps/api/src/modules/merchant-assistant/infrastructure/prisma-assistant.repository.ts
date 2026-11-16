@@ -24,7 +24,7 @@ class ThreadTransaction implements AssistantTransaction {
   async active(){const row=await this.db.merchantAssistantTurn.findFirst({where:{...this.where(),status:{in:['queued','running','unknown']}},orderBy:{ordinal:'desc'}});return row?turnOf(row):null;}
   async committedCostSince(since:Date){
     const [row]=await this.db.$queryRaw<Array<{amount:bigint}>>`
-      SELECT COALESCE(sum(CASE WHEN budget_state IN ('reserved','dispatched','unknown') THEN budget_amount_micros
+      SELECT COALESCE(sum(CASE WHEN budget_state IN ('reserved','dispatched','unknown') THEN GREATEST(budget_amount_micros,COALESCE(usage_cost_micros,0))
         WHEN budget_state='settled' AND created_at>=${since} THEN COALESCE(usage_cost_micros,budget_amount_micros) ELSE 0 END),0)::bigint AS amount
       FROM merchant_assistant_turns WHERE merchant_id=${this.thread.merchantId}`;
     return row?.amount??0n;

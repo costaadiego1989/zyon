@@ -19,6 +19,7 @@ function lease(turn:StoredAssistantTurn|null,token:string,now:Date):asserts turn
   if(!turn||turn.status!=='running'||!keyValid(token)||turn.leaseToken!==token||!turn.leaseUntil||new Date(turn.leaseUntil).getTime()<=now.getTime())
     throw new AssistantError('assistant_lease_lost',409);
 }
+export {lease as assertAssistantTurnLease};
 
 export class TurnAdmissionService {
   constructor(private readonly repo:AssistantRepository,private readonly authorize:(scope:AssistantScope)=>Promise<void>,

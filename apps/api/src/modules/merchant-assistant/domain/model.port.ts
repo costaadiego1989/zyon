@@ -1,0 +1,22 @@
+import type {AssistantScope} from './assistant.port.js';
+import type {RetrievedAssistantKnowledge} from './knowledge.port.js';
+
+export interface AssistantModelMessage {
+  role:'user'|'assistant'|'tool';content:string;tool_call_id?:string;
+  tool_calls?:Array<{id:string;type:'function';function:{name:string;arguments:string}}>;
+}
+export interface AssistantToolDescriptor {name:string;description:string;inputSchema:Record<string,unknown>;}
+export interface AssistantModelInput {
+  scope:AssistantScope;threadId:string;turnId:string;leaseToken:string;
+  messages:AssistantModelMessage[];knowledge:RetrievedAssistantKnowledge[];tools:AssistantToolDescriptor[];
+}
+export interface AssistantModelResult {
+  reply:string|null;referenceIds:string[];
+  toolCalls:Array<{id:string;name:string;args:Record<string,unknown>}>;
+  providerRequestId:string|null;costMicros:bigint;
+}
+export interface AssistantModelPort {complete(input:AssistantModelInput):Promise<AssistantModelResult>;}
+export interface AssistantTokenRates {
+  inputMicrosPerMillion:bigint;outputMicrosPerMillion:bigint;
+  cachedMicrosPerMillion?:bigint;cacheWriteMicrosPerMillion?:bigint;
+}
