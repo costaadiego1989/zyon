@@ -2389,12 +2389,33 @@ model PromptExperiment {
 
   variants PromptVariant[]
   measurementPlan ExperimentMeasurementPlan?
+  activationApproval ExperimentActivationApproval?
 
   @@unique([id, merchantId])
   @@unique([merchantId, name])
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
   @@map("prompt_experiments")
+}
+
+/// Immutable human approval of the exact reviewed communication experiment.
+model ExperimentActivationApproval {
+  experimentId String @id @map("experiment_id")
+  merchantId String @map("merchant_id")
+  requestKey String @map("request_key")
+  reviewHash String @map("review_hash")
+  variantFingerprint String @map("variant_fingerprint")
+  actorUserId String @map("actor_user_id")
+  actorRole String @map("actor_role")
+  snapshot Json
+  approvedAt DateTime @map("approved_at")
+  endsAt DateTime? @map("ends_at")
+  experiment PromptExperiment @relation(fields: [experimentId, merchantId], references: [id, merchantId], onDelete: Restrict)
+
+  @@unique([experimentId, merchantId])
+  @@unique([merchantId, experimentId, requestKey])
+  @@index([merchantId, approvedAt])
+  @@map("experiment_activation_approvals")
 }
 
 /// Preregistered once, before assignment. Changes require a new experiment.
