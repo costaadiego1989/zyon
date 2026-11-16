@@ -19,6 +19,8 @@ export interface AssistantCampaignProgress {
   campaignId: string | null;
   draft: Partial<MetaAdsCampaignDraft>;
   awaitingFields: string[];
+  /** Conversation preference only. Automatic authority requires an independently accepted policy. */
+  approvalPreference?: 'manual' | 'automatic';
 }
 export interface AssistantTurn {
   id: string;
@@ -144,5 +146,7 @@ export type AssistantArtifact =
   | { type: 'generation'; generation: MetaAdsGeneration }
   | { type: 'proposal'; proposal: MetaAdsProposal; execution: MetaAdsExecution | null }
   | { type: 'funding'; diagnosis: MetaAdsFundingDiagnosis }
+  | { type: 'campaign_status'; snapshot: { campaignId: string; accountId: string; checkedAt: string; source: 'meta_configuration'; configuredStatus: string; effectiveStatus: string; objectStates: Array<{ type: 'ad_set' | 'ad'; id: string; status: string; effectiveStatus: string }>; deliveryConfirmed: false } }
+  | { type: 'automation_review'; review: MetaAdsAutomationReview }
   | { type: 'automation'; state: MetaAdsAutomationState }
   | { type: 'daily_report'; report: MetaAdsDailyReport };
