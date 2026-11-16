@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
+import { GRAPH_VECTOR_DIMENSIONS } from "../domain/graph-query.js";
+import { PUBLIC_BUSINESS_SOURCE_NAMESPACE } from "../../knowledge-base/domain/knowledge-chunk-namespace.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { TenantContextService } from "../../../shared/tenant/tenant-context.service.js";
 import { withdrawnPublicBusinessSource, type PublicBusinessSourceProjection, type PublicBusinessSourceType } from "../domain/public-business-source.js";
@@ -43,9 +46,12 @@ export async function enqueuePublicSourceProjection(tx: QueueTransaction, mercha
 /** Set-based equivalent for one canonical write affecting many identities.
  * The merchant lock serializes the same revision/hash rules as the single
  * source helper. Completed history and unchanged public content stay intact. */
-export async function enqueuePublicSourceProjections(tx: QueueTransaction, merchantId: string, sources: PublicWorkInput[]) {
+export async function enqueuePublicSourceProjections(tx: QueueTransaction, merchantId: string, sources: PublicWorkInput[],
+  expectedIndexAbi?: { model: string; dimensions: number }) {
+  if (expectedIndexAbi && (!expectedIndexAbi.model.trim() || expectedIndexAbi.model.length > 191
+    || !Number.isSafeInteger(expectedIndexAbi.dimensions) || expectedIndexAbi.dimensions < 1)) throw new Error("public_work_completion_invalid");
   if (!sources.length) return;
-  if (sources.length === 1) { await enqueuePublicSourceProjection(tx, merchantId, sources[0]!); return; }
+  if (sources.length === 1 && !expectedIndexAbi) { await enqueuePublicSourceProjection(tx, merchantId, sources[0]!); return; }
   const key = (source: Pick<PublicWorkInput, "sourceType" | "sourceId">) => JSON.stringify([source.sourceType, source.sourceId]);
   const unique = new Set<string>();
   for (const source of sources) {
@@ -59,34 +65,49 @@ export async function enqueuePublicSourceProjections(tx: QueueTransaction, merch
   const previous = await tx.$queryRaw<Array<{
     sourceType: PublicBusinessSourceType; sourceId: string; sourceVersion: string | null;
     sourceHash: string | null; publicationState: string | null; hasLegacy: boolean;
+    status: string | null; embeddingModel: string | null; embeddingDimensions: number | null;
   }>>`SELECT i."sourceType",i."sourceId",p.source_version AS "sourceVersion",
       p.source_hash AS "sourceHash",p.publication_state::text AS "publicationState",
+      p.status::text AS status,p.embedding_model AS "embeddingModel",p.embedding_dimensions AS "embeddingDimensions",
       EXISTS(SELECT 1 FROM public_source_work old WHERE old.merchant_id=${merchantId}
         AND old.source_type=i."sourceType"::"PublicBusinessSourceType" AND old.source_id=i."sourceId"
         AND old.source_version NOT LIKE 'public-v1:%' AND old.status<>'completed') AS "hasLegacy"
     FROM jsonb_to_recordset(${identities}::jsonb) AS i("sourceType" text,"sourceId" text)
-    LEFT JOIN LATERAL(SELECT source_version,source_hash,publication_state FROM public_source_work current
+    LEFT JOIN LATERAL(SELECT source_version,source_hash,publication_state,status,embedding_model,embedding_dimensions FROM public_source_work current
       WHERE current.merchant_id=${merchantId} AND current.source_type=i."sourceType"::"PublicBusinessSourceType"
         AND current.source_id=i."sourceId" AND current.source_version LIKE 'public-v1:%'
       ORDER BY current.source_version DESC LIMIT 1) p ON TRUE`;
   if (previous.length !== sources.length) throw new Error("public_work_history_incomplete");
   const history = new Map(previous.map(row => [key(row), row]));
+  const abiOnly = new Set<string>();
   const changes = sources.flatMap(source => {
     const row = history.get(key(source));
     if (!row) throw new Error("public_work_history_incomplete");
-    if (row.sourceVersion && row.sourceHash === source.sourceHash && row.publicationState === source.publicationState && !row.hasLegacy) return [];
+    const outdatedAbi = expectedIndexAbi && row.status === "completed" && row.publicationState === "published"
+      && (row.embeddingModel !== expectedIndexAbi.model || row.embeddingDimensions !== expectedIndexAbi.dimensions);
+    const sameContent = row.sourceVersion && row.sourceHash === source.sourceHash && row.publicationState === source.publicationState && !row.hasLegacy;
+    if (sameContent && !outdatedAbi) return [];
+    if (sameContent && outdatedAbi) abiOnly.add(key(source));
     return [{ merchantId, sourceType: source.sourceType, sourceId: source.sourceId,
       sourceVersion: nextPublicWorkVersion(row.sourceVersion), sourceHash: source.sourceHash, publicationState: source.publicationState }];
   });
   if (!changes.length) return;
-  const byType = new Map<PublicBusinessSourceType, string[]>();
+  const byType = new Map<PublicBusinessSourceType, { all: string[]; canonical: string[]; abi: string[] }>();
   for (const source of changes) {
-    const ids = byType.get(source.sourceType) ?? [];ids.push(source.sourceId);byType.set(source.sourceType, ids);
+    const ids = byType.get(source.sourceType) ?? { all: [], canonical: [], abi: [] };
+    ids.all.push(source.sourceId);
+    (abiOnly.has(key(source)) ? ids.abi : ids.canonical).push(source.sourceId);
+    byType.set(source.sourceType, ids);
   }
-  const affected = [...byType].map(([sourceType, ids]) => ({ sourceType, sourceId: { in: ids } }));
+  const affected = [...byType].map(([sourceType, ids]) => ({ sourceType, sourceId: { in: ids.all } }));
+  const invalidations = [...byType].flatMap(([sourceType, ids]) => [
+    ...(ids.canonical.length ? [{ sourceType, sourceId: { in: ids.canonical } }] : []),
+    ...(ids.abi.length ? [{ sourceType, sourceId: { in: ids.abi },
+      metadata: { path: ["publicSourceNamespace"], equals: PUBLIC_BUSINESS_SOURCE_NAMESPACE } }] : []),
+  ]);
   for (let offset = 0; offset < changes.length; offset += 1000)
     await tx.publicSourceWork.createMany({ data: changes.slice(offset, offset + 1000) });
-  await tx.knowledgeChunk.deleteMany({ where: { merchantId, OR: affected } });
+  await tx.knowledgeChunk.deleteMany({ where: { merchantId, OR: invalidations } });
   await tx.publicSourceWork.updateMany({ where: { merchantId, OR: affected,
     sourceVersion: { not: { startsWith: "public-v1:" } }, status: { not: "completed" } },
     data: { status: "completed", lastErrorCode: "legacy_superseded", leaseToken: null, leaseExpiresAt: null, nextAttemptAt: null } });
@@ -132,6 +153,22 @@ export class PublicSourceWorkService {
       const current = await this.sources.readWithin(tx, merchantId, sourceType, sourceId);
       const source = current ?? withdrawnPublicBusinessSource(merchantId, sourceType, sourceId, "missing-source");
       return enqueuePublicSourceProjection(tx, merchantId, source);
+    });
+  }
+
+  normalizeCurrentPage(merchantId: string, sourceType: PublicBusinessSourceType, sourceIds: string[]) {
+    this.assertScope(merchantId);
+    if (!sourceTypes.includes(sourceType) || sourceIds.length > 100 || new Set(sourceIds).size !== sourceIds.length
+      || sourceIds.some(id => typeof id !== "string" || !id.trim() || id.length > 191)) throw new Error("public_reconciliation_page_invalid");
+    if (!sourceIds.length) return Promise.resolve();
+    return this.prisma.$transaction(async tx => {
+      const merchants = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
+      if (merchants.length !== 1) throw new Error("public_work_merchant_missing");
+      const current = await this.sources.readManyWithin(tx, merchantId, sourceIds.map(sourceId => ({ sourceType, sourceId })));
+      const projections = sourceIds.map((sourceId, index) => current[index]
+        ?? withdrawnPublicBusinessSource(merchantId, sourceType, sourceId, "missing-source"));
+      return enqueuePublicSourceProjections(tx, merchantId, projections,
+        { model: GRAPH_EMBEDDING_ID, dimensions: GRAPH_VECTOR_DIMENSIONS });
     });
   }
 

@@ -7,6 +7,7 @@ export interface PublicBusinessSourcePagePort {
 }
 export interface PublicBusinessNormalizationPort {
   normalizeCurrent(merchantId: string, sourceType: PublicBusinessSourceType, sourceId: string): Promise<unknown>;
+  normalizeCurrentPage?(merchantId: string, sourceType: PublicBusinessSourceType, sourceIds: string[]): Promise<unknown>;
 }
 const sourceTypes: PublicBusinessSourceType[] = ["company", "business_hours", "professional", "service", "faq", "policy"];
 
@@ -36,9 +37,14 @@ export class PublicBusinessReconciler {
           || result.nextCursor !== undefined && (!result.sourceIds.length || !result.nextCursor.trim()
             || result.nextCursor.length > 191 || result.nextCursor === cursor || seen.has(result.nextCursor)))
           throw new Error("public_reconciliation_page_invalid");
-        for (const sourceId of result.sourceIds) {
-          if (stopping()) return;
-          await this.work.normalizeCurrent(merchantId, type, sourceId);
+        if (result.sourceIds.length && this.work.normalizeCurrentPage) {
+          await this.work.normalizeCurrentPage(merchantId, type, result.sourceIds);
+        } else {
+          // Existing single-source callers retain their original contract.
+          for (const sourceId of result.sourceIds) {
+            if (stopping()) return;
+            await this.work.normalizeCurrent(merchantId, type, sourceId);
+          }
         }
         if (stopping()) return;
         if (!result.nextCursor) { delete cursors[type]; break; }

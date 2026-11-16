@@ -25,6 +25,13 @@ export class PrismaPublicBusinessSources {
     return this.prisma.$transaction(tx => this.readWithin(tx, merchantId, sourceType, sourceId), { isolationLevel: "RepeatableRead" });
   }
 
+  async readManyWithin(tx: Prisma.TransactionClient, merchantId: string,
+    identities: Array<{ sourceType: PublicBusinessSourceType; sourceId: string }>): Promise<Array<PublicBusinessSourceProjection | null>> {
+    if (this.tenant.get()?.merchantId !== merchantId) throw new Error("public_source_foreign_tenant");
+    for (const identity of identities) this.assertInput(merchantId, identity.sourceType, identity.sourceId);
+    return readCanonicalPublicBusinessSourcesWithin(tx, merchantId, identities);
+  }
+
   async readWithin(tx: Prisma.TransactionClient, merchantId: string, sourceType: PublicBusinessSourceType, sourceId: string): Promise<PublicBusinessSourceProjection | null> {
     this.assertInput(merchantId, sourceType, sourceId);
     return readCanonicalPublicBusinessSourceWithin(tx, merchantId, sourceType, sourceId);
