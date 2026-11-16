@@ -338,7 +338,7 @@ export class CreatePaymentIntentUseCase {
     await assertCartStock(this.prisma, merchantId, session.cart.items);
     await this.orderQuota?.assertCanAcceptNewSales(merchantId);
     if (sessionSlotRequests(session).length && !this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
-    await this.serviceSlots?.assertBeforePayment(session);
+    await this.serviceSlots?.assertBeforePayment(session, { requireOnline: true });
 
     const method: PaymentMethod = body.method ?? "pix";
     // Interactive and quick-purchase intents share this server guard.

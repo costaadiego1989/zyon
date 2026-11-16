@@ -1,0 +1,310 @@
+{
+  "task": "T29",
+  "status": "complete",
+  "recordedAtUtc": "2026-11-16T12:05:17.877Z",
+  "base": {
+    "head": "6ec0d8490de9a8635490137e4a395ab46dc2aac8",
+    "canonicalN68": "ee4532ecefc60d51d22fa25c99baf253b9690131",
+    "alignment": "6ec0d8490de9a8635490137e4a395ab46dc2aac8",
+    "fourProductiveBasesLockSchemaIdentical": true,
+    "frozenTransferFiles": 45,
+    "frozenTransferManifestSha256": "0a05611acd56b4158c51956b6b78b6289574d08fd11aba35eff5d74a03e458f3",
+    "pending53Or69SourceImported": false
+  },
+  "requirements": [
+    "BOOK-03",
+    "BOOK-05",
+    "REG-02",
+    "REG-03"
+  ],
+  "unit": {
+    "executed": 46,
+    "passed": 46,
+    "failed": 0,
+    "skipped": 0,
+    "components": [
+      {
+        "log": ".cache/phase3-gates/t29-policy-postfix-unit.log",
+        "sha256": "edf12b05498e94d75a67cdd976348e9f6b61b8a6bfb62fadf4e12f155caa96b7",
+        "executed": 7,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 1298.7723,
+        "exitCode": 0
+      },
+      {
+        "log": ".cache/phase3-gates/t29-existing-payment-postfix-unit.log",
+        "sha256": "2db70b43738bca5b33274908c3455a8750275fcea8cc11510cda6fb8b902e70d",
+        "executed": 39,
+        "passed": 39,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 2265.6808,
+        "exitCode": 0
+      }
+    ],
+    "causalRed": {
+      "executed": 7,
+      "passed": 4,
+      "failed": 3,
+      "includingRoot": true,
+      "log": ".cache/phase3-gates/t29-online-policy-red.log",
+      "sha256": "d4ca00eeb6d708f5b6a5e612e1019e3702ac5e27d9eead56a0772cab0e05e176",
+      "cause": "Explicit new PSP context did not refuse at_attendance; generic T27 capacity contract is preserved."
+    }
+  },
+  "native": {
+    "executed": 102,
+    "passed": 102,
+    "failed": 0,
+    "skipped": 0,
+    "http": {
+      "log": ".cache/phase3-gates/t29-http-native.log",
+      "sha256": "6662481726c0b2d09aee1cf1f2cee34b0ae4590c390f3663f56c482295409277",
+      "executed": 7,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 68738.5635,
+      "exitCode": 0
+    },
+    "journal": {
+      "log": ".cache/phase3-gates/t29-journal-native.log",
+      "sha256": "9222835b2e608c0abffbe692420bb05cb319268fbb327a30e987722e5b831008",
+      "executed": 10,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 43651.312,
+      "exitCode": 0
+    },
+    "holds": {
+      "log": ".cache/phase3-gates/t29-holds-regression.log",
+      "sha256": "40d3731fd7b27bbfb2f3436754d0a5aff1e9d691edc4b82a3f0ca1d7207edac7",
+      "executed": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 20572.51,
+      "exitCode": 0
+    },
+    "whatsappCoexistence": {
+      "log": ".cache/phase3-gates/t29-whatsapp-coexistence.log",
+      "sha256": "fae3bc556b3d801b5c35a8720873bad23f4eedfaecfdf5e84dd6cb95ecf141ba",
+      "executed": 26,
+      "passed": 26,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 22497.7141,
+      "exitCode": 0
+    },
+    "product": {
+      "executed": 48,
+      "passed": 48,
+      "failed": 0,
+      "skipped": 0,
+      "log": ".cache/phase3-gates/t29-product-baseline.log",
+      "sha256": "6f6b20a0bb4342e69f2172574e4ce0316b8fb7e6d3ff827eb2ed84becd8410a4",
+      "summary": {
+        "phase": "normal-checkout-payment",
+        "coverageMode": "baseline-and-identity",
+        "passed": 48,
+        "waiters": 3,
+        "prismaClientConstructed": true,
+        "providerCalls": 0,
+        "scope": "normal-standalone-source-coupon-identity-detachment",
+        "checkoutVersionTrigger": true,
+        "checkoutStrategyTrigger": true
+      },
+      "cleanup": {
+        "phase": "normal-checkout-payment",
+        "coverageMode": "baseline-and-identity",
+        "status": "passed",
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true,
+        "durationMs": 22851,
+        "network": "none",
+        "productionAccess": false
+      }
+    },
+    "cleanup": "Every final cohort natural exit0, owned disposal/bridge assertions passed; HTTP closed ACK/disconnected with no timers. No forced cleanup or deadline extension.",
+    "httpExternalProviderCalls": 0,
+    "journalProvider": "Local controlled PaymentProviderPort create/recover outcomes; no actual financial provider or charge."
+  },
+  "checkedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "a9834688621cd4f5f4e5807c9861d942b19b22e9ca79109e47e3b3d2716af5ae",
+    "artifactSha256": "46ba988eaccbe8061de31bf4cbb9a1efb8c0cc9c6ec2f387e306e7025f645170",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2541
+    },
+    "recordedAt": "2026-11-16T09:26:54.089Z",
+    "log": ".cache/phase3-gates/t29-build-verified-launcher.log",
+    "logSha256": "a7af9ca6ae89d7ae1a2370d7d81ee195578ad8a49053f3f66c996fe309aba639",
+    "preflight": {
+      "commitAvailableMiB": 6339,
+      "requiredCommitMiB": 5168,
+      "defaultHeapMiB": 4144
+    },
+    "compilerFlagsChanged": false,
+    "heapChanged": false,
+    "coverageChanged": false,
+    "testDeadlinesChanged": false,
+    "integralArtifactAdmission": {
+      "checked": true,
+      "inputSha256": "a9834688621cd4f5f4e5807c9861d942b19b22e9ca79109e47e3b3d2716af5ae",
+      "artifactSha256": "46ba988eaccbe8061de31bf4cbb9a1efb8c0cc9c6ec2f387e306e7025f645170",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2541
+      },
+      "proof": ".cache/phase3-gates/t29-postapproval-integral-artifact.json",
+      "sha256": "d3a6ce3edfcef66fda249453f462bd1a602f7cca1cd86441f5199cf4d88a2c3d"
+    },
+    "reuseAfterApproval": "Only approved tests/ oracle changed; productive input and all artifacts admitted integrally before actual journal10."
+  },
+  "priorRed": {
+    "executed": 10,
+    "passed": 7,
+    "failed": 3,
+    "includingRoot": true,
+    "skipped": 0,
+    "log": ".cache/phase3-gates/t29-financial-red-2026-11-16T09-24-53-694Z/0-t29-journal-native.log",
+    "sha256": "4d8f448674ada9fe1c12f4c7d8d5c02d2bc88a8c6366f104788f0483b5ab4878",
+    "cause": "Summary-negative loop did not reject a coherent discrepancy; discount branch is inferred from ordered source after fingerprint/subtotal/currency. New physical key TTL oracle also differed from effective lease validity.",
+    "productiveFix": "Two comparisons bind discount to canonical cart and service shipping to zero, preserving valid products/unscheduled/uncertain/history.",
+    "currentProof": "Final journal10 proves all five fingerprint/subtotal/currency/discount/shipping negatives without payment rows, then online lease/retry/expiry and first-send.",
+    "firstBuildAndHttp": "Prior source54827b21/artifactd4c48efc and HTTP7 retained in preservation manifest; excluded from final current-source counts."
+  },
+  "approvedOracleCorrection": {
+    "task": "T29",
+    "recordedAtUtc": "2026-11-16T11:58:23.035Z",
+    "approval": {
+      "userVerbatim": "Sim, corrigir o teste de expiração (recomendado)",
+      "authority": "Explicit user approval received and dispatched by Root after recording Root Handoff"
+    },
+    "path": "apps/api/tests/service-payment-admission.integration.spec.ts",
+    "originalSha256": "8d86c21cb610914ee331219e0d15f01d0634f698db4470b69e2b0e94d7b513ad",
+    "approvedSha256": "0473f8ca554c3c3916f1b466c622f1e8bb23a70e82eadfc99eee79183b28ab44",
+    "approvedPatchSha256": "be497f7eeacb9319cf141800b246b4502ce9de48519a7f40ac976ae76690e0e3",
+    "inheritedAssertions": 26,
+    "inheritedAssertionsPreserved": true,
+    "actualAssertions": 74,
+    "onlyApprovedCandidateApplied": true,
+    "productionSourceChanged": false,
+    "checkedRecord": {
+      "version": 1,
+      "buildCommand": "pnpm --dir apps/api build",
+      "buildExitCode": 0,
+      "checked": true,
+      "inputSha256": "a9834688621cd4f5f4e5807c9861d942b19b22e9ca79109e47e3b3d2716af5ae",
+      "artifactSha256": "46ba988eaccbe8061de31bf4cbb9a1efb8c0cc9c6ec2f387e306e7025f645170",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2541
+      },
+      "recordedAt": "2026-11-16T09:26:54.089Z"
+    },
+    "nativeRerunExecuted": false,
+    "heavyOwner": "Root69; journal10 waits explicit handover",
+    "metadataEncodingCorrection": {
+      "reason": "PowerShell pipeline replaced the two non-ASCII characters before Node received the initial script. Corrected only the recorded user quote from Root dispatch using escaped codepoints; source/test/artifact unchanged.",
+      "correctedAtUtc": "2026-11-16T12:03:42.856Z"
+    },
+    "receiptPath": ".cache/phase3-gates/t29-ttl-approved-2026-11-16T11-58-23-028Z/receipt.json",
+    "receiptSha256": "5ef2558785f864555fc1ed8831b8fbb1fa6b5e9572360cb4537a19e155f404f5",
+    "actualJournalRerunPassed": true,
+    "scope": "Exact approved candidate only; logical expiry bounded by Redis TIME+configured4min, physical PTTL>0; store/key retention+24h unchanged."
+  },
+  "testPreservation": [
+    {
+      "file": "service-payment-admission.integration.spec.ts",
+      "originalAssertions": 26,
+      "currentAssertions": 74,
+      "allOriginalAssertionsPreserved": true
+    },
+    {
+      "file": "service-payment-http.integration.spec.ts",
+      "originalAssertions": 20,
+      "currentAssertions": 58,
+      "allOriginalAssertionsPreserved": true
+    }
+  ],
+  "unchangedRegressions": [
+    {
+      "path": "apps/api/src/modules/payment/application/create-payment-intent.use-case.spec.ts",
+      "sha256": "081904ccdac138e077d96d97625908a8bda2f2f7e93c5142f22df74e90c17030",
+      "sameGitSourceAsHead": true
+    },
+    {
+      "path": "apps/api/tests/service-holds.integration.spec.ts",
+      "sha256": "da1e8668270bf199bdb9b30e5854fa790fa7c7c3d03ce415503746a6a51b541b",
+      "sameGitSourceAsHead": true
+    },
+    {
+      "path": "apps/api/tests/whatsapp-ai-dispatch-fence.integration.spec.mjs",
+      "sha256": "7855ede518943c94470774e9876aac9984f8c045ad0ef2bff3bae00b014644a6",
+      "sameGitSourceAsHead": true
+    },
+    {
+      "path": "apps/api/tests/normal-checkout-payment.integration.mjs",
+      "sha256": "d0f8728628e67fc6f40a1c81f1316033e01d342ba319c5d533c64ec58b139986",
+      "sameGitSourceAsHead": true
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "apps/api/src/modules/payment/application/create-payment-intent.use-case.ts",
+      "sha256": "81cdc5d205b362900c8cec4c651e86aa7fa87fca2febff9abe4e30ceb4b4818a"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/resume-payment-creation.service.ts",
+      "sha256": "83f9e046275231c31504859726f9957ce9977074b5b6c3b0493ee241428f8055"
+    },
+    {
+      "path": "apps/api/src/modules/payment/infrastructure/prisma-payment.repository.ts",
+      "sha256": "26b348933983fccf655ff3949979ac57044f41070c6c288a238d408ada7d2d41"
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-slot-holds.service.ts",
+      "sha256": "5d94ecac2974ea579f8f694e87a005bfa509c0450995764595e1dc773d65270c"
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-payment-policy.spec.ts",
+      "sha256": "4c1599e973ca85f991ebf3df7ce2fcdb7f25d020bb79923732133e196d3e767e"
+    },
+    {
+      "path": "apps/api/tests/service-payment-admission.integration.spec.ts",
+      "sha256": "0473f8ca554c3c3916f1b466c622f1e8bb23a70e82eadfc99eee79183b28ab44"
+    },
+    {
+      "path": "apps/api/tests/service-payment-http.integration.spec.ts",
+      "sha256": "c28b3fd9c41092104724e5bdcfa00974be43eb3b633af8acb5473697b61e4747"
+    }
+  ],
+  "scope": {
+    "localOnly": true,
+    "externalProviderCalls": 0,
+    "charges": 0,
+    "customerMessages": 0,
+    "push": false,
+    "deploy": false
+  },
+  "limitations": [
+    "Controlled local preparation/admission/first-send/recovery proof, not live PSP/WhatsApp financial capture.",
+    "Tasks30-32 and later financial booking confirmation remain pending.",
+    "Final criterion collectors, independent verifier/mutations and global release acceptance remain Root work; old broad5253/5169/84 is not current global green."
+  ]
+}

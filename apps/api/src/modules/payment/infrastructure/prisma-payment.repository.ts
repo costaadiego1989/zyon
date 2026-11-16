@@ -33,6 +33,13 @@ import { assertNeighborhoodPaymentAdmission } from "./prisma-payment-neighborhoo
 import { readPaymentNormalCrossSellAuthority, assertSamePaymentNormalCrossSellAuthority } from "../domain/payment-normal-cross-sell-authority.js";
 import type { CaptureNormalCrossSellPayment } from "./prisma-normal-cross-sell-payment-admission.js";
 import { admitWhatsAppEffectInTransaction } from "../../../shared/whatsapp/whatsapp-automation-context.js";
+import { readProfessionalCheckout } from "../../../shared/bookings/read-professional-checkout.js";
+import { hasProfessionalServiceSelection } from "../../../shared/bookings/service-checkout-selection.js";
+import { assertProfessionalLease, type ProfessionalLeaseStore } from "../../../shared/bookings/professional-service-lease.js";
+import { serviceSlotStore } from "../../../shared/bookings/redis-service-slots.js";
+import { stripStoredCheckoutCouponBinding } from "../../checkout/domain/services/checkout-coupon-storage.js";
+import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
+import { serviceScheduleFromMetadata } from "../../catalog/domain/services/service-schedule.js";
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -189,7 +196,8 @@ export class PrismaPaymentRepository implements PaymentRepository {
     private readonly captureCoupon?: (tx: PrismaTx, snapshot: PaymentIntentSnapshot, scope?: StorefrontCouponPaymentScope)
       => Promise<ReturnType<typeof readPaymentCouponAuthority>>,
     private readonly captureWidgetCheckout?: CaptureWidgetCheckoutPayment,
-    private readonly captureNormalCrossSell?: CaptureNormalCrossSellPayment) {}
+    private readonly captureNormalCrossSell?: CaptureNormalCrossSellPayment,
+    private readonly serviceLeaseStore: () => ProfessionalLeaseStore = serviceSlotStore) {}
 
   async listForSession(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]> {
     const rows = await this.prisma.paymentIntent.findMany({ where: { merchantId, sessionId }, orderBy: { createdAt: "desc" } });
@@ -311,6 +319,29 @@ export class PrismaPaymentRepository implements PaymentRepository {
     // The lock arm is deliberately broader than admission: an uncertain prior
     // attempt can also claim a recovery lease. Do not block its reconciliation.
     if (couldAdmit && (!current || firstSend)) {
+      if (admissionCart && typeof admissionCart === "object" && "items" in admissionCart && Array.isArray(admissionCart.items)) {
+        const cart = stripStoredCheckoutCouponBinding(admissionCart);
+        if (hasProfessionalServiceSelection({ merchantId: snapshot.merchantId, cart })) {
+          const service = await readProfessionalCheckout(tx, { merchantId: snapshot.merchantId, cart });
+          if (service.policy.paymentMode !== "online") throw new ConflictException("service_pay_at_attendance_required");
+          if (!snapshot.amountBreakdown?.cartFingerprint || snapshot.amountBreakdown.cartFingerprint !== paymentCartFingerprint({ cart })
+            || snapshot.currency !== service.selections[0]!.currency
+            || snapshot.amountBreakdown.discountCents !== Math.round((cart.currentDiscount ?? 0) * 100)
+            || snapshot.amountBreakdown.shippingCents !== 0
+            || snapshot.amountBreakdown.itemsSubtotalCents !== service.selections.reduce((sum, selection) => sum + selection.priceInCents, 0))
+            throw new ConflictException("service_checkout_summary_changed");
+          await assertProfessionalLease(snapshot.merchantId, service.selections, service.policy,
+            { ownerId: snapshot.sessionId, store: this.serviceLeaseStore });
+        } else {
+          const variants = await tx.productVariant.findMany({ where: {
+            OR: cart.items.map(item => typeof item.variantId === "string" ? { id: item.variantId }
+              : { sku: item.sku, ...(item.product_id ? { productId: item.product_id } : {}) }),
+            product: { merchantId: snapshot.merchantId, type: "service" },
+          }, select: { product: { select: { metadata: true } } } });
+          if (variants.some(variant => serviceScheduleFromMetadata(variant.product.metadata) !== undefined))
+            throw new ConflictException("service_professional_selection_required");
+        }
+      }
       let hasWidgetReceipt = false;
       try { hasWidgetReceipt = admissionCart !== null && typeof admissionCart === "object" && "_widgetCrossSellAcceptance" in admissionCart; }
       catch { throw new Error("cross_sell_quote_review_required"); }

@@ -63,7 +63,7 @@ export class ResumePaymentCreationService {
     if (!before.creation.firstAttemptAt && this.serviceSlots && this.checkout) {
       const session = await this.checkout.getSession(before.merchantId, before.sessionId);
       if (!session) throw new ConflictException("checkout_session_not_found");
-      await this.serviceSlots.assertBeforePayment(session);
+      await this.serviceSlots.assertBeforePayment(session, { requireOnline: true });
     }
     if (before.creation.state === "ready") await beforeCreate?.();
     const leaseToken = randomUUID();

@@ -88,10 +88,13 @@ export class ServiceSlotHoldsService {
         requiresHold: current.policy.holdEnabled, selections, ...(hold ? { hold } : {}) };
     });
   }
-  async assertBeforePayment(session: CheckoutSession): Promise<void> {
+  /** Capacity checks also serve local confirmation; a new PSP attempt opts into
+   * online-policy admission without changing that existing generic contract. */
+  async assertBeforePayment(session: CheckoutSession, options: { requireOnline?: boolean } = {}): Promise<void> {
     if (hasProfessionalServiceSelection(session)) return this.prisma.$transaction(async tx => {
       await admitWhatsAppEffectInTransaction(tx, session.merchantId);
       const current = await this.professionalSelection(tx, session);
+      if (options.requireOnline && current.policy.paymentMode !== "online") throw new ConflictException("service_pay_at_attendance_required");
       await assertProfessionalLease(session.merchantId, current.selections, current.policy,
         { ownerId: session.sessionId, store: () => this.store() });
     });
