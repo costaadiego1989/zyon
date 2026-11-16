@@ -59,3 +59,43 @@ for (const patch of [{ discountValue: NaN }, { discountValue: 12.5 }, { discount
 test("new ambiguous promotion descriptors are rejected by the shared entity", () => {
   assert.throws(() => ProductPromotionEntity.create({ merchantId: "merchant", discountType: "percent", discountValue: 10, promoPriceInCents: 4750, isActive: true, startsAt, endsAt }), /promotion_/);
 });
+
+test("invalid coupon identifiers never replace the persisted canonical promotion", async t => {
+  const f = await fixture(t);
+  for (const couponId of ["", " \t", "x".repeat(192), "invalid\0coupon", "\uD800"]) {
+    await assert.rejects(f.update({ couponId }), /promotion_invalid_coupon/);
+    const saved = await f.repository.getById(f.promotion.id, f.merchantId);
+    assert.deepEqual([saved!.discountType, saved!.discountValue, saved!.promoPriceInCents, saved!.couponId], ["percent", 10, null, null]);
+    assert.equal(f.select(saved).unitPriceCents, 4500);
+  }
+  const couponId = "x".repeat(191);
+  const valid = await f.update({ couponId });
+  assert.equal(valid.couponId, couponId); assert.deepEqual(f.select(valid).couponIds, [couponId]);
+});
+
+for (const first of ["price", "inline"] as const) {
+  test(`concurrent promotion mode patches retain a complete descriptor when${first} writes first`, async t => {
+    const f = await fixture(t);
+    let reads = 0, releaseReads!: () => void, releaseFirst!: () => void;
+    const bothRead = new Promise<void>(resolve => { releaseReads = resolve; });
+    const firstWritten = new Promise<void>(resolve => { releaseFirst = resolve; });
+    const synchronized = {
+      getById: async (id: string, merchantId: string) => {
+        const value = await f.repository.getById(id, merchantId);
+        if (++reads === 2) releaseReads(); await bothRead; return value;
+      },
+      update: async (id: string, merchantId: string, data: any) => {
+        const isFirst = first === "price" ? data.promoPriceInCents === 2000 : data.discountValue === 20;
+        if (isFirst) { try { return await f.repository.update(id, merchantId, data); } finally { releaseFirst(); } }
+        await firstWritten; return f.repository.update(id, merchantId, data);
+      },
+    };
+    const service = new UpdateProductPromotionUseCase(synchronized as never);
+    await Promise.all([service.execute({ id: f.promotion.id, merchantId: f.merchantId, data: { promoPriceInCents: 2000 } }),
+      service.execute({ id: f.promotion.id, merchantId: f.merchantId, data: { discountValue: 20 } })]);
+    const saved = await f.repository.getById(f.promotion.id, f.merchantId);
+    assert.deepEqual([saved!.discountType, saved!.discountValue, saved!.promoPriceInCents, saved!.couponId],
+      first === "price" ? ["percent", 20, null, null] : [null, null, 2000, null]);
+    assert.equal(f.select(saved).unitPriceCents, first === "price" ? 4000 : 2000);
+  });
+}

@@ -64,6 +64,10 @@ export class ProductPromotionEntity {
       (props.promoPriceInCents !== undefined && props.promoPriceInCents !== null);
 
     const hasCoupon = props.couponId !== undefined && props.couponId !== null;
+    if (hasCoupon && (typeof props.couponId !== "string" || !props.couponId.trim() || props.couponId.length > 191
+      || props.couponId.includes("\0") || Array.from(props.couponId).some(character => {
+        const point = character.codePointAt(0)!; return point >= 0xd800 && point <= 0xdfff;
+      }))) throw new Error("promotion_invalid_coupon");
 
     // Invariant 1a: Both-set check
     if (hasCoupon && hasInlineDiscount) {

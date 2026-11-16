@@ -35,10 +35,15 @@ export class UpdateProductPromotionUseCase {
       else if (inline) Object.assign(data, { promoPriceInCents: null, couponId: null });
 
       // Undefined is an omitted patch; explicit null clears a descriptor field.
+      const descriptorChanged = ["discountType", "discountValue", "promoPriceInCents", "couponId"].some(key => Object.hasOwn(data, key));
       if (["startsAt", "endsAt", "discountType", "discountValue", "promoPriceInCents", "couponId"].some(key => Object.hasOwn(data, key))) {
-        ProductPromotionEntity.create({
+        const validated = ProductPromotionEntity.create({
           ...existing, ...data,
           discountType: (Object.hasOwn(data, "discountType") ? data.discountType : existing.discountType) as "percent" | "fixed" | null | undefined,
+        });
+        if (descriptorChanged) Object.assign(data, {
+          discountType: validated.discountType ?? null, discountValue: validated.discountValue ?? null,
+          promoPriceInCents: validated.promoPriceInCents ?? null, couponId: validated.couponId ?? null,
         });
       }
 
