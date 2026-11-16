@@ -29,6 +29,7 @@ import type { ConversationBlock } from "../../domain/types/conversation-block.js
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import { classifyIntent, getModelForIntent, type StoreAgentIntent, type ClassifyIntentResult } from "../ai/intent-classifier.js";
 import { classifyStorefrontIntent, type StructuredIntentResult } from "../ai/structured-intent-classifier.js";
+import { searchShoppingListProducts } from "./shopping-list-search.js";
 import { validateStorefrontMessage, type StorefrontMessageContext } from "../../domain/tools/safety-validator.js";
 import { buildStoreSystemPrompt } from "../../domain/prompts/store-system-prompt.builder.js";
 import { buildConversationBlocks } from "./conversation-block.builder.js";
@@ -315,6 +316,19 @@ export class StorefrontLangGraphAgent {
     let totalTokens = semantic.usage.totalTokens;
     const blocks: ConversationBlock[] = [];
     const requestHandlers = input.toolHandlers ?? this.defaultToolHandlers;
+    const shoppingList = semantic.classification.domain === "STORE_COMMERCE"
+      && ["PRODUCT_SEARCH", "RECOMMEND_PERSONALIZED"].includes(semantic.classification.intent)
+      ? await searchShoppingListProducts({ attachmentContext: input.attachmentContext, merchantId: input.merchantId,
+        userMessage: input.userMessage, handlers: requestHandlers, callbacks: input.callbacks }) : undefined;
+    if (shoppingList) {
+      const validation = validateStorefrontMessage(shoppingList.message);
+      if (validation.message) input.callbacks?.onToken?.(validation.message);
+      return { message: validation.message, blocks: validation.safe ? shoppingList.blocks : [], toolsUsed: shoppingList.toolsUsed, cartId: input.cartId,
+        usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+        routing: { source: semantic.source, domain: semantic.classification.domain, needsProductDiscovery: shoppingList.toolsUsed.length > 0,
+          intent: semantic.classification.intent, confidence: semantic.classification.confidence, modelTier, modelUsed },
+        safetyValidation: { safe: validation.safe && shoppingList.confirmed, reason: shoppingList.confirmed ? validation.reason : "shopping_list_search_unconfirmed" } };
+    }
     const quantityCommand = input.attachmentContext ? undefined : explicitCartQuantityCommand(input.userMessage);
     let quantitySelection: CartQuantitySelection | undefined;
     if (quantityCommand) {
