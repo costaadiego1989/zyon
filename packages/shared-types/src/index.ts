@@ -898,6 +898,7 @@ export type RevenueManagerDomainEventType =
 
 export type DomainEventType =
   | "support.case.changed"
+  | "whatsapp.support.message.requested"
   | CheckoutDomainEventType
   | CrossSellDomainEventType
   | CouponsDomainEventType
@@ -1348,8 +1349,18 @@ export interface SupportReturnItem {
   imageUrl?: string;
 }
 
+export type WhatsAppSupportDeliveryStatus = "queued" | "accepted" | "delivered" | "read" | "failed" | "unknown";
+export interface WhatsAppSupportDelivery {
+  status: WhatsAppSupportDeliveryStatus;
+  revision: number;
+  providerMessageId: string | null;
+  errorCode?: string;
+}
+
 export type SupportMessageMetadata =
   | { kind: "text" }
+  | { kind: "whatsapp_outgoing"; schemaVersion: 1; bindingId: string; configId: string; whatsappSessionId: string;
+      epoch: number; operatorId: string; clientMessageId: string; delivery: WhatsAppSupportDelivery }
   | { kind: "whatsapp_claim"; schemaVersion: 1; bindingId: string; configId: string; whatsappSessionId: string;
       previousEpoch: number; epoch: number; operatorId: string }
   | { kind: "whatsapp_incoming"; schemaVersion: 1; configId: string; whatsappSessionId: string; inboxId: string;

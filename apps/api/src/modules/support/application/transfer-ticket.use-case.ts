@@ -34,6 +34,7 @@ export class TransferTicketUseCase {
       where: { id: input.ticketId, merchantId: input.currentMerchantId },
     });
     if (!ticket) throw new NotFoundException("ticket_not_found");
+    if(ticket.source==="whatsapp")throw new ForbiddenException("whatsapp_ticket_transfer_not_available");
 
     const connection = await this.prisma.marketplaceConnection.findFirst({
       where: {

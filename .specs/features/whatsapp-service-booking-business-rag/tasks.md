@@ -1138,6 +1138,8 @@ T97 → T95
 
 ### T53: Queue an operator message atomically
 
+**Status**: Complete local Full -31 selected units,13 real HTTP/Socket.IO/SQL tests, checked API build0/2542; zero fail/skip/provider and natural owned cleanup0. Exact test correction explicitly approved, then official13 repeated. See task-53-evidence.json. No transport/delivery/read claim; T54/T55 remain.
+
 **What**: Persistir message/clientMessageId e outbox na mesma transação, canal destino do binding; gravação aparece queued e não read; caminhos de suporte existentes preservados.
 **Where**: `apps/api/src/modules/support/application/send-ticket-message.use-case.ts`
 **Depends on**: T52
@@ -1146,12 +1148,12 @@ T97 → T95
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] DB/HTTP: duplicate, foreign ticket, closed ticket, outbox rollback e suporte widget anterior.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] DB/HTTP: duplicate, foreign ticket, closed ticket, outbox rollback e suporte widget anterior.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: DB/HTTP: duplicate, foreign ticket, closed ticket, outbox rollback e suporte widget anterior.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T53$" ./src/modules/support/application/send-ticket-message.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T53 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: `whatsapp-operator-authorization.spec.ts`, unchanged `auth/presentation/staff-access.spec.ts` and handoff/support/controller/gateway units (31 selected); dedicated `tests/whatsapp-operator-message.integration.spec.mjs` for real HTTP/WebSocket/SQL duplicate/conflict, trusted actor, foreign/widget/closed/alias/no-claim, atomic message/delivery/outbox rollback and widget behavior. Outbound provider delivery is T54, not a queue claim.
+**Gate**: Full: protected Node unit runner without a name filter, selected files in task-53-evidence.json; official checked API build; from apps/api `node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/whatsapp-operator-message.integration.spec.mjs`. Actual AppModule/auth/repositories/tenant SQL and operator Gateway, zero skipped. HTTP/Gateway server principal is separate from buyer DTO; no free recipient or source flag. Final HUM-04/HUM-05 checks remain mandatory after later transport/UI tasks.
 **Commit**: `feat(service-business): t53 queue an operator message atomically`
 
 ### T54: Deliver the operator outbox to the original thread
@@ -2250,6 +2252,8 @@ Tasks: T96, T97, T63, T72.
 
 ## Handoff
 
+**Completed53:** M finishes this atomic task from combined68 ee4532ec:31unit/13officialHTTP-WebSocket-SQL/checked2542 input1bd5c4 artifact9132e3,0skip/provider/naturalcleanup. Heavy returned before metadata/commit. Send-only explicit staff role policy preserves default denials; queued is not delivered/read. Own branch feat/whatsapp-operator-message-20261116. Exact null400 pre-auth audit0 correction approved by user "Sim, corrigir essa checagem"; official13 passed after exact candidate11074 was applied. Root69/P29 later combined source is not proven by this artifact. Next M54 is source/pure only until parent heavy dispatch; no production action.
+
 **Completed68:** Full639components/51actualnative(37new+14index), checked2541 input4c61abc6/artifact0c20cdc3,0fail/skip/provider/naturalcleanup; task-68-evidence.json preserves allcausalREDs, fixturecorrections and actualboundaries.41/97complete after atomic68; rootheavyreturned. No newbuyerUI or production action. Next M53 aligns thiscommit before checked/native12; P29source7unitready/102nativeunrun waits68+53base. Root69implementation may start only after thisgreen68commit.
 
 
@@ -2348,6 +2352,7 @@ Tasks: T96, T97, T63, T72.
 **Settled test correction:** 2026-11-16 - user: "Sim, corrigir esse teste para 403 (recomendado)" (reply call_ef8af0f77f6746789f47388d26a49fd9). Approved exactly the T52 candidate dcef33d068a0f44e76400b0af385d63e9865366e477c94b0565848b0f65d2101: foreign body merchantId expects403 tenant_mismatch_body from the existing global guard; authenticated own merchantId remains an extra DTO field rejected400, with all other invalid-input400 and exact no-write assertions unchanged. No runtime/source guard or other oracle changes. A fresh real10-case gate is required after application; earlier overlays remain diagnostics only.
 **Settled test correction:** 2026-11-15 - user: "Sim, corrigir essa linha (recomendado)" (reply call_895e4cba1100411cbc83b4423b42623d). Approved only the old widget email-OTP assertion strategyContextVersion equals its previous value rather than previous+1; saved.version6 and every other oracle remain unchanged. Concrete external candidate176/176 and identical before/after49-case failure were reviewed. Apply exactly that line and require the real protected176-case runner before marking T51 complete. No production/source behavior or remote action is authorized by this correction.
 **Settled mid-build:** 2026-11-14 - user: "Aprovar o plano e iniciar implementação local". Aprovação recebida para os 71 critérios, 95 tarefas/13 fases, refinamentos posteriores e subagentes, preservando produtos nos dois canais. Publicação permanece etapa separada. Início por T1, sem alterar o workspace concorrente.
+**Approved test correction T53:** 2026-11-16 - user: "Sim, corrigir essa checagem". Exact candidate11074da25dcb87e1ebf11df7a7c495bebaa12f5e879f90e754b8ed76730651ab/patch2c3bd330b831b8d36614de6113868bf421fb28499c9afd7e32d4ad2d8f1d2515 applied after original4f27 hash verification: only strict JSON null400 pre-auth auditCount0; other audit waiters,400/no-write and all business assertions unchanged. Diagnostic13/13 remains separate from the gate; official13 subsequently passed on the unchanged1bd5/9132 artifact before this atomic commit.
 **Settled execution change:** 2026-11-14 - user: "por que esta demorando tanto? spawnar subagents". Preparos paralelos autorizados em checkouts isolados, preservando gates reais, dependências técnicas, commits atômicos e escopo local.
 **Root parallel front:** T63-T71 public business RAG in N. T63 uses completed T13/T18; T65 also waits T25 to cover all actual new writers. Human handoff Phase7 may start after the independent schema/session base T9. Final coexistence requires every front; no criterion/gate is removed.
 **Next parallel dispatch:** service_batch_01 switches to whole Phase7 T48-T55 in M after incorporating the committed T64 base; T48 depends on T9 because the binding/support/session domain is independent of availability. Its T26-T32 drafts are hash-preserved and handed to P for execution after P/T25. C retains T96/T97 integration and its returned M field10/10. Root coordinates the same one-heavy-slot limit and final author-independent verification. No human gateway/provider action is authorized by this local dispatch.

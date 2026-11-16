@@ -14,10 +14,14 @@ export async function createWhatsAppOperatorHttpFixture(){
         headers:{'content-type':'application/json','idempotency-key':randomUUID(),'x-correlation-id':correlationId,
           ...(auth?{authorization:'Bearer '+auth.access_token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});
       const result={status:response.status,body:await response.json()};
-      if(auth&&method!=='GET'&&path.includes('/whatsapp/claim')&&![401,403].includes(result.status)){
+      const guardedMutation=path.includes('/whatsapp/claim')||/\/support\/tickets\/[^/]+\/(messages|transfer)$/.test(path);
+      const enteredForbidden=result.status===403&&/human_operator_required|whatsapp_claim_owned_by_another_operator|whatsapp_ticket_transfer_not_available/.test(JSON.stringify(result.body));
+      const strictJsonParserRejected=body===null&&result.status===400;
+      if(strictJsonParserRejected)assert.equal(await f.raw.merchantAuditEvent.count({where:{correlationId}}),0,'strict JSON parser rejection happens before authentication and audit');
+      if(auth&&method!=='GET'&&guardedMutation&&!strictJsonParserRejected&&(![401,403].includes(result.status)||enteredForbidden)){
         const end=Date.now()+5000;let audit;
         do{audit=await f.raw.merchantAuditEvent.findFirst({where:{merchantId:auth.merchant_id,correlationId}});if(!audit)await pause(10);}while(!audit&&Date.now()<end);
-        assert.ok(audit,'operator_claim_http_audit_required');assert.equal(audit.actorId,auth.user_id);
+        assert.ok(audit,'operator_claim_http_audit_required');assert.equal(audit.actorId,auth.user_id??auth.credential_id);
         assert.equal(audit.metadata.statusCode,result.status);assert.equal(audit.outcome,result.status<400?'success':'failed');
       }
       return result;

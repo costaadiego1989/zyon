@@ -9,6 +9,7 @@ import { AUTH_REPOSITORY, type AuthRepository } from "../../../auth/domain/ports
 import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from "../../domain/ports/support-ticket-repository.port.js";
 import { SendTicketMessageUseCase } from "../../application/send-ticket-message.use-case.js";
 import { SupportRealtimePublisher } from "../../application/support-realtime.publisher.js";
+import type { HumanTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
 
 type Credential = { kind: "buyer" | "merchant"; token: string };
 interface Connection extends Credential {
@@ -17,7 +18,7 @@ interface Connection extends Credential {
   messages: number;
   rooms: Set<string>;
 }
-type Principal = { kind: "buyer" | "merchant"; merchantId: string; ticketId?: string; expiresAt: number };
+type Principal = { kind: "buyer" | "merchant"; merchantId: string; ticketId?: string; expiresAt: number; actor?: HumanTenantPrincipal };
 
 @WebSocketGateway({ namespace: "/support", cors: resolveCorsConfig(), maxHttpBufferSize: 16384 })
 export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -84,7 +85,7 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
       payload.exp! <= Math.floor(Date.now() / 1000) || payload.exp! * 1000 - Date.now() > 2147483647) throw new Error("invalid_principal");
     const member = await this.users.findUserByEmail(user.email);
     if (!member || member.id !== user.userId || member.merchantId !== user.merchantId || member.role !== user.role) throw new Error("membership_required");
-    return { kind: "merchant", merchantId: user.merchantId, expiresAt: payload.exp! };
+    return { kind: "merchant", merchantId: user.merchantId, expiresAt: payload.exp!, actor: { kind: "human", tenantId: user.merchantId, userId: user.userId, email: user.email, role: user.role } };
   }
 
   private async authorize(client: Socket): Promise<Principal> {
@@ -151,7 +152,7 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
       const message = await this.sendMessage.execute({
         ticketId: ticket.id, merchantId: principal.merchantId,
         senderType: principal.kind, content: data.content.trim(), clientMessageId: data.clientMessageId,
-      });
+      }, principal.actor ? { principal: principal.actor } : undefined);
       return { success: true, message };
     } catch {
       this.logger.debug("Support socket message rejected or failed");

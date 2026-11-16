@@ -1,5 +1,7 @@
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
+import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -48,6 +50,7 @@ export class SupportMessagesController {
     });
   }
 
+  @RequireTenantRoles("owner", "admin", "staff")
   @Post(":id/messages")
   @RequireTenantAccess({ serviceScopes: ["support:write"], humanRoles: ["owner", "admin", "staff"] })
   async send(
@@ -58,6 +61,7 @@ export class SupportMessagesController {
     const principal = currentTenantPrincipal(
       request as Parameters<typeof currentTenantPrincipal>[0],
     );
+    if(!body||typeof body!=="object"||Array.isArray(body))throw new BadRequestException("invalid_message");
     return this.sendMessage.execute({
       ticketId,
       merchantId: principal.tenantId,
@@ -65,7 +69,7 @@ export class SupportMessagesController {
       ...(principal.kind === "human" ? { operatorId: principal.userId } : {}),
       content: body.content,
       clientMessageId: body.clientMessageId,
-    });
+    }, { principal });
   }
 
   @Post(":id/transfer")

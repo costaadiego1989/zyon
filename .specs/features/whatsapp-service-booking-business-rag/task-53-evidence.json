@@ -1,0 +1,178 @@
+{
+  "task": "T53",
+  "status": "complete_local_full_gate",
+  "baseHead": "ee4532ecefc60d51d22fa25c99baf253b9690131",
+  "branch": "feat/whatsapp-operator-message-20261116",
+  "environment": "local-owned",
+  "unit": {
+    "tests": 31,
+    "pass": 31,
+    "fail": 0,
+    "skipped": 0,
+    "log": ".cache/t53-gates/2026-11-16T08-34-15.236Z/unit.log",
+    "files": [
+      "./src/modules/whatsapp-channel/domain/services/whatsapp-operator-authorization.spec.ts",
+      "./src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.spec.ts",
+      "./src/modules/support/application/support-tickets.use-cases.spec.ts",
+      "./src/modules/support/application/support-handoff.service.spec.ts",
+      "./src/modules/support/presentation/http/support.controller.spec.ts",
+      "./src/modules/support/infrastructure/gateways/support.gateway.spec.ts",
+      "./src/modules/auth/presentation/staff-access.spec.ts"
+    ]
+  },
+  "checkedBuild": {
+    "checked": true,
+    "exitCode": 0,
+    "sourceCount": 2542,
+    "inputSha256": "1bd5c4957cdd7d2371419185fe317b1fcde9ffa197957aec0060af8dad2325ea",
+    "artifactSha256": "9132e323e4553b7fb61e61a59acb47f7d458c76f97253d217f78ce23d8113913",
+    "log": ".cache/t53-gates/2026-11-16T08-35-53.300Z/build.log"
+  },
+  "officialNative": {
+    "tests": 13,
+    "pass": 13,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "todo": 0,
+    "exitCode": 0,
+    "entry": "tests/whatsapp-operator-message.integration.spec.mjs",
+    "log": ".cache/t53-gates/2026-11-16T12-00-54.299Z/native.log",
+    "logSha256": "22604eeb1995b3dc576352ca5d9cc7e068736446c8d80c7a3e8835d8796bdb15",
+    "durationMs": 52206.7219,
+    "scenarios": [
+      "missing credentials invalid content client IDs and unclaimed cases cannot queue",
+      "only the exact active human tenant and claimed operator can send",
+      "a real scoped API key cannot impersonate an operator even with free principal fields",
+      "queue freezes the real actor scope text and original thread; queued never means read",
+      "equivalent replay returns the same persisted state; conflicting reuse never changes the original",
+      "the legacy inbox receipt machine cannot acknowledge the new operator namespace",
+      "closed and alias-to-WhatsApp cases cannot enqueue or adopt a different ticket",
+      "the final transport-outbox SQL failure rolls back message realtime event and delivery together",
+      "a product merchant queues identically and legacy widget send and alias behavior remain valid",
+      "cross-store transfer refuses a WhatsApp case before any tenant write",
+      "an explicitly authorized staff operator can send only after claiming its own exact case",
+      "real authenticated Socket.IO sends retain operator authority and reject another operator"
+    ],
+    "officialFixtureSha256": "11074da25dcb87e1ebf11df7a7c495bebaa12f5e879f90e754b8ed76730651ab",
+    "officialEntrySha256": "1f0d62a51eb5b17ef5e1cc10785ee7478c772c0e26b233393bd27db889848151"
+  },
+  "diagnosticOnly": {
+    "tests": 13,
+    "pass": 13,
+    "fail": 0,
+    "skipped": 0,
+    "log": ".cache/t53-gates/2026-11-16T08-40-02.639Z/native.log",
+    "acceptedAsGate": false
+  },
+  "approvedTestCorrection": {
+    "userWords": "Sim, corrigir essa checagem",
+    "date": "2026-11-16",
+    "scope": "only strict null400 pre-auth auditCount0; other audit waiters/status/no-write intact",
+    "originalFixtureSha256": "4f27a2e50d1dbe97422a8e07c0cecf18d3b2d7ddd6813beb405328a307c1cc26",
+    "appliedFixtureSha256": "11074da25dcb87e1ebf11df7a7c495bebaa12f5e879f90e754b8ed76730651ab",
+    "patchSha256": "2c3bd330b831b8d36614de6113868bf421fb28499c9afd7e32d4ad2d8f1d2515",
+    "officialRealGateRun": true,
+    "heavySlot": "root69, no M heavy permitted",
+    "officialLog": ".cache/t53-gates/2026-11-16T12-00-54.299Z/native.log"
+  },
+  "preservedFailures": [
+    {
+      "kind": "compiler_missing_new_event_type",
+      "log": ".cache/t53-gates/2026-11-16T08-23-10.921Z/build.log",
+      "result": "exit1, one TS2820, fixed declarative DomainEventType without casts/guard changes"
+    },
+    {
+      "kind": "official_native_pre_fix",
+      "log": ".cache/t53-gates/2026-11-16T08-29-29.916Z/native.log",
+      "tests": 12,
+      "pass": 9,
+      "fail": 3,
+      "skipped": 0,
+      "cause": "two children+root: strict null JSON pre-auth audit expectation; missing explicit staff permission metadata"
+    },
+    {
+      "kind": "old_staff_permission_spec",
+      "log": ".cache/t53-gates/2026-11-16T08-33-23.962Z/unit.log",
+      "tests": 2,
+      "pass": 1,
+      "fail": 1,
+      "cause": "existing explicit staff support permission test, fixed send-only RequireTenantRoles"
+    }
+  ],
+  "alignment": {
+    "baseHead": "ee4532ecefc60d51d22fa25c99baf253b9690131",
+    "previousHead": "fc1abe1ddf363be396c1fef983138a3fac48f584",
+    "branch": "feat/whatsapp-operator-message-20261116",
+    "backupRoot": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\t53-before-combined68-20261116T074721Z",
+    "carriedProductiveFilesExactExceptAdditiveSharedTypes": true,
+    "sharedTypesT28AndT53ExactComposition": true,
+    "lockUnchanged": true,
+    "schemaUnchanged": true
+  },
+  "behavior": {
+    "serverPrincipalSeparateFromDto": true,
+    "exactOriginalBindingScopeAndClaim": true,
+    "queueStatusIsNotDeliveryOrRead": true,
+    "messageDeliveryRealtimeAndTransportOutboxAtomic": true,
+    "equivalentReplayKeepsOriginal": true,
+    "contentConflictRefusesWithoutWrites": true,
+    "widgetBehaviorPreserved": true,
+    "bothBusinessModes": true,
+    "noCheckoutSessionMutation": true,
+    "humanTransportNotImplementedUntilT54": true
+  },
+  "boundaries": {
+    "realAppModule": true,
+    "realHttpAndSocketIo": true,
+    "realAuthTenantRepositoriesAndSql": true,
+    "appModuleProviderOverrides": [],
+    "externalProviderCalls": 0,
+    "oneLegacyNamespaceProbeUsesUnusedThrowOnlySender": true,
+    "noRemoteMutation": true,
+    "providerDeliveryOrReadProven": false
+  },
+  "scopeFiles": [
+    ".specs/STATE.md",
+    ".specs/features/whatsapp-service-booking-business-rag/task-53-evidence.json",
+    ".specs/features/whatsapp-service-booking-business-rag/task-53-plan.md",
+    ".specs/features/whatsapp-service-booking-business-rag/tasks.md",
+    "apps/api/src/modules/support/application/send-ticket-message.use-case.ts",
+    "apps/api/src/modules/support/application/transfer-ticket.use-case.ts",
+    "apps/api/src/modules/support/infrastructure/gateways/support.gateway.ts",
+    "apps/api/src/modules/support/presentation/http/support-messages.controller.ts",
+    "apps/api/src/modules/whatsapp-channel/application/services/whatsapp-delivery.service.ts",
+    "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-operator-authorization.spec.ts",
+    "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-operator-authorization.ts",
+    "apps/api/tests/whatsapp-operator-http-fixture.mjs",
+    "apps/api/tests/whatsapp-operator-message.integration.spec.mjs",
+    "packages/shared-types/src/index.ts"
+  ],
+  "cleanup": {
+    "appClosedAck": true,
+    "naturalWorkerExitCode": 0,
+    "timers": [],
+    "remainingOwnedContainers": 0,
+    "remainingOwnedBridgeSockets": 0,
+    "providerCalls": 0
+  },
+  "heavyReturnedBeforeMetadataCommit": true,
+  "limitations": [
+    "Local queue admission only; T54 transport/T55 delivery and read callbacks/T60 UI remain separate tasks.",
+    "Separate root69/P29 source is not in this M53 checked artifact; later combined verification remains required.",
+    "Diagnostic13 overlay is not counted as the official gate.",
+    "Known historical general API baseline failures are not relabeled green."
+  ],
+  "codeAndHarnessHashes": {
+    "apps/api/src/modules/support/application/send-ticket-message.use-case.ts": "baecbb554f2e253cbed6e5e32102bd9cbe72e05e3dcb9629b703829113216589",
+    "apps/api/src/modules/support/application/transfer-ticket.use-case.ts": "f1c3e36dc4a8b89b007052f42e0ad1a667d1083b19ce60763de5b9b62a0a7513",
+    "apps/api/src/modules/support/infrastructure/gateways/support.gateway.ts": "1670849e1d9bdce8bfc5bf90317ff88d6ce5a35fd8e5a6fb2c414a3899377784",
+    "apps/api/src/modules/support/presentation/http/support-messages.controller.ts": "e6c1693f07f94c0be1ac97c5b5f5ccfb009a498dc6c7a7ed5886a2fe629810ec",
+    "apps/api/src/modules/whatsapp-channel/application/services/whatsapp-delivery.service.ts": "7dbc0ed936678d1dc5e791e7df0e054fef23716cca9b778b2c483824527eebce",
+    "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-operator-authorization.spec.ts": "549893d2c47df18692bbc8234a763fb321b959df856789d035b806d7f0d466ef",
+    "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-operator-authorization.ts": "a62f99d50310074aa86b1076b3eb4b8f2db2cb7cd2ae2efd3d4f0b429fa5d3f3",
+    "apps/api/tests/whatsapp-operator-http-fixture.mjs": "11074da25dcb87e1ebf11df7a7c495bebaa12f5e879f90e754b8ed76730651ab",
+    "apps/api/tests/whatsapp-operator-message.integration.spec.mjs": "1f0d62a51eb5b17ef5e1cc10785ee7478c772c0e26b233393bd27db889848151",
+    "packages/shared-types/src/index.ts": "c78453a04652c9ecf54928e0689a43ab1c215690241ad8ceaef995ffa74c4504"
+  }
+}
