@@ -218,6 +218,10 @@ Mesmos filtros tenant/período/profissional/categoria nos totais/detalhes/série
 
 ## Verification and Activation
 
+### Catalog refinement after local screen review
+
+The user accepted the business-mode split and requested toggles plus professional links. T105 reuses ToggleSwitch for boolean settings, preserving the existing serviceSchedule serialization and product payloads. Selection checkboxes remain selection controls. T106 exposes the existing professional association writer from a saved service; GET is paginated and PATCH replaces productIds under expectedVersion. Preserve other service IDs, stop stale conflicts, identify partial success and re-read before retry. Creation stays a single service creation followed by explicit association editing. Product companies do not load the service picker. No parallel association table or availability authority is introduced.
+
 Endpoint/provider/consumer novo inclui registro mínimo no módulo de produção e testes no mesmo commit. Full HTTP usa AppModule servido no runtime próprio; TestingModule isolado é complemento unitário. O wiring inicial da agenda não substitui registro posterior de handoff/outbox, conhecimento e métricas. O coletor final exige probes HTTP/DB desses caminhos servidos.
 
 Provas locais só usam fixtures sintéticas e PostgreSQL/Redis descartáveis com propriedade verificada. Não herdar segredos/URLs de produção. Testes novos em tasks.md são planejados; nenhum resultado foi presumido. Mensagem/mocks não comprovam banco/PSP.

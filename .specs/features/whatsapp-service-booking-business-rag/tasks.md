@@ -10,6 +10,8 @@ Implementar com a skill **tlc-spec-driven**, seguindo Execute e Critical Rules. 
 **Date**: 2026-11-14
 **Mutations**: 3
 
+**User-directed catalog refinement (2026-11-16):** user: "está sim mas trar checkbox por toggle e poder vincular um profissional a um serviço se ja nao tiver". CAT-03/CAT-04 and T105/T106 extend the local plan to80criteria/106tasks. The business-mode UI is accepted with these refinements; no final release approval. Toggle role/gesture expectations follow this explicit control change while all behavioral assertions remain. Existing professional productIds/expectedVersion is the sole association writer.
+
 **Discovered implementation repair:** T104 retains the existing RAG-01/02/03 contract while reducing public projection planning/round-trip overhead after an actual reproduced client deadline failure. No new product decision, assertion change, warm-up or timeout increase. Current78criteria/104tasks; completed task counts remain unchanged until real gates pass. See task-104-plan.md.
 
 **User-directed support/appointments addition (2026-11-16):** private fallback WhatsApp alerts and a separate service-only appointments Kanban are explicitly requested. HUM-09/HUM-10 and ATEND-11/ATEND-12 extend the current plan to78 criteria/103 tasks (T99-T103). User selected "WhatsApp, com link para a conversa (recomendado)". T57 additionally proves natural-language/model-tool handoff under the existing HUM-02 criterion. Original approvals remain unchanged; all work remains local and preserves product journeys. See support-appointments-addendum-20261116.md for the audited boundaries.
@@ -191,6 +193,10 @@ T101 → T95
 T103 → T95
 T66 → T104
 T104 → T69
+T98 → T105
+T105 → T106
+T18 → T106
+T106 → T95
 ```
 
 ## Task Breakdown
@@ -2095,13 +2101,51 @@ T104 → T69
 **Gate**: Browser/UI build: unfiltered new page/view-model and existing Orders/shell/service-management files recorded before execution; dashboard typecheck/local build; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-appointments-board.spec.ts e2e/service-appointments-navigation.spec.ts`.
 **Commit**: `feat(service-business): t103 present service appointments kanban`
 
-### Phase 16: Revision-bound final acceptance
+### Phase 16: Catalog interaction refinements
+
+### T105: Replace catalog boolean checkboxes with toggles
+
+**What**: Usar o ToggleSwitch existente nos controles booleanos do cadastro de produtos e serviços, com label/estado/foco acessíveis e a mesma regra de valor/payload. Não transformar seleção de itens em preferência booleana nem alterar disponibilidade canônica.
+**Where**: `apps/dashboard/src/pages/product-detail/components/ProductForm.tsx`, `apps/dashboard/src/pages/product-detail/components/ServiceScheduleEditor.tsx`
+**Depends on**: T98
+**Reuses**: ToggleSwitch, ProductForm, existing catalog/service schedule fixtures and local screenshot runner. If another catalog boolean lives in ProductBlockEditor, include only its control and preserve the block payload.
+**Requirement**: CAT-03, REG-02, QA-02
+
+**Done when**:
+
+- [ ] Toggles expose their actual accessible name and checked state, support pointer/keyboard and retain disabled behavior, defaults and validation for all affected product/service controls.
+- [ ] Existing assertions remain, with only role/gesture updates directly required by the user's control change. Actual local desktop/mobile browser captures show the revised controls and saved/reopened state; no new API/domain writer.
+- [ ] Unfiltered affected component tests, dashboard typecheck/lint/build and Browser gate pass, no skipped cases; task marked before its atomic local commit.
+
+**Tests**: Existing catalog/service-schedule component files plus `src/pages/product-detail/components/ProductForm.toggles.spec.tsx` and `e2e/service-catalog-toggles.spec.ts`, verifying gestures and saved values rather than control invocation counts.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/components/ProductForm.toggles.spec.tsx src/pages/product-detail/components/ProductForm.business-mode.spec.tsx src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx src/pages/product-detail-page.spec.ts src/pages/product-detail/utils/product-validation.spec.ts src/pages/product-detail/utils/service-schedule-validation.spec.ts`; `pnpm --dir apps/dashboard typecheck`; affected-file lint; `node scripts/service-local-build.mjs dashboard`; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-toggles.spec.ts`. Add the concrete existing schedule control file to this unfiltered cohort if inventory finds a separate fixture. All source/resource/owned cleanup guards apply.
+**Commit**: `feat(service-business): t105 use toggles in catalog forms`
+
+### T106: Link existing professionals from the service editor
+
+**What**: Mostrar profissionais vinculados e permitir adicionar/remover vínculos no serviço salvo, apenas em empresas de serviços, usando a API existente com paginação e expectedVersion. O novo cadastro explica que o serviço precisa ser salvo; após salvar, o operador chega ao vínculo sem recriar o serviço. Respeitar proprietário/admin, manter os outros productIds e mostrar erro parcial/conflito com recuperação explícita.
+**Where**: `apps/dashboard/src/pages/product-detail/`, existing dashboard API client and new service-professional link component/hook only as required.
+**Depends on**: T105, T18
+**Reuses**: GET/PATCH /merchants/:merchantId/service-professionals, productIds/expectedVersion CAS, existing authenticated client and canonical business mode. Reusable professional client supports later T76 rather than a second association authority.
+**Requirement**: CAT-04, AGENDA-01, ATEND-02, REG-02, EDGE-01, QA-02
+
+**Done when**:
+
+- [ ] Service editor loads all pages truthfully, shows linked professionals and supports authorized save/unlink for active professionals of the current company; product mode does not request or show these controls. Empty/loading/error/staff states are explicit.
+- [ ] Each update preserves other service links and uses its current expectedVersion. Conflicts stop stale overwrites; partial failures identify saved/failed links and permit retry without duplicate service creation. Tenant/mode/item changes cannot apply stale responses or updates to the new context.
+- [ ] Component tests and real local API/browser gestures prove create-then-link, reopen/unlink, other-link preservation, forbidden/foreign/stale/error cases and responsive captures. Dashboard types/lint/build and Browser gate pass; task marked before one atomic local commit, zero provider/production actions.
+
+**Tests**: `src/pages/product-detail/components/ServiceProfessionalLinks.spec.tsx`, necessary authenticated client/hook tests and `e2e/service-catalog-professionals.spec.ts` with actual local API/SQL and two companies. Existing catalog and professional API tests remain unchanged.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/components/ServiceProfessionalLinks.spec.tsx src/pages/product-detail/components/ProductForm.toggles.spec.tsx src/pages/product-detail/components/ProductForm.business-mode.spec.tsx src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx`; `pnpm --dir apps/dashboard typecheck`; affected-file lint; `node scripts/service-local-build.mjs dashboard`; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-professionals.spec.ts e2e/service-catalog-business-mode.spec.ts`. Record necessary concrete companion paths before execution and preserve API guards, all old behavioral assertions and real resource admission.
+**Commit**: `feat(service-business): t106 link professionals from service editor`
+
+### Phase 17: Revision-bound final acceptance
 
 ### T95: Collect revision-bound acceptance evidence
 
 **What**: Coletor valida cobertura dos 72 IDs, teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
-**Depends on**: T94, T97, T98, T101, T103
+**Depends on**: T94, T97, T98, T101, T103, T106
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: QA-01, QA-02, QA-03, QA-04
 
@@ -2431,7 +2475,19 @@ Tasks: T41, T74, T102, T103.
 Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-appointments-navigation.spec.ts --grep "ATEND-12$"`
 Tasks: T82, T83, T103.
 
+**C79** - WHEN o operador altera configuração booleana no cadastro THEN the system SHALL apresentar toggle acessível e preservar valor, validação e persistência. (CAT-03, AC 3)
+Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-toggles.spec.ts --grep "CAT-03$"`
+Tasks: T105.
+
+**C80** - WHEN a service business links professionals in the saved service editor THEN the system SHALL preserve tenant, other service links and version conflicts, without duplicate service creation or false partial success. (CAT-04, AC 4)
+Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-professionals.spec.ts --grep "CAT-04$"`
+Tasks: T106, T76.
+
 ## Handoff
+
+**Dispatched catalog refinement preparation (before sending):** service_company_ui may inventory/cache-plan T105/T106 in its existing isolated checkout, preserving Phase8 drafts. No productive edits or tests/build/browser/import/container until formal plan review; M owns sole execution window. User explicitly requested toggles and professional associations. This dispatch was recorded after the initial tool delivery; further source authorization will be recorded before sending. Current80criteria/106tasks; original approvals and local-only boundary remain.
+
+**Dispatched M54 alignment and sole gate window (before sending):** committedRootad81d32c9f6803dbbf923324d6f6b765c865497d includes green69/104/98 and all earlier29/53. Root83native ended naturally; no active Root compiler/runtime remains. M preserves its exact26-file54freeze+metadata/cache before aligning only this committed base. Temporarily restore only its own SHA-backed tracked deltas, merge committedRoot, then reapply54with original blobs/three-way review; never copy Rootdirty user-feedback context, dependencies or outputs. Resolve additive69runtime fixture wiring without dropping either opt-in or old default oracles. Recheck schema/lock/source authority and new source fingerprint. M now owns the sole window for its recorded54units→fresh checked/API→native55 under unchanged resource guards; source fixes allowed after actual failures, no old assertion weakening. No old M53artifact reused or54completion before Fullgreen. Root may prepare70source in N and new UI refinement plans; C/P/99no runners. M continues its original54-55batch sequentially, each actual gate/atomic commit; no provider/production actions.
 
 **Settled user UI feedback (2026-11-16):** user: "está sim mas trar checkbox por toggle e poder vincular um profissional a um serviço se ja nao tiver". Record acceptance of the shown mode split with pending ToggleSwitch/professional-association refinements; no release authority or fabricated final screen approval. Backend professional association already exists through productIds+expectedVersion under owner/admin and tenant/mode guards; inventory actual shape/concurrency before new UI, no duplicate writer. Keep69full closure and other approved work moving; new UI follow-up plan/source will be isolated after concrete task records.
 

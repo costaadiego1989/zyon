@@ -16,6 +16,8 @@
 
 **Discovered regression repair:** 2026-11-16 - required native revalidation reproduced a Neo4j client transaction timeout during cold initial projection. T104 tests a single atomic write statement under the unchanged deadline, version lock and source-retirement contract. This is an implementation repair within RAG-01/02/03, with no added business criterion or relaxed test. Current execution count78criteria/104tasks. The hypothesis is not declared fixed until actual unchanged native gates pass.
 
+**User-directed catalog refinement:** 2026-11-16 - user: "está sim mas trar checkbox por toggle e poder vincular um profissional a um serviço se ja nao tiver". The shown business-mode split is accepted with these two refinements. CAT-03/CAT-04 and T105/T106 reuse existing ToggleSwitch and professional-service association endpoints. Current scope is80 criteria/106 tasks; this acceptance does not approve production or the final feature.
+
 ## Problem Statement
 
 O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slots e suporte. A experiÃªncia ainda nÃ£o comprova uma agenda com vÃ¡rios profissionais, atendimento humano na mesma conversa e conhecimento alimentado automaticamente pelo cadastro da empresa. A validaÃ§Ã£o de comÃ©rcio nÃ£o comprova prontidÃ£o para atendimento de clÃ­nicas ou outros prestadores de serviÃ§os.
@@ -228,6 +230,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 1. WHILE a modalidade canônica da empresa é `products`, WHEN o operador abre o cadastro THEN the system SHALL oferecer apenas os tipos `physical`, `digital` e `food`, sem a opção de cadastrar `service`, preservando a validação da API e os registros históricos. [CAT-01]
 2. WHILE a modalidade canônica da empresa é `services`, WHEN o operador abre ou limpa o cadastro THEN the system SHALL apresentar o fluxo "Novo serviço" com tipo `service`, conservando esse tipo no envio e sem converter silenciosamente um registro já carregado de outra modalidade. [CAT-02]
+3. WHEN o operador altera uma configuração booleana no cadastro de produto ou serviço THEN the system SHALL apresentar um toggle acessível com nome e estado, conservando o valor, validação e persistência existentes. [CAT-03]
+4. WHILE a modalidade canônica é `services`, WHEN o operador vincula profissionais a um serviço salvo THEN the system SHALL permitir selecionar profissionais da própria empresa, preservar os outros serviços de cada profissional e apresentar conflitos ou falhas sem duplicar o serviço nem declarar vínculos não persistidos. [CAT-04]
 
 **Independent Test:** Abrir o catálogo com empresas sintéticas de produtos e serviços; clicar no cadastro; verificar opções, padrão/reset e payload; alternar contexto durante edição; demonstrar que tipos inválidos continuam recusados pela guarda existente. Capturar as duas modalidades no navegador local em desktop/mobile. Esses testes não alteram os fluxos de compra existentes.
 
@@ -332,6 +336,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | QA-01 | Criteria proofs | T1, T95 | Pending |
 | CAT-01 | Product-mode creation options | T98 | Complete locally;55unit+2real browser, no skips; final screen review later |
 | CAT-02 | Service-mode creation and defaults | T98 | Complete locally; defaults/reset/payload/history and actual stale-mode409 proved |
+| CAT-03 | Catalog boolean toggles | T105 | Pending |
+| CAT-04 | Professional links in service editor | T106, T76 | Pending |
 | HUM-09 | Private support fallback recipient | T99, T101 | Pending; explicitly requested2026-11-16 |
 | HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Pending; channel confirmed2026-11-16 |
 | ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |

@@ -2,6 +2,8 @@
 
 ## Handoff
 
+- Latest user accepted98business-mode split with toggle/professional-link refinements. Current80criteria/106tasks, still46completed;105/106registered before source dispatch. M54sole execution window; root70source/docs only, C105/106inventory/cache only, P30/99sources remain unexecuted. No release/final feature acceptance implied.
+
 - T69 COMPLETE LOCALLY in this atomiccommit:879components/83actualnative/checked2543fa8c-1d61 allgreen after104repair,0skip/provider/naturalcleanup.46/104complete including69and104. Only69API25files/plan/evidence/status staged; user toggle/professional UI feedback remains pending isolated refinement, no release approval. NextRootT70source; M54/P30await alignment/gatehandover, CPhase8cache-only. Private99source remains unexecuted in separatecheckout. Sourcebefore69commitHEAD19483; git/evidence determines resultingHEAD. Final fullfeature/provider/screens not complete.
 
 - T104 COMPLETE LOCALLY in this atomic commit:879components/51actualnative/default+PG16/checked2543fa8c-1d61 allgreen, same2000ms/no warm-up/observer/oldtestchange.45/104taskscomplete,78criteria. T69stillpending its newHTTP9/coexist23 on this exactartifact; no new source changes before those gates. Current baselinebefore104commit ce8af091e; git/evidence determines resultingHEAD. Other69source remains unstaged and private99checkout remains separate. Final feature proofs/Verifier/screens/production not complete.

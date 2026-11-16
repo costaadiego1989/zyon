@@ -93,6 +93,8 @@ As correções explícitas de animação antes do texto e dez produtos por lote 
 
 ## Open Product Decisions
 
+- 2026-11-16, UI feedback after the real local catalog screenshots, user: "está sim mas trar checkbox por toggle e poder vincular um profissional a um serviço se ja nao tiver". The displayed business-mode split is accepted with two requested refinements: use the existing ToggleSwitch in the registration form and make the existing professional/service association usable from service registration/management. Inspect the already-implemented professional productIds/expectedVersion contract before adding any writer; preserve tenant/mode/role guards, other service links and honest partial-save/conflict states. Record concrete follow-up tasks before edits. Do not treat this as production approval or final approval of unimplemented Kanban/support screens.
+
 - 2026-11-16, direct user addition: recognize natural requests for a human attendant, notify a configured fallback telephone, add a services-only appointments Kanban replacing the primary Orders entry, and remove service creation from product businesses. Implementation is local and preserves the approved product/storefront/WhatsApp journeys.
 - Channel answer: user selected "WhatsApp, com link para a conversa (recomendado)". The staff recipient is private; the customer remains in the same conversation. T98 covers catalog creation; T99-T103 cover private settings, durable staff alert, settings UI, canonical appointments view model and daily board/navigation. HUM-02/T57 explicitly includes semantic paraphrases and authenticated voice using the current verified intake. No remaining channel question.
 
