@@ -14,7 +14,7 @@ export class PrismaExperimentRepository implements ExperimentRepositoryPort {
       const [current] = await tx.$queryRaw<{ id: string; merchant_id: string; status: string }[]>`
         SELECT id, merchant_id, status FROM prompt_experiments WHERE id = ${snapshot.id} FOR UPDATE`;
       if (current && current.merchant_id !== snapshot.merchant_id) throw new Error("EXPERIMENT_NOT_FOUND");
-      const transitions: Record<string, string[]> = { draft: ["running"], running: ["completed"], completed: ["archived"], archived: [] };
+      const transitions: Record<string, string[]> = { draft: ["running", "archived"], running: ["completed"], completed: ["archived"], archived: [] };
       if (current && current.status !== snapshot.status && !transitions[current.status]?.includes(snapshot.status)) {
         throw new ConflictException("EXPERIMENT_STATE_CHANGED");
       }
