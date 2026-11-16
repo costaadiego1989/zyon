@@ -164,3 +164,99 @@ test("Promotion price switch clears the old discount and persists after reload",
   await expect(page.getByPlaceholder("0,00", { exact: true })).toHaveValue("47,50");
   await expect(page.getByText("Preço promocional (R$)", { exact: true })).toBeVisible();
 });
+
+async function activationServer(page: Page, mode: "normal" | "stale" | "measurement" | "retry" = "normal") {
+  // Full-page fixture compilation competes with other isolated worktrees.
+  // UI assertions retain their default 5-second limit after startup.
+  test.setTimeout(90_000);
+  const writes: Array<{ path: string; body: any }> = [];
+  const experiment = { id: "qa-experiment", name: "Compare abordagens", status: "draft", created_at: "2026-11-16T12:00:00Z",
+    variants: [{ id: "control", name: "Referência", weight: 50, is_control: true }, { id: "challenger", name: "Desafiante", weight: 50, is_control: false }] };
+  let revision = "a".repeat(64), stale = mode === "stale", prepared = mode !== "measurement", failedPrepare = false, failedSend = false;
+  const review = () => ({ experimentId: experiment.id, name: experiment.name, reviewHash: revision,
+    variants: experiment.variants.map((v, i) => ({ ...v, isControl: v.is_control, systemPrompt: i === 0 ? "Responda às perguntas do comprador." : "Explique o próximo passo sem criar descontos." })),
+    measurementRequired: mode === "measurement", canApprove: prepared, blockers: prepared ? [] : ["EXPERIMENT_MEASUREMENT_PLAN_REQUIRED"],
+    measurementPlan: mode === "measurement" && prepared ? { durationDays: 7, conversionWindowHours: 24, minimumSessionsPerArm: 1200,
+      baseline: { sessions: 1000, conversions: 100 }, trafficEstimate: { reachesPlannedSample: false } } : null });
+  await page.route("**/v1/**", async route => {
+    const request = route.request(), path = new URL(request.url()).pathname;
+    if (request.method() !== "GET") writes.push({ path, body: request.postDataJSON() });
+    if (path.endsWith("/activation-review")) return route.fulfill({ json: review() });
+    if (path.endsWith("/prepare-activation")) {
+      if (!failedPrepare) { failedPrepare = true; return route.fulfill({ status: 409, json: { message: "EXPERIMENT_INSUFFICIENT_PLANNING_BASELINE" } }); }
+      prepared = true; revision = "b".repeat(64); return route.fulfill({ json: review() });
+    }
+    if (path.endsWith("/approve-and-start")) {
+      if (stale) { stale = false; revision = "b".repeat(64); return route.fulfill({ status: 409, json: { message: "EXPERIMENT_REVIEW_STALE" } }); }
+      if (mode === "retry" && !failedSend) { failedSend = true; return route.fulfill({ status: 503, json: { message: "temporary_failure" } }); }
+      const body = request.postDataJSON();
+      if (body.expected_review_hash !== revision || body.acknowledged !== true) return route.fulfill({ status: 409, json: { message: "EXPERIMENT_REVIEW_STALE" } });
+      experiment.status = "running"; return route.fulfill({ status: 201, json: { experiment, approval: { reviewHash: revision } } });
+    }
+    if (path.endsWith("/results")) return route.fulfill({ json: { experiment_id: experiment.id, variant_results: [] } });
+    if (path.endsWith("/dashboard/experiments")) return route.fulfill({ json: { data: [experiment] } });
+    return route.fulfill({ json: { autonomousEngineEnabled: false } });
+  });
+  await page.goto("/athom-content-editor.html?mode=experiments", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Iniciar", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Revisar e aprovar teste" });
+  await expect(dialog.getByText("Responda às perguntas do comprador.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Explique o próximo passo sem criar descontos.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Referência · Referência · 50% do público", { exact: true })).toBeVisible();
+  return { writes, dialog };
+}
+
+test("A/B approval opens read-only review and starts only after explicit acknowledgement", async ({ page }) => {
+  const { writes, dialog } = await activationServer(page);
+  const approve = dialog.getByRole("button", { name: "Aprovar e iniciar teste", exact: true });
+  await expect(approve).toBeDisabled(); expect(writes).toEqual([]);
+  await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(dialog).toHaveCount(0); expect(writes).toEqual([]);
+  await page.getByRole("button", { name: "Iniciar", exact: true }).click();
+  await dialog.getByRole("checkbox").check(); await approve.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Compare abordagens Em execução/ })).toBeVisible();
+  expect(writes).toHaveLength(1);
+  expect(writes[0].path).toMatch(/approve-and-start$/);
+  expect(writes[0].body).toEqual({ expected_review_hash: "a".repeat(64), request_key: expect.any(String), acknowledged: true });
+  await page.reload(); await expect(page.getByRole("button", { name: /^Compare abordagens Em execução/ })).toBeVisible();
+});
+
+test("A/B approval rejects stale review and requires reload and fresh acknowledgement", async ({ page }) => {
+  const { writes, dialog } = await activationServer(page, "stale");
+  await dialog.getByRole("checkbox").check(); await dialog.getByRole("button", { name: "Aprovar e iniciar teste" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("O teste mudou desde sua revisão");
+  await expect(dialog.getByRole("button", { name: "Aprovar e iniciar teste" })).toBeDisabled();
+  expect(writes).toHaveLength(1);
+  await dialog.getByRole("button", { name: "Recarregar revisão" }).click();
+  await expect(dialog.getByRole("checkbox")).not.toBeChecked();
+  await dialog.getByRole("checkbox").check(); await dialog.getByRole("button", { name: "Aprovar e iniciar teste" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(writes[1].body.expected_review_hash).toBe("b".repeat(64));
+  expect(writes[1].body.request_key).not.toBe(writes[0].body.request_key);
+});
+
+test("A/B approval explains insufficient history and separates measurement preparation from approval", async ({ page }) => {
+  const { writes, dialog } = await activationServer(page, "measurement");
+  await expect(dialog.getByRole("checkbox")).toBeDisabled();
+  await dialog.getByRole("button", { name: "Preparar plano de medição" }).click();
+  await expect(dialog.getByText(/Ainda não há histórico maduro suficiente/)).toBeVisible();
+  expect(writes.map(write => write.path.split("/").pop())).toEqual(["prepare-activation"]);
+  await dialog.getByRole("button", { name: "Preparar plano de medição" }).click();
+  await expect(dialog.getByRole("region", { name: "Plano de medição" })).toContainText("Duração: 7 dias");
+  await expect(dialog.getByRole("checkbox")).not.toBeChecked();
+  await expect(dialog.getByRole("button", { name: "Aprovar e iniciar teste" })).toBeDisabled();
+  await dialog.getByRole("checkbox").check(); await dialog.getByRole("button", { name: "Aprovar e iniciar teste" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(writes.map(write => write.path.split("/").pop())).toEqual(["prepare-activation", "prepare-activation", "approve-and-start"]);
+});
+
+test("A/B approval keeps its idempotency key on explicit retry after a server failure", async ({ page }) => {
+  const { writes, dialog } = await activationServer(page, "retry");
+  await dialog.getByRole("checkbox").check(); await dialog.getByRole("button", { name: "Aprovar e iniciar teste" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Não foi possível concluir");
+  expect(writes).toHaveLength(1);
+  await dialog.getByRole("button", { name: "Aprovar e iniciar teste" }).click();
+  await expect(dialog).toHaveCount(0); expect(writes).toHaveLength(2);
+  expect(writes[1].body).toEqual(writes[0].body);
+});

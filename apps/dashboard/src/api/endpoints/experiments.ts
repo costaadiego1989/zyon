@@ -3,6 +3,14 @@ import type { Experiment, ExperimentForm, ExperimentResults, ExperimentMetrics }
 
 const PREFIX = "/dashboard/experiments";
 
+export interface ExperimentActivationReview {
+  experimentId: string; name: string; reviewHash: string; canApprove: boolean; blockers: string[];
+  variants: Array<{ id: string; name: string; systemPrompt: string; weight: number; isControl: boolean }>;
+  measurementRequired: boolean;
+  measurementPlan: null | { durationDays: number; conversionWindowHours: number; minimumSessionsPerArm: number;
+    baseline: { sessions: number; conversions: number }; trafficEstimate: { reachesPlannedSample: boolean } };
+}
+
 /** Distribute 100% evenly — last variant absorbs remainder so sum is always 100 */
 function distributeWeights(count: number): number[] {
   const base = Math.floor(100 / count);
@@ -12,6 +20,15 @@ function distributeWeights(count: number): number[] {
 
 export function experimentsEndpoints(base: string, f: typeof fetch) {
   return {
+    async getExperimentActivationReview(id: string): Promise<ExperimentActivationReview> {
+      return dashboardJson(base, `${PREFIX}/${encodeURIComponent(id)}/activation-review`, { method: "GET" }, f);
+    },
+    async prepareExperimentActivation(id: string): Promise<ExperimentActivationReview> {
+      return dashboardJson(base, `${PREFIX}/${encodeURIComponent(id)}/prepare-activation`, { method: "POST", jsonBody: {} }, f);
+    },
+    async approveExperimentActivation(id: string, body: { expected_review_hash: string; request_key: string; acknowledged: true }): Promise<{ experiment: Experiment; approval: { reviewHash: string } }> {
+      return dashboardJson(base, `${PREFIX}/${encodeURIComponent(id)}/approve-and-start`, { method: "POST", jsonBody: body }, f);
+    },
     async getExperiments(): Promise<Experiment[]> {
       const res = await dashboardJson<{ data: Experiment[] } | Experiment[]>(base, PREFIX, { method: "GET" }, f);
       return Array.isArray(res) ? res : res.data;
