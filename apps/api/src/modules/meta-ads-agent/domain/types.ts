@@ -4,6 +4,7 @@ import type {
   MetaAdsMedia, MetaAdsMetrics, MetaAdsOffer, MetaAdsProduct,
   MetaAdsProposal, MetaAdsRecommendation, MetaAdsSubscription,
 } from "@zyon/shared-types";
+import type { MetaAdsExposureState } from './exposure.js';
 
 export class MetaAdsError extends Error {
   constructor(public readonly code: string, public readonly status = 400) { super(code); this.name = "MetaAdsError"; }
@@ -55,6 +56,7 @@ export interface MetaAdsStoreState {
   schemaVersion: 1;
   merchantId: string;
   automation?: { version: number; activePolicyId: string | null; lastPolicyId: string | null };
+  exposure?: MetaAdsExposureState;
   subscription: StoredSubscription | null;
   credits: CreditState;
   connection: StoredConnection;

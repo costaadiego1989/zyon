@@ -3,6 +3,7 @@ import type { MetaAdsAutomationPolicy, MetaAdsAutomationPolicyInput, MetaAdsAuto
 import { MetaAdsError, type MetaAdsRepository, type CommerceContextPort, type MetaAdsStoreState, type Clock, type IdFactory } from '../domain/types.js';
 import { requireEntitlement, requireIdentifier, stableDigest } from '../domain/offer.js';
 import { automationReviewDigest, isAutomationPolicyCurrent, normalizeAutomationPolicy } from '../domain/automation-policy.js';
+import { totalMetaExposure } from '../domain/exposure.js';
 import type { ConnectionService } from './connection.service.js';
 import type { CampaignService } from './campaign.service.js';
 
@@ -66,7 +67,8 @@ export class AutomationPolicyService {
     const connection = state.connection;
     const validConnection = ['connected', 'limited'].includes(connection.status) && Boolean(connection.encryptedAccessToken) && (!connection.expiresAt || Date.parse(connection.expiresAt) > this.clock().getTime());
     const automatic = this.deps.enabled() && entitled && validConnection && control(state).activePolicyId === policy?.id && control(state).version === policy?.version && isAutomationPolicyCurrent(policy, connection.account?.id ?? '', connection.epoch, this.clock());
-    return { mode: automatic ? 'automatic' : 'manual', policy, committedCents: 0, availableCents: automatic ? policy!.limits.storeCeilingCents : null };
+    const committedCents = totalMetaExposure(state.exposure);
+    return { mode: automatic ? 'automatic' : 'manual', policy, committedCents, availableCents: automatic ? Math.max(0, policy!.limits.storeCeilingCents - committedCents) : null };
   }
   async accept(merchantId: string, actorId: string, input: AcceptInput): Promise<MetaAdsAutomationState> {
     await this.actor(merchantId, actorId); fields(input, ['scope', 'limits', 'version', 'digest', 'idempotencyKey']); requireIdentifier(input.idempotencyKey);
