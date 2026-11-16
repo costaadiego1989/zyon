@@ -7,6 +7,8 @@ export class AgenticBrowserProvider {
   fundingMode:'prepaid'|'postpaid'|'unknown'='prepaid';blocked=false;dueCents=5000;images=0;modelCalls=0;reviewCalls=0;
   retrievedReferenceIds:string[]=[];writes:Array<{tool:string;accountId:string;entityId:string}>=[];
   entities=new Map<string,Json>();private next=1000;
+  private holdImages=false;private imageWaiters:Array<()=>void>=[];
+  setImageHold(value:boolean){this.holdImages=value;if(!value)for(const release of this.imageWaiters.splice(0))release();}
   constructor(readonly clock:()=>Date){}
   reset(){this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;}
   private model(body:Json):Response {
@@ -24,6 +26,12 @@ export class AgenticBrowserProvider {
     if(body.tools?.some((t:Json)=>t.function.name==='propose_campaign_changes'))return completion(null,{name:'propose_campaign_changes',args:{recommendations:[]}});
     if(/fundos|pagar|pagamento|verba|saldo/i.test(text)&&!called.includes('merchant_ads_funding'))return completion(null,{name:'merchant_ads_funding',args:{}});
     const reply=(value:string)=>completion({reply:value,referenceIds:refs.map(ref=>ref.id)});
+    if(/configurar o modo autom[aá]tico/i.test(text))return reply('Quais produtos, ações e limites financeiros deseja autorizar?');
+    if(/Autorizar Camisa/i.test(text)){
+      if(!called.includes('merchant_ads_catalog'))return completion(null,{name:'merchant_ads_catalog',args:{query:'Camisa'}});
+      if(!called.includes('merchant_ads_review_automation'))return completion(null,{name:'merchant_ads_review_automation',args:{scope:{variantIds:(toolResult('merchant_ads_catalog').products??[]).map((p:Json)=>p.variantId),campaignIds:[],allowNewCampaigns:true,destination:'store',priority:'paid_sales',country:'BR',actions:['prepare','publish','pause']},limits:{currency:'BRL',cadence:'lifetime',campaignCeilingCents:/campanha R\$ 50/i.test(text)?5000:10000,storeCeilingCents:20000,startsAt:'2026-11-16T12:00:00.000Z',endsAt:'2026-11-23T12:00:00.000Z'}}});
+      return reply('Política preparada para revisão. O modo permanece manual até seu aceite explícito.');
+    }
     if(/fundos|pagar|pagamento|verba|saldo/i.test(text))return reply('A verba dos anúncios é paga diretamente à Meta e é separada da assinatura e dos créditos de imagens. Confira o tipo de cobrança da conta no painel Verba dos anúncios. Use o botão de pagamentos da conta conectada e depois Verificar novamente; esse botão não adiciona saldo na Zyon.');
     if(/vender.*camisas/i.test(text)){
       if(!called.includes('merchant_ads_catalog'))return completion(null,{name:'merchant_ads_catalog',args:{query:'Camisa'}});
@@ -45,7 +53,7 @@ export class AgenticBrowserProvider {
   request:typeof fetch=async(input,init)=>{
     const url=new URL(String(input));const body=init?.body?JSON.parse(String(init.body)):{};
     if(url.href==='https://api.openai.com/v1/chat/completions')return this.model(body);
-    if(url.href==='https://api.openai.com/v1/images/edits'){this.images++;return json({data:[{b64_json:pixel.toString('base64')}],usage:{input_tokens_details:{text_tokens:1,image_tokens:1},output_tokens_details:{image_tokens:1}}});}
+    if(url.href==='https://api.openai.com/v1/images/edits'){this.images++;if(this.holdImages)await new Promise<void>(resolve=>this.imageWaiters.push(resolve));return json({data:[{b64_json:pixel.toString('base64')}],usage:{input_tokens_details:{text_tokens:1,image_tokens:1},output_tokens_details:{image_tokens:1}}});}
     if(url.href==='https://api.openai.com/v1/responses'){this.reviewCalls++;return json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({product_matches:true,observed_prices_cents:[],currency:'NONE',unverified_claims:false,uncertain:false})}]}],usage:{input_tokens:10,input_tokens_details:{cached_tokens:0},output_tokens:5}});}
     const storeB=new Headers(init?.headers).get('authorization')?.includes('store-b');const accountId=storeB?'101':'100';
     if(url.hostname==='graph.facebook.com'){

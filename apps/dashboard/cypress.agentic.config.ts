@@ -5,7 +5,7 @@ const artifact=(name:string)=>fileURLToPath(new URL(`../../.specs/features/agent
 export default defineConfig({
   viewportWidth:1440,
   viewportHeight:900,
-  defaultCommandTimeout:15000,
+  defaultCommandTimeout:45000,
   requestTimeout:15000,
   responseTimeout:30000,
   pageLoadTimeout:45000,
