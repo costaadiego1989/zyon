@@ -10,6 +10,8 @@ Implementar com a skill **tlc-spec-driven**, seguindo Execute e Critical Rules. 
 **Date**: 2026-11-14
 **Mutations**: 3
 
+**Discovered catalog repair (2026-11-16):** T105 actual browser captures exposed an existing unguarded Growth-only advanced-rules GET on the Starter fixture. Add CAT-05/C81/T107, current81criteria/107tasks. This enforces the existing hasFeature/API policy, without changing entitlement, price, business mode or backend permission. Keep105's four-control deliverable separate. Whole Phase16 ordering becomes105→107→106, each real gate and atomic commit. Exact network observation and original diagnostic captures remain evidence, never masked by raising the plan or deleting the toast.
+
 **User-directed catalog refinement (2026-11-16):** user: "está sim mas trar checkbox por toggle e poder vincular um profissional a um serviço se ja nao tiver". CAT-03/CAT-04 and T105/T106 extend the local plan to80criteria/106tasks. The business-mode UI is accepted with these refinements; no final release approval. Toggle role/gesture expectations follow this explicit control change while all behavioral assertions remain. Existing professional productIds/expectedVersion is the sole association writer.
 
 **Discovered implementation repair:** T104 retains the existing RAG-01/02/03 contract while reducing public projection planning/round-trip overhead after an actual reproduced client deadline failure. No new product decision, assertion change, warm-up or timeout increase. Current78criteria/104tasks; completed task counts remain unchanged until real gates pass. See task-104-plan.md.
@@ -197,6 +199,8 @@ T98 → T105
 T105 → T106
 T18 → T106
 T106 → T95
+T105 → T107
+T107 → T106
 ```
 
 ## Task Breakdown
@@ -1516,7 +1520,7 @@ T106 → T95
 - [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Unit gate + Neo4j/gateway local: queries avançadas, cross-tenant, escrita/subquery/procedure/arbitrary text rejeitados.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T70$" ./src/modules/graph-rag/domain/graph-query.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T70 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Full: complete `src/modules/graph-rag/domain/public-business-query.spec.ts` plus unchanged old graph-query, graph-result consumers, gateway, adapter, runtime and public-evidence specs using the existing network guard/ready-prod-loader with concurrency1, without a skip-producing name filter; fresh official checked API and `tests/business-rag-public-query.integration.spec.mjs` against owned actual graph/SQL/gateway. See task-70-plan.md for the concrete path correction from the original legacy graph-query.spec.ts; old assertions remain. Tests T70 and all their children execute, zero skips; final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t70 extend parameterized cypher templates for services`
 
 ### T71: Compose grounded knowledge with live service tools
@@ -2121,11 +2125,29 @@ T106 → T95
 **Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/components/ProductForm.toggles.spec.tsx src/pages/product-detail/components/ProductForm.business-mode.spec.tsx src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx src/pages/product-detail-page.spec.ts src/pages/product-detail/utils/product-validation.spec.ts src/pages/product-detail/utils/service-schedule-validation.spec.ts`; `pnpm --dir apps/dashboard typecheck`; affected-file lint; `node scripts/service-local-build.mjs dashboard`; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-toggles.spec.ts`. Add the concrete existing schedule control file to this unfiltered cohort if inventory finds a separate fixture. All source/resource/owned cleanup guards apply.
 **Commit**: `feat(service-business): t105 use toggles in catalog forms`
 
+### T107: Respect the existing advanced-rules entitlement in the editor
+
+**What**: Usar o booleano da feature atual antes do GET de regras avançadas na PromotionSection. Planos sem acesso mantêm o bloqueio existente, sem consulta nem falso alerta; planos habilitados conservam carregamento/edição. Reutilizar cleanup de efeito para ignorar resposta antiga após mudança de plano/empresa/produto. Não alterar planos, assinaturas da fixture para ocultar falha, API, preços ou regras comerciais.
+**Where**: `apps/dashboard/src/pages/product-detail/components/PromotionSection.tsx`
+**Depends on**: T105
+**Reuses**: usePlanFeatures/hasFeature("advancedRules"), current cancelled effect, authenticated catalog API and existing FeatureLock. Exact current HTTP failure is observed before productive repair; no new authorization model.
+**Requirement**: CAT-05, QA-02
+
+**Done when**:
+
+- [ ] Starter/unknown-no-feature never start advanced-rules GET, existing basic promotion behavior and lock remain; enabled plan loads the same rules and can still use the existing controls.
+- [ ] Re-render/role or merchant/product/plan changes cannot apply a stale advanced response or trigger an unsupported follow-up; product and service edit contexts remain separate and use current permission.
+- [ ] New focused component gestures plus actual local browser/API observation prove no unwanted request/false alert for non-entitled companies, enabled access and unchanged server403. Full affected UI tests/types/lint/build and browser pass with readable local captures, zero skips; mark before one atomic local commit. Own API artifact is re-admitted when its inputs/outputs/generated client remain identical; no redundant rebuild or foreign artifact reuse.
+
+**Tests**: New `src/pages/product-detail/components/PromotionSection.entitlement.spec.tsx` plus unchanged105/catalog cohorts and `e2e/service-catalog-entitlements.spec.ts` using real local API/SQL and declared plan fixtures. Retain every prior gesture/payload assertion and expose the real network outcome; no response stubs to manufacture the production gate.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/components/PromotionSection.entitlement.spec.tsx src/pages/product-detail/components/ProductForm.toggles.spec.tsx src/pages/product-detail/components/ProductForm.business-mode.spec.tsx src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx src/pages/product-detail-page.spec.ts src/pages/product-detail/utils/product-validation.spec.ts src/pages/product-detail/utils/service-schedule-validation.spec.ts src/pages/product-detail/components/ProductBlockEditor.spec.tsx`; dashboard typecheck, affected-file lint, `node scripts/service-local-build.mjs dashboard` and `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-entitlements.spec.ts`. Record exact new companion fixtures before execution, no old oracle weakening or provider traffic.
+**Commit**: `fix(service-business): t107 honor advanced rules entitlement in editor`
+
 ### T106: Link existing professionals from the service editor
 
 **What**: Mostrar profissionais vinculados e permitir adicionar/remover vínculos no serviço salvo, apenas em empresas de serviços, usando a API existente com paginação e expectedVersion. O novo cadastro explica que o serviço precisa ser salvo; após salvar, o operador chega ao vínculo sem recriar o serviço. Respeitar proprietário/admin, manter os outros productIds e mostrar erro parcial/conflito com recuperação explícita.
 **Where**: `apps/dashboard/src/pages/product-detail/`, existing dashboard API client and new service-professional link component/hook only as required.
-**Depends on**: T105, T18
+**Depends on**: T105, T107, T18
 **Reuses**: GET/PATCH /merchants/:merchantId/service-professionals, productIds/expectedVersion CAS, existing authenticated client and canonical business mode. Reusable professional client supports later T76 rather than a second association authority.
 **Requirement**: CAT-04, AGENDA-01, ATEND-02, REG-02, EDGE-01, QA-02
 
@@ -2143,7 +2165,7 @@ T106 → T95
 
 ### T95: Collect revision-bound acceptance evidence
 
-**What**: Coletor valida cobertura dos 72 IDs, teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
+**What**: Coletor valida cobertura de todos os critérios atuais da especificação (81 neste plano), teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
 **Depends on**: T94, T97, T98, T101, T103, T106
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
@@ -2185,7 +2207,7 @@ Tasks: T13, T14, T15, T16.
 
 **C6** - WHEN a empresa publica um serviço agendável THEN the system SHALL vincular sua duração e profissionais a recursos de agenda da própria empresa. (AGENDA-01, AC 1)
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^AGENDA-01$" ./tests/service-availability.integration.spec.ts`
-Tasks: T4, T18, T20, T21, T76.
+Tasks: T4, T18, T20, T21, T76, T106.
 
 **C7** - WHEN o comprador abre um serviço THEN the system SHALL apresentar datas com disponibilidade atual para o serviço e profissional selecionados. (AGENDA-02, AC 2)
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^AGENDA-02$" ./tests/service-availability.integration.spec.ts`
@@ -2312,7 +2334,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T6, T63, T68, T69.
 
 **C38** - WHILE a recuperação usa Neo4j Community the system SHALL executar somente consultas parametrizadas e aprovadas no gateway privado, sem executar Cypher livre fornecido pelo modelo ou comprador. (RAG-08, AC 8)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^RAG-08$" ./tests/business-rag.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/graph-rag/domain/public-business-query.spec.ts ./src/modules/graph-rag/gateway/public-business-transport.spec.ts ./tests/business-rag-public-query.integration.spec.mjs`
 Tasks: T2, T70.
 
 **C39** - WHEN um cenário de segmento regulado exige diagnóstico, prescrição ou decisão profissional individual THEN the system SHALL encaminhar ao profissional e limitar a resposta informativa ao conteúdo publicado aplicável. (RAG-09, AC 9)
@@ -2476,14 +2498,36 @@ Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.servi
 Tasks: T82, T83, T103.
 
 **C79** - WHEN o operador altera configuração booleana no cadastro THEN the system SHALL apresentar toggle acessível e preservar valor, validação e persistência. (CAT-03, AC 3)
-Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-toggles.spec.ts --grep "CAT-03$"`
+Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-toggles.spec.ts --grep "^CAT-03"`
 Tasks: T105.
 
 **C80** - WHEN a service business links professionals in the saved service editor THEN the system SHALL preserve tenant, other service links and version conflicts, without duplicate service creation or false partial success. (CAT-04, AC 4)
 Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-professionals.spec.ts --grep "CAT-04$"`
 Tasks: T106, T76.
 
+**C81** - WHERE current plan lacks advancedRules THEN the system SHALL retain the feature lock without requesting advanced rules or applying stale responses, while preserving entitled access. (CAT-05, AC 5)
+Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-entitlements.spec.ts --grep "^CAT-05"`
+Tasks: T107.
+
 ## Handoff
+
+**Catalog107 repair planned, not dispatched:** C105 browser observed Starter's rule-loading toast; source PromotionSection effect always calls advanced-rules but render already uses hasFeature, backend gates Growth. Added narrow107 after105/before106 and CAT05/C81 without changing the policy. C may finish frozen105 and report exact network observation first. No productive107 or106 edit yet; no skipped105gate, plan upgrade, toast hiding, API changes or claimed repair from the source hypothesis. Counts81criteria/107tasks, completed46 until actual105gate/commit.
+
+**Dispatched T55 external provider-contract preparation (before sending):** M may prepare ignored cache-only source inventory and primary-provider documentation for status callback correlation/admission after54. No productive55edit or execution before54green/commit; C owns105window. Cover existing Meta opaque receipt correlation, missing Twilio StatusCallback/verified-account route, Bubble identity proof limitation and truthful unknown/unavailable outcomes. Reuse established producer event/lease/case/attempt proofs; no arbitrary body IDs, fabricated SIDs, credential output, provider/customer communication or old AI sender changes. Root will review the concrete plan; local mocks and browser states do not prove external delivery. M54approvedAPI9 remains pending later window, not waived.
+
+**Dispatched T71 external preparation (before sending):** P/service_professional_agenda may prepare only ignored cache notes against current Root70 source for the remaining grounded buyer-flow integration. Map actual namespace-pinned SQL fallback, public runtime candidate selection, unchanged69provenance/audit and regulated/clarification behavior, current price/availability tool authority, and verified WhatsApp/socket TenantALS composition. Preserve P30 uncommitted source/checkpoint; no productive edits/imports/tests/build/native/provider. Root remains Phase9 author and T71 cannot start productive work before70 green. C owns105execution; this preparation is not final verification or quality proof.
+
+**Sole execution handover to C105 (before sending):** M returned its window after46/46native (PG16/adapter10/old13/runtime7) green and a failed later API9 setup with zero business children: owned Get-NetTCPConnection capture exceeded its existing10s deadline. It reported no remaining M Node commands or owned Redis/Postgres containers and no AggregateError; because readiness never completed, do not claim an admitted AppModule ACK/exit0 for that attempt. No guard/deadline change or new productive defect asserted. M keeps only source/cache review, approved6c3293 oracle remains applied awaiting actual9rerun later. C now owns sole execution for105: reviewed own source atafd867ca plus its four control deltas; source SHA checkpoint preserved/refreshed before runs, full unfiltered unit→types/lint→fresh own checked API→dashboard build→real protected browser, each normal resource/ownership check. No artifact/dependency sharing or Rootdirty70 import. Primary captures should use the actual1440x1000 and390x844 viewport with target visible for readability; optional full-page kept separately, no post-resize. No105completion before green gate and atomic commit. Root/P/M/99 no runners until C explicit return; Root70source remains unexecuted.
+
+**T70 source prepared, zero execution:** separate pinned public sources/pairs compiler and hash, signed Community operation/admission, bounded actual engine/direct/client readers, separate runtime readiness and local embedding retrieval; canonical pair method uses one unchanged snapshot and both endpoint/link proofs. New4unit files plus12native children are written, unexecuted. P read-only review found two fixture issues fixed before any run: observed/released/drained held response and Starter catalog→Growth policies entitlement ordering. Foreign real published source canary and unchanged foreign state strengthen actual namespace separation. C38 proof now selects the actual new full files, no zero-match/skip pattern; old query/hash/TTL/tests remain unchanged. Ignored .cache/run-t70-gate.mjs is prepared from69 with added pair cohort/public mode, unchanged resource guard. Full remains pending sole window and a fresh own checked artifact; old69artifact is stale for this source. No current RAG buyer-flow/provider/production claim.
+
+**Settled test correction / dispatched exact application (2026-11-16, before sending):** user: "Sim, corrigir a expectativa do teste (recomendado)" (reply call_f467064279f64627b220b0e1727ef4da). M may apply only approved HTTP test candidate6c32932e9c25c627dbecc49b2bdb46f7db9ddb5092e84dcc6263ae7575884f86, patch06290559f6f04eb24d3ae7e3185e9abc09fb79a53bcf79d1a6eedcf67b589fed, originala19442c8cd312c84193af6cc8b557cc4ec30714c10bb8c78ce8a6734e8a088b7. Preserve full before-enqueue snapshot; only expected ticket.updatedAt uses exact canonical queued message.createdAt at four sites/five child contexts. Every other assertion remains. Repeat actual9 after the ongoing independent cohorts on the unchanged current checked artifact; do not mark Full until actual all55 pass. M remains sole executor, C105 prepared/not run and Root70 source/review only. Record approval in M metadata before applying. No productive or remote action authorized by test approval.
+
+**Returned T70 source design review / dispatched current-source follow-up (before sending):** P proposed a distinct revalidatePairs over one existing canonical.read, requiring both admitted endpoints and exact current service.publicData.professionals ID. Root implemented that narrow design without changing canonical port/read signatures. P may now review Rootdirty70 source/tests read-only for concrete source/schema/fixture mistakes before first execution, including full real native setup, gate paths, legacy preservation and race cleanup. No edits/imports/tests/build/native; M still owns execution, this is incremental review not finalVerifier.
+
+**Dispatched Phase16 catalog refinements source (before sending):** C/service_company_ui owns whole Phase16 T105→T106 in its isolated checkout. First preserve its current clean98 and cache/drafts, align only committedRootf09c217e6 (not current Rootdirty70). Re-read exact new task/spec/plan and record105minimum file inventory. Reuse ToggleSwitch, including accessible label/focus/keyboard/disabled state, keeping serialized serviceSchedule and selection controls. Source105 only initially; no tests/import/build/browser/container until M returns execution and root explicitly hands over. Gate105 then own commit before productive106. T106 saved-service panel reuses paginated GET/PATCH productIds+expectedVersion, owner/admin, explicit partial/conflict recovery and preserved other links; no new backend writer. Future76reuses same client. Native resources/old assertions/production boundaries unchanged. This is author implementation, not finalVerifier/screens.
+
+**Dispatched T70 source review (before sending):** P/service_professional_agenda may read the external C t70-preparation draft and current committed Root69 interfaces, then return a narrow design review of parameterized public read capability, canonical service-professional pair admission and reused operational boundaries. No productive edits/import/test/build/native/container; preserve its own uncommitted30checkpoint and role as author, not finalVerifier. M owns execution. Root remains T70 author.
 
 **Dispatched catalog refinement preparation (before sending):** service_company_ui may inventory/cache-plan T105/T106 in its existing isolated checkout, preserving Phase8 drafts. No productive edits or tests/build/browser/import/container until formal plan review; M owns sole execution window. User explicitly requested toggles and professional associations. This dispatch was recorded after the initial tool delivery; further source authorization will be recorded before sending. Current80criteria/106tasks; original approvals and local-only boundary remain.
 

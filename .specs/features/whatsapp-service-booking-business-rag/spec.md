@@ -18,6 +18,8 @@
 
 **User-directed catalog refinement:** 2026-11-16 - user: "está sim mas trar checkbox por toggle e poder vincular um profissional a um serviço se ja nao tiver". The shown business-mode split is accepted with these two refinements. CAT-03/CAT-04 and T105/T106 reuse existing ToggleSwitch and professional-service association endpoints. Current scope is80 criteria/106 tasks; this acceptance does not approve production or the final feature.
 
+**Discovered catalog defect:** local105 browser captures exposed an advanced-rules error while editing a Starter offer. Existing PromotionSection fetches the Growth-only endpoint without checking the same hasFeature flag already used by its UI; the API entitlement stays authoritative. CAT-05/T107 repair that inconsistency before professional-link UI, without changing plans, prices or backend guards. Current81criteria/107tasks. The new assertion records the existing feature policy, not a new business choice; exact HTTP status and final visual proof remain part of its gate.
+
 ## Problem Statement
 
 O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slots e suporte. A experiÃªncia ainda nÃ£o comprova uma agenda com vÃ¡rios profissionais, atendimento humano na mesma conversa e conhecimento alimentado automaticamente pelo cadastro da empresa. A validaÃ§Ã£o de comÃ©rcio nÃ£o comprova prontidÃ£o para atendimento de clÃ­nicas ou outros prestadores de serviÃ§os.
@@ -232,6 +234,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 2. WHILE a modalidade canônica da empresa é `services`, WHEN o operador abre ou limpa o cadastro THEN the system SHALL apresentar o fluxo "Novo serviço" com tipo `service`, conservando esse tipo no envio e sem converter silenciosamente um registro já carregado de outra modalidade. [CAT-02]
 3. WHEN o operador altera uma configuração booleana no cadastro de produto ou serviço THEN the system SHALL apresentar um toggle acessível com nome e estado, conservando o valor, validação e persistência existentes. [CAT-03]
 4. WHILE a modalidade canônica é `services`, WHEN o operador vincula profissionais a um serviço salvo THEN the system SHALL permitir selecionar profissionais da própria empresa, preservar os outros serviços de cada profissional e apresentar conflitos ou falhas sem duplicar o serviço nem declarar vínculos não persistidos. [CAT-04]
+5. WHERE o plano atual não habilita regras avançadas, WHEN o operador abre o cadastro salvo THEN the system SHALL manter o bloqueio visual existente e não consultar regras avançadas, conservando o acesso e o carregamento para planos habilitados sem aplicar respostas antigas após mudança de contexto. [CAT-05]
 
 **Independent Test:** Abrir o catálogo com empresas sintéticas de produtos e serviços; clicar no cadastro; verificar opções, padrão/reset e payload; alternar contexto durante edição; demonstrar que tipos inválidos continuam recusados pela guarda existente. Capturar as duas modalidades no navegador local em desktop/mobile. Esses testes não alteram os fluxos de compra existentes.
 
@@ -276,7 +279,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | In Progress (T17 complete) |
 | ONB-05 | About field in company data | T13, T14, T15, T16 | Implemented locally |
 | ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | In Progress (T96 and T97 complete; T72 pending) |
-| AGENDA-01 | Professional resources | T4, T18, T20, T21, T76 | In Progress (T18, T20 and T21 complete) |
+| AGENDA-01 | Professional resources | T4, T18, T20, T21, T76, T106 | In Progress (T18, T20 and T21 complete) |
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | Pending |
@@ -313,7 +316,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | RAG-10 | Generic onboarding | T63, T67, T71, T72 | Pending |
 | RAG-11 | Existing forms feed context | T13, T14, T15, T63, T64, T65 | Pending |
 | ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | Pending |
-| ATEND-02 | Professional administration | T18, T19, T76 | In Progress (T18 and T19 complete) |
+| ATEND-02 | Professional administration | T18, T19, T76, T106 | In Progress (T18 and T19 complete) |
 | ATEND-03 | Service categories | T20, T77 | In Progress (T20 complete) |
 | ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21, T23, T24 and T25 complete) |
 | ATEND-05 | One-off times | T22, T25, T78 | In Progress (T22 and T25 complete) |
@@ -338,6 +341,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | CAT-02 | Service-mode creation and defaults | T98 | Complete locally; defaults/reset/payload/history and actual stale-mode409 proved |
 | CAT-03 | Catalog boolean toggles | T105 | Pending |
 | CAT-04 | Professional links in service editor | T106, T76 | Pending |
+| CAT-05 | Advanced-rules UI follows existing plan entitlement | T107 | Pending; observed105 screenshot error, no entitlement change |
 | HUM-09 | Private support fallback recipient | T99, T101 | Pending; explicitly requested2026-11-16 |
 | HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Pending; channel confirmed2026-11-16 |
 | ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |
