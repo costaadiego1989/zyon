@@ -26,3 +26,6 @@ test("no metrics remains awaiting data and never invents zero revenue or a winne
   screen = ui(); await screen.render(<CampaignInsights campaign={campaign()} recommendations={[]} entitled={false} onEdit={vi.fn()} onPropose={vi.fn()}/>);
   expect(screen.container.textContent).toContain("Aguardando dados"); expect(screen.container.textContent).not.toContain("R$ 0,00"); expect(screen.container.querySelectorAll("button")).toHaveLength(0);
 });
+test('ADAS-44 a missing conversation reading remains unavailable instead of disappearing or becoming zero',async()=>{
+  screen=ui();await screen.render(<CampaignInsights campaign={campaign()} metrics={{...metrics,conversations:null}} recommendations={[]} entitled={false} onEdit={vi.fn()} onPropose={vi.fn()}/>);const row=Array.from(screen.container.querySelectorAll('dl > div')).find(value=>value.querySelector('dt')?.textContent==='Conversas')!;expect(row.querySelector('dd')?.textContent).toBe('Indisponível');
+});

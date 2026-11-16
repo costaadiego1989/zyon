@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./meta-ads-agent.css";
 import type { MetaAdsActionKind, MetaAdsCampaign, MetaAdsMetrics, MetaAdsOverview, MetaAdsRecommendation } from "@zyon/shared-types";
 import { metaAdsAgentEndpoints, type MetaAdsAgentApi } from "../../api/endpoints/meta-ads-agent.js";
+import type { MerchantAssistantApi } from "../../api/endpoints/merchant-assistant.js";
+import { MetaAdsAssistant } from "./MetaAdsAssistant.js";
 import { OfferPanel } from "./OfferPanel.js";
 import { ConnectionPanel } from "./ConnectionPanel.js";
 import { CampaignComposer } from "./CampaignComposer.js";
@@ -9,12 +11,13 @@ import { ProposalReview } from "./ProposalReview.js";
 import { CampaignInsights } from "./CampaignInsights.js";
 import { actions, executionStates, money, useAction } from "./presentation.js";
 
-export function MetaAdsAgentPage({merchantId, apiBaseUrl, api: supplied}: {merchantId: string; apiBaseUrl: string; api?: MetaAdsAgentApi}) {
+export function MetaAdsAgentPage({merchantId, apiBaseUrl, api: supplied, assistantClient}: {merchantId: string; apiBaseUrl: string; api?: MetaAdsAgentApi; assistantClient?: MerchantAssistantApi}) {
   const api = useMemo(() => supplied ?? metaAdsAgentEndpoints(apiBaseUrl), [supplied, apiBaseUrl]);
-  return <MetaAdsAgentView key={merchantId} api={api}/>;
+  return <MetaAdsAgentView key={merchantId} api={api} merchantId={merchantId} apiBaseUrl={apiBaseUrl} assistantClient={assistantClient}/>;
 }
 function readOnlyCampaign(id: string, name: string): MetaAdsCampaign {return {id: `existing-${id}`, draft: {name, destination: "store", priority: "paid_sales", variantIds: [], budget: null, mediaIds: [], headline: "", primaryText: "", country: "BR"}, products: [], createdByAgent: false, managed: false, remoteCampaignId: id, remoteAdSetId: null, remoteAdIds: [], status: "draft", createdAt: "", updatedAt: ""};}
-function MetaAdsAgentView({api}: {api: MetaAdsAgentApi}) {
+function MetaAdsAgentView({api,merchantId,apiBaseUrl,assistantClient}: {api: MetaAdsAgentApi;merchantId:string;apiBaseUrl:string;assistantClient?:MerchantAssistantApi}) {
+  const [mode,setMode]=useState<"manual"|"automatic"|"unknown">("unknown");
   const [data, setData] = useState<MetaAdsOverview | null>(null); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(""); const sequence = useRef(0);
   const [selectedId, setSelectedId] = useState<string | null>(null); const [composing, setComposing] = useState(false); const [search, setSearch] = useState(""); const [campaignPage, setCampaignPage] = useState(1); const [proposalPage, setProposalPage] = useState(1);
   const [existing, setExisting] = useState<Array<{id: string; name: string; status: string}> | null>(null); const [existingPage, setExistingPage] = useState(1); const [external, setExternal] = useState<{campaign: MetaAdsCampaign; metrics: MetaAdsMetrics} | null>(null);
@@ -42,7 +45,8 @@ function MetaAdsAgentView({api}: {api: MetaAdsAgentApi}) {
   const proposals = data.proposals.filter(p => !selectedId || p.campaignId === selectedId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); const proposalPages = Math.max(1, Math.ceil(proposals.length / 10)); const shownProposalPage = Math.min(proposalPage, proposalPages);
   const blocked = !!current && data.executions.some(e => e.campaignId === current.id && ["reserved", "sending", "publishing", "execution_unknown"].includes(e.status));
   const latestMetrics = current && data.metrics.filter(m => m.campaignId === current.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-  return <div className="meta-ads-agent"><header className="mga-page-heading"><div><h1>Anúncios com IA</h1><p>Do catálogo à campanha, com cada decisão sob sua aprovação.</p></div><button type="button" className="mga-secondary" disabled={loading} onClick={() => void load()}>Atualizar dados</button></header>
+  return <div className="meta-ads-agent"><header className="mga-page-heading"><div><h1>Anúncios com IA</h1><p>{mode === "automatic" ? "Automático dentro da política que você autorizou." : mode === "manual" ? "Aprovação manual por alteração. Planeje e revise pela conversa." : "Planeje pela conversa e confira sua política de aprovação."}</p></div><button type="button" className="mga-secondary" disabled={loading} onClick={() => void load()}>Atualizar dados</button></header>
+    <MetaAdsAssistant merchantId={merchantId} apiBaseUrl={apiBaseUrl} overview={data} api={api} client={assistantClient} onUpdated={load} onModeChanged={setMode}>
     {loading && <p role="status">Atualizando dados…</p>}{loadError && <div className="mga-notice" role="alert"><p>{loadError}</p><button type="button" disabled={loading} onClick={() => void load()}>Tentar atualizar novamente</button></div>}
     {!data.entitled && <p className="mga-notice">Seu histórico permanece disponível. Novas gerações e execuções exigem adicional ativo em plano Growth ou Escala. O encerramento não pausa anúncios na Meta.</p>}
     <details className="mga-setup" open={!data.entitled}><summary>Plano, preço e saldo de imagens</summary><OfferPanel overview={data} api={api} onUpdated={load}/></details>
@@ -55,8 +59,8 @@ function MetaAdsAgentView({api}: {api: MetaAdsAgentApi}) {
       {!existing.length && <p>Nenhuma campanha autorizada encontrada na conta selecionada.</p>}<ul className="mga-campaign-list">{existing.slice((existingPage - 1) * 10, existingPage * 10).map(c => <li key={c.id}><strong>{c.name}</strong><button type="button" className="mga-secondary" disabled={action.busy || !since || !until || until < since} onClick={() => {setWorkingLabel("Consultando métricas…"); void action.run(async () => setExternal({campaign: readOnlyCampaign(c.id, c.name), metrics: await api.existingMetrics(c.id, since, until)}));}}>Analisar {c.name}</button></li>)}</ul>
       {existing.length > 10 && <div className="mga-pagination"><button type="button" disabled={existingPage === 1} onClick={() => setExistingPage(p => p - 1)}>Análises anteriores</button><span>Página {existingPage} de {Math.ceil(existing.length / 10)}</span><button type="button" disabled={existingPage >= Math.ceil(existing.length / 10)} onClick={() => setExistingPage(p => p + 1)}>Próximas análises</button></div>}
     </section>}
-    {external && <CampaignInsights campaign={external.campaign} metrics={external.metrics} recommendations={[]} entitled={false} onEdit={() => {}} onPropose={() => {}}/>}
-    {current && <CampaignInsights campaign={current} metrics={latestMetrics || undefined} recommendations={data.recommendations.filter(r => r.campaignId === current.id)} entitled={data.entitled} busy={action.busy || blocked} onEdit={() => setComposing(true)} onPropose={r => void propose(r)}/>}
+    {external && <CampaignInsights automationMode={mode} campaign={external.campaign} metrics={external.metrics} recommendations={[]} entitled={false} onEdit={() => {}} onPropose={() => {}}/>}
+    {current && <CampaignInsights automationMode={mode} campaign={current} metrics={latestMetrics || undefined} recommendations={data.recommendations.filter(r => r.campaignId === current.id)} entitled={data.entitled} busy={action.busy || blocked} onEdit={() => setComposing(true)} onPropose={r => void propose(r)}/>}
     {composing && <CampaignComposer key={selectedId ?? "new"} overview={data} campaign={current} api={api} onSaved={saved => {setData(old => old ? {...old, campaigns: [...old.campaigns.filter(c => c.id !== saved.id), saved]} : old); setSelectedId(saved.id);}} onUpdated={load}/>}
     {current?.managed && current.createdByAgent && <section className="mga-panel"><h2>Solicitar alteração</h2><p>A proposta usa o rascunho salvo. Salve suas edições e revise o conteúdo exato antes de aprovar. Criar uma proposta não altera a Meta.</p>{blocked && <p role="status">Existe uma execução pendente ou desconhecida. Consulte seu resultado no histórico antes de solicitar outra alteração.</p>}
       <div className="mga-form"><label>Alteração<select aria-label="Alteração" disabled={!data.entitled || action.busy || blocked} value={kind} onChange={e => setKind(e.target.value as MetaAdsActionKind)}>{(current.remoteCampaignId ? ["publish", "pause", "budget", "audience", "creative"] as const : ["prepare"] as const).map(k => <option key={k} value={k}>{actions[k]}</option>)}</select></label>
@@ -68,5 +72,6 @@ function MetaAdsAgentView({api}: {api: MetaAdsAgentApi}) {
     </section>}
     {action.busy && <p role="status">{workingLabel || "Consultando…"}</p>}{action.error && <p className="mga-notice" role="alert">{action.error}</p>}{notice && <p role="status">{notice}</p>}
     <section className="mga-panel"><h2>Propostas e histórico de execução</h2>{!proposals.length && <p>Nenhuma proposta para esta seleção. Solicite uma alteração para revisar os objetos e os valores antes de aprovar.</p>}{proposals.slice((shownProposalPage - 1) * 10, shownProposalPage * 10).map(p => <ProposalReview key={p.id} proposal={p} execution={data.executions.find(e => e.proposalId === p.id)} entitled={data.entitled} connectionEpoch={data.connection.epoch} api={api} onUpdated={load}/>)}{proposals.length > 10 && <div className="mga-pagination"><button type="button" disabled={shownProposalPage === 1} onClick={() => setProposalPage(p => p - 1)}>Propostas anteriores</button><span>Página {shownProposalPage} de {proposalPages}</span><button type="button" disabled={shownProposalPage === proposalPages} onClick={() => setProposalPage(p => p + 1)}>Próximas propostas</button></div>}</section>
+    </MetaAdsAssistant>
   </div>;
 }

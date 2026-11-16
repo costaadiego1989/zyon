@@ -15,7 +15,7 @@ export function OfferPanel({overview: data, api, onUpdated, navigate = checkoutN
   return <section className="mga-panel" aria-labelledby="mga-offer-title">
     <div className="mga-section-heading"><h2 id="mga-offer-title">Seu adicional de anúncios</h2><span>{data.entitled ? "Ativo nesta loja" : "Contratação por loja"}</span></div>
     <p><strong>{money(offer.monthlyPriceCents)}/mês</strong>, além do plano Growth ou Escala. Inclui até {offer.monthlyImageCredits} imagens e {offer.maxManagedCampaigns} campanhas gerenciadas.</p>
-    <p>Verba dos anúncios paga diretamente à Meta. Cada alteração exige sua aprovação.</p>
+    <p>Verba dos anúncios paga diretamente à Meta. A execução segue sua política de aprovação.</p>
     {data.entitled && <dl className="mga-ledger"><div><dt>Imagens do mês disponíveis</dt><dd>{data.wallet.monthlyAvailable}</dd></div><div><dt>Extras disponíveis</dt><dd>{data.wallet.extraAvailable}</dd></div><div><dt>Em processamento ou conciliação</dt><dd>{data.wallet.reserved}</dd></div><div><dt>Fim da franquia atual</dt><dd>{date(data.wallet.periodEndsAt)}</dd></div></dl>}
     <p>A franquia mensal não acumula. Cada imagem utilizável consome um crédito; um carrossel de cinco imagens novas consome cinco. Extras comprados permanecem no saldo.</p>
     {!data.eligible && <p role="status">Disponível a partir do plano Growth. Altere seu plano para contratar.</p>}
