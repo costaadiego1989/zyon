@@ -1,6 +1,6 @@
 {
   "task": "T70",
-  "status": "partial_resource_interrupted",
+  "status": "partial_monitored_resource_refusal",
   "sourceBaseHead": "9f0df7829",
   "environment": "local-owned-only",
   "latestComponentGate": {
@@ -60,5 +60,223 @@
     "productionChanges": 0,
     "taskComplete": false,
     "wholeFeatureComplete": false
+  },
+  "monitoredAttempts": [
+    {
+      "receipt": ".cache/phase3-gates/t70-supervisor-20261116T211627054748Z/supervisor.json",
+      "sha256": "19035487df898c9f21ab8b8abb7d46585be8dd249707f8e0e76863f412a711a5",
+      "actual": {
+        "scope": "T70 supervised default API build proposal",
+        "owner": "/root",
+        "initial": {
+          "observedAtUtc": "2026-11-16T21:16:27.055732+00:00",
+          "commitAvailableMiB": 3162,
+          "physicalAvailableMiB": 716,
+          "memoryLoadPercent": 95
+        },
+        "initialRequiredMiB": 6500,
+        "liveRequiredMiB": 1536,
+        "sampleIntervalMs": 300,
+        "previousPreflightRefusals": 0,
+        "minCommitAvailableMiB": 3162,
+        "breach": false,
+        "forcedTermination": false,
+        "monitorFailure": null,
+        "childExitCode": null,
+        "jobEmpty": false,
+        "permitRecordBuildExit0": false,
+        "compilerFlagsChanged": false,
+        "testDeadlinesChanged": false,
+        "identities": [],
+        "samples": 0,
+        "maxSampleGapMs": 0,
+        "resumeBoundaryEstablished": false,
+        "terminalSampled": false,
+        "finalSampled": false,
+        "inspectionObservations": [],
+        "status": "ENVREFUSAL_BEFORE_CHILD"
+      }
+    },
+    {
+      "receipt": ".cache/phase3-gates/t70-supervisor-20261116T213228222457Z/supervisor.json",
+      "sha256": "027de72a73db84f913de9e41a278ab9cfa9791b6ee449738793385a5ad1eefcb",
+      "actual": {
+        "scope": "T70 supervised default API build proposal",
+        "owner": "/root",
+        "initial": {
+          "observedAtUtc": "2026-11-16T21:32:28.224400+00:00",
+          "commitAvailableMiB": 3289,
+          "physicalAvailableMiB": 989,
+          "memoryLoadPercent": 93
+        },
+        "initialRequiredMiB": 6500,
+        "liveRequiredMiB": 1536,
+        "sampleIntervalMs": 300,
+        "previousPreflightRefusals": 0,
+        "minCommitAvailableMiB": 3289,
+        "breach": false,
+        "forcedTermination": false,
+        "monitorFailure": null,
+        "childExitCode": null,
+        "jobEmpty": false,
+        "permitRecordBuildExit0": false,
+        "compilerFlagsChanged": false,
+        "testDeadlinesChanged": false,
+        "identities": [],
+        "samples": 0,
+        "maxSampleGapMs": 0,
+        "resumeBoundaryEstablished": false,
+        "terminalSampled": false,
+        "finalSampled": false,
+        "inspectionObservations": [],
+        "status": "ENVREFUSAL_BEFORE_CHILD"
+      }
+    },
+    {
+      "receipt": ".cache/phase3-gates/t70-supervisor-20261116T221503400506Z/supervisor.json",
+      "sha256": "f34413db7c0ee6bfc392348765d1629138025061ecd3ae217734fa5fdf7ad64e",
+      "actual": {
+        "scope": "T70 supervised default API build proposal",
+        "owner": "/root",
+        "initial": {
+          "observedAtUtc": "2026-11-16T22:15:03.420034+00:00",
+          "commitAvailableMiB": 4071,
+          "physicalAvailableMiB": 473,
+          "memoryLoadPercent": 97
+        },
+        "initialRequiredMiB": 6500,
+        "liveRequiredMiB": 1536,
+        "sampleIntervalMs": 300,
+        "previousPreflightRefusals": 0,
+        "minCommitAvailableMiB": 4071,
+        "breach": false,
+        "forcedTermination": false,
+        "monitorFailure": null,
+        "childExitCode": null,
+        "jobEmpty": false,
+        "permitRecordBuildExit0": false,
+        "compilerFlagsChanged": false,
+        "testDeadlinesChanged": false,
+        "identities": [],
+        "samples": 0,
+        "maxSampleGapMs": 0,
+        "resumeBoundaryEstablished": false,
+        "terminalSampled": false,
+        "finalSampled": false,
+        "inspectionObservations": [],
+        "status": "ENVREFUSAL_BEFORE_CHILD"
+      }
+    },
+    {
+      "receipt": ".cache/phase3-gates/t70-supervisor-20261116T221618613965Z/supervisor.json",
+      "sha256": "0cc003df2bcd74af43a95962cf835cc042982f81c955ecc1b31d55fad47d3c3e",
+      "actual": {
+        "scope": "T70 supervised default API build proposal",
+        "owner": "/root",
+        "initial": {
+          "observedAtUtc": "2026-11-16T22:16:18.614971+00:00",
+          "commitAvailableMiB": 4027,
+          "physicalAvailableMiB": 947,
+          "memoryLoadPercent": 94
+        },
+        "initialRequiredMiB": 3072,
+        "liveRequiredMiB": 1536,
+        "sampleIntervalMs": 300,
+        "previousPreflightRefusals": 0,
+        "minCommitAvailableMiB": 1486,
+        "breach": true,
+        "forcedTermination": true,
+        "monitorFailure": "RuntimeError:live_commit_reserve_breached:loop",
+        "childExitCode": null,
+        "jobEmpty": true,
+        "permitRecordBuildExit0": false,
+        "compilerFlagsChanged": false,
+        "testDeadlinesChanged": false,
+        "identities": [
+          {
+            "pid": 34184,
+            "createdFileTime": 134393409786214392,
+            "exe": "c:\\program files\\nodejs\\node.exe",
+            "parentPid": 11364,
+            "parentProof": "direct verified supervisor child"
+          },
+          {
+            "pid": 34068,
+            "createdFileTime": 134393409786447955,
+            "exe": "c:\\windows\\system32\\conhost.exe",
+            "parentPid": 34184,
+            "parentProof": "same confined job and verified parent lifetime"
+          },
+          {
+            "pid": 32800,
+            "createdFileTime": 134393409787411028,
+            "exe": "c:\\windows\\system32\\conhost.exe",
+            "parentPid": 27736,
+            "parentProof": "same confined job and verified parent lifetime"
+          },
+          {
+            "pid": 27736,
+            "createdFileTime": 134393409787357334,
+            "exe": "c:\\program files\\nodejs\\node.exe",
+            "parentPid": 34184,
+            "parentProof": "same confined job and verified parent lifetime"
+          }
+        ],
+        "samples": 75,
+        "maxSampleGapMs": 313.00000000010186,
+        "resumeBoundaryEstablished": true,
+        "terminalSampled": false,
+        "finalSampled": false,
+        "inspectionObservations": [],
+        "status": "ENVREFUSAL_DURING_OWNED_BUILD"
+      }
+    },
+    {
+      "receipt": ".cache/phase3-gates/t70-supervisor-20261116T222221358949Z/supervisor.json",
+      "sha256": "65873712e67549be0404bb06087d61f3bf4cdaf4f4a8e06bb0103ff2c4d91db9",
+      "actual": {
+        "scope": "T70 supervised default API build proposal",
+        "owner": "/root",
+        "initial": {
+          "observedAtUtc": "2026-11-16T22:22:21.358949+00:00",
+          "commitAvailableMiB": 3103,
+          "physicalAvailableMiB": 1539,
+          "memoryLoadPercent": 90
+        },
+        "initialRequiredMiB": 6500,
+        "liveRequiredMiB": 1536,
+        "sampleIntervalMs": 300,
+        "previousPreflightRefusals": 0,
+        "minCommitAvailableMiB": 3103,
+        "breach": false,
+        "forcedTermination": false,
+        "monitorFailure": null,
+        "childExitCode": null,
+        "jobEmpty": false,
+        "permitRecordBuildExit0": false,
+        "compilerFlagsChanged": false,
+        "testDeadlinesChanged": false,
+        "identities": [],
+        "samples": 0,
+        "maxSampleGapMs": 0,
+        "resumeBoundaryEstablished": false,
+        "terminalSampled": false,
+        "finalSampled": false,
+        "inspectionObservations": [],
+        "status": "ENVREFUSAL_BEFORE_CHILD"
+      }
+    }
+  ],
+  "currentResourceConclusion": {
+    "currentCheckedBuild": false,
+    "nativeCurrentExecuted": 0,
+    "finalizationExecuted": false,
+    "actualOriginalPolicyReserveBreach": true,
+    "ownedJobEmptyAfterRefusal": true,
+    "compilerFailureProven": false,
+    "anotherBuildRequiresMeaningfulEnvironmentChange": true,
+    "thresholdOrCompilerOrTestReductionIsNotARemedy": true,
+    "latestStrictAttemptBeforeChild": true,
+    "latestStrictInitialCommitAvailableMiB": 3103
   }
 }
