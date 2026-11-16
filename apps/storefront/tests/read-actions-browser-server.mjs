@@ -12,14 +12,15 @@ if (readdirSync(appDirectory).some(name => name === ".env" || name.startsWith(".
 const api = createServer((request, response) => {
   response.setHeader("Content-Type", "application/json");
   const path = new URL(request.url, "http://127.0.0.1").pathname;
-  if (path === "/storefront/read-actions/config") {
+  if (path === "/storefront/read-actions/config" || path === "/storefront/read-actions-empty/config") {
     response.end(JSON.stringify({
-      merchantId: "read-action-merchant", name: "Read action contract fixture", storeSlug: "read-actions",
-      description: "Synthetic local browser fixture", theme: { mode: "light", accentColor: "#333333", fontFamily: "system-ui" },
+      merchantId: "read-action-merchant", name: "Read action contract fixture", storeSlug: path.includes("read-actions-empty") ? "read-actions-empty" : "read-actions",
+      description: "Synthetic local browser fixture", theme: { mode: "light", accentColor: "#333333", fontFamily: "system-ui",
+        trustBadges: path.includes("read-actions-empty") ? [] : ["Atendimento local", "Entrega & acompanhamento", "Informação em português", "<script>merchant-text</script>"] },
       agentName: "Assistente", agentGreeting: "Como posso ajudar?", quickReplies: ["Explorar categorias"],
       voiceCheckoutEnabled: false, showBranding: false, stories: [], storeSettings: {},
     }));
-  } else if (path === "/storefront/read-actions/stories") {
+  } else if (path === "/storefront/read-actions/stories" || path === "/storefront/read-actions-empty/stories") {
     response.end(JSON.stringify({ categories: [] }));
   } else {
     response.statusCode = 404;

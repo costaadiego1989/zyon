@@ -15,3 +15,10 @@ test("renders no trust footer for empty or absent labels", () => {
   assert.equal(renderToStaticMarkup(<MerchantTrustBadges badges={[]} />), "");
   assert.equal(renderToStaticMarkup(<MerchantTrustBadges badges={[" "]} />), "");
 });
+
+test("caps the footer at four nonempty merchant labels", () => {
+  const html = renderToStaticMarkup(<MerchantTrustBadges badges={["", " ", "One", "Two", "Three", "Four", "Fifth"]} />);
+  assert.equal((html.match(/<li/g) ?? []).length, 4);
+  for (const label of ["One", "Two", "Three", "Four"]) assert.ok(html.includes(label));
+  assert.ok(!html.includes("Fifth"));
+});
