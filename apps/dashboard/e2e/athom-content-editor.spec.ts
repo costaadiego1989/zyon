@@ -98,3 +98,21 @@ test("Video persists new content without an update ID and edits the saved ID", a
   await expect(editor.getByText("Video atualizado", { exact: true })).toBeVisible();
   expect(server.writes[1].id).toBe("server-video-1"); expect(server.records.size).toBe(1);
 });
+
+test("Orders explain429 without technical JSON and recover on retry", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/v1/orders?*", route => {
+    calls++;
+    return calls === 1 ? route.fulfill({ status: 429, headers: { "Retry-After": "3" }, json: { code: "rate_limit_exceeded", internal: "technical-payload-must-not-appear" } })
+      : route.fulfill({ json: { data: [], next_cursor: null, has_more: false } });
+  });
+  await page.goto("/athom-content-editor.html?mode=orders");
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("Aguarde 3 segundos");
+  await expect(alert).not.toContainText("technical-payload");
+  expect(calls).toBe(1);
+  await alert.getByRole("button", { name: "Tentar novamente", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByText("Os pedidos da sua loja aparecem aqui", { exact: true })).toBeVisible();
+  expect(calls).toBe(2);
+});

@@ -5,6 +5,8 @@ import { ProductVideoEditor } from "../../src/pages/product-detail/components/Pr
 import type { ProductFaq, ProductVideo } from "../../src/api/endpoints/product-content.js";
 import { ApiContext } from "../../src/hooks/useApi.js";
 import { createDashboardApi } from "../../src/api-client.js";
+import { OrdersShipmentsPage } from "../../src/pages/orders-shipments-page.js";
+import type { MerchantProfile } from "../../src/api-client.js";
 
 const api = createDashboardApi({ baseUrl: window.location.origin });
 
@@ -48,4 +50,7 @@ function Fixture() {
       }} onModerate={async () => {}} /></section>
   </main>;
 }
-createRoot(document.getElementById("root")!).render(<ApiContext.Provider value={api}><Fixture /></ApiContext.Provider>);
+createRoot(document.getElementById("root")!).render(<ApiContext.Provider value={api}>
+  {new URLSearchParams(location.search).get("mode") === "orders"
+    ? <OrdersShipmentsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} /> : <Fixture />}
+</ApiContext.Provider>);
