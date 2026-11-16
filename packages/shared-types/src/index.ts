@@ -896,6 +896,7 @@ export type RevenueManagerDomainEventType =
   | "revenue_manager.lesson.recorded";
 
 export type DomainEventType =
+  | "platform.support.changed"
   | "support.case.changed"
   | CheckoutDomainEventType
   | CrossSellDomainEventType
@@ -910,6 +911,7 @@ export type DomainEventType =
   | RevenueManagerDomainEventType;
 
 export type DomainEventProducer =
+  | "platform-support"
   | "support"
   | "checkout"
   | "cross-sell"
@@ -1592,6 +1594,7 @@ export * from "./billing-plans.js";
 export * from "./billing-offers.js";
 export * from "./billing-promotions.js";
 export * from "./platform-support.js";
+export * from "./platform-support-policy.js";
 
 export { NEUMORPHIC_THEME, merchantThemeTokens, type MerchantThemeAppearance } from "./merchant-theme.js";
 
@@ -1607,3 +1610,5 @@ export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, 
 
 export * from "./shopping-agent-appearance.js";
 export * from "./cashback.js";
+
+export * from "./platform-support.js";

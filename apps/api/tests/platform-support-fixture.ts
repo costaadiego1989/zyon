@@ -72,6 +72,7 @@ export async function createSupportFixture(options: { aiMetering?: boolean } = {
     await prisma.aiUsageEvent.deleteMany({ where: { merchantId: { in: merchantIds } } });
     await prisma.aiVoiceUsageSession.deleteMany({ where: { merchantId: { in: merchantIds } } });
     await prisma.platformSupportTicket.deleteMany({ where: { merchantId: { in: merchantIds } } });
+    await prisma.platformSupportMonthlyUsage.deleteMany({ where: { accountId: { in: merchantIds } } });
     await prisma.platformAuditEvent.deleteMany({ where: { actorOperatorId: { in: operatorIds } } });
     await prisma.outboxMessage.deleteMany({ where: { merchantId: { in: merchantIds } } });
     await prisma.merchant.deleteMany({ where: { id: { in: merchantIds.filter(id => id.endsWith("_child")) } } });

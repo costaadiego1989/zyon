@@ -4,9 +4,15 @@ export type PlatformSupportStatus = typeof PLATFORM_SUPPORT_STATUSES[number];
 export type PlatformSupportSeverity = typeof PLATFORM_SUPPORT_SEVERITIES[number];
 export type PlatformSupportCategory = "bug" | "improvement" | "suggestion" | "other";
 export type PlatformSupportTier = "standard" | "priority";
+export type PlatformSupportMode = "ticket" | "realtime";
 
 export interface PlatformSupportCapabilities {
   canOpen: boolean;
+  canRealtime: boolean;
+  realtimeLimit: number | null;
+  realtimeUsed: number;
+  realtimeRemaining: number | null;
+  realtimeMonth: string;
   tier: PlatformSupportTier;
   plan: string;
   availability: string;
@@ -19,6 +25,7 @@ export interface PlatformSupportTicket {
   merchantName: string;
   subject: string;
   category: PlatformSupportCategory;
+  mode: PlatformSupportMode;
   status: PlatformSupportStatus;
   severity: PlatformSupportSeverity;
   tier: PlatformSupportTier;
@@ -64,6 +71,7 @@ export interface PlatformSupportPage {
 }
 
 export interface CreatePlatformSupportTicket {
+  mode?: PlatformSupportMode;
   subject: string;
   category: PlatformSupportCategory;
   content: string;

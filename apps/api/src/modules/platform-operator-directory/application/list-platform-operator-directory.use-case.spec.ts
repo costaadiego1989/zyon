@@ -28,6 +28,8 @@ test("lists platform operators with only their derived permissions and records a
     status: "active",
   });
   assert.deepEqual(page.items[0]?.permissions, [
+    "platform:support:read",
+    "platform:support:write",
     "platform:overview:read",
     "platform:merchants:read",
     "platform:feedback:read",
