@@ -1537,7 +1537,7 @@ T107 → T106
 ### T70: Extend parameterized Cypher templates for services
 
 **What**: Templates aprovados unem serviço/profissional/conhecimento público com parâmetros tenant, limite/timeout; gateway Community privado mantém rejeição de escrita e Cypher livre; disponibilidade continua ferramenta operacional.
-**Where**: `apps/api/src/modules/graph-rag/domain/graph-query.ts`
+**Where**: `apps/api/src/modules/graph-rag/domain/public-business-query.ts`; concrete gateway/runtime/evidence companions in task-70-plan.md
 **Depends on**: T69, T108
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: RAG-05, RAG-08, EDGE-05
@@ -2539,6 +2539,21 @@ Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.servi
 Tasks: T107.
 
 ## Handoff
+
+**Root70checked attempt interrupted / source proof retained (before next handover):** ordinary fresh build initially admitted5382>=5168 and capture passed, then hostcommit dropped814MiB at19:22:46Z during maincompile. Root sent Ctrl-C ONLY to own execsession91036; returned1. Poststop readonly known-N/exactlauncher command scan matched0, foreign processes/containers untouched; no compiler error shown, no record stage/currentartifact/native claim. Receipt .cache/t70-gates/2026-11-16T19-17-26.170Z/interruption.json preserves exact log.906components remain green,70Full pending. No automatic rebuild/guard reduction. With that heavy compiler now stopped, C may receive one new existing-resource-admitted107window; if5168type/build refuses, preserve refusal and only independent actualbrowser under its original2048guard is permitted as PARTIAL evidence, never complete107withoutfulltypes/build. Freeze105WIPs and keep107case/fixtures independently replayable; no extra product decision or test weakening.
+
+
+**Root70whole906passed / official fresh checked build (before execution):** combined54+70source completed906/906components,0fail/skip/cancel, including new caller-timeout negative, at .cache/t70-gates/2026-11-16T19-14-14.210Z/unit.log. Root retains sole execution for standard5168-admitted .cache/run-t70-gate.mjs checked: fresh capture, full normal pnpmAPIbuild, existing checked artifact record only after0. If static preflight refuses, preserve it; exact previously reviewed monitored69->70label-only helpers may be used only with3072initial/1536live/300ms/max500gap/ownJob/natural0/noBreach/currentinputs+outputs and reviewed finalization. Never use old69artifact. C/M/P/99remain source-only. Native13andold gateway/evidencecohorts still pending; no70completion from components/build alone.
+
+
+**Root54integration / sole70final-component window (before execution):** M54commit01e41f884 integrated as Root9f0df7829, only STATEconflict resolved with current concise handoff and54local evidence. All20nonoverlapping own dirty70files remain byte-equal to final backup1a203ef7; own handoff additions reinserted without replacing54status/spec. C10770unit/lintgreen but types preflight4970<5168refused beforechild, no build/browser; C returned slot. Root now runs the whole70component cohort with its new caller-timeout negative (expected906; actual runner authoritative) on combined54+70source via unchanged1024resourceguard. M55/C/P/99 source-only, no concurrent app/test/build/browser. After green, fresh own official70build and actual nativequery gate remain required. No lowering of resource/compiler/test guards or release action.
+
+
+**M54 returned9/9 / dispatched C107 remaining standalone Full gate (before sending):** M originalAPI9 passed9/9,0skip/fail/cancel, natural exit0 and own a104/8b40/2547 integral admission before/after at .cache/t54-gates/2026-11-16T19-05-17.370Z. Original15s predicates completed under3s; terminal/close diagnostic emitted no failures, so no cause for historical6/3 inferred and no relay/deadline change. Root authorized54evidence/status/atomiccommit with all128components/55native, retaining history. C now owns only remaining107dashboardtypes/affectedlint/build + actual standalone3browsercases (Starterproduct/Starterservice/Growthproduct) under existing unchanged resource/time guards and independentfixtures. Real saved-editor route, realGET/PUT/basic promo/direct403/SQL/reload and six1440x1000/390x844local captures planned; no105helper imports or old tests changed. If renderer stalls, preserve trace and diagnose actualRAF/visibility instead of another blind run. Root/P/M/99no runner until C returns; source/docs integration allowed. No107completion before whole gate.
+
+
+**C107 components returned / dispatch M54 diagnostic once (before sending):** C10770/70components (55old+15new),7files,0skip/fail, natural runner0 at .cache/t107-execution/components-2026-11-16T19-03-46.421Z. No C runtime/browser remains. M may now run one unchanged2048MiB-admitted official API9 failure-only diagnostic using its own admitted a104/8b40 build; preserve exact approved6c3293 reconstruction, fifteen-second predicates, every status/cleanup oracle and resource guard. If preflight refuses, retain refusal and return source-only, no repeated polling/retry or threshold changes. Root/C/P/99 no runner/build/native/browser until M returns. Foreign task trees remain untouched. No54or107Full completion inferred.
+
 
 **Root T70 components returned / dispatch C107 independent component gate:** Root905/905,77suites,0fail/skip/cancel at18:54:37Z log, duration266247ms. Full70 remains pending fresh own checked build and native SQL/Neo4j/gateway proof; old69artifact printed by launcher is stale for productive70inputs. C may run one prepared107component gate under unchanged resource admission and report start/end; no build/browser/native until a further handover. Root/M/P/99 no runners. P may read-only review70source and keep20own30WIP exact. This metadata commit only records the observed403 and technical dependency reorder107before105, no task marked complete or new product decision.
 

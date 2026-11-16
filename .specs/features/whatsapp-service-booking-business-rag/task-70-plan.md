@@ -8,7 +8,7 @@ T69 is committed and green at ad81d32c9. This task adds a separate public-busine
 - A service/professional hint is not a relationship proof. Both current public sources and the canonical published link must be admitted after retrieval in one merchant-first snapshot.
 - Public static data does not acquire the legacy catalog freshness TTL. Current source version, publication and pinned embedding ABI remain required.
 - An older gateway may continue serving legacy reads while its new public capability is unavailable. Public admission is separate.
-- All execution waits for M54/M55 to return the sole resource window. Source work and deterministic document validation only are allowed meanwhile.
+- Heavy execution is serialized by the current tasks.md Handoff owner. T54 has since passed and was integrated before the fresh70attempt. T55 is not a T70dependency; its source preparation is separate and cannot run while another owner holds the slot.
 
 ## Files
 
@@ -29,3 +29,13 @@ One local task commit follows the real green Full gate, never preparation alone.
 ## Source review before first execution
 
 P reviewed the draft and current implementation read-only. The distinct revalidatePairs avoids the old flat ready/half-pair pitfall and preserves the canonical port. Before any run, Root strengthened the held-response test to release and settle its pending request on every error and honor the existing rate limiter before holding the graph response. The fixture follows the proven Starter-for-catalog then Growth-for-policy sequence, avoiding unrelated background SEO generation. No old assertion, runner deadline or productive SEO path changed. These are preparatory corrections, not executed proof.
+
+## Follow-up source review after first component gate
+
+The first905component cases passed before the final new caller-deadline case. Read-only P review found no blocking tenant/provenance/relationship/capability issue. The new held-graph-reply test exercises the caller timeout and verifies that a late success cannot replace the returned unavailable result. It does not claim cancellation of embeddings or in-flight driver work. Existing bounded engine transaction and legacy retrieval remain unchanged. Whole component count must be906 after the addition; no prior oracle was edited. Native05 proves a real unlink committed before post-graph canonical admission, not a lock-wait race inside that snapshot.
+
+The exact reviewed monitored69build helpers are prepared as70task-label/path-only copies, with reuse manifest in .cache/t70-monitored-reuse-manifest.json. Full normal compiler command/coverage/heap are unchanged. Existing monitored admission3072MiB, live reserve1536MiB,300ms sampling/max500ms gap, exclusive created job, natural zero exit/current input/output identity and finalization remain mandatory. They are not a waiver for native2048or ordinary5168admission. No execution while another owner holds the slot.
+
+## Current partial evidence
+
+Root integrated54as9f0df7829, preserving all20nonoverlapping own dirty70files byte-for-byte. Whole906components passed on combinedsource,0fail/skip/cancel, including the new caller-timeout case. The fresh ordinaryAPIbuild captured2551sources/input52880590 and admitted5382MiB against5168, but hostcommit later fell to814MiB. Root interrupted ONLY its own execsession91036 with Ctrl-C; exit1. No compiler error was displayed, no record phase or current checked artifact exists. Read-only known-own-command scan afterstop found0; no foreign process/container was changed. task-70-evidence.json and the interruption receipt retain these boundaries. Do not run native against the old69stamp or close70until fresh checked build and actual13native cases pass.

@@ -1,0 +1,64 @@
+{
+  "task": "T70",
+  "status": "partial_resource_interrupted",
+  "sourceBaseHead": "9f0df7829",
+  "environment": "local-owned-only",
+  "latestComponentGate": {
+    "tests": 906,
+    "pass": 906,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "log": ".cache/t70-gates/2026-11-16T19-14-14.210Z/unit.log",
+    "sha256": "077290e896e257720c081f92646ddd93c5d7d174cd0bfebc3f27f7297465830a"
+  },
+  "previousComponentGate": {
+    "tests": 905,
+    "pass": 905,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "log": ".cache/t70-gates/2026-11-16T18-54-37.062Z/unit.log",
+    "sha256": "39c15cfe96d491738550b501932c066f2baab6fcef879296c048d5f615c6bef7"
+  },
+  "freshInputCapture": {
+    "inputSha256": "52880590bfab275b3d49bbcd9c7ce5b0ab4b0dbd1cce87d30992f74061aa958d",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2551
+    }
+  },
+  "checkedBuild": {
+    "current": false,
+    "passed": false,
+    "recordStageStarted": false,
+    "interruption": ".cache/t70-gates/2026-11-16T19-17-26.170Z/interruption.json",
+    "interruptionSha256": "a941cbc5aa838784925cad011578e084e83e7be940c60a8e41a833e6c0196e83",
+    "compilerErrorProven": false,
+    "oldT69StampIsCurrent": false
+  },
+  "native": {
+    "plannedChildren": 12,
+    "plannedRootAndChildren": 13,
+    "executedCurrent": 0,
+    "passed": false,
+    "file": "apps/api/tests/business-rag-public-query.integration.spec.mjs"
+  },
+  "sourceReview": {
+    "reviewer": "/root/relay_start_review",
+    "artifact": "C:/tmp/zyon-service-professional-agenda-20261114/.cache/t70-readonly-review-20261116/review.md",
+    "blockingSourceFindings": 0,
+    "isNativeOrFinalVerifierProof": false
+  },
+  "boundaries": {
+    "legacyTemplatesAndAdmissionUnchanged": true,
+    "newPublicCapabilityIndependent": true,
+    "pairsRequireCurrentCanonicalRelationship": true,
+    "timeoutIsCallerBoundNotCancellation": true,
+    "buyerOrchestrationAndFinalModelFenceAreT71": true,
+    "providerRequests": 0,
+    "productionChanges": 0,
+    "taskComplete": false,
+    "wholeFeatureComplete": false
+  }
+}
