@@ -99,6 +99,19 @@ test("Video draft opens before writes, rejects invalid input and can be cancelle
   await expect(title).toHaveCount(0); expect(server.records.size).toBe(0); expect(server.writes).toHaveLength(0);
 });
 
+test("Video draft requires a title even with a valid provider URL", async ({ page }) => {
+  const server = await videoServer(page); await page.goto("/athom-content-editor.html");
+  const editor = page.getByRole("region", { name: "Videos", exact: true });
+  await editor.getByRole("button", { name: /Adicionar/ }).click();
+  const title = editor.getByRole("textbox").first();
+  const url = editor.getByPlaceholder("https://www.youtube.com/watch?v=...");
+  await title.fill(" \u00a0"); await url.fill("https://www.youtube.com/watch?v=qa123");
+  await editor.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Título e arquivo/URL do vídeo são obrigatórios");
+  await expect(title).toHaveValue(" \u00a0"); await expect(url).toHaveValue("https://www.youtube.com/watch?v=qa123");
+  expect(server.writes).toHaveLength(0); expect(server.records.size).toBe(0);
+});
+
 test("Video persists new content without an update ID and edits the saved ID", async ({ page }) => {
   const server = await videoServer(page); await page.goto("/athom-content-editor.html");
   const editor = page.getByRole("region", { name: "Videos", exact: true });
