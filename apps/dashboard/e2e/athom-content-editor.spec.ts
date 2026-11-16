@@ -339,3 +339,36 @@ test("Team rendering preserves valid dates and shows unavailable dates in actual
   await expect(cell("invalid-qa@example.test")).toHaveText("—");
   await expect(page.getByText("Invalid Date", { exact: true })).toHaveCount(0);
 });
+
+test("Coupon calendar dates survive creation and API reload in a Brazil browser", async ({ browser }) => {
+  test.setTimeout(60_000);
+  const context = await browser.newContext({ timezoneId: "America/Sao_Paulo" });
+  try {
+    const page = await context.newPage();
+    await page.clock.setFixedTime(new Date("2026-11-16T12:00:00Z"));
+    const writes: any[] = [], records = [{ id: "legacy", code: "LEGACY", discount_type: "percent", discount_value: 10,
+      starts_at: "2028-02-28T00:00:00.000Z", ends_at: "2028-02-29T00:00:00.000Z", is_active: true }];
+    await page.route("**/v1/**", route => {
+      if (route.request().method() === "POST") {
+        const body = route.request().postDataJSON(); writes.push(body);
+        const saved = { ...body, id: "created", starts_at: body.starts_at + "T00:00:00.000Z" }; records.push(saved);
+        return route.fulfill({ status: 201, json: saved });
+      }
+      return route.fulfill({ json: records });
+    });
+    await page.goto("http://127.0.0.1:18175/athom-content-editor.html?mode=coupons", { waitUntil: "domcontentloaded" });
+    const legacy = page.locator("article").filter({ hasText: "LEGACY" });
+    await expect(legacy).toContainText("De 28/02/2028"); await expect(legacy).toContainText("Até 29/02/2028");
+    await page.getByRole("button", { name: "Novo cupom", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Criar cupom" });
+    await dialog.getByLabel("Código do cupom", { exact: true }).fill("LEAPDAY");
+    await dialog.getByLabel("Data de início", { exact: true }).fill("2028-02-28");
+    await dialog.getByLabel("Data final", { exact: true }).fill("2028-02-29");
+    await dialog.getByRole("button", { name: "Criar cupom", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    const created = page.locator("article").filter({ hasText: "LEAPDAY" });
+    await expect(created).toContainText("De 28/02/2028"); await expect(created).toContainText("Até 29/02/2028");
+    expect(writes[0]).toMatchObject({ starts_at: "2028-02-28", ends_at: "2028-02-29T23:59:59.999Z" });
+    await page.reload(); await expect(legacy).toContainText("Até 29/02/2028"); await expect(created).toContainText("De 28/02/2028");
+  } finally { await context.close(); }
+});

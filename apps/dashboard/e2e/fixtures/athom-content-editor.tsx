@@ -12,6 +12,7 @@ import { PromotionSection } from "../../src/pages/product-detail/components/Prom
 import { ExperimentsPage } from "../../src/pages/experiments/ExperimentsPage.js";
 import { AdvancedLayoutTab } from "../../src/pages/product-detail/components/AdvancedLayoutTab.js";
 import { TeamPage } from "../../src/pages/team-page.js";
+import { CouponsPage } from "../../src/pages/coupons/CouponsPage.js";
 
 const api = createDashboardApi({ baseUrl: window.location.origin });
 
@@ -73,5 +74,7 @@ createRoot(document.getElementById("root")!).render(<ApiContext.Provider value={
           : new URLSearchParams(location.search).get("mode") === "visibility"
             ? <VisibilityFixture />
             : new URLSearchParams(location.search).get("mode") === "team"
-              ? <TeamPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} /> : <Fixture />}
+              ? <TeamPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} />
+              : new URLSearchParams(location.search).get("mode") === "coupons"
+                ? <CouponsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} /> : <Fixture />}
 </ApiContext.Provider>);

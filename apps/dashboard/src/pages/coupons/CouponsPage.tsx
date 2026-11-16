@@ -12,6 +12,7 @@ import { StatCard } from "../overview/components/StatCard.js";
 import { CouponForm } from "./CouponForm.js";
 import { useCouponsPage } from "./useCouponsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
+import { isExistingIsoDate } from "../../lib/calendar-date.js";
 import "./coupons.css";
 export interface CouponsPageProps { apiBaseUrl: string; me: MerchantProfile | null; }
 function formatDiscount(type: string, value: number): string {
@@ -21,8 +22,9 @@ function formatDiscount(type: string, value: number): string {
 }
 export function formatCouponDate(iso: string): string {
   // The date-only form is serialized by the API as UTC midnight.
+  if (!isExistingIsoDate(iso)) return "Data indisponível";
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "Data indisponível" : date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+  return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 export function CouponsPage(_props: CouponsPageProps) {
   const vm = useCouponsPage();
