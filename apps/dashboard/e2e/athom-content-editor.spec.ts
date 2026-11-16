@@ -117,6 +117,25 @@ test("Orders explain429 without technical JSON and recover on retry", async ({ p
   expect(calls).toBe(2);
 });
 
+for (const [label, header, expected] of [
+  ["server interval", "7", "Muitas consultas em pouco tempo. Aguarde 7 segundos e tente novamente."],
+  ["missing interval", undefined, "Muitas consultas em pouco tempo. Aguarde um momento e tente novamente."],
+  ["invalid interval", "tomorrow", "Muitas consultas em pouco tempo. Aguarde um momento e tente novamente."],
+] as const) {
+  test("Orders use safe rate-limit text for " + label, async ({ page }) => {
+    test.setTimeout(60_000); let calls = 0;
+    await page.route("**/v1/orders?*", route => {
+      calls++;
+      return route.fulfill({ status: 429, headers: header === undefined ? {} : { "Retry-After": header },
+        json: { code: "rate_limit_exceeded", internal: "private-rate-body-must-not-appear" } });
+    });
+    await page.goto("/athom-content-editor.html?mode=orders", { waitUntil: "domcontentloaded" });
+    const alert = page.getByRole("alert");
+    await expect(alert).toContainText(expected); await expect(alert).not.toContainText("private-rate-body");
+    await expect(alert).not.toContainText("rate_limit_exceeded"); expect(calls).toBe(1);
+  });
+}
+
 test("Webhook Testar forwards a subscribed event and displays the queued delivery", async ({ page }) => {
   const writes: any[] = [];
   const endpoint = { id: "selected", url: "https://example.test/selected", enabled: true, events: ["customer.upserted"], signing_secret_hint: "redacted", created_at: "2026-11-16T12:00:00Z", updated_at: "2026-11-16T12:00:00Z" };
