@@ -43,9 +43,12 @@ export class PrismaPolicyRepository implements PolicyRepositoryPort {
     try {
       const row = await this.prisma.$transaction(async (tx) => {
         // Both editors update the same commercial fields atomically.
+        await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchantId} FOR UPDATE`;
         const merchant = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
         const settings = (merchant?.storeSettings as Record<string, unknown>) ?? {};
-        const shared = Object.fromEntries(["returns", "shipping"].filter(field => Object.hasOwn(data, field)).map(field => [field, data[field as keyof MerchantPolicyData] ?? ""]));
+        const shared = Object.fromEntries(["returns", "shipping", "warranty", "payment", "general"]
+          .filter(field => Object.hasOwn(data, field) && data[field as keyof MerchantPolicyData] !== undefined)
+          .map(field => [field, data[field as keyof MerchantPolicyData] ?? ""]));
         if (Object.keys(shared).length) await tx.merchant.update({
           where: { id: merchantId }, data: { storeSettings: { ...settings, policies: { ...((settings.policies as object) ?? {}), ...shared } } },
         });

@@ -95,50 +95,51 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   }
 
   async updateStoreSettings(merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
-    const current = await this.prisma.merchant.findUnique({
-      where: { id: merchantId },
-      select: { storeSettings: true },
-    });
-    const existing = (current?.storeSettings as Record<string, unknown>) ?? {};
-    const incoming = settings as unknown as Record<string, unknown>;
-    const merged: Record<string, unknown> = { ...existing };
-    for (const [key, value] of Object.entries(incoming)) {
-      if (key === "budget") continue;
-      const prev = existing[key];
-      const bothPlainObjects =
-        prev != null && typeof prev === "object" && !Array.isArray(prev) &&
-        value != null && typeof value === "object" && !Array.isArray(value);
-      merged[key] = bothPlainObjects
-        ? { ...(prev as Record<string, unknown>), ...(value as Record<string, unknown>) }
-        : value;
-    }
-
-    const requestedSlug = typeof merged.slug === "string" ? merged.slug.trim().toLowerCase() : undefined;
-    const update = {
-      where: { id: merchantId },
-      data: {
-        ...(settings.budget ? {
-          budgetModeEnabled: settings.budget.enabled,
-          ...(settings.budget.email !== undefined ? { budgetEmail: settings.budget.email || null } : {}),
-          ...(settings.budget.whatsapp !== undefined ? { budgetWhatsapp: settings.budget.whatsapp || null } : {}),
-        } : {}),
-        storeSettings: merged as unknown as object,
-        ...(requestedSlug ? { storeSlug: requestedSlug } : {}),
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchantId} FOR UPDATE`;
+      const current = await tx.merchant.findUnique({
+        where: { id: merchantId },
+        select: { storeSettings: true },
+      });
+      const existing = (current?.storeSettings as Record<string, unknown>) ?? {};
+      const incoming = settings as unknown as Record<string, unknown>;
+      const merged: Record<string, unknown> = { ...existing };
+      for (const [key, value] of Object.entries(incoming)) {
+        if (key === "budget") continue;
+        const prev = existing[key];
+        const bothPlainObjects =
+          prev != null && typeof prev === "object" && !Array.isArray(prev) &&
+          value != null && typeof value === "object" && !Array.isArray(value);
+        merged[key] = bothPlainObjects
+          ? { ...(prev as Record<string, unknown>), ...(value as Record<string, unknown>) }
+          : value;
       }
-    };
-    if (settings.policies) {
-      await this.prisma.$transaction(async (tx) => {
+
+      const requestedSlug = typeof merged.slug === "string" ? merged.slug.trim().toLowerCase() : undefined;
+      const update = {
+        where: { id: merchantId },
+        data: {
+          ...(settings.budget ? {
+            budgetModeEnabled: settings.budget.enabled,
+            ...(settings.budget.email !== undefined ? { budgetEmail: settings.budget.email || null } : {}),
+            ...(settings.budget.whatsapp !== undefined ? { budgetWhatsapp: settings.budget.whatsapp || null } : {}),
+          } : {}),
+          storeSettings: merged as unknown as object,
+          ...(requestedSlug ? { storeSlug: requestedSlug } : {}),
+        }
+      };
+      if (settings.policies) {
         await tx.merchant.update(update);
-        const commercial = Object.fromEntries(["returns", "shipping"].filter(field => Object.hasOwn(settings.policies!, field)).map(field => [field, (settings.policies as Record<string, string>)[field] || null]));
+        const commercial = Object.fromEntries(["returns", "shipping", "warranty", "payment", "general"].filter(field => Object.hasOwn(settings.policies!, field)).map(field => [field, (settings.policies as Record<string, string>)[field] || null]));
         if (Object.keys(commercial).length) await tx.merchantPolicy.upsert({
           where: { merchantId }, create: { merchantId, ...commercial }, update: commercial,
         });
         // Never leave a retrieval chunk containing superseded promises.
         await tx.knowledgeChunk.deleteMany({ where: { merchantId, sourceType: "policy", sourceId: { in: Object.keys(settings.policies!) } } });
-      });
-    } else {
-      await this.prisma.merchant.update(update);
-    }
+      } else {
+        await tx.merchant.update(update);
+      }
+    });
     return this.getStoreSettings(merchantId);
   }
 
