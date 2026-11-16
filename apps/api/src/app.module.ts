@@ -1,6 +1,7 @@
 import { createHttpLoggerOptions } from "./shared/logger/http-logger.config.js";
 import { AiMeteringModule } from "./modules/ai-metering/ai-metering.module.js";
 import { Module } from "@nestjs/common";
+import { PlatformSupportModule } from "./modules/platform-support/platform-support.module.js";
 import { MetaAdsAgentModule } from "./modules/meta-ads-agent/meta-ads-agent.module.js";
 import { CashbackCoreModule } from "./modules/cashback/cashback.module.js";
 import { CashbackHttpModule } from "./modules/cashback/cashback-http.module.js";
@@ -140,6 +141,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     AgenticProtocolModule,
     PublicApiModule,
     PlatformControlModule,
+    PlatformSupportModule,
     AiMeteringModule,
     PlatformOverviewModule,
     PlatformMerchantDirectoryModule,

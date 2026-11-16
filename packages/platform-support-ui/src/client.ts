@@ -18,6 +18,8 @@ export function createPlatformSupportClient(options: SupportClientOptions) {
   let authenticated = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<{ changed(): void; state(value: SupportConnectionState): void }>();
+  const modes = new Map<string, string>();
+  let liveAllowed = options.kind === "operator";
   const prefix = options.kind === "merchant" ? "/merchants/me/platform-support" : "/platform/support";
   const request = <T>(path: string, method = "GET", body?: unknown) => options.request<T>(prefix + path, { method, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
   const state = (value: SupportConnectionState) => { for (const listener of listeners) listener.state(value); };
@@ -25,21 +27,35 @@ export function createPlatformSupportClient(options: SupportClientOptions) {
 
   return {
     kind: options.kind,
-    capabilities: () => request<PlatformSupportCapabilities>("/capabilities"),
+    async capabilities() {
+      const access = await request<PlatformSupportCapabilities>("/capabilities");
+      liveAllowed = access.realtimeLimit !== 0;
+      if (!liveAllowed && socket) { clearTimeout(reconnectTimer); socket.disconnect(); socket = null; authenticated = false; }
+      if (listeners.size && liveAllowed) connect();
+      return access;
+    },
     list(query: PlatformSupportQuery = {}) {
       const search = new URLSearchParams();
       for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== "") search.set(key, String(value));
       return request<PlatformSupportPage>(search.size ? `?${search}` : "");
     },
-    conversation: (id: string, before?: number) => request<PlatformSupportConversation>(`/${encodeURIComponent(id)}${before ? `?before=${before}` : ""}`),
-    create: (input: CreatePlatformSupportTicket) => request<PlatformSupportConversation>("", "POST", input),
+    async conversation(id: string, before?: number) {
+      const detail = await request<PlatformSupportConversation>(`/${encodeURIComponent(id)}${before ? `?before=${before}` : ""}`);
+      modes.set(id, detail.ticket.mode);
+      return detail;
+    },
+    async create(input: CreatePlatformSupportTicket) {
+      const detail = await request<PlatformSupportConversation>("", "POST", input);
+      modes.set(detail.ticket.id, detail.ticket.mode);
+      return detail;
+    },
     read: (id: string, sequence: number) => request<{ success: true }>(`/${encodeURIComponent(id)}/read`, "POST", { sequence }),
     reopen: (id: string) => request<PlatformSupportConversation>(`/${encodeURIComponent(id)}/reopen`, "POST", {}),
     treat: (id: string, input: { status?: PlatformSupportStatus; severity?: PlatformSupportSeverity; assignedOperatorId?: string | null }) => request<PlatformSupportConversation>(`/${encodeURIComponent(id)}`, "PATCH", input),
     notes: (id: string) => request<PlatformSupportNote[]>(`/${encodeURIComponent(id)}/notes`),
     addNote: (id: string, content: string, clientRequestId: string) => request<PlatformSupportNote[]>(`/${encodeURIComponent(id)}/notes`, "POST", { content, clientRequestId }),
     async send(id: string, input: SendPlatformSupportMessage): Promise<PlatformSupportMessage> {
-      if (socket?.connected && authenticated) {
+      if (socket?.connected && authenticated && (options.kind === "operator" || modes.get(id) === "realtime")) {
         const result = await new Promise<{ success: boolean; message?: PlatformSupportMessage; code?: string } | null>(resolve => {
           socket!.timeout(5000).emit("send_message", { ticketId: id, ...input }, (error: Error | null, reply: { success: boolean; message?: PlatformSupportMessage; code?: string }) => resolve(error ? null : reply));
         });
@@ -52,7 +68,17 @@ export function createPlatformSupportClient(options: SupportClientOptions) {
     },
     subscribe(listener: { changed(): void; state(value: SupportConnectionState): void }) {
       listeners.add(listener);
-      if (!socket) {
+      connect();
+      listener.state(authenticated ? "connected" : liveAllowed ? "connecting" : "offline");
+      return () => {
+        listeners.delete(listener);
+        if (!listeners.size) { clearTimeout(reconnectTimer); socket?.disconnect(); socket = null; authenticated = false; }
+      };
+    },
+  };
+
+  function connect() {
+      if (!socket && liveAllowed && listeners.size) {
         const base = options.baseUrl.replace(/\/+$/, "").replace(/\/v1$/, "");
         socket = io(`${base}/platform-support`, { transports: ["websocket"], withCredentials: options.kind === "merchant", auth: { kind: options.kind, ...(options.token ? { accessToken: options.token } : {}) }, autoConnect: false });
         socket.on("authenticated", () => { authenticated = true; state("connected"); changed(); });
@@ -60,25 +86,21 @@ export function createPlatformSupportClient(options: SupportClientOptions) {
         socket.on("connect_error", () => { authenticated = false; state("offline"); });
         socket.on("disconnect", (reason: string) => {
           authenticated = false; state("offline");
-          if (reason === "io server disconnect") reconnectTimer = setTimeout(() => { if (listeners.size) socket?.connect(); }, 3000);
+          if (reason === "io server disconnect") reconnectTimer = setTimeout(() => { if (listeners.size && liveAllowed) socket?.connect(); }, 3000);
         });
         socket.io.on("reconnect_attempt", () => state("connecting"));
         socket.connect();
       }
-      listener.state(authenticated ? "connected" : "connecting");
-      return () => {
-        listeners.delete(listener);
-        if (!listeners.size) { clearTimeout(reconnectTimer); socket?.disconnect(); socket = null; authenticated = false; }
-      };
-    },
-  };
+  }
 }
 
 export type PlatformSupportClient = ReturnType<typeof createPlatformSupportClient>;
 
 export function platformSupportError(error: unknown): string {
   const code = error instanceof SupportClientError ? error.code : error && typeof error === "object" ? String((error as { responseBody?: string }).responseBody ?? (error as { code?: string; message?: string }).code ?? (error as { message?: string }).message ?? "") : "";
-  if (code.includes("support_plan_required")) return "O chat técnico está incluído nos planos Growth e Escala. Você ainda pode enviar um feedback.";
+  if (code.includes("support_realtime_limit_reached")) return "Você usou os 5 atendimentos em tempo real deste mês. Continue pelo chamado ou abra outro chamado sem consumir atendimento em tempo real.";
+  if (code.includes("support_realtime_plan_required")) return "O tempo real está incluído no Growth e no Escala. No Básico, abra um chamado para a equipe responder.";
+  if (code.includes("support_plan_required")) return "A abertura de chamados está disponível a partir do Básico. Você ainda pode enviar um feedback.";
   if (code.includes("support_rate_limited")) return "Você enviou muitas solicitações. Aguarde um pouco e tente novamente.";
   if (code.includes("support_ticket_resolved")) return "Este chamado foi resolvido. Reabra para continuar a conversa.";
   if (code.includes("support_already_assigned")) return "Outro operador está atendendo este chamado. Atualize a fila ou solicite uma transferência.";
