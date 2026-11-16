@@ -177,6 +177,11 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         AND NOT EXISTS (SELECT 1 FROM completed_orders o WHERE o.merchant_id = c.merchant_id AND o.session_id = c.session_id)
         AND NOT EXISTS (SELECT 1 FROM payment_intents p WHERE p.merchant_id = c.merchant_id
           AND p.session_id = c.session_id AND p.status = 'approved')
+        AND NOT EXISTS (SELECT 1 FROM whatsapp_webhook_inbox i WHERE i.merchant_id = w.merchant_id
+          AND i.status IN ('pending', 'processing', 'blocked')
+          AND i.stream_key = encode(sha256(convert_to(
+            '[' || to_json(w.merchant_id)::text || ',' || to_json(substring(w.device_id FROM 12))::text ||
+            ',"message",' || to_json(regexp_replace(w.buyer_phone, '[^0-9]', '', 'g'))::text || ']', 'UTF8')), 'hex'))
       ORDER BY w.last_activity_at ASC, w.id ASC LIMIT 100
     `);
     for (const candidate of candidates) {

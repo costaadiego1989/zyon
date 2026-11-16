@@ -143,3 +143,24 @@ for (const backlog of ["completed_orders", "longer_policy"])
     await f.scanner.scan();
     assert.equal((await f.events()).length, 1);
   });
+
+test("Meta candidate limit excludes a blocked inbox backlog before selecting eligible carts", async t => {
+  const f = await fixture(t);
+  const old = new Date(Date.now() - 1200000);
+  const blocked = Array.from({ length: 100 }, () => ({ sessionId: "conv_blocked_" + randomUUID(),
+    deviceId: "META_CLOUD:" + randomUUID(), phone: "+55 (11) 00000-0000" }));
+  await db.checkoutSession.createMany({ data: blocked.map(({ sessionId }) => ({ merchantId: f.merchantId, sessionId,
+    conversationId: sessionId, globalUserId: "qa-user", cart: { items: [{ sku: "qa", quantity: 1 }], total: 1 },
+    abandonmentScore: 0.05, triggerAgent: false, createdAt: old, updatedAt: old })) });
+  await db.whatsAppSession.createMany({ data: blocked.map(({ sessionId, deviceId, phone }) => ({ merchantId: f.merchantId,
+    checkoutSessionId: sessionId, deviceId, buyerPhone: phone, status: "active", lastActivityAt: old })) });
+  await db.whatsAppWebhookInbox.createMany({ data: blocked.map(({ deviceId, phone }) => ({ merchantId: f.merchantId,
+    dedupKey: randomUUID(), eventId: randomUUID(), kind: "message", configId: deviceId.slice(11), deviceId,
+    streamKey: createHash("sha256").update(JSON.stringify([f.merchantId, deviceId.slice(11), "message", phone.replace(/\D/g, "")])).digest("hex"),
+    payload: {}, payloadHash: "owned-blocked-qa", status: "blocked" })) });
+  await f.scanner.scan(); await f.scanner.scan();
+  assert.equal((await f.events()).length, 1);
+  assert.equal((await f.session()).triggerAgent, true);
+  assert.equal(await db.checkoutEvent.count({ where: { merchantId: f.merchantId, sessionId: { in: blocked.map(row => row.sessionId) }, eventName: "idle_30_seconds" } }), 0);
+  assert.ok(f.delegated.length > 0); assert.ok(f.delegated.every(row => row.sessionId === f.sessionId));
+});
