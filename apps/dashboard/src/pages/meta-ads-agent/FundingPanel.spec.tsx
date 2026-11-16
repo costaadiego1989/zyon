@@ -8,6 +8,7 @@ const account={id:'100',name:'Minha loja'};
 const diagnosis=(billingType:'prepaid'|'postpaid'|'unknown'='prepaid'):MetaAdsFundingDiagnosis=>({status:'ready',message:'Leitura confirmada',nextSteps:[],error:null,snapshot:{accountId:'100',accountName:'Minha loja',currency:'BRL',billingType,paymentMethod:'present',confirmedBlock:false,blockCode:null,amountDueCents:5000,prepaidAvailableCents:null,checkedAt:'2026-11-16T12:34:00Z',source:'meta_graph',paymentUrl:'https://business.facebook.com/latest/billing_hub/payment_settings/?payment_account_id=100&asset_id=100&nav_ref=billing_hub&placement=campaign_manager'}});
 test('ADAS-01 funding guidance separates media from subscription and image credits before any chat',async()=>{
   screen=ui();await screen.render(<FundingPanel account={account} diagnosis={diagnosis()} onRefresh={async()=>{}}/>);
+  expect(screen.container.textContent).toContain('Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.');
   expect(screen.container.textContent).toContain('pago diretamente à Meta');expect(screen.container.textContent).toContain('assinatura');expect(screen.container.textContent).toContain('créditos de imagens');expect(screen.container.querySelector('input')).toBeNull();
 });
 test('ADAS-05 payment gesture opens the official destination bound to this connected account',async()=>{
@@ -27,6 +28,7 @@ test('ADAS-02 prepaid unknown balance stays unavailable and is never filled from
 test('ADAS-04 unavailable diagnosis does not invent a zero balance and preserves help on refresh error',async()=>{
   screen=ui();const refresh=vi.fn().mockRejectedValue(new Error('offline'));
   await screen.render(<FundingPanel account={account} diagnosis={{snapshot:null,status:'unknown',message:'Sem leitura autorizada',nextSteps:[],error:'unavailable'}} onRefresh={refresh}/>);await screen.click('Verificar novamente');
+  expect(screen.container.textContent).toContain('Não foi possível verificar os pagamentos desta conta');
   expect(refresh).toHaveBeenCalledTimes(1);expect(screen.container.textContent).toContain('Sem leitura autorizada');expect(screen.container.textContent).toContain('Não foi possível atualizar');expect(screen.container.textContent).not.toMatch(/0,00/);
 });
 test('ADAS-06 refresh only requests a new diagnosis and never acknowledges fictional credit',async()=>{

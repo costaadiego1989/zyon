@@ -22,9 +22,10 @@ export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh}:Fu
   const url=snapshot?paymentDestination(snapshot.paymentUrl,snapshot.accountId):null;
   async function refresh(){if(lock.current||busy)return;lock.current=true;setRefreshing(true);setRefreshError('');try{await onRefresh();}catch{setRefreshError('Não foi possível atualizar. Consulte os pagamentos na Meta e tente verificar novamente.');}finally{lock.current=false;setRefreshing(false);}}
   return <section className="mga-panel mga-funding" aria-label="Verba dos anúncios"><h2>Verba dos anúncios</h2>
-    <p>O investimento em anúncios é pago diretamente à Meta. A assinatura da Zyon e os créditos de imagens não incluem essa verba.</p>
+    <p>Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.</p><p>Os créditos de imagens também não incluem a verba de anúncios.</p>
     {!account?<p>Conecte e selecione sua conta de anúncios para consultar os pagamentos.</p>:<><p><strong>{account.name}</strong> · Conta {account.id}</p>
       {loading&&<p role="status">Consultando pagamentos da conta…</p>}
+      {current?.status==='unknown'&&<p>Não foi possível verificar os pagamentos desta conta. Confira as informações no painel da Meta.</p>}
       {current?.status==='blocked'&&<p role="alert"><strong>Publicação bloqueada.</strong> Resolva a restrição financeira na Meta antes de publicar. A ajuda e a consulta continuam disponíveis.</p>}
       {current?.message&&<p>{current.message}</p>}
       {snapshot?.billingType==='prepaid'&&<p>Pré-paga: adicione fundos na Meta para financiar os anúncios. As opções e a confirmação aparecem na sua conta da Meta.</p>}
