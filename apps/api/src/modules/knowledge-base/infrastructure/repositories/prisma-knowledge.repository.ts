@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { PUBLIC_BUSINESS_SOURCE_NAMESPACE } from "../../domain/knowledge-chunk-namespace.js";
 import {
   type KnowledgeRepositoryPort,
   type KnowledgeChunk,
@@ -35,6 +36,9 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
     }[]
   ): Promise<void> {
     if (!chunks.length) return;
+    if (chunks.some(chunk => chunk.metadata?.publicSourceNamespace === PUBLIC_BUSINESS_SOURCE_NAMESPACE)) {
+      throw new Error("public_business_namespace_owned_by_index_worker");
+    }
 
     try {
       // Delete existing chunks for this source
@@ -43,6 +47,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
         WHERE merchant_id = ${merchantId}
         AND source_type = ${sourceType}
         AND source_id = ${sourceId}
+        AND (metadata->>'publicSourceNamespace') IS DISTINCT FROM ${PUBLIC_BUSINESS_SOURCE_NAMESPACE}
       `;
 
       // Insert new chunks with embeddings
@@ -105,6 +110,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
         WHERE merchant_id = ${merchantId}
         AND source_type = ${sourceType}
         AND source_id = ${sourceId}
+        AND (metadata->>'publicSourceNamespace') IS DISTINCT FROM ${PUBLIC_BUSINESS_SOURCE_NAMESPACE}
       `;
 
       this.logger.debug(`Deleted chunks for ${sourceType}/${sourceId} on merchant ${merchantId}`);
@@ -179,6 +185,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
             1 - (embedding_vec <=> $1::vector(${dim})) as similarity
           FROM knowledge_chunks k
           WHERE k.merchant_id = $2
+          AND (k.metadata->>'publicSourceNamespace') IS DISTINCT FROM $4
           AND (k.source_type <> 'product' OR EXISTS (
             SELECT 1 FROM products p WHERE p.id = k.source_id
             AND p.merchant_id = k.merchant_id AND p.is_active AND p.deleted_at IS NULL
@@ -189,6 +196,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
           embeddingStr,
           merchantId,
           limit,
+          PUBLIC_BUSINESS_SOURCE_NAMESPACE,
         );
         // A working pgvector column may contain no vectors of the active model:
         // legacy/fallback chunks still live in the JSON embedding column.
@@ -203,6 +211,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
           SELECT id, merchant_id, source_type, source_id, content, metadata, embedding
           FROM knowledge_chunks k
           WHERE k.merchant_id = ${merchantId}
+          AND (k.metadata->>'publicSourceNamespace') IS DISTINCT FROM ${PUBLIC_BUSINESS_SOURCE_NAMESPACE}
           AND (k.source_type <> 'product' OR EXISTS (
             SELECT 1 FROM products p WHERE p.id = k.source_id
             AND p.merchant_id = k.merchant_id AND p.is_active AND p.deleted_at IS NULL

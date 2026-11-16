@@ -4,16 +4,20 @@ import type { GraphCatalogSourcesPort, GraphKnowledgeSourcesPort } from "../doma
 import type { DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
 import type { TenantContextService } from "../../../shared/tenant/tenant-context.service.js";
 import type { GraphRagRuntime } from "../graph-rag.module.js";
+import type { PublicBusinessIndexWorker, PublicIndexPreparedIdentity } from "./public-business-index.worker.js";
 
 export class GraphRagSynchronization implements OnModuleInit, BeforeApplicationShutdown {
   private readonly running = new Map<string, Promise<void>>();
   private timer?: ReturnType<typeof setInterval>;
+  private publicTimer?: ReturnType<typeof setInterval>;
+  private publicRunning?: Promise<void>;
   private stopping = false;
   private readonly logger = new Logger(GraphRagSynchronization.name);
   constructor(private readonly runtime: GraphRagRuntime, private readonly catalog: GraphCatalogSourcesPort,
     private readonly knowledge: GraphKnowledgeSourcesPort, private readonly events: DomainEventBus,
     private readonly tenant: TenantContextService,
-    private readonly publicBusiness?: Pick<PublicBusinessReconciler, "reconcile">) {}
+    private readonly publicBusiness?: Pick<PublicBusinessReconciler, "reconcile">,
+    private readonly publicIndexer?: Pick<PublicBusinessIndexWorker<PublicIndexPreparedIdentity>, "runMerchant" | "stop">) {}
   onModuleInit() {
     if (this.stopping || !this.runtime.settings.enabled) return;
     for (const eventType of ["product.upserted", "product.deleted", "product.content.updated", "support.faq_updated", "merchant.config_updated", "knowledge.policy_updated"]) {
@@ -24,6 +28,31 @@ export class GraphRagSynchronization implements OnModuleInit, BeforeApplicationS
     this.timer = setInterval(() => { void this.reconcile(); }, 120_000);
     this.timer.unref();
     void this.reconcile();
+    // This timer is created at application startup. Work never inherits the
+    // authority of an inline customer event or delays its source HTTP response.
+    if (this.publicIndexer) {
+      this.publicTimer = setInterval(() => { void this.indexPublicSources(); }, 2000);
+      this.publicTimer.unref();void this.indexPublicSources();
+    }
+  }
+  async indexPublicSources(): Promise<void> {
+    if (this.stopping || !this.publicIndexer) return;
+    if (this.publicRunning) return this.publicRunning;
+    const work = (async () => {
+      for (const merchantId of this.runtime.settings.merchantIds) {
+        if (this.stopping) return;
+        try {
+          await this.tenant.run({ merchantId, userId: "public-business-index", role: "system" }, async () => {
+            await this.publicBusiness?.reconcile(merchantId, () => this.stopping);
+            if (this.stopping || !this.runtime.readyFor(merchantId)) return;
+            const result = await this.publicIndexer!.runMerchant(merchantId);
+            if (result.failed) this.logger.warn("Public indexing incomplete; durable work remains retryable");
+          });
+        } catch { this.logger.warn("Public indexing unavailable; durable work remains retryable"); }
+      }
+    })();
+    this.publicRunning = work;
+    try { await work; } finally { this.publicRunning = undefined; }
   }
   async reconcile() { for (const merchantId of this.runtime.settings.merchantIds) await this.synchronize(merchantId); }
   async synchronize(merchantId: string): Promise<void> {
@@ -32,7 +61,7 @@ export class GraphRagSynchronization implements OnModuleInit, BeforeApplicationS
     if (running) return running;
     const work = this.tenant.run({ merchantId, userId: "graph-rag-sync", role: "system" }, async () => {
       try {
-        await this.publicBusiness?.reconcile(merchantId, () => this.stopping);
+        if (!this.publicIndexer) await this.publicBusiness?.reconcile(merchantId, () => this.stopping);
       } catch {
         this.logger.warn("Public source reconciliation incomplete; durable work remains retryable");
       }
@@ -71,6 +100,9 @@ export class GraphRagSynchronization implements OnModuleInit, BeforeApplicationS
   async beforeApplicationShutdown() {
     this.stopping = true;
     if (this.timer) clearInterval(this.timer);
+    if (this.publicTimer) clearInterval(this.publicTimer);
+    await this.publicIndexer?.stop();
+    if (this.publicRunning) await this.publicRunning;
     await Promise.allSettled(this.running.values());
   }
 }

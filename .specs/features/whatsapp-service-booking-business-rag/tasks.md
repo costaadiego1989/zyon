@@ -1374,19 +1374,20 @@ T97 → T95
 ### T66: Index source versions idempotently
 
 **What**: Worker ordena versões, grava projeção/hash/model e marca resultado; versão velha não sobrepõe nova, falha mantém retry e erro observável; batches limitados.
-**Where**: `apps/api/src/modules/graph-rag/application/graph-projection.service.ts`
+**Where**: `apps/api/src/modules/graph-rag/application/public-business-index.worker.ts`
 **Depends on**: T65
+**Status**: Complete - checked API2528, pure603+5, actual SQL/Neo4j index14 and profile/preservation106 all green, zero skipped/provider/remaining owned resources. Full evidence in task-66-evidence.md.
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: RAG-01, RAG-03, RAG-04
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] DB+Neo4j local: concorrência, duplicate/out-of-order, worker crash, embedding fake, source save continua válido.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] DB+Neo4j local: concorrência, duplicate/out-of-order, worker crash, embedding fake, source save continua válido.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: DB+Neo4j local: concorrência, duplicate/out-of-order, worker crash, embedding fake, source save continua válido.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T66$" ./src/modules/graph-rag/application/graph-projection.service.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T66 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T66$" ./src/modules/graph-rag/application/public-business-projection.service.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag-index.integration.spec.mjs ./tests/business-rag-vector-profile.integration.spec.mjs` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T66 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t66 index source versions idempotently`
 
 ### T67: Backfill and retire public source projections
@@ -2074,7 +2075,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T58, T59, T60, T62, T82.
 
 **C31** - WHEN cadastro público da empresa, profissional, serviço, horário de funcionamento, FAQ ou política é publicado ou alterado THEN the system SHALL registrar atualização idempotente da projeção de conhecimento com tenant, origem e versão. (RAG-01, AC 1)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^RAG-01$" ./tests/business-rag.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag.integration.spec.mjs ./tests/business-rag-work.integration.spec.mjs ./tests/business-rag-writers.integration.spec.mjs ./tests/business-rag-index.integration.spec.mjs`
 Tasks: T4, T21, T63, T64, T65, T66.
 
 **C32** - WHEN uma fonte é retirada ou despublicada THEN the system SHALL impedir seu uso como evidência ativa e retirar sua projeção, sem recuperar texto antigo como resposta atual. (RAG-02, AC 2)
@@ -2082,7 +2083,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T65, T67, T68.
 
 **C33** - IF embeddings ou grafo estão indisponíveis THEN the system SHALL conservar o cadastro canônico e registrar a indexação pendente para nova tentativa, sem desfazer o cadastro nem inventar uma resposta. (RAG-03, AC 3)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^RAG-03$" ./tests/business-rag.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag-work.integration.spec.mjs ./tests/business-rag-index.integration.spec.mjs`
 Tasks: T64, T66, T67.
 
 **C34** - WHEN o assistente compõe uma resposta factual THEN the system SHALL usar fontes públicas da empresa autenticada e conservar as referências de origem e versão para auditoria. (RAG-04, AC 4)
@@ -2248,7 +2249,7 @@ Tasks: T96, T97, T63, T72.
 **Root parallel front:** T63-T71 public business RAG in N. T63 uses completed T13/T18; T65 also waits T25 to cover all actual new writers. Human handoff Phase7 may start after the independent schema/session base T9. Final coexistence requires every front; no criterion/gate is removed.
 **Next parallel dispatch:** service_batch_01 switches to whole Phase7 T48-T55 in M after incorporating the committed T64 base; T48 depends on T9 because the binding/support/session domain is independent of availability. Its T26-T32 drafts are hash-preserved and handed to P for execution after P/T25. C retains T96/T97 integration and its returned M field10/10. Root coordinates the same one-heavy-slot limit and final author-independent verification. No human gateway/provider action is authorized by this local dispatch.
 **Next prepared batch:** C/service_company_ui prepares whole Phase8 T56–T62 after its green T97 commit and root integration. Drafts stay outside productive fingerprints until M/T55 is integrated; the original T55→T56 dependency, all per-task gates and atomic commits remain. Root's T65/T66 drafts are preparation only, with ten and eight preparatory pure tests respectively; no indexing or retrieval is accepted from them.
-**Dispatched:** service_batch_01 owns Phase7T48-T55 in M;48/49/50 complete and integrated,51 original-authority/transaction/dispatch work in progress. service_professional_agenda completed Phase3T17-T25 (52unit/72native/all4apps types-build0) and executes Phase4T26-T32 from the verified45-file packet; T26 is locally complete with18units/17native/checked2523, T27 follows. service_company_ui completed Phase2+96/97 and prepares Phase8T56-T62 externally until55, with reviewed temporary RAG helpers in cache. Root integrates N and owns Phase9;63/64/65 complete,65 has528unit/88native/checked2521 green. All34 locally completed tasks and evidence are in STATE.md. Root66 is next, with projection/namespace/profile/worker preparation only. No final Verifier/screens dispatched; all work local.
+**Dispatched:** service_batch_01 owns Phase7T48-T55 in M;48/49/50 complete and integrated,51 original-authority/transaction/dispatch work in progress. service_professional_agenda completed Phase3T17-T25 (52unit/72native/all4apps types-build0) and executes Phase4T26-T32 from the verified45-file packet; T26 is locally complete with18units/17native/checked2523, T27 follows. service_company_ui completed Phase2+96/97 and prepares Phase8T56-T62 externally until55, with reviewed temporary RAG helpers in cache. Root integrates N and owns Phase9;63/64/65 complete,65 has528unit/88native/checked2521 green. All35 locally completed tasks and evidence are in STATE.md. Root66 is complete in its own atomic commit: checked2528 e746f146/01c2d8b2, pure603+5 and actual index14+preservation106 all passed, provider0/naturalcleanup0; earlier setup refusals remain recorded. rag66_fixture_review was dispatched2026-11-15T21:35 local for read-only incremental fixture review at HEADa451adf1c plus the current dirty66 files; returned with two oracle findings (live lease during observed lock wait and foreign sentinel preservation), both strengthened by root and passed in actual index14/14; no source or runner authority and no final Verifier role. This dispatch note was recorded after the tool call, not before. No final Verifier/screens dispatched; all work local.
 **Walked:** Nenhuma jornada da feature nova foi executada. Prints anteriores de produto não comprovam serviços. Capturas de proposta, se anexadas, terão rótulo de prévia local. Ao executar, registrar rota/gestos/dados/resultado e ambiente para cada Independent Test.
 
 ## Phase Execution Map

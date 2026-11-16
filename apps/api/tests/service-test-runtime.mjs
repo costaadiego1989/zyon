@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {createDisposablePostgres} from './local-disposable-postgres.mjs';
+import {prepareOwnedPgvector} from './local-postgres-profiles.mjs';
 import {createServiceTestRedis} from './service-test-redis.mjs';
 import {constructionOnlyEnvironment} from './nest-construction-only.guards.mjs';
 import {terminateOwnedNativeWorker} from './native-prisma-admission-guards.mjs';
@@ -19,13 +20,15 @@ export function assertServiceCaseSummary(value){
   return Object.freeze({...value});
 }
 export async function createServiceTestRuntime(options){
-  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp'].includes(k))
-    &&(options.graph===undefined||typeof options.graph==='boolean'),'service_local_options_required');
+  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile'].includes(k))
+    &&(options.graph===undefined||typeof options.graph==='boolean')
+    &&(options.postgresProfile===undefined||options.postgresProfile==='pgvector16'),'service_local_options_required');
   const whatsapp=options.whatsapp===undefined?undefined:validateLocalWhatsAppOptions(options.whatsapp);
   const fixtureSecret=whatsapp?randomBytes(32).toString('hex'):undefined,localEvents=[];
   const fixtureArgument=whatsapp?JSON.stringify({...whatsapp,metaSecret:fixtureSecret}):undefined;
   assert.ok(fixtureArgument===undefined||fixtureArgument.length<=8192,'local_whatsapp_fixture_size_invalid');
   const build=assertServiceArtifacts(),apiRoot=fileURLToPath(new URL('../',import.meta.url));
+  let vectorEvidence;
   let db,redis,graph,worker,workerExited,closed=false,appEvidence,cleanup,lastStage='unspawned',cleanupDiagnostics=[];
   let readyResolve,readyReject,preflightResolve,preflightReject,closeResolve,closeReject;
   const ready=new Promise((resolve,reject)=>{readyResolve=resolve;readyReject=reject;});
@@ -48,9 +51,10 @@ export async function createServiceTestRuntime(options){
     cleanup={appClosed:true,remainingContainers:0,remainingBridgeSockets:0};
   }
   try{
-    db=await createDisposablePostgres({transport:'loopback-exec'});redis=await createServiceTestRedis();
+    db=await createDisposablePostgres({transport:'loopback-exec',...(options.postgresProfile?{profile:options.postgresProfile}:{})});redis=await createServiceTestRedis();
     await db.sql(`CREATE TABLE synthetic_native_marker(run_id TEXT PRIMARY KEY); INSERT INTO synthetic_native_marker VALUES ('${db.runId}');`);
     await bootstrapServiceSchema(db);
+    if(options.postgresProfile==='pgvector16')vectorEvidence=await prepareOwnedPgvector(db);
     if(options.graph)graph=await createServiceTestNeo4j();
     worker=spawn(process.execPath,['--import',new URL('./test-network-guard.mjs',import.meta.url).href,
       fileURLToPath(new URL('./service-test-runtime.worker.mjs',import.meta.url)),db.prismaUrl,db.runId,redis.url,redis.runId,...(fixtureArgument?[fixtureArgument]:[])],
@@ -87,7 +91,7 @@ export async function createServiceTestRuntime(options){
     try{({info,timings}=await awaitServiceStartup(preflight,ready));}
     catch(error){if(['service_preflight_timeout','service_app_ready_timeout'].includes(error.message))throw new Error(`${error.message}:${lastStage}:${stageFailure}`);throw error;}
     const origin=new URL(info.apiOrigin);assert.equal(origin.hostname,'127.0.0.1');assert.equal(origin.protocol,'http:');
-    assert.ok(Number(origin.port)>1024);appEvidence=Object.freeze({...info.evidence,checkedBuild:build,startupTimings:timings});
+    assert.ok(Number(origin.port)>1024);appEvidence=Object.freeze({...info.evidence,checkedBuild:build,startupTimings:timings,...(vectorEvidence?{postgresVector:vectorEvidence}:{})});
     return Object.freeze({db,redis,graph,apiOrigin:info.apiOrigin,evidence:()=>whatsapp?Object.freeze({...appEvidence,localProviderEvents:localEvents.length}):appEvidence,cleanupEvidence:()=>cleanup,close,
       ...(whatsapp?{whatsapp:Object.freeze({events:()=>structuredClone(localEvents),signature:body=>{
         assert.equal(typeof body,'string');assert.ok(body.length<=1_000_000);return 'sha256='+createHmac('sha256',fixtureSecret).update(body).digest('hex');

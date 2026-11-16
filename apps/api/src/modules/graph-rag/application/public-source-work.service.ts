@@ -92,6 +92,27 @@ export async function enqueuePublicSourceProjections(tx: QueueTransaction, merch
     data: { status: "completed", lastErrorCode: "legacy_superseded", leaseToken: null, leaseExpiresAt: null, nextAttemptAt: null } });
 }
 
+/** Internal completion on the caller-owned transaction. The public wrapper
+ * retains tenant authorization; this performs the same original lease CAS. */
+function assertCompletionInput(claim: PublicWorkClaim, embedding?: { model: string; dimensions: number }) {
+  if (!claim.leaseToken || embedding && (!embedding.model.trim() || embedding.model.length > 191
+    || !Number.isSafeInteger(embedding.dimensions) || embedding.dimensions < 1)) throw new Error("public_work_completion_invalid");
+}
+
+export async function completePublicSourceWorkWithin(tx: Pick<Prisma.TransactionClient, "$queryRaw" | "$executeRaw">,
+  claim: PublicWorkClaim, embedding?: { model: string; dimensions: number }, superseded = false) {
+    assertCompletionInput(claim, embedding);
+      await tx.$queryRaw`SELECT id FROM public_source_work WHERE id=${claim.id} AND merchant_id=${claim.merchantId} FOR UPDATE`;
+      const updated = await tx.$executeRaw`UPDATE public_source_work SET status='completed',
+        indexed_at=CASE WHEN ${superseded} THEN NULL ELSE clock_timestamp() END,
+        embedding_model=${embedding?.model ?? null}, embedding_dimensions=${embedding?.dimensions ?? null},
+        last_error_code=CASE WHEN ${superseded} THEN 'source_superseded' ELSE NULL END,
+        lease_token=NULL,lease_expires_at=NULL,next_attempt_at=NULL,updated_at=clock_timestamp()
+        WHERE id=${claim.id} AND merchant_id=${claim.merchantId} AND status='processing'
+          AND lease_token=${claim.leaseToken} AND lease_expires_at > clock_timestamp()`;
+      return updated === 1;
+}
+
 export class PublicSourceWorkService {
   constructor(private readonly prisma: PrismaClient, private readonly tenant: TenantContextService, private readonly sources: PrismaPublicBusinessSources) {}
   private assertScope(merchantId: string) {
@@ -131,19 +152,8 @@ export class PublicSourceWorkService {
 
   async complete(claim: PublicWorkClaim, embedding?: { model: string; dimensions: number }, superseded = false) {
     this.assertScope(claim.merchantId);
-    if (!claim.leaseToken || embedding && (!embedding.model.trim() || embedding.model.length > 191
-      || !Number.isSafeInteger(embedding.dimensions) || embedding.dimensions < 1)) throw new Error("public_work_completion_invalid");
-    return this.prisma.$transaction(async tx => {
-      await tx.$queryRaw`SELECT id FROM public_source_work WHERE id=${claim.id} AND merchant_id=${claim.merchantId} FOR UPDATE`;
-      const updated = await tx.$executeRaw`UPDATE public_source_work SET status='completed',
-        indexed_at=CASE WHEN ${superseded} THEN NULL ELSE clock_timestamp() END,
-        embedding_model=${embedding?.model ?? null}, embedding_dimensions=${embedding?.dimensions ?? null},
-        last_error_code=CASE WHEN ${superseded} THEN 'source_superseded' ELSE NULL END,
-        lease_token=NULL,lease_expires_at=NULL,next_attempt_at=NULL,updated_at=clock_timestamp()
-        WHERE id=${claim.id} AND merchant_id=${claim.merchantId} AND status='processing'
-          AND lease_token=${claim.leaseToken} AND lease_expires_at > clock_timestamp()`;
-      return updated === 1;
-    });
+    assertCompletionInput(claim, embedding);
+    return this.prisma.$transaction(tx => completePublicSourceWorkWithin(tx, claim, embedding, superseded));
   }
 
   async fail(claim: PublicWorkClaim, code: PublicWorkFailureCode) {

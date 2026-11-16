@@ -4,6 +4,8 @@ import { createServer } from "node:net";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 
+import { localPostgresProfile, assertCachedPgvectorImage, assertPgvectorContainer, localPostgresBridgeCommand } from "./local-postgres-profiles.mjs";
+
 const exec = promisify(execFile);
 export function dockerEnvironment(source) {
   const allowed = ["PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "WINDIR", "ComSpec", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOME"];
@@ -29,15 +31,19 @@ export function assertIsolatedPostgresContainer(info, id, runId) {
 }
 
 /** Explicit test-only TCP facade; Docker never publishes a port or joins a network. */
-export async function openOwnedPostgresBridge({ id, runId, context, endpoint, env, inspect }, spawnProcess = spawn) {
+export async function openOwnedPostgresBridge({ id, runId, context, endpoint, env, inspect, profile }, spawnProcess = spawn) {
   assert.match(context, /^[A-Za-z0-9_.-]+$/);
   assertLocalDockerEndpoint(endpoint);
-  assertIsolatedPostgresContainer(await inspect(), id, runId);
-  const sockets = new Set(), children = new Map();
+  const selectedProfile = localPostgresProfile(profile);
+  const initial = await inspect();
+  assertIsolatedPostgresContainer(initial, id, runId);
+  if (selectedProfile.name === "pgvector16") assertPgvectorContainer(initial);
+  const sockets = new Set(), children = new Map(), socketPorts = new Map(), childPorts = new Map();
   let closing = false;
   const server = createServer(socket => {
     if (closing) { socket.destroy(); return; }
     sockets.add(socket);
+    const clientPort = socket.remotePort;socketPorts.set(socket, clientPort);
     let child;
     const stop = () => {
       socket.destroy();
@@ -45,12 +51,13 @@ export async function openOwnedPostgresBridge({ id, runId, context, endpoint, en
       if (child && child.exitCode === null && child.signalCode === null) child.kill();
     };
     socket.on("error", stop);
-    socket.on("close", () => { sockets.delete(socket); stop(); });
+    socket.on("close", () => { sockets.delete(socket);socketPorts.delete(socket);stop(); });
     try {
-      child = spawnProcess("docker", ["--context", context, "exec", "--interactive", id, "nc", "127.0.0.1", "5432"],
+      child = spawnProcess("docker", ["--context", context, "exec", "--interactive", id, ...localPostgresBridgeCommand(profile)],
         { env: dockerEnvironment(env), windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
-      const ended = new Promise(resolve => child.once("close", () => { children.delete(child); stop(); resolve(); }));
+      const ended = new Promise(resolve => child.once("close", () => { children.delete(child);childPorts.delete(child);stop();resolve(); }));
       children.set(child, ended);
+      childPorts.set(child, clientPort);
       child.on("error", stop);
       child.stdin.on("error", stop); child.stdout.on("error", stop);
       child.stderr.on("error", stop); child.stderr.resume();
@@ -83,6 +90,11 @@ export async function openOwnedPostgresBridge({ id, runId, context, endpoint, en
     const address = server.address();
     assert.ok(address && typeof address !== "string" && address.address === "127.0.0.1" && address.port > 0);
     return { port: address.port, host: "127.0.0.1", close,
+      connectionStatus: clientPort => {
+        assert.ok(Number.isInteger(clientPort) && clientPort > 0 && clientPort <= 65535, "owned_bridge_client_port_required");
+        return { sockets: [...socketPorts.values()].filter(port => port === clientPort).length,
+          children: [...childPorts.values()].filter(port => port === clientPort).length };
+      },
       status: () => ({ listening: server.listening, sockets: sockets.size, children: children.size }) };
   } catch (error) { await close(); throw error; }
 }
@@ -90,7 +102,8 @@ export async function openOwnedPostgresBridge({ id, runId, context, endpoint, en
 /** Explicit local harness only: no URL/env-file connection or host PostgreSQL. */
 export async function createDisposablePostgres(options = {}) {
   assert.ok(options && typeof options === "object" && !Array.isArray(options));
-  assert.ok(Object.keys(options).every(key => key === "transport"), "unknown_disposable_postgres_option");
+  assert.ok(Object.keys(options).every(key => key === "transport" || key === "profile"), "unknown_disposable_postgres_option");
+  const profile = localPostgresProfile(options.profile);
   const transport = options.transport ?? "unix";
   assert.ok(transport === "unix" || transport === "loopback-exec", "unsupported_disposable_postgres_transport");
   const env = dockerEnvironment(process.env);
@@ -105,7 +118,9 @@ export async function createDisposablePostgres(options = {}) {
   const endpoint = await rawDocker(["context", "inspect", context, "--format", "{{.Endpoints.docker.Host}}"]);
   assertLocalDockerEndpoint(endpoint);
   const docker = (args, input) => rawDocker(["--context", context, ...args], input);
-  const imageId = await docker(["image", "inspect", "postgres:16-alpine", "--format", "{{.Id}}"]);
+  const imageId = profile.name === "pgvector16"
+    ? assertCachedPgvectorImage(JSON.parse(await docker(["image", "inspect", profile.tag]))[0])
+    : await docker(["image", "inspect", "postgres:16-alpine", "--format", "{{.Id}}"]);
   assert.match(imageId, /^sha256:[a-f0-9]{64}$/);
   const runId = randomUUID();
   const name = `aacp-write-db-${runId}`;
@@ -144,10 +159,10 @@ export async function createDisposablePostgres(options = {}) {
   try {
     createAttempted = true;
     id = await docker(["create", "--pull=never", "--name", name,
-      "--label", `com.zyon.storefront-write-test=${runId}`, "--network", "none", "--read-only", "--user", "70:70",
+      "--label", `com.zyon.storefront-write-test=${runId}`, "--network", "none", "--read-only", "--user", `${profile.uid}:${profile.uid}`,
       "--memory", "512m", "--cpus", "1", "--pids-limit", "128", "--security-opt", "no-new-privileges", "--cap-drop", "ALL",
-      "--tmpfs", "/var/lib/postgresql/data:rw,size=256m,uid=70,gid=70,mode=0700",
-      "--tmpfs", "/var/run/postgresql:rw,size=16m,uid=70,gid=70", "--tmpfs", "/tmp:rw,size=16m",
+      "--tmpfs", `/var/lib/postgresql/data:rw,size=256m,uid=${profile.uid},gid=${profile.uid},mode=0700`,
+      "--tmpfs", `/var/run/postgresql:rw,size=16m,uid=${profile.uid},gid=${profile.uid}`, "--tmpfs", "/tmp:rw,size=16m",
       "--env", "POSTGRES_HOST_AUTH_METHOD=trust", "--env", "POSTGRES_DB=storefront_synthetic",
       imageId, "postgres", "-c", transport === "unix" ? "listen_addresses=" : "listen_addresses=127.0.0.1", "-c", "max_connections=50", "-c", "shared_buffers=32MB",
       "-c", "log_min_error_statement=panic"]);
@@ -172,12 +187,61 @@ export async function createDisposablePostgres(options = {}) {
       `SET statement_timeout='12s'; SET lock_timeout='4s'; SET standard_conforming_strings=on;\n${query}`);
     let prismaUrl;
     if (transport === "loopback-exec") {
-      const utility = await docker(["exec", id, "sh", "-c", "command -v nc"]);
-      assert.match(utility, /^\/(?:usr\/)?bin\/nc$/, "cached_image_nc_required");
-      bridge = await openOwnedPostgresBridge({ id, runId, context, endpoint, env, inspect });
+      let alpineEof;
+      if (profile.name === "pgvector16") {
+        assertPgvectorContainer(info);
+        await docker(["exec", id, "/bin/bash", "-c", "test -x /bin/bash && command -v cat >/dev/null && (( BASH_VERSINFO[0] >= 5 ))"]);
+      } else {
+        const utility = await docker(["exec", id, "sh", "-c", "command -v nc"]);
+        assert.match(utility, /^\/(?:usr\/)?bin\/nc$/, "cached_image_nc_required");
+        assert.equal(info.Config.User, "70:70", "owned_alpine_eof_uid_required");
+        assert.equal(info.Image, imageId, "owned_alpine_eof_image_required");
+        // Explicit factory transport capability. The direct legacy bridge and
+        // localPostgresBridgeCommand(undefined) retain their historical argv.
+        alpineEof = await import("./local-postgres-alpine-eof.mjs");
+        const capability = await docker(["exec", "--interactive", id, ...alpineEof.alpineEofPreflightCommand()], "");
+        assert.equal(capability, alpineEof.ALPINE_EOF_CAPABILITY, "cached_alpine_eof_capability_required");
+      }
+      bridge = alpineEof
+        ? await alpineEof.openOwnedAlpineEofBridge({ capability: alpineEof.ALPINE_EOF_CAPABILITY,
+          id, runId, context, endpoint, env, inspect, expectedImageId: imageId })
+        : await openOwnedPostgresBridge({ id, runId, context, endpoint, env, inspect, profile: profile.name });
       prismaUrl = `postgresql://postgres@127.0.0.1:${bridge.port}/storefront_synthetic?schema=public&connection_limit=24&connect_timeout=15&pool_timeout=15&application_name=aacp_write_native_${runId}`;
     }
-    return { sql, dispose, imageId, runId, network: "none", transport, prismaUrl,
+    const ownedId = id;
+    const inspectOwned = async () => {
+      let actual;
+      try { actual = JSON.parse(await docker(["inspect", ownedId]))[0]; }
+      catch (error) {
+        if (/No such (?:object|container)/i.test(String(error.stderr ?? ""))) return { exists: false, id: ownedId, runId };
+        throw error;
+      }
+      assertIsolatedPostgresContainer(actual, ownedId, runId);
+      if (profile.name === "pgvector16") assertPgvectorContainer(actual);
+      const mounts = actual.Mounts.map(mount => ({ type: mount.Type,
+        destination: mount.Destination, readOnly: mount.RW === false }));
+      // Docker's Mounts may omit HostConfig.Tmpfs entries. Read the actual
+      // owned container's kernel mount table rather than inventing a mount
+      // from its requested configuration or dropping the native assertion.
+      const kernelMounts = (await docker(["exec", ownedId, "cat", "/proc/mounts"])).trim().split(/\r?\n/)
+        .map(line => line.split(" "));
+      for (const destination of Object.keys(actual.HostConfig.Tmpfs ?? {})) {
+        const resolved = await docker(["exec", ownedId, "readlink", "-f", destination]);
+        const mount = kernelMounts.find(fields => fields[1] === resolved.trim());
+        assert.ok(mount, "owned_postgres_tmpfs_not_mounted");
+        assert.equal(mount[2], "tmpfs", "owned_postgres_tmpfs_kernel_type_mismatch");
+        if (!mounts.some(item => item.destination === destination)) mounts.push({ type: mount[2], destination,
+          readOnly: mount[3].split(",").includes("ro") });
+      }
+      return { exists: true, id: ownedId, name: actual.Name, runId, imageId: actual.Image,
+        user: actual.Config.User, networkMode: actual.HostConfig.NetworkMode, readOnlyRootfs: actual.HostConfig.ReadonlyRootfs,
+        portBindings: actual.HostConfig.PortBindings ?? {}, mounts, tmpfs: actual.HostConfig.Tmpfs ?? {} };
+    };
+    return { sql, dispose, inspectOwned, imageId, runId, network: "none", transport, prismaUrl,
+      bridgeConnectionStatus: clientPort => {
+        assert.ok(bridge, "owned_loopback_bridge_required");return bridge.connectionStatus(clientPort);
+      },
+      ...(profile.name === "pgvector16" ? { profile: profile.name, repoDigest: profile.repoDigest } : {}),
       bridgeStatus: () => bridge?.status() ?? { listening: false, sockets: 0, children: 0 } };
   } catch (error) {
     await dispose();

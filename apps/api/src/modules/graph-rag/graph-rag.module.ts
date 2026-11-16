@@ -7,6 +7,7 @@ import { GraphLocalEmbeddingService } from "./infrastructure/graph-local-embeddi
 import { GraphRetrievalService } from "./application/graph-retrieval.service.js";
 import { GraphProjectionService } from "./application/graph-projection.service.js";
 import { CommunityGatewayAdapter } from "./infrastructure/community-gateway.adapter.js";
+import { PublicBusinessProjectionService } from "./application/public-business-projection.service.js";
 
 export class GraphRagRuntime implements GraphRetrievalPort, OnModuleInit, OnApplicationShutdown {
   private ready = false;
@@ -14,11 +15,13 @@ export class GraphRagRuntime implements GraphRetrievalPort, OnModuleInit, OnAppl
   private retry?: ReturnType<typeof setInterval>;
   private readonly logger = new Logger(GraphRagRuntime.name);
   readonly projection: GraphProjectionService;
+  readonly publicBusinessProjection: PublicBusinessProjectionService;
   private readonly retrieval: GraphRetrievalService;
   constructor(readonly settings: GraphConnectionSettings, private readonly adapter: GraphRuntimeAdapter = settings.queryMode === "community_gateway"
     ? new CommunityGatewayAdapter(settings) : new Neo4jGraphAdapter(settings),
     embeddings = new GraphLocalEmbeddingService()) {
     this.projection = new GraphProjectionService(adapter, embeddings);
+    this.publicBusinessProjection = new PublicBusinessProjectionService(adapter, embeddings);
     this.retrieval = new GraphRetrievalService({ ...settings, timeoutMs: 2500, maxAgeMs: 300_000, threshold: 0.65 }, embeddings, adapter);
   }
   enabledFor(merchantId: string) { return this.settings.enabled && this.settings.merchantIds.includes(merchantId); }

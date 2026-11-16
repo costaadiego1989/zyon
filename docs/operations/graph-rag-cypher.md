@@ -30,7 +30,7 @@ Para o Community aprovado pelo usuário, configurar também `GRAPH_RAG_QUERY_MOD
 
 A admissão consulta os papéis reais da identidade de leitura e exige somente `reader`/`PUBLIC`. Configuração incompleta, papéis inadequados ou falha nessa verificação deixam as consultas e a sincronização desativadas. O modo `READ` do driver é roteamento, não uma permissão de segurança. Em modo local, apenas endpoints literais de loopback e `production=false` admitem a credencial administrativa do teste.
 
-As constraints de identidade estão em `GRAPH_SCHEMA_STATEMENTS` e são criadas pelo operador usando a identidade de escrita antes da ativação. O caminho de consulta nunca executa DDL. O procedimento de produção exige edição/credencial que suporte o papel reader e validação autenticada antes de configurar a API.
+As constraints de identidade estão em `ALL_GRAPH_SCHEMA_STATEMENTS`, exportado por `application/graph-schema.ts`, e são criadas pelo operador usando a identidade de escrita antes da ativação. O conjunto mantém as seis constraints legadas e acrescenta as duas do namespace `ZyonPublicSourceV1`/`ZyonPublicChunkV1`; não renomeia nem migra os nós existentes. O teste local de indexação executa esse mesmo conjunto no Neo4j próprio e exige as oito constraints. O caminho de consulta nunca executa DDL. Leitura direta exige o papel reader; no Community, usar o gateway privado aprovado e validar sua admissão autenticada.
 
 ## Instância Railway preparada em 03/11/2026
 

@@ -22,13 +22,18 @@ export async function createServiceTestNeo4j(){
   const image=await docker(['image','inspect','neo4j:5.26-community','--format','{{.Id}}']);assert.match(image,/^sha256:[a-f0-9]{64}$/);
   const runId=randomUUID(),name=`zyon-service-graph-${runId}`,password=randomBytes(24).toString('hex');
   let id,driver,attempted=false;
+  const adapters=new Set();
   const inspect=async target=>JSON.parse(await docker(['inspect',target]))[0];
   const dispose=async()=>{
-    await driver?.close();
+    const errors=[];
+    for(const result of await Promise.allSettled([...adapters].map(adapter=>adapter.close())))if(result.status==='rejected')errors.push(result.reason);
+    adapters.clear();
+    try{await driver?.close();}catch(error){errors.push(error);}
     if(!id&&attempted){try{const info=await inspect(name);assertOwnedServiceNeo4j(info,info.Id,runId);id=info.Id;}
       catch(error){if(!/No such (?:object|container)/i.test(String(error.stderr??'')))throw error;}}
     if(id){assertOwnedServiceNeo4j(await inspect(id),id,runId);await docker(['rm','--force','--volumes',id]);
       assert.equal(await docker(['ps','--all','--quiet','--no-trunc','--filter',`id=${id}`]),'');id=undefined;}
+    if(errors.length)throw new AggregateError(errors,'owned_graph_client_cleanup_failed');
   };
   try{
     attempted=true;
@@ -46,6 +51,17 @@ export async function createServiceTestNeo4j(){
     const query=async(cypher,parameters={})=>{const session=driver.session({database:'neo4j'});try{return(await session.run(cypher,parameters)).records.map(r=>r.toObject());}finally{await session.close();}};
     await query('CREATE (:ServiceTestMarker {runId:$runId})',{runId});
     assert.deepEqual(await query('MATCH (n:ServiceTestMarker) RETURN n.runId AS runId'),[{runId}]);
-    return Object.freeze({uri,runId,query,dispose,imageId:image});
+    const createProjectionAdapter=async merchantIds=>{
+      assert.ok(id,'owned_graph_already_closed');
+      assert.ok(Array.isArray(merchantIds)&&merchantIds.length>0&&merchantIds.length<=20
+        &&merchantIds.every(value=>typeof value==='string'&&/^[\w-]{1,191}$/.test(value)),'owned_graph_merchant_scope_required');
+      assertOwnedServiceNeo4j(await inspect(id),id,runId);
+      assert.deepEqual(await query('MATCH (n:ServiceTestMarker) RETURN n.runId AS runId'),[{runId}]);
+      const{Neo4jGraphAdapter}=await import('../dist/modules/graph-rag/infrastructure/neo4j-graph.adapter.js');
+      const adapter=new Neo4jGraphAdapter({enabled:true,merchantIds:[...new Set(merchantIds)],uri,database:'neo4j',
+        readUser:'neo4j',readPassword:password,writeUser:'neo4j',writePassword:password,production:false,timeoutMs:2000});
+      adapters.add(adapter);return adapter;
+    };
+    return Object.freeze({uri,runId,query,dispose,imageId:image,createProjectionAdapter});
   }catch(error){try{await dispose();}catch(cleanup){throw new AggregateError([error,cleanup],'service_graph_setup_cleanup_failed');}throw error;}
 }
