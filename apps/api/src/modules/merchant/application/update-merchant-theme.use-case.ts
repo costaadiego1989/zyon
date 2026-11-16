@@ -67,7 +67,7 @@ export class UpdateMerchantThemeUseCase {
       const policies = settings.policies as Record<string, unknown>;
       if (!policies || typeof policies !== "object" || Array.isArray(policies)) throw new BadRequestException("invalid_store_policies");
       for (const [field, value] of Object.entries(policies)) {
-        if (!["privacy", "returns", "terms", "shipping"].includes(field) || typeof value !== "string" || value.length > 10000) throw new BadRequestException("invalid_store_policy");
+        if (!["privacy", "returns", "terms", "shipping", "warranty", "payment", "general"].includes(field) || typeof value !== "string" || value.length > 10000) throw new BadRequestException("invalid_store_policy");
       }
       settings = { ...settings, policies: Object.fromEntries(Object.entries(policies).map(([key, value]) => [key, (value as string).trim()])) };
     }
