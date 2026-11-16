@@ -1,5 +1,8 @@
 import { Injectable, Inject, Logger, Optional, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { createHash } from "node:crypto";
+import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
+import { PrismaCheckoutRepository } from "../../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 import type { CheckoutSession } from "@zyon/shared-types";
 import type { AttemptCartRecoveryUseCase } from "../../application/use-cases/attempt-cart-recovery.use-case.js";
 import { ATTEMPT_CART_RECOVERY_USE_CASE } from "../../cart-recovery.tokens.js";
@@ -106,6 +109,12 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     const stats = { scanned: 0, attempted: 0, errors: 0 };
 
     try {
+      try { await this.qualifyIdleWhatsAppSessions(); }
+      catch (error) {
+        this.logger.warn("recovery-scanner: WhatsApp idle lookup unavailable", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       // Query sessions with triggerAgent=true
       const candidates = await this.sessions.findSessionsWithTrigger();
       stats.scanned = candidates.length;
@@ -142,6 +151,85 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     }
 
     return stats;
+  }
+
+  /** The official channel has no browser timer. Measure its scoped persisted
+   * activity before using the existing checkout scoring and recovery gates. */
+  private async qualifyIdleWhatsAppSessions(): Promise<void> {
+    if (!this.prisma.whatsAppSession?.findUnique || !this.prisma.$transaction) return;
+    const now = Date.now(), earliest = new Date(now - 72 * 60 * 60 * 1000), latest = new Date(now - 10_000);
+    const candidates = await this.prisma.$queryRaw<Array<{ id: string; merchantId: string; sessionId: string }>>(Prisma.sql`
+      SELECT w.id, w.merchant_id AS "merchantId", w.checkout_session_id AS "sessionId"
+      FROM whatsapp_sessions w JOIN checkout_sessions c
+        ON c.merchant_id = w.merchant_id AND c.session_id = w.checkout_session_id
+      LEFT JOIN checkout_settings settings ON settings.merchant_id = w.merchant_id
+      CROSS JOIN LATERAL (SELECT CASE
+        WHEN jsonb_typeof(settings.intervention_policy->'idleSeconds') = 'number'
+          THEN (settings.intervention_policy->>'idleSeconds')::numeric ELSE 180 END AS seconds) idle
+      WHERE w.status = 'active' AND left(w.device_id, 11) = 'META_CLOUD:'
+        AND w.last_activity_at BETWEEN ${earliest} AND ${latest}
+        AND c.updated_at BETWEEN ${earliest} AND ${latest} AND c.trigger_agent = false
+        AND GREATEST(w.last_activity_at, c.updated_at) <= ${new Date(now)}::timestamp -
+          (CASE WHEN idle.seconds BETWEEN 10 AND 3600 AND idle.seconds = trunc(idle.seconds)
+            THEN idle.seconds ELSE 180 END) * INTERVAL '1 second'
+        AND CASE WHEN jsonb_typeof(c.cart->'items') = 'array'
+          THEN jsonb_array_length(c.cart->'items') > 0 ELSE false END
+        AND NOT EXISTS (SELECT 1 FROM completed_orders o WHERE o.merchant_id = c.merchant_id AND o.session_id = c.session_id)
+        AND NOT EXISTS (SELECT 1 FROM payment_intents p WHERE p.merchant_id = c.merchant_id
+          AND p.session_id = c.session_id AND p.status = 'approved')
+      ORDER BY w.last_activity_at ASC, w.id ASC LIMIT 100
+    `);
+    for (const candidate of candidates) {
+      try {
+        await this.prisma.$transaction(async tx => {
+          await lockCheckoutSessionAnchor(tx, candidate.merchantId, candidate.sessionId);
+          await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${candidate.merchantId}
+            AND session_id = ${candidate.sessionId} FOR UPDATE`;
+          await tx.$queryRaw`SELECT id FROM whatsapp_sessions WHERE id = ${candidate.id}
+            AND merchant_id = ${candidate.merchantId} FOR UPDATE`;
+          const whatsapp = await tx.whatsAppSession.findUnique({ where: { id: candidate.id } });
+          if (!whatsapp || whatsapp.merchantId !== candidate.merchantId || whatsapp.status !== "active"
+            || whatsapp.checkoutSessionId !== candidate.sessionId) return;
+          const session = await tx.checkoutSession.findUnique({ where: {
+            merchantId_sessionId: { merchantId: candidate.merchantId, sessionId: candidate.sessionId },
+          } });
+          if (!session || session.triggerAgent || !Number.isFinite(session.abandonmentScore)) return;
+          const items = (session.cart as { items?: unknown[] } | null)?.items;
+          if (!Array.isArray(items) || items.length === 0) return;
+          const lastActivity = Math.max(whatsapp.lastActivityAt.getTime(), session.updatedAt.getTime());
+          const setting = await tx.checkoutSetting.findUnique({ where: { merchantId: candidate.merchantId }, select: { interventionPolicy: true } });
+          if (Date.now() - lastActivity < this.idleSeconds(setting?.interventionPolicy) * 1000) return;
+          const scope = { merchantId: candidate.merchantId, sessionId: candidate.sessionId };
+          if (await tx.completedOrder.findFirst({ where: scope, select: { id: true } })
+            || await tx.paymentIntent.findFirst({ where: { ...scope, status: "approved" }, select: { id: true } })
+            || await this.hasPendingWhatsAppInput(tx, whatsapp)) return;
+          // Reuse the transactional scorer. Idle telemetry preserves the real
+          // activity timestamp and cannot itself authorize delivery or an offer.
+          await new PrismaCheckoutRepository(tx, true).recordEvent(candidate.merchantId, candidate.sessionId, "idle_30_seconds", {
+            source: "whatsapp_idle", whatsappSessionId: whatsapp.id, lastBuyerActivityAt: new Date(lastActivity).toISOString(),
+          });
+        });
+      } catch (error) {
+        this.logger.warn("recovery-scanner: WhatsApp idle measurement failed", {
+          merchantId: candidate.merchantId, sessionId: candidate.sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  private idleSeconds(policy: unknown): number {
+    const value = (policy as { idleSeconds?: unknown } | null)?.idleSeconds;
+    return typeof value === "number" && Number.isInteger(value) && value >= 10 && value <= 3600 ? value : 180;
+  }
+
+  private async hasPendingWhatsAppInput(db: Pick<Prisma.TransactionClient, "whatsAppWebhookInbox">,
+    whatsapp: { merchantId: string; deviceId: string; buyerPhone: string }): Promise<boolean> {
+    const streamKey = createHash("sha256").update(JSON.stringify([
+      whatsapp.merchantId, whatsapp.deviceId.slice(11), "message", whatsapp.buyerPhone.replace(/\D/g, ""),
+    ])).digest("hex");
+    return !!await db.whatsAppWebhookInbox.findFirst({ where: { merchantId: whatsapp.merchantId, streamKey,
+      status: { in: ["pending", "processing", "blocked"] } }, select: { id: true } });
   }
 
   private async processSession(session: CheckoutSession): Promise<void> {
@@ -330,6 +418,15 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       return false;
     }
     try {
+      const whatsapp = await this.prisma.whatsAppSession?.findFirst?.({
+        where: { merchantId: current.merchantId, checkoutSessionId: current.sessionId }, orderBy: { lastActivityAt: "desc" },
+      });
+      if (whatsapp) {
+        const setting = await this.prisma.checkoutSetting.findUnique({ where: { merchantId: current.merchantId }, select: { interventionPolicy: true } });
+        if (whatsapp.status !== "active" || Date.now() - whatsapp.lastActivityAt.getTime()
+          < Math.max(QUIET_PERIOD_MS, this.idleSeconds(setting?.interventionPolicy) * 1000)) return false;
+        if (whatsapp.deviceId.startsWith("META_CLOUD:") && await this.hasPendingWhatsAppInput(this.prisma, whatsapp)) return false;
+      }
       const completed = await (this.prisma as any).completedOrder?.findFirst?.({
         where: { merchantId: current.merchantId, sessionId: current.sessionId },
         select: { id: true },
