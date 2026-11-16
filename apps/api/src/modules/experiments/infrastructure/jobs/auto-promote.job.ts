@@ -136,7 +136,7 @@ export class AutoPromoteWorker implements OnModuleInit, OnModuleDestroy {
   async evaluateAndPromote(): Promise<number> {
     try {
       const runningExperiments = await this.prisma.promptExperiment.findMany({
-        where: { status: "running" },
+        where: { status: "running", activationApproval: { is: null } },
         include: { variants: { include: { results: true } } },
       });
 

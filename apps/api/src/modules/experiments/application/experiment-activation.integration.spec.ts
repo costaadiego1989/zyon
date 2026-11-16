@@ -8,6 +8,9 @@ import { buildMeasurementPlan, digest } from "../domain/services/measurement-pla
 import { PrismaExperimentRepository } from "../infrastructure/repositories/prisma-experiment.repository.js";
 import type { HumanTenantPrincipal } from "../../../shared/auth/tenant-principal.js";
 import { AssignVariantToSessionUseCase } from "./use-cases/assign-variant-to-session.use-case.js";
+import { AutoPromoteWorker } from "../infrastructure/jobs/auto-promote.job.js";
+import { PromoteWinnerUseCase } from "./use-cases/promote-winner.use-case.js";
+import { PrismaOutboxRepository } from "../../../shared/messaging/infrastructure/prisma-outbox.repository.js";
 
 const db = createPrismaClient("postgresql://postgres@127.0.0.1:15565/athom_qa");
 after(async () => { await db.$disconnect(); });
@@ -25,6 +28,7 @@ async function fixture(t: TestContext) {
     await db.experimentActivationApproval.deleteMany({ where: { merchantId } });
     await db.experimentMeasurementReview.deleteMany({ where: { merchantId } });
     await db.experimentMeasurementPlan.deleteMany({ where: { merchantId } });
+    await db.promptVariantResult.deleteMany({ where: { variant: { experiment: { merchantId } } } });
     await db.promptVariant.deleteMany({ where: { experiment: { merchantId } } });
     await db.promptExperiment.deleteMany({ where: { merchantId } });
     await db.revenueAnalysisSchedule.deleteMany({ where: { merchantId } });
@@ -60,6 +64,32 @@ test("activation review returns exact prompts, weights and stable version withou
   assert.equal(await db.experimentMeasurementPlan.count({ where: { merchantId: f.merchantId } }), 0);
   assert.equal((await db.promptExperiment.findUniqueOrThrow({ where: { id: f.experiment.id } })).status, "draft");
   await assert.rejects(f.service.review("foreign", f.experiment.id), /EXPERIMENT_NOT_FOUND/);
+});
+
+test("versioned communication approval prevents automatic promotion while legacy experiments retain their contract", async t => {
+  const reviewed = await fixture(t), legacy = await fixture(t);
+  assert.equal((await reviewed.service.review(reviewed.merchantId, reviewed.experiment.id)).automaticPromotion, false);
+  await reviewed.service.activate(actor(reviewed), reviewed.experiment.id, await input(reviewed));
+  await db.promptExperiment.update({ where: { id: legacy.experiment.id }, data: { status: "running", startedAt: new Date() } });
+  for (const f of [reviewed, legacy]) {
+    await db.promptVariantResult.createMany({ data: f.experiment.variants.flatMap(variant => Array.from({ length: 120 }, (_, i) => ({
+      variantId: variant.id, sessionId: `qa_athom_promotion_${i}`, converted: !variant.isControl,
+    }))) });
+  }
+  const scoped = db.$extends({ query: { promptExperiment: { findMany({ args, query }) {
+    return query({ ...args, where: { AND: [args.where ?? {}, { merchantId: { in: [reviewed.merchantId, legacy.merchantId] } }] } });
+  } } } });
+  const repository = new PrismaExperimentRepository(db);
+  const worker = new AutoPromoteWorker(scoped as unknown as typeof db, repository,
+    new PromoteWinnerUseCase(db, repository, new PrismaOutboxRepository(db)), {} as never);
+  assert.equal(await worker.evaluateAndPromote(), 1);
+  const saved = await db.promptExperiment.findUniqueOrThrow({ where: { id: reviewed.experiment.id } });
+  assert.equal(saved.status, "running"); assert.equal(saved.winnerVariantId, null);
+  assert.equal(await db.outboxMessage.count({ where: { merchantId: reviewed.merchantId, eventType: "experiment.completed" } }), 0);
+  const old = await db.promptExperiment.findUniqueOrThrow({ where: { id: legacy.experiment.id } });
+  assert.equal(old.status, "completed");
+  assert.equal(old.winnerVariantId, legacy.experiment.variants.find(v => !v.isControl)!.id);
+  assert.equal(await db.outboxMessage.count({ where: { merchantId: legacy.merchantId, eventType: "experiment.completed" } }), 1);
 });
 
 test("review explains missing required measurement plan and versions variant changes", async t => {
