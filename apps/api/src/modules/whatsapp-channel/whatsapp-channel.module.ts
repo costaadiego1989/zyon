@@ -1,4 +1,5 @@
 import { WhatsAppDeliveryService } from "./application/services/whatsapp-delivery.service.js";
+import { WhatsAppSupportOutboxConsumer } from "./application/services/whatsapp-support-outbox.consumer.js";
 import { WhatsAppDeliveryController } from "./presentation/http/whatsapp-delivery.controller.js";
 import { WhatsAppPresentationController } from "./presentation/http/whatsapp-presentation.controller.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
@@ -91,6 +92,7 @@ export class MultiProviderSenderAdapter {
   providers: [
     GetWhatsAppUsageUseCase,
     WhatsAppDeliveryService,
+    WhatsAppSupportOutboxConsumer,
     WhatsAppHumanIntakeService,
     WhatsAppHumanMessageRouter,
     HandleIncomingMessageUseCase,

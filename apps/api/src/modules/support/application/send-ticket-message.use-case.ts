@@ -113,11 +113,12 @@ export class SendTicketMessageUseCase {
         epoch:authority.epoch,operatorId:authority.operatorId,clientMessageId,delivery} satisfies Extract<SupportMessageMetadata,{kind:"whatsapp_outgoing"}>;
       const message=await persistSupportMessage(tx,{id:randomUUID(),merchantId:scope.merchantId,ticketId:ticket.id,senderType:"merchant",content,clientMessageId,metadata});
       const id=whatsappSupportDeliveryId(message.id);
+      const outboxEventId=randomUUID();
       await tx.whatsAppDelivery.create({data:{id,merchantId:scope.merchantId,configId:scope.configId,deviceId:locked.session.deviceId,
-        state:"queued",processingToken:"not_started",response:{purpose:"support_message",schemaVersion:1,messageId:message.id,ticketId:ticket.id,
+        state:"queued",processingToken:"not_started",response:{purpose:"support_message",schemaVersion:1,outboxEventId,messageId:message.id,ticketId:ticket.id,
           clientMessageId,contentHash:createHash("sha256").update(content).digest("hex"),
           authority:{...authority,deviceId:locked.session.deviceId,provider:locked.config.provider,recipient,accountId:account},delivery}}});
-      await appendOutboxInTransaction(tx,{event_id:randomUUID(),event_type:WHATSAPP_SUPPORT_MESSAGE_REQUESTED,schema_version:1,
+      await appendOutboxInTransaction(tx,{event_id:outboxEventId,event_type:WHATSAPP_SUPPORT_MESSAGE_REQUESTED,schema_version:1,
         merchant_id:scope.merchantId,occurred_at:message.createdAt.toISOString(),correlation_id:id,causation_id:message.id,producer:"support",
         payload:{messageId:message.id,ticketId:ticket.id,bindingId:authority.bindingId,epoch:authority.epoch}});
       return message;

@@ -8,7 +8,8 @@
  */
 
 import { Injectable, Logger, Inject } from "@nestjs/common";
-import { startWhatsAppRequest } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
+import { currentWhatsAppSubmissionScope, startWhatsAppRequest } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
+import { operatorCredentialDigest } from "../../domain/services/whatsapp-operator-connection.js";
 import type { WhatsAppSenderPort, WhatsAppOutboundMessage, WhatsAppSendResult } from "../../domain/ports/whatsapp-sender.port.js";
 import {
   WHATSAPP_CONFIG_REPOSITORY,
@@ -37,7 +38,7 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
     try {
       // Lookup merchant config by deviceId (for backward compat during transition)
       // Future: lookup by whatsappNumber when fully migrated
-      const config = msg.deviceId.startsWith("twilio:")
+      const config = msg.deviceId.startsWith("twilio:") || msg.deviceId.startsWith("TWILIO:")
         ? await this.configRepo.findById(msg.deviceId.slice("twilio:".length))
         : await this.configRepo.findByDeviceId(msg.deviceId);
       if (!config || !connectedTwilioCredentials(config, config.merchantId)) {
@@ -73,7 +74,8 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
       });
 
       const response = await startWhatsAppRequest({ kind: "whatsapp", merchantId: config.merchantId, configId: config.id,
-        deviceId: msg.deviceId, provider: "TWILIO", accountId: twilioAuthorityAccountId(config), recipient: toNumber }, () => fetch(
+        deviceId: msg.deviceId, provider: "TWILIO", accountId: twilioAuthorityAccountId(config), recipient: toNumber,
+        ...(currentWhatsAppSubmissionScope() ? { credentialDigest: operatorCredentialDigest(config), messageId: msg.correlationId } : {}) }, () => fetch(
         `${this.baseUrl}/${accountSid}/Messages.json`,
         {
           method: "POST",
@@ -89,7 +91,9 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
 
       if (response.ok) {
         const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-        const messageSid = String(data.sid ?? data.messageId ?? "");
+        const providerId = data.sid ?? data.messageId;
+        const messageSid = typeof providerId === "string" && providerId.length > 0 && providerId.length <= 1024 && !/[\s\u0000-\u001f\u007f]/.test(providerId) ? providerId : "";
+        if (!messageSid) return { messageId: "", status: "unknown" };
         this.logger.log("Twilio outbound message accepted");
         return {
           messageId: messageSid,

@@ -302,9 +302,9 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | HUM-02 | Handoff intake | T49, T50, T57 | In Progress (T49 intake and T50 router complete; menu pending) |
 | HUM-03 | AI pause | T4, T48, T49, T50, T51 | Complete locally (T4/T48-T51; final integrated verification pending) |
 | HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52 exact claim complete; T53 send and T61 console pending) |
-| HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | Pending |
+| HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | In Progress (T53 queue and T54 local transport complete; receipts and console pending) |
 | HUM-06 | Automatic AI resume | T56, T61 | Pending |
-| HUM-07 | Unavailable team/provider | T54, T55, T58 | Pending |
+| HUM-07 | Unavailable team/provider | T54, T55, T58 | In Progress (T54 local failure and unknown states complete; receipts and team notices pending) |
 | HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | Pending |
 | RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Implemented locally including T104 bounded-write repair; final proof pending |
 | RAG-02 | Retirement | T65, T67, T68, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |

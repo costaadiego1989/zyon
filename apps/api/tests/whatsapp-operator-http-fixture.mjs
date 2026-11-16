@@ -5,9 +5,20 @@ import {createHandoffFixture} from './whatsapp-handoff-fixture.mjs';
 
 /** Own AppModule/PG/Redis, real bearer authentication and tenant middleware.
  * Fixtures establish canonical waiting tickets; no auth/repository/provider override. */
-export async function createWhatsAppOperatorHttpFixture(){
-  const f=await createHandoffFixture();
+export async function createWhatsAppOperatorHttpFixture(options={}){
+  assert.ok(options&&typeof options==='object'&&!Array.isArray(options)
+    &&Object.keys(options).every(key=>['operatorDelivery','whatsapp','provider'].includes(key)),'operator_http_fixture_options_invalid');
+  assert.ok(options.operatorDelivery===undefined||typeof options.operatorDelivery==='boolean','operator_http_fixture_options_invalid');
+  assert.ok(!options.operatorDelivery||options.whatsapp,'operator_http_explicit_transport_required');
+  const provider=options.provider??'TWILIO';
+  const f=await createHandoffFixture({provider,...(options.whatsapp?{whatsapp:options.whatsapp}:{})});
   try{
+    if(!options.operatorDelivery){
+      assert.deepEqual(await f.raw.$queryRaw`SELECT run_id FROM synthetic_native_marker`,[{run_id:f.runtime.db.runId}]);
+      // T53 proves queue creation. Only its owned database defers this new
+      // transport stage; the real dispatcher and all queue oracles remain.
+      await f.runtime.db.sql("CREATE FUNCTION synthetic_defer_operator_transport() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.event_type='whatsapp.support.message.requested' THEN NEW.next_attempt_at=clock_timestamp()+interval '7 days'; END IF; RETURN NEW; END $$; CREATE TRIGGER synthetic_defer_operator_transport BEFORE INSERT ON outbox_messages FOR EACH ROW EXECUTE FUNCTION synthetic_defer_operator_transport();");
+    }
     const request=async(path,body,auth,method='POST')=>{
       const correlationId=randomUUID();
       const response=await fetch(f.runtime.apiOrigin+path,{method,redirect:'error',signal:AbortSignal.timeout(15_000),
@@ -32,7 +43,7 @@ export async function createWhatsAppOperatorHttpFixture(){
       assert.equal(result.status,201,JSON.stringify(result));
       const auth={...result.body,email,password};
       await f.raw.whatsAppChannelConfig.create({data:{id:auth.merchant_id+'-config',merchantId:auth.merchant_id,
-        provider:'TWILIO',enabled:true,status:'ACTIVE',credentials:{}}});
+        provider,enabled:true,status:'ACTIVE',credentials:{}}});
       return auth;
     };
     const ownerAuth=await register('services','owner'),productAuth=await register('products','products'),foreignAuth=await register('services','foreign');

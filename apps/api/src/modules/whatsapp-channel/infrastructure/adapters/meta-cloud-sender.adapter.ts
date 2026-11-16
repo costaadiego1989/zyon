@@ -4,7 +4,8 @@ import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../..
 import { connectedMetaCloudCredentials } from "../../domain/services/connected-meta-cloud-credentials.js";
 import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
 import { MetaCloudImageUploadAdapter } from "./meta-cloud-image-upload.adapter.js";
-import { startWhatsAppRequest, type WhatsAppRequestScope } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
+import { currentWhatsAppSubmissionScope, startWhatsAppRequest, type WhatsAppRequestScope } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
+import { operatorCredentialDigest } from "../../domain/services/whatsapp-operator-connection.js";
 
 @Injectable()
 export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
@@ -20,7 +21,8 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
     const recipient = whatsappE164(msg.toNumber);
     if (!credentials || !recipient) return { messageId: "", status: "failed" };
     const requestScope: WhatsAppRequestScope = { kind: "whatsapp", merchantId: config!.merchantId, configId: config!.id,
-      deviceId: msg.deviceId, provider: "META_CLOUD", accountId: credentials.phoneNumberId, recipient };
+      deviceId: msg.deviceId, provider: "META_CLOUD", accountId: credentials.phoneNumberId, recipient,
+      ...(currentWhatsAppSubmissionScope() ? { credentialDigest: operatorCredentialDigest(config!), messageId: msg.correlationId } : {}) };
     let body: string;
     try {
       body = JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), ...(msg.correlationId ? { biz_opaque_callback_data: msg.correlationId } : {}), ...await this.messagePayload(msg, credentials, requestScope) });

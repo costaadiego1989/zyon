@@ -1,0 +1,198 @@
+{
+  "task": "T54",
+  "status": "complete_local_full_gate",
+  "baseHead": "bda28419d9b93be960ab6c29038b84a8a77dc07a",
+  "branch": "feat/whatsapp-operator-delivery-20261116",
+  "environment": "local-owned",
+  "unit": {
+    "tests": 128,
+    "pass": 128,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "log": ".cache/t54-gates/2026-11-16T15-48-16.915Z/unit.log",
+    "logSha256": "d5614cd380156f962c196df8be68bf37eed74616a616730c740a423f0b4a079e",
+    "command": "node .cache/run-t54-gate.mjs unit",
+    "files": [
+      "src/modules/whatsapp-channel/domain/services/whatsapp-operator-connection.spec.ts",
+      "src/modules/whatsapp-channel/domain/services/whatsapp-operator-delivery.spec.ts",
+      "src/shared/whatsapp/whatsapp-submission-context.spec.ts",
+      "src/shared/whatsapp/whatsapp-automation-context.spec.ts",
+      "src/shared/messaging/outbox-dispatcher.lease-context.spec.ts",
+      "src/shared/messaging/outbox-dispatcher.service.spec.ts",
+      "src/shared/messaging/infrastructure/outbox-bullmq-relay.service.spec.ts",
+      "src/shared/messaging/informational-event-redrive.spec.ts",
+      "src/modules/whatsapp-channel/infrastructure/adapters/meta-cloud-sender.adapter.spec.ts",
+      "src/modules/whatsapp-channel/domain/services/whatsapp-operator-authorization.spec.ts",
+      "src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.spec.ts",
+      "src/modules/support/application/support-tickets.use-cases.spec.ts",
+      "src/modules/support/application/support-handoff.service.spec.ts",
+      "src/modules/support/presentation/http/support.controller.spec.ts",
+      "src/modules/support/infrastructure/gateways/support.gateway.spec.ts",
+      "src/modules/auth/presentation/staff-access.spec.ts",
+      "tests/service-whatsapp-provider-fixture.contract.spec.mjs"
+    ]
+  },
+  "checkedBuild": {
+    "checked": true,
+    "exitCode": 0,
+    "sourceCount": 2547,
+    "inputSha256": "a10478e38b9157ac676a8b89347e5dbfedd899986aa92945ed50bb9c321d8744",
+    "artifactSha256": "8b402eb986117e0966ecd38e9353cdbfeb205ae3dcf33d12f7fc43df9fe57063",
+    "stampSha256": "0f8d6300dc1e1f314c4348d7d3367f8113d7661867bfbd40861c28075baea90d",
+    "log": ".cache/t54-gates/2026-11-16T15-48-49.164Z/build.log",
+    "logSha256": "04def067bec7647f7866a2b2521f0b0dba8af97cf02c95c5aa704bce8093776c",
+    "integralReadmissionBeforeFinalApi9": true,
+    "integralReadmissionAfterFinalApi9": true,
+    "productiveSourceChangedAfterBuild": false,
+    "post108Change": "Only JavaScript harness guard; outside productive compilation inputs"
+  },
+  "native": {
+    "tests": 55,
+    "pass": 55,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "new": 35,
+    "queuePreservation": 13,
+    "runtimePreservation": 7,
+    "entries": [
+      {
+        "file": "tests/whatsapp-operator-delivery.integration.spec.mjs",
+        "tests": 9,
+        "log": ".cache/t54-gates/2026-11-16T19-05-17.370Z/appmodule.log",
+        "logSha256": "1792f8249a835f4c6042bd0dddaa2a397ef36c199f5b4d30f89c6cf2bc9b2ca6",
+        "durationMs": 106929.1685,
+        "wrapperSession": 68811,
+        "wrapperExitCode": 0,
+        "command": "node .cache/run-t54-gate.mjs native-appmodule"
+      },
+      {
+        "file": "tests/whatsapp-operator-request.integration.spec.mjs",
+        "tests": 16,
+        "log": ".cache/t54-gates/2026-11-16T16-07-28.263Z/request.log",
+        "logSha256": "8e0736cf6967c6421a962bbe5ca18165e01e902ef408790e29b5cf199dc030c3"
+      },
+      {
+        "file": "tests/whatsapp-operator-adapter.integration.spec.mjs",
+        "tests": 10,
+        "log": ".cache/t54-gates/2026-11-16T16-07-28.263Z/adapter.log",
+        "logSha256": "acdbe5ca147cdfff96817a53c3ad391a08304fa434cafaec60a479c4a6a91b82"
+      },
+      {
+        "file": "tests/whatsapp-operator-message.integration.spec.mjs",
+        "tests": 13,
+        "log": ".cache/t54-gates/2026-11-16T16-07-28.263Z/queue-preservation.log",
+        "logSha256": "ba20a1ce2d8b857b1e389fbb8e6ed1bb4ac7eabfb2d2d80ce5c419a452201130"
+      },
+      {
+        "file": "tests/service-test-runtime.spec.mjs",
+        "tests": 7,
+        "log": ".cache/t54-gates/2026-11-16T16-07-28.263Z/runtime-preservation.log",
+        "logSha256": "4a7ea446fa8ea50cbb95436b130e1518f07556f38fa092e5dd1e132a6f4cf8df"
+      }
+    ]
+  },
+  "approvedOracleCorrection": {
+    "userWords": "Sim, corrigir a expectativa do teste (recomendado)",
+    "replyCall": "call_f467064279f64627b220b0e1727ef4da",
+    "date": "2026-11-16",
+    "scope": "Only expected ticket.updatedAt equals canonical queued message.createdAt; full pre-enqueue snapshot and all other fields/oracles preserved",
+    "approvedSha256": "6c32932e9c25c627dbecc49b2bdb46f7db9ddb5092e84dcc6263ae7575884f86",
+    "approvedPatchSha256": "06290559f6f04eb24d3ae7e3185e9abc09fb79a53bcf79d1a6eedcf67b589fed",
+    "beforeSha256": "a19442c8cd312c84193af6cc8b557cc4ec30714c10bb8c78ce8a6734e8a088b7"
+  },
+  "failureOnlyObservation": {
+    "officialSha256": "dbd837af752b826cebe0fbea74439e5e2c7e5c7ddc6993af55d2726418558f69",
+    "helperSha256": "a981627bc21d01d6647cd9fbaaab18b0fe439b5a9f209f0f6ed24ba322604e2d",
+    "patchSha256": "1ce5b747728c7884fb80af5bb4b2f5bd3f558a411af33e9d896a67474817a32f",
+    "manifestSha256": "edaa219a1de88630bdd8967873c2c75cb0c10929ed293a3fd06390415531fb8e",
+    "removingOnlyObservationReconstructsApprovedBytes": true,
+    "reconstructedSha256": "6c32932e9c25c627dbecc49b2bdb46f7db9ddb5092e84dcc6263ae7575884f86",
+    "originalAssertionsAnd15000msUnchanged": true,
+    "triggeredInAcceptedRun": false,
+    "causalRowsGaugesAndCleanupError": "Not emitted because the accepted run had no failure",
+    "rootCauseResolved": false,
+    "relayOrSchedulerRepair": false,
+    "deadlinesChanged": false,
+    "warmupOrDirectDispatchAdded": false
+  },
+  "preservedFailuresAndRefusals": [
+    {
+      "log": ".cache/t54-gates/2026-11-16T15-53-45.163Z/appmodule.log",
+      "logSha256": "d8dac997ef56a447f8741384d000670782115db2d2cc15162b3dc5391a3fac84",
+      "status": "Original API9 failure retained before the exact user-approved timestamp correction"
+    },
+    {
+      "log": ".cache/t54-gates/2026-11-16T15-57-32.945Z/request.log",
+      "tests": 16,
+      "pass": 0,
+      "fail": 16,
+      "status": "Earlier native fixture failure retained; final actual request16 passed"
+    },
+    {
+      "log": ".cache/t54-gates/2026-11-16T16-01-24.909Z/request.log",
+      "tests": 16,
+      "pass": 0,
+      "fail": 16,
+      "status": "Earlier native fixture failure retained; final actual request16 passed"
+    },
+    {
+      "log": ".cache/t54-gates/2026-11-16T16-05-09.289Z/request.log",
+      "tests": 16,
+      "pass": 3,
+      "fail": 13,
+      "status": "Earlier native fixture failure retained; final actual request16 passed"
+    },
+    {
+      "log": ".cache/t54-gates/2026-11-16T16-14-01.907Z/appmodule.log",
+      "logSha256": "dca8c3e9b801a005d1bb4a8826d7c6ecfcdf5c4f3a758bb4bbab5ee60ef35846",
+      "status": "Earlier actual API9 failure retained"
+    },
+    {
+      "log": ".cache/t54-gates/2026-11-16T17-33-51.089Z/appmodule.log",
+      "logSha256": "88545b012346930238f73163dee20cbe26e764d8aabb86a6754255b7e847b842",
+      "tests": 9,
+      "pass": 6,
+      "fail": 3,
+      "skipped": 0,
+      "status": "Accepted/rejected terminal waits exceeded unchanged15000ms and root cleanup AggregateError; no proven causal resolution"
+    },
+    {
+      "receipt": ".cache/t54-gates/2026-11-16T18-52-07.377Z/preflight-refusal.json",
+      "receiptSha256": "371836a20231e7f132c42f811aa26aacb3006e1ad8052321048097c2136b7d10",
+      "commitAvailableMiB": 1082,
+      "requiredCommitMiB": 2048,
+      "testsExecuted": 0,
+      "status": "Resource preflight refused before artifact admission or runtime/test launch; no guard waiver or automatic retry"
+    }
+  ],
+  "acceptedRunResourcesAndCleanup": {
+    "initialCommitAvailableMiB": 2815,
+    "beforeChildCommitAvailableMiB": 2924,
+    "requiredCommitMiB": 2048,
+    "physicalMemoryInformationalOnly": true,
+    "naturalChildAndWrapperExitCode": 0,
+    "lifecycleStages": ["before_closed_ack", "disconnected"],
+    "ownedRemainingTimers": 0,
+    "remainingObservedServerListening": false,
+    "ownedNodeWorkersAfterRun": 0,
+    "ownedPgOrRedisContainersAfterRun": 0,
+    "foreignPostgresContainersUntouched": true,
+    "forcedCleanup": false
+  },
+  "boundaries": {
+    "realAppModuleHttpHmacAuthSqlAndSocketIo": true,
+    "realScopedAdapterTransportWithOwnedPg": true,
+    "authOrRepositoryOverrides": false,
+    "localSenderIsExplicit": true,
+    "externalProviderRequests": 0,
+    "providerDeliveryOrReadProven": false,
+    "bothBusinessModesAndOriginalCheckoutPreserved": true,
+    "bubbleCanonicalAccountUnavailableIsTypedBeforeIo": true,
+    "task55CompleteOrReady": false,
+    "wholeFeatureComplete": false,
+    "finalVerifierRun": false,
+    "pushDeployOrProductionChanges": false
+  }
+}

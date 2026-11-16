@@ -44,3 +44,25 @@ test('explicit synthetic voice emits its exact requested scope and media identit
   assert.equal(await fixture.media.interpret('synthetic-business','META_CLOUD:synthetic',{id:'99999',mimeType:'audio/ogg'},context),undefined);
   assert.equal(events.length,3);assert.deepEqual(events[0].result,result);assert.equal(fixture.attempts(),3);
 });
+
+test('operator fixture accepts bounded static outcomes and rejects external or executable controls',()=>{
+  const outcomes=[{status:'sent',messageId:'synthetic-provider-id'},{status:'failed',messageId:''},{status:'unknown',messageId:''}];
+  assert.deepEqual(validateLocalWhatsAppOptions({operatorOutcomes:outcomes}),{voiceTranscripts:{},operatorOutcomes:outcomes});
+  for(const operatorOutcomes of [null,{},Array(21).fill(outcomes[0]),[{status:'read',messageId:'fake'}],
+    [{status:'sent',messageId:{id:'fake'}}],[{status:'sent',messageId:'a b'}],[{status:'unknown',messageId:'fake'}],
+    [{status:'sent',messageId:'fake',url:'https://outside.example.test'}]])
+    assert.throws(()=>validateLocalWhatsAppOptions({operatorOutcomes}),/local_operator_fixture_invalid/);
+});
+
+test('operator fixture captures only after the original final submission callback and rejects another destination',async()=>{
+  const events=[],scope=Object.freeze({kind:'whatsapp',merchantId:'synthetic-merchant',configId:'synthetic-config',
+    deviceId:'META_CLOUD:synthetic-config',provider:'META_CLOUD',accountId:'100001',recipient:'+5511999991000',messageId:'support_message:synthetic',credentialDigest:'synthetic-digest'});
+  let starts=0;
+  const boundary={currentScope:()=>scope,start:async(actual,start)=>{assert.equal(actual,scope);assert.equal(events.length,0);starts++;return start();}};
+  const fixture=createLocalWhatsAppProviderFixture({operatorOutcomes:[{status:'sent',messageId:'synthetic-operator-id'}]},event=>events.push(event),boundary);
+  const input={provider:scope.provider,deviceId:scope.deviceId,toNumber:scope.recipient,correlationId:scope.messageId,text:'Synthetic operator reply'};
+  await assert.rejects(fixture.sender.sendText({...input,toNumber:'+5511000000000'}),assert.AssertionError);
+  assert.equal(starts,0);assert.deepEqual(events,[]);
+  assert.deepEqual(await fixture.sender.sendText(input),{status:'sent',messageId:'synthetic-operator-id'});
+  assert.equal(starts,1);assert.deepEqual(events,[{sequence:1,kind:'sendText',input,result:{status:'sent',messageId:'synthetic-operator-id'}}]);
+});

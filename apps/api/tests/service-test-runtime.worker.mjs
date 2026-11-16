@@ -91,7 +91,10 @@ try{
     const{MetaInboundMediaAdapter}=await import('../dist/modules/whatsapp-channel/infrastructure/adapters/meta-inbound-media.adapter.js');
     assert.notEqual(WHATSAPP_SENDER_PORT,notificationToken,'notification_transport_must_remain_original');
     channelToken=WHATSAPP_SENDER_PORT;mediaType=MetaInboundMediaAdapter;process.env.META_APP_SECRET=localWhatsApp.metaSecret;
-    fixture=createLocalWhatsAppProviderFixture({voiceTranscripts:localWhatsApp.voiceTranscripts},event=>process.send({type:'local_whatsapp_event',event}));
+    const{currentWhatsAppSubmissionScope,startWhatsAppRequest}=await import('../dist/shared/whatsapp/whatsapp-automation-context.js');
+    const{metaSecret:fixtureSecret,...fixtureOptions}=localWhatsApp;
+    fixture=createLocalWhatsAppProviderFixture(fixtureOptions,event=>process.send({type:'local_whatsapp_event',event}),
+      {currentScope:currentWhatsAppSubmissionScope,start:startWhatsAppRequest});
     fixtureInstallation=fixture.install(WhatsAppChannelModule,channelToken,mediaType);fixtureOverrideNames=fixtureInstallation.overrides;
   }
   let modelInstallation;

@@ -6,6 +6,8 @@ export interface DomainEvent {
   readonly correlationId?: string;
   readonly causationId?: string;
   readonly schemaVersion?: number;
+  /** Non-enumerable original dispatcher claim. Never put in payload or public DTOs. */
+  readonly deliveryLeaseToken?: string;
   readonly eventType: string;
   readonly merchantId: string;
   readonly payload: unknown;

@@ -146,6 +146,9 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnModuleDestroy
         correlationId: envelope.correlation_id, causationId: envelope.causation_id,
         schemaVersion: envelope.schema_version, payload: envelope.payload,
       };
+      Object.defineProperty(event, "deliveryLeaseToken", {
+        value: claim.leaseToken, enumerable: false, writable: false, configurable: false,
+      });
       for (const handler of handlers) {
         if (this.abandoning || leaseLost) return;
         // Confirm ownership before every side effect, including after long preceding handlers.
