@@ -1,5 +1,6 @@
+import { withWhatsAppEffectTransaction } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 import { ConflictException, Logger } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CustomerAddress } from "@zyon/shared-types";
 import {
   decryptPii,
@@ -21,10 +22,10 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
     if (account.passwordHash !== null || !account.phone || account.email !== `phone_${account.phone.replace(/\D/g, "")}@buyer.aacp`)
       throw new Error("buyer_phone_only_profile_invalid");
     try {
-      const row = await this.prisma.buyerAccount.upsert({ where: { globalUserId: account.globalUserId }, update: {}, create: {
+      const row = await withWhatsAppEffectTransaction(this.prisma, undefined, tx => tx.buyerAccount.upsert({ where: { globalUserId: account.globalUserId }, update: {}, create: {
         globalUserId: account.globalUserId, email: account.email, passwordHash: null, displayName: account.displayName,
         phone: encryptedBuyerPii(account).phone, phoneLookupHash: buyerPhoneLookupHash(account.phone),
-      } });
+      } }));
       return toDomainAccount(row);
     } catch (error) {
       if (isUniqueEmailViolation(error)) return null;
@@ -35,7 +36,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
   async save(account: BuyerAccount): Promise<void> {
     const pii = encryptedBuyerPii(account);
     try {
-      await (this.prisma as any).buyerAccount.upsert({
+      await withWhatsAppEffectTransaction(this.prisma, undefined, tx => tx.buyerAccount.upsert({
         where: { globalUserId: account.globalUserId },
         create: {
           globalUserId: account.globalUserId,
@@ -48,7 +49,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
           dateOfBirth: account.dateOfBirth ?? null,
           gender: account.gender ?? null,
           asaasCustomerId: account.asaasCustomerId ?? null,
-          address: account.address ?? null,
+          address: account.address ? { ...account.address } : Prisma.DbNull,
         },
         update: {
           email: account.email,
@@ -60,10 +61,10 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
           dateOfBirth: account.dateOfBirth ?? null,
           gender: account.gender ?? null,
           asaasCustomerId: account.asaasCustomerId ?? undefined,
-          address: account.address ?? null,
+          address: account.address ? { ...account.address } : Prisma.DbNull,
           updatedAt: account.updatedAt,
         },
-      });
+      }));
     } catch (err) {
       // Convert the unique-email violation into a domain error so callers can
       // surface a 409 instead of a raw Prisma 500.
@@ -120,7 +121,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
   }
 
   async saveAgent(agent: BuyerAgentProfile): Promise<void> {
-    await this.prisma.buyerAgentProfile.upsert({
+    await withWhatsAppEffectTransaction(this.prisma, undefined, tx => tx.buyerAgentProfile.upsert({
       where: { globalUserId: agent.globalUserId },
       create: {
         id: agent.id,
@@ -147,7 +148,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
         m2mTokenCreatedAt: agent.m2mTokenCreatedAt ?? null,
         updatedAt: agent.updatedAt,
       },
-    });
+    }));
   }
 
   async findM2mByTokenHash(tokenHash: string): Promise<BuyerAgentProfile | null> {

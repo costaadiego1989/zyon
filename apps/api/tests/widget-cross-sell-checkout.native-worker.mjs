@@ -19,10 +19,53 @@ const contact = { fullName: "Synthetic Buyer", email: "buyer@example.test", cpf:
 const address = { zip: "01310100", street: "Synthetic Street", number: "10", complement: "",
   neighborhood: "Synthetic District", city: "Synthetic City", state: "SP" };
 let passed = 0, waiters = 0, active = "marker";
-const check = async (name, work) => { active = name; await work(); passed++; console.log(JSON.stringify({ test: name, status: "passed" })); };
+const check = async (name, work) => { active = name; await assertCheckoutGuards(); await work(); passed++; console.log(JSON.stringify({ test: name, status: "passed" })); };
 const row = async () => prisma.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: scope } });
 const counts = async () => ({ outbox: await prisma.outboxMessage.count(), events: await prisma.checkoutEvent.count({ where: { ...scope, eventName: "cross_sell_accepted" } }),
   accepted: await prisma.crossSellSuggestion.count({ where: { ...scope, status: "accepted" } }) });
+// Historical fixture snapshots predate the write-owned counters. This loader is
+// local to this owned test worker; the adapters never receive it. Transactional
+// DDL rolls back on error. The real guards are enabled before commit and every
+// SUT case, and an actual rejected write proves they remain effective.
+async function assertCheckoutTriggerCatalog(tx = prisma) {
+  const guards = await tx.$queryRaw`SELECT t.tgname, t.tgenabled::text AS enabled
+    FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname='checkout_sessions' AND NOT t.tgisinternal
+      AND t.tgname IN ('checkout_session_write_version_guard','strategy_session_context_version_guard')
+    ORDER BY t.tgname`;
+  assert.deepEqual(guards, [
+    { tgname: "checkout_session_write_version_guard", enabled: "O" },
+    { tgname: "strategy_session_context_version_guard", enabled: "O" },
+  ]);
+}
+async function assertCheckoutGuards() {
+  await assertCheckoutTriggerCatalog();
+  const before = await row(), invalidVersion = before.version === 0 ? 1 : 0;
+  await assert.rejects(prisma.$executeRaw`UPDATE checkout_sessions SET version=${invalidVersion}
+    WHERE id='checkout-row' AND merchant_id=${scope.merchantId} AND session_id=${scope.sessionId}`,
+    /CHECKOUT_SESSION_VERSION_READ_ONLY/);
+  assert.deepEqual(await row(), before, "guard_probe_must_preserve_the_exact_checkout");
+}
+async function loadCheckoutHistory(seed) {
+  assert.equal(assertNativePrismaUrl(url).searchParams.get("application_name"), `aacp_write_native_${runId}`);
+  await prisma.$transaction(async tx => {
+    const identities = await tx.$queryRaw`SELECT current_database() AS db,
+      current_setting('application_name') AS app, (SELECT run_id FROM synthetic_native_marker) AS marker`;
+    assert.deepEqual(identities, [{ db: "storefront_synthetic", app: `aacp_write_native_${runId}`, marker: runId }]);
+    assert.deepEqual(await tx.$queryRaw`SELECT id, merchant_id, session_id FROM checkout_sessions
+      WHERE id='checkout-row' AND merchant_id=${scope.merchantId} AND session_id=${scope.sessionId} FOR UPDATE`,
+      [{ id: "checkout-row", merchant_id: scope.merchantId, session_id: scope.sessionId }]);
+    await assertCheckoutTriggerCatalog(tx);
+    await tx.$executeRaw`ALTER TABLE checkout_sessions DISABLE TRIGGER checkout_session_write_version_guard`;
+    await tx.$executeRaw`ALTER TABLE checkout_sessions DISABLE TRIGGER strategy_session_context_version_guard`;
+    await seed(tx);
+    await tx.$executeRaw`ALTER TABLE checkout_sessions ENABLE TRIGGER checkout_session_write_version_guard`;
+    await tx.$executeRaw`ALTER TABLE checkout_sessions ENABLE TRIGGER strategy_session_context_version_guard`;
+    await assertCheckoutTriggerCatalog(tx);
+  });
+  await assertCheckoutGuards();
+}
 async function reset() {
   await prisma.$executeRaw`DELETE FROM own_delivery_configs`;
   await prisma.$executeRaw`DELETE FROM payment_intents`;
@@ -35,9 +78,10 @@ async function reset() {
   await prisma.$executeRaw`UPDATE merchant_rules SET max_discount_percent=20,allow_free_shipping=false,
     allow_stack_discount_and_free_shipping=false,free_shipping_min_cart_value=0,max_shipping_subsidy=0,blocked_regions=ARRAY[]::text[]`;
   await prisma.$executeRaw`DELETE FROM product_stock WHERE id='synthetic-extra-stock'`;
-  await prisma.$executeRaw`UPDATE checkout_sessions SET version=4, strategy_context_version=0,shipping=NULL,shipping_options=NULL,
+  await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET version=4, strategy_context_version=0,shipping=NULL,shipping_options=NULL,
     customer=NULL,global_user_id='synthetic-buyer',payment_method=NULL,
-    cart='{"currency":"BRL","total":100,"items":[{"sku":"TRIGGER","name":"Synthetic","price":100,"quantity":1}]}'::jsonb`;
+    cart='{"currency":"BRL","total":100,"items":[{"sku":"TRIGGER","name":"Synthetic","price":100,"quantity":1}]}'::jsonb
+    WHERE id='checkout-row' AND merchant_id=${scope.merchantId} AND session_id=${scope.sessionId}`);
   await prisma.$executeRaw`UPDATE product_prices SET base_price_in_cents=2000 WHERE variant_id='target'`;
   await prisma.$executeRaw`UPDATE product_stock SET quantity=100,reserved=0`;
   await prisma.$executeRaw`UPDATE products SET metadata='{}'::jsonb`;
@@ -47,16 +91,16 @@ async function reset() {
 }
 async function resetAddress() {
   await reset();
-  await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer: contact } });
+  await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer: contact } }));
 }
 async function resetEmailOtp() {
   await reset();
   const [{ deadline }] = await prisma.$queryRaw`SELECT clock_timestamp() + interval '10 minutes' AS deadline`;
-  await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer: {
+  await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer: {
     ...contact, email_verified: false, phone_verified: false, recognized_buyer: false, isReturning: false,
     otp_code: "123456", otp_expires_at: deadline.toISOString(), phone_otp_code: "654321",
     address, address_verified: true,
-  } } });
+  } } }));
 }
 async function resetManualShipping() {
   await reset();
@@ -64,9 +108,9 @@ async function resetManualShipping() {
   // These configured synthetic addresses do not claim geocoder verification.
   await prisma.merchant.update({ where: { id: scope.merchantId }, data: {
     storeSettings: { company: { address: { zip: "01310000", city: address.city, state: address.state } } },
-  } });
+  }, select: { id: true } });
   await prisma.merchantRule.update({ where: { merchantId: scope.merchantId }, data: { originZip: "01310000" } });
-  await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer: { ...contact, address, address_verified: true } } });
+  await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer: { ...contact, address, address_verified: true } } }));
   await prisma.$executeRaw`INSERT INTO own_delivery_configs(id,merchant_id,enabled,mode,flat_price_cents)
     VALUES ('synthetic-manual',${scope.merchantId},true,'flat',900)`;
 }
@@ -137,8 +181,8 @@ try {
   // Fixture proves reader/own-row fences, NOT real payment admission/provider IO.
   async function syntheticOwnPayment() {
     await resetManualShipping();
-    await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope },
-      data: { customer: { ...contact, email_verified: true, address, address_verified: true } } });
+    await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope },
+      data: { customer: { ...contact, email_verified: true, address, address_verified: true } } }));
     await adapter.accept(scope, { expectedQuote: await adapter.quote(scope, request) });
     await adapter.quoteManualShipping(scope, { expectedVersion: 5 });
     const quoted = (await row()).shippingOptions;
@@ -183,6 +227,14 @@ try {
   await prisma.$executeRaw`INSERT INTO cross_sell_promotions(id,merchant_id,name,trigger,recommended_skus,discount_percent,max_discount_percent,status,starts_at,updated_at)
     VALUES ('promo',${scope.merchantId},'Synthetic','{"sku_in_cart":["TRIGGER"]}',ARRAY['TARGET'],10,100,'active',CURRENT_TIMESTAMP-INTERVAL '1 day',CURRENT_TIMESTAMP)`;
   await reset();
+  const historyBeforeRollback = await row();
+  await assert.rejects(loadCheckoutHistory(async tx => {
+    await tx.$executeRaw`UPDATE checkout_sessions SET version=123 WHERE id='checkout-row'
+      AND merchant_id=${scope.merchantId} AND session_id=${scope.sessionId}`;
+    throw new Error("synthetic_history_seed_rollback");
+  }), /synthetic_history_seed_rollback/);
+  await assertCheckoutGuards();
+  assert.deepEqual(await row(), historyBeforeRollback, "historical_seed_error_must_rollback_data_and_trigger_DDL");
   await check("real Prisma quote and atomic acceptance preserve base/provenance/outbox", async () => {
     const before = await row(), expectedQuote = await adapter.quote(scope, request);
     assert.equal(expectedQuote.totalCents, 11800); assert.deepEqual(await row(), before);
@@ -216,7 +268,7 @@ try {
   await reset();
   await check("waiting acceptance respects intervening checkout version", async () => {
     const expectedQuote = await adapter.quote(scope, request);
-    await withBlockedAccept(adapter, expectedQuote, tx => tx.$executeRaw`UPDATE checkout_sessions SET version=version+1 WHERE merchant_id=${scope.merchantId}`);
+    await withBlockedAccept(adapter, expectedQuote, tx => tx.$executeRaw`UPDATE checkout_sessions SET updated_at=updated_at WHERE merchant_id=${scope.merchantId}`);
     assert.deepEqual(await counts(), { outbox: 0, events: 0, accepted: 0 }); assert.equal((await row()).version, 5);
   });
   await reset();
@@ -231,8 +283,8 @@ try {
   await check("canonical delivery data persists and paid shipping is invalidated", async () => {
     await prisma.$executeRaw`UPDATE product_variants SET weight_grams=500,height_cm=10,width_cm=15,length_cm=25 WHERE id='target'`;
     await prisma.$executeRaw`INSERT INTO product_media(id,variant_id,url) VALUES ('synthetic-media','target','https://example.test/synthetic.jpg')`;
-    await prisma.$executeRaw`UPDATE checkout_sessions SET shipping='{"customerPrice":12,"carrier":"Synthetic"}'::jsonb,
-      shipping_options='[{"customerPrice":12}]'::jsonb`;
+    await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET shipping='{"customerPrice":12,"carrier":"Synthetic"}'::jsonb,
+      shipping_options='[{"customerPrice":12}]'::jsonb`);
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
     const saved = await row(), target = saved.cart.items.find(item => item.sku === "TARGET");
     assert.equal(target.weightGrams, 500); assert.equal(target.height_cm, 10);
@@ -328,7 +380,7 @@ try {
   await reset();
   await check("accepted reader refuses a real stale version without changing the accepted benefit", async () => {
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
-    await prisma.$executeRaw`UPDATE checkout_sessions SET version=version+1`;
+    await prisma.$executeRaw`UPDATE checkout_sessions SET updated_at=updated_at`;
     const saved = await row(), before = await counts();
     await assert.rejects(adapter.readAccepted(scope), /cross_sell_quote_review_required/);
     assert.deepEqual(await row(), saved); assert.deepEqual(await counts(), before);
@@ -358,7 +410,8 @@ try {
   });
   await reset();
   await check("accepted reader supports final committed PostgreSQL int version without overflow or write", async () => {
-    await prisma.$executeRaw`UPDATE checkout_sessions SET version=2147483646`;
+    await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET version=2147483646
+      WHERE id='checkout-row' AND merchant_id=${scope.merchantId} AND session_id=${scope.sessionId}`);
     const expectedQuote = await adapter.quote(scope, request), ack = await adapter.accept(scope, { expectedQuote });
     assert.equal(ack.persistenceVersion, 2147483647); const saved = await row();
     assert.equal((await adapter.readAccepted(scope)).total, 118);
@@ -386,7 +439,7 @@ try {
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
     const customer = { ...contact, email_verified: true, phone_verified: true, address_verified: true,
       address: { city: "Synthetic" }, externalCustomerId: "synthetic-provider" };
-    await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer } });
+    await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer } }));
     await adapter.updateCustomer(scope, { expectedVersion: 5, customer: { ...contact, email: " BUYER@EXAMPLE.TEST " } });
     assert.deepEqual((await row()).customer, customer); assert.equal((await row()).globalUserId, "synthetic-buyer");
     assert.equal((await adapter.readAccepted(scope)).total, 118);
@@ -394,12 +447,12 @@ try {
   await reset();
   await check("email changes clear stale identity/proof/shipping inside the same accepted revision", async () => {
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
-    await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: {
+    await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: {
       customer: { ...contact, email_verified: true, phone_verified: true, address_verified: true, recognized_buyer: true,
         otp_code: "synthetic-challenge", otp_expires_at: "2027-01-01T00:00:00Z", phone_otp_code: "synthetic-phone",
         address: { city: "Synthetic" }, externalCustomerId: "synthetic-provider", asaasCustomerId: "synthetic-asaas" },
       shipping: { customerPrice: 5 }, shippingOptions: [{ customerPrice: 5 }],
-    } });
+    } }));
     await adapter.updateCustomer(scope, { expectedVersion: 5, customer: { ...contact, email: "changed@example.test" } });
     const saved = await row(); assert.notEqual(saved.globalUserId, "synthetic-buyer");
     for (const field of ["email_verified", "phone_verified", "address_verified", "recognized_buyer", "isReturning"]) assert.equal(saved.customer[field], false);
@@ -443,8 +496,8 @@ try {
       const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
       await adapter.updateCustomer(scope, { expectedVersion: 5, customer: contact });
       if (corruption === "event") await prisma.$executeRaw`DELETE FROM checkout_events WHERE event_name='cross_sell_checkout_customer_updated'`;
-      if (corruption === "customer") await prisma.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{email}','"foreign@example.test"'::jsonb)`;
-      if (corruption === "version") await prisma.$executeRaw`UPDATE checkout_sessions SET version=version+1`;
+      if (corruption === "customer") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{email}','"foreign@example.test"'::jsonb)`);
+      if (corruption === "version") await prisma.$executeRaw`UPDATE checkout_sessions SET updated_at=updated_at`;
       const before = await row(); await assert.rejects(adapter.readAccepted(scope), /cross_sell_quote_review_required/);
       await assert.rejects(adapter.updateCustomer(scope, { expectedVersion: before.version, customer: contact }), /cross_sell_quote_review_required/);
       assert.deepEqual(await row(), before);
@@ -494,7 +547,8 @@ try {
   });
   await reset();
   await check("last PostgreSQL int contact revision remains readable and cannot overflow", async () => {
-    await prisma.$executeRaw`UPDATE checkout_sessions SET version=2147483645`;
+    await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET version=2147483645
+      WHERE id='checkout-row' AND merchant_id=${scope.merchantId} AND session_id=${scope.sessionId}`);
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
     await adapter.updateCustomer(scope, { expectedVersion: 2147483646, customer: contact });
     const saved = await row(); assert.equal(saved.version, 2147483647); assert.equal((await adapter.readAccepted(scope)).total, 118);
@@ -503,10 +557,10 @@ try {
   await resetAddress();
   await check("explicit address revision atomically invalidates shipping and preserves identity and canonical benefit", async () => {
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
-    await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: {
+    await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: {
       customer: { ...contact, email_verified: true, phone_verified: true, externalCustomerId: "synthetic-provider", deliveryAddressLabel: "old" },
       shipping: { customerPrice: 5 }, shippingOptions: [{ customerPrice: 5 }],
-    } });
+    } }));
     const ack = await adapter.updateAddress(scope, { expectedVersion: 5, address: { ...address, zip: "01310-100", state: "sp" } });
     assert.deepEqual(ack, { version: 1, ...scope, status: "updated", persistenceVersion: 6 });
     const saved = await row(); assert.deepEqual(saved.customer.address, address); assert.equal(saved.customer.address_verified, true);
@@ -541,7 +595,7 @@ try {
   await resetAddress();
   await check("real address-event failure rolls back address/shipping/context/revision together", async () => {
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
-    await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { shipping: { customerPrice: 5 }, shippingOptions: [{ customerPrice: 5 }] } });
+    await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { shipping: { customerPrice: 5 }, shippingOptions: [{ customerPrice: 5 }] } }));
     const before = await row();
     await prisma.$executeRawUnsafe("CREATE FUNCTION synthetic_reject_widget_address_revision() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.event_name = 'cross_sell_checkout_address_updated' THEN RAISE EXCEPTION 'synthetic_address_revision_failure'; END IF; RETURN NEW; END $$");
     await prisma.$executeRawUnsafe("CREATE TRIGGER synthetic_widget_address_revision_failure BEFORE INSERT ON checkout_events FOR EACH ROW EXECUTE FUNCTION synthetic_reject_widget_address_revision()");
@@ -566,9 +620,9 @@ try {
       const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
       await adapter.updateAddress(scope, { expectedVersion: 5, address });
       if (corruption === "event-kind") await prisma.$executeRaw`UPDATE checkout_events SET event_name='cross_sell_checkout_customer_updated' WHERE event_name='cross_sell_checkout_address_updated'`;
-      if (corruption === "revision-kind") await prisma.$executeRaw`UPDATE checkout_sessions SET cart=cart #- '{_widgetCrossSellAcceptance,revision,operation}'`;
-      if (corruption === "address") await prisma.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{address,number}','"99"'::jsonb)`;
-      if (corruption === "shipping") await prisma.$executeRaw`UPDATE checkout_sessions SET shipping_options='[{"customerPrice":0}]'::jsonb`;
+      if (corruption === "revision-kind") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET cart=cart #- '{_widgetCrossSellAcceptance,revision,operation}'`);
+      if (corruption === "address") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{address,number}','"99"'::jsonb)`);
+      if (corruption === "shipping") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET shipping_options='[{"customerPrice":0}]'::jsonb`);
       const saved = await row(); await assert.rejects(adapter.readAccepted(scope), /cross_sell_quote_review_required/);
       await assert.rejects(adapter.updateAddress(scope, { expectedVersion: 6, address })); assert.deepEqual(await row(), saved);
     });
@@ -600,7 +654,8 @@ try {
   });
   await resetAddress();
   await check("last PostgreSQL int address revision remains readable without overflow", async () => {
-    await prisma.$executeRaw`UPDATE checkout_sessions SET version=2147483645`;
+    await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET version=2147483645
+      WHERE id='checkout-row' AND merchant_id=${scope.merchantId} AND session_id=${scope.sessionId}`);
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
     await adapter.updateAddress(scope, { expectedVersion: 2147483646, address });
     const saved = await row(); assert.equal(saved.version, 2147483647); assert.equal((await adapter.readAccepted(scope)).total, 118);
@@ -627,7 +682,7 @@ try {
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
     const before = await row(), ack = await adapter.verifyEmailOtp(scope, { expectedVersion: 5, code: "123456" }), saved = await row();
     assert.deepEqual(ack, { version: 1, ...scope, status: "updated", persistenceVersion: 6 });
-    assert.equal(saved.version, 6); assert.equal(saved.strategyContextVersion, before.strategyContextVersion + 1);
+    assert.equal(saved.version, 6); assert.equal(saved.strategyContextVersion, before.strategyContextVersion);
     assert.deepEqual(saved.customer, { ...before.customer, email_verified: true, otp_code: "", otp_expires_at: "" });
     assert.equal(saved.globalUserId, before.globalUserId); assert.equal(saved.cart.total, 120);
     assert.equal(saved.cart._widgetCrossSellAcceptance.revision.operation, "email_otp");
@@ -674,16 +729,16 @@ try {
       const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
       await adapter.verifyEmailOtp(scope, { expectedVersion: 5, code: "123456" });
       if (corruption === "event-kind") await prisma.$executeRaw`UPDATE checkout_events SET event_name='cross_sell_checkout_customer_updated' WHERE event_name='cross_sell_checkout_email_verified'`;
-      if (corruption === "revision-kind") await prisma.$executeRaw`UPDATE checkout_sessions SET cart=cart #- '{_widgetCrossSellAcceptance,revision,operation}'`;
-      if (corruption === "code") await prisma.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{otp_code}','"123456"'::jsonb)`;
-      if (corruption === "email") await prisma.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{email}','"other@example.test"'::jsonb)`;
+      if (corruption === "revision-kind") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET cart=cart #- '{_widgetCrossSellAcceptance,revision,operation}'`);
+      if (corruption === "code") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{otp_code}','"123456"'::jsonb)`);
+      if (corruption === "email") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{email}','"other@example.test"'::jsonb)`);
       const saved = await row(); await assert.rejects(adapter.readAccepted(scope), /cross_sell_quote_review_required/); assert.deepEqual(await row(), saved);
     });
   }
   await resetEmailOtp();
   await check("waiting email OTP uses current database clock and rejects challenge expiring during real lock wait", async () => {
     const expectedQuote = await adapter.quote(scope, request); await adapter.accept(scope, { expectedQuote });
-    await prisma.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{otp_expires_at}',to_jsonb((clock_timestamp() + interval '1 second')::text))`;
+    await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{otp_expires_at}',to_jsonb((clock_timestamp() + interval '1 second')::text))`);
     const before = await row();
     await withBlockedAccept(adapter, expectedQuote, tx => tx.$queryRaw`SELECT pg_sleep(1.1)::text`, false,
       () => adapter.verifyEmailOtp(scope, { expectedVersion: 5, code: "123456" }));
@@ -728,7 +783,7 @@ try {
       await prisma.$executeRaw`UPDATE own_delivery_configs SET mode='neighborhood', neighborhoods='[{"name":"Synthetic District","priceCents":1375}]'::jsonb`;
       await prisma.merchant.update({ where: { id: scope.merchantId }, data: {
         storeSettings: { company: { address: { zip: "01310000", ...changedLocality } } },
-      } });
+      }, select: { id: true } });
       await adapter.accept(scope, { expectedQuote: await adapter.quote(scope, request) });
       await adapter.quoteManualShipping(scope, { expectedVersion: 5 });
       const saved = await row();
@@ -790,9 +845,9 @@ try {
     await resetManualShipping();
     await check(`manual quote refuses actual corrupted ${corruption} without repair`, async () => {
       await adapter.accept(scope, { expectedQuote: await adapter.quote(scope, request) }); await adapter.quoteManualShipping(scope, { expectedVersion: 5 });
-      if (corruption === "options") await prisma.$executeRaw`UPDATE checkout_sessions SET shipping_options=jsonb_set(shipping_options,'{options,0,price}','1'::jsonb)`;
+      if (corruption === "options") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET shipping_options=jsonb_set(shipping_options,'{options,0,price}','1'::jsonb)`);
       if (corruption === "event-kind") await prisma.$executeRaw`UPDATE checkout_events SET event_name='cross_sell_checkout_customer_updated' WHERE event_name='cross_sell_checkout_manual_shipping_quoted'`;
-      if (corruption === "revision-kind") await prisma.$executeRaw`UPDATE checkout_sessions SET cart=cart #- '{_widgetCrossSellAcceptance,revision,operation}'`;
+      if (corruption === "revision-kind") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET cart=cart #- '{_widgetCrossSellAcceptance,revision,operation}'`);
       const saved = await row(); await assert.rejects(adapter.readAccepted(scope), /cross_sell_quote_review_required/); assert.deepEqual(await row(), saved);
     });
   }
@@ -852,7 +907,7 @@ try {
     const selected = await row(), previousCounts = await counts();
     await prisma.merchant.update({ where: { id: scope.merchantId }, data: {
       storeSettings: { company: { address: { zip: "01310000", city: "Another Synthetic City", state: "SP" } } },
-    } });
+    }, select: { id: true } });
     await assert.rejects(adapter.readAcceptedShipping(scope), /cross_sell_quote_review_required/);
     assert.deepEqual(await row(), selected);
     assert.deepEqual(await counts(), previousCounts);
@@ -1086,9 +1141,9 @@ try {
   for (const change of ["buyer", "version", "context", "config", "catalog", "provider", "started", "unknown", "sibling"]) {
     await check(`actual own journal cannot bypass changed current authority (${change})`, async () => {
       const { paymentId } = await syntheticOwnPayment();
-      if (change === "buyer") await prisma.$executeRaw`UPDATE checkout_sessions SET global_user_id='synthetic-other-buyer'`;
-      if (change === "version") await prisma.$executeRaw`UPDATE checkout_sessions SET version=version+1`;
-      if (change === "context") await prisma.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{phone}','"11911111111"'::jsonb)`;
+      if (change === "buyer") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET global_user_id='synthetic-other-buyer'`);
+      if (change === "version") await prisma.$executeRaw`UPDATE checkout_sessions SET updated_at=updated_at`;
+      if (change === "context") await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{phone}','"11911111111"'::jsonb)`);
       if (change === "config") await prisma.$executeRaw`UPDATE own_delivery_configs SET flat_price_cents=901`;
       if (change === "catalog") await prisma.$executeRaw`UPDATE product_prices SET base_price_in_cents=2001 WHERE variant_id='target'`;
       if (change === "provider") await prisma.$executeRaw`UPDATE payment_intents SET provider_payment_id='synthetic-provider' WHERE id=${paymentId}`;
@@ -1108,9 +1163,9 @@ try {
     assert.deepEqual(await row(), saved);
   });
   const { runWidgetCheckoutPaymentNativeCases } = await import("./widget-checkout-payment.native-cases.mjs");
-  await runWidgetCheckoutPaymentNativeCases({ prisma, scope, adapter, resetManualShipping, request, contact, address, check, runId });
+  await runWidgetCheckoutPaymentNativeCases({ prisma, scope, adapter, resetManualShipping, request, contact, address, check, runId, loadCheckoutHistory });
   const { runWidgetProviderRadiusNativeCases } = await import("./widget-provider-radius.native-cases.mjs");
-  await runWidgetProviderRadiusNativeCases({ prisma, scope, adapter, resetManualShipping, request, contact, address, check, runId,
+  await runWidgetProviderRadiusNativeCases({ prisma, scope, adapter, resetManualShipping, request, contact, address, check, runId, loadCheckoutHistory,
     observeWaiters: () => { waiters++; } });
   console.log(JSON.stringify({ status: "passed", passed, realLockWaiters: waiters, syntheticOnly: true, providerCalls: 0 }));
 } catch (error) { console.error(JSON.stringify({ status: "failed", test: active, passed, realLockWaiters: waiters, error: String(error) })); throw error; }

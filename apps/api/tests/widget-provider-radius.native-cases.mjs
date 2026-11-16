@@ -5,7 +5,7 @@ import { setTimeout as pause } from "node:timers/promises";
  * creates NO client/container/bridge, reads no env, invokes no supplier and never
  * runs standalone. Synthetic result evidence is NOT real geocoding or payment. */
 export async function runWidgetProviderRadiusNativeCases({ prisma, scope, adapter, resetManualShipping,
-  request, address, contact, check, runId, observeWaiters = () => {} }) {
+  request, address, contact, check, runId, loadCheckoutHistory, observeWaiters = () => {} }) {
   assert.deepEqual(scope, { merchantId: "synthetic-merchant", sessionId: "synthetic-checkout" });
   assert.match(runId, /^[a-f0-9-]{36}$/);
   assert.deepEqual(await prisma.$queryRaw`SELECT run_id FROM synthetic_native_marker`, [{ run_id: runId }]);
@@ -211,7 +211,7 @@ export async function runWidgetProviderRadiusNativeCases({ prisma, scope, adapte
   const readCurrent = () => prisma.$transaction(tx => readAcceptedWidgetCheckoutInTransaction(tx, scope));
   async function completedSelection(waiver = false) {
     await prepare();
-    await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer: { ...contact, email_verified: true, address, address_verified: true } } });
+    await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: { customer: { ...contact, email_verified: true, address, address_verified: true } } }));
     if (!waiver) await prisma.$executeRaw`UPDATE own_delivery_configs SET free_above_cents=NULL WHERE merchant_id=${scope.merchantId}`;
     else await prisma.$executeRaw`UPDATE merchant_rules SET allow_free_shipping=true,allow_stack_discount_and_free_shipping=true,
       max_shipping_subsidy=9 WHERE merchant_id=${scope.merchantId}`;
@@ -324,8 +324,8 @@ export async function runWidgetProviderRadiusNativeCases({ prisma, scope, adapte
     const provider = `synthetic-radius-paid-${paymentSequence}`;
     intent.markApproved({ providerPaymentId: provider, approvedAmountCents: totalCents }); await paymentRepo.saveIntent({ intent });
     await prisma.$executeRaw`UPDATE product_prices SET base_price_in_cents=9999 WHERE variant_id='target'`;
-    await prisma.$executeRaw`UPDATE checkout_sessions SET shipping=NULL,shipping_options=NULL,version=version+1,
-      strategy_context_version=strategy_context_version+1 WHERE merchant_id=${scope.merchantId} AND session_id=${scope.sessionId}`;
+    await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET shipping=NULL,shipping_options=NULL,version=version+1,
+      strategy_context_version=strategy_context_version+1 WHERE id='checkout-row' AND merchant_id=${scope.merchantId} AND session_id=${scope.sessionId}`);
     const input = { merchant_id: scope.merchantId, session_id: scope.sessionId, external_order_id: provider, order_total: expectedOrderTotal, currency: "BRL" };
     assert.equal((await completion.executePaymentApproval(input, intent.id)).idempotent, false);
     const orders = await prisma.completedOrder.findMany({ where: scope }); assert.equal(orders.length, 1);

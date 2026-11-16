@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { admitWhatsAppEffectInTransaction } from "../whatsapp/whatsapp-automation-context.js";
 import { z } from "zod";
 import type { StorefrontCart } from "../../modules/storefront/domain/ports/storefront-cart.port.js";
 import { storefrontOptionLineIdentity } from "../../modules/storefront/domain/contracts/storefront-claimed-cart-effect.schemas.js";
@@ -28,6 +29,7 @@ export async function readNormalCheckoutSourceProjection(tx:Prisma.TransactionCl
 }
 async function readProjection(tx:Prisma.TransactionClient,scope:{merchantId:string;cartId:string}){
   const {merchantId,cartId}=z.strictObject({merchantId:reference,cartId:reference}).parse(scope);
+  await admitWhatsAppEffectInTransaction(tx,merchantId);
   // Separate statement is essential: the discovery must acquire a NEW RC
   // snapshot after any wait for an accepting transaction's merchant fence.
   const merchantCount=await tx.$executeRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;

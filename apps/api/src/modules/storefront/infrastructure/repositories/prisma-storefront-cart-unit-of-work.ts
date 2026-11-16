@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { admitWhatsAppEffectInTransaction } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { storefrontWriteScopeSchema } from "../../domain/contracts/storefront-local-cart-write.schemas.js";
 import { StorefrontCartRepositoryCore } from "./prisma-storefront-cart.repository.js";
@@ -98,6 +99,7 @@ export class PrismaStorefrontCartUnitOfWork {
     if (typeof work !== "function") throw new Error("storefront_cart_uow_work_required");
     const beforeCartLock = composition?.beforeCartLock, revalidateCoupon = composition?.revalidateCoupon, couponLifecycle = composition?.couponLifecycle;
     return this.prisma.$transaction(async tx => {
+      await admitWhatsAppEffectInTransaction(tx, scope.merchantId);
       if (beforeCartLock) await beforeCartLock(tx);
       await lockStorefrontCart(tx, scope.merchantId, scope.cartId);
       assertStorefrontCartUnbound(await storefrontCartHasCheckoutBinding(tx, scope.merchantId, scope.cartId));

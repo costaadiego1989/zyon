@@ -3,6 +3,7 @@ import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../..
 import { connectedMetaCloudCredentials } from "../../domain/services/connected-meta-cloud-credentials.js";
 import { StorefrontAttachmentInterpreter } from "../../../storefront/application/services/storefront-attachment-interpreter.service.js";
 import { MetaAudioTranscriptionService, MAX_META_AUDIO_BYTES, isOggOpus } from "./meta-audio-transcription.service.js";
+import { startWhatsAppRequest, WhatsAppAiSuppressedError, type WhatsAppRequestScope } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 
 /** Internal output only: caller MIME never grants the audio-transcript kind. */
 export type MetaInboundMediaResult =
@@ -21,8 +22,10 @@ export class MetaInboundMediaAdapter {
     const config = deviceId.startsWith("META_CLOUD:") ? await this.configs.findById(deviceId.slice(11)) : null;
     const credentials = connectedMetaCloudCredentials(config, merchantId);
     if (!credentials) return undefined;
+    const scope: WhatsAppRequestScope = { kind: "whatsapp", merchantId, configId: config!.id, deviceId,
+      provider: "META_CLOUD", accountId: credentials.phoneNumberId, mediaId: media.id };
     try {
-      const metadata = await fetch(`https://graph.facebook.com/v23.0/${media.id}`, { headers: { Authorization: `Bearer ${credentials.accessToken}` }, redirect: "error", signal: AbortSignal.timeout(8000) });
+      const metadata = await startWhatsAppRequest(scope, () => fetch(`https://graph.facebook.com/v23.0/${media.id}`, { headers: { Authorization: `Bearer ${credentials.accessToken}` }, redirect: "error", signal: AbortSignal.timeout(8000) }));
       if (!metadata.ok) return undefined;
       const info = await metadata.json() as { url?: string; mime_type?: string; file_size?: number };
       const mimeType = (info.mime_type ?? media.mimeType)?.split(";")[0]?.trim().toLowerCase();
@@ -35,7 +38,7 @@ export class MetaInboundMediaAdapter {
       if (!info.url || !Number.isSafeInteger(info.file_size) || info.file_size! <= 0 || info.file_size! > max) return undefined;
       const url = new URL(info.url);
       if (url.protocol !== "https:" || url.username || url.password || !["lookaside.fbsbx.com", "facebook.com", "fbcdn.net"].some(host => url.hostname === host || url.hostname.endsWith(`.${host}`))) return undefined;
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${credentials.accessToken}` }, redirect: "error", signal: AbortSignal.timeout(8000) });
+      const response = await startWhatsAppRequest(scope, () => fetch(url, { headers: { Authorization: `Bearer ${credentials.accessToken}` }, redirect: "error", signal: AbortSignal.timeout(8000) }));
       if (!response.ok || !response.body) return undefined;
       const chunks: Uint8Array[] = []; let length = 0;
       for await (const chunk of response.body as any) {
@@ -53,6 +56,6 @@ export class MetaInboundMediaAdapter {
         : { kind: "shopping_list", name: media.name ?? "Lista de compras", mimeType, text: bytes.toString("utf8") },
       context ? { merchantId, conversationId: context.conversationId } : undefined);
       return attachmentContext ? { kind: "attachment_context", context: attachmentContext } : undefined;
-    } catch { return undefined; }
+    } catch (error) { if (error instanceof WhatsAppAiSuppressedError) throw error;return undefined; }
   }
 }

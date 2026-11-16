@@ -4,6 +4,7 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
+import { currentWhatsAppExecution, startWhatsAppRequest } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import type { WhatsAppSenderPort, WhatsAppOutboundMessage, WhatsAppSendResult } from "../../domain/ports/whatsapp-sender.port.js";
 
 @Injectable()
@@ -31,7 +32,8 @@ export class BubbleWhatsSenderAdapter implements WhatsAppSenderPort {
     const jid = `${number}@s.whatsapp.net`;
 
     try {
-      const response = await fetch(`${this.baseUrl}/send-message`, {
+      const frame = currentWhatsAppExecution();
+      const submit = () => fetch(`${this.baseUrl}/send-message`, {
         method: "POST",
         redirect: "error",
         signal: AbortSignal.timeout(15_000),
@@ -44,6 +46,9 @@ export class BubbleWhatsSenderAdapter implements WhatsAppSenderPort {
           message: msg.text,
         }),
       });
+      const response = frame ? await startWhatsAppRequest({ kind: "whatsapp", merchantId: frame.authority.merchantId,
+        configId: frame.authority.configId, deviceId: msg.deviceId, provider: "BUBBLEWHATS",
+        accountId: msg.deviceId, recipient: msg.toNumber }, submit) : await submit();
 
       if (response.ok) {
         const data = await response.json().catch(() => ({})) as Record<string, unknown>;

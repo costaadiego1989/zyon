@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createDisposablePostgres } from "./local-disposable-postgres.mjs";
 import { inspectNativePrismaClient, nativePrismaWorkerEnvironment, assertNativePrismaUrl, terminateOwnedNativeWorker } from "./native-prisma-admission-guards.mjs";
+import { installCheckoutSessionVersionTrigger } from "./checkout-session-version-trigger.mjs";
 
 assert.deepEqual(process.argv.slice(2).sort(), ["--local-disposable", "--prisma-loopback-exec"].sort(), "explicit_widget_checkout_native_flags_required");
 const apiRoot = fileURLToPath(new URL("../", import.meta.url)), safety = inspectNativePrismaClient(apiRoot);
@@ -16,6 +17,7 @@ try {
   await db.sql(`CREATE TABLE synthetic_native_marker(run_id TEXT PRIMARY KEY); INSERT INTO synthetic_native_marker VALUES ('${db.runId}');`);
   for (const fixture of ["legacy-prisma/checkout-payment.sql", "widget-cross-sell-checkout/synthetic.sql", "widget-cross-sell-checkout/payment.sql"])
     await db.sql(await readFile(new URL(`./fixtures/${fixture}`, import.meta.url), "utf8"));
+  await installCheckoutSessionVersionTrigger(db);
   worker = spawn(process.execPath, ["--max-old-space-size=256", "--import", new URL("./test-network-guard.mjs", import.meta.url).href,
     "--loader", new URL("./ready-prod-loader.mjs", import.meta.url).href,
     fileURLToPath(new URL("./widget-cross-sell-checkout.native-worker.mjs", import.meta.url)), db.prismaUrl, db.runId],

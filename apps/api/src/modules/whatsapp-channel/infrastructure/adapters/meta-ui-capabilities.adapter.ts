@@ -5,6 +5,7 @@ import { MetaNativeAssetsService } from "../../application/services/meta-native-
 import { Optional } from "@nestjs/common";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
+import { startWhatsAppRequest, WhatsAppAiSuppressedError, type WhatsAppRequestScope } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 
 export interface MetaUiCapabilities { catalogId?: string; catalogRetailerIds: Record<string, string>; catalogPrices?: Record<string, number>; flowIds: Record<string, string>; checkedAt: number }
 
@@ -24,7 +25,8 @@ export class MetaUiCapabilitiesAdapter {
     const key = `${merchantId}:${config!.id}:${credentials.wabaId}`;
     let pending = (this.expires.get(key) ?? 0) > Date.now() ? this.cache.get(key) : undefined;
     if (!pending) {
-      pending = this.discover(credentials).then(result => {
+      pending = this.discover(credentials, { kind: "whatsapp", merchantId, configId: config!.id, deviceId,
+        provider: "META_CLOUD", accountId: credentials.phoneNumberId }).then(result => {
         this.expires.set(key, Date.now() + (result.catalogId ? 1 : Object.keys(result.flowIds).length >= 2 ? 60 : 1) * 60_000);
         if (Object.keys(result.flowIds).length < 2) this.nativeAssets?.enqueue(merchantId, config!.id);
         return result;
@@ -45,13 +47,13 @@ export class MetaUiCapabilitiesAdapter {
     return result;
   }
 
-  private async discover(c: { accessToken: string; wabaId: string; catalogAccessToken?: string }): Promise<MetaUiCapabilities> {
+  private async discover(c: { accessToken: string; wabaId: string; catalogAccessToken?: string }, scope: WhatsAppRequestScope): Promise<MetaUiCapabilities> {
     const result: MetaUiCapabilities = { catalogRetailerIds: {}, flowIds: {}, checkedAt: Date.now() };
     const get = async (path: string, accessToken = c.accessToken): Promise<any> => {
       try {
-        const response = await fetch(`https://graph.facebook.com/v23.0/${path}`, { headers: { Authorization: `Bearer ${accessToken}` }, redirect: "error", signal: AbortSignal.timeout(8000) });
+        const response = await startWhatsAppRequest(scope, () => fetch(`https://graph.facebook.com/v23.0/${path}`, { headers: { Authorization: `Bearer ${accessToken}` }, redirect: "error", signal: AbortSignal.timeout(8000) }));
         return response.ok ? response.json() : {};
-      } catch { return {}; }
+      } catch (error) { if (error instanceof WhatsAppAiSuppressedError) throw error;return {}; }
     };
     const [catalogs, flows] = await Promise.all([
       get(`${c.wabaId}/product_catalogs?fields=id&limit=2`, c.catalogAccessToken ?? c.accessToken),

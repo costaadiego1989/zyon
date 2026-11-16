@@ -38,6 +38,8 @@ export class WhatsAppHumanIntakeService {
     return turn?.origin === "voice" ? turn.message : undefined;
   }
 
+  currentClaim() { return this.delivery.currentClaim(); }
+
   async requestVoice(input: IncomingMessageInput, interpreted: MetaInboundMediaResult | undefined): Promise<WhatsAppHumanNotice | undefined> {
     const turn = this.context.current();
     if (!turn || interpreted?.kind !== "audio_transcript" || !interpreted.scope || !input.metaMedia || typeof interpreted.text !== "string"

@@ -1,3 +1,4 @@
+import { startWhatsAppPaymentRequest } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 import { assertStandardCancellationInput, exactCancellationAmount, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
@@ -116,18 +117,18 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     // account is rejected with 2059; all funds already reach the platform.
     // Never infer this from token syntax or merchant-supplied account IDs.
     const [sellerId, platformId] = this.platformAccount
-      ? await Promise.all([this.authenticatedAccountId(), this.platformAccount.authenticatedAccountId()])
+      ? await Promise.all([this.authenticatedAccountId(input.merchantId), this.platformAccount.authenticatedAccountId(input.merchantId)])
       : [];
     return { ...input, mercadoPagoFeeMode: sellerId && platformId && sellerId === platformId ? "same_account" : "split" };
   }
 
-  private authenticatedAccountId(): Promise<string | undefined> {
+  private authenticatedAccountId(merchantId: string): Promise<string | undefined> {
     this.accountIdPromise ??= (async () => {
       try {
-        const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/users/me`, {
+        const response = await startWhatsAppPaymentRequest(merchantId, () => this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/users/me`, {
           headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" },
           redirect: "error", signal: AbortSignal.timeout(5_000),
-        });
+        }));
         if (!response.ok) return undefined;
         const user = await response.json() as { id?: unknown };
         const id = String(user.id ?? "");
@@ -144,9 +145,9 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     assertStandardCancellationInput(input, "mercadopago", this.creationAccountFingerprint());
     const p = input.payment;
     if (p.method !== "pix" || !/^\d+$/.test(input.providerPaymentId)) return { state: "unsupported" };
-    const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`, {
+    const response = await startWhatsAppPaymentRequest(input.payment.merchantId, () => this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`, {
       headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(15_000),
-    });
+    }));
     if (!response.ok) throw new Error("payment_cancellation_status_unavailable");
     const payment = await response.json() as { id?: number | string; external_reference?: string; currency_id?: string;
       transaction_amount?: number; payment_method_id?: string; status?: string; metadata?: { intent_id?: string; merchant_id?: string; session_id?: string } };
@@ -163,10 +164,10 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
   async cancelPendingPayment(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
     const before = await this.readCancellationStatus(input);
     if (before.state !== "pending") return before;
-    const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`, {
+    const response = await startWhatsAppPaymentRequest(input.payment.merchantId, () => this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`, {
       method: "PUT", headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json", "content-type": "application/json",
         "X-Idempotency-Key": input.idempotencyKey }, body: JSON.stringify({ status: "cancelled" }), redirect: "error", signal: AbortSignal.timeout(15_000),
-    });
+    }));
     if (!response.ok) return { state: "unknown" };
     return this.readCancellationStatus(input);
   }
@@ -176,9 +177,9 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       return this.recoverHostedCardPreference(input);
     }
     const query = new URLSearchParams({ external_reference: input.intentId, limit: "100", sort: "date_created", criteria: "desc" });
-    const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/search?${query}`, {
+    const response = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/search?${query}`, {
       headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(15_000),
-    });
+    }));
     if (!response.ok) throw new Error("mercadopago_payment_recovery_failed");
     const body = await response.json() as { results?: MercadoPagoPayment[]; paging?: { total?: number } };
     if (!Array.isArray(body.results) || body.results.length > 1 || (body.paging?.total ?? 0) > 1) throw new Error("mercadopago_payment_recovery_ambiguous");
@@ -199,10 +200,10 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     // never POST another charge just to obtain its Pix presentation data.
     if (input.method === "pix" && (!payment.point_of_interaction?.transaction_data?.qr_code?.trim() ||
       !payment.point_of_interaction?.transaction_data?.qr_code_base64?.trim())) {
-      const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(id)}`, {
+      const response = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(id)}`, {
         headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" },
         redirect: "error", signal: AbortSignal.timeout(15_000),
-      });
+      }));
       if (!response.ok) throw new Error(`mercadopago_payment_details_failed:${response.status}`);
       const details = await response.json() as MercadoPagoPayment;
       if (String(details.id ?? "") !== id || details.external_reference !== input.intentId ||
@@ -230,13 +231,13 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
     const base = this.apiBaseUrl.replace(/\/+$/, "");
-    const res = await this.fetchImpl(`${base}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`, {
+    const res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`, {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
         accept: "application/json"
       },
       signal: AbortSignal.timeout(15_000)
-    });
+    }));
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
@@ -271,13 +272,13 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     if (!/^\d+$/.test(input.providerPaymentId)) return { state: "blocked" };
     const url = `${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`;
     const headers = { Authorization: `Bearer ${this.accessToken}`, accept: "application/json", "Content-Type": "application/json" };
-    const current = await this.fetchImpl(url, { headers, redirect: "error", signal: AbortSignal.timeout(15_000) });
+    const current = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(url, { headers, redirect: "error", signal: AbortSignal.timeout(15_000) }));
     if (!current.ok) return { state: "unknown" };
     const payment = await current.json() as { status?: string };
     if (payment.status === "cancelled") return { state: "cancelled" };
     if (payment.status !== "pending") return { state: "blocked" };
-    const response = await this.fetchImpl(url, { method: "PUT", headers, body: JSON.stringify({ status: "cancelled" }),
-      redirect: "error", signal: AbortSignal.timeout(15_000) });
+    const response = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(url, { method: "PUT", headers, body: JSON.stringify({ status: "cancelled" }),
+      redirect: "error", signal: AbortSignal.timeout(15_000) }));
     if (!response.ok) return { state: "unknown" };
     return { state: (await response.json() as { status?: string }).status === "cancelled" ? "cancelled" : "unknown" };
   }
@@ -307,7 +308,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
 
     let res: Response;
     try {
-      res = await this.fetchImpl(`${base}/v1/payments`, {
+      res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/v1/payments`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
@@ -317,7 +318,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(15_000)
-      });
+      }));
     } catch (error) {
       // A lost response may already have created the charge. Recover using GET
       // before making the buyer retry, preserving the original intent and key.
@@ -383,7 +384,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     };
     if (!body.payer) delete body.payer;
 
-    const res = await this.fetchImpl(`${base}/checkout/preferences`, {
+    const res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/checkout/preferences`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
@@ -393,7 +394,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15_000),
-    });
+    }));
     if (!res.ok) throw new Error(`mercadopago_checkout_preference_create_failed:${res.status}`);
     const preference = await res.json() as { id?: string; init_point?: string; sandbox_init_point?: string };
     const providerPaymentId = typeof preference.id === "string" ? preference.id : "";
@@ -408,11 +409,11 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
 
   private async recoverHostedCardPreference(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput | null> {
     const query = new URLSearchParams({ external_reference: input.intentId, limit: "100" });
-    const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/checkout/preferences/search?${query}`, {
+    const response = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/checkout/preferences/search?${query}`, {
       headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" },
       redirect: "error",
       signal: AbortSignal.timeout(15_000),
-    });
+    }));
     if (!response.ok) throw new Error("mercadopago_preference_recovery_failed");
     const result = await response.json() as {
       results?: Array<{
@@ -449,7 +450,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
   }
 
   async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string; idempotencyKey?: string }) {
-    const res = await this.fetchImpl(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(input.providerPaymentId)}/refunds`, {
+    const res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(input.providerPaymentId)}/refunds`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -458,7 +459,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       },
       body: JSON.stringify({ amount: input.amountCents / 100 }),
       signal: AbortSignal.timeout(15_000)
-    });
+    }));
     if (!res.ok) {
       const err = await res.text().catch(() => "");
       throw new Error(`mercadopago_refund_failed: ${res.status} ${err}`);

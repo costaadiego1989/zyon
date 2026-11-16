@@ -4,6 +4,7 @@ import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../..
 import { connectedMetaCloudCredentials } from "../../domain/services/connected-meta-cloud-credentials.js";
 import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
 import { MetaCloudImageUploadAdapter } from "./meta-cloud-image-upload.adapter.js";
+import { startWhatsAppRequest, type WhatsAppRequestScope } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 
 @Injectable()
 export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
@@ -18,18 +19,20 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
     const credentials = config && connectedMetaCloudCredentials(config, config.merchantId);
     const recipient = whatsappE164(msg.toNumber);
     if (!credentials || !recipient) return { messageId: "", status: "failed" };
+    const requestScope: WhatsAppRequestScope = { kind: "whatsapp", merchantId: config!.merchantId, configId: config!.id,
+      deviceId: msg.deviceId, provider: "META_CLOUD", accountId: credentials.phoneNumberId, recipient };
     let body: string;
     try {
-      body = JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), ...(msg.correlationId ? { biz_opaque_callback_data: msg.correlationId } : {}), ...await this.messagePayload(msg, credentials) });
+      body = JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), ...(msg.correlationId ? { biz_opaque_callback_data: msg.correlationId } : {}), ...await this.messagePayload(msg, credentials, requestScope) });
     } catch {
       return { messageId: "", status: "failed" };
     }
     try {
-      const response = await fetch(`${this.graph}/${credentials.phoneNumberId}/messages`, {
+      const response = await startWhatsAppRequest(requestScope, () => fetch(`${this.graph}/${credentials.phoneNumberId}/messages`, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
         body,
-      });
+      }));
       if (!response.ok) {
         this.logger.error(`Meta Cloud text send failed: HTTP ${response.status}`);
         return { messageId: "", status: response.status >= 500 || response.status === 408 ? "unknown" : "failed" };
@@ -48,7 +51,7 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
     return this.sendText({ ...msg, uiMessage: { type, media: { link: msg.mediaUrl, caption: msg.text || undefined } } });
   }
 
-  private async messagePayload(msg: WhatsAppOutboundMessage, credentials: { phoneNumberId: string; accessToken: string }): Promise<Record<string, unknown>> {
+  private async messagePayload(msg: WhatsAppOutboundMessage, credentials: { phoneNumberId: string; accessToken: string }, scope: WhatsAppRequestScope): Promise<Record<string, unknown>> {
     const ui = msg.uiMessage;
     if (!ui) return { type: "text", text: { body: msg.text } };
     if (ui.type === "text") return { type: "text", text: ui.text };
@@ -57,7 +60,7 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
     if (link.protocol !== "https:" || link.username || link.password) throw new Error("whatsapp_media_url_invalid");
     if (ui.type === "sticker") return { type: "sticker", sticker: { link: link.href } };
     if (ui.type === "image" && this.images) {
-      const id = await this.images.prepare({ link: link.href, graph: this.graph, ...credentials });
+      const id = await this.images.prepare({ link: link.href, graph: this.graph, scope, ...credentials });
       if (id) return { type: "image", image: { id, ...(ui.media.caption ? { caption: ui.media.caption } : {}) } };
     }
     return { type: ui.type, [ui.type]: ui.media };

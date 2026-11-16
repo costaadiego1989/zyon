@@ -1,3 +1,4 @@
+import { admitWhatsAppEffectInTransaction } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 /**
  * SUPP-H3: Handoff logic — ticket creation + message formatting.
  */
@@ -91,6 +92,7 @@ export class SupportHandoffService {
           merchantId: input.merchantId, ticketId, questionMessageId: id } } : {}) });
     };
     const result = await this.prisma!.$transaction(async tx => {
+      await admitWhatsAppEffectInTransaction(tx, candidate.merchantId);
       const sessionId = candidate.sessionId;
       if (sessionId) await lockSupportResource(tx, `support-session:${candidate.merchantId}:${sessionId}`);
       await lockSupportResource(tx, `support-open:${candidate.merchantId}:${input.buyerId || sessionId || candidate.id}`);
@@ -169,6 +171,7 @@ export class SupportHandoffService {
   async linkBuyerConversation(merchantId: string, sessionId: string, buyerId: string): Promise<{ linked: number }> {
     if (!this.prisma) return { linked: 0 };
     return this.prisma.$transaction(async tx => {
+      await admitWhatsAppEffectInTransaction(tx, merchantId);
       await lockSupportResource(tx, `support-session:${merchantId}:${sessionId}`);
       const linked = await tx.supportTicket.updateMany({ where: { merchantId, sessionId, source: "widget", buyerId: null }, data: { buyerId } });
       const active = await tx.supportTicket.findMany({ where: { merchantId, sessionId, buyerId, source: "widget",

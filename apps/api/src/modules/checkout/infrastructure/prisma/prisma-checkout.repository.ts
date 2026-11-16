@@ -1,3 +1,4 @@
+import { admitWhatsAppEffectInTransaction, currentWhatsAppExecution } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import { hasPreparedCheckoutPayment } from "../checkout-payment-scope.js";
 import { resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
 import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
@@ -98,7 +99,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async verifyEmailOtpAndRecognize(scope: CheckoutEmailOtpVerificationScope, command: CheckoutEmailOtpVerificationCommand,
     claim?: ChatExchangeClaim): Promise<CheckoutSession | undefined> {
     const scoped = structuredClone(scope), input = structuredClone(command), ownedClaim = claim ? structuredClone(claim) : undefined;
-    const work = (tx: Prisma.TransactionClient) => verifyNormalCheckoutEmailOtpInTransaction(tx, scoped, input, ownedClaim);
+    const work = async (tx: Prisma.TransactionClient) => { await admitWhatsAppEffectInTransaction(tx, scoped.merchantId); return verifyNormalCheckoutEmailOtpInTransaction(tx, scoped, input, ownedClaim); };
     return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
   }
 
@@ -112,7 +113,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async detachNormalBuyerEmail(scope: CheckoutEmailOtpVerificationScope, command: { expectedVersion: number; email: string },
     claim?: ChatExchangeClaim): Promise<CheckoutSession | undefined> {
     const scoped = structuredClone(scope), input = structuredClone(command), ownedClaim = claim ? structuredClone(claim) : undefined;
-    const work = (tx: Prisma.TransactionClient) => detachNormalCheckoutBuyerEmailInTransaction(tx, scoped, input, ownedClaim);
+    const work = async (tx: Prisma.TransactionClient) => { await admitWhatsAppEffectInTransaction(tx, scoped.merchantId); return detachNormalCheckoutBuyerEmailInTransaction(tx, scoped, input, ownedClaim); };
     return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
   }
 
@@ -182,12 +183,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async reviseIncentiveForPaymentReview(merchantId: string, sessionId: string): Promise<CheckoutSession | undefined> {
-    const work = (tx: Prisma.TransactionClient) => reviseIncentiveForPaymentReview(tx, merchantId, sessionId);
+    const work = async (tx: Prisma.TransactionClient) => { await admitWhatsAppEffectInTransaction(tx, merchantId); return reviseIncentiveForPaymentReview(tx, merchantId, sessionId); };
     return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
   }
 
   async prepareProgressiveIncentivePayment(merchantId: string, sessionId: string, method: string): Promise<CheckoutSession | undefined> {
-    const work = (tx: Prisma.TransactionClient) => prepareProgressiveIncentivePayment(tx, merchantId, sessionId, method);
+    const work = async (tx: Prisma.TransactionClient) => { await admitWhatsAppEffectInTransaction(tx, merchantId); return prepareProgressiveIncentivePayment(tx, merchantId, sessionId, method); };
     const row = await (this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work));
     return row ? toCheckoutSession(row) : undefined;
   }
@@ -219,6 +220,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async resolveGlobalUserId(merchantId: string, customer?: CustomerHints): Promise<string> {
     const identityKey = CheckoutIdentityService.identityKey(merchantId, customer);
     if (!identityKey) return `usr_${crypto.randomUUID()}`;
+    if (currentWhatsAppExecution() && !this.inTransaction) return this.transaction(async repository => repository.resolveGlobalUserId(merchantId, customer));
+    await admitWhatsAppEffectInTransaction(this.prisma, merchantId);
     const localKey = identityKey.slice(`${merchantId}:`.length);
     const row = await this.prisma.buyerIdentity.upsert({
       where: { merchantId_identityKey: { merchantId, identityKey: localKey } },
@@ -233,6 +236,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     assertNoCheckoutCouponBindingInput(session.cart);
     const snapshot = structuredClone(session);
     const write = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, snapshot.merchantId);
       const scope = { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId };
       if (incentiveExecutionEnabled(scope.merchantId)) await lockExecutionMerchant(tx, scope.merchantId);
       await lockCheckoutSessionAnchor(tx, scope.merchantId, scope.sessionId);
@@ -277,6 +281,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     assertNoCheckoutCouponBindingInput(input.next.cart);
     input = structuredClone(input);
     const work = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, input.expected.merchantId);
       const { merchantId, sessionId } = input.expected;
       await lockExecutionMerchant(tx, merchantId);
       await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id=${merchantId} FOR UPDATE`;
@@ -362,6 +367,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       throw new Error("CHAT_SESSION_SCOPE_CONFLICT");
     }
     const write = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, session.merchantId);
       if (incentiveExecutionEnabled(session.merchantId)) await lockExecutionMerchant(tx, session.merchantId);
       await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${session.merchantId}
@@ -413,6 +419,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
 
   async prepareStorefrontCouponBenefits(merchantId: string, sessionId: string, method: string): Promise<CheckoutSession | undefined> {
     const work = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, merchantId);
       await lockExecutionMerchant(tx, merchantId);
       await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id=${merchantId} FOR UPDATE`;
       await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
@@ -441,6 +448,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
 
   async reopenForBuyerEdit(merchantId: string, sessionId: string, section: import("@zyon/shared-types").CheckoutEditSection): Promise<CheckoutSession> {
     const work = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, merchantId);
       await lockExecutionMerchant(tx, merchantId);
       await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
@@ -491,6 +499,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     assertNoCheckoutCouponBindingInput(session.cart);
     assertNoCheckoutCouponBindingInput(expected.cart);
     const work = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, session.merchantId);
       const { merchantId, sessionId } = expected;
       // Payment admission takes this same merchant lock before validating the quote.
       await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchantId} FOR UPDATE`;
@@ -526,6 +535,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     session = structuredClone(session);
     if (strategyExecutionEnabled(session.merchantId) || incentiveExecutionEnabled(session.merchantId)) {
       const create = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, session.merchantId);
         // The store lock orders activation, creation, enrollment and stopping.
         // Timestamp AFTER taking it, so concurrent starts cannot backdate the
         // first eligible session or enroll a buyer from a later session.
@@ -543,6 +553,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       return this.inTransaction ? create(this.prisma) : (this.prisma as PrismaClient).$transaction(create);
     }
     const create = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, session.merchantId);
       await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
       const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
       const previous = await tx.checkoutSession.findUnique({ where });
@@ -612,6 +623,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): Promise<void> {
     if (!event) return; // Guard: missing event name should not 500
     const write = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, merchantId);
       await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
         AND session_id = ${sessionId} FOR UPDATE`;
@@ -652,6 +664,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): Promise<CheckoutSession> {
     turn = structuredClone(turn);
     const write = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, merchantId);
       await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
         AND session_id = ${sessionId} FOR UPDATE`;
@@ -694,6 +707,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     if (input.buyer.role !== "buyer" || input.agent.role !== "agent"
       || typeof input.buyer.text !== "string" || typeof input.agent.text !== "string") throw new Error("CHAT_EXCHANGE_INVALID");
     const write = async (tx: Prisma.TransactionClient) => {
+      await admitWhatsAppEffectInTransaction(tx, input.merchantId);
       await lockCheckoutSessionAnchor(tx, input.merchantId, input.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${input.merchantId}
         AND session_id = ${input.sessionId} FOR UPDATE`;
@@ -750,6 +764,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async saveOffer(offer: AuthorizedOffer): Promise<AuthorizedOffer> {
+    if (currentWhatsAppExecution() && !this.inTransaction) return this.transaction(async repository => repository.saveOffer(offer));
+    await admitWhatsAppEffectInTransaction(this.prisma, offer.merchantId);
     const row = await this.prisma.authorizedOffer.upsert({
       where: { id: offer.id },
       create: toAuthorizedOfferCreate(offer),
@@ -764,6 +780,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async saveAcceptedOffer(acceptedOffer: AcceptedOffer): Promise<void> {
+    if (currentWhatsAppExecution() && !this.inTransaction) return this.transaction(async repository => repository.saveAcceptedOffer(acceptedOffer));
+    await admitWhatsAppEffectInTransaction(this.prisma, acceptedOffer.merchantId);
     await this.prisma.acceptedOffer.upsert({
       where: {
         merchantId_sessionId_offerId: {
@@ -786,6 +804,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
 
   async saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> {
     if (!this.inTransaction) return this.transaction(async (repository) => repository.saveCompletedOrder(order));
+    await admitWhatsAppEffectInTransaction(this.prisma, order.merchantId);
     // ON CONFLICT keeps the surrounding order/outbox transaction usable when a
     // concurrent delivery wins. Catching a unique violation would leave PostgreSQL aborted.
     const inserted = await this.prisma.completedOrder.createMany({
@@ -839,6 +858,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     externalOrderId: string;
     trackingCode: string;
   }): Promise<CompletedOrder | undefined> {
+    if (currentWhatsAppExecution() && !this.inTransaction) return this.transaction(async repository => repository.updateCompletedOrderTracking(input));
+    await admitWhatsAppEffectInTransaction(this.prisma, input.merchantId);
     try {
       const row = await this.prisma.completedOrder.update({
         where: {
@@ -863,6 +884,9 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     externalOrderId: string;
     status: CompletedOrderStatus;
   }): Promise<CompletedOrder | undefined> {
+    if (currentWhatsAppExecution() && !this.inTransaction) return (this.prisma as PrismaClient).$transaction(tx =>
+      new PrismaCheckoutRepository(tx, true, this.orderQuota).updateCompletedOrderStatus(input));
+    await admitWhatsAppEffectInTransaction(this.prisma, input.merchantId);
     try {
       const row = await this.prisma.completedOrder.update({
         where: {
@@ -888,6 +912,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     reason: string;
     cancelledAt: string;
   }): Promise<{ order: CompletedOrder; idempotent: boolean } | undefined> {
+    if (currentWhatsAppExecution() && !this.inTransaction) return this.transaction(async repository => repository.cancelCompletedOrder(input));
+    await admitWhatsAppEffectInTransaction(this.prisma, input.merchantId);
     const existing = await this.getCompletedOrder(
       input.merchantId,
       input.sessionId,

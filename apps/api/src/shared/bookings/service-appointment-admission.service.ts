@@ -8,6 +8,7 @@ import { lockServiceProfessional } from "./service-professional-lock.js";
 import { assertProfessionalLease, type ProfessionalLeaseOwner } from "./professional-service-lease.js";
 import { professionalSlotId, type ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
 import { hasUnclassifiedServiceReservations } from "./service-legacy-readiness.js";
+import { admitWhatsAppEffectInTransaction } from "../whatsapp/whatsapp-automation-context.js";
 
 export interface ServiceAppointmentAdmissionInput {
   merchantId: string;
@@ -129,6 +130,7 @@ export async function admitServiceAppointment(
     throw new BadRequestException("service_appointment_transaction_required");
   input = { ...input, customer: normalizedCustomer(input.customer) };
   assertInput(input);
+  await admitWhatsAppEffectInTransaction(tx, input.merchantId);
   const fingerprint = requestFingerprint(input);
   const merchantLock = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM merchants WHERE id = ${input.merchantId} FOR UPDATE`;
   if (merchantLock.length !== 1) throw new NotFoundException("merchant_not_found");

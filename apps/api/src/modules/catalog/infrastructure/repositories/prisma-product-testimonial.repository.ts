@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { withWhatsAppEffectTransaction } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import type { ProductTestimonialRepositoryPort } from "../../domain/ports/product-testimonial-repository.port.js";
 import {
   ProductTestimonialEntity,
@@ -49,7 +50,7 @@ export class PrismaProductTestimonialRepository
   }
 
   async create(input: any, _actor: any): Promise<ProductTestimonialEntity> {
-    const row = await this.prisma.productTestimonial.create({
+    const row = await withWhatsAppEffectTransaction(this.prisma, _actor?.merchantId, tx => tx.productTestimonial.create({
       data: {
         productId: input.productId,
         authorName: input.authorName,
@@ -63,7 +64,7 @@ export class PrismaProductTestimonialRepository
         isPublished: input.isPublished ?? false,
         locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       },
-    });
+    }));
     return this.toEntity(row);
   }
 

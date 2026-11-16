@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { withWhatsAppEffectTransaction } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import {
   REVIEW_REPOSITORY,
   type ReviewRepositoryPort,
@@ -13,7 +14,7 @@ export class PrismaReviewRepository implements ReviewRepositoryPort {
   constructor(private prisma: PrismaClient) {}
 
   async create(input: CreateReviewInput): Promise<ProductReview> {
-    const review = await this.prisma.productReview.create({
+    const review = await withWhatsAppEffectTransaction(this.prisma, input.merchantId, tx => tx.productReview.create({
       data: {
         merchantId: input.merchantId,
         productId: input.productId,
@@ -25,7 +26,7 @@ export class PrismaReviewRepository implements ReviewRepositoryPort {
         moderationStatus: "pending",
         approved: false,
       },
-    });
+    }));
 
     return this.mapToDomain(review);
   }

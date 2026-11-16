@@ -7,6 +7,7 @@ import { REDIS_CLIENT_TOKEN } from "../../shared/cache/redis.module.js";
 import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { configureAiMetering, type AiMeteringContext } from "../../shared/ai-metering.js";
 import { configureAiAutomation } from "../../shared/ai-automation.js";
+import { startWhatsAppRequest, WhatsAppAiSuppressedError } from "../../shared/whatsapp/whatsapp-automation-context.js";
 import { AiGovernanceService } from "../ai-governance/ai-governance.service.js";
 import { decimalMicros, estimateCost, normalizeUsage, object, providerName, ratesAt, type Usage, type Rates } from "./usage.js";
 
@@ -67,8 +68,12 @@ export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
     const scope = credentialScope(provider, headers.get("authorization") ?? "local");
     const row = await this.begin(context, provider, String(body.model ?? "unknown"), scope, "chat", url.endsWith("/embeddings") ? "embedding" : "text_generation");
     let response: Response;
-    try { response = await transport(input, init); }
-    catch (error) { await this.completeSafely({ id: row.id, payload: {}, status: "unknown", endedAt: new Date().toISOString() }); throw error; }
+    try { response = await startWhatsAppRequest({ kind: "model", merchantId: context.merchantId }, () => transport(input, init)); }
+    catch (error) {
+      if (error instanceof WhatsAppAiSuppressedError) await this.notSubmitted(row);
+      else await this.completeSafely({ id: row.id, payload: {}, status: "unknown", endedAt: new Date().toISOString() });
+      throw error;
+    }
     if (!response.ok) {
       await this.completeSafely({ id: row.id, payload: {}, status: response.status >= 400 && response.status < 500 ? "rejected" : "unknown",
         gatewayFailure: await gatewayFailure(response), endedAt: new Date().toISOString() });
@@ -120,8 +125,9 @@ export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
       throw error;
     }
     let response: Response;
-    try { response = await transport(input, init); }
-    catch {
+    try { response = await startWhatsAppRequest({ kind: "model", merchantId: context.merchantId }, () => transport(input, init)); }
+    catch (error) {
+      if (error instanceof WhatsAppAiSuppressedError) { await this.notSubmitted(row); throw error; }
       await this.completeSafely({ id: row.id, payload: {}, status: "unknown", endedAt: new Date().toISOString() });
       throw new Error("audio_transcription_provider_unavailable");
     }
@@ -139,6 +145,13 @@ export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
     const measured = await this.db.aiUsageEvent.findUnique({ where: { id: row.id } });
     if (!known || !measured?.usageKnown || measured.costStatus === "unpriced") throw new Error("audio_transcription_metering_unconfirmed");
     return response;
+  }
+
+  /** The canonical attempt exists, but the original turn lost admission before
+   * transport start. Preserve its permanent key; this is not provider usage. */
+  private async notSubmitted(row: AiUsageEvent): Promise<void> {
+    await this.db.aiUsageEvent.update({ where: { id: row.id }, data: { executionStatus: "suppressed", usageKnown: false,
+      costMicros: 0, costStatus: "not_submitted", completedAt: new Date() } });
   }
 
   async complete(input: Completion) {

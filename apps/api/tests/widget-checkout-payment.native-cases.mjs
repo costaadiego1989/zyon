@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 /** Called ONLY by the existing guarded disposable worker, after its marker and
  * environment proof. Real Prisma/transactions; synthetic internal approval is
  * NOT a signed webhook, provider charge, HTTP journey or production proof. */
-export async function runWidgetCheckoutPaymentNativeCases({ prisma, scope, adapter, resetManualShipping, request, contact, address, check, runId }) {
+export async function runWidgetCheckoutPaymentNativeCases({ prisma, scope, adapter, resetManualShipping, request, contact, address, check, runId, loadCheckoutHistory }) {
   assert.deepEqual(scope, { merchantId: "synthetic-merchant", sessionId: "synthetic-checkout" });
   assert.deepEqual(await prisma.$queryRaw`SELECT run_id FROM synthetic_native_marker`, [{ run_id: runId }]);
   const { PaymentIntentEntity } = await import("../src/modules/payment/domain/payment-intent.entity.ts");
@@ -23,8 +23,8 @@ export async function runWidgetCheckoutPaymentNativeCases({ prisma, scope, adapt
   async function prepare() {
     await prisma.completedOrder.deleteMany({ where: scope });
     await resetManualShipping();
-    await prisma.checkoutSession.update({ where: { merchantId_sessionId: scope },
-      data: { customer: { ...contact, email_verified: true, address, address_verified: true } } });
+    await loadCheckoutHistory(tx => tx.checkoutSession.update({ where: { merchantId_sessionId: scope },
+      data: { customer: { ...contact, email_verified: true, address, address_verified: true } } }));
     await adapter.accept(scope, { expectedQuote: await adapter.quote(scope, request) });
     await adapter.quoteManualShipping(scope, { expectedVersion: 5 });
     const row = await prisma.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: scope } });
@@ -89,8 +89,9 @@ export async function runWidgetCheckoutPaymentNativeCases({ prisma, scope, adapt
   await check("actual paid order freezes P+D, contacts and fee exclusion after checkout/catalog mutation; retry exactly once", async () => {
     const { intent } = await prepare(); await paymentRepo.saveIntent({ intent }); const input = await approve(intent);
     await prisma.$executeRaw`UPDATE product_prices SET base_price_in_cents=9999 WHERE variant_id='target'`;
-    await prisma.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{email}','"changed@example.test"'::jsonb),
-      shipping_options=NULL,strategy_context_version=strategy_context_version+1,version=version+1`;
+    await loadCheckoutHistory(tx => tx.$executeRaw`UPDATE checkout_sessions SET customer=jsonb_set(customer,'{email}','"changed@example.test"'::jsonb),
+      shipping_options=NULL,strategy_context_version=strategy_context_version+1,version=version+1
+      WHERE id='checkout-row' AND merchant_id=${scope.merchantId} AND session_id=${scope.sessionId}`);
     assert.equal((await completion.executePaymentApproval(input, intent.id)).idempotent, false);
     const orders = await prisma.completedOrder.findMany({ where: scope }); assert.equal(orders.length, 1);
     assert.equal(Number(orders[0].orderTotal), 127); assert.equal(orders[0].shippingCents, 900);

@@ -14,11 +14,13 @@ import {
   WHATSAPP_SESSION_REPOSITORY,
   type WhatsAppSessionRepository,
   type WhatsAppSessionEntity,
+  type WhatsAppRoutingCheckoutWriter,
 } from "../../domain/ports/whatsapp-session-repository.port.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
+import { createWhatsAppRoutingCheckoutWithin } from "../../infrastructure/repositories/whatsapp-routing-checkout.js";
 import { createHash } from "node:crypto";
+import { currentWhatsAppExecution, withWhatsAppEffectTransaction, WhatsAppAiSuppressedError } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -57,16 +59,23 @@ export class RouteToSessionUseCase {
     // 1. Auto-register buyer if not exists
     const buyerData = await this.ensureBuyerExists(input.merchantId, phone, globalUserId, input.fromAlias, input.deviceId.startsWith("META_CLOUD:"));
 
-    const route = (repository: WhatsAppSessionRepository) => this.routeBuyer(input, phone, buyerData, repository);
+    const route = (repository: WhatsAppSessionRepository, checkout?: WhatsAppRoutingCheckoutWriter) => this.routeBuyer(input, phone, buyerData, repository, checkout);
     return this.sessionRepo.withRoutingLock
       ? this.sessionRepo.withRoutingLock({ merchantId: input.merchantId, buyerPhone: phone, deviceId: input.deviceId }, route)
       : route(this.sessionRepo);
   }
 
-  private async routeBuyer(input: SessionRoutingInput, phone: string, buyerData: RouteResult["buyerData"], repository: WhatsAppSessionRepository): Promise<RouteResult> {
+  private async routeBuyer(input: SessionRoutingInput, phone: string, buyerData: RouteResult["buyerData"], repository: WhatsAppSessionRepository, checkout?: WhatsAppRoutingCheckoutWriter): Promise<RouteResult> {
 
     // 2. Find active WA session
     let waSession = await repository.findActiveByPhone(input.merchantId, phone, input.deviceId);
+    const resumed = currentWhatsAppExecution();
+    if (resumed) {
+      if (!waSession || waSession.id !== resumed.authority.whatsappSessionId) throw new WhatsAppAiSuppressedError();
+      // Deferred work resumes only its original context. It cannot renew or
+      // rotate commerce/lifecycle state while retrieving that response.
+      return { whatsappSession: waSession, checkoutSessionId: waSession.checkoutSessionId, isNew: false, buyerData };
+    }
 
     // 3. Check expiry (24h)
     if (waSession && this.isExpired(waSession)) {
@@ -77,7 +86,7 @@ export class RouteToSessionUseCase {
     // 4. Create new session if needed
     if (!waSession) {
       const meta = input.deviceId.startsWith("META_CLOUD:");
-      const checkoutSessionId = meta ? undefined : await this.createCheckoutSession(input.merchantId, buyerData.globalUserId, buyerData);
+      const checkoutSessionId = meta ? undefined : await this.createCheckoutSession(input.merchantId, buyerData.globalUserId, buyerData, checkout);
 
       waSession = await repository.create({
         merchantId: input.merchantId,
@@ -150,7 +159,7 @@ export class RouteToSessionUseCase {
     }
 
     // New buyer — create BuyerIdentity with phone as key
-    const newIdentity = await this.prisma.buyerIdentity.upsert({
+    const newIdentity = await withWhatsAppEffectTransaction(this.prisma, merchantId, tx => tx.buyerIdentity.upsert({
       where: { merchantId_identityKey: { merchantId, identityKey } },
       update: {},
       create: {
@@ -158,7 +167,7 @@ export class RouteToSessionUseCase {
         identityKey,
         globalUserId,
       },
-    });
+    }));
 
     this.logger.log(`whatsapp_buyer_created merchant=${merchantId}`);
     return {
@@ -177,36 +186,26 @@ export class RouteToSessionUseCase {
     merchantId: string,
     globalUserId: string,
     buyerData: RouteResult["buyerData"],
+    writer?: WhatsAppRoutingCheckoutWriter,
   ): Promise<string> {
     const sessionId = crypto.randomUUID();
     const conversationId = crypto.randomUUID();
     const now = new Date();
 
-    await this.prisma.$transaction(async tx => {
-      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
-      await tx.checkoutSession.create({
-        data: {
-          merchantId,
-          sessionId,
-          globalUserId,
-          conversationId,
+    const data = {
+          merchantId, sessionId, globalUserId, conversationId,
           customer: {
             phone: buyerData.phone,
-            phone_verified: true,
+            phone_verified: true as const,
             fullName: buyerData.fullName ?? null,
             email: buyerData.email ?? null,
             cpf: buyerData.cpf ?? null,
             address: buyerData.address ?? null,
           },
-          cart: { items: [], total: 0, currency: "BRL" },
-          chatHistory: [],
-          abandonmentScore: 0,
-          triggerAgent: false,
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
-    });
+          now,
+    };
+    if (writer) await writer(data);
+    else await this.prisma.$transaction(tx => createWhatsAppRoutingCheckoutWithin(tx, data));
 
     return sessionId;
   }

@@ -20,6 +20,12 @@ import { renderNumberedMenu } from "../../domain/templates/whatsapp-templates.js
 import { HandleMetaConversationUseCase } from "./handle-meta-conversation.use-case.js";
 import { WhatsAppHumanIntakeService } from "../services/whatsapp-human-intake.service.js";
 import { WhatsAppHumanMessageRouter } from "../services/whatsapp-human-message-router.js";
+import { WhatsAppAiDispatchFence, WhatsAppAiSuppressedError } from "../services/whatsapp-ai-dispatch-fence.js";
+import type { WhatsAppHumanNotice } from "../services/whatsapp-human-intake.service.js";
+import { currentWhatsAppExecution } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
+import { readAiAuthority } from "../../domain/services/whatsapp-ai-authority.js";
+import type { WhatsAppInboxClaim } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
+import type { HumanInputReceipt } from "../services/whatsapp-human-message-router.js";
 import {
   WHATSAPP_SESSION_REPOSITORY,
   type WhatsAppSessionRepository,
@@ -64,21 +70,50 @@ export class HandleIncomingMessageUseCase {
     @Optional() private readonly metaConversation?: HandleMetaConversationUseCase,
     @Optional() private readonly humanIntake?: WhatsAppHumanIntakeService,
     @Optional() private readonly humanRouter?: WhatsAppHumanMessageRouter,
+    @Optional() private readonly aiFence?: WhatsAppAiDispatchFence,
   ) {}
 
   async execute(input: IncomingMessageInput): Promise<void> {
     try {
-      // Route: find/create session + buyer identity
-      const route = await this.routeToSession.execute({
-        merchantId: input.merchantId,
-        deviceId: input.deviceId,
-        fromNumber: input.fromNumber,
-        fromAlias: input.fromAlias,
-      });
+      const routeAndProcess = async () => {
+        // Route: find/create session + buyer identity
+        const route = await this.routeToSession.execute({
+          merchantId: input.merchantId,
+          deviceId: input.deviceId,
+          fromNumber: input.fromNumber,
+          fromAlias: input.fromAlias,
+        });
 
-      const run = () => this.processRouted(input, route);
-      if (this.humanIntake) await this.humanIntake.runTurn(input, route, run);
-      else await run();
+        const run = () => this.processRouted(input, route);
+        if (this.humanIntake) await this.humanIntake.runTurn(input, route, run);
+        else await run();
+      };
+      const claim = input.inboxClaim ?? this.humanIntake?.currentClaim();
+      const saved = claim?.responseState;
+      if (this.aiFence && claim && saved && Object.keys(saved).length) {
+        const authority = readAiAuthority(saved.aiAuthority);
+        if (!authority) {
+          if (!await this.aiFence.consumeHandoffReplay(claim)) await this.aiFence.suppressBeforeRouting(claim);
+          return;
+        }
+        const raw = saved.purpose === "human_handoff" && saved.handoff && typeof saved.handoff === "object" && !Array.isArray(saved.handoff)
+          ? saved.handoff as Record<string, unknown> : {};
+        const notice: WhatsAppHumanNotice | undefined = raw.confirmed === true && typeof raw.ticketId === "string"
+          && typeof raw.bindingId === "string" && typeof raw.epoch === "number" && typeof raw.reply === "string"
+          ? { confirmed: true, ticketId: raw.ticketId, bindingId: raw.bindingId, epoch: raw.epoch, reply: raw.reply } : undefined;
+        if (saved.purpose === "human_handoff" && !notice) {
+          if (!await this.aiFence.consumeHandoffReplay(claim)) await this.aiFence.suppressBeforeRouting(claim);
+          return;
+        }
+        try { await this.aiFence.restore(claim, authority, routeAndProcess, notice); }
+        catch (error) {
+          if (!(error instanceof WhatsAppAiSuppressedError)) throw error;
+          if (saved.purpose === "human_handoff" && await this.aiFence.consumeHandoffReplay(claim)) return;
+          if (!await this.recordSuppressed(claim, authority)) await this.aiFence.suppressBeforeRouting(claim);
+        }
+        return;
+      }
+      await routeAndProcess();
     } catch (error) {
       this.logger.error(`whatsapp_pipeline_failed merchant=${input.merchantId} code=${whatsappProcessingErrorCode(error)}`);
 
@@ -93,24 +128,63 @@ export class HandleIncomingMessageUseCase {
     const humanRoute = await this.humanRouter?.route(input);
     if (humanRoute?.kind === "received") return;
     if (humanRoute?.kind === "notice") {
-      if (input.provider === "META_CLOUD") {
-        if (!this.metaConversation) throw new Error("whatsapp_native_conversation_unavailable");
-        await this.metaConversation.sendHandoffNotice(input, route, humanRoute.notice);
-      } else await this.sendResponse.execute({ merchantId: input.merchantId, deviceId: input.deviceId,
-        toNumber: input.fromNumber, text: humanRoute.notice.reply, provider: input.provider });
+      await this.sendNotice(input, route, humanRoute.notice);
       return;
     }
+    const claim = input.inboxClaim ?? this.humanIntake?.currentClaim();
+    if (this.aiFence) {
+      if (!claim) throw new Error("whatsapp_turn_context_required");
+      try { await this.aiFence.run(claim, () => this.processAiRouted(input, route)); }
+      catch (error) {
+        if (!(error instanceof WhatsAppAiSuppressedError)) throw error;
+        // Preserve authenticated input for the exact human case when one now
+        // owns the conversation; otherwise record truthful suppression only.
+        const authority = currentWhatsAppExecution()?.authority ?? (await this.aiFence.originalForSuppression(claim));
+        const received = await this.recordSuppressed(claim, authority);
+        if (!received) await this.aiFence.suppress(claim);
+      }
+      return;
+    }
+    await this.processAiRouted(input, route);
+  }
+
+  /** Called by the durable delivery owner as well as the live pipeline. It
+   * never routes/creates a checkout or recaptures the current AI epoch. */
+  async recordSuppressed(claim: WhatsAppInboxClaim, authority: unknown): Promise<HumanInputReceipt | undefined> {
+    if (!this.aiFence || !this.humanRouter) return;
+    return this.aiFence.withSuppressedInput(claim, authority, async (payload, expected) => {
+      const result = await this.humanRouter!.routeSuppressed({ ...payload, inboxClaim: claim }, expected);
+      if (result?.kind !== "received") return;
+      await this.aiFence!.suppress(claim, result.receipt);
+      return result.receipt;
+    });
+  }
+
+  private async sendNotice(input: IncomingMessageInput, route: RouteResult, notice: WhatsAppHumanNotice): Promise<void> {
+    const send = async () => {
+      if (input.provider === "META_CLOUD") {
+        if (!this.metaConversation) throw new Error("whatsapp_native_conversation_unavailable");
+        await this.metaConversation.sendHandoffNotice(input, route, notice);
+      } else await this.sendResponse.execute({ merchantId: input.merchantId, deviceId: input.deviceId,
+        toNumber: input.fromNumber, text: notice.reply, provider: input.provider });
+    };
+    if (!this.aiFence) return send();
+    const claim = input.inboxClaim ?? this.humanIntake?.currentClaim();
+    const authority = readAiAuthority(currentWhatsAppExecution()?.authority ?? claim?.responseState?.aiAuthority);
+    if (!claim || !authority) {
+      if (claim) await this.aiFence.suppress(claim);
+      return;
+    }
+    return this.aiFence.notice(claim, authority, notice, send);
+  }
+
+  private async processAiRouted(input: IncomingMessageInput, route: RouteResult): Promise<void> {
+    const session = route.whatsappSession;
     if (this.humanIntake && input.provider === "META_CLOUD" && await this.metaConversation?.resumeHandoffNotice(input, route)) return;
     const preparedMedia = this.humanIntake && input.provider === "META_CLOUD" ? await this.metaConversation?.prepareAudioForHandoff(input, route) : undefined;
     const notice = await this.humanIntake?.requestText(input) ?? (preparedMedia ? await this.humanIntake?.requestVoice(input, preparedMedia.result) : undefined);
     if (notice) {
-      if (input.provider === "META_CLOUD") {
-        if (!this.metaConversation) throw new Error("whatsapp_native_conversation_unavailable");
-        await this.metaConversation.sendHandoffNotice(input, route, notice);
-      } else {
-        await this.sendResponse.execute({ merchantId: input.merchantId, deviceId: input.deviceId,
-          toNumber: input.fromNumber, text: notice.reply, provider: input.provider });
-      }
+      await this.sendNotice(input, route, notice);
       return;
     }
 

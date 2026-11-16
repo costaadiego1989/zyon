@@ -19,6 +19,8 @@ import { metaProductContext, withMetaProductNavigation } from "../../domain/ui/m
 import { recoverMetaPaymentChoice } from "../../domain/ui/meta-payment-selection.js";
 import { WhatsAppHumanIntakeService, type WhatsAppHumanNotice } from "../services/whatsapp-human-intake.service.js";
 import type { MetaInboundMediaResult } from "../../infrastructure/adapters/meta-inbound-media.adapter.js";
+import { WhatsAppAiDispatchFence } from "../services/whatsapp-ai-dispatch-fence.js";
+import { currentWhatsAppExecution } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 
 export interface PreparedWhatsAppMedia { attempted: true; result?: MetaInboundMediaResult }
 
@@ -59,6 +61,7 @@ export class HandleMetaConversationUseCase {
     @Optional() private readonly inboundMedia?: MetaInboundMediaAdapter,
     @Optional() private readonly catalogOrders?: MetaCatalogOrderAdapter,
     @Optional() private readonly humanIntake?: WhatsAppHumanIntakeService,
+    @Optional() private readonly aiFence?: WhatsAppAiDispatchFence,
   ) {}
 
   async prepareAudioForHandoff(input: IncomingMessageInput, route: RouteResult): Promise<PreparedWhatsAppMedia | undefined> {
@@ -78,6 +81,15 @@ export class HandleMetaConversationUseCase {
   }
 
   async sendHandoffNotice(input: IncomingMessageInput, route: RouteResult, notice: WhatsAppHumanNotice): Promise<void> {
+    const current = currentWhatsAppExecution();
+    if (this.aiFence && input.inboxClaim && notice.confirmed && !current?.notice) {
+      if (!current) throw new Error("whatsapp_turn_context_required");
+      return this.aiFence.notice(input.inboxClaim, current.authority, notice, () => this.sendHandoffNoticeWithin(input, route, notice));
+    }
+    return this.sendHandoffNoticeWithin(input, route, notice);
+  }
+
+  private async sendHandoffNoticeWithin(input: IncomingMessageInput, route: RouteResult, notice: WhatsAppHumanNotice): Promise<void> {
     const claim = input.inboxClaim;
     if (!claim || !this.inbox.saveResponse || Date.now() - input.timestamp > 24 * 60 * 60 * 1000) throw new Error("whatsapp_handoff_notice_unavailable");
     if (await this.resumeHandoffNotice(input, route)) return;
@@ -95,6 +107,7 @@ export class HandleMetaConversationUseCase {
     const verifiedSender = input.provider === "META_CLOUD" ? { inboxId: claim.id, leaseToken: claim.leaseToken,
       deviceId: input.deviceId, fromNumber: input.fromNumber } : undefined;
     let saved = claim.responseState as unknown as SavedTurn | undefined;
+    if (this.aiFence && (claim.responseState?.phase === "authority" || claim.responseState?.purpose === "ai_suppressed")) throw new Error("whatsapp_turn_result_unknown");
     if (saved?.phase === "generating" || saved?.phase === "dispatching") throw new Error("whatsapp_turn_result_unknown");
     if (!saved?.presentation || !saved.state) {
       await this.save(claim, { phase: "generating" });
@@ -261,11 +274,19 @@ export class HandleMetaConversationUseCase {
   }
 
   private async dispatchPrepared(input: IncomingMessageInput, route: RouteResult, claim: WhatsAppInboxClaim, saved: SavedTurn): Promise<void> {
-    if (!saved.sessionApplied) {
+    const fencedState = !!this.aiFence && !!currentWhatsAppExecution() && saved.purpose !== "human_handoff";
+    if (fencedState || !saved.sessionApplied) {
+      if (fencedState) {
+        if (!saved.state) throw new Error("whatsapp_ui_view_missing");
+        // A memory/legacy sessionApplied bit is never authority. The fence
+        // applies or verifies the persisted original-turn context receipt.
+        await this.aiFence!.applyPrepared(claim, saved.state, saved as unknown as Record<string, unknown>);
+      } else {
       const current = route.whatsappSession.conversationState?.revision ?? "";
       // A late receipt can resume an earlier turn after a newer buyer message.
       if (current === (saved.previousRevision ?? "") || current === saved.state?.revision) {
         await this.sessions.update(saved.sessionId!, { conversationState: saved.state, checkoutSessionId: saved.state?.checkoutSessionId, lastActivityAt: new Date() });
+      }
       }
       saved.sessionApplied = true; await this.save(claim, saved);
     }

@@ -1,7 +1,13 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient, type WhatsAppSession, type WhatsAppChannelConfig } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { beginHumanHandoff, type HandoffScope, type HandoffState, type HandoffTransition } from "../../domain/services/whatsapp-handoff-state.js";
+
+export interface LockedWhatsAppConversation {
+  session: WhatsAppSession;
+  config: WhatsAppChannelConfig;
+  binding: HandoffState | null;
+}
 
 /** Also held by session routing before expiry or checkout creation. */
 export async function lockWhatsAppSessionIdentity(tx: Prisma.TransactionClient, identity: { merchantId: string; buyerPhone: string; deviceId: string }): Promise<void> {
@@ -26,8 +32,9 @@ export class PrismaWhatsAppHandoffRepository {
     return this.prisma.$transaction(async tx => work(tx, await this.loadLocked(tx, scope)));
   }
 
-  /** Caller retains this transaction through related ticket/message/outbox writes. */
-  async loadLocked(tx: Prisma.TransactionClient, scope: HandoffScope): Promise<HandoffState> {
+  /** A capture/check must preserve the absence of a binding. The supplied
+   * transaction retains the same identity/session locks through its effect. */
+  async readLocked(tx: Prisma.TransactionClient, scope: HandoffScope): Promise<LockedWhatsAppConversation> {
     const candidate = await tx.whatsAppSession.findFirst({ where: { id: scope.whatsappSessionId, merchantId: scope.merchantId } });
     if (!candidate || candidate.merchantId !== scope.merchantId) throw new NotFoundException("whatsapp_handoff_session_not_found");
     await lockWhatsAppSessionIdentity(tx, candidate);
@@ -41,10 +48,18 @@ export class PrismaWhatsAppHandoffRepository {
       throw new NotFoundException("whatsapp_handoff_scope_not_found");
     }
     const previous = await tx.whatsAppHandoffBinding.findFirst({ where: { merchantId: scope.merchantId, whatsappSessionId: scope.whatsappSessionId } });
-    if (previous) {
-      if (previous.configId !== scope.configId) throw new ConflictException("whatsapp_handoff_config_changed");
-      return this.snapshot(previous);
-    }
+    if (previous && previous.configId !== scope.configId) throw new ConflictException("whatsapp_handoff_config_changed");
+    return { session, config, binding: previous ? this.snapshot(previous) : null };
+  }
+
+  async withReadLock<T>(scope: HandoffScope, work: (tx: Prisma.TransactionClient, current: LockedWhatsAppConversation) => Promise<T>): Promise<T> {
+    return this.prisma.$transaction(async tx => work(tx, await this.readLocked(tx, scope)));
+  }
+
+  /** Only explicit handoff/getOrCreate callers create an assistance binding. */
+  async loadLocked(tx: Prisma.TransactionClient, scope: HandoffScope): Promise<HandoffState> {
+    const { session, binding } = await this.readLocked(tx, scope);
+    if (binding) return binding;
     const state = session.conversationState;
     const conversationId = state && typeof state === "object" && !Array.isArray(state) && typeof state.conversationId === "string"
       ? state.conversationId : session.checkoutSessionId;

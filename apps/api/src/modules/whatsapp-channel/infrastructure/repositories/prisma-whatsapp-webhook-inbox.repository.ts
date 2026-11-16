@@ -3,6 +3,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { canonicalJson } from "../../../../shared/http/canonical-json.js";
+import { mergeWhatsAppTurnResponse } from "../../domain/services/whatsapp-turn-response.js";
 import type { MetaUiView, StoreUiAction } from "../../domain/ui/meta-ui.types.js";
 import {
   INBOX_LEASE_MS, INBOX_MAX_ATTEMPTS,
@@ -14,6 +15,35 @@ interface ClaimRow {
   merchant_id: string; config_id: string; device_id: string; stream_key: string;
   payload: WhatsAppInboxEvent["payload"]; payload_hash: string; lease_token: string; attempts: number;
   response_state?: Record<string, unknown>;
+}
+
+/** Lock first, then read the wall clock: NOW() would retain the transaction's
+ * pre-wait time and could authorize a lease which expired behind the lock. */
+export async function loadWhatsAppInboxTurnWithin(tx: Prisma.TransactionClient, claim: WhatsAppInboxClaim) {
+  const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT id FROM whatsapp_webhook_inbox WHERE id=${claim.id} AND merchant_id=${claim.merchantId}
+      AND config_id=${claim.configId} AND device_id=${claim.deviceId} FOR UPDATE
+  `);
+  if (!locked.length) return null;
+  const row = await tx.whatsAppWebhookInbox.findFirst({ where: { id: claim.id, merchantId: claim.merchantId,
+    configId: claim.configId, deviceId: claim.deviceId, kind: "message", status: "processing", leaseToken: claim.leaseToken } });
+  const [clock] = await tx.$queryRaw<Array<{ now: Date }>>(Prisma.sql`SELECT clock_timestamp() AS now`);
+  return row?.leaseExpiresAt && row.leaseExpiresAt > clock.now && row.streamKey === claim.streamKey ? row : null;
+}
+
+/** Canonical merge in a supplied writer transaction. Used by ordinary saves
+ * and atomic session/effect receipts; it never opens an independent writer. */
+export async function saveWhatsAppResponseWithin(tx: Prisma.TransactionClient, claim: WhatsAppInboxClaim,
+  response: Record<string, unknown>): Promise<boolean> {
+  const row = await loadWhatsAppInboxTurnWithin(tx, claim);
+  if (!row) return false;
+  const previous = row.responseState && typeof row.responseState === "object" && !Array.isArray(row.responseState) ? row.responseState : {};
+  const merged = mergeWhatsAppTurnResponse(previous, response);
+  return (await tx.$executeRaw(Prisma.sql`
+    UPDATE whatsapp_webhook_inbox SET response_state=${JSON.stringify(merged)}::jsonb, updated_at=clock_timestamp()
+    WHERE id=${claim.id} AND merchant_id=${claim.merchantId} AND config_id=${claim.configId}
+      AND status='processing' AND lease_token=${claim.leaseToken} AND lease_expires_at>clock_timestamp()
+  `)) === 1;
 }
 
 /** Twilio supplies no timestamp in this webhook: its parser stamps ingestion
@@ -135,28 +165,7 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
   }
 
   async saveResponse(claim: WhatsAppInboxClaim, response: Record<string, unknown>): Promise<boolean> {
-    return this.prisma.$transaction(async tx => {
-      // Receipts can arrive while Graph's response is still in flight. Never
-      // overwrite their durable acceptance proof with the worker's older copy.
-      const rows = await tx.$queryRaw<Array<{ response_state: Record<string, any> | null }>>(Prisma.sql`
-        SELECT "response_state" FROM "whatsapp_webhook_inbox"
-        WHERE "id" = ${claim.id} AND "merchant_id" = ${claim.merchantId}
-          AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken} AND "lease_expires_at" > NOW()
-        FOR UPDATE
-      `);
-      if (!rows.length) return false;
-      const previous = rows[0].response_state ?? {};
-      const sent = new Map<number, unknown>();
-      for (const item of [...((response.sent as any[]) ?? []), ...(previous.sent ?? [])]) sent.set(item.index, item);
-      const merged: Record<string, unknown> = { ...response, ...(previous.receipts ? { receipts: previous.receipts } : {}),
-        ...(response.presentation ? { sent: [...sent.values()] } : {}) };
-      if (response.phase === "dispatching" && sent.has(Number(response.dispatchingIndex))) merged.phase = "prepared";
-      return (await tx.$executeRaw(Prisma.sql`
-        UPDATE "whatsapp_webhook_inbox" SET "response_state" = ${JSON.stringify(merged)}::jsonb, "updated_at" = NOW()
-        WHERE "id" = ${claim.id} AND "merchant_id" = ${claim.merchantId}
-          AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken} AND "lease_expires_at" > NOW()
-      `)) === 1;
-    });
+    return this.prisma.$transaction(tx => saveWhatsAppResponseWithin(tx, claim, response));
   }
 
   async complete(claim: WhatsAppInboxClaim): Promise<boolean> {

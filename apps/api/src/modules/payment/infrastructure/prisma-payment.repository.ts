@@ -32,6 +32,7 @@ import { parseStorefrontCouponPaymentScope, type StorefrontCouponPaymentScope } 
 import { assertNeighborhoodPaymentAdmission } from "./prisma-payment-neighborhood-admission.js";
 import { readPaymentNormalCrossSellAuthority, assertSamePaymentNormalCrossSellAuthority } from "../domain/payment-normal-cross-sell-authority.js";
 import type { CaptureNormalCrossSellPayment } from "./prisma-normal-cross-sell-payment-admission.js";
+import { admitWhatsAppEffectInTransaction } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -251,6 +252,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
   }
 
   private async saveVersion(tx: PrismaTx, snapshot: PaymentIntentSnapshot, trustedScope?: StorefrontCouponPaymentScope): Promise<void> {
+    await admitWhatsAppEffectInTransaction(tx, snapshot.merchantId);
     const frozenCoupon = readPaymentCouponAuthority(snapshot);
     const frozenWidget = readPaymentWidgetCheckoutAuthority(snapshot);
     const frozenNormal = readPaymentNormalCrossSellAuthority(snapshot);

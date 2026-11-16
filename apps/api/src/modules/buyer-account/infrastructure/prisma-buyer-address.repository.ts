@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { withWhatsAppEffectTransaction } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 import {
   BuyerAddress,
   type BuyerAddressProps,
@@ -51,23 +52,15 @@ export class PrismaBuyerAddressRepository implements BuyerAddressRepository {
       state: address.state,
       isDefault: address.isDefault,
     };
-    await (this.prisma.buyerAddress as unknown as {
-      upsert: (args: {
-        where: { id: string };
-        create: typeof data & { id: string };
-        update: Partial<typeof data>;
-      }) => Promise<unknown>;
-    }).upsert({
+    await withWhatsAppEffectTransaction(this.prisma, undefined, tx => tx.buyerAddress.upsert({
       where: { id: address.id },
       create: { id: address.id, ...data },
       update: data,
-    });
+    }));
   }
 
   async delete(globalUserId: string, id: string): Promise<void> {
-    await (this.prisma.buyerAddress as unknown as {
-      deleteMany: (args: { where: { id: string; globalUserId: string } }) => Promise<unknown>;
-    }).deleteMany({ where: { id, globalUserId } });
+    await withWhatsAppEffectTransaction(this.prisma, undefined, tx => tx.buyerAddress.deleteMany({ where: { id, globalUserId } }));
   }
 
   async count(globalUserId: string): Promise<number> {

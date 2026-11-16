@@ -44,6 +44,17 @@ export class WhatsAppHumanMessageRouter {
     @Inject(WHATSAPP_WEBHOOK_INBOX) private readonly inbox: WhatsAppWebhookInbox) {}
 
   async route(input: IncomingMessageInput): Promise<HumanRoute | undefined> {
+    return this.routeInput(input, true);
+  }
+
+  /** Delayed legacy suppression records the incoming message first. Its own
+   * delivery owner persists the returned receipt, never a fabricated send. */
+  async routeSuppressed(input: IncomingMessageInput, expected: { bindingId: string; ticketId: string; epoch: number }): Promise<HumanRoute | undefined> {
+    return this.routeInput(input, false, expected);
+  }
+
+  private async routeInput(input: IncomingMessageInput, captureReceipt: boolean,
+    expected?: { bindingId: string; ticketId: string; epoch: number }): Promise<HumanRoute | undefined> {
     const turn = this.context.current();
     if (!turn) throw new Error("whatsapp_turn_context_required");
     const claim = input.inboxClaim ?? this.delivery.currentClaim();
@@ -54,6 +65,7 @@ export class WhatsAppHumanMessageRouter {
     const existing = await this.bindings.get(turn.scope);
     if (!existing && saved?.purpose !== "human_handoff") return;
     const result = await this.bindings.withLocked(turn.scope, async (tx, current): Promise<HumanRoute | undefined> => {
+      if (expected && (current.id !== expected.bindingId || current.ticketId !== expected.ticketId || current.epoch !== expected.epoch || current.mode === "ai")) return;
       const [clock] = await tx.$queryRaw<Array<{ now: Date }>>(Prisma.sql`SELECT clock_timestamp() AS now`);
       const session = await tx.whatsAppSession.findFirst({ where: { id: turn.scope.whatsappSessionId, merchantId: turn.scope.merchantId } });
       const row = await tx.whatsAppWebhookInbox.findFirst({ where: { id: turn.inboxId, merchantId: turn.scope.merchantId,
@@ -92,7 +104,7 @@ export class WhatsAppHumanMessageRouter {
       return { kind: "received", receipt: { inboxId: turn.inboxId, sessionId: session.id, bindingId: current.id,
         ticketId: ticket.id, epoch: current.epoch, messageId: message.id } };
     });
-    if (result?.kind === "received") {
+    if (captureReceipt && result?.kind === "received") {
       if (input.provider === "META_CLOUD") {
         if (!await this.inbox.saveResponse?.(claim, { purpose: "human_received", phase: "complete", receipt: { ...result.receipt } })) throw new Error("whatsapp_inbox_lease_lost");
       } else await this.delivery.acknowledgeHumanInput(result.receipt);

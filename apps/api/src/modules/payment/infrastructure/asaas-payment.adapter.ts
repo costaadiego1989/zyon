@@ -1,3 +1,4 @@
+import { startWhatsAppPaymentRequest } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 import { assertStandardCancellationInput, exactCancellationAmount, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
 import { marketplaceCaptureAccount } from "../../marketplace/infrastructure/marketplace-capture-account.js";
@@ -232,9 +233,9 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   async cancelPendingPayment(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
     const before = await this.readCancellationStatus(input);
     if (before.state !== "pending") return before;
-    const response = await this.fetchImpl(`${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, {
+    const response = await startWhatsAppPaymentRequest(input.payment.merchantId, () => this.fetchImpl(`${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, {
       method: "DELETE", headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000),
-    });
+    }));
     if (!response.ok) return { state: "unknown" };
     const receipt = await response.json() as { id?: string; deleted?: boolean };
     if (receipt.id !== input.providerPaymentId || receipt.deleted !== true) return { state: "unknown" };
@@ -243,7 +244,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   }
 
   private async readCancellationPayment(input: { providerPaymentId: string; merchantId: string }) {
-    const response = await this.fetchImpl(`${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, { headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000) });
+    const response = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, { headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000) }));
     if (!response.ok) throw new Error("payment_cancellation_status_unavailable");
     return response.json() as Promise<{ id?: string; externalReference?: string; customer?: string; billingType?: string; value?: number; currency?: string; subscription?: unknown; installment?: unknown; status?: string; deleted?: boolean }>;
   }
@@ -251,9 +252,9 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   async recoverPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput | null> {
     const base = this.normalizedBaseUrl;
     const query = new URLSearchParams({ externalReference: input.intentId, limit: "100" });
-    const response = await this.fetchImpl(`${base}/v3/payments?${query}`, {
+    const response = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/v3/payments?${query}`, {
       headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000),
-    });
+    }));
     if (!response.ok) throw new Error("asaas_payment_recovery_failed");
     const result = await response.json() as { data?: Array<{ id?: string; externalReference?: string; customer?: string; value?: number; billingType?: string; status?: string; invoiceUrl?: string }>; hasMore?: boolean };
     if (!Array.isArray(result.data) || result.hasMore || result.data.length > 1) throw new Error("asaas_payment_recovery_ambiguous");
@@ -277,14 +278,14 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     const marketplace = input.marketplaceAccount !== undefined || input.marketplacePayment !== undefined;
     if (marketplace) await this.assertMarketplaceStatusInput(input);
     const base = this.normalizedBaseUrl;
-    const res = await this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, {
+    const res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, {
       headers: {
         accept: "application/json",
         access_token: this.apiKey
       },
       redirect: "error",
       signal: AbortSignal.timeout(15_000)
-    });
+    }));
     if (!res.ok) {
       // Provider error bodies can contain customer and payment metadata. Keep
       // the status for operational diagnosis without letting that data reach
@@ -332,9 +333,9 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       if (!invoiceUrl) throw new Error("marketplace_payment_instructions_invalid");
       return { providerStatus: "requires_action", action: { kind: "asaas_boleto", invoiceUrl }, reason: null };
     }
-    const response = await this.fetchImpl(`${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}/pixQrCode`, {
+    const response = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}/pixQrCode`, {
       headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000),
-    });
+    }));
     if (!response.ok) throw new Error("marketplace_payment_instructions_unavailable");
     const qr = await response.json() as { payload?: unknown; encodedImage?: unknown; expirationDate?: unknown };
     const expiresAt = asaasQrExpiration(qr.expirationDate);
@@ -369,14 +370,14 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     const url = `${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`;
     const headers = { accept: "application/json", access_token: this.apiKey };
     const read = async () => {
-      const response = await this.fetchImpl(url, { headers, redirect: "error", signal: AbortSignal.timeout(15_000) });
+      const response = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(url, { headers, redirect: "error", signal: AbortSignal.timeout(15_000) }));
       if (!response.ok) return undefined;
       return response.json() as Promise<{ deleted?: boolean; status?: string }>;
     };
     const payment = await read();
     if (!payment || !["PENDING", "OVERDUE"].includes(payment.status ?? "")) return { state: "blocked" };
     if (payment.deleted === true) return { state: "cancelled" };
-    const response = await this.fetchImpl(url, { method: "DELETE", headers, redirect: "error", signal: AbortSignal.timeout(15_000) });
+    const response = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(url, { method: "DELETE", headers, redirect: "error", signal: AbortSignal.timeout(15_000) }));
     if (!response.ok) return { state: "unknown" };
     const result = await response.json() as { deleted?: boolean };
     if (result.deleted !== true) return { state: "unknown" };
@@ -390,14 +391,14 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
 
   async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
     const base = this.normalizedBaseUrl;
-    const res = await this.fetchImpl(
+    const res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(
       `${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}/refunds`,
       {
         headers: { accept: "application/json", access_token: this.apiKey },
         redirect: "error",
         signal: AbortSignal.timeout(15_000),
       },
-    );
+    ));
     if (!res.ok) throw new Error(`asaas_refund_fetch_failed:${res.status}`);
     const body = await res.json() as { data?: AsaasRefund[]; refunds?: AsaasRefund[] };
     const refunds = body.data ?? body.refunds ?? [];
@@ -431,10 +432,10 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
 
     // Idempotency: if a customer with this CPF already exists in Asaas, reuse it
     // instead of failing. Asaas rejects duplicate cpfCnpj on create.
-    const existingId = await this.findCustomerByCpf(base, cpfDigits);
+    const existingId = await this.findCustomerByCpf(input.merchantId, base, cpfDigits);
     if (existingId) return existingId;
 
-    const res = await this.fetchImpl(`${base}/v3/customers`, {
+    const res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/v3/customers`, {
       method: "POST",
       headers: {
         accept: "application/json",
@@ -444,11 +445,11 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       body: JSON.stringify(body),
       redirect: "error",
       signal: AbortSignal.timeout(15_000)
-    });
+    }));
 
     if (!res.ok) {
       // On duplicate/validation error, try one more lookup before giving up
-      const recovered = await this.findCustomerByCpf(base, cpfDigits);
+      const recovered = await this.findCustomerByCpf(input.merchantId, base, cpfDigits);
       if (recovered) return recovered;
       throw new Error(`asaas_customer_create_failed:${res.status}`);
     }
@@ -459,17 +460,17 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   }
 
   /** Look up an existing Asaas customer by CPF. Returns the id or undefined. */
-  private async findCustomerByCpf(base: string, cpfDigits: string): Promise<string | undefined> {
+  private async findCustomerByCpf(merchantId: string, base: string, cpfDigits: string): Promise<string | undefined> {
     if (!cpfDigits) return undefined;
     try {
-      const res = await this.fetchImpl(`${base}/v3/customers?cpfCnpj=${cpfDigits}`, {
+      const res = await startWhatsAppPaymentRequest(merchantId, () => this.fetchImpl(`${base}/v3/customers?cpfCnpj=${cpfDigits}`, {
         method: "GET",
         headers: {
           accept: "application/json",
           access_token: this.apiKey
         },
         redirect: "error", signal: AbortSignal.timeout(15_000)
-      });
+      }));
       if (!res.ok) return undefined;
       const data = (await res.json()) as { data?: Array<{ id?: string }> };
       return data.data?.[0]?.id ?? undefined;
@@ -503,7 +504,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       tokenizeBody.remoteIp = input.remoteIp;
     }
 
-    const res = await this.fetchImpl(`${base}/v3/creditCard/tokenize`, {
+    const res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/v3/creditCard/tokenize`, {
       method: "POST",
       headers: {
         accept: "application/json",
@@ -513,7 +514,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       body: JSON.stringify(tokenizeBody),
       redirect: "error",
       signal: AbortSignal.timeout(15_000)
-    });
+    }));
 
     if (!res.ok) {
       throw new Error(`asaas_tokenize_failed:${res.status}`);
@@ -573,7 +574,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       body.split = [{ walletId: this.platformWalletId, fixedValue: majorUnitsFromCents(input.platformFeeCents!) }];
     }
 
-    const res = await this.fetchImpl(`${base}/v3/payments`, {
+    const res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/v3/payments`, {
       method: "POST",
       headers: {
         accept: "application/json",
@@ -583,7 +584,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       body: JSON.stringify(body),
       redirect: "error",
       signal: AbortSignal.timeout(15_000)
-    });
+    }));
 
     if (!res.ok) {
       throw new Error(`asaas_payment_create_failed:${res.status}`);
@@ -615,14 +616,14 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     };
 
     if (billingType === "PIX") {
-      const qr = await this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(providerPaymentId)}/pixQrCode`, {
+      const qr = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(providerPaymentId)}/pixQrCode`, {
         headers: {
           accept: "application/json",
           access_token: this.apiKey
         },
         redirect: "error",
       signal: AbortSignal.timeout(15_000)
-      });
+      }));
       if (qr.ok) {
         const pj = (await qr.json()) as { payload?: string; encodedImage?: string; expirationDate?: string };
         if (typeof pj.payload === "string") buyerFacingPayload.qrCodeCopyPaste = pj.payload;
@@ -648,13 +649,13 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
 
   async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string }) {
     const base = this.normalizedBaseUrl;
-    const res = await this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}/refund`, {
+    const res = await startWhatsAppPaymentRequest(input.merchantId, () => this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}/refund`, {
       method: "POST",
       headers: { "Content-Type": "application/json", access_token: this.apiKey },
       body: JSON.stringify({ value: input.amountCents / 100, description: input.reason ?? "Customer requested refund" }),
       redirect: "error",
       signal: AbortSignal.timeout(15_000)
-    });
+    }));
     if (!res.ok) {
       throw new Error(`asaas_refund_failed:${res.status}`);
     }

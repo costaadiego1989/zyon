@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { withWhatsAppEffectTransaction } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import type { CrossSellSuggestionEntity } from "../../domain/entities/cross-sell-suggestion.entity.js";
 import type { CrossSellSuggestionRepository } from "../../domain/ports/cross-sell-suggestion-repository.port.js";
 import { toSuggestionCreateInput, toSuggestionEntity, toSuggestionUpdateInput } from "./prisma-cross-sell.converters.js";
@@ -10,11 +11,11 @@ export class PrismaCrossSellSuggestionRepository implements CrossSellSuggestionR
   constructor(private readonly prisma: PrismaClient) {}
 
   async save(suggestion: CrossSellSuggestionEntity): Promise<void> {
-    await this.prisma.crossSellSuggestion.upsert({
+    await withWhatsAppEffectTransaction(this.prisma, suggestion.snapshot().merchant_id, tx => tx.crossSellSuggestion.upsert({
       where: { id: suggestion.id },
       create: toSuggestionCreateInput(suggestion),
       update: toSuggestionUpdateInput(suggestion)
-    });
+    }));
   }
 
   async findById(id: string, merchantId: string): Promise<CrossSellSuggestionEntity | null> {
@@ -27,10 +28,10 @@ export class PrismaCrossSellSuggestionRepository implements CrossSellSuggestionR
   async refreshPending(suggestion: CrossSellSuggestionEntity): Promise<boolean> {
     const snapshot = suggestion.snapshot();
     if (snapshot.status !== "pending") return false;
-    const result = await this.prisma.crossSellSuggestion.updateMany({
+    const result = await withWhatsAppEffectTransaction(this.prisma, snapshot.merchant_id, tx => tx.crossSellSuggestion.updateMany({
       where: { id: snapshot.id, merchantId: snapshot.merchant_id, sessionId: snapshot.session_id, status: "pending" },
       data: { rankedItems: snapshot.ranked_items, computedDiscount: snapshot.computed_discount },
-    });
+    }));
     return result.count === 1;
   }
 

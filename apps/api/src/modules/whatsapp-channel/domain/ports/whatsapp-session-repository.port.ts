@@ -31,7 +31,7 @@ export interface WhatsAppSessionEntity {
 
 export interface WhatsAppSessionRepository {
   /** Production routing and handoff share this lock before expiry/creation. */
-  withRoutingLock?<T>(identity: { merchantId: string; buyerPhone: string; deviceId: string }, work: (repository: WhatsAppSessionRepository) => Promise<T>): Promise<T>;
+  withRoutingLock?<T>(identity: { merchantId: string; buyerPhone: string; deviceId: string }, work: (repository: WhatsAppSessionRepository, checkout: WhatsAppRoutingCheckoutWriter) => Promise<T>): Promise<T>;
   findActiveByPhone(merchantId: string, buyerPhone: string, deviceId?: string): Promise<WhatsAppSessionEntity | null>;
   create(data: Omit<WhatsAppSessionEntity, "id" | "createdAt">): Promise<WhatsAppSessionEntity>;
   update(id: string, data: Partial<WhatsAppSessionEntity>): Promise<WhatsAppSessionEntity>;
@@ -40,4 +40,17 @@ export interface WhatsAppSessionRepository {
   setPostSaleContext(id: string, context: PostSaleContextData): Promise<void>;
   clearPostSaleContext(id: string): Promise<void>;
 }
+
+/** Narrow collaborator enlisted by the repository in the routing transaction.
+ * It cannot create an independently committed checkout after the lock expires. */
+export interface WhatsAppRoutingCheckoutInput {
+  merchantId: string;
+  sessionId: string;
+  conversationId: string;
+  globalUserId: string;
+  customer: { phone: string; phone_verified: true; fullName: string | null; email: string | null;
+    cpf: string | null; address: Record<string, string> | null };
+  now: Date;
+}
+export type WhatsAppRoutingCheckoutWriter = (input: WhatsAppRoutingCheckoutInput) => Promise<void>;
 

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -6,6 +6,9 @@ import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../domain/port
 import type { WhatsAppInboxClaim } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
 import type { SendResponseInput } from "../use-cases/send-whatsapp-response.use-case.js";
 import type { HumanInputReceipt } from "./whatsapp-human-message-router.js";
+import { WhatsAppAiDispatchFence } from "./whatsapp-ai-dispatch-fence.js";
+import { admitWhatsAppDeliveryInTransaction, currentWhatsAppExecution, startWhatsAppRequest, WhatsAppAiSuppressedError } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
+import type { WhatsAppHumanNotice } from "./whatsapp-human-intake.service.js";
 
 export class WhatsAppDeliveryUncertainError extends Error {
   constructor() { super("whatsapp_delivery_requires_reconciliation"); }
@@ -17,6 +20,7 @@ export class WhatsAppDeliveryService {
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(WHATSAPP_SENDER_PORT) private readonly sender: WhatsAppSenderPort,
+    @Optional() private readonly aiFence?: WhatsAppAiDispatchFence,
   ) {}
 
   /** Internal authenticated inbox context for legacy providers. */
@@ -37,16 +41,23 @@ export class WhatsAppDeliveryService {
     const context = this.context.getStore();
     if (!context) return false;
     if (context.captured || context.claim.merchantId !== input.merchantId || context.claim.deviceId !== input.deviceId) throw new Error("whatsapp_response_scope_mismatch");
-    const updated = await this.prisma.whatsAppDelivery.updateMany({
+    const execution = currentWhatsAppExecution();
+    const persist = (tx: Prisma.TransactionClient) => tx.whatsAppDelivery.updateMany({
       where: { id: context.claim.id, merchantId: input.merchantId, state: "processing", processingToken: context.claim.leaseToken },
-      data: { response: input as unknown as Prisma.InputJsonValue },
+      data: { response: { ...input, ...(execution ? { aiAuthority: execution.authority,
+        ...(execution.notice ? { handoffNotice: execution.notice } : {}) } : {}) } as unknown as Prisma.InputJsonValue },
     });
+    const updated = execution ? await this.prisma.$transaction(async tx => {
+      await admitWhatsAppDeliveryInTransaction(tx, input.merchantId);
+      return persist(tx);
+    }) : await persist(this.prisma);
     if (updated.count !== 1) throw new WhatsAppDeliveryUncertainError();
     context.captured = true;
     return true;
   }
 
-  async process(claim: WhatsAppInboxClaim, run: () => Promise<void>, ownsLease: () => Promise<boolean>) {
+  async process(claim: WhatsAppInboxClaim, run: () => Promise<void>, ownsLease: () => Promise<boolean>,
+    onSuppressed?: (authority: unknown) => Promise<HumanInputReceipt | undefined>) {
     let row = await this.prisma.whatsAppDelivery.findUnique({ where: { id: claim.id } });
     if (!row) {
       try {
@@ -62,6 +73,18 @@ export class WhatsAppDeliveryService {
       try {
         if (!await ownsLease()) throw new WhatsAppDeliveryUncertainError();
         await this.context.run(context, run);
+        if (!context.captured && this.aiFence) {
+          const terminal = await this.aiFence.terminalSuppression(claim);
+          if (terminal) {
+            const updated = await this.prisma.whatsAppDelivery.updateMany({ where: { id: claim.id, merchantId: claim.merchantId,
+              configId: claim.configId, deviceId: claim.deviceId, state: "processing", processingToken: claim.leaseToken }, data: {
+              state: terminal.receipt ? "acknowledged" : "suppressed", response: { purpose: terminal.receipt ? "human_received" : "ai_suppressed",
+                aiAuthority: terminal.authority, ...(terminal.receipt ? { receipt: terminal.receipt } : {}) } as unknown as Prisma.InputJsonValue,
+            } });
+            if (updated.count !== 1) throw new WhatsAppDeliveryUncertainError();
+            context.captured = true;context.withoutReply = true;
+          }
+        }
         if (!context.captured) throw new Error("whatsapp_response_missing");
         if (context.withoutReply) return;
         const updated = await this.prisma.whatsAppDelivery.updateMany({
@@ -69,13 +92,21 @@ export class WhatsAppDeliveryService {
         });
         if (updated.count !== 1) throw new WhatsAppDeliveryUncertainError();
       } catch {
-        await this.prisma.whatsAppDelivery.updateMany({ where: { id: claim.id, state: "processing" }, data: { state: "processing_unknown" } });
+        await this.prisma.whatsAppDelivery.updateMany({ where: { id: claim.id, merchantId: claim.merchantId,
+          configId: claim.configId, state: "processing", processingToken: claim.leaseToken }, data: { state: "processing_unknown" } });
         throw new WhatsAppDeliveryUncertainError();
       }
       row = await this.prisma.whatsAppDelivery.findUniqueOrThrow({ where: { id: claim.id } });
     }
     if (row.merchantId !== claim.merchantId || row.configId !== claim.configId) throw new Error("whatsapp_delivery_scope_mismatch");
     if (row.state === "sent" || row.state === "acknowledged") return;
+    if (row.state === "suppressed") {
+      const response = row.response as unknown as { aiAuthority?: unknown };
+      const receipt = await onSuppressed?.(response.aiAuthority);
+      if (receipt) await this.prisma.whatsAppDelivery.updateMany({ where: { id: row.id, merchantId: claim.merchantId, configId: claim.configId, state: "suppressed" },
+        data: { state: "acknowledged", response: { purpose: "human_received", receipt: { ...receipt }, aiAuthority: response.aiAuthority } as Prisma.InputJsonValue } });
+      return;
+    }
     if (row.state !== "ready") {
       await this.prisma.whatsAppDelivery.updateMany({ where: { id: claim.id, state: { in: ["processing", "sending"] } }, data: { state: row.state === "sending" ? "submission_unknown" : "processing_unknown" } });
       throw new WhatsAppDeliveryUncertainError();
@@ -83,11 +114,28 @@ export class WhatsAppDeliveryService {
     if (!await ownsLease()) throw new WhatsAppDeliveryUncertainError();
     const sending = await this.prisma.whatsAppDelivery.updateMany({ where: { id: claim.id, state: "ready" }, data: { state: "sending" } });
     if (sending.count !== 1) throw new WhatsAppDeliveryUncertainError();
-    const response = row.response as unknown as SendResponseInput;
+    const response = row.response as unknown as SendResponseInput & { aiAuthority?: unknown; handoffNotice?: WhatsAppHumanNotice };
     let result;
     try {
-      result = await this.sender.sendText({ ...response, correlationId: row.id });
-    } catch {
+      const submit = () => {
+        const frame = currentWhatsAppExecution();
+        const send = () => this.sender.sendText({ ...response, correlationId: row.id });
+        return frame ? startWhatsAppRequest({ kind: "whatsapp", merchantId: response.merchantId,
+          configId: frame.authority.configId, deviceId: response.deviceId, provider: response.provider ?? frame.authority.provider,
+          accountId: frame.authority.accountId, recipient: response.toNumber }, send) : send();
+      };
+      result = this.aiFence ? await this.aiFence.restore(claim, response.aiAuthority, submit, response.handoffNotice) : await submit();
+    } catch (error) {
+      if (error instanceof WhatsAppAiSuppressedError) {
+        // The fence proves no submission started. Persist that fact before
+        // best-effort forwarding, so a crash cannot become a blind send retry.
+        await this.prisma.whatsAppDelivery.updateMany({ where: { id: row.id, merchantId: claim.merchantId, configId: claim.configId, state: "sending" }, data: { state: "suppressed" } });
+        const receipt = await onSuppressed?.(response.aiAuthority);
+        if (receipt) await this.prisma.whatsAppDelivery.updateMany({ where: { id: row.id, merchantId: claim.merchantId, configId: claim.configId, state: "suppressed" }, data: {
+          state: "acknowledged", response: { purpose: "human_received", receipt: { ...receipt }, aiAuthority: response.aiAuthority } as Prisma.InputJsonValue,
+        } });
+        return;
+      }
       result = { status: "unknown" as const, messageId: "" };
     }
     if ((result.status === "sent" || result.status === "queued") && result.messageId) {

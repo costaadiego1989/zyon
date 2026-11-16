@@ -9,6 +9,9 @@ import { PAYMENT_PROVIDER_PORT, type PaymentProviderPort } from "../domain/ports
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 import { isPaymentCreationRejectionCode, PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { canonicalJson } from "../../../shared/http/canonical-json.js";
+import { currentWhatsAppExecution, startWhatsAppPaymentRequest, withWhatsAppPaymentCreation,
+  withoutWhatsAppExecutionForVerifiedOperation, WhatsAppAiSuppressedError } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 
 @Injectable()
 export class ResumePaymentCreationService {
@@ -22,6 +25,17 @@ export class ResumePaymentCreationService {
 
   async execute(intent: PaymentIntentEntity, beforeCreate?: () => Promise<void>): Promise<PaymentIntentSnapshot> {
     const before = intent.snapshot();
+    if (currentWhatsAppExecution() && currentWhatsAppExecution()!.authority.merchantId !== before.merchantId) throw new WhatsAppAiSuppressedError();
+    if (currentWhatsAppExecution() && (before.providerPaymentId || before.creation?.firstAttemptAt)) {
+      const canonical = (await this.payments.getIntentById(before.merchantId, before.id))?.snapshot();
+      if (!canonical || canonical.version !== before.version || canonical.merchantId !== before.merchantId || canonical.sessionId !== before.sessionId
+        || canonical.amountCents !== before.amountCents || canonical.currency !== before.currency || canonical.providerPaymentId !== before.providerPaymentId
+        || canonicalJson(canonical.creation) !== canonicalJson(before.creation)) return this.latest(before);
+      if (!before.providerPaymentId && before.creation?.state === "ready") throw new ConflictException("payment_creation_manual_review_required");
+      // A previous durable submission may be read/reconciled after takeover.
+      // Its state cannot return to a fresh create through this branch.
+      return withoutWhatsAppExecutionForVerifiedOperation(() => this.execute(intent, beforeCreate));
+    }
     const rejection = before.creation?.reason;
     if (before.status === "failed" && isPaymentCreationRejectionCode(rejection)) {
       throw new ConflictException(rejection);
@@ -64,11 +78,12 @@ export class ResumePaymentCreationService {
     const creation = intent.snapshot().creation!;
     try {
       const result = action === "create"
-        ? await this.provider.createPayment(creation.input)
-        : await this.provider.recoverPayment?.(creation.input, creation.firstAttemptAt!);
+        ? await withWhatsAppPaymentCreation({ merchantId: before.merchantId, intentId: before.id, sessionId: before.sessionId, creationLeaseToken: leaseToken },
+          () => startWhatsAppPaymentRequest(before.merchantId, () => this.provider.createPayment(creation.input)))
+        : await this.withCreationReceipt(before, leaseToken, async () => this.provider.recoverPayment?.(creation.input, creation.firstAttemptAt!));
       if (!result) {
         intent.markCreationUncertain(leaseToken, "provider_result_not_found");
-        await this.payments.saveIntent({ intent });
+        await this.withCreationReceipt(before, leaseToken, () => this.payments.saveIntent({ intent }));
         return intent.snapshot();
       }
       if (!result.providerPaymentId?.trim()) throw new Error("provider_result_invalid");
@@ -78,11 +93,11 @@ export class ResumePaymentCreationService {
       intent.completeCreation(leaseToken);
       intent.markRequiresAction({ providerPaymentId: result.providerPaymentId });
       intent.setBuyerFacingPayload(result.buyerFacingPayload ?? {});
-      await this.payments.saveIntentWithOutbox({ intent }, createCheckoutEventEnvelope({
+      await this.withCreationReceipt(before, leaseToken, () => this.payments.saveIntentWithOutbox({ intent }, createCheckoutEventEnvelope({
         eventType: "payment.status.changed", merchantId: before.merchantId,
         payload: { session_id: before.sessionId, payment_intent_id: before.id, status: intent.status, amount_cents: before.amountCents, method: before.method, commerce_order_id: before.commerceOrderId },
         causationId: before.id,
-      }));
+      })));
       return intent.snapshot();
     } catch (error) {
       if (error instanceof PaymentIntentConflictError) return this.latest(before);
@@ -100,11 +115,11 @@ export class ResumePaymentCreationService {
         if (action === "create" && error instanceof PaymentCreationRejectedError) {
           current.rejectCreation(leaseToken, error.code);
           try {
-            await this.payments.saveIntentWithOutbox({ intent: current }, createCheckoutEventEnvelope({
+            await this.withCreationReceipt(before, leaseToken, () => this.payments.saveIntentWithOutbox({ intent: current }, createCheckoutEventEnvelope({
               eventType: "payment.status.changed", merchantId: before.merchantId,
               payload: { session_id: before.sessionId, payment_intent_id: before.id, status: "failed", amount_cents: before.amountCents, method: before.method, commerce_order_id: before.commerceOrderId },
               causationId: before.id,
-            }));
+            })));
           } catch (saveError) {
             if (saveError instanceof PaymentIntentConflictError) return this.latest(before);
             throw saveError;
@@ -112,11 +127,25 @@ export class ResumePaymentCreationService {
           throw new ConflictException(error.code);
         }
         current.markCreationUncertain(leaseToken, "provider_result_uncertain");
-        try { await this.payments.saveIntent({ intent: current }); }
+        try { await this.withCreationReceipt(before, leaseToken, () => this.payments.saveIntent({ intent: current })); }
         catch (saveError) { if (!(saveError instanceof PaymentIntentConflictError)) throw saveError; }
       }
       throw new BadGatewayException("payment_creation_uncertain");
     }
+  }
+
+  /** A submitted/uncertain request has a durable exact creation claim. Its
+   * result/accounting may finish after takeover; this proof never authorizes
+   * another create call and does not relax payment persistence/CAS guards. */
+  private async withCreationReceipt<T>(expected: PaymentIntentSnapshot, leaseToken: string, work: () => Promise<T>): Promise<T> {
+    if (!currentWhatsAppExecution()) return work();
+    const current = (await this.payments.getIntentById(expected.merchantId, expected.id))?.snapshot();
+    if (!current || current.id !== expected.id || current.merchantId !== expected.merchantId || current.sessionId !== expected.sessionId
+      || current.amountCents !== expected.amountCents || current.currency !== expected.currency
+      || current.creation?.state !== "in_flight" || current.creation.leaseToken !== leaseToken || !current.creation.firstAttemptAt
+      || canonicalJson(current.creation.input) !== canonicalJson(expected.creation?.input))
+      throw new PaymentIntentConflictError();
+    return withoutWhatsAppExecutionForVerifiedOperation(work);
   }
 
   private async latest(snapshot: PaymentIntentSnapshot): Promise<PaymentIntentSnapshot> {

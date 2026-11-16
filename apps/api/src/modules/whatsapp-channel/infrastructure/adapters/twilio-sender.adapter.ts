@@ -8,12 +8,13 @@
  */
 
 import { Injectable, Logger, Inject } from "@nestjs/common";
+import { startWhatsAppRequest } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import type { WhatsAppSenderPort, WhatsAppOutboundMessage, WhatsAppSendResult } from "../../domain/ports/whatsapp-sender.port.js";
 import {
   WHATSAPP_CONFIG_REPOSITORY,
   type WhatsAppConfigRepository,
 } from "../../domain/ports/whatsapp-config-repository.port.js";
-import { connectedTwilioCredentials } from "../../domain/services/connected-twilio-credentials.js";
+import { connectedTwilioCredentials, twilioAuthorityAccountId } from "../../domain/services/connected-twilio-credentials.js";
 import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
 
 interface TwilioCredentials {
@@ -71,7 +72,8 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
         Body: msg.text,
       });
 
-      const response = await fetch(
+      const response = await startWhatsAppRequest({ kind: "whatsapp", merchantId: config.merchantId, configId: config.id,
+        deviceId: msg.deviceId, provider: "TWILIO", accountId: twilioAuthorityAccountId(config), recipient: toNumber }, () => fetch(
         `${this.baseUrl}/${accountSid}/Messages.json`,
         {
           method: "POST",
@@ -83,7 +85,7 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
           },
           body: params.toString(),
         },
-      );
+      ));
 
       if (response.ok) {
         const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;

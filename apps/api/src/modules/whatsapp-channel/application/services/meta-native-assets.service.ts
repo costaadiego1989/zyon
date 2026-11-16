@@ -6,6 +6,7 @@ import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../..
 import { connectedMetaCloudCredentials } from "../../domain/services/connected-meta-cloud-credentials.js";
 import { metaFieldFlowJson, META_FIELD_FLOW_NAMES } from "../../domain/ui/meta-flow.js";
 import { extractOptionGroups } from "../../../storefront/domain/food-options.js";
+import { startWhatsAppRequest } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 
 /** Optional assets are provisioned on each merchant's authorized WABA. */
 @Injectable()
@@ -32,8 +33,9 @@ export class MetaNativeAssetsService {
     const credentials = connectedMetaCloudCredentials(config, merchantId);
     if (!credentials) return;
     const graphFor = (accessToken: string) => async (path: string, init?: RequestInit) => {
-      const response = await fetch(`https://graph.facebook.com/v23.0/${path}`, { ...init,
-        headers: { Authorization: `Bearer ${accessToken}`, ...init?.headers }, redirect: "error", signal: AbortSignal.timeout(8000) });
+      const response = await startWhatsAppRequest({ kind: "whatsapp", merchantId, configId, deviceId: config!.deviceId ?? `META_CLOUD:${configId}`,
+        provider: "META_CLOUD", accountId: credentials.phoneNumberId }, () => fetch(`https://graph.facebook.com/v23.0/${path}`, { ...init,
+        headers: { Authorization: `Bearer ${accessToken}`, ...init?.headers }, redirect: "error", signal: AbortSignal.timeout(8000) }));
       const data = await response.json().catch(() => ({})) as any;
       if (!response.ok) throw new Error(`meta_native_http_${response.status}_code_${Number(data.error?.code) || 0}`);
       return data;

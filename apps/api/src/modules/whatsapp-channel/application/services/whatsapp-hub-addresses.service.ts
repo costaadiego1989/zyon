@@ -1,4 +1,5 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
+import { admitWhatsAppEffectInTransaction } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import { createHash } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -42,6 +43,7 @@ export class WhatsAppHubAddressesService {
   async mutate(input: { buyerId: string; merchantId: string; conversationId: string; token: string; basisHash: string;
     kind: "add" | "edit" | "default" | "delete"; addressId?: string; draft?: Partial<Record<HubAddressField, string>> }) {
     return this.prisma.$transaction(async tx => {
+      await admitWhatsAppEffectInTransaction(tx, input.merchantId);
       // Serialize channel address changes per canonical buyer, including default and maximum count.
       const locked = await tx.$queryRaw<Array<{ global_user_id: string }>>`SELECT global_user_id FROM buyer_accounts WHERE global_user_id=${input.buyerId} FOR UPDATE`;
       if (locked.length !== 1) throw new Error("hub_buyer_missing");

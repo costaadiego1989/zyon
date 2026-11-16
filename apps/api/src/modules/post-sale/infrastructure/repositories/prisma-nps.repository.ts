@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { withWhatsAppEffectTransaction } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import {
   NPS_REPOSITORY,
   type NpsRepositoryPort,
@@ -15,7 +16,7 @@ export class PrismaNpsRepository implements NpsRepositoryPort {
     // Classify
     const classification = this.classify(input.score);
 
-    const response = await this.prisma.npsResponse.create({
+    const response = await withWhatsAppEffectTransaction(this.prisma, input.merchantId, tx => tx.npsResponse.create({
       data: {
         merchantId: input.merchantId,
         buyerId: input.buyerId,
@@ -24,7 +25,7 @@ export class PrismaNpsRepository implements NpsRepositoryPort {
         feedback: input.feedback || null,
         classification,
       },
-    });
+    }));
 
     return this.mapToDomain(response);
   }

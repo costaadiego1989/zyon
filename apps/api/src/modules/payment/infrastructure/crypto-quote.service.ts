@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { currentWhatsAppExecution, startWhatsAppPaymentRequest, WhatsAppAiSuppressedError } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 
 export interface CryptoQuoteResult {
   brlPerUsdc: number;
@@ -23,10 +24,12 @@ export class CryptoQuoteService {
     }
 
     try {
-      const res = await fetch(
+      const request = () => fetch(
         "https://api.binance.com/api/v3/ticker/price?symbol=USDCBRL",
         { signal: AbortSignal.timeout(5000) },
       );
+      const frame = currentWhatsAppExecution();
+      const res = frame ? await startWhatsAppPaymentRequest(frame.authority.merchantId, request) : await request();
       if (!res.ok) throw new Error(`binance_http_${res.status}`);
       const data = (await res.json()) as { symbol: string; price: string };
       const price = parseFloat(data.price);
@@ -35,6 +38,7 @@ export class CryptoQuoteService {
       this.logger.log("crypto.quote binance brlPerUsdc=" + price);
       return { brlPerUsdc: price, source: "binance", cachedAt: new Date(now).toISOString() };
     } catch (err) {
+      if (err instanceof WhatsAppAiSuppressedError) throw err;
       this.logger.warn(`crypto.quote binance_failed: ${err instanceof Error ? err.message : String(err)}`);
       const fb = fallback ?? this.cache?.price;
       if (fb && fb > 0) {

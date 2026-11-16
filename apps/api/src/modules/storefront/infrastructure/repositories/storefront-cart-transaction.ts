@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, UnprocessableEntityException } from "@nestjs/common";
+import { admitWhatsAppEffectInTransaction } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import { crossSellAcceptedLineIntentSchema } from "../../../cross-sell/domain/contracts/cross-sell-storefront-quote.schemas.js";
@@ -76,6 +77,7 @@ export function withStorefrontCartInTransaction<T>(tx: Prisma.TransactionClient,
 export async function withStorefrontCartInTransaction<T>(tx: Prisma.TransactionClient, merchantId: string, sessionId: string,
   work: StorefrontCartTransactionWork<T>, access: StorefrontCartAccess = "mutate", revalidateCoupon?: StorefrontCombinedCouponRevalidator,
   couponLifecycle?: StorefrontCombinedCouponLifecycle): Promise<StorefrontCartTransactionResult<T | void>> {
+  await admitWhatsAppEffectInTransaction(tx, merchantId);
   if(access==="read"){
     const normal=await readNormalCheckoutSourceProjection(tx,{merchantId,cartId:sessionId});
     if(normal)return {result:undefined,cart:normal.source};

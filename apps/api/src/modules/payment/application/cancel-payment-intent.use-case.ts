@@ -1,3 +1,4 @@
+import { withoutWhatsAppExecutionForVerifiedOperation } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../checkout/domain/ports/checkout-repository.port.js";
@@ -97,8 +98,8 @@ export class CancelPaymentIntentUseCase {
       intent.recordCancellation({ ...operation, state: cancelled ? "cancelled" : blocked ? "blocked" : "uncertain", leaseToken: undefined, leaseUntil: undefined, reason });
       if (cancelled) intent.markCancelled("buyer_requested_provider_cancellation");
       try {
-        if (cancelled) await savePaymentTransition(this.payments, intent, "buyer_requested_provider_cancellation");
-        else await this.payments.saveIntent({ intent });
+        if (cancelled) await withoutWhatsAppExecutionForVerifiedOperation(() => savePaymentTransition(this.payments, intent, "buyer_requested_provider_cancellation"));
+        else await withoutWhatsAppExecutionForVerifiedOperation(() => this.payments.saveIntent({ intent }));
         return this.reply(intent, cancelled ? "cancelled" : result.state === "unsupported" ? "unsupported" : blocked ? "not_pending" : "pending", reason);
       } catch (error) { if (!(error instanceof PaymentIntentConflictError)) throw error; }
     }

@@ -5,6 +5,7 @@ import { assertCheckoutBuyerIdentityTransition, assertCheckoutBuyerIdentityChatC
 import type { ChatExchangeClaim } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import { isDeepStrictEqual } from "node:util";
 import { Prisma } from "@prisma/client";
+import { admitWhatsAppEffectInTransaction } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import { z } from "zod";
 import { moneyCents } from "@zyon/rules-engine";
 import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
@@ -97,6 +98,7 @@ export function normalCrossSellContextHash(stored:{id:string;merchantId:string;s
     stored.cart,customer,stored.shipping,stored.shippingOptions,stored.paymentMethod]);
 }
 export async function lockNormalCheckoutCrossSell(tx:Prisma.TransactionClient,scope:NormalCheckoutCrossSellScope){
+  await admitWhatsAppEffectInTransaction(tx, scope.merchantId);
   const merchants=z.array(z.object({id})).length(1).parse(await tx.$queryRaw`SELECT id FROM merchants WHERE id=${scope.merchantId} FOR UPDATE`);
   if(merchants[0]!.id!==scope.merchantId)return requireNormalCrossSellReview();
   await tx.$queryRaw`SELECT merchant_id FROM merchant_rules WHERE merchant_id=${scope.merchantId} FOR SHARE`;

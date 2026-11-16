@@ -1,3 +1,4 @@
+import { startWhatsAppPaymentRequest } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 import { assertStandardCancellationInput, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
 import Stripe from "stripe";
@@ -64,7 +65,7 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     const p = input.payment;
     if (p.method !== "card" || !/^pi_[A-Za-z0-9_]+$/.test(input.providerPaymentId)) return { state: "unsupported" };
     if (p.stripeChargeMode === "direct_v2" && !/^acct_[A-Za-z0-9]+$/.test(p.stripeConnectAccountId ?? "")) throw new Error("payment_cancellation_identity_invalid");
-    const payment = await this.requireStripe().paymentIntents.retrieve(input.providerPaymentId, {}, this.connectedAccountOptions(p));
+    const payment = await startWhatsAppPaymentRequest(input.payment.merchantId, () => this.requireStripe().paymentIntents.retrieve(input.providerPaymentId, {}, this.connectedAccountOptions(p)));
     if (payment.id !== input.providerPaymentId || payment.object !== "payment_intent" || payment.amount !== p.amountCents ||
         payment.currency !== p.currency.toLowerCase() || payment.livemode !== this.secretKey?.startsWith("sk_live_") ||
         payment.metadata.intent_id !== p.intentId || payment.metadata.merchant_id !== p.merchantId || payment.metadata.session_id !== p.sessionId) {
@@ -78,7 +79,7 @@ export class StripePaymentAdapter implements PaymentProviderPort {
   async cancelPendingPayment(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
     const before = await this.readCancellationStatus(input);
     if (before.state !== "pending") return before;
-    await this.requireStripe().paymentIntents.cancel(input.providerPaymentId, { cancellation_reason: "requested_by_customer" }, { idempotencyKey: input.idempotencyKey, ...this.connectedAccountOptions(input.payment) });
+    await startWhatsAppPaymentRequest(input.payment.merchantId, () => this.requireStripe().paymentIntents.cancel(input.providerPaymentId, { cancellation_reason: "requested_by_customer" }, { idempotencyKey: input.idempotencyKey, ...this.connectedAccountOptions(input.payment) }));
     return this.readCancellationStatus(input);
   }
 
@@ -122,7 +123,7 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     if (!candidate) return null;
     if (!candidate.id?.startsWith("pi_")) throw new Error("marketplace_payment_identity_mismatch");
     proof.providerPaymentId = candidate.id;
-    const payment = await stripe.paymentIntents.retrieve(candidate.id, { expand: ["latest_charge"] });
+    const payment = await startWhatsAppPaymentRequest(input.merchantId, () => stripe.paymentIntents.retrieve(candidate.id, { expand: ["latest_charge"] }));
     this.assertMarketplacePayment(proof, payment);
     if (payment.status === "succeeded") return { providerPaymentId: payment.id, status: "pending", buyerFacingPayload: {} };
     if (payment.automatic_payment_methods?.enabled || payment.payment_method_types?.length !== 1 || payment.payment_method_types[0] !== "card") {
@@ -166,13 +167,13 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       paymentIntentParams.transfer_data = { destination: input.stripeConnectAccountId };
     }
 
-    const paymentIntent = await this.requireStripe().paymentIntents.create(
+    const paymentIntent = await startWhatsAppPaymentRequest(input.merchantId, () => this.requireStripe().paymentIntents.create(
       paymentIntentParams,
       {
         idempotencyKey: input.providerIdempotencyKey ?? input.intentId,
         ...this.connectedAccountOptions(input),
       }
-    );
+    ));
 
     if (!paymentIntent.client_secret) {
       throw new Error("stripe_client_secret_missing");
@@ -192,8 +193,8 @@ export class StripePaymentAdapter implements PaymentProviderPort {
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
     const marketplace = input.marketplaceAccount !== undefined || input.marketplacePayment !== undefined;
     if (marketplace) await this.assertMarketplaceStatusInput(input);
-    const pi = await this.requireStripe().paymentIntents.retrieve(input.providerPaymentId,
-      marketplace ? { expand: ["latest_charge"] } : undefined, marketplace ? undefined : this.connectedAccountOptions(input));
+    const pi = await startWhatsAppPaymentRequest(input.merchantId, () => this.requireStripe().paymentIntents.retrieve(input.providerPaymentId,
+      marketplace ? { expand: ["latest_charge"] } : undefined, marketplace ? undefined : this.connectedAccountOptions(input)));
     if (marketplace) this.assertMarketplacePayment(input, pi);
     return {
       state: stripeStateFromStatus(pi.status),
@@ -206,7 +207,7 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     if (environment !== "test" && environment !== "live") throw new Error("marketplace_payment_resume_identity_invalid");
     await this.assertMarketplaceStatusInput(input);
     const live = environment === "live";
-    const pi = await this.requireStripe().paymentIntents.retrieve(input.providerPaymentId, { expand: ["latest_charge", "payment_method"] });
+    const pi = await startWhatsAppPaymentRequest(input.merchantId, () => this.requireStripe().paymentIntents.retrieve(input.providerPaymentId, { expand: ["latest_charge", "payment_method"] }));
     this.assertMarketplacePayment(input, pi);
     const known = new Set(["requires_payment_method", "requires_action", "processing", "succeeded", "canceled", "requires_confirmation", "requires_capture"]);
     const providerStatus = known.has(pi.status) ? pi.status : "unknown";
@@ -282,18 +283,18 @@ export class StripePaymentAdapter implements PaymentProviderPort {
   async cancelPayment(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }> {
     const stripe = this.requireStripe();
     const options = this.connectedAccountOptions(input);
-    const payment = await stripe.paymentIntents.retrieve(input.providerPaymentId, undefined, options);
+    const payment = await startWhatsAppPaymentRequest(input.merchantId, () => stripe.paymentIntents.retrieve(input.providerPaymentId, undefined, options));
     if (payment.status === "canceled") return { state: "cancelled" };
     if (!["requires_payment_method", "requires_confirmation", "requires_action"].includes(payment.status)) return { state: "blocked" };
-    const cancelled = await stripe.paymentIntents.cancel(input.providerPaymentId, { cancellation_reason: "requested_by_customer" },
-      { ...options, idempotencyKey: `buyer-edit:${input.providerPaymentId}` });
+    const cancelled = await startWhatsAppPaymentRequest(input.merchantId, () => stripe.paymentIntents.cancel(input.providerPaymentId, { cancellation_reason: "requested_by_customer" },
+      { ...options, idempotencyKey: `buyer-edit:${input.providerPaymentId}` }));
     return { state: cancelled.status === "canceled" ? "cancelled" : "unknown" };
   }
 
   async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
     const stripe = this.requireStripe();
     const options = this.connectedAccountOptions(input);
-    const payment = await stripe.paymentIntents.retrieve(input.providerPaymentId, undefined, options);
+    const payment = await startWhatsAppPaymentRequest(input.merchantId, () => stripe.paymentIntents.retrieve(input.providerPaymentId, undefined, options));
     if (payment.id !== input.providerPaymentId || payment.livemode !== this.secretKey?.startsWith("sk_live_") ||
         (payment.metadata.merchant_id && payment.metadata.merchant_id !== input.merchantId) ||
         (input.stripeChargeMode === "direct_v2" && payment.metadata.merchant_id !== input.merchantId)) {
@@ -301,7 +302,7 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     }
     let refund: Stripe.Refund | undefined;
     if (/^re_[A-Za-z0-9]+$/.test(input.providerRefundId)) {
-      refund = await stripe.refunds.retrieve(input.providerRefundId, undefined, options);
+      refund = await startWhatsAppPaymentRequest(input.merchantId, () => stripe.refunds.retrieve(input.providerRefundId, undefined, options));
     } else {
       // Internal pending markers are references, never Stripe object ids. Read
       // the original charge only; an empty/ambiguous list cannot authorize a POST.
@@ -309,8 +310,8 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       const matches: Stripe.Refund[] = [];
       let cursor: string | undefined;
       for (let page = 0; page < 10; page++) {
-        const rows = await stripe.refunds.list({ payment_intent: input.providerPaymentId, limit: 100,
-          ...(cursor ? { starting_after: cursor } : {}) }, options);
+        const rows = await startWhatsAppPaymentRequest(input.merchantId, () => stripe.refunds.list({ payment_intent: input.providerPaymentId, limit: 100,
+          ...(cursor ? { starting_after: cursor } : {}) }, options));
         matches.push(...rows.data.filter(row => row.metadata?.refund_reference === input.refundReference &&
           row.metadata?.merchant_id === input.merchantId && row.amount === input.amountCents));
         if (!rows.has_more) {
@@ -350,10 +351,10 @@ export class StripePaymentAdapter implements PaymentProviderPort {
   async readRefundRecoveryEligibility(input: RefundPaymentInput): Promise<boolean> {
     if (input.stripeChargeMode !== "direct_v2" || !input.idempotencyKey || !Number.isSafeInteger(input.amountCents) || input.amountCents <= 0) return false;
     const stripe = this.requireStripe(), options = this.connectedAccountOptions(input);
-    const payment = await stripe.paymentIntents.retrieve(input.providerPaymentId, undefined, options);
+    const payment = await startWhatsAppPaymentRequest(input.merchantId, () => stripe.paymentIntents.retrieve(input.providerPaymentId, undefined, options));
     if (payment.id !== input.providerPaymentId || payment.status !== "succeeded" || payment.livemode !== this.secretKey?.startsWith("sk_live_") ||
         payment.metadata.merchant_id !== input.merchantId || payment.currency !== "brl" || payment.amount_received !== input.amountCents) return false;
-    const refunds = await stripe.refunds.list({ payment_intent: input.providerPaymentId, limit: 1 }, options);
+    const refunds = await startWhatsAppPaymentRequest(input.merchantId, () => stripe.refunds.list({ payment_intent: input.providerPaymentId, limit: 1 }, options));
     return refunds.data.length === 0 && refunds.has_more === false;
   }
 
@@ -364,7 +365,7 @@ export class StripePaymentAdapter implements PaymentProviderPort {
 
   async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string; idempotencyKey?: string; stripeConnectAccountId?: string; stripeChargeMode?: "direct_v2" }) {
     const stripe = this.requireStripe();
-    const refund = await stripe.refunds.create({
+    const refund = await startWhatsAppPaymentRequest(input.merchantId, () => stripe.refunds.create({
       payment_intent: input.providerPaymentId,
       amount: input.amountCents,
       reason: "requested_by_customer",
@@ -372,7 +373,7 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     }, {
       ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
       ...this.connectedAccountOptions(input),
-    });
+    }));
     return { refundId: refund.id, status: refund.status === "succeeded" ? "succeeded" as const :
       refund.status === "failed" || refund.status === "canceled" ? "failed" as const : "pending" as const };
   }

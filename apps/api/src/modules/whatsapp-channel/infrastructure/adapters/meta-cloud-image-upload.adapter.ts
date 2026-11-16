@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { currentWhatsAppExecution, startWhatsAppRequest, WhatsAppAiSuppressedError, type WhatsAppRequestScope } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -8,7 +9,12 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export class MetaCloudImageUploadAdapter {
   private readonly cache = new Map<string, { id: string; expiresAt: number }>();
 
-  async prepare(input: { link: string; phoneNumberId: string; accessToken: string; graph: string }): Promise<string | undefined> {
+  async prepare(input: { link: string; phoneNumberId: string; accessToken: string; graph: string; scope?: WhatsAppRequestScope }): Promise<string | undefined> {
+    const request = <T>(start: () => Promise<T>): Promise<T> => {
+      if (input.scope) return startWhatsAppRequest(input.scope, start);
+      if (currentWhatsAppExecution()) throw new WhatsAppAiSuppressedError();
+      return start();
+    };
     const url = new URL(input.link);
     const hosts = new Set(["images.unsplash.com", ...(process.env.META_IMAGE_DOWNLOAD_ALLOWED_HOSTS ?? "").split(",").map(host => host.trim().toLowerCase()).filter(Boolean)]);
     const bucket = process.env.AWS_S3_BUCKET ?? "", region = process.env.AWS_S3_REGION ?? "us-east-1";
@@ -23,7 +29,7 @@ export class MetaCloudImageUploadAdapter {
     const key = `${input.phoneNumberId}:${url.href}`;
     const previous = this.cache.get(key);
     if (previous && previous.expiresAt > Date.now()) return previous.id;
-    const download = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(12000) });
+    const download = await request(() => fetch(url, { redirect: "error", signal: AbortSignal.timeout(12000) }));
     if (!download.ok || !download.body) throw new Error("whatsapp_image_download_failed");
     const declared = Number(download.headers.get("content-length"));
     if (declared > MAX_IMAGE_BYTES) { await download.body.cancel(); throw new Error("whatsapp_image_too_large"); }
@@ -44,8 +50,8 @@ export class MetaCloudImageUploadAdapter {
     const form = new FormData();
     form.set("messaging_product", "whatsapp"); form.set("type", mime);
     form.set("file", new Blob([new Uint8Array(bytes)], { type: mime }), mime === "image/png" ? "product.png" : "product.jpg");
-    const upload = await fetch(`${input.graph}/${input.phoneNumberId}/media`, { method: "POST", body: form,
-      headers: { Authorization: `Bearer ${input.accessToken}` }, redirect: "error", signal: AbortSignal.timeout(15000) });
+    const upload = await request(() => fetch(`${input.graph}/${input.phoneNumberId}/media`, { method: "POST", body: form,
+      headers: { Authorization: `Bearer ${input.accessToken}` }, redirect: "error", signal: AbortSignal.timeout(15000) }));
     const result = await upload.json().catch(() => ({})) as { id?: unknown };
     if (!upload.ok || typeof result.id !== "string" || !/^\d+$/.test(result.id)) throw new Error("whatsapp_image_upload_failed");
     if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value!);

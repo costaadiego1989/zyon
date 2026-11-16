@@ -1,3 +1,4 @@
+import { withoutWhatsAppExecutionForVerifiedOperation } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import { snapshotOrderLines } from "../../../operations/domain/order-fulfillment.js";
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
 import type { CheckoutSession, CompleteOrderRequest, CompleteOrderResponse } from "@zyon/shared-types";
@@ -125,7 +126,10 @@ export class CompleteOrderUseCase {
     }
     const historicalInput=normalAuthority?.discountOwner?.kind==="accepted_offer"
       ?{...input,accepted_offer_id:normalAuthority.discountOwner.authorizedOfferId}:input;
-    return this.complete(historicalInput, approval, couponAuthority, widgetAuthority,normalAuthority);
+    // The canonical persisted approval and its scope/amount/authority were
+    // verified above. Operational reconciliation and its event handlers remain
+    // authorized even when invoked from an obsolete AI continuation.
+    return withoutWhatsAppExecutionForVerifiedOperation(() => this.complete(historicalInput, approval, couponAuthority, widgetAuthority,normalAuthority));
   }
 
   private async complete(input: CompleteOrderRequest, approval?: PersistedPaymentApproval, couponAuthority?: CheckoutCouponOrderAuthority,
