@@ -300,10 +300,10 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Implemented locally including T104 bounded-write repair; final proof pending |
 | RAG-02 | Retirement | T65, T67, T68, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
 | RAG-03 | Retry and source durability | T64, T66, T67, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
-| RAG-04 | Source provenance | T66, T68, T69 | In Progress (T66 producer and T68 admission complete; T69 response propagation pending) |
+| RAG-04 | Source provenance | T66, T68, T69 | Implemented locally (T66/T68/T69 complete; final integrated proof pending) |
 | RAG-05 | Compound live queries | T70, T71 | Pending |
 | RAG-06 | Insufficient/conflicting evidence | T68, T71 | In Progress (T68 admission complete; T71 final consumer pending) |
-| RAG-07 | Public/private isolation | T6, T63, T68, T69 | In Progress (T68 admission complete; T69 response propagation pending) |
+| RAG-07 | Public/private isolation | T6, T63, T68, T69 | Implemented locally (T6/T63/T68/T69 complete; final integrated proof pending) |
 | RAG-08 | Controlled Cypher | T2, T70 | Pending |
 | RAG-09 | Professional boundary | T71, T72 | Pending |
 | RAG-10 | Generic onboarding | T63, T67, T71, T72 | Pending |

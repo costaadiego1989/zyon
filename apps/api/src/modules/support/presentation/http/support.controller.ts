@@ -54,7 +54,7 @@ import { embedCheckoutSessionId } from "../../../embed/domain/embed-checkout-ses
 import { readTrustedStorefrontOrigin } from "../../../embed/presentation/http/embed-auth.guard.js";
 import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 
-type EmbedRequest = { embedClaims?: EmbedTokenClaims; headers?: Record<string, string | undefined> };
+type EmbedRequest = { embedClaims?: EmbedTokenClaims; headers?: Record<string, string | undefined>; correlationId?: string };
 
 @ApiTags("Support")
 @Controller("support")
@@ -180,7 +180,7 @@ export class SupportController {
     // after token/origin/rate checks; never grant a merchant/operator role.
     return this.tenantContext.run({ merchantId, userId: identity.userId, role: "buyer",
       ...(identity.userId.startsWith("buyer:") ? { buyerGlobalUserId: identity.userId.slice(6) } : {}),
-      ...(current?.correlationId ? { correlationId: current.correlationId } : {}) }, async () => {
+      ...(current?.correlationId || request.correlationId ? { correlationId: current?.correlationId ?? request.correlationId } : {}) }, async () => {
       const settings = await this.getSettings.execute(merchantId);
       const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
       const result = await this.sendSupportMessage.execute(

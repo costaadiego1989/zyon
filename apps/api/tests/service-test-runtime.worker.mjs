@@ -11,6 +11,7 @@ import {fileURLToPath} from 'node:url';
 import {createHook} from 'node:async_hooks';
 import {createLocalWhatsAppProviderFixture,validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
 import {createPublicSupportModelFixture} from './service-public-support-model-fixture.mjs';
+import {createPublicStorefrontModelFixture} from './service-public-storefront-model-fixture.mjs';
 
 const [databaseUrl,databaseRunId,redisUrl,redisRunId,...extra]=process.argv.slice(2);
 const stage=(name,details={})=>process.send?.({type:'stage',stage:name,...details});
@@ -29,17 +30,20 @@ const cleanupResources=stage=>{
   process.stderr.write('service_cleanup_resources:'+JSON.stringify({stage,resourceTypes:process.getActiveResourcesInfo(),handles,timers})+'\n');
 };
 stage('worker_started');
-assert.ok(extra.length<=1);let localWhatsApp;let localSupportQueryModel=false;
+assert.ok(extra.length<=1);let localWhatsApp;let localSupportQueryModel=false,localStorefrontQueryModel=false;
 if(extra.length){
   assert.ok(extra[0].length<=8192);const parsed=JSON.parse(extra[0]);
   assert.ok(parsed&&typeof parsed==='object'&&!Array.isArray(parsed));
-  const{supportQueryModel,...whatsappOptions}=parsed;
+  const{supportQueryModel,storefrontQueryModel,...whatsappOptions}=parsed;
   assert.ok(supportQueryModel===undefined||supportQueryModel===true,'local_support_query_flag_invalid');
+  assert.ok(storefrontQueryModel===undefined||storefrontQueryModel===true,'local_storefront_query_flag_invalid');
+  assert.ok(!(supportQueryModel&&storefrontQueryModel),'local_model_flags_mutually_exclusive');
   localSupportQueryModel=supportQueryModel===true;
+  localStorefrontQueryModel=storefrontQueryModel===true;
   if(Object.keys(whatsappOptions).length){
     assert.match(whatsappOptions.metaSecret,/^[a-f0-9]{64}$/);
     const{metaSecret,...providerOptions}=whatsappOptions;localWhatsApp={metaSecret,...validateLocalWhatsAppOptions(providerOptions)};
-  }else assert.ok(localSupportQueryModel,'local_provider_fixture_required');
+  }else assert.ok(localSupportQueryModel||localStorefrontQueryModel,'local_provider_fixture_required');
 }
 assertConstructionOnlyAmbient(process.env);assertServiceArtifacts();stage('artifacts_checked');
 const database=assertNativePrismaUrl(databaseUrl);assertSyntheticRedisIdentity(redisUrl,redisRunId,redisRunId);
@@ -62,7 +66,7 @@ async function close(){
   try{if(trap)await trap.dispose();}catch(e){errors.push(e);}
   if(provider?.providerCalls)errors.push(new Error('service_provider_attempt_forbidden:'+JSON.stringify(trap.diagnostics())));
   if(errors.length)throw new AggregateError(errors,'service_app_cleanup_failed:'+errors.map(error=>String(error.message).slice(0,1400)).join('|'));
-  return{appClosed:true,providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0,...(modelFixture?{localSupportModel:modelFixture.evidence()}:{} )};
+  return{appClosed:true,providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0,...(modelFixture?(localSupportQueryModel?{localSupportModel:modelFixture.evidence()}:{localStorefrontModel:modelFixture.evidence()}):{} )};
 }
 try{
   trap=await installConstructionProviderTrap(Number(database.port),Number(new URL(redisUrl).port));
@@ -91,7 +95,7 @@ try{
     fixtureInstallation=fixture.install(WhatsAppChannelModule,channelToken,mediaType);fixtureOverrideNames=fixtureInstallation.overrides;
   }
   let modelInstallation;
-  if(localSupportQueryModel){
+  if(localSupportQueryModel||localStorefrontQueryModel){
     const{KnowledgeBaseModule}=await import('../dist/modules/knowledge-base/knowledge-base.module.js');
     const{QueryKnowledgeUseCase}=await import('../dist/modules/knowledge-base/application/use-cases/query-knowledge.use-case.js');
     const{KNOWLEDGE_REPOSITORY}=await import('../dist/modules/knowledge-base/domain/ports/knowledge-repository.port.js');
@@ -104,7 +108,14 @@ try{
     const{SendSupportMessageUseCase}=await import('../dist/modules/support/application/send-support-message.use-case.js');
     modelTokens={KnowledgeBaseModule,QueryKnowledgeUseCase,KNOWLEDGE_REPOSITORY,EMBEDDING_PORT,BillingPlanMeteringService,
       PUBLIC_KNOWLEDGE_SEARCH,RevalidatePublicSourceService,SupportModule,CHAT_COMPLETION_PORT,SendSupportMessageUseCase};
-    modelFixture=createPublicSupportModelFixture(databaseRunId,event=>process.send({type:'local_support_model_event',event}));
+    if(localStorefrontQueryModel){
+      const{StorefrontModule}=await import('../dist/modules/storefront/storefront.module.js');
+      const{StorefrontConversationAdapter,STOREFRONT_PROVIDER_FETCH_FACTORY}=await import('../dist/modules/storefront/infrastructure/adapters/storefront-conversation.adapter.js');
+      Object.assign(modelTokens,{StorefrontModule,StorefrontConversationAdapter,STOREFRONT_PROVIDER_FETCH_FACTORY});
+    }
+    modelFixture=localSupportQueryModel
+      ?createPublicSupportModelFixture(databaseRunId,event=>process.send({type:'local_support_model_event',event}))
+      :createPublicStorefrontModelFixture(databaseRunId,event=>process.send({type:'local_storefront_model_event',event}));
     modelInstallation=modelFixture.install(modelTokens);modelOverrideNames=modelInstallation.overrides;
   }
   try{stage('constructing_app');app=await bounded(NestFactory.create(AppModule,{abortOnError:false,logger:false,rawBody:true}),45_000,'service_app_construct_timeout');}

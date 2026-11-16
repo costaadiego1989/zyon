@@ -1,0 +1,183 @@
+{
+  "task": "T69",
+  "status": "complete_locally",
+  "base": "19483cdc42834a9f64ff65a4b808f394d85fc8fd",
+  "build": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+    "artifactSha256": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2543
+    },
+    "recordedAt": "2026-11-16T15:05:24.964Z"
+  },
+  "results": [
+    {
+      "kind": "components",
+      "path": ".cache/t69-gates/2026-11-16T14-49-01.502Z/unit.log",
+      "sha256": "aad051e441eb6ddea784ad33684d4166215e8e066dde180042726217afbba3aa",
+      "passed": 879,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "kind": "provenanceHTTP",
+      "path": ".cache/t69-gates/2026-11-16T15-25-07.873Z/provenance.log",
+      "sha256": "2c3f03051d5b484744d17fa333d397e3460866b3e2411064043fd5768a0c9b41",
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "kind": "canonicalRevalidation",
+      "path": ".cache/t69-gates/2026-11-16T15-11-56.661Z/revalidation.log",
+      "sha256": "16bc5897755525ce3a8578fed425faecaf3036de5cefa23fe02007ee03730c69",
+      "passed": 37,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "kind": "index",
+      "path": ".cache/t69-gates/2026-11-16T15-07-08.925Z/index.log",
+      "sha256": "a3ca1cafaf4bb089ed4edbe1f651d73512531a61e2accc7b04d81a662c947d4a",
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "kind": "paymentOperatorCoexistence",
+      "path": ".cache/t69-gates/2026-11-16T15-29-55.273Z/coexistence.log",
+      "sha256": "4fffffaddc8f8d679290e771f417af81b549cd9adffd27f06132263067ee4875",
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "nativeTotal": 83,
+  "components": 879,
+  "source": [
+    {
+      "path": "apps/api/src/modules/knowledge-base/application/services/knowledge-response-audit.service.spec.ts",
+      "sha256": "3e422672de228c65ad8a1a47b280a5dd384d7280e4bc0a4a08ea95137fc820fc"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/application/services/knowledge-response-audit.service.ts",
+      "sha256": "c9f6c4b11af5e98491d1657c459bc4ffa2a2204bad2fbf2c7cf9f46acb468e0e"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/application/use-cases/query-knowledge.provenance.spec.ts",
+      "sha256": "da13ddae1860db88ab762c544f1ed16439fdea420b5b7603218ebf125dedf529"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/application/use-cases/query-knowledge.use-case.ts",
+      "sha256": "cc6bcc86a25dcfa7a33e69143ada108b20e6ffa0b93a62f4e11e7ea0adbd60c5"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/application/use-cases/revalidate-public-source.service.ts",
+      "sha256": "30124207ee576aa6db6da39adeaceb0151fd3d5707175c39c8559e35cd4c8b8a"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/domain/ports/knowledge-repository.port.ts",
+      "sha256": "e20ec2fae45a4286204441dbf07e8ae673408dfa7c9c6116866843d98ea42bca"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/domain/ports/public-knowledge-search.port.ts",
+      "sha256": "282b3a69cad97341998de1a50a183b33f300af487e1ae3bff3334ebbaf05b3f0"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/domain/public-source-evidence.ts",
+      "sha256": "ef5a08d008e492cdcd98552cb06480bbbfc90810e0d8723428f5f4954da626da"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/infrastructure/graph-knowledge.provenance.spec.ts",
+      "sha256": "fdcf872af4773e5f1ec0e69060a0b1cc2a3ded0bb1771e2ddcb4b3839aedf456"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/infrastructure/graph-knowledge.reader.ts",
+      "sha256": "bbfec0e7552799682a1df95a7c4b4e8e3b035812d729442feffec02c7517e81f"
+    },
+    {
+      "path": "apps/api/src/modules/knowledge-base/knowledge-base.module.ts",
+      "sha256": "558be8b403c8103be7d4b00ca375c17791308e6cad42b2cc5214610dad7f038a"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/application/use-cases/send-store-message.provenance.spec.ts",
+      "sha256": "c704d4281232747d249160ffdef7dcf4bf8c508ec797a5cf8b1f29c393f6cf29"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/application/use-cases/send-store-message.use-case.ts",
+      "sha256": "8e79eb37b45420708313d3f83b2b9b8206123b1cc63ee5a650b7c6319b42b7f7"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/domain/ports/conversation.port.ts",
+      "sha256": "602085b9f1d0fe245ad2cf53379d21ea68f7e1160e4b7fca5d1eac3cdb2e093f"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/infrastructure/adapters/storefront-conversation.adapter.ts",
+      "sha256": "bed170cea6ea87ca12f112098f27f930307713fb4f5f99a561d3059c9e7f2754"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/presentation/http/storefront-public-knowledge-scope.spec.ts",
+      "sha256": "d4d4a0934db0107fb8ea710eeb4e77b74169eba2c5e5bca2db50ed46a8e3dda0"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+      "sha256": "5e537a40bb2490fe4cdfce847121a68c9d9115647ed1d58a82a66ec2be768520"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/send-support-message.provenance.spec.ts",
+      "sha256": "21522dee87dbc3baf7313ea4a1ec2218e6a610ac54fd329c88a1fdfe6debd904"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/send-support-message.use-case.ts",
+      "sha256": "1c9eb4fbe89d12ee78b3472674b67608376979c349d69b93abc61fddef5b5ff1"
+    },
+    {
+      "path": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+      "sha256": "c0f38c8bbfedabae01e4eeaf6f9ee1fe2e13827a63baa8618d683051bddba2df"
+    },
+    {
+      "path": "apps/api/tests/business-rag-storefront-provenance.integration.spec.mjs",
+      "sha256": "c7a4f834beed5d33d019c3034f0349177845c77b5de946004c60e2490f4d2d87"
+    },
+    {
+      "path": "apps/api/tests/business-rag-support-provenance.integration.spec.mjs",
+      "sha256": "c65274577bc07ed17d6187667e4a23a875cfa018773b783eddf30ae5316c89e2"
+    },
+    {
+      "path": "apps/api/tests/service-public-storefront-model-fixture.mjs",
+      "sha256": "35afcdac007567d6f4901f58b84fdcc57361c161c927e5915b677c7d7e33d092"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.mjs",
+      "sha256": "b1276ef00e20c6e08c6b5cf0de5fc4a1dd78957aeded2974861cdb1d26fb18cf"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.worker.mjs",
+      "sha256": "9ff9ae54ee8883a25e839cdc327c23d7df81ad6e0667446b335ef677ee21ef8e"
+    }
+  ],
+  "sourceAudit": "actual HTTP auth/tenant/canonical Query/Prisma audit rows; final application reply digest and allowlisted canonical/retrieval references",
+  "modelTransport": "explicit opt-in synthetic embeddings/completion only; not real model quality proof",
+  "providerCalls": 0,
+  "cleanup": "native fixture assertions/natural exits passed, no owned resources retained",
+  "oldAssertionsChanged": "only two absent-context null literals explicitly approved; all other existing assertions preserved",
+  "precedingRepair": "T104 commit19483cdc4 resolves cold Neo4j client deadline with one atomic write, unchanged2s and old37/14assertions",
+  "historicalFailures": [
+    ".cache/t69-current-revalidation-failure.json",
+    ".cache/t69-revalidation-timeout.json",
+    ".cache/t69-second-revalidation-failure.json"
+  ],
+  "boundaries": [
+    "no real provider/production delivery proof",
+    "not per-sentence or post-model freshness guarantee",
+    "verified WhatsApp/socket TenantALS and final-current response admission remain T71",
+    "six-family production gateway/semantic templates remain T70",
+    "final sameHEAD proofs/Verifier/screens pending"
+  ],
+  "productionReady": false
+}

@@ -1,13 +1,19 @@
+import type { PublicBusinessSourceType } from "../../../graph-rag/domain/public-business-source.js";
+import type { LegacyKnowledgeRetrievalEvidence, ValidatedPublicEvidence } from "../public-source-evidence.js";
+
 export const KNOWLEDGE_REPOSITORY = Symbol("KNOWLEDGE_REPOSITORY");
 
 export interface KnowledgeChunk {
   id: string;
   merchantId: string;
-  sourceType: "product" | "policy" | "faq" | "config";
+  sourceType: PublicBusinessSourceType | "product" | "config";
   sourceId?: string;
   content: string;
   metadata?: Record<string, unknown>;
   similarity?: number;
+  /** Canonically admitted references, never raw storage metadata. */
+  provenance?: ReadonlyArray<Readonly<ValidatedPublicEvidence["provenance"]>>;
+  retrieval?: ReadonlyArray<Readonly<LegacyKnowledgeRetrievalEvidence>>;
 }
 
 export interface KnowledgeRepositoryPort {

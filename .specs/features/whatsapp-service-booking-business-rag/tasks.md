@@ -1481,15 +1481,15 @@ T104 → T69
 **What**: KnowledgeChunk e auditoria conservam sourceType/id/version/hash/model/publication; adaptar tipo compartilhado e consumidores estritamente necessários sem vazar conteúdo privado.
 **Where**: `apps/api/src/modules/knowledge-base/infrastructure/graph-knowledge.reader.ts`
 **Depends on**: T68, T104
-**Status**: In Progress; paused for discoveredT104 repair. Pre104checked395d/d33d andnative9passed; ordinary/observed revalidation22/20pass/2fail diagnosed cold Neo4j client deadline. Current104source invalidates that artifact. C98validation returned; Root component879 runs33665, fresh checked/native still required.
+**Status**: Complete locally;879components/83native/checked2543fa8c-1d61 allgreen after104repair. Actual HTTP response audit/privacy/coexistence proven,0skip/provider/naturalcleanup; see task-69-evidence.json. T70/T71and final feature verification remain pending.
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: RAG-04, RAG-07
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Reader/query/support/storefront contracts plus both native provenance companions demonstrate metadata through the actual persisted response audit, exact tenant/source/correlation, privacy and visible audit-write failure.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Reader/query/support/storefront contracts plus both native provenance companions demonstrate metadata through the actual persisted response audit, exact tenant/source/correlation, privacy and visible audit-write failure.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: New provenance contracts for graph reader, QueryKnowledge, response audit, Support consumer, Storefront consumer and public caller scope; unchanged old companions run without filters. Native `business-rag-support-provenance.integration.spec.mjs` (five tests) and `business-rag-storefront-provenance.integration.spec.mjs` (four) exercise actual HTTP/auth/Prisma/audit with declared model-only fixtures. Existing T68 admission, public HTTP and index companions remain required.
 **Gate**: Full: the unfiltered component cohort through the existing guarded loader, a fresh complete checked API build with unchanged compiler settings, then `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/business-rag-support-provenance.integration.spec.mjs ./tests/business-rag-storefront-provenance.integration.spec.mjs` and the existing T68 native companions. No name filter, skipped case, stale artifact or undeclared provider override; record exact executed counts and owned cleanup. Final per-criterion proofs remain mandatory after the last task.
@@ -2432,6 +2432,10 @@ Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.servi
 Tasks: T82, T83, T103.
 
 ## Handoff
+
+**Settled user UI feedback (2026-11-16):** user: "está sim mas trar checkbox por toggle e poder vincular um profissional a um serviço se ja nao tiver". Record acceptance of the shown mode split with pending ToggleSwitch/professional-association refinements; no release authority or fabricated final screen approval. Backend professional association already exists through productIds+expectedVersion under owner/admin and tenant/mode guards; inventory actual shape/concurrency before new UI, no duplicate writer. Keep69full closure and other approved work moving; new UI follow-up plan/source will be isolated after concrete task records.
+
+**T104 atomic commit complete;69remaining gates (before execution):**19483cdc42834a9f64ff65a4b808f394d85fc8fd stages only104source2files/plan/evidence/status, after879components/51actualnative/checked2543fa8c-1d61green.45/104complete. Metadata-onlyce8af091e separately records requested support/board plan; no69or99source staged in either. Root now repeats the mandatory new provenanceHTTP9 on the current post104artifact, then coexist23 after its natural cleanup. No fresh build or unit rerun needed without a source-content change; native validators must still admit exactfa8c/1d61 after commits. No source/test changes during these gates, no remote/provider action; other agents remain source-only.
 
 **Dispatched Phase8 cache preparation refresh (before sending):** C98is complete/returned. C may refresh its existing wholePhase8T56-T62 preparation in ignored cache only while M55is pending. No productive edits/imports/tests/builds/browser/provider. Read frozenM54proof/types, record exact proposed files/contracts and review: all WhatsApp ticket close/status/transfer writers must respect canonical close+resume; resumed-AI notice needs its own current epoch/purpose proof, no fake inbox or reused human-message authority; semantic tool-created handoff must use the confirmed server-only notice path, not arbitrary model text; staff Conversations access must be separate from credential controls/requests. Preserve original batch dependency55, gates, all old buyer menus/product routes and phone99-101scope. Not finalVerifier; Root retains native43260sole window.
 

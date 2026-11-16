@@ -34,11 +34,16 @@ import { KnowledgeAdminController } from "./presentation/http/knowledge-admin.co
 import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { RevalidatePublicSourceService } from "./application/use-cases/revalidate-public-source.service.js";
 import { PrismaPublicEvidenceSources } from "./infrastructure/prisma-public-evidence.sources.js";
+import { AuditModule } from "../audit/audit.module.js";
+import { RecordAuditEventUseCase } from "../audit/application/audit.use-cases.js";
+import { KnowledgeResponseAuditService } from "./application/services/knowledge-response-audit.service.js";
 
 @Module({
-  imports: [CatalogModule, IntegrationsModule, GraphRagModule, PublicSupportKnowledgeModule],
+  imports: [CatalogModule, IntegrationsModule, GraphRagModule, PublicSupportKnowledgeModule, AuditModule],
   controllers: [MerchantPolicyController, KnowledgeAdminController],
   providers: [
+    { provide: KnowledgeResponseAuditService, useFactory: (audit: RecordAuditEventUseCase, tenant: TenantContextService) =>
+      new KnowledgeResponseAuditService(audit, tenant), inject: [RecordAuditEventUseCase, TenantContextService] },
     { provide: RevalidatePublicSourceService, useFactory: (prisma: PrismaClient, tenant: TenantContextService) =>
       new RevalidatePublicSourceService(new PrismaPublicEvidenceSources(prisma, tenant)), inject: [PRISMA_CLIENT, TenantContextService] },
     { provide: GRAPH_KNOWLEDGE_SOURCES, useFactory: (prisma: PrismaClient, faq: PublicSupportFaqPort) => new PublishedGraphKnowledgeSources(new PrismaPolicyRepository(prisma), faq), inject: [PRISMA_CLIENT, PUBLIC_SUPPORT_FAQ] },
@@ -72,6 +77,6 @@ import { PrismaPublicEvidenceSources } from "./infrastructure/prisma-public-evid
     LocalEmbeddingService,
     { provide: EMBEDDING_PORT, useExisting: LocalEmbeddingService },
   ],
-  exports: [GRAPH_KNOWLEDGE_SOURCES, QueryKnowledgeUseCase, IndexFaqUseCase, IndexProductUseCase, IndexPolicyUseCase, IndexConfigUseCase, BuyerOrderContextService],
+  exports: [GRAPH_KNOWLEDGE_SOURCES, QueryKnowledgeUseCase, IndexFaqUseCase, IndexProductUseCase, IndexPolicyUseCase, IndexConfigUseCase, BuyerOrderContextService, KnowledgeResponseAuditService],
 })
 export class KnowledgeBaseModule {}

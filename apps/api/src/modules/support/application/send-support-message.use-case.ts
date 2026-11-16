@@ -10,6 +10,7 @@ import { CHAT_COMPLETION_PORT } from "../domain/ports/chat-completion.port.js";
 import { stripHtmlFromReply } from "../domain/services/sanitize-reply.js";
 import { QueryKnowledgeUseCase } from "../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
 import { BuyerOrderContextService } from "../../knowledge-base/application/services/buyer-order-context.service.js";
+import { KnowledgeResponseAuditService, type KnowledgeResponseEvidence } from "../../knowledge-base/application/services/knowledge-response-audit.service.js";
 
 export interface SupportMessageInput {
   message: string;
@@ -92,6 +93,7 @@ export class SendSupportMessageUseCase {
     private readonly handoff: SupportHandoffService,
     @Optional() private readonly queryKnowledge?: QueryKnowledgeUseCase,
     @Optional() private readonly buyerOrderContext?: BuyerOrderContextService,
+    @Optional() private readonly knowledgeAudit?: KnowledgeResponseAuditService,
   ) {}
 
   async execute(
@@ -108,6 +110,7 @@ export class SendSupportMessageUseCase {
       return { reply: result.reply, safe: true, handoff: { ticketId: result.ticketId, status: "open" } };
     }
     let knowledgeContext: string | undefined;
+    let admission: KnowledgeResponseEvidence | undefined;
     if (this.queryKnowledge) {
       try {
         const result = await this.queryKnowledge.execute({
@@ -116,6 +119,10 @@ export class SendSupportMessageUseCase {
           limit: 5,
           threshold: 0.65,
         });
+
+        if (result.status && result.evidence) {
+          admission = { status: result.status, evidence: structuredClone(result.evidence) };
+        }
 
         if (result.chunks.length > 0) {
           knowledgeContext = result.chunks
@@ -127,9 +134,18 @@ export class SendSupportMessageUseCase {
       }
     }
 
+    const finish = async (output: SupportMessageOutput): Promise<SupportMessageOutput> => {
+      if (admission) {
+        if (!this.knowledgeAudit) throw new Error("knowledge_response_audit_unavailable");
+        await this.knowledgeAudit.execute({ merchantId: input.merchant_id, channel: "support",
+          finalResponse: output.reply, admission });
+      }
+      return output;
+    };
+
     if (!knowledgeContext) {
       const faqReply = faqLookup(input.message, ctx?.faqItems ?? []);
-      if (faqReply) return { reply: faqReply, safe: true };
+      if (faqReply) return finish({ reply: faqReply, safe: true });
     }
 
     if (this.buyerOrderContext && ctx?.buyerGlobalUserId) {
@@ -156,17 +172,17 @@ export class SendSupportMessageUseCase {
 
     if (!aiReply || !isSafeGeneratedMessage(aiReply)) {
       const faqFallback = faqLookup(input.message, ctx?.faqItems ?? []);
-      if (faqFallback) return { reply: faqFallback, safe: true };
+      if (faqFallback) return finish({ reply: faqFallback, safe: true });
 
       const result = await this.handoff.createHandoff(
         { merchantId: input.merchant_id, sessionId: input.session_id, buyerMessage: input.message },
         aiReply ? undefined : smartFallback(input.message),
       );
-      return {
+      return finish({
         reply: result.reply,
         safe: !!aiReply,
         handoff: { ticketId: result.ticketId, status: "open" },
-      };
+      });
     }
 
     if (needsHumanHandoff(aiReply)) {
@@ -174,14 +190,14 @@ export class SendSupportMessageUseCase {
         { merchantId: input.merchant_id, sessionId: input.session_id, buyerMessage: input.message },
         aiReply,
       );
-      return {
+      return finish({
         reply: result.reply,
         safe: true,
         handoff: { ticketId: result.ticketId, status: "open" },
-      };
+      });
     }
 
-    return { reply: aiReply, safe: true };
+    return finish({ reply: aiReply, safe: true });
 
     });
   }

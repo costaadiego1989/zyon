@@ -7,7 +7,7 @@ import { publicWorkSequence } from "../../../graph-rag/application/public-source
 import { PUBLIC_BUSINESS_SOURCE_NAMESPACE } from "../../domain/knowledge-chunk-namespace.js";
 import type { KnowledgeChunk } from "../../domain/ports/knowledge-repository.port.js";
 import type { PublicEvidenceCandidate, PublicEvidenceCanonicalPort, PublicEvidenceResult,
-  PublicEvidenceSnapshot, LegacyEvidenceSnapshot, ValidatedPublicEvidence } from "../../domain/public-source-evidence.js";
+  PublicEvidenceSnapshot, LegacyEvidenceSnapshot, ValidatedPublicEvidence, LegacyKnowledgeRetrievalEvidence } from "../../domain/public-source-evidence.js";
 
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 const sourceTypes = ["company", "business_hours", "professional", "service", "faq", "policy"];
@@ -50,13 +50,30 @@ export class RevalidatePublicSourceService {
 
   /** Existing selections have no public-v1/model proof. Match their exact text
    * against current public FAQ/policy and label only that canonical proof. */
-  async revalidateLegacy(merchantId: string, chunks: KnowledgeChunk[], origin: "legacy_graph" | "legacy_sql" = "legacy_sql") {
-    const result = await this.revalidate({ merchantId, candidates: chunks.slice(0, 20).map(chunk => ({ origin: "legacy_sql" as const,
+  async revalidateLegacy(merchantId: string, chunks: KnowledgeChunk[], origin: "legacy_graph" | "legacy_sql" = "legacy_sql",
+    retrieval: ReadonlyArray<Readonly<LegacyKnowledgeRetrievalEvidence>> = []) {
+    const candidates: PublicEvidenceCandidate[] = chunks.slice(0, 20).map(chunk => {
+      const proof = origin === "legacy_graph" ? retrieval.find(item => item.merchantId === merchantId
+        && item.sourceType === chunk.sourceType && item.sourceId === chunk.sourceId && item.chunkId === chunk.id
+        && item.contentHash === hash(chunk.content)) : undefined;
+      return { origin: proof ? "legacy_graph" : "legacy_sql",
       merchantId: chunk.merchantId, sourceType: chunk.sourceType, sourceId: chunk.sourceId ?? "", content: chunk.content,
       publicSourceNamespace: typeof chunk.metadata?.publicSourceNamespace === "string" ? chunk.metadata.publicSourceNamespace : undefined,
-      score: chunk.similarity })) });
-    if (result.status === "ready" && origin === "legacy_graph")
-      for (const item of result.evidence) item.provenance.origin = origin;
+      score: chunk.similarity, ...(proof ? { sourceVersion: proof.sourceVersion, sourceHash: proof.sourceHash,
+        embeddingModel: proof.embeddingModel, embeddingDimensions: proof.embeddingDimensions,
+        chunkId: proof.chunkId, contentHash: proof.contentHash } : {}) };
+    });
+    const result = await this.revalidate({ merchantId, candidates });
+    if (result.status === "ready" && origin === "legacy_graph") {
+      for (const item of result.evidence) {
+        item.provenance.origin = origin;
+        const proof = item.provenance.embeddingModel === null ? undefined : retrieval.find(value => value.merchantId === merchantId
+          && value.sourceType === item.provenance.sourceType && value.chunkId === item.provenance.chunkId
+          && value.contentHash === item.provenance.contentHash
+          && (value.sourceType === "faq" && value.sourceId === "faq-collection" || value.sourceId === item.provenance.sourceId));
+        if (proof) item.retrieval = Object.freeze({ ...proof });
+      }
+    }
     return result;
   }
 

@@ -6,7 +6,7 @@ import type { StorefrontConversationScopePort } from "../../domain/ports/convers
 import { classifyStorefrontIntent } from "../ai/structured-intent-classifier.js";
 import { isStorefrontDomainAllowed } from "../../domain/services/storefront-conversation-scope.js";
 import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput, NudgeCopyInput,
-  StorefrontDeferredContext } from "../../domain/ports/conversation.port.js";
+  StorefrontDeferredContext, StorefrontKnowledgeCapture } from "../../domain/ports/conversation.port.js";
 import { storefrontDeferredContextSchema } from "../../domain/contracts/storefront-conversation.schemas.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
@@ -177,11 +177,11 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     return withAiMetering({ merchantId: input.merchantId, source: "storefront_nudge" },
       () => this.observer.turn(() => this.copyService.generateNudge(input)));
   }
-  async reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
+  async reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext, captureKnowledge?: StorefrontKnowledgeCapture): Promise<StorefrontConversationOutput> {
     return withAiMetering({ merchantId: input.merchantId, conversationId: input.sessionId, source: "storefront" },
-      () => this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext)) : this.replyTurn(input, deferredContext));
+      () => this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext, captureKnowledge)) : this.replyTurn(input, deferredContext, captureKnowledge));
   }
-  private async replyTurn(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
+  private async replyTurn(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext, captureKnowledge?: StorefrontKnowledgeCapture): Promise<StorefrontConversationOutput> {
     // The decision and every later shortcut/RAG/port must use the same input.
     input = structuredClone(input);
     const helpNavigation = !input.attachmentContext && !input.uiAction ? knowledgeHelpNavigation(input.userMessage) : undefined;
@@ -301,6 +301,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           limit: 5,
           threshold: 0.65,
         });
+        if (result.status && result.evidence) captureKnowledge?.({ status: result.status, evidence: structuredClone(result.evidence) });
         if (result.chunks.length > 0) {
           knowledgeContext = result.chunks.map((c) => `• ${c.content}`).join("\n\n");
         }

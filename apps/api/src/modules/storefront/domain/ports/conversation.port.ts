@@ -1,4 +1,5 @@
 import type { ConversationBlock } from "../types/conversation-block.js";
+import type { KnowledgeResponseEvidence } from "../../../knowledge-base/domain/public-source-evidence.js";
 
 export interface MerchantPolicy {
   maxDiscountPercent?: number;
@@ -73,10 +74,12 @@ export interface NudgeCopyInput {
 }
 
 export const STOREFRONT_CONVERSATION_PORT = Symbol("StorefrontConversationPort");
+/** Per-call server-only handoff; never accepted in browser JSON or model tools. */
+export type StorefrontKnowledgeCapture = (admission: KnowledgeResponseEvidence) => void;
 
 export interface StorefrontConversationPort {
   /** Server channel only, after a confirmed add; not a model tool or write grant. */
   postCartSuggestions?(scope: { merchantId: string; cartId: string; addedVariantId: string }): Promise<Extract<ConversationBlock, { type: "cross_sell" }> | undefined>;
-  reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput>;
+  reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext, captureKnowledge?: StorefrontKnowledgeCapture): Promise<StorefrontConversationOutput>;
   generateNudge(input: NudgeCopyInput): Promise<string>;
 }

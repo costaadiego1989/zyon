@@ -23,6 +23,7 @@ import { NOOP_STOREFRONT_USE_CASE_OBSERVATION, STOREFRONT_USE_CASE_OBSERVATION, 
 import type { StorefrontSuggestedReadActions } from "@zyon/shared-types";
 import { projectStorefrontSuggestedReadActions } from "../../domain/services/storefront-suggested-read-actions.js";
 import { decryptPii, isPiiEncrypted } from "../../../../shared/crypto/pii-cipher.service.js";
+import { KnowledgeResponseAuditService, type KnowledgeResponseEvidence } from "../../../knowledge-base/application/services/knowledge-response-audit.service.js";
 
 function optionalBuyerPhone(stored: string | null): string | undefined {
   if (!stored) return undefined;
@@ -69,6 +70,7 @@ export class SendStoreMessageUseCase {
     @Inject(MERCHANT_AGENT_RULE_READER) private readonly agentRules: MerchantAgentRuleReaderPort,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
     @Optional() @Inject(STOREFRONT_USE_CASE_OBSERVATION) private readonly observation: StorefrontUseCaseObservation = NOOP_STOREFRONT_USE_CASE_OBSERVATION,
+    @Optional() private readonly knowledgeAudit?: KnowledgeResponseAuditService,
   ) {}
 
   async execute(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext, messageFormat?: "whatsapp"): Promise<SendStoreMessageOutput> {
@@ -236,8 +238,9 @@ export class SendStoreMessageUseCase {
         issueCount: context.error.issues.length });
       throw new ServiceUnavailableException("storefront_context_invalid");
     }
-    const generated = deferredContext ? await this.conversation.reply(context.data, deferredContext)
-      : await this.conversation.reply(context.data);
+    let admission: KnowledgeResponseEvidence | undefined;
+    const generated = await this.conversation.reply(context.data, deferredContext,
+      value => { admission = structuredClone(value); });
     const scope = { merchantId: input.merchant_id, cartId: input.cart_id ?? input.conversation_id };
     const result = await this.observation.operation("validation", "output", async () => {
       const parsedOutput = storefrontConversationOutputSchema.safeParse(generated);
@@ -297,6 +300,11 @@ export class SendStoreMessageUseCase {
       ...(suggestedActions ? { suggested_actions: suggestedActions } : {}),
     }), "invalid_output");
     if (!response.success) throw response.error;
+    if (admission) {
+      if (!this.knowledgeAudit) throw new Error("knowledge_response_audit_unavailable");
+      await this.knowledgeAudit.execute({ merchantId: input.merchant_id,
+        channel: messageFormat === "whatsapp" ? "whatsapp" : "storefront", finalResponse: response.data.message, admission });
+    }
     return response.data;
   }
 

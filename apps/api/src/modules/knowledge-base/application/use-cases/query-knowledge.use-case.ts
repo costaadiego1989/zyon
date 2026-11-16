@@ -8,7 +8,7 @@ import {
 import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 import { PUBLIC_KNOWLEDGE_SEARCH, type PublicKnowledgeSearchPort } from "../../domain/ports/public-knowledge-search.port.js";
 import { RevalidatePublicSourceService } from "./revalidate-public-source.service.js";
-import type { PublicEvidenceResult, ValidatedPublicEvidence } from "../../domain/public-source-evidence.js";
+import type { PublicEvidenceResult, ValidatedPublicEvidence, LegacyKnowledgeRetrievalEvidence } from "../../domain/public-source-evidence.js";
 
 export interface QueryKnowledgeInput {
   merchantId: string;
@@ -36,17 +36,23 @@ export class QueryKnowledgeUseCase {
     @Optional() private readonly publicSources?: RevalidatePublicSourceService,
   ) {}
 
-  private async admit(merchantId: string, chunks: KnowledgeChunk[], origin: "legacy_graph" | "legacy_sql"): Promise<QueryKnowledgeOutput> {
+  private async admit(merchantId: string, chunks: KnowledgeChunk[], origin: "legacy_graph" | "legacy_sql",
+    retrieval: ReadonlyArray<Readonly<LegacyKnowledgeRetrievalEvidence>> = []): Promise<QueryKnowledgeOutput> {
     if (!this.publicSources) return { chunks };
-    const result = await this.publicSources.revalidateLegacy(merchantId, chunks, origin);
-    const seen = new Set<string>();
-    return { ...result, chunks: result.evidence.flatMap(item => {
-      if (item.provenance.sourceType !== "faq" && item.provenance.sourceType !== "policy") return [];
+    const result = await this.publicSources.revalidateLegacy(merchantId, chunks, origin, retrieval);
+    const evidence = result.evidence.map(item => ({ ...item, provenance: Object.freeze({ ...item.provenance }),
+      ...(item.retrieval ? { retrieval: Object.freeze({ ...item.retrieval }) } : {}) }));
+    const grouped = new Map<string, typeof evidence>();
+    for (const item of evidence) {
       const key = JSON.stringify([item.provenance.sourceType, item.content]);
-      if (seen.has(key)) return [];
-      seen.add(key);
-      return [{ id: item.id, merchantId: item.provenance.merchantId, sourceType: item.provenance.sourceType, sourceId: item.provenance.sourceId,
-        content: item.content, ...(Number.isFinite(item.similarity) ? { similarity: item.similarity } : {}) }];
+      const values = grouped.get(key) ?? [];values.push(item);grouped.set(key, values);
+    }
+    return { ...result, evidence, chunks: [...grouped.values()].map(values => {
+      const item = values[0]!;
+      return { id: item.id, merchantId: item.provenance.merchantId, sourceType: item.provenance.sourceType, sourceId: item.provenance.sourceId,
+        content: item.content, ...(Number.isFinite(item.similarity) ? { similarity: item.similarity } : {}),
+        provenance: Object.freeze(values.map(value => value.provenance)),
+        ...(values.some(value => value.retrieval) ? { retrieval: Object.freeze(values.flatMap(value => value.retrieval ? [value.retrieval] : [])) } : {}) };
     }) };
   }
 
@@ -59,8 +65,13 @@ export class QueryKnowledgeUseCase {
     const publicOnly = this.graph?.enabledFor(input.merchantId) === true;
     if (publicOnly) {
       try {
+        if (this.publicSources && this.graph!.searchWithEvidence) {
+          const selected = await this.graph!.searchWithEvidence(input);
+          if (selected?.chunks.length) return this.admit(input.merchantId, selected.chunks, "legacy_graph", selected.retrieval);
+        } else {
         const chunks = await this.graph!.search(input);
         if (chunks?.length) return this.admit(input.merchantId, chunks, "legacy_graph");
+        }
       } catch { this.logger.debug("Public knowledge graph unavailable"); }
     }
     // Default: return empty if embedding unavailable

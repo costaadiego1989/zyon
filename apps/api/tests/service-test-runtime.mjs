@@ -20,14 +20,17 @@ export function assertServiceCaseSummary(value){
   return Object.freeze({...value});
 }
 export async function createServiceTestRuntime(options){
-  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile','supportQueryModel'].includes(k))
+  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile','supportQueryModel','storefrontQueryModel'].includes(k))
     &&(options.graph===undefined||typeof options.graph==='boolean')
     &&(options.supportQueryModel===undefined||options.supportQueryModel===true)
+    &&(options.storefrontQueryModel===undefined||options.storefrontQueryModel===true)
+    &&!(options.supportQueryModel&&options.storefrontQueryModel)
     &&(options.postgresProfile===undefined||options.postgresProfile==='pgvector16'),'service_local_options_required');
   const whatsapp=options.whatsapp===undefined?undefined:validateLocalWhatsAppOptions(options.whatsapp);
   const supportQueryModel=options.supportQueryModel===true;
-  const fixtureSecret=whatsapp?randomBytes(32).toString('hex'):undefined,localEvents=[],localModelEvents=[];
-  const fixtureArgument=whatsapp||supportQueryModel?JSON.stringify({...(whatsapp?{...whatsapp,metaSecret:fixtureSecret}:{}),...(supportQueryModel?{supportQueryModel:true}:{})}):undefined;
+  const storefrontQueryModel=options.storefrontQueryModel===true;
+  const fixtureSecret=whatsapp?randomBytes(32).toString('hex'):undefined,localEvents=[],localModelEvents=[],localStorefrontModelEvents=[];
+  const fixtureArgument=whatsapp||supportQueryModel||storefrontQueryModel?JSON.stringify({...(whatsapp?{...whatsapp,metaSecret:fixtureSecret}:{}),...(supportQueryModel?{supportQueryModel:true}:{}),...(storefrontQueryModel?{storefrontQueryModel:true}:{})}):undefined;
   assert.ok(fixtureArgument===undefined||fixtureArgument.length<=8192,'local_whatsapp_fixture_size_invalid');
   const build=assertServiceArtifacts(),apiRoot=fileURLToPath(new URL('../',import.meta.url));
   let vectorEvidence;
@@ -87,6 +90,13 @@ export async function createServiceTestRuntime(options){
         assert.ok(localModelEvents.length<40&&Buffer.byteLength(JSON.stringify(event))<=100000,'local_support_model_event_bounds');
         localModelEvents.push(event);
       }
+      else if(message?.type==='local_storefront_model_event'){
+        const event=message.event;
+        assert.ok(storefrontQueryModel&&event?.runId===db.runId&&event.sequence===localStorefrontModelEvents.length+1
+          &&['queryEmbedding','providerFetch'].includes(event.kind),'local_storefront_model_event_invalid');
+        assert.ok(localStorefrontModelEvents.length<40&&Buffer.byteLength(JSON.stringify(event))<=100000,'local_storefront_model_event_bounds');
+        localStorefrontModelEvents.push(event);
+      }
       else if(message?.type==='stage'){lastStage=message.stage;if(message.failure)stageFailure=message.failure;
         if(message.stage==='owned_markers_checked')preflightResolve();}
       else if(message?.type==='ready')readyResolve(message);
@@ -105,6 +115,9 @@ export async function createServiceTestRuntime(options){
       ...(supportQueryModel?{supportQueryModel:Object.freeze({events:()=>structuredClone(localModelEvents),
         counts:()=>({queryEmbeddings:localModelEvents.filter(event=>event.kind==='queryEmbedding').length,
           completions:localModelEvents.filter(event=>event.kind==='chatCompletion').length})})}:{}),
+      ...(storefrontQueryModel?{storefrontQueryModel:Object.freeze({events:()=>structuredClone(localStorefrontModelEvents),
+        counts:()=>({queryEmbeddings:localStorefrontModelEvents.filter(event=>event.kind==='queryEmbedding').length,
+          providerFetches:localStorefrontModelEvents.filter(event=>event.kind==='providerFetch').length})})}:{}),
       ...(whatsapp?{whatsapp:Object.freeze({events:()=>structuredClone(localEvents),signature:body=>{
         assert.equal(typeof body,'string');assert.ok(body.length<=1_000_000);return 'sha256='+createHmac('sha256',fixtureSecret).update(body).digest('hex');
       }})}:{})});

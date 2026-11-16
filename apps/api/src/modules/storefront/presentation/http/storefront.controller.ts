@@ -37,6 +37,7 @@ import { SupportHandoffService } from "../../../support/application/support-hand
 import { storefrontPublicReadUiActionRequestSchema, storefrontReadUiActionCapability } from "../../domain/contracts/storefront-public-read-ui-action.schemas.js";
 import { AiMeteringService } from "../../../ai-metering/ai-metering.service.js";
 import { withAiMetering } from "../../../../shared/ai-metering.js";
+import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
@@ -97,6 +98,7 @@ export class StorefrontController {
     @Optional() private readonly supportHandoff?: SupportHandoffService,
     @Optional() @Inject(STOREFRONT_CROSS_SELL_CART) private readonly crossSellCart?: StorefrontCrossSellCartPort,
     @Optional() private readonly aiMetering?: AiMeteringService,
+    @Optional() private readonly tenantContext?: TenantContextService,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -204,11 +206,14 @@ export class StorefrontController {
   async sendMessage(
     @Param("conversationId") conversationId: string,
     @Body() body: SendMessageRequest & { merchant_id?: string },
-    @Req() request: { headers?: { authorization?: string; origin?: string; "x-buyer-authorization"?: string | string[] } },
+    @Req() request: { headers?: { authorization?: string; origin?: string; "x-buyer-authorization"?: string | string[] }; correlationId?: string },
     @Res({ passthrough: true }) response?: { setHeader(name: string, value: string): void },
   ) {
     const claims = this.conversationAccess(request, conversationId, body.merchant_id);
     if (body.cart_id !== undefined && body.cart_id !== claims.resourceId) throw new ForbiddenException("conversation_cart_mismatch");
+    const tenantContext = this.tenantContext ?? new TenantContextService();
+    const current = tenantContext.get();
+    if (current && current.merchantId !== claims.merchantId) throw new ForbiddenException("public_storefront_tenant_mismatch");
     let uiAction: import("@zyon/shared-types").StorefrontPublicUiAction | undefined;
     if (Object.hasOwn(body, "ui_action_version") || Object.hasOwn(body, "ui_action")) {
       const parsed = storefrontPublicReadUiActionRequestSchema.safeParse({
@@ -264,8 +269,11 @@ export class StorefrontController {
       ...(messageSnapshot.uiAction ? { ui_action: messageSnapshot.uiAction } : {}),
     };
     const voiceContext = admittedVoice && this.aiMetering ? await this.aiMetering.voicePermitContext(body.voice_turn_token!, claims.merchantId, claims.resourceId) : undefined;
-    return withAiMetering({ merchantId: claims.merchantId, conversationId: claims.resourceId, source: "storefront", costCenter: admittedVoice ? "voice" : "text", ...voiceContext },
-      () => deferredContext ? this.sendStoreMessage.execute(input, deferredContext) : this.sendStoreMessage.execute(input));
+    const correlationId = current?.correlationId ?? request.correlationId;
+    return tenantContext.run({ merchantId: claims.merchantId, userId, role: "buyer",
+      ...(globalUserId ? { buyerGlobalUserId: globalUserId } : {}), ...(correlationId ? { correlationId } : {}) },
+      () => withAiMetering({ merchantId: claims.merchantId, conversationId: claims.resourceId, source: "storefront", costCenter: admittedVoice ? "voice" : "text", ...voiceContext },
+        () => deferredContext ? this.sendStoreMessage.execute(input, deferredContext) : this.sendStoreMessage.execute(input)));
   }
 
   @Get("conversations/:conversationId/one-buy-click")

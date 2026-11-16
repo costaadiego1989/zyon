@@ -57,10 +57,26 @@ export interface PublicEvidenceCanonicalPort {
   assertScope(merchantId: string): void;
   read(merchantId: string, candidates: ReadonlyArray<Readonly<PublicEvidenceCandidate>>): Promise<PublicEvidenceSnapshotSet>;
 }
+/** Checked legacy graph document identity, separate from the current public
+ * source revision and from a public-v1 indexing work revision. */
+export interface LegacyKnowledgeRetrievalEvidence {
+  readonly kind: "legacy-graph-retrieval";
+  readonly merchantId: string;
+  readonly sourceType: "faq" | "policy";
+  readonly sourceId: string;
+  readonly sourceVersion: number;
+  readonly sourceHash: string;
+  readonly embeddingModel: string;
+  readonly embeddingDimensions: number;
+  readonly chunkId: string;
+  readonly contentHash: string;
+  readonly projectedAt: number;
+}
 export interface ValidatedPublicEvidence {
   id: string;
   content: string;
   similarity?: number;
+  retrieval?: Readonly<LegacyKnowledgeRetrievalEvidence>;
   provenance: {
     origin: PublicEvidenceCandidate["origin"];
     namespace: "public-business-v1" | "canonical-legacy";
@@ -81,3 +97,8 @@ export type PublicEvidenceResult =
   | { status: "ready"; evidence: ValidatedPublicEvidence[] }
   | { status: "insufficient" | "conflicting"; evidence: [] }
   | { status: "unavailable"; evidence: []; reason: "canonical_unavailable" };
+
+export type KnowledgeResponseEvidence = Readonly<{
+  status: PublicEvidenceResult["status"];
+  evidence: ReadonlyArray<Readonly<ValidatedPublicEvidence>>;
+}>;
