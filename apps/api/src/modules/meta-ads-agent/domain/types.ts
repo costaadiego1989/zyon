@@ -54,6 +54,7 @@ export interface StoredProposal extends MetaAdsProposal {
 export interface MetaAdsStoreState {
   schemaVersion: 1;
   merchantId: string;
+  automation?: { version: number; activePolicyId: string | null; lastPolicyId: string | null };
   subscription: StoredSubscription | null;
   credits: CreditState;
   connection: StoredConnection;
