@@ -177,6 +177,10 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
       isActive: enabled,
       startsAt: new Date(startsAt).toISOString(),
       endsAt: new Date(endsAt).toISOString(),
+      couponId: null,
+      discountType: null,
+      discountValue: null,
+      promoPriceInCents: null,
     };
     if (mode === "percent") {
       payload.discountType = "percent";
@@ -187,7 +191,7 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
     } else if (mode === "promo_price") {
       payload.promoPriceInCents = reaisToCents(promoPriceReais);
     } else if (mode === "coupon") {
-      payload.couponId = couponCode || undefined;
+      payload.couponId = couponCode || null;
     }
     return payload;
   }, [enabled, startsAt, endsAt, mode, percent, fixedReais, promoPriceReais, couponCode]);

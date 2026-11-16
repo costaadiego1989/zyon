@@ -140,3 +140,27 @@ test("Webhook Testar forwards a subscribed event and displays the queued deliver
   const row = page.getByRole("row").filter({ hasText: "customer.upserted" });
   await expect(row).toContainText("Pendente"); await expect(row).toContainText(endpoint.url);
 });
+
+test("Promotion price switch clears the old discount and persists after reload", async ({ page }) => {
+  const writes: any[] = [];
+  let saved = { id: "qa-promotion", productId: "qa-product", isActive: true, discountType: "percent" as string | null, discountValue: 10 as number | null,
+    promoPriceInCents: null as number | null, couponId: null as string | null, startsAt: "2026-01-01T00:00:00Z", endsAt: "2030-01-01T00:00:00Z" };
+  await page.route("**/v1/**", route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/billing/subscription")) return route.fulfill({ json: { plan: "scale", features: {} } });
+    if (url.pathname.endsWith("/promotion/qa-promotion")) {
+      const body = route.request().postDataJSON(); writes.push(body); saved = { ...saved, ...body }; return route.fulfill({ json: saved });
+    }
+    if (url.pathname.endsWith("/promotion")) return route.fulfill({ json: { promotions: [saved] } });
+    return route.fulfill({ json: { rules: [] } });
+  });
+  await page.goto("/athom-content-editor.html?mode=promotion");
+  await page.getByRole("button", { name: "Preço promocional", exact: true }).click();
+  await page.getByPlaceholder("0,00", { exact: true }).fill("47,50");
+  await page.getByRole("button", { name: "Atualizar promoção", exact: true }).click();
+  await expect.poll(() => writes.length).toBe(1);
+  expect(writes[0]).toMatchObject({ promoPriceInCents: 4750, discountType: null, discountValue: null, couponId: null });
+  await page.reload();
+  await expect(page.getByPlaceholder("0,00", { exact: true })).toHaveValue("47,50");
+  await expect(page.getByText("Preço promocional (R$)", { exact: true })).toBeVisible();
+});

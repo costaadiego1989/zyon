@@ -8,6 +8,7 @@ import { createDashboardApi } from "../../src/api-client.js";
 import { OrdersShipmentsPage } from "../../src/pages/orders-shipments-page.js";
 import type { MerchantProfile } from "../../src/api-client.js";
 import { IntegrationsPage } from "../../src/pages/integrations-page.js";
+import { PromotionSection } from "../../src/pages/product-detail/components/PromotionSection.js";
 
 const api = createDashboardApi({ baseUrl: window.location.origin });
 
@@ -55,5 +56,7 @@ createRoot(document.getElementById("root")!).render(<ApiContext.Provider value={
   {new URLSearchParams(location.search).get("mode") === "orders"
     ? <OrdersShipmentsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} />
     : new URLSearchParams(location.search).get("mode") === "integrations"
-      ? <IntegrationsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} /> : <Fixture />}
+      ? <IntegrationsPage apiBaseUrl={location.origin} me={{ id: "qa-merchant" } as MerchantProfile} />
+      : new URLSearchParams(location.search).get("mode") === "promotion"
+        ? <PromotionSection merchantId="qa-merchant" productId="qa-product" variantSkus={[]} /> : <Fixture />}
 </ApiContext.Provider>);

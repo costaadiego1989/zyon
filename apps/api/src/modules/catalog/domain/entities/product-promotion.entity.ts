@@ -53,7 +53,7 @@ export class ProductPromotionEntity {
     const id = props.id || this.generateId();
 
     // Invariant 5: startsAt < endsAt
-    if (props.startsAt >= props.endsAt) {
+    if (!Number.isFinite(props.startsAt.getTime()) || !Number.isFinite(props.endsAt.getTime()) || props.startsAt >= props.endsAt) {
       throw new Error("promotion_invalid_window");
     }
 
@@ -75,6 +75,12 @@ export class ProductPromotionEntity {
       throw new Error("promotion_no_discount_source");
     }
 
+    const hasType = props.discountType != null, hasValue = props.discountValue != null;
+    if (props.promoPriceInCents != null && (hasType || hasValue)) throw new Error("promotion_descriptor_ambiguous");
+    if (hasType !== hasValue || (hasType && props.discountType !== "percent" && props.discountType !== "fixed")) {
+      throw new Error("promotion_invalid_descriptor");
+    }
+
     // Invariant 2: Percent bounds (0-100)
     if (props.discountType === "percent" && props.discountValue !== undefined && props.discountValue !== null) {
       if (props.discountValue < 0 || props.discountValue > 100) {
@@ -94,6 +100,11 @@ export class ProductPromotionEntity {
       if (props.promoPriceInCents < 0) {
         throw new Error("promotion_negative_price");
       }
+    }
+
+    if ((hasValue && !Number.isSafeInteger(props.discountValue))
+      || (props.promoPriceInCents != null && !Number.isSafeInteger(props.promoPriceInCents))) {
+      throw new Error("promotion_invalid_descriptor_value");
     }
 
     return new ProductPromotionEntity({
