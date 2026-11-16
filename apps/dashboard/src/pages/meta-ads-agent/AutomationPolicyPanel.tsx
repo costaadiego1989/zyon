@@ -32,8 +32,9 @@ export function AutomationPolicyPanel({accountId,state,review,productNames,campa
   const currentReview=review?.accountId===accountId?review:null;
   const blocked=disabled||busy||action.busy||!accountId;
   return <section className="mga-panel mga-automation" aria-label="Autonomia dos anúncios"><h2>Autonomia da IA</h2>
-    <p><strong>Modo atual: {automatic?'automático':'aprovação manual'}</strong></p>
-    {!automatic&&<p>Cada alteração na Meta exige sua aprovação individual. Escolher automático inicia a definição de uma política; só o aceite dos termos abaixo autoriza ações futuras.</p>}
+    <p><strong>{!state?error?'Modo atual: não confirmado':'Consultando modo de aprovação…':`${error?'Último modo confirmado':'Modo atual'}: ${automatic?'automático':'aprovação manual'}`}</strong></p>
+    {!automatic&&state&&!error&&<p>Cada alteração na Meta exige sua aprovação individual. Escolher automático inicia a definição de uma política; só o aceite dos termos abaixo autoriza ações futuras.</p>}
+    {!state&&<p>Confira a política atual antes de autorizar ações. A falta de uma leitura não confirma que a automação esteja desativada.</p>}
     <div className="mga-actions"><button type="button" className="mga-secondary" disabled={blocked} onClick={()=>void action.run(async()=>{await onChooseAutomatic();})}>Automático</button>
       {policy&&!policy.revokedAt&&<button type="button" className="mga-secondary" disabled={busy||action.busy} onClick={()=>void action.run(onManual)}>Voltar para aprovação manual</button>}</div>
     {policy&&<><p>Política {policy.version} · Conta {policy.accountId} · aceita em <time dateTime={policy.acceptedAt}>{new Date(policy.acceptedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time></p>
