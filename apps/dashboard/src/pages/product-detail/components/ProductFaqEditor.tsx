@@ -8,10 +8,12 @@ import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import { showToast } from "../../../components/Toast.js";
 import type { ProductFaq } from "../../../api/endpoints/product-content.js";
 
+type ProductFaqInput = Omit<ProductFaq, "id"> & { id?: string };
+
 export interface ProductFaqEditorProps {
   faqs: ProductFaq[];
   busy?: boolean;
-  onSave: (faq: ProductFaq) => Promise<void>;
+  onSave: (faq: ProductFaqInput) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onReorder: (orderedIds: string[]) => Promise<void>;
 }
@@ -74,8 +76,8 @@ export function ProductFaqEditor({ faqs, busy = false, onSave, onDelete, onReord
     }
     try {
       const existing = faqs.find((f) => f.id === form.id);
-      const payload: ProductFaq = {
-        id: form.id ?? crypto.randomUUID(),
+      const payload: ProductFaqInput = {
+        id: form.id,
         productId: existing?.productId ?? "",
         question: form.question.trim(),
         answer: form.answer.trim(),
