@@ -3,7 +3,7 @@
 .product-detail__header .page-header { margin-top: 12px; margin-bottom: 0; }
 .product-detail__fields { display: grid; gap: 24px; min-width: 0; border: 0; margin: 0; padding: 0; }
 .product-detail__fields h3 { font: 600 17px/1.4 var(--font-sans) !important; letter-spacing: normal !important; color: var(--color-text) !important; text-transform: none; }
-.product-detail__types { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.product-detail__types { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .product-detail__advanced { border-top: 1px solid var(--color-border); padding-top: 20px; min-width: 0; }
 .product-detail__advanced > summary { padding: 8px 0; cursor: pointer; color: var(--color-text); }
 .product-detail__advanced > summary strong { font: 600 16px/1.5 var(--font-sans); }

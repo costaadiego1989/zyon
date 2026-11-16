@@ -1,6 +1,7 @@
 import {createServer} from 'vite';
 import {installCompanyFixture} from './service-company-fixture.mjs';
 import {installCompanyServicesFixture} from './service-company-services-fixture.mjs';
+import {installCatalogBusinessModeFixture} from './service-catalog-fixture.mjs';
 import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServiceTestRuntime} from '../../api/tests/service-test-runtime.mjs';
@@ -31,6 +32,7 @@ export default async function setup(){
     const plugin={name:'service-local-owned-fixtures',configureServer(vite){
       installCompanyFixture(vite,runtime);
       installCompanyServicesFixture(vite,runtime);
+      installCatalogBusinessModeFixture(vite,runtime);
       vite.middlewares.use((request,response,next)=>{
         if(request.url==='/__service/signup-oauth'&&request.method==='POST'){
           // Owned synthetic pending-OAuth state. No OAuth provider is contacted.

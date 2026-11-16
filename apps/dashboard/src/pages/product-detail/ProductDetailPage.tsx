@@ -15,6 +15,7 @@ import { AdvancedLayoutTab } from "./components/AdvancedLayoutTab.js";
 import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import type { ServiceScheduleDraft } from "./utils/service-schedule-validation.js";
+import { catalogBusinessMode } from "./utils/catalog-business-mode.js";
 
 export type ProductType = "physical" | "digital" | "service" | "food";
 
@@ -44,6 +45,11 @@ export { centsToReais, reaisToCents } from "../../utils/currency.js";
 export { formatCurrencyInput } from "../../utils/currency.js";
 
 export function ProductDetailPage(props: ProductDetailPageProps) {
+  const mode = catalogBusinessMode(props.me);
+  return <ProductDetailEditor key={`${props.me?.id ?? "anonymous"}:${mode ?? "unresolved"}:${props.productId ?? "new"}`} {...props} />;
+}
+
+function ProductDetailEditor(props: ProductDetailPageProps) {
   const page = useProductDetailPage({
     me: props.me,
     productId: props.productId,
@@ -52,6 +58,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
 
   const { hasFeature } = usePlanFeatures();
   const showAdvancedLayout = hasFeature("advancedProductLayout");
+  const isService = page.form.productType === "service";
 
   // Save result → toast
   useEffect(() => {
@@ -60,7 +67,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
         showToast(page.postSaveNotice.kind === "partial" ? "error" : "success", page.postSaveNotice.message);
         page.setPostSaveNotice(null);
       } else {
-        showToast("success", page.isEditing ? "Produto atualizado" : "Produto criado");
+        showToast("success", isService ? (page.isEditing ? "Serviço atualizado" : "Serviço criado") : (page.isEditing ? "Produto atualizado" : "Produto criado"));
       }
       page.setSaveResult(null);
     } else if (page.saveResult === "error") {
@@ -91,19 +98,21 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
     <div className="page-container product-detail">
       {page.saveErrorMsg && <p role="alert" style={{ color: "var(--color-error)" }}>{page.saveErrorMsg}</p>}
       <div className="product-detail__header">
-        <Button variant="ghost" size="sm" onClick={() => props.onBack?.()}><ArrowLeft size={14} /> Voltar para Produtos</Button>
-        <PageHeader title={page.isEditing ? (page.form.name || "Editar produto") : "Novo produto"} description="Preencha as informações, defina preço e estoque e adicione as imagens." actions={<Button variant="primary" loading={page.saving} disabled={!page.canSave} onClick={() => void page.handleSave()}><Save size={14} /> {page.isEditing ? "Salvar alterações" : "Criar produto"}</Button>} />
+        <Button variant="ghost" size="sm" onClick={() => props.onBack?.()}><ArrowLeft size={14} /> {page.businessMode === "services" ? "Voltar para Serviços" : "Voltar para Produtos"}</Button>
+        <PageHeader title={page.isEditing ? (page.form.name || (isService ? "Editar serviço" : "Editar produto")) : (page.businessMode === "services" ? "Novo serviço" : "Novo produto")} description={isService ? "Preencha as informações, defina o preço e configure o atendimento." : "Preencha as informações, defina preço e estoque e adicione as imagens."} actions={<Button variant="primary" loading={page.saving} disabled={!page.canSave} onClick={() => void page.handleSave()}><Save size={14} /> {page.isEditing ? "Salvar alterações" : (page.businessMode === "services" ? "Criar serviço" : "Criar produto")}</Button>} />
       </div>
+      {page.businessMode !== null && page.businessModeError && <p role="alert">{page.businessModeError}</p>}
       {page.loading ? (
         <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando produto...</div>
       ) : page.loadError ? (
         <div className="product-detail__feedback" role="alert"><p>{page.loadError}</p><Button variant="outline" onClick={page.retryLoad}>Tentar novamente</Button></div>
       ) : (
-        <fieldset className="product-detail__fields" disabled={page.saving} aria-label="Dados do produto">
+        <fieldset className="product-detail__fields" disabled={page.saving || Boolean(page.businessModeError)} aria-label={isService ? "Dados do serviço" : "Dados do produto"}>
 
 
           <SectionErrorBoundary sectionName="Formulário do Produto">
           <ProductForm
+            businessMode={page.businessMode}
             name={page.form.name}
             onNameChange={page.form.setName}
             description={page.form.description}

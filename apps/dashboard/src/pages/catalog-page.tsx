@@ -12,6 +12,7 @@ import { CsvImportModal } from "../components/CsvImportModal.js";
 import { AiSpreadsheetImportModal } from "../components/spreadsheet-import/AiSpreadsheetImportModal.js";
 import { SectionErrorBoundary } from "../components/PageErrorBoundary.js";
 import { useCatalogPage, totalStock } from "./catalog/useCatalogPage.js";
+import { catalogBusinessMode } from "./product-detail/utils/catalog-business-mode.js";
 
 export interface CatalogPageProps {
   apiBaseUrl: string;
@@ -48,6 +49,9 @@ export { totalStock } from "./catalog/useCatalogPage.js";
 
 export function CatalogPage(props: CatalogPageProps) {
   const vm = useCatalogPage({ me: props.me });
+  const businessMode = catalogBusinessMode(props.me);
+  const services = businessMode === "services";
+  const createLabel = services ? "Cadastrar serviço" : "Novo produto";
 
   if (!props.me) {
     return (
@@ -62,7 +66,7 @@ export function CatalogPage(props: CatalogPageProps) {
 
   return (
     <div>
-      <PageHeader title="Produtos" description="Organize os produtos, preços e disponibilidade da sua loja." actions={<>
+      <PageHeader title={services ? "Serviços" : "Produtos"} description={services ? "Organize os serviços, preços e disponibilidade da sua empresa." : "Organize os produtos, preços e disponibilidade da sua loja."} actions={<>
 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {vm.aiImportEnabled ? (
             <Button variant="outline" size="sm" onClick={() => vm.setShowCsvModal(true)}>
@@ -73,11 +77,12 @@ export function CatalogPage(props: CatalogPageProps) {
               <Upload size={14} /> Importar CSV
             </Button>
           )}
-          <Button variant="primary" size="sm" arrow onClick={() => props.onCreate?.()}>
-            <Plus size={14} /> Novo produto
+          <Button variant="primary" size="sm" arrow disabled={!businessMode} onClick={() => props.onCreate?.()}>
+            <Plus size={14} /> {createLabel}
           </Button>
         </div>
 </>} />
+      {!businessMode && <p role="alert">Confirme a modalidade da empresa em Dados da empresa para cadastrar itens.</p>}
 
       {vm.pageError || vm.error ? (
         <div role="alert" style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
@@ -89,7 +94,7 @@ export function CatalogPage(props: CatalogPageProps) {
       {vm.importNotice ? <div role="status" style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-surface)", border: "1px solid var(--color-border)", font: "13px var(--font-sans)", color: "var(--color-text)", marginBottom: 16 }}>{vm.importNotice}</div> : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
-        <StatCard label="Produtos" value={vm.totals.total} icon={<Package size={16} />} />
+        <StatCard label={services ? "Serviços" : "Produtos"} value={vm.totals.total} icon={<Package size={16} />} />
         <StatCard label="Em estoque" value={vm.totals.inStock} icon={<ShoppingBag size={16} />} accent="var(--color-success)" />
         <StatCard label="Inativos" value={vm.totals.inactive} icon={<Pause size={16} />} accent="var(--color-text-faint)" />
       </div>
@@ -120,13 +125,13 @@ export function CatalogPage(props: CatalogPageProps) {
         />
 
         <DataPanel
-          title="Produtos"
+          title={services ? "Serviços" : "Produtos"}
           page={vm.page}
           pageSize={vm.pageSize}
           total={vm.total}
           onPageChange={vm.setPage}
           isEmpty={vm.filteredItems.length === 0 && !vm.loading}
-          empty={{ icon: ShoppingBag, title: hasFilters ? "Nenhum produto encontrado" : "Cadastre seu primeiro produto", description: hasFilters ? "Nenhum produto corresponde à busca e aos filtros selecionados." : "Adicione nome, preço e disponibilidade para começar a vender.", action: hasFilters ? <Button variant="outline" size="sm" onClick={clearFilters}>Limpar filtros</Button> : <Button variant="primary" size="sm" onClick={() => props.onCreate?.()}><Plus size={14} /> Novo produto</Button> }}
+          empty={{ icon: ShoppingBag, title: hasFilters ? (services ? "Nenhum serviço encontrado" : "Nenhum produto encontrado") : (services ? "Cadastre seu primeiro serviço" : "Cadastre seu primeiro produto"), description: hasFilters ? "Nenhum item corresponde à busca e aos filtros selecionados." : "Adicione nome, preço e disponibilidade para começar a vender.", action: hasFilters ? <Button variant="outline" size="sm" onClick={clearFilters}>Limpar filtros</Button> : <Button variant="primary" size="sm" disabled={!businessMode} onClick={() => props.onCreate?.()}><Plus size={14} /> {createLabel}</Button> }}
         >
           {vm.loading ? (
             <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando produtos...</div>

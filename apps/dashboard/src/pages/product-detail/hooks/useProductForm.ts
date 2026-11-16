@@ -47,13 +47,13 @@ export function useProductForm(initialName: string = "", initialDescription: str
   const reset = useCallback(() => {
     setName("");
     setDescription("");
-    setProductType("physical");
+    setProductType(initialType);
     setMetadata({});
     setCategoryId("");
     setIsActive(true);
     setGeneratingDesc(false);
     setOptionGroups([]);
-  }, []);
+  }, [initialType]);
 
   const loadProduct = useCallback(
     (product: {

@@ -1,0 +1,269 @@
+{
+  "task": "T98",
+  "status": "complete-local-task-gate",
+  "baseHead": "b5adc21f32f59eef1eb3d97c32ad960dfa477efe",
+  "localAlignmentCommit": "2ea6cf0f7",
+  "scope": "local-only catalog UI by canonical business mode",
+  "sourceImplemented": true,
+  "productionOrProviderProof": false,
+  "gates": {
+    "unit": {
+      "latestObservedExit": 0,
+      "passed": 55,
+      "failed": 0,
+      "skipped": 0,
+      "newCases": 19,
+      "unchangedRegressionCases": 36,
+      "selectedFiles": 6,
+      "workers": 1,
+      "log": ".cache/t98-execution/units-2026-11-16T14-27-58.112Z/output.log",
+      "warning": "Existing PrefixInput border/borderRight React warning; source unchanged.",
+      "rerunRequired": false,
+      "rerunReason": null,
+      "fixtureTypingCorrectionVerified": true
+    },
+    "sharedTypes": {
+      "exit": 0,
+      "command": "pnpm --filter @zyon/shared-types build",
+      "log": ".cache/t98-execution/packages-2026-11-16T13-26-51.250Z/output.log",
+      "apiBuildClaimed": false
+    },
+    "typecheck": {
+      "status": "passed",
+      "firstExit": 2,
+      "firstFailure": "TS2741 in the NEW variant fixture: required isActive missing; corrected by adding isActive:true, without changing assertions.",
+      "firstLog": ".cache/t98-execution/types-2026-11-16T13-27-05.737Z/output.log",
+      "rerunCompilerStarted": true,
+      "exit": 0,
+      "log": ".cache/t98-execution/types-2026-11-16T14-28-48.505Z/output.log"
+    },
+    "affectedFileLint": {
+      "exit": 0,
+      "files": 14,
+      "errors": 0,
+      "warnings": 0,
+      "log": ".cache/t98-execution/lint-2026-11-16T14-38-12.390Z/results.json",
+      "adaptation": "Existing API ESLint parser/seven rules applied to actual affected TS/TSX/MJS paths. Inline config disabled, so an unchanged react-hooks comment cannot reference an unavailable plugin and cannot disable safety rules. No dashboard lint script/config invented.",
+      "firstFailurePreserved": ".cache/t98-execution/lint-2026-11-16T13-28-15.778Z/results.json",
+      "afterBrowserLocatorCorrection": true
+    },
+    "dashboardBuild": {
+      "status": "passed",
+      "exit": 0,
+      "command": "node scripts/service-local-build.mjs dashboard",
+      "log": ".cache/t98-execution/build-2026-11-16T14-29-31.933Z/output.log",
+      "checkedTypes": true,
+      "transformedModules": 2119,
+      "existingWarnings": [
+        "six marketplace static/dynamic import overlap warnings",
+        "existing500kB chunk warning"
+      ],
+      "apiSourceChanged": false
+    },
+    "apiBuild": {
+      "status": "passed",
+      "currentInputSha256": "5d6dda5df0edbf59bfe0ae194082bac783fbfc938c475e375de65a2ab6e3b1cc",
+      "reused": false,
+      "m53InputSha256": "1bd5c4957cdd7d2371419185fe317b1fcde9ffa197957aec0060af8dad2325ea",
+      "p29InputSha256": "a9834688621cd4f5f4e5807c9861d942b19b22e9ca79109e47e3b3d2716af5ae",
+      "reason": "Independent normal C build on b5adc+T98 UI. No Root69 source/artifact reused; incompatible M53/P29 outputs were not copied.",
+      "ownPrismaGenerate": {
+        "exit": 0,
+        "version": "6.19.3",
+        "ownCheckout": true,
+        "durationSeconds": 2.83,
+        "copiedOrSharedClient": false
+      },
+      "preparedLauncher": ".cache/t98-execution/api-build.mjs",
+      "exit": 0,
+      "newOwnBuild": true,
+      "command": "pnpm --dir apps/api build",
+      "artifactSha256": "2bcd67b5c4fb61736107fbe228b319ad5fa5b148e226bfae5b1ec440a4ddedaf",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2542
+      },
+      "log": ".cache/t98-execution/api-2026-11-16T14-20-06.989Z",
+      "admittedCommitAvailableMiB": 6675,
+      "minimumCommitMiB": 5168,
+      "postBrowserIntegralAssertionExit": 0
+    },
+    "browser": {
+      "status": "passed",
+      "exit": 0,
+      "executed": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "workers": 1,
+      "retries": 0,
+      "command": "pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-business-mode.spec.ts",
+      "listCount": 2,
+      "log": ".cache/t98-execution/browser-2026-11-16T14-38-19.284Z/output.log",
+      "jsonReport": ".cache/t98-execution/browser-2026-11-16T14-38-19.284Z/playwright.json",
+      "durationMs": 160968.135,
+      "actualAppModule": true,
+      "actualHttp": true,
+      "actualPrismaDb": true,
+      "startup": {
+        "preflightMs": 27552,
+        "bootMs": 40251
+      },
+      "proofs": [
+        "Product creation shows only physical/digital/food, real gestures and POST201 payload; GET returns persisted physical item; service creation attempt409.",
+        "Service creation first render/reset uses service, real POST201 service/modality/price payload and GET persisted item; physical creation attempt409.",
+        "After deactivating own service and guarded services-to-products transition, stale service draft POST is refused409. List preserves the inactive service; real profile reload shows original item/type/data read-only and cannot silently convert it; a new product form starts clean."
+      ],
+      "screenshotsGenerated": 4,
+      "firstRun": {
+        "passed": 1,
+        "failed": 1,
+        "skipped": 0,
+        "log": ".cache/t98-execution/browser-2026-11-16T14-31-24.274Z/output.log",
+        "failure": "New exact Modalidade label locator included select option text; fixed only to anchored label prefix. No business assertion, deadline, source UI or API changed.",
+        "preserved": ".cache/t98-execution/browser-2026-11-16T14-31-24.274Z/preserved"
+      },
+      "captureCorrection": "Scroll only actual editor ancestors/window to top before capture; assert title and all three product choices fully in viewport. Product desktop initial focus/sticky clipping preserved; no application CSS/layout change."
+    }
+  },
+  "resourceRefusals": [
+    {
+      "observedAtUtc": "2026-11-16T13:29:44.536948+00:00",
+      "commitAvailableMiB": 422,
+      "physicalAvailableMiB": 224,
+      "minimumCommitMiB": 5168,
+      "compilerStarted": false,
+      "log": ".cache/t98-execution/types-2026-11-16T13-29-44.369Z/admission.json"
+    },
+    {
+      "observedAtUtc": "2026-11-16T13:34:45.084978+00:00",
+      "commitAvailableMiB": 4404,
+      "physicalAvailableMiB": 680,
+      "minimumCommitMiB": 5168,
+      "compilerStarted": false,
+      "materialChange": "Previously observed large Node processes/parents were naturally gone; renewed sole slot authorized one fresh admission.",
+      "log": ".cache/t98-execution/types-2026-11-16T13-34-44.971Z/admission.json"
+    }
+  ],
+  "cleanup": {
+    "ownedHeavyGraphActive": false,
+    "appCloseAck": true,
+    "naturalWorkerExit": 0,
+    "ownedResourcesClosed": true,
+    "remainingOwnedBridgeSockets": 0,
+    "remainingOwnedContainers": 0,
+    "providerCalls": 0,
+    "basis": "Unchanged createServiceTestRuntime.close requires ACK/appClosed/providerCalls0, natural worker exit0 and owned disposal/closed bridge statuses. Playwright global teardown completed without errors and parent CLI exited0. No claim that unrelated machine resources are absent.",
+    "diagnostics": "Final before_closed_ack/disconnected snapshots show no timers and the observed server listeningfalse/connections0.",
+    "foreignProcessKilled": false,
+    "firstOwnershipLimit": "The initial UI launcher did not journal child PID/CreationTime; no ownership was inferred for PIDs52424/12840. Later own API/UI child PID/start journals were recorded."
+  },
+  "next": "Atomic local T98 commit after metadata validation. Root integrates scoped CAT/T98 changes while preserving69/99-103/104 work. No deployment, provider delivery, final feature verifier or global proof run. Phase8 remains dependent on M55.",
+  "completedAtUtc": "2026-11-16T14:41:02.848Z",
+  "unitInitialRun": {
+    "passed": 55,
+    "failed": 0,
+    "skipped": 0,
+    "log": ".cache/t98-execution/units-2026-11-16T13-21-56.687Z/output.log",
+    "beforeFixtureTypingCorrection": true
+  },
+  "captureProvenance": {
+    "status": "actual-captured",
+    "productiveUI": [
+      {
+        "path": "apps/dashboard/src/api/types.ts",
+        "sha256": "f491eaa808753b15fd159a6600e1cc3d83431f3edd3deb603f45944ed4298a10",
+        "sameAsFirstCaptureSource": true
+      },
+      {
+        "path": "apps/dashboard/src/pages/catalog-page.tsx",
+        "sha256": "24ebe0590f02b48d9b9fc46dc211b06d951f64a79fb69dc81a12f0f0e8aafabc",
+        "sameAsFirstCaptureSource": true
+      },
+      {
+        "path": "apps/dashboard/src/pages/product-detail/ProductDetailPage.tsx",
+        "sha256": "e6febe84a2cc1897381a4ddf6c39b0921832d83b56020efc79917f73a806c7b9",
+        "sameAsFirstCaptureSource": true
+      },
+      {
+        "path": "apps/dashboard/src/pages/product-detail/components/ProductForm.tsx",
+        "sha256": "4982cbb30908cac131aa48f4aafb678f18434a306fee651079bb742b7dc6a4a9",
+        "sameAsFirstCaptureSource": true
+      },
+      {
+        "path": "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.ts",
+        "sha256": "c559bc42a0e1d5b718ed80b3f9e637ee4bec7b69a6e7e707a3a318fa3b29e9bc",
+        "sameAsFirstCaptureSource": true
+      },
+      {
+        "path": "apps/dashboard/src/pages/product-detail/hooks/useProductForm.ts",
+        "sha256": "ac2eaeac49c4f7f439181085728e98a08ac6c39a182b1657438defb0c762a09f",
+        "sameAsFirstCaptureSource": true
+      },
+      {
+        "path": "apps/dashboard/src/pages/product-detail/utils/catalog-business-mode.ts",
+        "sha256": "f6e4bef243dea5befc9f1ef6d83b2202128c33938f08eb06eb6f351661ee52b7",
+        "sameAsFirstCaptureSource": true
+      },
+      {
+        "path": "apps/dashboard/src/pages/product-detail/product-detail.css",
+        "sha256": "a821cdf0ef49cdd422197cb92e8b01d92baa430ea2ccef34e33a0b8e7ede8d59",
+        "sameAsFirstCaptureSource": true
+      }
+    ],
+    "captures": [
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-products.running.png",
+        "sha256": "149887878df407e599a869b04daea7ec946f56ffde0c947d72b6c40b84e4d4ca",
+        "capturedAtUtc": "2026-11-16T14:40:39.6990573Z"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-products-mobile-original.running.png",
+        "sha256": "04081f748e9551605b51a72c50548a1c764e3012e30632a95d03d6e5993a1306",
+        "capturedAtUtc": "2026-11-16T14:33:45.0209011Z"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-services.running.png",
+        "sha256": "8432a2eff5edc609876ed42a0bc2102fbeb3aefe12ba9e42115e528a6faeed27",
+        "capturedAtUtc": "2026-11-16T14:40:50.3113391Z"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-services-mobile.running.png",
+        "sha256": "b0196d4e0da2e2bf4e1e1122b941f1af11c20db6fc208ec5d88856a0082d882a",
+        "capturedAtUtc": "2026-11-16T14:40:50.6493577Z"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-products-mobile-cropped.running.png",
+        "sha256": "c7ae8e0d659813ebfe04ee21d3e17d82651efb4fbad4e2a3977cf905eb6df691",
+        "capturedAtUtc": "2026-11-16T14:40:39.9265319Z"
+      }
+    ],
+    "mobileOriginalRun": ".cache/t98-execution/browser-2026-11-16T14-31-24.274Z",
+    "mobileOriginalSource": "preserved/catalog-products-mobile.running.png",
+    "visualApproval": "Root viewed legibility; user has not approved UI; final sameHEADscreen review later"
+  },
+  "primaryCapturePaths": [
+    ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-products.running.png",
+    ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-products-mobile-original.running.png",
+    ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-services.running.png",
+    ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-services-mobile.running.png"
+  ],
+  "visualReview": "Root inspected legibility and shared local captures. User has not approved this UI; final sameHEAD screen review remains a later feature-level step. The original clear product mobile is used with original14:31run/SHA04081f..., same eight productive UI file SHAs and own API2bcd. New cropped mobile remains separate; no fake retake or approval claim.",
+  "assertionIntegrity": {
+    "oldFilesUnchanged": [
+      "apps/dashboard/src/pages/product-detail-page.spec.ts",
+      "apps/dashboard/src/pages/product-detail/utils/product-validation.spec.ts",
+      "apps/dashboard/src/pages/product-detail/utils/service-schedule-validation.spec.ts"
+    ],
+    "existingApiPackagesSchemaLockUnchangedFromB5adc": true,
+    "testNameFilterUsed": false,
+    "skippedTests": 0,
+    "oldAssertionsChanged": false,
+    "newFixtureCorrection": "required isActive:true added; no scenario or assertion altered",
+    "newBrowserCorrections": "only accessible-label locators and real scroll/capture viewport assertions; original business assertions retained"
+  },
+  "futureIntegrationNote": "Root-scoped T78/T81: reused legacy per-offer Horarios do servico remains visible. Canonical availability belongs to professionals; future Attendance integration must retain duration/modality while avoiding a second per-variant availability authority. No T98 source fix made for this separate scope.",
+  "evidenceWorkspace": "C:/tmp/zyon-service-company-ui-20261114",
+  "logPathResolution": "All relative .cache log/receipt paths resolve under evidenceWorkspace, not under a later integrating checkout. Committed artifact paths resolve under the feature tree."
+}

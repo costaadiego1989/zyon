@@ -5,6 +5,8 @@
 **Status:** Approved specification and refinements; tasks approved and Phase 1 implementation started locally.
 **Amendment:** 2026-11-14 - user requested an About field in existing company data, a Conversations tab inside WhatsApp, a service-only Atendimento management page, manual scheduling and business-specific dashboard metrics. User also explicitly required preservation of the approved product journeys in WhatsApp and storefront. Original 47-requirement approval remains recorded above; additions are explicit for task review and have no fabricated approval date.
 **Date:** 2026-11-14
+**User-directed catalog addition:** 2026-11-16 - user: "ah e outra coisa em cadastrar produto cadastrar serviço so aparece para empresas de serviço para empresas sem ser de serviço nao precisa mais mostrar a opção de produto de sreviço para cadastrar". Adds CAT-01/CAT-02 and T98 as directly requested local UI work, reusing the already-approved canonical exclusive business mode and T17 API guard. Current scope is74 criteria/98 tasks. Original approvals remain verbatim; no new production authority. The separately requested human-alert telephone and service Kanban are being inventoried; notification channel is with the user and has not been silently chosen.
+
 **User-directed addition:** 2026-11-14 - a simple service-name list in company data, confirmed by "Lista simples em Dados da empresa (recomendado)" and "lembrando que e sÃ³ para empresas de serviÃ§os". Adds ONB-06 to the original71 criteria; original approvals remain verbatim. This local addition is directly requested and does not authorize production actions.
 **Size:** Complex
 
@@ -192,6 +194,15 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 **Independent Test:** Dois tenants sintÃ©ticos, um de cada modalidade, no WhatsApp e storefront; matriz de comÃ©rcio aprovada antes/depois; migraÃ§Ã£o sobre fixture de dados anteriores; desativaÃ§Ã£o de novas reservas com pagamentos pendentes e agendamentos confirmados preservados.
 
+### P1: Catalog creation matches the selected business mode
+
+**User story:** A empresa encontra o cadastro correspondente à modalidade que escolheu, com os mesmos controles visuais e a autoridade de catálogo existentes.
+
+1. WHILE a modalidade canônica da empresa é `products`, WHEN o operador abre o cadastro THEN the system SHALL oferecer apenas os tipos `physical`, `digital` e `food`, sem a opção de cadastrar `service`, preservando a validação da API e os registros históricos. [CAT-01]
+2. WHILE a modalidade canônica da empresa é `services`, WHEN o operador abre ou limpa o cadastro THEN the system SHALL apresentar o fluxo "Novo serviço" com tipo `service`, conservando esse tipo no envio e sem converter silenciosamente um registro já carregado de outra modalidade. [CAT-02]
+
+**Independent Test:** Abrir o catálogo com empresas sintéticas de produtos e serviços; clicar no cadastro; verificar opções, padrão/reset e payload; alternar contexto durante edição; demonstrar que tipos inválidos continuam recusados pela guarda existente. Capturar as duas modalidades no navegador local em desktop/mobile. Esses testes não alteram os fluxos de compra existentes.
+
 ### P1: Evidence and acceptance
 
 **User Story:** Como responsÃ¡vel pelo produto, quero comprovar UI, reservas, pagamentos e conhecimento antes de liberar uma empresa real.
@@ -291,6 +302,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | Pending |
 | REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17 complete) |
 | QA-01 | Criteria proofs | T1, T95 | Pending |
+| CAT-01 | Product-mode creation options | T98 | Complete locally;55unit+2real browser, no skips; final screen review later |
+| CAT-02 | Service-mode creation and defaults | T98 | Complete locally; defaults/reset/payload/history and actual stale-mode409 proved |
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | Pending |
 | QA-03 | Persisted state proof | T2, T5, T26, T92, T95 | In Progress (T26 complete) |
 | QA-04 | RAG evaluation | T72, T94, T95 | Pending |

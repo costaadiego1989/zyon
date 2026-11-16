@@ -9,6 +9,7 @@ Implementar com a skill **tlc-spec-driven**, seguindo Execute e Critical Rules. 
 **Approved**: 2026-11-14 - user: "Aprovar o plano e iniciar implementação local"
 **Date**: 2026-11-14
 **Mutations**: 3
+**User-directed catalog addition (2026-11-16):** user explicitly requested that service registration appear only for service companies and be removed from product-mode creation choices. CAT-01/CAT-02 and independently deliverable T98 extend the current local plan to74criteria/98tasks. This follows the same canonical business mode and T17 guard; no new domain state, product purchase behavior, remote action or production activation. The remaining two new requests are inventory/amendment work, with only the notification channel still awaiting a user choice.
 **User-directed addition**: 2026-11-14 - "Lista simples em Dados da empresa (recomendado)"; "lembrando que e só para empresas de serviços". Adds ONB-06 and T96/T97 to the original approved plan:72 criteria/97 tasks. These two local tasks are directly requested; original approvals are preserved. They run after T16 without blocking the original T16+T25 booking barrier and must finish before T95/final verification.
 **Build**: `pnpm --filter @zyon/api typecheck; pnpm --filter @zyon/api lint; pnpm --filter @zyon/api build; pnpm --filter @zyon/widget-v2 typecheck; pnpm --filter @zyon/widget-v2 build; pnpm --filter @zyon/dashboard typecheck; node scripts/service-local-build.mjs dashboard; pnpm --filter @zyon/storefront typecheck; node scripts/service-local-build.mjs storefront`
 
@@ -168,6 +169,8 @@ T91 → T92
 T16 → T96
 T96 → T97
 T97 → T95
+T17 → T98
+T98 → T95
 ```
 
 ## Task Breakdown
@@ -1906,7 +1909,7 @@ T97 → T95
 
 **What**: Coletor valida cobertura dos 72 IDs, teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
-**Depends on**: T94, T97
+**Depends on**: T94, T97, T98
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: QA-01, QA-02, QA-03, QA-04
 
@@ -1957,6 +1960,24 @@ T97 → T95
 **Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/store-settings/service-names-field.spec.tsx -t "T97"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-company-service-names.spec.ts --grep "T97$"`; tipos/build afetados e check final ONB-06 obrigatórios. O arquivo focal contém dez gestos sob describeT97; selecionar o full title inclui seus filhos, sem filtro exato que gere zero casos.
 **Status**: Complete locally:41 unit cases (10 field,4 hook,27 existing regressions), dashboard typecheck/build0 and fresh ONB-06 collector browser1/native17,0skip/0retry, provider/owned cleanup0. Desktop/mobile captures show the left-aligned plus control. See task-97-evidence.json; retrieval/provider/production and final feature verification remain pending.
 **Commit**: `feat(service-business): t97 edit service names in company settings`
+
+### T98: Match catalog creation controls to business mode
+
+**What**: Aplicar a modalidade canônica ao cadastro: empresas de produtos veem tipos físico/digital/alimentação; empresas de serviços entram em "Novo serviço" com tipo service no primeiro render, reset e envio. Reutilizar os controles e a guardaT17; não converter silenciosamente registros carregados nem alterar compras/histórico.
+**Where**: `apps/dashboard/src/pages/product-detail/components/ProductForm.tsx`
+**Depends on**: T17
+**Reuses**: Existing MerchantProfile/business-mode resolution, ProductForm/useProductForm/useProductDetailPage, CatalogPage, PageHeader/Button/tokens, catalog-business-mode API guard, current Vitest React DOM and local Playwright fixtures. Only necessary prop/default/entry-label wiring; no unrelated redesign.
+**Requirement**: CAT-01, CAT-02, REG-02, QA-02
+
+**Done when**:
+
+- [x] Products/services creation gestures and reset/submit obey the current canonical mode; invalid/unknown/stale modes cannot introduce a forbidden type, and loaded history is not silently coerced.
+- [x] Unfiltered old/new component contracts and actual local browser gestures prove both modes, payload and mode switching. Desktop/mobile captures are saved and shared with the user, labeled local; existing API guards and product purchase paths remain intact.
+- [x] Dashboard typecheck/build plus the existing relevant lint/test gate and local Browser gate pass; record actual counts/paths, no skipped old tests or assertion changes; mark complete before one atomic local commit.
+
+**Tests**: New `src/pages/product-detail/components/ProductForm.business-mode.spec.tsx` (root CAT-01), `src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts` (root CAT-02), with necessary actual-page/hook companion for the submit payload; unchanged old product-detail/validation/service-schedule fixtures. New `e2e/service-catalog-business-mode.spec.ts` on existing `playwright.service-local.config.ts`, using synthetic local API/identity fixtures and actual click/type/reset/save gestures. No real provider/API deployment.
+**Gate**: Browser plus UI build: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/components/ProductForm.business-mode.spec.tsx src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx src/pages/product-detail-page.spec.ts src/pages/product-detail/utils/product-validation.spec.ts src/pages/product-detail/utils/service-schedule-validation.spec.ts` without a skip-producing name filter; `pnpm --dir apps/dashboard typecheck`; existing affected-file lint and dashboard build command; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-business-mode.spec.ts`. Existing task-specific protected environment/resources/owned cleanup apply. Worker must record any concrete test-command adaptation before execution and preserve every old assertion.
+**Commit**: `feat(service-business): t98 match catalog creation to business mode`
 
 ## Checks
 
@@ -2250,7 +2271,18 @@ Tasks: T70, T71.
 Proof: `pnpm --dir apps/api exec node ./tests/service-company-services-proof.mjs`
 Tasks: T96, T97, T63, T72.
 
+**C73** - WHILE a modalidade canônica é `products`, WHEN o operador abre o cadastro THEN the system SHALL oferecer apenas tipos físico/digital/alimentação, sem cadastrar serviço e preservando a guarda existente. (CAT-01, AC 1)
+Proof: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/components/ProductForm.business-mode.spec.tsx -t "^CAT-01"`
+Tasks: T98.
+
+**C74** - WHILE a modalidade canônica é `services`, WHEN o operador abre ou limpa o cadastro THEN the system SHALL mostrar "Novo serviço", manter tipo service no padrão/reset/envio e não converter silenciosamente um registro carregado. (CAT-02, AC 2)
+  Proof: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx`
+Tasks: T98.
+
 ## Handoff
+
+**Completed98 C:** Aligned committed rootb5adc21f3 in local merge2ea6cf0f7, preserving both STATE histories and eight cache manifests. Only CAT-01/02,T98,C73/74 and17→98→95 composed; no dirty69/99 source copied. Final55unit(19new+36old), dashboardtypes/build0, affectedlint14/0/0, realbrowser2/2/0skip and unchanged cleanup guards passed. Own officialAPIbuild2542 input5d6dda5d/artifact2bcd67b5 and ownPrisma6.19.3; no artifact reuse. TS2741/new locator diagnostics and ENV422/4404 preserved in task-98-evidence.json. Four primary local captures shared; original clear product mobile carries original-run/SHA and same UI/API provenance. Root viewed legibility; no user UI approval or final sameHEAD screen review is claimed. All heavy resources closed and slot returned before metadata/commit. Phase8 awaits55; Root's later99–104 and69 remain separate.
+
 
 **Completed53:** M finishes this atomic task from combined68 ee4532ec:31unit/13officialHTTP-WebSocket-SQL/checked2542 input1bd5c4 artifact9132e3,0skip/provider/naturalcleanup. Heavy returned before metadata/commit. Send-only explicit staff role policy preserves default denials; queued is not delivered/read. Own branch feat/whatsapp-operator-message-20261116. Exact null400 pre-auth audit0 correction approved by user "Sim, corrigir essa checagem"; official13 passed after exact candidate11074 was applied. Root69/P29 later combined source is not proven by this artifact. Next M54 is source/pure only until parent heavy dispatch; no production action.
 

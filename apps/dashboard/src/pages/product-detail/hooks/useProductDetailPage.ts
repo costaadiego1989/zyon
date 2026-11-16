@@ -13,6 +13,8 @@ import type { AdvancedRule } from "../../checkout-settings/lib/draft.js";
 import { catalogSaveError } from "../utils/catalog-save-error.js";
 import { persistVariantMedia } from "../utils/persist-variant-media.js";
 import { productEditorHash } from "../utils/product-route.js";
+import { catalogBusinessMode, productTypeMatchesBusinessMode } from "../utils/catalog-business-mode.js";
+import type { ProductType } from "../ProductDetailPage.js";
 
 export interface UseProductDetailPageOptions {
   me: MerchantProfile | null;
@@ -24,9 +26,12 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
   const { me, productId, onSaved } = options;
   const api = useApi();
   const merchantId = me?.id;
+  const businessMode = catalogBusinessMode(me);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   // Sub-hooks
-  const form = useProductForm();
+  const form = useProductForm("", "", businessMode === "services" ? "service" : "physical");
   const variantManager = useVariantManager();
   const media = useMediaUploader();
   const seo = useProductSeo();
@@ -41,6 +46,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
   const [loaded, setLoaded] = useState(false);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+  const [loadedProductType, setLoadedProductType] = useState<ProductType | null>(null);
   const isEditing = !!(productId || createdProductId);
   const loadedStocks = useRef(new Map<string, number>());
   const [conflictingSkus, setConflictingSkus] = useState<string[]>([]);
@@ -72,6 +78,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
         const product = await api.getProduct(merchantId, productId);
         if (!active) return;
         form.loadProduct(product);
+        setLoadedProductType((product.type ?? "physical") as ProductType);
         loadedStocks.current = new Map(product.variants.map(v => [v.id, v.stockQuantity ?? 0]));
         seo.loadSeo(product);
 
@@ -126,8 +133,14 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
     return validateSimpleProduct(variantManager.variants[0], form.productType);
   }, [variantManager.variants, variantManager.hasVariants, form.productType]);
 
+  const businessModeError = businessMode === null
+    ? "Confirme a modalidade da empresa em Dados da empresa antes de salvar."
+    : !productTypeMatchesBusinessMode(form.productType, businessMode) || (loadedProductType !== null && !productTypeMatchesBusinessMode(loadedProductType, businessMode))
+      ? "O tipo deste item não corresponde à modalidade atual da empresa. Os dados originais foram preservados."
+      : null;
   const formErrors = useMemo(() => {
     const errors: Record<string, string> = {};
+    if (businessModeError) errors.businessMode = businessModeError;
     if (!form.name.trim()) errors["name"] = "Nome obrigatório";
     Object.assign(errors, variantErrors);
     Object.assign(errors, validateProductMetadata(form.productType, { ...(form.metadata as Record<string, unknown>),
@@ -136,16 +149,16 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       if (conflictingSkus.includes(variant.sku.trim())) errors[variantManager.hasVariants ? `variant_${index}_sku` : "simple_sku"] = "Este SKU já está cadastrado";
     });
     return errors;
-  }, [form.name, form.productType, form.metadata, form.optionGroups, variantErrors, variantManager.variants, variantManager.hasVariants, conflictingSkus]);
+  }, [businessModeError, form.name, form.productType, form.metadata, form.optionGroups, variantErrors, variantManager.variants, variantManager.hasVariants, conflictingSkus]);
 
   const canSave = Object.keys(formErrors).length === 0 && !saving && loaded && !loading && !loadError;
 
   // Save handler
   async function handleSave() {
-    if (!merchantId || saving || !loaded || loadError) return;
+    if (!mounted.current || !merchantId || saving || !loaded || loadError) return;
     if (Object.keys(formErrors).length > 0) {
       setSaveResult("error");
-      setSaveErrorMsg("Corrija os erros antes de salvar");
+      setSaveErrorMsg(businessModeError ?? "Corrija os erros antes de salvar");
       return;
     }
     setSaving(true);
@@ -211,6 +224,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
           keywords: seo.seoKeywords,
         };
         savedVariants = (await api.replaceProductVariants(merchantId, savedProductId, payloadVariants, changes)).variants;
+        if (!mounted.current) return;
       } else {
         const created = await api.createProduct(merchantId, {
           name: form.name.trim(),
@@ -220,6 +234,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
           categoryId: form.categoryId.trim() || undefined,
           variants: payloadVariants,
         });
+        if (!mounted.current) return;
         savedProductId = created.id;
         savedVariants = created.variants;
         setCreatedProductId(created.id);
@@ -229,7 +244,11 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       // Upload pending images
       if (savedProductId) {
         for (const v of savedVariants) loadedStocks.current.set(v.id, v.stockQuantity ?? 0);
-        const result = await persistVariantMedia(variants.map((v, i) => ({ ...v, sku: payloadVariants[i].sku })), savedVariants, (id, image) => api.uploadProductMedia(merchantId, id, image));
+        const result = await persistVariantMedia(variants.map((v, i) => ({ ...v, sku: payloadVariants[i].sku })), savedVariants, (id, image) => {
+          if (!mounted.current) throw new Error("catalog_editor_changed");
+          return api.uploadProductMedia(merchantId, id, image);
+        });
+        if (!mounted.current) return;
         variantManager.setVariants(result.variants.map(v => ({ ...v, stockInput: String(savedVariants.find(saved => saved.id === v.id)?.stockQuantity ?? parseInteger(v.stockInput) ?? 0) })));
         for (const item of result.uploaded) media.addMedia(item.variantId, { id: item.id, url: item.url });
         if (result.failed) throw new Error("product_media_upload_failed");
@@ -249,6 +268,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
 
       // Post-save: create advanced rules (create mode only, after product is saved)
       if (savedProductId && pendingRulesConfig && pendingRulesConfig.rules.length > 0) {
+        if (!mounted.current) return;
         try {
           await api.upsertProductAdvancedRules(merchantId, savedProductId, pendingRulesConfig);
         } catch (e) {
@@ -258,6 +278,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       }
 
       // Compose post-save status for the toast (create mode extras).
+      if (!mounted.current) return;
       if (promoCreationError) {
         setPostSaveNotice({ kind: "partial", message: `Produto criado, mas a promoção falhou: ${promoCreationError}` });
       } else if (rulesCreationError) {
@@ -275,13 +296,14 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       setPendingRulesConfig(null);
       onSaved?.();
     } catch (e) {
+      if (!mounted.current) return;
       setSaveResult("error");
       const failure = catalogSaveError(e);
       setSaveErrorMsg(failure.message);
       setConflictingSkus(failure.conflictingSkus);
       reportError({ source: "ProductDetailPage.save", error: e });
     } finally {
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   }
 
@@ -332,6 +354,8 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
     // Identity
     isEditing,
     merchantId,
+    businessMode,
+    businessModeError,
 
     // Form
     form,

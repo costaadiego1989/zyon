@@ -1,5 +1,5 @@
 import React, { useId } from "react";
-import { Package, Download, Clock, Utensils, Plus, Trash2 } from "lucide-react";
+import { Package, Download, Utensils, Plus, Trash2 } from "lucide-react";
 import { PrefixInput } from "../../../components/PrefixInput.js";
 import { CategoryCombobox } from "./CategoryCombobox.js";
 import type { ProductMetadata } from "../ProductDetailPage.js";
@@ -7,8 +7,10 @@ import type { FoodOptionGroupDraft } from "../hooks/useProductForm.js";
 import { MAX_OPTION_GROUPS, MAX_ITEMS_PER_GROUP, emptyFoodOptionGroup, emptyFoodOptionItem } from "../hooks/useProductForm.js";
 import { maximumFoodOptionPrice } from "../utils/food-options-validation.js";
 import { ServiceScheduleEditor } from "./ServiceScheduleEditor.js";
+import { PRODUCT_TYPE_NAMES, productTypeMatchesBusinessMode, type CatalogBusinessMode } from "../utils/catalog-business-mode.js";
 
 export interface ProductFormProps {
+  businessMode: CatalogBusinessMode | null;
   name: string;
   onNameChange: (v: string) => void;
   description: string;
@@ -40,6 +42,7 @@ export function ProductForm(props: ProductFormProps) {
   const nameErrorId = useId();
   const foodErrorId = useId();
   const {
+    businessMode,
     name,
     onNameChange,
     description,
@@ -61,14 +64,17 @@ export function ProductForm(props: ProductFormProps) {
     optionGroups,
     onOptionGroupsChange,
   } = props;
+  const historicalTypeConflict = isEditing && businessMode !== null && !productTypeMatchesBusinessMode(productType, businessMode);
 
   return (
     <>
+      {businessMode === null && <p role="alert">Confirme a modalidade da empresa em Dados da empresa para cadastrar itens.</p>}
+      {historicalTypeConflict && <p role="status">Tipo atual: {PRODUCT_TYPE_NAMES[productType] ?? productType}. Este item foi preservado e não pode ser convertido para a modalidade atual da empresa.</p>}
       {/* PRODUCT TYPE SELECTOR */}
-      <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
+      {businessMode === "products" && !historicalTypeConflict && <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
         <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>Tipo de produto</h3>
         <div className="product-detail__types">
-          {(["physical", "digital", "service", "food"] as const).map((type) => (
+          {(["physical", "digital", "food"] as const).map((type) => (
             <button
               key={type}
               aria-pressed={productType === type}
@@ -91,18 +97,16 @@ export function ProductForm(props: ProductFormProps) {
             >
               {type === "physical" && <Package size={18} />}
               {type === "digital" && <Download size={18} />}
-              {type === "service" && <Clock size={18} />}
               {type === "food" && <Utensils size={18} />}
               <span style={{ font: "600 11px var(--font-sans)" }}>
                 {type === "physical" && "Físico"}
                 {type === "digital" && "Digital"}
-                {type === "service" && "Serviço"}
                 {type === "food" && "Alimentação"}
               </span>
             </button>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* Informações básicas */}
       <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
@@ -113,7 +117,7 @@ export function ProductForm(props: ProductFormProps) {
             value={name}
             aria-invalid={Boolean(formErrors.name)} aria-describedby={formErrors.name ? nameErrorId : undefined}
             onChange={(e) => onNameChange(e.target.value)}
-            placeholder="Ex: Camiseta preta M"
+            placeholder={productType === "service" ? "Ex: Consulta inicial" : "Ex: Camiseta preta M"}
             style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${formErrors["name"] ? "var(--color-error)" : "var(--color-border)"}`, font: "13px var(--font-sans)", color: "var(--color-text)", outline: "none", background: "var(--surface-1)" }}
           />
           {formErrors["name"] ? (

@@ -36,6 +36,7 @@ export type MerchantRole = "OWNER" | "ADMIN" | "STAFF";
 
 export type MerchantProfile = {
   businessMode?: "products" | "services";
+  businessModeSelectionState?: "selected" | "legacy" | "review_required";
   id: string;
   name: string;
   slug?: string;
