@@ -85,7 +85,12 @@
 .mga-agentic-shell { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,360px); align-items: start; gap: 28px; }
 .mga-agentic-content { min-width: 0; }
 .mga-agentic-content > [tabindex="-1"], .mga-agentic-content [tabindex="-1"] { scroll-margin-top: 90px; }
-.mga-chat-context { padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
+.mga-chat-context { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--color-border); font-size: 12px; color: var(--color-text-secondary); }
+.mga-chat-context .mga-chat-refresh { order: 1; margin-left: auto; min-width: 44px; padding: 0; flex: none; display: flex; align-items: center; justify-content: center; background: transparent; border-color: transparent; color: var(--color-text-secondary); }
+.mga-visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.chat-dock .mga-chat-welcome { padding: 32px 0; }
+.chat-dock .mga-chat-welcome h3 { font-size: 18px; margin: 0 0 12px; }
+.chat-dock .mga-chat-welcome small { margin-top: 24px; font-size: 12px; line-height: 1.7; }
 .mga-chat-context p { margin: 10px 0 0; font-size: 12px; }
 .chat-dock .mga-ledger { margin: 12px 0; }
 .chat-dock .mga-ledger > div { grid-template-columns: minmax(0,1fr); gap: 4px; padding: 10px 0; }
@@ -101,6 +106,10 @@
 .mga-daily-recommendation, .mga-daily-action { padding: 14px 0; border-top: 1px solid var(--color-border); }
 .mga-chat-references ul { margin: 12px 0; padding: 0; list-style: none; }
 .mga-chat-references li + li { margin-top: 16px; }
+.mga-chat-references > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 12px; color: var(--color-text-secondary); }
+.mga-chat-references > summary > span { margin-left: 4px; font-variant-numeric: tabular-nums; }
+.mga-chat-references button { font-size: 12px; text-align: left; }
+.mga-chat-references small { margin-top: 4px; font-size: 11px; }
 @media (max-width: 900px) {
   .mga-agentic-shell { grid-template-columns: minmax(0,1fr); gap: 0; }
   .mga-agentic-content { padding-bottom: 84px; }

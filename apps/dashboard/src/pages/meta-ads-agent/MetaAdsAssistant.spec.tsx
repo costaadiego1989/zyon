@@ -55,6 +55,13 @@ test('ADAS-11 reload resumes server history without recreating a campaign or res
 test('ADAS-17 validated reference opens its authorized source reader with origin and review date',async()=>{
   screen=ui();const f=fixture(thread([turn({references:[{id:'funds:one',version:'1',title:'Como financiar anúncios',url:'/?tab=meta-ads-agent&help=funds',reviewedAt:'2026-11-16',excerpt:'A verba pertence à Meta.'}]})]));await screen.render(<MetaAdsAssistant {...f.props}/>);await screen.click('Ver fonte: Como financiar anúncios');expect(f.client.source).toHaveBeenCalledWith('meta-ads','funds:one',expect.any(AbortSignal));expect(screen.container.textContent).toContain('A verba é paga diretamente à Meta.');expect(screen.container.textContent).toContain('16/11/2026');expect(screen.container.querySelector('a[href="https://developers.facebook.com/docs/graph-api/reference/ad-account/"]')).not.toBeNull();
 });
+
+test('ADAS-62 source excerpts stay out of the initial conversation and the disclosure opens the complete reviewed source',async()=>{
+  screen=ui();const f=fixture(thread([turn({references:[{id:'funds:one',version:'1',title:'Como financiar anúncios',url:'/?tab=meta-ads-agent&help=funds',reviewedAt:'2026-11-16',excerpt:'TRECHO_LONGO_QUE_NAO_DEVE_INUNDAR_A_CONVERSA'}]})]));
+  await screen.render(<MetaAdsAssistant {...f.props}/>);const refs=screen.container.querySelector<HTMLDetailsElement>('.mga-chat-references')!;expect(refs.tagName).toBe('DETAILS');expect(refs.open).toBe(false);expect(screen.container.querySelector('.chat-dock-history')?.textContent).not.toContain('TRECHO_LONGO_QUE_NAO_DEVE_INUNDAR_A_CONVERSA');
+  await act(async()=>refs.querySelector('summary')!.click());expect(refs.open).toBe(true);expect(refs.textContent).toContain('16/11/2026');expect(refs.textContent).toContain('Versão 1');
+  await screen.click('Ver fonte: Como financiar anúncios');expect(f.client.source).toHaveBeenCalledWith('meta-ads','funds:one',expect.any(AbortSignal));expect(screen.container.querySelector('[aria-label="Fonte da resposta"]')?.textContent).toContain('A verba é paga diretamente à Meta.');
+});
 test('ADAS-26 campaign artifacts resolve the current canonical campaign without reopening a form',async()=>{
   screen=ui();const c=campaign(),f=fixture(thread([turn({artifacts:[{type:'campaign',campaign:{...c,draft:{...c.draft,headline:'Título antigo'}}}]})]));c.draft.headline='Título atual';f.props.overview.campaigns=[c];await screen.render(<MetaAdsAssistant {...f.props}/>);expect(screen.container.textContent).toContain('Título atual');expect(screen.container.textContent).not.toContain('Título antigo');expect(screen.container.textContent).toContain('99,00');expect(screen.container.querySelector('[aria-label="Nome da campanha"]')).toBeNull();
 });
@@ -66,6 +73,16 @@ test('ADAS-38 explicit return to manual revokes the accepted policy and preserve
 });
 test('ADAS-47 persisted closed-day report is accessible outside chat and as the same grounded artifact',async()=>{
   screen=ui();const report:MetaAdsDailyReport={id:'r',accountId:'123',localDay:'2026-11-15',timezone:'America/Sao_Paulo',since:'2026-11-15T03:00:00Z',until:'2026-11-16T03:00:00Z',status:'partial',analysisStatus:'awaiting_data',collectedAt:null,updatedAt:'2026-11-16T03:01:00Z',campaigns:[],notes:['Coleta pendente de recuperação']};const f=fixture(thread([turn({artifacts:[{type:'daily_report',report}]})]));f.client.reports.mockResolvedValue({reports:[report]});await screen.render(<MetaAdsAssistant {...f.props}/>);expect(screen.container.querySelectorAll('.mga-daily-report')).toHaveLength(2);expect(screen.container.textContent).toContain('America/Sao_Paulo');expect(screen.container.textContent).toContain('Coleta pendente de recuperação');
+});
+
+test('ADAS-58 a slow older panel batch cannot overwrite the report returned by the latest refresh gesture',async()=>{
+  screen=ui();const f=fixture();let finish!:(value:unknown)=>void;const funding=f.client.funding.getMockImplementation()!;
+  f.client.funding.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+  const r=(id:string,day:string):MetaAdsDailyReport=>({id,accountId:'123',localDay:day,timezone:'America/Sao_Paulo',since:day,until:day,status:'completed',analysisStatus:'awaiting_data',collectedAt:null,updatedAt:'2026-11-17T03:01:00Z',campaigns:[],notes:[]});
+  f.client.reports.mockResolvedValueOnce({reports:[r('old','2026-11-15')]}).mockResolvedValue({reports:[r('new','2026-11-16')]});
+  await screen.render(<MetaAdsAssistant {...f.props}/>);await screen.click('Atualizar conversa');
+  expect((screen.container.querySelector('[aria-label="Dia do relatório"]') as HTMLSelectElement).value).toBe('new');
+  await act(async()=>finish(await funding()));expect((screen.container.querySelector('[aria-label="Dia do relatório"]') as HTMLSelectElement).value).toBe('new');expect(screen.container.querySelector('[aria-label="Dia do relatório"]')?.textContent).toContain('16/11/2026');
 });
 test('ADAS-18 history or source outage remains visible while independent financial guidance is preserved',async()=>{
   screen=ui();const f=fixture();f.client.thread.mockRejectedValue(new Error('offline'));await screen.render(<MetaAdsAssistant {...f.props}/>);expect(screen.container.textContent).toContain('Não foi possível carregar a conversa');expect(screen.container.textContent).toContain('Sem leitura financeira');expect(screen.container.textContent).toContain('pago diretamente à Meta');expect(f.client.submit).not.toHaveBeenCalled();f.client.thread.mockResolvedValue(thread([turn({reply:'Histórico recuperado'})]));await screen.click('Atualizar conversa');expect(screen.container.textContent).toContain('Histórico recuperado');

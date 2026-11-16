@@ -23,7 +23,7 @@ describe('Pagamentos e ajuda fundamentada',()=>{
   scenario('ADAS-55','blocked funding keeps grounded help and a valid reviewed source available and changes billing route with store',()=>{
     control('funding',{mode:'prepaid',blocked:true});enter();cy.get(panel).should('contain.text','Publicação bloqueada.');
     ask('Como adiciono fundos e resolvo os pagamentos dos anúncios?');cy.get('.chat-dock-reply').last().should('contain.text','paga diretamente à Meta');
-    cy.get('.mga-chat-references').should('contain.text','Revisada em').and('contain.text','Versão');cy.get('.mga-chat-references button').first().click();
+    cy.get('.mga-chat-references').should('contain.text','Revisada em').and('contain.text','Versão');cy.get('.mga-chat-references > summary').first().click();cy.get('.mga-chat-references button').first().click();
     cy.get('[aria-label="Fonte da resposta"]').should('be.visible').and('contain.text','Versão atual').and('contain.text','Revisada em');cy.get('[aria-label="Fonte da resposta"] a').each(link=>{expect(new URL(link.attr('href')!).protocol).eq('https:');});
     control('facts').then(({body})=>{expect(body.retrievedReferenceIds.length).greaterThan(0);expect(body.writes).deep.eq([]);expect(body.confirmedAiCostMicros).greaterThan(0);});
     cy.get('[aria-label="Loja ativa"]').select('store-b');cy.get(panel).should('contain.text','Conta 101');cy.get(panel).contains('a','Abrir pagamentos na Meta').should('have.attr','href').then(href=>{const url=new URL(String(href));expect(url.searchParams.get('asset_id')).eq('101');expect(url.searchParams.get('payment_account_id')).eq('101');});

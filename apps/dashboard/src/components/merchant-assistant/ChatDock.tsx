@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { AssistantContextDescriptor, AssistantTurn } from '@zyon/shared-types';
 import './chat-dock.css';
+import { ArrowUp, ChevronDown, MessageSquare } from 'lucide-react';
 
 export interface ChatDockProps {
   context: AssistantContextDescriptor; turns: AssistantTurn[]; loading?: boolean; busy?: boolean;
@@ -43,7 +44,7 @@ export function ChatDock({context,turns,loading,busy,error,empty,headerExtra,onS
   return <aside ref={dock} className={`chat-dock ${open?'chat-dock-open':'chat-dock-collapsed'}`} aria-label={`Assistente de ${context.label}`} data-context={context.id}>
     <button type="button" className="chat-dock-trigger" aria-label="Abrir assistente" aria-controls={id} aria-expanded={open} hidden={open} ref={trigger} onClick={()=>toggle(true)}>Conversar com a IA</button>
     <section id={id} className="chat-dock-panel" hidden={!open} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();toggle(false);}}}>
-      <header className="chat-dock-header"><div><strong>Assistente Zyon</strong><span>{context.label}</span></div><button type="button" className="chat-dock-close" aria-label="Recolher assistente" onClick={()=>toggle(false)}>Recolher</button></header>
+      <header className="chat-dock-header"><div className="chat-dock-identity"><MessageSquare size={18} aria-hidden="true"/><div><strong>Assistente Zyon</strong><span>{context.label}</span></div></div><button type="button" className="chat-dock-close" aria-label="Recolher assistente" title="Recolher assistente" onClick={()=>toggle(false)}><ChevronDown size={17} aria-hidden="true"/><span className="chat-dock-sr-only">Recolher</span></button></header>
       {headerExtra}
       <div className="chat-dock-history" role="log" aria-label="Conversa com a IA" aria-live="polite" tabIndex={0}>
         {older}{loading&&<p role="status">Carregando conversa…</p>}
@@ -52,8 +53,8 @@ export function ChatDock({context,turns,loading,busy,error,empty,headerExtra,onS
       </div>
       <form className="chat-dock-composer" onSubmit={event=>{event.preventDefault();void send();}}>
         {(error||sendError)&&<div role="alert"><p>{error||sendError}</p>{onRetry&&<button type="button" disabled={sending||busy} onClick={()=>void retry()}>Retomar envio</button>}</div>}
-        <label htmlFor={`${id}-message`}>Mensagem para a IA</label><textarea ref={composer} id={`${id}-message`} aria-label="Mensagem para a IA" value={message} rows={3} maxLength={8000} onChange={event=>setMessage(event.target.value)} aria-describedby={`${id}-limit`}/>
-        <div className="chat-dock-send"><small id={`${id}-limit`}>{message.length}/8000</small><button type="submit" disabled={loading||busy||sending||!message.trim()||message.trim().length>8000}>Enviar mensagem</button></div>
+        <label className="chat-dock-sr-only" htmlFor={`${id}-message`}>Mensagem para a IA</label><textarea ref={composer} id={`${id}-message`} aria-label="Mensagem para a IA" placeholder="Descreva sua ideia ou faça uma pergunta…" value={message} rows={3} maxLength={8000} onChange={event=>setMessage(event.target.value)} aria-describedby={`${id}-limit`}/>
+        <div className="chat-dock-send"><small id={`${id}-limit`}>{message.length}/8000</small><button type="submit" disabled={loading||busy||sending||!message.trim()||message.trim().length>8000}>Enviar mensagem<ArrowUp size={15} aria-hidden="true"/></button></div>
         {(busy||sending)&&<span role="status">Processando… Você pode recolher o chat e continuar na página.</span>}
       </form>
     </section>
