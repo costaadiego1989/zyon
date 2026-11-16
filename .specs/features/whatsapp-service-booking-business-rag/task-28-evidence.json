@@ -1,0 +1,284 @@
+{
+  "task": "T28",
+  "status": "complete",
+  "recordedAtUtc": "2026-11-16T07:46:24.919Z",
+  "base": {
+    "head": "56296ba23029be37b55c62742a4beca5a79c7eb2",
+    "canonicalN52": "a9ec3e47f8fc1b964c99b5c8611eb5525b22295d",
+    "frozenTransferFiles": 45,
+    "frozenTransferManifestSha256": "0a05611acd56b4158c51956b6b78b6289574d08fd11aba35eff5d74a03e458f3",
+    "preservationBefore52ManifestSha256": "1bce6870defa30eed1a6d63a029e6b706f2668c992834e6941afd5d88b44a324"
+  },
+  "requirements": [
+    "AGENDA-04",
+    "BOOK-03",
+    "EDGE-02",
+    "REG-01",
+    "REG-02"
+  ],
+  "unit": {
+    "executed": 14,
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0,
+    "components": [
+      {
+        "executed": 6,
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 490.4056,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t28-fingerprint-combined-unit.log",
+        "sha256": "05589c7562d5085c4e9dc982d70cf18f00a0da2c0990d3aad171d90c319bc297"
+      },
+      {
+        "executed": 8,
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "durationMs": 2777.4402,
+        "exitCode": 0,
+        "log": ".cache/phase3-gates/t28-start-checkout-combined-unit.log",
+        "sha256": "b416d88f981163df6a05b5ec1751abf3baac2a135cb7c8e0ccf7ff136a3883fa"
+      }
+    ],
+    "causalRed": {
+      "executed": 6,
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "log": ".cache/phase3-gates/t28-fingerprint-red.log",
+      "sha256": "077cdf5af4f37a1f9f01b5c3703aded818578fc35839b4147abf145ae7ef7db3",
+      "cause": "New professional identity did not alter fingerprint; four literal pre-feature hashes already passed. All original assertions unchanged."
+    }
+  },
+  "native": {
+    "executed": 83,
+    "passed": 83,
+    "failed": 0,
+    "skipped": 0,
+    "http": {
+      "executed": 9,
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 65287.7304,
+      "exitCode": 0,
+      "log": ".cache/phase3-gates/t28-http-native.log",
+      "sha256": "bb845e9699a57a8f1706f517e6dbde25c0bd703ff35e309b3939bfc6469fcfdf"
+    },
+    "product": {
+      "executed": 48,
+      "passed": 48,
+      "failed": 0,
+      "skipped": 0,
+      "summary": {
+        "phase": "normal-checkout-payment",
+        "coverageMode": "baseline-and-identity",
+        "passed": 48,
+        "waiters": 3,
+        "prismaClientConstructed": true,
+        "providerCalls": 0,
+        "scope": "normal-standalone-source-coupon-identity-detachment",
+        "checkoutVersionTrigger": true,
+        "checkoutStrategyTrigger": true
+      },
+      "cleanup": {
+        "phase": "normal-checkout-payment",
+        "coverageMode": "baseline-and-identity",
+        "status": "passed",
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true,
+        "durationMs": 51364,
+        "network": "none",
+        "productionAccess": false
+      },
+      "log": ".cache/phase3-gates/t28-product-baseline.log",
+      "sha256": "865e9b54dce1c4e37e664034ef61d93c3ab5bad3119348bf809ba5cb1fde3833"
+    },
+    "whatsappCoexistence": {
+      "executed": 26,
+      "passed": 26,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "durationMs": 30566.5088,
+      "exitCode": 0,
+      "log": ".cache/phase3-gates/t28-whatsapp-coexistence.log",
+      "sha256": "301a35292889b9ef437bde93dfae4dd9bf8041668aec5e740360679cf4eafd02"
+    },
+    "countCorrection": "HEAD15 static t.test calls plus9 loop expansions plus root=25; current16+9+root=26. All original assertions preserved; no tests removed or skipped.",
+    "cleanup": "All owned cohorts exited0 naturally; AppModule closed ACK/disconnected; disposable database/bridges removed; no forced cleanup or deadline changes."
+  },
+  "checkedBuild": {
+    "command": "pnpm --dir apps/api build",
+    "exitCode": 0,
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2538
+    },
+    "inputSha256": "643390186a5884f9118b41893465a70207a8d34cad240a271bdcd13f526711e8",
+    "artifactSha256": "e5fa3d58f3c16b1f9058d78d9885da17a183c9ed6c4f1d2f0c312957ea1dedb0",
+    "outputInventory": {
+      "inputSha256": "643390186a5884f9118b41893465a70207a8d34cad240a271bdcd13f526711e8",
+      "sha256": "196f43e88de717a01a2416f910731384119a01e6ef99c5fd658528440ffa8de8",
+      "files": 5352,
+      "standardArtifactSha256": "e5fa3d58f3c16b1f9058d78d9885da17a183c9ed6c4f1d2f0c312957ea1dedb0"
+    },
+    "supervisor": {
+      "receipt": ".cache/phase3-gates/t28-supervisor-20261116T072113214861Z/supervisor.json",
+      "sha256": "a5474d4c85010eea065b8b5aae03768176c9b061d5ea32d4d8c5ecbd5752d3b2",
+      "status": "BUILD_EXIT0_NO_BREACH",
+      "initialCommitMiB": 6399,
+      "minCommitMiB": 4047,
+      "maxSampleGapMs": 312.9999999946449,
+      "samples": 418,
+      "verifiedProcessIdentities": 34,
+      "jobEmpty": true,
+      "forcedTermination": false,
+      "breach": false,
+      "monitorFailure": null
+    },
+    "finalize": {
+      "result": ".cache/phase3-gates/t28-supervisor-20261116T072113214861Z/attestation-2026-11-16T07-27-14-983Z-4feb0115bcd4beef21f5dc1d8a5439d5a5102644c56040ac125645ce57da5633/result.json",
+      "sha256": "30c0068cf14054829d7f6f24004ad167f2b4f6585a3fbfee2a1d45ae9dfd96e8",
+      "status": "passed",
+      "code": 0,
+      "memory": {
+        "observedAtUtc": "2026-11-16T07:27:23.877909+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1415,
+        "commitAvailableMiB": 6637,
+        "memoryLoadPercent": 91
+      },
+      "attemptId": "4feb0115bcd4beef21f5dc1d8a5439d5a5102644c56040ac125645ce57da5633",
+      "supervisorReceiptSha256": "a5474d4c85010eea065b8b5aae03768176c9b061d5ea32d4d8c5ecbd5752d3b2",
+      "compilerChildExitedNaturally": true,
+      "jobEmpty": true,
+      "noBreach": true,
+      "noForcedTermination": true,
+      "rollback": null,
+      "standardArtifactSha256": "e5fa3d58f3c16b1f9058d78d9885da17a183c9ed6c4f1d2f0c312957ea1dedb0",
+      "publishedRecordSha256": "5af5896737ca991445d811e799e62956b115ab83a9e5f6a3fc3e0eb3ab1e3043"
+    },
+    "integralArtifactAdmission": {
+      "checked": true,
+      "inputSha256": "643390186a5884f9118b41893465a70207a8d34cad240a271bdcd13f526711e8",
+      "artifactSha256": "e5fa3d58f3c16b1f9058d78d9885da17a183c9ed6c4f1d2f0c312957ea1dedb0",
+      "sourceCount": 2538
+    },
+    "compilerFlagsChanged": false,
+    "heapChanged": false,
+    "coverageChanged": false,
+    "testDeadlinesChanged": false
+  },
+  "priorNonGreenEvidence": {
+    "preflightRefusalsBeforeCompiler": 13,
+    "infrastructureProbeSelectionFailures": 2,
+    "environmentBuilds": [
+      {
+        "directory": ".cache/phase3-gates/t28-supervisor-20261116T053115026129Z",
+        "classification": "ENVREFUSAL forced. QueryFullProcessImageNameW failed; original failing PID unavailable, cause unproven."
+      },
+      {
+        "directory": ".cache/phase3-gates/t28-supervisor-20261116T054106253138Z",
+        "classification": "ENVREFUSAL forced. Live commit1516 below1536. No checked record/native accepted."
+      }
+    ],
+    "firstHttp": {
+      "executed": 9,
+      "passed": 5,
+      "failed": 4,
+      "skipped": 0,
+      "classification": "Preparation omissions: two positive fixtures missing explicit MerchantRule; configured race policy used invalid version0. Only new seed input completed; production guard and every assertion preserved.",
+      "log": ".cache/phase3-gates/t28-seed-correction-2026-11-16T07-39-44-310Z/http-native-red.log",
+      "sha256": "b4d8a7ba364859f0955112c6d201dd8c913e8181978f1721c4ade1c2638454e6",
+      "sourceSha256Before": "64a5f133a3aacfe656d28b55236a0260f5dd96255bd1054aa55f3d8f542af741",
+      "sourceSha256After": "fc89c505de02fe78e3fbfc749a2d34430d4d47bf069a335c6e73ce083098cc4b",
+      "originalAssertions": 148,
+      "preservedAssertions": 148,
+      "productionSourceChanged": false
+    }
+  },
+  "testPreservation": {
+    "scope": "assertion AST preservation only, no runtime test",
+    "file": "apps/api/tests/whatsapp-ai-dispatch-fence.integration.spec.mjs",
+    "originalAssertions": 104,
+    "currentAssertions": 120,
+    "originalAssertionsPreserved": true,
+    "existingT51Cases": 25,
+    "executedWithNewCoexistence": 26,
+    "countCorrection": "HEAD15 static t.test calls plus9 loop expansions plus root=25; current16+9+root=26. All original assertions preserved; no tests removed or skipped."
+  },
+  "sourceFiles": [
+    {
+      "path": "apps/api/src/modules/catalog/domain/services/service-schedule.ts",
+      "sha256": "4a557feedb30f31d5d5eb5ed46c878181cee82a31ba776ed9967aac3a281e20a"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/services/checkout-cart-authority.service.ts",
+      "sha256": "24d373511c68b0cecda2d62df73fddd7dd5be7f0c13fe778a7454fef70a7ec79"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/use-cases/start-checkout.use-case.ts",
+      "sha256": "6ee592716efe39947c86be34a0cb828217b8302505baadd31cc7b56c496b126e"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/domain/services/payment-cart-fingerprint.ts",
+      "sha256": "4cbf37b49f5bd6a43bbd8744bacf803477d61964158f3239ddefb050366040af"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts",
+      "sha256": "cb30325579b03b9b8626d3889316e34a34a14591c56cf4008b670faec0197107"
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-slot-holds.service.ts",
+      "sha256": "907a9d71ac9e4bd675537eda85cd5175067323f82e84243ae7e62d26d52f9114"
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-checkout-cart.ts",
+      "sha256": "991ff5582eb53b8fc55d373e4ac637f1d0de877eb4f80affc435fd32aff02036"
+    },
+    {
+      "path": "packages/shared-types/src/index.ts",
+      "sha256": "ab8d3a5c4c337808b78386cce89cee51cebeab1d545cf5355c3fdc0469768abc"
+    },
+    {
+      "path": "packages/shared-types/src/order-fulfillment.ts",
+      "sha256": "f06e2b755a513f816ee20adcf7abed23d8d546e01d63a47951dcc1115a070fc1"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/domain/services/service-payment-cart-fingerprint.spec.ts",
+      "sha256": "08756315a6d0d096b37368e1c963b9a2962f9627df2fd1b9de1aa4b81b73a4b0"
+    },
+    {
+      "path": "apps/api/tests/service-checkout.integration.spec.ts",
+      "sha256": "01d4e639270c31e28fe6e2a175947093ce75e634cd5202d2f312fe50bfec060f"
+    },
+    {
+      "path": "apps/api/tests/whatsapp-ai-dispatch-fence.integration.spec.mjs",
+      "sha256": "7855ede518943c94470774e9876aac9984f8c045ad0ef2bff3bae00b014644a6"
+    }
+  ],
+  "scope": {
+    "localOnly": true,
+    "externalProviderCalls": 0,
+    "charges": 0,
+    "customerMessages": 0,
+    "push": false,
+    "deploy": false
+  },
+  "limitations": [
+    "Win32 publication normal path executed; rollback branch not exercised.",
+    "These are local synthetic HTTP/SQL/Redis and controlled adapter boundaries, not real WhatsApp/PSP or production acceptance.",
+    "T29-T32 payment/confirmation/manual lifecycle remains unexecuted; final criterion collectors/mutations/independent verifier remain Root work.",
+    "Historical broad baseline5253/5169pass/84fail is not a current global-green claim."
+  ],
+  "testFormatting": "Two whitespace-only blank lines trimmed after gate; assertion AST identical, no runtime/input changes."
+}

@@ -2,6 +2,8 @@ export type FulfillmentProductType = "physical" | "digital" | "service" | "food"
 export type FulfillmentStrategy = "carrier" | "pickup" | "local_delivery" | "digital" | "scheduled_service" | "service";
 export type FulfillmentStage = "awaiting_payment" | "not_started" | "in_progress" | "partial" | "completed" | "cancelled" | "review";
 export interface FulfillmentSchedule {
+  /** Present only for an explicitly selected professional-backed service. */
+  professionalId?: string; professionalVersion?: number; policyVersion?: number; date?: string;
   slotId: string; startsAt: string; endsAt: string; timeZone: string; durationMinutes: number;
 }
 export interface OrderFulfillmentUnit {

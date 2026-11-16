@@ -8,6 +8,7 @@ import { publicServiceSchedule, resolveSelectedServiceSlot, type PublicServiceSc
 import { hasProfessionalServiceSelection, professionalHoldRequests, readProfessionalCheckoutSelections } from "./service-checkout-selection.js";
 import { readProfessionalCheckout } from "./read-professional-checkout.js";
 import { acquireProfessionalLease, assertProfessionalLease } from "./professional-service-lease.js";
+import { admitWhatsAppEffectInTransaction } from "../whatsapp/whatsapp-automation-context.js";
 import { slotFingerprint, RedisServiceSlots, serviceSlotStore, type SlotHold, type SlotRequest } from "./redis-service-slots.js";
 
 export function sessionSlotRequests(session: CheckoutSession): SlotRequest[] {
@@ -37,6 +38,7 @@ export class ServiceSlotHoldsService {
   }
   async acquire(session: CheckoutSession): Promise<SlotHold | undefined> {
     if (hasProfessionalServiceSelection(session)) return this.prisma.$transaction(async tx => {
+      await admitWhatsAppEffectInTransaction(tx, session.merchantId);
       if (await tx.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } })) return undefined;
       const current = await this.professionalSelection(tx, session);
       return acquireProfessionalLease(session.merchantId, current.selections, current.policy,
@@ -45,6 +47,7 @@ export class ServiceSlotHoldsService {
     const slots = sessionSlotRequests(session);
     if (!slots.length) return undefined;
     return this.prisma.$transaction(async tx => {
+      await admitWhatsAppEffectInTransaction(tx, session.merchantId);
       await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${session.merchantId} AND session_id = ${session.sessionId} FOR UPDATE`;
       if (await tx.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } })) return undefined;
@@ -64,8 +67,30 @@ export class ServiceSlotHoldsService {
       return this.store().acquire(session.merchantId, session.sessionId, slots);
     }, { timeout: 15000 });
   }
+  async prepareProfessionalCheckout(session: CheckoutSession) {
+    return this.prisma.$transaction(async tx => {
+      await admitWhatsAppEffectInTransaction(tx, session.merchantId);
+      if (await tx.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } })) return undefined;
+      const current = await this.professionalSelection(tx, session);
+      const products = await tx.product.findMany({ where: { merchantId: session.merchantId,
+        id: { in: current.selections.map(selection => selection.productId) } }, select: { id: true, name: true } });
+      const professionals = await tx.serviceProfessional.findMany({ where: { merchantId: session.merchantId,
+        id: { in: current.selections.map(selection => selection.professionalId) } }, select: { id: true, publicName: true } });
+      const selections = current.selections.map(selection => {
+        const product = products.find(product => product.id === selection.productId);
+        const professional = professionals.find(professional => professional.id === selection.professionalId);
+        if (!product || !professional) throw new ConflictException("service_offer_changed");
+        return { ...selection, productName: product.name, professionalName: professional.publicName };
+      });
+      const hold = await acquireProfessionalLease(session.merchantId, current.selections, current.policy,
+        { ownerId: session.sessionId, store: () => this.store() });
+      return { paymentMode: current.policy.paymentMode, policyVersion: current.policyVersion,
+        requiresHold: current.policy.holdEnabled, selections, ...(hold ? { hold } : {}) };
+    });
+  }
   async assertBeforePayment(session: CheckoutSession): Promise<void> {
     if (hasProfessionalServiceSelection(session)) return this.prisma.$transaction(async tx => {
+      await admitWhatsAppEffectInTransaction(tx, session.merchantId);
       const current = await this.professionalSelection(tx, session);
       await assertProfessionalLease(session.merchantId, current.selections, current.policy,
         { ownerId: session.sessionId, store: () => this.store() });
@@ -82,6 +107,7 @@ export class ServiceSlotHoldsService {
   }
   async get(session: CheckoutSession): Promise<SlotHold | undefined> {
     if (hasProfessionalServiceSelection(session)) return this.prisma.$transaction(async tx => {
+      await admitWhatsAppEffectInTransaction(tx, session.merchantId);
       if (await tx.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } })) return undefined;
       const current = await this.professionalSelection(tx, session);
       if (!current.policy.holdEnabled) return undefined;
@@ -92,9 +118,10 @@ export class ServiceSlotHoldsService {
   }
   async state(session: CheckoutSession) {
     if (hasProfessionalServiceSelection(session)) {
-      if (await this.prisma.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } }))
-        return { requires_hold: false, service_slot_hold: null };
       return this.prisma.$transaction(async tx => {
+        await admitWhatsAppEffectInTransaction(tx, session.merchantId);
+        if (await tx.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } }))
+          return { requires_hold: false, service_slot_hold: null };
         const current = await this.professionalSelection(tx, session);
         const held = current.policy.holdEnabled ? await this.store().get(session.merchantId, session.sessionId) : undefined;
         return { requires_hold: current.policy.holdEnabled,

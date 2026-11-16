@@ -615,6 +615,14 @@ export interface CheckoutExperienceSnapshot {
 }
 
 export interface StartCheckoutResponse {
+  service_checkout?: {
+    payment_mode: "online" | "at_attendance";
+    policy_version: number;
+    requires_hold: boolean;
+    selections: Array<{ productId: string; productName: string; variantId: string; professionalId: string; professionalName: string;
+      professionalVersion: number; policyVersion: number; date: string; startsAt: string; endsAt: string; timeZone: string;
+      durationMinutes: number; priceInCents: number; currency: string; slotId: string }>;
+  };
   service_slot_hold?: CheckoutSession["serviceSlotHold"];
   /** Present only for sessions owned by the durable message protocol. */
   chat_protocol?: "durable_v2";

@@ -4,6 +4,9 @@ export interface ServiceScheduleConfig {
   slots: Array<{ id: string; date: string; startTime: string }>;
 }
 export interface SelectedServiceSlot {
+  professionalId?: string;
+  professionalVersion?: number;
+  policyVersion?: number;
   slotId: string;
   date: string;
   startTime: string;

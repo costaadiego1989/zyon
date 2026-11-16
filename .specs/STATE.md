@@ -2,6 +2,9 @@
 
 ## Handoff
 
+- P T28 Full complete before atomic commit:14unit/83native/checked2538 green, input64339018/artifacte5fa3d58, zero skip/provider/owned cleanup. See task-28-evidence.json. P base56296ba23 includes canonical N52; Root68 dirty source remains separate. Source and every original assertion preserved through seed-only retry. All old ENV receipts retained. Native actual count83 corrects plan84; no case removed. Heavy slot returned to Root; nextP29 preparation only.
+
+
 - Current: T52/sourcefc1abe1dd Full31unit/10actualHTTP,checked2529 bddc8a29/490a06ab,0skip/provider/naturalcleanup, integrated here. User explicitly approved the403expectation, all other400/no-write guards preserved; diagnostic is separate from real postapproval gate. M53source/pure next. P28 owns the next heavy after aligning combined67/51/52base; root68source/pure. Root68dirty11files are hash-backed up before this integration; their code is not staged into52. No fresh combined artifact yet.
 
 

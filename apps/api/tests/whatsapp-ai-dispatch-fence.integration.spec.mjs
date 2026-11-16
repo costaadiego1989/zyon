@@ -212,6 +212,47 @@ test('T51 original-turn transaction and request admission',{timeout:SERVICE_LOCA
       assert.equal(await f.raw.serviceAppointment.count({where:{merchantId:f.owner.merchantId,idempotencyKey:independent.idempotencyKey}}),1);
     });
 
+    await t.test('professional checkout uses the original transaction authority and stops after human takeover',async()=>{
+      const x=await seed(),sessionId='professional-checkout-'+x.claim.id;
+      const {ServiceSlotHoldsService}=await import('../dist/shared/bookings/service-slot-holds.service.js');
+      const {professionalSlotId}=await import('../dist/shared/bookings/service-checkout-selection.js');
+      const {canonicalizeProfessionalServiceCart}=await import('../dist/shared/bookings/service-checkout-cart.js');
+      const {toCheckoutSession}=await import('../dist/modules/checkout/infrastructure/prisma/checkout-session.mapper.js');
+      const date=new Date(Date.now()+8*24*60*60*1000).toISOString().slice(0,10);
+      const selected={...f.selection,date,startsAt:date+'T10:00:00.000Z',endsAt:date+'T10:30:00.000Z',
+        professionalVersion:1,policyVersion:1,timeZone:'UTC',durationMinutes:30};
+      const {merchantId,...schedule}=selected;
+      const cart={currency:'BRL',total:50,items:[{sku:f.selection.productId,name:'Canonical service',product_id:f.selection.productId,
+        variantId:f.selection.variantId,quantity:1,price:50,productType:'service',fulfillmentStrategy:'scheduled_service',
+        fulfillmentSchedule:{...schedule,slotId:professionalSlotId(merchantId,selected)}}]};
+      const row=await f.raw.checkoutSession.create({data:{merchantId,sessionId,globalUserId:'synthetic-buyer',conversationId:x.state.conversationId,
+        cart,createdAt:new Date(),updatedAt:new Date()}});
+      const session=toCheckoutSession(row),holds=new ServiceSlotHoldsService(f.scoped);
+      const appointments=await f.raw.serviceAppointment.count({where:{merchantId}});
+      await x.run(async()=>{
+        const authority=currentWhatsAppExecution().authority;
+        const prepared=await holds.prepareProfessionalCheckout(session);
+        assert.equal(prepared.paymentMode,'at_attendance');assert.equal(prepared.policyVersion,1);
+        assert.equal(prepared.requiresHold,false);assert.equal(prepared.hold,undefined);
+        assert.deepEqual(prepared.selections,[{...schedule,slotId:cart.items[0].fulfillmentSchedule.slotId,
+          priceInCents:5000,currency:'BRL',productName:'Canonical service',professionalName:'Synthetic first professional'}]);
+        const inbox=await f.raw.whatsAppWebhookInbox.findUnique({where:{id:x.claim.id}});
+        assert.deepEqual(inbox.responseState.aiEffectReceipt,{version:1,inboxId:x.claim.id,authority});
+        assert.deepEqual(inbox.responseState.aiAuthority,authority);
+        const quotation=await f.scoped.$transaction(tx=>canonicalizeProfessionalServiceCart(tx,merchantId,session.cart));
+        assert.equal(quotation.total,50);assert.equal(quotation.items[0].name,'Canonical service');
+        await x.human();
+        for(const method of ['acquire','prepareProfessionalCheckout','assertBeforePayment','get','state'])
+          await assert.rejects(holds[method](session),/whatsapp_ai_turn_suppressed/,method);
+        await assert.rejects(f.scoped.$transaction(tx=>canonicalizeProfessionalServiceCart(tx,merchantId,session.cart)),/whatsapp_ai_turn_suppressed/);
+      });
+      assert.deepEqual(await f.raw.checkoutSession.findUnique({where:{merchantId_sessionId:{merchantId,sessionId}}}),row);
+      assert.equal(await f.raw.serviceAppointment.count({where:{merchantId}}),appointments);
+      assert.equal(await f.raw.paymentIntent.count({where:{merchantId,sessionId}}),0);
+      const independent=await f.as(f.owner,()=>holds.prepareProfessionalCheckout(session));
+      assert.equal(independent.requiresHold,false);assert.equal(independent.selections[0].professionalId,f.professional.id);
+    });
+
     for(const forwarded of [false,true])await t.test('live legacy suppression finishes only its own delivery with forwarded='+forwarded,async()=>{
       const configured={configId,deviceId:'legacy-device-'+randomUUID(),provider:'TWILIO'};
       await f.raw.whatsAppChannelConfig.update({where:{id:configId},data:{deviceId:configured.deviceId,provider:'TWILIO',credentials:{accountSid:'AC'+'a'.repeat(32),authToken:'synthetic-local-token'}}});

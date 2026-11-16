@@ -1,5 +1,7 @@
 import { admitWhatsAppEffectInTransaction, currentWhatsAppExecution } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import { hasPreparedCheckoutPayment } from "../checkout-payment-scope.js";
+import { hasProfessionalServiceSelection } from "../../../../shared/bookings/service-checkout-selection.js";
+import { readProfessionalCheckout } from "../../../../shared/bookings/read-professional-checkout.js";
 import { resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
 import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 import { createDigitalOrderFulfillment } from "../../../../shared/persistence/digital-order-fulfillment.js";
@@ -238,12 +240,14 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     const write = async (tx: Prisma.TransactionClient) => {
       await admitWhatsAppEffectInTransaction(tx, snapshot.merchantId);
       const scope = { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId };
-      if (incentiveExecutionEnabled(scope.merchantId)) await lockExecutionMerchant(tx, scope.merchantId);
+      if (incentiveExecutionEnabled(scope.merchantId) || hasProfessionalServiceSelection(snapshot)) await lockExecutionMerchant(tx, scope.merchantId);
       await lockCheckoutSessionAnchor(tx, scope.merchantId, scope.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${scope.merchantId}
         AND session_id = ${scope.sessionId} FOR UPDATE`;
       const current = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
       assertNoUnprojectedWidgetReceipt(current?.cart);
+      if (hasProfessionalServiceSelection(snapshot) && (!current || !isDeepStrictEqual(toCheckoutSession(current).cart, snapshot.cart)))
+        await readProfessionalCheckout(tx, snapshot);
       if (!current) {
         // A concurrent insertion must not be turned into an unversioned update.
         const created = await tx.checkoutSession.create({ data: toCheckoutSessionCreate(snapshot) as any });
@@ -368,13 +372,15 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     }
     const write = async (tx: Prisma.TransactionClient) => {
       await admitWhatsAppEffectInTransaction(tx, session.merchantId);
-      if (incentiveExecutionEnabled(session.merchantId)) await lockExecutionMerchant(tx, session.merchantId);
+      if (incentiveExecutionEnabled(session.merchantId) || hasProfessionalServiceSelection(session)) await lockExecutionMerchant(tx, session.merchantId);
       await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${session.merchantId}
         AND session_id = ${session.sessionId} FOR UPDATE`;
       const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
       const current = await tx.checkoutSession.findUnique({ where });
       assertNoUnprojectedWidgetReceipt(current?.cart);
+      if (hasProfessionalServiceSelection(session) && (!current || !isDeepStrictEqual(toCheckoutSession(current).cart, session.cart)))
+        await readProfessionalCheckout(tx, session);
       if (current && (!isDeepStrictEqual(current.shipping ?? undefined, session.shipping) || !isDeepStrictEqual(current.shippingOptions ?? undefined, session.shippingOptions)) && await hasPreparedCheckoutPayment(tx, session)) throw new ConflictException("shipping_change_requires_payment_cancellation");
       const bound = hasStoredCheckoutCouponBinding(current?.cart);
       if (bound && expected.persistenceVersion !== current?.version) throw new Error("checkout_coupon_binding_conflict");
@@ -544,6 +550,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         const previous = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: {
           merchantId: session.merchantId, sessionId: session.sessionId } } });
         if (previous) return { session: toCheckoutSession(previous), created: false };
+        if (hasProfessionalServiceSelection(session)) await readProfessionalCheckout(tx, session);
         const now = await executionClock(tx);
         const row = await tx.checkoutSession.create({ data: { ...toCheckoutSessionCreate(session), createdAt: now, updatedAt: now } as any });
         await enrollCreatedStrategySession(tx, row, now);
@@ -554,10 +561,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     }
     const create = async (tx: Prisma.TransactionClient) => {
       await admitWhatsAppEffectInTransaction(tx, session.merchantId);
+      if (hasProfessionalServiceSelection(session)) await lockExecutionMerchant(tx, session.merchantId);
       await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
       const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
       const previous = await tx.checkoutSession.findUnique({ where });
       if (previous) return { session: toCheckoutSession(previous), created: false };
+      if (hasProfessionalServiceSelection(session)) await readProfessionalCheckout(tx, session);
       const row = await tx.checkoutSession.upsert({ where,
         create: toCheckoutSessionCreate(session) as any, update: {} });
       return { session: toCheckoutSession(row), created: row.conversationId === session.conversationId };

@@ -9,7 +9,10 @@ export function paymentCartFingerprint(session: Pick<CheckoutSession, "cart" | "
     ...(item.fulfillmentStrategy === "scheduled_service" ? [["scheduled_service", item.variantId ?? null,
       item.fulfillmentSchedule?.slotId ?? null, item.fulfillmentSchedule?.startsAt ?? null,
       item.fulfillmentSchedule?.endsAt ?? null, item.fulfillmentSchedule?.timeZone ?? null,
-      item.fulfillmentSchedule?.durationMinutes ?? null]] : [])]);
+      item.fulfillmentSchedule?.durationMinutes ?? null,
+      ...(item.fulfillmentSchedule?.professionalId !== undefined ? [["professional-v1", item.fulfillmentSchedule.professionalId,
+        item.fulfillmentSchedule.professionalVersion ?? null, item.fulfillmentSchedule.policyVersion ?? null,
+        item.fulfillmentSchedule.date ?? null]] : [])]] : [])]);
   items.sort((a, b) => {
     const left = JSON.stringify(a), right = JSON.stringify(b);
     return left < right ? -1 : left > right ? 1 : 0;

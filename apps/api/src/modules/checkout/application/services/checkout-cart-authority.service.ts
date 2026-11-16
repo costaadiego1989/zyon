@@ -1,4 +1,6 @@
-import { resolveSelectedServiceSlot, serviceSlotSnapshotMatches, serviceSlotLabel } from "../../../catalog/domain/services/service-schedule.js";
+import { resolveSelectedServiceSlot, serviceSlotSnapshotMatches, serviceSlotLabel, serviceScheduleFromMetadata, serviceScheduleError } from "../../../catalog/domain/services/service-schedule.js";
+import { hasProfessionalServiceSelection } from "../../../../shared/bookings/service-checkout-selection.js";
+import { canonicalizeProfessionalServiceCart } from "../../../../shared/bookings/service-checkout-cart.js";
 import { fulfillmentStrategy } from "../../../operations/domain/order-fulfillment.js";
 import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
@@ -146,10 +148,14 @@ export class CheckoutCartAuthorityService {
       const variant = variants.find(candidate => candidate.id === line.variantId && candidate.productId === line.productId);
       if (!variant?.price || variant.sku !== line.sku || variant.product.merchantId !== merchantId) throw new BadRequestException("checkout_product_unavailable");
       if (variant.product.type === "service") {
-        try {
-          const currentSlot = resolveSelectedServiceSlot(variant.product.metadata, line.selectedServiceSlot?.slotId);
-          if (currentSlot && (!line.selectedServiceSlot || line.quantity !== 1 || !serviceSlotSnapshotMatches(currentSlot, line.selectedServiceSlot))) throw Error();
-        } catch { throw new BadRequestException("checkout_service_slot_changed"); }
+        if (this.requiresProfessionalService(variant.product.type, variant.product.metadata)) {
+          if (!line.selectedServiceSlot?.professionalId) throw new BadRequestException("service_professional_selection_required");
+        } else {
+          try {
+            const currentSlot = resolveSelectedServiceSlot(variant.product.metadata, line.selectedServiceSlot?.slotId);
+            if (currentSlot && (!line.selectedServiceSlot || line.quantity !== 1 || !serviceSlotSnapshotMatches(currentSlot, line.selectedServiceSlot))) throw Error();
+          } catch { throw new BadRequestException("checkout_service_slot_changed"); }
+        }
       }
       const itemCurrency = this.currency(variant.price.currency);
       if (currency && currency !== itemCurrency) throw new BadRequestException("checkout_mixed_currency");
@@ -208,12 +214,19 @@ export class CheckoutCartAuthorityService {
       if (currency !== "BRL") throw new LegacySavedPriceReviewRequired("source_changed");
       quoted.discountBudget = { version: 1, originalSubtotalCents: canonicalSubtotalCents, promotionDiscountCents: canonicalSubtotalCents - totalCents };
     }
+    if (hasProfessionalServiceSelection({ merchantId, cart: quoted }))
+      return this.prisma.$transaction(tx => canonicalizeProfessionalServiceCart(tx, merchantId, quoted));
     return this.projectPromotions(quoted, merchantId);
   }
 
   async resolve(merchantId: string, submitted: Cart): Promise<Cart> {
     if (!submitted || typeof submitted !== "object") {
       throw new BadRequestException("checkout_cart_required");
+    }
+    if (Array.isArray(submitted.items) && hasProfessionalServiceSelection({ merchantId, cart: submitted })) {
+      if (submitted.items.length > 100 || submitted.commerceCartRef !== undefined) throw new BadRequestException("service_checkout_selection_required");
+      return this.prisma.$transaction(tx => canonicalizeProfessionalServiceCart(tx, merchantId,
+        { items: submitted.items, currency: this.currency(submitted.currency), total: 0, source: "checkout" }));
     }
     if (submitted.commerceCartRef !== undefined) {
       if (typeof submitted.commerceCartRef !== "string" || !submitted.commerceCartRef.trim()) {
@@ -269,6 +282,8 @@ export class CheckoutCartAuthorityService {
       if (matches.length !== 1) throw new BadRequestException("checkout_unknown_or_ambiguous_sku");
       const variant = matches[0]!;
       if (!variant.price) throw new BadRequestException("checkout_product_price_missing");
+      if (this.requiresProfessionalService(variant.product.type, variant.product.metadata))
+        throw new BadRequestException("service_professional_selection_required");
       const itemCurrency = this.currency(variant.price.currency);
       if (currency && itemCurrency !== currency) throw new BadRequestException("checkout_mixed_currency");
       currency = itemCurrency;
@@ -295,6 +310,13 @@ export class CheckoutCartAuthorityService {
     }
     if (!Number.isSafeInteger(totalCents)) throw new BadRequestException("checkout_total_invalid");
     return this.projectPromotions({ currency: currency!, total: totalCents / 100, items, source: "checkout" }, merchantId);
+  }
+
+  private requiresProfessionalService(type: string, metadata: unknown): boolean {
+    if (type !== "service") return false;
+    const schedule = serviceScheduleFromMetadata(metadata), error = serviceScheduleError(schedule);
+    if (error) throw new BadRequestException(error);
+    return schedule !== undefined;
   }
 
   private async projectPromotions(cart: Cart, merchantId: string): Promise<Cart> {
