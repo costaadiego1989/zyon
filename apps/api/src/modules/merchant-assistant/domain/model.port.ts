@@ -13,11 +13,15 @@ export interface AssistantModelInput {
   state?:{contextLabel:string;now:string;campaign:AssistantCampaignProgress|null};
   /** Server-selected orchestration step, scoped to this durable turn. */
   step?:number;
+  /** Server-only purpose. Never taken from a merchant tool argument. */
+  purpose?:'chat'|'daily_analysis';
 }
+export interface AssistantModelUsage { provider:string;model:string;inputTokens:number;cachedInputTokens:number|null;outputTokens:number; }
 export interface AssistantModelResult {
   reply:string|null;referenceIds:string[];
   toolCalls:Array<{id:string;name:string;args:Record<string,unknown>}>;
   providerRequestId:string|null;costMicros:bigint;
+  usage?:AssistantModelUsage;
 }
 export interface AssistantModelPort {complete(input:AssistantModelInput):Promise<AssistantModelResult>;}
 export interface AssistantTokenRates {

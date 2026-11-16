@@ -16,7 +16,7 @@ export interface AssistantProviderAttempt {
   key:string;kind:'model'|'generation'|'meta';status:'sending'|'completed'|'rejected'|'unknown';
   providerRequestId?:string;operationId?:string;
   /** Normalized known result for step recovery. Never the provider's raw response/headers. */
-  result?:{reply:string|null;referenceIds:string[];toolCalls:Array<{id:string;name:string;args:Record<string,unknown>}>;costMicros:string};
+  result?:{reply:string|null;referenceIds:string[];toolCalls:Array<{id:string;name:string;args:Record<string,unknown>}>;costMicros:string;usage?:import('./model.port.js').AssistantModelUsage};
 }
 export type AssistantBudgetState='none'|'reserved'|'dispatched'|'settled'|'released'|'unknown';
 export interface StoredAssistantTurn extends AssistantTurn {

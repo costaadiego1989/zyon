@@ -107,8 +107,20 @@ export class DailyObservationEngine {
       else {
         requireEntitlement(await this.deps.commerce.getPlan(merchantId), await this.deps.repo.read(merchantId), this.clock());
         lease = await this.deps.daily.checkpoint(lease, { analysisStatus: 'sending' });
+        const attemptKey = `daily-analysis-attempt:${lease.id}`;
+        await this.deps.repo.mutate(merchantId, [attemptKey], (_current, records) => ({ result: null, records: records.has(attemptKey) ? [] : [{ key: attemptKey, kind: 'usage', payload: { component: 'daily_analysis', outcome: 'sending', usage: null }, createdAt: this.clock().toISOString() }] }));
         try {
           const result = await this.deps.recommendations.recommend({ merchantId, analysisKey: `meta-daily-${stableDigest({ merchantId, accountId: lease.accountId, day: lease.localDay })}`, campaigns: available });
+          const usage = result.usage;
+          const safeUsage = usage && /^[a-z0-9_-]{1,50}$/i.test(usage.provider) && /^[a-z0-9:/._-]{1,160}$/i.test(usage.model) ? {
+            provider: usage.provider, model: usage.model, providerRequestId: usage.providerRequestId && /^[a-z0-9_.:-]{1,200}$/i.test(usage.providerRequestId) ? usage.providerRequestId : null,
+            inputTokens: Number.isSafeInteger(usage.inputTokens) && usage.inputTokens! >= 0 ? usage.inputTokens : null,
+            cachedInputTokens: Number.isSafeInteger(usage.cachedInputTokens) && usage.cachedInputTokens! >= 0 ? usage.cachedInputTokens : null,
+            outputTokens: Number.isSafeInteger(usage.outputTokens) && usage.outputTokens! >= 0 ? usage.outputTokens : null,
+            costMicros: /^\d{1,24}$/.test(usage.costMicros ?? '') ? usage.costMicros : null, currency: /^[A-Z]{3}$/.test(usage.currency ?? '') ? usage.currency : null,
+            costStatus: ['estimated', 'provider_reported'].includes(usage.costStatus) ? usage.costStatus : 'unpriced' } : null;
+          const resultKey = `daily-analysis-result:${lease.id}`;
+          await this.deps.repo.mutate(merchantId, [resultKey], (_current, records) => ({ result: null, records: records.has(resultKey) ? [] : [{ key: resultKey, kind: 'usage', payload: { component: 'daily_analysis', outcome: 'completed', usage: safeUsage, correctsUsageKey: attemptKey }, createdAt: this.clock().toISOString() }] }));
           const seen = new Set<string>();
           for (const suggestion of result.recommendations) {
             const row = available.find(r => r.campaign.id === suggestion.campaignId);
