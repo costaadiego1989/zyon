@@ -1,0 +1,30 @@
+import {Controller,Get,Inject,Param,Query,Req,UseFilters,UseGuards} from '@nestjs/common';
+import {AuthGuard} from '../../auth/presentation/auth.guard.js';
+import {InitialLaunchService} from '../application/initial-launch.service.js';
+import {CampaignPreparationService} from '../application/campaign-preparation.service.js';
+import {MetaAdsAgentService,publicProposal} from '../application/meta-ads-agent.service.js';
+import {MetaAdsError} from '../domain/types.js';
+import {MetaAdsHttpErrorFilter} from './meta-ads-agent.controller.js';
+import {metaAdsMerchantPrincipal,type MetaAdsMerchantRequest} from './merchant-request.js';
+
+@Controller('meta-ads-agent')
+@UseGuards(AuthGuard)
+@UseFilters(MetaAdsHttpErrorFilter)
+export class CampaignApprovalController{
+  constructor(@Inject(InitialLaunchService) private readonly launches:InitialLaunchService,
+    @Inject(CampaignPreparationService) private readonly preparations:CampaignPreparationService,
+    @Inject(MetaAdsAgentService) private readonly meta:MetaAdsAgentService){}
+  private principal(request:MetaAdsMerchantRequest,mutation=false){return metaAdsMerchantPrincipal(request,this.meta.env.META_ADS_DASHBOARD_URL,mutation);}
+  @Get('campaigns/:id/launch-review')
+  async review(@Req() request:MetaAdsMerchantRequest,@Param('id') id:string,@Query() query:Record<string,unknown>){
+    const p=this.principal(request);
+    if(Object.keys(query).some(key=>key!=='proposal')||query.proposal!==undefined&&typeof query.proposal!=='string')throw new MetaAdsError('request_fields_invalid');
+    const view=await this.launches.review(p.tenantId,p.userId,id,query.proposal as string|undefined);
+    return{...view,proposal:publicProposal(view.proposal)};
+  }
+  @Get('campaigns/:id/preparation')
+  preparation(@Req() request:MetaAdsMerchantRequest,@Param('id') id:string,@Query() query:Record<string,unknown>){
+    const p=this.principal(request);if(Object.keys(query).length)throw new MetaAdsError('request_fields_invalid');
+    return this.preparations.read(p.tenantId,p.userId,id);
+  }
+}
