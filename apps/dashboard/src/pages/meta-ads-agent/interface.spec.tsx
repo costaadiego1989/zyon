@@ -8,7 +8,22 @@ import {AutomationPolicyPanel} from './AutomationPolicyPanel.js';
 import {MetaAdsAgentPage} from './index.js';
 import {overview} from './fixtures.js';
 import {ui} from './test-helpers.js';
+import {OfferPanel} from './OfferPanel.js';
+import {ConnectionPanel} from './ConnectionPanel.js';
 let screen:ReturnType<typeof ui>;afterEach(async()=>screen?.close());
+test('ADAS-69 subscription presents price and quota facts before optional consumption guidance',async()=>{
+  screen=ui();await screen.render(<OfferPanel overview={overview()} api={{} as MetaAdsAgentApi} onUpdated={async()=>{}}/>);
+  const help=screen.container.querySelector<HTMLDetailsElement>('.mga-offer-guidance')!;expect(help).not.toBeNull();expect(help.open).toBe(false);expect(screen.container.querySelector('.mga-offer-price')?.textContent).toContain('149,00');expect(screen.container.querySelector('.mga-ledger')?.textContent).toContain('30');
+  const buy=Array.from(screen.container.querySelectorAll('button')).find(button=>button.textContent?.startsWith('Comprar'))!;expect(buy.closest('details')).toBeNull();await act(async()=>help.querySelector('summary')!.click());expect(help.open).toBe(true);expect(help.textContent).toContain('Cada imagem utilizável consome um crédito');
+});
+test('ADAS-69 compact payments keep the real account route and facts visible without the help wall',async()=>{
+  screen=ui();await screen.render(<FundingPanel compact account={{id:'100',name:'Aurora'}} diagnosis={{status:'ready',message:'Consulta confirmada',error:null,nextSteps:[],snapshot:{accountId:'100',accountName:'Aurora',billingType:'prepaid',currency:'BRL',paymentMethod:'present',confirmedBlock:false,blockCode:null,amountDueCents:5000,prepaidAvailableCents:null,checkedAt:'2026-11-16T12:00:00Z',source:'meta_graph',paymentUrl:'https://business.facebook.com/latest/billing_hub/payment_settings/?payment_account_id=100&asset_id=100'}}} onRefresh={async()=>{}}/>);
+  expect(screen.container.querySelector('.mga-funding-status')?.textContent).toContain('Pré-paga');expect(screen.container.querySelector('a')?.closest('details')).toBeNull();const outer=screen.container.querySelector<HTMLDetailsElement>('.mga-funding-details')!;await act(async()=>outer.querySelector('summary')!.click());expect(outer.textContent).toContain('50,00');const help=screen.container.querySelector<HTMLDetailsElement>('.mga-payment-guidance')!;expect(help.open).toBe(false);await act(async()=>help.querySelector('summary')!.click());expect(help.open).toBe(true);expect(help.textContent).toContain('O pagamento não é confirmado por este botão');
+});
+test('ADAS-69 connection offers the actual authorization gesture before optional explanatory copy',async()=>{
+  screen=ui();await screen.render(<ConnectionPanel connection={overview().connection} entitled api={{} as MetaAdsAgentApi} onUpdated={async()=>{}}/>);
+  const help=screen.container.querySelector<HTMLDetailsElement>('.mga-connection-guidance')!;expect(help).not.toBeNull();expect(help.open).toBe(false);expect(Array.from(screen.container.querySelectorAll('button')).find(button=>button.textContent==='Autorizar novamente')?.closest('details')).toBeNull();await act(async()=>help.querySelector('summary')!.click());expect(help.open).toBe(true);expect(help.textContent).toContain('A autorização define quais contas');
+});
 test('ADAS-60 funding details are disclosed by a gesture while costs and official payment remain available',async()=>{
   screen=ui();await screen.render(<FundingPanel account={{id:'100',name:'Aurora'}} diagnosis={{status:'ready',message:'Consulta confirmada',error:null,nextSteps:[],snapshot:{accountId:'100',accountName:'Aurora',billingType:'prepaid',currency:'BRL',paymentMethod:'present',confirmedBlock:false,blockCode:null,amountDueCents:5000,prepaidAvailableCents:null,checkedAt:'2026-11-16T12:00:00Z',source:'meta_graph',paymentUrl:'https://business.facebook.com/latest/billing_hub/payment_settings/?payment_account_id=100&asset_id=100'}}} onRefresh={async()=>{}}/>);
   const details=screen.container.querySelector('details')!;expect(details).not.toBeNull();expect(details.open).toBe(false);

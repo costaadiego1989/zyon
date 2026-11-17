@@ -84,6 +84,14 @@
 .mga-skeleton { min-height: 140px; padding: 24px 0; border-top: 1px solid var(--color-border); }
 .mga-agentic-shell { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,360px); align-items: start; gap: 28px; }
 .mga-agentic-content { min-width: 0; }
+.meta-ads-agent .mga-settings .mga-funding { background: transparent; border: 0; border-top: 1px solid var(--color-border); border-radius: 0; padding: 24px 0; }
+.mga-settings .mga-automation { padding: 24px 0; }
+.meta-ads-agent .mga-offer-price { margin: 12px 0 20px; font-size: 22px; font-variant-numeric: tabular-nums; }
+.mga-settings .mga-section-heading h2, .mga-settings .mga-automation h2 { font-size: 14px; }
+.mga-settings .mga-automation-summary p { font-size: 12px; margin: 6px 0 0; }
+.mga-settings .mga-setup > summary { font-size: 13px; }
+.mga-offer-guidance > summary, .mga-connection-guidance > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 12px; }
+.mga-settings .mga-inline-details p { font-size: 12px; }
 .meta-ads-agent [hidden] { display: none !important; }
 .mga-workspace-tabs { min-width: 0; }
 .meta-ads-agent .mga-account-context { margin: 0 0 12px; font-size: 12px; }
