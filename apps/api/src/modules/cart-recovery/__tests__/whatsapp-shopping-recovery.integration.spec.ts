@@ -3,6 +3,7 @@ import test, { after, type TestContext } from "node:test";
 import { createHash, randomUUID } from "node:crypto";
 import { createPrismaClient } from "../../../shared/persistence/prisma-client.js";
 import { CheckoutWhatsAppConversationAdapter } from "../../whatsapp-channel/infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
+import { WhatsAppBuyerHubService } from "../../whatsapp-channel/application/services/whatsapp-buyer-hub.service.js";
 import { PrismaStorefrontTelemetryRepository } from "../../storefront/infrastructure/repositories/prisma-storefront-telemetry.repository.js";
 import { PrismaStorefrontCartRepository } from "../../storefront/infrastructure/repositories/prisma-storefront-cart.repository.js";
 import { RecoveryScannerJob } from "../infrastructure/jobs/recovery-scanner.job.js";
@@ -47,7 +48,7 @@ async function fixture(t: TestContext) {
     { getRules: async () => merchantRules(), updateRules: async () => merchantRules() },
     { getConfig: async () => ({ active_strategy: "offer_coupon", coupon_code: "QA_IDLE" }) } as never,
     new InMemoryBuyerPurchaseHistoryRepository(), db, { execute: async value => { delegated.push(value); return { created: false }; } });
-  return { merchantId, conversationId, globalUserId, phone, deviceId, old, state, wa, adapter, input, scanner, delegated,
+  return { args, merchantId, conversationId, globalUserId, phone, deviceId, old, state, wa, adapter, input, scanner, delegated,
     projection: () => db.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: conversationId } } }),
     events: () => db.checkoutEvent.findMany({ where: { merchantId, sessionId: conversationId, eventName: "idle_30_seconds" } }),
     age: async () => { await db.checkoutSession.update({ where: { merchantId_sessionId: { merchantId, sessionId: conversationId } }, data: { updatedAt: old } }); } };
@@ -61,6 +62,31 @@ test("verified native shopping projects the canonical cart without starting or b
   assert.equal((await db.whatsAppSession.findUniqueOrThrow({ where: { id: f.wa.id } })).checkoutSessionId, null);
   assert.equal(await db.paymentIntent.count({ where: { merchantId: f.merchantId } }), 0);
   assert.equal(await db.campaignContactConsent.count({ where: { merchantId: f.merchantId } }), 0);
+});
+
+test("recognized native shopper is retained in both storefront routing and recovery persistence", async t => {
+  const f = await fixture(t), recognizedId = "qa_verified_" + randomUUID(), routedIds: string[] = [];
+  (f.adapter as any).checkoutIdentity = { recognize: async () => ({ status: "recognized", buyer: {
+    merchantId: f.merchantId, conversationId: f.conversationId, globalUserId: recognizedId,
+    customer: { fullName: "Owned recognized buyer", phone: f.phone, phone_verified: true, email: "owned@example.test", email_verified: true },
+  } }) };
+  f.args[2].execute = async (input: any) => { routedIds.push(input.global_user_id); return { message: "Canonical cart", blocks: [], suggested_next: [] }; };
+  await f.adapter.respondStore(f.input);
+  assert.deepEqual(routedIds, [recognizedId]);
+  assert.equal((await f.projection())!.globalUserId, recognizedId);
+});
+
+test("recognized protected hub reply retains its resolved account in recovery persistence", async t => {
+  const f = await fixture(t), recognizedId = "qa_verified_hub_" + randomUUID();
+  const account = { globalUserId: recognizedId, phone: f.phone, displayName: "Owned hub buyer", email: "owned@example.test" };
+  const identity = { recognize: async () => ({ status: "recognized", owner: {
+    merchantId: f.merchantId, conversationId: f.conversationId, phone: f.phone }, buyer: {
+      merchantId: f.merchantId, conversationId: f.conversationId, globalUserId: recognizedId, customer: { phone: f.phone } } }) };
+  (f.adapter as any).buyerHub = new WhatsAppBuyerHubService(identity as any,
+    { findByGlobalUserId: async (id: string) => id === recognizedId ? account : null } as any, {} as any);
+  const response = await f.adapter.respondStore({ ...f.input, message: "/dados" });
+  assert.match(response.agentMessage, /Owned hub buyer/);
+  assert.equal((await f.projection())!.globalUserId, recognizedId);
 });
 
 for (const variant of ["missing_proof", "foreign_phone", "other_provider", "expired", "missing_cart", "bound_checkout"]) {
