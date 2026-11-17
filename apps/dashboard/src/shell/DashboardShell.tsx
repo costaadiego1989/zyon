@@ -1,4 +1,4 @@
-import { mapInboxNotification } from "../components/notification-inbox.js";
+import { mapInboxNotification, campaignReviewHash, campaignReviewLocation } from "../components/notification-inbox.js";
 import "../components/dashboard-ui.css";
 import "./dashboard-responsive.css";
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -152,6 +152,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   notificationMerchant.current = me.id;
   const [inventoryNotice, setInventoryNotice] = useState<{ id: string; itemId?: string; alertId?: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [campaignReview,setCampaignReview]=useState(()=>campaignReviewLocation(window.location.hash,me.id,me.role));
+  useEffect(()=>{const read=()=>setCampaignReview(campaignReviewLocation(window.location.hash,me.id,me.role));read();window.addEventListener('hashchange',read);return()=>window.removeEventListener('hashchange',read);},[me.id,me.role]);
   const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(null);
   useEffect(() => {
     setReviewStrategyId(null);
@@ -593,6 +595,10 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 if (notificationMerchant.current === me.id) setNotifications([]);
               }}
               onClickNotification={async (n) => {
+                if(n.type==='campaign_ready'){
+                  const hash=campaignReviewHash(n,me.id,me.role);
+                  if(hash){setCampaignReview(campaignReviewLocation(hash,me.id,me.role));setTab('meta-ads-agent');window.location.hash=hash;}
+                }
                 if (n.hypothesisId) setReviewStrategyId(n.hypothesisId);
                 if (n.type === "inventory_alert") { setInventoryNotice({ id: n.id, itemId: n.inventoryItemId, alertId: n.inventoryAlertId }); changeTab("inventory"); }
                 if (n.type === "plan_expiry") changeTab("billing-plans");
@@ -765,7 +771,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
-            {tab === "meta-ads-agent" ? <RouteGuard me={me} require="meta-ads-agent"><MetaAdsAgentPage apiBaseUrl={API_BASE_URL} merchantId={me.id} /></RouteGuard> : null}
+            {tab === "meta-ads-agent" ? <RouteGuard me={me} require="meta-ads-agent">{campaignReview.error&&<p role="alert">{campaignReview.error}</p>}<MetaAdsAgentPage apiBaseUrl={API_BASE_URL} merchantId={me.id} reviewTarget={campaignReview.target??undefined} /></RouteGuard> : null}
             {tab === "cart-recovery" ? <RouteGuard me={me} require="cart-recovery"><CartRecoveryPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "m2m-agents" ? (
               <RouteGuard me={me} require="m2m-agents">

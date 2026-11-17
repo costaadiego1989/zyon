@@ -13,8 +13,9 @@ import { actions, executionStates, money, useAction } from "./presentation.js";
 import { PageHeader } from '../../components/PageHeader.js';
 import { Megaphone, MessageSquare, RefreshCw } from 'lucide-react';
 import '../../components/dashboard-ui.css';
+import type {CampaignReviewTarget} from '../../components/notification-inbox.js';
 
-export function MetaAdsAgentPage({merchantId, apiBaseUrl, api: supplied, assistantClient}: {merchantId: string; apiBaseUrl: string; api?: MetaAdsAgentApi; assistantClient?: MerchantAssistantApi}) {
+export function MetaAdsAgentPage({merchantId, apiBaseUrl, api: supplied, assistantClient}: {merchantId: string; apiBaseUrl: string; api?: MetaAdsAgentApi; assistantClient?: MerchantAssistantApi;reviewTarget?:CampaignReviewTarget}) {
   const api = useMemo(() => supplied ?? metaAdsAgentEndpoints(apiBaseUrl), [supplied, apiBaseUrl]);
   return <MetaAdsAgentView key={merchantId} api={api} merchantId={merchantId} apiBaseUrl={apiBaseUrl} assistantClient={assistantClient}/>;
 }
