@@ -2,7 +2,8 @@
  * Prisma WhatsApp Session Repository
  */
 
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject, ServiceUnavailableException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { WhatsAppSessionRepository, WhatsAppSessionEntity, PostSaleContextData } from "../../domain/ports/whatsapp-session-repository.port.js";
@@ -43,11 +44,70 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
         status: data.status,
         conversationState: data.conversationState ? JSON.parse(JSON.stringify(data.conversationState)) as Prisma.InputJsonValue : Prisma.DbNull,
       };
+      if (existing?.status === "expired" && data.deviceId.startsWith("META_CLOUD:") && !data.checkoutSessionId && data.conversationState?.stage === "store") {
+        const retained = await this.recoverableNativeCart(tx, existing);
+        if (retained) fresh.conversationState = this.freshNativeState(retained);
+      }
       return existing
         ? tx.whatsAppSession.update({ where: { id: existing.id }, data: { ...fresh, postSaleContext: Prisma.DbNull } })
         : tx.whatsAppSession.create({ data: fresh });
     });
     return this.toDomain(row);
+  }
+
+  /** One renewal transaction preserves the cart, clears private state and rolls back on failed checks. */
+  async renewExpiredNative(expected: WhatsAppSessionEntity): Promise<{ session: WhatsAppSessionEntity; renewed: boolean }> {
+    if (!expected.deviceId.startsWith("META_CLOUD:")) throw new ServiceUnavailableException("whatsapp_recovery_scope_unavailable");
+    const result = await this.prisma.$transaction(async tx => {
+      const key = JSON.stringify(["whatsapp-session", expected.merchantId, expected.buyerPhone, expected.deviceId]);
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text`);
+      const current = await tx.whatsAppSession.findUnique({ where: { merchantId_buyerPhone_deviceId: {
+        merchantId: expected.merchantId, buyerPhone: expected.buyerPhone, deviceId: expected.deviceId,
+      } } });
+      if (!current || current.id !== expected.id || current.status === "handoff") {
+        throw new ServiceUnavailableException("whatsapp_recovery_scope_unavailable");
+      }
+      // Another worker may already have handled a newer message. Never replace its state.
+      if (current.status === "active" && (current.lastActivityAt.getTime() !== expected.lastActivityAt.getTime()
+        || Date.now() - current.lastActivityAt.getTime() <= 24 * 3600_000)) return { row: current, renewed: false };
+      const retained = await this.recoverableNativeCart(tx, current);
+      const row = await tx.whatsAppSession.update({ where: { id: current.id }, data: {
+        status: "active", lastActivityAt: new Date(), checkoutSessionId: null, currentOptions: "[]", previousOptions: "[]", currentPage: 0,
+        postSaleContext: Prisma.DbNull, conversationState: this.freshNativeState(retained ?? randomUUID()),
+      } });
+      return { row, renewed: true };
+    });
+    return { session: this.toDomain(result.row), renewed: result.renewed };
+  }
+
+  private freshNativeState(conversationId: string): Prisma.InputJsonObject {
+    return { version: 1, conversationId, stage: "store", history: [], revision: "", page: 0, previousViews: [] };
+  }
+
+  private async recoverableNativeCart(tx: Prisma.TransactionClient, row: {
+    merchantId: string; checkoutSessionId: string | null; conversationState: unknown;
+  }): Promise<string | undefined> {
+    const state = row.conversationState as { conversationId?: unknown; stage?: unknown } | null;
+    const ref = state?.conversationId;
+    if (typeof ref !== "string" || !ref || state?.stage === "completed") return undefined;
+    try {
+      const cart = await tx.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId: row.merchantId, sessionId: ref } } });
+      if (!cart || cart.expiresAt.getTime() <= Date.now() || !Array.isArray(cart.items) || cart.items.length === 0) return undefined;
+      const related = await tx.checkoutSession.findMany({ where: { merchantId: row.merchantId, OR: [
+        { sessionId: ref }, { conversationId: ref }, { cart: { path: ["cart_ref"], equals: ref } },
+        ...(row.checkoutSessionId ? [{ sessionId: row.checkoutSessionId }] : []),
+      ] }, select: { sessionId: true } });
+      if (row.checkoutSessionId && !related.some(x => x.sessionId === row.checkoutSessionId)) return undefined;
+      if (related.length) {
+        const scope = { merchantId: row.merchantId, sessionId: { in: related.map(x => x.sessionId) } };
+        const [order, payment] = await Promise.all([
+          tx.completedOrder.findFirst({ where: scope, select: { id: true } }),
+          tx.paymentIntent.findFirst({ where: { ...scope, status: "approved" }, select: { id: true } }),
+        ]);
+        if (order || payment) return undefined;
+      }
+      return ref;
+    } catch { throw new ServiceUnavailableException("whatsapp_recovery_cart_unavailable"); }
   }
 
   async update(id: string, data: Partial<WhatsAppSessionEntity>): Promise<WhatsAppSessionEntity> {
