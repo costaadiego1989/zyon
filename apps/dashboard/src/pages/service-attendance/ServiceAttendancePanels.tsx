@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, FolderTree, Users } from "lucide-react";
+import { CalendarDays, FolderTree } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import type { ServiceProfessionalAvailabilityDTO } from "../../api/endpoints/service-attendance.js";
 import { useApi } from "../../hooks/useApi.js";
@@ -7,6 +7,7 @@ import { DataPanel } from "../../components/DataPanel.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { Button } from "../../components/Button.js";
 import type { ServiceAttendanceFilters, useServiceAttendancePage } from "./useServiceAttendancePage.js";
+import { ProfessionalsPanel } from "./components/ProfessionalsPanel.js";
 
 type ViewModel = ReturnType<typeof useServiceAttendancePage>;
 const weekdays = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
@@ -62,10 +63,7 @@ export function ServiceAttendancePanels({ tab, vm, me }: { tab: ServiceAttendanc
   const data = vm.loadState.data;
   if (!data) return null;
   if (tab === "agenda") return <DataPanel title="Consulta da agenda"><div style={{ padding: 20, display: "grid", gap: 12 }}><p>Escolha um profissional e consulte a grade e as exceções cadastradas.</p><Button variant="outline" onClick={() => vm.setFilters({ tab: "availability" })}>Consultar grade cadastrada</Button></div></DataPanel>;
-  if (tab === "professionals") return <DataPanel title="Profissionais" isEmpty={data.professionals.items.length === 0} empty={{ icon: Users, title: "Nenhum profissional cadastrado", description: "Os profissionais cadastrados aparecerão nesta lista." }}>
-    <ul style={{ listStyle: "none", margin: 0, padding: 20, display: "grid", gap: 16 }}>{data.professionals.items.map(row => <li key={row.id}><strong style={{ overflowWrap: "anywhere" }}>{row.publicName}</strong><p>{row.timeZone}</p><span>{!row.isActive ? "Inativo" : row.isPublished ? "Publicado" : "Não publicado"}</span></li>)}</ul>
-    {data.professionals.nextCursor && <p style={{ padding: "0 20px 20px" }}>Há outros profissionais além dos registros desta página.</p>}
-  </DataPanel>;
+  if (tab === "professionals") return <ProfessionalsPanel me={me} vm={vm} />;
   if (tab === "categories") return <DataPanel title="Categorias" isEmpty={data.categories.length === 0} empty={{ icon: FolderTree, title: "Nenhuma categoria cadastrada", description: "As categorias cadastradas aparecerão nesta lista." }}>
     <ul style={{ listStyle: "none", margin: 0, padding: 20, display: "grid", gap: 16 }}>{data.categories.map(row => <li key={row.id}><strong style={{ overflowWrap: "anywhere" }}>{row.name}</strong><p>{row.is_active ? "Ativa" : "Inativa"}</p><span>Ofertas vinculadas: {row.product_count}</span></li>)}</ul>
   </DataPanel>;

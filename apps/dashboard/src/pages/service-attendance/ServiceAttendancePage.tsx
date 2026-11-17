@@ -67,8 +67,10 @@ export function ServiceAttendancePage({ me, renderPanel }: ServiceAttendancePage
     {vm.command.status === "uncertain" && <p role="alert">Não foi possível confirmar o resultado. Atualize e confira o registro antes de tentar novamente.</p>}
     {vm.command.status === "error" && <p role="alert">Não foi possível salvar a alteração. Confira os dados e tente novamente.</p>}
     <section id={panelId} role="tabpanel" aria-labelledby={`${panelId}-tab`} tabIndex={0} aria-busy={loading} style={{ minWidth: 0 }}>
-      {loading ? <p role="status">Carregando atendimento…</p> : vm.loadState.status === "error" ? <EmptyState icon={CalendarDays} title="Não foi possível atualizar o atendimento"
-        description="Atualize para consultar os dados da empresa." action={<Button variant="outline" onClick={() => void vm.refresh()}>Tentar novamente</Button>} /> : renderPanel ? renderPanel(vm.filters.tab, vm) : me && <ServiceAttendancePanels tab={vm.filters.tab} vm={vm} me={me} />}
+      {loading && <p role="status">{data ? "Atualizando atendimento…" : "Carregando atendimento…"}</p>}
+      {vm.loadState.status === "error" && <EmptyState icon={CalendarDays} title="Não foi possível atualizar o atendimento"
+        description="Atualize para consultar os dados da empresa." action={<Button variant="outline" onClick={() => void vm.refresh()}>Tentar novamente</Button>} />}
+      {data && (renderPanel ? renderPanel(vm.filters.tab, vm) : me && <ServiceAttendancePanels tab={vm.filters.tab} vm={vm} me={me} />)}
     </section>
   </div>;
 }

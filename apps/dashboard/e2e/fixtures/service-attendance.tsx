@@ -20,6 +20,7 @@ function Entry(){
   useEffect(()=>{void refresh();},[api]);
   return <ApiContext.Provider value={api}>
     <aside style={{position:'sticky',top:0,zIndex:10,padding:'8px 16px',background:'#143d2b',color:'#fff',font:'12px system-ui'}}>Aplicação, API e banco locais · Dados sintéticos · Sem conexão com produção</aside>
+    <strong style={{position:'fixed',top:8,right:80,zIndex:1100,padding:'2px 6px',borderRadius:4,background:'#143d2b',color:'#fff',font:'11px/14px system-ui'}}>LOCAL</strong>
     {checking?<PageLoader variant="section"/>:me||profileDenied?<main className="dashboard-ui" style={{maxWidth:1200,margin:'0 auto',padding:'24px clamp(16px,3vw,40px)',minWidth:0}}><ServiceAttendancePage me={me}/></main>:<AuthScreen mode={mode} setMode={next=>{setMode(next);history.replaceState(history.state,'',authUrlForMode(location.href,next));setHint(null);setCaptchaToken(null);}}
       busy={busy} hint={hint} email={email} setEmail={setEmail} password={password} setPassword={setPassword} merchantName={merchantName} setMerchantName={setMerchantName}
       captchaToken={captchaToken} setCaptchaToken={setCaptchaToken} turnstileSiteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY??''}

@@ -1,0 +1,492 @@
+{
+  "task": "T76",
+  "status": "Complete LOCAL before focused atomic commit; technical Root visual review passed",
+  "baseT75Commit": "6e28364838d5cd281fca7643fb50449a4a089bba",
+  "cacheManifestSha256": "a3d6669c57d5a6131f04699310575dd9f08865818ab0090a072a7000ad176a54",
+  "testsWrittenBeforeProductiveAdoption": true,
+  "original29TestExpectationsByteExact": false,
+  "newCompositionCases": 4,
+  "expectedTaskCases": 33,
+  "expectedWholeCohortCases": 150,
+  "expectedWholeCohortFiles": 13,
+  "old117MustRunAgainBecausePageCompositionChanged": true,
+  "changedOldT75Sources": [
+    "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.tsx",
+    "apps/dashboard/src/pages/service-attendance/ServiceAttendancePanels.tsx"
+  ],
+  "sourceFreezeFiles": 62,
+  "sourceFreezeSha256": "64948b739befc575a52942f5c77bdd456bb1d4c74c21dc6e680aa1bc3dc7f4fd",
+  "newSourceHashes": {
+    "apps/dashboard/src/pages/service-attendance/components/professional-form.spec.ts": "f6d34e23fd7172a2640680b162bfe7c1fb6b383ecc5e2a0321c4d9ae4ee3a778",
+    "apps/dashboard/src/pages/service-attendance/components/professional-form.ts": "d72aeaa15f7cae71915f6ab6107bf1af766dfc30b05b65fafbd6e9d7ae2672e7",
+    "apps/dashboard/src/pages/service-attendance/components/ProfessionalsPanel.spec.tsx": "75a5a1ebb80686f9dde621dd3c86292dd21b30d1e6608886794e7dcdf2c28b78",
+    "apps/dashboard/src/pages/service-attendance/components/ProfessionalsPanel.tsx": "df98d069f1fcbfd94c8b7382cd18910c38eb99fd1c2530646d3c2de47ac2a140",
+    "apps/dashboard/src/pages/service-attendance/components/useProfessionalsPanelData.ts": "c946093e2b53a989a306e08bd8fadb69741be92c8cd49994264966fbd92d884d",
+    "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.professionals.spec.tsx": "4aa4d10b2ae8f7e2c6079460622ba6ffc0447302db3447b8bee5991d75712908"
+  },
+  "scope": "Professionals only; preserves same-context panel during refresh/error, no second hook or new API",
+  "guardAndPayloadPolicyUnchanged": true,
+  "runtimeStarted": true,
+  "browserPreparedYet": true,
+  "taskMarked": true,
+  "commitCreated": false,
+  "actualPartialGate": {
+    "task": "T76",
+    "status": "PARTIAL components/lint green; Browser and native persistence pending",
+    "components": {
+      "cases": 149,
+      "files": 13,
+      "failed": 0,
+      "skipped": 0,
+      "durationSeconds": 18.89,
+      "kind": "components",
+      "exit": 0,
+      "completedAt": "2026-11-17T04:54:51.421Z",
+      "log": ".cache/t76-execution/components-2026-11-17T04-54-30.580Z/output.log"
+    },
+    "lint": {
+      "kind": "lint",
+      "files": 8,
+      "errors": 0,
+      "warnings": 0,
+      "unchangedExistingRules": true,
+      "log": ".cache/t76-execution/lint-2026-11-17T04-55-51.932Z/result.json"
+    },
+    "sourceFrozenFiles": 53,
+    "sourceFreezeSha256": "ff0bbc9277e7241bf8c71c5f3392e10e4f549a5fbcb601005d0d75524c637681",
+    "allInputsUnchangedAfterGate": true,
+    "knownOwnNodeCmdAfterGate": 0,
+    "proofLevel": "Actual React/jsdom gestures with synthetic injected HTTP transport; no real browser/SQL/native/visual proof",
+    "browserStarted": false,
+    "buildStarted": false,
+    "taskMarked": false,
+    "commitCreated": false,
+    "slotReturned": true
+  },
+  "currentReadySource": {
+    "task": "T76",
+    "status": "Reviewed exact toggle patch adopted; no new SUT execution",
+    "base75Commit": "6e28364838d5cd281fca7643fb50449a4a089bba",
+    "sourceFrozenFiles": 62,
+    "sourceFreezeSha256": "64948b739befc575a52942f5c77bdd456bb1d4c74c21dc6e680aa1bc3dc7f4fd",
+    "sourceHashes": {
+      "apps/dashboard/src/api/index.ts": "395266308d652417786e7cbf218f9d50c52b12faf88c78d5a145a5c878a1f12b",
+      "apps/dashboard/src/api/endpoints/service-attendance.ts": "add0aac5c2ae5ff8998b1452088aa46392dd5b44f4feeff431278ed0f7e2eaeb",
+      "apps/dashboard/src/api/endpoints/service-attendance.spec.ts": "b1008a0732b31d951c9b699b0f1e8b986c5ea6f520ae7131754e0f7c3ce121a4",
+      "apps/dashboard/src/api/http/client.ts": "0d6f608de35488f5b9bb7f17b0ef556a3c389c0090ee534b8017c815cdc6f17c",
+      "apps/dashboard/src/api/http/client.spec.ts": "e5c91739eb82058eff4c021a8d9cdd74fa5ec6eec6f5bc8dfc424fd9bb0eb4c0",
+      "apps/dashboard/src/api/http/session-fetch.spec.ts": "136aa1a8ec33a95b063c32e84fdfc4225e5ecf80b9ad1cdd443bf2a646738d62",
+      "apps/dashboard/src/api/endpoints/catalog.ts": "dfb9b378e050f517fc0ceedfd67333b6c373baaf4581a1ecaf912b13c142f988",
+      "apps/dashboard/src/api/endpoints/catalog.spec.ts": "a2e3130ac72f2ce976149bbca60351f25686127a45f4b6cace9f68827d9dc275",
+      "apps/dashboard/src/pages/product-detail/components/ProductForm.tsx": "24d3ff078552d0d083c76e2b6ab56204b977e54dfadfb4e1185c51c6fcfdcca4",
+      "apps/dashboard/src/pages/product-detail/components/ServiceScheduleEditor.tsx": "9ee4148604581899b5d8da018352e5af63511c0a35217253a08a4457cec057d8",
+      "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.tsx": "2a06818b5e23243bb0ac4a951a7f0d096e7809ba28b151a62258b09f17492e95",
+      "apps/dashboard/src/pages/product-detail/product-detail.css": "bdc42de43697a5a6f33a782e5d2976587aa50506f024c8c189d37734c964da25",
+      "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.spec.tsx": "43788aeda05c559aea8e298be6bb563acfb80f58950a8b99d9c5c7d2b5adad1b",
+      "apps/dashboard/src/pages/product-detail/components/ProductForm.toggles.spec.tsx": "130e1579ab738dbcb4c13b894ed917ad28a991bf4eedaec93dd0e7c9c43453c4",
+      "apps/dashboard/e2e/service-catalog-toggles.spec.ts": "6264168b377ff4c1d51c4740c48ac0fba87854bc1e925cfa0a372223b1ffaef8",
+      "apps/dashboard/playwright.service-local.config.ts": "a534345dda7cf513bc7c525cb0b00c5b9fc2973f222a6fd2cb573d48b7bac026",
+      "apps/dashboard/src/pages/product-detail/components/PromotionSection.tsx": "d9497d245a21e1cf0c340febd1aaf421802318c31d1479c523ebcd1bc2c98243",
+      "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.ts": "5adbeb56f47872faab0e310d8232d267600b4a2dc1263b86ec5da2243d5e80eb",
+      "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.spec.ts": "6410900282df2b6509374f9989ab74c95dec5d5997e43c27ec4eb1b39e277133",
+      "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx": "4f58e7437fb6c98630b149015c99da39368706a801af5bebb46ffdcf60cf7cdf",
+      "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.ts": "c559bc42a0e1d5b718ed80b3f9e637ee4bec7b69a6e7e707a3a318fa3b29e9bc",
+      "apps/dashboard/src/lib/auth/permissions.ts": "3be1cb64a3678b311361ef9aa5e7ec12378468de17b8cb51d35dbadd8e49c7f3",
+      "apps/dashboard/src/hooks/useApi.ts": "87814e3fde1d67e9c0401826e7f910beb8495b89a61f276e1febe550be8b9a34",
+      "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.tsx": "779d24761f90c826f462ec7ce9589ac9568b67da9ed4bb868aeefe5bdc213506",
+      "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.spec.tsx": "80c41637d5e3de393a7c9db5e295f364735a5deef9ba3d1eeebd29931bfe121e",
+      "apps/dashboard/src/pages/service-attendance/ServiceAttendancePanels.tsx": "fccf0077aad410c22be11dc38fac15c604de97005667191df91a36ad9ca09f02",
+      "apps/dashboard/src/pages/service-attendance/ServiceAttendancePanels.spec.tsx": "7c84044646beb3018e5c195b3d89b4a99ff5cc50ab22a3de4fc6f81df3f02dfd",
+      "apps/dashboard/e2e/service-attendance-shell.spec.ts": "15951c4abdf7dc697d7290fd69c976da7e1a4ad1beb33a0df1c5c1c370e52f33",
+      "apps/dashboard/e2e/service-attendance-fixture.mjs": "060770ad2da46fba880198cbad881ff327b9b96533449746a8708315c8779081",
+      "apps/dashboard/e2e/service-attendance-setup.mjs": "54f0cef72abefa36ca0aabb62201010629efd0df5f928c124d21ff3e9c82369d",
+      "apps/dashboard/e2e/service-local-setup.mjs": "f6cd5aedd8c3a69b47d0447b221bb121ea06373b00b49baec6efd00e6b0d2db8",
+      "apps/dashboard/e2e/fixtures/service-attendance.tsx": "a91e989b14600e575542085f382ce37c6f115a2303edcb8644af8fff18e1bf6f",
+      "apps/dashboard/playwright.service-attendance-local.config.ts": "d1e2e068e9e749e4fb0f02f3baf920f94f84327b4d756fec3314d9e9a4ae8b2d",
+      "apps/dashboard/e2e/fixtures/service-attendance.html": "268e361279010153a39242538a02a74a2c5a4214e34392b843475e1dca4db348",
+      "apps/dashboard/src/api/endpoints/merchants.ts": "9a5b7ee2b4d8e279efe34539561d81c8b2157d0d87472518795495ecd6956447",
+      "apps/dashboard/src/api/endpoints/merchants.profile-identity.spec.ts": "18164abd9bf1301953991eaaa9c39e24a7ee939d8c887d41134ececfbb1ba08b",
+      "apps/dashboard/src/api/endpoints/merchants.spec.ts": "fe47e82e324b4467b1ae254ec5c24535a91147d444e9f8c771462f18da83746b",
+      "apps/dashboard/src/lib/auth/roles.ts": "bd245ac5f3d96d85413674e70af2a810318082928ee14a2693a7ae188aab4b71",
+      "apps/dashboard/src/api/types.ts": "f491eaa808753b15fd159a6600e1cc3d83431f3edd3deb603f45944ed4298a10",
+      "apps/dashboard/src/api/http/error.ts": "838531ab05f8a0a71289d8ecfe1a9fe860fcbfbe2219553f248a47d3ae6ca2b5",
+      "apps/dashboard/src/api-client.ts": "6dc2710e1f390b83b84ab86cabdd489d304725045dc6a00c460eeb52228427e2",
+      "apps/dashboard/src/pages/service-attendance/components/professional-form.spec.ts": "f6d34e23fd7172a2640680b162bfe7c1fb6b383ecc5e2a0321c4d9ae4ee3a778",
+      "apps/dashboard/src/pages/service-attendance/components/professional-form.ts": "d72aeaa15f7cae71915f6ab6107bf1af766dfc30b05b65fafbd6e9d7ae2672e7",
+      "apps/dashboard/src/pages/service-attendance/components/ProfessionalsPanel.spec.tsx": "2c08d66d01ac1506381159b8da84fd6b76febd57df6067b1d968a4ce031e77a0",
+      "apps/dashboard/src/pages/service-attendance/components/ProfessionalsPanel.tsx": "d155322d5359e4b267d50720bd17953abad0dab2e348797dabbb88e0a1ba2e0d",
+      "apps/dashboard/src/pages/service-attendance/components/useProfessionalsPanelData.ts": "c946093e2b53a989a306e08bd8fadb69741be92c8cd49994264966fbd92d884d",
+      "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.professionals.spec.tsx": "fba112d72717ae0165a7defeec3c99065cc716a85acc5474198bb3fc2d75c016",
+      "apps/dashboard/src/components/Modal.tsx": "b2e514660c82e7f3c6b55cfbc24a7664e01e945f14750a892b3a8d5076e2fc81",
+      "apps/dashboard/src/components/useDialogLayer.ts": "7f4435810479e547029e49c5baa53e4b033b9619ee01828cd7bdc0e8728b78fe",
+      "apps/dashboard/src/components/Button.tsx": "36870e0d601e5bcf8647220d2a5472134aca46afdd3707758f8437a55d459f06",
+      "apps/dashboard/src/components/ToggleSwitch.tsx": "b529c45bf37148fec303f540d6b0576521401645c3ce60d44cc6b66d0d3b22e3",
+      "apps/dashboard/src/components/FormField.tsx": "5987d81c8a070ac8f85b165dcc19c53a84a2b868bcf8379ae96472d13b4c1770",
+      "apps/dashboard/src/api/http/idempotency.ts": "3482b7f8b824ac9b391101de78d8f756938b63020e2a4e0d8ab7f3f8f21535b5",
+      "apps/dashboard/e2e/service-professionals-fixture.mjs": "2524a09fcdc3569df4da5baedd71e5f9934452b54b6e6c62939cdfd60241bd3d",
+      "apps/dashboard/e2e/service-professionals-setup.mjs": "23cbfd7855f397d2d6bf522767258a51d04f204ecce5e405643f7497b03bd75e",
+      "apps/dashboard/e2e/service-professionals.spec.ts": "e6c9e3716660bfb7e5b6a74463028e54b08a7fed92252acaa5b450d8bbf15211",
+      "apps/dashboard/playwright.service-professionals-local.config.ts": "2ea1b0be8fba8f25f290193cd22d5d2d755fc344dff55e1d8278927b1863f81d",
+      "apps/api/tests/service-migration-fixture.mjs": "04c9b62b24b3c1189565578f8ec5ceff7f187ba5ce9e03f2678edbdccc5af07f",
+      "apps/api/tests/service-migration-bootstrap.mjs": "ad5be0426292b9f8183c6bc30f243f34a19e4fd61a73e2cc1f0ce811863a4d52",
+      "apps/api/prisma/schema.prisma": "f6c794aa356623e5f4ada2e41a2969d2183c26bd9a1df7c78add4199f99c18a9",
+      "apps/dashboard/e2e/service-local-scope.mjs": "67a54730174410fe1b2abfc66da9e7e2e653f5703b8a6e38c8b01411e91988c5",
+      "apps/dashboard/e2e/service-local-reporter.mjs": "2ddb5f57c1384a244fd69eaae9de8ce6b401c5199b509c2a4ea4da62147c93a8"
+    },
+    "expectedComponentCases": 150,
+    "expectedComponentFiles": 13,
+    "expectedBrowserCases": 4,
+    "expectedNativeFrames": 8,
+    "expectedLintFiles": 14,
+    "historical149Green": true,
+    "reason150Required": "New source-proven deactivation opener disappears, one Page regression and scoped focus fallback added; no old assertion changed",
+    "newFixturePreconditions": "Four real synthetic companies via register; existing prepared75offline Starter owner, second canonical service, real versioned at-attendance policy admission for coherent existing confirmed appointment, actual foreign service professional. Owned SQL history/payment seed via existing committed canonical fixture helper; no booking endpoint invented.",
+    "sourceOnlyProvenanceBadge": "1000modal backdrop hides original10banner in drawer; added LOCAL1100 badge in header gutter, not product UI or auth; native hit/overflow/frame checks remain required",
+    "noNewRuntimeSinceReturn": true,
+    "taskMarked": false,
+    "commitCreated": false,
+    "realForeignBeforeAfterSnapshot": true,
+    "historical150FirstFunctionalGreen": true,
+    "firstRootPickerVisualRejected": true,
+    "togglePatch": "b5d0655734a777ca37bd55963b0a4119b41c61de4a55fb8e1567cbf1f0e860a7",
+    "currentToggleSourceUnexecuted": true
+  },
+  "initialSourceGateBefore149": {
+    "newCompositionCases": 3,
+    "expectedTaskCases": 32,
+    "expectedWholeCohortCases": 149,
+    "expectedWholeCohortFiles": 13,
+    "sourceFreezeFiles": 53,
+    "sourceFreezeSha256": "ff0bbc9277e7241bf8c71c5f3392e10e4f549a5fbcb601005d0d75524c637681",
+    "newSourceHashes": {
+      "apps/dashboard/src/pages/service-attendance/components/professional-form.spec.ts": "f6d34e23fd7172a2640680b162bfe7c1fb6b383ecc5e2a0321c4d9ae4ee3a778",
+      "apps/dashboard/src/pages/service-attendance/components/professional-form.ts": "d72aeaa15f7cae71915f6ab6107bf1af766dfc30b05b65fafbd6e9d7ae2672e7",
+      "apps/dashboard/src/pages/service-attendance/components/ProfessionalsPanel.spec.tsx": "75a5a1ebb80686f9dde621dd3c86292dd21b30d1e6608886794e7dcdf2c28b78",
+      "apps/dashboard/src/pages/service-attendance/components/ProfessionalsPanel.tsx": "5f52f40cbadc0c412b112c7d9bffa619551a9412d8b0a314e6b0477042ddfa43",
+      "apps/dashboard/src/pages/service-attendance/components/useProfessionalsPanelData.ts": "c946093e2b53a989a306e08bd8fadb69741be92c8cd49994264966fbd92d884d",
+      "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.professionals.spec.tsx": "a3a01b091478a91352e7bc9b85cdd163a69d536fc2a7be9ff1ce680950cd258e"
+    }
+  },
+  "browserRuntimeStarted": true,
+  "current150NotExecuted": false,
+  "preservationVerified": {
+    "105Files": 8,
+    "105AllExact": true,
+    "107PromotionSectionSha256": "d9497d245a21e1cf0c340febd1aaf421802318c31d1479c523ebcd1bc2c98243",
+    "original76CacheManifestSha256": "a3d6669c57d5a6131f04699310575dd9f08865818ab0090a072a7000ad176a54",
+    "106CachePresent": true
+  },
+  "RootVisualReviewFirstGate": {
+    "inspectedFrames": 8,
+    "acceptedStates": [
+      "confirmation",
+      "inactive",
+      "editor"
+    ],
+    "rejectedState": "service membership picker: oversized checkboxes and squeezed labels",
+    "taskAccepted": false,
+    "userInstructionCarriedByRoot": "trocar checkbox por toggle, applied to each service association",
+    "proposalPatch": ".cache/t76-service-toggle-review/proposed.patch",
+    "proposalSha256": "b5d0655734a777ca37bd55963b0a4119b41c61de4a55fb8e1567cbf1f0e860a7",
+    "applied": true,
+    "newRuntime": false
+  },
+  "previousActualGateBeforeToggleAdoption": {
+    "task": "T76",
+    "status": "Actual gate green; Root current-frame review pending; not marked or committed",
+    "base75Commit": "6e28364838d5cd281fca7643fb50449a4a089bba",
+    "components": {
+      "cases": 150,
+      "files": 13,
+      "failed": 0,
+      "skipped": 0,
+      "durationSeconds": 22.05,
+      "kind": "components",
+      "exit": 0,
+      "completedAt": "2026-11-17T05:27:04.232Z",
+      "log": ".cache/t76-execution/components-2026-11-17T05-26-40.550Z/output.log"
+    },
+    "lint": {
+      "kind": "lint",
+      "files": 14,
+      "errors": 0,
+      "warnings": 0,
+      "unchangedExistingRules": true,
+      "log": ".cache/t76-execution/lint-2026-11-17T05-27-07.490Z/results.json"
+    },
+    "discovery": {
+      "cases": 4,
+      "files": 1,
+      "kind": "list",
+      "exit": 0,
+      "completedAt": "2026-11-17T05:27:14.196Z"
+    },
+    "artifact": {
+      "checked": true,
+      "inputSha256": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+      "artifactSha256": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2543
+      }
+    },
+    "browser": {
+      "kind": "browser",
+      "exit": 0,
+      "completedAt": "2026-11-17T05:28:35.288Z",
+      "stats": {
+        "startTime": "2026-11-17T05:27:41.435Z",
+        "duration": 53821.477,
+        "expected": 4,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "log": ".cache/t76-execution/browser-2026-11-17T05-27-40.470Z/output.log",
+      "report": ".cache/t76-execution/browser-2026-11-17T05-27-40.470Z/playwright.json",
+      "errors": []
+    },
+    "sourceFreezeSha256": "8e5a832f28d8dc9dc6c3a3c3e7dc3feb2e0c45bf0588441319e9242d220a4997",
+    "sourceFrozenFiles": 62,
+    "allSourcesExactAfterGate": true,
+    "frames": [
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-desativacao-desktop.running.png",
+        "sha256": "8bfc93207ce7cc349e1663e294fc2b81785cdf05d72266943122ffc3a204a407",
+        "width": 1440,
+        "height": 1000
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-desativacao-mobile.running.png",
+        "sha256": "51238d0f9c67760c77d0a3b0a44236406f598352dedc9a5bab074513527a10a1",
+        "width": 390,
+        "height": 844
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-edicao-desktop.running.png",
+        "sha256": "90410154dd5d59c82b06409d323cddcbb67a401cdde4fe20dd5ac5732486309f",
+        "width": 1440,
+        "height": 1000
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-edicao-mobile.running.png",
+        "sha256": "e980c93cd0ee877e9f2e38e5cfddc986162d6caba5be9f7fc2f0f3ee2209035e",
+        "width": 390,
+        "height": 844
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-inativo-desktop.running.png",
+        "sha256": "d9e3896a54b7941a134a9b15b61f37e5415713501e43b3228e0d29c0d708f40f",
+        "width": 1440,
+        "height": 1000
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-inativo-mobile.running.png",
+        "sha256": "bfc2d95962e86083162617b619f6f4db3829368c3333917be0d1694e56a76d90",
+        "width": 390,
+        "height": 844
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-servicos-desktop.running.png",
+        "sha256": "d7ced6db2f12e5f50bb5002974bf92878911768414b930f3309bff2790c4ee9e",
+        "width": 1440,
+        "height": 1000
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-servicos-mobile.running.png",
+        "sha256": "9fdc4db99da1a94d43123277d8eefb285f0c9f72ba03903f94413bdd6c64072e",
+        "width": 390,
+        "height": 844
+      }
+    ],
+    "knownOwnNodeCmdAfterGate": 0,
+    "cleanup": "Normal before_closed_ack and disconnected, no error; exact known-own node/cmd scan empty",
+    "slotReturned": true,
+    "RootVisualVerdict": "pending",
+    "taskMarked": false,
+    "commitCreated": false,
+    "noNewChecksAfterReturn": true
+  },
+  "original29History": "Byte-exact original cache used for149 and first150; reviewedb5d06557 now changes mechanical control locator/role only, all business assertions and case counts preserved",
+  "toggleAdoption": {
+    "task": "T76",
+    "status": "Reviewed exact toggle patch adopted; no new SUT execution",
+    "patchSha256": "b5d0655734a777ca37bd55963b0a4119b41c61de4a55fb8e1567cbf1f0e860a7",
+    "applyCheck": 0,
+    "apply": 0,
+    "reverseCheck": 0,
+    "changedFiles": [
+      {
+        "path": "apps/dashboard/src/pages/service-attendance/components/ProfessionalsPanel.tsx",
+        "beforeSha256": "df98d069f1fcbfd94c8b7382cd18910c38eb99fd1c2530646d3c2de47ac2a140",
+        "candidateSha256": "d155322d5359e4b267d50720bd17953abad0dab2e348797dabbb88e0a1ba2e0d"
+      },
+      {
+        "path": "apps/dashboard/src/pages/service-attendance/components/ProfessionalsPanel.spec.tsx",
+        "beforeSha256": "75a5a1ebb80686f9dde621dd3c86292dd21b30d1e6608886794e7dcdf2c28b78",
+        "candidateSha256": "2c08d66d01ac1506381159b8da84fd6b76febd57df6067b1d968a4ce031e77a0"
+      },
+      {
+        "path": "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.professionals.spec.tsx",
+        "beforeSha256": "4aa4d10b2ae8f7e2c6079460622ba6ffc0447302db3447b8bee5991d75712908",
+        "candidateSha256": "fba112d72717ae0165a7defeec3c99065cc716a85acc5474198bb3fc2d75c016"
+      },
+      {
+        "path": "apps/dashboard/e2e/service-professionals.spec.ts",
+        "beforeSha256": "e9070cd145bd5d6461f817e1c3fecce5d1f1aaf5419084898698b172df6c0fcf",
+        "candidateSha256": "e6c9e3716660bfb7e5b6a74463028e54b08a7fed92252acaa5b450d8bbf15211"
+      }
+    ],
+    "unchangedOtherFrozenFiles": 58,
+    "sourceFrozenFiles": 62,
+    "sourceFreezeSha256": "64948b739befc575a52942f5c77bdd456bb1d4c74c21dc6e680aa1bc3dc7f4fd",
+    "firstReceiptPreservedSha256": "291aaaad15244a17cd9cc6f851b7e151e183daae542299c5d4613f78783db80c",
+    "expectedComponents": 150,
+    "expectedBrowserCases": 4,
+    "expectedFrames": 8,
+    "rootReview": "Root reviewed exactb5d06557 before adoption; task remains open",
+    "runtimeRun": false,
+    "focusSourceFinding": "Existing ToggleSwitch is native button role switch, keyboard default activation; styles.css:4410 supplies focus-visible box-shadow ring despite inline outline none. No global/shared CSS change; native keyboard gestures and future actual verification retained."
+  },
+  "actualCurrentGate": {
+    "task": "T76",
+    "status": "Current toggle gate green; Root actual8-frame review pending; task open",
+    "base75Commit": "6e28364838d5cd281fca7643fb50449a4a089bba",
+    "components": {
+      "cases": 150,
+      "files": 13,
+      "failed": 0,
+      "skipped": 0,
+      "durationSeconds": 18.49,
+      "kind": "components",
+      "exit": 0,
+      "completedAt": "2026-11-17T05:44:27.202Z",
+      "log": ".cache/t76-execution/components-2026-11-17T05-44-07.262Z/output.log"
+    },
+    "lint": {
+      "kind": "lint",
+      "files": 14,
+      "errors": 0,
+      "warnings": 0,
+      "unchangedExistingRules": true,
+      "log": ".cache/t76-execution/lint-2026-11-17T05-44-31.818Z/results.json"
+    },
+    "discovery": {
+      "cases": 4,
+      "files": 1,
+      "kind": "list",
+      "exit": 0,
+      "completedAt": "2026-11-17T05:44:41.358Z"
+    },
+    "artifact": {
+      "checked": true,
+      "inputSha256": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+      "artifactSha256": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2543
+      }
+    },
+    "browser": {
+      "kind": "browser",
+      "exit": 0,
+      "completedAt": "2026-11-17T05:45:48.419Z",
+      "stats": {
+        "startTime": "2026-11-17T05:44:56.656Z",
+        "duration": 51728.368,
+        "expected": 4,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errors": [],
+      "log": ".cache/t76-execution/browser-2026-11-17T05-44-55.506Z/output.log",
+      "report": ".cache/t76-execution/browser-2026-11-17T05-44-55.506Z/playwright.json"
+    },
+    "sourceFreezeSha256": "64948b739befc575a52942f5c77bdd456bb1d4c74c21dc6e680aa1bc3dc7f4fd",
+    "sourceFrozenFiles": 62,
+    "allSourcesExactAfterGate": true,
+    "frames": [
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-desativacao-desktop.running.png",
+        "sha256": "8bfc93207ce7cc349e1663e294fc2b81785cdf05d72266943122ffc3a204a407",
+        "width": 1440,
+        "height": 1000,
+        "capturedFileModifiedAt": "2026-11-17T05:45:41.647237+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-desativacao-mobile.running.png",
+        "sha256": "51238d0f9c67760c77d0a3b0a44236406f598352dedc9a5bab074513527a10a1",
+        "width": 390,
+        "height": 844,
+        "capturedFileModifiedAt": "2026-11-17T05:45:41.829292+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-edicao-desktop.running.png",
+        "sha256": "55f38beb418671c193539560632989a81f1a94e754bb34b7f29c4dc0ab8c06ec",
+        "width": 1440,
+        "height": 1000,
+        "capturedFileModifiedAt": "2026-11-17T05:45:38.946901+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-edicao-mobile.running.png",
+        "sha256": "b02e3d3d76d8afb63e535e04212952ee5f71dbd3e4b3324cf7358555262213f5",
+        "width": 390,
+        "height": 844,
+        "capturedFileModifiedAt": "2026-11-17T05:45:39.214900+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-inativo-desktop.running.png",
+        "sha256": "444db9f7162c62bfb3dc2a7e8047242383d1d574f9c2e659eb624673d7d108c1",
+        "width": 1440,
+        "height": 1000,
+        "capturedFileModifiedAt": "2026-11-17T05:45:42.603115+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-inativo-mobile.running.png",
+        "sha256": "bfc2d95962e86083162617b619f6f4db3829368c3333917be0d1694e56a76d90",
+        "width": 390,
+        "height": 844,
+        "capturedFileModifiedAt": "2026-11-17T05:45:42.839401+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-servicos-desktop.running.png",
+        "sha256": "55f38beb418671c193539560632989a81f1a94e754bb34b7f29c4dc0ab8c06ec",
+        "width": 1440,
+        "height": 1000,
+        "capturedFileModifiedAt": "2026-11-17T05:45:39.441616+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/profissionais-servicos-mobile.running.png",
+        "sha256": "004cbd6439891d373cbb2d52b675d966532becbf44e4f9a987ff0d7ac284a63a",
+        "width": 390,
+        "height": 844,
+        "capturedFileModifiedAt": "2026-11-17T05:45:39.704404+00:00"
+      }
+    ],
+    "freshCaptureTimesWithinActualRun": true,
+    "knownOwnNodeCmdAfterGate": 0,
+    "cleanup": "Normal before_closed_ack/disconnected without error, exact own node/cmd scan empty",
+    "slotReturned": true,
+    "RootVisualVerdict": {
+      "technicalVerdict": "PASS",
+      "newFramesActuallyViewed": 5,
+      "remainingIdenticalPreviouslyViewedFrames": 3,
+      "notes": "Labels aligned and readable left, fixed switches right, no native fieldset border",
+      "userCaptureApproval": false,
+      "finalIndependentFeatureVerification": false
+    },
+    "taskMarked": true,
+    "commitCreated": false,
+    "firstReceiptPreservedSha256": "291aaaad15244a17cd9cc6f851b7e151e183daae542299c5d4613f78783db80c",
+    "togglePatchSha256": "b5d0655734a777ca37bd55963b0a4119b41c61de4a55fb8e1567cbf1f0e860a7"
+  },
+  "RootFinalTaskVisualReview": {
+    "technicalVerdict": "PASS",
+    "newFramesActuallyViewed": 5,
+    "remainingIdenticalPreviouslyViewedFrames": 3,
+    "notes": "Labels aligned and readable left, fixed switches right, no native fieldset border",
+    "userCaptureApproval": false,
+    "finalIndependentFeatureVerification": false
+  }
+}
