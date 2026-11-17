@@ -66,11 +66,19 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       ).then((res) => {
         const raw = "data" in res ? res.data : res;
         const normalizedRole = normalizeRole((raw as { role?: unknown }).role);
+        // The server uses userId; existing UI consumers require user_id.
+        // Conflicting aliases must not authorize sensitive management.
+        const wireUserId = (raw as { userId?: unknown }).userId;
+        const currentUserId = typeof wireUserId === "string" ? wireUserId : "";
+        const legacyUserId = typeof raw.user_id === "string" ? raw.user_id : "";
+        const userId = currentUserId && legacyUserId && currentUserId !== legacyUserId
+          ? "" : currentUserId || legacyUserId;
         // Normalize role from lowercase (backend) to uppercase (frontend Role type).
         // If unrecognized, leave undefined so canAccessTab falls back to permissive mode
         // (this only happens for admin-bypassed principals / future roles).
         return {
           ...raw,
+          user_id: userId,
           role: normalizedRole as MerchantProfile["role"],
         };
       });

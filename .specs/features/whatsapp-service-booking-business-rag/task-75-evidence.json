@@ -1,0 +1,682 @@
+{
+  "task": "T75",
+  "status": "COMPLETE LOCAL; actual task gate and Root technical8frame review passed; marked before focused atomic commit",
+  "actualComponentGate": {
+    "command": "pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/ServiceAttendancePage.spec.tsx src/pages/service-attendance/useServiceAttendancePage.spec.ts src/api/endpoints/service-attendance.spec.ts src/api/http/client.spec.ts src/api/http/session-fetch.spec.ts src/api/endpoints/catalog.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx --maxWorkers=1 --minWorkers=1 --no-file-parallelism",
+    "cases": 93,
+    "newPageCases": 11,
+    "currentHookCases": 23,
+    "fixedTransportAndUnchangedCompanionCases": 49,
+    "legacyCompanyModeHookCases": 10,
+    "files": 7,
+    "failed": 0,
+    "skipped": 0,
+    "durationSeconds": 147.69,
+    "exit": 0,
+    "completedAt": "2026-11-17T00:15:05.896Z",
+    "log": ".cache/t75-component-execution/components-2026-11-17T00-12-34.482Z/output.log",
+    "admission": {
+      "minimumCommitMiB": 1024,
+      "memory": {
+        "observedAtUtc": "2026-11-17T00:12:34.703332+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 348,
+        "commitAvailableMiB": 1422,
+        "memoryLoadPercent": 97
+      }
+    }
+  },
+  "proofLevel": "Actual React/jsdom component controls with injected synthetic HTTP transport only; no browser viewport, persistence or visual approval proof",
+  "sourceHashes": {
+    "apps/dashboard/src/api/index.ts": "395266308d652417786e7cbf218f9d50c52b12faf88c78d5a145a5c878a1f12b",
+    "apps/dashboard/src/api/endpoints/service-attendance.ts": "add0aac5c2ae5ff8998b1452088aa46392dd5b44f4feeff431278ed0f7e2eaeb",
+    "apps/dashboard/src/api/endpoints/service-attendance.spec.ts": "b1008a0732b31d951c9b699b0f1e8b986c5ea6f520ae7131754e0f7c3ce121a4",
+    "apps/dashboard/src/api/http/client.ts": "0d6f608de35488f5b9bb7f17b0ef556a3c389c0090ee534b8017c815cdc6f17c",
+    "apps/dashboard/src/api/http/client.spec.ts": "e5c91739eb82058eff4c021a8d9cdd74fa5ec6eec6f5bc8dfc424fd9bb0eb4c0",
+    "apps/dashboard/src/api/http/session-fetch.spec.ts": "136aa1a8ec33a95b063c32e84fdfc4225e5ecf80b9ad1cdd443bf2a646738d62",
+    "apps/dashboard/src/api/endpoints/catalog.ts": "dfb9b378e050f517fc0ceedfd67333b6c373baaf4581a1ecaf912b13c142f988",
+    "apps/dashboard/src/api/endpoints/catalog.spec.ts": "a2e3130ac72f2ce976149bbca60351f25686127a45f4b6cace9f68827d9dc275",
+    "apps/dashboard/src/pages/product-detail/components/ProductForm.tsx": "24d3ff078552d0d083c76e2b6ab56204b977e54dfadfb4e1185c51c6fcfdcca4",
+    "apps/dashboard/src/pages/product-detail/components/ServiceScheduleEditor.tsx": "9ee4148604581899b5d8da018352e5af63511c0a35217253a08a4457cec057d8",
+    "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.tsx": "2a06818b5e23243bb0ac4a951a7f0d096e7809ba28b151a62258b09f17492e95",
+    "apps/dashboard/src/pages/product-detail/product-detail.css": "bdc42de43697a5a6f33a782e5d2976587aa50506f024c8c189d37734c964da25",
+    "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.spec.tsx": "43788aeda05c559aea8e298be6bb563acfb80f58950a8b99d9c5c7d2b5adad1b",
+    "apps/dashboard/src/pages/product-detail/components/ProductForm.toggles.spec.tsx": "130e1579ab738dbcb4c13b894ed917ad28a991bf4eedaec93dd0e7c9c43453c4",
+    "apps/dashboard/e2e/service-catalog-toggles.spec.ts": "6264168b377ff4c1d51c4740c48ac0fba87854bc1e925cfa0a372223b1ffaef8",
+    "apps/dashboard/playwright.service-local.config.ts": "a534345dda7cf513bc7c525cb0b00c5b9fc2973f222a6fd2cb573d48b7bac026",
+    "apps/dashboard/src/pages/product-detail/components/PromotionSection.tsx": "d9497d245a21e1cf0c340febd1aaf421802318c31d1479c523ebcd1bc2c98243",
+    "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.ts": "5adbeb56f47872faab0e310d8232d267600b4a2dc1263b86ec5da2243d5e80eb",
+    "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.spec.ts": "6410900282df2b6509374f9989ab74c95dec5d5997e43c27ec4eb1b39e277133",
+    "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx": "4f58e7437fb6c98630b149015c99da39368706a801af5bebb46ffdcf60cf7cdf",
+    "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.ts": "c559bc42a0e1d5b718ed80b3f9e637ee4bec7b69a6e7e707a3a318fa3b29e9bc",
+    "apps/dashboard/src/lib/auth/permissions.ts": "3be1cb64a3678b311361ef9aa5e7ec12378468de17b8cb51d35dbadd8e49c7f3",
+    "apps/dashboard/src/hooks/useApi.ts": "87814e3fde1d67e9c0401826e7f910beb8495b89a61f276e1febe550be8b9a34",
+    "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.tsx": "429d7882e40a982d9760e559eaf4c823fa6d49b4ca4644f77cf542d55d2fdf27",
+    "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.spec.tsx": "80c41637d5e3de393a7c9db5e295f364735a5deef9ba3d1eeebd29931bfe121e",
+    "apps/dashboard/src/pages/service-attendance/ServiceAttendancePanels.tsx": "fa1b3f64dfb0c1d391bd83b721356b66da014dd6dc48348e03ca701a1c474095",
+    "apps/dashboard/src/pages/service-attendance/ServiceAttendancePanels.spec.tsx": "7c84044646beb3018e5c195b3d89b4a99ff5cc50ab22a3de4fc6f81df3f02dfd",
+    "apps/dashboard/e2e/service-attendance-shell.spec.ts": "15951c4abdf7dc697d7290fd69c976da7e1a4ad1beb33a0df1c5c1c370e52f33",
+    "apps/dashboard/e2e/service-attendance-fixture.mjs": "060770ad2da46fba880198cbad881ff327b9b96533449746a8708315c8779081",
+    "apps/dashboard/e2e/service-attendance-setup.mjs": "54f0cef72abefa36ca0aabb62201010629efd0df5f928c124d21ff3e9c82369d",
+    "apps/dashboard/e2e/service-local-setup.mjs": "33ed0d919c2a267dacbea04df524785d827f124f29da83b01ce15cb1e40d1646",
+    "apps/dashboard/e2e/fixtures/service-attendance.tsx": "da03d94d315b37b20984a419f35f98a5a2d227af99612e5870e6144f3dbe999b",
+    "apps/dashboard/playwright.service-attendance-local.config.ts": "d1e2e068e9e749e4fb0f02f3baf920f94f84327b4d756fec3314d9e9a4ae8b2d",
+    "apps/dashboard/e2e/fixtures/service-attendance.html": "268e361279010153a39242538a02a74a2c5a4214e34392b843475e1dca4db348",
+    "apps/dashboard/src/api/endpoints/merchants.ts": "9a5b7ee2b4d8e279efe34539561d81c8b2157d0d87472518795495ecd6956447",
+    "apps/dashboard/src/api/endpoints/merchants.profile-identity.spec.ts": "18164abd9bf1301953991eaaa9c39e24a7ee939d8c887d41134ececfbb1ba08b",
+    "apps/dashboard/src/api/endpoints/merchants.spec.ts": "fe47e82e324b4467b1ae254ec5c24535a91147d444e9f8c771462f18da83746b",
+    "apps/dashboard/src/lib/auth/roles.ts": "bd245ac5f3d96d85413674e70af2a810318082928ee14a2693a7ae188aab4b71",
+    "apps/dashboard/src/api/types.ts": "f491eaa808753b15fd159a6600e1cc3d83431f3edd3deb603f45944ed4298a10",
+    "apps/dashboard/src/api/http/error.ts": "838531ab05f8a0a71289d8ecfe1a9fe860fcbfbe2219553f248a47d3ae6ca2b5",
+    "apps/dashboard/src/api-client.ts": "6dc2710e1f390b83b84ab86cabdd489d304725045dc6a00c460eeb52228427e2"
+  },
+  "preservation": {
+    "all25InputsByteEqualAfterGate": true,
+    "t105EightExact": true,
+    "t107d949AndCapturesUntouched": true,
+    "t59AndT73T74UnchangedDuringGate": true,
+    "oldTestsUntouched": true,
+    "knownOwnNodeCmdAfterGate": 0
+  },
+  "composition": "Guarded service-only shell with optional renderPanel and default truthful read-only professional/category/policy composition plus canonical grade GET; no second management hook or invented appointment/payment state",
+  "knownWarnings": [
+    "Existing PrefixInput border/borderRight React warning in unchanged editor companion"
+  ],
+  "notPerformed": [
+    "Global T82/T83route/navigation wiring",
+    "T76/T77CRUD integration and later booking/financial operations",
+    "Feature-level current build/final independent proofs/RAG72evaluation"
+  ],
+  "remaining": [
+    "Original full T75 browser gate and captures after execution handover",
+    "Real task-owned panel integration for T76/T77 and later availability/policy/booking tasks",
+    "Final same-HEAD feature proofs and RAG72 evaluation"
+  ],
+  "readOnlyHandover": {
+    "status": "T75LOCALCOMPLETE; current native3+8technical visual review passed",
+    "componentGate": {
+      "cases": 103,
+      "files": 8,
+      "failed": 0,
+      "skipped": 0,
+      "durationSeconds": 35.86,
+      "exit": 0,
+      "completedAt": "2026-11-17T01:37:05.964Z",
+      "log": ".cache/t75-execution/components-2026-11-17T01-36-26.289Z/output.log"
+    },
+    "lint": {
+      "files": 9,
+      "errors": 0,
+      "warnings": 0,
+      "log": ".cache/t75-execution/lint-2026-11-17T01-38-38.776Z/result.json"
+    },
+    "discovery": {
+      "cases": 3,
+      "exit": 0
+    },
+    "artifactReadmission": {
+      "checked": true,
+      "sourceCount": 2543,
+      "input": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+      "artifact": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5"
+    },
+    "firstBrowser": {
+      "status": "FAILED SETUP; no browser cases, gestures or screenshots",
+      "run": "browser-2026-11-17T01-40-55.481Z",
+      "result": {
+        "kind": "browser",
+        "exit": 1,
+        "completedAt": "2026-11-17T01:43:31.966Z"
+      },
+      "stats": {
+        "startTime": "2026-11-17T01:40:59.362Z",
+        "duration": 152525.354,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "actualCause": "Staff login201, then merchants/me403; new fixture expected200 before tests",
+      "sourceEvidence": [
+        {
+          "path": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+          "finding": "profile Get handler and controller have no Staff opt-in metadata"
+        },
+        {
+          "path": "apps/api/src/modules/auth/presentation/staff-access.ts",
+          "finding": "Staff requires explicit TENANT_ROLES_METADATA; missing staff throws staff_operation_not_permitted403"
+        },
+        {
+          "path": "apps/api/tests/service-test-runtime.mjs",
+          "finding": "close returns only after appClosed/providerCalls0/natural worker exit0/owned disposal and bridge0; no AggregateError means closure completed"
+        }
+      ],
+      "preservation": {
+        "noSourceChangedDuringRun": true,
+        "noDeadlineOrOracleChanged": true,
+        "noApiRolePolicyChanged": true,
+        "noAutomaticRetry": true,
+        "knownOwnNodeCmdAfterClose": 0
+      },
+      "nextProposal": "Preserve owner/profile200 assertions; require actual403 for Staff, verify actual role via ownedSQL/login, and display existing fail-closed page with me=null after real403. No forged profile or API repair. Await Root review before applying/running."
+    },
+    "unappliedProposal": {
+      "path": ".cache/t75-execution/staff-denial-review/proposed.patch",
+      "sha256": "fe784003fd1b5f3853087bfeb426bef5526e17909b81d3c1b30a0b1e3c90af25",
+      "applied": false,
+      "executed": false,
+      "previousUnappliedSha256": "26d66098f3c4a9c329f3c3264c5308f7861219e7efd2106fb185495e0ccbb416",
+      "reviewCorrection": "Require actual ProblemDetails code/detail, not message; still unapplied and unexecuted",
+      "historicalStatus": "Original unapplied review receipt retained; see approvedFixtureCorrection for current state"
+    },
+    "newBrowserCaptures": 0,
+    "remaining": [
+      "T76/T77and105/106/global routes/final feature gates remain separate"
+    ],
+    "approvedFixtureCorrection": {
+      "user": "Corrigir somente teste e fixture (Recomendado)",
+      "replyId": "call_f4671d40a82d4cffbc6838aec5896005",
+      "patchSha256": "fe784003fd1b5f3853087bfeb426bef5526e17909b81d3c1b30a0b1e3c90af25",
+      "scope": "Exactly three proposed T75 test/fixture files; no API/SDK/role policy changes",
+      "executionAuthorizedNow": false,
+      "appliedAtUtc": "2026-11-17T02:49:07.181446+00:00",
+      "applied": true,
+      "executed": false,
+      "proofPath": ".cache/t75-execution/approved-staff-denial-call_f4671d40a82d4cffbc6838aec5896005",
+      "beforeFrozenMatched": 34,
+      "exactApprovedFiles": [
+        {
+          "path": "apps/dashboard/e2e/service-attendance-fixture.mjs",
+          "beforeSha256": "577f52daea5249e2bfea6f50e1372f39989cfe29db9b1e24c33f2c44d5a9d0bd",
+          "candidateSha256": "060770ad2da46fba880198cbad881ff327b9b96533449746a8708315c8779081",
+          "applied": true,
+          "appliedAtUtc": "2026-11-17T02:49:07.181446+00:00",
+          "actualSha256": "060770ad2da46fba880198cbad881ff327b9b96533449746a8708315c8779081"
+        },
+        {
+          "path": "apps/dashboard/e2e/service-attendance-shell.spec.ts",
+          "beforeSha256": "3ccc2e6a9a11e2998ebdc38b41bc55b64913959892837cbd25c185dc94ef50a4",
+          "candidateSha256": "cccf29377decd88512c425ffd550c572d0c34c032cc6b1d931b6c58b2e132d8d",
+          "applied": true,
+          "appliedAtUtc": "2026-11-17T02:49:07.181446+00:00",
+          "actualSha256": "cccf29377decd88512c425ffd550c572d0c34c032cc6b1d931b6c58b2e132d8d"
+        },
+        {
+          "path": "apps/dashboard/e2e/fixtures/service-attendance.tsx",
+          "beforeSha256": "b26859c2282a4c783b3dd1c0acafd206dcee5f2c608abfecb0ac821c115c23db",
+          "candidateSha256": "da03d94d315b37b20984a419f35f98a5a2d227af99612e5870e6144f3dbe999b",
+          "applied": true,
+          "appliedAtUtc": "2026-11-17T02:49:07.181446+00:00",
+          "actualSha256": "da03d94d315b37b20984a419f35f98a5a2d227af99612e5870e6144f3dbe999b"
+        }
+      ],
+      "other31InputsUnchanged": true,
+      "applyCheckExit": 0,
+      "applyExit": 0,
+      "reverseCheckExit": 0,
+      "unit103Reuse": "All selected component/dependency inputs unchanged; no rerun authorized/needed",
+      "runtimeStarted": false,
+      "apiOrPermissionChanged": false,
+      "newCaptures": 0
+    },
+    "approvedPatchBrowserAttempt": {
+      "run": ".cache/t75-execution/browser-2026-11-17T02-52-40.647Z",
+      "cases": 3,
+      "passed": 2,
+      "failed": 1,
+      "skipped": 0,
+      "exit": 1,
+      "completedAt": "2026-11-17T02:55:17.615Z",
+      "sourceFrozenMatched": 34,
+      "lint9": {
+        "errors": 0,
+        "warnings": 0,
+        "log": ".cache/t75-execution/lint-2026-11-17T02-51-47.555Z/result.json"
+      },
+      "discovery": {
+        "cases": 3,
+        "files": 1,
+        "exit": 0
+      },
+      "artifactReadmission": {
+        "sourceCount": 2543,
+        "input": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+        "artifact": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5"
+      },
+      "cause": "API profile emits userId; existing SDK normalizes role only and omits user_id alias. Strict authenticated-profile guard correctly denies incomplete client profile, so management GET requests never start.",
+      "partialCaptures": {
+        ".cache/t75-execution/browser-2026-11-17T02-52-40.647Z/partial-native-captures/atendimento-denied-products-desktop.running.png": "61f7a19d5968d766f1ca57f75df8ea54b76e0b1164430b46895bf27249f586f6",
+        ".cache/t75-execution/browser-2026-11-17T02-52-40.647Z/partial-native-captures/atendimento-denied-products-mobile.running.png": "eb6ec0940c3d8759b526e8ed7aa976255dfc07d2a4ebd93b81a78cf45eb3c339",
+        ".cache/t75-execution/browser-2026-11-17T02-52-40.647Z/partial-native-captures/atendimento-denied-staff-desktop.running.png": "61f7a19d5968d766f1ca57f75df8ea54b76e0b1164430b46895bf27249f586f6",
+        ".cache/t75-execution/browser-2026-11-17T02-52-40.647Z/partial-native-captures/atendimento-denied-staff-mobile.running.png": "eb6ec0940c3d8759b526e8ed7aa976255dfc07d2a4ebd93b81a78cf45eb3c339"
+      },
+      "closure": {
+        "stats": {
+          "startTime": "2026-11-17T02:52:42.637Z",
+          "duration": 154847.442,
+          "expected": 2,
+          "skipped": 0,
+          "unexpected": 1,
+          "flaky": 0
+        },
+        "captures": {
+          ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-products-desktop.running.png": "61f7a19d5968d766f1ca57f75df8ea54b76e0b1164430b46895bf27249f586f6",
+          ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-products-mobile.running.png": "eb6ec0940c3d8759b526e8ed7aa976255dfc07d2a4ebd93b81a78cf45eb3c339",
+          ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-staff-desktop.running.png": "61f7a19d5968d766f1ca57f75df8ea54b76e0b1164430b46895bf27249f586f6",
+          ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-staff-mobile.running.png": "eb6ec0940c3d8759b526e8ed7aa976255dfc07d2a4ebd93b81a78cf45eb3c339"
+        },
+        "frozenMatched": 34,
+        "knownOwnNodeCmdAfterClose": 0,
+        "nativeCleanup": "before_closed_ack/disconnected emitted; no AggregateError; normal teardown completed"
+      },
+      "retryPerformed": false
+    },
+    "profileIdentityRepairSourceOnly": {
+      "status": "SOURCE_ONLY_UNPARSED_UNEXECUTED_WAIT_HANDOVER",
+      "productiveSource": {
+        "path": "apps/dashboard/src/api/endpoints/merchants.ts",
+        "beforeSha256": "2b25f01489630ed2fc23d7341d5f146dde1742405be8d07b406e82d786b513ab",
+        "afterSha256": "9a5b7ee2b4d8e279efe34539561d81c8b2157d0d87472518795495ecd6956447",
+        "onlyEightInsertedLines": true
+      },
+      "newSpec": {
+        "path": "apps/dashboard/src/api/endpoints/merchants.profile-identity.spec.ts",
+        "sha256": "18164abd9bf1301953991eaaa9c39e24a7ee939d8c887d41134ececfbb1ba08b",
+        "casesExpected": 12,
+        "executed": false
+      },
+      "oldTestsUnchanged": {
+        "apps/dashboard/src/api/endpoints/merchants.spec.ts": "fe47e82e324b4467b1ae254ec5c24535a91147d444e9f8c771462f18da83746b",
+        "apps/dashboard/src/lib/auth/permissions.spec.ts": "4efa13cff6c14a1dd703f53318c215ffc11f67bc139313e008e32084d2d32c44"
+      },
+      "approvedFe784FilesByteEqual": true,
+      "allHistorical34ByteEqual": true,
+      "sourceFrozenFiles": 41,
+      "sourceFreezeSha256": "31777d7453850c191ac186f2e0c2d00ab88a8fc52ef371a82743e37e1865284c",
+      "futureUnfilteredCohort": {
+        "files": 10,
+        "expectedCases": 117,
+        "basis": "historical103 +12new +2unchangedmerchants; runner authoritative"
+      },
+      "futureAffectedLintFiles": 11,
+      "guardsAndBudgetsUnchanged": true,
+      "runtimeStarted": false,
+      "task75Complete": false,
+      "commitCreated": false,
+      "manifestPath": ".cache/t75-execution/profile-identity-repair/manifest.json",
+      "manifestSha256": "17cc84a9a869068894d0164b6120d5c1f6636ae8de79a8211b03faa81584469e"
+    },
+    "profileIdentityVerifiedGates": {
+      "components": {
+        "cases": 117,
+        "files": 10,
+        "skipped": 0,
+        "failed": 0,
+        "exit": 0,
+        "durationSeconds": 39.75,
+        "completedAt": "2026-11-17T03:20:01.671Z",
+        "log": ".cache/t75-execution/components-2026-11-17T03-19-18.918Z/output.log"
+      },
+      "lint": {
+        "files": 11,
+        "errors": 0,
+        "warnings": 0,
+        "exit": 0,
+        "log": ".cache/t75-execution/lint-2026-11-17T03-20-05.912Z/result.json"
+      },
+      "discovery": {
+        "cases": 3,
+        "files": 1,
+        "exit": 0
+      },
+      "artifact": {
+        "sourceCount": 2543,
+        "input": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+        "artifact": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+        "exit": 0
+      },
+      "browser": {
+        "cases": 3,
+        "passed": 2,
+        "failed": 1,
+        "skipped": 0,
+        "exit": 1,
+        "completedAt": "2026-11-17T03:24:55.284Z",
+        "run": ".cache/t75-execution/browser-2026-11-17T03-21-36.081Z",
+        "cause": "Exact name locator matches both filter option and visible professional-list name; real OWNER profile and three administrative GETs passed",
+        "stats": {
+          "startTime": "2026-11-17T03:21:37.680Z",
+          "duration": 197445.81399999998,
+          "expected": 2,
+          "skipped": 0,
+          "unexpected": 1,
+          "flaky": 0
+        },
+        "causalPacketSha256": "112e79345556dd66fbfa713dbb2c22674b95e6c4ecbb8ab4cb0806be81e8a118",
+        "knownOwnNodeCmdAfterClose": 0,
+        "normalNativeCleanup": true,
+        "frozenSourceMatched": 41,
+        "newNativeCaptures": 4,
+        "positiveNativeCaptures": 0
+      },
+      "selectorProposal": {
+        "path": ".cache/t75-execution/visible-name-selector-review/proposed.patch",
+        "sha256": "34b25f405455c40d43763e466db10c5f36adef96c96fb6089f0f2ab77b541e9f",
+        "applied": true,
+        "unit117InputsUnchanged": true,
+        "expectedOutcomeUnchanged": true,
+        "actualSha256": "fa1d4f81016b0cf6669c97fc4436adee35b9207f358c3d06d7245e77bdc7e9d7",
+        "proofManifestSha256": "a0cdb8b071add5697bd70ed113ca0e2a83cd0371f0f47efe134af15b463a6942",
+        "frozenSourceSha256": "45cdbf4daf3d4cbad24ff5b8dfbb123079b823741a6933afa3cd288958d989cc",
+        "other40Unchanged": true,
+        "checks": {
+          "applyCheck": 0,
+          "apply": 0,
+          "reverseCheck": 0
+        },
+        "executedAfterAdjustment": false
+      }
+    }
+  },
+  "historicalInitialSourceHashes": {
+    "apps/dashboard/src/api/index.ts": "395266308d652417786e7cbf218f9d50c52b12faf88c78d5a145a5c878a1f12b",
+    "apps/dashboard/src/api/endpoints/service-attendance.ts": "add0aac5c2ae5ff8998b1452088aa46392dd5b44f4feeff431278ed0f7e2eaeb",
+    "apps/dashboard/src/api/endpoints/service-attendance.spec.ts": "b1008a0732b31d951c9b699b0f1e8b986c5ea6f520ae7131754e0f7c3ce121a4",
+    "apps/dashboard/src/api/http/client.ts": "0d6f608de35488f5b9bb7f17b0ef556a3c389c0090ee534b8017c815cdc6f17c",
+    "apps/dashboard/src/api/http/client.spec.ts": "e5c91739eb82058eff4c021a8d9cdd74fa5ec6eec6f5bc8dfc424fd9bb0eb4c0",
+    "apps/dashboard/src/api/http/session-fetch.spec.ts": "136aa1a8ec33a95b063c32e84fdfc4225e5ecf80b9ad1cdd443bf2a646738d62",
+    "apps/dashboard/src/api/endpoints/catalog.ts": "dfb9b378e050f517fc0ceedfd67333b6c373baaf4581a1ecaf912b13c142f988",
+    "apps/dashboard/src/api/endpoints/catalog.spec.ts": "a2e3130ac72f2ce976149bbca60351f25686127a45f4b6cace9f68827d9dc275",
+    "apps/dashboard/src/pages/product-detail/components/ProductForm.tsx": "24d3ff078552d0d083c76e2b6ab56204b977e54dfadfb4e1185c51c6fcfdcca4",
+    "apps/dashboard/src/pages/product-detail/components/ServiceScheduleEditor.tsx": "9ee4148604581899b5d8da018352e5af63511c0a35217253a08a4457cec057d8",
+    "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.tsx": "2a06818b5e23243bb0ac4a951a7f0d096e7809ba28b151a62258b09f17492e95",
+    "apps/dashboard/src/pages/product-detail/product-detail.css": "bdc42de43697a5a6f33a782e5d2976587aa50506f024c8c189d37734c964da25",
+    "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.spec.tsx": "43788aeda05c559aea8e298be6bb563acfb80f58950a8b99d9c5c7d2b5adad1b",
+    "apps/dashboard/src/pages/product-detail/components/ProductForm.toggles.spec.tsx": "130e1579ab738dbcb4c13b894ed917ad28a991bf4eedaec93dd0e7c9c43453c4",
+    "apps/dashboard/e2e/service-catalog-toggles.spec.ts": "6264168b377ff4c1d51c4740c48ac0fba87854bc1e925cfa0a372223b1ffaef8",
+    "apps/dashboard/playwright.service-local.config.ts": "a534345dda7cf513bc7c525cb0b00c5b9fc2973f222a6fd2cb573d48b7bac026",
+    "apps/dashboard/src/pages/product-detail/components/PromotionSection.tsx": "d9497d245a21e1cf0c340febd1aaf421802318c31d1479c523ebcd1bc2c98243",
+    "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.ts": "5adbeb56f47872faab0e310d8232d267600b4a2dc1263b86ec5da2243d5e80eb",
+    "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.spec.ts": "6410900282df2b6509374f9989ab74c95dec5d5997e43c27ec4eb1b39e277133",
+    "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx": "4f58e7437fb6c98630b149015c99da39368706a801af5bebb46ffdcf60cf7cdf",
+    "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.ts": "c559bc42a0e1d5b718ed80b3f9e637ee4bec7b69a6e7e707a3a318fa3b29e9bc",
+    "apps/dashboard/src/lib/auth/permissions.ts": "3be1cb64a3678b311361ef9aa5e7ec12378468de17b8cb51d35dbadd8e49c7f3",
+    "apps/dashboard/src/hooks/useApi.ts": "87814e3fde1d67e9c0401826e7f910beb8495b89a61f276e1febe550be8b9a34",
+    "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.tsx": "8d10e14271e915eef9532f55190e820503c2657fb8edc5c9cf3876ec60bc21ba",
+    "apps/dashboard/src/pages/service-attendance/ServiceAttendancePage.spec.tsx": "80c41637d5e3de393a7c9db5e295f364735a5deef9ba3d1eeebd29931bfe121e"
+  },
+  "historicalInitialNotPerformed": [
+    "Browser/native runtime/cleanup",
+    "Desktop/mobile screenshots",
+    "Visual review",
+    "Types/lint/official dashboard build",
+    "DashboardShell/route wiring",
+    "T75 completion mark or commit"
+  ],
+  "historicalInitialComposition": "Existing PageHeader/TabBar/FilterSelect/Button/EmptyState plus scoped hook; required real renderPanel composition, no fabricated appointment/calendar/payment data",
+  "currentTaskGate": {
+    "level": "Browser",
+    "status": "PASS",
+    "components": {
+      "cases": 117,
+      "files": 10,
+      "failed": 0,
+      "skipped": 0,
+      "exit": 0,
+      "durationSeconds": 39.75,
+      "completedAt": "2026-11-17T03:20:01.671Z",
+      "log": ".cache/t75-execution/components-2026-11-17T03-19-18.918Z/output.log",
+      "reuseBasis": "Only independent browser locator changed after this complete cohort; all productive component inputs unchanged"
+    },
+    "lint": {
+      "files": 11,
+      "errors": 0,
+      "warnings": 0,
+      "exit": 0,
+      "log": ".cache/t75-execution/lint-2026-11-17T04-25-13.501Z/result.json"
+    },
+    "discovery": {
+      "cases": 3,
+      "files": 1,
+      "exit": 0,
+      "log": ".cache/t75-execution/list-2026-11-17T04-25-47.867Z/output.log"
+    },
+    "ownArtifact": {
+      "checked": true,
+      "sourceCount": 2543,
+      "input": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+      "artifact": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+      "log": ".cache/t75-execution/artifact-2026-11-17T04-25-53.717Z/result.json"
+    },
+    "browser": {
+      "status": "GATE75PASS_PENDING_ROOT_VISUAL_REVIEW_NO_MARK_OR_COMMIT",
+      "result": {
+        "kind": "browser",
+        "exit": 0,
+        "completedAt": "2026-11-17T03:47:15.139Z"
+      },
+      "stats": {
+        "startTime": "2026-11-17T03:42:10.964Z",
+        "duration": 304051.917,
+        "expected": 3,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "sourceFrozenFiles": 41,
+      "sourceFrozenSha256": "45cdbf4daf3d4cbad24ff5b8dfbb123079b823741a6933afa3cd288958d989cc",
+      "changed": [],
+      "nativeCleanup": "normal before_closed_ack/disconnected, no AggregateError, natural0",
+      "captures": {
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-desktop.running.png": {
+          "sha256": "80ad21123f5c80ad66d0be86b1b200cfe842aa2e46e4b90df31fa349338c8a91",
+          "width": 1440,
+          "height": 1000
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-mobile.running.png": {
+          "sha256": "5fbff0569b1bd10ec763f300c3417316b5a655aee0157acd8456236dcffc2e5b",
+          "width": 390,
+          "height": 844
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-grade-desktop.running.png": {
+          "sha256": "4a91fdef5fb5b7f8fdfacc38cdf75bc01b2d36cc2d267c18804c56499023b888",
+          "width": 1440,
+          "height": 1000
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-grade-mobile.running.png": {
+          "sha256": "29330374a6673f62b79143f94a8a6ed6ee87e6c59ec3d41eafbed9790f7fa90e",
+          "width": 390,
+          "height": 844
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-products-desktop.running.png": {
+          "sha256": "61f7a19d5968d766f1ca57f75df8ea54b76e0b1164430b46895bf27249f586f6",
+          "width": 1440,
+          "height": 1000
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-products-mobile.running.png": {
+          "sha256": "eb6ec0940c3d8759b526e8ed7aa976255dfc07d2a4ebd93b81a78cf45eb3c339",
+          "width": 390,
+          "height": 844
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-staff-desktop.running.png": {
+          "sha256": "61f7a19d5968d766f1ca57f75df8ea54b76e0b1164430b46895bf27249f586f6",
+          "width": 1440,
+          "height": 1000
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-staff-mobile.running.png": {
+          "sha256": "eb6ec0940c3d8759b526e8ed7aa976255dfc07d2a4ebd93b81a78cf45eb3c339",
+          "width": 390,
+          "height": 844
+        }
+      },
+      "priorFailuresRetained": true,
+      "visualReview": "pending",
+      "newRunnerAfterReturn": false,
+      "knownOwnNodeCmdAfterClose": 0
+    },
+    "featureComplete": false,
+    "taskMarked": true,
+    "currentSourceFreezeSha256": "18dfb0950ed15845662fbdd57c73e67080cd99dd90bb62bde2524035f378321d",
+    "currentBrowserSourceChangesUnexecuted": false,
+    "latestRecaptureAttempt": {
+      "run": ".cache/t75-execution/browser-2026-11-17T04-11-08.376Z",
+      "passed": 2,
+      "failed": 1,
+      "skipped": 0,
+      "exit": 1,
+      "completedAt": "2026-11-17T04:12:10.258Z",
+      "normalCleanup": true,
+      "knownOwnNodeCmdAfterClose": 0,
+      "frozenMatched": 41,
+      "freshNativeCaptures": 7,
+      "mobileGradeCaptureFresh": false,
+      "actualFailure": "Whole named grade tabpanel intersection ratio0.9997545480728149 failed strict1; unchanged5s assertion",
+      "frameAdvancedMs": 4.5,
+      "old4667And8Preserved": true,
+      "cameraAlignmentProposal": {
+        "status": "UNAPPLIED_SOURCE_ONLY_CAMERA_ALIGNMENT_PROPOSAL",
+        "path": "apps/dashboard/e2e/service-attendance-shell.spec.ts",
+        "beforeSha256": "19f0dc0cec8813c1b60d3301a92dc8e8a5f49ad2aded6520dc07284430bdcdaa",
+        "candidateSha256": "15951c4abdf7dc697d7290fd69c976da7e1a4ad1beb33a0df1c5c1c370e52f33",
+        "patchSha256": "d44dcb4b6ebd3d5ad03db2e502acbd48193188ebcfbe7076d75407887bd13d09",
+        "reversalReturnsExactBefore": true,
+        "change": "After native scrollIntoViewIfNeeded, explicitly center the same target before unchanged ratio1/hit/overflow/banner oracles on each original viewport",
+        "targetStillEntireNamedGradeTabpanel": true,
+        "newWaitOrTimeout": false,
+        "noUiStyleOrViewportOrImageEdit": true,
+        "noForcedClickOrSmallerTargetOrRatioTolerance": true,
+        "evidence": "Actual mobile failure image includes rows/block; panel border aligns with bottom viewport edge and observer ratio is0.9997545480728149. Exact subpixel rectangle was not recorded, so no precise pixel-cause claim.",
+        "verification": "Next authorized real wholeBrowser3 must still pass ratio1 and produce8native captures, then Root actual visual review",
+        "applied": false,
+        "runtimeStarted": false,
+        "all41Preserved": true,
+        "unit117InputsUnchanged": true
+      }
+    },
+    "previousVisualReview": {
+      "reviewer": "Root",
+      "method": "Actual view_image inspection of all8native PNGs",
+      "scope": "Task75review only, not final feature screens verifier",
+      "passed": [
+        "professional list desktop/mobile",
+        "products and Staff denial desktop/mobile",
+        "grade desktop rows/block"
+      ],
+      "openFinding": "Mobile grade frame shows only header/button; grade rows/block are below viewport",
+      "gradeCaptureProposal": {
+        "status": "APPLIED EXACT REVIEWED ONE-LINE CAPTURE TARGET; native recapture pending",
+        "path": "apps/dashboard/e2e/service-attendance-shell.spec.ts",
+        "beforeSha256": "fa1d4f81016b0cf6669c97fc4436adee35b9207f358c3d06d7245e77bdc7e9d7",
+        "candidateSha256": "19f0dc0cec8813c1b60d3301a92dc8e8a5f49ad2aded6520dc07284430bdcdaa",
+        "patchSha256": "6fed3d5bdb5831acf696b0d82b689fdb1a4e58efd6e9d0143bc576536b5ad44b",
+        "change": "Only grade capture target: Consultar grade button to named Disponibilidade tabpanel",
+        "reversalReturnsExactBefore": true,
+        "otherAssertionsGesturesViewportTimeoutsApiSqlUnchanged": true,
+        "all41FrozenMatched": true,
+        "current117ComponentInputsUnchanged": true,
+        "old8NativeCapturesArchivedAndExact": true,
+        "oldRunPacketSha256": "4667004e8a9a1d2f370c03541714d7553aba3d97af2154c72d6c40a274a182ff",
+        "visualFinding": "Root inspected all8actualPNGs; mobile grade shows header/button only, body below viewport. Not a proven product UI bug.",
+        "applied": true,
+        "runtimeStarted": false,
+        "applyCheckExit": 0,
+        "appliedAtUtc": "2026-11-17T03:55:47.987517+00:00",
+        "actualSha256": "19f0dc0cec8813c1b60d3301a92dc8e8a5f49ad2aded6520dc07284430bdcdaa",
+        "applyExit": 0,
+        "reverseCheckExit": 0,
+        "other40FrozenSourcesUnchanged": true,
+        "freezeSha256": "6e28c4a4037a300122ad76f2d92d77be079b8387c80ca864f3d4de8446835c59"
+      },
+      "old8Archive": ".cache/t75-execution/browser-2026-11-17T03-42-07.853Z/native-captures",
+      "oldRunPacketSha256": "4667004e8a9a1d2f370c03541714d7553aba3d97af2154c72d6c40a274a182ff"
+    },
+    "visualReview": {
+      "status": "PASS",
+      "reviewer": "Root",
+      "method": "Actual view_image inspection of all8current native PNGs",
+      "findingClosed": "Whole mobile grade shows hours and block completely",
+      "run": ".cache/t75-execution/browser-2026-11-17T04-26-32.918Z",
+      "technicalTaskAcceptanceOnly": true,
+      "userScreenshotApprovalClaimed": false,
+      "finalIndependentFeatureVerificationClaimed": false
+    },
+    "latestRecapturePass": {
+      "status": "BROWSER3PASS_PENDING_ROOT_MOBILE_FRAME_REVIEW_NO_MARK_OR_COMMIT",
+      "result": {
+        "kind": "browser",
+        "exit": 0,
+        "completedAt": "2026-11-17T04:28:19.090Z"
+      },
+      "stats": {
+        "startTime": "2026-11-17T04:26:34.071Z",
+        "duration": 104951.807,
+        "expected": 3,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "sourceFrozenFiles": 41,
+      "sourceFrozenSha256": "18dfb0950ed15845662fbdd57c73e67080cd99dd90bb62bde2524035f378321d",
+      "knownOwnNodeCmdAfterClose": 0,
+      "normalNativeCleanup": true,
+      "gradeTarget": "Entire named Disponibilidade tabpanel, native centering; unchanged ratio1/hit/overflow/banner",
+      "captures": {
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-desktop.running.png": {
+          "sha256": "255cc6d926720755d5dabd2efc7f7443f9e7cd93ab90a5dc7ea9616246aac31e",
+          "width": 1440,
+          "height": 1000,
+          "freshThisRun": true
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-mobile.running.png": {
+          "sha256": "f0e3974903b7a48bf70b8821d927c726b8f926dc26d7cb9a4a6e7211d9f59bf9",
+          "width": 390,
+          "height": 844,
+          "freshThisRun": true
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-grade-desktop.running.png": {
+          "sha256": "21cf86157c9bb6cac975789ef4ba88e959e72de1aa4cc080cb5fee5752d6e5b2",
+          "width": 1440,
+          "height": 1000,
+          "freshThisRun": true
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-grade-mobile.running.png": {
+          "sha256": "b90c4b673d1e8daabbd719a8da241b8de2e49201b10ef981f1021d89f8bd082d",
+          "width": 390,
+          "height": 844,
+          "freshThisRun": true
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-products-desktop.running.png": {
+          "sha256": "61f7a19d5968d766f1ca57f75df8ea54b76e0b1164430b46895bf27249f586f6",
+          "width": 1440,
+          "height": 1000,
+          "freshThisRun": true
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-products-mobile.running.png": {
+          "sha256": "eb6ec0940c3d8759b526e8ed7aa976255dfc07d2a4ebd93b81a78cf45eb3c339",
+          "width": 390,
+          "height": 844,
+          "freshThisRun": true
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-staff-desktop.running.png": {
+          "sha256": "61f7a19d5968d766f1ca57f75df8ea54b76e0b1164430b46895bf27249f586f6",
+          "width": 1440,
+          "height": 1000,
+          "freshThisRun": true
+        },
+        ".specs/features/whatsapp-service-booking-business-rag/artifacts/atendimento-denied-staff-mobile.running.png": {
+          "sha256": "eb6ec0940c3d8759b526e8ed7aa976255dfc07d2a4ebd93b81a78cf45eb3c339",
+          "width": 390,
+          "height": 844,
+          "freshThisRun": true
+        }
+      },
+      "old4667And8ArchivedImagesPreserved": true,
+      "visualReview": "pending Root actual view_image",
+      "taskMarked": false,
+      "commitCreated": false
+    },
+    "completionStage": "Marked before authorized focused atomic commit; resulting hash is recorded by Git and ignored receipt",
+    "commitReference": "Containing focused local T75commit; obtain hash from Git and ignored postcommit receipt"
+  }
+}

@@ -3,6 +3,7 @@ import {installCompanyFixture} from './service-company-fixture.mjs';
 import {installCompanyServicesFixture} from './service-company-services-fixture.mjs';
 import {installCatalogBusinessModeFixture} from './service-catalog-fixture.mjs';
 import {installCatalogEntitlementFixture,prepareCatalogEntitlementFixtures} from './service-catalog-entitlement-fixture.mjs';
+import {installAttendanceFixture,prepareAttendanceFixtures} from './service-attendance-fixture.mjs';
 import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServiceTestRuntime} from '../../api/tests/service-test-runtime.mjs';
@@ -43,6 +44,7 @@ export default async function setup(options={}){
     console.log('Local service runtime startup:',JSON.stringify(runtime.evidence().startupTimings));
     assertLocalServiceOrigin(runtime.apiOrigin);
     const entitlementFixtures=options.catalogEntitlements===true?await prepareCatalogEntitlementFixtures(runtime):undefined;
+    const attendanceFixtures=options.attendance===true?await prepareAttendanceFixtures(runtime):undefined;
     process.env.VITE_API_BASE_URL=origin;
     process.env.SERVICE_LOCAL_ORIGIN=origin;
     process.env.SERVICE_LOCAL_RUN_ID=runtime.db.runId;
@@ -51,6 +53,7 @@ export default async function setup(options={}){
       installCompanyServicesFixture(vite,runtime);
       installCatalogBusinessModeFixture(vite,runtime);
       if(entitlementFixtures)installCatalogEntitlementFixture(vite,runtime,entitlementFixtures);
+      if(attendanceFixtures)installAttendanceFixture(vite,runtime,attendanceFixtures);
       vite.middlewares.use((request,response,next)=>{
         if(request.url==='/__service/signup-oauth'&&request.method==='POST'){
           // Owned synthetic pending-OAuth state. No OAuth provider is contacted.
