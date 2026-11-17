@@ -86,7 +86,7 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
 
   private freshNativeState(target: { cartRef: string; checkoutSessionId?: string; checkoutConversationId?: string }): Prisma.InputJsonObject {
     return { version: 1, conversationId: target.cartRef, stage: target.checkoutSessionId ? "checkout" : "store",
-      ...(target.checkoutSessionId ? { checkoutSessionId: target.checkoutSessionId, checkoutConversationId: target.checkoutConversationId! } : {}),
+      ...(target.checkoutSessionId ? { checkoutSessionId: target.checkoutSessionId, checkoutConversationId: target.checkoutConversationId!, recoveredCheckout: true } : {}),
       history: [], revision: "", page: 0, previousViews: [] };
   }
 

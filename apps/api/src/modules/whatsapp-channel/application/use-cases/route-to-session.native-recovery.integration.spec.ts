@@ -30,7 +30,7 @@ async function fixture(t:TestContext,bound=true){
 for(const bound of [false,true])test("expired native conversation retains its valid canonical cart with fresh state, bound="+bound,async t=>{
  const f=await fixture(t,bound),beforeCount=await db.checkoutSession.count({where:{merchantId:f.merchantId}}),result=await f.run();
  assert.equal(result.isNew,true);assert.equal(result.checkoutSessionId,f.checkoutId);assert.equal(result.whatsappSession.checkoutSessionId,f.checkoutId);
- assert.deepEqual(result.whatsappSession.conversationState,{version:1,conversationId:f.cartRef,stage:bound?"checkout":"store",...(bound?{checkoutSessionId:f.checkoutId,checkoutConversationId:f.checkoutConversationId}:{}),history:[],revision:"",page:0,previousViews:[]});
+ assert.deepEqual(result.whatsappSession.conversationState,{version:1,conversationId:f.cartRef,stage:bound?"checkout":"store",...(bound?{checkoutSessionId:f.checkoutId,checkoutConversationId:f.checkoutConversationId,recoveredCheckout:true}:{}),history:[],revision:"",page:0,previousViews:[]});
  assert.deepEqual(await db.storefrontCart.findUniqueOrThrow({where:{id:f.cart.id}}),f.cart);
  const restored=await new PrismaStorefrontCartRepository(db).getOrCreate(f.merchantId,result.whatsappSession.conversationState!.conversationId);
  assert.deepEqual(restored.items,items);assert.equal(restored.total,13980);

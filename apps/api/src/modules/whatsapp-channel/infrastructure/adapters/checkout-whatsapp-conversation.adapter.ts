@@ -115,6 +115,18 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     messageId?: string;
   }): Promise<WhatsAppStructuredResponse> {
     if (!this.store || !this.storeConfig) throw new Error("whatsapp_storefront_adapter_unavailable");
+    // Renewal retains commercial references, but no authority from the old turn.
+    // Every recovered turn must prove the current leased Meta sender again.
+    if (input.state.recoveredCheckout) {
+      const checkout = input.state.checkoutSessionId ? await this.sessions.getSession(input.merchantId, input.state.checkoutSessionId) : undefined;
+      const proof = await this.checkoutIdentity?.recognize({ merchantId: input.merchantId,
+        conversationId: input.state.conversationId, phone: input.buyer.phone, verifiedSender: input.verifiedSender });
+      const owner = proof?.owner;
+      if (!owner || !checkout || checkout.merchantId !== owner.merchantId || checkout.sessionId !== input.state.checkoutSessionId
+        || checkout.conversationId !== input.state.checkoutConversationId || checkout.cart.cart_ref !== owner.conversationId
+        || checkout.customer?.phone_verified !== true || checkout.customer.phone?.replace(/\D/g, "") !== owner.phone)
+        throw new ForbiddenException("whatsapp_recovered_checkout_owner_required");
+    }
     const config = await this.storeConfig.executeForMerchant(input.merchantId);
     let resolvedBuyerId = input.buyer.globalUserId;
     const turn = await this.respondStoreTurn(input, config, buyerId => { resolvedBuyerId = buyerId; });
@@ -481,6 +493,13 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     }
     if (response.blocks.some(b => ["checkout_prepared", "checkout_redirect"].includes(b.type))) {
       try {
+        if (state.recoveredCheckout && identitySession) {
+          state = await this.syncPayment(input.merchantId, { ...state, stage: "checkout" });
+          return this.checkoutUi({ session_id: identitySession.sessionId, conversation_id: identitySession.conversationId,
+            message: "Confira seu pedido e o pagamento existentes.", resumePayment: true,
+            experience: buildExperienceFromSession(identitySession, { merchantName: config.name, serviceFee: this.experienceConfig?.platformFeeBrl }) },
+            state, config.name, input.message, input.merchantId);
+        }
         if (!this.startCheckout) throw new Error("whatsapp_checkout_start_unavailable");
         if (!this.cartAuthority) throw new Error("whatsapp_cart_authority_unavailable");
         const cart = await this.cartAuthority.resolveStorefront(input.merchantId, state.conversationId);
@@ -604,7 +623,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     // experience may retain suggestions, but checkout only exposes its next step.
     if (exp?.payment_intent && ["created", "pending", "requires_action"].includes(exp.payment_intent.status)) blocks.push({ type: "payment_intent", data: exp.payment_intent });
     let summaryFingerprint = state.checkoutSummaryFingerprint;
-    if (exp?.items?.length && (!state.checkoutSessionId || ["payment", "payment_pending", "completed"].includes(exp.stage))) {
+    if (exp?.items?.length && (!state.checkoutSessionId || state.recoveredCheckout && response.resumePayment || ["payment", "payment_pending", "completed"].includes(exp.stage))) {
       const fingerprint = createHash("sha256").update(JSON.stringify([exp.items, exp.totals, exp.shipping])).digest("hex");
       if (fingerprint !== summaryFingerprint) blocks.push({ type: "checkout_summary", data: { items: exp.items, totals: exp.totals, shippingPending: ["data_collection", "shipping"].includes(exp.stage) && !exp.shipping } });
       summaryFingerprint = fingerprint;
