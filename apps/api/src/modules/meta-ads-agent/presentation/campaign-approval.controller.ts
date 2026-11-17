@@ -1,5 +1,5 @@
-import {Body,Controller,Get,Inject,Param,Put,Query,Req,UseFilters,UseGuards} from '@nestjs/common';
-import type {MetaAdsCampaignNoticeContactInput} from '@zyon/shared-types';
+import {Body,Controller,Get,HttpCode,Inject,Param,Post,Put,Query,Req,UseFilters,UseGuards} from '@nestjs/common';
+import type {MetaAdsCampaignNoticeContactInput,MetaAdsCampaignPreparationInput} from '@zyon/shared-types';
 import {AuthGuard} from '../../auth/presentation/auth.guard.js';
 import {InitialLaunchService} from '../application/initial-launch.service.js';
 import {CampaignPreparationService} from '../application/campaign-preparation.service.js';
@@ -38,5 +38,9 @@ export class CampaignApprovalController{
   preparation(@Req() request:MetaAdsMerchantRequest,@Param('id') id:string,@Query() query:Record<string,unknown>){
     const p=this.principal(request);if(Object.keys(query).length)throw new MetaAdsError('request_fields_invalid');
     return this.preparations.read(p.tenantId,p.userId,id);
+  }
+  @Post('campaigns/:id/preparation') @HttpCode(202)
+  prepare(@Req() request:MetaAdsMerchantRequest,@Param('id') id:string,@Body() body:MetaAdsCampaignPreparationInput){
+    const p=this.principal(request,true);return this.preparations.request(p.tenantId,p.userId,id,body);
   }
 }
