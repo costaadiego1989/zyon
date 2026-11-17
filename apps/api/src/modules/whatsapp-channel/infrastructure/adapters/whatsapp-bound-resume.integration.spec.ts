@@ -91,7 +91,9 @@ test("AC3/AC5 renewed checkout continuation preserves exact purchase/payment and
   const view = buildMetaUiView(response);
   assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "edit_checkout"), JSON.stringify({blocks:response.blocks, choices:view.choices}));
   await f.unchanged();
+  await db.whatsAppWebhookInbox.update({ where: { id: f.inbox.id }, data: { status: "processed" } });
   assert.equal(await (f.scanner as any).isStillEligible(f.session), false);
+  await db.whatsAppWebhookInbox.update({ where: { id: f.inbox.id }, data: { status: "processing" } });
   // Explicit resume within checkout also uses persistence without a new start.
   const again = await f.adapter.respondStore({ ...f.input, state: response.state, action: { kind: "tool", tool: "show_checkout", args: {} } });
   assert.equal(again.state.payment?.intentId, f.intent.id); await f.unchanged();
@@ -112,5 +114,21 @@ for (const variant of ["missing_proof", "lease", "expired_lease", "processed", "
     if (variant === "cart") input.state.conversationId = randomUUID();
     if (variant === "checkout_conversation") input.state.checkoutConversationId = randomUUID();
     await assert.rejects(f.adapter.respondStore(input), /whatsapp_recovered_checkout_owner_required/);
+    await f.unchanged();
+  });
+
+for (const variant of ["reassigned", "expired", "deleted", "empty"])
+  test("AC4 canonical cart " + variant + " after renewal cannot expose the recovered purchase", async t => {
+    const f = await fixture(t), where = { merchantId_sessionId: { merchantId: f.merchantId, sessionId: f.input.state.conversationId } };
+    if (variant === "reassigned") {
+      const foreign = "qa_bound_resume_" + randomUUID();
+      await db.merchant.create({ data: { id: foreign, name: "Foreign QA" } });
+      t.after(() => db.merchant.delete({ where: { id: foreign } }));
+      await db.storefrontCart.update({ where, data: { merchantId: foreign } });
+    }
+    if (variant === "expired") await db.storefrontCart.update({ where, data: { expiresAt: new Date() } });
+    if (variant === "deleted") await db.storefrontCart.delete({ where });
+    if (variant === "empty") await db.storefrontCart.update({ where, data: { items: [] } });
+    await assert.rejects(f.adapter.respondStore(f.input), /whatsapp_recovered_checkout_owner_required/);
     await f.unchanged();
   });

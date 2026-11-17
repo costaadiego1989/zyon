@@ -118,11 +118,14 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     // Renewal retains commercial references, but no authority from the old turn.
     // Every recovered turn must prove the current leased Meta sender again.
     if (input.state.recoveredCheckout) {
+      const cart = await this.prisma?.storefrontCart.findUnique({ where: { merchantId_sessionId: {
+        merchantId: input.merchantId, sessionId: input.state.conversationId } }, select: { expiresAt: true, items: true } });
       const checkout = input.state.checkoutSessionId ? await this.sessions.getSession(input.merchantId, input.state.checkoutSessionId) : undefined;
       const proof = await this.checkoutIdentity?.recognize({ merchantId: input.merchantId,
         conversationId: input.state.conversationId, phone: input.buyer.phone, verifiedSender: input.verifiedSender });
       const owner = proof?.owner;
-      if (!owner || !checkout || checkout.merchantId !== owner.merchantId || checkout.sessionId !== input.state.checkoutSessionId
+      if (!cart || cart.expiresAt.getTime() <= Date.now() || !Array.isArray(cart.items) || cart.items.length === 0
+        || !owner || !checkout || checkout.merchantId !== owner.merchantId || checkout.sessionId !== input.state.checkoutSessionId
         || checkout.conversationId !== input.state.checkoutConversationId || checkout.cart.cart_ref !== owner.conversationId
         || checkout.customer?.phone_verified !== true || checkout.customer.phone?.replace(/\D/g, "") !== owner.phone)
         throw new ForbiddenException("whatsapp_recovered_checkout_owner_required");
