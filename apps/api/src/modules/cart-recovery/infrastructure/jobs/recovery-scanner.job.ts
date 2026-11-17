@@ -159,9 +159,11 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     if (!this.prisma.whatsAppSession?.findUnique || !this.prisma.$transaction) return;
     const now = Date.now(), earliest = new Date(now - 72 * 60 * 60 * 1000), latest = new Date(now - 10_000);
     const candidates = await this.prisma.$queryRaw<Array<{ id: string; merchantId: string; sessionId: string }>>(Prisma.sql`
-      SELECT w.id, w.merchant_id AS "merchantId", w.checkout_session_id AS "sessionId"
+      SELECT w.id, w.merchant_id AS "merchantId", c.session_id AS "sessionId"
       FROM whatsapp_sessions w JOIN checkout_sessions c
-        ON c.merchant_id = w.merchant_id AND c.session_id = w.checkout_session_id
+        ON c.merchant_id = w.merchant_id AND c.session_id = COALESCE(w.checkout_session_id,
+          CASE WHEN jsonb_typeof(w.conversation_state->'conversationId') = 'string'
+            THEN w.conversation_state->>'conversationId' END)
       LEFT JOIN checkout_settings settings ON settings.merchant_id = w.merchant_id
       CROSS JOIN LATERAL (SELECT CASE
         WHEN jsonb_typeof(settings.intervention_policy->'idleSeconds') = 'number'
@@ -174,6 +176,10 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
             THEN idle.seconds ELSE 180 END) * INTERVAL '1 second'
         AND CASE WHEN jsonb_typeof(c.cart->'items') = 'array'
           THEN jsonb_array_length(c.cart->'items') > 0 ELSE false END
+        AND (w.checkout_session_id IS NOT NULL OR EXISTS (
+          SELECT 1 FROM storefront_carts s WHERE s.merchant_id = w.merchant_id AND s.session_id = c.session_id
+            AND s.expires_at > ${new Date(now)} AND CASE WHEN jsonb_typeof(s.items) = 'array'
+              THEN jsonb_array_length(s.items) > 0 ELSE false END))
         AND NOT EXISTS (SELECT 1 FROM completed_orders o WHERE o.merchant_id = c.merchant_id AND o.session_id = c.session_id)
         AND NOT EXISTS (SELECT 1 FROM payment_intents p WHERE p.merchant_id = c.merchant_id
           AND p.session_id = c.session_id AND p.status = 'approved')
@@ -194,7 +200,8 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
             AND merchant_id = ${candidate.merchantId} FOR UPDATE`;
           const whatsapp = await tx.whatsAppSession.findUnique({ where: { id: candidate.id } });
           if (!whatsapp || whatsapp.merchantId !== candidate.merchantId || whatsapp.status !== "active"
-            || whatsapp.checkoutSessionId !== candidate.sessionId) return;
+            || this.whatsAppRecoverySessionId(whatsapp) !== candidate.sessionId) return;
+          if (!whatsapp.checkoutSessionId && !await this.hasShoppingCart(tx, whatsapp.merchantId, candidate.sessionId)) return;
           const session = await tx.checkoutSession.findUnique({ where: {
             merchantId_sessionId: { merchantId: candidate.merchantId, sessionId: candidate.sessionId },
           } });
@@ -226,6 +233,18 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
   private idleSeconds(policy: unknown): number {
     const value = (policy as { idleSeconds?: unknown } | null)?.idleSeconds;
     return typeof value === "number" && Number.isInteger(value) && value >= 10 && value <= 3600 ? value : 180;
+  }
+
+  private whatsAppRecoverySessionId(whatsapp: { checkoutSessionId?: string | null; deviceId: string; conversationState?: unknown }): string | undefined {
+    if (whatsapp.checkoutSessionId) return whatsapp.checkoutSessionId;
+    const conversationId = (whatsapp.conversationState as { conversationId?: unknown } | null)?.conversationId;
+    return whatsapp.deviceId.startsWith("META_CLOUD:") && typeof conversationId === "string" && conversationId.trim()
+      ? conversationId : undefined;
+  }
+
+  private async hasShoppingCart(db: Pick<Prisma.TransactionClient, "storefrontCart">, merchantId: string, sessionId: string): Promise<boolean> {
+    const cart = await db.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } }, select: { items: true, expiresAt: true } });
+    return !!cart && cart.expiresAt.getTime() > Date.now() && Array.isArray(cart.items) && cart.items.length > 0;
   }
 
   private async hasPendingWhatsAppInput(db: Pick<Prisma.TransactionClient, "whatsAppWebhookInbox">,
@@ -423,10 +442,28 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       return false;
     }
     try {
-      const whatsapp = await this.prisma.whatsAppSession?.findFirst?.({
+      // Shopping telemetry and the checkout can both remain qualified. Once
+      // checkout binds a cart, only its newest durable owner may recover it.
+      const storedCartRef = (current.cart as { cart_ref?: unknown }).cart_ref;
+      const cartRef = typeof storedCartRef === "string" && storedCartRef.trim() ? storedCartRef
+        : current.sessionId === current.conversationId ? current.sessionId : undefined;
+      if (cartRef) {
+        const owner = await this.prisma.checkoutSession.findFirst({
+          where: { merchantId: current.merchantId, cart: { path: ["cart_ref"], equals: cartRef } },
+          orderBy: [{ createdAt: "desc" }, { sessionId: "desc" }], select: { sessionId: true },
+        });
+        if (owner && owner.sessionId !== current.sessionId) return false;
+      }
+      let whatsapp = await this.prisma.whatsAppSession?.findFirst?.({
         where: { merchantId: current.merchantId, checkoutSessionId: current.sessionId }, orderBy: { lastActivityAt: "desc" },
       });
+      whatsapp ??= await this.prisma.whatsAppSession?.findFirst?.({
+        where: { merchantId: current.merchantId, deviceId: { startsWith: "META_CLOUD:" },
+          conversationState: { path: ["conversationId"], equals: current.sessionId } }, orderBy: { lastActivityAt: "desc" },
+      });
       if (whatsapp) {
+        if (this.whatsAppRecoverySessionId(whatsapp) !== current.sessionId) return false;
+        if (!whatsapp.checkoutSessionId && !await this.hasShoppingCart(this.prisma, current.merchantId, current.sessionId)) return false;
         const setting = await this.prisma.checkoutSetting.findUnique({ where: { merchantId: current.merchantId }, select: { interventionPolicy: true } });
         if (whatsapp.status !== "active" || Date.now() - whatsapp.lastActivityAt.getTime()
           < Math.max(QUIET_PERIOD_MS, this.idleSeconds(setting?.interventionPolicy) * 1000)) return false;

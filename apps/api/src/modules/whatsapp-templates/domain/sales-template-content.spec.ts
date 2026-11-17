@@ -20,11 +20,15 @@ function persistenceHarness() {
         assert.equal(skipDuplicates, true);
         return { count: 0 };
       }
-      rows.set(key, { id: key, metaRevision: 1, metaStatus: "draft", ...structuredClone(data) });
+      rows.set(key, { id: key, isActive: true, metaNextCheckAt: new Date(0), metaRevision: 1, metaStatus: "draft", ...structuredClone(data) });
       return { count: 1 };
     },
     async findMany({ where }: any) {
-      return [...rows.values()].filter(row => row.merchantId === where.merchantId && (!where.type || row.type === where.type));
+      return [...rows.values()].filter(row => (!where.merchantId || row.merchantId === where.merchantId)
+        && (!where.type || (typeof where.type === "string" ? row.type === where.type : where.type.in.includes(row.type)))
+        && (!where.channel || row.channel === where.channel)
+        && (where.isActive === undefined || row.isActive === where.isActive)
+        && (!where.metaNextCheckAt || (row.metaNextCheckAt !== null && row.metaNextCheckAt <= where.metaNextCheckAt.lte)));
     },
   };
   const prisma = {
@@ -95,4 +99,18 @@ test("real template-list controller initializes every declared default including
   assert.equal(operational.metaStatus, "draft");
   assert.deepEqual(operational.metaVariableMap, getTemplateDefinition(operationalType).variableMap);
   assert.ok(result.templates.every(row => row.merchantId === "operational-store"));
+});
+
+test("default initialization leaves account-link authentication unqueued and preserves explicit provisioning", async () => {
+  const h=persistenceHarness();await h.repository.ensure("owned-store","buyer_whatsapp_link_otp");
+  const row=h.rows.get("owned-store:buyer_whatsapp_link_otp:whatsapp");
+  assert.equal(row.metaNextCheckAt,null);assert.equal(row.metaStatus,"draft");assert.equal(row.metaCategory,"AUTHENTICATION");
+  const explicit=new Date("2026-11-17T00:00:00Z");row.metaNextCheckAt=explicit;
+  await h.repository.ensure("owned-store","buyer_whatsapp_link_otp");
+  assert.equal(row.metaNextCheckAt,explicit);
+  assert.equal(h.rows.size,2);
+  row.metaNextCheckAt=null;
+  await h.repository.ensure("owned-store","checkout_otp");
+  const due=await h.repository.due(new Date());
+  assert.deepEqual(due.map(item=>item.type),["checkout_otp"]);
 });

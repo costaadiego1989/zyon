@@ -24,6 +24,8 @@ export class SubmitTemplatePackageUseCase {
     };
 
     for (const type of WHATSAPP_TEMPLATE_TYPES) {
+      // Account-link authentication is provisioned explicitly for its issuer.
+      if (type === "buyer_whatsapp_link_otp") continue;
       try {
         // `submit` claims the row before POSTing to Meta. Retrying this package
         // after a timeout/reconnect cannot create a duplicate template.

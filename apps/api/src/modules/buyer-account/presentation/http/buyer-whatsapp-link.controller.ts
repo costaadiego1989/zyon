@@ -12,12 +12,12 @@ export class BuyerWhatsAppLinkController {
   status(@Req() req: { user?: unknown }) { return this.identities.status(currentBuyer(req).globalUserId); }
 
   @Post("code")
-  send(@Req() req: { user?: unknown }, @Body() body: { phone?: unknown }) {
-    return this.links.send(currentBuyer(req).globalUserId, body.phone);
+  send(@Req() req: { user?: unknown }, @Body() body: { phone?: unknown; merchantId?: unknown }) {
+    return this.links.send(currentBuyer(req).globalUserId, body.phone, body.merchantId);
   }
 
   @Post("verify")
-  verify(@Req() req: { user?: unknown }, @Body() body: { phone?: unknown; code?: unknown }) {
-    return this.links.verify(currentBuyer(req).globalUserId, body.phone, body.code);
+  verify(@Req() req: { user?: unknown }, @Body() body: { phone?: unknown; code?: unknown; merchantId?: unknown }) {
+    return this.links.verify(currentBuyer(req).globalUserId, body.phone, body.code, body.merchantId);
   }
 }

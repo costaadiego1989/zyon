@@ -10,7 +10,7 @@ import { MAX_ADDRESSES_PER_BUYER } from "../../../buyer-account/domain/ports/buy
 import { CashbackService } from "../../../cashback/application/cashback.service.js";
 
 type HubInput = Parameters<NonNullable<WhatsAppConversationPort["respondStore"]>>[0];
-type HubResult = { kind: "reply"; response: WhatsAppStructuredResponse } | { kind: "route"; message: string; action?: StoreUiAction;
+type HubResult = { kind: "reply"; response: WhatsAppStructuredResponse; buyer?: HubInput["buyer"] } | { kind: "route"; message: string; action?: StoreUiAction;
   buyer?: HubInput["buyer"]; state?: WhatsAppConversationState };
 const safe = (text: string) => text.replace(/[*_~`\u0000-\u001f\u007f]/g, " ").trim().slice(0, 180);
 const addressLine = (row: HubAddress) => `📍 *${safe(row.label || "Endereço")}${row.isDefault ? " · padrão" : ""}*\n${safe(row.street)}, ${safe(row.number)}${row.complement ? ` · ${safe(row.complement)}` : ""}\n${safe(row.neighborhood)} · ${safe(row.city)}/${safe(row.state)} · CEP ${row.zip.slice(0, 5)}-${row.zip.slice(5)}`;
@@ -38,7 +38,8 @@ export class WhatsAppBuyerHubService {
     if (!command && !emailAnswer && !action && !collecting && !/^\/[a-zá-ú]+(?:\s|$)/i.test(input.message.trim())) return;
     const state: WhatsAppConversationState = { ...input.state, buyerHub: input.state.buyerHub
       ? { ...input.state.buyerHub, draft: input.state.buyerHub.draft ? { ...input.state.buyerHub.draft } : undefined } : undefined };
-    const reply = (message: string, quickReplies: string[] = ["/atalhos"], blocks: WhatsAppStructuredResponse["blocks"] = [{ type: "buyer_hub_actions", data: { choices: [] } }]): HubResult => ({ kind: "reply",
+    let resolvedBuyer: HubInput["buyer"] | undefined;
+    const reply = (message: string, quickReplies: string[] = ["/atalhos"], blocks: WhatsAppStructuredResponse["blocks"] = [{ type: "buyer_hub_actions", data: { choices: [] } }]): HubResult => ({ kind: "reply", ...(resolvedBuyer ? { buyer: resolvedBuyer } : {}),
       response: { agentMessage: message, quickReplies, blocks, merchantName,
         state: { ...state, history: [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: message }].slice(-40) } } });
     if (command === "/cancelar") {
@@ -89,6 +90,7 @@ export class WhatsAppBuyerHubService {
       || recognized.status === "recognized" && (recognized.buyer.merchantId !== input.merchantId || recognized.buyer.conversationId !== state.conversationId))
       return reply("🤖 👤 *Cadastro não localizado*\n\nVocê pode continuar comprando. Vou solicitar apenas os dados necessários durante a finalização.");
     state.buyerHubIdentity = undefined;
+    resolvedBuyer = { globalUserId: account.globalUserId, phone: owner.phone, fullName: account.displayName, email: account.email };
     if (identityPending) state.expectsFreeInput = false;
     if (effective === "/cashback") {
       state.buyerHub = undefined;

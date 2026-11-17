@@ -25,6 +25,7 @@ export class PrismaRecoveryTemplateLifecycleRepository implements RecoveryLifecy
             ...(type.startsWith("cashback_") ? { isActive: false } : {}),
             body: defaults[channel].body,
             subject: channel === "email" ? defaults.email.subject : null,
+            ...(channel === "whatsapp" && type === "buyer_whatsapp_link_otp" ? { metaNextCheckAt: null } : {}),
             ...(channel === "whatsapp" ? { metaCategory: prepared.category, metaLanguage: "pt_BR", metaTemplateBody: prepared.metaBody, metaVariableMap: prepared.variableMap } : {}),
           },
         });

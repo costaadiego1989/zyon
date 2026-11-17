@@ -43,6 +43,7 @@ import { WhatsAppBuyerHubService } from "../../application/services/whatsapp-buy
 import { CashbackService } from "../../../cashback/application/cashback.service.js";
 import { parseCashbackCommand, respondToCashbackCommand } from "../../application/services/cashback-whatsapp.commands.js";
 import { parseWhatsAppBenefitCommand, WhatsAppCheckoutBenefitsService } from "../../application/services/whatsapp-checkout-benefits.service.js";
+import { STOREFRONT_TELEMETRY_PORT, type StorefrontTelemetryPort } from "../../../storefront/domain/ports/storefront-telemetry.port.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -70,6 +71,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     @Optional() private readonly buyerHub?: WhatsAppBuyerHubService,
     @Optional() private readonly cashback?: CashbackService,
     @Optional() private readonly benefits?: WhatsAppCheckoutBenefitsService,
+    @Optional() @Inject(STOREFRONT_TELEMETRY_PORT) private readonly telemetry?: StorefrontTelemetryPort,
   ) {}
 
   async respond(input: { merchantId: string; checkoutSessionId: string; message: string; requestId?: string }) {
@@ -114,7 +116,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
   }): Promise<WhatsAppStructuredResponse> {
     if (!this.store || !this.storeConfig) throw new Error("whatsapp_storefront_adapter_unavailable");
     const config = await this.storeConfig.executeForMerchant(input.merchantId);
-    const turn = await this.respondStoreTurn(input, config);
+    let resolvedBuyerId = input.buyer.globalUserId;
+    const turn = await this.respondStoreTurn(input, config, buyerId => { resolvedBuyerId = buyerId; });
     const response = this.postCartOffers ? await this.postCartOffers.decorate(input.merchantId, turn, { buyerName: input.buyer.fullName }) : turn;
     const cartBlock = response.blocks.find(block => block.type === "cart_summary");
     const stored = await this.prisma?.storefrontCart?.findUnique({
@@ -124,6 +127,16 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const cartHasItems = this.prisma?.storefrontCart
       ? !!stored && stored.expiresAt.getTime() > Date.now() && Array.isArray(stored.items) && stored.items.length > 0
       : cartBlock ? Array.isArray((cartBlock.data as any).items) && (cartBlock.data as any).items.length > 0 : response.state.cartHasItems;
+    const sender = input.verifiedSender, phone = input.buyer.phone.replace(/\D/g, "");
+    // Native shopping has a canonical cart before it has a checkout binding.
+    // Reuse its recovery projection without starting checkout or granting any
+    // account/contact authority. Empty carts also refresh a stale projection.
+    if (this.telemetry && !response.state.checkoutSessionId && stored && stored.expiresAt.getTime() > Date.now()
+      && sender?.deviceId.startsWith("META_CLOUD:") && sender.inboxId && sender.leaseToken
+      && phone.length >= 10 && phone.length <= 15 && sender.fromNumber.replace(/\D/g, "") === phone) {
+      await this.telemetry.recordEvent({ merchantId: input.merchantId, conversationId: response.state.conversationId,
+        cartId: response.state.conversationId, globalUserId: resolvedBuyerId, event: "cart_viewed", metadata: { source: "whatsapp" } });
+    }
     return { ...response,
       quickReplies: response.quickReplies.filter(label => config.cashbackEnabled === true || !/cashback/i.test(label)),
       state: { ...response.state, cartHasItems } };
@@ -134,10 +147,13 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     merchantId: string; buyer: { globalUserId: string; phone: string; fullName?: string; email?: string };
     message: string; state: WhatsAppConversationState; action?: StoreUiAction;
     attachmentContext?: string; messageId?: string;
-  }, config: StoreConfigOutput): Promise<WhatsAppStructuredResponse> {
+  }, config: StoreConfigOutput, resolveBuyer: (buyerId: string) => void): Promise<WhatsAppStructuredResponse> {
     if (!this.store) throw new Error("whatsapp_storefront_adapter_unavailable");
     const hub = await this.buyerHub?.handle(input, config.name, config.cashbackEnabled === true);
-    if (hub?.kind === "reply") return hub.response;
+    if (hub?.kind === "reply") {
+      if (hub.buyer) resolveBuyer(hub.buyer.globalUserId);
+      return hub.response;
+    }
     if (hub?.kind === "route") input = { ...input, message: hub.message, action: hub.action, buyer: hub.buyer ?? input.buyer, state: hub.state ?? input.state };
     let state: WhatsAppConversationState = { ...input.state, agentTone: config.agentTone };
     const identitySession = state.checkoutSessionId ? await this.sessions.getSession(input.merchantId, state.checkoutSessionId) : undefined;
@@ -167,6 +183,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       ? { merchantId: owner.merchantId, conversationId: owner.conversationId, globalUserId: identitySession.globalUserId,
         customer: { phone: owner.phone, phone_verified: true as const, email_verified: false as const } } : undefined);
     const shopper = knownBuyer ? { ...input.buyer, globalUserId: knownBuyer.globalUserId, fullName: knownBuyer.customer.fullName, email: knownBuyer.customer.email } : input.buyer;
+    resolveBuyer(shopper.globalUserId);
     // The native Meta surface uses this path, not respond(). Only the same
     // verified phone/cart owner may command a monetary operation in its session.
     const cashbackCommand = !input.action && !input.attachmentContext && this.cashback ? parseCashbackCommand(input.message) : null;

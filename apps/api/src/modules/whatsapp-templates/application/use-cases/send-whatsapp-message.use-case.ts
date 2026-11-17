@@ -178,6 +178,7 @@ export class SendWhatsAppMessageUseCase {
     const coupon = vars["coupon"] != null ? String(vars["coupon"]) : "";
     const discount = vars["discount"] != null ? String(vars["discount"]) : vars["discountPercent"] != null ? `${vars["discountPercent"]}%` : "";
     const values: Record<string, string> = {
+      otpCode: vars["otpCode"] != null ? String(vars["otpCode"]) : "",
       cashbackAmount: vars["cashbackAmount"] != null ? String(vars["cashbackAmount"]) : "",
       cashbackExpiresAt: vars["cashbackExpiresAt"] != null ? String(vars["cashbackExpiresAt"]) : "",
       buyerName: vars["buyerName"] != null ? String(vars["buyerName"]) : "Cliente",

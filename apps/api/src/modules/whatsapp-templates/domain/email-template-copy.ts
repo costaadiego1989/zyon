@@ -32,6 +32,7 @@ export const EMAIL_TEMPLATE_SUBJECTS: Record<WhatsAppTemplateType, string> & Rec
   exchange_completed: "{{storeName}} | Troca do pedido {{orderId}} concluída",
   return_posting_code: "{{storeName}} | Código de devolução do pedido {{orderId}}",
   return_declaration_ready: "{{storeName}} | Declaração para devolução do pedido {{orderId}}",
+  buyer_whatsapp_link_otp: "{{storeName}} | Seu código de vínculo",
   checkout_otp: "{{storeName}} | Seu código de confirmação",
 };
 

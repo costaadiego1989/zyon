@@ -69,6 +69,7 @@ import { CheckoutModule } from "../checkout/checkout.module.js";
 import { SelfCheckoutModule } from "../self-checkout/self-checkout.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
+import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { OTP_STORE } from "./domain/ports/otp-store.port.js";
 import { WEBAUTHN_CREDENTIAL_STORE } from "./domain/ports/webauthn-credential.port.js";
@@ -81,7 +82,7 @@ import { BuyerWhatsAppLinkController } from "./presentation/http/buyer-whatsapp-
 import { BuyerChannelIdentityModule } from "./buyer-channel-identity.module.js";
 
 @Module({
-  imports: [AuthModule, BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule, BuyerChannelIdentityModule],
+  imports: [WhatsAppTemplatesModule, AuthModule, BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule, BuyerChannelIdentityModule],
   controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerPrivacyController, BuyerReviewsController, BuyerAddressesController, BuyerWhatsAppLinkController],
   providers: [
     LinkBuyerWhatsAppUseCase,
