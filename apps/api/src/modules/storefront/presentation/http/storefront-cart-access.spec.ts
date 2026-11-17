@@ -102,9 +102,9 @@ test("cart read, update and clear require the cart owner's conversation capabili
   assert.equal(calls.length, 3);
 });
 
-test("conversation tools ignore model-supplied references to another cart", async () => {
+for (const populated of [false, true]) test(`conversation tools ignore model-supplied references to another cart (${populated ? "populated" : "empty"})`, async () => {
   const refs: string[] = [];
-  const cart: StorefrontCart = { id: "owned-row", merchantId: "merchant", sessionId: "owned", items: [], total: 0,
+  const cart: StorefrontCart = { id: "owned-row", merchantId: "merchant", sessionId: "owned", items: populated ? [{ variantId: "owned-variant", productId: "owned-product", name: "Owned", sku: "OWN", quantity: 1, unitPriceCents: 1000 }] : [], total: populated ? 1000 : 0,
     discount: 0, couponCode: null, freeShipping: false, createdAt: new Date("2026-10-20Z"), updatedAt: new Date("2026-10-20Z") };
   const record = async (merchantId: string, ref: string) => {
     assert.equal(merchantId, "merchant"); assert.equal(ref, "owned"); refs.push(ref); return structuredClone(cart);
@@ -128,8 +128,9 @@ test("conversation tools ignore model-supplied references to another cart", asyn
       assert.deepEqual(query.where, { merchantId: "merchant" }); return null;
     } }, productPrice: { findMany: async (query: { where: { variantId: { in: string[] }; currency: string;
       variant: { isActive: boolean; product: { merchantId: string; isActive: boolean; deletedAt: null } } } }) => {
-      pricingReads++; assert.deepEqual(query.where, { variantId: { in: [] }, currency: "BRL",
-        variant: { isActive: true, product: { merchantId: "merchant", isActive: true, deletedAt: null } } }); return [];
+      pricingReads++; assert.deepEqual(query.where, { variantId: { in: populated ? ["owned-variant"] : [] }, currency: "BRL",
+        variant: { isActive: true, product: { merchantId: "merchant", isActive: true, deletedAt: null } } }); return populated ? [{ variantId: "owned-variant", costInCents: 100, basePriceInCents: 1000,
+          variant: { productId: "owned-product", product: { categoryId: null, metadata: {} } } }] : [];
     } } },
   } as never, { merchantId: "merchant", sessionId: "owned" } as never);
   const assertOwnedCart = (result: unknown) => {
@@ -143,5 +144,5 @@ test("conversation tools ignore model-supplied references to another cart", asyn
   assert.deepEqual(await handlers.applyCoupon({ cartId: "victim", couponCode: "TEST" } as never), { applied: false, reason: "cart_empty" });
   assertOwnedCart(await handlers.removeCoupon({ cartId: "victim" }));
   assert.deepEqual(refs, Array(6).fill("owned"));
-  assert.equal(pricingReads, 2); assert.equal(ruleWrites, 0, "complete canonical reads must not exercise a missing-dependency fallback");
+  assert.equal(pricingReads, populated ? 2 : 0); assert.equal(ruleWrites, 0, "complete canonical reads must not exercise a missing-dependency fallback");
 });

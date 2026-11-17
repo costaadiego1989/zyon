@@ -15,6 +15,7 @@ import { ensureProductDiscovery } from "../agents/product-discovery-fallback.js"
 import { resolveNativeShippingReference } from "../agents/native-shipping-reference.js";
 import { knowledgeHelpNavigation } from "../shortcuts/knowledge-help-navigation.js";
 import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/index.js";
+import { createSupportHandlers } from "../tool-handlers/support.handlers.js";
 import { buildCrossSellSuggestions } from "../tool-handlers/cart-cross-sell.helper.js";
 import { STOREFRONT_SHIPPING_REFERENCE, type StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
@@ -41,6 +42,7 @@ import { resolveSupportNavigation } from "../shortcuts/support-navigation.shortc
 import { executeStorefrontUiAction } from "../agents/storefront-ui-action.executor.js";
 import { SubmitCustomerTestimonialUseCase } from "../../../catalog/application/use-cases/submit-customer-testimonial.use-case.js";
 import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
+import { renderPublicBusinessLiveFacts } from "../../../knowledge-base/application/services/public-business-live-tools.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { appendOneBuyClickCheckout } from "../one-buy-click/one-buy-click-checkout-preparation.js";
 import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
@@ -263,10 +265,59 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         paymentPreference: input.oneBuyClick.paymentPreference,
       } : undefined;
     }
+    const business = typeof this.queryKnowledge?.openBusinessAnswer === "function"
+      ? await this.queryKnowledge.openBusinessAnswer({ merchantId: input.merchantId, fallbackPurpose: "existing_company_context" })
+      : undefined;
+    const safeBusinessReply = (): StorefrontConversationOutput => ({
+      message: "Não consegui confirmar as informações atuais da empresa. Posso chamar um atendente para ajudar?",
+      blocks: [], cartId: input.cartId || input.sessionId, suggestedNext: ["Falar com atendente"],
+    });
+    if (business?.kind === "unavailable") {
+      captureKnowledge?.({ status: "unavailable", evidence: [] }, "services");
+      return safeBusinessReply();
+    }
+    if (business?.kind === "services" && prepared.serviceRequest === "professional_decision") {
+      let output = safeBusinessReply();
+      try {
+        // The ordinary scoped handoff owns authorization independently of
+        // knowledge entitlement or whether the business later changes mode.
+        const reason = "Decisão profissional individual: " + input.userMessage.slice(0, 1800);
+        const human = createSupportHandlers(this.handlerDeps, { ...ctx, sessionId: input.sessionId });
+        const handoff = await callStorefrontTool("escalate_to_human", { reason }, () => human.escalateToHuman({ reason }));
+        if (handoff.ok) output = { message: (handoff.data as { message: string }).message,
+          blocks: [], cartId: input.cartId || input.sessionId, suggestedNext: ["Menu principal"] };
+      } catch { /* A write may have committed. Never claim success or retry. */ }
+      const referral = business.session.referProfessional(() => output);
+      captureKnowledge?.({ status: referral.status, evidence: referral.evidence }, "services");
+      return referral.reply;
+    }
+    let liveRequested = business?.kind === "services" && prepared.serviceRequest === "live_facts";
+    let liveAttached = false, liveFailed = false;
+    const finish = async (output: StorefrontConversationOutput): Promise<StorefrontConversationOutput> => {
+      if (business?.kind !== "services") return output;
+      const final = await business.session.answer(async () => {
+        await business.assertCurrentServiceMode();
+        if (liveRequested && (!liveAttached || liveFailed)) throw Error("service_live_selection_unconfirmed");
+        return output;
+      }, { kind: liveRequested ? "live_facts" : "public_text", safeReply: safeBusinessReply,
+        renderLive: current => ({ ...renderPublicBusinessLiveFacts(current, { format: input.messageFormat }),
+          blocks: [], cartId: input.cartId || input.sessionId, suggestedNext: ["Falar com atendente"] }) });
+      captureKnowledge?.({ status: final.status, evidence: final.evidence }, "services");
+      return final.reply;
+    };
+    if (business?.kind === "services") {
+      const captured = business.purpose === "knowledge"
+        ? await this.queryKnowledge!.captureBusinessKnowledge(business.session, {
+          merchantId: input.merchantId, queryText: input.userMessage, mode: "sources", limit: 12,
+        })
+        : await business.session.captureCanonical({ merchantId: input.merchantId, mode: "sources", limit: 20,
+          sourceTypes: ["company", "business_hours"] });
+      if (captured.status !== "ready") return finish(safeBusinessReply());
+    }
     this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
     const shortcutHandlers = getHandlers();
     const nativeShipping = await resolveNativeShippingReference(input, shortcutHandlers.quoteShipping);
-    if (nativeShipping) return nativeShipping;
+    if (nativeShipping) return finish(nativeShipping);
     const shortcut = await resolveDeterministicShortcut(
       {
         productRepo: this.productRepo,
@@ -287,13 +338,15 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       input,
       { structuredReadRouting: this.structuredRouting },
     );
-    if (shortcut) return shortcut;
+    if (shortcut) return finish(shortcut);
 
     // RAG: pull relevant knowledge-base chunks (policies, FAQ, config) for this
     // message so the sales agent answers policy/store questions from the source
     // of truth instead of guessing. Best-effort — never blocks the reply.
     let knowledgeContext: string | undefined;
-    if (this.queryKnowledge) {
+    if (business?.kind === "services") {
+      knowledgeContext = business.session.groundingData();
+    } else if (this.queryKnowledge) {
       try {
         const result = await this.queryKnowledge.execute({
           merchantId: input.merchantId,
@@ -311,7 +364,17 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     }
 
     let result = await prepared.run({ knowledgeContext,
-      ...(deferred ? { attachmentContext: input.attachmentContext, oneBuyClick: input.oneBuyClick } : {}) });
+      ...(business?.kind === "services" ? { groundedBusinessContext: true } : {}),
+      ...(deferred ? { attachmentContext: input.attachmentContext, oneBuyClick: input.oneBuyClick } : {}) },
+    business?.kind === "services" && business.purpose === "knowledge" ? async request => {
+      liveRequested = true;
+      try {
+        const attached = await this.queryKnowledge!.attachBusinessLiveRequest(business.session, { merchantId: input.merchantId, request });
+        if (attached.status === "attached") liveAttached = true; else liveFailed = true;
+        return attached;
+      } catch { liveFailed = true; return { status: "unavailable" }; }
+    } : undefined);
+    if (liveRequested) return finish({ message: result.message, blocks: [], cartId: input.cartId || input.sessionId, suggestedNext: [] });
     result = await ensureProductDiscovery(result, { userMessage: input.userMessage, merchantId: input.merchantId, handlers: shortcutHandlers, history: input.history,
       discoveryDecision: result.routing.needsProductDiscovery, structuredSearchRequired: result.routing.structuredSearchRequired });
     const blocks = await appendOneBuyClickCheckout({
@@ -365,7 +428,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const listedCouponCodes: string[] | undefined = couponListBlock?.data?.coupons
       ?.map((c: any) => c.code)
       .filter(Boolean);
-    return {
+    return finish({
       message: finalMessage,
       blocks,
       cartId: result.cartId,
@@ -373,7 +436,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         this.structuredRouting ? { mode: "structured", source: result.routing.source, intent: result.routing.intent,
           merchantId: input.merchantId, cartId: input.cartId || input.sessionId, blocks } : undefined,
         { discoveryQuestion: result.discoveryQuestion, assistantMessage: finalMessage, hasBlocks: blocks.length > 0 })
-    };
+    });
   }
   private blockContextHint(blocks: any[], toolsUsed: string[]): string {
     if (toolsUsed.includes("search_products")) return "uma lista de produtos";

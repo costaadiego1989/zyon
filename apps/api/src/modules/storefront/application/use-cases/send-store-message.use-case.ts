@@ -23,7 +23,7 @@ import { NOOP_STOREFRONT_USE_CASE_OBSERVATION, STOREFRONT_USE_CASE_OBSERVATION, 
 import type { StorefrontSuggestedReadActions } from "@zyon/shared-types";
 import { projectStorefrontSuggestedReadActions } from "../../domain/services/storefront-suggested-read-actions.js";
 import { decryptPii, isPiiEncrypted } from "../../../../shared/crypto/pii-cipher.service.js";
-import { KnowledgeResponseAuditService, type KnowledgeResponseEvidence } from "../../../knowledge-base/application/services/knowledge-response-audit.service.js";
+import { KnowledgeResponseAuditService, type BusinessAnswerAdmission } from "../../../knowledge-base/application/services/knowledge-response-audit.service.js";
 
 function optionalBuyerPhone(stored: string | null): string | undefined {
   if (!stored) return undefined;
@@ -238,9 +238,10 @@ export class SendStoreMessageUseCase {
         issueCount: context.error.issues.length });
       throw new ServiceUnavailableException("storefront_context_invalid");
     }
-    let admission: KnowledgeResponseEvidence | undefined;
+    let admission: BusinessAnswerAdmission | undefined;
+    let servicePublicAnswer = false;
     const generated = await this.conversation.reply(context.data, deferredContext,
-      value => { admission = structuredClone(value); });
+      (value, serverContext) => { admission = structuredClone(value); servicePublicAnswer = serverContext === "services"; });
     const scope = { merchantId: input.merchant_id, cartId: input.cart_id ?? input.conversation_id };
     const result = await this.observation.operation("validation", "output", async () => {
       const parsedOutput = storefrontConversationOutputSchema.safeParse(generated);
@@ -257,6 +258,7 @@ export class SendStoreMessageUseCase {
     const suggestedActions = projectStorefrontSuggestedReadActions(result.blocks, input.merchant_id);
 
     // Persist conversation history sequentially and awaited, but best-effort.
+    const persistHistory = async () => {
     const globalUserId = input.global_user_id;
     if (this.conversationRepo && globalUserId) {
       try {
@@ -290,6 +292,8 @@ export class SendStoreMessageUseCase {
         // Conversation persistence is best-effort; never block storefront flow
       }
     }
+    };
+    if (!servicePublicAnswer) await persistHistory();
 
     const response = await this.validate("response", () => sendStoreMessageOutputSchema.safeParse({
       message: result.message,
@@ -305,6 +309,7 @@ export class SendStoreMessageUseCase {
       await this.knowledgeAudit.execute({ merchantId: input.merchant_id,
         channel: messageFormat === "whatsapp" ? "whatsapp" : "storefront", finalResponse: response.data.message, admission });
     }
+    if (servicePublicAnswer) await persistHistory();
     return response.data;
   }
 

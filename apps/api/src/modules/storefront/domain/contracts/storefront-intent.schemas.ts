@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { businessRequestKindSchema } from "../../../knowledge-base/domain/business-answer-request.js";
 
 export const storefrontIntentSchema = z.enum(["PRODUCT_SEARCH", "ADD_CART", "COMPARE_PRODUCTS", "NEGOTIATE_PRICE",
   "RECOMMEND_PERSONALIZED", "ORDER_STATUS", "RETURN_REQUEST", "GREETING", "COMPLEX_QUESTION"]);
@@ -17,6 +18,8 @@ const storefrontIntentOutputShape = z.strictObject({
   // distinguish a sales interview from a catalog read before planning search.
   // This is not a tool permit and contains no search arguments or IDs.
   shoppingPhase: z.enum(["clarify", "search"]).nullable().optional(),
+  // Semantic routing only. Canonical service mode and scoped ports grant access.
+  serviceRequest: businessRequestKindSchema.nullable().optional(),
 });
 export type StorefrontSemanticIntent = z.infer<typeof storefrontIntentOutputShape>;
 export const storefrontIntentOutputSchema = storefrontIntentOutputShape.refine(isConsistentStorefrontIntent);
@@ -25,7 +28,7 @@ export const storefrontIntentJsonSchema = {
   ...generated,
   // Strict structured-output providers require every field, with null for a
   // non-shopping turn. Runtime parsing still accepts historical V2 envelopes.
-  required: [...new Set([...(generated.required ?? []), "shoppingPhase"])],
+  required: [...new Set([...(generated.required ?? []), "shoppingPhase", "serviceRequest"])],
   properties: { ...generated.properties,
     schemaVersion: { type: "integer", enum: [2] } },
 };

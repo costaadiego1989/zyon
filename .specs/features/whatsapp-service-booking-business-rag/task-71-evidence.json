@@ -1,0 +1,377 @@
+{
+  "task": 71,
+  "status": "Complete locally at Full; final feature verification and provider acceptance remain separate",
+  "taskComplete": true,
+  "codeBase": "e621f191eb185b1f0d30b04546173763a0d110de",
+  "planningCommit": "d235ea1eb",
+  "currentCheckedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "3d72092e6d49c63b03c432d72c833237cb63fcb99551bb015c8993be211198c5",
+    "artifactSha256": "42cb91a0e5bdce4fd0107a415412fd34a3e9311bc5ad3670db0ad49be7b0cc01",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2565
+    },
+    "recordedAt": "2026-11-17T18:41:26.443Z",
+    "supervisedOwnerAttempt": "89d8ab6be3d9447880412fdac7dae8a0e92880908804d65fd2ce96934948f841"
+  },
+  "currentTypecheck": {
+    "kind": "actual current exact ordinary API type command under unchanged reviewed live protocol",
+    "supervisor": ".cache\\phase3-gates\\t71-typecheck-supervisor-20261117T184233301630Z\\supervisor.json",
+    "supervisorSha256": "ecacb96ad27a58251020d6f9b6c4bbc24ae006b9fe5db5fd73c59df153ec4d27",
+    "resultSha256": "4b08d07df6911536e863c575832925ed645aadc2d585d7e72f198889898cf3fd",
+    "naturalExit": 0,
+    "minCommitMiB": 1599,
+    "maxGapMs": 327.9999999995198,
+    "samples": 285,
+    "jobEmpty": true,
+    "input": "3d72092e6d49c63b03c432d72c833237cb63fcb99551bb015c8993be211198c5",
+    "artifact": "42cb91a0e5bdce4fd0107a415412fd34a3e9311bc5ad3670db0ad49be7b0cc01"
+  },
+  "currentApiLint": {
+    "naturalExit": 0,
+    "log": ".cache/t71-gates/2026-11-17T18-45-02.550Z/lint.log",
+    "sha256": "75e47252305c04be115fde2fb95e8fcbd9c8cb4e51efdd61fcc253330ab5f84a"
+  },
+  "finalOfficialAdmission": {
+    "naturalExit": 0,
+    "session": 89121,
+    "logDirectory": ".cache/t71-gates/2026-11-17T18-45-15.539Z",
+    "inputSha256": "3d72092e6d49c63b03c432d72c833237cb63fcb99551bb015c8993be211198c5",
+    "artifactSha256": "42cb91a0e5bdce4fd0107a415412fd34a3e9311bc5ad3670db0ad49be7b0cc01"
+  },
+  "broadComponentCoverage": {
+    "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T15-48-20.609Z\\regression-components.log",
+    "sha256": "e2b04b2a419979ef7f45c7ebdbaf78fc20ab2414d67080a731bea28d1924946d",
+    "counts": {
+      "tests": 3717,
+      "pass": 3716,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 1,
+      "todo": 0
+    }
+  },
+  "transportCoverage": {
+    "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T16-08-39.780Z\\transport.log",
+    "sha256": "b5aef3eafcdbf8ecf8ca2d396ede8227c406cb87c3170da055bb99852984ceff",
+    "counts": {
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "currentChangedWholeFile": {
+    "kind": "whole affected test file after equivalent TS library compatibility change",
+    "code": 0,
+    "signal": null,
+    "memory": {
+      "observedAtUtc": "2026-11-17T18:37:32.189117+00:00",
+      "source": "Windows GlobalMemoryStatusEx read-only",
+      "physicalTotalMiB": 16087,
+      "physicalAvailableMiB": 3851,
+      "commitAvailableMiB": 5549,
+      "memoryLoadPercent": 76
+    },
+    "tests": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0,
+    "logSha256": "3fa8ff18c75a3c2eb4262cd03d1efcbefb05c22fc4a6acacd55de398c9cbd25e"
+  },
+  "nativeAndProductProofs": [
+    {
+      "mode": "admit",
+      "pid": 3656,
+      "log": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-approved-final-gate-20261117\\continuations\\2026-11-17T17-27-36.379Z\\01-admit.log",
+      "startedAt": "2026-11-17T17:27:36.647Z",
+      "code": 0,
+      "signal": null,
+      "completedAt": "2026-11-17T17:27:45.358Z",
+      "logSha256": "6aea2ce5fed9324b2353da7af0dd1bce8609bb2aa0f36f663f1c4c8e5f86f776",
+      "innerLogs": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-27-36.910Z",
+      "artifactSnapshot": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "ee8cd58ce709dcc91bb5cda6dd64a45e85b6e5d17da4b2d43532bb8bfa8e4c78",
+        "artifactSha256": "12af778493536f17e9d79dfc83cabbfa6b12ab0e44bb5ea6f6ee7c655dccee75",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2565
+        },
+        "recordedAt": "2026-11-17T17:26:24.182Z",
+        "supervisedOwnerAttempt": "b5bb500695668cfd238446766244872a3a892bfaca525bb7d7970220cc88b9c6"
+      }
+    },
+    {
+      "mode": "lint",
+      "pid": 12956,
+      "log": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-approved-final-gate-20261117\\continuations\\2026-11-17T17-27-36.379Z\\02-lint.log",
+      "startedAt": "2026-11-17T17:27:45.464Z",
+      "code": 0,
+      "signal": null,
+      "completedAt": "2026-11-17T17:28:11.999Z",
+      "logSha256": "fddee962ad393f91bc1b09e6bcca07de8a202bb27d1a07aca2c752970ec53410",
+      "innerLogs": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-27-45.613Z",
+      "artifactSnapshot": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "ee8cd58ce709dcc91bb5cda6dd64a45e85b6e5d17da4b2d43532bb8bfa8e4c78",
+        "artifactSha256": "12af778493536f17e9d79dfc83cabbfa6b12ab0e44bb5ea6f6ee7c655dccee75",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2565
+        },
+        "recordedAt": "2026-11-17T17:26:24.182Z",
+        "supervisedOwnerAttempt": "b5bb500695668cfd238446766244872a3a892bfaca525bb7d7970220cc88b9c6"
+      }
+    },
+    {
+      "mode": "compose",
+      "pid": 26332,
+      "log": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-approved-final-gate-20261117\\continuations\\2026-11-17T17-27-36.379Z\\03-compose.log",
+      "startedAt": "2026-11-17T17:28:12.082Z",
+      "code": 0,
+      "signal": null,
+      "completedAt": "2026-11-17T17:28:50.450Z",
+      "logSha256": "66a25d35e00548b12b97ce7c94191224f479c6ef34a62717153651f946fb3617",
+      "innerLogs": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-28-12.172Z",
+      "artifactSnapshot": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "ee8cd58ce709dcc91bb5cda6dd64a45e85b6e5d17da4b2d43532bb8bfa8e4c78",
+        "artifactSha256": "12af778493536f17e9d79dfc83cabbfa6b12ab0e44bb5ea6f6ee7c655dccee75",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2565
+        },
+        "recordedAt": "2026-11-17T17:26:24.182Z",
+        "supervisedOwnerAttempt": "b5bb500695668cfd238446766244872a3a892bfaca525bb7d7970220cc88b9c6"
+      },
+      "tap": {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-28-12.172Z\\compose.log",
+        "sha256": "00b5e94f76c9649d54c538194ba6b42a74a5ce64792373bea25c05b10c85a6cb",
+        "counts": {
+          "tests": 18,
+          "pass": 18,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      }
+    },
+    {
+      "mode": "served",
+      "pid": 19936,
+      "log": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-approved-final-gate-20261117\\continuations\\2026-11-17T17-27-36.379Z\\04-served.log",
+      "startedAt": "2026-11-17T17:28:50.546Z",
+      "code": 0,
+      "signal": null,
+      "completedAt": "2026-11-17T17:30:28.789Z",
+      "logSha256": "5e4e64c61df078568f018a05fd05c87019094739529b19a8cd655c73bf9f8885",
+      "innerLogs": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-28-50.659Z",
+      "artifactSnapshot": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "ee8cd58ce709dcc91bb5cda6dd64a45e85b6e5d17da4b2d43532bb8bfa8e4c78",
+        "artifactSha256": "12af778493536f17e9d79dfc83cabbfa6b12ab0e44bb5ea6f6ee7c655dccee75",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2565
+        },
+        "recordedAt": "2026-11-17T17:26:24.182Z",
+        "supervisedOwnerAttempt": "b5bb500695668cfd238446766244872a3a892bfaca525bb7d7970220cc88b9c6"
+      },
+      "tap": {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-28-50.659Z\\served.log",
+        "sha256": "d500da9cea429d067059f15637ae20b603ca39ab0f0a6c968c7ff6fb76f20682",
+        "counts": {
+          "tests": 13,
+          "pass": 13,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      }
+    },
+    {
+      "mode": "generic-served",
+      "pid": 14460,
+      "log": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-approved-final-gate-20261117\\continuations\\2026-11-17T17-27-36.379Z\\05-generic-served.log",
+      "startedAt": "2026-11-17T17:30:28.824Z",
+      "code": 0,
+      "signal": null,
+      "completedAt": "2026-11-17T17:32:03.107Z",
+      "logSha256": "1ef19bf14877d4de5e3e6e5785d4725ef918c2401b6d44458a8755ba83612f4e",
+      "innerLogs": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-30-28.878Z",
+      "artifactSnapshot": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "ee8cd58ce709dcc91bb5cda6dd64a45e85b6e5d17da4b2d43532bb8bfa8e4c78",
+        "artifactSha256": "12af778493536f17e9d79dfc83cabbfa6b12ab0e44bb5ea6f6ee7c655dccee75",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2565
+        },
+        "recordedAt": "2026-11-17T17:26:24.182Z",
+        "supervisedOwnerAttempt": "b5bb500695668cfd238446766244872a3a892bfaca525bb7d7970220cc88b9c6"
+      },
+      "tap": {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-30-28.878Z\\generic-served.log",
+        "sha256": "c769cfbb8041d3a9eb868b1737c3a80dd2cf789f0a4d5944a545871d877e0c7a",
+        "counts": {
+          "tests": 4,
+          "pass": 4,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      }
+    },
+    {
+      "mode": "legacy-http",
+      "pid": 27872,
+      "log": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-approved-final-gate-20261117\\continuations\\2026-11-17T17-27-36.379Z\\06-legacy-http.log",
+      "startedAt": "2026-11-17T17:32:03.223Z",
+      "code": 0,
+      "signal": null,
+      "completedAt": "2026-11-17T17:33:54.256Z",
+      "logSha256": "4f89d4ef2ba394284293aefd71b0ca2a958996a33ec330af60325d24f7574ff4",
+      "innerLogs": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-32-03.362Z",
+      "artifactSnapshot": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "ee8cd58ce709dcc91bb5cda6dd64a45e85b6e5d17da4b2d43532bb8bfa8e4c78",
+        "artifactSha256": "12af778493536f17e9d79dfc83cabbfa6b12ab0e44bb5ea6f6ee7c655dccee75",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2565
+        },
+        "recordedAt": "2026-11-17T17:26:24.182Z",
+        "supervisedOwnerAttempt": "b5bb500695668cfd238446766244872a3a892bfaca525bb7d7970220cc88b9c6"
+      },
+      "tap": {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-32-03.362Z\\legacy-http.log",
+        "sha256": "3eef04c31f3eea20774f79a670d812dae1684887357a4add8417de8d45217b21",
+        "counts": {
+          "tests": 13,
+          "pass": 13,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      }
+    },
+    {
+      "mode": "product-normal",
+      "pid": 7204,
+      "log": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-approved-final-gate-20261117\\continuations\\2026-11-17T17-27-36.379Z\\07-product-normal.log",
+      "startedAt": "2026-11-17T17:33:54.310Z",
+      "code": 0,
+      "signal": null,
+      "completedAt": "2026-11-17T17:34:36.871Z",
+      "logSha256": "1e620dc44c11660466aec80e8dd398619caa5296f83cdfcba243a59e8a34cc0c",
+      "innerLogs": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-33-54.384Z",
+      "artifactSnapshot": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "ee8cd58ce709dcc91bb5cda6dd64a45e85b6e5d17da4b2d43532bb8bfa8e4c78",
+        "artifactSha256": "12af778493536f17e9d79dfc83cabbfa6b12ab0e44bb5ea6f6ee7c655dccee75",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2565
+        },
+        "recordedAt": "2026-11-17T17:26:24.182Z",
+        "supervisedOwnerAttempt": "b5bb500695668cfd238446766244872a3a892bfaca525bb7d7970220cc88b9c6"
+      },
+      "product": {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-17T17-33-54.384Z\\product-normal.log",
+        "sha256": "18e0db58a80a12bbbb6f917c104e8cd28a33e216f5653a1173b6ca9f20435c42",
+        "passed": 48,
+        "providerCalls": 0
+      }
+    }
+  ],
+  "widget176": {
+    "kind": "actual whole unchanged widget176 after memory recovery",
+    "sessionId": 54308,
+    "naturalExit": 0,
+    "log": ".cache\\t71-gates\\2026-11-17T17-36-56.624Z\\product-widget.log",
+    "logSha256": "45babedbab8888f9f2066eca0f21a937e6b8ccd05026a7dd22ed99a218a85b1f",
+    "passed": 176,
+    "providerCalls": 0,
+    "normalCleanup": true,
+    "inputSha256": "ee8cd58ce709dcc91bb5cda6dd64a45e85b6e5d17da4b2d43532bb8bfa8e4c78",
+    "artifactSha256": "12af778493536f17e9d79dfc83cabbfa6b12ab0e44bb5ea6f6ee7c655dccee75"
+  },
+  "testOnlyCompatibilityDelta": {
+    "file": "apps/api/src/modules/storefront/infrastructure/agents/store-langgraph-attachments.spec.ts",
+    "expectedValuesAndAssertionsUnchanged": true,
+    "oneCurrentWholeFileTestPassed": true,
+    "allOther54FrozenPathsByteExact": true,
+    "productionSourceChanges": 0,
+    "priorNativeInput": "ee8cd58ce709dcc91bb5cda6dd64a45e85b6e5d17da4b2d43532bb8bfa8e4c78",
+    "newInput": "3d72092e6d49c63b03c432d72c833237cb63fcb99551bb015c8993be211198c5",
+    "renewedFullBuildProof": {
+      "kind": "reviewed renewed own checked full compiler after test-only compatibility change",
+      "supervisorSha256": "ba077b7029d8e91ebce7b51d4a6967107a9723e444216beb95279baa511dcd0d",
+      "workerResultSha256": "c9f315801fe4e44d667ce4b6637173d5c5477584b9657952d1020f67cf6b8c72",
+      "inputSha256": "3d72092e6d49c63b03c432d72c833237cb63fcb99551bb015c8993be211198c5",
+      "captureSha256": "fb479e3381f06485258ea07de761f1c73f1c819251fc32be9e9a88ef6d507e3f",
+      "outputs": {
+        "inputSha256": "3d72092e6d49c63b03c432d72c833237cb63fcb99551bb015c8993be211198c5",
+        "sha256": "add78813a866cf756661b385e1d713603f9baae432c98710480b722731eb6c8e",
+        "files": 5406,
+        "standardArtifactSha256": "42cb91a0e5bdce4fd0107a415412fd34a3e9311bc5ad3670db0ad49be7b0cc01"
+      },
+      "productionOutputsByteEqualToPriorCheckedBuild": true,
+      "coverage": {
+        "checked": true,
+        "sourceCount": 2565
+      },
+      "minCommitMiB": 2249,
+      "maxGapMs": 313.00000000010186,
+      "samples": 301,
+      "jobEmpty": true,
+      "naturalBuildExit0": true,
+      "finalizationAuthorized": false
+    },
+    "whyUnchangedNativeNotRepeated": "Actual renewed full compiler produced all5406 output files byte-identical to prior native-tested program; only an excluded test selector was mechanically replaced, and its whole file reran. Final same-HEAD proofs/Build remain mandatory."
+  },
+  "userApprovedTestCorrections": {
+    "replyId": "call_ff475992c3644563adb9d550a3a02d97",
+    "literal": "Aprovar os tr\u00eas patches de testes",
+    "rootPatch": "12c24cc3079b7befdf506b8a265e2c7d8f8968c1ffe36e98fb9451398629da4c"
+  },
+  "providerAccuracyProven": false,
+  "providerCalls": 0,
+  "productionActions": 0,
+  "featureComplete": false,
+  "remainingFeatureDependencies": "T72 evaluation, service booking/admin/conversation/UI/metrics and final same-HEAD independent verification; T110 auth remains separate",
+  "historicalEvidenceArchive": ".cache\\t71-final-local-close-20261117\\task-71-evidence.json",
+  "historicalEvidenceSha256": "0c38f2be00927999a09ffdf99c802849f3c7796ce528a4c922276ee28c3854a6"
+}

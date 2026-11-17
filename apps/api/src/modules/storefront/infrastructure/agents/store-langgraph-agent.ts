@@ -58,6 +58,16 @@ import { hasFractionalCartQuantity, FRACTIONAL_CART_QUANTITY_MESSAGE, INSUFFICIE
   CART_QUANTITY_LINE_REQUIRED, CART_QUANTITY_ITEM_NOT_FOUND } from "../../domain/services/cart-quantity-input.js";
 import { cartQuantityInspectionSchema, type CartQuantitySelection } from "../../domain/contracts/cart-quantity-inspection.schemas.js";
 import { buildCurrentCommercialFacts } from "../../domain/services/current-commercial-facts.js";
+import { businessLiveRequestSchema, type BusinessRequestKind } from "../../../knowledge-base/domain/business-answer-request.js";
+
+export type StorefrontServiceRead = (request: unknown) => Promise<{ status: "attached" | "clarification" | "unavailable" }>;
+const CURRENT_SERVICE_FACTS_TOOL = { name: "get_current_service_facts",
+  description: "Consulta somente de preço e horários atuais de um serviço com profissional. Use IDs das fontes públicas e período explicitamente informado; se faltar, pergunte. Não reserva ou cobra.",
+  parameters: { type: "object" as const, additionalProperties: false,
+    properties: { productId: { type: "string" }, professionalId: { type: "string" }, variantId: { type: "string" },
+      fromDate: { type: "string", description: "Data inicial YYYY-MM-DD informada pelo comprador" },
+      toDate: { type: "string", description: "Data final YYYY-MM-DD informada pelo comprador" } },
+    required: ["productId", "professionalId", "fromDate", "toDate"] } };
 
 export interface StorefrontAgentCallbacks {
   onToken?: (token: string) => void;
@@ -102,6 +112,8 @@ export interface StorefrontAgentInput {
   oneBuyClick?: import("../../domain/ports/conversation.port.js").OneBuyClickConversationContext;
   /** RAG knowledge context to inject into system prompt — see StorefrontConversationAdapter. */
   knowledgeContext?: string;
+  /** Server-only removal of unfenced public facts; grants no source/tool access. */
+  groundedBusinessContext?: boolean;
   callbacks?: StorefrontAgentCallbacks;
   toolHandlers?: StoreToolHandlers;
 }
@@ -131,8 +143,9 @@ export interface StorefrontAgentResult {
 
 export type StorefrontPreparedTurn =
   | { allowed: false; result: StorefrontAgentResult }
-  | { allowed: true; run: (context?: { knowledgeContext?: string; attachmentContext?: string;
-    oneBuyClick?: OneBuyClickConversationContext }) => Promise<StorefrontAgentResult> };
+  | { allowed: true; serviceRequest?: BusinessRequestKind | null;
+    run: (context?: { knowledgeContext?: string; groundedBusinessContext?: boolean; attachmentContext?: string;
+    oneBuyClick?: OneBuyClickConversationContext }, serviceRead?: StorefrontServiceRead) => Promise<StorefrontAgentResult> };
 
 const MAX_TOOL_LOOPS = 5;
 const DEFAULT_BUDGET_CENTS = 500;
@@ -280,16 +293,17 @@ export class StorefrontLangGraphAgent {
       throw new Error("agent_budget_exhausted");
     }
     let consumed = false;
-    return { allowed: true, run: async context => {
+    return { allowed: true, serviceRequest: semantic.classification.serviceRequest, run: async (context, serviceRead) => {
       if (consumed) throw new Error("storefront_prepared_turn_consumed");
       consumed = true;
       const lateContext = context === undefined ? {} : storefrontPreparedContextSchema.parse(context);
       const runInput = { ...captured, ...lateContext };
-      return observeStorefrontOperation("agent", () => this.runTurn(runInput, semantic));
+      return observeStorefrontOperation("agent", () => this.runTurn(runInput, semantic,
+        runInput.groundedBusinessContext === true && typeof serviceRead === "function" ? serviceRead : undefined));
     } };
   }
 
-  private async runTurn(input: StorefrontAgentInput, semantic: StructuredIntentResult): Promise<StorefrontAgentResult> {
+  private async runTurn(input: StorefrontAgentInput, semantic: StructuredIntentResult, serviceRead?: StorefrontServiceRead): Promise<StorefrontAgentResult> {
     if (!this.costTracker.canAfford(0.01)) {
       recordStorefrontDecision("agent", "rejected", "budget_exhausted");
       throw new Error("agent_budget_exhausted");
@@ -299,10 +313,11 @@ export class StorefrontLangGraphAgent {
       : classifyIntent(input.userMessage);
     const modelTier = getModelForIntent(intentResult.intent);
     const modelUsed = modelTier === "fast" ? this.fastModel : this.strongModel;
-    const requiredReadToolName = this.structuredRouting
+    const requiredReadToolName = serviceRead && semantic.classification.serviceRequest === "live_facts" ? CURRENT_SERVICE_FACTS_TOOL.name : this.structuredRouting
       ? intentResult.intent === "COMPARE_PRODUCTS" ? "compare_products" : intentResult.intent === "ORDER_STATUS" ? "track_order" : undefined
       : undefined;
-    const requiresCanonicalRead = this.structuredRouting && (semantic.classification.requiresTool || requiredReadToolName !== undefined);
+    const requiresCanonicalRead = this.structuredRouting && (semantic.classification.requiresTool || requiredReadToolName !== undefined)
+      && !(input.groundedBusinessContext && semantic.classification.domain === "STORE_SUPPORT" && !requiredReadToolName);
 
     input.callbacks?.onIntentClassified?.(intentResult);
     input.callbacks?.onModelRouted?.(modelTier, intentResult.intent);
@@ -479,8 +494,10 @@ export class StorefrontLangGraphAgent {
     const tools = buildStoreTools().map(tool => !structuredSearchRequired || tool.name !== "search_products" ? tool : {
       ...tool, parameters: { ...tool.parameters, required: [...new Set([...(tool.parameters.required ?? []), "criteria"])] },
     });
+    const availableTools = input.groundedBusinessContext ? tools.filter(tool => tool.name !== "get_faq" && tool.name !== "get_store_policies") : tools;
+    if (serviceRead) availableTools.push(CURRENT_SERVICE_FACTS_TOOL);
     const unscopedTurnTools = needsDiscovery ? [ASK_PRODUCT_PREFERENCES]
-      : canAsk ? [...tools, ASK_PRODUCT_PREFERENCES] : tools;
+      : canAsk ? [...availableTools, ASK_PRODUCT_PREFERENCES] : availableTools;
     const productIntent = this.structuredRouting && (intentResult.intent === "PRODUCT_SEARCH" || intentResult.intent === "RECOMMEND_PERSONALIZED");
     const turnTools = requiredReadToolName ? unscopedTurnTools.filter(tool => tool.name === requiredReadToolName)
       : productIntent ? unscopedTurnTools.filter(tool => !POST_SALE_ORDER_TOOLS.has(tool.name)) : unscopedTurnTools;
@@ -508,6 +525,13 @@ export class StorefrontLangGraphAgent {
       handlers: turnHandlers,
     })));
     const executableTools: ExecutableTool[] = needsDiscovery ? [] : commerceTools.filter(tool => announcedToolNames.has(tool.name));
+    if (serviceRead && announcedToolNames.has(CURRENT_SERVICE_FACTS_TOOL.name)) executableTools.push({ name: CURRENT_SERVICE_FACTS_TOOL.name,
+      execute: async args => {
+        const parsed = businessLiveRequestSchema.safeParse(args);
+        const result = await serviceRead(parsed.success ? parsed.data : args);
+        return result.status === "attached" ? { ok: true, data: { pendingFinalRead: true } }
+          : { ok: false, error: "current_service_facts_unconfirmed" };
+      } });
     if (canAsk) executableTools.push({ name: ASK_PRODUCT_PREFERENCES.name, execute: async args => {
       if (Object.keys(toolResults).some(name => name !== ASK_PRODUCT_PREFERENCES.name)) return { ok: false, error: "discovery_must_precede_product_results" };
       const parsed = parseSalesDiscoveryQuestion(args);
@@ -527,6 +551,7 @@ export class StorefrontLangGraphAgent {
       buyerContext: input.buyerContext,
       oneBuyClick: input.oneBuyClick,
       knowledgeContext: input.knowledgeContext,
+      groundedBusinessContext: input.groundedBusinessContext,
       messageFormat: input.messageFormat,
     });
     const baseSystemContent = defaultSystem;
@@ -622,7 +647,7 @@ export class StorefrontLangGraphAgent {
         }
       }
       if (!cartPolicy.terminal && this.structuredRouting && semantic.classification.domain === "STORE_SUPPORT"
-        && semantic.classification.requiresTool && !requiredReadToolName) {
+        && semantic.classification.requiresTool && !requiredReadToolName && !input.groundedBusinessContext) {
         // Current public reads are required even when retrieval has no match.
         // A missing RAG snippet cannot prevent a known store fact from being
         // answered or grant authority to narrate a policy without revalidation.
@@ -710,6 +735,16 @@ export class StorefrontLangGraphAgent {
               const toolResult = await this.executeObservedTool(execTool, tc.args);
               toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
               input.callbacks?.onToolResult?.(tc.name, toolResult);
+
+              if (tc.name === CURRENT_SERVICE_FACTS_TOOL.name && serviceRead) {
+                // No model narration/review of price or slots. The service
+                // composer performs its final reads and synchronous rendering.
+                return { message: "Vou conferir os dados atuais deste atendimento.", blocks: [], toolsUsed, cartId: input.cartId,
+                  usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+                  routing: { source: semantic.source, domain: semantic.classification.domain, needsProductDiscovery: false,
+                    intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
+                  safetyValidation: { safe: toolResult.ok } };
+              }
 
               messages.push({
                 role: "tool",

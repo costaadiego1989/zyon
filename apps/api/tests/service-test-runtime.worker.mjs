@@ -11,6 +11,7 @@ import {fileURLToPath} from 'node:url';
 import {createHook} from 'node:async_hooks';
 import {createLocalWhatsAppProviderFixture,validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
 import {createPublicSupportModelFixture} from './service-public-support-model-fixture.mjs';
+import {validateServedModelScript} from './service-served-model-script.mjs';
 import {createPublicStorefrontModelFixture} from './service-public-storefront-model-fixture.mjs';
 
 const [databaseUrl,databaseRunId,redisUrl,redisRunId,...extra]=process.argv.slice(2);
@@ -30,14 +31,16 @@ const cleanupResources=stage=>{
   process.stderr.write('service_cleanup_resources:'+JSON.stringify({stage,resourceTypes:process.getActiveResourcesInfo(),handles,timers})+'\n');
 };
 stage('worker_started');
-assert.ok(extra.length<=1);let localWhatsApp;let localSupportQueryModel=false,localStorefrontQueryModel=false;
+assert.ok(extra.length<=1);let localWhatsApp;let localSupportQueryModel=false,localStorefrontQueryModel=false,localModelScript;
 if(extra.length){
   assert.ok(extra[0].length<=8192);const parsed=JSON.parse(extra[0]);
   assert.ok(parsed&&typeof parsed==='object'&&!Array.isArray(parsed));
-  const{supportQueryModel,storefrontQueryModel,...whatsappOptions}=parsed;
+  const{supportQueryModel,storefrontQueryModel,modelScript,...whatsappOptions}=parsed;
   assert.ok(supportQueryModel===undefined||supportQueryModel===true,'local_support_query_flag_invalid');
   assert.ok(storefrontQueryModel===undefined||storefrontQueryModel===true,'local_storefront_query_flag_invalid');
   assert.ok(!(supportQueryModel&&storefrontQueryModel),'local_model_flags_mutually_exclusive');
+  localModelScript=modelScript===undefined?undefined:validateServedModelScript(modelScript);
+  assert.ok(!localModelScript||supportQueryModel||storefrontQueryModel);
   localSupportQueryModel=supportQueryModel===true;
   localStorefrontQueryModel=storefrontQueryModel===true;
   if(Object.keys(whatsappOptions).length){
@@ -56,6 +59,7 @@ stage('owned_markers_checked');
 let app,tracker,trap,closed=false,fixture,fixtureOverrideNames=[],modelFixture,modelTokens,modelOverrideNames=[];
 async function close(){
   if(closed)return;closed=true;const errors=[];
+  modelFixture?.closeModelScript?.();
   stage('closing_capture');
   try{if(tracker)await tracker.capture({ping:false});}catch(e){errors.push(e);}
   stage('closing_app');
@@ -101,6 +105,7 @@ try{
   if(localSupportQueryModel||localStorefrontQueryModel){
     const{KnowledgeBaseModule}=await import('../dist/modules/knowledge-base/knowledge-base.module.js');
     const{QueryKnowledgeUseCase}=await import('../dist/modules/knowledge-base/application/use-cases/query-knowledge.use-case.js');
+    const{ServiceBusinessAnswerFactory}=await import('../dist/modules/knowledge-base/application/services/service-business-answer.factory.js');
     const{KNOWLEDGE_REPOSITORY}=await import('../dist/modules/knowledge-base/domain/ports/knowledge-repository.port.js');
     const{EMBEDDING_PORT}=await import('../dist/modules/knowledge-base/domain/ports/embedding.port.js');
     const{BillingPlanMeteringService}=await import('../dist/modules/payment/domain/billing-plan-guard.js');
@@ -109,7 +114,7 @@ try{
     const{SupportModule}=await import('../dist/modules/support/support.module.js');
     const{CHAT_COMPLETION_PORT}=await import('../dist/modules/support/domain/ports/chat-completion.port.js');
     const{SendSupportMessageUseCase}=await import('../dist/modules/support/application/send-support-message.use-case.js');
-    modelTokens={KnowledgeBaseModule,QueryKnowledgeUseCase,KNOWLEDGE_REPOSITORY,EMBEDDING_PORT,BillingPlanMeteringService,
+    modelTokens={KnowledgeBaseModule,QueryKnowledgeUseCase,ServiceBusinessAnswerFactory,KNOWLEDGE_REPOSITORY,EMBEDDING_PORT,BillingPlanMeteringService,
       PUBLIC_KNOWLEDGE_SEARCH,RevalidatePublicSourceService,SupportModule,CHAT_COMPLETION_PORT,SendSupportMessageUseCase};
     if(localStorefrontQueryModel){
       const{StorefrontModule}=await import('../dist/modules/storefront/storefront.module.js');
@@ -117,8 +122,8 @@ try{
       Object.assign(modelTokens,{StorefrontModule,StorefrontConversationAdapter,STOREFRONT_PROVIDER_FETCH_FACTORY});
     }
     modelFixture=localSupportQueryModel
-      ?createPublicSupportModelFixture(databaseRunId,event=>process.send({type:'local_support_model_event',event}))
-      :createPublicStorefrontModelFixture(databaseRunId,event=>process.send({type:'local_storefront_model_event',event}));
+      ?createPublicSupportModelFixture(databaseRunId,event=>process.send({type:'local_support_model_event',event}),localModelScript)
+      :createPublicStorefrontModelFixture(databaseRunId,event=>process.send({type:'local_storefront_model_event',event}),localModelScript);
     modelInstallation=modelFixture.install(modelTokens);modelOverrideNames=modelInstallation.overrides;
   }
   try{stage('constructing_app');app=await bounded(NestFactory.create(AppModule,{abortOnError:false,logger:false,rawBody:true}),45_000,'service_app_construct_timeout');}
@@ -140,6 +145,10 @@ try{
     repositoryOverrides:false,authOverrides:false,providerCalls:0,localProviderOverrides:fixtureOverrideNames,
     ...(localWhatsApp?.operatorStatusCallbacks?{localOperatorStatusCallbacks:true}:{}),...(modelFixture?{localModelOverrides:modelOverrideNames}:{}),embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
   process.on('message',async message=>{
+    if(message?.type==='local_model_release'){
+      assert.ok(localModelScript&&message.runId===databaseRunId&&Object.keys(message).every(key=>['type','runId','step'].includes(key)));
+      modelFixture.releaseModelStep(message.step);return;
+    }
     if(message?.type!=='close')return;
     try{const evidence=await close();cleanupResources('before_closed_ack');process.send({type:'closed',evidence},()=>process.disconnect());}
     catch(error){process.send({type:'failure',code:error.message},()=>{process.exitCode=1;process.disconnect();});}

@@ -1624,12 +1624,13 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] business-rag.integration.spec.ts: preço/área/profissional/data compostos, vaga ocupada após embedding, injection, fonte ausente e três segmentos.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Actual business-rag-compose.integration.spec.ts, business-answer-served-http.integration.spec.mjs and business-rag-three-business.integration.spec.mjs: preço/área/profissional/data compostos, vaga ocupada após embedding, injection, fonte ausente e três segmentos.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: business-rag.integration.spec.ts: preço/área/profissional/data compostos, vaga ocupada após embedding, injection, fonte ausente e três segmentos.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T71$" ./src/modules/knowledge-base/application/use-cases/query-knowledge.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T71 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Actual public-business answer session/factory/audit, QueryKnowledge and Storefront/Support grounding files; real SQL/Redis composition18, served HTTP13, generic-business4 and unchanged transport/legacy/product cohorts. T72 retains scored three-business/provider-quality scope.
+**Gate**: Full (actual complete criterion files): `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/knowledge-base/application/services/knowledge-response-audit.canonical.spec.ts ./src/modules/knowledge-base/application/services/knowledge-response-audit.service.spec.ts ./src/modules/knowledge-base/application/services/public-business-answer-session.existing-context.spec.ts ./src/modules/knowledge-base/application/services/public-business-answer-session.faq-purpose.spec.ts ./src/modules/knowledge-base/application/services/public-business-answer-session.spec.ts ./src/modules/knowledge-base/application/services/public-business-live-tools.spec.ts ./src/modules/knowledge-base/application/services/service-business-answer.capture.spec.ts ./src/modules/knowledge-base/application/services/service-business-answer.factory.spec.ts ./src/modules/knowledge-base/application/use-cases/query-knowledge.business-composition.spec.ts ./src/modules/knowledge-base/application/use-cases/query-knowledge.graph.spec.ts ./src/modules/knowledge-base/application/use-cases/query-knowledge.provenance.spec.ts ./src/modules/knowledge-base/application/use-cases/revalidate-public-pairs.spec.ts ./src/modules/knowledge-base/application/use-cases/revalidate-public-source.service.spec.ts ./src/modules/knowledge-base/domain/business-answer-request.spec.ts ./src/modules/knowledge-base/infrastructure/current-service-hold-overlay.spec.ts ./src/modules/knowledge-base/infrastructure/graph-knowledge.provenance.spec.ts ./src/modules/knowledge-base/infrastructure/graph-knowledge.reader.spec.ts ./src/modules/knowledge-base/infrastructure/prisma-canonical-public-snapshot-reader.spec.ts ./src/modules/knowledge-base/infrastructure/repositories/prisma-knowledge.namespace.spec.ts ./src/modules/knowledge-base/infrastructure/repositories/prisma-knowledge.repository.spec.ts ./src/modules/storefront/application/use-cases/send-store-message.business-grounding.spec.ts ./src/modules/storefront/application/use-cases/send-store-message.contract.spec.ts ./src/modules/storefront/application/use-cases/send-store-message.provenance.spec.ts ./src/modules/storefront/domain/contracts/storefront-conversation.schemas.spec.ts ./src/modules/storefront/domain/contracts/storefront-intent.schemas.spec.ts ./src/modules/storefront/domain/contracts/storefront-intent.service-request.spec.ts ./src/modules/storefront/domain/prompts/store-system-prompt.builder.spec.ts ./src/modules/storefront/domain/prompts/store-system-prompt.business-grounding.spec.ts ./src/modules/storefront/infrastructure/adapters/storefront-conversation.business-grounding.spec.ts ./src/modules/storefront/infrastructure/adapters/storefront-conversation.scope.spec.ts ./src/modules/storefront/infrastructure/agents/storefront-business-grounding-context.spec.ts ./src/modules/storefront/infrastructure/agents/storefront-service-live-tool.spec.ts ./src/modules/support/application/send-support-message.business-grounding.spec.ts ./src/modules/support/application/send-support-message.provenance.spec.ts ./src/modules/support/application/send-support-message.use-case.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/business-rag-compose.integration.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/business-answer-served-http.integration.spec.mjs` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/business-rag-three-business.integration.spec.mjs`. Preserve whole broad graph/knowledge/storefront/support regression, existing transport/legacy HTTP/product48+176 and ordinary own checked API/lint/typecheck gates as recorded in task-71-plan.md. Actual current Full may subsume the35 unit files in its237-file unfiltered broad run; no duplicate unchanged execution or selected feature skip. Count the original provider-only opt-in separately; it is not provider acceptance. Final sameHEAD proofs/Build remain required.
+**Status**: Complete locally; Full/current types/lint/own checked admission passed; no final feature/provider claim. See task-71-evidence.json.
 **Commit**: `feat(service-business): t71 compose grounded knowledge with live service tools`
 
 ### T72: Evaluate the same RAG across three business fixtures
@@ -2417,11 +2418,11 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T66, T68, T69.
 
 **C35** - WHEN a pergunta combina área de atuação, serviço, profissional, preço e disponibilidade THEN the system SHALL combinar recuperação semântica com leituras canônicas de serviço, preço e agenda, sem extrair confirmação financeira ou vaga de um embedding. (RAG-05, AC 5)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^RAG-05$" ./tests/business-rag.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/business-rag-compose.integration.spec.ts`
 Tasks: T70, T71.
 
 **C36** - IF não há fonte suficiente ou há conflito entre fontes THEN the system SHALL explicitar a lacuna e pedir esclarecimento ou encaminhar ao humano, sem atribuir à empresa um serviço, credencial ou política não publicada. (RAG-06, AC 6)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^RAG-06$" ./tests/business-rag.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/business-rag-compose.integration.spec.ts`
 Tasks: T68, T71.
 
 **C37** - The system SHALL excluir credenciais, prontuários, dados pessoais privados e conversas de clientes do corpus público e das respostas a outros compradores. (RAG-07, AC 7)
@@ -2433,11 +2434,11 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T2, T70.
 
 **C39** - WHEN um cenário de segmento regulado exige diagnóstico, prescrição ou decisão profissional individual THEN the system SHALL encaminhar ao profissional e limitar a resposta informativa ao conteúdo publicado aplicável. (RAG-09, AC 9)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^RAG-09$" ./tests/business-rag.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/business-answer-served-http.integration.spec.mjs`
 Tasks: T71, T72.
 
 **C40** - WHEN uma nova empresa de um ramo de serviços é cadastrada THEN the system SHALL aplicar o mesmo fluxo de ingestão e consulta sem FAQ, nomes ou especialidades médicos hardcoded. (RAG-10, AC 10)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^RAG-10$" ./tests/business-rag.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/business-rag-three-business.integration.spec.mjs`
 Tasks: T63, T67, T71, T72.
 
 **C41** - WHEN a empresa mantém apresentação, políticas, profissionais e horários em seus cadastros normais THEN the system SHALL alimentar o contexto desses registros sem exigir duplicação de conteúdo em uma central de RAG. (RAG-11, AC 11)
@@ -2610,6 +2611,8 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T110.
 
 ## Handoff
+
+**T71 complete locally (2026-11-17):** Actual Full, current own2565/3D72/42CB, APItypes/lint and finalintegral admission passed;53code/tests+2taskdocuments staged. Broad3717/transport4/native48/products224 plus equivalent changedtest1 recorded with identical5406production bytes. T72/scored/provider/finalfeature acceptance pending. Completed63/110 tasks; no production action. Other metadata proof repairs remain working-only for their final audit.
 
 **Planning update (2026-11-17):** AUTH-01/T110 documents the reproduced buyer password/JWT defect; current scope82criteria/110tasks. P-only Quick15 passed, Root auth implementation is not merged and Full/HTTP remain pending. No new business policy or production action; original approval words remain intact.
 **Approved test corrections:** user: "Aprovar os três patches de testes" (call_ff475992c3644563adb9d550a3a02d97) authorizes exact31/56/71 patches68052/130a/12c24. Actual gates/atomic commits remain mandatory; no API/oracle weakening.

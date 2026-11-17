@@ -1,5 +1,5 @@
 import type { ConversationBlock } from "../types/conversation-block.js";
-import type { KnowledgeResponseEvidence } from "../../../knowledge-base/domain/public-source-evidence.js";
+import type { BusinessAnswerAdmission } from "../../../knowledge-base/application/services/knowledge-response-audit.service.js";
 
 export interface MerchantPolicy {
   maxDiscountPercent?: number;
@@ -75,7 +75,7 @@ export interface NudgeCopyInput {
 
 export const STOREFRONT_CONVERSATION_PORT = Symbol("StorefrontConversationPort");
 /** Per-call server-only handoff; never accepted in browser JSON or model tools. */
-export type StorefrontKnowledgeCapture = (admission: KnowledgeResponseEvidence) => void;
+export type StorefrontKnowledgeCapture = (admission: BusinessAnswerAdmission, serverContext?: "services") => void;
 
 export interface StorefrontConversationPort {
   /** Server channel only, after a confirmed add; not a model tool or write grant. */

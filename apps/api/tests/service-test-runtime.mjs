@@ -12,6 +12,7 @@ import {createServiceTestNeo4j} from './service-test-neo4j.mjs';
 import {awaitServiceStartup} from './service-test-startup.mjs';
 import {createHmac,randomBytes} from 'node:crypto';
 import {validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
+import {validateServedModelScript} from './service-served-model-script.mjs';
 
 export const serviceTestEnvironment=source=>constructionOnlyEnvironment(source);
 export function assertServiceCaseSummary(value){
@@ -20,7 +21,7 @@ export function assertServiceCaseSummary(value){
   return Object.freeze({...value});
 }
 export async function createServiceTestRuntime(options){
-  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile','supportQueryModel','storefrontQueryModel'].includes(k))
+  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile','supportQueryModel','storefrontQueryModel','modelScript'].includes(k))
     &&(options.graph===undefined||typeof options.graph==='boolean')
     &&(options.supportQueryModel===undefined||options.supportQueryModel===true)
     &&(options.storefrontQueryModel===undefined||options.storefrontQueryModel===true)
@@ -29,8 +30,10 @@ export async function createServiceTestRuntime(options){
   const whatsapp=options.whatsapp===undefined?undefined:validateLocalWhatsAppOptions(options.whatsapp);
   const supportQueryModel=options.supportQueryModel===true;
   const storefrontQueryModel=options.storefrontQueryModel===true;
+  const modelScript=options.modelScript===undefined?undefined:validateServedModelScript(options.modelScript);
+  assert.ok(!modelScript||supportQueryModel||storefrontQueryModel,'local_model_script_requires_model_fixture');
   const fixtureSecret=whatsapp?randomBytes(32).toString('hex'):undefined,localEvents=[],localModelEvents=[],localStorefrontModelEvents=[];
-  const fixtureArgument=whatsapp||supportQueryModel||storefrontQueryModel?JSON.stringify({...(whatsapp?{...whatsapp,metaSecret:fixtureSecret}:{}),...(supportQueryModel?{supportQueryModel:true}:{}),...(storefrontQueryModel?{storefrontQueryModel:true}:{})}):undefined;
+  const fixtureArgument=whatsapp||supportQueryModel||storefrontQueryModel?JSON.stringify({...(modelScript?{modelScript}:{}),...(whatsapp?{...whatsapp,metaSecret:fixtureSecret}:{}),...(supportQueryModel?{supportQueryModel:true}:{}),...(storefrontQueryModel?{storefrontQueryModel:true}:{})}):undefined;
   assert.ok(fixtureArgument===undefined||fixtureArgument.length<=8192,'local_whatsapp_fixture_size_invalid');
   const build=assertServiceArtifacts(),apiRoot=fileURLToPath(new URL('../',import.meta.url));
   let vectorEvidence;
@@ -112,6 +115,7 @@ export async function createServiceTestRuntime(options){
     const origin=new URL(info.apiOrigin);assert.equal(origin.hostname,'127.0.0.1');assert.equal(origin.protocol,'http:');
     assert.ok(Number(origin.port)>1024);appEvidence=Object.freeze({...info.evidence,checkedBuild:build,startupTimings:timings,...(vectorEvidence?{postgresVector:vectorEvidence}:{})});
     return Object.freeze({db,redis,graph,apiOrigin:info.apiOrigin,evidence:()=>whatsapp?Object.freeze({...appEvidence,localProviderEvents:localEvents.length}):appEvidence,cleanupEvidence:()=>cleanup,close,
+      ...(modelScript?{modelScript:Object.freeze({release(step){assert.ok(Number.isSafeInteger(step)&&modelScript[step-1]?.hold===true);assert.equal(closed,false);worker.send({type:'local_model_release',runId:db.runId,step});}})}:{}),
       ...(supportQueryModel?{supportQueryModel:Object.freeze({events:()=>structuredClone(localModelEvents),
         counts:()=>({queryEmbeddings:localModelEvents.filter(event=>event.kind==='queryEmbedding').length,
           completions:localModelEvents.filter(event=>event.kind==='chatCompletion').length})})}:{}),

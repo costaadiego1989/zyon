@@ -21,6 +21,7 @@ export const storefrontDeferredContextSchema = z.strictObject({
 });
 export const storefrontPreparedContextSchema = storefrontDeferredContextSchema.extend({
   knowledgeContext: z.string().max(80000).optional(),
+  groundedBusinessContext: z.boolean().optional(),
 });
 const uiAction = storefrontUiActionSchema;
 const policy = z.strictObject({ maxDiscountPercent: z.number().min(0).max(100).optional(),

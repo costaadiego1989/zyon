@@ -1,15 +1,18 @@
 import { createHash } from "node:crypto";
+import type { AnswerEvidence } from "./public-business-answer-session.js";
+import type { PublicEvidenceResult } from "../../domain/public-source-evidence.js";
 import type { RecordAuditEventUseCase } from "../../../audit/application/audit.use-cases.js";
 import type { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
-import type { KnowledgeResponseEvidence, ValidatedPublicEvidence, LegacyKnowledgeRetrievalEvidence } from "../../domain/public-source-evidence.js";
+import type { KnowledgeResponseEvidence, LegacyKnowledgeRetrievalEvidence } from "../../domain/public-source-evidence.js";
 export type { KnowledgeResponseEvidence } from "../../domain/public-source-evidence.js";
 
-type Reference = Readonly<ValidatedPublicEvidence["provenance"]>;
+export type BusinessAnswerAdmission = Readonly<{ status: PublicEvidenceResult["status"]; evidence: readonly AnswerEvidence[] }>;
+type Reference = Readonly<AnswerEvidence["provenance"]>;
 export interface KnowledgeResponseAuditInput {
   readonly merchantId: string;
   readonly channel: "support" | "storefront" | "whatsapp";
   readonly finalResponse: string;
-  readonly admission: KnowledgeResponseEvidence;
+  readonly admission: KnowledgeResponseEvidence | BusinessAnswerAdmission;
 }
 
 /** Records admitted context for an application reply, not sentence-level
@@ -41,7 +44,14 @@ export class KnowledgeResponseAuditService {
       const p = item.provenance;
       if (p.merchantId !== input.merchantId || p.publicationState !== "published")
         throw new Error("knowledge_audit_scope_mismatch");
-      if (item.retrieval) {
+      if (String(p.origin) === "canonical_sql" || String(p.namespace) === "canonical-public") {
+        if (String(p.origin) !== "canonical_sql" || String(p.namespace) !== "canonical-public" || p.publicWorkVersion !== null
+          || p.embeddingModel !== null || p.embeddingDimensions !== null || "retrieval" in item && item.retrieval
+          || !["company", "business_hours", "professional", "service", "faq", "policy"].includes(p.sourceType)
+          || !/^[a-f0-9]{64}$/.test(p.sourceHash) || !/^[a-f0-9]{64}$/.test(p.contentHash))
+          throw new Error("knowledge_audit_canonical_reference_invalid");
+      }
+      if ("retrieval" in item && item.retrieval) {
         const r = item.retrieval;
         const proof = Object.freeze({ kind: r.kind, merchantId: r.merchantId, sourceType: r.sourceType, sourceId: r.sourceId,
           sourceVersion: r.sourceVersion, sourceHash: r.sourceHash, embeddingModel: r.embeddingModel,

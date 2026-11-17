@@ -1,4 +1,8 @@
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
+import { ServiceBusinessAnswerFactory, type BusinessAnswerOpen, type BusinessAnswerOpenInput,
+  type BusinessKnowledgeCapture, type BusinessKnowledgeCaptureInput } from "../services/service-business-answer.factory.js";
+import type { PublicBusinessAnswerSession } from "../services/public-business-answer-session.js";
+import type { BusinessLiveAttachment } from "../services/public-business-live-tools.js";
 import { EMBEDDING_PORT, type EmbeddingPort } from "../../domain/ports/embedding.port.js";
 import {
   KNOWLEDGE_REPOSITORY,
@@ -34,8 +38,21 @@ export class QueryKnowledgeUseCase {
     @Optional() private readonly billing?: BillingPlanMeteringService,
     @Optional() @Inject(PUBLIC_KNOWLEDGE_SEARCH) private readonly graph?: PublicKnowledgeSearchPort,
     @Optional() private readonly publicSources?: RevalidatePublicSourceService,
+    // Nest must resolve this in production. The optional TypeScript argument
+    // preserves explicit legacy in-process compositions of execute().
+    private readonly businessAnswers?: ServiceBusinessAnswerFactory,
   ) {}
 
+  // Distinct service bridge: execute() and its legacy product contracts remain unchanged.
+  openBusinessAnswer(input: BusinessAnswerOpenInput): Promise<BusinessAnswerOpen | undefined> {
+    return this.businessAnswers?.open(input) ?? Promise.resolve(undefined);
+  }
+  captureBusinessKnowledge(session: PublicBusinessAnswerSession, input: BusinessKnowledgeCaptureInput): Promise<BusinessKnowledgeCapture> {
+    return this.businessAnswers?.captureBusinessKnowledge(session, input) ?? Promise.resolve({ status: "unavailable", arm: "canonical_sql" });
+  }
+  attachBusinessLiveRequest(session: PublicBusinessAnswerSession, input: { merchantId: string; request: unknown }): Promise<BusinessLiveAttachment> {
+    return this.businessAnswers?.attachBusinessLiveRequest(session, input) ?? Promise.resolve({ status: "unavailable", reason: "canonical_unavailable" });
+  }
   private async admit(merchantId: string, chunks: KnowledgeChunk[], origin: "legacy_graph" | "legacy_sql",
     retrieval: ReadonlyArray<Readonly<LegacyKnowledgeRetrievalEvidence>> = []): Promise<QueryKnowledgeOutput> {
     if (!this.publicSources) return { chunks };

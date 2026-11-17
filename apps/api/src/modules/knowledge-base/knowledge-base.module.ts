@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { GraphRagModule } from "../graph-rag/graph-rag.module.js";
+import { GraphRagModule, GraphRagRuntime } from "../graph-rag/graph-rag.module.js";
 import { GRAPH_RETRIEVAL, type GraphRetrievalPort } from "../graph-rag/domain/graph-rag.port.js";
 import { GRAPH_KNOWLEDGE_SOURCES, type GraphKnowledgeSourcesPort } from "../graph-rag/domain/public-graph-sources.port.js";
 import { PublicSupportKnowledgeModule } from "../support/public-support-knowledge.module.js";
@@ -38,10 +38,24 @@ import { AuditModule } from "../audit/audit.module.js";
 import { RecordAuditEventUseCase } from "../audit/application/audit.use-cases.js";
 import { KnowledgeResponseAuditService } from "./application/services/knowledge-response-audit.service.js";
 
+import { PrismaCanonicalPublicSnapshotReader } from "./infrastructure/prisma-canonical-public-snapshot-reader.js";
+import { PrismaCurrentServiceFactsReader } from "./infrastructure/prisma-current-service-facts-reader.js";
+import { PublicBusinessLiveTools } from "./application/services/public-business-live-tools.js";
+import { ServiceBusinessAnswerFactory } from "./application/services/service-business-answer.factory.js";
 @Module({
   imports: [CatalogModule, IntegrationsModule, GraphRagModule, PublicSupportKnowledgeModule, AuditModule],
   controllers: [MerchantPolicyController, KnowledgeAdminController],
   providers: [
+    { provide: PrismaCanonicalPublicSnapshotReader, useFactory: (prisma: PrismaClient, tenant: TenantContextService) =>
+      new PrismaCanonicalPublicSnapshotReader(prisma, tenant), inject: [PRISMA_CLIENT, TenantContextService] },
+    { provide: PrismaCurrentServiceFactsReader, useFactory: (prisma: PrismaClient, tenant: TenantContextService) =>
+      new PrismaCurrentServiceFactsReader(prisma, tenant), inject: [PRISMA_CLIENT, TenantContextService] },
+    { provide: PublicBusinessLiveTools, useFactory: (prisma: PrismaClient, tenant: TenantContextService, live: PrismaCurrentServiceFactsReader) =>
+      new PublicBusinessLiveTools(prisma, tenant, live), inject: [PRISMA_CLIENT, TenantContextService, PrismaCurrentServiceFactsReader] },
+    { provide: ServiceBusinessAnswerFactory, useFactory: (prisma: PrismaClient, tenant: TenantContextService, billing: BillingPlanMeteringService,
+      canonical: PrismaCanonicalPublicSnapshotReader, sources: RevalidatePublicSourceService, graph: GraphRagRuntime, live: PublicBusinessLiveTools) =>
+      new ServiceBusinessAnswerFactory(prisma, tenant, billing, canonical, sources, graph, live),
+      inject: [PRISMA_CLIENT, TenantContextService, BillingPlanMeteringService, PrismaCanonicalPublicSnapshotReader, RevalidatePublicSourceService, GraphRagRuntime, PublicBusinessLiveTools] },
     { provide: KnowledgeResponseAuditService, useFactory: (audit: RecordAuditEventUseCase, tenant: TenantContextService) =>
       new KnowledgeResponseAuditService(audit, tenant), inject: [RecordAuditEventUseCase, TenantContextService] },
     { provide: RevalidatePublicSourceService, useFactory: (prisma: PrismaClient, tenant: TenantContextService) =>

@@ -13,6 +13,9 @@ const outputs: Record<string, unknown> = {
   compareProducts: { comparison: [{ ...product, attributes: {}, stock: 1 }] }, getDailyDeals: { deals: [product] },
   getWishlist: { items: [], message: "Sua lista" }, addToWishlist: { added: true, productId: "p1", items: [], message: "Salvo" },
   removeFromWishlist: { removed: true, productId: "p1", items: [], message: "Removido" },
+  getProductQuestions: { productId: "p1", productName: "Produto", scope: "public_answered", filter: "answered",
+    questions: [{ id: "q1", question: "Size?", answer: "Medium" }], totalCount: 1 },
+  createQuestion: { id: "q1", productId: "p1", author: "Cliente", question: "Size?", date: "2026-10-16", status: "awaiting_answer" },
   applyCoupon: { applied: false, reason: "invalid" }, createCheckoutSession: { budgetRequired: true, cartId: "cart", message: "Solicite orçamento" },
 };
 const actions = [
@@ -25,6 +28,9 @@ const actions = [
   { tool: "remove_from_wishlist", args: { productId: "p1" } }, { tool: "remove_cart_item", args: { variantId: "v1" } },
   { tool: "update_cart_item", args: { variantId: "v1", quantity: 1 } }, { tool: "apply_coupon", args: { couponCode: "PROMO" } },
   { tool: "create_checkout_session", args: {} },
+  { tool: "get_product_questions", args: { productId: "p1" } },
+  { tool: "ask_product_question", args: { productId: "p1" } },
+  { tool: "create_question", args: { productId: "p1", question: "Size?" } },
 ] as const;
 
 test("UI fixtures cover every supported action", () => {

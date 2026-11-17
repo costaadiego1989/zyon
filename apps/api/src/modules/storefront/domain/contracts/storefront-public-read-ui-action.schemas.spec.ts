@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { storefrontPublicReadUiActionSchema, storefrontPublicReadUiActionRequestSchema, storefrontReadUiActionCapability } from "./storefront-public-read-ui-action.schemas.js";
+import { storefrontCatalogReadUiActionSchema, storefrontPublicReadUiActionSchema, storefrontPublicReadUiActionRequestSchema, storefrontReadUiActionCapability } from "./storefront-public-read-ui-action.schemas.js";
 import { storefrontUiActionSchema } from "./storefront-ui-action.schemas.js";
 
-test("public read schema preserves the internal seventeen-action union without exposing it", () => {
+test("public read schema preserves the internal twenty-action union without exposing it", () => {
   const tools = storefrontUiActionSchema.options.map(option => option.shape.tool.value);
-  assert.equal(tools.length, 17);
+  assert.equal(tools.length, 20);
   const publicTools = storefrontReadUiActionCapability().tools;
-  assert.deepEqual(publicTools, ["search_products", "get_product_details"]);
+  assert.deepEqual(publicTools, ["search_products", "get_product_details", "get_product_questions", "ask_product_question", "create_question"]);
   for (const tool of tools) {
     if (publicTools.some(publicTool => publicTool === tool)) continue;
     assert.equal(storefrontPublicReadUiActionSchema.safeParse({ tool, args: {} }).success, false, tool);
@@ -48,6 +48,15 @@ test("capability metadata uses independent response objects, not a mutable share
   assert.notEqual(first, second);
   assert.notEqual(first.tools, second.tools);
   first.tools.pop();
-  assert.deepEqual(second, { version: 1, tools: ["search_products", "get_product_details"] });
+  assert.deepEqual(second, { version: 1, tools: ["search_products", "get_product_details", "get_product_questions", "ask_product_question", "create_question"] });
 });
 
+
+test("catalog suggestions retain only the two read-only actions", () => {
+  assert.deepEqual(storefrontCatalogReadUiActionSchema.options.map(option => option.shape.tool.value), ["search_products", "get_product_details"]);
+  for (const action of [
+    { tool: "get_product_questions", args: { productId: "p1" } },
+    { tool: "ask_product_question", args: { productId: "p1" } },
+    { tool: "create_question", args: { productId: "p1", question: "Size?" } },
+  ]) assert.equal(storefrontCatalogReadUiActionSchema.safeParse(action).success, false);
+});

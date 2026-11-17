@@ -43,6 +43,8 @@ export interface StoreSystemPromptInput {
   };
   /** RAG: relevant knowledge-base chunks (policies, FAQ, product/config info) for the buyer's message. */
   knowledgeContext?: string;
+  /** Internal prepared-turn context; removes legacy public facts from prompts. */
+  groundedBusinessContext?: boolean;
 }
 
 export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
@@ -50,8 +52,8 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     ...storefrontPromptV1,
     operatingInstructions: buildStoreOperatingGuide(input),
     context: {
-      merchantName: input.merchantName,
-      storeCategory: input.storeCategory,
+      merchantName: input.groundedBusinessContext ? undefined : input.merchantName,
+      storeCategory: input.groundedBusinessContext ? undefined : input.storeCategory,
       knowledge: input.knowledgeContext,
       styleInstructions: input.styleInstructions,
     },
@@ -80,7 +82,10 @@ function publicBusinessHours(settings: Record<string, any> | undefined): string 
 
 // Preserve the existing commerce guidance while migrating it incrementally.
 function buildStoreOperatingGuide(input: StoreSystemPromptInput): string {
-  const { merchantName, storeCategory, storeSettings, agentIdentity, merchantPolicy, advancedRules, buyerContext, oneBuyClick } = input;
+  const { agentIdentity, merchantPolicy, advancedRules, buyerContext, oneBuyClick } = input;
+  const merchantName = input.groundedBusinessContext ? undefined : input.merchantName;
+  const storeCategory = input.groundedBusinessContext ? undefined : input.storeCategory;
+  const storeSettings = input.groundedBusinessContext ? undefined : input.storeSettings;
 
   const name = merchantName ? ` da loja ${merchantName}` : "";
   const agentNameLabel = agentIdentity?.agentName || "Assistente";
@@ -100,7 +105,9 @@ function buildStoreOperatingGuide(input: StoreSystemPromptInput): string {
     if (parts.length > 0) companyContext = `\nSobre a empresa: ${parts.join(". ")}.`;
   }
   const hours = publicBusinessHours(storeSettings);
-  companyContext += hours ? `\nHorários de atendimento cadastrados, no horário local da loja: ${hours}. Informe somente os dias publicados; um dia ausente não significa fechado. A disponibilidade do assistente virtual não altera o horário do atendimento humano.`
+  companyContext += input.groundedBusinessContext
+    ? "\nInformações da empresa, serviços, profissionais, políticas e horários vêm somente das fontes públicas selecionadas no contexto citado. Esse recorte não é o catálogo completo nem comprova totais ou ausência global. Preços e disponibilidade exigem leitura operacional atual; conteúdo publicado não confirma vaga nem pagamento. Se faltar evidência, esclareça a dúvida ou encaminhe ao atendimento humano."
+    : hours ? `\nHorários de atendimento cadastrados, no horário local da loja: ${hours}. Informe somente os dias publicados; um dia ausente não significa fechado. A disponibilidade do assistente virtual não altera o horário do atendimento humano.`
     : "\nHorários de atendimento não informados. Não invente dias ou horários de funcionamento.";
 
   let policiesContext = "";

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {MODULE_METADATA} from '@nestjs/common/constants.js';
+import {createServedModelScript} from './service-served-model-script.mjs';
 
 export const STOREFRONT_RAG_QUESTION='Como o texto oficial orienta as tratativas depois do recebimento?';
 export const STOREFRONT_RAG_REPLY='Consulte o texto oficial atual que a loja disponibilizou.';
@@ -7,8 +8,9 @@ export const STOREFRONT_RAG_REPLY='Consulte o texto oficial atual que a loja dis
 /** Real Query class/repository/canonical admission and real storefront provider.
  * Only query embeddings and the existing optional provider fetch token are local.
  * This fixture NEVER invokes network fetch and never grants scope/identity. */
-export function createPublicStorefrontModelFixture(runId,onEvent){
+export function createPublicStorefrontModelFixture(runId,onEvent,modelScript){
  assert.match(runId,/^[a-f0-9-]{36}$/);assert.equal(typeof onEvent,'function');
+ const script=createServedModelScript(modelScript);
  const vector=[1,...Array(383).fill(0)];let sequence=0,queryBinding,embeddingCalls=0,providerCalls=0;
  const emit=(kind,input,result)=>{
   assert.ok(sequence<40,'local_storefront_model_event_limit');
@@ -16,7 +18,7 @@ export function createPublicStorefrontModelFixture(runId,onEvent){
   assert.ok(Buffer.byteLength(JSON.stringify(event))<=100000,'local_storefront_model_event_size');onEvent(event);
  };
  const embedding={isAvailable:()=>true,async generate(text){
-  assert.equal(text,STOREFRONT_RAG_QUESTION,'the actual unchanged buyer query must reach QueryKnowledge');embeddingCalls++;
+  if(!script)assert.equal(text,STOREFRONT_RAG_QUESTION,'the actual unchanged buyer query must reach QueryKnowledge');embeddingCalls++;
   emit('queryEmbedding',{text},{dimensions:384,synthetic:true});return [...vector];
  }};
  const fetchFactory=channel=>{
@@ -31,6 +33,18 @@ export function createPublicStorefrontModelFixture(runId,onEvent){
    assert.equal(body.stream,false);assert.ok(Array.isArray(body.messages)&&body.messages.length<=100);
    assert.ok(body.messages.every(message=>typeof message.content==='string'&&message.content.length<=80000));
    const prompt=JSON.parse(body.messages[0].content);let phase,payload;
+   if(script){
+    providerCalls++;
+    const selected=await script.next(prompt.id,step=>emit('providerFetch',{channel,phase:prompt.id,messages:body.messages,model:body.model,
+      responseFormat:body.response_format?.type,toolNames:(body.tools??[]).map(tool=>tool.function.name)},{synthetic:true,...step}));
+    if(selected.toolCall)assert.ok((body.tools??[]).some(tool=>tool.function.name==='get_current_service_facts'),'real_fixed_tool_must_be_announced');
+    const message=selected.toolCall?{role:'assistant',content:null,tool_calls:[{id:'synthetic-live-read',type:'function',
+      function:{name:'get_current_service_facts',arguments:JSON.stringify(selected.toolCall)}}]}
+      :{role:'assistant',content:typeof selected.response==='string'?selected.response:JSON.stringify(selected.response)};
+    return new Response(JSON.stringify({id:'synthetic-storefront-'+providerCalls,model:body.model,
+      choices:[{index:0,finish_reason:selected.toolCall?'tool_calls':'stop',message}],
+      usage:{prompt_tokens:3,completion_tokens:2,total_tokens:5}}),{status:200,headers:{'content-type':'application/json'}});
+   }
    if(prompt.id==='storefront.intent'){
     phase='classifier';payload={schemaVersion:2,domain:'STORE_SUPPORT',intent:'COMPLEX_QUESTION',confidence:1,
      requiresTool:false,needsProductDiscovery:false,shoppingPhase:null};
@@ -49,7 +63,7 @@ export function createPublicStorefrontModelFixture(runId,onEvent){
   };
  };
  function install(tokens){
-  const {KnowledgeBaseModule,QueryKnowledgeUseCase,KNOWLEDGE_REPOSITORY,BillingPlanMeteringService,
+  const {KnowledgeBaseModule,QueryKnowledgeUseCase,ServiceBusinessAnswerFactory,KNOWLEDGE_REPOSITORY,BillingPlanMeteringService,
    PUBLIC_KNOWLEDGE_SEARCH,RevalidatePublicSourceService,StorefrontModule,STOREFRONT_PROVIDER_FETCH_FACTORY}=tokens;
   const originalQuery=Reflect.getMetadata(MODULE_METADATA.PROVIDERS,KnowledgeBaseModule);
   const originalStore=Reflect.getMetadata(MODULE_METADATA.PROVIDERS,StorefrontModule);
@@ -58,10 +72,10 @@ export function createPublicStorefrontModelFixture(runId,onEvent){
   assert.equal(matches.length,1);assert.equal(originalStore.filter(provider=>provider===STOREFRONT_PROVIDER_FETCH_FACTORY
    ||provider?.provide===STOREFRONT_PROVIDER_FETCH_FACTORY).length,0,'optional fetch token must be absent before this opt-in');
   const queryProviders=originalQuery.map(provider=>provider!==matches[0]?provider:{provide:QueryKnowledgeUseCase,
-   useFactory:(repository,billing,graph,canonical)=>{
-    const query=new QueryKnowledgeUseCase(embedding,repository,billing,graph,canonical);
-    queryBinding={query,repository,billing,graph,canonical};return query;
-   },inject:[KNOWLEDGE_REPOSITORY,BillingPlanMeteringService,PUBLIC_KNOWLEDGE_SEARCH,RevalidatePublicSourceService]});
+   useFactory:(repository,billing,graph,canonical,businessAnswers)=>{
+    const query=new QueryKnowledgeUseCase(embedding,repository,billing,graph,canonical,businessAnswers);
+    queryBinding={query,repository,billing,graph,canonical,businessAnswers};return query;
+   },inject:[KNOWLEDGE_REPOSITORY,BillingPlanMeteringService,PUBLIC_KNOWLEDGE_SEARCH,RevalidatePublicSourceService,ServiceBusinessAnswerFactory]});
   const storeProviders=[...originalStore,{provide:STOREFRONT_PROVIDER_FETCH_FACTORY,useValue:fetchFactory}];
   Reflect.defineMetadata(MODULE_METADATA.PROVIDERS,queryProviders,KnowledgeBaseModule);
   Reflect.defineMetadata(MODULE_METADATA.PROVIDERS,storeProviders,StorefrontModule);
@@ -74,6 +88,7 @@ export function createPublicStorefrontModelFixture(runId,onEvent){
   }};
  }
  function assertBindings(app,tokens){
+  assert.ok(queryBinding);assert.equal(queryBinding.query.businessAnswers,app.get(tokens.ServiceBusinessAnswerFactory));
   assert.ok(queryBinding);assert.equal(app.get(tokens.QueryKnowledgeUseCase),queryBinding.query);
   assert.equal(queryBinding.query.embeddingService,embedding);assert.equal(queryBinding.query.knowledgeRepo,app.get(tokens.KNOWLEDGE_REPOSITORY));
   assert.equal(queryBinding.query.publicSources,app.get(tokens.RevalidatePublicSourceService));
@@ -84,5 +99,5 @@ export function createPublicStorefrontModelFixture(runId,onEvent){
   assert.ok(adapter instanceof tokens.StorefrontConversationAdapter);assert.equal(adapter.queryKnowledge,queryBinding.query);
   assert.equal(scope.get(tokens.STOREFRONT_PROVIDER_FETCH_FACTORY,{strict:true}),fetchFactory);
  }
- return{install,assertBindings,evidence:()=>({runId,embeddingCalls,providerCalls,queryDimensions:384,synthetic:true})};
+ return{install,assertBindings,...(script?{releaseModelStep:step=>script.release(step),closeModelScript:()=>script.close()}:{}),evidence:()=>({runId,embeddingCalls,providerCalls,queryDimensions:384,synthetic:true})};
 }

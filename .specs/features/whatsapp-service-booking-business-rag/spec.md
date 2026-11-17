@@ -324,12 +324,12 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | RAG-02 | Retirement | T65, T67, T68, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
 | RAG-03 | Retry and source durability | T64, T66, T67, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
 | RAG-04 | Source provenance | T66, T68, T69 | Implemented locally (T66/T68/T69 complete; final integrated proof pending) |
-| RAG-05 | Compound live queries | T70, T71 | Pending |
-| RAG-06 | Insufficient/conflicting evidence | T68, T71 | In Progress (T68 admission complete; T71 final consumer pending) |
+| RAG-05 | Compound live queries | T70, T71 | Complete locally at T70/T71 Full; current facts and final fence proved, final verification pending |
+| RAG-06 | Insufficient/conflicting evidence | T68, T71 | Complete locally at T68/T71 Full; missing/conflicting/stale sources refuse, final verification pending |
 | RAG-07 | Public/private isolation | T6, T63, T68, T69 | Implemented locally (T6/T63/T68/T69 complete; final integrated proof pending) |
 | RAG-08 | Controlled Cypher | T2, T70 | Implemented locally; final integrated proof pending |
-| RAG-09 | Professional boundary | T71, T72 | Pending |
-| RAG-10 | Generic onboarding | T63, T67, T71, T72 | Pending |
+| RAG-09 | Professional boundary | T71, T72 | In Progress; T71 professional boundary locally proved; scored T72 and final verification pending |
+| RAG-10 | Generic onboarding | T63, T67, T71, T72 | In Progress; T71 same composition across three fixtures proved; scored T72 pending |
 | RAG-11 | Existing forms feed context | T13, T14, T15, T63, T64, T65 | Pending |
 | ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | In Progress (T73 typed client and T74 view-state complete; management route and UI pending) |
 | ATEND-02 | Professional administration | T18, T19, T76, T106 | In Progress (T18 and T19 complete) |
