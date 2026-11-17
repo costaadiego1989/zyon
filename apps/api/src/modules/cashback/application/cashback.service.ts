@@ -8,6 +8,7 @@ import { CASHBACK_REPOSITORY, type CashbackRepositoryPort, type CashbackTx, type
 import { cashbackCombinedLimit, validateCombination } from "../domain/cashback-combination.js";
 import { CheckoutCommercialBenefitsService } from "./checkout-commercial-benefits.service.js";
 import { cashbackMerchandiseBasis } from "../domain/cashback-merchandise.js";
+import { buyerPhoneLookupHash } from "../../../shared/crypto/pii-cipher.service.js";
 
 export interface CashbackRefundInput {
   merchantId: string; orderId: string; commandKey?: string;
@@ -100,9 +101,20 @@ export class CashbackService {
       JOIN buyer_identities bi ON bi.merchant_id=${merchantId} AND bi.identity_key=('phone:' || vp.phone) AND bi.global_user_id=${previousBuyerId}
       WHERE vp.verification_id=${verificationId} AND vp.buyer_id=${canonicalBuyerId}`;
     if (!proof[0]) throw new CashbackError("cashback_verified_identity_proof_required", 403);
-    // OTP can attach an anonymous channel identity, never merge two established accounts.
-    const otherAccount = await tx.$queryRaw<Array<{ id: string }>>`SELECT global_user_id AS id FROM buyer_accounts WHERE global_user_id=${previousBuyerId}`;
-    if (otherAccount.length) throw new CashbackError("cashback_account_merge_requires_review", 409);
+    // The native hub can materialize an anonymous phone identity as an account.
+    // Independent credentials or a registered email still require review.
+    const otherAccount = await tx.$queryRaw<Array<{ id: string; email: string; password_hash: string | null; phone_lookup_hash: string | null }>>`
+      SELECT global_user_id AS id,email,to_jsonb(b)->>'password_hash' AS password_hash,
+        to_jsonb(b)->>'phone_lookup_hash' AS phone_lookup_hash
+      FROM buyer_accounts b WHERE global_user_id=${previousBuyerId} FOR UPDATE`;
+    if (otherAccount[0]) {
+      const account = otherAccount[0];
+      const phoneOnly = account.email === `phone_${proof[0].phone}@buyer.aacp` && account.password_hash === null
+        && account.phone_lookup_hash !== null && account.phone_lookup_hash === buyerPhoneLookupHash(proof[0].phone);
+      if (!phoneOnly) throw new CashbackError("cashback_account_merge_requires_review", 409);
+      const credentials = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM webauthn_credentials WHERE global_user_id=${previousBuyerId} LIMIT 1`;
+      if (credentials.length) throw new CashbackError("cashback_account_merge_requires_review", 409);
+    }
     const destinationAlias = await tx.$queryRaw<Array<{ id: string }>>`SELECT alias_buyer_id AS id FROM cashback_buyer_aliases WHERE merchant_id=${merchantId} AND alias_buyer_id=${canonicalBuyerId}`;
     if (destinationAlias.length) throw new CashbackError("cashback_identity_alias_chain_forbidden", 409);
     const empty = walletBalance({ merchantId, buyerId: canonicalBuyerId, grants: [], reservations: [], entries: [] });
