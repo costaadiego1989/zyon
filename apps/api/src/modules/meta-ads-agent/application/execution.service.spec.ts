@@ -39,7 +39,7 @@ test('ADAS-31 optional automatic wiring preserves the exact manual approval guar
 test('ADAS-07 confirmed financial block prevents manual and automatic publication with no write', async () => {
   const f = await automaticFixture();
   try {
-    const p = await f.propose('publish'); f.financialBlocked(true);
+    await f.approveInitialPublication(); const p = await f.propose('publish'); f.financialBlocked(true);
     await assert.rejects(f.executor.executeAutomatic('store-a', p.id, f.automatic), { code: 'meta_funding_blocked' });
     await f.service.proposals.approve('store-a', p.id, 'owner-a', p.digest);
     await assert.rejects(f.executor.execute('store-a', p.id, 'owner-a'), { code: 'meta_funding_blocked' });
@@ -47,16 +47,17 @@ test('ADAS-07 confirmed financial block prevents manual and automatic publicatio
   } finally { await f.close(); }
 });
 
-test('ADAS-38 revocation between prepare objects fences the next physical write and retains created IDs', async () => {
-  const f = await automaticFixture(false);
+test('ADAS-38 revocation between publication objects fences the next physical write and retains known IDs', async () => {
+  const f = await automaticFixture();
   try {
+    await f.approveInitialPublication();
     let writes = 0;
-    f.provider.prepare = async (access, _campaign, _media, progress) => {
+    f.provider.execute = async (access, _campaign, _proposal, progress) => {
       await access.assertWriteAuthorized!(); writes++; await progress([{ type: 'campaign', id: '200' }]);
       await f.policies.revoke('store-a', 'owner-a', { policyId: f.policy.id, version: f.policy.version, idempotencyKey: 'revoke-between-writes' });
       await access.assertWriteAuthorized!(); writes++; return { status: 'remote_paused', objects: [] };
     };
-    const p = await f.propose('prepare'), result = await f.executor.executeAutomatic('store-a', p.id, f.automatic), state = await f.repo.read('store-a');
+    const p = await f.propose('publish'), result = await f.executor.executeAutomatic('store-a', p.id, f.automatic), state = await f.repo.read('store-a');
     assert.equal(writes, 1); assert.equal(result.status, 'execution_unknown'); assert.deepEqual(result.objects, [{ type: 'campaign', id: '200' }]);
     assert.equal(state.campaigns[f.campaignId].remoteCampaignId, '200'); assert.equal(state.exposure!.pending[result.id].status, 'unknown');
     assert.equal(state.proposals[p.id].approvedBy, null);
@@ -94,7 +95,7 @@ test('ADAS-50 unknown automatic budget cannot release money or resend and reconc
 
 test('ADAS-37 unavailable remote control prevents automatic publication before reservation or send', async () => {
   const f = await automaticFixture();
-  try { const p = await f.propose('publish'); f.controlAvailable(false); await assert.rejects(f.executor.executeAutomatic('store-a', p.id, f.automatic), { code: 'automatic_budget_control_unavailable' }); const state = await f.repo.read('store-a'); assert.equal(Object.keys(state.executions).length, 0); assert.deepEqual(state.exposure?.pending ?? {}, {}); assert.equal(f.calls.includes('execute'), false); }
+  try { await f.approveInitialPublication(); const p = await f.propose('publish'); f.controlAvailable(false); await assert.rejects(f.executor.executeAutomatic('store-a', p.id, f.automatic), { code: 'automatic_budget_control_unavailable' }); const state = await f.repo.read('store-a'); assert.equal(Object.keys(state.executions).length, 0); assert.deepEqual(state.exposure?.pending ?? {}, {}); assert.equal(f.calls.includes('execute'), false); }
   finally { await f.close(); }
 });
 
@@ -104,7 +105,7 @@ test('ADAS-39 role loss after reservation prevents physical execution and cancel
     let writes = 0; const reserve = f.exposure.reserve.bind(f.exposure);
     f.exposure.reserve = async (...args) => { const result = await reserve(...args); f.role(false); return result; };
     f.provider.execute = async () => { writes++; return { status: 'remote_paused', objects: [] }; };
-    const p = await f.propose('publish'); await assert.rejects(f.executor.executeAutomatic('store-a', p.id, f.automatic), { code: 'meta_ads_role_forbidden' });
+    await f.approveInitialPublication(); const p = await f.propose('publish'); await assert.rejects(f.executor.executeAutomatic('store-a', p.id, f.automatic), { code: 'meta_ads_role_forbidden' });
     const state = await f.repo.read('store-a'); assert.equal(writes, 0); assert.deepEqual(state.exposure!.pending, {});
     const execution = Object.values(state.executions)[0]; assert.equal(execution.status, 'failed'); assert.equal((await f.exposure.read('store-a', execution.id)).status, 'cancelled');
   } finally { await f.close(); }

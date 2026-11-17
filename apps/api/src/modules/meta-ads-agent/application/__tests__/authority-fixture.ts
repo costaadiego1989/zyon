@@ -37,7 +37,12 @@ export async function authorityFixture(prepared = true) {
   let sequence = 0;
   const propose = (kind: MetaAdsActionKind = 'pause', after: Record<string, unknown> = {}) => f.service.proposals.create('store-a', created.id, { kind, after, reasoning: 'Ação dentro do objetivo escolhido', idempotencyKey: `authority-proposal-${++sequence}` });
   const automatic = { kind: 'automatic' as const, policyId: policy.id, policyVersion: policy.version, policyDigest: policy.digest };
-  return { ...f, campaignId: created.id, budget, policy, policies, exposure, authority, funding, budgetControl, reading, propose, automatic,
+  const approveInitialPublication = async () => {
+    const publication = await propose('publish');
+    await f.service.proposals.approve('store-a', publication.id, 'owner-a', publication.digest);
+    return publication;
+  };
+  return { ...f, campaignId: created.id, budget, policy, policies, exposure, authority, funding, budgetControl, reading, propose, automatic, approveInitialPublication,
     enabled: (value: boolean) => { enabled = value; }, role: (value: boolean) => { role = value; }, financialBlocked: (value: boolean) => { financialBlocked = value; }, controlAvailable: (value: boolean) => { controlAvailable = value; }, remoteAmount: (value: number) => { remoteAmount = value; }, fundingReads: () => fundingReads,
     changeProduct: () => { f.commerce.products = async () => [{ ...assistantProduct, stockQuantity: 0, commercialVersion: 'version-changed' }]; } };
 }

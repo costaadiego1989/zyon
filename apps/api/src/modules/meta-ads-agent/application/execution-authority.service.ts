@@ -1,5 +1,5 @@
 import type { MetaAdsAutomationPolicy, MetaAdsBudget, MetaAdsCampaign } from '@zyon/shared-types';
-import { MetaAdsError, type MetaAdsRepository, type CommerceContextPort, type Clock, type StoredProposal } from '../domain/types.js';
+import { MetaAdsError, type MetaAdsRepository, type CommerceContextPort, type Clock, type StoredProposal, type MetaAdsStoreState } from '../domain/types.js';
 import type { ExecutionAuthorityPort, ExecutionAuthorityRequest, ResolvedExecutionAuthority } from '../domain/execution-authority.port.js';
 import type { MetaBudgetControlPort } from '../domain/budget-control.port.js';
 import { requireIdentifier, requireEntitlement, stableDigest } from '../domain/offer.js';
@@ -25,6 +25,43 @@ function fields(request: ExecutionAuthorityRequest): void {
 export class ExecutionAuthorityService implements ExecutionAuthorityPort {
   private readonly clock: Clock;
   constructor(private readonly deps: Dependencies) { this.clock = deps.clock ?? (() => new Date()); }
+  private async manualReceipt(merchantId: string, proposal: StoredProposal): Promise<boolean> {
+    const approval = (await this.deps.repo.getRecord<Record<string, unknown>>(merchantId, `proposal-approval:${proposal.id}`))?.payload;
+    return !!approval && !!proposal.approvedBy && !!proposal.approvedAt && ['approved', 'executed'].includes(proposal.status) && approval.actorId === proposal.approvedBy && approval.digest === proposal.digest && approval.campaignId === proposal.campaignId && approval.kind === proposal.kind && approval.connectionEpoch === proposal.connectionEpoch && approval.approvedAt === proposal.approvedAt && stableDigest(approval.objects) === stableDigest(proposal.after.objects);
+  }
+  private async initiallyApproved(merchantId: string, state: MetaAdsStoreState, proposal: StoredProposal): Promise<boolean> {
+    for (const previous of Object.values(state.proposals)) {
+      if (previous.campaignId !== proposal.campaignId || previous.connectionEpoch !== proposal.connectionEpoch || !['publish', 'launch'].includes(previous.kind) || !await this.manualReceipt(merchantId, previous)) continue;
+      try { assertReviewedProposal(merchantId, previous, await this.deps.repo.getRecord(merchantId, `proposal-version:${previous.id}`)); } catch { continue; }
+      if (!previous.executionId) {
+        // A pending legacy publication grant covers only the exact reviewed operation.
+        if (previous.kind !== 'publish' || stableDigest({ before: previous.before, after: previous.after, products: previous.productVersions }) !== stableDigest({ before: proposal.before, after: proposal.after, products: proposal.productVersions })) continue;
+        await this.deps.authorizeActor(merchantId, previous.approvedBy!); return true;
+      }
+      const execution = state.executions[previous.executionId];
+      const input = (await this.deps.repo.getRecord<{ proposal: StoredProposal; campaign: MetaAdsCampaign; actorId: string; authority?: ResolvedExecutionAuthority }>(merchantId, `execution-input:${previous.executionId}`))?.payload;
+      const result = (await this.deps.repo.getRecord<Record<string, unknown>>(merchantId, `execution-result:${previous.executionId}:1`))?.payload;
+      if (!execution || execution.proposalId !== previous.id || execution.campaignId !== previous.campaignId || !['active_unconfirmed', 'delivered'].includes(execution.status) || !input || input.proposal.digest !== previous.digest || input.actorId !== previous.approvedBy || input.authority?.kind === 'automatic' || !result || result.digest !== previous.digest || result.approvedBy !== previous.approvedBy || result.approvedAt !== previous.approvedAt || result.kind !== previous.kind || !['active_unconfirmed', 'delivered', 'publishing'].includes(String(result.status))) continue;
+      const campaign = state.campaigns[proposal.campaignId], accountId = input.campaign.remoteAccountId ?? previous.after.accountId;
+      if (!campaign.remoteCampaignId || campaign.remoteAccountId !== accountId || !(previous.kind === 'publish' ? input.campaign.remoteCampaignId === campaign.remoteCampaignId : execution.objects.some(ref => ref.type === 'campaign' && ref.id === campaign.remoteCampaignId))) continue;
+      return true;
+    }
+    return false;
+  }
+  private async initialVersion(merchantId: string, campaign: MetaAdsCampaign, proposal: StoredProposal, access: { accountId: string | null; pageId: string | null; datasetId: string | null; whatsappId: string | null }): Promise<void> {
+    const state = await this.deps.repo.read(merchantId), live = state.campaigns[campaign.id];
+    if (!live || state.connection.epoch !== proposal.connectionEpoch || stableDigest(proposal.after.draft) !== stableDigest(live.draft) || ['accountId', 'pageId', 'datasetId', 'whatsappId'].some(key => proposal.after[key] !== access[key as keyof typeof access]) || stableDigest(live.draft.mediaIds.map(id => state.media[id] ?? null)) !== stableDigest(proposal.after.media)) throw new MetaAdsError('proposal_stale', 409);
+    if (!live || stableDigest(proposal.after.draft) !== stableDigest(live.draft) || live.draft.mediaIds.some(id => !Object.hasOwn(state.media, id)) || stableDigest(live.draft.mediaIds.map(id => state.media[id])) !== stableDigest(proposal.after.media) || ['accountId', 'pageId', 'datasetId', 'whatsappId'].some(key => proposal.after[key] !== access[key as keyof typeof access])) throw new MetaAdsError('proposal_stale', 409);
+    const products = await this.deps.commerce.products(merchantId, { variantIds: live.draft.variantIds });
+    if (stableDigest(Object.fromEntries(products.map(p => [p.variantId, p]))) !== stableDigest(Object.fromEntries((proposal.after.products as typeof products).map(p => [p.variantId, p])))) throw new MetaAdsError('proposal_stale', 409);
+    if (live.remoteCampaignId) {
+      if (!proposal.executionId) throw new MetaAdsError('campaign_already_prepared', 409);
+      const execution = state.executions[proposal.executionId];
+      const input = (await this.deps.repo.getRecord<{ proposal: StoredProposal; campaign: MetaAdsCampaign }>(merchantId, `execution-input:${proposal.executionId}`))?.payload;
+      const refs = [{ type: 'campaign', id: live.remoteCampaignId }, ...(live.remoteAdSetId ? [{ type: 'ad_set', id: live.remoteAdSetId }] : []), ...live.remoteAdIds.map(id => ({ type: 'ad', id }))];
+      if (!execution || execution.proposalId !== proposal.id || !input || input.proposal.digest !== proposal.digest || input.campaign.remoteCampaignId || refs.some(ref => !execution.objects.some(object => object.type === ref.type && object.id === ref.id))) throw new MetaAdsError('campaign_already_prepared', 409);
+    }
+  }
   private target(campaign: MetaAdsCampaign, proposal: StoredProposal, policy: MetaAdsAutomationPolicy): MetaAdsBudget | null {
     if (!policy.scope.actions.includes(proposal.kind as never) || campaign.draft.destination !== policy.scope.destination || campaign.draft.priority !== policy.scope.priority || campaign.draft.country !== policy.scope.country || campaign.draft.variantIds.some(id => !policy.scope.variantIds.includes(id))) throw new MetaAdsError('authorization_limit_exceeded', 409);
     if (proposal.kind === 'pause') return null;
@@ -48,23 +85,26 @@ export class ExecutionAuthorityService implements ExecutionAuthorityPort {
     if (proposal.connectionEpoch !== state.connection.epoch || ['stale', 'rejected'].includes(proposal.status)) throw new MetaAdsError('proposal_stale', 409);
     let policy: MetaAdsAutomationPolicy | null = null;
     if (request.kind === 'manual') {
-      const approval = (await this.deps.repo.getRecord<Record<string, unknown>>(merchantId, `proposal-approval:${proposalId}`))?.payload;
-      if (!approval || !proposal.approvedBy || !proposal.approvedAt || !['approved', 'executed'].includes(proposal.status) || approval.actorId !== proposal.approvedBy || approval.digest !== proposal.digest || approval.campaignId !== proposal.campaignId || approval.kind !== proposal.kind || approval.connectionEpoch !== proposal.connectionEpoch || approval.approvedAt !== proposal.approvedAt) throw new MetaAdsError('approval_required', 403);
+      if (!await this.manualReceipt(merchantId, proposal)) throw new MetaAdsError('approval_required', 403);
       if (proposal.approvedBy !== request.actorId) await this.deps.authorizeActor(merchantId, proposal.approvedBy);
     } else {
+      if (proposal.kind === 'launch' || proposal.kind === 'prepare') throw new MetaAdsError('initial_approval_required', 409);
       const view = await this.deps.policies.view(merchantId); policy = view.policy;
       if (view.mode !== 'automatic' || !policy || policy.id !== request.policyId || policy.version !== request.policyVersion || policy.digest !== request.policyDigest) throw new MetaAdsError('automatic_authority_unavailable', 409);
       await this.deps.authorizeActor(merchantId, policy.acceptedBy);
       if (proposal.status !== 'pending_review' || proposal.approvedBy !== null || proposal.approvedAt !== null) throw new MetaAdsError('proposal_stale', 409);
     }
     const campaign = await this.deps.campaigns.owned(merchantId, proposal.campaignId);
-    if (proposal.kind === 'prepare' && stableDigest(proposal.after.draft) !== stableDigest(campaign.draft)) throw new MetaAdsError('proposal_stale', 409);
+    const initial = proposal.kind === 'prepare' || proposal.kind === 'launch';
+    if (initial && stableDigest(proposal.after.draft) !== stableDigest(campaign.draft)) throw new MetaAdsError('proposal_stale', 409);
     if (proposal.kind === 'prepare' && campaign.remoteCampaignId && !proposal.executionId) throw new MetaAdsError('campaign_already_prepared', 409);
     await this.products(merchantId, campaign, proposal);
-    const operation = proposal.kind === 'prepare' ? 'prepare' : proposal.kind === 'publish' ? 'publish' : 'optimize';
+    if (policy && proposal.kind === 'publish' && !await this.initiallyApproved(merchantId, state, proposal)) throw new MetaAdsError('initial_approval_required', 409);
+    const operation = proposal.kind === 'prepare' ? 'prepare' : proposal.kind === 'publish' || proposal.kind === 'launch' ? 'publish' : 'optimize';
     const access = await this.deps.connection.access(merchantId, { destination: campaign.draft.destination, operation });
     if (campaign.remoteCampaignId && campaign.remoteAccountId !== access.accountId) throw new MetaAdsError('meta_asset_forbidden', 403);
-    if (proposal.kind === 'publish') await this.deps.funding.assertPublishable(merchantId);
+    if (proposal.kind === 'publish' || proposal.kind === 'launch') await this.deps.funding.assertPublishable(merchantId);
+    if (initial) await this.initialVersion(merchantId, campaign, proposal, access);
     if (policy) {
       const binding = (await this.deps.repo.getRecord<{ policyId: string; policyVersion: number; campaignId: string }>(merchantId, `automatic-policy-campaign:${policy.id}:${campaign.id}`))?.payload;
       if (!policy.scope.campaignIds.includes(campaign.id) && !(policy.scope.allowNewCampaigns && binding?.policyId === policy.id && binding.policyVersion === policy.version && binding.campaignId === campaign.id)) throw new MetaAdsError('authorization_limit_exceeded', 409);

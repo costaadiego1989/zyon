@@ -16,3 +16,5 @@
 - Local only: no push/deploy, remote DB, paid calls, WhatsApp messages or Athom activation. Private .specs/features artifacts remain ignored; never force-add.
 
 - ACAP T7 committed d692148e:17 proposal tests, full495 API and lint0. T8 next; final integrated proofs/Verifier still owed.
+
+- ACAP T8 complete in this commit: automatic initial prepare/launch denied; publication requires authentic exact legacy receipt or confirmed administrative publication history. Launch revalidates frozen media/catalogue/assets and own progress IDs.9 new cases,57 targeted/full504 API, lint0. T9 next.

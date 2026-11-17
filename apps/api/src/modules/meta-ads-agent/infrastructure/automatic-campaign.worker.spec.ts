@@ -56,7 +56,7 @@ test('ADAS-28 new campaign receives canonical origin policy binding and quota-ba
   } finally { await f.close(); }
 });
 
-test('ADAS-34 accepted new campaign intent generates prepares and publishes once through the guarded executor', async () => {
+test('ADAS-34 ACAP-11 accepted new campaign intent generates internally and awaits initial administrative approval', async () => {
   const f = await fixture(false); try {
     const review = await f.policies.review('store-a', 'owner-a', { scope: { ...f.policy.scope, allowNewCampaigns: true }, limits: f.policy.limits });
     await f.policies.accept('store-a', 'owner-a', { scope: review.scope, limits: review.limits, version: review.version, digest: review.digest, idempotencyKey: 'new-flow' });
@@ -68,9 +68,10 @@ test('ADAS-34 accepted new campaign intent generates prepares and publishes once
     f.provider.prepare = async (access, _campaign, _media, progress) => { await access.assertWriteAuthorized!(); creates++; const objects = [{ type: 'campaign' as const, id: '200' }, { type: 'ad_set' as const, id: '300' }, { type: 'ad' as const, id: '500' }]; await progress(objects); return { status: 'remote_paused', objects }; };
     f.provider.execute = async (access, _campaign, proposal) => { await access.assertWriteAuthorized!(); assert.equal(proposal.kind, 'publish'); publishes++; return { status: 'active_unconfirmed', objects: [{ type: 'campaign', id: '200' }] }; };
     await f.worker.drain(); await f.worker.drain();
-    const state = await f.repo.read('store-a'); assert.equal(creates, 1); assert.equal(publishes, 1); assert.equal(state.campaigns[campaign.id].status, 'active_unconfirmed');
-    assert.equal(Object.values(state.proposals).filter(p => p.campaignId === campaign.id).length, 2); assert.equal(Object.values(state.proposals).some(p => p.approvedBy !== null), false);
-    assert.equal(state.exposure!.allocations[campaign.id].amountCents, 10000); assert.deepEqual(state.exposure!.pending, {});
+    const state = await f.repo.read('store-a'); assert.equal(creates, 0); assert.equal(publishes, 0); assert.equal(state.campaigns[campaign.id].status, 'draft');
+    assert.equal(Object.values(state.generations).filter(g => g.campaignId === campaign.id).length, 1); assert.equal(state.credits.monthlyAvailable, 29);
+    assert.equal(Object.values(state.proposals).filter(p => p.campaignId === campaign.id).length, 1); assert.equal(Object.values(state.proposals).some(p => p.approvedBy !== null), false);
+    assert.equal(Object.keys(state.executions).length, 0); assert.deepEqual(state.exposure?.allocations ?? {}, {}); assert.deepEqual(state.exposure?.pending ?? {}, {});
   } finally { await f.close(); }
 });
 
