@@ -10,6 +10,7 @@ import { setTenantPrincipal } from "../../../../shared/auth/tenant-principal.js"
  * for these even at the guard level (defense-in-depth on top of issuance check).
  */
 const TRANSACTIONAL_SCOPES = new Set<string>([
+  "appointments:confirm",
   "payment:intents:create",
   "payment:intents:confirm",
   "payment:intents:read",

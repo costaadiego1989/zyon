@@ -291,11 +291,11 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | BOOK-01 | Provisional hold | T27 | Implemented (T27; final proof pending) |
 | BOOK-02 | Expiry | T27 | Implemented (T27; final proof pending) |
 | BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | In Progress (T26 and T27 complete) |
-| BOOK-04 | Pay at attendance | T30, T40, T46 | Pending |
+| BOOK-04 | Pay at attendance | T30, T40, T46 | In Progress (T30 complete) |
 | BOOK-05 | Pay online | T29, T35, T40 | Pending |
 | BOOK-06 | Late payment | T36 | Pending |
 | BOOK-07 | On-site receipt | T4, T37, T41, T80 | Pending |
-| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T35, T36, T37, T38, T84 | In Progress (T26 complete) |
+| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T35, T36, T37, T38, T84 | In Progress (T26/T30 complete) |
 | BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T49 trusted intake/reference complete; operations/UI pending) |
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | Pending |
 | HUM-01 | Fixed menu entry | T57 | Pending |
@@ -352,7 +352,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | QA-03 | Persisted state proof | T2, T5, T26, T108, T92, T95 | In Progress (T26 complete) |
 | QA-04 | RAG evaluation | T72, T94, T95 | Pending |
 | EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 and T22 complete) |
-| EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | Pending |
+| EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | In Progress (T30 complete) |
 | EDGE-03 | Optional media failure | T38, T39 | Pending |
 | EDGE-04 | In-flight AI response | T48, T51, T56 | In Progress (T48/T51 complete; T56 close/resume composition pending) |
 | EDGE-05 | Retrieved-content injection | T70, T71 | Pending |

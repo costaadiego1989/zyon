@@ -61,6 +61,8 @@ import { buildExperienceFromSession } from "../../../checkout/application/servic
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
 import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
 import { ReopenEmbedCheckoutUseCase } from "../../application/reopen-embed-checkout.use-case.js";
+import { ConfirmServiceAppointmentUseCase } from "../../../checkout/application/confirm-service-appointment.use-case.js";
+import { embedAppointmentConfirmationScope } from "../../domain/embed-appointment-confirmation-scope.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -135,9 +137,31 @@ export class EmbedCheckoutController {
     @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
     @Inject(CancelPaymentIntentUseCase) private readonly cancelPaymentIntent?: CancelPaymentIntentUseCase,
     @Optional() private readonly aiMetering?: AiMeteringService,
+    @Optional() private readonly confirmServiceAppointment?: ConfirmServiceAppointmentUseCase,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
+
+  @Post("service-appointments/confirm")
+  @RequireEmbedScope("appointments:confirm")
+  async confirmAppointment(@Req() request: EmbedHttpRequest,
+    @Body() body: { session_id: string; command_id: string; cart_fingerprint: string }) {
+    if (!body || typeof body !== "object" || Array.isArray(body)
+      || Object.keys(body).some(key => !["session_id", "command_id", "cart_fingerprint"].includes(key))
+      || typeof body.session_id !== "string") throw new BadRequestException("service_confirmation_invalid");
+    const capability = embedAppointmentConfirmationScope(request.embedClaims!);
+    if (body.session_id !== capability.sessionId) throw new UnauthorizedException("embed_checkout_session_binding_mismatch");
+    if (!this.confirmServiceAppointment) throw new ServiceUnavailableException("service_confirmation_unavailable");
+    const result = await this.confirmServiceAppointment.executeFromEmbed(capability,
+      { commandId: body.command_id, cartFingerprint: body.cart_fingerprint });
+    return { replayed: result.replayed, appointments: result.appointments.map(appointment => ({
+      id: appointment.id, professionalId: appointment.professionalId, productId: appointment.productId, variantId: appointment.variantId,
+      startsAt: appointment.startsAt, endsAt: appointment.endsAt, timeZone: appointment.timeZone, durationMinutes: appointment.durationMinutes,
+      priceInCents: appointment.priceInCents, currency: appointment.currency, operationalStatus: appointment.operationalStatus,
+      version: appointment.version, payments: appointment.payments.map(payment => ({ id: payment.id, mode: payment.mode,
+        status: payment.status, amountCents: payment.amountCents, currency: payment.currency,
+        receivedAt: payment.receivedAt, requiresRegularization: payment.requiresRegularization })) })) };
+  }
 
   @Get("service-slot-hold")
   @RequireEmbedScope("checkout:start")

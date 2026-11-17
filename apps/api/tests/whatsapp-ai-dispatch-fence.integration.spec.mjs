@@ -419,5 +419,51 @@ test('T51 original-turn transaction and request admission',{timeout:SERVICE_LOCA
         assert.equal(await f.raw.whatsAppHandoffBinding.count({where:{whatsappSessionId:x.session.id}}),0);
       }finally{release.resolve();if(holder)await holder.catch(()=>{});if(pending)await pending;await holderClient.$disconnect();await observer.$disconnect();}
     });
+    await t.test('local confirmation uses the actual original transaction authority before replay or new booking',async()=>{
+      const x=await seed(),merchantId=f.owner.merchantId;
+      const {confirmServiceAppointment}=await import('../dist/modules/checkout/application/confirm-service-appointment.use-case.js');
+      const {paymentCartFingerprint}=await import('../dist/modules/checkout/domain/services/payment-cart-fingerprint.js');
+      const {professionalSlotId}=await import('../dist/shared/bookings/service-checkout-selection.js');
+      const prepare=async(day,suffix)=>{
+        const sessionId='local-confirmation-'+suffix+'-'+x.claim.id,date=new Date(Date.now()+day*86400000).toISOString().slice(0,10);
+        const selected={...f.selection,date,startsAt:date+'T10:00:00.000Z',endsAt:date+'T10:30:00.000Z',
+          professionalVersion:1,policyVersion:1,timeZone:'UTC',durationMinutes:30};
+        const{merchantId:ignored,...schedule}=selected;
+        const cart={currency:'BRL',total:50,items:[{sku:f.selection.productId,name:'Canonical service',product_id:f.selection.productId,
+          variantId:f.selection.variantId,price:50,quantity:1,productType:'service',fulfillmentStrategy:'scheduled_service',
+          fulfillmentSchedule:{...schedule,slotId:professionalSlotId(merchantId,selected)}}]};
+        await f.raw.checkoutSession.create({data:{merchantId,sessionId,globalUserId:'synthetic-buyer',conversationId:x.state.conversationId,
+          cart,createdAt:new Date(),updatedAt:new Date(),customer:{fullName:'Synthetic confirmation buyer',phone:'+'+x.session.buyerPhone}}});
+        return{buyer:{merchantId,sessionId,globalUserId:'synthetic-buyer',origin:'whatsapp'},
+          command:{commandId:'local-confirmation-'+suffix+'-'+x.claim.id,cartFingerprint:paymentCartFingerprint({cart})}};
+      };
+      const first=await prepare(12,'first'),second=await prepare(13,'second'),store=()=>{throw new Error('hold_off_redis_must_not_be_used');};
+      const confirm=value=>f.scoped.$transaction(tx=>confirmServiceAppointment(tx,value.buyer,value.command,{store}));
+      let committed;
+      await x.run(async()=>{
+        const authority=currentWhatsAppExecution().authority;
+        committed=await confirm(first);
+        assert.equal(committed.replayed,false);assert.equal(committed.appointments[0].operationalStatus,'scheduled');
+        assert.equal(committed.appointments[0].payments[0].status,'pending');assert.equal(committed.appointments[0].payments[0].paymentIntentId,null);
+        const inbox=await f.raw.whatsAppWebhookInbox.findUnique({where:{id:x.claim.id}});
+        assert.deepEqual(inbox.responseState.aiEffectReceipt,{version:1,inboxId:x.claim.id,authority});
+        await x.human();
+        const before={appointments:await f.raw.serviceAppointment.findMany({where:{merchantId},orderBy:{id:'asc'}}),
+          payments:await f.raw.appointmentPayment.findMany({where:{merchantId},orderBy:{id:'asc'}}),
+          audit:await f.raw.appointmentAudit.findMany({where:{merchantId},orderBy:{id:'asc'}}),
+          events:await f.raw.outboxMessage.findMany({where:{merchantId,producer:'service-booking'},orderBy:{eventId:'asc'}})};
+        await assert.rejects(confirm(first),/whatsapp_ai_turn_suppressed/);
+        await assert.rejects(confirm({...second,buyer:{...second.buyer,origin:'storefront'}}),/whatsapp_ai_turn_suppressed/);
+        assert.deepEqual({appointments:await f.raw.serviceAppointment.findMany({where:{merchantId},orderBy:{id:'asc'}}),
+          payments:await f.raw.appointmentPayment.findMany({where:{merchantId},orderBy:{id:'asc'}}),
+          audit:await f.raw.appointmentAudit.findMany({where:{merchantId},orderBy:{id:'asc'}}),
+          events:await f.raw.outboxMessage.findMany({where:{merchantId,producer:'service-booking'},orderBy:{eventId:'asc'}})},before);
+        assert.equal(await f.raw.paymentIntent.count({where:{merchantId,sessionId:second.buyer.sessionId}}),0);
+      });
+      const replay=await f.as(f.owner,()=>confirm(first));assert.equal(replay.replayed,true);
+      assert.equal(replay.appointments[0].id,committed.appointments[0].id);
+      const independent=await f.as(f.owner,()=>confirm(second));assert.equal(independent.replayed,false);
+      assert.equal(independent.appointments[0].operationalStatus,'scheduled');assert.equal(independent.appointments[0].payments[0].status,'pending');
+    });
   }finally{await f.close();}
 });

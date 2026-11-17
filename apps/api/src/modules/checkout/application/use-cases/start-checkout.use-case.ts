@@ -39,6 +39,7 @@ import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/
 import { selectWeightedVariant } from "../../../../shared/experiments/weighted-variant-assignment.js";
 import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../../shared/bookings/service-slot-holds.service.js";
 import { hasProfessionalServiceSelection } from "../../../../shared/bookings/service-checkout-selection.js";
+import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -71,10 +72,14 @@ export class StartCheckoutUseCase {
     await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
     if (!this.cartAuthority) throw new ServiceUnavailableException("checkout_cart_authority_unavailable");
     const { global_user_id: _untrustedBuyerId, ...untrustedInput } = input as StartCheckoutRequest & { global_user_id?: unknown };
+    const existing = input.session_id && !trustedContext?.refreshCart ? await this.sessions.getSession(input.merchant_id.trim(), input.session_id) : undefined;
+    // Replay the persisted confirmation snapshot. Bootstrap below still checks
+    // the channel's authenticated buyer and checkout capability binding.
+    const committedService = existing && await this.serviceSlots?.isCommittedCheckout(existing) ? existing : undefined;
     input = {
       ...untrustedInput,
       merchant_id: input.merchant_id.trim(),
-      cart: trustedContext?.storefrontCartRef
+      cart: committedService ? committedService.cart : trustedContext?.storefrontCartRef
         ? trustedContext.refreshCart
           ? await this.cartAuthority.resolveRecoveredStorefront(input.merchant_id.trim(), input.cart, trustedContext.storefrontCartRef)
           : await this.cartAuthority.resolveStorefront(input.merchant_id.trim(), trustedContext.storefrontCartRef)
@@ -142,6 +147,7 @@ export class StartCheckoutUseCase {
       ...(serviceSlotHold ? { service_slot_hold: serviceSlotHold } : {}),
       ...(serviceCheckout ? { service_checkout: { payment_mode: serviceCheckout.paymentMode,
         policy_version: serviceCheckout.policyVersion, requires_hold: serviceCheckout.requiresHold,
+        cart_fingerprint: paymentCartFingerprint(session),
         selections: serviceCheckout.selections } } : {}),
       global_user_id: session.globalUserId,
       agent_enabled: settings?.checkout_settings.mode !== "manual_only",

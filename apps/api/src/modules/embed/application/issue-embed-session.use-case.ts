@@ -7,6 +7,7 @@ const EMBED_SCOPES: readonly EmbedScope[] = [
   "checkout:chat",
   "offers:apply",
   "coupons:apply",
+  "appointments:confirm",
   "payment:intents:create",
   "payment:intents:confirm",
   "payment:intents:read",
@@ -18,6 +19,7 @@ const EMBED_SCOPES: readonly EmbedScope[] = [
  * replayed from an arbitrary origin.
  */
 const TRANSACTIONAL_SCOPES = new Set<EmbedScope>([
+  "appointments:confirm",
   "payment:intents:create",
   "payment:intents:confirm",
   "payment:intents:read",

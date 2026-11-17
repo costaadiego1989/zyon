@@ -1,4 +1,5 @@
 import { forwardRef, Module } from "@nestjs/common";
+import { ConfirmServiceAppointmentUseCase } from "./application/confirm-service-appointment.use-case.js";
 
 import type { PrismaClient } from "@prisma/client";
 import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
@@ -125,6 +126,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
   ],
   controllers: [CheckoutController],
   providers: [
+    { provide: ConfirmServiceAppointmentUseCase, useFactory: (prisma: PrismaClient) => new ConfirmServiceAppointmentUseCase(prisma), inject: [PRISMA_CLIENT] },
     { provide: STOREFRONT_CROSS_SELL_CART, useFactory: (prisma: PrismaClient) => new PrismaStorefrontCrossSellCartAdapter(prisma), inject: [PRISMA_CLIENT] },
     ListBuyerAddressesUseCase,
     CheckoutSavedAddressService,
@@ -237,6 +239,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
     PaymentApprovedHandler
   ],
   exports: [
+    ConfirmServiceAppointmentUseCase,
     CheckoutCartAuthorityService,
     CheckoutBenefitsService,
     CHECKOUT_REPOSITORY,

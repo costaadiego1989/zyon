@@ -616,6 +616,7 @@ export interface CheckoutExperienceSnapshot {
 
 export interface StartCheckoutResponse {
   service_checkout?: {
+    cart_fingerprint?: string;
     payment_mode: "online" | "at_attendance";
     policy_version: number;
     requires_hold: boolean;

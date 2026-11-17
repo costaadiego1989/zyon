@@ -1,0 +1,688 @@
+{
+    "task":  "T30",
+    "status":  "complete",
+    "recordedAtUtc":  "2026-11-17T05:33:38.2476851Z",
+    "baseHead":  "9c91773c03deaad2a70375d8f683e1bef1f9b59b",
+    "requirements":  [
+                         "BOOK-04",
+                         "BOOK-08",
+                         "EDGE-02"
+                     ],
+    "planBeforeImplementation":  ".specs/features/whatsapp-service-booking-business-rag/phase4-preparation.md#t30-assumptions-files-and-success",
+    "implementation":  {
+                           "entrypoint":  "POST /embed/service-appointments/confirm",
+                           "capability":  "appointments:confirm",
+                           "transaction":  "caller-owned Prisma transaction, original default budget and WhatsApp authority; merchant/checkout/professional locks; one post-lock clock",
+                           "effects":  "atomic occupied ServiceAppointment, pending AppointmentPayment, audit and outbox; no PaymentIntent, provider call or physical-stock event",
+                           "replay":  "durable original receipt with buyer/session/cart fingerprint; current policy changes do not rewrite committed confirmation",
+                           "quota":  "existing order quota unchanged; no synthetic CompletedOrder or new appointment billing authority"
+                       },
+    "unit":  {
+                 "executed":  24,
+                 "passed":  24,
+                 "failed":  0,
+                 "skipped":  0,
+                 "cancelled":  0,
+                 "includingRoot":  true,
+                 "scope":  "historical own prealignment unfiltered component execution; not repeated or counted as an aligned rerun",
+                 "log":  ".cache/t30-units/2026-11-16T22-34-15.697Z/unit.log",
+                 "sha256":  "6864FD71B27E39F576A129044C3E2B9A8D6B3C6861717B604C679F7602A8C1EC",
+                 "exitCode":  0,
+                 "initialRed":  "17 pass / 7 fail retained; only authorized fixture ASI newline join before existing as unknown as Parameters expression; assertions and cases unchanged",
+                 "fixtureSha256":  "AD6FDB0866407869F5548B0A2F447ABA06FD415215F1EE13FD9E6E454076CF54",
+                 "selectors":  [
+                                   "src/modules/embed/domain/embed-appointment-confirmation-scope.spec.ts",
+                                   "src/modules/checkout/__tests__/start-checkout.use-case.spec.ts",
+                                   "src/shared/bookings/service-payment-policy.spec.ts"
+                               ]
+             },
+    "checked":  {
+                    "session":  38697,
+                    "command":  "node .cache/run-t30-ordinary-checked.mjs checked",
+                    "launcherSha256":  "730C1AF1D381566E4AE4407210559F6384CDE0CF8072D01016A67E90CFA5AFDC",
+                    "standardBuildCommand":  "pnpm --dir apps/api build",
+                    "preflight":  {
+                                      "commitAvailableMiB":  6765,
+                                      "requiredCommitMiB":  5168,
+                                      "allowed":  true,
+                                      "observedAtUtc":  "2026-11-17T05:11:44.992222+00:00"
+                                  },
+                    "captureExitCode":  0,
+                    "buildExitCode":  0,
+                    "recordExitCode":  0,
+                    "outerExitCode":  0,
+                    "sourceCount":  2553,
+                    "inputSha256":  "c88a769d8c1a99668c03b2b463bb90eb61b765b1cceeb5a761edcdc0345ed68b",
+                    "artifactSha256":  "023fee867180302ec36fe493da35f332db22d2f30d42ecf6db2c45ea5c00ec25",
+                    "recordedAt":  "2026-11-17T05:13:09.437Z",
+                    "receipt":  ".cache/t30-ordinary-checked-20261117/receipt.json",
+                    "receiptSha256":  "2FDF9A275039B55796A6F637C9B703B84C2CF6756C10EB5F75C81A08F16D8414",
+                    "logs":  [
+                                 {
+                                     "path":  ".cache/t30-ordinary-checked-20261117/gate.log",
+                                     "sha256":  "DDBC47CDEA36C7FB62B189D30C53C7086D12007E5720AF3878CB95B46DE8EB9A",
+                                     "bytes":  2400
+                                 },
+                                 {
+                                     "path":  ".cache/t70-gates/2026-11-17T05-11-44.936Z/capture.log",
+                                     "sha256":  "23631C90C108902B0EE54A69D91D33DDA72D243A73E39546BC05D7F7096D1F83",
+                                     "bytes":  38
+                                 },
+                                 {
+                                     "path":  ".cache/t70-gates/2026-11-17T05-11-44.936Z/build.log",
+                                     "sha256":  "528067FC17F6870B29B6662C46A633D11574737E545F9A5A24342B2AC676CB10",
+                                     "bytes":  2129
+                                 },
+                                 {
+                                     "path":  ".cache/t70-gates/2026-11-17T05-11-44.936Z/record.log",
+                                     "sha256":  "7835D371754905F999A8F50043D07FCB5645D3527AD4B39B63A6A8C4439869D9",
+                                     "bytes":  45
+                                 },
+                                 {
+                                     "path":  "apps/api/.sandbox-state/service-test-build.json",
+                                     "sha256":  "8FBE7873965D6E0E0B777A35194479757E1C86966E99F0CC1E0C88BAAD1B02D4",
+                                     "bytes":  349
+                                 }
+                             ]
+                },
+    "native":  {
+                   "session":  56799,
+                   "executed":  324,
+                   "passed":  324,
+                   "failed":  0,
+                   "skipped":  0,
+                   "cancelled":  0,
+                   "tap":  100,
+                   "normalProduct":  48,
+                   "widgetProduct":  176,
+                   "cohortCount":  11,
+                   "outerExitCode":  0,
+                   "serial":  true,
+                   "stopOnFirstFailure":  true,
+                   "nameFilter":  false,
+                   "unchangedCohortsRepeated":  0,
+                   "rebuilds":  0,
+                   "planBefore":  ".cache/t30-full-native-20261117/plan-before.json",
+                   "planBeforeSha256":  "BA118164D804B912AB7219B35DFE76CB61B869036B34F7EBABAFB63C5620A569",
+                   "cohorts":  {
+                                   "value":  [
+                                                 {
+                                                     "label":  "t30-confirmation-native",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-confirmation-native.log",
+                                                     "expected":  10,
+                                                     "kind":  "tap",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-confirmation-native",
+                                                                       "minimumCommitMiB":  1024,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:18:06.688673+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  2286,
+                                                                                      "commitAvailableMiB":  8270,
+                                                                                      "memoryLoadPercent":  85
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "tests":  10,
+                                                     "pass":  10,
+                                                     "fail":  0,
+                                                     "cancelled":  0,
+                                                     "skipped":  0,
+                                                     "todo":  0,
+                                                     "logSha256":  "46076B7196A0CD4F44A6EC1769931D6DEBF04117032B2C725FFC36B0F2C4A557"
+                                                 },
+                                                 {
+                                                     "label":  "t30-confirmation-http",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-confirmation-http.log",
+                                                     "expected":  7,
+                                                     "kind":  "tap",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-confirmation-http",
+                                                                       "minimumCommitMiB":  2048,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:19:00.926283+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  1523,
+                                                                                      "commitAvailableMiB":  7400,
+                                                                                      "memoryLoadPercent":  90
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "tests":  7,
+                                                     "pass":  7,
+                                                     "fail":  0,
+                                                     "cancelled":  0,
+                                                     "skipped":  0,
+                                                     "todo":  0,
+                                                     "logSha256":  "1F5273CFC4DABD1A4154DD890A87C26C50909AB450F9A793663BE016BF5F37F0"
+                                                 },
+                                                 {
+                                                     "label":  "t30-confirmed-resume",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-confirmed-resume.log",
+                                                     "expected":  2,
+                                                     "kind":  "tap",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-confirmed-resume",
+                                                                       "minimumCommitMiB":  2048,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:20:22.075673+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  2008,
+                                                                                      "commitAvailableMiB":  8059,
+                                                                                      "memoryLoadPercent":  87
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "tests":  2,
+                                                     "pass":  2,
+                                                     "fail":  0,
+                                                     "cancelled":  0,
+                                                     "skipped":  0,
+                                                     "todo":  0,
+                                                     "logSha256":  "8F375710E52BB7472709B3F9EF5944BB7624E4686F8A6361F3B937E5F65B41A9"
+                                                 },
+                                                 {
+                                                     "label":  "t30-original-admission",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-original-admission.log",
+                                                     "expected":  17,
+                                                     "kind":  "tap",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-original-admission",
+                                                                       "minimumCommitMiB":  1024,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:20:51.555791+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  1685,
+                                                                                      "commitAvailableMiB":  7554,
+                                                                                      "memoryLoadPercent":  89
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "tests":  17,
+                                                     "pass":  17,
+                                                     "fail":  0,
+                                                     "cancelled":  0,
+                                                     "skipped":  0,
+                                                     "todo":  0,
+                                                     "logSha256":  "F0A65DA6D4D4EB5F3F00653EECE044A9D80F653801BE19ECE66C38BED884F5F2"
+                                                 },
+                                                 {
+                                                     "label":  "t30-checkout-preservation",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-checkout-preservation.log",
+                                                     "expected":  9,
+                                                     "kind":  "tap",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-checkout-preservation",
+                                                                       "minimumCommitMiB":  2048,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:21:06.992941+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  1752,
+                                                                                      "commitAvailableMiB":  8025,
+                                                                                      "memoryLoadPercent":  89
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "tests":  9,
+                                                     "pass":  9,
+                                                     "fail":  0,
+                                                     "cancelled":  0,
+                                                     "skipped":  0,
+                                                     "todo":  0,
+                                                     "logSha256":  "3B1695E47D32499FEB4885E4C33BE4642C03D003D6F42C9947233DAB8924FE9A"
+                                                 },
+                                                 {
+                                                     "label":  "t30-holds-preservation",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-holds-preservation.log",
+                                                     "expected":  11,
+                                                     "kind":  "tap",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-holds-preservation",
+                                                                       "minimumCommitMiB":  1024,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:21:36.946016+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  1081,
+                                                                                      "commitAvailableMiB":  7551,
+                                                                                      "memoryLoadPercent":  93
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "tests":  11,
+                                                     "pass":  11,
+                                                     "fail":  0,
+                                                     "cancelled":  0,
+                                                     "skipped":  0,
+                                                     "todo":  0,
+                                                     "logSha256":  "57BA6C45ACAA706A86D78B91933A7CE132AB2EECA4831971EAAA3241A97CC752"
+                                                 },
+                                                 {
+                                                     "label":  "t30-payment-http-preservation",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-payment-http-preservation.log",
+                                                     "expected":  7,
+                                                     "kind":  "tap",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-payment-http-preservation",
+                                                                       "minimumCommitMiB":  2048,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:21:55.237619+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  1522,
+                                                                                      "commitAvailableMiB":  7807,
+                                                                                      "memoryLoadPercent":  90
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "tests":  7,
+                                                     "pass":  7,
+                                                     "fail":  0,
+                                                     "cancelled":  0,
+                                                     "skipped":  0,
+                                                     "todo":  0,
+                                                     "logSha256":  "2A387D376C8E6517C36ED57981B2F4ED0E06CE33E48A7A4CC0C10679504AD0E0"
+                                                 },
+                                                 {
+                                                     "label":  "t30-journal-preservation",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-journal-preservation.log",
+                                                     "expected":  10,
+                                                     "kind":  "tap",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-journal-preservation",
+                                                                       "minimumCommitMiB":  1024,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:22:39.095640+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  1285,
+                                                                                      "commitAvailableMiB":  7562,
+                                                                                      "memoryLoadPercent":  92
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "tests":  10,
+                                                     "pass":  10,
+                                                     "fail":  0,
+                                                     "cancelled":  0,
+                                                     "skipped":  0,
+                                                     "todo":  0,
+                                                     "logSha256":  "6AC63DCB5D92DDB272AAA8CD1450366A33A7CCA7356EB6DAC8697240FA77ED2F"
+                                                 },
+                                                 {
+                                                     "label":  "t30-whatsapp-coexistence",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-whatsapp-coexistence.log",
+                                                     "expected":  27,
+                                                     "kind":  "tap",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-whatsapp-coexistence",
+                                                                       "minimumCommitMiB":  1024,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:22:57.978902+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  1573,
+                                                                                      "commitAvailableMiB":  8138,
+                                                                                      "memoryLoadPercent":  90
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "tests":  27,
+                                                     "pass":  27,
+                                                     "fail":  0,
+                                                     "cancelled":  0,
+                                                     "skipped":  0,
+                                                     "todo":  0,
+                                                     "logSha256":  "19C4B373E369545D688AC964377318F08D31EA716F8A296D6E13CF5E7006F6F2"
+                                                 },
+                                                 {
+                                                     "label":  "t30-normal-product",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-normal-product.log",
+                                                     "expected":  48,
+                                                     "kind":  "normal",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-normal-product",
+                                                                       "minimumCommitMiB":  1024,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:23:18.521597+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  1359,
+                                                                                      "commitAvailableMiB":  7749,
+                                                                                      "memoryLoadPercent":  91
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "passed":  48,
+                                                     "cleanup":  {
+                                                                     "phase":  "normal-checkout-payment",
+                                                                     "coverageMode":  "baseline-and-identity",
+                                                                     "status":  "passed",
+                                                                     "cleanupErrors":  0,
+                                                                     "disposableDatabaseRemoved":  true,
+                                                                     "bridgeClosed":  true,
+                                                                     "durationMs":  31466,
+                                                                     "network":  "none",
+                                                                     "productionAccess":  false
+                                                                 },
+                                                     "summary":  {
+                                                                     "phase":  "normal-checkout-payment",
+                                                                     "coverageMode":  "baseline-and-identity",
+                                                                     "passed":  48,
+                                                                     "waiters":  3,
+                                                                     "prismaClientConstructed":  true,
+                                                                     "providerCalls":  0,
+                                                                     "scope":  "normal-standalone-source-coupon-identity-detachment",
+                                                                     "checkoutVersionTrigger":  true,
+                                                                     "checkoutStrategyTrigger":  true
+                                                                 },
+                                                     "logSha256":  "7552FC89AC7B5C7190D437A352DD038B779A783601FB02ADEED2F0E098E6D61B"
+                                                 },
+                                                 {
+                                                     "label":  "t30-widget-product",
+                                                     "exitCode":  0,
+                                                     "log":  ".cache/phase3-gates/t30-widget-product.log",
+                                                     "expected":  176,
+                                                     "kind":  "widget",
+                                                     "admission":  {
+                                                                       "task":  "T30",
+                                                                       "cohort":  "t30-widget-product",
+                                                                       "minimumCommitMiB":  1024,
+                                                                       "memory":  {
+                                                                                      "observedAtUtc":  "2026-11-17T05:23:50.336061+00:00",
+                                                                                      "source":  "Windows GlobalMemoryStatusEx read-only",
+                                                                                      "physicalTotalMiB":  16087,
+                                                                                      "physicalAvailableMiB":  867,
+                                                                                      "commitAvailableMiB":  7453,
+                                                                                      "memoryLoadPercent":  94
+                                                                                  },
+                                                                       "allowed":  true
+                                                                   },
+                                                     "passed":  176,
+                                                     "cleanup":  {
+                                                                     "status":  "passed",
+                                                                     "cleanupErrors":  0,
+                                                                     "disposableDatabaseRemoved":  true,
+                                                                     "bridgeClosed":  true,
+                                                                     "durationMs":  97636,
+                                                                     "network":  "none",
+                                                                     "productionAccess":  false
+                                                                 },
+                                                     "summary":  {
+                                                                     "status":  "passed",
+                                                                     "passed":  176,
+                                                                     "realLockWaiters":  32,
+                                                                     "syntheticOnly":  true,
+                                                                     "providerCalls":  0
+                                                                 },
+                                                     "logSha256":  "B45BACE463CF175C8309FCB1D7BF81E262EAB33BFE76B37F397B5103DC5AB3BC"
+                                                 }
+                                             ],
+                                   "Count":  11
+                               },
+                   "actualResults":  ".cache/t30-full-native-20261117/results.json",
+                   "actualResultsSha256":  "35F2680DBAA5821C03B39FC863E08DFE48EC3CAC04455905D6D133E16388F040",
+                   "commands":  [
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-ts-gate.mjs t30-confirmation-native tests/service-local-confirmation.integration.spec.ts",
+                                        "expected":  10,
+                                        "requiredCommitMiB":  1024,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  "apps/api/tests/ready-prod-loader.mjs"
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-ts-gate.mjs t30-confirmation-http tests/service-confirmation-http.integration.spec.ts",
+                                        "expected":  7,
+                                        "requiredCommitMiB":  2048,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  "apps/api/tests/ready-prod-loader.mjs"
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-ts-gate.mjs t30-confirmed-resume tests/service-confirmed-resume.integration.spec.ts",
+                                        "expected":  2,
+                                        "requiredCommitMiB":  2048,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  "apps/api/tests/ready-prod-loader.mjs"
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-ts-gate.mjs t30-original-admission tests/service-booking.integration.spec.ts",
+                                        "expected":  17,
+                                        "requiredCommitMiB":  1024,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  "apps/api/tests/ready-prod-loader.mjs"
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-ts-gate.mjs t30-checkout-preservation tests/service-checkout.integration.spec.ts",
+                                        "expected":  9,
+                                        "requiredCommitMiB":  2048,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  "apps/api/tests/ready-prod-loader.mjs"
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-ts-gate.mjs t30-holds-preservation tests/service-holds.integration.spec.ts",
+                                        "expected":  11,
+                                        "requiredCommitMiB":  1024,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  "apps/api/tests/ready-prod-loader.mjs"
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-ts-gate.mjs t30-payment-http-preservation tests/service-payment-http.integration.spec.ts",
+                                        "expected":  7,
+                                        "requiredCommitMiB":  2048,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  "apps/api/tests/ready-prod-loader.mjs"
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-ts-gate.mjs t30-journal-preservation tests/service-payment-admission.integration.spec.ts",
+                                        "expected":  10,
+                                        "requiredCommitMiB":  1024,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  "apps/api/tests/ready-prod-loader.mjs"
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-native-gate.mjs t30-whatsapp-coexistence whatsapp-ai-dispatch-fence.integration.spec.mjs",
+                                        "expected":  27,
+                                        "requiredCommitMiB":  1024,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  null
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-native-gate.mjs t30-normal-product normal-checkout-payment.integration.mjs --local-disposable --prisma-loopback-exec",
+                                        "expected":  48,
+                                        "requiredCommitMiB":  1024,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  null
+                                    },
+                                    {
+                                        "command":  "node .cache/phase3-gates/run-native-gate.mjs t30-widget-product widget-cross-sell-checkout.integration.mjs --local-disposable --prisma-loopback-exec",
+                                        "expected":  176,
+                                        "requiredCommitMiB":  1024,
+                                        "networkGuard":  "apps/api/tests/test-network-guard.mjs",
+                                        "loader":  null
+                                    }
+                                ]
+               },
+    "cleanup":  {
+                    "allCohortsNaturalCloseZero":  true,
+                    "forcedTermination":  false,
+                    "confirmationSql":  "finally disconnects Prisma, disposes owned database, asserts bridge listening=false/sockets=0/children=0",
+                    "confirmationHttpAndResume":  "finally closes actual AppModule runtime; terminal asserts appClosed=true, remainingContainers=0, remainingBridgeSockets=0",
+                    "normal":  {
+                                   "phase":  "normal-checkout-payment",
+                                   "coverageMode":  "baseline-and-identity",
+                                   "status":  "passed",
+                                   "cleanupErrors":  0,
+                                   "disposableDatabaseRemoved":  true,
+                                   "bridgeClosed":  true,
+                                   "durationMs":  31466,
+                                   "network":  "none",
+                                   "productionAccess":  false
+                               },
+                    "widget":  {
+                                   "status":  "passed",
+                                   "cleanupErrors":  0,
+                                   "disposableDatabaseRemoved":  true,
+                                   "bridgeClosed":  true,
+                                   "durationMs":  97636,
+                                   "network":  "none",
+                                   "productionAccess":  false
+                               },
+                    "diagnosticLimit":  "HTTP pre-close diagnostic may contain the original ioredis 2000ms disconnect timer; disconnected diagnostics have timers=[] and the runner closes naturally. No separate OS/PID probe was run."
+                },
+    "preservation":  {
+                         "beforeCompletionMetadataSources":  21,
+                         "beforeCompletionMetadataSourcesByteEqual":  true,
+                         "oldCacheFiles":  325,
+                         "oldCacheFilesByteEqual":  true,
+                         "freeze":  ".cache/t30-full-native-20261117/after-native-freeze.json",
+                         "freezeSha256":  "3FA04D3480EC626BFA6517318C588E66391149B23D9459949B5FBC13DC95269C",
+                         "productive71Adopted":  false,
+                         "sourceFiles":  [
+                                             {
+                                                 "path":  "apps/api/src/modules/checkout/application/confirm-service-appointment.use-case.ts",
+                                                 "beforeSha256":  "119EFCA14E8D495C20A6D7182DE7DA1579126F60F5C85CA1A2C9AFF61F12A9AE",
+                                                 "sha256":  "119EFCA14E8D495C20A6D7182DE7DA1579126F60F5C85CA1A2C9AFF61F12A9AE",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/modules/checkout/application/use-cases/start-checkout.use-case.ts",
+                                                 "beforeSha256":  "AEF09579F4F25A0A698C732EB6A2C7986F2930CE4B6A0EE43BFFFECD6B3A01E1",
+                                                 "sha256":  "AEF09579F4F25A0A698C732EB6A2C7986F2930CE4B6A0EE43BFFFECD6B3A01E1",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/modules/checkout/checkout.module.ts",
+                                                 "beforeSha256":  "45B664065EE94B4C46218D1B003317495348FA3D26B89B6AF8F3F906B6EE71EF",
+                                                 "sha256":  "45B664065EE94B4C46218D1B003317495348FA3D26B89B6AF8F3F906B6EE71EF",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/modules/embed/application/issue-embed-session.use-case.ts",
+                                                 "beforeSha256":  "25F979477F0E56FAAECF15ADAE3D483790AD6987686CE23B8E485C4E867EECC0",
+                                                 "sha256":  "25F979477F0E56FAAECF15ADAE3D483790AD6987686CE23B8E485C4E867EECC0",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/modules/embed/domain/embed-appointment-confirmation-scope.spec.ts",
+                                                 "beforeSha256":  "AD6FDB0866407869F5548B0A2F447ABA06FD415215F1EE13FD9E6E454076CF54",
+                                                 "sha256":  "AD6FDB0866407869F5548B0A2F447ABA06FD415215F1EE13FD9E6E454076CF54",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/modules/embed/domain/embed-appointment-confirmation-scope.ts",
+                                                 "beforeSha256":  "04FC32984BCF7576CCABB1147DF8E5E59CB5B41E30AD5685F7F9D72BF2A7B045",
+                                                 "sha256":  "04FC32984BCF7576CCABB1147DF8E5E59CB5B41E30AD5685F7F9D72BF2A7B045",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/modules/embed/domain/embed-token.service.ts",
+                                                 "beforeSha256":  "8D605844DD4D83C9628065CCDFBFCD110E98F641B0E04DA6FC8C541A2CB2F258",
+                                                 "sha256":  "8D605844DD4D83C9628065CCDFBFCD110E98F641B0E04DA6FC8C541A2CB2F258",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/modules/embed/presentation/http/embed-auth.guard.ts",
+                                                 "beforeSha256":  "C8DA487D4C8E334E396C7C12E52BFE76A56B41396F7186EFFAA3556478ACE116",
+                                                 "sha256":  "C8DA487D4C8E334E396C7C12E52BFE76A56B41396F7186EFFAA3556478ACE116",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+                                                 "beforeSha256":  "25431FF9024F5395C86060CA00256D1B8431573CFEFB1835ED4A1DFE52608468",
+                                                 "sha256":  "25431FF9024F5395C86060CA00256D1B8431573CFEFB1835ED4A1DFE52608468",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/shared/bookings/service-at-attendance-payment.ts",
+                                                 "beforeSha256":  "99EDB810BF7F8AEDB63AC328F07663C886B86834480971E06EEBBADE3B8737D0",
+                                                 "sha256":  "99EDB810BF7F8AEDB63AC328F07663C886B86834480971E06EEBBADE3B8737D0",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/shared/bookings/service-payment-policy.spec.ts",
+                                                 "beforeSha256":  "91D709C414AFF6CDB4E4FFB69A126B0FBB14FCD5E286CA72113A090BBAB533D5",
+                                                 "sha256":  "91D709C414AFF6CDB4E4FFB69A126B0FBB14FCD5E286CA72113A090BBAB533D5",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/src/shared/bookings/service-slot-holds.service.ts",
+                                                 "beforeSha256":  "FBEA85ACDF42357FD374AFE5742B01BE69D25451E60A73ECDD3CEC15B2CAB1B5",
+                                                 "sha256":  "FBEA85ACDF42357FD374AFE5742B01BE69D25451E60A73ECDD3CEC15B2CAB1B5",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/tests/service-confirmation-http.integration.spec.ts",
+                                                 "beforeSha256":  "E1B437B2BF7CE7DD72A5B97929280591F43C8CA738F3F6D200040C2C3E298FC0",
+                                                 "sha256":  "E1B437B2BF7CE7DD72A5B97929280591F43C8CA738F3F6D200040C2C3E298FC0",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/tests/service-confirmed-resume.integration.spec.ts",
+                                                 "beforeSha256":  "35E2B0C4CC40DA1FBE15C09249A1E5B8F7E0B3DA12B6DB568F424F6FB97B3A4E",
+                                                 "sha256":  "35E2B0C4CC40DA1FBE15C09249A1E5B8F7E0B3DA12B6DB568F424F6FB97B3A4E",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/tests/service-local-confirmation.integration.spec.ts",
+                                                 "beforeSha256":  "72553B181F3ADE65C3AC806ED50FB25AE781FC397BE47BF06687BFBEBA40DA97",
+                                                 "sha256":  "72553B181F3ADE65C3AC806ED50FB25AE781FC397BE47BF06687BFBEBA40DA97",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "apps/api/tests/whatsapp-ai-dispatch-fence.integration.spec.mjs",
+                                                 "beforeSha256":  "A7781C078CE038BD8234A6018A8E2A6AE1EB18A5F290A204B90DF206A17AF7F9",
+                                                 "sha256":  "A7781C078CE038BD8234A6018A8E2A6AE1EB18A5F290A204B90DF206A17AF7F9",
+                                                 "byteEqual":  true
+                                             },
+                                             {
+                                                 "path":  "packages/shared-types/src/index.ts",
+                                                 "beforeSha256":  "CFEB826EC80C63949AE44468CB6A5051259818F21C6F21E3979ED52387131CF5",
+                                                 "sha256":  "CFEB826EC80C63949AE44468CB6A5051259818F21C6F21E3979ED52387131CF5",
+                                                 "byteEqual":  true
+                                             }
+                                         ]
+                     },
+    "scope":  {
+                  "localOnly":  true,
+                  "externalProviderCalls":  0,
+                  "charges":  0,
+                  "physicalStockMutationsFromConfirmation":  0,
+                  "customerMessages":  0,
+                  "push":  false,
+                  "deploy":  false,
+                  "productionAccess":  false,
+                  "compilerHeapDeadlinesCoverageGuardsUnchanged":  true
+              },
+    "limitations":  [
+                        "T30-specific Full is complete; T31/T32 and all later tasks remain open.",
+                        "Header test:ai-security script is absent and stock runner belongs to future T92; these are retained explicit gaps, never credited as green or skipped proof.",
+                        "BOOK-04/BOOK-08/EDGE-02 still require the other assigned tasks and final same-HEAD criterion collectors.",
+                        "Final independent verifier, mutations, browser/release acceptance and real provider delivery are not claimed.",
+                        "Own checked artifact predates only completion metadata; implementation and test bytes remain identical to the tested freeze. Root later integrations require their own current-input admission."
+                    ]
+}

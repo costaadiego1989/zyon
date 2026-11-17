@@ -24,6 +24,8 @@ function fixture(paymentMode: ServicePaymentMode, holdEnabled: boolean, missingL
   const tx = {
     $queryRaw: async () => [{ id: "services" }],
     checkoutSession: { findUnique: async () => ({ cart: session.cart, globalUserId: session.globalUserId }) },
+    completedOrder: { findFirst: async () => null },
+    appointmentAudit: { findFirst: async () => null },
     merchant: { findUniqueOrThrow: async () => ({ businessMode: "services", businessModeSelectedAt: now, businessModeNeedsReview: false }) },
     serviceReservation: { findFirst: async () => null },
     serviceBusinessPolicy: { findUnique: async () => policy },
@@ -34,7 +36,7 @@ function fixture(paymentMode: ServicePaymentMode, holdEnabled: boolean, missingL
         metadata: { serviceSchedule: { timeZone: "UTC", durationMinutes: 20, slots: [] } }, variants: [variant] } }) },
     professionalAvailability: { findMany: async () => Array.from({ length: 7 }, (_, weekday) => ({ weekday, startMinute: 600, endMinute: 660,
       timeZone: "UTC", validFrom: null, validUntil: null })) },
-    availabilityException: { findMany: async () => [] }, serviceAppointment: { findMany: async () => [] },
+    availabilityException: { findMany: async () => [] }, serviceAppointment: { findMany: async () => [], count: async () => 0 },
   };
   const verified: Array<{ merchantId: string; owner: string; slots: SlotRequest[] }> = [];
   const store = { assertActive: async (merchantId: string, owner: string, slots: SlotRequest[]) => {

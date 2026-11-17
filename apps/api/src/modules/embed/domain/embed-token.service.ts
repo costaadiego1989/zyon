@@ -9,6 +9,7 @@ export type EmbedScope =
   | "checkout:chat"
   | "offers:apply"
   | "coupons:apply"
+  | "appointments:confirm"
   | "payment:intents:create"
   | "payment:intents:confirm"
   | "payment:intents:resume"
