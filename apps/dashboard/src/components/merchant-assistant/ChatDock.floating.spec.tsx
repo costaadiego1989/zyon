@@ -7,6 +7,14 @@ let screen:ReturnType<typeof ui>;
 afterEach(async()=>{await screen?.close();vi.useRealTimers();});
 const context={id:'meta-ads',label:'Anúncios com IA',capabilities:[]};
 const hints=['Posso explicar seus resultados.','Cada campanha precisa da sua aprovação.'];
+test('FG-02 hidden pages pause tips across several intervals and resume without AI work',async()=>{
+ vi.useFakeTimers();screen=ui();const send=vi.fn();const visibility=vi.spyOn(document,'visibilityState','get').mockReturnValue('hidden');
+ try{
+  await screen.render(<ChatDock presentation='floating' pageKey='metrics' hints={hints} context={context} turns={[]} onSend={send}/>);
+  await act(async()=>vi.advanceTimersByTime(45000));expect(screen.container.querySelector('.chat-dock-hint')).toBeNull();expect(send).not.toHaveBeenCalled();
+  visibility.mockReturnValue('visible');await act(async()=>vi.advanceTimersByTime(10000));expect(screen.container.querySelector('.chat-dock-hint')?.textContent).toContain(hints[0]);expect(send).not.toHaveBeenCalled();
+ }finally{visibility.mockRestore();}
+});
 test('FG-01 floating assistant starts collapsed with the existing mascot and opens through a real gesture',async()=>{
  screen=ui();await screen.render(<ChatDock presentation='floating' context={context} turns={[]} onSend={async()=>{}}/>);
  const panel=screen.container.querySelector('.chat-dock-panel') as HTMLElement;

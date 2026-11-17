@@ -1,17 +1,18 @@
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import type {MetaAdsCampaignLaunchReview} from '@zyon/shared-types';
 import type {CampaignApprovalApi,CampaignPreparationView} from './api.js';
 import {LaunchReview} from './LaunchReview.js';
 import {errorMessage} from './presentation.js';
-interface Props{merchantId:string;campaignId:string;proposalId?:string;hasLaunch?:boolean;api:CampaignApprovalApi;entitled:boolean;pollMs:number;timezone?:string;selectedImageCount?:number;onUpdated:()=>void|Promise<void>;onReconcile?:(id:string)=>Promise<unknown>;}
+interface Props{merchantId:string;campaignId:string;proposalId?:string;hasLaunch?:boolean;api:CampaignApprovalApi;entitled:boolean;pollMs:number;timezone?:string;selectedImageCount?:number;onUpdated:()=>void|Promise<void>;onReconcile?:(id:string)=>Promise<unknown>;onReviewPendingChange?:(pending:boolean)=>void;}
 const states={queued:'Preparação na fila',preparing:'Preparando campanha',creative_pending:'Criando e verificando imagens',review_ready:'Pronta para aprovação',blocked:'Preparação pendente',unknown:'Resultado da preparação desconhecido',superseded:'Planejamento atualizado'};
 const blockers:Record<string,string>={campaign_preparation_unavailable:'Ative o motor de IA para preparar a campanha.',image_credits_insufficient:'Créditos de imagens insuficientes. Nenhum extra será comprado automaticamente.',meta_connection_required:'Conecte sua conta Meta em Configurações.',campaign_budget_required:'Informe o orçamento na conversa.',campaign_dates_invalid:'Revise as datas na conversa.',campaign_products_required:'Escolha os produtos na conversa.'};
 export function CampaignPreparationPanel(props:Props){return <Preparation key={`${props.merchantId}:${props.campaignId}:${props.proposalId??''}`} {...props}/>;}
-function Preparation({merchantId,campaignId,proposalId,hasLaunch=false,api,entitled,pollMs,timezone,selectedImageCount=0,onUpdated,onReconcile}:Props){
+function Preparation({merchantId,campaignId,proposalId,hasLaunch=false,api,entitled,pollMs,timezone,selectedImageCount=0,onUpdated,onReconcile,onReviewPendingChange}:Props){
  const [state,setState]=useState<CampaignPreparationView|null>(null),[review,setReview]=useState<MetaAdsCampaignLaunchReview|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[count,setCount]=useState(1);
  const life=useRef<AbortController|null>(null),lock=useRef(false),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),read=useRef<()=>Promise<void>>(async()=>{}),updated=useRef(onUpdated);updated.current=onUpdated;
  const knownLaunch=useRef(hasLaunch);knownLaunch.current=hasLaunch;
  const job=state?.preparations[0];
+ useLayoutEffect(()=>{onReviewPendingChange?.(review?.proposal.status==='pending_review');return()=>onReviewPendingChange?.(false);},[review?.proposal.status,onReviewPendingChange]);
  useEffect(()=>{if(selectedImageCount>0)setCount(selectedImageCount);},[selectedImageCount]);
  useEffect(()=>{
   const controller=new AbortController();life.current=controller;

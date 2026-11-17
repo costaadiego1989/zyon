@@ -9,7 +9,7 @@ import { ui } from './test-helpers.js';
 import { campaign,overview,launchReview } from './fixtures.js';
 import type {CampaignApprovalApi} from './api.js';
 import { DashboardHttpError } from '../../api/http/error.js';
-let screen:ReturnType<typeof ui>;afterEach(async()=>screen?.close());
+let screen:ReturnType<typeof ui>;afterEach(async()=>{await screen?.close();vi.useRealTimers();});
 const turn=(patch:Partial<AssistantTurn>={}):AssistantTurn=>({id:'t',threadId:'h',ordinal:1,status:'completed',message:'Ajuda',reply:'Resposta persistida',references:[],artifacts:[],error:null,createdAt:'2026-11-16T12:00:00Z',updatedAt:'2026-11-16T12:00:00Z',...patch});
 const thread=(turns:AssistantTurn[]=[]):AssistantThread=>({id:'h',context:{id:'meta-ads',label:'Anúncios com IA',capabilities:[]},revision:turns.length,campaign:null,turns,nextCursor:null,updatedAt:'2026-11-16T12:00:00Z'});
 const manual={mode:'manual' as const,policy:null,committedCents:0,availableCents:null,version:0};
@@ -24,6 +24,15 @@ function fixture(history=thread()){
 
 function campaignFixture(status='queued',missing:string[]=[]){const h=thread();h.campaign={campaignId:'campaign1',draft:campaign().draft,awaitingFields:[]};const f=fixture(h);f.props.overview.campaigns=[campaign()];f.approval.preparation.mockResolvedValue({campaignDigest:'a'.repeat(64),preparations:[preparation(status,missing)]} as never);return f;}
 async function reviewImages(){await act(async()=>screen.container.querySelectorAll('.mga-launch img').forEach(image=>image.dispatchEvent(new Event('load'))));}
+test.each([false,true])('FG-05 canonical pending review suppresses tips with overview proposal present=%s',async(known)=>{
+ vi.useFakeTimers();screen=ui();const f=campaignFixture('review_ready');
+ f.props.overview.proposals=known?[launchReview().proposal]:[];
+ await screen.render(<MetaAdsAssistant {...f.props}/>);
+ expect(screen.container.querySelector('.mga-launch')?.textContent).toContain('Pronta para sua aprovação');
+ expect(f.approval.review).toHaveBeenCalledWith('campaign1','proposal1',expect.any(AbortSignal));
+ await act(async()=>vi.advanceTimersByTime(10000));expect(screen.container.querySelector('.chat-dock-hint')).toBeNull();
+ expect(f.client.submit).not.toHaveBeenCalled();expect(f.approval.approveLaunch).not.toHaveBeenCalled();
+});
 test('ACAP-06 complete saved briefing follows existing queued preparation without requesting or publishing again',async()=>{screen=ui();const f=campaignFixture();await screen.render(<MetaAdsAssistant {...f.props}/>);expect(screen.container.textContent).toContain('Preparação na fila');expect(f.approval.preparation).toHaveBeenCalledWith('campaign1',expect.any(AbortSignal));expect(f.approval.prepare).not.toHaveBeenCalled();expect(f.approval.approveLaunch).not.toHaveBeenCalled();});
 test('ACAP-07 polling reaches verified review without duplicating image work',async()=>{screen=ui();const f=campaignFixture();await screen.render(<MetaAdsAssistant {...f.props} pollMs={10}/>);f.approval.preparation.mockResolvedValue({campaignDigest:'a'.repeat(64),preparations:[preparation('review_ready')]} as never);await act(async()=>{await new Promise(resolve=>setTimeout(resolve,45));});expect(screen.container.querySelectorAll('.mga-launch img')).toHaveLength(2);expect(screen.container.textContent).toContain('Aprovar e publicar');expect(f.approval.prepare).not.toHaveBeenCalled();});
 test('ACAP-06 disabled engine explains next step and explicit resume preserves requested image count',async()=>{screen=ui();const f=campaignFixture('blocked',['campaign_preparation_unavailable']);f.approval.prepare.mockResolvedValue(preparation() as never);await screen.render(<MetaAdsAssistant {...f.props}/>);expect(screen.container.textContent).toContain('Ative o motor de IA');await screen.click('Retomar preparo');expect(f.approval.prepare).toHaveBeenCalledWith('campaign1',{campaignDigest:'a'.repeat(64),imageCount:2},expect.any(AbortSignal));expect(f.approval.approveLaunch).not.toHaveBeenCalled();});
