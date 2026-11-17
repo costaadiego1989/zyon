@@ -23,6 +23,10 @@ test('ADAS-11 persisted conversation and campaign progress load beside existing 
   expect(screen.container.textContent).toContain('Resposta persistida');expect(screen.container.textContent).toContain('Planejamento salvo');expect(screen.container.textContent).toContain('Orçamento');expect(screen.container.textContent).toContain('Controle existente');expect(f.client.submit).not.toHaveBeenCalled();
 });
 
+test('ADAS-68 metrics tab leads with KPI slots and filters while the detailed report stays available',async()=>{
+  screen=ui();const f=fixture();await screen.render(<MetaAdsAssistant {...f.props}/>);await screen.click('Métricas');
+  const panel=screen.container.querySelector('[data-assistant-panel="metrics"]')!;expect(panel.querySelectorAll('article.stat-card')).toHaveLength(6);expect(panel.querySelector('[aria-label="Período das métricas"]')).not.toBeNull();expect(panel.querySelector('[aria-label="Campanha das métricas"]')).not.toBeNull();expect(panel.querySelector('details')?.open).toBe(false);expect(f.client.submit).not.toHaveBeenCalled();
+});
 test('ADAS-65 dashboard navigation switches the main surface and preserves the same mounted conversation without submissions',async()=>{
   screen=ui();const f=fixture(thread([turn({reply:'Conversa preservada entre telas'})]));await screen.render(<MetaAdsAssistant {...f.props} settings={<p>Configuração secundária da loja</p>}><p>Área de campanhas</p></MetaAdsAssistant>);
   const panel=(id:string)=>screen.container.querySelector<HTMLElement>(`[data-assistant-panel="${id}"]`)!;
