@@ -1,5 +1,7 @@
 # WhatsApp Service Booking and Business RAG Specification
 
+**Discovered authentication prerequisite (2026-11-17):** Local source and real-hasher/JWT RED8 (3pass/5fail) reproduced password-login acceptance when verify returns valid:false. AUTH-01/T110 records the required rejection contract before service buyer authentication can be claimed. This corrects an existing security defect; no new business choice, provider action or production validation. Current scope82criteria/110tasks; original approvals remain unchanged.
+
 **Discovered uncertain-replay repair (2026-11-17):** Actual owned SQL/incoming/Meta-adapter RED reproduced two physical local attempts after an unknown handoff notice, while legacy retained one. T109 repairs the existing HUM-03/HUM-07 contract independently from uncommitted T56, with no new criterion, product decision, timeout, provider action or oracle change. Current scope is81 criteria/109 tasks; original approvals remain unchanged. Historical close/new-handoff validation remains mandatory with T56/T57 after that capability exists.
 
 **Approved**: 2026-11-14 - user: "Aprovar a especificaÃ§Ã£o apresentada"
@@ -255,6 +257,16 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 **Independent Test:** RelatÃ³rio de provas, mutaÃ§Ãµes independentes, revisÃ£o de telas e UAT por texto/voz no WhatsApp e storefront, com revisÃ£o profissional do corpus quando aplicÃ¡vel.
 
+### P0: Verified buyer login prerequisite
+
+**User Story:** Como comprador, quero que somente a senha correta permita acessar meus dados e agendamentos.
+
+**Acceptance Criteria:**
+
+1. IF buyer password verification returns valid:false THEN the system SHALL reject login with HTTP401 invalid_credentials, issue no buyer credential and preserve the account, while accepting the correct password through the existing authenticated buyer guard. [AUTH-01]
+
+**Independent Test:** Real PasswordHasher and JWT signer; wrong password, malformed hashes, absent and phone-only accounts; correct normalized email and password; forged JWT; actual local HTTP/SQL and unchanged product journeys.
+
 ## Edge Cases
 
 - IF um ID de profissional, empresa ou horÃ¡rio pertence a outro tenant THEN the system SHALL rejeitar a aÃ§Ã£o sem expor dados desse tenant. [EDGE-01]
@@ -340,6 +352,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | In Progress (T17 complete) |
 | REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | Pending |
 | REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17 complete) |
+| AUTH-01 | Reject invalid buyer passwords before JWT | T110 | In Progress; P-only minimal repair and Quick15 passed, HTTP/build/merge pending |
 | QA-01 | Criteria proofs | T1, T108, T109, T95 | Pending; native collector and replay repairs do not close final feature proof |
 | CAT-01 | Product-mode creation options | T98 | Complete locally;55unit+2real browser, no skips; final screen review later |
 | CAT-02 | Service-mode creation and defaults | T98 | Complete locally; defaults/reset/payload/history and actual stale-mode409 proved |

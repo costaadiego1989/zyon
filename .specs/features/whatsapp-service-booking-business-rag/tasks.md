@@ -1,5 +1,7 @@
 # Service Businesses, WhatsApp Conversations and Generic Business RAG Tasks
 
+**Discovered authentication prerequisite (2026-11-17):** Local source and real-hasher/JWT RED8 (3pass/5fail) reproduced password-login acceptance when verify returns valid:false. AUTH-01/T110 records the required rejection contract before service buyer authentication can be claimed. This corrects an existing security defect; no new business choice, provider action or production validation. Current scope82criteria/110tasks; original approvals remain unchanged.
+
 **Discovered uncertain-replay repair (2026-11-17):** Actual owned SQL/incoming/Meta-adapter RED reproduced two physical local attempts after an unknown handoff notice, while legacy retained one. T109 repairs the existing HUM-03/HUM-07 contract independently from uncommitted T56, with no new criterion, product decision, timeout, provider action or oracle change. Current scope is81 criteria/109 tasks; original approvals remain unchanged. Historical close/new-handoff validation remains mandatory with T56/T57 after that capability exists.
 
 ## Execution Protocol
@@ -178,6 +180,9 @@ T32 → T33
 T39 → T40
 T9 → T48
 T55 → T109 → T56
+T2 → T110
+T110 → T40
+T110 → T95
 T13 → T63
 T18 → T63
 T25 → T65
@@ -958,11 +963,29 @@ T107 → T106
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T39$" ./src/modules/whatsapp-channel/domain/ui/service-appointment-confirmation.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T39 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t39 present service confirmation and pending payment truthfully`
 
+### T110: Enforce the existing buyer password verification result
+
+**What**: Read PasswordHasher.verify().valid before issuing a buyer JWT. Preserve correct-password login, normalization, missing/phone-only rejection and account data. The observed false-object truthiness defect must not authorize service checkout.
+**Where**: `apps/api/src/modules/buyer-account/application/use-cases/login-buyer.use-case.ts`
+**Depends on**: T2
+**Reuses**: Actual PasswordHasher, BuyerJwtService, in-memory buyer repository for unit tests, unchanged buyer controller/auth guard and owned T2 runtime for HTTP/SQL. No password algorithm, CAPTCHA, route, credential or identity-policy change.
+**Requirement**: AUTH-01, QA-01, REG-01
+
+**Done when**:
+
+- [ ] Real-hasher unit negatives reject with401 invalid_credentials and zero JWT signatures; correct normalized credentials return a cryptographically verified buyer JWT. Existing assertions and account snapshots stay intact.
+- [ ] Actual owned HTTP rejects wrong, invalid-hash, absent and phone-only logins without tokens/cookies or SQL mutation; correct login accesses its own profile and forged JWT is rejected. No auth/repository/provider override.
+- [ ] Complete unit/HTTP/product regressions and own current checked API, lint/typecheck pass with original guards and natural cleanup; mark complete before one focused local commit. No production action.
+
+**Tests**: New `src/modules/buyer-account/application/use-cases/login-buyer.use-case.spec.ts` original8 plus independent snapshot4 (12 current unit cases) and `tests/buyer-login-http.integration.spec.mjs` whole8, plus unchanged password-hasher, buyer JWT and existing normal48/widget176 purchase regressions. Initial real RED8=3pass/5fail is recorded; source patch is one destructuring declaration, not a test correction.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/buyer-account/application/use-cases/login-buyer.use-case.spec.ts ./src/modules/auth/domain/services/password-hasher.service.spec.ts` and `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/buyer-login-http.integration.spec.mjs`; own official checked API build/admission, API lint/typecheck and unchanged product normal48/widget176. No resource/timeout/heap/oracle changes.
+**Commit**: `fix(service-business): t110 reject invalid buyer passwords`
+
 ### T40: Expose the buyer booking commands
 
 **What**: Controller de seleção/preparação/confirmação do comprador usa sessão autenticada e comandos canônicos, versões/idempotência; aplica modo e limitações sem PSP implícito. Rotas de produto existentes não mudam.
 **Where**: `apps/api/src/modules/checkout/presentation/http/service-booking.controller.ts`
-**Depends on**: T39
+**Depends on**: T39, T110
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: AGENDA-04, BOOK-03, BOOK-04, BOOK-05, EDGE-01, EDGE-02
 
@@ -2239,7 +2262,7 @@ T107 → T106
 
 **What**: Coletor valida cobertura de todos os critérios atuais da especificação (81 neste plano), teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks. T108 native guard evidence and original affected consumer reruns remain distinct.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
-**Depends on**: T94, T97, T98, T101, T103, T106, T72, T109
+**Depends on**: T94, T97, T98, T101, T103, T106, T72, T109, T110
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: QA-01, QA-02, QA-03, QA-04
 
@@ -2582,7 +2605,14 @@ Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.servi
 Tasks: T107.
 Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; independent70/components, types/lint/build and six native captures reviewed PASS. See task-107-evidence.json; no105/106/final-feature claim.
 
+**C82** - IF buyer password verification returns valid:false THEN the system SHALL reject login with HTTP401 invalid_credentials, issue no buyer credential and preserve the account, while accepting the correct password through the existing authenticated buyer guard. (AUTH-01, AC 1)
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/buyer-account/application/use-cases/login-buyer.use-case.spec.ts` and `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/buyer-login-http.integration.spec.mjs`
+Tasks: T110.
+
 ## Handoff
+
+**Planning update (2026-11-17):** AUTH-01/T110 documents the reproduced buyer password/JWT defect; current scope82criteria/110tasks. P-only Quick15 passed, Root auth implementation is not merged and Full/HTTP remain pending. No new business policy or production action; original approval words remain intact.
+**Approved test corrections:** user: "Aprovar os três patches de testes" (call_ff475992c3644563adb9d550a3a02d97) authorizes exact31/56/71 patches68052/130a/12c24. Actual gates/atomic commits remain mandatory; no API/oracle weakening.
 
 **Dispatched T109:** Independent local repair on pinned faed0a61a, new own dependencies/client/artifacts. Baseline actual RED then reviewed one-line repair, final134 components/56 native/compiled2/nine headers are required; no mark or commit until actual gate evidence. Pending31/56/71 oracle questions remain unanswered. This snapshot carries only109 metadata; Root71 and other workers remain separate.
 
