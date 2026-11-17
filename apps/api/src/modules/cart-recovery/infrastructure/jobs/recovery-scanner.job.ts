@@ -442,6 +442,18 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       return false;
     }
     try {
+      // Shopping telemetry and the checkout can both remain qualified. Once
+      // checkout binds a cart, only its newest durable owner may recover it.
+      const storedCartRef = (current.cart as { cart_ref?: unknown }).cart_ref;
+      const cartRef = typeof storedCartRef === "string" && storedCartRef.trim() ? storedCartRef
+        : current.sessionId === current.conversationId ? current.sessionId : undefined;
+      if (cartRef) {
+        const owner = await this.prisma.checkoutSession.findFirst({
+          where: { merchantId: current.merchantId, cart: { path: ["cart_ref"], equals: cartRef } },
+          orderBy: [{ createdAt: "desc" }, { sessionId: "desc" }], select: { sessionId: true },
+        });
+        if (owner && owner.sessionId !== current.sessionId) return false;
+      }
       let whatsapp = await this.prisma.whatsAppSession?.findFirst?.({
         where: { merchantId: current.merchantId, checkoutSessionId: current.sessionId }, orderBy: { lastActivityAt: "desc" },
       });
