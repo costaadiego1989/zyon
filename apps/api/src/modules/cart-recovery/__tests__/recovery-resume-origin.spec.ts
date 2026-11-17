@@ -3,6 +3,10 @@ import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { RecoveryResumeOriginService } from "../application/services/recovery-resume-origin.service.js";
+import { ResumeRecoveryCheckoutUseCase } from "../application/use-cases/resume-recovery-checkout.use-case.js";
+import { RecoveryCheckoutController } from "../presentation/http/recovery-checkout.controller.js";
+import { recoveryStoreUrl } from "../application/use-cases/generate-recovery-link.use-case.js";
+import { NestFactory } from "@nestjs/core";
 import { GenerateRecoveryLinkUseCase } from "../application/use-cases/generate-recovery-link.use-case.js";
 import { RecoveryLinkTokenService } from "../domain/recovery-link-token.service.js";
 import { checkoutSession } from "../../checkout/__tests__/checkout-test-fixtures.js";
@@ -15,8 +19,8 @@ async function fixture(native=true) {
   const session=checkoutSession({merchantId:config.merchantId,sessionId:"checkout-origin",conversationId:"checkout-conversation"});
   session.cart={...session.cart,cart_ref:"canonical-origin-cart"};
   const sessions=new InMemoryCheckoutRepository();await sessions.saveSession(session);
-  const state:any={config:{...config},whatsapp:native?{merchantId:session.merchantId,checkoutSessionId:null,conversationState:{conversationId:"canonical-origin-cart"},deviceId:"META_CLOUD:official-config"}:null,lookupError:false};
-  const prisma:any={merchant:{findUnique:async()=>({storeSlug:"origin-shop"})},whatsAppSession:{findFirst:async(query:any)=>{
+  const state:any={config:{...config},whatsapp:native?{merchantId:session.merchantId,checkoutSessionId:null,conversationState:{conversationId:"canonical-origin-cart"},deviceId:"META_CLOUD:official-config"}:null,lookupError:false,paid:false,ordered:false};
+  const prisma:any={completedOrder:{findFirst:async()=>state.ordered?{id:"paid-order"}:null},paymentIntent:{findFirst:async()=>state.paid?{id:"paid-intent"}:null},merchant:{findUnique:async({where}:any)=>where.id===session.merchantId?{storeSlug:"origin-shop"}:null},whatsAppSession:{findFirst:async(query:any)=>{
     assert.equal(query.where.merchantId,session.merchantId);
     assert.ok(query.where.OR.some((x:any)=>x.checkoutSessionId===session.sessionId));
     if(state.lookupError)throw Error("owned lookup unavailable");return state.whatsapp;
@@ -78,4 +82,50 @@ test("persisted PostgreSQL channel ownership is isolated by merchant and canonic
   await db.whatsAppSession.create({data:{merchantId,buyerPhone:"5511000000000",deviceId:"META_CLOUD:official-config",conversationState:{conversationId:session.cart.cart_ref}}});
   const result=await service.resolve(session);assert.equal(result.channel,"whatsapp");
   if(result.channel==="whatsapp")assert.equal(new URL(result.url).pathname,"/5521999990000");
+});
+
+async function legacyFixture(native=true) {
+  const h=await fixture(native);const calls={buyer:0,embed:0};
+  const buyers={resolve:async()=>{calls.buyer++;throw Error("website login must not be used for native recovery");}};
+  const issue={execute:()=>{calls.embed++;throw Error("website credentials must not be issued for native recovery");}};
+  const resume=new ResumeRecoveryCheckoutUseCase(h.prisma,h.sessions,h.actual,buyers as any,issue as any,h.origins);
+  return {...h,resume,calls,request:{slug:"origin-shop",token:h.actual.issue(h.session.merchantId,h.session.sessionId),origin:recoveryStoreUrl("origin-shop").origin}};
+}
+
+test("a legacy native link returns only merchant WhatsApp continuation without website login or credentials",async()=>{
+  const h=await legacyFixture();const result=await h.resume.execute(h.request);
+  assert.deepEqual(result,{version:1,merchant_id:"origin-store",resume_channel:"whatsapp",whatsapp_resume_url:"https://wa.me/5521999990000?text=Ver+carrinho"});
+  assert.deepEqual(h.calls,{buyer:0,embed:0});
+});
+
+test("native legacy resolution retains invalid token store origin and completed-purchase barriers",async()=>{
+  const h=await legacyFixture();
+  await assert.rejects(h.resume.execute({...h.request,token:h.request.token+"x"}),/recovery_link_invalid_or_expired/);
+  const old=h.actual.issue(h.session.merchantId,h.session.sessionId,Math.floor(Date.now()/1000)-4*24*3600);
+  await assert.rejects(h.resume.execute({...h.request,token:old}),/recovery_link_invalid_or_expired/);
+  await assert.rejects(h.resume.execute({...h.request,slug:"foreign-store"}),/recovery_store_mismatch/);
+  await assert.rejects(h.resume.execute({...h.request,origin:"https://foreign.example"}),/recovery_origin_not_allowed/);
+  const foreign=h.actual.issue("foreign-merchant",h.session.sessionId);
+  await assert.rejects(h.resume.execute({...h.request,token:foreign}),/recovery_store_mismatch/);
+  h.state.paid=true;await assert.rejects(h.resume.execute(h.request),/recovery_purchase_completed/);
+  h.state.paid=false;h.state.ordered=true;await assert.rejects(h.resume.execute(h.request),/recovery_purchase_completed/);
+  assert.deepEqual(h.calls,{buyer:0,embed:0});
+});
+
+test("unavailable native origin never falls through to website login or credentials",async()=>{
+  const h=await legacyFixture();h.state.lookupError=true;
+  await assert.rejects(h.resume.execute(h.request),/recovery_origin_unavailable/);assert.deepEqual(h.calls,{buyer:0,embed:0});
+});
+
+test("real HTTP native resolution is no-store scoped and needs no website bearer token",async()=>{
+  const h=await legacyFixture();Reflect.defineMetadata("design:paramtypes",[ResumeRecoveryCheckoutUseCase],RecoveryCheckoutController);
+  const app=await NestFactory.create({module:class OwnedNativeRecoveryHttp{},controllers:[RecoveryCheckoutController],providers:[{provide:ResumeRecoveryCheckoutUseCase,useValue:h.resume}]},{logger:false});
+  try {
+    await app.listen(0,"127.0.0.1");const url=await app.getUrl();const headers={"content-type":"application/json",origin:h.request.origin};
+    const response=await fetch(url+"/storefront/origin-shop/recovery",{method:"POST",headers,body:JSON.stringify({token:h.request.token})});
+    assert.equal(response.status,201);assert.equal(response.headers.get("cache-control"),"no-store");assert.equal(response.headers.get("referrer-policy"),"no-referrer");
+    assert.deepEqual(await response.json(),{version:1,merchant_id:"origin-store",resume_channel:"whatsapp",whatsapp_resume_url:"https://wa.me/5521999990000?text=Ver+carrinho"});
+    const foreign=await fetch(url+"/storefront/origin-shop/recovery",{method:"POST",headers:{...headers,origin:"https://foreign.example"},body:JSON.stringify({token:h.request.token})});
+    assert.equal(foreign.status,403);assert.deepEqual(h.calls,{buyer:0,embed:0});
+  } finally {await app.close();}
 });

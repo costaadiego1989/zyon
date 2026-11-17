@@ -43,7 +43,7 @@ async function fixture() {
   } as any;
   const buyers = { resolve: async (_merchant: string, token: unknown) => token === "buyer-proof" ? state.buyer : undefined };
   const generate = new GenerateRecoveryLinkUseCase(prisma, sessions, tokens, new RecoveryResumeOriginService(prisma));
-  const resume = new ResumeRecoveryCheckoutUseCase(prisma, sessions, tokens, buyers as never, new IssueEmbedSessionUseCase(embedTokens));
+  const resume = new ResumeRecoveryCheckoutUseCase(prisma, sessions, tokens, buyers as never, new IssueEmbedSessionUseCase(embedTokens), new RecoveryResumeOriginService(prisma));
   const link = new URL(await generate.execute({ merchantId: session.merchantId, sessionId: session.sessionId }));
   return { tokens, embedTokens, sessions, session, state, generate, resume, link, buyers,
     input: { slug: "test-store", token: link.searchParams.get("recovery"), origin: link.origin, buyerToken: "buyer-proof" } };
