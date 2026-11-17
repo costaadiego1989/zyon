@@ -5,6 +5,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
 import { connectedMetaCloudCredentials } from "../../../whatsapp-channel/domain/services/connected-meta-cloud-credentials.js";
 import { whatsappE164 } from "../../../whatsapp-channel/domain/services/whatsapp-phone.js";
+import { WHATSAPP_RECOVERY_ORIGIN_EVENT } from "../../../storefront/domain/ports/storefront-telemetry.port.js";
 
 export type RecoveryResumeOrigin = { channel: "storefront" } | { channel: "whatsapp"; url: string };
 
@@ -18,7 +19,18 @@ export class RecoveryResumeOriginService {
     const cartRef = (session.cart as { cart_ref?: unknown }).cart_ref;
     const refs = [...new Set([session.sessionId, session.conversationId, typeof cartRef === "string" ? cartRef : ""].filter(Boolean))];
     let whatsapp;
+    let persisted;
     try {
+      persisted = await this.prisma.checkoutEvent.findFirst({ where: {
+        merchantId: session.merchantId, sessionId: { in: refs }, eventName: WHATSAPP_RECOVERY_ORIGIN_EVENT,
+      }, orderBy: { occurredAt: "asc" } });
+      if (persisted) {
+        const configId = (persisted.metadata as { configId?: unknown } | null)?.configId;
+        if (persisted.merchantId !== session.merchantId || !refs.includes(persisted.sessionId) || typeof configId !== "string" || !configId) {
+          throw new ServiceUnavailableException("recovery_origin_unavailable");
+        }
+        return await this.whatsappDestination(session.merchantId, configId);
+      }
       whatsapp = await this.prisma.whatsAppSession.findFirst({
         where: { merchantId: session.merchantId, OR: [{ checkoutSessionId: session.sessionId },
           ...refs.map(ref => ({ conversationState: { path: ["conversationId"], equals: ref } }))] },
@@ -32,9 +44,13 @@ export class RecoveryResumeOriginService {
       throw new ServiceUnavailableException("recovery_whatsapp_connection_unavailable");
     }
     const configId = whatsapp.deviceId.slice("META_CLOUD:".length);
+    return this.whatsappDestination(session.merchantId, configId);
+  }
+
+  private async whatsappDestination(merchantId: string, configId: string): Promise<RecoveryResumeOrigin> {
     const config = await this.configs?.findById(configId).catch(() => null);
     const phone = config?.whatsappNumber && whatsappE164(config.whatsappNumber);
-    if (!config || config.id !== configId || !connectedMetaCloudCredentials(config, session.merchantId) || !phone) {
+    if (!config || config.id !== configId || !connectedMetaCloudCredentials(config, merchantId) || !phone) {
       throw new ServiceUnavailableException("recovery_whatsapp_connection_unavailable");
     }
     const url = new URL(`https://wa.me/${phone.slice(1)}`);

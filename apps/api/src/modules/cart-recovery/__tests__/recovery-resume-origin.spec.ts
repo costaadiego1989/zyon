@@ -12,6 +12,8 @@ import { RecoveryLinkTokenService } from "../domain/recovery-link-token.service.
 import { checkoutSession } from "../../checkout/__tests__/checkout-test-fixtures.js";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { createPrismaClient } from "../../../shared/persistence/prisma-client.js";
+import { readFileSync } from "node:fs";
+import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 
 const secret="local-resume-origin-secret-at-least-32-characters";
 const config={id:"official-config",merchantId:"origin-store",enabled:true,provider:"META_CLOUD",status:"ACTIVE",whatsappNumber:"+55 21 99999-0000",credentials:{accessToken:"local-only",wabaId:"123456789",phoneNumberId:"987654321"}};
@@ -20,7 +22,7 @@ async function fixture(native=true) {
   session.cart={...session.cart,cart_ref:"canonical-origin-cart"};
   const sessions=new InMemoryCheckoutRepository();await sessions.saveSession(session);
   const state:any={config:{...config},whatsapp:native?{merchantId:session.merchantId,checkoutSessionId:null,conversationState:{conversationId:"canonical-origin-cart"},deviceId:"META_CLOUD:official-config"}:null,lookupError:false,paid:false,ordered:false};
-  const prisma:any={completedOrder:{findFirst:async()=>state.ordered?{id:"paid-order"}:null},paymentIntent:{findFirst:async()=>state.paid?{id:"paid-intent"}:null},merchant:{findUnique:async({where}:any)=>where.id===session.merchantId?{storeSlug:"origin-shop"}:null},whatsAppSession:{findFirst:async(query:any)=>{
+  const prisma:any={checkoutEvent:{findFirst:async()=>null},completedOrder:{findFirst:async()=>state.ordered?{id:"paid-order"}:null},paymentIntent:{findFirst:async()=>state.paid?{id:"paid-intent"}:null},merchant:{findUnique:async({where}:any)=>where.id===session.merchantId?{storeSlug:"origin-shop"}:null},whatsAppSession:{findFirst:async(query:any)=>{
     assert.equal(query.where.merchantId,session.merchantId);
     assert.ok(query.where.OR.some((x:any)=>x.checkoutSessionId===session.sessionId));
     if(state.lookupError)throw Error("owned lookup unavailable");return state.whatsapp;
@@ -128,4 +130,36 @@ test("real HTTP native resolution is no-store scoped and needs no website bearer
     const foreign=await fetch(url+"/storefront/origin-shop/recovery",{method:"POST",headers:{...headers,origin:"https://foreign.example"},body:JSON.stringify({token:h.request.token})});
     assert.equal(foreign.status,403);assert.deepEqual(h.calls,{buyer:0,embed:0});
   } finally {await app.close();}
+});
+
+test("durable origin lookup errors and malformed evidence fail closed",async()=>{
+  for(const evidence of [{merchantId:"foreign",sessionId:"canonical-origin-cart",metadata:{configId:"official-config"}},
+    {merchantId:config.merchantId,sessionId:"unrelated",metadata:{configId:"official-config"}},
+    {merchantId:config.merchantId,sessionId:"canonical-origin-cart",metadata:{configId:123}}]) {
+    const h=await fixture(false);h.prisma.checkoutEvent.findFirst=async()=>evidence;
+    await assert.rejects(h.generate.execute(h.input),/recovery_origin_unavailable/);assert.equal(h.issued(),0);
+  }
+  const h=await fixture(false);h.prisma.checkoutEvent.findFirst=async()=>{throw Error("database unavailable");};
+  await assert.rejects(h.generate.execute(h.input),/recovery_origin_unavailable/);assert.equal(h.issued(),0);
+});
+
+test("origin backfill is idempotent tenant scoped and leaves activity and score untouched",async t=>{
+  const merchantId="qa_recovery_origin_"+randomUUID(),foreignId="qa_recovery_origin_"+randomUUID();
+  await db.merchant.createMany({data:[{id:merchantId,name:"Owned backfill QA"},{id:foreignId,name:"Owned foreign QA"}]});
+  t.after(async()=>{for(const id of [merchantId,foreignId]){assert.ok(id.startsWith("qa_recovery_origin_"));await db.whatsAppSession.deleteMany({where:{merchantId:id}});await db.checkoutSession.deleteMany({where:{merchantId:id}});await db.merchant.delete({where:{id}});}});
+  const session=checkoutSession({merchantId,sessionId:randomUUID(),conversationId:randomUUID()});session.cart={...session.cart,cart_ref:randomUUID()};
+  const repo=new PrismaCheckoutRepository(db);await repo.saveSession(session);await repo.saveSession({...session,merchantId:foreignId});
+  const bound=checkoutSession({merchantId,sessionId:randomUUID(),conversationId:randomUUID()});await repo.saveSession(bound);
+  const row=await db.whatsAppSession.create({data:{merchantId,buyerPhone:"5511000000000",deviceId:"META_CLOUD:official-config",checkoutSessionId:bound.sessionId,conversationState:{conversationId:session.cart.cart_ref}}});
+  const before=await db.checkoutSession.findMany({where:{merchantId},orderBy:{sessionId:"asc"}});
+  const sql=readFileSync("prisma/migrations/20261117053000_recovery_origin_evidence/migration.sql","utf8");
+  await db.$executeRawUnsafe(sql);await db.$executeRawUnsafe(sql);
+  const evidence=await db.checkoutEvent.findMany({where:{merchantId,eventName:"whatsapp_recovery_origin_v1"},orderBy:{sessionId:"asc"}});
+  assert.deepEqual(evidence.map(x=>x.sessionId).sort(),[session.sessionId,bound.sessionId].sort());
+  assert.ok(evidence.every(x=>(x.metadata as any).configId==="official-config"));
+  assert.equal(await db.checkoutEvent.count({where:{merchantId:foreignId}}),0);
+  assert.deepEqual(await db.checkoutSession.findMany({where:{merchantId},orderBy:{sessionId:"asc"}}),before);
+  await db.whatsAppSession.update({where:{id:row.id},data:{checkoutSessionId:null,conversationState:{conversationId:randomUUID()}}});
+  const origins=new RecoveryResumeOriginService(db,{findById:async()=>({...config,merchantId})} as any);
+  for(const previous of [session,bound])assert.deepEqual(await origins.resolve(previous),{channel:"whatsapp",url:"https://wa.me/5521999990000?text=Ver+carrinho"});
 });

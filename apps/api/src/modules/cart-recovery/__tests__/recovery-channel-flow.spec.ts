@@ -73,7 +73,7 @@ for (const strategy of strategies) for (const scenario of scenarios) {
       updateMeta: async () => { throw new Error("Routing must not invent template approval"); },
     };
     const tokens = new RecoveryLinkTokenService("test-only-recovery-secret-at-least-32-characters");
-    const linkPrisma = { merchant: { findUnique: async () => ({ storeSlug: "test-shop" }) }, whatsAppSession: { findFirst: async () => null } } as never;
+    const linkPrisma = { checkoutEvent: { findFirst: async () => null }, merchant: { findUnique: async () => ({ storeSlug: "test-shop" }) }, whatsAppSession: { findFirst: async () => null } } as never;
     const links = new GenerateRecoveryLinkUseCase(linkPrisma, sessions, tokens, new RecoveryResumeOriginService(linkPrisma));
     const recoveryLink = await links.execute({ merchantId: session.merchantId, sessionId: session.sessionId });
     assert.equal(tokens.verify(new URL(recoveryLink).searchParams.get("recovery")).sessionId, session.sessionId);

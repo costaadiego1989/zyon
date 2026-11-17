@@ -36,6 +36,7 @@ async function fixture() {
   await sessions.saveSession(session);
   const state = { buyer: { globalUserId: session.globalUserId, customer: { email: session.customer!.email!, email_verified: true } } as any, paid: false, ordered: false };
   const prisma = {
+    checkoutEvent: { findFirst: async () => null },
     whatsAppSession: { findFirst: async () => null },
     merchant: { findUnique: async ({ where }: any) => where.id === session.merchantId ? { storeSlug: "test-store" } : null },
     completedOrder: { findFirst: async ({ where }: any) => { assert.equal(where.merchantId, session.merchantId); return state.ordered ? { id: "order" } : null; } },

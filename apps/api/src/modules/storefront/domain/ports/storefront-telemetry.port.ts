@@ -1,4 +1,5 @@
 export const STOREFRONT_TELEMETRY_PORT = Symbol("STOREFRONT_TELEMETRY_PORT");
+export const WHATSAPP_RECOVERY_ORIGIN_EVENT = "whatsapp_recovery_origin_v1";
 
 export interface StorefrontTelemetryEvent {
   merchantId: string;
@@ -20,6 +21,7 @@ export interface StorefrontLiveSession {
 }
 
 export interface StorefrontTelemetryPort {
-  recordEvent(event: StorefrontTelemetryEvent): Promise<void>;
+  /** The second argument is private verified adapter context, never browser metadata. */
+  recordEvent(event: StorefrontTelemetryEvent, verifiedWhatsApp?: { configId: string }): Promise<void>;
   listLiveSessions(merchantId: string, since: Date): Promise<StorefrontLiveSession[]>;
 }
