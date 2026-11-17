@@ -60,3 +60,18 @@ test("wrong buyer missing issuer expired codes and five failed attempts cannot b
   await assert.rejects(h.useCase.verify("buyer-a",phone,code,"store-a"),/otp_expired_or_locked/);
   assert.equal(h.bound.length,0);
 });
+
+test("a valid fifth attempt consumes the code before binding and consumption failure cannot bind", async () => {
+  const h=setup();await h.useCase.send("buyer-a",phone,"store-a");
+  for(let i=0;i<4;i++)await h.otp.incrementAttempts(key);
+  const order:string[]=[];const consume=h.otp.consume.bind(h.otp);
+  h.otp.consume=async value=>{order.push("consume");await consume(value);};
+  const identities=(h.useCase as any).identities;const bind=identities.bind;
+  identities.bind=async(...args:any[])=>{order.push("bind");return bind(...args);};
+  await h.useCase.verify("buyer-a",phone,h.sent[0].variables.otpCode,"store-a");
+  assert.deepEqual(order,["consume","bind"]);assert.equal(h.bound.length,1);assert.equal(await h.otp.findActive(key),null);
+  const broken=setup();await broken.useCase.send("buyer-a",phone,"store-a");
+  broken.otp.consume=async()=>{throw Error("owned OTP store unavailable");};
+  await assert.rejects(broken.useCase.verify("buyer-a",phone,broken.sent[0].variables.otpCode,"store-a"),/owned OTP store unavailable/);
+  assert.deepEqual(broken.bound,[]);assert.ok(await broken.otp.findActive(key));
+});

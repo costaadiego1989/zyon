@@ -53,8 +53,8 @@ export class LinkBuyerWhatsAppUseCase {
         await this.otp.incrementAttempts(key);
         throw new UnauthorizedException("otp_invalid");
       }
-      verificationId = await this.identities.bind(tx, buyerId, phone, verificationId);
       await this.otp.consume(key);
+      verificationId = await this.identities.bind(tx, buyerId, phone, verificationId);
     });
     // Canonicalization is recoverable from the durable possession proof if the
     // process stops between this commit and a merchant's wallet migration.
