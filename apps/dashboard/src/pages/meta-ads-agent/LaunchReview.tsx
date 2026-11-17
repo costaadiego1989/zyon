@@ -7,7 +7,7 @@ import './launch-review.css';
 
 interface Props {
   merchantId:string;value:MetaAdsCampaignLaunchReview|null;api:Pick<CampaignApprovalApi,'review'|'approveLaunch'>;
-  timezone?:string;loading?:boolean;error?:string;onRetry?:()=>void;
+  timezone?:string;loading?:boolean;error?:string;onRetry?:()=>void;entitled?:boolean;
   onUpdated:(value:MetaAdsCampaignLaunchReview)=>void|Promise<void>;onReconcile?:(executionId:string)=>Promise<unknown>;
 }
 export function LaunchReview(props:Props){
@@ -16,7 +16,7 @@ export function LaunchReview(props:Props){
   if(!props.value)return <p className="mga-empty">A campanha ainda está sendo preparada. A revisão aparecerá aqui.</p>;
   return <ReadyReview key={`${props.merchantId}:${props.value.proposal.id}:${props.value.proposal.digest}:${props.value.proposal.connectionEpoch}`} {...props} value={props.value}/>;
 }
-function ReadyReview({value,api,onUpdated,onReconcile,timezone}:Props&{value:MetaAdsCampaignLaunchReview}){
+function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true}:Props&{value:MetaAdsCampaignLaunchReview}){
   const [result,setResult]=useState<MetaAdsCampaignLaunchReview|null>(null),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[error,setError]=useState('');
   const [previews,setPreviews]=useState<Record<string,'loaded'|'failed'>>({}),[imageAttempt,setImageAttempt]=useState(0);
   const [slide,setSlide]=useState(0);
@@ -37,7 +37,7 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone}:Props&{value:Met
   const unknown=uncertain||execution?.status==='execution_unknown';
   const formatTime=(value:string)=>new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:timezone,timeZoneName:'short'}).format(new Date(value));
   async function approve(){
-    if(lock.current||!current.canApprove||!previewReady||approved||unknown)return;
+    if(lock.current||!entitled||!current.canApprove||!previewReady||approved||unknown)return;
     lock.current=true;setBusy(true);setError('');key.current??=crypto.randomUUID();
     try{const next=await api.approveLaunch(campaign.id,proposal.id,{digest:proposal.digest,idempotencyKey:key.current});if(alive.current){setResult(next);void onUpdated(next);}}
     catch(e){if(alive.current){setUncertain(true);setError(errorMessage(e));}}
@@ -74,7 +74,7 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone}:Props&{value:Met
       <p className="mga-launch-cost">Investimento pago diretamente à Meta. A aprovação autoriza a publicação desta versão.</p>
       {!!current.missing.length&&<p role="alert">{current.missing.includes('proposal_stale')?'A campanha mudou. Atualize o planejamento e revise a nova versão.':'Há uma pendência na conexão, nos dados ou na autorização. Atualize a revisão antes de aprovar.'}</p>}
       <div className="mga-launch-submit">
-        {execution?<p role="status">{executionStates[execution.status]}</p>:approved?<p role="status">Aprovação registrada. Aguardando envio à Meta.</p>:unknown?<p role="status">Aguardando confirmação da aprovação. Consulte o estado antes de qualquer nova ação.</p>:<button type="button" data-action="approve-launch" disabled={busy||!current.canApprove||!previewReady} onClick={()=>void approve()}>{busy?'Registrando aprovação…':'Aprovar e publicar'}</button>}
+        {execution?<p role="status">{executionStates[execution.status]}</p>:approved?<p role="status">Aprovação registrada. Aguardando envio à Meta.</p>:unknown?<p role="status">Aguardando confirmação da aprovação. Consulte o estado antes de qualquer nova ação.</p>:<button type="button" data-action="approve-launch" disabled={busy||!entitled||!current.canApprove||!previewReady} onClick={()=>void approve()}>{busy?'Registrando aprovação…':'Aprovar e publicar'}</button>}
         {(unknown||approved)&&<button type="button" className="mga-secondary" disabled={busy} onClick={()=>void consult()}>Consultar estado</button>}
         {!approved&&!unknown&&!previewReady&&!previewFailed&&<small>Carregando criativos para revisão…</small>}
         {busy&&<p role="status">{approved||unknown?'Consultando estado…':'Registrando aprovação…'}</p>}{error&&<p role="alert">{error}</p>}

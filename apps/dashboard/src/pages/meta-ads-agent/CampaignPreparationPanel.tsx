@@ -46,7 +46,8 @@ function Preparation({merchantId,campaignId,proposalId,hasLaunch=false,api,entit
   <small>Usa os créditos de imagens disponíveis. A publicação aguarda sua aprovação.</small></>}</>}
   {error&&<p role="alert">{error}</p>}
   <button type="button" className="mga-secondary" disabled={loading||busy} onClick={()=>{clearTimeout(timer.current);void read.current();}}>Atualizar preparo</button>
-  {review&&<LaunchReview merchantId={merchantId} value={review} api={api} timezone={timezone} onReconcile={onReconcile} onUpdated={next=>{setReview(next);clearTimeout(timer.current);void read.current();void updated.current();}}/>}
+  {review&&<LaunchReview merchantId={merchantId} value={review} api={api} timezone={timezone} entitled={entitled} onReconcile={onReconcile} onUpdated={next=>{setReview(next);clearTimeout(timer.current);void read.current();void updated.current();}}/>}
   {notice&&<p role="status">{notice.reviewState==='approved'?'Campanha aprovada':notice.reviewState==='superseded'?'Aviso de versão anterior':'Aviso no painel'} · WhatsApp: {({queued:'na fila',blocked:'indisponível; o aviso continua no painel',sending:'envio em processamento',accepted:'aceito pela Meta, entrega ainda não confirmada',delivered:'entregue',failed:'falha confirmada',unknown:'resultado desconhecido; sem repetição automática'})[notice.whatsappStatus]}{notice.recipientHint?` · ${notice.recipientHint}`:''}</p>}
+  {notice?.whatsappStatus==='blocked'&&<p>{({campaign_notice_contact_required:'Cadastre o contato administrativo em Configurações para receber no WhatsApp.',meta_connection_unavailable:'Conecte o WhatsApp da loja em Configurações.',approved_template_unavailable:'Aguarde a aprovação do modelo de aviso na Meta.',campaign_notice_self_recipient:'Use um contato administrativo diferente do remetente da loja.'} as Record<string,string>)[notice.error??'']??'Revise a conexão e o modelo de aviso em Configurações.'} O aviso continua no painel.</p>}
  </section>;
 }
