@@ -32,3 +32,16 @@ test('ACAP-14 ACAP-25 HTTP stale review retains frozen content and returns an ac
 test('ACAP-18 HTTP review query cannot select a tenant actor approval or foreign proposal',async()=>{
   const f=await campaignApprovalHttpFixture();try{assert.equal((await f.request(`/campaigns/${f.campaignId}/launch-review?merchantId=store-b&approve=true`)).status,400);assert.equal((await f.request(`/campaigns/${f.campaignId}/launch-review?proposal=foreign-proposal`)).status,404);assert.equal((await f.request(`/campaigns/${f.campaignId}/preparation?actorId=admin-a`)).status,400);assert.equal(await f.repo.getRecord('store-a',`proposal-approval:${f.p.id}`),null);}finally{await f.closeHttp();}
 });
+
+test('ACAP-24 HTTP absent notice preferences return no implicit consent and no connection credentials',async()=>{
+  const f=await campaignApprovalHttpFixture();try{const response=await f.request('/campaign-notice-contact');assert.equal(response.status,200);assert.deepEqual(await response.json(),{phoneNumber:null,consented:false,consentVersion:null,consentedAt:null,version:0,updatedAt:null});assert.equal(await f.prisma.metaAdsCampaignNoticeContact.count(),0);}finally{await f.closeHttp();}
+});
+test('ACAP-24 HTTP another administrator reads the stores persisted purpose-specific contact',async()=>{
+  const f=await campaignApprovalHttpFixture();try{const saved=await f.contact.save('store-a','owner-a',{phoneNumber:'+5511988887777',consented:true,expectedVersion:0});const response=await f.request('/campaign-notice-contact','GET',undefined,'admin-a');assert.equal(response.status,200);assert.deepEqual(await response.json(),saved);assert.deepEqual(Object.keys(saved).sort(),['consentVersion','consented','consentedAt','phoneNumber','updatedAt','version'].sort());assert.equal(await f.prisma.metaAdsCampaignNoticeContact.count(),1);}finally{await f.closeHttp();}
+});
+test('ACAP-24 HTTP notice contact is scoped by authenticated tenant and cannot be selected by query',async()=>{
+  const f=await campaignApprovalHttpFixture();try{await f.contact.save('store-a','owner-a',{phoneNumber:'+5511988887777',consented:true,expectedVersion:0});const response=await f.request('/campaign-notice-contact','GET',undefined,'owner-b');assert.equal(response.status,200);assert.equal((await response.json()).phoneNumber,null);assert.equal((await f.request('/campaign-notice-contact?merchantId=store-a','GET',undefined,'owner-b')).status,400);assert.equal(await f.prisma.metaAdsCampaignNoticeContact.count({where:{merchantId:'store-b'}}),0);}finally{await f.closeHttp();}
+});
+test('ACAP-24 HTTP notice preferences reject anonymous staff expired and revoked administrative sessions',async()=>{
+  const f=await campaignApprovalHttpFixture();try{for(const [actor,status] of [[null,401],['staff-a',403],['expired',401]] as const)assert.equal((await f.request('/campaign-notice-contact','GET',undefined,actor)).status,status);await f.sql.query("DELETE FROM merchant_team_members WHERE user_id='admin-a'");assert.equal((await f.request('/campaign-notice-contact','GET',undefined,'admin-a')).status,401);assert.equal(await f.prisma.metaAdsCampaignNoticeContact.count(),0);}finally{await f.closeHttp();}
+});
