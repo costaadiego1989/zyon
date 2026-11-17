@@ -1,3 +1,4 @@
+import { RecoveryResumeOriginService } from "../services/recovery-resume-origin.service.js";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -19,6 +20,7 @@ export class GenerateRecoveryLinkUseCase {
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     private readonly tokens: RecoveryLinkTokenService,
+    private readonly origins: RecoveryResumeOriginService,
   ) {}
   async execute(input: { merchantId: string; sessionId: string }): Promise<string> {
     if (!input.sessionId) throw new BadRequestException("recovery_session_required");
@@ -26,9 +28,12 @@ export class GenerateRecoveryLinkUseCase {
       this.prisma.merchant.findUnique({ where: { id: input.merchantId }, select: { storeSlug: true } }),
       this.sessions.getSession(input.merchantId, input.sessionId),
     ]);
-    if (!merchant?.storeSlug || !session || session.merchantId !== input.merchantId || !session.cart?.items?.length) {
+    if (!merchant || !session || session.merchantId !== input.merchantId || !session.cart?.items?.length) {
       throw new BadRequestException("recovery_purchase_unavailable");
     }
+    const origin = await this.origins.resolve(session);
+    if (origin.channel === "whatsapp") return origin.url;
+    if (!merchant.storeSlug) throw new BadRequestException("recovery_purchase_unavailable");
     const url = recoveryStoreUrl(merchant.storeSlug);
     url.searchParams.set("show", "checkout");
     url.searchParams.set("recovery", this.tokens.issue(input.merchantId, input.sessionId));

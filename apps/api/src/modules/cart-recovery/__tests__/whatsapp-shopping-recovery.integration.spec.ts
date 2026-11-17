@@ -10,7 +10,9 @@ import { RecoveryScannerJob } from "../infrastructure/jobs/recovery-scanner.job.
 import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 import { InMemoryRecoveryAttemptRepository } from "../infrastructure/repositories/in-memory-recovery-attempt.repository.js";
 import { InMemoryBuyerPurchaseHistoryRepository } from "../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
-import { merchantRules } from "../../checkout/__tests__/checkout-test-fixtures.js";
+import { merchantRules, checkoutSession } from "../../checkout/__tests__/checkout-test-fixtures.js";
+import { RecoveryResumeOriginService } from "../application/services/recovery-resume-origin.service.js";
+import { TrackStorefrontEventUseCase } from "../../storefront/application/use-cases/track-storefront-event.use-case.js";
 
 const db = createPrismaClient("postgresql://postgres@127.0.0.1:15565/athom_qa");
 after(async () => { await db.$disconnect(); });
@@ -64,6 +66,39 @@ test("verified native shopping projects the canonical cart without starting or b
   assert.equal(await db.campaignContactConsent.count({ where: { merchantId: f.merchantId } }), 0);
 });
 
+test("verified cart channel survives conversation rollover without creating checkout authority", async t => {
+  const f=await fixture(t);await f.adapter.respondStore(f.input);await f.adapter.respondStore(f.input);
+  const evidence=await db.checkoutEvent.findMany({where:{merchantId:f.merchantId,eventName:"whatsapp_recovery_origin_v1"}});
+  assert.equal(evidence.length,1);assert.equal(evidence[0].sessionId,f.conversationId);
+  assert.deepEqual(evidence[0].metadata,{configId:f.deviceId.slice(11)});
+  await db.whatsAppSession.update({where:{id:f.wa.id},data:{checkoutSessionId:"later-checkout",conversationState:{conversationId:randomUUID()}}});
+  const origins=new RecoveryResumeOriginService(db,{findById:async(id:string)=>({id,merchantId:f.merchantId,enabled:true,status:"ACTIVE",provider:"META_CLOUD",whatsappNumber:"5521999990000",credentials:{accessToken:"local",wabaId:"123456",phoneNumberId:"987654"}})} as any);
+  const session=await new PrismaCheckoutRepository(db).getSession(f.merchantId,f.conversationId);assert.ok(session);
+  assert.deepEqual(await origins.resolve(session),{channel:"whatsapp",url:"https://wa.me/5521999990000?text=Ver+carrinho"});
+  assert.equal(await db.paymentIntent.count({where:{merchantId:f.merchantId}}),0);
+});
+
+test("public telemetry cannot forge private WhatsApp channel evidence",async t=>{
+  const f=await fixture(t),telemetry=new PrismaStorefrontTelemetryRepository(db,new PrismaStorefrontCartRepository(db));
+  const track=new TrackStorefrontEventUseCase(telemetry);
+  const forged={merchantId:f.merchantId,conversationId:randomUUID(),cartId:f.conversationId,metadata:{source:"whatsapp",configId:f.deviceId.slice(11),verifiedWhatsApp:{configId:f.deviceId.slice(11)}}};
+  await track.execute({...forged,event:"cart_viewed"});
+  await assert.rejects(track.execute({...forged,event:"whatsapp_recovery_origin_v1"}),/storefront_event_server_only/);
+  await telemetry.recordEvent({...forged,event:"whatsapp_recovery_origin_v1"});
+  assert.equal(await db.checkoutEvent.count({where:{merchantId:f.merchantId,eventName:"whatsapp_recovery_origin_v1"}}),0);
+  const session=await new PrismaCheckoutRepository(db).getSession(f.merchantId,forged.conversationId);assert.ok(session);
+  assert.deepEqual(await new RecoveryResumeOriginService(db).resolve(session),{channel:"storefront"});
+});
+
+test("bound native checkout retains origin after its mutable WhatsApp binding moves",async t=>{
+  const f=await fixture(t),session=checkoutSession({merchantId:f.merchantId,sessionId:"owned-bound",conversationId:f.conversationId});
+  await new PrismaCheckoutRepository(db).saveSession(session);f.input.state.checkoutSessionId=session.sessionId;
+  await f.adapter.respondStore(f.input);
+  assert.equal(await f.projection(),null);
+  const evidence=await db.checkoutEvent.findMany({where:{merchantId:f.merchantId,eventName:"whatsapp_recovery_origin_v1"}});
+  assert.equal(evidence.length,1);assert.equal(evidence[0].sessionId,session.sessionId);assert.deepEqual(evidence[0].metadata,{configId:f.deviceId.slice(11)});
+});
+
 test("recognized native shopper is retained in both storefront routing and recovery persistence", async t => {
   const f = await fixture(t), recognizedId = "qa_verified_" + randomUUID(), routedIds: string[] = [];
   (f.adapter as any).checkoutIdentity = { recognize: async () => ({ status: "recognized", buyer: {
@@ -97,7 +132,10 @@ for (const variant of ["missing_proof", "foreign_phone", "other_provider", "expi
     if (variant === "other_provider") f.input.verifiedSender.deviceId = "BUBBLEWHATS:config";
     if (variant === "expired") await db.storefrontCart.updateMany({ where: { merchantId: f.merchantId }, data: { expiresAt: new Date(0) } });
     if (variant === "missing_cart") await db.storefrontCart.deleteMany({ where: { merchantId: f.merchantId } });
-    if (variant === "bound_checkout") f.input.state.checkoutSessionId = "bound";
+    if (variant === "bound_checkout") {
+      await new PrismaCheckoutRepository(db).saveSession(checkoutSession({ merchantId: f.merchantId, sessionId: "bound", conversationId: f.conversationId }));
+      f.input.state.checkoutSessionId = "bound";
+    }
     await f.adapter.respondStore(f.input); assert.equal(await f.projection(), null);
   });
 }

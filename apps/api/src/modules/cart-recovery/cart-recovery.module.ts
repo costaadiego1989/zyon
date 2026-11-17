@@ -1,3 +1,4 @@
+import { RecoveryResumeOriginService } from "./application/services/recovery-resume-origin.service.js";
 import { EmbedModule } from "../embed/embed.module.js";
 import { GenerateRecoveryLinkUseCase } from "./application/use-cases/generate-recovery-link.use-case.js";
 import { ResumeRecoveryCheckoutUseCase } from "./application/use-cases/resume-recovery-checkout.use-case.js";
@@ -67,6 +68,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
   controllers: [RecoveryCheckoutController, CartRecoveryController, CartRecoveryDashboardController, RecoveryTemplatesController],
   providers: [
     { provide: RecoveryLinkTokenService, useFactory: () => new RecoveryLinkTokenService() },
+    RecoveryResumeOriginService,
     GenerateRecoveryLinkUseCase,
     ResumeRecoveryCheckoutUseCase,
     GenerateRecoveryTemplatesUseCase,

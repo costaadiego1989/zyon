@@ -43,7 +43,7 @@ import { WhatsAppBuyerHubService } from "../../application/services/whatsapp-buy
 import { CashbackService } from "../../../cashback/application/cashback.service.js";
 import { parseCashbackCommand, respondToCashbackCommand } from "../../application/services/cashback-whatsapp.commands.js";
 import { parseWhatsAppBenefitCommand, WhatsAppCheckoutBenefitsService } from "../../application/services/whatsapp-checkout-benefits.service.js";
-import { STOREFRONT_TELEMETRY_PORT, type StorefrontTelemetryPort } from "../../../storefront/domain/ports/storefront-telemetry.port.js";
+import { STOREFRONT_TELEMETRY_PORT, WHATSAPP_RECOVERY_ORIGIN_EVENT, type StorefrontTelemetryPort } from "../../../storefront/domain/ports/storefront-telemetry.port.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -131,11 +131,14 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     // Native shopping has a canonical cart before it has a checkout binding.
     // Reuse its recovery projection without starting checkout or granting any
     // account/contact authority. Empty carts also refresh a stale projection.
-    if (this.telemetry && !response.state.checkoutSessionId && stored && stored.expiresAt.getTime() > Date.now()
+    if (this.telemetry && stored && stored.expiresAt.getTime() > Date.now()
       && sender?.deviceId.startsWith("META_CLOUD:") && sender.inboxId && sender.leaseToken
       && phone.length >= 10 && phone.length <= 15 && sender.fromNumber.replace(/\D/g, "") === phone) {
-      await this.telemetry.recordEvent({ merchantId: input.merchantId, conversationId: response.state.conversationId,
-        cartId: response.state.conversationId, globalUserId: resolvedBuyerId, event: "cart_viewed", metadata: { source: "whatsapp" } });
+      await this.telemetry.recordEvent({ merchantId: input.merchantId,
+        conversationId: response.state.checkoutSessionId ?? response.state.conversationId,
+        cartId: response.state.conversationId, globalUserId: resolvedBuyerId,
+        event: response.state.checkoutSessionId ? WHATSAPP_RECOVERY_ORIGIN_EVENT : "cart_viewed", metadata: { source: "whatsapp" } },
+        { configId: sender.deviceId.slice("META_CLOUD:".length) });
     }
     return { ...response,
       quickReplies: response.quickReplies.filter(label => config.cashbackEnabled === true || !/cashback/i.test(label)),
