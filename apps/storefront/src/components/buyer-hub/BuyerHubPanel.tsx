@@ -764,6 +764,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, store
             >
               {vm.activeTab === "profile" && (
                 <ProfileTab
+                  merchantId={merchantId}
                   profile={vm.profile.data}
                   addresses={vm.addresses.data ?? []}
                   loading={vm.profile.loading || vm.addresses.loading}

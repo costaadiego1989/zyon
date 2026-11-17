@@ -74,6 +74,6 @@ export function CashbackWallet({ merchantId, existingCreditsOnly = false }: { me
         </nav>}
       </>}
     </div>
-    <CashbackWhatsAppLink onLinked={() => { setPage(1); setAttempt(value => value + 1); }} />
+    <CashbackWhatsAppLink merchantId={merchantId} onLinked={() => { setPage(1); setAttempt(value => value + 1); }} />
   </section>;
 }

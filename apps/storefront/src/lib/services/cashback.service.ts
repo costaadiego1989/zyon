@@ -18,10 +18,10 @@ export function fetchBuyerWhatsAppLink(signal?: AbortSignal): Promise<BuyerWhats
   return apiCall<BuyerWhatsAppLink>("/buyer/me/channels/whatsapp", { signal });
 }
 
-export function requestBuyerWhatsAppLinkCode(phone: string): Promise<{ sent: true; delivered_to: string }> {
-  return apiCall("/buyer/me/channels/whatsapp/code", { method: "POST", body: JSON.stringify({ phone }) });
+export function requestBuyerWhatsAppLinkCode(phone: string, merchantId: string): Promise<{ sent: true; delivered_to: string }> {
+  return apiCall("/buyer/me/channels/whatsapp/code", { method: "POST", body: JSON.stringify({ phone, merchantId }) });
 }
 
-export function verifyBuyerWhatsAppLink(phone: string, code: string): Promise<BuyerWhatsAppLink> {
-  return apiCall<BuyerWhatsAppLink>("/buyer/me/channels/whatsapp/verify", { method: "POST", body: JSON.stringify({ phone, code }) });
+export function verifyBuyerWhatsAppLink(phone: string, code: string, merchantId: string): Promise<BuyerWhatsAppLink> {
+  return apiCall<BuyerWhatsAppLink>("/buyer/me/channels/whatsapp/verify", { method: "POST", body: JSON.stringify({ phone, code, merchantId }) });
 }
