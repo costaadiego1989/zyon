@@ -14,3 +14,5 @@
 - Private .specs/features stays ignored. Stage tracked .specs/STATE.md only in a task commit, never force-add private artifacts. Do not update global memories.
 
 - T9 now complete: user authorized message correction;31/31 native adapter cases and lint0. T10 recovery next. No new remote actions.
+
+- T10 complete:33 execution tests/full522 API, lint0. Recovery validates optional native schedule for launch and never resends unknown calls. T11 next.

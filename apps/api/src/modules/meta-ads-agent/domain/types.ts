@@ -172,6 +172,7 @@ export interface MetaDiscovery {
   errors: string[];
 }
 export interface RemoteSnapshot {
+  schedule?: { startsAt: string | null; endsAt: string | null };
   campaignId: string;
   status: string;
   effectiveStatus: string;

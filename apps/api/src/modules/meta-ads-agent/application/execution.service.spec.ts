@@ -15,6 +15,86 @@ async function automaticFixture(prepared = true) {
   return { ...f, executor };
 }
 
+const launchObjects = [{ type: 'campaign' as const, id: '200' }, { type: 'ad_set' as const, id: '300' }, { type: 'creative' as const, id: '400' }, { type: 'ad' as const, id: '500' }];
+async function launchFixture() {
+  const f = await automaticFixture(false), p = await f.propose('launch');
+  await f.service.proposals.approve('store-a', p.id, 'owner-a', p.digest);
+  const snapshot = f.provider.snapshot.bind(f.provider);
+  f.provider.snapshot = async (...args) => ({ ...await snapshot(...args), status: 'ACTIVE', effectiveStatus: 'ACTIVE', schedule: { startsAt: f.budget.startsAt, endsAt: f.budget.endsAt } });
+  return { ...f, p };
+}
+test('ACAP-13 one launch approval persists one execution and publishes through the publish capability', async () => {
+  const f = await launchFixture(); try {
+    await f.repo.mutate('store-a', [], state => { state.connection.capabilities.optimize = false; return { result: null }; });
+    let writes = 0;
+    f.provider.execute = async (access, c, p, progress) => { await access.assertWriteAuthorized!(); writes++; assert.equal(p.kind, 'launch'); assert.equal(p.digest, f.p.digest); assert.equal(c.draft.budget!.amountCents, 10000); for (let i = 1; i <= 4; i++) await progress(launchObjects.slice(0, i)); await access.assertWriteAuthorized!(); return { status: 'active_unconfirmed', objects: launchObjects }; };
+    const result = await f.executor.execute('store-a', f.p.id, 'owner-a'), replay = await f.executor.execute('store-a', f.p.id, 'owner-a');
+    const state = await f.repo.read('store-a'); assert.equal(result.id, replay.id); assert.equal(writes, 1); assert.equal(result.status, 'active_unconfirmed'); assert.deepEqual(result.objects, launchObjects); assert.equal(Object.keys(state.executions).length, 1);
+    const audit = (await f.repo.getRecord<Record<string, unknown>>('store-a', `execution-result:${result.id}:1`))!.payload;
+    assert.equal(audit.approvedBy, 'owner-a'); assert.equal(audit.digest, f.p.digest); assert.equal(audit.kind, 'launch'); assert.equal((audit.authority as Record<string, unknown>).kind, 'manual'); assert.deepEqual(state.campaigns[f.campaignId].remoteCreativeIds, ['400']);
+  } finally { await f.close(); }
+});
+test('ACAP-15 concurrent launch submissions retain one durable identity and one provider operation', async () => {
+  const f = await launchFixture(); let release!: () => void, entered!: () => void; const held = new Promise<void>(yes => { release = yes; }), started = new Promise<void>(yes => { entered = yes; }); let running: ReturnType<typeof f.executor.execute> | undefined;
+  try {
+    let writes = 0; f.provider.execute = async (_access, _c, _p, progress) => { writes++; await progress(launchObjects); entered(); await held; return { status: 'execution_unknown', objects: launchObjects }; };
+    running = f.executor.execute('store-a', f.p.id, 'owner-a'); await started;
+    const concurrent = await f.executor.execute('store-a', f.p.id, 'owner-a'); release(); const completed = await running;
+    assert.equal(concurrent.id, completed.id); assert.equal(writes, 1); assert.equal(completed.status, 'execution_unknown'); assert.equal(Object.keys((await f.repo.read('store-a')).executions).length, 1);
+  } finally { release(); await running?.catch(() => undefined); await f.close(); }
+});
+test('ACAP-15 partial launch IDs survive a lost response and are never recreated by replay or reconciliation', async () => {
+  const f = await launchFixture(); try {
+    let writes = 0; f.provider.execute = async (_access, _c, _p, progress) => { writes++; await progress(launchObjects.slice(0, 1)); throw Error('lost scoped-test-token'); };
+    const first = await f.executor.execute('store-a', f.p.id, 'owner-a'); assert.equal(first.status, 'execution_unknown'); assert.deepEqual(first.objects, launchObjects.slice(0, 1));
+    assert.equal((await f.executor.execute('store-a', f.p.id, 'owner-a')).id, first.id);
+    f.provider.reconcile = async () => ({ status: 'active_unconfirmed', objects: launchObjects.slice(0, 1) });
+    const read = await f.executor.reconcile('store-a', first.id); assert.equal(read.status, 'execution_unknown'); assert.deepEqual(read.objects, launchObjects.slice(0, 1)); assert.equal(writes, 1); assert.equal((await f.repo.read('store-a')).campaigns[f.campaignId].remoteCampaignId, '200');
+    assert.equal(JSON.stringify(await f.repo.getRecord('store-a', `execution-result:${first.id}:1`)).includes('scoped-test-token'), false);
+  } finally { await f.close(); }
+});
+test('ACAP-15 a claimed successful launch without the complete created structure remains unknown', async () => {
+  const f = await launchFixture(); try {
+    f.provider.execute = async () => ({ status: 'active_unconfirmed', objects: launchObjects.slice(0, 1) });
+    const result = await f.executor.execute('store-a', f.p.id, 'owner-a'); assert.equal(result.status, 'execution_unknown'); assert.equal(result.error, 'meta_preparation_incomplete'); assert.deepEqual(result.objects, launchObjects.slice(0, 1));
+  } finally { await f.close(); }
+});
+test('ACAP-14 changed media after launch reservation fences the physical provider operation', async () => {
+  const f = await launchFixture(); try {
+    const access = f.service.connection.access.bind(f.service.connection); let calls = 0;
+    f.service.connection.access = async (...args) => { const result = await access(...args); if (++calls === 3) await f.repo.mutate('store-a', [], state => { state.media['media-a'].url = 'https://media.example.test/replaced.png'; return { result: null }; }); return result; };
+    let writes = 0; f.provider.execute = async () => { writes++; return { status: 'active_unconfirmed', objects: launchObjects }; };
+    await assert.rejects(f.executor.execute('store-a', f.p.id, 'owner-a'), { code: 'proposal_stale' });
+    assert.equal(writes, 0); assert.equal(Object.values((await f.repo.read('store-a')).executions)[0].status, 'failed');
+  } finally { await f.close(); }
+});
+test('ACAP-15 launch reconciliation requires the approved budget and the created creative before reporting activation', async () => {
+  for (const changed of ['budget', 'creative', 'dates']) {
+    const f = await launchFixture(); try {
+      f.provider.execute = async (_a, _c, _p, progress) => { await progress(launchObjects); return { status: 'execution_unknown', objects: launchObjects }; };
+      const initial = await f.executor.execute('store-a', f.p.id, 'owner-a'); f.provider.reconcile = async () => ({ status: 'delivered', objects: launchObjects });
+      const snapshot = await f.provider.snapshot({} as never, (await f.repo.read('store-a')).campaigns[f.campaignId]);
+      f.provider.snapshot = async () => ({ ...snapshot, budget: { lifetime_budget: changed === 'budget' ? '9999' : '10000' }, creativeIds: [changed === 'creative' ? '999' : '400'], schedule: { startsAt: f.budget.startsAt, endsAt: changed === 'dates' ? '2026-11-22T12:00:00Z' : f.budget.endsAt } });
+      const result = await f.executor.reconcile('store-a', initial.id); assert.equal(result.status, 'execution_unknown'); assert.equal(result.error, 'meta_launch_unconfirmed'); assert.deepEqual(result.objects, launchObjects);
+    } finally { await f.close(); }
+  }
+});
+test('ACAP-15 launch read-only recovery works after policy revocation without another write or approval', async () => {
+  const f = await launchFixture(); try {
+    let writes = 0; f.provider.execute = async (_a, _c, _p, progress) => { writes++; await progress(launchObjects); return { status: 'execution_unknown', objects: launchObjects }; };
+    const initial = await f.executor.execute('store-a', f.p.id, 'owner-a');
+    await f.policies.revoke('store-a', 'owner-a', { policyId: f.policy.id, version: f.policy.version, idempotencyKey: 'after-launch' });
+    f.provider.reconcile = async () => ({ status: 'delivered', objects: launchObjects });
+    const result = await f.executor.reconcile('store-a', initial.id); assert.equal(result.id, initial.id); assert.equal(result.status, 'delivered'); assert.equal(writes, 1);
+    assert.equal((await f.repo.read('store-a')).proposals[f.p.id].approvedBy, 'owner-a'); assert.equal(Object.keys((await f.repo.read('store-a')).executions).length, 1);
+  } finally { await f.close(); }
+});
+test('ACAP-11 launch fails closed if server execution authority has not been wired', async () => {
+  const f = await launchFixture(); try {
+    await assert.rejects(f.service.executions.execute('store-a', f.p.id, 'owner-a'), { code: 'execution_authority_invalid' }); assert.equal(Object.keys((await f.repo.read('store-a')).executions).length, 0); assert.equal(f.calls.includes('execute'), false);
+  } finally { await f.close(); }
+});
+
 test('ADAS-34 automatic execution records service policy authority without fictional human approval', async () => {
   const f = await automaticFixture();
   try {

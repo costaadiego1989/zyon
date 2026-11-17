@@ -16,6 +16,9 @@ const safeError = (error: unknown) => typeof error === "string" && /^(meta_|camp
 function mergeObjects(...groups: MetaAdsExecution["objects"][]): MetaAdsExecution["objects"] {
   return [...new Map(groups.flat().filter(ref => ["campaign", "ad_set", "creative", "ad"].includes(ref.type) && /^\d+$/.test(ref.id)).map(ref => [`${ref.type}:${ref.id}`, ref])).values()];
 }
+function completeLaunch(objects: MetaAdsExecution['objects']): boolean {
+  return objects.length === 4 && ['campaign', 'ad_set', 'creative', 'ad'].every(type => objects.filter(ref => ref.type === type).length === 1);
+}
 function bindObjects(campaign: MetaAdsCampaign, objects: MetaAdsExecution["objects"], accountId: string | null): void {
   for (const ref of objects) {
     if (ref.type === "campaign") { campaign.remoteCampaignId = ref.id; campaign.remoteAccountId = accountId; }
@@ -67,6 +70,7 @@ export class ExecutionService {
     requireIdentifier(proposalId); const plan = await this.commerce.getPlan(merchantId);
     const preliminary = await this.repo.read(merchantId); const candidate = preliminary.proposals[proposalId];
     if (!candidate) throw new MetaAdsError("approval_required", 403);
+    if (candidate.kind === 'launch' && !this.authorityDeps) throw new MetaAdsError('execution_authority_invalid', 503);
     // A read of an existing automatic execution is reconciliation, never a new grant or resend.
     if (request.kind === 'automatic' && candidate.executionId) {
       const previous = (await this.repo.getRecord<ExecutionInput>(merchantId, `execution-input:${candidate.executionId}`))?.payload;
@@ -90,7 +94,7 @@ export class ExecutionService {
       if (!campaign?.managed || !campaign.createdByAgent || origin?.source !== "agent" || origin.campaignId !== p.campaignId) throw new MetaAdsError("campaign_read_only", 403);
       // A new proposal identity must not bypass an existing campaign write or retry an unknown result.
       if (Object.values(state.executions).some(value => value.campaignId === campaign.id && ["reserved", "sending", "publishing", "execution_unknown"].includes(value.status))) throw new MetaAdsError("campaign_execution_pending", 409);
-      if (p.kind === "prepare" && campaign.remoteCampaignId) throw new MetaAdsError("campaign_already_prepared", 409);
+      if (['prepare', 'launch'].includes(p.kind) && campaign.remoteCampaignId) throw new MetaAdsError("campaign_already_prepared", 409);
       if (campaign.remoteCampaignId && campaign.remoteAccountId !== state.connection.account?.id) throw new MetaAdsError("meta_asset_forbidden", 403);
       const id = requireIdentifier(this.id()); const now = this.clock().toISOString();
       const execution: MetaAdsExecution = { id, proposalId, campaignId: campaign.id, status: "reserved", objects: [], error: null, updatedAt: now };
@@ -101,7 +105,7 @@ export class ExecutionService {
     if (!reserved.input) return reserved.execution;
     const { input, execution } = reserved; let access: MetaAccess; let exposureReserved = false;
     try {
-      access = await this.connection.access(merchantId, { destination: input.campaign.draft.destination, operation: input.proposal.kind === "prepare" ? "prepare" : input.proposal.kind === "publish" ? "publish" : "optimize" });
+      access = await this.connection.access(merchantId, { destination: input.campaign.draft.destination, operation: input.proposal.kind === "prepare" ? "prepare" : ['publish', 'launch'].includes(input.proposal.kind) ? "publish" : "optimize" });
       if (input.authority?.kind === 'automatic' && ['prepare', 'publish', 'budget'].includes(input.proposal.kind)) {
         await this.authorityDeps!.exposure.reserve(merchantId, { operationId: execution.id, campaignId: input.campaign.id,
           policyId: input.authority.policyId, policyVersion: input.authority.policyVersion, policyDigest: input.authority.policyDigest,
@@ -145,6 +149,10 @@ export class ExecutionService {
         : await this.provider.execute(access, input.campaign, input.proposal, progress);
     } catch { result = { status: "execution_unknown", objects: [], error: "meta_execution_unknown" }; }
     if (result.status === "delivered" || (input.proposal.kind === "prepare" && !["remote_paused", "remote_draft", "failed", "execution_unknown"].includes(result.status))) result = { ...result, status: "execution_unknown", error: "meta_publication_unconfirmed" };
+    if (input.proposal.kind === 'launch' && ['active_unconfirmed', 'publishing'].includes(result.status)) {
+      const state = await this.repo.read(merchantId);
+      if (!completeLaunch(mergeObjects(state.executions[execution.id].objects, result.objects))) result = { ...result, status: 'execution_unknown', error: 'meta_preparation_incomplete' };
+    }
     if (exposureReserved) result = await this.settleExposure(merchantId, execution.id, input, access, result);
     return this.finish(merchantId, execution.id, input, access, result, false);
   }
@@ -200,6 +208,15 @@ export class ExecutionService {
       if (!campaign.remoteCampaignId || campaign.remoteAccountId !== access.accountId) throw new MetaAdsError("meta_asset_forbidden", 403);
       result = await this.provider.reconcile(access, campaign, execution);
       if (receipt.payload.proposal.kind === "prepare" && (!campaign.remoteAdSetId || !campaign.remoteAdIds.length)) result = { status: execution.status === "failed" ? "failed" : "execution_unknown", objects: execution.objects, error: execution.error ?? "meta_preparation_incomplete" };
+      if (receipt.payload.proposal.kind === 'launch') {
+        if (!completeLaunch(execution.objects)) result = { status: 'execution_unknown', objects: execution.objects, error: 'meta_preparation_incomplete' };
+        else {
+          const snapshot = await this.provider.snapshot(access, campaign), budget = receipt.payload.campaign.draft.budget!;
+          const expectedCreative = execution.objects.find(ref => ref.type === 'creative')!.id;
+          const dateMatches = (actual: string | null | undefined, expected: string | null) => expected === null ? actual === null : typeof actual === 'string' && Number.isFinite(Date.parse(actual)) && Date.parse(actual) === Date.parse(expected);
+          if (Number(snapshot.budget[budget.cadence === 'daily' ? 'daily_budget' : 'lifetime_budget']) !== budget.amountCents || snapshot.campaignId !== campaign.remoteCampaignId || snapshot.adSetId !== campaign.remoteAdSetId || stableDigest([...snapshot.adIds].sort()) !== stableDigest([...campaign.remoteAdIds].sort()) || !snapshot.creativeIds.includes(expectedCreative) || !dateMatches(snapshot.schedule?.startsAt, budget.startsAt) || !snapshot.schedule || !dateMatches(snapshot.schedule.endsAt, budget.endsAt)) result = { status: 'execution_unknown', objects: execution.objects, error: 'meta_launch_unconfirmed' };
+        }
+      }
       if (["budget", "audience", "creative"].includes(receipt.payload.proposal.kind)) {
         const snapshot = await this.provider.snapshot(access, campaign); const p = receipt.payload.proposal;
         const budget = p.after.budget as MetaAdsCampaign["draft"]["budget"];
