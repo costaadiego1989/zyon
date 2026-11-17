@@ -14,16 +14,27 @@ const messages: Record<string, string> = {
   recovery_store_mismatch: "Este link pertence a outra loja. Abra o endereço completo recebido na mensagem.",
   recovery_buyer_mismatch: "Entre com a conta usada nesta compra para continuar.",
 };
+function nativeWhatsAppUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const url=new URL(value);
+    return url.protocol === "https:" && url.hostname === "wa.me" && !url.port && !url.username && !url.password && !url.hash
+      && /^\/[1-9]\d{7,14}$/.test(url.pathname) && [...url.searchParams.keys()].length === 1
+      && url.searchParams.getAll("text").length === 1 && url.searchParams.get("text") === "Ver carrinho" ? url.href : null;
+  } catch { return null; }
+}
+
 export default function RecoveryCheckoutPanel({ token, slug, merchantId, storeName, theme, onClose, suspended, onOpenProductDetail }: {
   token: string; slug: string; merchantId: string; storeName: string; theme: "dark" | "light"; onClose: () => void;
   suspended?: boolean; onOpenProductDetail?: OpenCheckoutProductDetail;
 }) {
   const panel = useRef<HTMLElement>(null);
   const [attempt, setAttempt] = useState(0);
-  const [status, setStatus] = useState<"loading" | "login" | "ready" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "login" | "ready" | "whatsapp" | "error">("loading");
   const [error, setError] = useState("");
   const [retryable, setRetryable] = useState(false);
   const [embedToken, setEmbedToken] = useState("");
+  const [whatsappUrl, setWhatsappUrl] = useState("");
   const [wrongBuyer, setWrongBuyer] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -37,7 +48,12 @@ export default function RecoveryCheckoutPanel({ token, slug, merchantId, storeNa
     }).then(async response => {
       const body = await response.json().catch(() => ({}));
       if (controller.signal.aborted) return;
-      if (response.ok && body.merchant_id === merchantId && typeof body.embed_session_token === "string") {
+      if (response.ok && body.merchant_id === merchantId && body.resume_channel === "whatsapp") {
+        const url=nativeWhatsAppUrl(body.whatsapp_resume_url);
+        if (url) { setWhatsappUrl(url); setStatus("whatsapp"); return; }
+        setError("Não foi possível abrir o WhatsApp da loja. Tente novamente mais tarde."); setStatus("error"); return;
+      }
+      if (response.ok && body.merchant_id === merchantId && (body.resume_channel === undefined || body.resume_channel === "storefront") && typeof body.embed_session_token === "string") {
         setEmbedToken(body.embed_session_token); setStatus("ready"); return;
       }
       const code = typeof body.code === "string" ? body.code : typeof body.message === "string" ? body.message : body.error;
@@ -70,8 +86,12 @@ export default function RecoveryCheckoutPanel({ token, slug, merchantId, storeNa
     onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); onClose(); } }}>
     <div className={styles.content}>
       <button data-neu="control" type="button" onClick={onClose}>Voltar à loja</button>
-      <h1 id="recovery-title">{status === "login" ? "Continue sua compra" : status === "loading" ? "Abrindo sua compra" : "Não foi possível continuar"}</h1>
+      <h1 id="recovery-title">{status === "whatsapp" ? "Continue no WhatsApp" : status === "login" ? "Continue sua compra" : status === "loading" ? "Abrindo sua compra" : "Não foi possível continuar"}</h1>
       {status === "loading" ? <p role="status">Estamos conferindo seu carrinho.</p> : null}
+      {status === "whatsapp" ? <>
+        <p>Seu carrinho está no WhatsApp da loja. Continue por lá para revisar os itens e finalizar a compra.</p>
+        <a data-neu="control" href={whatsappUrl} rel="noreferrer">Continuar no WhatsApp</a>
+      </> : null}
       {status === "login" ? <>
         <p>Entre com o e-mail usado na compra para revisar os itens, a entrega e o pagamento.</p>
         <BuyerLoginForm merchantId={merchantId} merchantName={storeName} onCancel={onClose}
