@@ -75,6 +75,26 @@ describe("Meta Cloud template sender", () => {
     assert.equal(h.requests.length, 1);
   });
 
+  test("account-link application preserves its generated code through the real sender and accepted Graph payload", async () => {
+    const { LinkBuyerWhatsAppUseCase } = await import("../../../buyer-account/application/use-cases/link-buyer-whatsapp.use-case.js");
+    const { InMemoryOtpStore } = await import("../../../buyer-account/infrastructure/in-memory-otp-store.js");
+    const { createHash } = await import("node:crypto");
+    const h = harness({ template: { type: "buyer_whatsapp_link_otp", metaCategory: "AUTHENTICATION", metaVariableMap: { "1": "otpCode" } } });
+    const messages = new SendWhatsAppMessageUseCase(h.templates, h.adapter, { send: async () => assert.fail("legacy delivery is forbidden") } as any,
+      { send: async () => assert.fail("email fallback is forbidden") } as any, h.configs);
+    const otp = new InMemoryOtpStore();
+    const link = new LinkBuyerWhatsAppUseCase({} as any, otp, { findByGlobalUserId: async () => ({ globalUserId: "buyer-a" }) } as any, messages);
+    assert.deepEqual(await link.send("buyer-a", input.toNumber, "m1"), { sent: true, delivered_to: "***1111" });
+    assert.equal(h.requests.length, 1);
+    assert.equal(h.requests[0].url, "https://graph.facebook.com/v23.0/987654321/messages");
+    const payload = JSON.parse(String(h.requests[0].init?.body));
+    const code = payload.template.components[0].parameters[0].text;
+    assert.match(code, /^\d{6}$/);
+    assert.deepEqual(payload.template.components, [{ type: "body", parameters: [{ type: "text", text: code }] }, { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] }]);
+    assert.equal(payload.to, "5511999991111");
+    assert.equal((await otp.findActive("link-whatsapp:buyer-a:5511999991111"))?.codeHash, createHash("sha256").update(JSON.stringify(["m1", code])).digest("hex"));
+  });
+
   test("a template notification carries its durable ledger ID to Meta receipts", async () => {
     const h = harness();
     const correlationId = "order_notification:" + "a".repeat(64);
