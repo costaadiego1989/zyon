@@ -65,10 +65,26 @@ test("checkout OTP template has one code variable", () => {
 test("customer notifications identify their company and retain a literal ending after positional conversion", async () => {
   const { prepareSalesWhatsApp, salesDefaults } = await import("../sales-template-content.js");
   for (const def of Object.values(buildCatalog())) {
-    if (def.type === "checkout_otp") continue;
+    if (def.category === "AUTHENTICATION") continue;
     if (!def.type.startsWith("plan_expiry_") && def.type !== "marketplace_operational_alert") assert.ok(def.freeformBody.includes("{{storeName}}"), def.type);
     const prepared = prepareSalesWhatsApp(def.type, salesDefaults(def.type).whatsapp.body);
     assert.doesNotMatch(prepared.metaBody, /^\s*\{\{\d+\}\}/u, def.type);
     assert.doesNotMatch(prepared.metaBody, /\{\{\d+\}\}[^\p{L}\p{N}]*$/u, def.type);
   }
+});
+
+test("account link is a fixed five-minute authentication purpose, separate from checkout", async () => {
+  const { authenticationExpirationMinutesFor } = await import("./template-types.js");
+  const { validateSalesEdit, salesDefaults } = await import("../sales-template-content.js");
+  const link = getTemplateDefinition("buyer_whatsapp_link_otp", "Loja A");
+  assert.equal(link.category, "AUTHENTICATION");
+  assert.equal(link.freeformBody, "{{otpCode}} é seu código de verificação. Para sua segurança, não compartilhe este código.");
+  assert.deepEqual(link.variableMap, { "1": "otpCode" });
+  assert.equal(link.hasCoupon, false);
+  assert.equal(authenticationExpirationMinutesFor(link.type), 5);
+  assert.equal(authenticationExpirationMinutesFor("checkout_otp"), 10);
+  assert.equal(authenticationExpirationMinutesFor("cart_recovery"), undefined);
+  const input = salesDefaults(link.type);
+  assert.throws(() => validateSalesEdit(link.type, { ...input, whatsapp: { body: "Promoção {{otpCode}}", revision: 1 } }), /authentication_template_fixed/);
+  assert.equal(validateSalesEdit(link.type, { ...input, whatsapp: { body: link.freeformBody, revision: 1 } }).whatsapp.body, link.freeformBody);
 });

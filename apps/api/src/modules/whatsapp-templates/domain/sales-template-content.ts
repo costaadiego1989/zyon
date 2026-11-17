@@ -1,7 +1,7 @@
 import { EMAIL_TEMPLATE_SUBJECTS, POST_SALE_EMAIL_BODIES } from "./email-template-copy.js";
 import { BadRequestException } from "@nestjs/common";
 import { buildCatalog, categoryFor } from "./catalog/template-catalog.js";
-import { WHATSAPP_TEMPLATE_TYPES, type WhatsAppTemplateType } from "./catalog/template-types.js";
+import { WHATSAPP_TEMPLATE_TYPES, isAuthenticationTemplateType, type WhatsAppTemplateType } from "./catalog/template-types.js";
 import { RECOVERY_TEMPLATE_DEFAULTS, prepareRecoveryWhatsApp, validateRecoveryTemplateEdit, type RecoveryTemplateEdit } from "./recovery-template-content.js";
 
 export function salesTemplateType(type: string): WhatsAppTemplateType {
@@ -45,7 +45,7 @@ export function validateSalesEdit(type: string, value: unknown): RecoveryTemplat
   if (type === "cart_recovery") return validateRecoveryTemplateEdit(value);
   if (!value || typeof value !== "object") throw new BadRequestException("invalid_template");
   const input = value as RecoveryTemplateEdit;
-  if (type === "checkout_otp" && input.whatsapp?.body?.trim() !== salesDefaults(type).whatsapp.body) throw new BadRequestException("authentication_template_fixed");
+  if (isAuthenticationTemplateType(type) && input.whatsapp?.body?.trim() !== salesDefaults(type).whatsapp.body) throw new BadRequestException("authentication_template_fixed");
   const text = (value: unknown, max: number) => {
     if (typeof value !== "string" || !value.trim() || value.length > max) throw new BadRequestException("invalid_template_text");
     prepareSalesWhatsApp(type, value);
