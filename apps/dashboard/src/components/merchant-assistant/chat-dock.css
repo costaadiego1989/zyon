@@ -38,3 +38,43 @@
   .chat-dock-history { padding: 0 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .chat-dock * { transition: none !important; scroll-behavior: auto; } }
+
+/* Optional floating presentation. The inline contract remains available to other contexts. */
+.chat-dock.chat-dock--floating{position:fixed;top:auto;right:24px;bottom:max(24px,env(safe-area-inset-bottom));width:60px;z-index:40}
+.chat-dock--floating .chat-dock-trigger{position:relative;inset:auto;width:60px;height:60px;min-height:60px;padding:3px;display:grid;place-items:center;border-radius:50%;border:1px solid var(--color-brand-ring);background:var(--color-surface);color:var(--color-text);box-shadow:0 3px 8px rgb(0 0 0/.2)}
+.chat-dock--floating .chat-dock-trigger:hover:not(:disabled){background:var(--color-surface-raised)}
+.chat-dock--floating .chat-dock-panel{position:absolute;inset:auto 0 80px auto;width:390px;max-width:calc(100vw - 32px);height:min(650px,calc(100dvh - 124px));max-height:none;border-radius:14px;background:var(--color-surface);border:1px solid var(--color-border-strong);box-shadow:none;animation:chat-dock-reveal 180ms ease-out}
+.chat-dock--floating .chat-dock-header{padding:14px 16px 12px;flex:none}
+.chat-dock--floating .chat-dock-identity{gap:12px}
+.chat-dock--floating .chat-dock-header span:not(.zyon-agent-orb):not(.zyon-agent-orb span){font-size:12px}
+.chat-dock--floating .chat-dock-history{padding:0 18px;scrollbar-width:thin;scrollbar-color:var(--color-border-strong) transparent}
+.chat-dock--floating .chat-dock-turn{padding:20px 0;border:0}
+.chat-dock--floating .chat-dock-user{margin:0 0 20px 34px;padding:12px 14px;background:var(--color-brand-subtle);border-radius:10px 10px 2px 10px}
+.chat-dock--floating .chat-dock-user>strong{display:none}
+.chat-dock--floating .chat-dock-reply>strong{display:flex;align-items:center;gap:8px}
+.chat-dock--floating .chat-dock-composer{padding:13px 15px;background:var(--color-surface)}
+.chat-dock--floating .chat-dock-composer textarea{min-height:68px;max-height:130px;font-size:14px;resize:none}
+.chat-dock--floating .chat-dock-send{margin-top:9px}
+.chat-dock--floating .chat-dock-send small{font-size:11px}
+.chat-dock--floating .chat-dock-send>button{min-height:40px;padding:8px 12px;font-size:12px}
+.chat-dock-hint{position:absolute;right:0;bottom:80px;width:285px;max-width:calc(100vw - 32px);border:1px solid var(--color-border-strong);border-radius:12px;background:var(--color-surface-raised);animation:chat-dock-reveal 200ms ease-out}
+.chat-dock-hint:after{content:'';position:absolute;width:10px;height:10px;bottom:-6px;right:23px;transform:rotate(45deg);background:var(--color-surface-raised);border-right:1px solid var(--color-border-strong);border-bottom:1px solid var(--color-border-strong)}
+.chat-dock .chat-dock-hint-open{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:6px;width:100%;padding:16px 38px 16px 16px;background:transparent;border:0;border-radius:12px;color:var(--color-text-secondary);font-size:13px;font-weight:400;line-height:1.65}
+.chat-dock .chat-dock-hint-open:hover:not(:disabled){background:var(--color-surface-raised)}
+.chat-dock-hint-open strong{font-size:12px;color:var(--color-brand);font-weight:600}
+.chat-dock .chat-dock-hint-dismiss{position:absolute;right:4px;top:4px;display:grid;place-items:center;width:32px;min-height:32px;padding:0;background:transparent;border:0;color:var(--color-text-muted)}
+.merchant-console:has(.chat-dock--floating) .platform-feedback-fab{right:100px}
+@keyframes chat-dock-reveal{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:520px){
+ .chat-dock.chat-dock--floating{right:16px;bottom:max(16px,env(safe-area-inset-bottom))}
+ .chat-dock--floating .chat-dock-panel{right:-4px;bottom:76px;width:calc(100vw - 24px);max-width:390px;height:min(650px,calc(100dvh - 108px));border-radius:12px}
+ .chat-dock--floating .chat-dock-header{padding:12px 14px}
+ .chat-dock--floating .chat-dock-history{padding:0 14px}
+ .chat-dock--floating .chat-dock-composer{padding:12px}
+ .chat-dock--floating .chat-dock-composer textarea{font-size:16px}
+ .chat-dock--floating .chat-dock-send>button{min-height:44px;font-size:14px}
+ .chat-dock .chat-dock-hint-open{font-size:14px;padding-right:48px}
+ .chat-dock-hint-open strong{font-size:14px}
+ .chat-dock .chat-dock-hint-dismiss{width:44px;min-height:44px}
+}
+@media(prefers-reduced-motion:reduce){.chat-dock--floating .chat-dock-panel,.chat-dock-hint{animation:none}}

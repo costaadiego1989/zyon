@@ -82,7 +82,7 @@
 .mga-recommendations { margin-top: 28px; }
 .mga-recommendations > article { padding: 20px 0; border-top: 1px solid var(--color-border); }
 .mga-skeleton { min-height: 140px; padding: 24px 0; border-top: 1px solid var(--color-border); }
-.mga-agentic-shell { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,360px); align-items: start; gap: 28px; }
+.mga-agentic-shell { display: block; min-width: 0; }
 .mga-agentic-content { min-width: 0; }
 .meta-ads-agent .mga-settings .mga-funding { background: transparent; border: 0; border-top: 1px solid var(--color-border); border-radius: 0; padding: 24px 0; }
 .mga-settings .mga-automation { padding: 24px 0; }
@@ -103,6 +103,10 @@
 .mga-visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .chat-dock .mga-chat-welcome { padding: 32px 0; }
 .chat-dock .mga-chat-welcome h3 { font-size: 18px; margin: 0 0 12px; }
+.chat-dock--floating .mga-chat-welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:310px;padding:32px 2px}
+.chat-dock--floating .mga-chat-welcome>.zyon-agent-orb{margin:8px 0 26px}
+.chat-dock--floating .mga-chat-welcome h3{max-width:290px;font-size:20px;line-height:1.4}
+.chat-dock--floating .mga-chat-welcome p{font-size:14px;line-height:1.8;color:var(--color-text-secondary);max-width:310px}
 .chat-dock .mga-chat-welcome small { margin-top: 24px; font-size: 12px; line-height: 1.7; }
 .mga-chat-context p { margin: 10px 0 0; font-size: 12px; }
 .chat-dock .mga-ledger { margin: 12px 0; }

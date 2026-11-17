@@ -16,6 +16,8 @@ import {campaignApprovalEndpoints,type CampaignApprovalApi} from './api.js';
 import {CampaignNoticePreferences} from './CampaignNoticePreferences.js';
 import {CampaignPreparationPanel} from './CampaignPreparationPanel.js';
 import type {CampaignReviewTarget} from '../../components/notification-inbox.js';
+import {adsAssistantHints} from './assistant-guide.js';
+import {ZyonAgentOrb} from '../../components/merchant-assistant/ZyonAgentOrb.js';
 
 export interface MetaAdsAssistantProps {
   merchantId:string; apiBaseUrl:string; overview:MetaAdsOverview; api:MetaAdsAgentApi;
@@ -24,6 +26,7 @@ export interface MetaAdsAssistantProps {
   startRequest?:number;
   approvalClient?:CampaignApprovalApi;selectedCampaignId?:string|null;reviewTarget?:CampaignReviewTarget;
 }
+const noHints:readonly string[]=[];
 const fields:Record<string,string>={priority:'Prioridade',variantIds:'Produtos',destination:'Destino',budget:'Orçamento',country:'Região',approvalPreference:'Aprovação'};
 const terminal=(turn:AssistantTurn)=>!['queued','running'].includes(turn.status);
 function mergeThread(previous:AssistantThread|null,next:AssistantThread):AssistantThread {
@@ -33,7 +36,6 @@ function mergeThread(previous:AssistantThread|null,next:AssistantThread):Assista
   return {...(next.revision>=previous.revision?next:previous),turns:[...turns.values()].sort((a,b)=>a.ordinal-b.ordinal)};
 }
 const https=(value:string)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:null;}catch{return null;}};
-const compact=()=>typeof window!=='undefined'&&(typeof matchMedia==='function'?matchMedia('(max-width: 900px)').matches:window.innerWidth<=900);
 export function MetaAdsAssistant(props:MetaAdsAssistantProps){return <MetaAdsAssistantView key={`${props.merchantId}:${props.apiBaseUrl}`} {...props}/>;}
 function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplied,pollMs=2500,children,settings,onUpdated,onModeChanged,startRequest=0,approvalClient,selectedCampaignId,reviewTarget}:MetaAdsAssistantProps) {
   const approval=useMemo(()=>approvalClient??campaignApprovalEndpoints(apiBaseUrl),[apiBaseUrl,approvalClient]);
@@ -49,7 +51,7 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
   const [source,setSource]=useState<AssistantSourceView|null>(null),[sourceError,setSourceError]=useState(''),[focusedProposal,setFocusedProposal]=useState('');
   const [focusedCampaign,setFocusedCampaign]=useState('');
   useEffect(()=>{setFocusedCampaign('');setFocusedProposal('');},[selectedCampaignId]);
-  const [expanded,setExpanded]=useState(()=>!compact());
+  const [expanded,setExpanded]=useState(false);
   const proposalHeading=useRef<HTMLHeadingElement>(null),policyHeading=useRef<HTMLDivElement>(null),fundingHeading=useRef<HTMLDivElement>(null),sourceHeading=useRef<HTMLHeadingElement>(null);
   const identity=(intent:string)=>{if(!keys.current.has(intent))keys.current.set(intent,crypto.randomUUID());return keys.current.get(intent)!;};
   const apply=useCallback((value:AssistantThread)=>{if(!alive.current)return;setThread(previous=>{const next=mergeThread(previous,value);threadRef.current=next;return next;});},[]);
@@ -75,7 +77,7 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
     return()=>{alive.current=false;controller.abort();port.dispose();client.current=null;lifetime.current=null;};
   },[apiBaseUrl,supplied,loadChat,loadPanels]);
   useEffect(()=>{onModeChanged?.(policyError||!automation?'unknown':automation.mode);},[automation?.mode,policyError,onModeChanged]);
-  useEffect(()=>{if(source){if(compact())setExpanded(false);sourceHeading.current?.focus();}},[source]);
+  useEffect(()=>{if(source){setExpanded(false);sourceHeading.current?.focus();}},[source]);
   const processing=!!thread?.turns.some(turn=>!terminal(turn));
   const observedPending=useRef(new Set<string>());
   useEffect(()=>{
@@ -119,14 +121,14 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
   const campaignNames=Object.fromEntries(overview.campaigns.map(c=>[c.id,c.draft.name])),productNames=Object.fromEntries(overview.campaigns.flatMap(c=>c.products).map(p=>[p.variantId,p.name]));
   const chosenReport=reports.find(report=>report.id===reportId);
   const policyProps={accountId:account?.id??null,state:automation,review,productNames,campaignNames,disabled:!overview.entitled||loading||submitting||!!policyError,error:policyError,onChooseAutomatic:()=>send('Quero configurar o modo automático. Pergunte os produtos, as campanhas, as ações e os limites financeiros antes de apresentar uma política para meu aceite.'),onAccept:accept,onManual:manual};
-  function navigateOutside(target:HTMLElement|null){setView('settings');if(compact())setExpanded(false);setTimeout(()=>target?.focus(),0);}
-  function reviewProposal(id:string,campaignId?:string){setView('campaigns');setFocusedProposal(id);if(campaignId)setFocusedCampaign(campaignId);if(compact())setExpanded(false);setTimeout(()=>proposalHeading.current?.focus(),0);}
-  useEffect(()=>{if(reviewTarget?.merchantId===merchantId){setView('campaigns');setFocusedCampaign(reviewTarget.campaignId);setFocusedProposal(reviewTarget.proposalId);}},[reviewTarget?.merchantId,reviewTarget?.campaignId,reviewTarget?.proposalId,merchantId]);
+  function navigateOutside(target:HTMLElement|null){setView('settings');setExpanded(false);setTimeout(()=>target?.focus(),0);}
+  function reviewProposal(id:string,campaignId?:string){setView('campaigns');setFocusedProposal(id);if(campaignId)setFocusedCampaign(campaignId);setExpanded(false);setTimeout(()=>proposalHeading.current?.focus(),0);}
+  useEffect(()=>{if(reviewTarget?.merchantId===merchantId){setView('campaigns');setFocusedCampaign(reviewTarget.campaignId);setFocusedProposal(reviewTarget.proposalId);setExpanded(false);}},[reviewTarget?.merchantId,reviewTarget?.campaignId,reviewTarget?.proposalId,merchantId]);
   useEffect(()=>{if(startRequest)setExpanded(true);},[startRequest]);
   useEffect(()=>{if(startRequest&&expanded)workspace.current?.querySelector<HTMLTextAreaElement>('.chat-dock-composer textarea')?.focus();},[startRequest,expanded]);
   function artifact(value:AssistantArtifact,index:number):ReactNode {
     switch(value.type){
-      case 'campaign':{const current=overview.campaigns.find(c=>c.id===value.campaign.id);return <CampaignChatArtifact key={`campaign-${value.campaign.id}`} campaign={current??{...value.campaign,managed:false}} overview={overview} api={api} busy={processing||submitting} onUpdated={refresh} onRequest={send} onReview={()=>{setFocusedCampaign(value.campaign.id);setFocusedProposal('');setView('campaigns');if(compact())setExpanded(false);}}/>;}
+      case 'campaign':{const current=overview.campaigns.find(c=>c.id===value.campaign.id);return <CampaignChatArtifact key={`campaign-${value.campaign.id}`} campaign={current??{...value.campaign,managed:false}} overview={overview} api={api} busy={processing||submitting} onUpdated={refresh} onRequest={send} onReview={()=>{setFocusedCampaign(value.campaign.id);setFocusedProposal('');setView('campaigns');setExpanded(false);}}/>;}
       case 'campaign_progress':return <p key={index}>Planejamento preservado. Próximos dados: {value.progress.awaitingFields.map(field=>fields[field]??field).join(', ')||'pronto para revisão'}.</p>;
       case 'generation':{const current=overview.generations.find(g=>g.id===value.generation.id)??value.generation;return <p key={index}>Geração: {current.status==='unknown'?'resultado desconhecido, sem repetição automática':current.status==='succeeded'?'concluída':current.status==='reserved'?'na fila':current.status==='running'?'em andamento':current.status==='partial'?'parcial':'falha confirmada'} · {current.mediaIds.length}/{current.requestedImages} imagens.</p>;}
       case 'proposal':{const current=overview.proposals.find(p=>p.id===value.proposal.id);if(value.proposal.kind==='launch')return <p key={value.proposal.id}>Campanha pronta para aprovação. <button type="button" className="mga-secondary" onClick={()=>reviewProposal(value.proposal.id,value.proposal.campaignId)}>Revisar campanha</button></p>;return <ProposalReview key={value.proposal.id} proposal={current??value.proposal} execution={overview.executions.find(e=>e.proposalId===value.proposal.id)??value.execution??undefined} entitled={overview.entitled&&!!current} connectionEpoch={overview.connection.epoch} api={api} onUpdated={refresh}/>;}
@@ -163,9 +165,9 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
     </div>
     {proposal&&proposal.kind!=='launch'&&<section className="mga-panel"><h2 ref={proposalHeading} tabIndex={-1}>Proposta do relatório</h2><ProposalReview proposal={proposal} execution={overview.executions.find(e=>e.proposalId===proposal.id)} entitled={overview.entitled} connectionEpoch={overview.connection.epoch} api={api} onUpdated={refresh}/></section>}
     {sourceError&&<p role="alert">{sourceError}</p>}{source&&<section className="mga-panel" aria-label="Fonte da resposta"><h2 ref={sourceHeading} tabIndex={-1}>{source.title}</h2><small>Versão atual {source.version} · Revisada em {source.reviewedAt.split('-').reverse().join('/')}</small>{source.sections.map(section=><p key={section.id}>{section.content}</p>)}{source.externalSources.map(origin=>{const url=https(origin.url);return url?<p key={url}><a href={url} target="_blank" rel="noopener noreferrer">{origin.title}</a></p>:null;})}<button type="button" className="mga-secondary" onClick={()=>setSource(null)}>Fechar fonte</button></section>}
-  </div><ChatDock expanded={expanded} onExpandedChange={setExpanded} context={thread?.context??{id:'meta-ads',label:'Anúncios com IA',capabilities:[]}} turns={thread?.turns??[]} loading={loading} busy={processing||submitting||!overview.entitled} error={chatError} onSend={send} onRetry={retry} renderTurnDetails={details}
+  </div><ChatDock presentation='floating' pageKey={`${merchantId}:${view}`} hints={view==='campaigns'&&latestLaunch?.status==='pending_review'?noHints:adsAssistantHints[view]} expanded={expanded} onExpandedChange={setExpanded} context={thread?.context??{id:'meta-ads',label:'Anúncios com IA',capabilities:[]}} turns={thread?.turns??[]} loading={loading} busy={processing||submitting||!overview.entitled} error={chatError} onSend={send} onRetry={retry} renderTurnDetails={details}
     headerExtra={<div className="mga-chat-context"><button type="button" className="mga-secondary mga-chat-refresh" aria-label="Atualizar conversa" title="Atualizar conversa" disabled={submitting} onClick={()=>void refresh()}><RefreshCw size={15} aria-hidden="true"/><span className="mga-visually-hidden">Atualizar conversa</span></button>{thread?.campaign?<p>Planejamento: {thread.campaign.draft.name??'Campanha da loja'} · {thread.campaign.awaitingFields.map(field=>fields[field]??field).join(', ')||'pronto para revisão'}</p>:<span>Planeje, tire dúvidas e acompanhe.</span>}{!overview.entitled&&<p>Histórico disponível. Novas mensagens exigem o adicional ativo.</p>}</div>}
-    empty={<div className="mga-chat-welcome"><h3>O que vamos anunciar?</h3><p>Conte o produto, seu objetivo e quanto quer investir. Se precisar, eu conduzo você.</p><small>Exemplo: “Quero vender mais camisas com R$ 100 nesta semana.”</small></div>}
+    empty={<div className="mga-chat-welcome"><ZyonAgentOrb size={58}/><h3>{view==='metrics'?'Vamos entender seus resultados?':view==='settings'?'Vamos deixar tudo pronto?':'O que vamos anunciar?'}</h3><p>{view==='metrics'?'Eu explico os números em palavras simples e ajudo você a decidir o próximo passo.':view==='settings'?'Posso orientar a conexão da Meta, os pagamentos e as aprovações.':'Conte o produto, seu objetivo e quanto quer investir. Se precisar, eu conduzo você.'}</p><small>Exemplo: “Quero vender mais camisas com R$ 100 nesta semana.”</small></div>}
     older={thread?.nextCursor&&<button type="button" className="mga-secondary" onClick={()=>{const port=client.current,signal=lifetime.current?.signal;if(!port||!signal||!thread.nextCursor)return;void port.page('meta-ads',thread.id,thread.nextCursor,signal).then(value=>{if(alive.current&&!signal.aborted)apply(value);}).catch(()=>{if(alive.current&&!signal.aborted)setChatError('Não foi possível carregar as mensagens anteriores.');});}}>Carregar mensagens anteriores</button>}/>
   </div>;
 }
