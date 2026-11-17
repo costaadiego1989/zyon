@@ -196,6 +196,7 @@ import { QuoteShippingUseCase } from "../shipping/application/use-cases/quote-sh
     GetStorefrontFunnelUseCase,
     STOREFRONT_CONVERSATION_PORT,
     STOREFRONT_CART_PORT,
+    STOREFRONT_TELEMETRY_PORT,
     AIGatewayService
   ]
 })

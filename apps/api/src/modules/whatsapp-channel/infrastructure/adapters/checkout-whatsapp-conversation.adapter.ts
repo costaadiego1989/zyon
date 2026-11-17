@@ -43,6 +43,7 @@ import { WhatsAppBuyerHubService } from "../../application/services/whatsapp-buy
 import { CashbackService } from "../../../cashback/application/cashback.service.js";
 import { parseCashbackCommand, respondToCashbackCommand } from "../../application/services/cashback-whatsapp.commands.js";
 import { parseWhatsAppBenefitCommand, WhatsAppCheckoutBenefitsService } from "../../application/services/whatsapp-checkout-benefits.service.js";
+import { STOREFRONT_TELEMETRY_PORT, type StorefrontTelemetryPort } from "../../../storefront/domain/ports/storefront-telemetry.port.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -70,6 +71,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     @Optional() private readonly buyerHub?: WhatsAppBuyerHubService,
     @Optional() private readonly cashback?: CashbackService,
     @Optional() private readonly benefits?: WhatsAppCheckoutBenefitsService,
+    @Optional() @Inject(STOREFRONT_TELEMETRY_PORT) private readonly telemetry?: StorefrontTelemetryPort,
   ) {}
 
   async respond(input: { merchantId: string; checkoutSessionId: string; message: string; requestId?: string }) {
@@ -124,6 +126,16 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const cartHasItems = this.prisma?.storefrontCart
       ? !!stored && stored.expiresAt.getTime() > Date.now() && Array.isArray(stored.items) && stored.items.length > 0
       : cartBlock ? Array.isArray((cartBlock.data as any).items) && (cartBlock.data as any).items.length > 0 : response.state.cartHasItems;
+    const sender = input.verifiedSender, phone = input.buyer.phone.replace(/\D/g, "");
+    // Native shopping has a canonical cart before it has a checkout binding.
+    // Reuse its recovery projection without starting checkout or granting any
+    // account/contact authority. Empty carts also refresh a stale projection.
+    if (this.telemetry && !response.state.checkoutSessionId && stored && stored.expiresAt.getTime() > Date.now()
+      && sender?.deviceId.startsWith("META_CLOUD:") && sender.inboxId && sender.leaseToken
+      && phone.length >= 10 && phone.length <= 15 && sender.fromNumber.replace(/\D/g, "") === phone) {
+      await this.telemetry.recordEvent({ merchantId: input.merchantId, conversationId: response.state.conversationId,
+        cartId: response.state.conversationId, globalUserId: input.buyer.globalUserId, event: "cart_viewed", metadata: { source: "whatsapp" } });
+    }
     return { ...response,
       quickReplies: response.quickReplies.filter(label => config.cashbackEnabled === true || !/cashback/i.test(label)),
       state: { ...response.state, cartHasItems } };
