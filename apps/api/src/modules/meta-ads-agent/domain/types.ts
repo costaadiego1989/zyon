@@ -253,8 +253,10 @@ export interface CreativeReviewPort {
 }
 export interface ImageGenerationPort {
   configured(): boolean;
-  generate(input: { merchantId: string; generationId: string; imageIndex: number; product: MetaAdsProduct; brief: MetaAdsCampaignDraft }): Promise<GeneratedImageResult>;
+  generate(input: { merchantId: string; generationId: string; imageIndex: number; product: MetaAdsProduct; brief: MetaAdsCampaignDraft; assertAuthorized?:()=>Promise<void> }): Promise<GeneratedImageResult>;
 }
+export interface PreparationGenerationAuthority {preparationId:string;intentDigest:string;}
+export type GenerationAuthorizer=(merchantId:string,authority:PreparationGenerationAuthority,campaign:MetaAdsCampaign)=>Promise<void>;
 export interface AttributionReceipt {
   originSessionId?: string;
   id: string;

@@ -38,6 +38,7 @@ export class ImageGenerationAdapter implements ImageGenerationPort {
         JSON.stringify({ product: input.product.name.slice(0, 300), sku: input.product.sku.slice(0, 100), visualVariation: input.imageIndex + 1 }),
       ].join("\n");
       let response: Response;
+      await input.assertAuthorized?.();
       try {
         // The provider fetches this approved public reference. Our server never follows a catalog URL.
         response = await this.request("https://api.openai.com/v1/images/edits", { method: "POST", redirect: "error", headers: { Authorization: `Bearer ${this.env.META_ADS_IMAGE_API_KEY}`, "Content-Type": "application/json" },
@@ -65,6 +66,7 @@ export class ImageGenerationAdapter implements ImageGenerationPort {
       const bytes = Buffer.from(encoded, "base64");
       if (bytes.length < 45 || bytes.length > 12_000_000 || bytes.toString("base64") !== encoded || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || bytes.toString("ascii", 12, 16) !== "IHDR" || bytes.toString("ascii", bytes.length - 8, bytes.length - 4) !== "IEND" || bytes.readUInt32BE(16) < 1 || bytes.readUInt32BE(20) < 1 || bytes.readUInt32BE(16) > 4096 || bytes.readUInt32BE(20) > 4096) return result("failed", "image_output_invalid");
       if (this.review) {
+        await input.assertAuthorized?.();
         const reviewed = await this.review.review({ product: input.product, image: bytes }); reviewUsage.push(reviewed.usage);
         commercialReview = { status: reviewed.status, imageSha256: reviewed.imageSha256, productVersion: reviewed.productVersion };
         if (reviewed.status !== "verified" || reviewed.productVersion !== input.product.commercialVersion || reviewed.imageSha256 !== createHash("sha256").update(bytes).digest("hex")) return result("failed", reviewed.status === "rejected" ? "creative_terms_mismatch" : "creative_review_unavailable");

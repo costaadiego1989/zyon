@@ -22,3 +22,5 @@
 - T12 complete: pending initial launch reviews only; automatic legacy prepare cannot dispatch.18 worker cases/full538 API,10 WhatsApp,132 UI; API+dashboard builds/lint/Cypress types0. T13 internal preparation admission next.
 
 - T13 complete: explicit preparation service and public status, preserves quota/blockers/unknown jobs and refreshes stale review without new image identity.9 PG/full547 API, lint0. T14 worker and purpose-bound generation next.
+
+- T14 complete: purpose-bound durable preparation worker; server-only generation authority and dispatch callbacks.31 focused/full563 API, lint0.14 worker cases; paid unknown hold, two-worker exclusivity, proposal/outbox recovery and verified replacement reuse. T15 templates next; T16-T35 and final independent gates remain.

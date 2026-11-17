@@ -3,8 +3,9 @@ import type { MetaAdsCampaign, MetaAdsGeneration, MetaAdsMedia } from "@zyon/sha
 import { MetaAdsError, type MetaAdsRepository, type CommerceContextPort, type ImageGenerationPort, type GeneratedImageResult, type ImageUsage, type TextModelUsage, type MetaAdsStoreState, type Clock, type IdFactory, type MetaAdsRecord } from "../domain/types.js";
 import { requireEntitlement, requireIdentifier, stableDigest } from "../domain/offer.js";
 import { reserveCredits, settleCredits } from "./credits.service.js";
+import type {GenerationAuthorizer,PreparationGenerationAuthority} from '../domain/types.js';
 
-interface FrozenGeneration { campaign: MetaAdsCampaign; count: number; }
+interface FrozenGeneration { campaign: MetaAdsCampaign; count: number; authority?:PreparationGenerationAuthority; }
 const reservationKey = (generationId: string, index: number) => `${generationId}-${index}`;
 function safeUsage(raw?: ImageUsage): ImageUsage {
   const tokens = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -35,17 +36,18 @@ function finish(state: MetaAdsStoreState, value: MetaAdsGeneration): void {
 
 export class GenerationService {
   constructor(private readonly repo: MetaAdsRepository, private readonly commerce: Pick<CommerceContextPort, "getPlan" | "products">,
-    private readonly images: ImageGenerationPort, private readonly clock: Clock = () => new Date(), private readonly id: IdFactory = randomUUID) {}
+    private readonly images: ImageGenerationPort, private readonly clock: Clock = () => new Date(), private readonly id: IdFactory = randomUUID,private readonly authorize?:GenerationAuthorizer) {}
 
-  async request(merchantId: string, campaignId: string, input: { imageCount: number; idempotencyKey: string }): Promise<MetaAdsGeneration> {
+  async request(merchantId: string, campaignId: string, input: { imageCount: number; idempotencyKey: string },authority?:PreparationGenerationAuthority): Promise<MetaAdsGeneration> {
     requireIdentifier(input.idempotencyKey);
+    if(authority){requireIdentifier(authority.preparationId);if(Object.keys(authority).length!==2||!/^[a-f0-9]{64}$/.test(authority.intentDigest)||!this.authorize)throw new MetaAdsError('generation_authority_unavailable',409);}
     if (!Number.isSafeInteger(input.imageCount) || input.imageCount < 1 || input.imageCount > 10) throw new MetaAdsError("image_count_invalid");
     const plan = await this.commerce.getPlan(merchantId); const snapshot = await this.repo.read(merchantId);
     requireEntitlement(plan, snapshot, this.clock());
     const requestKey = `generation-request:${input.idempotencyKey}`;
     const repeated = (record: MetaAdsRecord, state: MetaAdsStoreState) => {
-      const value = record.payload as { id: string; campaignId: string; count: number };
-      if (value.campaignId !== campaignId || value.count !== input.imageCount) throw new MetaAdsError("generation_request_conflict", 409);
+      const value = record.payload as { id: string; campaignId: string; count: number;authorityDigest?:string };
+      if (value.campaignId !== campaignId || value.count !== input.imageCount || (value.authorityDigest??null)!==(authority?stableDigest(authority):null)) throw new MetaAdsError("generation_request_conflict", 409);
       return generation(state, value.id);
     };
     const existing = await this.repo.getRecord(merchantId, requestKey);
@@ -56,7 +58,8 @@ export class GenerationService {
     if (!campaign.createdByAgent || !campaign.managed) throw new MetaAdsError("campaign_read_only", 403);
     const products = await this.commerce.products(merchantId, { variantIds: campaign.draft.variantIds });
     if (!products.length || products.length !== campaign.draft.variantIds.length || products.some(p => !p.active || (p.stockQuantity !== null && p.stockQuantity <= 0) || !p.imageUrl || !campaign.draft.variantIds.includes(p.variantId))) throw new MetaAdsError("campaign_products_unavailable", 409);
-    const frozen: FrozenGeneration = { campaign: { ...structuredClone(campaign), products: structuredClone(products) }, count: input.imageCount };
+    const frozen: FrozenGeneration = { campaign: { ...structuredClone(campaign), products: structuredClone(products) }, count: input.imageCount,...(authority?{authority:structuredClone(authority)}:{}) };
+    if(authority)await this.authorize!(merchantId,authority,frozen.campaign);
     return this.repo.mutate(merchantId, [requestKey], (state, records) => {
       requireEntitlement(plan, state, this.clock());
       if (records.has(requestKey)) return { result: repeated(records.get(requestKey)!, state) };
@@ -65,7 +68,7 @@ export class GenerationService {
       for (let i = 0; i < input.imageCount; i++) reserveCredits(state, reservationKey(id, i), 1, this.clock());
       const value: MetaAdsGeneration = { id, campaignId, requestedImages: input.imageCount, status: "reserved", mediaIds: [], error: null, createdAt: now, updatedAt: now };
       state.generations[id] = value;
-      return { result: value, records: [{ key: requestKey, kind: "generation", payload: { id, campaignId, count: input.imageCount }, createdAt: now }, { key: `generation:${id}`, kind: "generation", payload: frozen, createdAt: now }] };
+      return { result: value, records: [{ key: requestKey, kind: "generation", payload: { id, campaignId, count: input.imageCount,...(authority?{authorityDigest:stableDigest(authority)}:{}) }, createdAt: now }, { key: `generation:${id}`, kind: "generation", payload: frozen, createdAt: now }] };
     });
   }
   private releaseRemaining(state: MetaAdsStoreState, value: MetaAdsGeneration, from: number): void {
@@ -75,6 +78,9 @@ export class GenerationService {
     }
   }
   async run(merchantId: string, generationId: string): Promise<MetaAdsGeneration> {
+    const snapshot=await this.repo.read(merchantId);if(generation(snapshot,generationId).status!=='reserved')return generation(snapshot,generationId);
+    const admission=(await this.repo.getRecord<FrozenGeneration>(merchantId,`generation:${generationId}`))?.payload;
+    if(admission?.authority){if(!this.authorize)throw new MetaAdsError('generation_authority_unavailable',409);await this.authorize(merchantId,admission.authority,admission.campaign);}
     const plan = await this.commerce.getPlan(merchantId);
     const claim = await this.repo.mutate<{ value: MetaAdsGeneration; frozen: FrozenGeneration | null }>(merchantId, [`generation:${generationId}`], (state, records) => {
       const value = generation(state, generationId);
@@ -91,6 +97,10 @@ export class GenerationService {
     if (!claim.frozen) return claim.value;
     const frozen = claim.frozen;
     for (let index = 0; index < frozen.count; index++) {
+      if(frozen.authority){
+        try{if(!this.authorize)throw new MetaAdsError('generation_authority_unavailable',409);await this.authorize(merchantId,frozen.authority,frozen.campaign);}
+        catch{await this.repo.mutate(merchantId,[],state=>{const value=generation(state,generationId);this.releaseRemaining(state,value,index);finish(state,value);return{result:null};});break;}
+      }
       const currentPlan = await this.commerce.getPlan(merchantId);
       const attemptKey = `generation-attempt:${generationId}:${index}`;
       const allowed = await this.repo.mutate(merchantId, [attemptKey], (state, records) => {
@@ -104,7 +114,11 @@ export class GenerationService {
       });
       if (!allowed) break;
       let result: GeneratedImageResult;
-      try { result = await this.images.generate({ merchantId, generationId, imageIndex: index, product: frozen.campaign.products[index % frozen.campaign.products.length], brief: frozen.campaign.draft }); }
+      try {
+        const assertAuthorized=frozen.authority?()=>this.authorize!(merchantId,frozen.authority!,frozen.campaign):undefined;
+        try{await assertAuthorized?.();}catch{result={status:'failed',url:null,error:'generation_authority_unavailable',usage:safeUsage()};await this.recordOutcome(merchantId,generationId,index,frozen,result);await this.repo.mutate(merchantId,[],state=>{this.releaseRemaining(state,generation(state,generationId),index+1);return{result:null};});break;}
+        result = await this.images.generate({ merchantId, generationId, imageIndex: index, product: frozen.campaign.products[index % frozen.campaign.products.length], brief: frozen.campaign.draft,...(assertAuthorized?{assertAuthorized}:{}) });
+      }
       catch { result = { status: "unknown", url: null, error: "image_provider_outcome_unknown", usage: safeUsage() }; }
       await this.recordOutcome(merchantId, generationId, index, frozen, result);
       if (result.status === "unknown") break;

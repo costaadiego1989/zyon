@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ImageGenerationPort } from "../domain/types.js";
 import { ImageGenerationAdapter } from "./image-generation.adapter.js";
+import {MetaAdsError} from '../domain/types.js';
 
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l6sAAAAASUVORK5CYII=";
 const input: Parameters<ImageGenerationPort["generate"]>[0] = { merchantId: "store-a", generationId: "generation-a", imageIndex: 0,
@@ -14,6 +15,17 @@ function fixture(response: () => Promise<Response>) {
   const request: typeof fetch = async (url, init) => { requests.push({ url: String(url), init }); return response(); };
   return { adapter: new ImageGenerationAdapter(env, storage, request), requests, saved, storage, request };
 }
+test('ACAP-06 image authority is checked before the paid provider request',async()=>{
+  const f=fixture(async()=>{throw Error('must not submit');});
+  const result=await f.adapter.generate({...input,assertAuthorized:async()=>{throw new MetaAdsError('generation_authority_unavailable',409);}});
+  assert.equal(result.status,'failed');assert.equal(result.error,'generation_authority_unavailable');assert.equal(result.url,null);assert.equal(f.requests.length,0);assert.equal(f.saved.length,0);
+});
+test('ACAP-07 authority loss after image generation prevents another paid review and retains known image usage',async()=>{
+  const f=fixture(async()=>new Response(JSON.stringify({data:[{b64_json:png}],usage:{input_tokens_details:{text_tokens:100,image_tokens:200},output_tokens:300}})));let checks=0,reviews=0;
+  const adapter=new ImageGenerationAdapter(env,f.storage,f.request,{configured:()=>true,review:async()=>{reviews++;throw Error('must not review');}});
+  const result=await adapter.generate({...input,assertAuthorized:async()=>{if(++checks===2)throw new MetaAdsError('generation_authority_unavailable',409);}});
+  assert.equal(result.status,'failed');assert.equal(result.error,'generation_authority_unavailable');assert.equal(result.usage.outputImageTokens,300);assert.equal(f.requests.length,1);assert.equal(reviews,0);assert.equal(f.saved.length,0);
+});
 test("image adapter edits the canonical image and stores actual output with token usage", async () => {
   const f = fixture(async () => new Response(JSON.stringify({ data: [{ b64_json: png }], usage: { input_tokens_details: { text_tokens: 100, image_tokens: 200 }, output_tokens: 300 } }), { headers: { "x-request-id": "req-actual" } }));
   const result = await f.adapter.generate(input);
