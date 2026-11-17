@@ -23,7 +23,7 @@ const otp = new InMemoryOtpStore();
 let delivered: string[] = [];
 const links = new LinkBuyerWhatsAppUseCase(identities, otp, {
   findByGlobalUserId: async (id: string) => ["web_buyer", "other_buyer"].includes(id) ? { globalUserId: id } : null,
-} as any, { send: async (_phone: string, text: string) => { delivered.push(text.match(/\d{6}/)![0]); } }, {
+} as any, { execute: async (input) => { delivered.push(String(input.variables?.otpCode)); return { channel: "whatsapp_template", status: "sent", messageId: "wamid.local" }; } }, {
   linkVerifiedIdentity: async (input: any) => { aliases.push(input); },
 } as any);
 
@@ -37,22 +37,22 @@ before(async () => {
 after(async () => { await prisma.$executeRawUnsafe(`DROP SCHEMA "${schema}" CASCADE`); await prisma.$disconnect(); });
 
 test("CB-07 CB-20 verified WhatsApp phone resolves to the same website account and repairs old merchant identity", async () => {
-  const sent = await links.send("web_buyer", "(11) 98888-7777");
+  const sent = await links.send("web_buyer", "(11) 98888-7777", "merchant-a");
   assert.deepEqual(sent, { sent: true, delivered_to: "***7777" });
   assert.equal(await identities.verifiedAccount("5511988887777"), null);
-  await assert.rejects(links.verify("web_buyer", "11988887777", "000000"), /otp_invalid/);
+  await assert.rejects(links.verify("web_buyer", "11988887777", "000000", "merchant-a"), /otp_invalid/);
   assert.equal(await identities.verifiedAccount("5511988887777"), null);
-  await links.verify("web_buyer", "11988887777", delivered[0]);
+  await links.verify("web_buyer", "11988887777", delivered[0], "merchant-a");
   assert.equal(await identities.verifiedAccount("+55 11 98888-7777"), "web_buyer");
   assert.deepEqual(await identities.status("web_buyer"), { linked: true, phone: "+55 (***) *****-7777" });
   assert.equal(aliases[0].merchantId, "m"); assert.equal(aliases[0].previousBuyerId, "wa_previous");
   assert.equal(aliases[0].canonicalBuyerId, "web_buyer"); assert.ok(aliases[0].verificationId);
-  await assert.rejects(links.verify("web_buyer", "11988887777", delivered[0]), /otp_expired_or_locked/);
+  await assert.rejects(links.verify("web_buyer", "11988887777", delivered[0], "merchant-a"), /otp_expired_or_locked/);
 });
 
 test("CB-07 another account cannot steal an already linked WhatsApp phone even with a new OTP", async () => {
-  await links.send("other_buyer", "11988887777");
-  await assert.rejects(links.verify("other_buyer", "11988887777", delivered.at(-1)), /phone_already_linked/);
+  await links.send("other_buyer", "11988887777", "merchant-a");
+  await assert.rejects(links.verify("other_buyer", "11988887777", delivered.at(-1), "merchant-a"), /phone_already_linked/);
   assert.equal(await identities.verifiedAccount("5511988887777"), "web_buyer");
   assert.deepEqual(await identities.status("other_buyer"), { linked: false, phone: null });
 });
@@ -72,7 +72,7 @@ test("CB-07 WhatsApp routing uses the canonical website account after verified l
 test("CB-07 phone typed in a profile cannot establish a canonical account without possession proof", async () => {
   assert.equal(await identities.verifiedAccount("5511977776666"), null);
   assert.deepEqual(await identities.status("unknown"), { linked: false, phone: null });
-  await assert.rejects(links.send("unknown", "11977776666"), /buyer_account_not_found/);
+  await assert.rejects(links.send("unknown", "11977776666", "merchant-a"), /buyer_account_not_found/);
 });
 
 test("CB-07 HTTP link derives the account from buyer JWT and rejects anonymous and forged account bodies", async () => {
@@ -92,10 +92,10 @@ test("CB-07 HTTP link derives the account from buyer JWT and rejects anonymous a
   try {
     assert.equal((await fetch(base + path)).status, 401);
     const sent = await fetch(base + path + "/code", { method: "POST", headers,
-      body: JSON.stringify({ phone: "11966665555", buyerId: "other_buyer" }) });
+      body: JSON.stringify({ merchantId: "merchant-a", phone: "11966665555", buyerId: "other_buyer" }) });
     assert.equal(sent.status, 201); assert.deepEqual(await sent.json(), { sent: true, delivered_to: "***5555" });
     const verified = await fetch(base + path + "/verify", { method: "POST", headers,
-      body: JSON.stringify({ phone: "11966665555", code: delivered.at(-1), buyerId: "other_buyer" }) });
+      body: JSON.stringify({ merchantId: "merchant-a", phone: "11966665555", code: delivered.at(-1), buyerId: "other_buyer" }) });
     assert.equal(verified.status, 201); assert.deepEqual(await verified.json(), { linked: true, phone: "+55 (***) *****-5555" });
     assert.equal(await identities.verifiedAccount("5511966665555"), "web_buyer");
     const other = await fetch(base + path, { headers: { authorization: `Bearer ${jwt.sign({ globalUserId: "other_buyer", email: "other@example.test" })}` } });
