@@ -250,7 +250,12 @@ export function serviceAttendanceEndpoints(base: string, f: typeof fetch) {
           return mutate<ServiceCategoryDTO>(categoriesPath, "POST", fields(input, ["name", "slug", "parentId", "description", "imageUrl"]), options);
         },
         updateCategory(id: string, input: ServiceCategoryUpdate, options?: ServiceMutationOptions) {
-          return mutate<ServiceCategoryDTO>(`${categoriesPath}/${resourceId(id)}`, "PUT", fields(input, ["name", "parentId", "description", "imageUrl", "isActive", "sortOrder"]), options);
+          const body = fields(input, ["name", "parentId", "description", "imageUrl", "isActive", "sortOrder"]);
+          if (input.parentId === null) {
+            delete body.parentId;
+            body.parent_id = null;
+          }
+          return mutate<ServiceCategoryDTO>(`${categoriesPath}/${resourceId(id)}`, "PUT", body, options);
         },
         deleteCategory(id: string, options?: ServiceMutationOptions) {
           return mutate<{ deleted: true }>(`${categoriesPath}/${resourceId(id)}`, "DELETE", undefined, options);

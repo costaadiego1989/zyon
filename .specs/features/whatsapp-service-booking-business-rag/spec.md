@@ -393,3 +393,5 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 - [ ] Atendimento humano Ã© operado no mÃ³dulo WhatsApp e a IA retoma automaticamente ao encerrar.
 - [ ] Cadastros pÃºblicos de trÃªs ramos alimentam o RAG sem seeds manuais como mecanismo normal.
 - [ ] Todos os casos crÃ­ticos, os testes vinculados aos critÃ©rios e a verificaÃ§Ã£o independente passam antes de ativaÃ§Ã£o.
+
+**T73 client wire correction approved:** 2026-11-16 - user: "Corrigir essa expectativa (recomendado)" (reply call_8c2dbee1ab4c41bb905ff23cd0ee3de7). Preserve explicit category-parent removal with the already supported parent_id:null wire alias. This corrects one SDK expectation and conditional, not product behavior or backend policy. Current focused client proof49/49; remaining requirement UI/HTTP/final gates stay pending.

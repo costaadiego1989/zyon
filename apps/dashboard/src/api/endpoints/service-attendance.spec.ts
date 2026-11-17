@@ -148,7 +148,7 @@ describe("T73", () => {
     await expect(api.createCategory({ name: "Saúde", slug: "saude", parentId: "parent-a", description: "Atendimentos", imageUrl: "https://images.example.test/a.png" })).resolves.toEqual(category);
     await expect(api.updateCategory("category/a", { name: "Saúde", parentId: null, isActive: false, sortOrder: 0 })).resolves.toEqual(category);
     expect(requests[0]).toMatchObject({ url: root + "/categories", method: "POST", body: { name: "Saúde", slug: "saude", parentId: "parent-a", description: "Atendimentos", imageUrl: "https://images.example.test/a.png" } });
-    expect(requests[1]).toMatchObject({ url: root + "/categories/category%2Fa", method: "PUT", body: { name: "Saúde", parentId: null, isActive: false, sortOrder: 0 } });
+    expect(requests[1]).toMatchObject({ url: root + "/categories/category%2Fa", method: "PUT", body: { name: "Saúde", parent_id: null, isActive: false, sortOrder: 0 } });
     expect(category).not.toHaveProperty("merchant_id");
   });
 
@@ -159,6 +159,18 @@ describe("T73", () => {
     await expect(reorder.api.reorderCategories(items)).resolves.toEqual({ reordered: true });
     expect(deletion.requests[0]).toMatchObject({ url: root + "/categories/category%2Fa", method: "DELETE", body: undefined });
     expect(reorder.requests[0]).toMatchObject({ url: root + "/categories/reorder", method: "PATCH", body: { items: [{ id: "category/a", sort_order: 0 }] } });
+  });
+
+  it("clears a category parent with the supported null alias while preserving non-null camelCase and omitted parents", async () => {
+    const { api, requests } = setup(category);
+    await expect(api.updateCategory("category/a", { parentId: null })).resolves.toEqual(category);
+    await api.updateCategory("category/a", { parentId: "parent-b" });
+    await api.updateCategory("category/a", { name: "Saúde atualizada" });
+    expect(requests.map(request => ({ url: request.url, method: request.method, body: request.body }))).toEqual([
+      { url: root + "/categories/category%2Fa", method: "PUT", body: { parent_id: null } },
+      { url: root + "/categories/category%2Fa", method: "PUT", body: { parentId: "parent-b" } },
+      { url: root + "/categories/category%2Fa", method: "PUT", body: { name: "Saúde atualizada" } },
+    ]);
   });
 
   it("captures profile identity once and filters runtime-added query authority", async () => {

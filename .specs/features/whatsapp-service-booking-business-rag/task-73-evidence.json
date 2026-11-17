@@ -61,5 +61,89 @@
     "T41 appointment-operation wrappers before T79/T80",
     "T72 generic RAG evaluation after T71",
     "Phase and final same-HEAD gates, builds and native browser proofs"
-  ]
+  ],
+  "postReviewNullParentCorrection": {
+    "status": "complete-local-QuickUI-before-focused-fix-commit",
+    "userApproval": {
+      "quote": "Corrigir essa expectativa (recomendado)",
+      "replyId": "call_8c2dbee1ab4c41bb905ff23cd0ee3de7",
+      "reviewedPatch": "Root .cache/t73-null-parent-correction-review/proposed.patch, hash prefix27cf5603",
+      "scope": "Only the explicit null parent wire assertion and matching SDK conditional; input and all other assertions unchanged"
+    },
+    "cause": "CatalogController body.parentId ?? body.parent_id turns camelCase null into undefined; existing supported parent_id:null reaches the existing category update use case",
+    "reviewedPatchProof": [
+      {
+        "path": "apps/dashboard/src/api/endpoints/service-attendance.ts",
+        "beforeSha256": "80b83bf58ba674b76ae0a41617a4058f2a7ebf17fd927312df924b1f0a00a0e0",
+        "approvedCandidateSha256": "add0aac5c2ae5ff8998b1452088aa46392dd5b44f4feeff431278ed0f7e2eaeb",
+        "equalsRootReviewedCandidate": true,
+        "gitReverseCheckExit": 0
+      },
+      {
+        "path": "apps/dashboard/src/api/endpoints/service-attendance.spec.ts",
+        "beforeSha256": "88ec4903a77d31af49fb7723fb589df1b92bc8a5e65b3b58972383e5f6d7e93d",
+        "approvedCandidateSha256": "99732e61dd7914215751a8c5887640a33dea7955df61ce0e0f5424a71dc2bfda",
+        "equalsRootReviewedCandidate": true,
+        "gitReverseCheckExit": 0
+      }
+    ],
+    "newRegression": "Explicit null uses parent_id:null; non-null remains parentId; omitted parent remains omitted",
+    "unitGate": {
+      "command": "pnpm --dir apps/dashboard exec vitest run src/api/endpoints/service-attendance.spec.ts src/api/http/client.spec.ts src/api/http/session-fetch.spec.ts src/api/endpoints/catalog.spec.ts --maxWorkers=1 --minWorkers=1 --no-file-parallelism",
+      "cases": 49,
+      "newCases": 39,
+      "unchangedCases": 10,
+      "files": 4,
+      "failed": 0,
+      "skipped": 0,
+      "durationSeconds": 6.32,
+      "exit": 0,
+      "completedAt": "2026-11-17T00:09:18.584Z",
+      "log": ".cache/t73-null-parent-fix/components-2026-11-17T00-09-09.954Z/output.log",
+      "admission": {
+        "minimumCommitMiB": 1024,
+        "memory": {
+          "observedAtUtc": "2026-11-17T00:09:10.131528+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 438,
+          "commitAvailableMiB": 1863,
+          "memoryLoadPercent": 97
+        }
+      }
+    },
+    "sourceHashes": {
+      "apps/dashboard/src/api/index.ts": "395266308d652417786e7cbf218f9d50c52b12faf88c78d5a145a5c878a1f12b",
+      "apps/dashboard/src/api/endpoints/service-attendance.ts": "add0aac5c2ae5ff8998b1452088aa46392dd5b44f4feeff431278ed0f7e2eaeb",
+      "apps/dashboard/src/api/endpoints/service-attendance.spec.ts": "b1008a0732b31d951c9b699b0f1e8b986c5ea6f520ae7131754e0f7c3ce121a4",
+      "apps/dashboard/src/api/http/client.ts": "0d6f608de35488f5b9bb7f17b0ef556a3c389c0090ee534b8017c815cdc6f17c",
+      "apps/dashboard/src/api/http/client.spec.ts": "e5c91739eb82058eff4c021a8d9cdd74fa5ec6eec6f5bc8dfc424fd9bb0eb4c0",
+      "apps/dashboard/src/api/http/session-fetch.spec.ts": "136aa1a8ec33a95b063c32e84fdfc4225e5ecf80b9ad1cdd443bf2a646738d62",
+      "apps/dashboard/src/api/endpoints/catalog.ts": "dfb9b378e050f517fc0ceedfd67333b6c373baaf4581a1ecaf912b13c142f988",
+      "apps/dashboard/src/api/endpoints/catalog.spec.ts": "a2e3130ac72f2ce976149bbca60351f25686127a45f4b6cace9f68827d9dc275",
+      "apps/dashboard/src/pages/product-detail/components/ProductForm.tsx": "24d3ff078552d0d083c76e2b6ab56204b977e54dfadfb4e1185c51c6fcfdcca4",
+      "apps/dashboard/src/pages/product-detail/components/ServiceScheduleEditor.tsx": "9ee4148604581899b5d8da018352e5af63511c0a35217253a08a4457cec057d8",
+      "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.tsx": "2a06818b5e23243bb0ac4a951a7f0d096e7809ba28b151a62258b09f17492e95",
+      "apps/dashboard/src/pages/product-detail/product-detail.css": "bdc42de43697a5a6f33a782e5d2976587aa50506f024c8c189d37734c964da25",
+      "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.spec.tsx": "43788aeda05c559aea8e298be6bb563acfb80f58950a8b99d9c5c7d2b5adad1b",
+      "apps/dashboard/src/pages/product-detail/components/ProductForm.toggles.spec.tsx": "130e1579ab738dbcb4c13b894ed917ad28a991bf4eedaec93dd0e7c9c43453c4",
+      "apps/dashboard/e2e/service-catalog-toggles.spec.ts": "6264168b377ff4c1d51c4740c48ac0fba87854bc1e925cfa0a372223b1ffaef8",
+      "apps/dashboard/playwright.service-local.config.ts": "a534345dda7cf513bc7c525cb0b00c5b9fc2973f222a6fd2cb573d48b7bac026",
+      "apps/dashboard/src/pages/product-detail/components/PromotionSection.tsx": "d9497d245a21e1cf0c340febd1aaf421802318c31d1479c523ebcd1bc2c98243",
+      "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.ts": "5adbeb56f47872faab0e310d8232d267600b4a2dc1263b86ec5da2243d5e80eb",
+      "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.spec.ts": "6410900282df2b6509374f9989ab74c95dec5d5997e43c27ec4eb1b39e277133",
+      "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx": "4f58e7437fb6c98630b149015c99da39368706a801af5bebb46ffdcf60cf7cdf",
+      "apps/dashboard/src/pages/product-detail/hooks/useProductDetailPage.ts": "c559bc42a0e1d5b718ed80b3f9e637ee4bec7b69a6e7e707a3a318fa3b29e9bc",
+      "apps/dashboard/src/lib/auth/permissions.ts": "3be1cb64a3678b311361ef9aa5e7ec12378468de17b8cb51d35dbadd8e49c7f3",
+      "apps/dashboard/src/hooks/useApi.ts": "87814e3fde1d67e9c0401826e7f910beb8495b89a61f276e1febe550be8b9a34"
+    },
+    "all23InputsExactAfterGate": true,
+    "knownOwnNodeCmdAfterGate": 0,
+    "t74Proof": "81/81 retained historically at original53a5 baseline; T74 code and tests unchanged; no unnecessary T74 rerun",
+    "noUnverifiedPathsStaged": [
+      "T75 source-only page and test",
+      "T105 eight WIP files",
+      "T56 cache candidates"
+    ]
+  }
 }
