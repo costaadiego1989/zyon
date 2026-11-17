@@ -1,6 +1,12 @@
 import {api,ask,control,enter,eventuallyFacts,reset,scenario} from '../../support/agentic.js';
 describe('Runtime local real',()=>{
   beforeEach(()=>{reset();});
+  scenario('ADAS-66','project segmented tabs retain canonical styles and native arrow navigation',()=>{
+    enter();cy.get('[role="tablist"][aria-label="Seções de anúncios"]').should('have.class','tab-bar');
+    cy.contains('[role="tab"]','Campanhas').should('have.css','border-radius','7px').and('have.css','font-weight','600');
+    cy.contains('[role="tab"]','Campanhas').focus().type('{rightarrow}');cy.contains('[role="tab"]','Métricas').should('have.attr','aria-selected','true').and('be.focused');
+    cy.get('[data-assistant-panel="metrics"]').should('be.visible');cy.get('.chat-dock').should('be.visible');control('facts').then(({body})=>{expect(body.turns).eq(0);expect(body.writes).deep.eq([]);});
+  });
   scenario('ADAS-54','signed cookie, real API PG conversation RAG governance and measured usage',()=>{
     cy.request({url:api()+'/v1/merchant-assistant/contexts/meta-ads/thread',failOnStatusCode:false}).its('status').should('equal',401);
     cy.request({url:api()+'/__test/facts',failOnStatusCode:false}).its('status').should('equal',403);

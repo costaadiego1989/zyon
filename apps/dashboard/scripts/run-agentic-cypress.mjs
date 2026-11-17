@@ -14,14 +14,14 @@ export function parseArguments(args){
     const name=args[i];if(name==='--serve'&&!parsed.serve){parsed.serve=true;continue;}
     if(!['--case','--spec'].includes(name)||parsed[name.slice(2)]!==undefined||!args[i+1])throw Error('agentic_argument_invalid');parsed[name.slice(2)]=args[++i];
   }
-  if(parsed.case&&!/^ADAS-(54|55|56|57|58)$/.test(parsed.case)||parsed.spec&&(!/^cypress\/e2e\/agentic\/[a-z0-9-]+\.cy\.ts$/.test(parsed.spec))||parsed.serve&&(parsed.case||parsed.spec))throw Error('agentic_argument_invalid');return parsed;
+  if(parsed.case&&!/^ADAS-(54|55|56|57|58|66)$/.test(parsed.case)||parsed.spec&&(!/^cypress\/e2e\/agentic\/[a-z0-9-]+\.cy\.ts$/.test(parsed.spec))||parsed.serve&&(parsed.case||parsed.spec))throw Error('agentic_argument_invalid');return parsed;
 }
 export function assertSuccessfulRun(result){
   if(result.failures||result.totalFailed||result.totalSkipped||result.totalPending||result.runs?.some(run=>run.error))throw Error('cypress_failed');
   if(!result.totalTests)throw Error('cypress_no_test_ran');
   if(result.totalPassed!==result.totalTests||!result.runs?.some(run=>run.tests?.some(test=>test.state==='passed')))throw Error('cypress_failed');
 }
-export function selectedSpec(options){const cases={'ADAS-54':'runtime','ADAS-55':'funding-and-help','ADAS-56':'campaign','ADAS-57':'automation','ADAS-58':'report-and-recovery'};return options.spec??(options.case?`cypress/e2e/agentic/${cases[options.case]}.cy.ts`:undefined);}
+export function selectedSpec(options){const cases={'ADAS-54':'runtime','ADAS-55':'funding-and-help','ADAS-56':'campaign','ADAS-57':'automation','ADAS-58':'report-and-recovery','ADAS-66':'runtime'};return options.spec??(options.case?`cypress/e2e/agentic/${cases[options.case]}.cy.ts`:undefined);}
 function open(port){return new Promise(resolve=>{const socket=createConnection({host:'127.0.0.1',port});socket.setTimeout(1000);socket.once('connect',()=>{socket.destroy();resolve(true);});socket.once('error',()=>{socket.destroy();resolve(false);});socket.once('timeout',()=>{socket.destroy();resolve(false);});});}
 async function database(){
   const container='zyon-meta-ads-postgres-20261114';
