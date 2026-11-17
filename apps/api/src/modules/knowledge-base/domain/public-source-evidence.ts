@@ -98,6 +98,19 @@ export type PublicEvidenceResult =
   | { status: "insufficient" | "conflicting"; evidence: [] }
   | { status: "unavailable"; evidence: []; reason: "canonical_unavailable" };
 
+export interface PublicEvidencePairCandidate {
+  service: Readonly<PublicEvidenceCandidate>;
+  professional: Readonly<PublicEvidenceCandidate>;
+}
+export interface ValidatedPublicEvidencePair {
+  service: ValidatedPublicEvidence;
+  professional: ValidatedPublicEvidence;
+}
+export type PublicEvidencePairResult =
+  | { status: "ready"; pairs: ValidatedPublicEvidencePair[]; evidence: ValidatedPublicEvidence[] }
+  | { status: "insufficient" | "conflicting"; pairs: []; evidence: [] }
+  | { status: "unavailable"; pairs: []; evidence: []; reason: "canonical_unavailable" };
+
 export type KnowledgeResponseEvidence = Readonly<{
   status: PublicEvidenceResult["status"];
   evidence: ReadonlyArray<Readonly<ValidatedPublicEvidence>>;

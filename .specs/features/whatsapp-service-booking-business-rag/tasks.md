@@ -1555,9 +1555,9 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit gate + Neo4j/gateway local: queries avançadas, cross-tenant, escrita/subquery/procedure/arbitrary text rejeitados.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit gate + Neo4j/gateway local: queries avançadas, cross-tenant, escrita/subquery/procedure/arbitrary text rejeitados.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Unit gate + Neo4j/gateway local: queries avançadas, cross-tenant, escrita/subquery/procedure/arbitrary text rejeitados.
 **Gate**: Full: complete `src/modules/graph-rag/domain/public-business-query.spec.ts` plus unchanged old graph-query, graph-result consumers, gateway, adapter, runtime and public-evidence specs using the existing network guard/ready-prod-loader with concurrency1, without a skip-producing name filter; fresh official checked API and `tests/business-rag-public-query.integration.spec.mjs` against owned actual graph/SQL/gateway. See task-70-plan.md for the concrete path correction from the original legacy graph-query.spec.ts; old assertions remain. Tests T70 and all their children execute, zero skips; final criterion checks remain mandatory.
@@ -2555,6 +2555,15 @@ Tasks: T107.
 Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; independent70/components, types/lint/build and six native captures reviewed PASS. See task-107-evidence.json; no105/106/final-feature claim.
 
 ## Handoff
+
+**T70 Full passed / next runtime C:** Root native88080 returned natural0,13/13 with normal cleanup and zero provider calls; whole906 components, current checked2554 and12 existing ownership contracts are green. No earlier opaque failure cause is claimed. Root is closing70 locally. C receives sole runtime for the prepared T76 affected149 components and lint only, preserving all original assertions. Browser76 must be prepared and explicitly handed over separately. M/P/Root source-only during this window; no builds/native/OS probes elsewhere.
+
+
+**Dispatched P concrete T71 integration preparation:** P may prepare source-only cache candidates for the actual QueryKnowledge/Storefront/Support consumer and DI seams, using existing canonical-reader/session drafts and Root live-reader. No productive adoption before T70Full, no new public capability or entitlement, no SUT/parser/build/probe. Return executable source candidates and criterion-derived tests with exact original source hashes, not another general design. Preserve all Phase4 WIP and earlier packets. Scope final freshness after the last model/copy/tool await and before history/audit/response, direct company/hours too; retain original channel/tenant authority and truthful partial coverage. Root remains Phase9 author/integrator. Root public native session88080 is sole active executor.
+
+
+**Dispatched source preparation after T75 integration:** Root committed T75 locally as 41ebc9084, with the 23 exact tested C blobs and two scoped metadata files. C continues whole Phase 10 with T76 source/tests only. M receives source-only preparation of a bounded read-only transport readiness poll: transient fetch/stream failures may retry only inside the existing 110s setup allowance, preserving 1500ms per request, 200ms poll, outer 600s and the unchanged 15s post-enqueue oracle. HTTP/body/metric contract errors remain strict. Add best-effort sanitized observations that cannot replace the original error; no business command/message/dispatcher retry, timing increase or productive API change. Return candidate/review packet before adoption. P remains source-only with Phase 4 and T71 packets preserved. Root owns the next runtime window for existing ownership/cleanup contracts and the complete T70 native file after exact reviewed R2 adoption. No other SUT/build/browser/OS probe may run.
+
 
 **Integrated local T75:** C commit6e283648 was reviewed after117/117 components, lint11, real Browser3 and eight native pictures. Root applies its23 nonshared-metadata blobs exactly and composes only the T75 task section plus current Handoff/state, preserving all Root approvals/dependencies/history and19 dirtyT70 source paths. The base page is complete locally; CRUD/global navigation/final acceptance remain later tasks. No production or final independent-screen approval is claimed.
 

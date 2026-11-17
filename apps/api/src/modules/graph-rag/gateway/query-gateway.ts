@@ -2,11 +2,13 @@ import { createServer, type IncomingMessage } from "node:http";
 import { z } from "zod";
 import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
 import type { GatewayReadEngine } from "./community-read-engine.js";
-import { GRAPH_GATEWAY_MAX_BODY_BYTES, GRAPH_QUERY_PROTOCOL, gatewayTemplateHash, gatewayReadEnvelope, verifyQuery, signQueryResponse } from "./query-protocol.js";
+import { GRAPH_GATEWAY_MAX_BODY_BYTES, GRAPH_QUERY_PROTOCOL, gatewayTemplateHash, gatewayReadEnvelope, publicBusinessReadEnvelope, verifyQuery, signQueryResponse } from "./query-protocol.js";
+import { PUBLIC_BUSINESS_TEMPLATE_HASH } from "../domain/public-business-query.js";
 
 export interface QueryGatewaySettings { keyId: string; secret: string; merchantIds: readonly string[] }
 const admission = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL), templateHash: gatewayTemplateHash,
   merchantIds: z.array(z.string().min(1).max(191)).min(1).max(20) });
+const publicAdmission = admission.extend({ templateHash: z.literal(PUBLIC_BUSINESS_TEMPLATE_HASH) });
 export function createQueryGateway(settings: QueryGatewaySettings, engine: GatewayReadEngine, clock: () => number = Date.now) {
   if (!/^[\w-]{1,80}$/.test(settings.keyId) || !/^[a-f0-9]{64}$/.test(settings.secret) || !settings.merchantIds.length)
     throw Error("query_service_unconfigured");
@@ -42,11 +44,25 @@ export function createQueryGateway(settings: QueryGatewaySettings, engine: Gatew
       let value: unknown;
       try { value = JSON.parse(body); } catch { send(400, { error: "invalid_input" }, headers.nonce);return; }
       if (path === "/v1/admission") {
+        const publicChecked = publicAdmission.safeParse(value);
+        if (publicChecked.success) {
+          if (publicChecked.data.merchantIds.some(id => !settings.merchantIds.includes(id))) { send(403, { error: "scope_or_protocol" }, headers.nonce);return; }
+          if (!engine.readPublic || !await engine.probe()) { send(503, { error: "unavailable" }, headers.nonce);return; }
+          send(200, { protocol: GRAPH_QUERY_PROTOCOL, templateHash: PUBLIC_BUSINESS_TEMPLATE_HASH, modelId: GRAPH_EMBEDDING_ID,
+            merchantIds: publicChecked.data.merchantIds, mode: "community_controlled", operations: ["public_business"] }, headers.nonce);return;
+        }
         const checked = admission.safeParse(value);
         if (!checked.success || checked.data.merchantIds.some(id => !settings.merchantIds.includes(id))) { send(403, { error: "scope_or_protocol" }, headers.nonce);return; }
         if (!await engine.probe()) { send(503, { error: "unavailable" }, headers.nonce);return; }
         send(200, { protocol: GRAPH_QUERY_PROTOCOL, templateHash: checked.data.templateHash, modelId: GRAPH_EMBEDDING_ID,
           merchantIds: checked.data.merchantIds, mode: "community_controlled", operations: ["catalog", "knowledge"] }, headers.nonce);return;
+      }
+      const publicChecked = publicBusinessReadEnvelope.safeParse(value);
+      if (publicChecked.success) {
+        if (!settings.merchantIds.includes(publicChecked.data.input.merchantId)) { send(403, { error: "scope" }, headers.nonce);return; }
+        if (!engine.readPublic) { send(503, { error: "unavailable" }, headers.nonce);return; }
+        const result = await engine.readPublic(publicChecked.data.input);
+        send(result.status === "ready" ? 200 : 503, result, headers.nonce);return;
       }
       const checked = gatewayReadEnvelope.safeParse(value);
       if (!checked.success || checked.data.input.modelId !== GRAPH_EMBEDDING_ID) { send(400, { error: "invalid_input" }, headers.nonce);return; }

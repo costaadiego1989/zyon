@@ -62,6 +62,16 @@ export async function createServiceTestNeo4j(){
         readUser:'neo4j',readPassword:password,writeUser:'neo4j',writePassword:password,production:false,timeoutMs:2000});
       adapters.add(adapter);return adapter;
     };
-    return Object.freeze({uri,runId,query,dispose,imageId:image,createProjectionAdapter});
+    const createReadEngine=async merchantIds=>{
+      assert.ok(id,'owned_graph_already_closed');
+      assert.ok(Array.isArray(merchantIds)&&merchantIds.length>0&&merchantIds.length<=20
+        &&merchantIds.every(value=>typeof value==='string'&&/^[\w-]{1,191}$/.test(value)),'owned_graph_merchant_scope_required');
+      assertOwnedServiceNeo4j(await inspect(id),id,runId);
+      assert.deepEqual(await query('MATCH (n:ServiceTestMarker) RETURN n.runId AS runId'),[{runId}]);
+      const{CommunityReadEngine}=await import('../dist/modules/graph-rag/gateway/community-read-engine.js');
+      const engine=new CommunityReadEngine({uri,user:'neo4j',password,database:'neo4j',merchantIds:[...new Set(merchantIds)]});
+      adapters.add(engine);return engine;
+    };
+    return Object.freeze({uri,runId,query,dispose,imageId:image,createProjectionAdapter,createReadEngine});
   }catch(error){try{await dispose();}catch(cleanup){throw new AggregateError([error,cleanup],'service_graph_setup_cleanup_failed');}throw error;}
 }

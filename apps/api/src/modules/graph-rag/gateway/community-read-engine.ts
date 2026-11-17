@@ -3,9 +3,13 @@ import { compileGraphRead, graphReadSchema, type GraphReadInput } from "../domai
 import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
 import { admitGraphRows } from "../domain/graph-result.js";
 import type { GraphReadResult } from "../domain/graph-rag.port.js";
+import { compilePublicBusinessRead, publicBusinessReadSchema, type PublicBusinessReadInput } from "../domain/public-business-query.js";
+import { admitPublicBusinessRows, type PublicBusinessReadResult } from "../domain/public-business-result.js";
+import { neo4jPublicRow } from "../infrastructure/neo4j-public-row.js";
 
 export interface CommunityReadSettings { uri: string; user: string; password: string; database: string; merchantIds: readonly string[] }
-export interface GatewayReadEngine { probe(): Promise<boolean>; read(input: GraphReadInput): Promise<GraphReadResult>; close(): Promise<void> }
+export interface GatewayReadEngine { probe(): Promise<boolean>; read(input: GraphReadInput): Promise<GraphReadResult>;
+  readPublic?(input: PublicBusinessReadInput): Promise<PublicBusinessReadResult>; close(): Promise<void> }
 /** Community's account is implicitly administrative. Only this code-owned read
  * capability is exposed by the separate service; no writer API is present. */
 export class CommunityReadEngine implements GatewayReadEngine {
@@ -38,6 +42,22 @@ export class CommunityReadEngine implements GatewayReadEngine {
         const rows = result.records.map(record => Object.fromEntries(Object.entries(record.toObject()).map(([key, item]) =>
           [key, neo4j.isInt(item) ? item.inSafeRange() ? item.toNumber() : NaN : item])));
         return admitGraphRows(input, rows, this.clock);
+      } finally { await session.close(); }
+    } catch { return { status: "unavailable", reason: "neo4j_unavailable" }; }
+  }
+  async readPublic(value: PublicBusinessReadInput): Promise<PublicBusinessReadResult> {
+    const checked = publicBusinessReadSchema.safeParse(value);
+    if (!checked.success) return { status: "unavailable", reason: "invalid_input" };
+    if (this.closed || !this.settings.merchantIds.includes(checked.data.merchantId)) return { status: "unavailable", reason: "disabled" };
+    const input = { ...checked.data, nowEpochMs: this.clock(), scanLimit: Math.min(checked.data.scanLimit, 2000),
+      threshold: Math.max(checked.data.threshold, 0.65) };
+    try {
+      const command = compilePublicBusinessRead(input), session = this.connection().session({ database: this.settings.database, defaultAccessMode: neo4j.session.READ });
+      try {
+        const result = await session.executeRead(tx => tx.run(command.text, { ...command.parameters,
+          limit: neo4j.int(input.limit), scanLimit: neo4j.int(input.scanLimit) }), { timeout: 2000 });
+        try { return admitPublicBusinessRows(input, result.records.map(record => neo4jPublicRow(record.toObject())), this.clock); }
+        catch { return { status: "unavailable", reason: "invalid_result" }; }
       } finally { await session.close(); }
     } catch { return { status: "unavailable", reason: "neo4j_unavailable" }; }
   }

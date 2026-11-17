@@ -96,7 +96,22 @@ export function createOwnedJourneyClientTracker(app, redisPort) {
         const socket = socketFor(client);
         if (client.status === "ready" && socket?.remoteAddress && socket?.remotePort) {
           assert.equal(client.options.host, "127.0.0.1"); assert.equal(client.options.port, redisPort);
-          proof.capture(client, socket); streams.set(client, socket);
+          try { proof.capture(client, socket); }
+          catch (error) {
+            // Diagnostic context cannot grant socket authority or replace the guard failure.
+            try {
+              const original = streams.get(client), boolean = value => typeof value === "boolean" ? value : null;
+              const owner = clients.get(client), status = ["wait", "connecting", "connect", "ready", "close", "reconnecting", "end"].includes(client.status) ? client.status : "other";
+              const detail = { stage: "capture_identity_failed",
+                ownerKind: owner === "Worker.blockingClient" ? "blocking" : owner === "Worker.client" ? "worker" : owner === "Queue.client" ? "queue" : "provider", status,
+                hadCapturedSocket: streams.has(client), socketGenerationChanged: streams.has(client) && original !== socket,
+                originalSocketClosed: boolean(original?.closed), originalSocketDestroyed: boolean(original?.destroyed), originalSocketConnecting: boolean(original?.connecting),
+                socketClosed: boolean(socket?.closed), socketDestroyed: boolean(socket?.destroyed), socketConnecting: boolean(socket?.connecting) };
+              if (typeof error?.message === "string") error.message += ":journey_owned_redis_identity_diagnostic:" + JSON.stringify(detail);
+            } catch {/* Retain the same original guard failure if observation is unavailable. */}
+            throw error;
+          }
+          streams.set(client, socket);
         }
       }
     }

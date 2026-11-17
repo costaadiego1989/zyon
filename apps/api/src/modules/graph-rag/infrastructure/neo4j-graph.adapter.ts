@@ -3,6 +3,9 @@ import { z } from "zod";
 import { compileGraphRead, graphReadSchema, type GraphReadInput } from "../domain/graph-query.js";
 import type { GraphConnectionSettings, GraphProjectionTransactions, GraphReadPort, GraphReadResult, GraphTransaction } from "../domain/graph-rag.port.js";
 import { admitGraphRows, GraphResultError } from "../domain/graph-result.js";
+import { compilePublicBusinessRead, publicBusinessReadSchema, type PublicBusinessReadInput } from "../domain/public-business-query.js";
+import { admitPublicBusinessRows, type PublicBusinessReadResult } from "../domain/public-business-result.js";
+import { neo4jPublicRow } from "./neo4j-public-row.js";
 
 interface GraphSession {
   executeRead<T>(work: (tx: GraphTransaction) => Promise<T>, config: { timeout: number }): Promise<T>;
@@ -36,6 +39,8 @@ export class Neo4jGraphAdapter implements GraphReadPort, GraphProjectionTransact
     if (this.closed || !this.settings.enabled || !this.settings.merchantIds.length || !this.settings.uri) return false;
     try { await this.readerDriver(); return true; } catch { return false; }
   }
+
+  async admitPublicReader(): Promise<boolean> { return this.admitReader(); }
 
   private requiresReadRole() {
     let loopback = false;
@@ -84,6 +89,26 @@ export class Neo4jGraphAdapter implements GraphReadPort, GraphProjectionTransact
     } catch (error) {
       return { status: "unavailable", reason: error instanceof GraphReadAdmissionError ? "reader_not_readonly"
         : error instanceof GraphResultError ? "invalid_result" : "neo4j_unavailable" };
+    }
+  }
+
+  async readPublic(value: PublicBusinessReadInput): Promise<PublicBusinessReadResult> {
+    const checked = publicBusinessReadSchema.safeParse(value);
+    if (!checked.success) return { status: "unavailable", reason: "invalid_input" };
+    if (!this.enabledFor(checked.data.merchantId)) return { status: "unavailable", reason: "disabled" };
+    const input = { ...checked.data, nowEpochMs: this.clock(), scanLimit: Math.min(checked.data.scanLimit, 2000),
+      threshold: Math.max(checked.data.threshold, 0.65) };
+    try {
+      const command = compilePublicBusinessRead(input), driver = await this.readerDriver();
+      const session = driver.session({ database: this.settings.database, defaultAccessMode: "READ" });
+      try {
+        const result = await session.executeRead(tx => tx.run(command.text, { ...command.parameters,
+          limit: neo4j.int(input.limit), scanLimit: neo4j.int(input.scanLimit) }), { timeout: Math.min(this.settings.timeoutMs, 2000) });
+        try { return admitPublicBusinessRows(input, result.records.map(record => neo4jPublicRow(record.toObject())), this.clock); }
+        catch { return { status: "unavailable", reason: "invalid_result" }; }
+      } finally { await session.close(); }
+    } catch (error) {
+      return { status: "unavailable", reason: error instanceof GraphReadAdmissionError ? "reader_not_readonly" : "neo4j_unavailable" };
     }
   }
 

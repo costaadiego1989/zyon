@@ -1,16 +1,19 @@
 {
   "task": "T70",
-  "status": "partial_monitored_resource_refusal",
+  "status": "local_full_gate_passed",
   "sourceBaseHead": "9f0df7829",
   "environment": "local-owned-only",
   "latestComponentGate": {
     "tests": 906,
     "pass": 906,
     "fail": 0,
-    "skipped": 0,
     "cancelled": 0,
-    "log": ".cache/t70-gates/2026-11-16T19-14-14.210Z/unit.log",
-    "sha256": "077290e896e257720c081f92646ddd93c5d7d174cd0bfebc3f27f7297465830a"
+    "skipped": 0,
+    "todo": 0,
+    "log": ".cache/t70-gates/2026-11-17T03-11-45.405Z/unit.log",
+    "sha256": "d4e749d563b98c93d9fea54bfa45e37207381cfa0dca1beb1a5c36e5c4c986f6",
+    "actualExitCode": 0,
+    "baseHead": "e6a53bad2"
   },
   "previousComponentGate": {
     "tests": 905,
@@ -22,27 +25,69 @@
     "sha256": "39c15cfe96d491738550b501932c066f2baab6fcef879296c048d5f615c6bef7"
   },
   "freshInputCapture": {
-    "inputSha256": "52880590bfab275b3d49bbcd9c7ce5b0ab4b0dbd1cce87d30992f74061aa958d",
+    "inputSha256": "1850c014876b92c6a2d9509f2f852935b1ef2cf36c38aee4bccbd67e3bb4b1d9",
     "compilerCoverage": {
       "checked": true,
-      "sourceCount": 2551
+      "sourceCount": 2554
     }
   },
   "checkedBuild": {
-    "current": false,
-    "passed": false,
-    "recordStageStarted": false,
-    "interruption": ".cache/t70-gates/2026-11-16T19-17-26.170Z/interruption.json",
-    "interruptionSha256": "a941cbc5aa838784925cad011578e084e83e7be940c60a8e41a833e6c0196e83",
-    "compilerErrorProven": false,
-    "oldT69StampIsCurrent": false
+    "current": true,
+    "passed": true,
+    "actualExitCode": 0,
+    "initialAvailableCommitMiB": 6322,
+    "minimumCommitMiB": 5168,
+    "recordStagePassed": true,
+    "artifact": {
+      "version": 1,
+      "buildCommand": "pnpm --dir apps/api build",
+      "buildExitCode": 0,
+      "checked": true,
+      "inputSha256": "1850c014876b92c6a2d9509f2f852935b1ef2cf36c38aee4bccbd67e3bb4b1d9",
+      "artifactSha256": "dd8a8b686a68af405921b2d0f5b5ce6410915ba537adaf9b6be0ae2c25ba52df",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2554
+      },
+      "recordedAt": "2026-11-17T03:55:09.524Z"
+    },
+    "logs": [
+      {
+        "path": ".cache/t70-gates/2026-11-17T03-48-31.077Z/capture.log",
+        "sha256": "2bf2093a02444b2b90d390307d0330eb390c6977fdac4a9bab5aac7574857db9"
+      },
+      {
+        "path": ".cache/t70-gates/2026-11-17T03-48-31.077Z/build.log",
+        "sha256": "1fe62ddc40e200c01822ce222432491afab635dd399229b568fef1bf4f169fb2"
+      },
+      {
+        "path": ".cache/t70-gates/2026-11-17T03-48-31.077Z/record.log",
+        "sha256": "7835d371754905f999a8f50043d07fcb5645d3527ad4b39b63a6a8c4439869d9"
+      }
+    ],
+    "oldT69StampIsCurrent": false,
+    "originalCompilerHeapCoverageAndCommandPreserved": true
   },
   "native": {
     "plannedChildren": 12,
     "plannedRootAndChildren": 13,
-    "executedCurrent": 0,
-    "passed": false,
-    "file": "apps/api/tests/business-rag-public-query.integration.spec.mjs"
+    "executedCurrent": 13,
+    "pass": 13,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "todo": 0,
+    "passed": true,
+    "actualExitCode": 0,
+    "file": "apps/api/tests/business-rag-public-query.integration.spec.mjs",
+    "log": ".cache/t70-gates/2026-11-17T04-50-06.399Z/public.log",
+    "sha256": "4fe7ed1454fbbb1e256cd9b5b0242d8e01e76ac9cc28e7fcbf675eb10927e2da",
+    "durationMs": 97085.1721,
+    "checkedArtifactInputs": "1850c014876b92c6a2d9509f2f852935b1ef2cf36c38aee4bccbd67e3bb4b1d9",
+    "cleanupPassed": true,
+    "closedAckAndDisconnected": true,
+    "canonicalProviderCallsBeforeCleanup": 0,
+    "scope": "Actual local HTTP writers, SQL canonical admission, Neo4j and signed private gateway. No model quality, final T71 consumer or provider delivery proof."
   },
   "sourceReview": {
     "reviewer": "/root/relay_start_review",
@@ -58,7 +103,7 @@
     "buyerOrchestrationAndFinalModelFenceAreT71": true,
     "providerRequests": 0,
     "productionChanges": 0,
-    "taskComplete": false,
+    "taskComplete": true,
     "wholeFeatureComplete": false
   },
   "monitoredAttempts": [
@@ -268,15 +313,150 @@
     }
   ],
   "currentResourceConclusion": {
-    "currentCheckedBuild": false,
-    "nativeCurrentExecuted": 0,
-    "finalizationExecuted": false,
-    "actualOriginalPolicyReserveBreach": true,
-    "ownedJobEmptyAfterRefusal": true,
-    "compilerFailureProven": false,
-    "anotherBuildRequiresMeaningfulEnvironmentChange": true,
-    "thresholdOrCompilerOrTestReductionIsNotARemedy": true,
-    "latestStrictAttemptBeforeChild": true,
-    "latestStrictInitialCommitAvailableMiB": 3103
-  }
+    "currentCheckedBuild": true,
+    "nativeCurrentExecuted": 13,
+    "ordinaryBuildPassed": true,
+    "originalFailedAttemptsPreserved": true,
+    "compilerHeapCoverageAndTestBudgetsUnchanged": true
+  },
+  "componentHistory": [
+    {
+      "tests": 906,
+      "pass": 906,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "log": ".cache/t70-gates/2026-11-16T19-14-14.210Z/unit.log",
+      "sha256": "077290e896e257720c081f92646ddd93c5d7d174cd0bfebc3f27f7297465830a"
+    }
+  ],
+  "currentSourceBaseHead": "41ebc9084",
+  "after99Restoration": {
+    "all19SourceBytesExact": true,
+    "freeze": ".cache/t70-after99-current-inputs-20261117/manifest.json",
+    "sha256": "09240c4d9c510fba4ecf7882615dcb68adef124347353c2d3b6f132e22b0b7b9"
+  },
+  "currentOrdinaryBuildRefusal": {
+    "receipt": ".cache/t70-after99-current-inputs-20261117/ordinary-checked-refusal-after-c75.json",
+    "sha256": "1cd16daa5fb34a4d7133f350b257750bd12bc0b66f83186be43caa96249e1c86",
+    "task": "T70",
+    "actualToolChunk": "1bff1d",
+    "observedAtUtc": "2026-11-17T03:26:26.692374+00:00",
+    "ordinaryRequiredCommitMiB": 5168,
+    "commitAvailableMiB": 4418,
+    "physicalAvailableMiB": 875,
+    "exitCode": 1,
+    "failure": "t70_orchestration_commit_margin_required",
+    "captureBuildOrRecordChildStarted": false,
+    "checkedCurrentArtifactPublished": false,
+    "oldRoot99ArtifactStale": true,
+    "retryJustification": "C75 actual admission7263 at03:21:36 after prior2677; actual new preflight stillrequired",
+    "providerCalls": 0,
+    "productionActions": 0
+  },
+  "ordinaryRefusalHistory": [
+    {
+      "receipt": ".cache/t70-after99-current-inputs-20261117/ordinary-checked-refusal.json",
+      "sha256": "519292a8c165e79c35d83f6faf6eba6bf6dd5c503020f6ef3443372e0ffbee63",
+      "task": "T70",
+      "actualToolChunk": "4e2bc2",
+      "observedAtUtc": "2026-11-17T03:18:13.272406+00:00",
+      "ordinaryRequiredCommitMiB": 5168,
+      "commitAvailableMiB": 2677,
+      "physicalAvailableMiB": 264,
+      "exitCode": 1,
+      "failure": "t70_orchestration_commit_margin_required",
+      "captureBuildOrRecordChildStarted": false,
+      "checkedCurrentArtifactPublished": false,
+      "oldRoot99ArtifactStale": true,
+      "providerCalls": 0,
+      "productionActions": 0
+    }
+  ],
+  "checkedBuildHistory": [
+    {
+      "current": false,
+      "passed": false,
+      "recordStageStarted": false,
+      "interruption": ".cache/t70-gates/2026-11-16T19-17-26.170Z/interruption.json",
+      "interruptionSha256": "a941cbc5aa838784925cad011578e084e83e7be940c60a8e41a833e6c0196e83",
+      "compilerErrorProven": false,
+      "oldT69StampIsCurrent": false
+    }
+  ],
+  "inputCaptureHistory": [
+    {
+      "inputSha256": "52880590bfab275b3d49bbcd9c7ce5b0ab4b0dbd1cce87d30992f74061aa958d",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2551
+      }
+    }
+  ],
+  "nativeHistory": [
+    {
+      "plannedChildren": 12,
+      "plannedRootAndChildren": 13,
+      "executedCurrent": 13,
+      "pass": 11,
+      "fail": 2,
+      "skipped": 0,
+      "cancelled": 0,
+      "passed": false,
+      "actualExitCode": 1,
+      "file": "apps/api/tests/business-rag-public-query.integration.spec.mjs",
+      "log": ".cache/t70-gates/2026-11-17T03-57-06.258Z/public.log",
+      "sha256": "da8886fb79703e3ec5b55b0280049891e8fc4c01f10be332e5418469b27d0530",
+      "failedChild": "07 current professional and service withdrawal each reject the old linked pair",
+      "failure": "index drain failed1 canonical_unavailable; underlying exception not captured",
+      "cleanupFailure": "construction_redis_socket_identity_required",
+      "canonicalProviderCallsBeforeCleanup": 0,
+      "cleanupPassed": false,
+      "ownedWorkspaceRuntimeWorkersRemainingAfterClose": 0,
+      "remainingCheck": "Read-only Win32 process filter for exact Root absolute path and service-test-runtime.worker.mjs; zero found",
+      "remainingCheckChangedProcesses": false,
+      "scope": "Do not infer source bug, Redis reconnect cause, resource failure or cleanup success from opaque errors alone"
+    }
+  ],
+  "diagnosticRevision": {
+    "adoptionReceipt": ".cache/t70-r2-adoption-20261117/receipt.json",
+    "sha256": "bb7011ae4590ba8692d814a3ce6002a38f26b2c7dcf3dac9cc55d5dbba43d913",
+    "patchSha256": "b1c9bd3479658c44231119207df6ec077b9216c74e8d2a3a9c38bf4f6fc154c6",
+    "runtimeUnchanged": true,
+    "guardsAndBudgetsUnchanged": true,
+    "original12BodiesAndFinallyExact": true,
+    "r2SourceReview": "C20395D7D6FC5ED87A5C3E33B1176B641C928958048D1FC4AA1396B1184105AB",
+    "originalFailureCauseEstablished": false,
+    "observationTriggeredOnGreenRun": false
+  },
+  "ownershipContracts": {
+    "tests": 12,
+    "pass": 12,
+    "fail": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "toolChunk": "85c34a",
+    "files": [
+      "apps/api/tests/storefront-journey-owned-clients.contract.mjs",
+      "apps/api/tests/windows-owned-tcp.contract.spec.mjs"
+    ],
+    "syntaxChunks": [
+      "b50754",
+      "97a8cc"
+    ]
+  },
+  "resourceConclusionHistory": [
+    {
+      "currentCheckedBuild": false,
+      "nativeCurrentExecuted": 0,
+      "finalizationExecuted": false,
+      "actualOriginalPolicyReserveBreach": true,
+      "ownedJobEmptyAfterRefusal": true,
+      "compilerFailureProven": false,
+      "anotherBuildRequiresMeaningfulEnvironmentChange": true,
+      "thresholdOrCompilerOrTestReductionIsNotARemedy": true,
+      "latestStrictAttemptBeforeChild": true,
+      "latestStrictInitialCommitAvailableMiB": 3103
+    }
+  ]
 }

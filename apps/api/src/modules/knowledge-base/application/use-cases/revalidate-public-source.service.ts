@@ -7,7 +7,8 @@ import { publicWorkSequence } from "../../../graph-rag/application/public-source
 import { PUBLIC_BUSINESS_SOURCE_NAMESPACE } from "../../domain/knowledge-chunk-namespace.js";
 import type { KnowledgeChunk } from "../../domain/ports/knowledge-repository.port.js";
 import type { PublicEvidenceCandidate, PublicEvidenceCanonicalPort, PublicEvidenceResult,
-  PublicEvidenceSnapshot, LegacyEvidenceSnapshot, ValidatedPublicEvidence, LegacyKnowledgeRetrievalEvidence } from "../../domain/public-source-evidence.js";
+  PublicEvidenceSnapshot, LegacyEvidenceSnapshot, ValidatedPublicEvidence, LegacyKnowledgeRetrievalEvidence,
+  PublicEvidencePairCandidate, PublicEvidencePairResult, ValidatedPublicEvidencePair } from "../../domain/public-source-evidence.js";
 
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 const sourceTypes = ["company", "business_hours", "professional", "service", "faq", "policy"];
@@ -19,6 +20,40 @@ const empty = (): PublicEvidenceResult => ({ status: "insufficient", evidence: [
  * fresh canonical snapshot supplies answer text. The index is a candidate. */
 export class RevalidatePublicSourceService {
   constructor(private readonly canonical: PublicEvidenceCanonicalPort) {}
+
+  async revalidatePairs(input: { merchantId: string; pairs: ReadonlyArray<Readonly<PublicEvidencePairCandidate>> }): Promise<PublicEvidencePairResult> {
+    this.canonical.assertScope(input.merchantId);
+    const insufficient = (): PublicEvidencePairResult => ({ status: "insufficient", pairs: [], evidence: [] });
+    if (!Array.isArray(input.pairs) || !input.pairs.length || input.pairs.length > 10) return insufficient();
+    if (input.pairs.some(pair => !pair || !pair.service || !pair.professional
+      || pair.service.sourceType !== "service" || pair.professional.sourceType !== "professional"
+      || [pair.service, pair.professional].some(candidate => candidate.merchantId !== input.merchantId
+        || !id(candidate.sourceId) || !["public_graph", "public_sql"].includes(candidate.origin)))) return insufficient();
+    const requested = input.pairs.map(pair => ({ service: { ...pair.service }, professional: { ...pair.professional } }));
+    try {
+      // One merchant-first snapshot admits both endpoints and their public
+      // relationship. No embedding/graph/model work runs in this transaction.
+      const snapshot = await this.canonical.read(input.merchantId, requested.flatMap(pair => [pair.service, pair.professional]));
+      const pairs: ValidatedPublicEvidencePair[] = [], evidence = new Map<string, ValidatedPublicEvidence>(), seen = new Set<string>();
+      for (const pair of requested) {
+        const serviceSource = snapshot.sources.find(source => source.sourceType === "service" && source.sourceId === pair.service.sourceId);
+        const professionalSource = snapshot.sources.find(source => source.sourceType === "professional" && source.sourceId === pair.professional.sourceId);
+        const service = this.publicEvidence(pair.service, serviceSource)[0], professional = this.publicEvidence(pair.professional, professionalSource)[0];
+        const links = serviceSource?.source?.publicData.professionals;
+        if (!service || !professional || !Array.isArray(links)
+          || !links.some(link => link && typeof link === "object" && !Array.isArray(link) && link.id === pair.professional.sourceId)) continue;
+        const key = JSON.stringify([service.provenance.sourceId, professional.provenance.sourceId, service.provenance.chunkId, professional.provenance.chunkId]);
+        if (seen.has(key)) continue;
+        seen.add(key);pairs.push({ service, professional });
+        for (const value of [service, professional]) evidence.set(JSON.stringify([value.provenance.sourceType, value.provenance.sourceId, value.provenance.chunkId]), value);
+      }
+      return pairs.length ? { status: "ready", pairs, evidence: [...evidence.values()] } : insufficient();
+    } catch (error) {
+      return error instanceof Error && error.message === "public_source_ambiguous"
+        ? { status: "conflicting", pairs: [], evidence: [] }
+        : { status: "unavailable", pairs: [], evidence: [], reason: "canonical_unavailable" };
+    }
+  }
 
   async revalidate(input: { merchantId: string; candidates: ReadonlyArray<PublicEvidenceCandidate> }): Promise<PublicEvidenceResult> {
     this.canonical.assertScope(input.merchantId);

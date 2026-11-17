@@ -313,7 +313,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | RAG-05 | Compound live queries | T70, T71 | Pending |
 | RAG-06 | Insufficient/conflicting evidence | T68, T71 | In Progress (T68 admission complete; T71 final consumer pending) |
 | RAG-07 | Public/private isolation | T6, T63, T68, T69 | Implemented locally (T6/T63/T68/T69 complete; final integrated proof pending) |
-| RAG-08 | Controlled Cypher | T2, T70 | Pending |
+| RAG-08 | Controlled Cypher | T2, T70 | Implemented locally; final integrated proof pending |
 | RAG-09 | Professional boundary | T71, T72 | Pending |
 | RAG-10 | Generic onboarding | T63, T67, T71, T72 | Pending |
 | RAG-11 | Existing forms feed context | T13, T14, T15, T63, T64, T65 | Pending |

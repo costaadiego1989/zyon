@@ -1,4 +1,6 @@
 import type { GraphReadInput } from "./graph-query.js";
+import type { PublicBusinessReadInput } from "./public-business-query.js";
+import type { PublicBusinessReadResult } from "./public-business-result.js";
 
 export const GRAPH_RETRIEVAL = Symbol("GRAPH_RETRIEVAL");
 export const GRAPH_PROJECTION = Symbol("GRAPH_PROJECTION");
@@ -23,6 +25,8 @@ export interface GraphConnectionSettings {
 }
 export interface GraphRuntimeAdapter extends GraphReadPort, GraphProjectionTransactions {
   admitReader(): Promise<boolean>;
+  admitPublicReader?(): Promise<boolean>;
+  readPublic?(input: PublicBusinessReadInput): Promise<PublicBusinessReadResult>;
   close(): Promise<void>;
 }
 export interface GraphTransaction {

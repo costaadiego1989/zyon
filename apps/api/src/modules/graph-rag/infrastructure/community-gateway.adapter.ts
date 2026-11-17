@@ -5,12 +5,20 @@ import type { GraphConnectionSettings, GraphReadResult, GraphRuntimeAdapter, Gra
 import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
 import { GRAPH_GATEWAY_MAX_BODY_BYTES, GRAPH_QUERY_PROTOCOL, GRAPH_TEMPLATE_HASH, signQuery, verifyQueryResponse } from "../gateway/query-protocol.js";
 import { Neo4jGraphAdapter } from "./neo4j-graph.adapter.js";
+import { PUBLIC_BUSINESS_TEMPLATE_HASH, publicBusinessReadSchema, type PublicBusinessReadInput } from "../domain/public-business-query.js";
+import { admitPublicBusinessRows, type PublicBusinessReadResult } from "../domain/public-business-result.js";
 
 const capability = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL), templateHash: z.literal(GRAPH_TEMPLATE_HASH),
   modelId: z.literal(GRAPH_EMBEDDING_ID), merchantIds: z.array(z.string()).min(1).max(20), mode: z.literal("community_controlled"),
   operations: z.tuple([z.literal("catalog"), z.literal("knowledge")]) });
 const ready = z.strictObject({ status: z.literal("ready"), kind: z.enum(["catalog", "knowledge"]),
   hits: z.array(z.unknown()).max(20), partial: z.literal(true) });
+const publicCapability = capability.extend({ templateHash: z.literal(PUBLIC_BUSINESS_TEMPLATE_HASH),
+  operations: z.tuple([z.literal("public_business")]) });
+const publicReady = z.discriminatedUnion("mode", [
+  z.strictObject({ status: z.literal("ready"), kind: z.literal("public_business"), mode: z.literal("sources"), hits: z.array(z.unknown()).max(20), partial: z.literal(true) }),
+  z.strictObject({ status: z.literal("ready"), kind: z.literal("public_business"), mode: z.literal("service_professional"), pairs: z.array(z.unknown()).max(10), partial: z.literal(true) }),
+]);
 
 export class CommunityGatewayAdapter implements GraphRuntimeAdapter {
   private closed = false;
@@ -60,6 +68,23 @@ export class CommunityGatewayAdapter implements GraphRuntimeAdapter {
     const result = ready.safeParse(await this.call("/v1/read", { protocol: GRAPH_QUERY_PROTOCOL, templateHash: GRAPH_TEMPLATE_HASH, input }));
     if (!result.success || result.data.kind !== input.kind) return { status: "unavailable", reason: "neo4j_unavailable" };
     try { return admitGraphRows(input, result.data.hits, this.clock); }
+    catch { return { status: "unavailable", reason: "invalid_result" }; }
+  }
+  async admitPublicReader(): Promise<boolean> {
+    if (this.closed || !this.settings.enabled || !this.settings.merchantIds.length) return false;
+    const result = publicCapability.safeParse(await this.call("/v1/admission", { protocol: GRAPH_QUERY_PROTOCOL,
+      templateHash: PUBLIC_BUSINESS_TEMPLATE_HASH, merchantIds: this.settings.merchantIds }));
+    return result.success && JSON.stringify([...result.data.merchantIds].sort()) === JSON.stringify([...this.settings.merchantIds].sort());
+  }
+  async readPublic(value: PublicBusinessReadInput): Promise<PublicBusinessReadResult> {
+    const checked = publicBusinessReadSchema.safeParse(value);
+    if (!checked.success) return { status: "unavailable", reason: "invalid_input" };
+    if (!this.enabled(checked.data.merchantId)) return { status: "unavailable", reason: "disabled" };
+    const input = { ...checked.data, nowEpochMs: this.clock(), scanLimit: Math.min(checked.data.scanLimit, 2000),
+      threshold: Math.max(checked.data.threshold, 0.65) };
+    const result = publicReady.safeParse(await this.call("/v1/read", { protocol: GRAPH_QUERY_PROTOCOL, templateHash: PUBLIC_BUSINESS_TEMPLATE_HASH, input }));
+    if (!result.success || result.data.mode !== input.mode) return { status: "unavailable", reason: "neo4j_unavailable" };
+    try { return admitPublicBusinessRows(input, result.data.mode === "sources" ? result.data.hits : result.data.pairs, this.clock); }
     catch { return { status: "unavailable", reason: "invalid_result" }; }
   }
   async withProjection<T>(merchantId: string, work: (tx: GraphTransaction) => Promise<T>) {

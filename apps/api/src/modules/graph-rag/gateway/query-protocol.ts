@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { GRAPH_READ_TEMPLATES } from "../domain/graph-query.js";
 import { graphReadSchema } from "../domain/graph-query.js";
 import { z } from "zod";
+import { PUBLIC_BUSINESS_TEMPLATE_HASH, publicBusinessReadSchema } from "../domain/public-business-query.js";
 export const GRAPH_QUERY_PROTOCOL = 1;
 export const GRAPH_TEMPLATE_HASH = createHash("sha256").update(JSON.stringify(GRAPH_READ_TEMPLATES)).digest("hex");
 // One pinned previous release, for rolling API/gateway updates. Its catalog
@@ -12,6 +13,8 @@ export const GRAPH_GATEWAY_MAX_BODY_BYTES = 128 * 1024;
 export const gatewayReadEnvelope = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL),
   templateHash: gatewayTemplateHash, input: graphReadSchema }).refine(value => value.templateHash !== GRAPH_PREVIOUS_TEMPLATE_HASH
     || value.input.attributeAnyOf.length === 0, "previous_template_cannot_use_alternatives");
+export const publicBusinessReadEnvelope = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL),
+  templateHash: z.literal(PUBLIC_BUSINESS_TEMPLATE_HASH), input: publicBusinessReadSchema });
 const digest = (body: string) => createHash("sha256").update(body).digest("hex");
 const signature = (key: string, value: string) => createHmac("sha256", key).update(value).digest("hex");
 function equalSignature(actual: unknown, expected: string) {
