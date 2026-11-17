@@ -4,7 +4,19 @@ const panel='[aria-label="Verba dos anúncios"]';
 describe('Pagamentos e ajuda fundamentada',()=>{
   beforeEach(()=>{reset();});
   scenario('ADAS-55','prepaid separates media subscription debt and credits and opens the current official account route',()=>{
-    enter();cy.contains('[role="tab"]','Configurações').click();cy.contains('Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.').should('be.visible');
+    enter();cy.get('.chat-dock-panel').should('not.be.visible');
+    cy.get('.chat-dock-trigger').should('have.css','border-radius','50%').and('have.css','width','60px');
+    for(const width of [1440,390,320]){
+      cy.viewport(width,568);
+      cy.get('.chat-dock-trigger').then(launcher=>{cy.get('.platform-feedback-fab').then(support=>{expect(launcher[0].getBoundingClientRect().bottom).lessThan(support[0].getBoundingClientRect().top);expect(launcher[0].getBoundingClientRect().right).eq(support[0].getBoundingClientRect().right);});});
+      cy.get('.chat-dock-trigger').click();
+      cy.get('.chat-dock-panel').should('be.visible').then(panel=>{const rect=panel[0].getBoundingClientRect();expect(rect.top).at.least(8);expect(rect.bottom).at.most(568);expect(rect.left).at.least(0);expect(rect.right).at.most(width);});
+      cy.get('[aria-label="Recolher assistente"]').click();
+    }
+    cy.viewport(1440,900);
+    cy.contains('[role="tab"]','Configurações').click();cy.contains('Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.').should('be.visible');
+    cy.get('.chat-dock-hint-open',{timeout:15000}).should('be.visible').should(hint=>{expect(getComputedStyle(hint[0]).backgroundColor).match(/^rgba\([^)]*,\s*0\)$/);});
+    cy.get('.chat-dock-hint-open strong').should('have.text','A Zyon pode ajudar');
     cy.get(panel).contains('summary','Detalhes dos pagamentos').click();cy.get(panel).contains('summary','Ajuda sobre pagamentos').click();
     cy.get(panel).should('contain.text','Pré-paga: adicione fundos na Meta');
     cy.get(panel).contains('dt','Saldo pré-pago disponível').next('dd').should('have.text','Indisponível');

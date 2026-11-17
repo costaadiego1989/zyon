@@ -21,3 +21,7 @@ Mount once for the active merchant. Changing merchants must replace the conversa
 Tips are local strings, shown every ten seconds while closed and visible. They never call a model or submit a message. A dismissal hides the current visit's tips; opening the panel or changing context resets the cycle. Pass an empty stable array to suppress tips during a financial review. Keyboard collapse/reopen preserves the draft and restores focus. `ZyonAgentOrb` provides the existing storefront sphere/eyes with reduced-motion support.
 
 The advertising module supplies its own tips and existing conversation/approval services. No page guidance or launcher click constitutes approval for a campaign or a configuration change.
+
+Keep host-page button resets outside `.chat-dock` so the launcher stays circular and the hint keeps readable foreground/background colors. Advertising acceptance checks this in a real browser. Required financial review closes the panel and suppresses tips until review ends. The mascot sits above the existing support button on the right, without moving support. Panel height accounts for this reserved bottom space on short phone screens.
+
+The floating panel is390px on desktop and fits the viewport with12px side margins on small phones. Escape collapses it and restores launcher focus; reopening focuses the composer without discarding a draft. Visual review uses the actual advertising module at1440,390 and320px; data and external deliveries are controlled locally.

@@ -7,8 +7,8 @@
 .meta-ads-agent h4 { font-size: 14px; margin: 0 0 12px; }
 .meta-ads-agent p { max-width: 75ch; color: var(--color-text-secondary); text-wrap: pretty; margin: 10px 0 16px; }
 .meta-ads-agent small { display: block; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
-.meta-ads-agent button:not(.tab-bar__tab) { min-height: 44px; max-width: 100%; justify-content: center; white-space: normal; line-height: 1.5; padding: 10px 16px; border: 1px solid var(--color-brand); border-radius: 8px; background: var(--color-brand); color: var(--color-on-brand); font: 600 13px/1.5 var(--font-sans); box-shadow: none; transition: background 160ms ease-out, border-color 160ms ease-out; }
-.meta-ads-agent button:not(.tab-bar__tab):hover:not(:disabled) { background: var(--color-brand-hover); border-color: var(--color-brand-hover); }
+.meta-ads-agent button:not(.tab-bar__tab):where(:not(.chat-dock button)) { min-height: 44px; max-width: 100%; justify-content: center; white-space: normal; line-height: 1.5; padding: 10px 16px; border: 1px solid var(--color-brand); border-radius: 8px; background: var(--color-brand); color: var(--color-on-brand); font: 600 13px/1.5 var(--font-sans); box-shadow: none; transition: background 160ms ease-out, border-color 160ms ease-out; }
+.meta-ads-agent button:not(.tab-bar__tab):where(:not(.chat-dock button)):hover:not(:disabled) { background: var(--color-brand-hover); border-color: var(--color-brand-hover); }
 .meta-ads-agent button.mga-secondary, .meta-ads-agent .mga-pagination button { color: var(--color-text); background: var(--color-surface); border-color: var(--color-border-strong); }
 .meta-ads-agent button.mga-secondary:hover:not(:disabled), .meta-ads-agent .mga-pagination button:hover:not(:disabled) { background: var(--color-surface-raised); }
 .meta-ads-agent button:disabled { opacity: .5; cursor: not-allowed; }
