@@ -134,7 +134,7 @@ export class HandleMetaConversationUseCase {
       }
       let includeMedia = true;
       let navigationOnly = false;
-      const accountLink = !responseProducer ? await this.accountLinks?.handle(input, state) : undefined;
+      const accountLink = await this.accountLinks?.handle(input, state);
       if (accountLink) { state = accountLink.state; view = buildMetaUiView(accountLink); includeMedia = false; }
       else if (invalidSelection) { view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Esse menu foi atualizado. Use as opções abaixo ou escreva o que você quer fazer." }; includeMedia = false; }
       else if (action?.kind === "page" && view) {

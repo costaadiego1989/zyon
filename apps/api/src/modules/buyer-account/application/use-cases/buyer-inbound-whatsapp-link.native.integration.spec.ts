@@ -11,7 +11,7 @@ import { PrismaWhatsAppSessionRepository } from "../../../whatsapp-channel/infra
 import { PrismaWhatsAppWebhookInbox } from "../../../whatsapp-channel/infrastructure/repositories/prisma-whatsapp-webhook-inbox.repository.js";
 import { HandleMetaConversationUseCase } from "../../../whatsapp-channel/application/use-cases/handle-meta-conversation.use-case.js";
 import type { IncomingMessageInput } from "../../../whatsapp-channel/application/use-cases/handle-incoming-message.use-case.js";
-import type { WhatsAppConversationState } from "../../../whatsapp-channel/domain/ui/meta-ui.types.js";
+import type { WhatsAppConversationState, WhatsAppStructuredResponse } from "../../../whatsapp-channel/domain/ui/meta-ui.types.js";
 
 const db = createPrismaClient("postgresql://postgres@127.0.0.1:15565/athom_qa");
 after(async () => db.$disconnect());
@@ -52,14 +52,14 @@ async function fixture(t: TestContext) {
     return { input, row };
   }
   const state = async () => (await sessions.findActiveByPhone(merchantId, phone, deviceId))!.conversationState!;
-  async function run(input: IncomingMessageInput) {
+  async function run(input: IncomingMessageInput, producer?: () => Promise<WhatsAppStructuredResponse>) {
     const current = (await sessions.findActiveByPhone(merchantId, phone, deviceId))!;
-    await handler.execute(input, { whatsappSession: current, isNew: false, buyerData: { globalUserId: "native-guest", phone, phoneVerified: true } });
+    await handler.execute(input, { whatsappSession: current, isNew: false, buyerData: { globalUserId: "native-guest", phone, phoneVerified: true } }, producer);
     return state();
   }
-  async function prompt() {
+  async function prompt(producer?: () => Promise<WhatsAppStructuredResponse>) {
     const initial = await message("Vincular minha conta " + challenge.token);
-    const current = await run(initial.input);
+    const current = await run(initial.input, producer);
     assert.equal((await identities.status(buyerId)).linked, false);
     assert.equal((await db.buyerPhoneOtp.findUniqueOrThrow({ where: { phone: key(challenge.token) } })).consumedAt, null);
     const entries = Object.entries(current.selections!);
@@ -98,6 +98,22 @@ test("C3 cancellation consumes the challenge without linking or granting consent
   assert.match((await f.run(cancelled.input)).view!.body, /Solicitação cancelada/);
   assert.deepEqual(await f.service.status(f.buyerId, f.challenge.token), { status: "cancelled", linked: false, phone: null });
   assert.equal((await f.identities.status(f.buyerId)).linked, false); await f.unchanged();
+});
+
+test("C2/C4 link prompt and confirmation take priority over pending post-sale while ordinary post-sale replies remain available", async t => {
+  const f = await fixture(t); let postSaleCalls = 0;
+  const forbiddenProducer = async (): Promise<WhatsAppStructuredResponse> => { postSaleCalls++; throw Error("post_sale_cannot_consume_account_link"); };
+  const p = await f.prompt(forbiddenProducer), m = await f.message("Confirmar vínculo", p.confirm);
+  const confirmed = await f.run(m.input, forbiddenProducer);
+  assert.match(confirmed.view!.body, /WhatsApp confirmado/);
+  assert.equal(await f.identities.verifiedAccount(f.phone), f.buyerId); assert.equal(postSaleCalls, 0);
+  const ordinary = await f.message("5");
+  const postSale = await f.run(ordinary.input, async () => {
+    postSaleCalls++;
+    return { agentMessage: "Avaliação recebida", quickReplies: [], blocks: [], state: await f.state() };
+  });
+  assert.equal(postSaleCalls, 1); assert.match(postSale.view!.body, /Avaliação recebida/);
+  assert.equal((await f.service.status(f.buyerId, f.challenge.token)).linked, true); await f.unchanged();
 });
 
 for (const variant of ["plain_text", "missing_claim", "lease", "expired_lease", "processed", "payload", "sender", "genuine_wrong_phone", "merchant", "config", "conversation", "stale_selection", "expired", "cancelled"])
