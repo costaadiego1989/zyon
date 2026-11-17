@@ -28,7 +28,11 @@ function Snapshot({value}: {value: JsonObject}) {
 }
 export function ProposalReview({proposal, execution, entitled, connectionEpoch, api, onUpdated}: {proposal: MetaAdsProposal; execution?: MetaAdsExecution; entitled: boolean; connectionEpoch: number; api: MetaAdsAgentApi; onUpdated: () => void | Promise<void>}) {
   const [view, setView] = useState(proposal); const [result, setResult] = useState(execution); const [uncertain, setUncertain] = useState(false); const [acknowledged, setAcknowledged] = useState(false); const action = useAction();
-  useEffect(() => {setView(proposal); setAcknowledged(false);}, [proposal]); useEffect(() => {setResult(execution);}, [execution]);
+  const reviewVersion = JSON.stringify([proposal.id, proposal.digest, proposal.campaignId, proposal.kind, proposal.connectionEpoch, proposal.before, proposal.after, proposal.reasoning],
+    (_key, value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
+  useEffect(() => {setView(proposal);}, [proposal]);
+  useEffect(() => {setAcknowledged(false);}, [reviewVersion, connectionEpoch]);
+  useEffect(() => {setResult(execution);}, [execution]);
   const stale = view.status === "stale" || view.connectionEpoch !== connectionEpoch;
   const disabled = !entitled || action.busy || stale;
   const reviewed = acknowledged && !disabled;
