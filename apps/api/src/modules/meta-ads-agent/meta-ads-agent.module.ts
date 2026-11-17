@@ -37,15 +37,24 @@ import { FundingService } from './application/funding.service.js';
 import { AutomationPolicyService } from './application/automation-policy.service.js';
 import { AutomaticCampaignWorker } from './infrastructure/automatic-campaign.worker.js';
 import { DAILY_OBSERVATION_REPOSITORY } from './domain/daily-observation.port.js';
+import {CampaignApprovalController} from './presentation/campaign-approval.controller.js';
+import {CampaignPreparationService} from './application/campaign-preparation.service.js';
+import {CampaignNoticeContactService} from './application/campaign-notice-contact.service.js';
+import {InitialLaunchService} from './application/initial-launch.service.js';
+import {CampaignPreparationWorker} from './infrastructure/campaign-preparation.worker.js';
+import {CampaignReadyNoticeWorker} from './infrastructure/campaign-ready-notice.worker.js';
+import {WhatsAppTemplatesModule} from '../whatsapp-templates/whatsapp-templates.module.js';
+import {WHATSAPP_TEMPLATE_REPOSITORY,type WhatsAppTemplateRepositoryPort} from '../whatsapp-templates/domain/ports/whatsapp-template-repository.port.js';
+import {WHATSAPP_TEMPLATE_SENDER,type WhatsAppTemplateSenderPort} from '../whatsapp-templates/domain/ports/whatsapp-template-sender.port.js';
 
 const runtime = Symbol("MetaAdsRuntime");
 @Module({
-  imports: [PersistenceModule, StorageModule, AuthModule, CatalogModule, MerchantModule, PaymentModule, WhatsAppConfigModule, MessagingModule, CheckoutPersistenceModule, MerchantAssistantModule],
-  controllers: [MetaAdsAgentController, StripeAddonWebhookController, AttributionController, FundingController, AutomationReportController],
+  imports: [PersistenceModule, StorageModule, AuthModule, CatalogModule, MerchantModule, PaymentModule, WhatsAppConfigModule, MessagingModule, CheckoutPersistenceModule, MerchantAssistantModule,WhatsAppTemplatesModule],
+  controllers: [MetaAdsAgentController, StripeAddonWebhookController, AttributionController, FundingController, AutomationReportController,CampaignApprovalController],
   providers: [
     { provide: META_ADS_SESSION_BINDING, useFactory: (sessions: CheckoutSessionRepository) => new CheckoutSessionBindingAdapter(sessions), inject: [CHECKOUT_SESSION_REPOSITORY] },
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
-    { provide: runtime, useFactory: (prisma: PrismaClient, catalog: ProductRepositoryPort, merchants: MerchantRepository, billing: PaymentPlatformRepository, storage: S3UploadService, whatsapp: WhatsAppConfigRepository, events: DomainEventBus, sessionBinding: AttributionSessionBindingPort, assistant: MerchantAssistantRuntime, memberships: MerchantStoreRepository) => createMetaAdsRuntime({ prisma, catalog, merchants, billing, storage, whatsapp, events, sessionBinding, assistant, memberships, env: process.env }), inject: [PRISMA_CLIENT, "ProductRepositoryPort", MERCHANT_REPOSITORY, PAYMENT_PLATFORM_REPOSITORY, S3UploadService, WHATSAPP_CONFIG_REPOSITORY, DOMAIN_EVENT_BUS, META_ADS_SESSION_BINDING, MERCHANT_ASSISTANT_RUNTIME, MERCHANT_STORE_REPOSITORY] },
+    { provide: runtime, useFactory: (prisma: PrismaClient, catalog: ProductRepositoryPort, merchants: MerchantRepository, billing: PaymentPlatformRepository, storage: S3UploadService, whatsapp: WhatsAppConfigRepository, events: DomainEventBus, sessionBinding: AttributionSessionBindingPort, assistant: MerchantAssistantRuntime, memberships: MerchantStoreRepository,templates:WhatsAppTemplateRepositoryPort,templateSender:WhatsAppTemplateSenderPort) => createMetaAdsRuntime({ prisma, catalog, merchants, billing, storage, whatsapp, events, sessionBinding, assistant, memberships,templates,templateSender, env: process.env }), inject: [PRISMA_CLIENT, "ProductRepositoryPort", MERCHANT_REPOSITORY, PAYMENT_PLATFORM_REPOSITORY, S3UploadService, WHATSAPP_CONFIG_REPOSITORY, DOMAIN_EVENT_BUS, META_ADS_SESSION_BINDING, MERCHANT_ASSISTANT_RUNTIME, MERCHANT_STORE_REPOSITORY,WHATSAPP_TEMPLATE_REPOSITORY,WHATSAPP_TEMPLATE_SENDER] },
     { provide: MetaAdsAgentService, useFactory: (value: MetaAdsRuntime) => value.service, inject: [runtime] },
     { provide: AttributionService, useFactory: (value: MetaAdsRuntime) => value.attribution, inject: [runtime] },
     { provide: GenerationWorker, useFactory: (value: MetaAdsRuntime) => value.generationWorker, inject: [runtime] },
@@ -54,6 +63,11 @@ const runtime = Symbol("MetaAdsRuntime");
     { provide: AutomationPolicyService, useFactory: (value: MetaAdsRuntime) => value.policies, inject: [runtime] },
     { provide: DAILY_OBSERVATION_REPOSITORY, useFactory: (value: MetaAdsRuntime) => value.daily, inject: [runtime] },
     { provide: AutomaticCampaignWorker, useFactory: (value: MetaAdsRuntime) => value.automatic, inject: [runtime] },
+    {provide:CampaignPreparationService,useFactory:(value:MetaAdsRuntime)=>value.preparation,inject:[runtime]},
+    {provide:CampaignNoticeContactService,useFactory:(value:MetaAdsRuntime)=>value.contacts,inject:[runtime]},
+    {provide:InitialLaunchService,useFactory:(value:MetaAdsRuntime)=>value.launches,inject:[runtime]},
+    {provide:CampaignPreparationWorker,useFactory:(value:MetaAdsRuntime)=>value.preparationWorker,inject:[runtime]},
+    {provide:CampaignReadyNoticeWorker,useFactory:(value:MetaAdsRuntime)=>value.noticeWorker,inject:[runtime]},
     { provide: CheckoutPurchaseBridge, useFactory: (value: MetaAdsRuntime) => value.purchaseBridge, inject: [runtime] },
     MetaAdsHttpErrorFilter,
   ],

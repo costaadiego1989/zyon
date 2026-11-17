@@ -7,14 +7,27 @@ import { TenantContextService } from '../../../../shared/tenant/tenant-context.s
 import { createMerchantAssistantRuntime } from '../../../merchant-assistant/infrastructure/runtime.js';
 import { metaAssistantFixture } from '../../application/__tests__/assistant-fixture.js';
 import { createMetaAdsRuntime } from '../runtime.js';
+import {installCampaignApprovalSchema} from './campaign-approval-database.js';
+import {PrismaMerchantStoreRepository} from '../../../merchant/infrastructure/prisma-merchant-store.repository.js';
 
 export async function agenticRuntimeFixture(flags: Record<string, string | undefined> = {}) {
   const f = await metaAssistantFixture(); await f.connect(); f.setNow('2026-11-16T12:00:00Z');
   // This composition fixture starts with no chat; the base helper seeds an unrelated adapter turn.
   await f.sql.query('DELETE FROM merchant_assistant_threads WHERE id=$1', [f.thread.id]);
+  await installCampaignApprovalSchema(f.sql);
+  await f.sql.query(`
+    ALTER TABLE merchants ADD COLUMN billing_account_merchant_id TEXT;
+    CREATE TABLE merchant_users(id TEXT PRIMARY KEY,merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,email TEXT NOT NULL UNIQUE,password_hash TEXT,role TEXT NOT NULL,auth_version INTEGER NOT NULL DEFAULT 0,disabled_at TIMESTAMPTZ,oauth_provider TEXT,oauth_provider_id TEXT,created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+    CREATE TYPE "MerchantRole" AS ENUM ('OWNER','ADMIN','STAFF');
+    CREATE TABLE merchant_team_members(id TEXT PRIMARY KEY,merchant_id TEXT NOT NULL,user_id TEXT NOT NULL REFERENCES merchant_users(id) ON DELETE CASCADE,role "MerchantRole" NOT NULL,invited_by TEXT,joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),UNIQUE(merchant_id,user_id));
+    CREATE TABLE merchant_auth_sessions(id TEXT PRIMARY KEY,family_id TEXT NOT NULL,user_id TEXT NOT NULL REFERENCES merchant_users(id) ON DELETE CASCADE,merchant_id TEXT NOT NULL,auth_version INTEGER NOT NULL,refresh_expires_at TIMESTAMPTZ NOT NULL,consumed_at TIMESTAMPTZ,revoked_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+    INSERT INTO merchant_users(id,merchant_id,email,role) VALUES ('owner-a','store-a','owner-a@example.test','owner'),('admin-a','store-a','admin-a@example.test','admin'),('staff-a','store-a','staff-a@example.test','staff'),('owner-b','store-b','owner-b@example.test','owner');
+    INSERT INTO merchant_team_members(id,merchant_id,user_id,role) SELECT id||'-membership',merchant_id,id,upper(role)::"MerchantRole" FROM merchant_users;
+  `);
   const tenant = new TenantContextService(); let role = true, aiCalls = 0; const writes: string[] = [], requests: string[] = [], identities: Array<{ userId: string; role: string; source: string }> = [];
-  const memberships = { findMembership: async (actor: string, merchant: string) => role && actor === 'owner-a' && merchant === 'store-a' ? { merchantId: merchant, billingAccountMerchantId: merchant, role: 'owner' as const } : undefined };
-  const env = { META_ADS_AGENT_ENABLED: 'true', MERCHANT_ASSISTANT_ENABLED: 'true', META_ADS_AGENT_AUTOMATION_ENABLED: 'true', META_ADS_AGENT_OBSERVATION_ENABLED: 'true', META_ADS_AGENT_REMOTE_WRITES_ENABLED: 'true', META_ADS_GRAPH_API_VERSION: 'v26.0', META_ADS_CREDENTIAL_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64'), META_ADS_DASHBOARD_URL: 'https://dashboard.example.test', STOREFRONT_PUBLIC_URL: 'https://store.example.test', OPENAI_API_KEY: 'synthetic-provider-key', OPENAI_MODEL: 'gpt-4o-mini', ...flags };
+  const canonicalMemberships=new PrismaMerchantStoreRepository(f.prisma);
+  const memberships = { findMembership: async (actor: string, merchant: string) => role ? canonicalMemberships.findMembership(actor,merchant) : undefined };
+  const env = { META_ADS_AGENT_ENABLED: 'true', MERCHANT_ASSISTANT_ENABLED: 'true', META_ADS_AGENT_AUTOMATION_ENABLED: 'true', META_ADS_AGENT_OBSERVATION_ENABLED: 'true', META_ADS_AGENT_REMOTE_WRITES_ENABLED: 'true', META_ADS_GRAPH_API_VERSION: 'v26.0', META_ADS_CREDENTIAL_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64'), META_ADS_DASHBOARD_URL: 'https://dashboard.example.test', STOREFRONT_PUBLIC_URL: 'https://store.example.test', OPENAI_API_KEY: 'synthetic-provider-key', OPENAI_MODEL: 'gpt-4o-mini',META_ADS_IMAGE_SOURCE_HOSTS:'media.example.test', ...flags };
   const transport: typeof fetch = async (url, init) => {
     requests.push(String(url));
     if (String(url) === 'https://api.openai.com/v1/chat/completions') { aiCalls++; return new Response(JSON.stringify({ id: 'runtime-ai', choices: [{ finish_reason: 'tool_calls', message: { content: null, tool_calls: [{ id: 'rec-data', type: 'function', function: { name: 'propose_campaign_changes', arguments: '{"recommendations":[]}' } }] } }], usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 } })); }
@@ -36,12 +49,14 @@ export async function agenticRuntimeFixture(flags: Record<string, string | undef
     }
     return new Response(JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result }));
   };
-  const assistant = createMerchantAssistantRuntime({ prisma: f.prisma, memberships, tenant, governance: { authorize: async (context) => { const identity = tenant.get()!; identities.push({ userId: identity.userId, role: identity.role, source: context.source }); return {} as never; } }, env, transport, clock: f.clock });
+  const makeAssistant=()=>createMerchantAssistantRuntime({ prisma: f.prisma, memberships, tenant, governance: { authorize: async (context) => { const identity = tenant.get()!; identities.push({ userId: identity.userId, role: identity.role, source: context.source }); return {} as never; } }, env, transport, clock: f.clock });
+  const assistant=makeAssistant();
   const product = new ProductEntity({ id: 'product-a', merchantId: 'store-a', name: 'Camisa', description: 'Algodão', type: 'physical', isActive: true, createdAt: f.clock(), updatedAt: f.clock(), variants: [{ id: 'variant-a', sku: 'CA', attributes: {}, isActive: true, basePriceInCents: 9900, costInCents: 0, taxPercent: 0, currency: 'BRL', stockQuantity: 8, stockReserved: 0, media: [{ id: 'image-a', url: 'https://media.example.test/camisa.png', type: 'IMAGE', order: 0 }] }] });
-  const runtime = createMetaAdsRuntime({ prisma: f.prisma, catalog: { findByVariantIds: async () => [product], search: async () => ({ products: [product] }) } as unknown as ProductRepositoryPort,
+  const runtimeInput = { prisma: f.prisma, catalog: { findByVariantIds: async () => [product], search: async () => ({ products: [product] }) } as unknown as ProductRepositoryPort,
     merchants: { getProfile: async (id: string) => ({ id, name: 'Loja', slug: 'loja-a', storeSettings: { company: { email: 'owner@example.test' } } }) } as unknown as MerchantRepository,
     billing: { getBilling: async (merchantId: string) => ({ merchantId, status: 'active', planKey: 'growth' }) } as unknown as PaymentPlatformRepository,
-    whatsapp: { findByMerchantId: async () => null } as unknown as WhatsAppConfigRepository, storage: { isConfigured: () => false, upload: async () => { throw Error('not used'); } }, env, assistant, memberships, request: transport, clock: f.clock });
+    whatsapp: { findByMerchantId: async () => null } as unknown as WhatsAppConfigRepository, storage: { isConfigured: () => !!env.META_ADS_IMAGE_API_KEY, upload: async () => { throw Error('not used'); } }, env, assistant, memberships, request: transport, clock: f.clock };
+  const makeRuntime=()=>createMetaAdsRuntime({...runtimeInput,assistant:makeAssistant()}),runtime=createMetaAdsRuntime(runtimeInput);
   const create = async () => {
     const campaign = await runtime.service.campaigns.create('store-a', { name: 'Campanha', destination: 'store', priority: 'roas', variantIds: ['variant-a'], country: 'BR', headline: 'Camisa', primaryText: 'Conheça a camisa', mediaIds: [], budget: { amountCents: 10000, currency: 'BRL', cadence: 'lifetime', startsAt: f.clock().toISOString(), endsAt: '2026-11-23T12:00:00.000Z' } }, 'runtime-campaign');
     const version = campaign.products[0].commercialVersion;
@@ -49,5 +64,5 @@ export async function agenticRuntimeFixture(flags: Record<string, string | undef
   };
   const policy = async (campaignId: string, allowNewCampaigns = false) => { const review = await runtime.policies.review('store-a', 'owner-a', { scope: { variantIds: ['variant-a'], campaignIds: [campaignId], allowNewCampaigns, destination: 'store', priority: 'roas', country: 'BR', actions: ['prepare', 'publish', 'pause', 'budget', 'creative'] }, limits: { currency: 'BRL', cadence: 'lifetime', campaignCeilingCents: 10000, storeCeilingCents: 20000, startsAt: f.clock().toISOString(), endsAt: '2026-11-23T12:00:00.000Z' } }); return (await runtime.policies.accept('store-a', 'owner-a', { scope: review.scope, limits: review.limits, version: review.version, digest: review.digest, idempotencyKey: 'runtime-policy' })).policy!; };
   const price = async () => { await f.sql.query('CREATE TABLE ai_price_versions(id TEXT PRIMARY KEY,provider TEXT,model TEXT,channel TEXT,component TEXT,currency TEXT,input_micros_per_million BIGINT,output_micros_per_million BIGINT,rates JSONB,effective_from TIMESTAMPTZ,effective_to TIMESTAMPTZ)'); await f.sql.query(`INSERT INTO ai_price_versions VALUES ('p','openai','gpt-4o-mini','chat','text_generation','USD',10000,20000,'{"input":"10000","output":"20000"}','2026-01-01',NULL)`); };
-  return { ...f, assistant, runtime, env, tenant, identities, requests, writes, create, policy, price, aiCalls: () => aiCalls, role: (value: boolean) => { role = value; }, close: async () => { await assistant.worker.onModuleDestroy(); await runtime.observation.onModuleDestroy(); await runtime.automatic?.onModuleDestroy(); await f.close(); } };
+  return { ...f, assistant, runtime, makeRuntime, env, tenant, identities, requests, writes, create, policy, price, aiCalls: () => aiCalls, role: (value: boolean) => { role = value; }, close: async () => { await assistant.worker.onModuleDestroy(); await runtime.observation.onModuleDestroy(); await runtime.automatic?.onModuleDestroy();await runtime.generationWorker.onModuleDestroy();await runtime.launches?.onModuleDestroy();await runtime.preparationWorker?.onModuleDestroy();await runtime.noticeWorker?.onModuleDestroy(); await f.close(); } };
 }

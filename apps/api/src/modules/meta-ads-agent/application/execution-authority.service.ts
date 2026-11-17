@@ -17,6 +17,7 @@ interface Dependencies {
   policies: Pick<AutomationPolicyService, 'view'>; exposure: Pick<ExposureReservationService, 'observe'>;
   budgetControl: MetaBudgetControlPort; funding: Pick<FundingService, 'assertPublishable'>;
   authorizeActor: (merchantId: string, actorId: string) => Promise<void>; enabled: () => boolean; clock?: Clock;
+  launchEnabled?:()=>boolean;
 }
 function fields(request: ExecutionAuthorityRequest): void {
   const allowed = request?.kind === 'manual' ? ['kind', 'actorId'] : request?.kind === 'automatic' ? ['kind', 'policyId', 'policyVersion', 'policyDigest'] : [];
@@ -81,6 +82,7 @@ export class ExecutionAuthorityService implements ExecutionAuthorityPort {
     const state = await this.deps.repo.read(merchantId); requireEntitlement(await this.deps.commerce.getPlan(merchantId), state, this.clock());
     const proposal = Object.hasOwn(state.proposals, proposalId) ? state.proposals[proposalId] : null;
     if (!proposal) throw new MetaAdsError('approval_required', 403);
+    if(proposal.kind==='launch'&&this.deps.launchEnabled&&!this.deps.launchEnabled())throw new MetaAdsError('campaign_launch_unavailable',409);
     assertReviewedProposal(merchantId, proposal, await this.deps.repo.getRecord(merchantId, `proposal-version:${proposalId}`));
     if (proposal.connectionEpoch !== state.connection.epoch || ['stale', 'rejected'].includes(proposal.status)) throw new MetaAdsError('proposal_stale', 409);
     let policy: MetaAdsAutomationPolicy | null = null;
@@ -128,6 +130,7 @@ export class ExecutionAuthorityService implements ExecutionAuthorityPort {
       }
     }
     const base = { proposalId, proposalDigest: proposal.digest, campaignId: campaign.id, campaignDigest: stableDigest({ draft: campaign.draft, products: campaign.products }), connectionEpoch: access.connectionEpoch };
+    if(proposal.kind==='launch'&&this.deps.launchEnabled&&!this.deps.launchEnabled())throw new MetaAdsError('campaign_launch_unavailable',409);
     return request.kind === 'manual' ? { ...base, kind: 'manual', actorId: request.actorId, approvedBy: proposal.approvedBy!, approvedAt: proposal.approvedAt! }
       : { ...base, kind: 'automatic', actorId: 'service:meta-ads-agent', policyId: policy!.id, policyVersion: policy!.version, policyDigest: policy!.digest };
   }

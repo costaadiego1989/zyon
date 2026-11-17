@@ -15,6 +15,8 @@ interface Dependencies {
   proposals: Pick<ProposalService, 'create'>; executions: Pick<ExecutionService, 'executeAutomatic'>;
   enabled: () => boolean; clock?: Clock;
   authorizeActor?: (merchantId: string, actorId: string) => Promise<void>;
+  preparationEnabled?:()=>boolean;
+  prepareInternally?:(merchantId:string,actorId:string,campaignId:string,imageCount?:number)=>Promise<unknown>;
 }
 export interface AutomaticOutcome { proposalId: string; executionId: string | null; status: string; reason: string; error: string | null; }
 const grant = (policy: MetaAdsAutomationPolicy) => ({ kind: 'automatic' as const, policyId: policy.id, policyVersion: policy.version, policyDigest: policy.digest });
@@ -40,13 +42,15 @@ export class AutomaticCampaignWorker {
   }
   async createCampaign(merchantId: string, input: { draft: MetaAdsCampaignDraft; imageCount: number; idempotencyKey: string }): Promise<MetaAdsCampaign> {
     requireIdentifier(input.idempotencyKey);
+    if(this.deps.preparationEnabled&&!this.deps.preparationEnabled())throw new MetaAdsError('campaign_preparation_unavailable',409);
     if (!Number.isSafeInteger(input.imageCount) || input.imageCount < 1 || input.imageCount > 10) throw new MetaAdsError('image_count_invalid');
     const policy = await this.current(merchantId); if (!policy) throw new MetaAdsError('automatic_authority_unavailable', 409);
     const draft = this.draft(policy, input.draft), key = stableDigest({ merchantId, key: input.idempotencyKey });
     const campaign = await this.deps.campaigns.create(merchantId, draft, `auto-new-${key}`);
     await this.bindCampaign(merchantId, campaign.id, policy.id);
     const latest = await this.current(merchantId); if (latest?.id !== policy.id || latest.version !== policy.version) throw new MetaAdsError('automatic_authority_unavailable', 409);
-    if (!campaign.draft.mediaIds.length) await this.deps.generations.request(merchantId, campaign.id, { imageCount: input.imageCount, idempotencyKey: `auto-image-${key}` });
+    if(this.deps.prepareInternally)await this.deps.prepareInternally(merchantId,latest.acceptedBy,campaign.id,input.imageCount);
+    else if (!campaign.draft.mediaIds.length) await this.deps.generations.request(merchantId, campaign.id, { imageCount: input.imageCount, idempotencyKey: `auto-image-${key}` });
     return campaign;
   }
   async bindCampaign(merchantId: string, campaignId: string, expectedPolicyId?: string): Promise<void> {
@@ -105,8 +109,10 @@ export class AutomaticCampaignWorker {
           const policy = await this.current(merchantId); if (!policy) continue;
           const state = await this.deps.repo.read(merchantId);
           for (const campaign of Object.values(state.campaigns)) {
+            if(this.deps.preparationEnabled&&!this.deps.preparationEnabled())continue;
             const binding = (await this.deps.repo.getRecord<{ policyVersion: number }>(merchantId, `automatic-policy-campaign:${policy.id}:${campaign.id}`))?.payload;
             if (!binding || binding.policyVersion !== policy.version || !campaign.managed || campaign.remoteCampaignId) continue;
+            if(this.deps.prepareInternally){await this.deps.prepareInternally(merchantId,policy.acceptedBy,campaign.id);continue;}
             const flowKey = stableDigest({ policyId: policy.id, campaignId: campaign.id });
             const generation = Object.values(state.generations).find(g => g.campaignId === campaign.id && g.status === 'succeeded');
             if (!campaign.draft.mediaIds.length && !generation && !Object.values(state.generations).some(g => g.campaignId === campaign.id)) {

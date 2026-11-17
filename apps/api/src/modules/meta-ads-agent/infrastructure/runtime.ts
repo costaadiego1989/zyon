@@ -41,11 +41,22 @@ import { AttributionService } from "../application/attribution.service.js";
 import { MetaAdsAgentService } from "../application/meta-ads-agent.service.js";
 import type { DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
 import { CheckoutPurchaseBridge } from "./checkout-purchase.bridge.js";
+import type {WhatsAppTemplateRepositoryPort} from '../../whatsapp-templates/domain/ports/whatsapp-template-repository.port.js';
+import type {WhatsAppTemplateSenderPort} from '../../whatsapp-templates/domain/ports/whatsapp-template-sender.port.js';
+import {PrismaCampaignPreparationRepository} from './prisma-campaign-preparation.repository.js';
+import {PrismaCampaignReadyNoticeRepository} from './prisma-campaign-ready-notice.repository.js';
+import {CampaignPreparationService} from '../application/campaign-preparation.service.js';
+import {CampaignNoticeContactService} from '../application/campaign-notice-contact.service.js';
+import {InitialLaunchService} from '../application/initial-launch.service.js';
+import {CampaignPreparationWorker} from './campaign-preparation.worker.js';
+import {CampaignReadyNoticeWorker} from './campaign-ready-notice.worker.js';
+import {CampaignReadyNoticeSender} from './campaign-ready-notice.sender.js';
 
 /** Production composition has no memory repository or substitute provider path. */
 export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: ProductRepositoryPort; merchants: MerchantRepository; billing: PaymentPlatformRepository;
   storage: Pick<S3UploadService, "isConfigured" | "upload">; whatsapp: WhatsAppConfigRepository; env: MetaAdsEnvironment; events?: DomainEventBus; sessionBinding?: AttributionSessionBindingPort;
-  assistant?: MerchantAssistantIntegrationPort; memberships?: Pick<MerchantStoreRepository, 'findMembership'>; request?: typeof fetch; clock?: Clock }) {
+  assistant?: MerchantAssistantIntegrationPort; memberships?: Pick<MerchantStoreRepository, 'findMembership'>; request?: typeof fetch; clock?: Clock;
+  templates?:Pick<WhatsAppTemplateRepositoryPort,'findByMerchantAndType'>;templateSender?:WhatsAppTemplateSenderPort }) {
   const { env } = input; const repo = new PrismaMetaAdsRepository(input.prisma);
   const clock = input.clock ?? (() => new Date()), request = input.request ?? fetch;
   const commerce = new CommerceContextAdapter(input.prisma, input.catalog, input.merchants, input.billing, env, clock);
@@ -54,20 +65,44 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const connection = new ConnectionService(repo, commerce, new MetaOAuthAdapter(env), new CredentialCodec(env.META_ADS_CREDENTIAL_ENCRYPTION_KEY), provider, env.META_ADS_OAUTH_REDIRECT_URI ?? "", clock);
   const billing = new BillingService(repo, commerce, new StripeAddonAdapter(env), () => readOffer(env), clock);
   const campaigns = new CampaignService(repo, commerce, connection, provider, clock);
-  const generations = new GenerationService(repo, commerce, new ImageGenerationAdapter(env, input.storage, request, new CreativeReviewAdapter(env, request)), clock);
+  const approvalEnabled=()=>env.META_ADS_AGENT_ENABLED==='true'&&env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED==='true';
+  let preparationWorker:CampaignPreparationWorker;
+  const generations = new GenerationService(repo, commerce, new ImageGenerationAdapter(env, input.storage, request, new CreativeReviewAdapter(env, request)), clock,undefined,
+    (merchantId,purpose,campaign)=>preparationWorker.authorizeGeneration(merchantId,purpose,campaign));
   const proposals = new ProposalService(repo, commerce, campaigns, connection, provider, clock);
   const automationEnabled = () => env.META_ADS_AGENT_ENABLED === 'true' && env.META_ADS_AGENT_AUTOMATION_ENABLED === 'true';
   const authorizeActor = async (merchantId: string, actorId: string) => {
     const member = await input.memberships?.findMembership(actorId, merchantId);
     if (!member || member.merchantId !== merchantId || !['owner', 'admin'].includes(member.role)) throw new MetaAdsError('meta_ads_role_forbidden', 403);
+    const user=await input.prisma.merchantUser.findUnique({where:{id:actorId},select:{id:true,disabledAt:true}});
+    if(!user||user.disabledAt)throw new MetaAdsError('meta_ads_role_forbidden',403);
   };
   const funding = new FundingService(repo, billing, connection, new MetaFundingAdapter({ graphVersion: env.META_ADS_GRAPH_API_VERSION ?? '', request, clock }), clock);
   const budgetControl = new MetaBudgetControlAdapter({ request, clock });
   const policies = new AutomationPolicyService({ repo, commerce, connection, campaigns, authorizeActor, enabled: automationEnabled, clock });
   const exposure = new ExposureReservationService({ repo, commerce, enabled: automationEnabled, clock });
-  const authority = new ExecutionAuthorityService({ repo, commerce, connection, campaigns, policies, exposure, budgetControl, funding, authorizeActor, enabled: automationEnabled, clock });
+  const authority = new ExecutionAuthorityService({ repo, commerce, connection, campaigns, policies, exposure, budgetControl, funding, authorizeActor, enabled: automationEnabled,launchEnabled:approvalEnabled, clock });
   const executions = new ExecutionService(repo, commerce, campaigns, connection, provider, clock, undefined, { authority, exposure, budgetControl });
-  const automatic = new AutomaticCampaignWorker({ repo, policies, campaigns, generations, proposals, executions, enabled: automationEnabled, authorizeActor, clock });
+  const preparations=new PrismaCampaignPreparationRepository(input.prisma,clock),notices=new PrismaCampaignReadyNoticeRepository(input.prisma,clock);
+  const preparation=new CampaignPreparationService({repo,commerce,campaigns,connection,preparations,authorizeActor,enabled:approvalEnabled,clock});
+  const launches=new InitialLaunchService({repo,commerce,campaigns,proposals,executions,preparations,notices,authorizeActor,enabled:approvalEnabled,clock});
+  const contacts=new CampaignNoticeContactService({db:input.prisma,authorizeActor,clock,senderNumber:async merchantId=>{
+    const config=await input.whatsapp.findByMerchantId(merchantId);return config?.merchantId===merchantId?config.whatsappNumber??config.phoneNumber??null:null;
+  }});
+  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor,enabled:approvalEnabled,clock});
+  const noticeSender=input.templates&&input.templateSender?new CampaignReadyNoticeSender({db:input.prisma,notices,configs:input.whatsapp,templates:input.templates,templateSender:input.templateSender,launches,authorizeActor,
+    storeName:async merchantId=>(await commerce.getProfile(merchantId)).name,dashboardUrl:env.META_ADS_DASHBOARD_URL??'',clock,enabled:()=>approvalEnabled()&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true'}):null;
+  const noticeWorker=new CampaignReadyNoticeWorker({repo,launches,notices,sender:{send:async lease=>{
+    if(!noticeSender)throw new MetaAdsError('campaign_notice_unavailable',503);return noticeSender.send(lease);
+  }},reviewActor:async merchantId=>{
+    const member=await input.prisma.merchantTeamMember.findFirst({where:{merchantId,role:{in:['OWNER','ADMIN']},user:{disabledAt:null}},select:{userId:true},orderBy:[{joinedAt:'asc'},{userId:'asc'}]});return member?.userId??null;
+  },dashboardUrl:env.META_ADS_DASHBOARD_URL??'',enabled:approvalEnabled,whatsappEnabled:()=>!!noticeSender&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true',clock});
+  const automatic = new AutomaticCampaignWorker({ repo, policies, campaigns, generations, proposals, executions, enabled: automationEnabled, authorizeActor, clock,preparationEnabled:approvalEnabled,
+    prepareInternally:async(merchantId,actorId,campaignId,imageCount)=>{
+      const status=await preparation.read(merchantId,actorId,campaignId);
+      if(imageCount===undefined&&status.preparations.length)return status.preparations[0];
+      return preparation.request(merchantId,actorId,campaignId,{campaignDigest:status.campaignDigest,imageCount:imageCount??1});
+    } });
   const conversions = new ConversionsApiAdapter(env, request, { get: async merchantId => {
     const config = await input.whatsapp.findByMerchantId(merchantId); const credentials = connectedMetaCloudCredentials(config, merchantId);
     const phoneNumber = config?.whatsappNumber ?? config?.phoneNumber;
@@ -86,7 +121,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const dailyEngine = new DailyObservationEngine({ repo, daily, commerce, connection, provider, timezone: access => provider.accountTimezone(access), attribution, recommendations: analysis, billing, automatic, clock });
   if (input.assistant) {
     const assistant = input.assistant;
-    assistant.contexts.register(new MetaAdsAssistantAdapter({ service, conversations: assistant.repo, authorizeActor: assistant.authorizeActor, authorizeTool: assistant.authorizeTool,
+    assistant.contexts.register(new MetaAdsAssistantAdapter({ service, conversations: assistant.repo, authorizeActor:async scope=>{await authorizeActor(scope.merchantId,scope.actorId);await assistant.authorizeActor(scope);}, authorizeTool: assistant.authorizeTool,
       enabled: () => env.META_ADS_AGENT_ENABLED === 'true' && env.MERCHANT_ASSISTANT_ENABLED === 'true', clock,
       funding: merchantId => funding.describe(merchantId), reviewAutomation: (merchantId, terms, actorId) => policies.review(merchantId, actorId, terms),
       dailyReports: async (merchantId, localDay) => {
@@ -109,7 +144,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
         if (view.mode === 'automatic' && view.policy?.scope.allowNewCampaigns && !view.policy.scope.campaignIds.includes(campaign.id)) await automatic.bindCampaign(scope.merchantId, campaign.id, view.policy.id);
       } }));
   }
-  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,
+  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender,noticeWorker,
     generationWorker: new GenerationWorker(repo, generations, enabled && env.META_ADS_AGENT_GENERATION_WORKER_ENABLED === "true", clock),
     purchaseBridge: new CheckoutPurchaseBridge(repo, commerce, attribution, input.events, enabled && env.META_ADS_AGENT_PURCHASE_BRIDGE_ENABLED === "true", undefined, input.sessionBinding),
     observation: new ObservationWorker(repo, commerce, connection, provider, attribution, analysis, billing, { enabled: enabled && env.META_ADS_AGENT_OBSERVATION_ENABLED === "true" }, clock, dailyEngine) };

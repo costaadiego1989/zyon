@@ -14,13 +14,16 @@ interface Dependencies{
   db:PrismaClient;notices:CampaignReadyNoticeRepository;configs:Pick<WhatsAppConfigRepository,'findByMerchantId'>;
   templates:Pick<WhatsAppTemplateRepositoryPort,'findByMerchantAndType'>;templateSender:WhatsAppTemplateSenderPort;launches:Pick<InitialLaunchService,'review'>;
   authorizeActor:(merchantId:string,actorId:string)=>Promise<void>;storeName:(merchantId:string)=>Promise<string>;dashboardUrl:string;clock?:Clock;
+  enabled?:()=>boolean;
 }
 export function campaignReadyReviewUrl(base:string,merchantId:string,campaignId:string,proposalId:string):string{
   try{const url=new URL(base);if(url.protocol!=='https:'||url.username||url.password||url.search)throw Error();url.hash=`meta-ads-agent?${new URLSearchParams({store:merchantId,campaign:campaignId,proposal:proposalId})}`;return url.href;}catch{throw new MetaAdsError('campaign_notice_review_url_invalid');}
 }
 export class CampaignReadyNoticeSender{
   constructor(private readonly deps:Dependencies){}
+  private assertEnabled(){if(this.deps.enabled&&!this.deps.enabled())throw new MetaAdsError('campaign_notice_unavailable',409);}
   private async eligibility(notice:CampaignReadyNoticeRecord){
+    this.assertEnabled();
     const contact=await this.deps.db.metaAdsCampaignNoticeContact.findUnique({where:{merchantId:notice.merchantId}});
     if(!contact?.phoneNumber||!contact.consentedBy||!contact.consentedAt||contact.consentVersion!==CAMPAIGN_NOTICE_CONSENT_VERSION)throw new MetaAdsError('campaign_notice_contact_required',409);
     await this.deps.authorizeActor(notice.merchantId,contact.consentedBy);
@@ -35,6 +38,7 @@ export class CampaignReadyNoticeSender{
     if(semantics.some(name=>!allowed.includes(name))||new Set(semantics).size!==semantics.length||['campaignName','campaignVersion','campaignReviewLink'].some(name=>!semantics.includes(name))||Object.keys(map).sort((a,b)=>Number(a)-Number(b)).some((key,index)=>key!==String(index+1)))throw new MetaAdsError('campaign_notice_template_invalid',409);
     const view=await this.deps.launches.review(notice.merchantId,contact.consentedBy,notice.campaignId,notice.proposalId);
     if(!view.canApprove||view.proposal.digest!==notice.proposalDigest)throw new MetaAdsError('proposal_stale',409);
+    this.assertEnabled();
     return{view,template,snapshot:{recipientNumber:contact.phoneNumber,contactVersion:contact.version,consentVersion:contact.consentVersion,consentedBy:contact.consentedBy,configId:config.id,wabaId:credentials.wabaId,phoneNumberId:credentials.phoneNumberId,senderNumber,templateName:template.twilioContentSid,templateLanguage:template.metaLanguage??'pt_BR',templateRevision:template.metaRevision!,templateBodyDigest:templateDispatchDigest(template)}};
   }
   async send(lease:CampaignReadyNoticeLease){
@@ -50,7 +54,7 @@ export class CampaignReadyNoticeSender{
       let result:TemplateSendResult;
       try{result=await this.deps.templateSender.sendTemplate({merchantId:current.merchantId,type:'campaign_ready',toNumber:eligible.snapshot.recipientNumber,contentSid:eligible.snapshot.templateName,language:eligible.snapshot.templateLanguage,contentVariables,correlationId:active.deliveryId!,
         expectedConnection:{configId:eligible.snapshot.configId,wabaId:eligible.snapshot.wabaId,phoneNumberId:eligible.snapshot.phoneNumberId},expectedTemplate:{revision:eligible.snapshot.templateRevision,bodyDigest:eligible.snapshot.templateBodyDigest},
-        assertDispatchAuthorized:async()=>{const latest=await this.eligibility(current);if(stableDigest(latest.snapshot)!==stableDigest(eligible.snapshot))throw new MetaAdsError('campaign_notice_contact_changed',409);await this.deps.authorizeActor(current.merchantId,eligible.snapshot.consentedBy);await this.deps.notices.assertDispatch(active);}});}catch{result={status:'uncertain',messageId:'',reason:'provider_acceptance_unknown'};}
+        assertDispatchAuthorized:async()=>{const latest=await this.eligibility(current);if(stableDigest(latest.snapshot)!==stableDigest(eligible.snapshot))throw new MetaAdsError('campaign_notice_contact_changed',409);await this.deps.authorizeActor(current.merchantId,eligible.snapshot.consentedBy);await this.deps.notices.assertDispatch(active);this.assertEnabled();}});}catch{result={status:'uncertain',messageId:'',reason:'provider_acceptance_unknown'};}
       const safeReason=typeof result.reason==='string'&&/^[a-z][a-z0-9_]{1,100}$/.test(result.reason)?result.reason:'provider_acceptance_unknown';
       const outcome:CampaignNoticeSendOutcome=result.status==='sent'&&result.messageId?{status:'accepted',messageId:result.messageId}:result.status==='skipped'||result.status==='failed'&&result.acceptance==='not_accepted'?{status:'not_dispatched',reason:safeReason}:{status:'unknown',reason:'provider_acceptance_unknown',...(result.messageId?{messageId:result.messageId}:{})};
       current=await this.deps.notices.completeDispatch(active,outcome);
