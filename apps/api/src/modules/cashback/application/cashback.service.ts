@@ -8,6 +8,7 @@ import { CASHBACK_REPOSITORY, type CashbackRepositoryPort, type CashbackTx, type
 import { cashbackCombinedLimit, validateCombination } from "../domain/cashback-combination.js";
 import { CheckoutCommercialBenefitsService } from "./checkout-commercial-benefits.service.js";
 import { cashbackMerchandiseBasis } from "../domain/cashback-merchandise.js";
+import { buyerPhoneLookupHash } from "../../../shared/crypto/pii-cipher.service.js";
 
 export interface CashbackRefundInput {
   merchantId: string; orderId: string; commandKey?: string;
@@ -100,9 +101,20 @@ export class CashbackService {
       JOIN buyer_identities bi ON bi.merchant_id=${merchantId} AND bi.identity_key=('phone:' || vp.phone) AND bi.global_user_id=${previousBuyerId}
       WHERE vp.verification_id=${verificationId} AND vp.buyer_id=${canonicalBuyerId}`;
     if (!proof[0]) throw new CashbackError("cashback_verified_identity_proof_required", 403);
-    // OTP can attach an anonymous channel identity, never merge two established accounts.
-    const otherAccount = await tx.$queryRaw<Array<{ id: string }>>`SELECT global_user_id AS id FROM buyer_accounts WHERE global_user_id=${previousBuyerId}`;
-    if (otherAccount.length) throw new CashbackError("cashback_account_merge_requires_review", 409);
+    // The native hub can materialize an anonymous phone identity as an account.
+    // Independent credentials or a registered email still require review.
+    const otherAccount = await tx.$queryRaw<Array<{ id: string; email: string; password_hash: string | null; phone_lookup_hash: string | null }>>`
+      SELECT global_user_id AS id,email,to_jsonb(b)->>'password_hash' AS password_hash,
+        to_jsonb(b)->>'phone_lookup_hash' AS phone_lookup_hash
+      FROM buyer_accounts b WHERE global_user_id=${previousBuyerId} FOR UPDATE`;
+    if (otherAccount[0]) {
+      const account = otherAccount[0];
+      const phoneOnly = account.email === `phone_${proof[0].phone}@buyer.aacp` && account.password_hash === null
+        && account.phone_lookup_hash !== null && account.phone_lookup_hash === buyerPhoneLookupHash(proof[0].phone);
+      if (!phoneOnly) throw new CashbackError("cashback_account_merge_requires_review", 409);
+      const credentials = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM webauthn_credentials WHERE global_user_id=${previousBuyerId} LIMIT 1`;
+      if (credentials.length) throw new CashbackError("cashback_account_merge_requires_review", 409);
+    }
     const destinationAlias = await tx.$queryRaw<Array<{ id: string }>>`SELECT alias_buyer_id AS id FROM cashback_buyer_aliases WHERE merchant_id=${merchantId} AND alias_buyer_id=${canonicalBuyerId}`;
     if (destinationAlias.length) throw new CashbackError("cashback_identity_alias_chain_forbidden", 409);
     const empty = walletBalance({ merchantId, buyerId: canonicalBuyerId, grants: [], reservations: [], entries: [] });
@@ -113,7 +125,13 @@ export class CashbackService {
     await tx.$executeRaw`INSERT INTO cashback_buyer_aliases(merchant_id,alias_buyer_id,canonical_buyer_id,verification_id) VALUES(${merchantId},${previousBuyerId},${canonicalBuyerId},${verificationId})`;
     await tx.$executeRaw`UPDATE cashback_wallets SET balance=${JSON.stringify(empty)}::jsonb,updated_at=now() WHERE merchant_id=${merchantId} AND buyer_id=${previousBuyerId}`;
     await tx.$executeRaw`UPDATE buyer_identities SET global_user_id=${canonicalBuyerId} WHERE merchant_id=${merchantId} AND identity_key=${`phone:${proof[0].phone}`} AND global_user_id=${previousBuyerId}`;
-    await tx.$executeRaw`UPDATE checkout_sessions SET global_user_id=${canonicalBuyerId} WHERE merchant_id=${merchantId} AND global_user_id=${previousBuyerId}`;
+    // A charge or private checkout authority keeps its original buyer. Wallet
+    // alias resolution already maps that buyer to the verified canonical wallet.
+    await tx.$executeRaw`UPDATE checkout_sessions cs SET global_user_id=${canonicalBuyerId}
+      WHERE cs.merchant_id=${merchantId} AND cs.global_user_id=${previousBuyerId}
+        AND NOT EXISTS(SELECT 1 FROM payment_intents p WHERE p.merchant_id=cs.merchant_id AND p.session_id=cs.session_id)
+        AND NOT EXISTS(SELECT 1 FROM completed_orders o WHERE o.merchant_id=cs.merchant_id AND o.session_id=cs.session_id)
+        AND NOT EXISTS(SELECT 1 FROM jsonb_object_keys(cs.cart) AS field(key) WHERE left(field.key,1)='_')`;
     const w = await this.loadWallet(tx, merchantId, canonicalBuyerId); await this.repository.saveWallet(tx, w);
     return { linked: true, buyerId: canonicalBuyerId };
   }
