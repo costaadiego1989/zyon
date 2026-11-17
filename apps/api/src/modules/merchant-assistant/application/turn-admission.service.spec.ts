@@ -26,6 +26,7 @@ test('admission rejects stale revision and input over 8000 before persisting a t
     await assert.rejects(f.service.submit(scope,f.thread.id,f.request('stale','Oi',1)),{code:'assistant_revision_conflict'});
     await assert.rejects(f.service.submit(scope,f.thread.id,f.request('long','x'.repeat(8001))),{code:'assistant_message_invalid'});
     assert.equal((await f.repo.turns(scope,f.thread.id)).turns.length,0);
+    assert.equal(await f.repo.atomic(scope,f.thread.id,tx=>tx.committedCostSince(new Date('2026-11-01'))),0n);
     const accepted=await f.service.submit(scope,f.thread.id,f.request('bound','x'.repeat(8000)));assert.equal(accepted.turn.message.length,8000);
   }finally{await f.close();}
 });

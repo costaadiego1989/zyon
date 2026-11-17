@@ -7,10 +7,12 @@ export interface CampaignNoticeSnapshot {
   configId:string;wabaId:string;phoneNumberId:string;senderNumber:string;
   templateName:string;templateLanguage:string;templateRevision:number;templateBodyDigest:string;
 }
+export type CampaignNoticeRecipient=Pick<CampaignNoticeSnapshot,'recipientNumber'|'contactVersion'|'consentVersion'|'consentedBy'>;
 export interface CampaignReadyNoticeRecord extends MetaAdsCampaignReadyNotice {
   merchantId:string;inboxCreatedAt:string|null;dispatchSnapshot:CampaignNoticeSnapshot|null;
   dispatchStartedAt:string|null;deliveryId:string|null;fence:number;
   leaseToken:string|null;leaseUntil:string|null;nextAttemptAt:string;
+  admittedRecipient?:CampaignNoticeRecipient|null;
 }
 export interface CampaignReadyNoticeLease extends CampaignReadyNoticeRecord {leaseToken:string;leaseUntil:string;}
 export interface CampaignNoticeAdmission {merchantId:string;campaignId:string;proposalId:string;proposalDigest:string;}

@@ -6,7 +6,7 @@ export function hasUnreservedFinancialExecution(state: MetaAdsStoreState, campai
   return Object.values(state.executions).some(execution => {
     if (execution.campaignId === campaignId || !['reserved', 'sending', 'publishing', 'execution_unknown'].includes(execution.status) || Object.hasOwn(state.exposure?.pending ?? {}, execution.id)) return false;
     const proposal = state.proposals[execution.proposalId];
-    return !proposal || ['prepare', 'publish', 'budget'].includes(proposal.kind);
+    return !proposal || ['prepare', 'publish', 'launch', 'budget'].includes(proposal.kind);
   });
 }
 

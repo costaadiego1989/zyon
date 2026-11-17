@@ -1,4 +1,4 @@
-import type {PrismaClient,MetaAdsCampaignNoticeContact as ContactRow} from '@prisma/client';
+import type {Prisma,PrismaClient,MetaAdsCampaignNoticeContact as ContactRow} from '@prisma/client';
 import type {MetaAdsCampaignNoticeContact,MetaAdsCampaignNoticeContactInput} from '@zyon/shared-types';
 import {MetaAdsError,type Clock} from '../domain/types.js';
 import {requireIdentifier} from '../domain/offer.js';
@@ -23,6 +23,15 @@ function phone(value:string|null):string|null {
 export class CampaignNoticeContactService {
   private readonly clock:Clock;
   constructor(private readonly deps:Dependencies){this.clock=deps.clock??(()=>new Date());}
+  private async assignUnaddressed(tx:Prisma.TransactionClient,merchantId:string,row:ContactRow){
+    if(!row.phoneNumber||!row.consentedAt||!row.consentedBy||row.consentVersion!==CAMPAIGN_NOTICE_CONSENT_VERSION)return;
+    const recipient=JSON.stringify({recipientNumber:row.phoneNumber,contactVersion:row.version,consentVersion:row.consentVersion,consentedBy:row.consentedBy}),now=this.clock();
+    // This explicit consent gesture may address an unsent notice that had no recipient.
+    // It never redirects an admitted recipient or replays an uncertain dispatch.
+    await tx.$executeRaw`UPDATE meta_ads_campaign_ready_notices SET dispatch_snapshot=jsonb_set(COALESCE(dispatch_snapshot,'{}'::jsonb),'{admittedRecipient}',CAST(${recipient} AS jsonb)),next_attempt_at=${now},updated_at=${now}
+      WHERE merchant_id=${merchantId} AND review_state='awaiting_approval' AND whatsapp_status IN ('queued','blocked','sending') AND dispatch_started_at IS NULL
+      AND (dispatch_snapshot IS NULL OR dispatch_snapshot->'admittedRecipient'='null'::jsonb) AND NOT COALESCE(dispatch_snapshot,'{}'::jsonb) ? 'recipientNumber'`;
+  }
   private async actor(merchantId:string,actorId:string){requireIdentifier(merchantId);requireIdentifier(actorId);await this.deps.authorizeActor(merchantId,actorId);}
   async read(merchantId:string,actorId:string):Promise<MetaAdsCampaignNoticeContact>{
     await this.actor(merchantId,actorId);
@@ -45,10 +54,11 @@ export class CampaignNoticeContactService {
       const unchanged=(previous?.phoneNumber??null)===phoneNumber&&(input.consented
         ? previous?.consentedBy===actorId&&!!previous.consentedAt&&previous.consentVersion===CAMPAIGN_NOTICE_CONSENT_VERSION
         : !previous?.consentedAt&&!previous?.consentedBy&&!previous?.consentVersion);
-      if(unchanged)return view(previous);
+      if(unchanged){if(input.consented&&previous)await this.assignUnaddressed(tx,merchantId,previous);return view(previous);}
       const now=this.clock(),version=(previous?.version??0)+1;
       const data={phoneNumber,version,consentVersion:input.consented?CAMPAIGN_NOTICE_CONSENT_VERSION:null,consentedBy:input.consented?actorId:null,consentedAt:input.consented?now:null,updatedAt:now};
       const saved=await tx.metaAdsCampaignNoticeContact.upsert({where:{merchantId},create:{merchantId,...data,createdAt:now},update:data});
+      if(input.consented)await this.assignUnaddressed(tx,merchantId,saved);
       await tx.metaAdsAgentRecord.create({data:{merchantId,key:`campaign-notice-contact:${version}`,kind:'audit',createdAt:now,payload:{action:'campaign_notice_contact_changed',actorId,version,consented:input.consented,consentVersion:data.consentVersion,phoneChanged:(previous?.phoneNumber??null)!==phoneNumber,changedAt:now.toISOString()}}});
       return view(saved);
     },{maxWait:20000,timeout:20000});

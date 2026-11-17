@@ -72,10 +72,10 @@ test('missing usage is unknown rather than a zero-cost successful model reply',a
 });
 test('model call count and reserved cost bound are checked before another dispatch',async()=>{
   const f=await fixture();try{for(let n=0;n<6;n++)await f.gateway.complete(f.input);
-    await assert.rejects(f.gateway.complete(f.input),{code:'assistant_model_call_limit'});assert.equal(f.requests.length,6);
+    await assert.rejects(f.gateway.complete(f.input),{code:'assistant_model_call_limit'});assert.equal(f.requests.length,6);assert.equal((await f.repo.turns(scope,f.thread.id)).turns[0].providerRequests.length,6);
   }finally{await f.close();}
   const capped=await fixture();try{await capped.sql.query(`UPDATE merchant_assistant_turns SET budget_amount_micros=1`);
-    await assert.rejects(capped.gateway.complete(capped.input),{code:'assistant_ai_budget_exhausted'});assert.equal(capped.requests.length,0);
+    await assert.rejects(capped.gateway.complete(capped.input),{code:'assistant_ai_budget_exhausted'});assert.equal(capped.requests.length,0);assert.deepEqual((await capped.repo.turns(scope,capped.thread.id)).turns[0].providerRequests,[]);
   }finally{await capped.close();}
 });
 test('unsupported or oversized tool output is rejected before any tool can run',async()=>{

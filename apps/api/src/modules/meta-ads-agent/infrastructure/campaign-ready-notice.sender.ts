@@ -26,6 +26,9 @@ export class CampaignReadyNoticeSender{
     this.assertEnabled();
     const contact=await this.deps.db.metaAdsCampaignNoticeContact.findUnique({where:{merchantId:notice.merchantId}});
     if(!contact?.phoneNumber||!contact.consentedBy||!contact.consentedAt||contact.consentVersion!==CAMPAIGN_NOTICE_CONSENT_VERSION)throw new MetaAdsError('campaign_notice_contact_required',409);
+    const admitted=notice.admittedRecipient;
+    if(!admitted)throw new MetaAdsError('campaign_notice_contact_required',409);
+    if(admitted.recipientNumber!==contact.phoneNumber||admitted.contactVersion!==contact.version||admitted.consentedBy!==contact.consentedBy||admitted.consentVersion!==contact.consentVersion)throw new MetaAdsError('campaign_notice_contact_changed',409);
     await this.deps.authorizeActor(notice.merchantId,contact.consentedBy);
     const config=await this.deps.configs.findByMerchantId(notice.merchantId),credentials=connectedMetaCloudCredentials(config,notice.merchantId);
     if(!config||!credentials)throw new MetaAdsError('meta_connection_unavailable',409);

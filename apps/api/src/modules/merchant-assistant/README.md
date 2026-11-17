@@ -38,7 +38,7 @@ Os limites de IA usam micros de USD: 1.000.000 equivale a US$ 1. Valores inváli
 
 O corpus curado está em `infrastructure/knowledge/meta-ads.pt-BR.ts`, revisão `2026-11-16.2`, audiência `merchant` e contexto `meta_ads`. Cobre conexão, pagamentos, franquia, produtos, criativos, aprovação, publicação, métricas e erros. Estado atual de conta/campanha e valores contratuais vêm das ferramentas autorizadas, não do texto estático.
 
-Para alterar uma orientação, revisar as fontes primárias, atualizar versão/data/conteúdo e os testes de recuperação. Retirar versões revogadas de novas recuperações. Referências históricas continuam identificadas; uma fonte indisponível não autoriza inventar seu conteúdo. O endpoint de fonte revalida ator, loja e contexto.
+Para alterar uma orientação, revisar as fontes primárias, atualizar versão/data/conteúdo e os testes de recuperação. Retirar versões revogadas de novas recuperações. Referências históricas continuam identificadas; uma fonte indisponível não autoriza inventar seu conteúdo. O endpoint de fonte revalida ator, loja e contexto. Sem citação válida, a resposta livre do modelo não é tratada como evidência: perguntas sobre campos ausentes e fatos do catálogo são renderizados pelo contexto do servidor. Uma pergunta terminada em interrogação ou uma consulta de outro assunto não libera instruções financeiras inventadas.
 
 O painel explica que assinatura, créditos de imagem e investimento em mídia são separados. Pré-pago orienta fundos na Meta; pós-pago orienta método de pagamento e pendências; dado ausente fica indisponível. `balance` não é saldo pré-pago disponível.
 
@@ -52,7 +52,7 @@ Cada versão revisável gera um aviso lógico no inbox existente. Outro owner/ad
 
 O envio exige a conexão Meta Cloud da própria loja e um template `campaign_ready` aprovado para o WABA atual, com nome, versão e link de revisão mapeados. Consultar e sincronizar sua aprovação pelo processo existente de templates; não presumir aprovação por existir no catálogo. Não há fallback para credencial global ou WhatsApp da Zyon. Falta de contato, conexão ou template mantém o aviso no painel e mostra o próximo passo.
 
-A admissão preserva destinatário, consentimento, conexão e revisão do template. Resposta HTTP aceita significa **aceito, entrega ainda não confirmada**; apenas recibos vinculados ao remetente/loja podem confirmar entrega ou falha. Um recibo atrasado não rebaixa uma entrega já confirmada. Timeout mantém identidade e estado desconhecido; reiniciar ou trocar contato não repete a mensagem cegamente.
+A admissão do aviso preserva seu destinatário e a versão do consentimento; conexão e revisão do template são vinculadas antes do envio. Trocar um contato já admitido não redireciona o aviso antigo. Se a admissão não tinha destinatário, salvar explicitamente um contato consentido pode endereçar esse aviso ainda não enviado; o worker não escolhe sozinho um contato posterior. Resposta HTTP aceita significa **aceito, entrega ainda não confirmada**; apenas recibos vinculados ao remetente/loja podem confirmar entrega ou falha. Um recibo atrasado não rebaixa uma entrega já confirmada. Timeout mantém identidade e estado desconhecido; reiniciar ou trocar contato não repete a mensagem cegamente.
 
 ## Daily cycle and recovery
 

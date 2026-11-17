@@ -1,6 +1,6 @@
 import type { AssistantArtifact, AssistantCampaignProgress, MetaAdsCampaignDraft, MetaAdsCampaign, MetaAdsExecution, MetaAdsFundingDiagnosis, MetaAdsAutomationPolicyInput, MetaAdsAutomationReview, MetaAdsDailyReport } from '@zyon/shared-types';
 import { AssistantError, validateAssistantScope, type AssistantRepository, type AssistantScope } from '../../merchant-assistant/domain/assistant.port.js';
-import type { AssistantContextPort, AssistantToolInput, AssistantToolResult } from '../../merchant-assistant/domain/context.port.js';
+import type { AssistantContextPort, AssistantToolInput, AssistantToolResult, UncitedAssistantResponse } from '../../merchant-assistant/domain/context.port.js';
 import type { AssistantToolDescriptor } from '../../merchant-assistant/domain/model.port.js';
 import { assertAssistantTurnLease } from '../../merchant-assistant/application/turn-admission.service.js';
 import { stableDigest, requireIdentifier } from '../domain/offer.js';
@@ -53,6 +53,28 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
   readonly descriptor = { id: 'meta-ads', label: 'Anúncios com IA', capabilities: ['catalog', 'campaigns', 'creative_generation', 'recommendations'] };
   private readonly clock: () => Date;
   constructor(private readonly deps: Dependencies) { this.clock = deps.clock ?? (() => new Date()); }
+  uncitedResponse({suggestedReply,campaign,evidence}:UncitedAssistantResponse):string|null {
+    if(suggestedReply.trim().endsWith('?')){
+      const hint=suggestedReply.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      const missing=new Set(campaign?.awaitingFields??['priority','variantIds','destination','budget','country']);
+      const questions:string[]=[];
+      if(missing.has('budget')&&/orcamento|por dia|diari|total|periodo|datas/.test(hint))questions.push(/por dia|diari|total|periodo|datas/.test(hint)?'O orçamento será por dia ou para todo o período (diário ou total)? Quais datas deseja?':'Qual será o orçamento?');
+      if(missing.has('variantIds')&&/produto|anunciar|anuncio/.test(hint))questions.push('Qual produto você quer anunciar?');
+      if(missing.has('destination')&&/loja|whatsapp|destino/.test(hint))questions.push('Prefere loja ou WhatsApp?');
+      if(missing.has('priority')&&/objetivo|prioridade|resultado/.test(hint))questions.push('Qual resultado deseja para sua campanha?');
+      if(missing.has('country')&&/pais|regiao|publico/.test(hint))questions.push('Em qual país deseja anunciar?');
+      if(questions.length)return questions.join(' ');
+    }
+    const catalog=[...evidence].reverse().find(item=>item.name==='merchant_ads_catalog');
+    const products=(catalog?.result.data as {products?:Array<{name:string;priceCents:number;currency:string;stockQuantity:number|null}>}|undefined)?.products;
+    if(!products?.length)return null;
+    return products.map(product=>{
+      if(typeof product.name!=='string'||!Number.isSafeInteger(product.priceCents)||product.priceCents<0)throw new AssistantError('assistant_catalog_invalid');
+      const price=new Intl.NumberFormat('pt-BR',{style:'currency',currency:product.currency}).format(product.priceCents/100).replace(/\u00a0/g,' ');
+      const stock=product.stockQuantity===null?'estoque não informado':`${product.stockQuantity} unidades em estoque`;
+      return `${product.name}: ${price}, com ${stock}.`;
+    }).join('\n');
+  }
   async authorize(scope: AssistantScope): Promise<void> {
     validateAssistantScope(scope);
     if (scope.context !== this.descriptor.id) throw new AssistantError('assistant_context_unavailable', 403);

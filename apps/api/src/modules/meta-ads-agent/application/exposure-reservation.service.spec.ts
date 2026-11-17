@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import {authorityFixture} from './__tests__/authority-fixture.js';
+import {ExecutionService} from './execution.service.js';
 import { metaAssistantFixture } from './__tests__/assistant-fixture.js';
 import { AutomationPolicyService } from './automation-policy.service.js';
 import { ExposureReservationService } from './exposure-reservation.service.js';
@@ -114,3 +116,42 @@ test('ADAS-50 stopping new management does not prevent recording a confirmed res
     await assert.rejects(f.exposure.reserve('store-a', f.input(0, 5000, 'new')), { code: 'campaign_read_only' });
   } finally { await f.close(); }
 });
+
+test('ADAS-36 ACAP-16 a held manual launch fences automatic financial writes while protective pause remains available', async () => {
+  const f = await authorityFixture();
+  let release!: () => void, entered!: () => void;
+  const held = new Promise<void>(yes => { release = yes; });
+  const started = new Promise<void>(yes => { entered = yes; });
+  let running: ReturnType<ExecutionService['execute']> | undefined;
+  let automaticWrites = 0;
+  try {
+    const original = (await f.repo.read('store-a')).campaigns[f.campaignId];
+    const other = await f.service.campaigns.create('store-a', { ...original.draft, name: 'Lançamento concorrente de R$173', budget: { ...f.budget, amountCents: 17300 }, mediaIds: [] }, 'independent-concurrent-launch');
+    await f.repo.mutate('store-a', [], state => {
+      state.media['independent-media'] = { ...state.media['media-a'], id: 'independent-media', campaignId: other.id };
+      state.campaigns[other.id].draft.mediaIds = ['independent-media'];
+      return { result: null };
+    });
+    const launch = await f.service.proposals.create('store-a', other.id, { kind: 'launch', after: {}, reasoning: 'Lançamento administrativo independente', idempotencyKey: 'independent-launch-review' });
+    await f.service.proposals.approve('store-a', launch.id, 'owner-a', launch.digest);
+    const executor = new ExecutionService(f.repo, f.commerce, f.service.campaigns, f.service.connection, f.provider, f.clock, undefined, { authority: f.authority, exposure: f.exposure, budgetControl: f.budgetControl });
+    f.provider.execute = async (access, _campaign, proposal) => {
+      await access.assertWriteAuthorized!();
+      if (proposal.kind === 'launch') { entered(); await held; return { status: 'execution_unknown', objects: [] }; }
+      automaticWrites++;
+      return { status: 'remote_paused', objects: [{ type: 'campaign', id: '200' }] };
+    };
+    running = executor.execute('store-a', launch.id, 'owner-a');
+    await Promise.race([started, running.then(() => { throw Error('launch finished before hold'); })]);
+    const proposal = await f.propose('budget', { budget: f.budget });
+    const outcome = await executor.executeAutomatic('store-a', proposal.id, f.automatic).then(value => ({ status: value.status, error: value.error }), error => ({ status: 'rejected', error: error.code }));
+    const current = await f.repo.read('store-a');
+    assert.equal(automaticWrites, 0, 'Known in-flight launch must fence automatic exposure before a physical provider write');
+    assert.equal(outcome.error, 'automatic_budget_control_unavailable');
+    assert.equal(Object.values(current.executions).filter(e=>current.proposals[e.proposalId].kind==='launch')[0].status,'sending');
+    const protective=await f.propose('pause');assert.equal((await executor.executeAutomatic('store-a',protective.id,f.automatic)).status,'remote_paused');assert.equal(automaticWrites,1);
+    release();await running;const again=await f.propose('budget',{budget:f.budget});await assert.rejects(executor.executeAutomatic('store-a',again.id,f.automatic),{code:'automatic_budget_control_unavailable'});assert.equal(automaticWrites,1);
+  } finally { release(); await running?.catch(() => undefined); await f.close(); }
+});
+
+test('ADAS-51 action audit persists correlation policy version digest and outcome without access credentials',async()=>{const f=await authorityFixture();try{const p=await f.propose('pause');const executor=new ExecutionService(f.repo,f.commerce,f.service.campaigns,f.service.connection,f.provider,f.clock,undefined,{authority:f.authority,exposure:f.exposure,budgetControl:f.budgetControl});const execution=await executor.executeAutomatic('store-a',p.id,f.automatic);assert.equal(execution.status,'remote_paused');const receipt=(await f.repo.getRecord<any>('store-a',`execution-result:${execution.id}:1`))!.payload;assert.equal(receipt.executionId,execution.id);assert.equal(receipt.proposalId,p.id);assert.equal(receipt.campaignId,f.campaignId);assert.equal(receipt.status,'remote_paused');assert.equal(receipt.kind,'pause');assert.equal(receipt.digest,p.digest);assert.equal(receipt.authority.kind,'automatic');assert.equal(receipt.authority.policyId,f.policy.id);assert.equal(receipt.authority.policyVersion,f.policy.version);assert.equal(receipt.authority.policyDigest,f.policy.digest);assert.equal(receipt.authority.connectionEpoch,p.connectionEpoch);assert.doesNotMatch(JSON.stringify(receipt),/scoped-test-token|Bearer|accessToken|4111111111111111/);}finally{await f.close();}});
