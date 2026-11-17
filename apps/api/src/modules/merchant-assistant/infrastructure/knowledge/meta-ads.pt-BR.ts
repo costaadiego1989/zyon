@@ -2,7 +2,8 @@ import type {AssistantKnowledgeDocument} from '../../domain/knowledge.port.js';
 
 const source=(id:string)=>`/?tab=meta-ads-agent&help=${encodeURIComponent(id)}`;
 function document(id:string,title:string,sections:AssistantKnowledgeDocument['sections'],externalSources:AssistantKnowledgeDocument['externalSources']=[]):AssistantKnowledgeDocument{
-  return {id,title,version:'2026-11-16.1',context:'meta_ads',audience:'merchant',published:true,
+  // Policy provenance is the administrative approval of 16 November; revision2 retires initial autolaunch guidance.
+  return {id,title,version:'2026-11-16.2',context:'meta_ads',audience:'merchant',published:true,
     reviewedAt:'2026-11-16',validFrom:'2026-11-16T00:00:00Z',validUntil:null,url:source(id),sections,externalSources};
 }
 
@@ -37,22 +38,28 @@ export const META_ADS_MERCHANT_KNOWLEDGE:readonly AssistantKnowledgeDocument[]=[
   document('criativos','Criar imagens, carrosséis e textos',[
     {id:'geracao',keywords:['criativo','criativos','imagem','imagens','arte','carrossel','anuncio','gerar','texto'],
       content:'O agente usa as imagens e os dados canônicos do produto para preparar textos, imagens e carrosséis. Os criativos precisam preservar aparência, preço e condições comerciais verificáveis. A IA não pode inventar cupom, frete grátis, desconto, estoque, parcelamento ou benefício não autorizado.'},
+    {id:'preparo',keywords:['preparo','preparacao','interno','motor','desligado','permissao','pronta'],
+      content:'Com o briefing completo, o motor inicia o preparo interno de textos e criativos na Zyon, dentro da franquia autorizada. As imagens precisam ser verificadas antes de a campanha ficar pronta para aprovação. Quando o motor estiver desligado, faltar permissão ou crédito, o rascunho é preservado com o motivo. Confira esse impedimento no painel para retomar. Imagens verificadas já salvas podem ser reutilizadas; extras dependem de contratação expressa.'},
     {id:'resultado',keywords:['reserva','consumo','falha','desconhecido','cobrado','duplicado','reutilizar'],
       content:'A geração reserva créditos antes de começar. O sistema concilia o resultado e o consumo antes de liberar ou concluir a reserva. Se a chamada ficar com resultado desconhecido, não é seguro reenviar como nova geração. Consulte o estado da operação; reutilizar uma mídia já verificada continua sendo um caminho sem nova criação.'},
   ]),
   document('aprovacao-e-automatico','Aprovação manual e modo automático',[
     {id:'manual',keywords:['aprovar','aprovacao','manual','revisar','aceitar','proposta','antes','depois'],
-      content:'O modo padrão é manual. Cada alteração externa precisa da aprovação da proposta exata, com produtos, valores e objetos revisados. Preparar a campanha, aprovar sua publicação e confirmar a veiculação são etapas distintas. Uma mensagem genérica no chat não autoriza um aumento de verba ou outra versão da proposta.'},
+      content:'Toda campanha nova exige aprovação administrativa, inclusive com otimização automática habilitada. Revise produtos, imagens e ordem do carrossel, textos, destino, objetivo, público, datas e teto de gasto. Use Aprovar e publicar uma única vez para autorizar essa versão exata. Se os dados mudarem, será necessária nova revisão. Na otimização manual, cada alteração proposta também aguarda seu aceite no painel.'},
     {id:'automatico',keywords:['automatico','autonomia','autorizar','teto','limites','politica','redistribuir','escalar'],
-      content:'O automático exige aceite explícito de uma política com conta, escopo, ações, tetos e validade. Dentro dela a IA pode criar, publicar, pausar, trocar criativos e redistribuir orçamento das campanhas que gerencia. Ela não eleva tetos, não compra extras e não assume campanhas externas. Se não houver controle remoto de orçamento suficiente, a publicação automática fica bloqueada para revisão.'},
+      content:'As otimizações automáticas atuam em campanhas já aprovadas administrativamente, dentro de uma política aceita com conta, escopo, ações, tetos e validade. A IA pode pausar, trocar criativos e redistribuir orçamento das campanhas que gerencia dentro desses limites. O motor pode preparar novas propostas; toda campanha nova aguarda a aprovação inicial. A IA não eleva tetos, não compra extras e não assume campanhas externas. Controle de orçamento insuficiente impede a ação automática.'},
     {id:'revogar',keywords:['revogar','cancelar','parar','pausar','desativar','voltar','manual'],
       content:'Use Voltar para aprovação manual para revogar a política de novas escritas. Ações já enviadas precisam ser conciliadas e não podem ser prometidas como desfeitas. A mudança de modo de anúncios não habilita ou desabilita regras autônomas do checkout.'},
-  ]),
+    {id:'avisos',keywords:['aviso','notificacao','contato','administrativo','whatsapp','pronta','modelo'],
+      content:'Quando a campanha ficar pronta, o painel recebe um aviso de aprovação pendente. Para receber também pelo WhatsApp conectado da loja, cadastre o contato administrativo nas Configurações e autorize o recebimento. O destinatário deve ser diferente do número remetente. O envio usa um modelo aprovado pela Meta e elegível na conexão da própria loja. O link abre a revisão no painel autenticado da loja; o aceite ocorre em Aprovar e publicar.'},
+    {id:'entrega',keywords:['aceito','entregue','recibo','confirmacao','mensagem'],
+      content:'Aceito significa que a Meta recebeu o aviso; entregue depende da confirmação de entrega. Se o resultado do envio estiver incerto, a plataforma preserva a mesma tentativa para verificar o que ocorreu. Aviso impedido, falha ou resultado desconhecido do WhatsApp não removem o aviso no painel. Confira o contato, a conexão e o modelo indicado pelo impedimento. O recebimento de uma mensagem não aprova a campanha.'},
+  ],[{title:'Meta: modelos de mensagem e status de aprovação',url:'https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview/'}]),
   document('publicacao','Preparar, publicar e acompanhar veiculação',[
     {id:'estados',keywords:['publicar','publicacao','veicular','veiculacao','ativo','pausado','rascunho','revisao','preparar'],
-      content:'A preparação cria estrutura em rascunho ou pausada. Publicar envia a solicitação à Meta, que pode aplicar revisão e verificações próprias. Enviado, em processamento e ativo sem confirmação não significam veiculação comprovada. O painel deve apresentar o estado recebido da Meta e os objetos que já foram criados.'},
+      content:'O preparo interno organiza textos e imagens na Zyon para revisão. Após Aprovar e publicar, a plataforma monta a estrutura pausada na Meta, confere os dados e solicita a ativação com a mesma aprovação. A Meta pode aplicar sua revisão e verificações próprias. O painel mostra o progresso e os objetos já criados. Enviado, em processamento ou ativo sem confirmação não comprovam veiculação ou vendas.'},
     {id:'orcamento',keywords:['orcamento','diario','total','periodo','dias','100','sete','data','inicio','fim'],
-      content:'Informe o valor em reais, se ele é por dia ou para todo o período e as datas de início e fim. R$ 100 no total por sete dias é diferente de R$ 100 por dia. O assistente deve esclarecer valores ou datas ambíguos. O teto autorizado não é um depósito, saldo de conta ou prova de gasto já realizado.'},
+      content:'Informe o valor em reais, se ele é por dia ou para todo o período e as datas de início e fim. R$ 100 no total por sete dias é diferente de R$ 100 por dia. O assistente consulta o instante atual e o fuso da conta para interpretar datas relativas e esclarece valores ou datas ambíguos. O teto autorizado não é um depósito, saldo de conta ou prova de gasto já realizado.'},
   ],[{title:'Meta: orçamento e estado de campanhas',url:'https://developers.facebook.com/docs/graph-api/reference/adcampaigngroup/'}]),
   document('metricas','Métricas e análise diária',[
     {id:'rotina',keywords:['metricas','diaria','meia','noite','relatorio','fuso','dia','atualizacao','ontem'],

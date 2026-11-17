@@ -22,7 +22,7 @@ async function fixture(run: (input: AssistantModelInput, call: number) => Assist
 test('ADAS-16 actual retrieval precedes model and only validated current references leave the service', async () => {
   const f = await fixture(input => {
     assert.ok(input.knowledge.some(k => k.reference.id.startsWith('verba-e-pagamentos:')));
-    assert.ok(input.knowledge.every(k => k.reference.version === '2026-11-16.1'));
+    assert.ok(input.knowledge.every(k => k.reference.version === '2026-11-16.2'));
     return answer('O investimento em anúncios é pago diretamente à Meta.', [input.knowledge[0].reference.id]);
   }); try {
     await f.message('Como adicionar fundos para os anúncios?'); const response = await f.process();

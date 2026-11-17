@@ -82,7 +82,7 @@ test('ADAS-48 cookie mutations require the configured dashboard origin and rejec
 test('ADAS-17 source endpoint returns only the authorized current curated document and valid reference identity', async () => {
   const f = await fixture(); try {
     const source = await f.request('/meta-ads/sources/verba-e-pagamentos'); assert.equal(source.status, 200);
-    const value = await source.json(); assert.equal(value.id, 'verba-e-pagamentos'); assert.equal(value.version, '2026-11-16.1');
+    const value = await source.json(); assert.equal(value.id, 'verba-e-pagamentos'); assert.equal(value.version, '2026-11-16.2');
     assert.equal(value.reviewedAt, '2026-11-16'); assert.ok(value.sections.some((s: { content: string }) => s.content.includes('diretamente à Meta')));
     assert.equal((await f.request('/meta-ads/sources/unpublished')).status, 404);
     assert.equal((await f.request('/meta-ads/sources/verba-e-pagamentos', 'GET', undefined, 'owner-b')).status, 403);

@@ -1,7 +1,7 @@
 ## Handoff
 
 - Active user: "prossiga e termine o que falta"; continue all authorized local work to final verification. No pending product or permission question. Single author, final mandatory independent Verifier only. Original AACP untouched.
-- Checkout C:/tmp/zyon-agentic-assistant-20261116; branch feat/agentic-assistant-20261116; baseline e750aa85. Base T1-T56 through b6750a0e; ACAP T1-T25 complete. T23 0083da1d; T24 final gate passed and this snapshot is in its atomic commit. Neither feature has final integrated green proofs/Verifier yet.
+- Checkout C:/tmp/zyon-agentic-assistant-20261116; branch feat/agentic-assistant-20261116; baseline e750aa85. Base T1-T56 through b6750a0e; ACAP T1-T26 complete. T23 0083da1d; T24 final gate passed and this snapshot is in its atomic commit. Neither feature has final integrated green proofs/Verifier yet.
 - Approvals ACAP2026-11-16: "Aprovar especificação", "Aprovar plano e implementar". Corrected only explicitly authorized test mistakes: T9 message field, T19 public connectionEpoch user2026-11-17 "Corrigir conforme o contrato público (recomendado)". Current tests correct/preserved. User declined Impeccable update; do not rerun context/update prompt.
 - Latest gates: T19 8HTTP/593API; T20 12/597; T21 18/603; T22 24/609; T23 32/617; T24 targeted50/50 (10 new runtime,1 sender), phase API628/628, WhatsApp25/25, UI132/132, both builds/lint/Cypress types0. No gate or process from these commands running.
 - T24 runtime/module wired: new flag META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED explicit true and module flag; notices use independent META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED, both defaultoff. Runtime returns preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender(null when optional ports absent),noticeWorker. InitialLaunchService plus preparation/notice workers each bound once in Nest; official WhatsAppTemplatesModule sender/repo injected, never fallback/global sender.
@@ -20,3 +20,6 @@
 
 
 - T25 actual: planning_context/prepare/preparation typed tools and current native account IANA/instant/local date/time; complete draft auto-requests internal prep, default manual optimization preference, optional requestedImages1..10 persisted outside commercial draft; canonical status+publicProposal+notice; current role/engine/tool grants before admission and each paid purpose dispatch. Current grants do not restrict role-only preparation GET. Child grant denial preserves draft and returns safe blocker. Corpus unchanged untilT26. Shared artifact union unchanged, reuse proposal artifact. New test helper application/__tests__/assistant-campaign-fixture.ts uses composed runtime and actual PG. All details t25-plan.md.
+
+- T26 CLOSED: final Build API648/648, WA25/25, UI132/132, both builds/lint/types0. Target RAG17/17, consumers37/37. Current policy revision2026-11-16.2, nine subjects/identities preserved; initial-autolaunch retired. Official template primary source verified read-only. No gate running. NEXT T27 new typed per-store approval client and8new Vitest cases, then T28-T35. Read t27-planning-notes.md; no frontend source written yet. No question pending.
+
