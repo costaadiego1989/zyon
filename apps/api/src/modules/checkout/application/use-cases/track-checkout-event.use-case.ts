@@ -21,6 +21,7 @@ import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.s
 import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../../../payment/domain/ports/payment-repository.port.js";
 import { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
+import { WHATSAPP_RECOVERY_ORIGIN_EVENT } from "../../../storefront/domain/ports/storefront-telemetry.port.js";
 
 @Injectable()
 export class TrackCheckoutEventUseCase {
@@ -46,7 +47,8 @@ export class TrackCheckoutEventUseCase {
     // Completion is recorded by CompleteOrderUseCase after approved-payment validation.
     // Browser telemetry must never authorize conversion or reset abandonment state.
     if (input.event === "order_completed" || input.event === "auth_identity_confirmed" || String(input.event) === "strategy_incentive_stage"
-      || String(input.event) === NORMAL_COMMERCIAL_BENEFIT_EVENT || String(input.event) === "buyer_identity_detached") {
+      || String(input.event) === NORMAL_COMMERCIAL_BENEFIT_EVENT || String(input.event) === "buyer_identity_detached"
+      || String(input.event) === WHATSAPP_RECOVERY_ORIGIN_EVENT) {
       throw new BadRequestException("checkout_event_server_only");
     }
     await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event, input.metadata);
