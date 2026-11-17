@@ -31,5 +31,5 @@ test("configured documentation origins are used by HTTP contracts and Scalar CSP
   assert.deepEqual(Object.keys(spec.paths), ["/v1/products"]); assert.ok(spec.paths["/v1/products"].get.security.length > 0);
   const collectionResponse = await fetch(base + "/postman.json"); assert.equal(collectionResponse.status, 200); const collection = await collectionResponse.json();
   assert.equal(JSON.stringify(collection).includes("internal/release-state"), false);
-  assert.ok(JSON.stringify(collection).includes("https://sandbox.docs.example"));
+  assert.equal(collection.variable.find((variable: { key: string }) => variable.key === "baseUrl")?.value, "https://sandbox.docs.example");
 });
