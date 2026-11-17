@@ -2,13 +2,20 @@ import { useRef, useState } from "react";
 import { DashboardHttpError } from "../../api/http/error.js";
 export const money = (cents: number | null, currency = "BRL") => cents === null ? "Indisponível" : new Intl.NumberFormat("pt-BR", {style: "currency", currency}).format(cents / 100);
 export const date = (value: string | null) => value ? new Date(value).toLocaleDateString("pt-BR", {timeZone: "UTC"}) : "Indisponível";
-export const priorities = {paid_sales: "Vendas pagas", cost_per_purchase: "Custo por compra", roas: "ROAS", contribution: "Contribuição após mídia"};
+export const metricSourceLabel=(value:string)=>value==='meta_reported'?'Meta':value==='meta_reported+zyon_reconciled'?'Meta e pedidos confirmados na Zyon':'Consulta dos anúncios';
+export function attributionWindowLabel(value:string|null|undefined):string{
+  if(!value)return 'Não informado';
+  const parts=value.split(/[+,]/).map(part=>part.trim());
+  if(parts.some(part=>!/^\d+d_(click|view)$/.test(part)))return 'Período definido na Meta';
+  return parts.map(part=>{const [days,kind]=part.split('d_');return `${Number(days)} ${Number(days)===1?'dia':'dias'} após ${kind==='click'?'clique':'visualização'}`;}).join(' e ');
+}
+export const priorities = {paid_sales: "Vendas pagas", cost_per_purchase: "Custo por compra", roas: "Retorno dos anúncios", contribution: "Resultado com custos informados"};
 export const actions = {prepare: "Preparar na Meta", publish: "Publicar", pause: "Pausar", budget: "Alterar orçamento", creative: "Alterar criativo", audience: "Alterar público", launch: "Lançar campanha"};
 export const executionStates = {reserved: "Aguardando envio", sending: "Enviando à Meta", remote_draft: "Preparada, sem veiculação", remote_paused: "Pausada na Meta", publishing: "Publicação em processamento", active_unconfirmed: "Ativa, veiculação ainda não confirmada", delivered: "Veiculação confirmada", failed: "Falha confirmada", execution_unknown: "Resultado desconhecido. Consulte o estado antes de qualquer nova ação."};
 const reasons:Record<string,string>={
-  observed_attribution_not_causal_uplift:'A receita atribuída é uma observação da Meta; não comprova aumento causal das vendas.',
+  observed_attribution_not_causal_uplift:'A Meta associa essas vendas aos anúncios, mas isso não garante que os anúncios causaram todas as vendas.',
   confirmed_orders_require_verified_origin:'Vendas confirmadas exigem a origem do pedido verificada.',
-  historical_costs_incomplete:'Custos históricos incompletos. Ainda não é possível calcular a contribuição.',
+  historical_costs_incomplete:'Faltam custos registrados das vendas. Ainda não é possível calcular o resultado.',
   currency_mismatch:'Os valores usam moedas diferentes e não podem ser combinados.',
   meta_account_changed:'A conta de anúncios mudou. Revise a conexão antes de continuar.',
   fresh_metrics:'métricas atualizadas',spend:'gasto de mídia confirmado',confirmed_purchases:'vendas confirmadas',confirmed_purchases_required:'vendas confirmadas',

@@ -37,7 +37,7 @@ export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh,sho
         <div><dt>Método de pagamento</dt><dd>{snapshot.paymentMethod==='present'?'Cadastrado':snapshot.paymentMethod==='missing'?'Não encontrado':'Indisponível'}</dd></div>
         {snapshot.billingType==='prepaid'&&<div><dt>Saldo pré-pago disponível</dt><dd>{snapshot.currency?money(snapshot.prepaidAvailableCents,snapshot.currency):'Indisponível'}</dd></div>}
         <div><dt>Valor devido à Meta</dt><dd>{snapshot.currency?money(snapshot.amountDueCents,snapshot.currency):'Indisponível'}</dd></div>
-      </dl><small>Consulta em <time dateTime={snapshot.checkedAt}>{new Date(snapshot.checkedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time> · Fonte: {snapshot.source}</small></>}
+      </dl><small>Consulta em <time dateTime={snapshot.checkedAt}>{new Date(snapshot.checkedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time> · Dados consultados na Meta</small></>}
       {current?.message&&<p>{current.message}</p>}
       <details className="mga-payment-guidance mga-inline-details"><summary>Ajuda sobre pagamentos</summary>
       <p>Os créditos de imagens também não incluem a verba de anúncios.</p>

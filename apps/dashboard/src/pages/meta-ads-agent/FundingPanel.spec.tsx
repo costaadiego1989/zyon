@@ -33,7 +33,7 @@ test('ADAS-04 unavailable diagnosis does not invent a zero balance and preserves
 });
 test('ADAS-06 refresh only requests a new diagnosis and never acknowledges fictional credit',async()=>{
   screen=ui();const refresh=vi.fn().mockResolvedValue(undefined);await screen.render(<FundingPanel account={account} diagnosis={diagnosis()} onRefresh={refresh}/>);await screen.click('Verificar novamente');
-  expect(refresh).toHaveBeenCalledTimes(1);expect(screen.container.textContent).toContain('pagamento não é confirmado por este botão');expect(screen.container.querySelector('time')?.dateTime).toBe('2026-11-16T12:34:00Z');expect(screen.container.textContent).toContain('meta_graph');
+  expect(refresh).toHaveBeenCalledTimes(1);expect(screen.container.textContent).toContain('pagamento não é confirmado por este botão');expect(screen.container.querySelector('time')?.dateTime).toBe('2026-11-16T12:34:00Z');expect(screen.container.textContent).toContain('Dados consultados na Meta');
 });
 test('ADAS-07 confirmed block explains publication restriction while funding destination and help remain usable',async()=>{
   screen=ui();const d=diagnosis();d.status='blocked';d.snapshot!.confirmedBlock=true;d.message='Método de pagamento ausente';
