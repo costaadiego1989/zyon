@@ -13,6 +13,7 @@ import type { StoreUiAction, WhatsAppConversationState, WhatsAppStructuredRespon
 import { withMetaProductReferences } from "../../domain/ui/meta-product-context.js";
 import { deriveChatStage, missingFieldsForStage, isShippingQuickReplyQuestion } from "../../../checkout/domain/services/customer-extraction.service.js";
 import { checkoutCollectionCopy } from "../../../checkout/domain/services/checkout-collection-copy.js";
+import { isCompleteBuyerAddress } from "../../../checkout/domain/services/buyer-recognition.js";
 import { pendingCustomerCorrection } from "../../../checkout/domain/services/customer-correction-prompts.js";
 import { containsSharedCpf } from "../../domain/ui/meta-sensitive-input.js";
 import { META_FIELD_LABELS, META_FIELD_FLOW_NAMES } from "../../domain/ui/meta-flow.js";
@@ -702,6 +703,16 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       message = `💬 ${free ? "Há uma opção grátis nesta cotação. Confira abaixo." : "Esta cotação não retornou frete grátis. Veja os valores disponíveis abaixo."}\n\n${message}`;
     }
     if (collectionCopy) for (let i = blocks.length - 1; i >= 0; i--) if (["form_field", "checkout_form", "quick_replies"].includes(blocks[i].type)) blocks.splice(i, 1);
+    const confirmSavedDelivery = nextField === "confirmar endereço" && session?.customer?.recognized_buyer === true
+      && isCompleteBuyerAddress(session.customer.address);
+    if (confirmSavedDelivery) {
+      const address = session!.customer!.address!;
+      const formatted = [address.street, `nº ${address.number}`, address.complement, address.neighborhood,
+        `${address.city}/${address.state}`, `CEP ${address.zip!.slice(0, 5)}-${address.zip!.slice(5)}`].filter(Boolean).join(" · ");
+      for (let i = blocks.length - 1; i >= 0; i--) if (blocks[i].type === "address_confirmation") blocks.splice(i, 1);
+      blocks.push({ type: "address_confirmation", data: { formatted, saved: true } });
+      message = "👤 *Cadastro reconhecido*\n\nJá temos seus dados. Deseja receber neste endereço ou informar outro para esta entrega?";
+    }
     if (nextField === "frete" && !session?.shippingOptions?.length) blocks.push({ type: "shipping_quote_retry", data: {} });
     const secureIdentifier = nextField === "CPF";
     if (secureIdentifier) message = "Para proteger seus dados, preencha seu CPF no checkout seguro. Depois, você pode continuar por aqui.";
@@ -747,7 +758,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       .filter(label => !paymentSurface || !/^(pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito)|remover item|tenho um cupom de desconto)$/i.test(label.trim()));
     return { agentMessage: message, merchantName, blocks,
       quickReplies: approved ? ["Rastrear Pedido", "Continuar Comprando"] : secureIdentifier || state.pendingCheckoutEdit || state.pendingCoupon ? []
-        : nextField === "confirmar endereço" ? ["Sim", "Não"] : collectionCopy ? []
+        : confirmSavedDelivery ? [] : nextField === "confirmar endereço" ? ["Sim", "Não"] : collectionCopy ? []
           : paymentSurface ? [...(state.payment ? ["Verificar pagamento"] : []), ...(response.cashbackQuickReplies ?? [])] : replies,
       state: { ...state, checkoutSessionId: response.session_id || state.checkoutSessionId, checkoutConversationId: response.conversation_id || state.checkoutConversationId,
         checkoutSummaryFingerprint: summaryFingerprint,
