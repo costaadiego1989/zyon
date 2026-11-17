@@ -475,13 +475,14 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         if (current && !current.paymentMethod && current.customer?.address_verified) {
           const prepared = await this.checkoutShipping.prepareReturningBuyer(current, registeredBuyer.preferences.shipping);
           return this.checkoutUi({ ...response,
+            previousShippingQuote: checkout.shippingOptions?.[0],
             ...(prepared.shipping ? { message: "🚚 Entrega atualizada conforme sua preferência. Confira o resumo e escolha como pagar." } : {}),
             experience: buildExperienceFromSession(prepared, { merchantName: config.name, serviceFee: this.experienceConfig?.platformFeeBrl }),
             missing_fields: missingFieldsForStage(prepared, deriveChatStage(prepared)), preferredPaymentMethod: registeredBuyer.preferences.payment,
           }, state, config.name, input.message, input.merchantId);
         }
       }
-      return this.checkoutUi(response, state, config.name, input.message, input.merchantId);
+      return this.checkoutUi({ ...response, previousShippingQuote: checkout.shippingOptions?.[0] }, state, config.name, input.message, input.merchantId);
     }
     const action = input.action?.kind === "tool" ? input.action : undefined;
     const pendingQuestion = state.stage === "store" && state.pendingProductQuestion;
@@ -718,7 +719,12 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const approved = state.payment?.status === "approved";
     const nextField = approved ? undefined : response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
     // Ask the next field explicitly. Starting a checkout must not stop at its greeting.
-    const collectionCopy = session && pendingCustomerCorrection(session) ? undefined : checkoutCollectionCopy(nextField, session ?? undefined, state.agentTone);
+    const previousQuote = response.previousShippingQuote;
+    const currentQuote = session?.shippingOptions?.[0];
+    const shippingRefresh = previousQuote?.quoteId && currentQuote?.quoteId && previousQuote.quoteId !== currentQuote.quoteId
+      ? previousQuote.expiresAt && Date.parse(previousQuote.expiresAt) <= Date.now() ? "expired" : "updated"
+      : undefined;
+    const collectionCopy = session && pendingCustomerCorrection(session) ? undefined : checkoutCollectionCopy(nextField, session ?? undefined, state.agentTone, shippingRefresh);
     if (collectionCopy) message = collectionCopy;
     if (nextField === "código de verificação" && session?.customer?.otp_code && !/inválido|expirou|não foi possível|não consegui/i.test(message)) {
       const email = session.customer.email?.replace(/(^.).*(@.*$)/, "$1***$2") || "seu email";

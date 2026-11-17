@@ -15,7 +15,7 @@ import type { TrustedWhatsAppCheckoutBuyer } from "../../../checkout/application
 
 export const linkedAddress = { zip: "01310100", street: "Avenida Paulista", number: "1578", complement: "Apto 42",
   neighborhood: "Bela Vista", city: "São Paulo", state: "SP" };
-export function linkedCheckoutFixture() {
+export function linkedCheckoutFixture(options: { refreshUnavailable?: boolean; refreshedPriceCents?: number } = {}) {
   const repository = new InMemoryCheckoutRepository();
   const customer = { fullName: "Compradora Vinculada", email: "compradora@example.test", cpf: "52998224725", phone: "5511987654321",
     phone_verified: true as const, email_verified: false as const, recognized_buyer: true, isReturning: true,
@@ -40,8 +40,9 @@ export function linkedCheckoutFixture() {
     storefrontCart: { findUnique: async () => ({ items: [{ sku: "kit", quantity: 1 }], expiresAt: new Date(Date.now() + 3600_000) }) } };
   const quotes: any = { quoteKey: async () => "linked-quote", assertNeighborhoodDestination: async () => {}, execute: async (request: any) => {
     stats.quotes++;
+    if (stats.quotes > 1 && options.refreshUnavailable) throw new Error("shipping_provider_unavailable");
     return { id: "linked-quote-id", quote_key: "linked-quote", destination_zip: request.destination_zip, expires_at: new Date(Date.now() + 60_000).toISOString(),
-      results: [{ carrier_key: "pac", label: "Correios PAC", price: 1500, eta_days: 6, is_free: false }] };
+      results: [{ carrier_key: "pac", label: "Correios PAC", price: stats.quotes > 1 ? options.refreshedPriceCents ?? 1500 : 1500, eta_days: 6, is_free: false }] };
   } };
   const shipping = new CheckoutShippingService(repository, customers, quotes, undefined, undefined, prisma);
   const cart: any = { currency: "BRL", source: "storefront", cart_ref: buyer.conversationId, total: 30,
