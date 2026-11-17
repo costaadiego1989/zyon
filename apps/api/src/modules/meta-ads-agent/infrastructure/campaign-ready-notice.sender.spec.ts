@@ -1,0 +1,60 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {CampaignReadyNoticeSender} from './campaign-ready-notice.sender.js';
+import {campaignLaunchFixture} from '../application/__tests__/launch-fixture.js';
+import {CampaignNoticeContactService} from '../application/campaign-notice-contact.service.js';
+import {InitialLaunchService} from '../application/initial-launch.service.js';
+import {WhatsAppTemplateSenderAdapter} from '../../whatsapp-templates/infrastructure/adapters/whatsapp-template-sender.adapter.js';
+import {getTemplateDefinition} from '../../whatsapp-templates/domain/catalog/template-catalog.js';
+import type {WhatsAppTemplateRecord,WhatsAppTemplateRepositoryPort} from '../../whatsapp-templates/domain/ports/whatsapp-template-repository.port.js';
+import type {WhatsAppChannelConfigEntity,WhatsAppConfigRepository} from '../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js';
+
+async function fixture(){
+  const f=await campaignLaunchFixture(),originalFetch=globalThis.fetch;let transport='accepted';const requests:Array<{url:string;init?:RequestInit}>=[];
+  const config:WhatsAppChannelConfigEntity={id:'config-a',merchantId:'store-a',enabled:true,provider:'META_CLOUD',status:'ACTIVE',credentials:{accessToken:'store-a-private-token',wabaId:'123456789',phoneNumberId:'987654321'},whatsappNumber:'+5511999990000',createdAt:new Date(),updatedAt:new Date()};
+  const def=getTemplateDefinition('campaign_ready','Loja Aurora');
+  const template:WhatsAppTemplateRecord={id:'template-a',merchantId:'store-a',type:'campaign_ready',channel:'whatsapp',name:def.label,body:def.freeformBody,subject:null,isActive:true,metaCategory:def.category,metaLanguage:'pt_BR',metaTemplateBody:def.metaBody,metaVariableMap:def.variableMap,twilioContentSid:'store_campaign_ready',metaStatus:'approved',metaRejectionReason:null,metaWabaId:'123456789',metaRevision:1,metaLastCheckedAt:new Date(),createdAt:new Date(),updatedAt:new Date()};
+  const configs={findByMerchantId:async()=>structuredClone(config)} as unknown as WhatsAppConfigRepository;
+  const templates={findByMerchantAndType:async()=>structuredClone(template)} as unknown as WhatsAppTemplateRepositoryPort;
+  let duringSync=async()=>{};
+  const templateSender=new WhatsAppTemplateSenderAdapter(configs,templates,{createAndSubmit:async()=>{throw Error('not authorized');},syncStatus:async(_merchant,sid)=>{await duringSync();return{status:'approved',contentSid:sid};}});
+  globalThis.fetch=async(url,init)=>{requests.push({url:String(url),init});if(transport==='timeout')throw Error('lost store-a-private-token');if(transport==='empty')return Response.json({});if(transport==='reject')return new Response('rejected',{status:400});if(transport==='server')return new Response('error',{status:503});return Response.json({messages:[{id:'wamid.campaign-a'}]});};
+  const contacts=new CampaignNoticeContactService({db:f.prisma,authorizeActor:f.authorizeActor,senderNumber:async()=>config.whatsappNumber??null,clock:f.clock});
+  await contacts.save('store-a','owner-a',{phoneNumber:'+5511988887777',consented:true,expectedVersion:0});
+  const launches=new InitialLaunchService({repo:f.repo,commerce:f.commerce,campaigns:f.service.campaigns,proposals:f.service.proposals,executions:f.executions,preparations:f.preparations,notices:f.notices,authorizeActor:f.authorizeActor,enabled:()=>true,clock:f.clock});
+  const sender=new CampaignReadyNoticeSender({db:f.prisma,notices:f.notices,configs,templates,templateSender,launches,authorizeActor:f.authorizeActor,storeName:async()=> 'Loja Aurora',dashboardUrl:'https://dashboard.example.test',clock:f.clock});
+  const p=await f.propose('launch'),notice=await f.notices.admit({merchantId:'store-a',campaignId:f.campaignId,proposalId:p.id,proposalDigest:p.digest});
+  await f.notices.ensureInbox('store-a',notice.id,{campaignName:'Camisa',reviewUrl:`https://dashboard.example.test/#meta-ads-agent?store=store-a&campaign=${f.campaignId}&proposal=${p.id}`});
+  const lease=(await f.notices.claim('store-a',notice.id))!;
+  return{...f,p,notice,lease,sender,contacts,config,template,requests,transport:(value:string)=>{transport=value;},duringSync:(fn:()=>Promise<void>)=>{duringSync=fn;},close:async()=>{globalThis.fetch=originalFetch;await f.close();}};
+}
+test('ACAP-19 official readiness send uses the pinned administrative contact exact store credential and review version',async()=>{
+  const f=await fixture();try{const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'accepted');assert.equal(f.requests.length,1);assert.equal(f.requests[0].url,'https://graph.facebook.com/v23.0/987654321/messages');assert.equal(new Headers(f.requests[0].init?.headers).get('Authorization'),'Bearer store-a-private-token');const body=JSON.parse(String(f.requests[0].init?.body));assert.equal(body.to,'5511988887777');assert.equal(body.template.name,'store_campaign_ready');assert.equal(body.template.language.code,'pt_BR');assert.deepEqual(body.template.components[0].parameters.map((p:{text:string})=>p.text),['Camisa',f.p.digest.slice(0,12),`https://dashboard.example.test/#meta-ads-agent?store=store-a&campaign=${f.campaignId}&proposal=${f.p.id}`]);assert.match(body.biz_opaque_callback_data,/^campaign_ready:[a-f0-9]{64}$/);const delivery=await f.prisma.whatsAppDelivery.findUniqueOrThrow({where:{id:body.biz_opaque_callback_data}});assert.equal(delivery.configId,'config-a');assert.equal(delivery.providerMessageId,'wamid.campaign-a');assert.equal(delivery.state,'sent');assert.equal(await f.prisma.merchantNotification.count(),1);assert.equal(JSON.stringify(result).includes('private-token'),false);assert.equal(JSON.stringify(result).includes('5511988887777'),false);}finally{await f.close();}
+});
+test('ACAP-21 provider acceptance remains accepted rather than delivered until an authenticated receipt exists',async()=>{
+  const f=await fixture();try{const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'accepted');assert.notEqual(result.whatsappStatus,'delivered');const row=await f.notices.read('store-a',f.notice.id);assert.equal(row.reviewState,'awaiting_approval');assert.ok(row.dispatchStartedAt);assert.ok(row.deliveryId);assert.equal((await f.prisma.whatsAppDelivery.findUniqueOrThrow({where:{id:row.deliveryId!}})).providerMessageId,'wamid.campaign-a');}finally{await f.close();}
+});
+test('ACAP-20 missing consent keeps the inbox and prevents any WhatsApp admission',async()=>{
+  const f=await fixture();try{await f.contacts.save('store-a','owner-a',{phoneNumber:'+5511988887777',consented:false,expectedVersion:1});const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'blocked');assert.equal(result.error,'campaign_notice_contact_required');assert.equal(f.requests.length,0);assert.equal(await f.prisma.whatsAppDelivery.count(),0);assert.equal(await f.prisma.merchantNotification.count(),1);}finally{await f.close();}
+});
+test('ACAP-20 foreign inactive and alternative provider connections never use a platform or another store sender',async()=>{
+  for(const change of ['foreign','inactive','provider']){const f=await fixture();try{if(change==='foreign')f.config.merchantId='store-b';if(change==='inactive')f.config.enabled=false;if(change==='provider')f.config.provider='BUBBLEWHATS';const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'blocked');assert.equal(result.error,'meta_connection_unavailable');assert.equal(f.requests.length,0);assert.equal(await f.prisma.whatsAppDelivery.count(),0);assert.equal(await f.prisma.merchantNotification.count(),1);}finally{await f.close();}}
+});
+test('ACAP-20 unapproved foreign or incompatible templates cannot become readiness notifications',async()=>{
+  for(const change of ['status','waba','variables']){const f=await fixture();try{if(change==='status')f.template.metaStatus='submitted';if(change==='waba')f.template.metaWabaId='999999999';if(change==='variables')f.template.metaVariableMap={'1':'couponBlock'};const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'blocked');assert.equal(f.requests.length,0);assert.equal(await f.prisma.whatsAppDelivery.count(),0);}finally{await f.close();}}
+});
+test('ACAP-19 consent revoked during provider template verification is checked again before POST',async()=>{
+  const f=await fixture();try{f.duringSync(async()=>{await f.contacts.save('store-a','owner-a',{phoneNumber:'+5511988887777',consented:false,expectedVersion:1});});const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'blocked');assert.equal(f.requests.length,0);const row=await f.notices.read('store-a',f.notice.id);assert.equal(row.dispatchStartedAt,null);assert.equal((await f.prisma.whatsAppDelivery.findUniqueOrThrow({where:{id:row.deliveryId!}})).state,'campaign_notice_skipped');}finally{await f.close();}
+});
+test('ACAP-19 configuration identity revision body and actor changes during verification prevent physical delivery',async()=>{
+  for(const change of ['config','revision','body','variables','number','role']){const f=await fixture();try{f.duringSync(async()=>{if(change==='config')f.config.id='another-config';if(change==='revision')f.template.metaRevision=2;if(change==='body')f.template.metaTemplateBody+=' Mudou.';if(change==='variables')f.template.metaVariableMap={'1':'campaignVersion','2':'campaignName','3':'campaignReviewLink'};if(change==='number')f.config.whatsappNumber='+5511977776666';if(change==='role')f.role(false);});const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'blocked');assert.equal(f.requests.length,0);assert.equal((await f.notices.read('store-a',f.notice.id)).dispatchStartedAt,null);}finally{await f.close();}}
+});
+test('ACAP-22 lost empty and server responses preserve one unknown attempt without blind retry',async()=>{
+  for(const mode of ['timeout','empty','server']){const f=await fixture();try{f.transport(mode);const first=await f.sender.send(f.lease);assert.equal(first.whatsappStatus,'unknown');assert.equal(f.requests.length,1);const replay=await f.sender.send(f.lease);assert.equal(replay.whatsappStatus,'unknown');assert.equal(f.requests.length,1);const row=await f.notices.read('store-a',f.notice.id);assert.ok(row.dispatchStartedAt);assert.equal((await f.prisma.whatsAppDelivery.findUniqueOrThrow({where:{id:row.deliveryId!}})).state,'submission_unknown');assert.equal(JSON.stringify(row.dispatchSnapshot).includes('private-token'),false);}finally{await f.close();}}
+});
+test('ACAP-22 a documented synchronous rejection permits only a known-no-dispatch retry with the same identity and recipient',async()=>{
+  const f=await fixture();try{f.transport('reject');const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'blocked');const row=await f.notices.read('store-a',f.notice.id);assert.equal(row.dispatchStartedAt,null);const deliveryId=row.deliveryId;assert.equal((await f.prisma.whatsAppDelivery.findUniqueOrThrow({where:{id:deliveryId!}})).state,'campaign_notice_skipped');f.setNow(new Date(f.clock().getTime()+61000).toISOString());const lease=(await f.notices.claim('store-a',f.notice.id))!;f.transport('accepted');assert.equal((await f.sender.send(lease)).whatsappStatus,'accepted');assert.equal((await f.notices.read('store-a',f.notice.id)).deliveryId,deliveryId);assert.equal(await f.prisma.whatsAppDelivery.count(),1);assert.equal(f.requests.length,2);}finally{await f.close();}
+});
+test('ACAP-20 changed review and self-send contacts cannot be announced as awaiting approval',async()=>{
+  for(const change of ['review','self']){const f=await fixture();try{if(change==='review')await f.service.campaigns.save('store-a',f.campaignId,{...(await f.service.campaigns.owned('store-a',f.campaignId)).draft,headline:'Outra campanha'});else f.config.whatsappNumber='+5511988887777';const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'blocked');assert.equal(f.requests.length,0);assert.equal(await f.prisma.merchantNotification.count(),1);}finally{await f.close();}}
+});

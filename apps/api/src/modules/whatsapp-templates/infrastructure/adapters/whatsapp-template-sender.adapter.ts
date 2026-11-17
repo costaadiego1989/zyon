@@ -13,6 +13,7 @@ import {
 import { connectedMetaCloudCredentials } from "../../../whatsapp-channel/domain/services/connected-meta-cloud-credentials.js";
 import { normalizeRecoveryRecipient } from "../../domain/services/recovery-whatsapp-policy.js";
 import { WHATSAPP_TEMPLATE_REPOSITORY, type WhatsAppTemplateRepositoryPort } from "../../domain/ports/whatsapp-template-repository.port.js";
+import {templateDispatchDigest} from '../../domain/services/template-dispatch-binding.js';
 
 const GRAPH = "https://graph.facebook.com/v23.0";
 
@@ -32,6 +33,8 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
     const strictTemplate = true;
     const credentials = await this.credentials(input.merchantId);
     if (!credentials) return { messageId: "", status: "skipped", reason: "meta_connection_unavailable" };
+    const expectedConnection=input.expectedConnection;
+    if(expectedConnection&&(credentials.configId!==expectedConnection.configId||credentials.wabaId!==expectedConnection.wabaId||credentials.phoneNumberId!==expectedConnection.phoneNumberId))return{messageId:'',status:'skipped',reason:'meta_connection_changed'};
     if (!input.contentSid.trim()) return { messageId: "", status: "skipped", reason: "template_identifier_missing" };
     if (strictTemplate) {
       const template = await this.templates?.findByMerchantAndType(input.merchantId, input.type!, "whatsapp").catch(() => null);
@@ -40,16 +43,18 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
         return { messageId: "", status: "skipped", reason: "approved_template_unavailable" };
       }
       if (input.type !== "order_quota") {
+        if(input.expectedTemplate&&(!template||template.metaRevision!==input.expectedTemplate.revision||templateDispatchDigest(template)!==input.expectedTemplate.bodyDigest))return{messageId:'',status:'skipped',reason:'template_revision_changed'};
         if (input.type === "checkout_otp" && template?.metaCategory !== "AUTHENTICATION") return { messageId: "", status: "skipped", reason: "authentication_template_required" };
         if (!this.submission || !template?.metaTemplateBody) return { messageId: "", status: "skipped", reason: "template_verification_unavailable" };
         const current = await this.submission.syncStatus(input.merchantId, input.contentSid, { language: template.metaLanguage ?? "pt_BR", body: template.metaTemplateBody, category: template.metaCategory ?? undefined }).catch(() => null);
         if (current?.status !== "approved" || current.contentSid !== input.contentSid) return { messageId: "", status: "skipped", reason: "approved_template_unavailable" };
         const latest = await this.credentials(input.merchantId);
-        if (!latest || latest.wabaId !== credentials.wabaId || latest.phoneNumberId !== credentials.phoneNumberId) return { messageId: "", status: "skipped", reason: "meta_connection_changed" };
+        if (!latest || latest.wabaId !== credentials.wabaId || latest.phoneNumberId !== credentials.phoneNumberId || expectedConnection&&latest.configId!==expectedConnection.configId) return { messageId: "", status: "skipped", reason: "meta_connection_changed" };
         const latestTemplate = await this.templates?.findByMerchantAndType(input.merchantId, input.type!, "whatsapp").catch(() => null);
         if (!isApprovedSalesTemplate(latestTemplate, input.merchantId, input.type!, credentials.wabaId)
           || latestTemplate.twilioContentSid !== input.contentSid || latestTemplate.metaRevision !== template.metaRevision
           || (input.language || "pt_BR") !== (template.metaLanguage || "pt_BR")) return { messageId: "", status: "skipped", reason: "template_revision_changed" };
+        if(input.expectedTemplate&&(latestTemplate.metaRevision!==input.expectedTemplate.revision||templateDispatchDigest(latestTemplate)!==input.expectedTemplate.bodyDigest))return{messageId:'',status:'skipped',reason:'template_revision_changed'};
       }
     }
 
@@ -70,6 +75,7 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
     }
 
     let response: Response;
+    try{await input.assertDispatchAuthorized?.();}catch{return{messageId:'',status:'skipped',reason:'notification_authority_changed'};}
     try {
       response = await fetch(`${GRAPH}/${credentials.phoneNumberId}/messages`, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
@@ -77,9 +83,8 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
         body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), type: "template", template,
           ...(input.correlationId ? { biz_opaque_callback_data: input.correlationId } : {}) }),
       });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      this.logger.error("Meta template transport failed", { merchantId: input.merchantId, reason });
+    } catch {
+      this.logger.error("Meta template transport failed", { merchantId: input.merchantId, reason:'provider_transport_failed' });
       return { messageId: "", status: "uncertain", reason: "provider_acceptance_unknown" };
     }
 
@@ -98,7 +103,7 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
   }
 
   private async credentials(merchantId: string) {
-    try { return connectedMetaCloudCredentials(await this.configRepo?.findByMerchantId(merchantId), merchantId); }
+    try { const config=await this.configRepo?.findByMerchantId(merchantId),credentials=connectedMetaCloudCredentials(config,merchantId);return credentials&&config?{...credentials,configId:config.id}:null; }
     catch { return null; }
   }
 }

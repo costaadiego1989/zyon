@@ -26,3 +26,5 @@
 - T14 complete: purpose-bound durable preparation worker; server-only generation authority and dispatch callbacks.31 focused/full563 API, lint0.14 worker cases; paid unknown hold, two-worker exclusivity, proposal/outbox recovery and verified replacement reuse. T15 templates next; T16-T35 and final independent gates remain.
 
 - T15 complete: separate campaign_ready catalog type and scoped variables; proposed Utility, not proof of Meta eligibility.18 catalog/factory/compatibility cases and lint0. T16 sender next.
+
+- T16 complete: store-owned readiness sender and guarded native template port.10 PG cases (35 combined)/full573 API, lint0. T17 durable inbox/dispatch worker next; T18 receipts, T19-T35/runtime/UI/Cypress and final Verifiers still required.
