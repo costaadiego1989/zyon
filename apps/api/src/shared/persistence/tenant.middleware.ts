@@ -187,6 +187,7 @@ export const TENANT_SCOPED_MODELS = [
   "StrategyTurnOutcome",
   "StrategyTurnPublication",
   "SupportSetting",
+  "SupportNotificationSetting",
   "SupportTicket",
   "TrackingEvent",
   "WhatsAppChannelConfig",

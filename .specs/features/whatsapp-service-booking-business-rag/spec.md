@@ -344,7 +344,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | CAT-03 | Catalog boolean toggles | T105 | Pending |
 | CAT-04 | Professional links in service editor | T106, T76 | Pending |
 | CAT-05 | Advanced-rules UI follows existing plan entitlement | T107 | Complete LOCAL;70components +3actual browser/nativecleanup, types/lint/build, six Root-reviewed native captures; policy unchanged |
-| HUM-09 | Private support fallback recipient | T99, T101 | Pending; explicitly requested2026-11-16 |
+| HUM-09 | Private support fallback recipient | T99, T101 | In Progress (T99 private API/schema/persistence complete locally; T101 UI pending) |
 | HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Pending; channel confirmed2026-11-16 |
 | ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |

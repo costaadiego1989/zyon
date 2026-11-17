@@ -113,6 +113,7 @@ model Merchant {
   updatedAt               DateTime     @updatedAt @map("updated_at")
 
   users                    MerchantUser[]
+  supportNotificationSetting SupportNotificationSetting?
   apiKeys                  MerchantApiKey[]
   webhookEndpoints         MerchantWebhookEndpoint[]
   webhookDeliveries        MerchantWebhookDelivery[]
@@ -674,6 +675,18 @@ model SupportSetting {
 
   @@index([merchantId])
   @@map("support_settings")
+}
+
+model SupportNotificationSetting {
+  merchantId       String   @id @map("merchant_id")
+  fallbackWhatsapp String?  @db.VarChar(16) @map("fallback_whatsapp")
+  version          Int      @default(1)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3) @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("support_notification_settings")
 }
 
 model SupportTicket {

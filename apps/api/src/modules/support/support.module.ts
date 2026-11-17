@@ -30,6 +30,8 @@ import { SupportMessagesController } from "./presentation/http/support-messages.
 import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
 import { SupportRealtimePublisher } from "./application/support-realtime.publisher.js";
 import { WhatsAppHandoffModule } from "../whatsapp-channel/whatsapp-handoff.module.js";
+import { ManageSupportNotificationSettingsUseCase } from "./application/manage-support-notification-settings.use-case.js";
+import { SupportNotificationSettingsController } from "./presentation/http/support-notification-settings.controller.js";
 
 /**
  * SUPP-H1/H2: SendSupportMessageUseCase split across cohesive files.
@@ -39,11 +41,12 @@ import { WhatsAppHandoffModule } from "../whatsapp-channel/whatsapp-handoff.modu
 @Module({
   // EmbedModule provides EmbedAuthGuard used by chat/faq endpoints (P0 fix)
   imports: [EmbedModule, IntegrationsModule, HttpModule, KnowledgeBaseModule, WhatsAppHandoffModule],
-  controllers: [SupportController, SupportMessagesController],
+  controllers: [SupportController, SupportMessagesController, SupportNotificationSettingsController],
   providers: [
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     SendSupportMessageUseCase,
     GetSupportSettingsUseCase,
+    ManageSupportNotificationSettingsUseCase,
     UpdateSupportSettingsUseCase,
     ListSupportTicketsUseCase,
     UpdateSupportTicketStatusUseCase,

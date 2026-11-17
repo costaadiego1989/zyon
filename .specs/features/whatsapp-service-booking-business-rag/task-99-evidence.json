@@ -1,0 +1,315 @@
+{
+  "task": "T99",
+  "status": "complete_local",
+  "complete": true,
+  "rootSourceBase": "dbb9afd5c",
+  "sourceAdoption": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t99-source-adoption-20261116T230349Z\\manifest.json",
+  "sourceFiles": [
+    {
+      "path": "apps/api/prisma/deploy-migrations/20261116000000_support_notification_settings/migration.sql",
+      "sha256": "b164a485b6e9ebeca8dccd1be1ce5fc9ccd474abbe90c3e49080430a0e4077f3"
+    },
+    {
+      "path": "apps/api/prisma/migrations/20261116000000_support_notification_settings/migration.sql",
+      "sha256": "b164a485b6e9ebeca8dccd1be1ce5fc9ccd474abbe90c3e49080430a0e4077f3"
+    },
+    {
+      "path": "apps/api/prisma/schema.prisma",
+      "sha256": "9f5eead1b7aad830955f5a909c868d13ab3dd7de96beed7e5fec13f6b4d604bd"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/manage-support-notification-settings.use-case.ts",
+      "sha256": "7735744abdd02f8e1c1e6af6fdcba0afb0a09a5523522275b88cc0b20e50eb6b"
+    },
+    {
+      "path": "apps/api/src/modules/support/domain/support-notification-settings.spec.ts",
+      "sha256": "1ad901c40f60957f6e748fdd49ca4d1c3cc1932565849db0ac510b875dcc5518"
+    },
+    {
+      "path": "apps/api/src/modules/support/domain/support-notification-settings.ts",
+      "sha256": "1533ed9072c153e3c55b9069697c70e10ec9150a87c88ed898e4f851ab2d25da"
+    },
+    {
+      "path": "apps/api/src/modules/support/presentation/http/support-notification-settings.controller.ts",
+      "sha256": "84498571b0f29498400352fe7c8e1a0ba21cde5c7cb5d8627a8b0f9753435976"
+    },
+    {
+      "path": "apps/api/src/modules/support/support.module.ts",
+      "sha256": "de5b50729f147eba5087c575da960242778ae3046e5b65125a4dcfabcd4ec73f"
+    },
+    {
+      "path": "apps/api/src/shared/persistence/tenant.middleware.ts",
+      "sha256": "78881c76ee327013b3d75adc7dc865e69fb33a47dc58efa0bf42b139e6a56b07"
+    },
+    {
+      "path": "apps/api/tests/support-notification-settings.integration.spec.mjs",
+      "sha256": "4583d53ea13eca8421c85a7bb5f0c81e0c86d57136d81df699c3eca1f28ddfec"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/manage-support-notification-settings.use-case.spec.ts",
+      "sha256": "96386a2344581bfd9c9c93cca6cb3bcdce8aca98725417105992a6957c62fa09"
+    },
+    {
+      "path": "apps/api/src/modules/support/presentation/http/support-notification-settings.controller.spec.ts",
+      "sha256": "a71ed2b85fa13d9c063a18cd2102da57aaf60b2945f65a31899f1bafc6b6d996"
+    }
+  ],
+  "componentFirst": {
+    "tests": 27,
+    "pass": 27,
+    "fail": 0,
+    "skipped": 0,
+    "receipt": {
+      "path": ".cache/t99-gates/2026-11-16T23-13-35.320Z/result.json",
+      "sha256": "e768a58732481660d252af2ea1f6962174a37179935b20a49c76911aa9aec106",
+      "actual": {
+        "task": "T99",
+        "code": 0,
+        "closedNaturally": true,
+        "sourcePathsPreserved": 10,
+        "unitLogSha256": "ce9d4aca10e955daaf448e2d839a8c2ae41e0a8d1a2493e6e7b2697ba4df1a72",
+        "completedAt": "2026-11-16T23:13:43.595Z"
+      }
+    }
+  },
+  "componentExpanded": {
+    "tests": 36,
+    "pass": 36,
+    "fail": 0,
+    "skipped": 0,
+    "boundary": "real use case and TenantContext over deterministic in-memory persistence; HTTP role and SQL rollback are not claimed",
+    "receipt": {
+      "path": ".cache/t99-application-gates/2026-11-16T23-52-46.892Z/result.json",
+      "sha256": "f5cc640b817366446f6e18c97f3f1036811c7b94a2c6eacbeb9c33550a251f9f",
+      "actual": {
+        "task": "T99",
+        "code": 0,
+        "closedNaturally": true,
+        "sourcePathsPreserved": 11,
+        "unitLogSha256": "68e7f117546528b9e1dbe9e04a0883a2c8872d9a3486408e338b4506acae5f87",
+        "completedAt": "2026-11-16T23:52:53.376Z"
+      }
+    },
+    "inputNote": "Historical36-case gate used original application spec60b7f77d. Current51-case gate includes that entire preserved original plus additive replacement and controller cases."
+  },
+  "schemaValidation": {
+    "path": ".cache/t99-schema/2026-11-16T23-15-05.604Z/result.json",
+    "sha256": "d4a3cb41f87c0b986955cda6205e86ae019867208ac47a2e0717d525afa7cb07",
+    "actual": {
+      "task": "T99-schema",
+      "code": 0,
+      "command": "pnpm --dir apps/api exec prisma validate --schema prisma/schema.prisma",
+      "schemaSha256": "9f5eead1b7aad830955f5a909c868d13ab3dd7de96beed7e5fec13f6b4d604bd",
+      "closedNaturally": true,
+      "logSha256": "cee181ad31bacb29345a02d90613d8e062aa6c91dc5c10ea7d78b410fba6272c",
+      "generatedClient": false,
+      "migrationExecuted": false,
+      "checkedBuild": false,
+      "completedAt": "2026-11-16T23:15:44.351Z"
+    }
+  },
+  "migration": {
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "boundary": "actual owned isolated PostgreSQL deploy/schema parity/legacy commerce-stock-payment preservation and cleanup",
+    "receipt": {
+      "path": ".cache/t99-migration/2026-11-16T23-26-35.334Z/result.json",
+      "sha256": "cc1a7ee4553f93caf100e5cef4126735be0e2010dd71c7d93abb085419e1e2bb",
+      "actual": {
+        "task": "T99-migration",
+        "code": 0,
+        "closedNaturally": true,
+        "sourcePathsPreserved": 10,
+        "logSha256": "3e7667f37208a8f863067269e52caf8d12a34772d7a32863bcc7fd496b7048f4",
+        "completedAt": "2026-11-16T23:27:10.996Z"
+      }
+    }
+  },
+  "pending": {
+    "freshFullCheckedApi": false,
+    "affectedLint": false,
+    "privateSettingsUi101": false,
+    "staffAlert100": false,
+    "atomicTaskCommit": false,
+    "actualHttpSqlRecipientAndAuthorization13": false
+  },
+  "scope": {
+    "providerMessages": 0,
+    "productionDatabaseWrites": 0,
+    "pushes": 0,
+    "deploys": 0,
+    "generatedClientOrCompiledOutputCopied": false,
+    "oldTestsWeakenedOrSkipped": false
+  },
+  "preservedT70": {
+    "directory": ".cache/t70-park-before99-20261116T225815Z",
+    "manifestSha256": "cfc7653248c6b69bbbfbe87ed25977d4cbc034d51b3c15867d751019fa7c72f8",
+    "sourcePaths": 19
+  },
+  "userSteering": "Continue com código e testes menores; no more full builds or browser attempts during this window",
+  "componentController": {
+    "tests": 51,
+    "pass": 51,
+    "fail": 0,
+    "skipped": 0,
+    "files": 8,
+    "durationMs": 11468.6613,
+    "receipt": {
+      "path": ".cache/t99-controller-gates/2026-11-17T00-31-44.158Z/result.json",
+      "sha256": "30fc4a68b4dbdc5f8336a829b089da333c01376ab8a036c277b91ce3241baec6",
+      "actual": {
+        "task": "T99",
+        "code": 0,
+        "closedNaturally": true,
+        "sourcePathsPreserved": 12,
+        "unitLogSha256": "3a00f7882faa80196cbbcdb4cf2062963d18d36d0f9649554667ab7eed2aff61",
+        "completedAt": "2026-11-17T00:31:55.803Z"
+      }
+    },
+    "boundary": "Real controller, decorator access guard, DTO validation, use case and tenant context with bounded memory persistence. Credential authentication, HTTP middleware and SQL recipient mutation are not claimed."
+  },
+  "currentInputsSourceBase": "0bb048e4e",
+  "sourceAdoptionNote": "Productive initial adoption is unchanged. The HTTP companion has only additive3cases plus a route-specific mandatory-header fixture correction; every thirteen-case body and assertion remains byte-exact across that correction. Component and lint sources remain unchanged.",
+  "applicationCaseAddition": {
+    "path": ".cache/t99-non-null-replacement-addition/manifest.json",
+    "sha256": "2eb85165e853be9bfe25dcd6de843766b1e5a8fec66d21822de9bce1c3449492",
+    "actual": {
+      "before": "60b7f77d40f9789b8b37382dd9008595fbb73db7cf0d77a4aa298bb7cd3d7b3c",
+      "after": "96386a2344581bfd9c9c93cca6cb3bcdce8aca98725417105992a6957c62fa09",
+      "oldBytesRecoverable": true,
+      "newChildren": 1,
+      "currentCohortExpected": 51
+    }
+  },
+  "affectedLint": {
+    "productionFiles": 5,
+    "errors": 0,
+    "warnings": 1,
+    "warning": "Existing unused eslint-disable in tenant.middleware.ts:354, untouched.",
+    "receipt": {
+      "path": ".cache/t99-lint/2026-11-17T00-29-52.977Z/result.json",
+      "sha256": "a618d6a794f0bf04ea358e6826fba4785afadf0eeab7a4366276471749567857",
+      "actual": {
+        "task": "T99-lint",
+        "code": 0,
+        "closedNaturally": true,
+        "sourcePathsPreserved": 11,
+        "logSha256": "d66a51f559f2b0dfc182bd8c1f50589fe25463495a3e4ac24a8914af8be83891",
+        "completedAt": "2026-11-17T00:30:05.322Z"
+      }
+    },
+    "boundary": "Repository ESLint configuration on all five changed production TypeScript files, no fixes or compiler invoked."
+  },
+  "incrementalSourceReview": {
+    "file": "C:/tmp/zyon-service-booking-admission-20261114/.cache/t99-incremental-source-review-20261117/NOTES.md",
+    "sha256": "32e2e86484891970e4b2b5f1322bc544631d765f45f3e464248f5d81366bb752",
+    "finalVerifier": false,
+    "concreteImplementationDefectsFound": 0,
+    "remainingProofGaps": [],
+    "componentReplacementGapClosedBy": "Current51-case component gate; real HTTP replacement assertions remain pending.",
+    "closedBy": "Actual13-case HTTP/SQL run plus51 component cases; no final feature Verifier claim."
+  },
+  "httpCaseAddition": {
+    "task": "T99",
+    "before": "30ccd4e2ff03276792c08ae6b08e5d6e1f734c6200bdef2488a8c017141cc91a",
+    "after": "4f7b21f99241e3b3062e828fda789988dbfd1cc8d7c8997a0a40eca443d0d715",
+    "oldBytesPreserved": true,
+    "oldTotal": 10,
+    "newTotal": 13,
+    "addedCases": 3,
+    "executedHttpCases": 0,
+    "sourceReview": "32e2e86484891970e4b2b5f1322bc544631d765f45f3e464248f5d81366bb752",
+    "productionImplementationChanged": false,
+    "checkedBuild": false,
+    "complete": false,
+    "manifest": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t99-http-additions-adopted-20261117\\manifest.json",
+    "manifestSha256": "84a79ba2bf727e05fb381c0fafb917a77a6c3438ecf2601b9445280772020296"
+  },
+  "httpCompanionSyntaxOnly": {
+    "command": "node --check apps/api/tests/support-notification-settings.integration.spec.mjs",
+    "exit": 0,
+    "sourceSha256": "4f7b21f99241e3b3062e828fda789988dbfd1cc8d7c8997a0a40eca443d0d715",
+    "executionBoundary": "Syntax-only parse observed by Root. No import, AppModule, HTTP or SQL cases executed by this command.",
+    "sourceNote": "Syntax check predates transport-only wrapper correction; actual thirteen-case run now proves the current MJS harness."
+  },
+  "checkedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "9bcd1402a7795e63ba5eee7fcd82027386bca7a2c763acc769e76ba278439d2d",
+    "artifactSha256": "848ace7b64b924c326e926ca48a989895dc8dfebeb6aa8ed63c89d16706e7402",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2550
+    },
+    "recordedAt": "2026-11-17T02:02:21.824Z",
+    "receipt": {
+      "path": "apps/api/.sandbox-state/service-test-build.json",
+      "sha256": "6e0ddb478dac1f7e409d2e6c6963a8e499adaabcbe2cec9a401232e53daf8eb0"
+    },
+    "captureLog": {
+      "path": ".cache/t99-full-gates/2026-11-17T01-59-38.076Z/capture.log",
+      "sha256": "92e688ccbf72010ff9f987c0cabe8137dfabfeb59317ea2c26343306a2f9bbd1"
+    },
+    "buildLog": {
+      "path": ".cache/t99-full-gates/2026-11-17T01-59-38.076Z/build.log",
+      "sha256": "574b51b5e0df4e77db948683d5850769bfb6f7d55c48745fdc7d5f48d6bb5d88"
+    },
+    "recordLog": {
+      "path": ".cache/t99-full-gates/2026-11-17T01-59-38.076Z/record.log",
+      "sha256": "7835d371754905f999a8f50043d07fcb5645d3527ad4b39b63a6a8c4439869d9"
+    }
+  },
+  "actualHttpSql": {
+    "tests": 13,
+    "pass": 13,
+    "fail": 0,
+    "skipped": 0,
+    "durationMs": 83312.6946,
+    "exit": 0,
+    "nativeLog": {
+      "path": ".cache/t99-full-gates/2026-11-17T02-13-40.601Z/native.log",
+      "sha256": "a8c1b7692d4b5d5f4a706e5fcb7eb1629b5752629e5632d1e8e16bd1628ad017"
+    },
+    "scope": "Real owned AppModule/HTTP/auth/SQL: both business modes, owner/admin/service keys/staff/foreign/invalid, read/save/no-op/clear, FK/version, same-setting concurrency, FAQ/private concurrent saves, public config/source/chunk preservation and actual failed-audit privacy.",
+    "cleanup": "Natural runtime close plus final explicit appClosed=true,remainingContainers=0,remainingBridgeSockets=0 assertions passed; no provider calls."
+  },
+  "firstActualHttpFailure": {
+    "tests": 13,
+    "pass": 11,
+    "fail": 2,
+    "skipped": 0,
+    "note": "One FAQ transport child and its parent failed: existing mandatory Idempotency-Key omitted by fixture. All private endpoint children passed. No status/assertion changed.",
+    "log": {
+      "path": ".cache/t99-full-gates/2026-11-17T02-03-45.362Z/native.log",
+      "sha256": "f4588c7850a27c2bbbad79ab05c9ae8f0e4b31e12dd75449d24f1feee6923068"
+    }
+  },
+  "faqTransportCorrection": {
+    "before": "4f7b21f99241e3b3062e828fda789988dbfd1cc8d7c8997a0a40eca443d0d715",
+    "after": "4583d53ea13eca8421c85a7bb5f0c81e0c86d57136d81df699c3eca1f28ddfec",
+    "allThirteenCaseBodiesAndAssertionsByteExact": true,
+    "expectedStatusesChanged": false,
+    "productiveApiChanged": false,
+    "change": "Only PUT /support/settings fixture transport supplies its existing mandatory UUID idempotency header",
+    "firstActualNativeLog": ".cache/t99-full-gates/2026-11-17T02-03-45.362Z/native.log",
+    "nativeCasesExpected": 13,
+    "taskComplete": false
+  },
+  "buildAttemptLimits": {
+    "standardFirst": "Fresh3954<5168 admission refused before capture/compiler; no build.",
+    "monitored": "Owned attempt t99-supervisor-20261117T011144767008Z refused516ms>500 gap; no reserve breach, ownedJobempty/forced termination, no attestation. Later standard pipeline passed.",
+    "receipt": {
+      "path": ".cache/phase3-gates/t99-supervisor-20261117T011144767008Z/supervisor.json",
+      "sha256": "529de4826eb8fb9598935b6ac5a4aa9509a67c66f5bd2749b0fef158c5ba87d7"
+    }
+  },
+  "followups": {
+    "privateSettingsUi101": true,
+    "staffAlert100": true,
+    "finalSameHeadProofsAndIndependentVerification": true
+  }
+}
