@@ -101,7 +101,7 @@ export class RouteToSessionUseCase {
 
       this.logger.log(`whatsapp_session_created merchant=${input.merchantId}`);
 
-      return { whatsappSession: waSession, checkoutSessionId, isNew: true, buyerData };
+      return { whatsappSession: waSession, checkoutSessionId: waSession.checkoutSessionId, isNew: true, buyerData };
     }
 
     // 5. Update activity

@@ -18,18 +18,19 @@ async function fixture(t:TestContext,bound=true){
  const cart=await db.storefrontCart.create({data:{merchantId,sessionId:cartRef,items,total:13980,expiresAt:new Date(Date.now()+48*3600_000)}});
  // This is a returning native buyer: initial routing already registered its scoped identity.
  await db.buyerIdentity.create({data:{merchantId,identityKey:"phone:"+phone,globalUserId:"qa-native-buyer-"+randomUUID()}});
+ const checkoutConversationId=randomUUID();
  const checkoutId=bound?"qa-bound-"+randomUUID():undefined;
- if(checkoutId){const session=checkoutSession({merchantId,sessionId:checkoutId,conversationId:cartRef});session.cart={...session.cart,cart_ref:cartRef};await new PrismaCheckoutRepository(db).saveSession(session);}
- const row=await db.whatsAppSession.create({data:{merchantId,buyerPhone:phone,deviceId,checkoutSessionId:checkoutId,lastActivityAt:new Date(Date.now()-25*3600_000),status:"active",conversationState:{version:1,conversationId:cartRef,stage:bound?"checkout":"store",checkoutSessionId:checkoutId,history:[{message:"old private history"}],payment:{intentId:"old-private-intent"},selections:{old:"old-private-selection"}}}});
+ if(checkoutId){const session=checkoutSession({merchantId,sessionId:checkoutId,conversationId:checkoutConversationId});session.cart={...session.cart,cart_ref:cartRef};session.customer={...session.customer,phone,phone_verified:true};await new PrismaCheckoutRepository(db).saveSession(session);}
+ const row=await db.whatsAppSession.create({data:{merchantId,buyerPhone:phone,deviceId,checkoutSessionId:checkoutId,lastActivityAt:new Date(Date.now()-25*3600_000),status:"active",conversationState:{version:1,conversationId:cartRef,stage:bound?"checkout":"store",checkoutSessionId:checkoutId,checkoutConversationId:"stale-pointer",history:[{message:"old private history"}],payment:{intentId:"old-private-intent"},selections:{old:"old-private-selection"}}}});
  const repo=new PrismaWhatsAppSessionRepository(db),route=new RouteToSessionUseCase(repo,db);
  const run=()=>route.execute({merchantId,deviceId,fromNumber:phone,fromAlias:"Owned QA buyer"});
- return{merchantId,foreignId,cartRef,phone,deviceId,checkoutId,row,cart,repo,route,run};
+ return{merchantId,foreignId,cartRef,phone,deviceId,checkoutId,checkoutConversationId,row,cart,repo,route,run};
 }
 
 for(const bound of [false,true])test("expired native conversation retains its valid canonical cart with fresh state, bound="+bound,async t=>{
  const f=await fixture(t,bound),beforeCount=await db.checkoutSession.count({where:{merchantId:f.merchantId}}),result=await f.run();
- assert.equal(result.isNew,true);assert.equal(result.checkoutSessionId,undefined);assert.equal(result.whatsappSession.checkoutSessionId,undefined);
- assert.deepEqual(result.whatsappSession.conversationState,{version:1,conversationId:f.cartRef,stage:"store",history:[],revision:"",page:0,previousViews:[]});
+ assert.equal(result.isNew,true);assert.equal(result.checkoutSessionId,f.checkoutId);assert.equal(result.whatsappSession.checkoutSessionId,f.checkoutId);
+ assert.deepEqual(result.whatsappSession.conversationState,{version:1,conversationId:f.cartRef,stage:bound?"checkout":"store",...(bound?{checkoutSessionId:f.checkoutId,checkoutConversationId:f.checkoutConversationId}:{}),history:[],revision:"",page:0,previousViews:[]});
  assert.deepEqual(await db.storefrontCart.findUniqueOrThrow({where:{id:f.cart.id}}),f.cart);
  const restored=await new PrismaStorefrontCartRepository(db).getOrCreate(f.merchantId,result.whatsappSession.conversationState!.conversationId);
  assert.deepEqual(restored.items,items);assert.equal(restored.total,13980);
@@ -76,12 +77,12 @@ for(const model of ["storefrontCart","checkoutSession","completedOrder","payment
 test("already expired native rows retain a valid cart when renewed after an interrupted previous attempt",async t=>{
  const f=await fixture(t);await db.whatsAppSession.update({where:{id:f.row.id},data:{status:"expired"}});
  const result=await f.run();assert.equal(result.isNew,true);assert.equal(result.whatsappSession.conversationState?.conversationId,f.cartRef);
- assert.equal(result.checkoutSessionId,undefined);assert.deepEqual(result.whatsappSession.conversationState?.history,[]);
+ assert.equal(result.checkoutSessionId,f.checkoutId);assert.deepEqual(result.whatsappSession.conversationState?.history,[]);
 });
 
 test("concurrent expired native renewals retain one canonical cart and one fresh state",async t=>{
  const f=await fixture(t),results=await Promise.all([f.run(),f.run()]);
- for(const result of results){assert.equal(result.whatsappSession.conversationState?.conversationId,f.cartRef);assert.equal(result.checkoutSessionId,undefined);assert.deepEqual(result.whatsappSession.conversationState?.history,[]);}
+ for(const result of results){assert.equal(result.whatsappSession.conversationState?.conversationId,f.cartRef);assert.equal(result.checkoutSessionId,f.checkoutId);assert.deepEqual(result.whatsappSession.conversationState?.history,[]);}
  assert.equal(results.filter(x=>x.isNew).length,1);assert.equal(await db.whatsAppSession.count({where:{merchantId:f.merchantId}}),1);
 });
 
@@ -94,4 +95,38 @@ test("renewal never overwrites a newer active conversation discovered under the 
 test("an active native session preserves its existing checkout and conversation state",async t=>{
  const f=await fixture(t);await db.whatsAppSession.update({where:{id:f.row.id},data:{lastActivityAt:new Date()}});
  const result=await f.run();assert.equal(result.isNew,false);assert.equal(result.checkoutSessionId,f.checkoutId);assert.deepEqual(result.whatsappSession.conversationState,f.row.conversationState);
+});
+
+test("renewal retains the persisted checkout and pending payment without modifying either",async t=>{
+ const f=await fixture(t),intent=await db.paymentIntent.create({data:{id:randomUUID(),merchantId:f.merchantId,sessionId:f.checkoutId!,idempotencyKey:randomUUID(),amountCents:13980,currency:"BRL",method:"pix",status:"pending",buyerFacing:{qrCodeCopyPaste:"owned-local-qr"}}});
+ const before=await db.checkoutSession.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId:f.merchantId,sessionId:f.checkoutId!}}});
+ const result=await f.run();assert.equal(result.checkoutSessionId,f.checkoutId);assert.equal(result.whatsappSession.conversationState?.checkoutConversationId,f.checkoutConversationId);
+ assert.equal(result.whatsappSession.conversationState?.payment,undefined);
+ assert.deepEqual(await db.paymentIntent.findUniqueOrThrow({where:{id:intent.id}}),intent);
+ assert.deepEqual(await db.checkoutSession.findUniqueOrThrow({where:{id:before.id}}),before);
+ assert.equal(await db.checkoutSession.count({where:{merchantId:f.merchantId}}),1);assert.equal(await db.paymentIntent.count({where:{merchantId:f.merchantId}}),1);
+});
+
+for(const variant of ["foreign_phone","unverified_phone","foreign_cart","ambiguous_unbound_checkout"])test("renewal refuses unsafe checkout ownership "+variant,async t=>{
+ const f=await fixture(t),stored=await db.checkoutSession.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId:f.merchantId,sessionId:f.checkoutId!}}});
+ if(variant==="foreign_phone"||variant==="unverified_phone")await db.checkoutSession.update({where:{id:stored.id},data:{customer:{...(stored.customer as object),...(variant==="foreign_phone"?{phone:"5511999999999"}:{phone_verified:false})}}});
+ if(variant==="foreign_cart")await db.checkoutSession.update({where:{id:stored.id},data:{cart:{...(stored.cart as object),cart_ref:randomUUID()}}});
+ if(variant==="ambiguous_unbound_checkout"){
+  const other=checkoutSession({merchantId:f.merchantId,sessionId:randomUUID(),conversationId:randomUUID(),customer:{phone:f.phone,phone_verified:true}});other.cart={...other.cart,cart_ref:f.cartRef};await new PrismaCheckoutRepository(db).saveSession(other);
+  await db.whatsAppSession.update({where:{id:f.row.id},data:{checkoutSessionId:null,lastActivityAt:f.row.lastActivityAt}});
+ }
+ const result=await f.run();assert.equal(result.checkoutSessionId,undefined);assert.notEqual(result.whatsappSession.conversationState?.conversationId,f.cartRef);
+ assert.equal(await db.paymentIntent.count({where:{merchantId:f.merchantId}}),0);
+});
+
+test("a single owned checkout on an unbound cart is recovered without creating another",async t=>{
+ const f=await fixture(t);await db.whatsAppSession.update({where:{id:f.row.id},data:{checkoutSessionId:null,lastActivityAt:f.row.lastActivityAt}});
+ const result=await f.run();assert.equal(result.checkoutSessionId,f.checkoutId);assert.equal(result.whatsappSession.conversationState?.stage,"checkout");
+ assert.equal(await db.checkoutSession.count({where:{merchantId:f.merchantId}}),1);
+});
+
+test("malformed private checkout binding rolls renewal back without dropping the old state",async t=>{
+ const f=await fixture(t),stored=await db.checkoutSession.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId:f.merchantId,sessionId:f.checkoutId!}}});
+ await db.checkoutSession.update({where:{id:stored.id},data:{cart:{...(stored.cart as object),_storefrontCouponBinding:{invalid:true}}}});
+ await assert.rejects(f.run(),/whatsapp_recovery_cart_unavailable/);assert.deepEqual(await db.whatsAppSession.findUniqueOrThrow({where:{id:f.row.id}}),f.row);
 });
