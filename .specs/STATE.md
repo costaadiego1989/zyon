@@ -2,6 +2,8 @@
 
 ## Handoff
 
+- T106 integrated locally fromda776b4fa,61/108 tasks committed. Current professional-link188 tests and Browser8 passed; Root reviewed14 actual frames. No API/package/schema/lock delta, Root71 WIP preserved. T78 is now unblocked by77/105/106;79 still requires41. All three oracle corrections31/56/71 await user, final whole-feature validation pending.
+
 - T105 integrated locally fromfc1f8abbc,60/108 tasks committed. Four catalog toggles, current139 component cases and Browser2, six native frames technically reviewed; API inputs unchanged. T106 and final independent screens proof remain pending. No production/user-approval claim.
 
 - T55 integrated locally from5a10fad61, task59/108 complete. Authenticated operator receipts and existing relay startup passed all own gates, local provider traps only. Root71 remains WIP; its old checked build is stale after55 integration. C105 runtime; M56/P32-38 source only,31 approval pending. No remote action or final feature verification.

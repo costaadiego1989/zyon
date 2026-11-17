@@ -11,6 +11,7 @@ import { VariantManager } from "./components/VariantManager.js";
 import { MediaUploader } from "./components/MediaUploader.js";
 import { SeoSection } from "./components/SeoSection.js";
 import { PromotionSection } from "./components/PromotionSection.js";
+import { ServiceProfessionalLinks } from "./components/ServiceProfessionalLinks.js";
 import { AdvancedLayoutTab } from "./components/AdvancedLayoutTab.js";
 import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
@@ -135,6 +136,18 @@ function ProductDetailEditor(props: ProductDetailPageProps) {
             onOptionGroupsChange={page.form.setOptionGroups}
           />
           </SectionErrorBoundary>
+
+          {page.businessMode === "services" && isService && (
+            <SectionErrorBoundary sectionName="Profissionais do serviço">
+              <ServiceProfessionalLinks
+                me={props.me}
+                productId={page.createdProductId || props.productId}
+                businessMode={page.businessMode}
+                productType={page.form.productType}
+                blocked={!page.loaded || page.loading || page.saving || Boolean(page.loadError || page.businessModeError)}
+              />
+            </SectionErrorBoundary>
+          )}
 
           <SectionErrorBoundary sectionName="Variantes">
           <VariantManager

@@ -713,7 +713,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   me={me}
                   productId={editingProductId}
                   onBack={() => changeTab("catalog")}
-                  onSaved={() => changeTab("catalog")}
+                  onSaved={() => { if (me.businessMode !== "services") changeTab("catalog"); }}
                 />
               </RouteGuard>
             ) : null}

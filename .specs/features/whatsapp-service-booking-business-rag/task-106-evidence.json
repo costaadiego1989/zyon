@@ -1,0 +1,314 @@
+{
+  "task": "T106",
+  "status": "Full LOCAL PASS; marked before focused atomic commit",
+  "recordedAtUtc": "2026-11-17T10:38:17.477619+00:00",
+  "scope": "Saved-service professional associations through existing authenticated SDK73 and GET/PATCH productIds+expectedVersion only. No backend/schema/package/lock or role policy change.",
+  "baseCommit": "fc1f8abbc58c029b8b4211ea950f6c18005495e3",
+  "root105Integrated": "55f66574d",
+  "sourceFreezeSha256": "c8c2a8af21a4b3aa01d2df5e4223f63626702b8229f28a574953dc1680218f04",
+  "all54FrozenInputsExactBeforeMetadata": true,
+  "components": {
+    "passed": 188,
+    "files": 15,
+    "failed": 0,
+    "skipped": 0,
+    "durationSeconds": 19.94,
+    "completedAt": "2026-11-17T09:53:45.001Z",
+    "composition": {
+      "newHook": 36,
+      "newComponent": 10,
+      "oldCatalogAndEntitlement": 93,
+      "oldSDKTransport": 49
+    },
+    "admissionCommitMiB": 6996,
+    "minimumMiB": 1024,
+    "workers": 1,
+    "log": ".cache/t106-execution/components-2026-11-17T09-53-23.628Z"
+  },
+  "lint": {
+    "initialFiles": 13,
+    "initialExit": 0,
+    "log": ".cache/t106-execution/lint-2026-11-17T10-03-33.094Z",
+    "afterMechanicalRowLocatorFiles": 1,
+    "afterMechanicalRowLocatorExit": 0,
+    "afterMechanicalRowLocatorLog": ".cache/t106-execution/lint-2026-11-17T10-22-28.534Z"
+  },
+  "types": {
+    "exit": 0,
+    "completedAt": "2026-11-17T10:04:00.260Z",
+    "minimumMiB": 5168,
+    "admissionCommitMiB": 6684,
+    "log": ".cache/t106-execution/types-2026-11-17T10-03-38.451Z"
+  },
+  "officialDashboardBuild": {
+    "exit": 0,
+    "completedAt": "2026-11-17T10:04:43.176Z",
+    "modules": 2122,
+    "minimumMiB": 5168,
+    "admissionCommitMiB": 6894,
+    "command": "node scripts/service-local-build.mjs dashboard",
+    "log": ".cache/t106-execution/build-2026-11-17T10-04-07.511Z"
+  },
+  "inputReuse": {
+    "componentsTypesBuildInputsUnchangedAfterOneLineE2ELocatorRepair": true,
+    "rootExplicitReuseAccepted": true,
+    "noAPIArtifactCopiedOrRebuilt": true
+  },
+  "browser": {
+    "passed": 8,
+    "files": 3,
+    "newCases": 4,
+    "oldCases": 4,
+    "failed": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "unexpected": 0,
+    "exit": 0,
+    "completedAt": "2026-11-17T10:24:18.372Z",
+    "durationMs": 100608.733,
+    "minimumMiB": 2048,
+    "admissionCommitMiB": 7575,
+    "workers": 1,
+    "config": "apps/dashboard/playwright.service-catalog-professionals-local.config.ts",
+    "log": ".cache/t106-execution/browser-2026-11-17T10-22-36.725Z",
+    "discoveryLog": ".cache/t106-execution/list-2026-11-17T10-22-31.196Z"
+  },
+  "ownAPI": {
+    "sourceCount": 2543,
+    "inputSha256": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+    "artifactSha256": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+    "readmissionExit": 0,
+    "log": ".cache/t106-execution/artifact-2026-11-17T10-22-32.620Z",
+    "generatedPrisma": "6.19.3"
+  },
+  "nativeFrames": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/service-links-saved-desktop.running.png",
+      "sha256": "48da2e23dc87392328020a72876f734839a0a36ebf6e386d9a90741e5448870a",
+      "width": 1440,
+      "height": 1000,
+      "mtimeUtc": "2026-11-17T10:23:41.692726+00:00"
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/service-links-saved-mobile.running.png",
+      "sha256": "e550f4fb575dcaa25fa9ebfab939e17b0f46b65df3cec87da01d8f0db9354ff0",
+      "width": 390,
+      "height": 844,
+      "mtimeUtc": "2026-11-17T10:23:41.933789+00:00"
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/service-links-page2-desktop.running.png",
+      "sha256": "ad58748f574bd1d70b1f01e25f89c0a65e861c3f0223f03f87579763de1aa6dd",
+      "width": 1440,
+      "height": 1000,
+      "mtimeUtc": "2026-11-17T10:23:48.143916+00:00"
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/service-links-page2-mobile.running.png",
+      "sha256": "a6edbc097eafc74ccca58e9d930d1ab470f90f47f80533b8a13ef2cb3fc036f1",
+      "width": 390,
+      "height": 844,
+      "mtimeUtc": "2026-11-17T10:23:48.378274+00:00"
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/service-links-conflict-desktop.running.png",
+      "sha256": "d1195d2f5e530968b2c824f88feddee64814e04687d888578f3d0853345be300",
+      "width": 1440,
+      "height": 1000,
+      "mtimeUtc": "2026-11-17T10:23:52.532892+00:00"
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/service-links-conflict-mobile.running.png",
+      "sha256": "421900e33455e3079859ade82d30754c630c777d8524cc4f636cb154aa4fe425",
+      "width": 390,
+      "height": 844,
+      "mtimeUtc": "2026-11-17T10:23:52.889873+00:00"
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/service-links-recovered-desktop.running.png",
+      "sha256": "650d3992bed7a78998e86b03696cc686c327a3b8dff8f980c7fd49f2f6ed02d6",
+      "width": 1440,
+      "height": 1000,
+      "mtimeUtc": "2026-11-17T10:23:53.863150+00:00"
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/service-links-recovered-mobile.running.png",
+      "sha256": "9b08bb12c37cd8709a8978081fd24831ed961b23061af019408a57b0460ace74",
+      "width": 390,
+      "height": 844,
+      "mtimeUtc": "2026-11-17T10:23:54.113306+00:00"
+    }
+  ],
+  "changedLegacyFrames": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-services.running.png",
+      "beforeSha256": "8432a2eff5edc609876ed42a0bc2102fbeb3aefe12ba9e42115e528a6faeed27",
+      "afterSha256": "796b02618735d20879427b966f799e1a2bfb556daac4a52507990e502cec7c0d",
+      "changed": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-active-desktop.running.png",
+      "beforeSha256": "0edd4f990fd4cfc6ec1dd9da13b77ad3d34b8f4cb1b4185e9b4744b4ca8032df",
+      "afterSha256": "66d0521293b0350f77eea96edcf492d0faec6367fd2ef6d1627bac3eb960d7ed",
+      "changed": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-food-desktop.running.png",
+      "beforeSha256": "9e8efb6b34469b34e1ce7b92569e5933171631493803fce713aef0f484770820",
+      "afterSha256": "1b49b49b4e2f56f7511918292263419a1d2441dcdd4fd9948b5aa2ebb69aa9e0",
+      "changed": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-food-mobile.running.png",
+      "beforeSha256": "98678da1e321bca24550521ae17c43153979ae88794f262adce95b9b19e83ea0",
+      "afterSha256": "df94d5d8a282c02482d5b16073430c25ff6851454c7e12384f1adff3ff656610",
+      "changed": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-service-desktop.running.png",
+      "beforeSha256": "73df1f8c894769cd76e870e451ac1d9a9f4925f6e4b3f22cfc1417454b127d95",
+      "afterSha256": "1f776fb70e253bcbaf152b3ee5e8917822e7c831f634e631569762fd22d752c5",
+      "changed": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-service-mobile.running.png",
+      "beforeSha256": "0176ea6039bd900bd786361d0685ea5684e9631859b3921b0d66e027b5ecd6fa",
+      "afterSha256": "b0e15cb2a4eb0709ca9e3fe43924248407794f5384ec1fbfcb866ec7972efa11",
+      "changed": true
+    }
+  ],
+  "legacyComparison": ".cache/t106-execution/browser-2026-11-17T10-22-36.725Z/legacy-capture-comparison.json",
+  "legacyBeforeArchive": ".cache/t106-execution/legacy-captures-before-browser/manifest.json",
+  "unchangedLegacyFrames": 12,
+  "technicalReview": {
+    "reviewer": "Root",
+    "kind": "technical incremental task review, not final independent Verifier",
+    "all14CurrentFramesActuallyOpened": true,
+    "nativeNewFrames": 8,
+    "changedLegacyFrames": 6,
+    "userVisualApprovalClaimed": false,
+    "conclusion": "PASS: estados salvo, segunda página, conflito e recuperação legíveis; toggles à direita; controles legados preservados. Toast transitório de atualização no serviço fica fora dos controles do painel-alvo.",
+    "beforeBytesAndComparisonPreserved": true
+  },
+  "cleanup": {
+    "normalBeforeClosedAckAndDisconnected": true,
+    "liveTimers": [],
+    "knownCNodeCmdCount": 0,
+    "knownCScanAt": "2026-11-17T10:24:57.405Z",
+    "runtimeReturnedToRoot": true
+  },
+  "seedActual": {
+    "requests": 57,
+    "summary": {
+      "countsByActor": {
+        "anonymous-ip": 6,
+        "create-owner": 5,
+        "pagination-owner": 32,
+        "partial-owner": 10,
+        "products-owner": 2,
+        "staff": 2
+      },
+      "professionalSeedsViaAPI": 30,
+      "noQuotaResetOrWait": true
+    },
+    "journal429": 0
+  },
+  "noQuotaResetWaitProfessionalSQLSeedOrDeadlineChange": true,
+  "testSelfCheck": {
+    "newCasesAssertRequiredOutcomes": true,
+    "cat04ProofSelectsAllFourNewNativeCases": true,
+    "payloadFullOtherProductIdsExpectedVersionAndDatabaseResultsAsserted": true,
+    "actualCreateLinkUpdateReopenUnlinkAndReloadReconfirmGestures": true,
+    "partialSavedFailedUnprocessedRowsAndNoDuplicateCreationAsserted": true,
+    "productStaffForeignUnknownAndStaleContextsFailClosed": true,
+    "oldTestCasesAndBusinessAssertionsPreserved": true,
+    "onlyAuthorizedServiceBackAndMechanicalRowAddressAdjusted": true,
+    "noSkippedDeletedWeakenedAssertions": true,
+    "noSpecDeviationOrUnnecessaryAbstraction": true
+  },
+  "history": {
+    "componentOnlySnapshot": {
+      "task": "T106",
+      "status": "PARTIAL unit green; Full/browser/visual gates pending",
+      "result": {
+        "kind": "components",
+        "exit": 0,
+        "completedAt": "2026-11-17T09:53:45.001Z"
+      },
+      "passed": 188,
+      "files": 15,
+      "failed": 0,
+      "skipped": 0,
+      "durationSeconds": 19.94,
+      "composition": {
+        "newHook": 36,
+        "newComponent": 10,
+        "oldCatalogAndEntitlement": 93,
+        "oldSDKTransport": 49
+      },
+      "admissionCommitMiB": 6996,
+      "admissionMinimumMiB": 1024,
+      "workers": 1,
+      "all47FrozenInputsExactAtClose": true,
+      "sourceFreezeSha256": "f0aab106b635fce183c770f15c7ae92fa7bef7b69004ab18cde18a54b7b7f8d2",
+      "knownCNodeCmdCount": 0,
+      "noAPIAppOrNativeResourcesStarted": true,
+      "typesExecuted": false,
+      "lintExecuted": false,
+      "buildExecuted": false,
+      "nativeListExecuted": false,
+      "browserExecuted": false,
+      "newCapturesGenerated": 0,
+      "taskMarked": false,
+      "commitCreated": false,
+      "runtimeReturnedToRoot": true,
+      "oldBackCaseProof": "Product cases byte exact; whole original105case bodies exact; serviceBack helper and98three-line Back delta only",
+      "manualFutureBrowserInventory": "4newCAT04+2oldCAT02+2oldCAT03=8/3files;8new native captures",
+      "sourceNativeFixtureOnly": "30professionals via API planned,57seedHTTP estimated by actor; none executed",
+      "sourceSeedCountsPlanned": {
+        "create-owner": 5,
+        "pagination-owner": 32,
+        "partial-ownerIncludingStaffProfile403": 10,
+        "products-owner": 2,
+        "staffInitialOwnTenant": 2
+      },
+      "noQuotaResetWaitSQLProfessionalSeedOrDeadlineChange": true,
+      "filesystemReceiptNote": "An overbroad optional Unicode audit treated legitimate uppercase Portuguese A-tilde in inherited Shell as suspicious. No app/test/source change resulted; no acceptance oracle was involved.",
+      "recordedAtUtc": "2026-11-17T09:59:42.823118+00:00",
+      "logs": ".cache/t106-execution/components-2026-11-17T09-53-23.628Z",
+      "receiptSha256": "e26cb3d6ce31e27a7ee17573a246def8ac13d4011ea237fa027d4d7b52a01c9c",
+      "rootReviewedSourceManifest": "beb22fbdb38a5365318238d23fafb3ffa66dfdb2618ab5a40bad4ac34292136c",
+      "Root105Integrated": "55f66574d",
+      "backendSourceNotCopied": true,
+      "sourceGateInventory": ".cache/t106-execution/gate-inventory.json"
+    },
+    "firstWholeBrowser": {
+      "log": ".cache/t106-execution/browser-2026-11-17T10-06-43.384Z",
+      "passed": 5,
+      "failed": 3,
+      "skipped": 0,
+      "flaky": 0,
+      "exit": 1,
+      "completedAt": "2026-11-17T10:08:37.815Z",
+      "durationMs": 113472.558,
+      "normalCleanup": true,
+      "knownCNodeCmdCount": 0,
+      "cause": "New row helper incorrectly required an ancestor region inside the li relative has locator. Real DOM and HTTP200/409 disproved missing saved state.",
+      "causalPacketSha256": "55b5bbcecd336ed4ba2cb5a70e06ff254da0d8d487feb083248d055e57efc9e2",
+      "failureArtifactsArchived": true
+    },
+    "rootReviewedMechanicalRepair": {
+      "patchSha256": "dcd43313439c799d5dffb5d402800e59d41cbf49166e295faa7bcb84c97918c0",
+      "candidateE2ESha256": "26a26796c006018274a93ba052dbc936010688f2d519b5ea48477f0b553f3aab",
+      "sameOuterRegionLiSwitchExactNameAndAllExpects": true,
+      "checkApplyReverseCheck": 0
+    }
+  },
+  "taskMarkedBeforeCommit": true,
+  "commitMessage": "feat(service-business): t106 link professionals from service editor",
+  "commitManifest": ".cache/t106-execution/commit-preparation/paths.json",
+  "commitCreatedAtEvidenceWrite": false,
+  "wholeFeatureOrUserApprovalOrFinalVerifierClaimed": false,
+  "productionProviderRemoteActions": 0,
+  "next": "T78 source after T106 focused commit; runtime only on explicit team handover. T82 global navigation/footer and T79 dependency41 remain separate."
+}

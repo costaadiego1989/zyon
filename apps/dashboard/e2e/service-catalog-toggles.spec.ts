@@ -50,13 +50,19 @@ async function catalogReady(page:Page,mode:'products'|'services'){
   await expect(page.getByRole('heading',{name:mode==='services'?'Serviços':'Produtos',exact:true}).first()).toBeVisible();
   await expect(page.getByRole('button',{name:'Todos',exact:true})).toHaveAttribute('aria-pressed','true');
 }
+async function returnServiceToCatalog(page:Page,mode:'products'|'services'){
+  if(mode!=='services')return;
+  await expect(page.getByRole('button',{name:'Salvar alterações',exact:true})).toBeEnabled();
+  await expect(page.locator('.product-detail > [role="alert"]')).toHaveCount(0);
+  await page.getByRole('button',{name:'Voltar para Serviços',exact:true}).click();
+}
 async function saveNew(page:Page,auth:Auth,mode:'products'|'services'){
   const pending=page.waitForResponse(response=>response.url().endsWith(`/v1/merchants/${auth.merchant_id}/products`)&&response.request().method()==='POST');
-  const [saved]=await Promise.all([pending,page.getByRole('button',{name:mode==='services'?'Criar serviço':'Criar produto',exact:true}).click()]);expect(saved.status()).toBe(201);await catalogReady(page,mode);return {product:await saved.json(),body:saved.request().postDataJSON()};
+  const [saved]=await Promise.all([pending,page.getByRole('button',{name:mode==='services'?'Criar serviço':'Criar produto',exact:true}).click()]);expect(saved.status()).toBe(201);await returnServiceToCatalog(page,mode);await catalogReady(page,mode);return {product:await saved.json(),body:saved.request().postDataJSON()};
 }
 async function saveExisting(page:Page,auth:Auth,id:string,mode:'products'|'services'){
   const pending=page.waitForResponse(response=>response.url().endsWith(`/v1/merchants/${auth.merchant_id}/products/${id}/variants`)&&response.request().method()==='PUT');
-  const [saved]=await Promise.all([pending,page.getByRole('button',{name:'Salvar alterações',exact:true}).click()]);expect(saved.status()).toBe(200);await catalogReady(page,mode);return saved.request().postDataJSON();
+  const [saved]=await Promise.all([pending,page.getByRole('button',{name:'Salvar alterações',exact:true}).click()]);expect(saved.status()).toBe(200);await returnServiceToCatalog(page,mode);await catalogReady(page,mode);return saved.request().postDataJSON();
 }
 async function read(request:APIRequestContext,auth:Auth,id:string){
   const response=await request.get(`/v1/merchants/${auth.merchant_id}/products/${id}`,{headers:headers(auth)});expect(response.status()).toBe(200);return response.json();

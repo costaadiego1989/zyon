@@ -66,6 +66,9 @@ test('CAT-02 service creation resets correctly and a stale mode cannot bypass th
   const created=await saved.json(),stored=await request.get(`/v1/merchants/${auth.merchant_id}/products/${created.id}`,{headers:headers(auth)});expect(stored.status()).toBe(200);expect(await stored.json()).toMatchObject({id:created.id,type:'service',name:'Consulta local'});
   const refused=await request.post(`/v1/merchants/${auth.merchant_id}/products`,{headers:headers(auth),data:{name:'Forbidden physical',type:'physical',variants:[{sku:'forbidden-physical-t98',basePriceInCents:1000,weightGrams:100}]}});
   expect(refused.status()).toBe(409);expect(JSON.stringify(await refused.json())).toContain('catalog_business_mode_conflict');
+  await expect(page.getByRole('button',{name:'Salvar alterações',exact:true})).toBeEnabled();
+  await expect(page.locator('.product-detail > [role="alert"]')).toHaveCount(0);
+  await page.getByRole('button',{name:'Voltar para Serviços',exact:true}).click();
   await expect(page.getByRole('button',{name:'Cadastrar serviço',exact:true}).first()).toBeVisible();await page.getByRole('button',{name:'Cadastrar serviço',exact:true}).first().click();
   await expect(page.getByRole('heading',{name:'Novo serviço',exact:true})).toBeVisible();await expect(page.getByLabel(/^Nome \*/)).toHaveValue('');await expect(page.getByLabel('SKU *',{exact:true})).toHaveValue('');await expect(page.locator('button[aria-pressed]')).toHaveCount(0);
   await fill(page,'services','Stale service draft','stale-service-t98');
