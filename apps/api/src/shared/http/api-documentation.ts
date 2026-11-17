@@ -514,6 +514,10 @@ function scalarSecurityHeaders(
   response: Response,
   next: NextFunction,
 ): void {
+  const apiOrigins = [
+    process.env.AACP_SANDBOX_API_URL ?? "https://sandbox-api.aacp.dev",
+    process.env.AACP_PRODUCTION_API_URL ?? "https://api.aacp.dev",
+  ].map(value => new URL(apiOrigin(value)).origin);
   response.setHeader(
     "Content-Security-Policy",
     [
@@ -524,7 +528,7 @@ function scalarSecurityHeaders(
       "font-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-      "connect-src 'self' https://sandbox-api.aacp.dev https://api.aacp.dev",
+      `connect-src 'self' ${apiOrigins.join(" ")}`,
     ].join("; "),
   );
   response.setHeader("Cache-Control", "no-store");
