@@ -21,6 +21,8 @@ export interface AssistantCampaignProgress {
   awaitingFields: string[];
   /** Conversation preference only. Automatic authority requires an independently accepted policy. */
   approvalPreference?: 'manual' | 'automatic';
+  /** Creative count requested during planning, within the existing image allowance. */
+  requestedImages?: number;
 }
 export interface AssistantTurn {
   id: string;

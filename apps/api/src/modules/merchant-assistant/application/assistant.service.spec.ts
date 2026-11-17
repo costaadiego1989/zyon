@@ -57,11 +57,11 @@ test('ADAS-23 model receives missing campaign fields and asks only the remaining
     assert.equal(input.state?.campaign?.draft.priority, 'roas');
     assert.deepEqual(input.state?.campaign?.draft.variantIds, ['variant-a']);
     assert.ok(!input.state?.campaign?.awaitingFields.includes('priority'));
-    return answer('Qual orçamento, período, região e modo de aprovação deseja?');
+    return answer('Qual orçamento, período e região deseja?');
   })()); try {
     const response = await f.process(); assert.match(response.reply, /orçamento/);
     const progress = (await f.conversations.readThread(assistantScope, f.thread.id)).campaignProgress!;
-    assert.deepEqual(progress.awaitingFields, ['budget', 'country', 'approvalPreference']);
+    assert.deepEqual(progress.awaitingFields, ['budget', 'country']);
     assert.equal(response.artifacts[0].type, 'campaign_progress'); assert.equal(f.inputs.length, 2);
     assert.ok(f.inputs[1].messages.some(m => m.role === 'tool' && m.tool_call_id === 'call-a'));
   } finally { await f.close(); }

@@ -77,6 +77,12 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
     const user=await input.prisma.merchantUser.findUnique({where:{id:actorId},select:{id:true,disabledAt:true}});
     if(!user||user.disabledAt)throw new MetaAdsError('meta_ads_role_forbidden',403);
   };
+  const authorizePreparation=async(merchantId:string,actorId:string)=>{
+    await authorizeActor(merchantId,actorId);
+    if(!approvalEnabled()||!input.assistant)throw new MetaAdsError('campaign_preparation_unavailable',503);
+    try{await input.assistant.authorizeTool({merchantId,actorId,context:'meta-ads'},'merchant_ads_prepare');}catch{throw new MetaAdsError('campaign_preparation_forbidden',403);}
+    if(!approvalEnabled())throw new MetaAdsError('campaign_preparation_unavailable',503);
+  };
   const funding = new FundingService(repo, billing, connection, new MetaFundingAdapter({ graphVersion: env.META_ADS_GRAPH_API_VERSION ?? '', request, clock }), clock);
   const budgetControl = new MetaBudgetControlAdapter({ request, clock });
   const policies = new AutomationPolicyService({ repo, commerce, connection, campaigns, authorizeActor, enabled: automationEnabled, clock });
@@ -84,12 +90,12 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const authority = new ExecutionAuthorityService({ repo, commerce, connection, campaigns, policies, exposure, budgetControl, funding, authorizeActor, enabled: automationEnabled,launchEnabled:approvalEnabled, clock });
   const executions = new ExecutionService(repo, commerce, campaigns, connection, provider, clock, undefined, { authority, exposure, budgetControl });
   const preparations=new PrismaCampaignPreparationRepository(input.prisma,clock),notices=new PrismaCampaignReadyNoticeRepository(input.prisma,clock);
-  const preparation=new CampaignPreparationService({repo,commerce,campaigns,connection,preparations,authorizeActor,enabled:approvalEnabled,clock});
+  const preparation=new CampaignPreparationService({repo,commerce,campaigns,connection,preparations,authorizeActor,authorizePreparation,enabled:approvalEnabled,clock});
   const launches=new InitialLaunchService({repo,commerce,campaigns,proposals,executions,preparations,notices,authorizeActor,enabled:approvalEnabled,clock});
   const contacts=new CampaignNoticeContactService({db:input.prisma,authorizeActor,clock,senderNumber:async merchantId=>{
     const config=await input.whatsapp.findByMerchantId(merchantId);return config?.merchantId===merchantId?config.whatsappNumber??config.phoneNumber??null:null;
   }});
-  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor,enabled:approvalEnabled,clock});
+  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,enabled:approvalEnabled,clock});
   const noticeSender=input.templates&&input.templateSender?new CampaignReadyNoticeSender({db:input.prisma,notices,configs:input.whatsapp,templates:input.templates,templateSender:input.templateSender,launches,authorizeActor,
     storeName:async merchantId=>(await commerce.getProfile(merchantId)).name,dashboardUrl:env.META_ADS_DASHBOARD_URL??'',clock,enabled:()=>approvalEnabled()&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true'}):null;
   const noticeWorker=new CampaignReadyNoticeWorker({repo,launches,notices,sender:{send:async lease=>{
@@ -123,6 +129,13 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
     const assistant = input.assistant;
     assistant.contexts.register(new MetaAdsAssistantAdapter({ service, conversations: assistant.repo, authorizeActor:async scope=>{await authorizeActor(scope.merchantId,scope.actorId);await assistant.authorizeActor(scope);}, authorizeTool: assistant.authorizeTool,
       enabled: () => env.META_ADS_AGENT_ENABLED === 'true' && env.MERCHANT_ASSISTANT_ENABLED === 'true', clock,
+      preparation,launchReview:(merchantId,actorId,campaignId)=>launches.review(merchantId,actorId,campaignId),
+      planningContext:async merchantId=>{
+        const access=await connection.access(merchantId);if(!access.accountId)throw new MetaAdsError('meta_account_required',409);
+        const timezone=await provider.accountTimezone(access),current=await connection.access(merchantId);
+        if(current.accountId!==access.accountId||current.connectionEpoch!==access.connectionEpoch)throw new MetaAdsError('meta_connection_changed',409);
+        return{accountId:access.accountId,timezone};
+      },
       funding: merchantId => funding.describe(merchantId), reviewAutomation: (merchantId, terms, actorId) => policies.review(merchantId, actorId, terms),
       dailyReports: async (merchantId, localDay) => {
         const accountId = (await repo.read(merchantId)).connection.account?.id; if (!accountId) return [];

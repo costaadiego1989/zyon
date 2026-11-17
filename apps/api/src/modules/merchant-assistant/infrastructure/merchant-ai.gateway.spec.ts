@@ -41,6 +41,9 @@ test('ADAS-23 server campaign state reaches the existing motor separately from u
     assert.ok(f.requests[0].body.messages[0].content.includes('não interprete')||f.requests[0].body.messages[0].content.includes('Não interprete'));
   }finally{await f.close();}
 });
+test('ACAP-01 ACAP-11 current motor instructions use canonical planning time internal preparation and mandatory initial approval',async()=>{
+  const f=await fixture();try{await f.gateway.complete(f.input);const prompt=f.requests[0].body.messages[0].content;assert.match(prompt,/campanha nova[\s\S]{0,120}aprova/i);assert.match(prompt,/merchant_ads_planning_context/);assert.match(prompt,/merchant_ads_prepare/);assert.match(prompt,/fuso|IANA/);assert.equal(prompt.includes('região e preferência de aprovação'),false);assert.equal(f.requests.length,1);}finally{await f.close();}
+});
 test('model denial and wrong thread scope do not reach the provider or add a paid attempt',async()=>{
   const f=await fixture();try{f.deny();await assert.rejects(f.gateway.complete(f.input),{code:'assistant_model_forbidden'});assert.equal(f.requests.length,0);
     assert.deepEqual((await f.repo.turns(scope,f.thread.id)).turns[0].providerRequests,[]);
