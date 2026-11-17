@@ -19,6 +19,11 @@ test('ADAS-32 exact scope amounts cadence validity and explicit acknowledgement 
   const accept=Array.from(screen.container.querySelectorAll('button')).find(x=>x.textContent==='Aceitar política automática')!;expect(accept.disabled).toBe(true);await acknowledge();await screen.click('Aceitar política automática');expect(p.onAccept.mock.calls[0]).toEqual([review]);
   await screen.render(<AutomationPolicyPanel {...p} state={automatic}/>);expect(screen.container.textContent).toContain('Modo atual: automático');expect(screen.container.textContent).toContain('Política 1');
 });
+
+test('ADAS-32 policy risks explain money and revocation without internal warning identifiers',async()=>{
+  screen=ui();await screen.render(<AutomationPolicyPanel {...props()} review={{...review,warnings:['automatic_budget_control_verification_required','media_spend_separate_from_subscription','revocation_does_not_pause_ads']}}/>);
+  const text=screen.container.textContent!;expect(text).toContain('controle financeiro');expect(text).toContain('pago diretamente à Meta');expect(text).toContain('não pausa anúncios');for(const code of ['automatic_budget_control_verification_required','media_spend_separate_from_subscription','revocation_does_not_pause_ads'])expect(text).not.toContain(code);expect((screen.container.querySelector('input[type=checkbox]') as HTMLInputElement).checked).toBe(false);
+});
 test('ADAS-33 changing a review invalidates the previous acknowledgement and cannot accept an old digest',async()=>{
   screen=ui();const p=props();await screen.render(<AutomationPolicyPanel {...p} review={review}/>);await acknowledge();const changed={...review,version:2,digest:'changed',limits:{...review.limits,storeCeilingCents:15000}};await screen.render(<AutomationPolicyPanel {...p} review={changed}/>);
   expect((screen.container.querySelector('input[type=checkbox]') as HTMLInputElement).checked).toBe(false);expect(p.onAccept).not.toHaveBeenCalled();await acknowledge();await screen.click('Aceitar política automática');expect(p.onAccept.mock.calls[0]).toEqual([changed]);expect(screen.container.textContent).toContain('150,00');

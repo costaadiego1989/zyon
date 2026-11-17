@@ -22,6 +22,14 @@ test('ADAS-11 persisted conversation and campaign progress load beside existing 
   screen=ui();const h=thread([turn()]);h.campaign={campaignId:null,draft:{name:'Planejamento salvo'},awaitingFields:['budget']};const f=fixture(h);await screen.render(<MetaAdsAssistant {...f.props}><button>Controle existente</button></MetaAdsAssistant>);
   expect(screen.container.textContent).toContain('Resposta persistida');expect(screen.container.textContent).toContain('Planejamento salvo');expect(screen.container.textContent).toContain('Orçamento');expect(screen.container.textContent).toContain('Controle existente');expect(f.client.submit).not.toHaveBeenCalled();
 });
+
+test('ADAS-65 dashboard navigation switches the main surface and preserves the same mounted conversation without submissions',async()=>{
+  screen=ui();const f=fixture(thread([turn({reply:'Conversa preservada entre telas'})]));await screen.render(<MetaAdsAssistant {...f.props} settings={<p>Configuração secundária da loja</p>}><p>Área de campanhas</p></MetaAdsAssistant>);
+  const panel=(id:string)=>screen.container.querySelector<HTMLElement>(`[data-assistant-panel="${id}"]`)!;
+  expect(panel('campaigns').hidden).toBe(false);expect(panel('metrics').hidden).toBe(true);expect(panel('settings').hidden).toBe(true);
+  const dock=screen.container.querySelector('.chat-dock');await screen.click('Métricas');expect(panel('metrics').hidden).toBe(false);expect(panel('campaigns').hidden).toBe(true);await screen.click('Configurações');expect(panel('settings').hidden).toBe(false);expect(panel('settings').textContent).toContain('Configuração secundária da loja');
+  await screen.click('Campanhas');expect(panel('campaigns').hidden).toBe(false);expect(screen.container.querySelector('.chat-dock')).toBe(dock);expect(dock?.textContent).toContain('Conversa preservada entre telas');expect(f.client.submit).not.toHaveBeenCalled();expect(f.client.thread).toHaveBeenCalledTimes(1);
+});
 test('ADAS-10 send gesture displays admitted processing and confirmed reply from a later read',async()=>{
   screen=ui();const f=fixture();await screen.render(<MetaAdsAssistant {...f.props}/>);await screen.change('Mensagem para a IA','Quero anunciar bolsas');await screen.click('Enviar mensagem');expect(screen.container.textContent).toContain('Processando');expect(f.client.submit.mock.calls[0][2]).toMatchObject({message:'Quero anunciar bolsas',expectedRevision:0});
   f.client.thread.mockResolvedValue(thread([turn({message:'Quero anunciar bolsas',reply:'Qual prioridade você escolhe?'})]));await screen.click('Atualizar conversa');expect(screen.container.textContent).toContain('Qual prioridade você escolhe?');expect(f.client.submit).toHaveBeenCalledTimes(1);

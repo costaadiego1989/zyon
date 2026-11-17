@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MetaAdsAutomationPolicyInput, MetaAdsAutomationReview, MetaAdsAutomationState } from '@zyon/shared-types';
-import { actions, money, priorities, useAction } from './presentation.js';
+import { actions, adReason, money, priorities, useAction } from './presentation.js';
 
 export interface AutomationPolicyPanelProps {
   accountId:string|null; state?:MetaAdsAutomationState|null; review?:MetaAdsAutomationReview|null;
@@ -46,7 +46,7 @@ export function AutomationPolicyPanel({accountId,state,review,productNames,campa
     </details>}
     {currentReview&&<div className="mga-policy-review"><h3>Revise a política automática</h3><p>Conta {currentReview.accountId} · Versão {currentReview.version}</p>
       <Terms value={currentReview} productNames={productNames} campaignNames={campaignNames}/>
-      {!!currentReview.warnings.length&&<ul>{currentReview.warnings.map(warning=><li key={warning}>{warning}</li>)}</ul>}
+      {!!currentReview.warnings.length&&<ul>{currentReview.warnings.map(warning=><li key={warning}>{adReason(warning)}</li>)}</ul>}
       <p>Os tetos incluem operações em andamento e de resultado desconhecido. A IA não pode elevar esses limites nem alterar campanhas de terceiros.</p>
       <label className="mga-ack"><input type="checkbox" checked={acknowledged} disabled={blocked} onChange={event=>setAcknowledged(event.target.checked)}/>Li e autorizo as ações, os produtos, as campanhas e os tetos desta política.</label>
       <button type="button" disabled={blocked||!acknowledged} onClick={()=>void action.run(async()=>{await onAccept(currentReview);setAcknowledged(false);})}>Aceitar política automática</button>

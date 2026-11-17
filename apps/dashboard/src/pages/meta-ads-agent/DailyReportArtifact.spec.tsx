@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, test, vi } from 'vitest';
+import {act} from 'react';
 import type { MetaAdsDailyReport, MetaAdsMetrics } from '@zyon/shared-types';
 import { ui } from './test-helpers.js';
 import { DailyReportArtifact } from './DailyReportArtifact.js';
@@ -10,6 +11,15 @@ test('ADAS-44 daily report identifies closed day timezone exact collection and s
   screen=ui();await screen.render(<DailyReportArtifact report={report()} campaignNames={{c:'Aurora'}}/>);
   for(const text of ['15/11/2026','America/Sao_Paulo','Conta 100','Aurora','10,00','Receita atribuída pela Meta','300,00','Vendas confirmadas na Zyon','99,00','Conversas','2','meta_reported+zyon_reconciled','7d_click+1d_view','14 dias'])expect(screen.container.textContent).toContain(text);
   expect(Array.from(screen.container.querySelectorAll('time')).map(t=>t.dateTime)).toContain('2026-11-16T03:01:00Z');
+});
+
+test('ADAS-63 daily decisions use merchant language and keep secondary evidence behind its actual opening gesture',async()=>{
+  screen=ui();const r=report();r.notes=['observed_attribution_not_causal_uplift'];r.campaigns[0].missing=['confirmed_purchases'];r.campaigns[0].metrics={...metrics,notes:['historical_costs_incomplete','confirmed_orders_require_verified_origin']};r.campaigns[0].recommendations=[{id:'rec',campaignId:'c',priority:'paid_sales',hypothesis:'Aguardando dados: confirmed_purchases',evidence:{since:'2026-11-03',until:'2026-11-15',costCoverage:'unavailable',attributedRevenueCents:30000},proposedAction:null,proposedFields:{},status:'awaiting_data',createdAt:r.updatedAt}];
+  await screen.render(<DailyReportArtifact report={r}/>);const text=screen.container.textContent!;
+  for(const code of ['confirmed_purchases','historical_costs_incomplete','confirmed_orders_require_verified_origin','costCoverage','attributedRevenueCents'])expect(text).not.toContain(code);
+  expect(text).toContain('vendas confirmadas');expect(text).toContain('Custos históricos incompletos');
+  const primary=screen.container.querySelector('.mga-report-metrics')!;expect(primary.textContent).toContain('Gasto de mídia');expect(primary.textContent).toContain('10,00');expect(primary.textContent).toContain('Receita atribuída pela Meta');expect(primary.closest('details')).toBeNull();
+  const evidence=screen.container.querySelector<HTMLDetailsElement>('.mga-recommendation-evidence')!;expect(evidence.open).toBe(false);await act(async()=>evidence.querySelector('summary')!.click());expect(evidence.open).toBe(true);expect(evidence.textContent).toContain('Início da análise');expect(evidence.textContent).toContain('03/11/2026');expect(evidence.textContent).toContain('Cobertura de custos');expect(evidence.textContent).toContain('indisponível');expect(evidence.textContent).toContain('300,00');
 });
 
 test('ADAS-44 civil report dates remain in the account day rather than shifting to the prior UTC date',async()=>{

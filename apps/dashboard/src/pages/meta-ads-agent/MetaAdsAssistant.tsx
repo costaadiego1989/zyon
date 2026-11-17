@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { AssistantArtifact, AssistantThread, AssistantTurn, AssistantTurnInput, MetaAdsAutomationReview, MetaAdsDailyReport, MetaAdsFundingDiagnosis, MetaAdsOverview } from '@zyon/shared-types';
 import { merchantAssistantEndpoints, type AssistantSourceView, type AutomationView, type MerchantAssistantApi } from '../../api/endpoints/merchant-assistant.js';
 import type { MetaAdsAgentApi } from '../../api/endpoints/meta-ads-agent.js';
@@ -10,10 +10,11 @@ import { FundingPanel } from './FundingPanel.js';
 import { ProposalReview } from './ProposalReview.js';
 import { DashboardHttpError } from '../../api/http/error.js';
 import { RefreshCw } from 'lucide-react';
+import {TabBar} from '../../components/TabBar.js';
 
 export interface MetaAdsAssistantProps {
   merchantId:string; apiBaseUrl:string; overview:MetaAdsOverview; api:MetaAdsAgentApi;
-  client?:MerchantAssistantApi; pollMs?:number; children?:ReactNode;
+  client?:MerchantAssistantApi; pollMs?:number; children?:ReactNode; settings?:ReactNode;
   onUpdated:()=>void|Promise<void>; onModeChanged?:(mode:'manual'|'automatic'|'unknown')=>void;
   startRequest?:number;
 }
@@ -28,8 +29,10 @@ function mergeThread(previous:AssistantThread|null,next:AssistantThread):Assista
 const https=(value:string)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:null;}catch{return null;}};
 const compact=()=>typeof window!=='undefined'&&(typeof matchMedia==='function'?matchMedia('(max-width: 900px)').matches:window.innerWidth<=900);
 export function MetaAdsAssistant(props:MetaAdsAssistantProps){return <MetaAdsAssistantView key={`${props.merchantId}:${props.apiBaseUrl}`} {...props}/>;}
-function MetaAdsAssistantView({apiBaseUrl,overview,api,client:supplied,pollMs=2500,children,onUpdated,onModeChanged,startRequest=0}:MetaAdsAssistantProps) {
+function MetaAdsAssistantView({apiBaseUrl,overview,api,client:supplied,pollMs=2500,children,settings,onUpdated,onModeChanged,startRequest=0}:MetaAdsAssistantProps) {
   const workspace=useRef<HTMLDivElement>(null);
+  const panelId=useId();
+  const [view,setView]=useState<'campaigns'|'metrics'|'settings'>(()=>overview.connection.account&&overview.connection.page&&(overview.connection.dataset||overview.connection.whatsapp)?'campaigns':'settings');
   const client=useRef<MerchantAssistantApi|null>(null),lifetime=useRef<AbortController|null>(null),alive=useRef(false),sequence=useRef(0),sendLock=useRef(false);
   const panelReads=useRef({funding:0,automation:0,reports:0});
   const threadRef=useRef<AssistantThread|null>(null),pending=useRef<AssistantTurnInput|null>(null),keys=useRef(new Map<string,string>()),updated=useRef(onUpdated);updated.current=onUpdated;
@@ -106,8 +109,8 @@ function MetaAdsAssistantView({apiBaseUrl,overview,api,client:supplied,pollMs=25
   const campaignNames=Object.fromEntries(overview.campaigns.map(c=>[c.id,c.draft.name])),productNames=Object.fromEntries(overview.campaigns.flatMap(c=>c.products).map(p=>[p.variantId,p.name]));
   const chosenReport=reports.find(report=>report.id===reportId);
   const policyProps={accountId:account?.id??null,state:automation,review,productNames,campaignNames,disabled:!overview.entitled||loading||submitting||!!policyError,error:policyError,onChooseAutomatic:()=>send('Quero configurar o modo automático. Pergunte os produtos, as campanhas, as ações e os limites financeiros antes de apresentar uma política para meu aceite.'),onAccept:accept,onManual:manual};
-  function navigateOutside(target:HTMLElement|null){if(compact())setExpanded(false);setTimeout(()=>target?.focus(),0);}
-  function reviewProposal(id:string){setFocusedProposal(id);if(compact())setExpanded(false);setTimeout(()=>proposalHeading.current?.focus(),0);}
+  function navigateOutside(target:HTMLElement|null){setView('settings');if(compact())setExpanded(false);setTimeout(()=>target?.focus(),0);}
+  function reviewProposal(id:string){setView('campaigns');setFocusedProposal(id);if(compact())setExpanded(false);setTimeout(()=>proposalHeading.current?.focus(),0);}
   useEffect(()=>{if(startRequest)setExpanded(true);},[startRequest]);
   useEffect(()=>{if(startRequest&&expanded)workspace.current?.querySelector<HTMLTextAreaElement>('.chat-dock-composer textarea')?.focus();},[startRequest,expanded]);
   function artifact(value:AssistantArtifact,index:number):ReactNode {
@@ -126,10 +129,16 @@ function MetaAdsAssistantView({apiBaseUrl,overview,api,client:supplied,pollMs=25
   function details(turn:AssistantTurn){return <>{turn.artifacts.map(artifact)}{!!turn.references.length&&<details className="mga-chat-references"><summary>Fontes consultadas <span>{turn.references.length}</span></summary><ul>{turn.references.map(reference=><li key={`${reference.id}:${reference.version}`}><button type="button" className="mga-secondary" onClick={()=>void openSource(reference.id)}>Ver fonte: {reference.title}</button><small>Revisada em {reference.reviewedAt.split('-').reverse().join('/')} · Versão {reference.version}</small></li>)}</ul></details>}</>;}
   const proposal=overview.proposals.find(p=>p.id===focusedProposal);
   return <div className="mga-agentic-shell" ref={workspace}><div className="mga-agentic-content">
-    <div ref={fundingHeading} tabIndex={-1}><FundingPanel account={account} diagnosis={funding} error={fundingError} onRefresh={async()=>{const port=client.current,signal=lifetime.current?.signal;if(!port||!signal)return;const request=++panelReads.current.funding;const value=await port.refreshFunding(signal);if(alive.current&&!signal.aborted&&request===panelReads.current.funding){setFunding(value);setFundingError('');}}}/></div>
-    {children}
-    <div ref={policyHeading} tabIndex={-1}><AutomationPolicyPanel {...policyProps}/></div>
-    <details className="mga-setup"><summary>Relatórios diários</summary>{reportError&&<p role="alert">{reportError}</p>}{reports.length?<><label>Dia do relatório<select aria-label="Dia do relatório" value={reportId} onChange={e=>setReportId(e.target.value)}>{reports.map(report=><option key={report.id} value={report.id}>{report.localDay.split('-').reverse().join('/')} · {report.timezone}</option>)}</select></label>{chosenReport&&<DailyReportArtifact report={chosenReport} campaignNames={campaignNames} onReview={reviewProposal}/>}</>:<p>O relatório será disponibilizado após o fechamento do dia no fuso da conta. Ausência de relatório não confirma gasto zero.</p>}</details>
+    <small className="mga-account-context">{account?`${account.name} · Conta ${account.id}`:'Conta Meta não selecionada'}</small>
+    <div className="mga-workspace-tabs"><TabBar tabs={[{key:'campaigns',label:'Campanhas',panelId:`${panelId}-campaigns`},{key:'metrics',label:'Métricas',panelId:`${panelId}-metrics`},{key:'settings',label:'Configurações',panelId:`${panelId}-settings`}]} activeTab={view} onTabChange={key=>setView(key as typeof view)} label="Seções de anúncios"/></div>
+    <p className="mga-media-notice">Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.</p>
+    {funding?.status==='blocked'&&view!=='settings'&&<div className="mga-notice" role="alert">Publicação bloqueada por uma pendência financeira. <button type="button" className="mga-secondary" onClick={()=>navigateOutside(fundingHeading.current)}>Ver pagamentos atuais</button></div>}
+    <div role="tabpanel" id={`${panelId}-campaigns`} aria-labelledby={`${panelId}-campaigns-tab`} data-assistant-panel="campaigns" hidden={view!=='campaigns'}>{children}</div>
+    <div role="tabpanel" id={`${panelId}-metrics`} aria-labelledby={`${panelId}-metrics-tab`} data-assistant-panel="metrics" hidden={view!=='metrics'}><details className="mga-setup" open={view==='metrics'}><summary>Relatórios diários</summary>{reportError&&<p role="alert">{reportError}</p>}{reports.length?<><label>Dia do relatório<select aria-label="Dia do relatório" value={reportId} onChange={e=>setReportId(e.target.value)}>{reports.map(report=><option key={report.id} value={report.id}>{report.localDay.split('-').reverse().join('/')} · {report.timezone}</option>)}</select></label>{chosenReport&&<DailyReportArtifact report={chosenReport} campaignNames={campaignNames} onReview={reviewProposal}/>}</>:<p>O relatório será disponibilizado após o fechamento do dia no fuso da conta. Ausência de relatório não confirma gasto zero.</p>}</details></div>
+    <div role="tabpanel" id={`${panelId}-settings`} aria-labelledby={`${panelId}-settings-tab`} data-assistant-panel="settings" hidden={view!=='settings'}>
+      <div ref={fundingHeading} tabIndex={-1}><FundingPanel account={account} showCostNotice={false} diagnosis={funding} error={fundingError} onRefresh={async()=>{const port=client.current,signal=lifetime.current?.signal;if(!port||!signal)return;const request=++panelReads.current.funding;const value=await port.refreshFunding(signal);if(alive.current&&!signal.aborted&&request===panelReads.current.funding){setFunding(value);setFundingError('');}}}/></div>
+      <div ref={policyHeading} tabIndex={-1}><AutomationPolicyPanel {...policyProps}/></div>{settings}
+    </div>
     {proposal&&<section className="mga-panel"><h2 ref={proposalHeading} tabIndex={-1}>Proposta do relatório</h2><ProposalReview proposal={proposal} execution={overview.executions.find(e=>e.proposalId===proposal.id)} entitled={overview.entitled} connectionEpoch={overview.connection.epoch} api={api} onUpdated={refresh}/></section>}
     {sourceError&&<p role="alert">{sourceError}</p>}{source&&<section className="mga-panel" aria-label="Fonte da resposta"><h2 ref={sourceHeading} tabIndex={-1}>{source.title}</h2><small>Versão atual {source.version} · Revisada em {source.reviewedAt.split('-').reverse().join('/')}</small>{source.sections.map(section=><p key={section.id}>{section.content}</p>)}{source.externalSources.map(origin=>{const url=https(origin.url);return url?<p key={url}><a href={url} target="_blank" rel="noopener noreferrer">{origin.title}</a></p>:null;})}<button type="button" className="mga-secondary" onClick={()=>setSource(null)}>Fechar fonte</button></section>}
   </div><ChatDock expanded={expanded} onExpandedChange={setExpanded} context={thread?.context??{id:'meta-ads',label:'Anúncios com IA',capabilities:[]}} turns={thread?.turns??[]} loading={loading} busy={processing||submitting||!overview.entitled} error={chatError} onSend={send} onRetry={retry} renderTurnDetails={details}

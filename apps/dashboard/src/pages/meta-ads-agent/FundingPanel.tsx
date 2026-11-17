@@ -15,8 +15,9 @@ function paymentDestination(value:string|null,accountId:string):string|null {
 export interface FundingPanelProps {
   account: {id:string;name:string}|null; diagnosis?:MetaAdsFundingDiagnosis|null;
   loading?:boolean; busy?:boolean; error?:string; onRefresh:()=>void|Promise<void>;
+  showCostNotice?:boolean;
 }
-export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh}:FundingPanelProps) {
+export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh,showCostNotice=true}:FundingPanelProps) {
   const lock=useRef(false);const [refreshing,setRefreshing]=useState(false),[refreshError,setRefreshError]=useState('');
   const snapshot=account&&diagnosis?.snapshot?.accountId===account.id?diagnosis.snapshot:null;
   const current=diagnosis?.snapshot&&!snapshot?null:diagnosis;
@@ -24,7 +25,7 @@ export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh}:Fu
   async function refresh(){if(lock.current||busy)return;lock.current=true;setRefreshing(true);setRefreshError('');try{await onRefresh();}catch{setRefreshError('Não foi possível atualizar. Consulte os pagamentos na Meta e tente verificar novamente.');}finally{lock.current=false;setRefreshing(false);}}
   return <section className="mga-panel mga-funding" aria-label="Verba dos anúncios">
     <div className="mga-funding-heading"><CreditCard size={18} aria-hidden="true"/><div><h2>Verba dos anúncios</h2>{account&&<small>{account.name} · Conta {account.id}</small>}</div></div>
-    <p className="mga-funding-separation">Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.</p>
+    {showCostNotice&&<p className="mga-funding-separation">Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.</p>}
     {!account?<p>Conecte e selecione sua conta de anúncios para consultar os pagamentos.</p>:<>
       {loading&&<p role="status">Consultando pagamentos da conta…</p>}
       {current?.status==='blocked'&&<p className="mga-funding-block" role="alert"><strong>Publicação bloqueada.</strong> Resolva a pendência financeira na Meta.</p>}

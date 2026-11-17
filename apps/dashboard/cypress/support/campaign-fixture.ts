@@ -10,5 +10,5 @@ export function preparedCampaign(){
   });
 }
 export function externalImages(){cy.intercept('GET','https://media.example.test/**',{statusCode:200,headers:{'content-type':'image/png'},body:Cypress.Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')});}
-export function openReport(){cy.contains('button','Atualizar conversa').click();cy.contains('summary','Relatórios diários').then(summary=>{if(!(summary[0].parentElement as HTMLDetailsElement).open)cy.wrap(summary).click();});cy.get('[aria-label="Dia do relatório"]').select('16/11/2026 · America/Sao_Paulo');}
+export function openReport(){cy.contains('button','Atualizar conversa').click();cy.contains('[role="tab"]','Métricas').click();cy.contains('summary','Relatórios diários').then(summary=>{if(!(summary[0].parentElement as HTMLDetailsElement).open)cy.wrap(summary).click();});cy.get('[aria-label="Dia do relatório"]').select('16/11/2026 · America/Sao_Paulo');}
 export function clock(now:string){return control('clock',{now});}

@@ -84,6 +84,13 @@
 .mga-skeleton { min-height: 140px; padding: 24px 0; border-top: 1px solid var(--color-border); }
 .mga-agentic-shell { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,360px); align-items: start; gap: 28px; }
 .mga-agentic-content { min-width: 0; }
+.meta-ads-agent [hidden] { display: none !important; }
+.mga-workspace-tabs .tab-bar { display: flex; margin: 0; }
+.meta-ads-agent .mga-account-context { margin: 0 0 12px; font-size: 12px; }
+.meta-ads-agent .mga-workspace-tabs .tab-bar__tab { flex: 1 1 0; min-width: 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--color-text-secondary); padding: 12px 8px; font-size: 13px; font-weight: 500; }
+.meta-ads-agent .mga-workspace-tabs .tab-bar__tab[aria-selected="true"] { color: var(--color-text); border-bottom-color: var(--color-brand); }
+.meta-ads-agent .mga-workspace-tabs .tab-bar__tab:hover { background: var(--color-surface); }
+.meta-ads-agent .mga-media-notice { font-size: 12px; margin: 16px 0 24px; color: var(--color-text-secondary); }
 .mga-agentic-content > [tabindex="-1"], .mga-agentic-content [tabindex="-1"] { scroll-margin-top: 90px; }
 .mga-chat-context { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--color-border); font-size: 12px; color: var(--color-text-secondary); }
 .mga-chat-context .mga-chat-refresh { order: 1; margin-left: auto; min-width: 44px; padding: 0; flex: none; display: flex; align-items: center; justify-content: center; background: transparent; border-color: transparent; color: var(--color-text-secondary); }
@@ -110,6 +117,24 @@
 .mga-chat-references > summary > span { margin-left: 4px; font-variant-numeric: tabular-nums; }
 .mga-chat-references button { font-size: 12px; text-align: left; }
 .mga-chat-references small { margin-top: 4px; font-size: 11px; }
+.mga-report-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 20px 0 12px; }
+.meta-ads-agent .mga-report-heading h3 { margin: 0 0 4px; font-size: 16px; }
+.mga-report-state { flex: none; font-size: 12px; padding: 3px 8px; color: var(--color-text-secondary); background: var(--color-surface-raised); border-radius: 4px; }
+.meta-ads-agent .mga-report-period { font-size: 12px; margin: 8px 0; }
+.meta-ads-agent .mga-report-assessment { font-size: 13px; margin: 12px 0; color: var(--color-text); }
+.mga-report-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px 16px; margin: 20px 0; }
+.mga-report-metrics > div { min-width: 0; }
+.mga-report-metrics dt { font-size: 12px; color: var(--color-text-secondary); }
+.mga-report-metrics dd { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; margin: 6px 0 0; }
+.mga-report-details > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 12px; color: var(--color-text-secondary); }
+.mga-report-notes { list-style: none; padding: 0; margin: 16px 0; color: var(--color-text-secondary); font-size: 12px; }
+.mga-report-notes li + li { margin-top: 8px; }
+.meta-ads-agent .mga-daily-campaign { padding: 18px 0; }
+.meta-ads-agent .mga-daily-campaign h4 { margin-bottom: 8px; }
+.meta-ads-agent .mga-report-missing { font-size: 12px; }
+.mga-daily-recommendation > strong { font-size: 13px; }
+.meta-ads-agent .mga-daily-recommendation p { font-size: 13px; }
+@media(max-width:380px) { .mga-report-metrics { grid-template-columns: minmax(0,1fr); gap: 16px; } }
 @media (max-width: 900px) {
   .mga-agentic-shell { grid-template-columns: minmax(0,1fr); gap: 0; }
   .mga-agentic-content { padding-bottom: 84px; }
