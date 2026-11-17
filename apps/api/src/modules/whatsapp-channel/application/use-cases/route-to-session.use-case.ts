@@ -9,7 +9,7 @@
  * - 24h inactivity = session expired
  */
 
-import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
+import { Injectable, Inject, Logger, Optional, ServiceUnavailableException } from "@nestjs/common";
 import {
   WHATSAPP_SESSION_REPOSITORY,
   type WhatsAppSessionRepository,
@@ -68,6 +68,14 @@ export class RouteToSessionUseCase {
 
     // 3. Check expiry (24h)
     if (waSession && this.isExpired(waSession)) {
+      if (input.deviceId.startsWith("META_CLOUD:")) {
+        if (waSession.merchantId !== input.merchantId || waSession.buyerPhone !== phone || waSession.deviceId !== input.deviceId) {
+          throw new ServiceUnavailableException("whatsapp_recovery_scope_unavailable");
+        }
+        const renewed = await this.sessionRepo.renewExpiredNative(waSession);
+        return { whatsappSession: renewed.session, checkoutSessionId: renewed.session.checkoutSessionId,
+          isNew: renewed.renewed, buyerData };
+      }
       await this.sessionRepo.expire(waSession.id);
       waSession = null;
     }
@@ -93,7 +101,7 @@ export class RouteToSessionUseCase {
 
       this.logger.log(`whatsapp_session_created merchant=${input.merchantId}`);
 
-      return { whatsappSession: waSession, checkoutSessionId, isNew: true, buyerData };
+      return { whatsappSession: waSession, checkoutSessionId: waSession.checkoutSessionId, isNew: true, buyerData };
     }
 
     // 5. Update activity

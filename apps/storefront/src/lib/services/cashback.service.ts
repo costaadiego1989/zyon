@@ -13,6 +13,16 @@ export function fetchCashbackTransactions(merchantId: string, page = 1, signal?:
 }
 
 export interface BuyerWhatsAppLink { linked: boolean; phone: string | null; }
+export interface BuyerWhatsAppInboundChallenge { token: string; url: string; expiresAt: string; phone: string; }
+export interface BuyerWhatsAppInboundStatus extends BuyerWhatsAppLink { status: "pending" | "confirmed" | "cancelled" | "expired"; }
+
+export function requestBuyerWhatsAppInboundLink(phone: string, merchantId: string): Promise<BuyerWhatsAppInboundChallenge> {
+  return apiCall("/buyer/me/channels/whatsapp/inbound", { method: "POST", body: JSON.stringify({ phone, merchantId }) });
+}
+
+export function fetchBuyerWhatsAppInboundStatus(token: string, signal?: AbortSignal): Promise<BuyerWhatsAppInboundStatus> {
+  return apiCall("/buyer/me/channels/whatsapp/inbound/status", { method: "POST", body: JSON.stringify({ token }), signal });
+}
 
 export function fetchBuyerWhatsAppLink(signal?: AbortSignal): Promise<BuyerWhatsAppLink> {
   return apiCall<BuyerWhatsAppLink>("/buyer/me/channels/whatsapp", { signal });

@@ -11,6 +11,6 @@ JOIN whatsapp_sessions w ON w.merchant_id = c.merchant_id
     OR w.conversation_state->>'conversationId' = c.session_id
     OR w.conversation_state->>'conversationId' = c.conversation_id
     OR w.conversation_state->>'conversationId' = c.cart->>'cart_ref')
-WHERE w.device_id LIKE 'META_CLOUD:%' AND length(w.device_id) > 11
+WHERE left(w.device_id, 11) = 'META_CLOUD:' AND length(w.device_id) > 11
 ORDER BY c.merchant_id, c.session_id, w.created_at ASC
 ON CONFLICT (id) DO NOTHING;

@@ -32,6 +32,7 @@ export interface WhatsAppSessionEntity {
 export interface WhatsAppSessionRepository {
   findActiveByPhone(merchantId: string, buyerPhone: string, deviceId?: string): Promise<WhatsAppSessionEntity | null>;
   create(data: Omit<WhatsAppSessionEntity, "id" | "createdAt">): Promise<WhatsAppSessionEntity>;
+  renewExpiredNative(expected: WhatsAppSessionEntity): Promise<{ session: WhatsAppSessionEntity; renewed: boolean }>;
   update(id: string, data: Partial<WhatsAppSessionEntity>): Promise<WhatsAppSessionEntity>;
   expire(id: string): Promise<void>;
   updateMenuState(id: string, currentOptions: string[], previousOptions: string[], page: number): Promise<void>;
