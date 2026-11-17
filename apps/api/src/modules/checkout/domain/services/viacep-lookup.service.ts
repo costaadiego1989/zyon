@@ -14,20 +14,28 @@ export async function lookupAddressByViaCep(cep: string, fetchFn: typeof fetch =
   const digits = cep.replace(/\D/g, "");
   if (digits.length !== 8) return null;
 
-  const controller = new AbortController();
-  const timer = globalThis.setTimeout(() => controller.abort(), 4500);
+  const read = async (url: string) => {
+    const controller = new AbortController();
+    const timer = globalThis.setTimeout(() => controller.abort(), 4500);
+    try {
+      const response = await fetchFn(url, { signal: controller.signal });
+      if (response.status >= 500 || response.status === 429) throw new Error("postal_provider_unavailable");
+      return response.ok ? await response.json() : null;
+    } finally {
+      globalThis.clearTimeout(timer);
+    }
+  };
   try {
     const url = `https://viacep.com.br/ws/${digits}/json/`;
-    const res = await fetchFn(url, { signal: controller.signal });
-    if (!res.ok) return null;
-    const raw = (await res.json()) as {
+    const raw = (await read(url)) as {
       erro?: boolean | string;
       logradouro?: string;
       complemento?: string;
       bairro?: string;
       localidade?: string;
       uf?: string;
-    };
+    } | null;
+    if (!raw) return null;
     if (raw.erro === true || raw.erro === "true") return null;
     const street =
       typeof raw.logradouro === "string" && raw.logradouro.trim().length > 0 ? raw.logradouro.trim() : undefined;
@@ -49,9 +57,18 @@ export async function lookupAddressByViaCep(cep: string, fetchFn: typeof fetch =
       state
     };
   } catch {
-    return null;
-  } finally {
-    globalThis.clearTimeout(timer);
+    // An unavailable provider must not make a valid delivery CEP look invalid.
+    // Only the public CEP is sent; the account and full address stay local.
+    try {
+      const raw = await read(`https://brasilapi.com.br/api/cep/v2/${digits}`) as {
+        cep?: string; street?: string; neighborhood?: string; city?: string; state?: string;
+      } | null;
+      if (!raw || raw.cep?.replace(/\D/g, "") !== digits || !raw.city?.trim() || !/^[a-z]{2}$/i.test(raw.state ?? "")) return null;
+      return { zip: digits, street: raw.street?.trim() || undefined, complement: undefined,
+        neighborhood: raw.neighborhood?.trim() || undefined, city: raw.city.trim(), state: raw.state!.toUpperCase() };
+    } catch {
+      return null;
+    }
   }
 }
 
