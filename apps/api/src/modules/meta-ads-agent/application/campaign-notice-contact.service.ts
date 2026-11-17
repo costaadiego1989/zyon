@@ -2,8 +2,9 @@ import type {PrismaClient,MetaAdsCampaignNoticeContact as ContactRow} from '@pri
 import type {MetaAdsCampaignNoticeContact,MetaAdsCampaignNoticeContactInput} from '@zyon/shared-types';
 import {MetaAdsError,type Clock} from '../domain/types.js';
 import {requireIdentifier} from '../domain/offer.js';
+import {CAMPAIGN_NOTICE_CONSENT_VERSION} from '../domain/campaign-ready-notice.port.js';
 
-export const CAMPAIGN_NOTICE_CONSENT_VERSION='campaign_ready.v1';
+export {CAMPAIGN_NOTICE_CONSENT_VERSION} from '../domain/campaign-ready-notice.port.js';
 interface Dependencies {
   db:PrismaClient;authorizeActor:(merchantId:string,actorId:string)=>Promise<void>;
   senderNumber:(merchantId:string)=>Promise<string|null>;clock?:Clock;
