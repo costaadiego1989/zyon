@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, FolderTree } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import type { ServiceProfessionalAvailabilityDTO } from "../../api/endpoints/service-attendance.js";
 import { useApi } from "../../hooks/useApi.js";
@@ -8,6 +8,7 @@ import { EmptyState } from "../../components/EmptyState.js";
 import { Button } from "../../components/Button.js";
 import type { ServiceAttendanceFilters, useServiceAttendancePage } from "./useServiceAttendancePage.js";
 import { ProfessionalsPanel } from "./components/ProfessionalsPanel.js";
+import { ServiceCategoriesPanel } from "./components/ServiceCategoriesPanel.js";
 
 type ViewModel = ReturnType<typeof useServiceAttendancePage>;
 const weekdays = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
@@ -64,9 +65,7 @@ export function ServiceAttendancePanels({ tab, vm, me }: { tab: ServiceAttendanc
   if (!data) return null;
   if (tab === "agenda") return <DataPanel title="Consulta da agenda"><div style={{ padding: 20, display: "grid", gap: 12 }}><p>Escolha um profissional e consulte a grade e as exceções cadastradas.</p><Button variant="outline" onClick={() => vm.setFilters({ tab: "availability" })}>Consultar grade cadastrada</Button></div></DataPanel>;
   if (tab === "professionals") return <ProfessionalsPanel me={me} vm={vm} />;
-  if (tab === "categories") return <DataPanel title="Categorias" isEmpty={data.categories.length === 0} empty={{ icon: FolderTree, title: "Nenhuma categoria cadastrada", description: "As categorias cadastradas aparecerão nesta lista." }}>
-    <ul style={{ listStyle: "none", margin: 0, padding: 20, display: "grid", gap: 16 }}>{data.categories.map(row => <li key={row.id}><strong style={{ overflowWrap: "anywhere" }}>{row.name}</strong><p>{row.is_active ? "Ativa" : "Inativa"}</p><span>Ofertas vinculadas: {row.product_count}</span></li>)}</ul>
-  </DataPanel>;
+  if (tab === "categories") return <ServiceCategoriesPanel me={me} vm={vm} />;
   if (tab === "availability") return <ProfessionalGrade me={me} professionalId={vm.filters.professionalId} />;
   return <DataPanel title="Política de agendamento"><div style={{ padding: 20 }}>
     {data.policy.status !== "configured" ? <p>{data.policy.status === "invalid" ? "A política cadastrada precisa de revisão." : "A política de agendamento ainda não foi configurada."}</p> : <dl>

@@ -10,6 +10,7 @@ import "../../../components/configuration-form.css";
 import "../categories.css";
 
 interface CategoryFormProps {
+  offeringKind?: "products" | "services";
   mode: "create" | "edit";
   category: ProductCategoryDTO | null;
   parentOptions: ProductCategoryDTO[];
@@ -20,7 +21,7 @@ interface CategoryFormProps {
   onCancel: () => void;
 }
 
-export function CategoryForm({ mode, category, parentOptions, defaultParentId, saving, saveError, onSave, onCancel }: CategoryFormProps) {
+export function CategoryForm({ mode, category, parentOptions, defaultParentId, saving, saveError, onSave, onCancel, offeringKind = "products" }: CategoryFormProps) {
   const api = useApi();
   const formId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -76,7 +77,7 @@ export function CategoryForm({ mode, category, parentOptions, defaultParentId, s
 
   return (
     <Modal isOpen presentation="center" size="lg" title={mode === "edit" ? "Editar categoria" : "Nova categoria"}
-      subtitle="Agrupe produtos para ajudar seus clientes a encontrar o que procuram."
+      subtitle={offeringKind === "services" ? "Agrupe serviços para ajudar seus clientes a encontrar o que procuram." : "Agrupe produtos para ajudar seus clientes a encontrar o que procuram."}
       onClose={() => { if (!busy) onCancel(); }}
       footer={<><Button variant="outline" onClick={onCancel} disabled={busy}>Cancelar</Button><Button type="submit" form={formId} loading={saving} disabled={busy}>{mode === "edit" ? "Salvar categoria" : "Criar categoria"}</Button></>}>
       <form id={formId} ref={formRef} onSubmit={submit} noValidate>
@@ -85,21 +86,21 @@ export function CategoryForm({ mode, category, parentOptions, defaultParentId, s
           <section className="configuration-form__section">
             <h3>Nome e organização</h3>
             <div className="configuration-form__grid">
-              <FormField label="Nome da categoria" value={name} error={nameError} placeholder="Ex.: Camisetas"
+              <FormField label="Nome da categoria" value={name} error={nameError} placeholder={offeringKind === "services" ? "Ex.: Consultas" : "Ex.: Camisetas"}
                 onChange={value => { setName(value); if (!slugEdited) setSlug(slugify(value)); }} />
               <FormSelect label="Categoria superior" value={parentId} onChange={setParentId}
                 options={[{ value: "", label: "Nenhuma, categoria principal" }, ...parentOptions.map(cat => ({ value: cat.id, label: cat.name }))]}
-                hint="Exemplo: Camisetas pode ficar dentro de Roupas." />
+                hint={offeringKind === "services" ? "Exemplo: Consulta inicial pode ficar dentro de Consultas." : "Exemplo: Camisetas pode ficar dentro de Roupas."} />
             </div>
             <FormField label="Identificador no endereço" value={slug} disabled={mode === "edit"} error={slugError}
               onChange={value => { setSlugEdited(true); setSlug(value); }}
-              hint={mode === "edit" ? "Definido na criação da categoria e mantido ao editar." : "Gerado a partir do nome. Exemplo: camisetas-infantis."} />
+              hint={mode === "edit" ? "Definido na criação da categoria e mantido ao editar." : offeringKind === "services" ? "Gerado a partir do nome. Exemplo: consulta-inicial." : "Gerado a partir do nome. Exemplo: camisetas-infantis."} />
             <FormTextarea label="Descrição (opcional)" value={description} onChange={setDescription} rows={3}
-              placeholder="Ex.: Camisetas para o dia a dia, em diferentes cores e tamanhos." />
+              placeholder={offeringKind === "services" ? "Ex.: Consultas iniciais e acompanhamento." : "Ex.: Camisetas para o dia a dia, em diferentes cores e tamanhos."} />
           </section>
           <section className="configuration-form__section">
             <h3>Imagem da categoria</h3>
-            <p>Escolha uma imagem que represente este grupo de produtos. O envio é opcional.</p>
+            <p>{offeringKind === "services" ? "Escolha uma imagem que represente este grupo de serviços. O envio é opcional." : "Escolha uma imagem que represente este grupo de produtos. O envio é opcional."}</p>
             <input ref={fileRef} type="file" accept="image/*" onChange={upload} hidden />
             <div className="category-image">
               {imageUrl && <img src={imageUrl} alt="Imagem atual da categoria" />}

@@ -57,30 +57,39 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
   const currentSelectors = useRef(selectors);
   currentSelectors.current = selectors;
   const [load, setLoad] = useState<LoadState>({ context: null, status: "loading", data: null });
+  const latestLoad = useRef(load); latestLoad.current = load;
   const [commandState, setCommand] = useState<CommandState>({ context: null, status: "idle" });
   const [availabilityState, setAvailability] = useState<AvailabilityState>({ context: null, selectors: "", status: "idle", data: null });
   const readSequence = useRef(0), availabilitySequence = useRef(0);
   const reading = useRef<AbortController | null>(null);
   const writing = useRef<{ context: Context } | null>(null);
-  const commandIssue = useRef<{ context: Context; kind: ServiceAttendanceErrorKind } | null>(null);
+  const commandIssue = useRef<{ context: Context; kind: ServiceAttendanceErrorKind; target: "all" | "categories" } | null>(null);
   const isCurrent = (scope: Context | null) => scope !== null && mounted.current && current.current === scope;
 
-  async function refreshContext(scope: Context | null, reconcile = false) {
-    if (!isCurrent(scope) || !scope) return;
+  async function refreshContext(scope: Context | null, reconcile = false, target: "all" | "categories" = "all"): Promise<boolean> {
+    if (!isCurrent(scope) || !scope) return false;
     const sequence = ++readSequence.current;
     reading.current?.abort();
     const controller = new AbortController(); reading.current = controller;
     setLoad(previous => ({ context: scope, status: "loading", data: previous.context === scope ? previous.data : null }));
     try {
-      const [professionals, categories, policy] = await Promise.all([
-        scope.client.listProfessionals({}, { signal: controller.signal }), scope.client.listCategories({ signal: controller.signal }), scope.client.getPolicy({ signal: controller.signal }),
-      ]);
-      if (!isCurrent(scope) || sequence !== readSequence.current) return;
-      setLoad({ context: scope, status: professionals.items.length || categories.length ? "ready" : "empty", data: { professionals, categories, policy } });
-      if (reconcile && commandIssue.current?.context === scope) commandIssue.current = null;
+      const previous = latestLoad.current.context === scope ? latestLoad.current.data : null;
+      const data: Snapshot = target === "categories" && previous
+        ? { ...previous, categories: await scope.client.listCategories({ signal: controller.signal }) }
+        : await Promise.all([
+          scope.client.listProfessionals({}, { signal: controller.signal }), scope.client.listCategories({ signal: controller.signal }), scope.client.getPolicy({ signal: controller.signal }),
+        ]).then(([professionals, categories, policy]) => ({ professionals, categories, policy }));
+      if (!isCurrent(scope) || sequence !== readSequence.current) return false;
+      setLoad({ context: scope, status: data.professionals.items.length || data.categories.length ? "ready" : "empty", data });
+      if (reconcile && commandIssue.current?.context === scope) {
+        commandIssue.current = null;
+        setCommand({ context: scope, status: "idle" });
+      }
+      return true;
     } catch (error) {
-      if (!isCurrent(scope) || sequence !== readSequence.current) return;
+      if (!isCurrent(scope) || sequence !== readSequence.current) return false;
       setLoad(previous => ({ context: scope, status: "error", errorKind: classifyServiceAttendanceError(error), data: previous.context === scope ? previous.data : null }));
+      return false;
     }
   }
 
@@ -114,7 +123,7 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
     setFilterState({ context, value: next });
   }
 
-  async function runCommand<T>(operation: (client: ServiceAttendanceApi) => Promise<T>): Promise<ServiceActionResult<T>> {
+  async function runCommand<T>(operation: (client: ServiceAttendanceApi) => Promise<T>, target: "all" | "categories" = "all"): Promise<ServiceActionResult<T>> {
     if (!context) return { status: "forbidden" };
     if (!isCurrent(context)) return { status: "stale" };
     if (writing.current?.context === context) return { status: "busy" };
@@ -125,17 +134,27 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
       const value = await operation(context.client);
       if (!isCurrent(context)) return { status: "stale" };
       setCommand({ context, status: "success" });
-      await refreshContext(context);
+      await refreshContext(context, false, target);
       return isCurrent(context) ? { status: "success", value } : { status: "stale" };
     } catch (error) {
       if (!isCurrent(context)) return { status: "stale" };
       const kind = classifyServiceAttendanceError(error);
-      if (kind === "conflict" || kind === "network" || kind === "invalid_response") commandIssue.current = { context, kind };
+      if (kind === "conflict" || kind === "network" || kind === "invalid_response") commandIssue.current = { context, kind, target };
       setCommand({ context, status: kind === "conflict" ? "conflict" : kind === "network" || kind === "invalid_response" ? "uncertain" : "error", errorKind: kind });
       return { status: "error", kind };
     } finally {
       if (writing.current === token) writing.current = null;
     }
+  }
+
+  async function reconcileCategories(readOffers: () => Promise<boolean>): Promise<boolean> {
+    const scope = context, issue = commandIssue.current;
+    const target = issue?.context === scope ? issue.target : "categories";
+    if (!await refreshContext(scope, false, target) || !isCurrent(scope)) return false;
+    try { if (!await readOffers()) return false; } catch { return false; }
+    if (!isCurrent(scope) || commandIssue.current !== issue) return false;
+    if (issue?.context === scope) { commandIssue.current = null; setCommand({ context: scope, status: "idle" }); }
+    return true;
   }
 
   async function loadAvailability(resources: { productId: string; variantId: string }, date?: string): Promise<void> {
@@ -163,7 +182,7 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
   const availability: AvailabilityState = availabilityState.context === context && availabilityState.selectors === selectors
     ? availabilityState : { context, selectors, status: "idle", data: null };
   return {
-    allowed, filters, setFilters, loadState, command, availability, refresh: () => refreshContext(context, true),
+    allowed, filters, setFilters, loadState, command, availability, refresh: () => refreshContext(context, true), reconcileCategories,
     loadAvailableDates: (resources: { productId: string; variantId: string }) => loadAvailability(resources),
     loadAvailableSlots: (resources: { productId: string; variantId: string }, date: string) => loadAvailability(resources, date),
     actions: {
@@ -171,9 +190,16 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
       updateProfessional: (id: string, input: Partial<ServiceProfessionalInput> & { expectedVersion: number }, options?: ServiceMutationOptions) => runCommand(client => client.updateProfessional(id, input, options)),
       deactivateProfessional: (id: string, version: number, options?: ServiceMutationOptions) => runCommand(client => client.deactivateProfessional(id, version, options)),
       updatePolicy: (input: ServiceBusinessPolicyUpdate, options?: ServiceMutationOptions) => runCommand(client => client.updatePolicy(input, options)),
-      createCategory: (input: ServiceCategoryCreate, options?: ServiceMutationOptions) => runCommand(client => client.createCategory(input, options)),
-      updateCategory: (id: string, input: ServiceCategoryUpdate, options?: ServiceMutationOptions) => runCommand(client => client.updateCategory(id, input, options)),
-      deleteCategory: (id: string, options?: ServiceMutationOptions) => runCommand(client => client.deleteCategory(id, options)),
+      assignServiceCategory: (productId: string, categoryId: string) => runCommand(async () => {
+        const merchantId = me!.id;
+        const product = await api.getProduct(merchantId, productId);
+        if (!isCurrent(context)) throw new Error("stale_service_category_context");
+        if (product.id !== productId || product.merchantId !== merchantId || product.type !== "service" || !product.isActive) throw new TypeError("published_service_required");
+        return api.updateProduct(merchantId, productId, { categoryId });
+      }, "categories"),
+      createCategory: (input: ServiceCategoryCreate, options?: ServiceMutationOptions) => runCommand(client => client.createCategory(input, options), "categories"),
+      updateCategory: (id: string, input: ServiceCategoryUpdate, options?: ServiceMutationOptions) => runCommand(client => client.updateCategory(id, input, options), "categories"),
+      deleteCategory: (id: string, options?: ServiceMutationOptions) => runCommand(client => client.deleteCategory(id, options), "categories"),
       reorderCategories: (items: Array<{ id: string; sort_order: number }>, options?: ServiceMutationOptions) => runCommand(client => client.reorderCategories(items, options)),
       saveProfessionalAvailability: (id: string, input: ServiceRecurringAvailabilityInput, options?: ServiceMutationOptions) => runCommand(client => client.saveProfessionalAvailability(id, input, options)),
       createAvailabilityException: (id: string, input: ServiceAvailabilityExceptionInput, options?: ServiceMutationOptions) => runCommand(client => client.createAvailabilityException(id, input, options)),

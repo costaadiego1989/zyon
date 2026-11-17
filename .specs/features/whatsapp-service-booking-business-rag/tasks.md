@@ -1684,12 +1684,12 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] ServiceCategoriesPanel.spec.tsx + browser categorias, vínculos, vazio/erro e leitura por dois profissionais sem capacidade extra.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] ServiceCategoriesPanel.spec.tsx + browser categorias, vínculos, vazio/erro e leitura por dois profissionais sem capacidade extra.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: ServiceCategoriesPanel.spec.tsx + browser categorias, vínculos, vazio/erro e leitura por dois profissionais sem capacidade extra.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/ServiceCategoriesPanel.spec.tsx -t "^T77$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T77$"` Teste raiz T77 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser: unfiltered affected cohort `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/ServiceAttendancePanels.spec.tsx src/pages/service-attendance/ServiceAttendancePage.spec.tsx src/pages/service-attendance/useServiceAttendancePage.spec.ts src/api/endpoints/service-attendance.spec.ts src/api/http/client.spec.ts src/api/http/session-fetch.spec.ts src/api/endpoints/catalog.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx src/api/endpoints/merchants.profile-identity.spec.ts src/api/endpoints/merchants.spec.ts src/pages/service-attendance/components/ProfessionalsPanel.spec.tsx src/pages/service-attendance/components/professional-form.spec.ts src/pages/service-attendance/ServiceAttendancePage.professionals.spec.tsx src/pages/service-attendance/components/ServiceCategoriesPanel.spec.tsx src/pages/service-attendance/components/service-category-form.spec.ts src/pages/service-attendance/ServiceAttendancePage.categories.spec.tsx` (expected187/16files, runner authoritative), affected lint15 and dedicated real `pnpm --dir apps/dashboard exec playwright test --config playwright.service-categories-local.config.ts e2e/service-categories.spec.ts` (expected4cases/8native frames, runner authoritative). Real AuthScreen/owned API/SQL: categories and canonical service links, empty/error, two professionals sharing one offer without extra capacity; preserve tenant/mode/Staff, price/variant/link/grade, keyboard/focus and native desktop/mobile evidence. Original1024/2048 guards,1worker,no retries/skips and5/10/30/60/600 remain. Old75control expectation changes only by reviewed05f65017 under Root interpretation of existing approvedATEND03/T77; no other old assertion weakened. No completion until whole gate and current Root visual review; final build/feature checks remain mandatory.
 **Commit**: `feat(service-business): t77 reuse service categories in atendimento`
 
 ### T78: Edit availability and blocks from one panel
@@ -2558,6 +2558,9 @@ Tasks: T107.
 Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; independent70/components, types/lint/build and six native captures reviewed PASS. See task-107-evidence.json; no105/106/final-feature claim.
 
 ## Handoff
+
+**Integrated local T77:** Cc1439c7b9 current187/16,lint15,current API admission and wholeBrowser4/eight native pictures passed with original quotas. Root reviewed five changed/new pictures and three byte-equal originals. Integrate25 exact C blobs plus scoped task/state metadata, preserving Root71 source work. User visual feedback remains pending; no105/106/78 or API/package/schema changes.
+
 
 **Integrated local T76:** Cbf9a4043e (supersedes unintegrated c76b47184 encoding attempt) carries corrected service-binding toggles, current150 components/lint14/Browser4 and8 actual native pictures. Root reviewed five changed pictures and verified three other pictures byte-exact to already viewed states. Functional SQL/CAS/foreign/history/focus checks preserved. Root integrates24 exact C blobs and only two scoped metadata files, preserving all current71 sources/approvals/dependencies. User visual review is pending asynchronously; no fabricated approval/final screen-verifier claim. T77 remains next C source; M types/checked is the sole runtime.
 

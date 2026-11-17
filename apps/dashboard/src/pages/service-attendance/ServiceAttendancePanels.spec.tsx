@@ -38,9 +38,9 @@ describe("T75 real read-only panel composition", () => {
     const f = await fixture(); expect(f.host.querySelector('[role="tabpanel"]')?.textContent).toContain("Ana"); expect(f.host.textContent).toContain("America/Sao_Paulo");
     expect(f.calls.filter(call => call.path.endsWith("/service-professionals"))).toHaveLength(1); expect(f.calls.every(call => call.method === "GET")).toBe(true);
   });
-  it("shows the actual category snapshot without a client-created capacity or editing control", async () => {
+  it("shows the actual category snapshot without client-created capacity and with category management", async () => {
     const f = await fixture({ tab: "categories" }); expect(f.host.querySelector('[role="tabpanel"]')?.textContent).toContain("Saúde");
-    expect(f.host.textContent).toContain("Ofertas vinculadas: 2"); expect(f.host.textContent).not.toMatch(/capacidade: 2|Nova categoria/);
+    expect(f.host.textContent).toContain("Ofertas vinculadas: 2"); expect(f.host.textContent).not.toMatch(/capacidade: 2/); expect(button(f.host, "Nova categoria")).toBeDefined();
   });
   it("presents financial policy choices separately from a payment or booking result", async () => {
     const f = await fixture({ tab: "settings" }); expect(f.host.textContent).toContain("Pagamento no atendimento"); expect(f.host.textContent).toContain("Novos agendamentos: desativados");
