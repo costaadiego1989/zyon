@@ -6,6 +6,65 @@ import { ConnectionService } from "./connection.service.js";
 import { CampaignService } from "./campaign.service.js";
 import { ProposalService } from "./proposal.service.js";
 
+test('ACAP-08 a launch review freezes the current business version and active intent without remote objects',async()=>{
+  const f=await fixture(false);try{
+    const current=await f.campaigns.owned('store-a',f.campaign.id),p=await f.service.create('store-a',current.id,{kind:'launch',after:{},reasoning:'Campanha pronta para aprovacao inicial',idempotencyKey:'launch-review'});
+    assert.equal(p.kind,'launch');assert.equal(p.status,'pending_review');assert.equal(p.approvedBy,null);assert.equal(p.executionId,null);assert.equal(p.after.status,'ACTIVE');assert.deepEqual(p.after.draft,current.draft);assert.deepEqual(p.after.products,current.products);
+    assert.deepEqual(p.after.objects,['campaign','ad_set','creative','ad']);assert.equal(p.after.accountId,'100');assert.equal(p.after.pageId,'110');assert.equal(p.after.datasetId,'120');assert.equal(p.after.whatsappId,null);
+    const media=p.after.media as Array<{id:string;commercialReview:{status:string;imageSha256:string}}>;
+    assert.deepEqual(media.map(m=>m.id),['media-a']);assert.equal(media[0].commercialReview.status,'verified');assert.equal(media[0].commercialReview.imageSha256,'a'.repeat(64));assert.deepEqual(p.before.objects,[]);
+    const state=await f.repo.read('store-a');assert.equal(p.connectionEpoch,state.connection.epoch);assert.equal(state.campaigns[current.id].remoteCampaignId,null);assert.equal(Object.keys(state.executions).length,0);assert.equal(f.calls.includes('prepare'),false);assert.equal(f.calls.includes('execute'),false);
+    assert.deepEqual((await f.repo.getRecord('store-a',`proposal-version:${p.id}`))!.payload,p);
+  }finally{await f.close();}
+});
+test('ACAP-08 carousel review retains the exact selected media order and verified content',async()=>{
+  const f=await fixture(false);try{
+    await f.repo.mutate('store-a',[],state=>{state.media['media-b']={...state.media['media-a'],id:'media-b',url:'https://media.example.test/second.png',commercialReview:{...state.media['media-a'].commercialReview!,imageSha256:'b'.repeat(64)}};return {result:null};});
+    const current=await f.campaigns.owned('store-a',f.campaign.id);await f.campaigns.save('store-a',current.id,{...current.draft,mediaIds:['media-b','media-a']});
+    const p=await f.service.create('store-a',current.id,{kind:'launch',reasoning:'Carrossel revisado',idempotencyKey:'launch-carousel'});
+    assert.deepEqual((p.after.media as Array<{id:string;url:string}>).map(m=>[m.id,m.url]),[['media-b','https://media.example.test/second.png'],['media-a','https://media.example.test/result.png']]);assert.deepEqual((p.after.draft as MetaAdsCampaignDraft).mediaIds,['media-b','media-a']);
+  }finally{await f.close();}
+});
+test('ACAP-14 pending or rejected image verification prevents a launch review',async()=>{
+  const f=await fixture(false);try{
+    for(const status of ['unavailable','rejected'] as const){await f.repo.mutate('store-a',[],state=>{state.media['media-a'].commercialReview!.status=status;return {result:null};});await assert.rejects(f.service.create('store-a',f.campaign.id,{kind:'launch',reasoning:'Ainda nao pronta',idempotencyKey:`launch-${status}`}));}
+    assert.equal(Object.keys((await f.repo.read('store-a')).proposals).length,0);assert.equal(f.calls.includes('prepare'),false);
+  }finally{await f.close();}
+});
+test('ACAP-14 changed canonical catalog data cannot be announced as a current launch review',async()=>{
+  const f=await fixture(false);try{
+    f.commerce.products=async()=>[{...f.campaign.products[0],commercialVersion:'changed-version',priceCents:12000}];
+    await assert.rejects(f.service.create('store-a',f.campaign.id,{kind:'launch',reasoning:'Catalogo alterado',idempotencyKey:'changed-launch'}),{code:'campaign_products_changed'});assert.equal(Object.keys((await f.repo.read('store-a')).proposals).length,0);
+  }finally{await f.close();}
+});
+test('ACAP-08 required budget and copy remain mandatory for a launch review',async()=>{
+  const f=await fixture(false);try{
+    const current=await f.campaigns.owned('store-a',f.campaign.id);await f.campaigns.save('store-a',current.id,{...current.draft,budget:null});await assert.rejects(f.service.create('store-a',current.id,{kind:'launch',reasoning:'Sem verba definida',idempotencyKey:'missing-launch-budget'}),{code:'campaign_budget_required'});
+    await f.campaigns.save('store-a',current.id,{...current.draft,headline:''});await assert.rejects(f.service.create('store-a',current.id,{kind:'launch',reasoning:'Sem texto',idempotencyKey:'missing-launch-copy'}),{code:'creative_copy_required'});assert.equal(Object.keys((await f.repo.read('store-a')).proposals).length,0);
+  }finally{await f.close();}
+});
+test('ACAP-14 media changes during connection validation cannot commit an obsolete launch snapshot',async()=>{
+  const f=await fixture(false);try{
+    const original=f.connection.access.bind(f.connection);f.connection.access=async(...args)=>{const access=await original(...args);await f.repo.mutate('store-a',[],state=>{state.media['media-a'].url='https://media.example.test/changed.png';return {result:null};});return access;};
+    await assert.rejects(f.service.create('store-a',f.campaign.id,{kind:'launch',reasoning:'Versao deve ser exata',idempotencyKey:'racing-launch'}),{code:'proposal_stale'});assert.equal(Object.keys((await f.repo.read('store-a')).proposals).length,0);
+  }finally{await f.close();}
+});
+test('ACAP-08 idempotent launch requests retain one frozen version while a correction requires a new review',async()=>{
+  const f=await fixture(false);try{
+    const input={kind:'launch' as const,reasoning:'Revisao unica',idempotencyKey:'same-launch'},first=await f.service.create('store-a',f.campaign.id,input);assert.equal((await f.service.create('store-a',f.campaign.id,input)).id,first.id);
+    const current=await f.campaigns.owned('store-a',f.campaign.id);await f.campaigns.save('store-a',current.id,{...current.draft,budget:{...current.draft.budget!,amountCents:3000}});
+    assert.equal((await f.service.create('store-a',current.id,input)).status,'stale');const next=await f.service.create('store-a',current.id,{...input,idempotencyKey:'corrected-launch'});assert.notEqual(next.digest,first.digest);assert.notEqual(next.id,first.id);assert.equal((next.after.draft as MetaAdsCampaignDraft).budget!.amountCents,3000);assert.equal((await f.repo.read('store-a')).media['media-a'].id,'media-a');
+  }finally{await f.close();}
+});
+test('ACAP-08 the client cannot override the frozen launch targets or active intent',async()=>{
+  const f=await fixture(false);try{
+    await assert.rejects(f.service.create('store-a',f.campaign.id,{kind:'launch',after:{accountId:'foreign',status:'ACTIVE'},reasoning:'No overrides',idempotencyKey:'injected-launch'}),{code:'proposal_fields_invalid'});assert.equal(Object.keys((await f.repo.read('store-a')).proposals).length,0);assert.equal(f.calls.includes('prepare'),false);
+  }finally{await f.close();}
+});
+test('ACAP-08 launching a campaign with an existing remote structure cannot create another one',async()=>{
+  const f=await fixture(true);try{await assert.rejects(f.service.create('store-a',f.campaign.id,{kind:'launch',reasoning:'Estrutura ja criada',idempotencyKey:'existing-launch'}),{code:'campaign_already_prepared'});assert.equal(f.calls.includes('prepare'),false);assert.equal(Object.keys((await f.repo.read('store-a')).proposals).length,0);}finally{await f.close();}
+});
+
 async function fixture(prepared = true) {
   const f = await applicationFixture(); let sequence = 0;
   const product: MetaAdsProduct = { productId: "product-a", variantId: "variant-a", name: "Produto", description: "Dados", sku: "A", imageUrl: "https://media.example.test/source.png", priceCents: 10000, currency: "BRL", stockQuantity: 5, active: true, storefrontUrl: "https://store.example.test/product-a", commercialVersion: "version-a" };
