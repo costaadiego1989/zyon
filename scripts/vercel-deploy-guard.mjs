@@ -4,11 +4,13 @@ const branch = process.env.VERCEL_GIT_COMMIT_REF?.trim();
 // commit. Its automatic previews remain ignored.
 const checkoutProductionRelease = branch === "fix/checkout-session-edit-20261018"
   && process.env.VERCEL_ENV === "production";
+const athomProductionRelease = branch === "release/athom-uat-20261116"
+  && process.env.VERCEL_ENV === "production";
 
 // Vercel ignores a deployment when ignoreCommand exits 0. A local/manual
 // production upload has no trusted Git branch metadata, so it is deliberately
 // ignored instead of being allowed to move a public alias by accident.
-if (!branch || (!allowedBranches.has(branch) && !checkoutProductionRelease)) {
+if (!branch || (!allowedBranches.has(branch) && !checkoutProductionRelease && !athomProductionRelease)) {
   console.log(`Skipping Vercel deployment for ${branch || "an unverified source"}. Allowed branches: master, homolog.`);
   process.exit(0);
 }
