@@ -1,20 +1,16 @@
 ## Handoff
 
-- Features: agentic-dashboard-assistant and approved agentic-campaign-approval; Execute, one author.
-- Checkout: C:/tmp/zyon-agentic-assistant-20261116; branch feat/agentic-assistant-20261116; baseline e750aa85. Preserve original AACP worktree.
-- Base: T1-T56 committed through b6750a0e. Canonical tabs, compact settings, KPI/charts and filters, native desktop/mobile walk. T55 heap/lease correction; T56 acknowledgement survives equivalent refresh and JSONB key order. 121 UI, native ADAS-56 and ADAS-58 passed.
-- ACAP: spec approved2026-11-16 user "Aprovar especificacao" (exact accented approval remains in spec); tasks approved user "Aprovar plano e implementar". T1 contracts complete in this commit: launch excluded from automatic-action type; preparation/review/contact/notice DTOs. Gates:436 API,10 WhatsApp,132 UI, builds/lint/types0.
-- ACAP T2 complete in this commit: three tables, optional scoped notice FKs for new inbox/delivery rows, exact deploy mirrors including the base assistant prerequisite. Local migration smoke and builds/lint/types0;436 API,10 WhatsApp,132 UI.
-- ACAP T3 complete in this commit: stable generation intent, canonical request digest, verified content readiness. Extracted existing pure draft/commercial validation to domain, keeping application re-exports.22 tests passed and lint0.
-- ACAP T4 complete in this commit: PostgreSQL preparation repository, fenced leases, revisions, checkpoints, unknown-state hold and shared isolated DB fixture.9 integration cases and full457 API tests passed; lint0.
-- ACAP T5 complete in this commit: administrative contact with explicit campaign_ready.v1 consent, version/CAS, role/tenant guards, self-send rejection and phone-free audit.9 PG tests and full466 API tests passed; lint0.
-- ACAP T6 complete in this commit: deterministic per-review inbox/outbox, pinned recipient metadata, fenced dispatch marker/ledger, unknown hold, safe known-no-dispatch retry, closed-review recovery and scoped purge.20 PG tests; phase gate486 API,10 WhatsApp,132 UI, both builds/lint/types0.
-- ACAP T7 complete: frozen launch draft/products/ordered verified media/assets and ACTIVE intent, with stale-media race guard.17 targeted and495 full API tests passed; lint0. Next T8 final authority; no remote actions.
-- Next: ACAP T7 frozen launch proposal, then T8 authority and T9-T35 sequential. No preparation worker, new launch executor or real sends yet. Technical observations in ignored implementation-notes.md.
-- Final integrated closure: both features remain pending clean-HEAD proofs, fresh independent Verifiers, mutations and validate_verification0 after the approved ACAP rule replaces initial auto launch in ADAS-34/57. Earlier incomplete proof runs never count green. No Verifier dispatched for this scope yet; do not reuse meta_growth_verifier.
-- Single final Aprovar e publicar; all new campaigns require administrative approval. Notify administrative contact through the store WhatsApp only. Sender eligibility/template approval and real delivery remain separate operational proofs.
-- Local only: no push/deploy, remote DB, paid calls, WhatsApp messages or Athom activation. Private .specs/features artifacts remain ignored; never force-add.
+- Features: agentic-dashboard-assistant and approved agentic-campaign-approval, Execute, one author. Final integrated proofs and fresh independent Verifier still owed for both.
+- Checkout: C:/tmp/zyon-agentic-assistant-20261116; branch feat/agentic-assistant-20261116; original AACP worktree preserved. Baseline e750aa85.
+- Base T1-T56 committed b6750a0e: canonical project tabs, concise settings, real KPI/chart projections and filters; native desktop/mobile walks.121 UI tests, native ADAS56/58 passed; no final integrated proof claim.
+- ACAP T1-T8 committed, HEAD a5f2d7c4. T7 b34e6abc frozen launch proposal,17 proposal/full495 API. T8 a5f2d7c4 final initial-approval guard,9 new cases,57 targeted/full504 API, lint0.
+- T8 fixture changes preserve every old funding/cap/revocation assertion with authentic prior publication review. Authorized ADAS34 new-flow expectation requires no remote writes. ADAS38 revocation scenario uses reviewed publication rather than forbidden automatic initial preparation.
+- T9 in progress: ONLY uncommitted files infrastructure/meta-mcp.adapter.ts and its spec.ts. Native launch creates paused objects then verifies exact remote budget/dates/account/parent/creative bindings; shared publication stage keeps the same proposal, guards every write, preserves partial IDs and never retries uncertain submissions.
+- T9 logs: red10/31 failures before implementation; targeted30/31 pass and lint0. Sole remaining failure: new carousel test wrongly asserts creative.primary_text; established native MCP contract uses creative.message. Required async user confirmation queued, unanswered as of this handoff. Do not modify that assertion or commit T9 without the answer. Do not mark T9 done. Latest small product-map normalization has lint0; re-run full adapter suite after approval.
+- Next: record exact answer, correct that one field if authorized, run T9 narrow Node suite/lint, mark task complete BEFORE atomic commit. Then T10-T35 in order with each gate. No gate currently running.
+- User UI request already implemented in base; do not substitute a backend status report for final UI/browser proof. Need final1440/390/320 checks at integrated HEAD.
+- No new external actions: no push/deploy, remote DB, paid AI/Meta writes, actual WhatsApp message or Athom activation. All test DBs loopback15435 disposable schemas. Do not touch other processes or original worktree.
+- User approvals: spec2026-11-16 Aprovar especificacao (exact accented form in spec); tasks Aprovar plano e implementar; single author. Every new campaign needs initial administrative approval. Contact by store through own connected WhatsApp.30 monthly images and current commercial offer retained.
+- Private .specs/features stays ignored. Stage tracked .specs/STATE.md only in a task commit, never force-add private artifacts. Do not update global memories.
 
-- ACAP T7 committed d692148e:17 proposal tests, full495 API and lint0. T8 next; final integrated proofs/Verifier still owed.
-
-- ACAP T8 complete in this commit: automatic initial prepare/launch denied; publication requires authentic exact legacy receipt or confirmed administrative publication history. Launch revalidates frozen media/catalogue/assets and own progress IDs.9 new cases,57 targeted/full504 API, lint0. T9 next.
+- T9 now complete: user authorized message correction;31/31 native adapter cases and lint0. T10 recovery next. No new remote actions.

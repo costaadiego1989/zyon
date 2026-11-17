@@ -185,11 +185,61 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       return { status: [created, set, ad].some(result => result.status === "DRAFT") ? "remote_draft" : "remote_paused", objects };
     } catch (error) { return this.failure(error, objects); }
   }
+  private async publish(session: MetaMcpSession, access: MetaAccess, objects: Objects, onProgress: (objects: Objects) => Promise<void>): Promise<ProviderExecutionResult> {
+    let completedWrite = false;
+    try {
+      const targets = objects.filter(ref => ref.type !== 'creative');
+      for (const ref of targets) {
+        const result = await session.call('ads_activate_entity', { ad_account_id: access.accountId, entity_id: ref.id, entity_type: ref.type, object_ids: targets.map(o => o.id), publish_as_active: true, allow_partial_publish: false }, true);
+        completedWrite = true; await onProgress([...objects]);
+        const status = String((decoded(result.result ?? result) as Json).status);
+        if (status === 'PUBLISHING') return { status: 'publishing', objects };
+        if (status !== 'ACTIVE') throw new McpFailure('meta_publication_unconfirmed', true);
+      }
+      return { status: 'active_unconfirmed', objects };
+    } catch (error) { return completedWrite ? { status: 'execution_unknown', objects, error: error instanceof MetaAdsError ? error.code : 'meta_execution_unknown' } : this.failure(error, objects); }
+  }
+  private async verifyLaunch(session: MetaMcpSession, access: MetaAccess, campaign: MetaAdsCampaign, objects: Objects): Promise<void> {
+    const budget = campaign.draft.budget!;
+    const campaigns = await this.entities(session, access, 'campaign', ['id', 'account_id', 'status', 'daily_budget', 'lifetime_budget'], [campaign.remoteCampaignId!]);
+    const sets = await this.entities(session, access, 'adset', ['id', 'account_id', 'campaign_id', 'status', 'start_time', 'end_time'], [campaign.remoteAdSetId!]);
+    const ads = await this.entities(session, access, 'ad', ['id', 'account_id', 'campaign_id', 'adset_id', 'creative_id', 'status'], campaign.remoteAdIds);
+    const equalDate = (value: unknown, expected: string | null) => expected === null ? value == null : typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) === Date.parse(expected);
+    const sameAccount = (row: Json) => String(row.account_id) === access.accountId && ['PAUSED', 'DRAFT'].includes(String(row.status));
+    const creative = objects.find(ref => ref.type === 'creative')!.id;
+    if (campaigns.length !== 1 || String(campaigns[0].id) !== campaign.remoteCampaignId || !sameAccount(campaigns[0]) || Number(budgetValue(campaigns[0][budget.cadence === 'daily' ? 'daily_budget' : 'lifetime_budget'])) !== budget.amountCents || Number(budgetValue(campaigns[0][budget.cadence === 'daily' ? 'lifetime_budget' : 'daily_budget'])) !== 0 ||
+      sets.length !== 1 || String(sets[0].id) !== campaign.remoteAdSetId || !sameAccount(sets[0]) || String(sets[0].campaign_id) !== campaign.remoteCampaignId || !equalDate(sets[0].start_time, budget.startsAt) || !equalDate(sets[0].end_time, budget.endsAt) ||
+      ads.length !== campaign.remoteAdIds.length || new Set(ads.map(row => String(row.id))).size !== ads.length || ads.some(row => !campaign.remoteAdIds.includes(String(row.id)) || !sameAccount(row) || String(row.campaign_id) !== campaign.remoteCampaignId || String(row.adset_id) !== campaign.remoteAdSetId || String(row.creative_id) !== creative)) throw new MetaAdsError('proposal_stale', 409);
+  }
+  private async launch(access: MetaAccess, campaign: MetaAdsCampaign, proposal: MetaAdsProposal, onProgress: (objects: Objects) => Promise<void>): Promise<ProviderExecutionResult> {
+    let objects: Objects = [];
+    try {
+      if (campaign.remoteCampaignId || campaign.remoteAdSetId || campaign.remoteAdIds.length) throw new MetaAdsError('campaign_already_prepared', 409);
+      const media = proposal.after.media as MetaAdsMedia[];
+      const products = proposal.after.products as MetaAdsCampaign['products'];
+      if (proposal.after.status !== 'ACTIVE' || stableDigest(proposal.after.draft) !== stableDigest(campaign.draft) || !Array.isArray(products) || stableDigest(Object.fromEntries(products.map(product => [product.variantId, product]))) !== stableDigest(Object.fromEntries(campaign.products.map(product => [product.variantId, product]))) ||
+        ['accountId', 'pageId', 'datasetId', 'whatsappId'].some(key => proposal.after[key] !== access[key as keyof MetaAccess]) || !Array.isArray(media) || stableDigest(media.map(item => item.id)) !== stableDigest(campaign.draft.mediaIds) ||
+        media.some(item => item.commercialReview?.status !== 'verified' || item.commercialReview.productVersion !== item.productVersion || !/^[a-f0-9]{64}$/i.test(item.commercialReview.imageSha256))) throw new MetaAdsError('proposal_stale', 409);
+      const session = this.session(access, 'create_and_launch_new_ads'); await session.start(); session.require([...createTools, 'ads_activate_entity']);
+      const prepared = await this.prepare(access, campaign, media, onProgress); objects = prepared.objects;
+      if (prepared.error || !['remote_paused', 'remote_draft'].includes(prepared.status)) return prepared;
+      if (objects.length !== 4 || ['campaign', 'ad_set', 'creative', 'ad'].some(type => objects.filter(ref => ref.type === type).length !== 1)) throw new McpFailure('meta_preparation_incomplete', true);
+      const staged: MetaAdsCampaign = { ...campaign, remoteCampaignId: objects.find(ref => ref.type === 'campaign')!.id, remoteAdSetId: objects.find(ref => ref.type === 'ad_set')!.id, remoteAdIds: objects.filter(ref => ref.type === 'ad').map(ref => ref.id), remoteAccountId: access.accountId };
+      const account = await this.account(session, access);
+      if (account.has_payment_method !== true) throw new MetaAdsError('meta_funding_required', 409);
+      await this.verifyLaunch(session, access, staged, objects);
+      return this.publish(session, access, objects, onProgress);
+    } catch (error) { return this.failure(error, objects); }
+  }
   async execute(access: MetaAccess, campaign: MetaAdsCampaign, proposal: MetaAdsProposal, onProgress: (objects: Objects) => Promise<void>): Promise<ProviderExecutionResult> {
     this.owned(campaign);
     const authority = access.executionAuthority;
     const automatic = proposal.status === 'pending_review' && proposal.approvedBy === null && proposal.approvedAt === null && authority?.kind === 'automatic' && authority.proposalId === proposal.id && authority.proposalDigest === proposal.digest && authority.connectionEpoch === access.connectionEpoch && typeof access.assertWriteAuthorized === 'function';
     if ((!automatic && proposal.status !== "approved") || proposal.campaignId !== campaign.id || proposal.connectionEpoch !== access.connectionEpoch) throw new MetaAdsError("proposal_not_approved", 403);
+    if (proposal.kind === 'launch') {
+      if (automatic || !proposal.approvedBy || !proposal.approvedAt || typeof access.assertWriteAuthorized !== 'function') throw new MetaAdsError('proposal_not_approved', 403);
+      return this.launch(access, campaign, proposal, onProgress);
+    }
     const objects = refs(campaign);
     let completedWrite = false;
     try {
@@ -197,15 +247,7 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       if (!campaign.remoteCampaignId) throw new MetaAdsError("meta_campaign_missing", 409);
       if (proposal.kind === "publish") {
         if (account.has_payment_method !== true) throw new MetaAdsError("meta_funding_required", 409);
-        for (const ref of objects) {
-          const result = await session.call("ads_activate_entity", { ad_account_id: access.accountId, entity_id: ref.id, entity_type: ref.type, object_ids: objects.map(o => o.id), publish_as_active: true, allow_partial_publish: false }, true);
-          completedWrite = true;
-          await onProgress([...objects]);
-          const status = String((decoded(result.result ?? result) as Json).status);
-          if (status === "PUBLISHING") return { status: "publishing", objects };
-          if (status !== "ACTIVE") throw new McpFailure("meta_publication_unconfirmed", true);
-        }
-        return { status: "active_unconfirmed", objects };
+        return this.publish(session, access, objects, onProgress);
       }
       let fields: Json; let target = campaign.remoteCampaignId; let type = "campaign";
       if (proposal.kind === "pause") fields = { status: "PAUSED" };
