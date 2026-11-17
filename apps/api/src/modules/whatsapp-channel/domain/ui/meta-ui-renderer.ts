@@ -377,6 +377,12 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         if (d.progressive) text.push(`🎟️ *Condições de desconto*\n\n• ${value(d.progressive.description)}\n\n_A elegibilidade é conferida no checkout._`); break;
       case "buyer_hub_actions":
         items(d.choices).forEach(choice => add(value(choice.label), tool("buyer_hub", object(choice.args)), value(choice.description) || undefined)); break;
+      case "account_link_actions":
+        items(d.choices).forEach(choice => {
+          const action = object(choice.action);
+          if (action.kind === "message" && /^(confirmar_vinculo|cancelar_vinculo) [A-Za-z0-9_-]{43}$/.test(value(action.message)))
+            add(value(choice.label), { kind: "message", message: value(action.message) });
+        }); break;
       case "quick_replies":
         if (Array.isArray(d.options)) d.options.forEach((label: unknown) => add(value(label), { kind: "message", message: value(label) })); break;
       case "product_content":
@@ -445,7 +451,7 @@ export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): Me
   // Checkout renders only the controls for the current step. The buyer can
   // always explicitly open /atalhos; field entry must not repeat the store hub.
   if (view.stage === "checkout") return view;
-  if (view.blocks.some(block => block.type === "buyer_hub_actions")) return view;
+  if (view.blocks.some(block => ["buyer_hub_actions", "account_link_actions"].includes(block.type))) return view;
   if (view.blocks.some(block => block.type === "cart_summary") && !view.productContext) return view;
   if (isMetaCatalogView(view)) return { ...view, choices: view.choices.filter(catalogProductChoice) };
   const productContext = metaProductContext(view);

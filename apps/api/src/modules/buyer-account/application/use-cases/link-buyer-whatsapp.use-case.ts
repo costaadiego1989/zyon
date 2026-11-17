@@ -76,6 +76,14 @@ export class LinkBuyerWhatsAppUseCase {
     return value.trim();
   }
 
+  /** Server-only reconciliation from an already committed possession proof. */
+  async reconcileConfirmedPhone(buyerId: string, phone: string, verificationId: string) {
+    const proofs = await this.identities.prisma.$queryRaw<Array<{ buyer_id: string; verification_id: string }>>`
+      SELECT buyer_id,verification_id FROM buyer_verified_phones WHERE phone=${phone}`;
+    if (proofs[0]?.buyer_id !== buyerId || proofs[0]?.verification_id !== verificationId) throw new UnauthorizedException("whatsapp_link_proof_required");
+    return this.repairWallets(buyerId, phone, verificationId);
+  }
+
   private async repairWallets(buyerId: string, phone: string, verificationId: string) {
     const previous = await this.identities.prisma.buyerIdentity.findMany({ where: { identityKey: `phone:${phone}` } });
     for (const row of previous) if (row.globalUserId !== buyerId) {

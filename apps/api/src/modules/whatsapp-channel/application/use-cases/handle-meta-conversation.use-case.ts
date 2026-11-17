@@ -17,6 +17,7 @@ import { metaStoreQuickReplyAction, resolveMetaStoreTextAction } from "../../dom
 import { isMetaReadNavigation, refreshMetaReadView } from "../../domain/ui/meta-read-navigation.js";
 import { metaProductContext, withMetaProductNavigation } from "../../domain/ui/meta-product-navigation.js";
 import { recoverMetaPaymentChoice } from "../../domain/ui/meta-payment-selection.js";
+import { BuyerInboundWhatsAppLinkUseCase } from "../../../buyer-account/application/use-cases/buyer-inbound-whatsapp-link.use-case.js";
 
 interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
@@ -54,6 +55,7 @@ export class HandleMetaConversationUseCase {
     @Optional() private readonly capabilities?: MetaUiCapabilitiesAdapter,
     @Optional() private readonly inboundMedia?: MetaInboundMediaAdapter,
     @Optional() private readonly catalogOrders?: MetaCatalogOrderAdapter,
+    @Optional() private readonly accountLinks?: BuyerInboundWhatsAppLinkUseCase,
   ) {}
 
   async execute(input: IncomingMessageInput, route: RouteResult, responseProducer?: () => Promise<WhatsAppStructuredResponse>): Promise<void> {
@@ -132,7 +134,9 @@ export class HandleMetaConversationUseCase {
       }
       let includeMedia = true;
       let navigationOnly = false;
-      if (invalidSelection) { view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Esse menu foi atualizado. Use as opções abaixo ou escreva o que você quer fazer." }; includeMedia = false; }
+      const accountLink = !responseProducer ? await this.accountLinks?.handle(input, state) : undefined;
+      if (accountLink) { state = accountLink.state; view = buildMetaUiView(accountLink); includeMedia = false; }
+      else if (invalidSelection) { view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Esse menu foi atualizado. Use as opções abaixo ou escreva o que você quer fazer." }; includeMedia = false; }
       else if (action?.kind === "page" && view) {
         state = { ...state, page: action.page };
         // A current menu page only changes the controls. Archived navigation
@@ -218,7 +222,7 @@ export class HandleMetaConversationUseCase {
       if ((recoveredView || action?.kind === "back") && view.blocks.some(block => block.type === "welcome_animation")) includeMedia = false;
       if (!responseProducer) view = withMetaCartNavigation(view, state.cartHasItems);
       view = { ...view, stage: view.stage ?? state.stage };
-      const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0, includeMedia, navigationOnly });
+      const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0 && !view.blocks.some(b => b.type === "account_link_actions"), includeMedia, navigationOnly });
       state = { ...state, revision, view, page: presentation.page, selections: presentation.selections, numericSelections: presentation.numericSelections };
       saved = { phase: "prepared", presentation, state, sessionId: route.whatsappSession.id, previousRevision: route.whatsappSession.conversationState?.revision ?? "", sent: [] };
       await this.save(claim, saved);
