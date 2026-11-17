@@ -65,7 +65,13 @@ export class AutomaticCampaignWorker {
     if (!proposal) throw new MetaAdsError('proposal_not_found', 404);
     const policy = await this.current(merchantId);
     if (!policy || proposal.approvedBy || !['pending_review', 'executed'].includes(proposal.status)) return { proposalId, executionId: proposal.executionId, status: proposal.status, reason: proposal.reasoning, error: null };
-    const execution = await this.deps.executions.executeAutomatic(merchantId, proposalId, grant(policy));
+    if (['prepare', 'launch'].includes(proposal.kind)) return { proposalId, executionId: null, status: proposal.status, reason: proposal.reasoning, error: null };
+    let execution;
+    try { execution = await this.deps.executions.executeAutomatic(merchantId, proposalId, grant(policy)); }
+    catch (error) {
+      if (error instanceof MetaAdsError && error.code === 'initial_approval_required') return { proposalId, executionId: null, status: proposal.status, reason: proposal.reasoning, error: null };
+      throw error;
+    }
     return { proposalId, executionId: execution.id, status: execution.status, reason: proposal.reasoning, error: execution.error };
   }
   async recommendation(merchantId: string, recommendationId: string): Promise<AutomaticOutcome> {
@@ -100,22 +106,15 @@ export class AutomaticCampaignWorker {
           const state = await this.deps.repo.read(merchantId);
           for (const campaign of Object.values(state.campaigns)) {
             const binding = (await this.deps.repo.getRecord<{ policyVersion: number }>(merchantId, `automatic-policy-campaign:${policy.id}:${campaign.id}`))?.payload;
-            if (!binding || binding.policyVersion !== policy.version || !campaign.managed) continue;
+            if (!binding || binding.policyVersion !== policy.version || !campaign.managed || campaign.remoteCampaignId) continue;
             const flowKey = stableDigest({ policyId: policy.id, campaignId: campaign.id });
-            if (campaign.remoteCampaignId && !await this.deps.repo.getRecord(merchantId, `proposal-request:auto-prepare-${flowKey}`)) continue;
             const generation = Object.values(state.generations).find(g => g.campaignId === campaign.id && g.status === 'succeeded');
             if (!campaign.draft.mediaIds.length && !generation && !Object.values(state.generations).some(g => g.campaignId === campaign.id)) {
               await this.deps.generations.request(merchantId, campaign.id, { imageCount: 1, idempotencyKey: `auto-initial-${flowKey}` }); continue;
             }
             if (!campaign.draft.mediaIds.length && generation) await this.deps.campaigns.save(merchantId, campaign.id, { ...campaign.draft, mediaIds: generation.mediaIds });
             const ready = await this.deps.campaigns.owned(merchantId, campaign.id); if (!ready.draft.mediaIds.length) continue;
-            const p = await this.deps.proposals.create(merchantId, campaign.id, { kind: 'prepare', after: {}, reasoning: 'Preparação da campanha dentro da política aceita', idempotencyKey: `auto-prepare-${flowKey}` });
-            const outcome = await this.processProposal(merchantId, p.id);
-            if (outcome.status === 'remote_paused' && !outcome.error && policy.scope.actions.includes('publish')) {
-              const current = await this.current(merchantId); if (current?.id !== policy.id || current.version !== policy.version) continue;
-              const publication = await this.deps.proposals.create(merchantId, campaign.id, { kind: 'publish', after: {}, reasoning: 'Publicação inicial dentro da política aceita', idempotencyKey: `auto-publish-${flowKey}` });
-              await this.processProposal(merchantId, publication.id);
-            }
+            await this.deps.proposals.create(merchantId, campaign.id, { kind: 'launch', after: {}, reasoning: 'Campanha pronta para aprovação administrativa antes da publicação', idempotencyKey: `auto-launch-review-${flowKey}` });
           }
           for (const proposal of Object.values((await this.deps.repo.read(merchantId)).proposals)) if (proposal.status === 'pending_review' && !proposal.executionId) {
             try { await this.processProposal(merchantId, proposal.id); } catch { /* Invalid intent remains reviewable; no policy escalation. */ }

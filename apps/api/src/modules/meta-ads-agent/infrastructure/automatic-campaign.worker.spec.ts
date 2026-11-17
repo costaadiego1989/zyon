@@ -13,14 +13,48 @@ async function fixture(prepared = true) {
   const generations = new GenerationService(f.repo, f.commerce, { configured: () => true, generate: async () => ({ status: 'succeeded', url: 'https://media.example.test/controlled.png', error: null,
     usage: { provider: 'openai', model: 'gpt-image-1', providerRequestId: 'controlled-image', inputTextTokens: 10, inputImageTokens: 10, outputImageTokens: 10, costMicros: '100', currency: 'USD', costStatus: 'estimated' },
     commercialReview: { status: 'verified', productVersion: 'version-a', imageSha256: 'a'.repeat(64), reviewedAt: f.clock().toISOString() } }) }, f.clock);
-  const worker = new AutomaticCampaignWorker({ repo: f.repo, policies: f.policies, campaigns: f.service.campaigns, generations, proposals: f.service.proposals, executions: executor, enabled: () => true, clock: f.clock });
+  const workerDeps={ repo: f.repo, policies: f.policies, campaigns: f.service.campaigns, generations, proposals: f.service.proposals, executions: executor, authorizeActor:f.authorizeActor, enabled: () => true, clock: f.clock };
+  const worker = new AutomaticCampaignWorker(workerDeps);
   const measured = async (orders: boolean) => {
     const metrics = buildMetrics({ campaignId: f.campaignId, remote: await f.provider.metrics({} as never, (await f.repo.read('store-a')).campaigns[f.campaignId], '2026-11-01', '2026-11-15'), orders: orders ? [{ orderId: 'order-a', paid: true, paidCents: 10000, refundedCents: 0, currency: 'BRL', costCents: 3000, costCoverage: 'complete' }] as never : [], updatedAt: f.clock().toISOString() });
     const recommendation = { id: 'recommendation-a', campaignId: f.campaignId, priority: 'roas' as const, hypothesis: 'Pausar com base no custo observado', evidence: recommendationEvidence(metrics), proposedAction: 'pause' as const, proposedFields: {}, status: 'pending_review' as const, createdAt: f.clock().toISOString() };
     await f.repo.mutate('store-a', [], state => { state.metrics[f.campaignId] = metrics; state.recommendations[recommendation.id] = recommendation; return { result: null }; }); return recommendation;
   };
-  return { ...f, worker, measured, generations };
+  return { ...f, worker, workerDeps, measured, generations };
 }
+
+test('ACAP-11 automatic worker retains a launch proposal for the final human approval',async()=>{
+  const f=await fixture(false);try{const p=await f.propose('launch'),result=await f.worker.processProposal('store-a',p.id);assert.equal(result.status,'pending_review');assert.equal(result.executionId,null);assert.equal(result.error,null);assert.equal(await f.repo.getRecord('store-a',`proposal-approval:${p.id}`),null);assert.equal(Object.keys((await f.repo.read('store-a')).executions).length,0);}finally{await f.close();}
+});
+test('ACAP-11 automatic worker cannot bypass initial approval through legacy prepare',async()=>{
+  const f=await fixture(false);try{const p=await f.propose('prepare'),result=await f.worker.processProposal('store-a',p.id);assert.equal(result.status,'pending_review');assert.equal(result.executionId,null);assert.equal((await f.repo.read('store-a')).campaigns[f.campaignId].remoteCampaignId,null);assert.equal(f.calls.includes('execute'),false);}finally{await f.close();}
+});
+test('ACAP-11 publication without an authentic initial approval stays reviewable without provider dispatch',async()=>{
+  const f=await fixture();try{const p=await f.propose('publish'),result=await f.worker.processProposal('store-a',p.id);assert.equal(result.status,'pending_review');assert.equal(result.executionId,null);assert.equal((await f.repo.read('store-a')).proposals[p.id].approvedBy,null);assert.equal(f.calls.includes('execute'),false);}finally{await f.close();}
+});
+test('ACAP-16 bounded publication with an authentic initial review retains policy exposure and audit authority',async()=>{
+  const f=await fixture();try{
+    await f.approveInitialPublication();f.provider.execute=async access=>{await access.assertWriteAuthorized!();return{status:'active_unconfirmed',objects:[{type:'campaign',id:'200'}]};};
+    const p=await f.propose('publish'),result=await f.worker.processProposal('store-a',p.id),state=await f.repo.read('store-a');
+    assert.equal(result.status,'active_unconfirmed');assert.equal(state.exposure!.allocations[f.campaignId].amountCents,10000);assert.deepEqual(state.exposure!.pending,{});assert.equal(state.proposals[p.id].approvedBy,null);
+    const audit=(await f.repo.getRecord<Record<string,unknown>>('store-a',`execution-result:${result.executionId}:1`))!.payload;assert.equal(audit.actorId,'service:meta-ads-agent');assert.equal((audit.authority as Record<string,unknown>).policyId,f.policy.id);
+  }finally{await f.close();}
+});
+test('ACAP-11 a dashboard login or worker drain never generates images for an old unbound draft',async()=>{
+  const f=await fixture(false);try{await f.worker.drain();await f.worker.drain();const state=await f.repo.read('store-a');assert.equal(Object.keys(state.generations).length,0);assert.equal(Object.keys(state.proposals).length,0);assert.equal(Object.keys(state.executions).length,0);assert.equal(state.credits.monthlyAvailable,30);}finally{await f.close();}
+});
+test('ACAP-11 an old queued preparation is preserved without acquiring initial external authority',async()=>{
+  const f=await fixture(false);try{const p=await f.propose('prepare');await f.worker.drain();await f.worker.drain();const state=await f.repo.read('store-a');assert.equal(state.proposals[p.id].status,'pending_review');assert.equal(state.proposals[p.id].executionId,null);assert.equal(Object.keys(state.executions).length,0);assert.equal(state.credits.monthlyAvailable,30);}finally{await f.close();}
+});
+test('ACAP-11 two automatic workers create one review for a bound generated campaign without initial external writes',async()=>{
+  const f=await fixture(false);try{
+    const review=await f.policies.review('store-a','owner-a',{scope:{...f.policy.scope,allowNewCampaigns:true},limits:f.policy.limits});await f.policies.accept('store-a','owner-a',{scope:review.scope,limits:review.limits,version:review.version,digest:review.digest,idempotencyKey:'parallel-policy'});
+    const source=(await f.repo.read('store-a')).campaigns[f.campaignId];const c=await f.worker.createCampaign('store-a',{draft:{...source.draft,mediaIds:[]},imageCount:1,idempotencyKey:'parallel-new'});
+    const generation=Object.values((await f.repo.read('store-a')).generations)[0];await f.generations.run('store-a',generation.id);
+    const other=new AutomaticCampaignWorker(f.workerDeps);await Promise.all([f.worker.drain(),other.drain()]);await f.worker.drain();
+    const state=await f.repo.read('store-a'),proposals=Object.values(state.proposals).filter(p=>p.campaignId===c.id);assert.equal(proposals.length,1);assert.equal(proposals[0].kind,'launch');assert.equal(proposals[0].status,'pending_review');assert.equal(proposals[0].approvedBy,null);assert.equal(Object.keys(state.executions).length,0);assert.equal(state.credits.monthlyAvailable,29);assert.equal(f.calls.includes('execute'),false);
+  }finally{await f.close();}
+});
 
 test('ADAS-34 worker sends pending proposal only under current accepted automatic policy', async () => {
   const f = await fixture(); try { const p = await f.propose(); const outcome = await f.worker.processProposal('store-a', p.id); assert.equal(outcome.status, 'remote_paused'); assert.ok(outcome.executionId); const state = await f.repo.read('store-a'); assert.equal(state.proposals[p.id].approvedBy, null); assert.equal(Object.keys(state.executions).length, 1); } finally { await f.close(); }
@@ -71,6 +105,7 @@ test('ADAS-34 ACAP-11 accepted new campaign intent generates internally and awai
     const state = await f.repo.read('store-a'); assert.equal(creates, 0); assert.equal(publishes, 0); assert.equal(state.campaigns[campaign.id].status, 'draft');
     assert.equal(Object.values(state.generations).filter(g => g.campaignId === campaign.id).length, 1); assert.equal(state.credits.monthlyAvailable, 29);
     assert.equal(Object.values(state.proposals).filter(p => p.campaignId === campaign.id).length, 1); assert.equal(Object.values(state.proposals).some(p => p.approvedBy !== null), false);
+    assert.equal(Object.values(state.proposals).find(p=>p.campaignId===campaign.id)!.kind,'launch');
     assert.equal(Object.keys(state.executions).length, 0); assert.deepEqual(state.exposure?.allocations ?? {}, {}); assert.deepEqual(state.exposure?.pending ?? {}, {});
   } finally { await f.close(); }
 });

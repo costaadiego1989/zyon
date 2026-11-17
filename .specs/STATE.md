@@ -18,3 +18,5 @@
 - T10 complete:33 execution tests/full522 API, lint0. Recovery validates optional native schedule for launch and never resends unknown calls. T11 next.
 
 - T11 complete: InitialLaunchService canonical review/durable approval queue/lifecycle drain.9 PG/full531 API and lint0. T12 next. HTTP T19 must apply existing publicProposal projection to the returned proposal; service is internal. No private thread dependency.
+
+- T12 complete: pending initial launch reviews only; automatic legacy prepare cannot dispatch.18 worker cases/full538 API,10 WhatsApp,132 UI; API+dashboard builds/lint/Cypress types0. T13 internal preparation admission next.

@@ -85,7 +85,7 @@ export class ExecutionAuthorityService implements ExecutionAuthorityPort {
     if (proposal.connectionEpoch !== state.connection.epoch || ['stale', 'rejected'].includes(proposal.status)) throw new MetaAdsError('proposal_stale', 409);
     let policy: MetaAdsAutomationPolicy | null = null;
     if (request.kind === 'manual') {
-      if (!await this.manualReceipt(merchantId, proposal)) throw new MetaAdsError('approval_required', 403);
+      if (!proposal.approvedBy || !await this.manualReceipt(merchantId, proposal)) throw new MetaAdsError('approval_required', 403);
       if (proposal.approvedBy !== request.actorId) await this.deps.authorizeActor(merchantId, proposal.approvedBy);
     } else {
       if (proposal.kind === 'launch' || proposal.kind === 'prepare') throw new MetaAdsError('initial_approval_required', 409);
