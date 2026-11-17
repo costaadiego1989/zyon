@@ -1,0 +1,76 @@
+import {useEffect,useRef,useState} from 'react';
+import type {MetaAdsCampaignLaunchReview} from '@zyon/shared-types';
+import type {CampaignApprovalApi} from './api.js';
+import {errorMessage,executionStates,money,priorities} from './presentation.js';
+import './launch-review.css';
+
+interface Props {
+  merchantId:string;value:MetaAdsCampaignLaunchReview|null;api:Pick<CampaignApprovalApi,'review'|'approveLaunch'>;
+  timezone?:string;loading?:boolean;error?:string;onRetry?:()=>void;
+  onUpdated:(value:MetaAdsCampaignLaunchReview)=>void|Promise<void>;onReconcile?:(executionId:string)=>Promise<unknown>;
+}
+export function LaunchReview(props:Props){
+  if(props.loading)return <section className="mga-launch" aria-label="Revisão da campanha" aria-busy="true"><p role="status">Carregando revisão…</p></section>;
+  if(props.error)return <section className="mga-launch"><p role="alert">{props.error}</p>{props.onRetry&&<button type="button" className="mga-secondary" onClick={props.onRetry}>Atualizar revisão</button>}</section>;
+  if(!props.value)return <p className="mga-empty">A campanha ainda está sendo preparada. A revisão aparecerá aqui.</p>;
+  return <ReadyReview key={`${props.merchantId}:${props.value.proposal.id}:${props.value.proposal.digest}:${props.value.proposal.connectionEpoch}`} {...props} value={props.value}/>;
+}
+function ReadyReview({value,api,onUpdated,onReconcile,timezone}:Props&{value:MetaAdsCampaignLaunchReview}){
+  const [result,setResult]=useState<MetaAdsCampaignLaunchReview|null>(null),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[error,setError]=useState('');
+  const [previews,setPreviews]=useState<Record<string,'loaded'|'failed'>>({}),[imageAttempt,setImageAttempt]=useState(0);
+  const lock=useRef(false),alive=useRef(true),key=useRef<string|null>(null);
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
+  // Once admitted, a lagging overview must not reopen the same approval.
+  useEffect(()=>{setResult(previous=>{
+    if(previous&&(previous.proposal.approvedAt||previous.execution)&&value.proposal.status==='pending_review'&&!value.execution)return previous;
+    if(previous?.execution&&value.execution?.id===previous.execution.id&&value.execution.updatedAt<=previous.execution.updatedAt)return previous;
+    return value;
+  });},[value]);
+  const current=result??value;
+  const {campaign,proposal,execution}=current,draft=campaign.draft,budget=draft.budget;
+  const media=draft.mediaIds.map(id=>current.media.find(image=>image.id===id)).filter(image=>!!image);
+  const previewReady=media.length===draft.mediaIds.length&&media.length>0&&media.every(image=>previews[image.id]==='loaded');
+  const previewFailed=Object.values(previews).includes('failed');
+  const approved=proposal.status==='approved'||!!proposal.approvedAt||!!execution;
+  const unknown=uncertain||execution?.status==='execution_unknown';
+  const formatTime=(value:string)=>new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:timezone,timeZoneName:'short'}).format(new Date(value));
+  async function approve(){
+    if(lock.current||!current.canApprove||!previewReady||approved||unknown)return;
+    lock.current=true;setBusy(true);setError('');key.current??=crypto.randomUUID();
+    try{const next=await api.approveLaunch(campaign.id,proposal.id,{digest:proposal.digest,idempotencyKey:key.current});if(alive.current){setResult(next);void onUpdated(next);}}
+    catch(e){if(alive.current){setUncertain(true);setError(errorMessage(e));}}
+    finally{lock.current=false;if(alive.current)setBusy(false);}
+  }
+  async function consult(){
+    if(lock.current)return;lock.current=true;setBusy(true);setError('');
+    try{
+      if(execution?.status==='execution_unknown'&&onReconcile)await onReconcile(execution.id);
+      const next=await api.review(campaign.id,proposal.id);
+      if(alive.current){setResult(next);if(next.proposal.status!=='pending_review'||next.execution)setUncertain(false);void onUpdated(next);}
+    }catch(e){if(alive.current)setError(errorMessage(e));}
+    finally{lock.current=false;if(alive.current)setBusy(false);}
+  }
+  return <section className="mga-launch" aria-label={`Revisão: ${draft.name}`}>
+    <header className="mga-section-heading"><div><h2>{draft.name}</h2><p>{approved?'Aprovação registrada':current.canApprove?'Pronta para sua aprovação':'Revisão pendente'}</p></div></header>
+    <div className="mga-launch-layout"><div className="mga-launch-creative">
+      <ol className="mga-launch-previews" aria-label={media.length>1?'Ordem do carrossel':'Criativo'}>{media.map((image,index)=><li key={image.id}><figure><img key={`${image.id}:${imageAttempt}`} src={image.url} alt={`Criativo ${index+1}: ${campaign.products.find(p=>p.variantId===image.variantId)?.name??'produto selecionado'}`} onLoad={()=>setPreviews(previous=>({...previous,[image.id]:'loaded'}))} onError={()=>setPreviews(previous=>({...previous,[image.id]:'failed'}))}/><figcaption>{index+1} de {media.length}{media.length>1?' · Carrossel':''}</figcaption></figure></li>)}</ol>
+      {previewFailed&&<div role="alert"><p>Não foi possível carregar um criativo. Confira as imagens antes de aprovar.</p><button type="button" className="mga-secondary" onClick={()=>{setPreviews({});setImageAttempt(n=>n+1);}}>Recarregar criativos</button></div>}
+      <h3>{draft.headline}</h3><p className="mga-launch-copy">{draft.primaryText}</p>
+      <details><summary>Produtos anunciados ({campaign.products.length})</summary><ul className="mga-launch-products">{campaign.products.map(product=><li key={product.variantId}><strong>{product.name}</strong><span>SKU {product.sku} · {money(product.priceCents,product.currency)} · {product.stockQuantity} disponíveis</span></li>)}</ul></details>
+    </div><div>
+      <dl className="mga-ledger"><div><dt>Objetivo</dt><dd>{priorities[draft.priority]}</dd></div><div><dt>Destino</dt><dd>{draft.destination==='store'?'Loja online':'WhatsApp'}</dd></div><div><dt>Público</dt><dd>{draft.country==='BR'?'Brasil':draft.country}</dd></div>
+        <div><dt>Investimento</dt><dd>{budget?`${money(budget.amountCents,budget.currency)} ${budget.cadence==='lifetime'?'no total':'por dia'}`:'Não definido'}</dd></div>
+        <div><dt>Início</dt><dd>{budget?.startsAt?<time dateTime={budget.startsAt}>{formatTime(budget.startsAt)}</time>:'Não definido'}</dd></div><div><dt>Término</dt><dd>{budget?.endsAt?<time dateTime={budget.endsAt}>{formatTime(budget.endsAt)}</time>:'Sem data final'}</dd></div>
+      </dl>
+      <p className="mga-launch-cost">Investimento pago diretamente à Meta. A aprovação autoriza a publicação desta versão.</p>
+      {!!current.missing.length&&<p role="alert">{current.missing.includes('proposal_stale')?'A campanha mudou. Atualize o planejamento e revise a nova versão.':'Há uma pendência na conexão, nos dados ou na autorização. Atualize a revisão antes de aprovar.'}</p>}
+      <div className="mga-launch-submit">
+        {execution?<p role="status">{executionStates[execution.status]}</p>:approved?<p role="status">Aprovação registrada. Aguardando envio à Meta.</p>:unknown?<p role="status">Aguardando confirmação da aprovação. Consulte o estado antes de qualquer nova ação.</p>:<button type="button" data-action="approve-launch" disabled={busy||!current.canApprove||!previewReady} onClick={()=>void approve()}>{busy?'Registrando aprovação…':'Aprovar e publicar'}</button>}
+        {(unknown||approved)&&<button type="button" className="mga-secondary" disabled={busy} onClick={()=>void consult()}>Consultar estado</button>}
+        {!approved&&!unknown&&!previewReady&&!previewFailed&&<small>Carregando criativos para revisão…</small>}
+        {busy&&<p role="status">{approved||unknown?'Consultando estado…':'Registrando aprovação…'}</p>}{error&&<p role="alert">{error}</p>}
+      </div>
+      {!!execution?.objects.length&&<details><summary>Objetos na Meta ({execution.objects.length})</summary><ul>{execution.objects.map(object=><li key={`${object.type}:${object.id}`}>{({campaign:'Campanha',ad_set:'Conjunto',ad:'Anúncio',creative:'Criativo'})[object.type]}: {object.id}</li>)}</ul></details>}
+    </div></div>
+  </section>;
+}
