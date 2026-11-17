@@ -6,7 +6,8 @@ const selection = (c: MetaAdsConnection): MetaAdsSelection => ({accountId: c.acc
 function navigateMeta(url: string) {const target = new URL(url); if (target.protocol !== "https:" || !["www.facebook.com", "facebook.com"].includes(target.hostname)) throw new Error("invalid_oauth_url"); window.location.assign(target.href);}
 export function ConnectionPanel({connection, entitled, api, onUpdated, navigate = navigateMeta}: {connection: MetaAdsConnection; entitled: boolean; api: MetaAdsAgentApi; onUpdated: () => void | Promise<void>; navigate?: (url: string) => void}) {
   const [view, setView] = useState(connection); const [selected, setSelected] = useState(() => selection(connection)); const [review, setReview] = useState(false); const [notice, setNotice] = useState(""); const callback = useRef(false); const action = useAction();
-  useEffect(() => {setView(connection); setSelected(selection(connection));}, [connection]);
+  const saved=useRef(JSON.stringify({epoch:connection.epoch,status:connection.status,...selection(connection)}));
+  useEffect(() => {setView(connection);const next=JSON.stringify({epoch:connection.epoch,status:connection.status,...selection(connection)});if(next!==saved.current){setSelected(selection(connection));saved.current=next;}}, [connection]);
   useEffect(() => {
     const url = new URL(window.location.href); const code = url.searchParams.get("code"), state = url.searchParams.get("state");
     if (callback.current || !entitled || url.searchParams.get("tab") !== "meta-ads-agent" || (!code && !url.searchParams.has("error"))) return;

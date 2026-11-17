@@ -5,6 +5,10 @@ test('ADAS-66 segmented-tab witness selects its own case without starting unrela
   assert.deepEqual(parseArguments(['--case','ADAS-66']),{case:'ADAS-66'});
   assert.equal(selectedSpec({case:'ADAS-66'}),'cypress/e2e/agentic/runtime.cy.ts');
 });
+test('ADAS-70 metrics browser witness has its own nonempty report journey selector',()=>{
+  assert.deepEqual(parseArguments(['--case','ADAS-70']),{case:'ADAS-70'});
+  assert.equal(selectedSpec({case:'ADAS-70'}),'cypress/e2e/agentic/report-and-recovery.cy.ts');
+});
 test('ADAS-54 runner selection rejects unknown cases path escape and ambiguous modes before services start',()=>{
   assert.deepEqual(parseArguments([]),{});assert.deepEqual(parseArguments(['--case','ADAS-54']),{case:'ADAS-54'});assert.deepEqual(parseArguments(['--spec','cypress/e2e/agentic/runtime.cy.ts']),{spec:'cypress/e2e/agentic/runtime.cy.ts'});
   for(const args of [['--case','ADAS-99'],['--spec','../production.cy.ts'],['--case'],['--serve','--case','ADAS-54'],['--unknown']])assert.throws(()=>parseArguments(args),/agentic_argument_invalid/);

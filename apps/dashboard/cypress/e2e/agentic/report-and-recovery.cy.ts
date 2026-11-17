@@ -3,6 +3,26 @@ import {clock,externalImages,openReport,preparedCampaign} from '../../support/ca
 const report='.mga-agentic-content [aria-label="Relatório diário 2026-11-16"]';
 describe('Relatório diário, recuperação e teclado',()=>{
   beforeEach(()=>{externalImages();reset();enter();});
+  scenario('ADAS-70','native daily observations populate KPI charts filters recovery and responsive settings without cross-store data',()=>{
+    let second='',unknownId='';const kpi=(label:string)=>cy.contains('.mga-metric-kpis .stat-card',label).find('.stat-card__value');
+    preparedCampaign();preparedCampaign().then(campaign=>{second=campaign.id;});control('metrics',{unavailable:false,sampleData:true});clock('2026-11-17T03:00:00Z');clock('2026-11-18T03:00:00Z');
+    cy.contains('[role="tab"]','Métricas').click();cy.get('[aria-label="Atualizar métricas"]').click();kpi('Gasto de mídia').should('contain.text','90,00');cy.get('.mga-metrics-status').should('contain.text','2 de 7 dias');
+    cy.get('[aria-label="Período das métricas"]').select('1');kpi('Gasto de mídia').should('contain.text','60,00');kpi('Receita Meta').should('contain.text','240,00');kpi('Vendas confirmadas').should('contain.text','0,00');kpi('Pedidos pagos').should('have.text','0');kpi('Conversas').should('have.text','12');kpi('ROAS atribuído').should('have.text','4×');
+    for(const kind of ['money','count'])cy.get(`[data-metric-chart="${kind}"] canvas`).should(canvases=>{expect(canvases.length).greaterThan(0);expect(canvases[0].getBoundingClientRect().width).greaterThan(0);});
+    cy.contains('summary','Ver dados dos gráficos').click();cy.get('.mga-metrics-data tbody tr').should('have.length',1).and('contain.text','17/11/2026').and('contain.text','60,00').and('contain.text','240,00');
+    cy.then(()=>cy.get('[aria-label="Campanha das métricas"]').select(second));kpi('Gasto de mídia').should('contain.text','40,00');kpi('Receita Meta').should('contain.text','160,00');kpi('Conversas').should('have.text','8');
+    control('metrics',{unavailable:true,sampleData:true});clock('2026-11-19T03:00:00Z');cy.get('[aria-label="Atualizar métricas"]').click();kpi('Gasto de mídia').should('have.text','—');cy.get('.mga-chart-empty').should('contain.text','Sem dados coletados');
+    cy.request(api()+'/v1/meta-ads-agent/reports').then(({body})=>{const current=body.reports.find((row:{localDay:string})=>row.localDay==='2026-11-18');unknownId=current.id;expect(current.status).eq('partial');});
+    control('metrics',{unavailable:false,sampleData:true});clock('2026-11-19T03:05:00Z');cy.get('[aria-label="Atualizar métricas"]').click();kpi('Gasto de mídia').should('contain.text','60,00');
+    cy.request(api()+'/v1/meta-ads-agent/reports').then(({body})=>{const current=body.reports.filter((row:{localDay:string})=>row.localDay==='2026-11-18');expect(current).have.length(1);expect(current[0].id).eq(unknownId);expect(current[0].status).eq('completed');});
+    for(const width of [1440,390,320]){
+      cy.viewport(width,900);cy.get('.chat-dock-panel').then(panel=>{if(!panel[0].hidden)cy.get('[aria-label="Mensagem para a IA"]').focus().type('{esc}');});cy.get('.mga-metrics').scrollIntoView();cy.document().then(doc=>expect(doc.documentElement.scrollWidth).at.most(width));
+      cy.get('[data-metric-chart="money"] canvas').should(canvases=>{expect(canvases[0].getBoundingClientRect().width).greaterThan(0);expect(canvases[0].getBoundingClientRect().right).at.most(width);});
+      cy.contains('[role="tab"]','Configurações').click();cy.get('[aria-label="Verba dos anúncios"] a').should('be.visible');cy.get('.mga-funding-status').should('contain.text','Pré-paga');cy.get('.mga-funding-details').should(details=>expect((details[0] as HTMLDetailsElement).open).eq(false));cy.contains('[role="tab"]','Métricas').click();
+    }
+    control('facts').then(({body})=>{expect(body.images).eq(2);expect(body.writes).have.length(8);expect(body.states[0].credits.monthlyAvailable).eq(28);});
+    cy.get('[aria-label="Loja ativa"]').select('store-b');cy.contains('Conta da loja B').should('be.visible');cy.contains('[role="tab"]','Métricas').click();cy.get('.mga-metric-kpis .stat-card__value').each(value=>expect(value.text()).eq('—'));cy.get('[data-metric-chart]').should('not.exist');
+  });
   afterEach(()=>{control('model',{hold:false});control('facts').then(({body})=>cy.writeFile('../../.specs/features/agentic-dashboard-assistant/t45-last-facts.json',body));});
   scenario('ADAS-58','account midnight creates one closed-day report with distinct metrics and repeats without new usage or writes',()=>{
     preparedCampaign();clock('2026-11-17T02:59:59Z');cy.request(api()+'/v1/meta-ads-agent/reports').then(({body})=>expect(body.reports.some((r:{localDay:string})=>r.localDay==='2026-11-16')).eq(false));

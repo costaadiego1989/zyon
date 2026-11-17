@@ -28,9 +28,9 @@ function MetricChart({points,currency,kind,active}:{points:AdsPoint[];currency:s
     points.map(point=>kind==='money'?(point.attributedRevenueCents===null?null:point.attributedRevenueCents/100):point.conversations),
   ],[points,kind]);
   const options=useMemo<uPlot.Options>(()=>({width:400,height:210,
-    series:[{},...series.map((label,index)=>({label,stroke:token(index?'--color-brand':'--color-text-muted'),width:2,spanGaps:false,points:{show:points.length===1,size:6}}))],
+    series:[{},...series.map((label,index)=>({label,stroke:token(index?'--color-brand':'--color-text-muted'),width:2,spanGaps:false,points:{show:true,size:4}}))],
     scales:{x:{time:true,...(points.length===1?{range:[data[0][0]-43200,data[0][0]+43200] as [number,number]}:{})},y:{range:(_plot,_min,max)=>[0,Math.max(1,max*1.12)]}},
-    axes:[{stroke:token('--color-text-muted'),grid:{show:false},ticks:{show:false},values:(_plot,ticks)=>ticks.map(value=>new Date(value*1000).toLocaleDateString('pt-BR',{timeZone:'UTC',day:'2-digit',month:'2-digit'}))},
+    axes:[{splits:()=>Array.from(data[0]).filter((_value,index)=>index%Math.max(1,Math.ceil(points.length/5))===0),stroke:token('--color-text-muted'),grid:{show:false},ticks:{show:false},values:(_plot,ticks)=>ticks.map(value=>new Date(value*1000).toLocaleDateString('pt-BR',{timeZone:'UTC',day:'2-digit',month:'2-digit'}))},
       {size:58,stroke:token('--color-text-muted'),grid:{stroke:token('--color-border'),width:1},ticks:{show:false},values:(_plot,ticks)=>ticks.map(value=>kind==='money'&&currency?new Intl.NumberFormat('pt-BR',{style:'currency',currency,maximumFractionDigits:0}).format(value):number(value))}],
     cursor:{drag:{setScale:false}},legend:{show:false},
   }),[kind,currency,points]);
@@ -52,8 +52,8 @@ export function MetricsDashboard({reports,accountId,campaignNames,active=true,er
   return <section className="mga-metrics" aria-labelledby={`${id}-title`}>
     <div className="mga-metrics-heading"><div><h2 id={`${id}-title`}>Desempenho dos anúncios</h2><p>{data.since&&data.until?`${day(data.since)} a ${day(data.until)}`:'Aguardando a primeira coleta'}{data.timezone&&<> · {data.timezone}</>}</p></div>
       <button type="button" className="mga-secondary mga-metrics-refresh" aria-label="Atualizar métricas" disabled={loading||refreshing} onClick={()=>void refresh()}><RefreshCw size={15} aria-hidden="true"/>{refreshing?'Atualizando…':'Atualizar'}</button></div>
-    <div className="mga-metrics-filters"><label>Período<select aria-label="Período das métricas" value={days} onChange={event=>setDays(Number(event.target.value) as 1|7|30)}><option value="1">Último dia coletado</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option></select></label>
-      <label>Campanha<select aria-label="Campanha das métricas" value={campaignId} onChange={event=>setCampaignId(event.target.value)}><option value="">Todas as campanhas</option>{campaigns.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label></div>
+    <div className="mga-metrics-filters"><label>Período<select aria-label="Período das métricas" value={days} onChange={event=>setDays(Number(event.target.value) as 1|7|30)}><option value="1">Último dia</option><option value="7">7 dias</option><option value="30">30 dias</option></select></label>
+      <label>Campanha<select aria-label="Campanha das métricas" value={campaignId} onChange={event=>setCampaignId(event.target.value)}><option value="">Todas</option>{campaigns.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label></div>
     {(error||refreshError)&&<p className="mga-notice" role="alert">{error||refreshError}</p>}
     <div className="mga-metrics-status"><span>{data.hasData?(data.partial?`${data.daysWithData} de ${data.totalDays} dias com dados · coleta parcial`:'Coleta disponível'):'Sem métricas coletadas'}</span>{data.updatedAt&&<time dateTime={data.updatedAt}>Atualizado em {new Date(data.updatedAt).toLocaleString('pt-BR',{timeZone:data.timezone??'UTC'})}</time>}</div>
     {!accountId&&<button type="button" className="mga-secondary" onClick={onSettings}>Conectar Meta</button>}

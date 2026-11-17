@@ -6,6 +6,12 @@ import { overview } from "./fixtures.js";
 import { ui } from "./test-helpers.js";
 let screen: ReturnType<typeof ui>;
 afterEach(async () => {await screen?.close(); window.history.replaceState({}, "", "/");});
+test('ADAS-71 unchanged refresh preserves unsaved asset selections while a changed connection invalidates them',async()=>{
+  screen=ui();const connection=overview().connection;connection.page=null;connection.whatsappNumbers=[{id:'phone',name:'Phone',pageId:'234'}];
+  const props={connection,entitled:true,api:{} as MetaAdsAgentApi,onUpdated:async()=>{}};await screen.render(<ConnectionPanel {...props}/>);await screen.change('Página','234');await screen.change('WhatsApp vinculado à página','phone');
+  await screen.render(<ConnectionPanel {...props} connection={{...connection}}/>);expect((screen.container.querySelector('[aria-label="Página"]') as HTMLSelectElement).value).toBe('234');expect((screen.container.querySelector('[aria-label="WhatsApp vinculado à página"]') as HTMLSelectElement).value).toBe('phone');
+  await screen.render(<ConnectionPanel {...props} connection={{...connection,epoch:connection.epoch+1}}/>);expect((screen.container.querySelector('[aria-label="Página"]') as HTMLSelectElement).value).toBe('');
+});
 test("connection shows only authorized scoped assets and saves selected identifiers", async () => {
   screen = ui(); const connection = overview().connection;
   connection.pages.push({id: "foreign", name: "Outra conta", accountId: "777"});

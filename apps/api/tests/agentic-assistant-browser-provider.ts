@@ -8,12 +8,12 @@ export class AgenticBrowserProvider {
   retrievedReferenceIds:string[]=[];writes:Array<{tool:string;accountId:string;entityId:string}>=[];
   entities=new Map<string,Json>();private next=1000;
   private holdImages=false;private imageWaiters:Array<()=>void>=[];
-  metricsUnavailable=false;private holdModel=false;private modelWaiters:Array<()=>void>=[];
+  metricsUnavailable=false;sampleMetrics=false;private holdModel=false;private modelWaiters:Array<()=>void>=[];
   get modelPending(){return this.modelWaiters.length;}
   setModelHold(value:boolean){this.holdModel=value;if(!value)for(const release of this.modelWaiters.splice(0))release();}
   setImageHold(value:boolean){this.holdImages=value;if(!value)for(const release of this.imageWaiters.splice(0))release();}
   constructor(readonly clock:()=>Date){}
-  reset(){this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;}
+  reset(){this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;this.sampleMetrics=false;}
   private model(body:Json):Response {
     this.modelCalls++;
     const messages=body.messages as Json[];
@@ -86,7 +86,13 @@ export class AgenticBrowserProvider {
         const campaignFilter=args.filtering?.find((filter:Json)=>filter.field==='campaign_id')?.value;
         let rows=args.level==='account'?[{id:accountId,timezone_name:'America/Sao_Paulo',account_id:accountId}]:[...this.entities.values()].filter(row=>row.level===args.level&&row.account_id===accountId);
         if(args.object_ids?.length)rows=rows.filter(row=>args.object_ids.includes(row.id));if(campaignFilter)rows=rows.filter(row=>campaignFilter.includes(row.campaign_id));
-        value={ad_entities:JSON.stringify(rows.map(row=>({...row,amount_spent:{value:0,unit:'BRL'},offsite_conversion_fb_pixel_purchase_values:{value:0,unit:'BRL'},offsite_conversion_fb_pixel_purchase:0,'actions:onsite_conversion.messaging_conversation_started_7d':0})))};
+        value={ad_entities:JSON.stringify(rows.map(row=>{
+          const campaignIndex=[...this.entities.values()].filter(item=>item.level==='campaign'&&item.account_id===accountId).findIndex(item=>item.id===row.id)+1;
+          const range=args.time_range?JSON.parse(args.time_range):{};
+          const day=Number(String(range.until??'2026-11-16').slice(-2));
+          const spend=this.sampleMetrics?Math.max(1,day-15)*campaignIndex*10:0;
+          return {...row,amount_spent:{value:spend,unit:'BRL'},offsite_conversion_fb_pixel_purchase_values:{value:spend*4,unit:'BRL'},offsite_conversion_fb_pixel_purchase:0,'actions:onsite_conversion.messaging_conversation_started_7d':spend/5};
+        }))};
       }else if(name.startsWith('ads_create_')){
         const id=String(++this.next),level=name==='ads_create_ad_set'?'adset':name==='ads_create_campaign'?'campaign':name==='ads_create_ad'?'ad':'creative';
         const row:Json={id,level,account_id:accountId,campaign_id:args.campaign_id??id,adset_id:args.ad_set_id,status:'PAUSED',effective_status:'PAUSED',name:args.campaign_name??args.ad_set_name??args.ad_name??args.name,targeting:args.targeting?JSON.parse(args.targeting):{},start_time:args.start_time,end_time:args.end_time,creative_id:args.creative?JSON.parse(args.creative).creative_id:undefined,lifetime_budget:{value:(args.campaign_lifetime_budget??0)/100,unit:'BRL'},daily_budget:{value:(args.campaign_daily_budget??0)/100,unit:'BRL'}};

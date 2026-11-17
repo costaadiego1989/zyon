@@ -114,7 +114,7 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
       }
       if(req.path==='/__test/images'&&req.method==='POST'){if(typeof req.body?.hold!=='boolean')return res.status(400).end();provider.setImageHold(req.body.hold);return res.json({configured:true});}
       if(req.path==='/__test/model'&&req.method==='POST'){if(typeof req.body?.hold!=='boolean')return res.status(400).end();provider.setModelHold(req.body.hold);return res.json({configured:true});}
-      if(req.path==='/__test/metrics'&&req.method==='POST'){if(typeof req.body?.unavailable!=='boolean')return res.status(400).end();provider.metricsUnavailable=req.body.unavailable;return res.json({configured:true});}
+      if(req.path==='/__test/metrics'&&req.method==='POST'){if(typeof req.body?.unavailable!=='boolean'||req.body.sampleData!==undefined&&typeof req.body.sampleData!=='boolean')return res.status(400).end();provider.metricsUnavailable=req.body.unavailable;provider.sampleMetrics=req.body.sampleData??false;return res.json({configured:true});}
       if(req.path==='/__test/drop-turn-response'&&req.method==='POST'){dropNextTurnResponse=true;return res.json({configured:true});}
       if(req.path==='/__test/automatic'&&req.method==='POST'){await meta.automatic.drain();return res.json({drained:true});}
       if(req.path==='/__test/clock'&&req.method==='POST'){

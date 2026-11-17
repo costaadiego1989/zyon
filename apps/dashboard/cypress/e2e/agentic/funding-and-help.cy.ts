@@ -5,6 +5,7 @@ describe('Pagamentos e ajuda fundamentada',()=>{
   beforeEach(()=>{reset();});
   scenario('ADAS-55','prepaid separates media subscription debt and credits and opens the current official account route',()=>{
     enter();cy.contains('[role="tab"]','Configurações').click();cy.contains('Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.').should('be.visible');
+    cy.get(panel).contains('summary','Detalhes dos pagamentos').click();cy.get(panel).contains('summary','Ajuda sobre pagamentos').click();
     cy.get(panel).should('contain.text','Pré-paga: adicione fundos na Meta');
     cy.get(panel).contains('dt','Saldo pré-pago disponível').next('dd').should('have.text','Indisponível');
     cy.get(panel).contains('dt','Valor devido à Meta').next('dd').should('contain.text','50,00');

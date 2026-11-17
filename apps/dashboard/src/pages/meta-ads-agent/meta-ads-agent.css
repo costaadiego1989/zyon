@@ -91,6 +91,7 @@
 .mga-settings .mga-automation-summary p { font-size: 12px; margin: 6px 0 0; }
 .mga-settings .mga-setup > summary { font-size: 13px; }
 .mga-offer-guidance > summary, .mga-connection-guidance > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 12px; }
+@media(max-width:1120px) { .mga-settings .mga-funding > .mga-actions { grid-row: 2; } }
 .mga-settings .mga-inline-details p { font-size: 12px; }
 .meta-ads-agent [hidden] { display: none !important; }
 .mga-workspace-tabs { min-width: 0; }
