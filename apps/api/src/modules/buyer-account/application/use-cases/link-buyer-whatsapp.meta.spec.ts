@@ -37,7 +37,7 @@ test("accepted scoped official delivery persists a five-minute proof without con
 });
 
 test("refused uncertain and wrong-channel delivery retain the previous valid challenge", async () => {
-  for(const result of [{channel:"none",status:"skipped"},{channel:"whatsapp_template",status:"failed"},{channel:"whatsapp_template",status:"uncertain"},{channel:"email",status:"sent",messageId:"mail"},{channel:"bubblewhats",status:"sent",messageId:"legacy"},{channel:"whatsapp_template",status:"sent",messageId:""},new Error("timeout")]) {
+  for(const result of [{channel:"whatsapp_template",status:"uncertain",messageId:"wamid.uncertain"},{channel:"whatsapp_template",status:"failed",messageId:"wamid.refused"},{channel:"whatsapp_template",status:"skipped",messageId:"wamid.skipped"},{channel:"none",status:"skipped"},{channel:"whatsapp_template",status:"failed"},{channel:"whatsapp_template",status:"uncertain"},{channel:"email",status:"sent",messageId:"mail"},{channel:"bubblewhats",status:"sent",messageId:"legacy"},{channel:"whatsapp_template",status:"sent",messageId:""},new Error("timeout")]) {
     const h=setup(result);await h.otp.save({phone:key,codeHash:"existing",expiresAt:new Date(Date.now()+180000),maxAttempts:5});
     const previous=await h.otp.findActive(key);
     await assert.rejects(h.useCase.send("buyer-a",phone,"store-a"),/otp_whatsapp_delivery_unavailable/);
