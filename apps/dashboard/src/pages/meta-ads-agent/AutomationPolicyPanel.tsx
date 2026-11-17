@@ -14,7 +14,7 @@ function Terms({value,productNames={},campaignNames={}}:{value:MetaAdsAutomation
   return <dl className="mga-ledger">
     <div><dt>Produtos autorizados</dt><dd>{scope.variantIds.map(id=>productNames[id]??id).join(', ')}</dd></div>
     <div><dt>Campanhas autorizadas</dt><dd>{scope.campaignIds.length?scope.campaignIds.map(id=>campaignNames[id]??id).join(', '):'Nenhuma campanha existente'}</dd></div>
-    <div><dt>Novas campanhas</dt><dd>{scope.allowNewCampaigns?'Permitidas dentro deste escopo e dos tetos':'Não permitidas'}</dd></div>
+    <div><dt>Novas campanhas</dt><dd>{scope.allowNewCampaigns?'Preparo permitido; publicação exige aprovação':'Não permitidas'}</dd></div>
     <div><dt>Destino e prioridade</dt><dd>{scope.destination==='store'?'Loja':'WhatsApp'} · {priorities[scope.priority]}</dd></div>
     <div><dt>Região</dt><dd>{scope.country}</dd></div>
     <div><dt>Ações autorizadas</dt><dd>{scope.actions.map(kind=>actions[kind]).join(', ')}</dd></div>
@@ -36,7 +36,7 @@ export function AutomationPolicyPanel({accountId,state,review,productNames,campa
     </div>
     <div className="mga-actions"><button type="button" className="mga-secondary" disabled={blocked} onClick={()=>void action.run(async()=>{await onChooseAutomatic();})}>Automático</button>
       {policy&&!policy.revokedAt&&<button type="button" className="mga-secondary" disabled={busy||action.busy} onClick={()=>void action.run(onManual)}>Voltar para aprovação manual</button>}</div></div>
-    {!state&&<p>Confira a política atual antes de autorizar ações. A falta de uma leitura não confirma que a automação esteja desativada.</p>}
+    <p>Toda campanha nova exige aprovação administrativa antes de publicar.</p>{!state&&<p>Confira a política atual antes de autorizar ações. A falta de uma leitura não confirma que a automação esteja desativada.</p>}
     {!automatic&&state&&!error&&!currentReview&&<details className="mga-inline-details"><summary>Como funciona a aprovação</summary><p>Cada alteração na Meta exige sua aprovação individual. Escolher automático inicia a definição de uma política; só o aceite dos termos abaixo autoriza ações futuras.</p></details>}
     {policy&&<details className="mga-inline-details"><summary>Ver política e limites</summary><p>Política {policy.version} · Conta {policy.accountId} · aceita em <time dateTime={policy.acceptedAt}>{new Date(policy.acceptedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time></p>
       <Terms value={policy} productNames={productNames} campaignNames={campaignNames}/>

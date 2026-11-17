@@ -26,3 +26,4 @@
 
 - T27 CLOSED: new per-mounted-store campaignApprovalEndpoints,9/9 Vitest, no skips. Reuses dashboardJson/auth/typed errors and abort/dispose, six canonical operations, exact bodies/key, no second execute; legacy API unchanged. NEXT T28 LaunchReview/10new gesture cases using Impeccable/project tokens; T29-T35 still owed. No gates running, no question pending.
 
+`n- ACAP T27-T31 CLOSED: 249c6a96 client9;3132ae6f LaunchReview13;39ad28a8 preferences8;371e40ad inbox21; T31 phase API648,WA25,UI187, builds/lint/types0. No process running. NEXT T32 browser runtime (6new), T33/T34 Cypress, T35 docs then BOTH clean-HEAD proofs/walk/fresh Verifier/validate_verification0. Latest t31-plan.md records all companion files and approved initial-flow transitions. No user question pending. Continue all remaining authorized local work, no push/deploy/provider writes. Original AACP preserved.

@@ -152,8 +152,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   notificationMerchant.current = me.id;
   const [inventoryNotice, setInventoryNotice] = useState<{ id: string; itemId?: string; alertId?: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [campaignReview,setCampaignReview]=useState(()=>campaignReviewLocation(window.location.hash,me.id,me.role));
-  useEffect(()=>{const read=()=>setCampaignReview(campaignReviewLocation(window.location.hash,me.id,me.role));read();window.addEventListener('hashchange',read);return()=>window.removeEventListener('hashchange',read);},[me.id,me.role]);
+  const [campaignReview,setCampaignReview]=useState(()=>campaignReviewLocation(window.location.hash,me.id,me.role??''));
+  useEffect(()=>{const read=()=>setCampaignReview(campaignReviewLocation(window.location.hash,me.id,me.role??''));read();window.addEventListener('hashchange',read);return()=>window.removeEventListener('hashchange',read);},[me.id,me.role]);
   const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(null);
   useEffect(() => {
     setReviewStrategyId(null);
@@ -596,8 +596,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               }}
               onClickNotification={async (n) => {
                 if(n.type==='campaign_ready'){
-                  const hash=campaignReviewHash(n,me.id,me.role);
-                  if(hash){setCampaignReview(campaignReviewLocation(hash,me.id,me.role));setTab('meta-ads-agent');window.location.hash=hash;}
+                  const hash=campaignReviewHash(n,me.id,me.role??'');
+                  if(hash){setCampaignReview(campaignReviewLocation(hash,me.id,me.role??''));setTab('meta-ads-agent');window.location.hash=hash;}
                 }
                 if (n.hypothesisId) setReviewStrategyId(n.hypothesisId);
                 if (n.type === "inventory_alert") { setInventoryNotice({ id: n.id, itemId: n.inventoryItemId, alertId: n.inventoryAlertId }); changeTab("inventory"); }

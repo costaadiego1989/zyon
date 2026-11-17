@@ -19,7 +19,7 @@ test("MGA-69 empty state offers real first-campaign and existing-analysis gestur
   await screen.click("Analisar campanhas existentes"); expect(screen.container.textContent).toContain("Campanha existente"); expect(screen.container.textContent).toContain("Somente análise");
 });
 test("MGA-70 loading is visible and a pending proposal cannot be sent twice", async () => {
-  screen = ui(); const data = overview(); data.campaigns = [campaign()]; let loaded!: (d: MetaAdsOverview) => void; let proposed!: (p: ReturnType<typeof proposal>) => void;
+  screen = ui(); const data = overview(); data.campaigns = [{...campaign(),remoteCampaignId:'999',status:'remote_paused'}]; let loaded!: (d: MetaAdsOverview) => void; let proposed!: (p: ReturnType<typeof proposal>) => void;
   const api = {...apiFor(data), overview: vi.fn(() => new Promise<MetaAdsOverview>(yes => {loaded = yes;})), propose: vi.fn(() => new Promise<ReturnType<typeof proposal>>(yes => {proposed = yes;}))};
   await screen.render(<MetaAdsAgentPage assistantClient={assistantClient() as unknown as MerchantAssistantApi} merchantId="store1" apiBaseUrl="https://api.example.test" api={api as unknown as MetaAdsAgentApi}/>);
   expect(screen.container.querySelector('[role="status"]')?.textContent).toContain("Carregando");

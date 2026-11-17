@@ -6,9 +6,10 @@ import { executionStates, money, priorities, useAction } from './presentation.js
 export interface CampaignChatArtifactProps {
   campaign:MetaAdsCampaign; overview:MetaAdsOverview; api:MetaAdsAgentApi; busy?:boolean;
   onUpdated:()=>void|Promise<void>; onRequest:(message:string)=>Promise<void>;
+  onReview?:()=>void;
 }
 const generations:Record<MetaAdsGeneration['status'],string>={reserved:'Geração na fila',running:'Gerando criativos',succeeded:'Criativos gerados',partial:'Geração parcial',failed:'Falha confirmada na geração',unknown:'Geração com resultado desconhecido. Consulte o histórico antes de solicitar novamente.'};
-export function CampaignChatArtifact({campaign,overview,api,busy,onUpdated,onRequest}:CampaignChatArtifactProps) {
+export function CampaignChatArtifact({campaign,overview,api,busy,onUpdated,onRequest,onReview}:CampaignChatArtifactProps) {
   const action=useAction(),keys=useRef(new Map<string,string>());const [count,setCount]=useState(1),[localJob,setLocalJob]=useState<MetaAdsGeneration|null>(null),[localProposal,setLocalProposal]=useState<MetaAdsProposal|null>(null);
   const key=(intent:string)=>{if(!keys.current.has(intent))keys.current.set(intent,crypto.randomUUID());return keys.current.get(intent)!;};
   const jobs=[...new Map([...(localJob?[localJob]:[]),...overview.generations.filter(g=>g.campaignId===campaign.id)].map(g=>[g.id,g])).values()];
@@ -23,6 +24,7 @@ export function CampaignChatArtifact({campaign,overview,api,busy,onUpdated,onReq
   async function generate(){const intent=JSON.stringify({type:'generate',campaign:campaign.id,draft,count,jobs:overview.generations.filter(g=>g.campaignId===campaign.id).map(g=>g.id).sort()});setLocalJob(await api.generate(campaign.id,count,key(intent)));await onUpdated();}
   async function propose(){const kind=campaign.remoteCampaignId?'publish':'prepare';const reasoning=kind==='prepare'?'Preparar esta campanha em rascunho ou pausada para revisão.':'Solicitar publicação da campanha revisada.';
     const input={kind,after:{},reasoning,idempotencyKey:key(JSON.stringify({kind,campaign:campaign.id,draft}))} as const;setLocalProposal(await api.propose(campaign.id,input));await onUpdated();}
+  if(onReview&&!campaign.remoteCampaignId)return <article className="mga-chat-campaign" aria-label={`Campanha ${draft.name}`}><h3>{draft.name}</h3><p><strong>{draft.headline}</strong></p><small>{campaign.products.map(product=>`${product.name} · ${money(product.priceCents,product.currency)}`).join(' · ')}</small><p>{draft.budget?`${money(draft.budget.amountCents,draft.budget.currency)} ${draft.budget.cadence==='lifetime'?'no total':'por dia'}`:'Orçamento a definir'} · {draft.destination==='store'?'Loja online':'WhatsApp'}</p><button type="button" className="mga-secondary" onClick={onReview}>Ver preparo da campanha</button></article>;
   return <article className="mga-chat-campaign" aria-label={`Campanha ${draft.name}`}>
     <h3>{draft.name}</h3><p>{campaign.status==='draft'?'Rascunho salvo':executionStates[campaign.status]}</p>
     <dl className="mga-ledger"><div><dt>Destino e prioridade</dt><dd>{draft.destination==='store'?'Loja':'WhatsApp'} · {priorities[draft.priority]}</dd></div><div><dt>Região</dt><dd>{draft.country}</dd></div>
