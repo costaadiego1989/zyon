@@ -28,6 +28,7 @@ function setup(options: {
   const completions: { patch: Parameters<RecoveryLifecycleRepository["complete"]>[1]; submitting: boolean }[] = [];
   const creates: SubmitTemplateInput[] = [];
   const syncs: [string, string][] = [];
+  const syncExpected: unknown[] = [];
   const saves: Parameters<RecoveryLifecycleRepository["save"]>[] = [];
   const ensured: string[] = [];
   let claimed = false;
@@ -60,6 +61,7 @@ function setup(options: {
     },
     async syncStatus(...args) {
       syncs.push([args[0], args[1]]);
+      syncExpected.push(args[2]);
       if (options.sync instanceof Error) throw options.sync;
       return options.sync ?? { contentSid: sid, status: "approved" };
     },
@@ -69,7 +71,7 @@ function setup(options: {
     if (options.configError) throw new Error("unavailable");
     return options.connected === false ? null : config;
   } } as WhatsAppConfigRepository;
-  return { service: new RecoveryTemplateLifecycleUseCase(repo, submission, configs), completions, creates, syncs, saves, ensured };
+  return { service: new RecoveryTemplateLifecycleUseCase(repo, submission, configs), completions, creates, syncs, syncExpected, saves, ensured };
 }
 
 test("disconnected merchant sees email and waits without submitting", async () => {
@@ -193,4 +195,30 @@ test("account-link lifecycle submits only its dedicated five-minute authenticati
   await legacy.service.processDue(now);
   assert.equal(legacy.creates[0].authenticationExpirationMinutes, undefined);
   assert.match(legacy.creates[0].friendlyName, /^checkout_otp_/);
+});
+
+test("account-link polling requires its exact body category and five-minute provider model", async () => {
+  const body="{{1}} is your verification code.";
+  const h=setup({ row:{type:"buyer_whatsapp_link_otp",metaStatus:"submitted",twilioContentSid:sid,metaCategory:"AUTHENTICATION",metaTemplateBody:body} });
+  await h.service.processDue(now);
+  assert.deepEqual(h.syncs,[["merchant-a",sid]]);
+  assert.deepEqual(h.syncExpected,[{language:"pt_BR",body,category:"AUTHENTICATION",authenticationExpirationMinutes:5}]);
+  assert.equal(h.completions[0].patch.status,"approved");assert.equal(h.completions[0].patch.wabaId,"123456789");
+});
+
+test("account-link restoration rechecks its issuing WABA five-minute model and approved response", async () => {
+  const version={revision:1,body:"{{otpCode}} is your verification code.",metaTemplateBody:"{{1}} is your verification code.",metaVariableMap:{"1":"otpCode"},metaCategory:"AUTHENTICATION" as const,metaLanguage:"pt_BR",contentSid:sid,wabaId:"123456789"};
+  for(const response of ["approved","disabled"] as const) {
+    const h=setup({row:{type:"buyer_whatsapp_link_otp",metaStatus:"draft",metaCategory:"AUTHENTICATION",metaApprovedVersions:[version]},sync:{status:response,contentSid:sid}});
+    const restored:any[]=[];(h.service as any).repo.restore=async(row:any,v:any)=>{restored.push({merchantId:row.merchantId,revision:v.revision,wabaId:v.wabaId});};
+    if(response==="approved")await h.service.restore("merchant-a","buyer_whatsapp_link_otp",1,3);
+    else await assert.rejects(h.service.restore("merchant-a","buyer_whatsapp_link_otp",1,3),/previous_template_not_approved/);
+    assert.deepEqual(h.syncs,[["merchant-a",sid]]);
+    assert.deepEqual(h.syncExpected,[{language:"pt_BR",body:version.metaTemplateBody,category:"AUTHENTICATION",authenticationExpirationMinutes:5}]);
+    assert.deepEqual(restored,response==="approved"?[{merchantId:"merchant-a",revision:1,wabaId:"123456789"}]:[]);
+  }
+  const foreign=setup({row:{type:"buyer_whatsapp_link_otp",metaApprovedVersions:[{...version,wabaId:"foreign-waba"}]}});
+  (foreign.service as any).repo.restore=async()=>assert.fail("foreign approval cannot be restored");
+  await assert.rejects(foreign.service.restore("merchant-a","buyer_whatsapp_link_otp",1,3),/template_account_mismatch/);
+  assert.deepEqual(foreign.syncs,[]);
 });

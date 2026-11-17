@@ -130,3 +130,14 @@ test("five-minute account link model uses its own name and verifies the actual p
     }
   } finally { globalThis.fetch = original; }
 });
+
+test("legacy checkout authentication retains its pre-migration identifier and ten-minute preset", async () => {
+  const original=globalThis.fetch;let payload:any;
+  try {
+    const configs={findByMerchantId:async()=>({merchantId:"legacy-store",enabled:true,provider:"META_CLOUD",status:"ACTIVE",credentials:{accessToken:"local",wabaId:"123456789",phoneNumberId:"987654321"}})} as any;
+    globalThis.fetch=(async(_url,init)=>{payload=JSON.parse(String(init?.body));return Response.json({status:"PENDING"});}) as typeof fetch;
+    const result=await new MetaCloudTemplateAdapter(configs).createAndSubmit({merchantId:"legacy-store",friendlyName:"checkout_otp_store_v1",language:"pt_BR",category:"AUTHENTICATION",metaBody:"{{1}} é seu código de verificação.",sampleVariables:{"1":"123456"}});
+    assert.equal(result.contentSid,"zyon_checkout_otp_store_v1_cb17f874c5");
+    assert.equal(payload.name,result.contentSid);assert.equal(payload.components[1].code_expiration_minutes,10);
+  } finally {globalThis.fetch=original;}
+});
