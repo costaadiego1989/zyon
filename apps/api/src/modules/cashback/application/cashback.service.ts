@@ -125,7 +125,13 @@ export class CashbackService {
     await tx.$executeRaw`INSERT INTO cashback_buyer_aliases(merchant_id,alias_buyer_id,canonical_buyer_id,verification_id) VALUES(${merchantId},${previousBuyerId},${canonicalBuyerId},${verificationId})`;
     await tx.$executeRaw`UPDATE cashback_wallets SET balance=${JSON.stringify(empty)}::jsonb,updated_at=now() WHERE merchant_id=${merchantId} AND buyer_id=${previousBuyerId}`;
     await tx.$executeRaw`UPDATE buyer_identities SET global_user_id=${canonicalBuyerId} WHERE merchant_id=${merchantId} AND identity_key=${`phone:${proof[0].phone}`} AND global_user_id=${previousBuyerId}`;
-    await tx.$executeRaw`UPDATE checkout_sessions SET global_user_id=${canonicalBuyerId} WHERE merchant_id=${merchantId} AND global_user_id=${previousBuyerId}`;
+    // A charge or private checkout authority keeps its original buyer. Wallet
+    // alias resolution already maps that buyer to the verified canonical wallet.
+    await tx.$executeRaw`UPDATE checkout_sessions cs SET global_user_id=${canonicalBuyerId}
+      WHERE cs.merchant_id=${merchantId} AND cs.global_user_id=${previousBuyerId}
+        AND NOT EXISTS(SELECT 1 FROM payment_intents p WHERE p.merchant_id=cs.merchant_id AND p.session_id=cs.session_id)
+        AND NOT EXISTS(SELECT 1 FROM completed_orders o WHERE o.merchant_id=cs.merchant_id AND o.session_id=cs.session_id)
+        AND NOT EXISTS(SELECT 1 FROM jsonb_object_keys(cs.cart) AS field(key) WHERE left(field.key,1)='_')`;
     const w = await this.loadWallet(tx, merchantId, canonicalBuyerId); await this.repository.saveWallet(tx, w);
     return { linked: true, buyerId: canonicalBuyerId };
   }

@@ -29,7 +29,8 @@ async function fixture(t: TestContext) {
     const challenges = await db.buyerPhoneOtp.findMany({ where: { phone: { startsWith: "link-inbound:" } } });
     for (const row of challenges) if (JSON.parse(row.codeHash).buyerId === canonical) await db.buyerPhoneOtp.deleteMany({ where: { OR: [{ id: row.id }, { codeHash: row.phone }] } });
     await db.$executeRaw`DELETE FROM buyer_verified_phones WHERE buyer_id=${canonical}`;
-    await db.paymentIntent.deleteMany({ where: { merchantId } }); await db.checkoutSession.deleteMany({ where: { merchantId } });
+    await db.completedOrder.deleteMany({ where: { merchantId } });
+    await db.coupon.deleteMany({ where: { merchantId } }); await db.storefrontCart.deleteMany({ where: { merchantId } }); await db.checkoutEvent.deleteMany({ where: { merchantId } }); await db.whatsAppSession.deleteMany({ where: { merchantId } }); await db.paymentIntent.deleteMany({ where: { merchantId } }); await db.checkoutSession.deleteMany({ where: { merchantId } });
     await db.buyerIdentity.deleteMany({ where: { merchantId } }); await db.merchant.delete({ where: { id: merchantId } });
     await db.buyerAccount.deleteMany({ where: { globalUserId: { in: [previous, canonical] } } });
   });
@@ -73,8 +74,8 @@ test("C1/C3/C4 exact verified phone-only account settles inbound status once wit
   assert.deepEqual(await f.inbound.status(f.canonical, f.challenge.token), { status: "confirmed", linked: true, phone: "+55 (***) *****-" + f.phone.slice(-4) });
   const after = await f.snapshot();
   assert.deepEqual(after.accounts, before.accounts); assert.deepEqual(after.payment, before.payment); assert.deepEqual(after.ledger, before.ledger);
-  assert.deepEqual({ ...after.checkout, globalUserId: before.checkout.globalUserId }, before.checkout);
-  assert.equal(after.checkout.globalUserId, f.canonical);
+  assert.deepEqual(after.checkout, before.checkout);
+  assert.equal(after.checkout.globalUserId, f.previous);
   assert.equal((await f.service.wallet(f.merchantId, f.canonical)).balance.availableCents, 1500);
   assert.equal((await f.service.wallet(f.merchantId, f.previous)).balance.availableCents, 1500);
   const settled = await f.snapshot();
@@ -128,3 +129,107 @@ test("C2 existing alias to another wallet cannot be redirected by a new phone pr
   await assert.rejects(f.service.linkVerifiedIdentity(f.input), /identity_already_bound/);
   assert.deepEqual(await f.snapshot(), before);
 });
+
+for (const boundary of ["private_cart_authority", "completed_order"])
+  test("C5 protects checkout ownership with " + boundary + " even without a payment row", async t => {
+    const f = await fixture(t), current = await f.snapshot();
+    await db.paymentIntent.deleteMany({ where: { merchantId: f.merchantId } });
+    if (boundary === "private_cart_authority") {
+      const cartId = randomUUID(), binding = { version: 1, bindingId: randomUUID(), merchantId: f.merchantId, cartId,
+        checkoutSessionId: current.checkout.sessionId, buyerId: f.previous, reservationBuyerId: f.previous,
+        redemptionId: randomUUID(), couponId: randomUUID(), discountCents: 1000, basisHash: "a".repeat(64), state: "active" };
+      await db.checkoutSession.update({ where: { id: current.checkout.id }, data: { cart: { ...current.checkout.cart as object,
+        cart_ref: cartId, currentDiscount: 10, _storefrontCouponBinding: binding } } });
+    } else await db.completedOrder.create({ data: { merchantId: f.merchantId, sessionId: current.checkout.sessionId,
+      externalOrderId: randomUUID(), orderTotal: 100, currency: "BRL", completedAt: new Date() } });
+    const sessions = new PrismaCheckoutRepository(db), before = await db.checkoutSession.findUniqueOrThrow({ where: { id: current.checkout.id } });
+    await sessions.saveSession((await sessions.getSession(f.merchantId, before.sessionId))!);
+    const stable = await db.checkoutSession.findUniqueOrThrow({ where: { id: before.id } });
+    await f.proof(); await f.service.linkVerifiedIdentity(f.input);
+    assert.deepEqual(await db.checkoutSession.findUniqueOrThrow({ where: { id: before.id } }), stable);
+    await sessions.saveSession((await sessions.getSession(f.merchantId, before.sessionId))!);
+    assert.equal((await f.service.wallet(f.merchantId, f.canonical)).balance.availableCents, 1500);
+    assert.equal(await db.paymentIntent.count({ where: { merchantId: f.merchantId } }), 0);
+  });
+
+test("C5 protects an account-less legacy checkout with payment history while its wallet resolves through the alias", async t => {
+  const f = await fixture(t); await db.buyerAccount.delete({ where: { globalUserId: f.previous } }); await f.proof();
+  const before = await f.snapshot(); await f.service.linkVerifiedIdentity(f.input); const after = await f.snapshot();
+  assert.deepEqual(after.checkout, before.checkout); assert.deepEqual(after.payment, before.payment); assert.deepEqual(after.ledger, before.ledger);
+  assert.equal((await f.service.wallet(f.merchantId, f.canonical)).balance.availableCents, 1500);
+});
+
+import { PrismaWhatsAppSessionRepository } from "../../whatsapp-channel/infrastructure/repositories/prisma-whatsapp-session.repository.js";
+import { captureStorefrontCouponForPayment } from "../../../shared/persistence/storefront-coupon/admission.js";
+import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
+import { lockStorefrontCart } from "../../../shared/persistence/storefront-cart-lock.js";
+import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
+import { readStoredCheckoutCouponBinding } from "../../checkout/domain/services/checkout-coupon-storage.js";
+import { DEFAULT_RULES } from "../../merchant/domain/merchant-rules.defaults.js";
+
+test("C2 regression exact internal email comparison rejects an uppercase domain without altering state", async t => {
+  const f = await fixture(t); await f.proof();
+  await db.buyerAccount.update({ where: { globalUserId: f.previous }, data: { email: `phone_${f.phone}@BUYER.AACP` } });
+  const before = await f.snapshot();
+  const proofBefore = await db.$queryRaw`SELECT * FROM buyer_verified_phones WHERE buyer_id=${f.canonical}`;
+  const identityBefore = await db.buyerIdentity.findMany({ where: { merchantId: f.merchantId } });
+  await assert.rejects(f.service.linkVerifiedIdentity(f.input), /merge_requires_review/);
+  assert.deepEqual(await f.snapshot(), before);
+  assert.deepEqual(await db.$queryRaw`SELECT * FROM buyer_verified_phones WHERE buyer_id=${f.canonical}`, proofBefore);
+  assert.deepEqual(await db.buyerIdentity.findMany({ where: { merchantId: f.merchantId } }), identityBefore);
+});
+
+test("C3/C5 regression an existing captured coupon remains usable and native-recoverable after reconciliation", async t => {
+  const f = await fixture(t), before = await f.snapshot();
+  const sessions = new PrismaCheckoutRepository(db), native = new PrismaWhatsAppSessionRepository(db);
+  const sessionId = before.checkout.sessionId, cartId = randomUUID(), variantId = randomUUID(), productId = randomUUID(), couponId = randomUUID(), redemptionId = randomUUID();
+  await sessions.setRules(f.merchantId, { ...DEFAULT_RULES, maxDiscountPercent: 20, minimumMarginPercent: 0 });
+  const cart = { source: "storefront", cart_ref: cartId, currency: "BRL", total: 100, currentDiscount: 10,
+    items: [{ sku: "qa", variantId, product_id: productId, name: "Local QA", price: 100, cost: 20, quantity: 1, productType: "digital", fulfillmentStrategy: "digital" }] };
+  await db.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: f.merchantId, sessionId } }, data: { cart, shipping: null } });
+  await db.storefrontCart.create({ data: { merchantId: f.merchantId, sessionId: cartId, total: 10000, discount: 1000, couponCode: "QA10",
+    expiresAt: new Date(Date.now()+86400000), items: [{ sku: "qa", variantId, productId, quantity: 1, unitPriceCents: 10000 }] } });
+  await db.coupon.create({ data: { id: couponId, merchantId: f.merchantId, code: "QA10", discountType: "fixed", discountValue: 10,
+    maxUsages: 5, maxPerBuyer: 5, startsAt: new Date("2000-01-01"), endsAt: new Date("2100-01-01") } });
+  await db.couponRedemption.create({ data: { id: redemptionId, merchantId: f.merchantId, sessionId: cartId, couponId,
+    buyerGlobalUserId: f.previous, discountApplied: 10, source: "manual" } });
+  const session = (await sessions.getSession(f.merchantId, sessionId))!;
+  const payment = { ...before.payment, amountCents: 9000, version: 0,
+    amountBreakdown: { version: 1, currency: "BRL", itemsSubtotalCents: 10000, discountCents: 1000, shippingCents: 0,
+      platformFeeCents: 0, totalCents: 9000, cartFingerprint: paymentCartFingerprint(session) },
+    creation: { state: "ready", input: { merchantId: f.merchantId, sessionId, intentId: before.payment.id, amountCents: 9000, currency: "BRL", method: "pix" } },
+    createdAt: before.payment.createdAt.toISOString(), updatedAt: before.payment.updatedAt.toISOString(), statusHistory: [] };
+  const authority = await db.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM merchants WHERE id=${f.merchantId} FOR UPDATE`;
+    await lockCheckoutSessionAnchor(tx, f.merchantId, sessionId);
+    await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id=${f.merchantId} AND session_id=${sessionId} FOR UPDATE`;
+    await lockStorefrontCart(tx, f.merchantId, cartId);
+    return captureStorefrontCouponForPayment(tx, payment as any, { merchantId: f.merchantId, checkoutSessionId: sessionId, cartId, buyerId: f.previous });
+  });
+  assert.ok(authority); assert.equal(authority.buyerId, f.previous);
+  await db.paymentIntent.update({ where: { id: payment.id }, data: { amountCents: 9000, amountBreakdown: payment.amountBreakdown, creation: { ...payment.creation, couponAuthority: authority } } });
+  await sessions.saveSession((await sessions.getSession(f.merchantId, sessionId))!);
+  const deviceId = "META_CLOUD:qa_verifier", state = { version: 1, conversationId: cartId, stage: "checkout", history: [], revision: "", page: 0, previousViews: [] };
+  await db.whatsAppSession.create({ data: { merchantId: f.merchantId, buyerPhone: f.phone, deviceId, status: "expired", checkoutSessionId: sessionId,
+    lastActivityAt: new Date(Date.now()-172800000), currentOptions: "[]", previousOptions: "[]", conversationState: state } });
+  const renewal = { merchantId: f.merchantId, buyerPhone: f.phone, deviceId, status: "active", checkoutSessionId: null,
+    lastActivityAt: new Date(), currentOptions: [], previousOptions: [], currentPage: 0, buyerAlias: null,
+    conversationState: { ...state, stage: "store" } };
+  assert.equal((await native.create(renewal as any)).checkoutSessionId, sessionId, "captured coupon is recoverable before linking");
+  await db.whatsAppSession.updateMany({ where: { merchantId: f.merchantId }, data: { status: "expired", lastActivityAt: new Date(Date.now()-172800000) } });
+  const protectedBefore = await f.snapshot();
+  await f.proof(); await f.service.linkVerifiedIdentity(f.input);
+  const protectedAfter = await f.snapshot();
+  assert.deepEqual(protectedAfter.payment, protectedBefore.payment);
+  assert.deepEqual(protectedAfter.checkout.cart, protectedBefore.checkout.cart);
+  const binding = readStoredCheckoutCouponBinding(protectedAfter.checkout.cart)!;
+  let noOpSaveError: string | undefined;
+  try { await sessions.saveSession((await sessions.getSession(f.merchantId, sessionId))!); }
+  catch (error) { noOpSaveError = error instanceof Error ? error.message : String(error); }
+  const recovered = await native.create(renewal as any);
+  assert.equal(binding.buyerId, f.previous);
+  assert.deepEqual(protectedAfter.checkout, protectedBefore.checkout);
+  assert.equal(noOpSaveError, undefined, "canonical linked checkout must remain writable without modifying its captured authority");
+  assert.equal(recovered.checkoutSessionId, sessionId, "existing native cart must remain recoverable");
+});
+
