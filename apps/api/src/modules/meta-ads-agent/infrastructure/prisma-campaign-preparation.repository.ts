@@ -66,15 +66,16 @@ export class PrismaCampaignPreparationRepository implements CampaignPreparationR
     const saved=await this.db.metaAdsCampaignPreparation.updateMany({where:this.where(lease),data:{status,leaseToken:null,leaseUntil:null,nextAttemptAt:next,updatedAt:now}});
     if(saved.count!==1)throw new MetaAdsError('preparation_lease_lost',409);
   }
-  async revise(merchantId:string,id:string,expectedDigest:string,input:{campaignDigest:string;requestedBy:string}):Promise<CampaignPreparationJob>{
+  async revise(merchantId:string,id:string,expectedDigest:string,input:{campaignDigest:string;requestedBy:string;forceReview?:boolean}):Promise<CampaignPreparationJob>{
     requireIdentifier(merchantId);requireIdentifier(id);requireIdentifier(input.requestedBy);digest(expectedDigest);digest(input.campaignDigest);
     return this.db.$transaction(async tx=>{
       await tx.$queryRaw`SELECT id FROM meta_ads_campaign_preparations WHERE id=${id} AND merchant_id=${merchantId} FOR UPDATE`;
       const row=await tx.metaAdsCampaignPreparation.findFirst({where:{id,merchantId}});if(!row)throw new MetaAdsError('preparation_not_found',404);
       if(row.campaignDigest!==expectedDigest)throw new MetaAdsError('preparation_version_changed',409);
-      if(row.campaignDigest===input.campaignDigest&&row.requestedBy===input.requestedBy)return map(row);
+      if(row.campaignDigest===input.campaignDigest&&row.requestedBy===input.requestedBy&&!input.forceReview)return map(row);
+      const checkpoint={...row.checkpoint as Record<string,unknown>};delete checkpoint.proposalRequestKey;
       return map(await tx.metaAdsCampaignPreparation.update({where:{id},data:{campaignDigest:input.campaignDigest,requestedBy:input.requestedBy,status:row.status==='unknown'?'unknown':'queued',proposalId:null,
-        missing:json([]),error:row.status==='unknown'?row.error:null,fence:{increment:1},leaseToken:null,leaseUntil:null,nextAttemptAt:this.clock(),updatedAt:this.clock()}}));
+        checkpoint:json(checkpoint),missing:json([]),error:row.status==='unknown'?row.error:null,fence:{increment:1},leaseToken:null,leaseUntil:null,nextAttemptAt:this.clock(),updatedAt:this.clock()}}));
     },{maxWait:20000,timeout:20000});
   }
 }

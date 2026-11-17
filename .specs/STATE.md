@@ -20,3 +20,5 @@
 - T11 complete: InitialLaunchService canonical review/durable approval queue/lifecycle drain.9 PG/full531 API and lint0. T12 next. HTTP T19 must apply existing publicProposal projection to the returned proposal; service is internal. No private thread dependency.
 
 - T12 complete: pending initial launch reviews only; automatic legacy prepare cannot dispatch.18 worker cases/full538 API,10 WhatsApp,132 UI; API+dashboard builds/lint/Cypress types0. T13 internal preparation admission next.
+
+- T13 complete: explicit preparation service and public status, preserves quota/blockers/unknown jobs and refreshes stale review without new image identity.9 PG/full547 API, lint0. T14 worker and purpose-bound generation next.

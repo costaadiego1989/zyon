@@ -22,5 +22,8 @@ export interface CampaignPreparationRepository {
   heartbeat(lease:CampaignPreparationLease):Promise<void>;
   checkpoint(lease:CampaignPreparationLease,patch:CampaignPreparationCheckpoint):Promise<CampaignPreparationLease>;
   finish(lease:CampaignPreparationLease,status:Exclude<MetaAdsCampaignPreparationStatus,'queued'|'preparing'>,nextAttemptAt?:Date):Promise<void>;
-  revise(merchantId:string,id:string,expectedDigest:string,input:{campaignDigest:string;requestedBy:string}):Promise<CampaignPreparationJob>;
+  revise(merchantId:string,id:string,expectedDigest:string,input:{campaignDigest:string;requestedBy:string;forceReview?:boolean}):Promise<CampaignPreparationJob>;
+}
+export function publicCampaignPreparation(value:CampaignPreparationJob):MetaAdsCampaignPreparation{
+  return{id:value.id,campaignId:value.campaignId,intentDigest:value.intentDigest,status:value.status,requestedImages:value.requestedImages,generationId:value.generationId,proposalId:value.proposalId,missing:value.missing,error:value.error,createdAt:value.createdAt,updatedAt:value.updatedAt};
 }
