@@ -1,5 +1,7 @@
 # WhatsApp Service Booking and Business RAG Specification
 
+**Discovered uncertain-replay repair (2026-11-17):** Actual owned SQL/incoming/Meta-adapter RED reproduced two physical local attempts after an unknown handoff notice, while legacy retained one. T109 repairs the existing HUM-03/HUM-07 contract independently from uncommitted T56, with no new criterion, product decision, timeout, provider action or oracle change. Current scope is81 criteria/109 tasks; original approvals remain unchanged. Historical close/new-handoff validation remains mandatory with T56/T57 after that capability exists.
+
 **Approved**: 2026-11-14 - user: "Aprovar a especificaÃ§Ã£o apresentada"
 **Refinements approved**: 2026-11-14 - user: "Aprovar o plano e iniciar implementaÃ§Ã£o local". Approval covers all 71 criteria and the 95-task plan, including later explicit refinements.
 **Status:** Approved specification and refinements; tasks approved and Phase 1 implementation started locally.
@@ -300,11 +302,11 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | Pending |
 | HUM-01 | Fixed menu entry | T57 | Pending |
 | HUM-02 | Handoff intake | T49, T50, T57 | In Progress (T49 intake and T50 router complete; menu pending) |
-| HUM-03 | AI pause | T4, T48, T49, T50, T51 | Complete locally (T4/T48-T51; final integrated verification pending) |
+| HUM-03 | AI pause | T4, T48, T49, T50, T51, T109 | Complete (LOCAL; T4/T48-T51 and T109 locally gated; final feature verification pending) |
 | HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52 exact claim,T53send,T59permissionprimitives complete; queue/UI pending) |
 | HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | In Progress (T53 queue, T54 local transport and T55 authenticated local receipt processing complete; T60/T61 console and final verification pending) |
 | HUM-06 | Automatic AI resume | T56, T61 | Pending |
-| HUM-07 | Unavailable team/provider | T54, T55, T58 | In Progress (T54/T55 local failure, unknown and authenticated receipt reconciliation complete; T58 team notices and final verification pending) |
+| HUM-07 | Unavailable team/provider | T54, T55, T58, T109 | In Progress (T54/T55/T109 locally complete; T58 team notices pending) |
 | HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | In Progress (T59permissionprimitives complete; tab/route wiring pending) |
 | RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Implemented locally including T104 bounded-write repair; final proof pending |
 | RAG-02 | Retirement | T65, T67, T68, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
@@ -338,7 +340,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | In Progress (T17 complete) |
 | REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | Pending |
 | REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17 complete) |
-| QA-01 | Criteria proofs | T1, T108, T95 | Pending; native collector repair does not close feature proof |
+| QA-01 | Criteria proofs | T1, T108, T109, T95 | Pending; native collector and replay repairs do not close final feature proof |
 | CAT-01 | Product-mode creation options | T98 | Complete locally;55unit+2real browser, no skips; final screen review later |
 | CAT-02 | Service-mode creation and defaults | T98 | Complete locally; defaults/reset/payload/history and actual stale-mode409 proved |
 | CAT-03 | Catalog boolean toggles | T105 | Pending |

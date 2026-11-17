@@ -76,6 +76,7 @@ export class HandleMetaConversationUseCase {
     const claim = input.inboxClaim;
     const saved = claim?.responseState as unknown as SavedTurn | undefined;
     if (saved?.purpose !== "human_handoff") return false;
+    if (saved.phase === "generating" || saved.phase === "dispatching") throw new Error("whatsapp_turn_result_unknown");
     if (!claim || saved.sessionId !== route.whatsappSession.id || !saved.presentation || !saved.state) throw new Error("whatsapp_response_scope_mismatch");
     await this.dispatchPrepared(input, route, claim, saved);return true;
   }

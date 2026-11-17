@@ -1,5 +1,7 @@
 # Service Businesses, WhatsApp Conversations and Generic Business RAG Tasks
 
+**Discovered uncertain-replay repair (2026-11-17):** Actual owned SQL/incoming/Meta-adapter RED reproduced two physical local attempts after an unknown handoff notice, while legacy retained one. T109 repairs the existing HUM-03/HUM-07 contract independently from uncommitted T56, with no new criterion, product decision, timeout, provider action or oracle change. Current scope is81 criteria/109 tasks; original approvals remain unchanged. Historical close/new-handoff validation remains mandatory with T56/T57 after that capability exists.
+
 ## Execution Protocol
 
 Implementar com a skill **tlc-spec-driven**, seguindo Execute e Critical Rules. Se a skill não estiver disponível, parar. Um gate e um commit por tarefa; nenhuma tarefa aprovada por inferência.
@@ -121,7 +123,9 @@ T40 → T41 → T42 → T43 → T44 → T45 → T46 → T47
 ### Phase 7: Durable WhatsApp human delivery
 
 ```
-T48 → T49 → T50 → T51 → T52 → T53 → T54 → T55
+T48 → T49 → T50 → T51 → T52 → T53 → T54 → T55 → T109
+T50 → T109
+T55 → T56
 ```
 
 ### Phase 8: WhatsApp Conversations tab and automatic return
@@ -173,7 +177,7 @@ T25 → T26
 T32 → T33
 T39 → T40
 T9 → T48
-T55 → T56
+T55 → T109 → T56
 T13 → T63
 T18 → T63
 T25 → T65
@@ -1248,11 +1252,30 @@ T107 → T106
 **Gate**: Build (end of Phase7): header **Build** commands and Phase7 component/native regression gates, including the unchanged T54 unit/native55 scope and original signed intake/routing/AI fences. Protected Node unit runner without a name filter for the concrete companions in Tests. Fresh official checked API build; from apps/api `node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/whatsapp-operator-receipt.integration.spec.mjs ./tests/whatsapp-operator-receipt-db.integration.spec.mjs` plus the existing phase companions recorded in T48-T54. Every root/child executes, zero skipped. These concrete spec-derived companions replace the proposed artificial missing root spec; final HUM-05/HUM-07 checks and feature-level verification remain mandatory.
 **Commit**: `feat(service-business): t55 preserve delivery and read receipts`
 
+### T109: Preserve uncertain human-handoff notices on replay
+
+**What**: Refuse replay of a human-handoff SavedTurn in generating/dispatching before another SDK invocation. Preserve the original unknown receipt, one physical attempt, zero model generation and unchanged checkout/ticket state. Use a self-contained regression on committed T49-T55 APIs and a legitimate initially-AI conversation; historical close/new-handoff assertions stay separately required after T56 exists. This is a repair of a reproduced existing contract, not a new feature or remote action.
+**Where**: `apps/api/src/modules/whatsapp-channel/application/use-cases/handle-meta-conversation.use-case.ts`
+**Depends on**: T50, T55
+**Reuses**: Existing phase refusal in execute, canonical intake/claim repositories, real Meta adapter/request callback, existing legacy delivery receipt, owned SQL fixtures and unchanged artifact/memory/provider guards.
+**Requirement**: HUM-03, HUM-07, QA-01
+
+**Done when**:
+
+- [x] Actual Meta unknown leaves its original dispatching/sent[] receipt; replay performs no second SDK request or model call and preserves checkout/messages/binding. Existing legacy unknown replay stays one attempt with the same reconciliation outcome. No old test assertion is weakened or skipped.
+- [x] Regression is independently buildable from committed T49-T55, without importing uncommitted T56/T57/T71 or fabricating a human-to-AI transition. The original RED and its full historical assertions remain archived; the dedicated close/new-handoff integration is required by T56/T57, not claimed as passed on a baseline lacking close.
+- [x] New and relevant unchanged whole-file component/native gates and the original nine header checks pass on an ordinary checked own artifact with normal owned teardown, zero skips/provider calls; Root reviews evidence before mark and one focused local repair commit.
+
+**Tests**: New `src/modules/whatsapp-channel/application/use-cases/handle-meta-handoff-resume.spec.ts`, `tests/whatsapp-human-unknown-replay.integration.spec.mjs` and `tests/whatsapp-human-unknown-db-fixture.mjs`; unfiltered existing handle-meta-conversation, human-intake/router, Meta sender and audio-context companions. Actual owned SQL/receipt/claim/incoming/SDK with explicitly synthetic inbox authority and local fetch500; this does not certify live webhook authentication or provider delivery. Existing signed native intake/router/Twilio tests remain authority regressions. Concrete file/count inventory is frozen before execution in task-109-plan.md.
+**Gate**: Build: protected complete component companions; official capture/build/record and integral own-artifact admission; from apps/api protected Node unfiltered `./tests/whatsapp-human-unknown-replay.integration.spec.mjs ./tests/whatsapp-human-intake.integration.spec.mjs ./tests/whatsapp-human-message-router.integration.spec.mjs ./tests/whatsapp-ai-dispatch-fence.integration.spec.mjs ./tests/whatsapp-ai-request-commit.integration.spec.mjs ./tests/whatsapp-twilio-replay.integration.spec.mjs`, plus compiled `./tests/whatsapp-twilio-fingerprint.contract.spec.mjs`; original API lint/types/build and widget/dashboard/storefront types/build. Keep network, memory, concurrency1, timeout and cleanup guards; no foreign artifact reuse or old-oracle edits.
+**Commit**: `fix(service-business): t109 preserve uncertain handoff notices`
+
+
 ### T56: Close the active human case and resume once
 
 **What**: Fechar ticket e mudar modo/epoch + retorno outbox atomicamente; só vínculo ativo; ticket antigo/duplicata não retoma outro caso nem reenvia cobrança.
 **Where**: `apps/api/src/modules/support/application/close-whatsapp-conversation.use-case.ts`
-**Depends on**: T55, T59
+**Depends on**: T55, T59, T109
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: HUM-06, EDGE-04
 
@@ -1262,7 +1285,7 @@ T107 → T106
 - [ ] whatsapp-human-handoff.integration.spec.ts: double close, old ticket, crash/retry, novo handoff concorrente e checkout produto preservado.
 - [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: whatsapp-human-handoff.integration.spec.ts: double close, old ticket, crash/retry, novo handoff concorrente e checkout produto preservado.
+**Tests**: whatsapp-human-handoff.integration.spec.ts: double close, old ticket, crash/retry, novo handoff concorrente e checkout produto preservado. Dedicated `tests/whatsapp-human-unknown-history.integration.spec.mjs` must retain and execute the original Meta historical close/new-handoff assertions after T109; no skipped prerequisite or fabricated transition.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T56$" ./src/modules/support/application/close-whatsapp-conversation.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T56 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t56 close the active human case and resume once`
 
@@ -2216,7 +2239,7 @@ T107 → T106
 
 **What**: Coletor valida cobertura de todos os critérios atuais da especificação (81 neste plano), teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks. T108 native guard evidence and original affected consumer reruns remain distinct.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
-**Depends on**: T94, T97, T98, T101, T103, T106, T72
+**Depends on**: T94, T97, T98, T101, T103, T106, T72, T109
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: QA-01, QA-02, QA-03, QA-04
 
@@ -2331,8 +2354,8 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T49, T50, T57.
 
 **C25** - WHILE o atendimento está aguardando ou sob atendimento humano the system SHALL pausar as respostas automáticas da IA sem perder carrinho, agendamento ou pagamento. (HUM-03, AC 3)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/whatsapp-ai-dispatch-fence.integration.spec.mjs ./tests/whatsapp-ai-dispatch-http.integration.spec.mjs ./tests/whatsapp-ai-request-commit.integration.spec.mjs ./tests/whatsapp-human-message-router.integration.spec.mjs`
-Tasks: T4, T48, T49, T50, T51.
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/whatsapp-ai-dispatch-fence.integration.spec.mjs ./tests/whatsapp-ai-dispatch-http.integration.spec.mjs ./tests/whatsapp-ai-request-commit.integration.spec.mjs ./tests/whatsapp-human-message-router.integration.spec.mjs ./tests/whatsapp-human-unknown-replay.integration.spec.mjs`
+Tasks: T4, T48, T49, T50, T51, T109.
 
 **C26** - WHEN operador autorizado acessa a central do módulo WhatsApp THEN the system SHALL permitir consultar a fila, assumir uma conversa, responder e encerrar somente atendimentos de sua empresa. (HUM-04, AC 4)
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^HUM-04$" ./tests/whatsapp-human-handoff.integration.spec.ts`
@@ -2347,8 +2370,8 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T56, T61.
 
 **C29** - IF a fila, a entrega ou a equipe está indisponível THEN the system SHALL informar o estado real, sem prometer atendimento imediato ou resposta já enviada. (HUM-07, AC 7)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^HUM-07$" ./tests/whatsapp-human-handoff.integration.spec.ts`
-Tasks: T54, T55, T58.
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/whatsapp-human-handoff.integration.spec.ts ./tests/whatsapp-human-unknown-replay.integration.spec.mjs`
+Tasks: T54, T55, T58, T109.
 
 **C30** - WHEN o operador abre o módulo WhatsApp THEN the system SHALL oferecer a aba "Conversas" para operar o atendimento humano existente sem exigir uma central separada para o RAG. (HUM-08, AC 8)
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^HUM-08$" ./tests/whatsapp-human-handoff.integration.spec.ts`
@@ -2560,6 +2583,8 @@ Tasks: T107.
 Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; independent70/components, types/lint/build and six native captures reviewed PASS. See task-107-evidence.json; no105/106/final-feature claim.
 
 ## Handoff
+
+**Dispatched T109:** Independent local repair on pinned faed0a61a, new own dependencies/client/artifacts. Baseline actual RED then reviewed one-line repair, final134 components/56 native/compiled2/nine headers are required; no mark or commit until actual gate evidence. Pending31/56/71 oracle questions remain unanswered. This snapshot carries only109 metadata; Root71 and other workers remain separate.
 
 **Integrated T106 locally:** Author da776b4fa contributes13 code/test/config files,8 current native images,6 changed legacy frames and4 task/status documents. Actual188/15files,lint13+helper1,Dashboard types/build0,whole Browser8/8 normal cleanup passed; Root opened14 native1440/390 pictures and accepted targets technically. Prior5/3 helper failure and legacy beforebytes remain archived. Professional links preserve other IDs/current versions and create-once editor continuity; products unchanged. Root71 protected/uncommitted, no user visual approval/final verification/production claim.
 
@@ -3100,7 +3125,7 @@ Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; i
 
 ## Phase Execution Map
 
-108 tasks in17 phases; the task-level dependency graph and Depends on fields above are authoritative. Phase1 opens company/professional/human-delivery fronts. Company/professional writers feed Phase9 RAG;25+59 open the independent73–77 administration client/state/UI sequence, while71→72 remains mandatory before final acceptance. Phase4 waits for company/professional integration; Phases5/6 follow its canonical booking admission. Phase8 close/UI depends on55 and its explicit59 permissions. No business-operation dependency or required gate is waived.
+109 tasks in17 phases; the task-level dependency graph and Depends on fields above are authoritative. Phase1 opens company/professional/human-delivery fronts. Company/professional writers feed Phase9 RAG;25+59 open the independent73–77 administration client/state/UI sequence, while71→72 remains mandatory before final acceptance. Phase4 waits for company/professional integration; Phases5/6 follow its canonical booking admission. Phase8 close/UI depends on55 and its explicit59 permissions. No business-operation dependency or required gate is waived.
 
 Phase14 adds99→100→101, with55 also required by100 and62 by101. Phase15 adds102→103 after actual41/74, then80/83. Phase16 keeps105→106 and107 entitlement dependencies;104/108 retain their earlier explicit edges. Phase13 coexistence92–94 and all new fronts converge at Phase17 final95 after94/97/98/101/103/106/72. Existing original product regressions,108 consumer guards, same-HEAD proofs, independent mutations/screens/walk and validate_verification remain required before completion. One local atomic commit per completed task; publication is separate.
 
