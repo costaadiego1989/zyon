@@ -23,3 +23,6 @@
 
 - T26 CLOSED: final Build API648/648, WA25/25, UI132/132, both builds/lint/types0. Target RAG17/17, consumers37/37. Current policy revision2026-11-16.2, nine subjects/identities preserved; initial-autolaunch retired. Official template primary source verified read-only. No gate running. NEXT T27 new typed per-store approval client and8new Vitest cases, then T28-T35. Read t27-planning-notes.md; no frontend source written yet. No question pending.
 
+
+- T27 CLOSED: new per-mounted-store campaignApprovalEndpoints,9/9 Vitest, no skips. Reuses dashboardJson/auth/typed errors and abort/dispose, six canonical operations, exact bodies/key, no second execute; legacy API unchanged. NEXT T28 LaunchReview/10new gesture cases using Impeccable/project tokens; T29-T35 still owed. No gates running, no question pending.
+
