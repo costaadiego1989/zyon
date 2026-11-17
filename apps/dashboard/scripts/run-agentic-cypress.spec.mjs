@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {parseArguments,assertSuccessfulRun,selectedSpec} from './run-agentic-cypress.mjs';
+test('ACAP-27 selects its administrative approval journey and keeps empty selections invalid',()=>{assert.deepEqual(parseArguments(['--case','ACAP-27']),{case:'ACAP-27'});assert.equal(selectedSpec({case:'ACAP-27'}),'cypress/e2e/agentic/campaign-approval.cy.ts');assert.throws(()=>parseArguments(['--case','ACAP-28']),/agentic_argument_invalid/);assert.throws(()=>assertSuccessfulRun({totalTests:0,totalPassed:0,runs:[]}),/cypress_no_test_ran/);});
 test('ADAS-66 segmented-tab witness selects its own case without starting unrelated journeys',()=>{
   assert.deepEqual(parseArguments(['--case','ADAS-66']),{case:'ADAS-66'});
   assert.equal(selectedSpec({case:'ADAS-66'}),'cypress/e2e/agentic/runtime.cy.ts');

@@ -97,12 +97,12 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   }});
   preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,enabled:approvalEnabled,clock});
   const noticeSender=input.templates&&input.templateSender?new CampaignReadyNoticeSender({db:input.prisma,notices,configs:input.whatsapp,templates:input.templates,templateSender:input.templateSender,launches,authorizeActor,
-    storeName:async merchantId=>(await commerce.getProfile(merchantId)).name,dashboardUrl:env.META_ADS_DASHBOARD_URL??'',clock,enabled:()=>approvalEnabled()&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true'}):null;
+      storeName:async merchantId=>(await commerce.getProfile(merchantId)).name,dashboardUrl:env.META_ADS_CAMPAIGN_REVIEW_URL??env.META_ADS_DASHBOARD_URL??'',clock,enabled:()=>approvalEnabled()&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true'}):null;
   const noticeWorker=new CampaignReadyNoticeWorker({repo,launches,notices,sender:{send:async lease=>{
     if(!noticeSender)throw new MetaAdsError('campaign_notice_unavailable',503);return noticeSender.send(lease);
   }},reviewActor:async merchantId=>{
     const member=await input.prisma.merchantTeamMember.findFirst({where:{merchantId,role:{in:['OWNER','ADMIN']},user:{disabledAt:null}},select:{userId:true},orderBy:[{joinedAt:'asc'},{userId:'asc'}]});return member?.userId??null;
-  },dashboardUrl:env.META_ADS_DASHBOARD_URL??'',enabled:approvalEnabled,whatsappEnabled:()=>!!noticeSender&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true',clock});
+  },dashboardUrl:env.META_ADS_CAMPAIGN_REVIEW_URL??env.META_ADS_DASHBOARD_URL??'',enabled:approvalEnabled,whatsappEnabled:()=>!!noticeSender&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true',clock});
   const automatic = new AutomaticCampaignWorker({ repo, policies, campaigns, generations, proposals, executions, enabled: automationEnabled, authorizeActor, clock,preparationEnabled:approvalEnabled,
     prepareInternally:async(merchantId,actorId,campaignId,imageCount)=>{
       const status=await preparation.read(merchantId,actorId,campaignId);

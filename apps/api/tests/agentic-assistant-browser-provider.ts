@@ -7,13 +7,14 @@ export class AgenticBrowserProvider {
   fundingMode:'prepaid'|'postpaid'|'unknown'='prepaid';blocked=false;dueCents=5000;images=0;modelCalls=0;reviewCalls=0;
   retrievedReferenceIds:string[]=[];writes:Array<{tool:string;accountId:string;entityId:string}>=[];
   entities=new Map<string,Json>();private next=1000;
+  whatsappMode:'accepted'|'timeout'|'reject'='accepted';whatsappRequests:Json[]=[];
   private holdImages=false;private imageWaiters:Array<()=>void>=[];
   metricsUnavailable=false;sampleMetrics=false;private holdModel=false;private modelWaiters:Array<()=>void>=[];
   get modelPending(){return this.modelWaiters.length;}
   setModelHold(value:boolean){this.holdModel=value;if(!value)for(const release of this.modelWaiters.splice(0))release();}
   setImageHold(value:boolean){this.holdImages=value;if(!value)for(const release of this.imageWaiters.splice(0))release();}
   constructor(readonly clock:()=>Date){}
-  reset(){this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;this.sampleMetrics=false;}
+  reset(){this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.whatsappMode='accepted';this.whatsappRequests=[];this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;this.sampleMetrics=false;}
   private model(body:Json):Response {
     this.modelCalls++;
     const messages=body.messages as Json[];
@@ -42,8 +43,8 @@ export class AgenticBrowserProvider {
     if(/fundos|pagar|pagamento|verba|saldo/i.test(text))return reply('A verba dos anúncios é paga diretamente à Meta e é separada da assinatura e dos créditos de imagens. Confira o tipo de cobrança da conta no painel Verba dos anúncios. Use o botão de pagamentos da conta conectada e depois Verificar novamente; esse botão não adiciona saldo na Zyon.');
     if(/vender.*camisas/i.test(text)){
       if(!called.includes('merchant_ads_catalog'))return completion(null,{name:'merchant_ads_catalog',args:{query:'Camisa'}});
-      if(!called.includes('merchant_ads_save_draft')){const products=toolResult('merchant_ads_catalog').products??[];return completion(null,{name:'merchant_ads_save_draft',args:{name:'Camisas da semana',variantIds:products.map((p:Json)=>p.variantId),destination:'store',priority:'paid_sales',country:'BR',approvalPreference:/automaticamente|autom[aá]tico/i.test(text)?'automatic':'manual',headline:'Camisas para o seu dia',primaryText:'Conheça as camisas da nossa loja.',mediaIds:[]}});}
-      return reply('Encontrei a Camisa no catálogo. Qual orçamento deseja investir: diário ou total, com quais datas?');
+      if(!called.includes('merchant_ads_save_draft')){const products=toolResult('merchant_ads_catalog').products??[],full=/R\$\s*100 no total/i.test(text);return completion(null,{name:'merchant_ads_save_draft',args:{name:'Camisas da semana',variantIds:products.map((p:Json)=>p.variantId),destination:/WhatsApp/i.test(text)?'whatsapp':'store',priority:'paid_sales',country:'BR',approvalPreference:/automaticamente|autom[aá]tico/i.test(text)?'automatic':'manual',headline:'Camisas para o seu dia',primaryText:'Conheça as camisas da nossa loja.',mediaIds:[],imageCount:/carrossel|2 imagens/i.test(text)?2:1,...(full?{budget:{amountCents:10000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-16T12:00:00.000Z',endsAt:'2026-11-23T12:00:00.000Z'}}:{})}});}
+      return reply(/R\$\s*100 no total/i.test(text)?'Campanha salva. Vou preparar os criativos; a publicação exige sua aprovação administrativa.':'Encontrei a Camisa no catálogo. Qual orçamento deseja investir: diário ou total, com quais datas?');
     }
     if(/^100$/.test(text.trim()))return reply('Esse orçamento é diário ou total? Quais são as datas de início e término?');
     if(/(?:100|80) no total/i.test(text)){
@@ -65,7 +66,8 @@ export class AgenticBrowserProvider {
     const storeB=new Headers(init?.headers).get('authorization')?.includes('store-b');const accountId=storeB?'101':'100';
     if(url.hostname==='graph.facebook.com'){
       const id=url.pathname.split('/').at(-1)!.replace(/^act_/,'');
-      if(id==='110'||id==='111')return json({id,has_whatsapp_number:true,whatsapp_number:'5511999999999'});
+      if(id==='messages'){this.whatsappRequests.push({url:url.href,...body});if(this.whatsappMode==='timeout')throw Error('controlled_whatsapp_timeout');if(this.whatsappMode==='reject')return json({error:{message:'controlled rejection'}},400);return json({messages:[{id:'wamid.controlled-'+this.whatsappRequests.length}]});}
+      if(id==='110'||id==='111')return json({id,has_whatsapp_number:true,whatsapp_number:id==='110'?'5511999999999':'5511988888888'});
       if(id!==accountId)throw new Error('controlled_account_scope_mismatch');
       return json({id,currency:'BRL',...(this.fundingMode==='unknown'?{}:{is_prepay_account:this.fundingMode==='prepaid',balance:String(this.dueCents),funding_source:'12345'}),account_status:this.blocked?3:1,disable_reason:0});
     }
