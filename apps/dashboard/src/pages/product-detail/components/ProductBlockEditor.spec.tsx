@@ -96,7 +96,7 @@ describe("ProductBlockEditor", () => {
   it("lets a merchant connect a CTA to the current product cart flow", () => {
     const src = readSource();
     expect(src).toContain('value="add_to_cart"');
-    expect(src).toContain('ctaAction: e.target.checked ? "add_to_cart" : undefined');
+    expect(src).toContain('ctaAction: checked ? "add_to_cart" : undefined');
   });
 
   it("table editor exposes + Coluna / + Linha controls", () => {

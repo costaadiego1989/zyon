@@ -115,7 +115,7 @@ describe("T74", () => {
       if (number === 2) return old.promise;
       return Response.json({ items: [{ ...professional, publicName: number === 3 ? "Latest" : "Initial" }], nextCursor: null });
     } });
-    let pending!: Promise<void>;
+    let pending!: Promise<boolean>;
     await act(async () => { pending = f.vm().refresh(); });
     await act(async () => f.vm().refresh());
     await act(async () => { old.resolve(Response.json({ items: [{ ...professional, publicName: "Old" }], nextCursor: null })); await pending; });

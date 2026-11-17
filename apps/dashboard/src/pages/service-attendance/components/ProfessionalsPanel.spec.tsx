@@ -128,7 +128,7 @@ describe("T76 cache criterion cases, not yet executed", () => {
     expect(document.body.textContent).toContain("Não foi possível localizar este profissional"); expect(field("Nome público").value).toBe("Rascunho"); expect(writes(f).map(r => r.method)).toEqual(["PATCH"]);
   });
   it("retains an uncertain result and never automatically resends the professional mutation", async () => {
-    const f = await fixture({ handle: r => { if (r.method !== "GET") throw new Error("network unavailable"); } });
+    const f = await fixture({ handle: r => { if (r.method !== "GET") throw new Error("network unavailable"); return undefined; } });
     await click("Editar Ana"); await enter("Nome público", "Rascunho"); await click("Salvar profissional");
     expect(document.body.textContent).toContain("Não foi possível confirmar o resultado"); expect(writes(f)).toHaveLength(1); expect(field("Nome público").value).toBe("Rascunho");
   });

@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 
 const root=dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
-  testDir:resolve(root,'e2e'),testMatch:['service-product-coexistence.spec.ts','service-company-about.spec.ts','service-company-service-names.spec.ts','service-catalog-business-mode.spec.ts'],
+  testDir:resolve(root,'e2e'),testMatch:['service-product-coexistence.spec.ts','service-company-about.spec.ts','service-company-service-names.spec.ts','service-catalog-business-mode.spec.ts','service-catalog-toggles.spec.ts'],
   globalSetup:resolve(root,'e2e/service-local-setup.mjs'),
   fullyParallel:false,workers:1,retries:0,forbidOnly:true,
   timeout:60_000,globalTimeout:600_000,reporter:[['list'],[resolve(root,'e2e/service-local-reporter.mjs')],...(process.env.SERVICE_COMPANY_PROOF_REPORT ? [['json',{outputFile:process.env.SERVICE_COMPANY_PROOF_REPORT}] as [string,{outputFile:string}]] : [])],

@@ -1,0 +1,700 @@
+{
+  "task": "T105",
+  "status": "Complete LOCAL before focused atomic commit; current Full green and Root technical six-frame review PASS",
+  "recordedAtUtc": "2026-11-17T09:03:36.454200+00:00",
+  "sourceBase": "C c1439c7b9 plus unchanged four105productive controls, helper phase/encoding repair, two mechanical type-fixture fixes. No API/package/schema/lock changes.",
+  "taskCompletionClaimed": true,
+  "atomicTaskCommit": "Recorded after creation in ignored .cache/t105-execution/commit-preparation/commit-receipt.json",
+  "seventhActualRun": {
+    "directory": ".cache/t105-execution/browser-2026-11-16T17-43-15.040Z",
+    "completedAtUtc": "2026-11-16T17:47:09.595Z",
+    "exit": 1,
+    "executed": 2,
+    "passed": 0,
+    "failed": 2,
+    "traceBackup": ".cache/t105-execution/browser-2026-11-16T17-43-15.040Z/trace-artifacts",
+    "diagnosis": ".cache/t105-execution/seventh-trace-diagnosis.md",
+    "product": "cold catalog import subtree completed after10s response wait; actual requests had correct scoped URLs",
+    "service": "toggle and duration succeeded; normal Add schedule click stalled on stable check; RAF/compositor progress needs actual bounded diagnosis, no movement/overlay cause proven",
+    "noEighthRun": true,
+    "ordering": "Root independently reordered107before105; no task105completion inferred"
+  },
+  "productiveUiFiles": [
+    {
+      "path": "apps/dashboard/src/pages/product-detail/components/ProductForm.tsx",
+      "sha256": "24d3ff078552d0d083c76e2b6ab56204b977e54dfadfb4e1185c51c6fcfdcca4"
+    },
+    {
+      "path": "apps/dashboard/src/pages/product-detail/components/ServiceScheduleEditor.tsx",
+      "sha256": "9ee4148604581899b5d8da018352e5af63511c0a35217253a08a4457cec057d8"
+    },
+    {
+      "path": "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.tsx",
+      "sha256": "2a06818b5e23243bb0ac4a951a7f0d096e7809ba28b151a62258b09f17492e95"
+    },
+    {
+      "path": "apps/dashboard/src/pages/product-detail/product-detail.css",
+      "sha256": "bdc42de43697a5a6f33a782e5d2976587aa50506f024c8c189d37734c964da25"
+    }
+  ],
+  "productiveApiPackageLockDelta": "none vs f09; no artifact/client/dependency copied",
+  "checks": {
+    "units": {
+      "result": {
+        "kind": "units",
+        "exit": 0,
+        "completedAt": "2026-11-16T16:22:38.233Z"
+      },
+      "resultFile": {
+        "path": ".cache/t105-execution/units-2026-11-16T16-21-21.555Z/result.json",
+        "sha256": "9db78da991e63e677f003ae7eab71cc9ca5bf745542727e7b7dad94571e0147e"
+      },
+      "passed": 78,
+      "failed": 0,
+      "skipped": 0,
+      "files": 8,
+      "composition": "55 unchanged T98 cohort +13 BlockEditor +10 new toggles"
+    },
+    "types": {
+      "result": {
+        "kind": "types",
+        "exit": 0,
+        "completedAt": "2026-11-16T16:29:46.090Z"
+      },
+      "resultFile": {
+        "path": ".cache/t105-execution/types-2026-11-16T16-29-22.710Z/result.json",
+        "sha256": "481171c14484d8a9e5bc56a9fd71fa80ac4e4bd98bb511a3200a9ad5faacfd8d"
+      }
+    },
+    "lint": {
+      "result": {
+        "kind": "lint",
+        "files": 7,
+        "errors": 0,
+        "warnings": 0,
+        "unchangedExistingRules": true
+      },
+      "resultFile": {
+        "path": ".cache/t105-execution/lint-2026-11-16T16-47-10.563Z/result.json",
+        "sha256": "11e7c4f13b82e127e7a076c0e247b125ac2042c9705e5772247433b219eb6dd8"
+      },
+      "detail": {
+        "kind": "lint",
+        "files": 7,
+        "errors": 0,
+        "warnings": 0,
+        "unchangedExistingRules": true
+      }
+    },
+    "dashboardBuild": {
+      "result": {
+        "kind": "build",
+        "exit": 0,
+        "completedAt": "2026-11-16T16:30:31.462Z"
+      },
+      "resultFile": {
+        "path": ".cache/t105-execution/build-2026-11-16T16-29-49.147Z/result.json",
+        "sha256": "99906937052c571b73ea64b3a3a5207079e28d013249c3787ce196290a347da6"
+      }
+    },
+    "browserList": {
+      "result": {
+        "kind": "list",
+        "exit": 0,
+        "completedAt": "2026-11-16T16:36:33.795Z"
+      },
+      "resultFile": {
+        "path": ".cache/t105-execution/list-2026-11-16T16-36-31.031Z/result.json",
+        "sha256": "a1a37b424df952db73862e45f99a7203c15cc6ece017cf5c00c0625817cd67ed"
+      }
+    },
+    "freshOwnApiBuild": {
+      "newBuildNotReuse": true,
+      "commands": [
+        {
+          "label": "capture",
+          "args": [
+            "apps/api/tests/service-test-artifacts.mjs",
+            "--capture-inputs"
+          ],
+          "pid": 60256,
+          "startedAt": "2026-11-16T16:23:03.978Z",
+          "exit": 0,
+          "completedAt": "2026-11-16T16:24:41.280Z"
+        },
+        {
+          "label": "build",
+          "args": [
+            "C:\\Users\\Admin\\AppData\\Local\\pnpm\\.tools\\pnpm\\9.15.0\\node_modules\\pnpm\\bin\\pnpm.cjs",
+            "--dir",
+            "apps/api",
+            "build"
+          ],
+          "pid": 54892,
+          "startedAt": "2026-11-16T16:24:41.300Z",
+          "exit": 0,
+          "completedAt": "2026-11-16T16:28:46.514Z"
+        },
+        {
+          "label": "record",
+          "args": [
+            "apps/api/tests/service-test-artifacts.mjs",
+            "--record-build-exit0"
+          ],
+          "pid": 56156,
+          "startedAt": "2026-11-16T16:28:46.561Z",
+          "exit": 0,
+          "completedAt": "2026-11-16T16:29:08.939Z"
+        }
+      ],
+      "artifact": {
+        "checked": true,
+        "inputSha256": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+        "artifactSha256": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2543
+        }
+      },
+      "ownPrismaVersion": "6.19.3",
+      "ownGenerateSeconds": 2.98,
+      "recordedProof": {
+        "path": ".cache/t105-execution/api-2026-11-16T16-23-03.538Z/checked-artifact.json",
+        "sha256": "8a4adb8997f8183310ce0b7488af54982c896b863c875e6280c6ea8d8d6870ce"
+      },
+      "admission": {
+        "minimumCommitMiB": 5168,
+        "memory": {
+          "observedAtUtc": "2026-11-16T16:23:03.920702+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 330,
+          "commitAvailableMiB": 5663,
+          "memoryLoadPercent": 97
+        }
+      }
+    }
+  },
+  "browserAttempts": [
+    {
+      "run": "browser-2026-11-16T16-30-51.832Z",
+      "cliExit": 1,
+      "executed": 2,
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0,
+      "setupErrors": 0,
+      "reason": "product catalog not rendered before click action deadline; service case passed; first images preserved as diagnostics",
+      "durationMs": 153363.469,
+      "report": {
+        "path": ".cache/t105-execution/browser-2026-11-16T16-30-51.832Z/playwright.json",
+        "sha256": "d876a2ca5b3ac13c6504fc90acd124454254f1df36fd888e66091ee1906f3730"
+      },
+      "output": {
+        "path": ".cache/t105-execution/browser-2026-11-16T16-30-51.832Z/output.log",
+        "sha256": "4fa0c729bcfa46fed63f92554b4c9a190b5046e6c7fa202993d4389ed0acabcf"
+      },
+      "cleanup": "first3: app.close ACK/provider0/naturalexit0/owned cleanup enforced by runtime; fourth: setup cleanup completed, no ready/ACK-success claim"
+    },
+    {
+      "run": "browser-2026-11-16T16-36-33.923Z",
+      "cliExit": 1,
+      "executed": 2,
+      "passed": 0,
+      "failed": 2,
+      "skipped": 0,
+      "setupErrors": 0,
+      "reason": "new readiness predicate ignored actual querystring; both failed before editing; fixed by exact URL pathname/origin/merchant",
+      "durationMs": 163560.805,
+      "report": {
+        "path": ".cache/t105-execution/browser-2026-11-16T16-36-33.923Z/playwright.json",
+        "sha256": "dbb593f98db749f8630f148d3ac0eb0821591b53e4cedfa3c7f1b8e0f72436b9"
+      },
+      "output": {
+        "path": ".cache/t105-execution/browser-2026-11-16T16-36-33.923Z/output.log",
+        "sha256": "377f1a29131fc17141b0de7cb12ee0bd165060f752f5d194ab341bbe63e452ae"
+      },
+      "cleanup": "first3: app.close ACK/provider0/naturalexit0/owned cleanup enforced by runtime; fourth: setup cleanup completed, no ready/ACK-success claim"
+    },
+    {
+      "run": "browser-2026-11-16T16-41-56.167Z",
+      "cliExit": 1,
+      "executed": 2,
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0,
+      "setupErrors": 0,
+      "reason": "service passed; product failed only exact two-frame capture equality y522.34375 vs522.3125; native stable wait added without changing equality",
+      "durationMs": 209148.99000000002,
+      "report": {
+        "path": ".cache/t105-execution/browser-2026-11-16T16-41-56.167Z/playwright.json",
+        "sha256": "fac2e71c05b8257282a9fb245bb83660936886121b10667f7ba9b63ccd08f232"
+      },
+      "output": {
+        "path": ".cache/t105-execution/browser-2026-11-16T16-41-56.167Z/output.log",
+        "sha256": "642212dbd68f286b137de4c1bd6dc0b1bee7daf313650778be5c42fbcd7437ed"
+      },
+      "cleanup": "first3: app.close ACK/provider0/naturalexit0/owned cleanup enforced by runtime; fourth: setup cleanup completed, no ready/ACK-success claim"
+    },
+    {
+      "run": "browser-2026-11-16T16-47-15.921Z",
+      "cliExit": 1,
+      "executed": 0,
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "setupErrors": 1,
+      "reason": "global setup failed before any case: Windows native Redis ownership probe killed SIGTERM under unchanged10000ms timeout; no blind retry",
+      "durationMs": 213639.02000000002,
+      "report": {
+        "path": ".cache/t105-execution/browser-2026-11-16T16-47-15.921Z/playwright.json",
+        "sha256": "8b3e1ff0dc69fd652439a45174ca7df97e8fa968da3c35906454f87c02090f79"
+      },
+      "output": {
+        "path": ".cache/t105-execution/browser-2026-11-16T16-47-15.921Z/output.log",
+        "sha256": "afde88ef973bdfbc63659f925753a7c96354a33e351403e42b41ca29307093a2"
+      },
+      "cleanup": "first3: app.close ACK/provider0/naturalexit0/owned cleanup enforced by runtime; fourth: setup cleanup completed, no ready/ACK-success claim"
+    },
+    {
+      "run": "browser-2026-11-16T17-13-49.530Z",
+      "cliExit": 1,
+      "executed": 2,
+      "passed": 0,
+      "failed": 2,
+      "skipped": 0,
+      "setupErrors": 0,
+      "reason": "post108 Redis proof passed; product cold lazy editor heading5s and service catalog response10s expired before mount; no data assertion relaxed",
+      "durationMs": 259555.91499999998,
+      "report": {
+        "path": ".cache/t105-execution/browser-2026-11-16T17-13-49.530Z/playwright.json",
+        "sha256": "e30632c5d2e774db7a7eee6a867096b1b4c45df35b055dbe756bdcc30ea75e94"
+      },
+      "output": {
+        "path": ".cache/t105-execution/browser-2026-11-16T17-13-49.530Z/output.log",
+        "sha256": "a1198a575e8846fe40140d6162ecfb343e17a92aa344ac8223a0952ce87eabab"
+      },
+      "cleanup": "actual app.close ACK/provider0/naturalexit0/owned cleanup passed, timers[]"
+    },
+    {
+      "run": "browser-2026-11-16T17-24-21.088Z",
+      "cliExit": 1,
+      "executed": 2,
+      "passed": 0,
+      "failed": 2,
+      "skipped": 0,
+      "setupErrors": 0,
+      "reason": "product progressed through create/Active save/food update, final reopen used full navigation and quota429; service create readiness click/response failed; exact source-only real-row reopening fix prepared after cleanup",
+      "durationMs": 338965.33999999997,
+      "report": {
+        "path": ".cache/t105-execution/browser-2026-11-16T17-24-21.088Z/playwright.json",
+        "sha256": "1f293bb2de46e08d3a3e79e5e4731ed46c12e6161ec023ec8aea1d3fa53e470d"
+      },
+      "output": {
+        "path": ".cache/t105-execution/browser-2026-11-16T17-24-21.088Z/output.log",
+        "sha256": "484e6212819b7416e4b2118a899038e687bd083cf7cbbcb191e56d71b32666b9"
+      },
+      "cleanup": "actual app.close ACK/provider0/naturalexit0/owned cleanup passed, timers[]"
+    }
+  ],
+  "cleanupInspection": {
+    "recordedAtUtc": "2026-11-16T16:53:12.6771614Z",
+    "run": "browser-2026-11-16T16-47-15.921Z",
+    "cliExit": 1,
+    "testsExecuted": 0,
+    "failure": "journey_owned_redis_capture_failed: probe killed=true SIGTERM; no application-ready event",
+    "currentCNodeProcesses": [],
+    "currentOwnedHarnessContainerNames": [],
+    "globalSetupCleanupReturnedWithoutAggregate": true,
+    "appAckAndNaturalExitSuccessfulProof": false,
+    "foreignResourcesUntouched": true,
+    "noNewRunnerOrBlindRetry": true
+  },
+  "localCaptures": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-active-desktop.running.png",
+      "sha256": "89a75dcd1d1f6aaaf3e3e25497ffd2277d2037ca0d8207ebb71c7945dca884c0",
+      "status": "progress only, no final105green; active/food captured from saved-product editor before next draft save; service images from earlier passing service case",
+      "viewport": "1440x1000",
+      "resized": false
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-active-mobile.running.png",
+      "sha256": "a542663477df0367b7faef1ed1ff8a106530495103fa3f8fe886380c39e68367",
+      "status": "progress only, no final105green; active/food captured from saved-product editor before next draft save; service images from earlier passing service case",
+      "viewport": "390x844",
+      "resized": false
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-food-desktop.running.png",
+      "sha256": "36013c148df3123e96ef8996b0ac82c9b62730b853ddb1dbc5180226361d4c76",
+      "status": "progress only, no final105green; active/food captured from saved-product editor before next draft save; service images from earlier passing service case",
+      "viewport": "1440x1000",
+      "resized": false
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-food-mobile.running.png",
+      "sha256": "f1396ea04c0d68b4c6861a4ed226c5b2eb92274662c98dc90369431b0c666b72",
+      "status": "progress only, no final105green; active/food captured from saved-product editor before next draft save; service images from earlier passing service case",
+      "viewport": "390x844",
+      "resized": false
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-service-desktop.running.png",
+      "sha256": "b6eeeac633db82c7b5271262753209580b780b9f0e8649281b5a1854495e072c",
+      "status": "progress only, no final105green; active/food captured from saved-product editor before next draft save; service images from earlier passing service case",
+      "viewport": "1440x1000",
+      "resized": false
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-service-mobile.running.png",
+      "sha256": "cb38b2e7921fdfc5c2cf7f2e6d427784c1ddadebf3fbf529bb204ff958788de9",
+      "status": "progress only, no final105green; active/food captured from saved-product editor before next draft save; service images from earlier passing service case",
+      "viewport": "390x844",
+      "resized": false
+    }
+  ],
+  "unchangedGuards": {
+    "standardApiAdmissionMiB": 5168,
+    "browserAdmissionMiB": 2048,
+    "globalBrowserMs": 600000,
+    "testMs": 60000,
+    "actionMs": 10000,
+    "retries": 0,
+    "stableEquality": "exact unrounded2RAF and control/label hit-tests retained"
+  },
+  "technicalAdjustments": "new fixture readiness and capture synchronization only; C79 prefix selector alignment; old BlockEditor source-string changed only callback e.target.checked?checked, same enum expectation",
+  "inheritedFinding": {
+    "path": "apps/dashboard/src/pages/product-detail/components/PromotionSection.tsx:160",
+    "actual": "GET own product advanced-rules403 observed in both modes; unconditional effect despite Starter advancedRules=false",
+    "backend": "product-promotion.controller.ts:171?175 / billing-plan-guard.ts:148",
+    "owner": "Root T107 registered e4e5783dc; no107source before105greencommit; no tier/API change"
+  },
+  "remaining": [
+    "Root reviewed source/readiness path and explicitnewhandover before anotheractualdiagnostic",
+    "ActualnormalAddschedule gesture remainsunobserved",
+    "ReviewedNEWbrowserphasehelper before/afterSHA preserving all oldoracles",
+    "Currentcombinedtypes/lint/officialdashboardbuild and whole2actualbrowser/nativecleanup",
+    "Readablecurrenttogglecapturereview, mark105 thenatomiccommit"
+  ],
+  "otherScopes": "Phase8 preserved awaiting55; no provider/production/finalVerifier",
+  "guard108": {
+    "commit": "bda28419d9b93be960ab6c29038b84a8a77dc07a",
+    "ownIntegration": "de422833b919a943e4cac79b85cdc58fcfa322b5",
+    "scope": "three tests/*.mjs guard files and metadata only; no dirty70API/dependencies/client/artifacts",
+    "actualOwnApiReadmission": "fa8c/1d61/2543 passed; no newbuild/record",
+    "actualBrowserSetupPassed": [
+      "post108 fifth",
+      "post108 sixth"
+    ],
+    "pure30ContractInRootOnly": true
+  },
+  "latestCleanupHandover": {
+    "recordedAtUtc": "2026-11-16T17:32:39.1492977Z",
+    "run": "browser-2026-11-16T17-24-21.088Z",
+    "cliExit": 1,
+    "executed": 2,
+    "passed": 0,
+    "failed": 2,
+    "currentCNodeProcesses": [],
+    "currentOwnedHarnessContainers": [],
+    "appCloseAckNaturalExitProviderZeroGuardPassed": true,
+    "timers": [],
+    "foreignResourcesUntouched": true,
+    "nextExecutor": "M9 per Root; no C7/107/106 runner"
+  },
+  "sourceOnlyCurrentFixture": {
+    "file": {
+      "path": "apps/dashboard/e2e/service-catalog-toggles.spec.ts",
+      "sha256": "6264168b377ff4c1d51c4740c48ac0fba87854bc1e925cfa0a372223b1ffaef8"
+    },
+    "executed": true,
+    "changes": "only initial signin goto; onboarding200 plus actual sidebar; create visibility/enable then genuine editor categories200; save waits catalog statusall; reopen clicks exact Editar <name> list row and waits scoped getProduct200/id; Promise.all observes every pending response immediately; all previous payload/state assertions/direct persistence reads remain",
+    "sourceProof": [
+      "main.tsx:117 session checking completes after onboarding",
+      "catalog-page.tsx:69 heading/80create/159row/170Editar label",
+      "catalog/useCatalogPage.ts:94-109 category and paginatedlist mount requests",
+      "useProductDetailPage.ts:57-60 editor categories mount request; API client cache:no-store"
+    ],
+    "budgetsUnchanged": true,
+    "noSeventhRun": false,
+    "nextHeavy": "Root owns current window; C independent107types/build/browser pending then105diagnosis"
+  },
+  "boundedDiagnosticAfter107": {
+    "initialConfigurationFailure": {
+      "directory": ".cache/t105-execution/diagnostic-browser-2026-11-16T22-06-52.166Z",
+      "exit": 1,
+      "cases": 0,
+      "appRuntimeStarted": false,
+      "cause": "cache .ts outside dashboard ESM package transpiled asCJS; import.meta error",
+      "correction": "explicit.mts; static--list1test/1fileexit0 before actualrun"
+    },
+    "directory": ".cache/t105-execution/diagnostic-browser-2026-11-16T22-08-45.910Z",
+    "minimumCommitMiB": 2048,
+    "availableCommitMiB": 6625,
+    "preflightMs": 29182,
+    "bootMs": 58254,
+    "caseStartUtc": "2026-11-16T22:11:10.215Z",
+    "caseDurationMs": 43309,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "flaky": 0,
+    "globalErrors": 0,
+    "exit": 1,
+    "completedAtUtc": "2026-11-16T22:13:03.844Z",
+    "actualStages": [
+      "seed20022:11:14.393Z",
+      "profile200/services22:11:14.625Z",
+      "goto/load original30000ms timedout beforelogin"
+    ],
+    "normalClickReached": false,
+    "serviceActionabilityCauseKnown": false,
+    "afterSample": {
+      "visibility": "visible",
+      "focus": true,
+      "timerMs": 0.7,
+      "rafFrames": 2,
+      "rafMs": 4.9,
+      "buttonControlLabel": null,
+      "actualImage": "blankwhite1440x1000"
+    },
+    "nativeCleanupPassed": true,
+    "appAckProviderZeroNaturalExit": true,
+    "remainingOwnNodeCmd": 0,
+    "remainingLabelledPostgresRedis": 0,
+    "foreignMutations": 0,
+    "originalEight105AndD949Exact": true,
+    "traceManifest": ".cache/t105-execution/diagnostic-browser-2026-11-16T22-08-45.910Z/trace-artifact-manifest.json",
+    "causalPacket": ".cache/t105-post107-readiness-20261116/DIAGNOSTIC-RESULT.md",
+    "notEighthWholeRun": true
+  },
+  "currentCombinedComponents": {
+    "directory": ".cache/t105-execution/combined-units-2026-11-16T22-20-28.366Z",
+    "sourceCheckpoint": ".cache/t105-execution/combined-components-source.json",
+    "completedAtUtc": "2026-11-16T22:21:15.155Z",
+    "exit": 0,
+    "filesPassed": 9,
+    "passed": 93,
+    "failed": 0,
+    "skipped": 0,
+    "durationSeconds": 44.81,
+    "composition": "unchanged10578 +independent10715; deduplicated/unfiltered files",
+    "minimumCommitMiB": 1024,
+    "availableCommitMiB": 7073,
+    "sourceHashesExact": 10,
+    "remainingOwnNodeCmd": 0,
+    "existingWarning": "PrefixInput border/borderRight Reactstylewarning retained",
+    "not105FullOrCssVisualProof": true
+  },
+  "currentOwnApiAdmission": {
+    "directory": ".cache/t107-execution/artifact-2026-11-16T22-05-42.935Z",
+    "inputSha256": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+    "artifactSha256": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5",
+    "checkedSources": 2543,
+    "borrowedOrRebuilt": false
+  },
+  "previewAssessment": {
+    "path": ".cache/t105-post107-readiness-20261116/PREVIEW-ASSESSMENT.md",
+    "sourceOnly": true,
+    "runtimeExecuted": false,
+    "viableDropInUnderCurrentConstraints": false,
+    "actualConstraints": [
+      "officialbuildHTTPS5187 versus protectedHTTPscope",
+      "productionrealUIlogin requiresTurnstile; synthetickey is no providerchallenge, externaloriginsblocked"
+    ],
+    "noCaptchaOrAppFlagOrApiOverride": true,
+    "domContentLoadedShortcutClaimed": false
+  },
+  "executionOwner": "Current Browser23013 natural0 and normalcleanup; owned exactCnodecmd0 at08:58:17Z, slot returned Root before metadata; C source/git/metadata only.",
+  "historicalTopLevelBeforeCurrentFull": {
+    "status": "INCOMPLETE: current combined93components passed; actualboundeddiagnosis failed initial30sload beforelogin/editor/Addschedule, nativecleanup passed; originalwhole2 still ungreen",
+    "recordedAtUtc": "2026-11-16T17:38:55.067173+00:00",
+    "sourceBase": "fbfa6d5a3f31f108ce0f5b59e76d0e487884607c with unchanged eightT105WIP; Root integrated107 as774c62d18",
+    "taskCompletionClaimed": false,
+    "atomicTaskCommit": null,
+    "executionOwner": "SlotreturnedRoot afteractual93/natural0/ownclosure; Csource/cacheonly; no repeatedapp/probe"
+  },
+  "historicalFieldsNotice": "All preexisting checks and attempt packets retain their dated historical snapshots. currentFull is the authoritative current17November local gate.",
+  "currentFull": {
+    "task": "T105",
+    "status": "Full LOCAL green; Root technical six-frame review PASS; before task mark/atomic commit",
+    "checks": {
+      "components93": {
+        "path": ".cache/t105-execution/combined-units-2026-11-17T08-36-41.271Z/result.json",
+        "sha256": "42bfc48ee6d63c22338892b8011fc10a1fe38ce1e2cd991d20ab9efaee2305bd",
+        "result": {
+          "kind": "units",
+          "exit": 0,
+          "completedAt": "2026-11-17T08:36:55.638Z"
+        }
+      },
+      "fixtures46": {
+        "path": ".cache/t105-execution/fixture-units-2026-11-17T08-43-10.766Z/result.json",
+        "sha256": "eabdea52323e71ea37e1c1cb09782228fdd13e193e0ddd131703c54db4bfe2f9",
+        "result": {
+          "kind": "units",
+          "exit": 0,
+          "completedAt": "2026-11-17T08:43:15.883Z"
+        }
+      },
+      "types": {
+        "path": ".cache/t105-execution/types-2026-11-17T08-43-27.821Z/result.json",
+        "sha256": "7d89aeb4771077ea2bf828549110d91726031b9d313f81f35ee2ca1f5a2507c1",
+        "result": {
+          "kind": "types",
+          "exit": 0,
+          "completedAt": "2026-11-17T08:43:38.206Z"
+        }
+      },
+      "build": {
+        "path": ".cache/t105-execution/build-2026-11-17T08-43-44.107Z/result.json",
+        "sha256": "50324465843f53097fc4a06cb64b6ead15676017fa3ecd411dc38af471c7935f",
+        "result": {
+          "kind": "build",
+          "exit": 0,
+          "completedAt": "2026-11-17T08:44:02.007Z"
+        }
+      },
+      "lint": {
+        "path": ".cache/t105-execution/lint-2026-11-17T08-56-40.636Z/result.json",
+        "sha256": "11e7c4f13b82e127e7a076c0e247b125ac2042c9705e5772247433b219eb6dd8",
+        "result": {
+          "kind": "lint",
+          "files": 7,
+          "errors": 0,
+          "warnings": 0,
+          "unchangedExistingRules": true
+        }
+      },
+      "list": {
+        "path": ".cache/t105-execution/list-2026-11-17T08-56-42.499Z/result.json",
+        "sha256": "d2fbbb43311967588a6f614aec2ed2a72bdf1a332648c8a037e616880ddd5ff4",
+        "result": {
+          "kind": "list",
+          "exit": 0,
+          "completedAt": "2026-11-17T08:56:43.768Z"
+        }
+      },
+      "browser": {
+        "path": ".cache/t105-execution/browser-2026-11-17T08-56-48.935Z/result.json",
+        "sha256": "802f68c1ed97e00bcfab40966739afec87dedfd551506b9dcf32e13e73f9cb6b",
+        "result": {
+          "kind": "browser",
+          "exit": 0,
+          "completedAt": "2026-11-17T08:57:28.376Z"
+        },
+        "stats": {
+          "startTime": "2026-11-17T08:56:50.027Z",
+          "duration": 38295.77,
+          "expected": 2,
+          "skipped": 0,
+          "unexpected": 0,
+          "flaky": 0
+        }
+      }
+    },
+    "sourceFreezeSha256": "f064becbbdf8125fcc16809de584dc969da6a857bf3aa1a17d2d16903eaeb175",
+    "all23FrozenInputsExactBeforeMetadata": true,
+    "sourceHashes": {
+      "apps/dashboard/src/pages/product-detail/components/ProductForm.tsx": "24d3ff078552d0d083c76e2b6ab56204b977e54dfadfb4e1185c51c6fcfdcca4",
+      "apps/dashboard/src/pages/product-detail/components/ServiceScheduleEditor.tsx": "9ee4148604581899b5d8da018352e5af63511c0a35217253a08a4457cec057d8",
+      "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.tsx": "2a06818b5e23243bb0ac4a951a7f0d096e7809ba28b151a62258b09f17492e95",
+      "apps/dashboard/src/pages/product-detail/product-detail.css": "bdc42de43697a5a6f33a782e5d2976587aa50506f024c8c189d37734c964da25",
+      "apps/dashboard/src/pages/product-detail/components/ProductBlockEditor.spec.tsx": "43788aeda05c559aea8e298be6bb563acfb80f58950a8b99d9c5c7d2b5adad1b",
+      "apps/dashboard/src/pages/product-detail/components/ProductForm.toggles.spec.tsx": "130e1579ab738dbcb4c13b894ed917ad28a991bf4eedaec93dd0e7c9c43453c4",
+      "apps/dashboard/e2e/service-catalog-toggles.spec.ts": "17dec26cfad0081dba3268ab00d6736b9acff38b76f9e7a708d9f93fa38dc0f5",
+      "apps/dashboard/playwright.service-local.config.ts": "a534345dda7cf513bc7c525cb0b00c5b9fc2973f222a6fd2cb573d48b7bac026",
+      "apps/dashboard/src/pages/service-attendance/components/ProfessionalsPanel.spec.tsx": "68246d3e694898f5aa874dc60ab1715181b3cb72080805c0f1fd8058f2433277",
+      "apps/dashboard/src/pages/service-attendance/useServiceAttendancePage.spec.ts": "804f88ce494a9e54c6ce1f184894f14ce85e07a271da0215d6dd9a9cef6b3f1a"
+    },
+    "frames": [
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-active-desktop.running.png",
+        "sha256": "0edd4f990fd4cfc6ec1dd9da13b77ad3d34b8f4cb1b4185e9b4744b4ca8032df",
+        "width": 1440,
+        "height": 1000,
+        "mtimeUtc": "2026-11-17T08:57:19.836387+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-active-mobile.running.png",
+        "sha256": "039fc289b7e4ba91be7ce8195af6fa7d9ec5252a7ff10f05390d72426f8f8a2c",
+        "width": 390,
+        "height": 844,
+        "mtimeUtc": "2026-11-17T08:57:19.966736+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-food-desktop.running.png",
+        "sha256": "9e8efb6b34469b34e1ce7b92569e5933171631493803fce713aef0f484770820",
+        "width": 1440,
+        "height": 1000,
+        "mtimeUtc": "2026-11-17T08:57:20.263019+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-food-mobile.running.png",
+        "sha256": "98678da1e321bca24550521ae17c43153979ae88794f262adce95b9b19e83ea0",
+        "width": 390,
+        "height": 844,
+        "mtimeUtc": "2026-11-17T08:57:20.521217+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-service-desktop.running.png",
+        "sha256": "73df1f8c894769cd76e870e451ac1d9a9f4925f6e4b3f22cfc1417454b127d95",
+        "width": 1440,
+        "height": 1000,
+        "mtimeUtc": "2026-11-17T08:57:25.520810+00:00"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/artifacts/catalog-toggles-service-mobile.running.png",
+        "sha256": "0176ea6039bd900bd786361d0685ea5684e9631859b3921b0d66e027b5ecd6fa",
+        "width": 390,
+        "height": 844,
+        "mtimeUtc": "2026-11-17T08:57:25.733920+00:00"
+      }
+    ],
+    "normalCleanup": true,
+    "knownOwnedCNodeCmd": 0,
+    "ownedInspection": ".cache/t105-execution/browser-2026-11-17T08-56-48.935Z/owned-postclose.json",
+    "rootTechnicalVisualReview": "PASS all6 native frames; current scope toggles only",
+    "userVisualApprovalClaimed": false,
+    "finalIndependentVerifierClaimed": false,
+    "apiBackendPackageLockChanges": false,
+    "ownApi": {
+      "sourceCount": 2543,
+      "inputSha256": "fa8cefd9363b80ef078d90bac866e17032e659bee93880a1ae10ae01fee665b7",
+      "artifactSha256": "1d6187f518f5edb252623a9bcc3ba1894eb61856a7382a43fca00bd73914e4a5"
+    },
+    "typeFixtureSupport": {
+      "root55AlreadyHasEae": true,
+      "CFinalOld74": "804f88ce494a9e54c6ce1f184894f14ce85e07a271da0215d6dd9a9cef6b3f1a",
+      "RootMustAdoptOnlyPromiseBooleanBeyondEae": true,
+      "professionalsPanelFinal": "68246d3e694898f5aa874dc60ab1715181b3cb72080805c0f1fd8058f2433277",
+      "allAssertionsAndThrowsPreserved": true
+    },
+    "historicalFailuresRetained": true,
+    "rootOwnsNextRuntime": true,
+    "providerProductionActions": 0,
+    "technicalVisualReview": "Root opened all6 native1440x1000/390x844 frames and accepted controls/labels/focus/overflow for105 only. No user visual approval or final independent verifier claimed.",
+    "historicalSourceFailureBoundaries": [
+      "Seven old original whole2 attempts were never green; no historical Addschedule geometry/overlay cause proved.",
+      "Old bounded diagnostic failed initial30sload before login/editor/gesture; no DOMContentLoaded/preview/captcha workaround.",
+      "Current bounded normal Add1 passed; current gesture only, not a proven historical cause.",
+      "Current first typecheck failed2fixture declarations; exact mechanical d454 repair passed46then types/build.",
+      "Current initial whole2 failed both only at reviewed-helper3638corrupt literals before create; original6264+actualDOM proved encoding issue; exact334repair restored names.",
+      "Current final whole2passed with statuses/payload/directreads/reopen/geometry/keyboard and all5/10/30/60/600bounds unchanged."
+    ],
+    "postGateSelfCheck": {
+      "criteria": "CAT-03/C79: accessible actual toggles, gesture/state/default/disabled/validation and persistence",
+      "newTestsHaveAssertions": true,
+      "newToggleContractsUseActualControlledGesturesAndPayloadValues": true,
+      "nativeCasesUseRealLoginRealButtonsRealAPIReadWritesAndReopen": true,
+      "oldAssertionsPreserved": true,
+      "onlyOldMechanicalSourceHandlerAndTypeChanges": true,
+      "skippedDeletedWeakenedTests": false,
+      "noNewBackendOrDomainWriter": true,
+      "noComplexityBeyondExistingToggleSwitch": true,
+      "metadataMarkedBeforeCommit": true,
+      "only20ReviewedPaths": true
+    }
+  }
+}

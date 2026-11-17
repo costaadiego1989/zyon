@@ -2164,9 +2164,9 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Toggles expose their actual accessible name and checked state, support pointer/keyboard and retain disabled behavior, defaults and validation for all affected product/service controls.
-- [ ] Existing assertions remain, with only role/gesture updates directly required by the user's control change. Actual local desktop/mobile browser captures show the revised controls and saved/reopened state; no new API/domain writer.
-- [ ] Unfiltered affected component tests, dashboard typecheck/lint/build and Browser gate pass, no skipped cases; task marked before its atomic local commit.
+- [x] Toggles expose their actual accessible name and checked state, support pointer/keyboard and retain disabled behavior, defaults and validation for all affected product/service controls.
+- [x] Existing assertions remain, with only role/gesture updates directly required by the user's control change. Actual local desktop/mobile browser captures show the revised controls and saved/reopened state; no new API/domain writer.
+- [x] Unfiltered affected component tests, dashboard typecheck/lint/build and Browser gate pass, no skipped cases; task marked before its atomic local commit.
 
 **Tests**: Existing catalog/service-schedule component files plus `src/pages/product-detail/components/ProductForm.toggles.spec.tsx` and `e2e/service-catalog-toggles.spec.ts`, verifying gestures and saved values rather than control invocation counts.
 **Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/components/ProductForm.toggles.spec.tsx src/pages/product-detail/components/ProductForm.business-mode.spec.tsx src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx src/pages/product-detail-page.spec.ts src/pages/product-detail/utils/product-validation.spec.ts src/pages/product-detail/utils/service-schedule-validation.spec.ts`; `pnpm --dir apps/dashboard typecheck`; affected-file lint; `node scripts/service-local-build.mjs dashboard`; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-toggles.spec.ts`. Add the concrete existing schedule control file to this unfiltered cohort if inventory finds a separate fixture. All source/resource/owned cleanup guards apply.
@@ -2560,6 +2560,8 @@ Tasks: T107.
 Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; independent70/components, types/lint/build and six native captures reviewed PASS. See task-107-evidence.json; no105/106/final-feature claim.
 
 ## Handoff
+
+**Integrated T105 locally:** Author fc1f8abbc passed93/9+46/2 components, affected lint/types/build/list0 and wholeBrowser2/2 with original budgets/guards and normal owned cleanup. Root opened six native1440/390 target states and accepted them technically; user feedback/final screens verification are separate. Twenty focused paths, API/packages/schema/lock unchanged. Root55 already held the74 explicit-undefined fix; only its new Promise<boolean> delta is added here. Root71 protected and uncommitted;106 remains pending.
 
 **Integrated T55:** Exact worker commit 5a10fad61 contributes authenticated receipts and relay startup repair. Gates727 components/173 native/2 compiled/224 products/privacy7 and all9 header checks passed on its own2552/e48c/7c49 artifact. Root keeps the71 model-script delta uncommitted beside the staged55 worker blob. Earlier failures remain recorded. Combined Root API requires a fresh checked build; no integration runtime or remote action claimed. M56 source-only; C sole runtime for105.
 

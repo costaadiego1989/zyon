@@ -1,6 +1,7 @@
 import React, { useId } from "react";
 import { Package, Download, Utensils, Plus, Trash2 } from "lucide-react";
 import { PrefixInput } from "../../../components/PrefixInput.js";
+import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import { CategoryCombobox } from "./CategoryCombobox.js";
 import type { ProductMetadata } from "../ProductDetailPage.js";
 import type { FoodOptionGroupDraft } from "../hooks/useProductForm.js";
@@ -41,6 +42,7 @@ export function ProductForm(props: ProductFormProps) {
   const descriptionId = useId();
   const nameErrorId = useId();
   const foodErrorId = useId();
+  const activeId = useId();
   const {
     businessMode,
     name,
@@ -156,16 +158,11 @@ export function ProductForm(props: ProductFormProps) {
           <CategoryCombobox categoryId={categoryId} onCategoryIdChange={onCategoryIdChange} categories={categories} onCreateCategory={onCreateCategory} />
         </div>
         {isEditing && (
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-            <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Ativo</span>
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => onIsActiveChange(e.target.checked)}
-              style={{ width: 18, height: 18, accentColor: "var(--color-brand-hover)", cursor: "pointer" }}
-            />
+          <div className="product-detail__switch-row">
+            <ToggleSwitch id={activeId} checked={isActive} onChange={onIsActiveChange} />
+            <label htmlFor={activeId} style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Ativo</label>
             <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>{isActive ? "Sim" : "Não"}</span>
-          </label>
+          </div>
         )}
       </section>
 
@@ -288,19 +285,18 @@ export function ProductForm(props: ProductFormProps) {
                       <option value="multiple">Múltipla</option>
                     </select>
                   </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 6, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
+                  <div className="product-detail__switch-row">
+                    <ToggleSwitch
+                      id={`${foodErrorId}-required-${gIdx}`}
                       checked={group.required || (group.minSelections ?? 0) > 0}
-                      onChange={(e) => {
+                      onChange={(checked) => {
                         const next = [...optionGroups];
-                        next[gIdx] = { ...group, required: e.target.checked, minSelections: e.target.checked ? Math.max(1, group.minSelections ?? 1) : 0 };
+                        next[gIdx] = { ...group, required: checked, minSelections: checked ? Math.max(1, group.minSelections ?? 1) : 0 };
                         onOptionGroupsChange(next);
                       }}
-                      style={{ width: 16, height: 16, accentColor: "var(--color-brand-hover)", cursor: "pointer" }}
                     />
-                    <span style={{ font: "12px var(--font-sans)", color: "var(--color-text)" }}>Obrigatório</span>
-                  </label>
+                    <label htmlFor={`${foodErrorId}-required-${gIdx}`} style={{ font: "12px var(--font-sans)", color: "var(--color-text)" }}>Obrigatório {group.name ? `em ${group.name}` : `na categoria ${gIdx + 1}`}</label>
+                  </div>
                   <button
                     type="button"
                     aria-label={`Remover categoria ${group.name || gIdx + 1}`}

@@ -24,6 +24,7 @@ import {
   Save,
 } from "lucide-react";
 import { Button } from "../../../components/Button.js";
+import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import { showToast } from "../../../components/Toast.js";
 import { EmptyState } from "../../../components/EmptyState.js";
 import { ImageUploadField } from "./ImageUploadField.js";
@@ -468,6 +469,7 @@ interface BlockFieldsProps {
 }
 
 function BlockFields({ type, props, readOnly, onPatch, merchantId, productId }: BlockFieldsProps) {
+  const cartActionId = React.useId();
   const patch = (key: string, value: unknown) => onPatch({ [key]: value });
 
   switch (type) {
@@ -869,16 +871,15 @@ function BlockFields({ type, props, readOnly, onPatch, merchantId, productId }: 
           />
           <FieldText label="Texto alternativo" value={String(props.alt ?? "")} onChange={(v) => patch("alt", v)} readOnly={readOnly} />
           <FieldText label="Legenda" value={String(props.caption ?? "")} onChange={(v) => patch("caption", v)} readOnly={readOnly} />
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              type="checkbox"
+          <div className="product-detail__switch-row">
+            <ToggleSwitch
+              id={cartActionId}
               checked={addsCurrentProduct}
               disabled={readOnly}
-              onChange={(e) => onPatch({ ctaAction: e.target.checked ? "add_to_cart" : undefined, linkUrl: e.target.checked ? undefined : props.linkUrl })}
-              style={{ accentColor: "var(--color-brand, #0f766e)" }}
+              onChange={(checked) => onPatch({ ctaAction: checked ? "add_to_cart" : undefined, linkUrl: checked ? undefined : props.linkUrl })}
             />
-            <span style={labelStyle}>Adicionar este produto ao carrinho</span>
-          </label>
+            <label htmlFor={cartActionId} style={labelStyle}>Adicionar este produto ao carrinho</label>
+          </div>
           {!addsCurrentProduct ? <FieldText label="URL do link" value={String(props.linkUrl ?? "")} onChange={(v) => patch("linkUrl", v)} readOnly={readOnly} /> : null}
           <FieldText label="Rótulo do CTA" value={String(props.ctaLabel ?? "")} onChange={(v) => patch("ctaLabel", v)} readOnly={readOnly} />
         </div>
