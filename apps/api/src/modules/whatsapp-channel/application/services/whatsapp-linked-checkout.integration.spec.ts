@@ -49,6 +49,7 @@ test("C1 persisted channel link selects the registered profile without a profile
   const f = await fixture(t), before = await db.buyerAccount.findUniqueOrThrow({ where: { globalUserId: f.buyerId } });
   const result = await f.service.recognize(f.input);
   assert.equal(result.status, "recognized"); if (result.status !== "recognized") assert.fail("linked account not recognized");
+  assert.equal(result.linkedAccount, true);
   assert.equal(result.buyer.globalUserId, f.buyerId);
   assert.equal(result.buyer.customer.fullName, "Compradora Vinculada"); assert.equal(result.buyer.customer.email, before.email);
   assert.equal(result.buyer.customer.cpf, "52998224725"); assert.equal(result.buyer.customer.phone, f.phone);
@@ -88,4 +89,11 @@ test("C2 a deleted linked account cannot fall back to a different profile or tem
   await db.buyerAccount.delete({ where: { globalUserId: f.buyerId } });
   const result = await f.service.recognize(f.input);
   assert.equal(result.status, "unrecognized"); assert.equal("buyer" in result, false);
+});
+
+test("C2 an editable profile phone match without a durable link cannot claim linked account provenance", async t => {
+  const f = await fixture(t); await db.buyerVerifiedPhone.delete({ where: { phone: f.phone } });
+  const result = await f.service.recognize(f.input);
+  assert.equal(result.status, "recognized"); if (result.status !== "recognized") assert.fail();
+  assert.equal(result.buyer.globalUserId, f.decoyId); assert.equal(result.linkedAccount, undefined);
 });

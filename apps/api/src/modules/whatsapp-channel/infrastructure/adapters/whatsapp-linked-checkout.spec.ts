@@ -60,3 +60,52 @@ test("C4 unrelated text cannot silently accept the saved delivery", async t => {
   assert.equal(f.session()!.customer?.address_verified, false); assert.equal(f.stats.quotes, 0); assert.equal(f.stats.payments, 0);
   assert.deepEqual(reply.view.choices.map(c => c.label), ["Entregar aqui", "Outro endereço"]);
 });
+
+for (const tool of ["show_checkout", "create_payment", "open_payment_checkout"]) test("C3 " + tool + " resumes linked registration from an in-flight guest without asking email", async t => {
+  const f = linkedCheckoutFixture(); t.after(f.close); const previous = await f.seedInFlight();
+  const result = await f.turn("Finalizar compra", { kind: "tool", tool, args: { method: "pix", fingerprint: previous.fingerprint } });
+  assert.deepEqual(result.view.choices.map(c => c.label), ["Entregar aqui", "Outro endereço"]);
+  assert.doesNotMatch(result.response.agentMessage, /Qual é seu e-mail|nome completo|Confirme sua conta/);
+  assert.equal(f.session()!.globalUserId, f.buyer.globalUserId); assert.notEqual(f.session()!.sessionId, previous.session.sessionId);
+  assert.equal(f.session()!.customer?.email, f.buyer.customer.email); assert.equal(f.session()!.customer?.cpf, f.buyer.customer.cpf);
+  assert.equal(f.session()!.customer?.email_verified, false); assert.equal(f.session()!.customer?.address_verified, false);
+  assert.deepEqual(f.repository.getSession(previous.session.merchantId, previous.session.sessionId), previous.session);
+  assert.deepEqual(f.financial, { cancellations: 0, reassignments: 0 }); assert.equal(f.stats.payments, 0); assert.equal(f.stats.otp, 0);
+});
+
+test("C3 same-account incomplete in-flight checkout also recomposes without overwriting its original snapshot", async t => {
+  const f = linkedCheckoutFixture(); t.after(f.close); const previous = await f.seedInFlight({ sameAccount: true });
+  const result = await f.turn("Conferir pedido", { kind: "tool", tool: "show_checkout", args: {} });
+  assert.deepEqual(result.view.choices.map(c => c.label), ["Entregar aqui", "Outro endereço"]);
+  assert.notEqual(f.session()!.sessionId, previous.session.sessionId); assert.equal(f.session()!.globalUserId, f.buyer.globalUserId);
+  assert.deepEqual(f.repository.getSession(previous.session.merchantId, previous.session.sessionId), previous.session);
+  assert.deepEqual(f.financial, { cancellations: 0, reassignments: 0 }); assert.equal(f.stats.payments, 0);
+});
+
+test("C3 editable phone recognition alone does not authorize linked in-flight recomposition", async t => {
+  const f = linkedCheckoutFixture(); t.after(f.close); f.setLinked(false); const previous = await f.seedInFlight();
+  await f.turn("Conferir pedido", { kind: "tool", tool: "show_checkout", args: {} });
+  assert.equal(f.session()!.sessionId, previous.session.sessionId); assert.equal(f.session()!.globalUserId, previous.session.globalUserId);
+  assert.equal(f.session()!.customer?.email, undefined); assert.equal(f.stats.payments, 0);
+});
+
+test("C5 explicit delivery and payment preferences apply only after the linked buyer confirms the address", async t => {
+  const f = linkedCheckoutFixture(); t.after(f.close); f.setPreferences({ shipping: "cheapest", payment: "card" });
+  const initial = await f.start(); assert.equal(f.session()!.shipping, undefined); assert.equal(f.stats.quotes, 0);
+  const confirmed = await f.select(buttonId(initial.presentation, "Entregar aqui"));
+  assert.equal(f.session()!.shipping?.customerPrice, 15); assert.equal(f.session()!.customer?.address_verified, true);
+  const methods = confirmed.response.blocks.find(b => b.type === "payment_methods"); assert.ok(methods);
+  assert.equal((methods.data as any).methods[0].key, "card"); assert.equal(f.session()!.paymentMethod, undefined);
+  assert.equal(f.stats.payments, 0); assert.equal(f.stats.otp, 0); assert.equal(f.financial.cancellations, 0);
+});
+
+for (const scenario of ["pending", "requires_action", "approved", "cancelled", "failed", "completed_order"]) test("C7 in-flight " + scenario + " preserves every original owner/value/reference without cancelling or submitting", async t => {
+  const f = linkedCheckoutFixture(); t.after(f.close);
+  const previous = await f.seedInFlight(scenario === "completed_order" ? { order: true } : { paymentStatus: scenario });
+  await f.turn("Pagar", { kind: "tool", tool: "create_payment", args: { method: "pix", fingerprint: previous.fingerprint } });
+  assert.equal(f.session()!.sessionId, previous.session.sessionId);
+  assert.deepEqual(f.repository.getSession(previous.session.merchantId, previous.session.sessionId), previous.session);
+  assert.deepEqual(f.financialRecords(), { payment: previous.payment, order: previous.order });
+  assert.deepEqual(f.financial, { cancellations: 0, reassignments: 0 });
+  assert.equal(f.stats.payments, 0); assert.equal(f.stats.otp, 0); assert.equal(f.stats.accountWrites, 0);
+});

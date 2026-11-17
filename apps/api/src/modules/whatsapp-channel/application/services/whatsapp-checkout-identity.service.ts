@@ -10,7 +10,7 @@ import { BuyerAccount } from "../../../buyer-account/domain/entities/buyer-accou
 type VerifiedSender = NonNullable<Parameters<NonNullable<WhatsAppConversationPort["respondStore"]>>[0]["verifiedSender"]>;
 export type VerifiedWhatsAppOwner = { merchantId: string; conversationId: string; phone: string };
 export type WhatsAppBuyerRecognition = ({ status: "unrecognized" | "ambiguous" } | { status: "recognized"; buyer: TrustedWhatsAppCheckoutBuyer;
-  greetingName?: string }) & { owner?: VerifiedWhatsAppOwner };
+  greetingName?: string; linkedAccount?: true }) & { owner?: VerifiedWhatsAppOwner };
 
 /** Account reuse requires the authenticated, leased Meta message, never a body phone hint. */
 @Injectable()
@@ -113,7 +113,7 @@ export class WhatsAppCheckoutIdentityService {
       ? { shipping: preference.shippingPreference as "cheapest" | "fastest", payment: preference.paymentPreference as "pix" | "card" } : undefined;
     // Phone-only accounts can retain their channel display name for a friendly
     // salutation. It is not a collected checkout name or account verification.
-    return { status: "recognized", owner, greetingName: account.displayName, buyer: { merchantId: input.merchantId, conversationId: input.conversationId,
+    return { status: "recognized", owner, ...(linkedId ? { linkedAccount: true as const } : {}), greetingName: account.displayName, buyer: { merchantId: input.merchantId, conversationId: input.conversationId,
       globalUserId: account.globalUserId, customer: { fullName: account.email.endsWith("@buyer.aacp") ? undefined : account.displayName,
         email: account.email.endsWith("@buyer.aacp") ? undefined : account.email,
         cpf: account.cpf, phone: proof.fromNumber.replace(/\D/g, ""), phone_verified: true, email_verified: false,

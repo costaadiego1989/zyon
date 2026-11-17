@@ -304,6 +304,20 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     if (state.stage === "checkout" && (browsing || !checkoutAction && !checkoutInput)) {
       state.stage = "store"; state.pendingCoupon = undefined; state.pendingCheckoutEdit = undefined; state.expectsFreeInput = false;
     }
+    const resumeLinkedProfile = recognition?.status === "recognized" && recognition.linkedAccount === true && registeredBuyer
+      && registeredBuyer.customer.fullName && registeredBuyer.customer.email && state.stage === "checkout" && identitySession
+      && (!identitySession.customer?.fullName || !identitySession.customer.email) && boundBuyer && owner
+      && identitySession.merchantId === owner.merchantId && identitySession.cart.cart_ref === owner.conversationId
+      && input.action?.kind === "tool" && ["show_checkout", "create_payment", "open_payment_checkout"].includes(input.action.tool)
+      && !state.payment && !identitySession.paymentMethod && this.prisma
+      && !await this.prisma.paymentIntent.findFirst({ where: { merchantId: input.merchantId, sessionId: identitySession.sessionId }, select: { id: true } })
+      && !await this.prisma.completedOrder.findFirst({ where: { merchantId: input.merchantId, sessionId: identitySession.sessionId }, select: { id: true } });
+    if (resumeLinkedProfile) {
+      // Recompose through normal cart admission. Never rewrite the former
+      // checkout owner or turn an old payment choice into a new charge.
+      state = { ...state, stage: "store", expectsFreeInput: false, checkoutGeneration: (state.checkoutGeneration ?? 0) + 1 };
+      input = { ...input, message: "Finalizar compra", action: { kind: "tool", tool: "checkout", args: {} } };
+    }
     const recognizedContactAnswer = !!emailAnswer && !!registeredBuyer && state.stage === "checkout" &&
       !!identitySession && identitySession.globalUserId !== registeredBuyer.globalUserId && !state.payment && !identitySession.paymentMethod &&
       !await this.prisma?.paymentIntent.findFirst({ where: { merchantId: input.merchantId, sessionId: identitySession.sessionId }, select: { id: true } }) &&
@@ -455,6 +469,18 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       }
       const response = await this.chat.execute({ merchant_id: input.merchantId, session_id: sessionId, conversation_id: checkout.conversationId,
         user_message: input.message, message_id: input.messageId ?? randomUUID() });
+      if (recognition?.status === "recognized" && recognition.linkedAccount === true && registeredBuyer?.preferences
+        && this.checkoutShipping && !state.payment) {
+        const current = await this.sessions.getSession(input.merchantId, sessionId);
+        if (current && !current.paymentMethod && current.customer?.address_verified) {
+          const prepared = await this.checkoutShipping.prepareReturningBuyer(current, registeredBuyer.preferences.shipping);
+          return this.checkoutUi({ ...response,
+            ...(prepared.shipping ? { message: "🚚 Entrega atualizada conforme sua preferência. Confira o resumo e escolha como pagar." } : {}),
+            experience: buildExperienceFromSession(prepared, { merchantName: config.name, serviceFee: this.experienceConfig?.platformFeeBrl }),
+            missing_fields: missingFieldsForStage(prepared, deriveChatStage(prepared)), preferredPaymentMethod: registeredBuyer.preferences.payment,
+          }, state, config.name, input.message, input.merchantId);
+        }
+      }
       return this.checkoutUi(response, state, config.name, input.message, input.merchantId);
     }
     const action = input.action?.kind === "tool" ? input.action : undefined;
