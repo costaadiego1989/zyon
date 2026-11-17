@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import {act} from 'react';
 import { afterEach, expect, test, vi } from "vitest";
 import type { MetaAdsAgentApi } from "../../api/endpoints/meta-ads-agent.js";
 import { ConnectionPanel } from "./ConnectionPanel.js";
@@ -40,3 +41,5 @@ test("OAuth callback exchanges actual code once, removes it from URL and shows c
   expect(screen.container.textContent).toContain("Conexão autorizada");
   await screen.render(<ConnectionPanel {...props}/>); expect(completeConnection).toHaveBeenCalledTimes(1);
 });
+
+test('ADAS-71 rapid asset changes preserve the page when updating the dataset',async()=>{screen=ui();const connection=overview().connection;connection.page=null;const selectConnection=vi.fn().mockResolvedValue(connection);await screen.render(<ConnectionPanel connection={connection} entitled api={{selectConnection} as unknown as MetaAdsAgentApi} onUpdated={vi.fn()}/>);await act(async()=>{for(const [label,value] of [['Página','234'],['Pixel / conjunto de dados','345']]){const select=screen.container.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}));}});await screen.click('Salvar ativos');expect(selectConnection.mock.calls[0][0]).toMatchObject({pageId:'234',datasetId:'345'});});

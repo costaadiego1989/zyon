@@ -24,9 +24,23 @@ import {RealtimeCapabilityService} from "../src/shared/auth/realtime-capability.
 import {readOffer} from "../src/modules/meta-ads-agent/domain/offer.js";
 import {MetaAdsAgentController, MetaAdsHttpErrorFilter} from "../src/modules/meta-ads-agent/presentation/meta-ads-agent.controller.js";
 import {MetaAdsError,META_ADS_SESSION_BINDING,type RemoteSnapshot,type PaidOrderFact,type AttributionReceipt} from "../src/modules/meta-ads-agent/domain/types.js";
+import {installCampaignApprovalSchema} from '../src/modules/meta-ads-agent/infrastructure/__tests__/campaign-approval-database.js';
+import {PrismaCampaignPreparationRepository} from '../src/modules/meta-ads-agent/infrastructure/prisma-campaign-preparation.repository.js';
+import {PrismaCampaignReadyNoticeRepository} from '../src/modules/meta-ads-agent/infrastructure/prisma-campaign-ready-notice.repository.js';
+import {CampaignPreparationService} from '../src/modules/meta-ads-agent/application/campaign-preparation.service.js';
+import {CampaignPreparationWorker} from '../src/modules/meta-ads-agent/infrastructure/campaign-preparation.worker.js';
+import {InitialLaunchService} from '../src/modules/meta-ads-agent/application/initial-launch.service.js';
+import {CampaignNoticeContactService} from '../src/modules/meta-ads-agent/application/campaign-notice-contact.service.js';
+import {CampaignApprovalController} from '../src/modules/meta-ads-agent/presentation/campaign-approval.controller.js';
+import {AutomationPolicyService} from '../src/modules/meta-ads-agent/application/automation-policy.service.js';
+import {ExposureReservationService} from '../src/modules/meta-ads-agent/application/exposure-reservation.service.js';
+import {ExecutionAuthorityService} from '../src/modules/meta-ads-agent/application/execution-authority.service.js';
+import {FundingService} from '../src/modules/meta-ads-agent/application/funding.service.js';
+import type {MetaBudgetControlPort} from '../src/modules/meta-ads-agent/domain/budget-control.port.js';
 
 const front = "http://127.0.0.1:5178";
 const f = await applicationFixture(); f.setNow("2026-11-15T12:00:00Z");
+await installCampaignApprovalSchema(f.sql);
 const offer = readOffer({META_ADS_AGENT_ENABLED:"true", META_ADS_AGENT_COMMERCIAL_READY:"true", META_ADS_AGENT_COST_BENCHMARK_RESULTS:"40", META_ADS_AGENT_COST_BENCHMARK_SHA256:"f".repeat(64)});
 const writes: string[] = []; let images = 0, remoteSequence = 1000;
 let buyerFact: PaidOrderFact | null = null, buyerSignals=0, buyerEventId="", buyerCapability="";
@@ -43,7 +57,14 @@ f.provider.prepare = async (access, c, _media, progress) => {
   const snapshot: RemoteSnapshot = {campaignId,adSetId,adIds:[adId],creativeIds:[creativeId],status:"PAUSED",effectiveStatus:"PAUSED",budget:{[c.draft.budget!.cadence === "daily" ? "daily_budget" : "lifetime_budget"]:String(c.draft.budget!.amountCents)},targeting:{geo_locations:{countries:[c.draft.country]}}};
   remote.set(campaignId,snapshot); const objects: MetaAdsExecution["objects"] = [{type:"campaign",id:campaignId},{type:"ad_set",id:adSetId},{type:"ad",id:adId},{type:"creative",id:creativeId}]; await progress(objects); return {status:"remote_paused",objects};
 };
-f.provider.execute = async (access, c, p) => {
+f.provider.execute = async (access, c, p, progress) => {
+  if(p.kind==='launch'){
+    const prepared=await f.provider.prepare(access,c,p.after.media as never,progress);
+    const id=(type:string)=>prepared.objects.find(object=>object.type===type)!.id;
+    const created={...c,remoteCampaignId:id('campaign'),remoteAdSetId:id('ad_set'),remoteAdIds:prepared.objects.filter(o=>o.type==='ad').map(o=>o.id),remoteCreativeIds:prepared.objects.filter(o=>o.type==='creative').map(o=>o.id)};
+    remote.get(created.remoteCampaignId)!.schedule={startsAt:c.draft.budget!.startsAt,endsAt:c.draft.budget!.endsAt};
+    return f.provider.execute(access,created,{...p,kind:'publish'},progress);
+  }
   await access.assertWriteAuthorized?.(); writes.push(p.kind); const snapshot = remote.get(c.remoteCampaignId!)!;
   if (p.kind === "publish") {snapshot.status = snapshot.effectiveStatus = "ACTIVE"; confirmations.set(c.id,0); return {status:"publishing",objects:refs(c)};}
   if (p.kind === "pause") snapshot.status = snapshot.effectiveStatus = "PAUSED";
@@ -57,21 +78,35 @@ const billing = new BillingService(f.repo,f.commerce,{quote:async()=>({amountCen
 const campaigns = new CampaignService(f.repo,f.commerce,connection,f.provider,f.clock);
 const generations = new GenerationService(f.repo,f.commerce,{configured:()=>true,generate:async input=>{images++; return {status:"succeeded",url:`https://media.example.test/${input.generationId}-${input.imageIndex}.svg`,usage:{provider:"openai",model:"gpt-image-controlled-test",providerRequestId:randomUUID(),inputTextTokens:1,inputImageTokens:1,outputImageTokens:1,costMicros:"1",currency:"USD",costStatus:"estimated"},error:null,commercialReview:{status:"verified",productVersion:input.product.commercialVersion,imageSha256:"a".repeat(64)}};}},f.clock);
 const proposals = new ProposalService(f.repo,f.commerce,campaigns,connection,f.provider,f.clock);
-const executions = new ExecutionService(f.repo,f.commerce,campaigns,connection,f.provider,f.clock);
+const authorizeActor=async(merchantId:string,actorId:string)=>{if(merchantId!=='store-a'||actorId!=='owner-a')throw new MetaAdsError('campaign_forbidden',403);};
+const policies=new AutomationPolicyService({repo:f.repo,commerce:f.commerce,connection,campaigns,authorizeActor,enabled:()=>true,clock:f.clock});
+const exposure=new ExposureReservationService({repo:f.repo,commerce:f.commerce,enabled:()=>true,clock:f.clock});
+const budgetControl:MetaBudgetControlPort={read:async()=>{throw new MetaAdsError('automatic_budget_control_unavailable',503);},prove:async()=>{throw new MetaAdsError('automatic_budget_control_unavailable',503);}};
+const funding=new FundingService(f.repo,billing,connection,{read:async()=>({accountId:'100',accountName:'Conta',currency:'BRL',billingType:'postpaid',paymentMethod:'present',confirmedBlock:false,blockCode:null,amountDueCents:0,prepaidAvailableCents:null,checkedAt:f.clock().toISOString(),source:'controlled-meta',paymentUrl:null})},f.clock);
+const authority=new ExecutionAuthorityService({repo:f.repo,commerce:f.commerce,campaigns,connection,policies,exposure,budgetControl,funding,authorizeActor,enabled:()=>true,clock:f.clock});
+const executions = new ExecutionService(f.repo,f.commerce,campaigns,connection,f.provider,f.clock,randomUUID,{authority,exposure,budgetControl});
 const service = new MetaAdsAgentService(f.repo,f.commerce,billing,connection,campaigns,generations,proposals,executions,f.provider,{META_ADS_DASHBOARD_URL:front});
+const preparations=new PrismaCampaignPreparationRepository(f.prisma,f.clock),notices=new PrismaCampaignReadyNoticeRepository(f.prisma,f.clock);
+const preparation=new CampaignPreparationService({repo:f.repo,commerce:f.commerce,campaigns,connection,preparations,authorizeActor,enabled:()=>true,clock:f.clock});
+const launches=new InitialLaunchService({repo:f.repo,commerce:f.commerce,campaigns,proposals,executions,preparations,notices,authorizeActor,enabled:()=>true,clock:f.clock});
+const contacts=new CampaignNoticeContactService({db:f.prisma,authorizeActor,senderNumber:async()=>null,clock:f.clock});
+const makePreparationWorker=()=>new CampaignPreparationWorker({repo:f.repo,commerce:f.commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor,enabled:()=>true,clock:f.clock});
+let preparationWorker=makePreparationWorker();
 const attribution=new AttributionService(f.repo,f.commerce,connection,{send:async(access,signal)=>{await access.assertWriteAuthorized?.();buyerSignals++;buyerEventId=signal.eventId;return{status:"sent",error:null};}},Buffer.alloc(32,3).toString("base64"),f.clock);
 const binding=new CheckoutSessionBindingAdapter({getSession:async(merchantId,sessionId)=>merchantId==="store-a"&&sessionId==="checkout-a"?{merchantId,sessionId,cart:{source:"storefront",cart_ref:"conversation-a"}} as unknown as CheckoutSession:undefined});
 const capabilities=new RealtimeCapabilityService("local-browser-capability-secret-at-least-32-characters");
 const jwt = {authenticate:async(token:string)=>{if (token!=="owner-a") throw new Error("invalid test token"); return {merchantId:"store-a",userId:"owner-a",email:"owner@example.test",role:"owner"};}} as unknown as JwtService;
 Reflect.defineMetadata("design:paramtypes",[JwtService,AuthCookieService],AuthGuard);
-@Module({controllers:[MetaAdsAgentController,AttributionController],providers:[{provide:MetaAdsAgentService,useValue:service},{provide:AttributionService,useValue:attribution},{provide:META_ADS_SESSION_BINDING,useValue:binding},{provide:RealtimeCapabilityService,useValue:capabilities},{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:new AuthCookieService("aacp_access_token",false)},AuthGuard,MetaAdsHttpErrorFilter]}) class BrowserModule {}
+@Module({controllers:[MetaAdsAgentController,AttributionController,CampaignApprovalController],providers:[{provide:MetaAdsAgentService,useValue:service},{provide:AttributionService,useValue:attribution},{provide:META_ADS_SESSION_BINDING,useValue:binding},{provide:RealtimeCapabilityService,useValue:capabilities},{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:new AuthCookieService("aacp_access_token",false)},{provide:CampaignPreparationService,useValue:preparation},{provide:InitialLaunchService,useValue:launches},{provide:CampaignNoticeContactService,useValue:contacts},AuthGuard,MetaAdsHttpErrorFilter]}) class BrowserModule {}
 const app = await NestFactory.create(BrowserModule,{logger:false}); app.setGlobalPrefix("v1"); app.enableCors({origin:front,credentials:true});
 let worker = new GenerationWorker(f.repo,generations,true,f.clock);
 async function reset() {
+  await preparationWorker.onModuleDestroy();await launches.drain();await f.sql.query('DELETE FROM meta_ads_campaign_ready_notices; DELETE FROM meta_ads_campaign_preparations; DELETE FROM meta_ads_campaign_notice_contacts');
   await worker.onModuleDestroy(); await f.sql.query('DELETE FROM "meta_ads_agent_records"'); await f.sql.query('DELETE FROM "meta_ads_agent_stores"'); f.setPlan("growth"); writes.length=0; images=0; remote.clear(); confirmations.clear();
   buyerFact=null;buyerSignals=0;buyerEventId="";buyerCapability="";f.discovery.datasets=[{id:"120",name:"Compras",accountId:"100"}];
   await f.repo.mutate("store-a",[],state=>{state.subscription={id:"contract-a",offer,status:"active",provider:"stripe",currentPeriodStart:"2026-11-01T00:00:00Z",currentPeriodEnd:"2026-12-01T00:00:00Z",cancelAtPeriodEnd:false,acceptedAt:"2026-11-01T00:00:00Z",checkoutId:"cs-a",providerSubscriptionId:"sub-a",providerCustomerId:"cus-a"}; state.credits.monthlyAvailable=30;state.credits.periodKey="period-a";state.credits.periodEndsAt="2026-12-01T00:00:00Z";return {result:null};});
   worker = new GenerationWorker(f.repo,generations,true,f.clock); worker.onModuleInit();
+  preparationWorker=makePreparationWorker();preparationWorker.onModuleInit();
 }
 async function buyerSetup() {
   await reset();f.discovery.datasets=[{id:"1234567890123",name:"Compras",accountId:"100"}];
@@ -95,6 +130,6 @@ app.use(async(req:Request,res:Response,next:NextFunction)=>{
     return res.status(404).end();
   } catch(error) {return res.status(500).json({error:"local_fixture_failed",code:error instanceof MetaAdsError?error.code:error instanceof Error&&/^[a-z0-9_]{1,100}$/.test(error.message)?error.message:error instanceof Error?error.name:"unknown"});}
 });
-await reset(); await app.listen(3018,"127.0.0.1");
-async function close() {await worker.onModuleDestroy();await app.close();await f.close();process.exit(0);}
+await reset();launches.onModuleInit();await app.listen(3018,"127.0.0.1");
+async function close() {await preparationWorker.onModuleDestroy();await launches.onModuleDestroy();await worker.onModuleDestroy();await app.close();await f.close();process.exit(0);}
 process.once("SIGINT",()=>void close()); process.once("SIGTERM",()=>void close());

@@ -144,14 +144,14 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
   const activeCampaignId=campaignId||selectedCampaignId||thread?.campaign?.campaignId;
   const initialCampaign=activeCampaignId?overview.campaigns.find(c=>c.id===activeCampaignId):null;
   const latestLaunch=overview.proposals.filter(p=>p.kind==='launch'&&p.campaignId===activeCampaignId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id))[0];
-  const launchId=reviewTarget?.proposalId||(proposal?.kind==='launch'?proposal.id:latestLaunch?.id);
+  const launchId=reviewTarget?.proposalId||(proposal?.kind==='launch'?proposal.id:undefined);
   return <div className="mga-agentic-shell" ref={workspace}><div className="mga-agentic-content">
     <small className="mga-account-context">{account?`${account.name} · Conta ${account.id}`:'Conta Meta não selecionada'}</small>
     <div className="mga-workspace-tabs"><TabBar tabs={[{key:'campaigns',label:'Campanhas',panelId:`${panelId}-campaigns`},{key:'metrics',label:'Métricas',panelId:`${panelId}-metrics`},{key:'settings',label:'Configurações',panelId:`${panelId}-settings`}]} activeTab={view} onTabChange={key=>setView(key as typeof view)} label="Seções de anúncios"/></div>
     <p className="mga-media-notice" hidden={view==='metrics'}>Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.</p>
     {funding?.status==='blocked'&&view!=='settings'&&<div className="mga-notice" role="alert">Publicação bloqueada por uma pendência financeira. <button type="button" className="mga-secondary" onClick={()=>navigateOutside(fundingHeading.current)}>Ver pagamentos atuais</button></div>}
     <div role="tabpanel" id={`${panelId}-campaigns`} aria-labelledby={`${panelId}-campaigns-tab`} data-assistant-panel="campaigns" hidden={view!=='campaigns'}>{children}
-      {foreignTarget?<p role="alert">Esta revisão pertence a outra loja. Selecione a loja correta.</p>:activeCampaignId&&(!initialCampaign?.remoteCampaignId||launchId)?<CampaignPreparationPanel merchantId={merchantId} campaignId={activeCampaignId} proposalId={launchId} api={approval} entitled={overview.entitled} pollMs={pollMs} timezone={reports.find(r=>r.accountId===account?.id)?.timezone} onUpdated={refresh} onReconcile={id=>api.reconcile(id)}/>:null}
+      {foreignTarget?<p role="alert">Esta revisão pertence a outra loja. Selecione a loja correta.</p>:activeCampaignId&&(!initialCampaign?.remoteCampaignId||launchId||latestLaunch)?<CampaignPreparationPanel merchantId={merchantId} campaignId={activeCampaignId} proposalId={launchId} hasLaunch={!!latestLaunch} api={approval} entitled={overview.entitled} selectedImageCount={initialCampaign?.draft.mediaIds.length??0} pollMs={pollMs} timezone={reports.find(r=>r.accountId===account?.id)?.timezone} onUpdated={refresh} onReconcile={id=>api.reconcile(id)}/>:null}
     </div>
     <div role="tabpanel" id={`${panelId}-metrics`} aria-labelledby={`${panelId}-metrics-tab`} data-assistant-panel="metrics" hidden={view!=='metrics'}>
       <MetricsDashboard key={account?.id??'disconnected'} reports={reports} accountId={account?.id??null} campaignNames={campaignNames} active={view==='metrics'} error={reportError} onRefresh={refresh} onSettings={()=>navigateOutside(fundingHeading.current)}/>

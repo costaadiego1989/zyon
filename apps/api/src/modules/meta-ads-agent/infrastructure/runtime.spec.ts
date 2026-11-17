@@ -45,6 +45,17 @@ test('ACAP-26 runtime deletion removes pending work and active workers cannot se
 test('ACAP-10 runtime automatic polling cannot replace an explicit three-image preparation with another reservation',async()=>{
   const f=await agenticRuntimeFixture({META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED:'true'});try{const original=await f.create();await f.policy(original.id,true);const campaign=await f.runtime.automatic.createCampaign('store-a',{draft:{...original.draft,name:'Novo carrossel',mediaIds:[]},imageCount:3,idempotencyKey:'three-images'});await f.runtime.automatic.drain();await f.runtime.automatic.drain();const jobs=await f.runtime.preparations.list('store-a',campaign.id);assert.equal(jobs.length,1);assert.equal(jobs[0].requestedImages,3);assert.equal(Object.keys((await f.repo.read('store-a')).generations).length,0);assert.equal((await f.repo.read('store-a')).credits.monthlyAvailable,30);assert.deepEqual(f.writes,[]);}finally{await f.close();}
 });
+test('ACAP-10 polling between binding and explicit preparation cannot invent a one-image job',async()=>{
+ const f=await agenticRuntimeFixture({META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED:'true'});
+ try{
+  const original=await f.create();await f.policy(original.id,true);
+  const bind=f.runtime.automatic.bindCampaign.bind(f.runtime.automatic);
+  f.runtime.automatic.bindCampaign=async(merchantId,campaignId,policyId)=>{await bind(merchantId,campaignId,policyId);await f.runtime.automatic.drain();};
+  const campaign=await f.runtime.automatic.createCampaign('store-a',{draft:{...original.draft,name:'Carrossel com corrida controlada',mediaIds:[]},imageCount:3,idempotencyKey:'binding-race-three'});
+  const jobs=await f.runtime.preparations.list('store-a',campaign.id);assert.equal(jobs.length,1);assert.equal(jobs[0].requestedImages,3);assert.equal(jobs[0].requestedBy,'owner-a');
+  const state=await f.repo.read('store-a');assert.equal(Object.keys(state.generations).length,0);assert.equal(state.credits.monthlyAvailable,30);assert.deepEqual(f.writes,[]);
+ }finally{await f.close();}
+});
 test('ACAP-09 runtime launch flag is checked before each write and after a funding await',async()=>{
   const f=await agenticRuntimeFixture({META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED:'true'});try{const id=await newRuntimeCampaign(f);await admitRuntime(f,id);await f.runtime.preparationWorker.drain();const view=await f.runtime.launches.review('store-a','owner-a',id);await f.runtime.launches.approveAndLaunch('store-a','owner-a',id,view.proposal.id,{digest:view.proposal.digest,idempotencyKey:'flagged-launch'});const authority=await f.runtime.authority.resolve('store-a',view.proposal.id,{kind:'manual',actorId:'owner-a'});f.env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED='false';await assert.rejects(f.runtime.authority.assertCurrent('store-a',view.proposal.id,authority),{code:'campaign_launch_unavailable'});f.env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED='true';const read=f.runtime.funding.assertPublishable.bind(f.runtime.funding);f.runtime.funding.assertPublishable=async merchantId=>{const result=await read(merchantId);f.env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED='false';return result;};await assert.rejects(f.runtime.authority.resolve('store-a',view.proposal.id,{kind:'manual',actorId:'owner-a'}),{code:'campaign_launch_unavailable'});assert.deepEqual(f.writes,[]);assert.equal((await f.repo.read('store-a')).proposals[view.proposal.id].status,'approved');}finally{await f.close();}
 });

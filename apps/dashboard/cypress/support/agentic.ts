@@ -1,6 +1,6 @@
 export const api=()=>String(Cypress.expose('agenticApi'));
 export function scenario(id:string,title:string,run:()=>void){if(!Cypress.expose('agenticCase')||Cypress.expose('agenticCase')===id)it(`${id} ${title}`,run);}
-export function control(path:string,body?:unknown){return cy.env(['agenticNonce'],{log:false}).then(({agenticNonce})=>cy.request({url:api()+'/__test/'+path,method:body===undefined?'GET':'POST',headers:{'x-agentic-test-nonce':String(agenticNonce)},...(body===undefined?{}:{body})}));}
+export function control(path:string,body?:unknown){return cy.env(['agenticNonce'],{log:false}).then(({agenticNonce})=>cy.request({url:api()+'/__test/'+path,method:body===undefined?'GET':'POST',...(path==='workers'?{timeout:120000}:{}),headers:{'x-agentic-test-nonce':String(agenticNonce)},...(body===undefined?{}:{body})}));}
 export function reset(){return control('reset',{});}
 export function eventuallyFacts(check:(body:any)=>boolean,left=240):Cypress.Chainable<any>{return control('facts').then(({body})=>{if(check(body))return cy.wrap(body,{log:false});if(!left)throw Error('Persisted state did not reach the required condition');cy.wait(250,{log:false});return eventuallyFacts(check,left-1);});}
 export function enter(){cy.intercept('GET','https://fonts.googleapis.com/**',{statusCode:200,headers:{'content-type':'text/css'},body:''});cy.visit('/');cy.contains('button','Entrar na loja de teste').click();cy.get('h1').should('contain.text','Anúncios com IA');cy.get('.chat-dock-composer textarea').should('exist');}

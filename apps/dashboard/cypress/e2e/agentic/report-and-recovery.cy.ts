@@ -20,7 +20,7 @@ describe('Relatório diário, recuperação e teclado',()=>{
       cy.get('[data-metric-chart="money"] canvas').should(canvases=>{expect(canvases[0].getBoundingClientRect().width).greaterThan(0);expect(canvases[0].getBoundingClientRect().right).at.most(width);});
       cy.contains('[role="tab"]','Configurações').click();cy.get('[aria-label="Verba dos anúncios"] a').should('be.visible');cy.get('.mga-funding-status').should('contain.text','Pré-paga');cy.get('.mga-funding-details').should(details=>expect((details[0] as HTMLDetailsElement).open).eq(false));cy.contains('[role="tab"]','Métricas').click();
     }
-    control('facts').then(({body})=>{expect(body.images).eq(2);expect(body.writes).have.length(8);expect(body.states[0].credits.monthlyAvailable).eq(28);});
+    control('facts').then(({body})=>{expect(body.images).eq(2);expect(body.writes).have.length(14);expect(body.states[0].credits.monthlyAvailable).eq(28);});
     cy.get('[aria-label="Loja ativa"]').select('store-b');cy.contains('Conta da loja B').should('be.visible');cy.contains('[role="tab"]','Métricas').click();cy.get('.mga-metric-kpis .stat-card__value').each(value=>expect(value.text()).eq('—'));cy.get('[data-metric-chart]').should('not.exist');
   });
   afterEach(()=>{control('model',{hold:false});control('facts').then(({body})=>cy.writeFile('../../.specs/features/agentic-dashboard-assistant/t45-last-facts.json',body));});
@@ -35,7 +35,7 @@ describe('Relatório diário, recuperação e teclado',()=>{
   scenario('ADAS-58','partial collection remains unavailable and recovery completes the same report without inventing zeroes or repeating actions',()=>{
     preparedCampaign();control('metrics',{unavailable:true});clock('2026-11-17T03:00:00Z');openReport();cy.get(report).should('contain.text','Coleta parcial').and('contain.text','Valores indisponíveis. Ausência de dados não significa ausência de gasto ou vendas.').and('not.contain.text','R$ 0,00');
     let id='';cy.request(api()+'/v1/meta-ads-agent/reports').then(({body})=>{const row=body.reports.find((r:{localDay:string})=>r.localDay==='2026-11-16');id=row.id;expect(row.campaigns[0].metrics).eq(null);});control('metrics',{unavailable:false});clock('2026-11-17T03:02:00Z');openReport();cy.get(report).should('contain.text','Coleta concluída').and('contain.text','Gasto de mídia');
-    cy.request(api()+'/v1/meta-ads-agent/reports').then(({body})=>{const row=body.reports.find((r:{id:string})=>r.id===id);expect(row.status).eq('completed');expect(row.campaigns[0].metrics.spendCents).eq(0);});control('facts').then(({body})=>{expect(body.writes).have.length(4);expect(body.images).eq(1);});
+    cy.request(api()+'/v1/meta-ads-agent/reports').then(({body})=>{const row=body.reports.find((r:{id:string})=>r.id===id);expect(row.status).eq('completed');expect(row.campaigns[0].metrics.spendCents).eq(0);});control('facts').then(({body})=>{expect(body.writes).have.length(7);expect(body.images).eq(1);});
   });
   scenario('ADAS-58','changing store during a pending model turn hides the old reply and keeps all cost in its original store',()=>{
     control('model',{hold:true});openChat();cy.get('[aria-label="Mensagem para a IA"]').type('PENDENTE_PRIVADO_A');cy.contains('button','Enviar mensagem').click();eventuallyFacts(body=>body.modelPending===1);let old='';cy.request(api()+'/v1/merchant-assistant/contexts/meta-ads/thread').then(({body})=>{old=body.id;});

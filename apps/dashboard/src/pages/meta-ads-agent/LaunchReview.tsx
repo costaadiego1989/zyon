@@ -2,6 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import type {MetaAdsCampaignLaunchReview} from '@zyon/shared-types';
 import type {CampaignApprovalApi} from './api.js';
 import {errorMessage,executionStates,money,priorities} from './presentation.js';
+import {ChevronLeft,ChevronRight} from 'lucide-react';
 import './launch-review.css';
 
 interface Props {
@@ -18,12 +19,13 @@ export function LaunchReview(props:Props){
 function ReadyReview({value,api,onUpdated,onReconcile,timezone}:Props&{value:MetaAdsCampaignLaunchReview}){
   const [result,setResult]=useState<MetaAdsCampaignLaunchReview|null>(null),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[error,setError]=useState('');
   const [previews,setPreviews]=useState<Record<string,'loaded'|'failed'>>({}),[imageAttempt,setImageAttempt]=useState(0);
+  const [slide,setSlide]=useState(0);
   const lock=useRef(false),alive=useRef(true),key=useRef<string|null>(null);
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
   // Once admitted, a lagging overview must not reopen the same approval.
   useEffect(()=>{setResult(previous=>{
     if(previous&&(previous.proposal.approvedAt||previous.execution)&&value.proposal.status==='pending_review'&&!value.execution)return previous;
-    if(previous?.execution&&value.execution?.id===previous.execution.id&&value.execution.updatedAt<=previous.execution.updatedAt)return previous;
+    if(previous?.execution&&value.execution?.id===previous.execution.id&&value.execution.updatedAt<previous.execution.updatedAt)return previous;
     return value;
   });},[value]);
   const current=result??value;
@@ -44,7 +46,7 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone}:Props&{value:Met
   async function consult(){
     if(lock.current)return;lock.current=true;setBusy(true);setError('');
     try{
-      if(execution?.status==='execution_unknown'&&onReconcile)await onReconcile(execution.id);
+      if(execution&&['execution_unknown','publishing','active_unconfirmed','remote_draft','remote_paused'].includes(execution.status)&&onReconcile)await onReconcile(execution.id);
       const next=await api.review(campaign.id,proposal.id);
       if(alive.current){setResult(next);if(next.proposal.status!=='pending_review'||next.execution)setUncertain(false);void onUpdated(next);}
     }catch(e){if(alive.current)setError(errorMessage(e));}
@@ -53,7 +55,14 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone}:Props&{value:Met
   return <section className="mga-launch" aria-label={`Revisão: ${draft.name}`}>
     <header className="mga-section-heading"><div><h2>{draft.name}</h2><p>{approved?'Aprovação registrada':current.canApprove?'Pronta para sua aprovação':'Revisão pendente'}</p></div></header>
     <div className="mga-launch-layout"><div className="mga-launch-creative">
-      <ol className="mga-launch-previews" aria-label={media.length>1?'Ordem do carrossel':'Criativo'}>{media.map((image,index)=><li key={image.id}><figure><img key={`${image.id}:${imageAttempt}`} src={image.url} alt={`Criativo ${index+1}: ${campaign.products.find(p=>p.variantId===image.variantId)?.name??'produto selecionado'}`} onLoad={()=>setPreviews(previous=>({...previous,[image.id]:'loaded'}))} onError={()=>setPreviews(previous=>({...previous,[image.id]:'failed'}))}/><figcaption>{index+1} de {media.length}{media.length>1?' · Carrossel':''}</figcaption></figure></li>)}</ol>
+      <div className="mga-launch-carousel" role="region" aria-roledescription="carrossel" aria-label="Prévia dos criativos" tabIndex={media.length>1?0:undefined} onKeyDown={event=>{if(event.key==='ArrowRight'){event.preventDefault();setSlide(index=>Math.min(media.length-1,index+1));}else if(event.key==='ArrowLeft'){event.preventDefault();setSlide(index=>Math.max(0,index-1));}}}>
+        <ol className="mga-launch-previews" aria-label={media.length>1?'Ordem do carrossel':'Criativo'}>{media.map((image,index)=><li key={image.id} hidden={index!==slide}><img key={`${image.id}:${imageAttempt}`} src={image.url} alt={`Criativo ${index+1}: ${campaign.products.find(p=>p.variantId===image.variantId)?.name??'produto selecionado'}`} onLoad={()=>setPreviews(previous=>({...previous,[image.id]:'loaded'}))} onError={()=>setPreviews(previous=>({...previous,[image.id]:'failed'}))}/></li>)}</ol>
+        <div className={`mga-slide-controls${media.length<2?' mga-slide-controls-single':''}`}>
+          {media.length>1&&<button type="button" className="mga-secondary mga-slide-arrow" aria-label="Criativo anterior" disabled={slide===0} onClick={()=>setSlide(index=>index-1)}><ChevronLeft size={20} aria-hidden="true"/></button>}
+          <span aria-live="polite" aria-atomic="true">{slide+1} de {media.length}{media.length>1?' · Carrossel':''}</span>
+          {media.length>1&&<button type="button" className="mga-secondary mga-slide-arrow" aria-label="Próximo criativo" disabled={slide===media.length-1} onClick={()=>setSlide(index=>index+1)}><ChevronRight size={20} aria-hidden="true"/></button>}
+        </div>
+      </div>
       {previewFailed&&<div role="alert"><p>Não foi possível carregar um criativo. Confira as imagens antes de aprovar.</p><button type="button" className="mga-secondary" onClick={()=>{setPreviews({});setImageAttempt(n=>n+1);}}>Recarregar criativos</button></div>}
       <h3>{draft.headline}</h3><p className="mga-launch-copy">{draft.primaryText}</p>
       <details><summary>Produtos anunciados ({campaign.products.length})</summary><ul className="mga-launch-products">{campaign.products.map(product=><li key={product.variantId}><strong>{product.name}</strong><span>SKU {product.sku} · {money(product.priceCents,product.currency)} · {product.stockQuantity} disponíveis</span></li>)}</ul></details>

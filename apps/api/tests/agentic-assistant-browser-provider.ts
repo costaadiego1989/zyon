@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 type Json=Record<string,any>;
-export const pixel=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
+export const pixel=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgmBn6HwADeQHu5A/HNwAAAABJRU5ErkJggg==','base64');
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json','x-request-id':randomUUID()}});
 /** Only external transports are controlled. Domain services and repositories run normally. */
 export class AgenticBrowserProvider {
@@ -37,7 +37,7 @@ export class AgenticBrowserProvider {
     if(/configurar o modo autom[aá]tico/i.test(text))return reply('Quais produtos, ações e limites financeiros deseja autorizar?');
     if(/Autorizar Camisa/i.test(text)){
       if(!called.includes('merchant_ads_catalog'))return completion(null,{name:'merchant_ads_catalog',args:{query:'Camisa'}});
-      if(!called.includes('merchant_ads_review_automation'))return completion(null,{name:'merchant_ads_review_automation',args:{scope:{variantIds:(toolResult('merchant_ads_catalog').products??[]).map((p:Json)=>p.variantId),campaignIds:[],allowNewCampaigns:true,destination:'store',priority:'paid_sales',country:'BR',actions:['prepare','publish','pause']},limits:{currency:'BRL',cadence:'lifetime',campaignCeilingCents:/campanha R\$ 50/i.test(text)?5000:10000,storeCeilingCents:20000,startsAt:'2026-11-16T12:00:00.000Z',endsAt:'2026-11-23T12:00:00.000Z'}}});
+      if(!called.includes('merchant_ads_review_automation'))return completion(null,{name:'merchant_ads_review_automation',args:{scope:{variantIds:(toolResult('merchant_ads_catalog').products??[]).map((p:Json)=>p.variantId),campaignIds:[],allowNewCampaigns:true,destination:'store',priority:'paid_sales',country:'BR',actions:['prepare','publish','pause',...(/alterar orçamento/i.test(text)?['budget']:[])]},limits:{currency:'BRL',cadence:'lifetime',campaignCeilingCents:/campanha R\$ 50/i.test(text)?5000:10000,storeCeilingCents:20000,startsAt:'2026-11-16T12:00:00.000Z',endsAt:'2026-11-23T12:00:00.000Z'}}});
       return reply('Política preparada para revisão. O modo permanece manual até seu aceite explícito.');
     }
     if(/fundos|pagar|pagamento|verba|saldo/i.test(text))return reply('A verba dos anúncios é paga diretamente à Meta e é separada da assinatura e dos créditos de imagens. Confira o tipo de cobrança da conta no painel Verba dos anúncios. Use o botão de pagamentos da conta conectada e depois Verificar novamente; esse botão não adiciona saldo na Zyon.');

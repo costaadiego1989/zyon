@@ -106,7 +106,9 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const automatic = new AutomaticCampaignWorker({ repo, policies, campaigns, generations, proposals, executions, enabled: automationEnabled, authorizeActor, clock,preparationEnabled:approvalEnabled,
     prepareInternally:async(merchantId,actorId,campaignId,imageCount)=>{
       const status=await preparation.read(merchantId,actorId,campaignId);
-      if(imageCount===undefined&&status.preparations.length)return status.preparations[0];
+      // Polling has no image-count intent. Wait for the explicit caller to admit
+      // its job instead of racing that caller with an invented one-image job.
+      if(imageCount===undefined)return status.preparations[0]??null;
       return preparation.request(merchantId,actorId,campaignId,{campaignDigest:status.campaignDigest,imageCount:imageCount??1});
     } });
   const conversions = new ConversionsApiAdapter(env, request, { get: async merchantId => {
