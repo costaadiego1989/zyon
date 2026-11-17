@@ -1,7 +1,7 @@
 /** Public acquisition contracts. Provider credentials never belong in these DTOs. */
 export type MetaAdsDestination = "store" | "whatsapp";
 export type MetaAdsPriority = "paid_sales" | "cost_per_purchase" | "roas" | "contribution";
-export type MetaAdsActionKind = "prepare" | "publish" | "pause" | "budget" | "creative" | "audience";
+export type MetaAdsActionKind = "prepare" | "publish" | "pause" | "budget" | "creative" | "audience" | "launch";
 export type MetaAdsProposalStatus = "pending_review" | "approved" | "rejected" | "stale" | "executed";
 export type MetaAdsExecutionStatus = "reserved" | "sending" | "remote_draft" | "remote_paused" | "publishing" | "active_unconfirmed" | "delivered" | "failed" | "execution_unknown";
 export type MetaAdsConnectionStatus = "disconnected" | "authorizing" | "connected" | "limited" | "reconnect_required";
@@ -229,4 +229,72 @@ export interface MetaAdsCheckout {
   amountCents: number;
   currency: "BRL";
   offerVersion: string;
+}
+
+/** Internal preparation consumes the existing image allowance, never ad spend. */
+export type MetaAdsCampaignPreparationStatus = "queued" | "preparing" | "creative_pending" | "review_ready" | "blocked" | "unknown" | "superseded";
+export interface MetaAdsCampaignPreparation {
+  id: string;
+  campaignId: string;
+  intentDigest: string;
+  status: MetaAdsCampaignPreparationStatus;
+  requestedImages: number;
+  generationId: string | null;
+  proposalId: string | null;
+  missing: string[];
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** This purpose-specific permission is independent of the store's sender number. */
+export interface MetaAdsCampaignNoticeContact {
+  phoneNumber: string | null;
+  consented: boolean;
+  consentVersion: string | null;
+  consentedAt: string | null;
+  version: number;
+  updatedAt: string | null;
+}
+export interface MetaAdsCampaignNoticeContactInput {
+  phoneNumber: string | null;
+  consented: boolean;
+  expectedVersion: number;
+}
+
+export type MetaAdsCampaignNoticeReviewState = "awaiting_approval" | "approved" | "superseded";
+/** Provider acceptance is not evidence of delivery. Unknown attempts cannot be replayed. */
+export type MetaAdsCampaignNoticeWhatsAppStatus = "queued" | "blocked" | "sending" | "accepted" | "delivered" | "failed" | "unknown";
+export interface MetaAdsCampaignReadyNotice {
+  id: string;
+  campaignId: string;
+  proposalId: string;
+  proposalDigest: string;
+  notificationId: string;
+  reviewState: MetaAdsCampaignNoticeReviewState;
+  whatsappStatus: MetaAdsCampaignNoticeWhatsAppStatus;
+  recipientHint: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Canonical administrative review; it contains no private conversation history. */
+export interface MetaAdsCampaignLaunchReview {
+  campaign: MetaAdsCampaign;
+  proposal: MetaAdsProposal;
+  media: MetaAdsMedia[];
+  preparation: MetaAdsCampaignPreparation | null;
+  notice: MetaAdsCampaignReadyNotice | null;
+  execution: MetaAdsExecution | null;
+  canApprove: boolean;
+  missing: string[];
+}
+export interface MetaAdsCampaignPreparationInput {
+  campaignDigest: string;
+  imageCount: number;
+}
+export interface MetaAdsApproveLaunchInput {
+  digest: string;
+  idempotencyKey: string;
 }

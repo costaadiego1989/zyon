@@ -67,7 +67,7 @@ export interface MetaAdsFundingDiagnosis {
   error: string | null;
 }
 
-export type MetaAdsAutomaticAction = Exclude<MetaAdsActionKind, 'audience'>;
+export type MetaAdsAutomaticAction = Exclude<MetaAdsActionKind, 'audience' | 'launch'>;
 export interface MetaAdsAutomationScope {
   variantIds: string[];
   campaignIds: string[];

@@ -1,12 +1,10 @@
 ## Handoff
 
-- Feature: agentic-dashboard-assistant, Execute.
-- Spec e 46 tarefas aprovadas separadamente em 2026-11-16; usuario: "prossiga".
-- Checkout: C:/tmp/zyon-agentic-assistant-20261116; branch feat/agentic-assistant-20261116; baseline e750aa85.
-- Completed: T1-T56. T49=ceb979e4; T50=84ac0a6f; T51=94f04bd2; T52=f1c918fd. T53 objective settings: payment action/type and subscription price/quota upfront, optional explanations disclosed, exact consent/reviews preserved. UI117/117, final controls20/20, dashboard types0.
-- Current: T56 review acknowledgement regression fixed for equivalent reads and JSONB key ordering:121 UI and3 native Cypress cases passed. No test assertions changed. Final proofs and fresh Verifier pending. Earlier T54 gates closed:118 UI,23 Cypress,4 Playwright,436 API,2 runtime,5 runner, types/lint/builds. T55 isolated heaps768MB and120s lease wait: Cypress7/7 in34s, runner5/5, Cypress types0. Previous hung proof stopped, never counted green. Final proofs pending.
-- Next: T54, responsive walk, final clean-HEAD proofs and fresh independent Verifier once after this expanded scope. Queued Cypress work waits120s/worker60s; no weakened result assertion or ignored failure.
-- New campaign-ready/initial approval scope: spec approved on2026-11-16, user "Aprovar especificação"; design/35 tasks approved separately, user "Aprovar plano e implementar". validate_tasks --execute=0. Next extension T1 after base verification. One mandatory Aprovar e publicar, admin contact, sender=store WhatsApp. Keep automatic initial launch disabled operationally until implemented.
-- Autoria unica; Verifier independente apos ultima tarefa e provas. Nenhum worker delegado.
-- Planejamento/evidencias: .specs/features/agentic-dashboard-assistant; ignorados pelo Git, nunca forcar inclusao.
-- Sem push/deploy, banco remoto, chamadas pagas ou ativacao do piloto Athom.
+- Features: agentic-dashboard-assistant and approved agentic-campaign-approval; Execute, one author.
+- Checkout: C:/tmp/zyon-agentic-assistant-20261116; branch feat/agentic-assistant-20261116; baseline e750aa85. Preserve original AACP worktree.
+- Base: T1-T56 committed through b6750a0e. Canonical tabs, compact settings, KPI/charts and filters, native desktop/mobile walk. T55 heap/lease correction; T56 acknowledgement survives equivalent refresh and JSONB key order. 121 UI, native ADAS-56 and ADAS-58 passed.
+- ACAP: spec approved2026-11-16 user "Aprovar especificacao" (exact accented approval remains in spec); tasks approved user "Aprovar plano e implementar". T1 contracts complete in this commit: launch excluded from automatic-action type; preparation/review/contact/notice DTOs. Gates:436 API,10 WhatsApp,132 UI, builds/lint/types0.
+- Next: ACAP T2 schema/migrations and scoped deletion cascade, then T3-T35 sequential with gates/atomic commits. No ACAP runtime launch, preparation or notices implemented yet.
+- Final integrated closure: both features remain pending clean-HEAD proofs, fresh independent Verifiers, mutations and validate_verification0 after the approved ACAP rule replaces initial auto launch in ADAS-34/57. Earlier incomplete proof runs never count green. No Verifier dispatched for this scope yet; do not reuse meta_growth_verifier.
+- Single final Aprovar e publicar; all new campaigns require administrative approval. Notify administrative contact through the store WhatsApp only. Sender eligibility/template approval and real delivery remain separate operational proofs.
+- Local only: no push/deploy, remote DB, paid calls, WhatsApp messages or Athom activation. Private .specs/features artifacts remain ignored; never force-add.

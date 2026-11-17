@@ -3,7 +3,7 @@ import { DashboardHttpError } from "../../api/http/error.js";
 export const money = (cents: number | null, currency = "BRL") => cents === null ? "Indisponível" : new Intl.NumberFormat("pt-BR", {style: "currency", currency}).format(cents / 100);
 export const date = (value: string | null) => value ? new Date(value).toLocaleDateString("pt-BR", {timeZone: "UTC"}) : "Indisponível";
 export const priorities = {paid_sales: "Vendas pagas", cost_per_purchase: "Custo por compra", roas: "ROAS", contribution: "Contribuição após mídia"};
-export const actions = {prepare: "Preparar na Meta", publish: "Publicar", pause: "Pausar", budget: "Alterar orçamento", creative: "Alterar criativo", audience: "Alterar público"};
+export const actions = {prepare: "Preparar na Meta", publish: "Publicar", pause: "Pausar", budget: "Alterar orçamento", creative: "Alterar criativo", audience: "Alterar público", launch: "Lançar campanha"};
 export const executionStates = {reserved: "Aguardando envio", sending: "Enviando à Meta", remote_draft: "Preparada, sem veiculação", remote_paused: "Pausada na Meta", publishing: "Publicação em processamento", active_unconfirmed: "Ativa, veiculação ainda não confirmada", delivered: "Veiculação confirmada", failed: "Falha confirmada", execution_unknown: "Resultado desconhecido. Consulte o estado antes de qualquer nova ação."};
 const reasons:Record<string,string>={
   observed_attribution_not_causal_uplift:'A receita atribuída é uma observação da Meta; não comprova aumento causal das vendas.',
