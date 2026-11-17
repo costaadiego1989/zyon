@@ -32,7 +32,8 @@ export async function campaignApprovalHttpFixture(){
       if(!member||member.user.disabledAt||!['OWNER','ADMIN'].includes(member.role))throw new MetaAdsError('meta_ads_role_forbidden',403);
     };
     let enabled=true;
-    const launches=new InitialLaunchService({repo:f.repo,commerce:f.commerce,campaigns:f.service.campaigns,proposals:f.service.proposals,executions:f.executions,preparations:f.preparations,notices:f.notices,authorizeActor,enabled:()=>enabled,clock:f.clock});
+    const restartLaunches=()=>new InitialLaunchService({repo:f.repo,commerce:f.commerce,campaigns:f.service.campaigns,proposals:f.service.proposals,executions:f.executions,preparations:f.preparations,notices:f.notices,authorizeActor,enabled:()=>enabled,clock:f.clock});
+    const launches=restartLaunches();
     const preparation=new CampaignPreparationService({repo:f.repo,commerce:f.commerce,campaigns:f.service.campaigns,connection:f.service.connection,preparations:f.preparations,authorizeActor,enabled:()=>enabled,clock:f.clock});
     const contact=new CampaignNoticeContactService({db:f.prisma,authorizeActor,senderNumber:async()=>'+5511999999999',clock:f.clock});
     const p=await f.propose('launch');
@@ -47,6 +48,6 @@ export async function campaignApprovalHttpFixture(){
     await launches.onModuleDestroy();
     const base=`http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}/meta-ads-agent`;
     const request=(path:string,method='GET',body?:unknown,actor:string|null='owner-a',headers:Record<string,string>={})=>fetch(base+path,{method,headers:{'Content-Type':'application/json',...(actor?{Authorization:'Bearer '+(tokens[actor]??actor)}:{}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
-    return{...f,p,launches,preparation,contact,jwt,tokens,request,enabled:(value:boolean)=>{enabled=value;},closeHttp:async()=>{await app.close();await f.close();}};
+    return{...f,p,launches,restartLaunches,preparation,contact,jwt,tokens,request,enabled:(value:boolean)=>{enabled=value;},closeHttp:async()=>{await app.close();await f.close();}};
   }catch(error){await f.close();throw error;}
 }
