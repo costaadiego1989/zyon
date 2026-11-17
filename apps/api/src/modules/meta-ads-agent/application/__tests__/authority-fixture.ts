@@ -7,7 +7,7 @@ import { ExecutionAuthorityService } from '../execution-authority.service.js';
 import type { MetaBudgetControlPort } from '../../domain/budget-control.port.js';
 import { MetaAdsError } from '../../domain/types.js';
 
-export async function authorityFixture(prepared = true) {
+export async function authorityFixture(prepared = true, actorIds = ['owner-a']) {
   const f = await metaAssistantFixture(); await f.connect(); f.setNow('2026-11-16T12:00:00Z');
   let enabled = true, role = true, financialBlocked = false, controlAvailable = true, remoteAmount = 10000, fundingReads = 0;
   const budget = { amountCents: 10000, currency: 'BRL' as const, cadence: 'lifetime' as const, startsAt: f.clock().toISOString(), endsAt: '2026-11-23T12:00:00.000Z' };
@@ -19,7 +19,7 @@ export async function authorityFixture(prepared = true) {
     return { result: null };
   });
   f.provider.snapshot = async () => ({ campaignId: '200', status: 'PAUSED', effectiveStatus: 'PAUSED', budget: { lifetime_budget: String(remoteAmount), daily_budget: null, spend_cap: null }, targeting: {}, adSetId: '300', adIds: ['500'], creativeIds: ['400'] });
-  const authorizeActor = async (merchantId: string, actorId: string) => { if (!role || merchantId !== 'store-a' || actorId !== 'owner-a') throw new MetaAdsError('meta_ads_role_forbidden', 403); };
+  const authorizeActor = async (merchantId: string, actorId: string) => { if (!role || merchantId !== 'store-a' || !actorIds.includes(actorId)) throw new MetaAdsError('meta_ads_role_forbidden', 403); };
   const policies = new AutomationPolicyService({ repo: f.repo, commerce: f.commerce, connection: f.service.connection, campaigns: f.service.campaigns, authorizeActor, enabled: () => enabled, clock: f.clock });
   const review = await policies.review('store-a', 'owner-a', { scope: { variantIds: ['variant-a'], campaignIds: [created.id], allowNewCampaigns: false, destination: 'store', priority: 'roas', country: 'BR', actions: ['prepare', 'publish', 'pause', 'budget', 'creative'] }, limits: { currency: 'BRL', cadence: 'lifetime', campaignCeilingCents: 10000, storeCeilingCents: 20000, startsAt: budget.startsAt, endsAt: budget.endsAt } });
   const policy = (await policies.accept('store-a', 'owner-a', { scope: review.scope, limits: review.limits, version: review.version, digest: review.digest, idempotencyKey: 'authority-policy' })).policy!;
@@ -42,7 +42,7 @@ export async function authorityFixture(prepared = true) {
     await f.service.proposals.approve('store-a', publication.id, 'owner-a', publication.digest);
     return publication;
   };
-  return { ...f, campaignId: created.id, budget, policy, policies, exposure, authority, funding, budgetControl, reading, propose, automatic, approveInitialPublication,
+  return { ...f, campaignId: created.id, budget, policy, policies, exposure, authority, funding, budgetControl, reading, propose, automatic, approveInitialPublication, authorizeActor,
     enabled: (value: boolean) => { enabled = value; }, role: (value: boolean) => { role = value; }, financialBlocked: (value: boolean) => { financialBlocked = value; }, controlAvailable: (value: boolean) => { controlAvailable = value; }, remoteAmount: (value: number) => { remoteAmount = value; }, fundingReads: () => fundingReads,
     changeProduct: () => { f.commerce.products = async () => [{ ...assistantProduct, stockQuantity: 0, commercialVersion: 'version-changed' }]; } };
 }
