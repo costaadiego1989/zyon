@@ -1,3 +1,4 @@
+import { isAuthenticationTemplateType } from "../../domain/catalog/template-types.js";
 import { TEMPLATE_SUBMISSION_PORT, type TemplateSubmissionPort } from "../../domain/ports/template-submission.port.js";
 import { isApprovedSalesTemplate } from "../../domain/services/recovery-whatsapp-policy.js";
 import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
@@ -40,9 +41,9 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
         return { messageId: "", status: "skipped", reason: "approved_template_unavailable" };
       }
       if (input.type !== "order_quota") {
-        if (input.type === "checkout_otp" && template?.metaCategory !== "AUTHENTICATION") return { messageId: "", status: "skipped", reason: "authentication_template_required" };
+        if (isAuthenticationTemplateType(input.type) && template?.metaCategory !== "AUTHENTICATION") return { messageId: "", status: "skipped", reason: "authentication_template_required" };
         if (!this.submission || !template?.metaTemplateBody) return { messageId: "", status: "skipped", reason: "template_verification_unavailable" };
-        const current = await this.submission.syncStatus(input.merchantId, input.contentSid, { language: template.metaLanguage ?? "pt_BR", body: template.metaTemplateBody, category: template.metaCategory ?? undefined }).catch(() => null);
+        const current = await this.submission.syncStatus(input.merchantId, input.contentSid, { language: template.metaLanguage ?? "pt_BR", body: template.metaTemplateBody, category: template.metaCategory ?? undefined, ...(input.type === "buyer_whatsapp_link_otp" ? { authenticationExpirationMinutes: 5 as const } : {}) }).catch(() => null);
         if (current?.status !== "approved" || current.contentSid !== input.contentSid) return { messageId: "", status: "skipped", reason: "approved_template_unavailable" };
         const latest = await this.credentials(input.merchantId);
         if (!latest || latest.wabaId !== credentials.wabaId || latest.phoneNumberId !== credentials.phoneNumberId) return { messageId: "", status: "skipped", reason: "meta_connection_changed" };
@@ -64,7 +65,7 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
       language: { code: input.language || "pt_BR" },
     };
     if (parameters.length) template.components = [{ type: "body", parameters }];
-    if (input.type === "checkout_otp") {
+    if (isAuthenticationTemplateType(input.type)) {
       if (parameters.length !== 1 || !/^\d{6}$/.test(parameters[0].text)) return { messageId: "", status: "skipped", reason: "authentication_code_invalid" };
       template.components = [{ type: "body", parameters }, { type: "button", sub_type: "url", index: "0", parameters }];
     }

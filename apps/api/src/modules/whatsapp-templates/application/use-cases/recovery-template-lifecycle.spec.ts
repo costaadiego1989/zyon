@@ -181,3 +181,16 @@ test("valid edit forwards revision and normalized content to the authenticated t
   await h.service.save("merchant-a", { merchantId: "merchant-b", email: { subject: " Retome ", body: " {{link}} " }, whatsapp: { body: " Retome {{link}} ", revision: 3 } });
   assert.deepEqual(h.saves, [["merchant-a", { email: { subject: "Retome", body: "{{link}}" }, whatsapp: { body: "Retome {{link}}", revision: 3 } }, "cart_recovery"]]);
 });
+
+test("account-link lifecycle submits only its dedicated five-minute authentication preset", async () => {
+  const h = setup({ row: { type: "buyer_whatsapp_link_otp", body: "{{otpCode}} is your verification code. Do not share.", metaCategory: "AUTHENTICATION" } });
+  await h.service.processDue(now);
+  assert.equal(h.creates[0].authenticationExpirationMinutes, 5);
+  assert.equal(h.creates[0].category, "AUTHENTICATION");
+  assert.match(h.creates[0].friendlyName, /^buyer_whatsapp_link_otp_[a-f0-9]{20}_v3$/);
+  assert.equal(h.completions[0].patch.status, "submitted");
+  const legacy = setup({ row: { type: "checkout_otp", body: "{{otpCode}} is your checkout code.", metaCategory: "AUTHENTICATION" } });
+  await legacy.service.processDue(now);
+  assert.equal(legacy.creates[0].authenticationExpirationMinutes, undefined);
+  assert.match(legacy.creates[0].friendlyName, /^checkout_otp_/);
+});

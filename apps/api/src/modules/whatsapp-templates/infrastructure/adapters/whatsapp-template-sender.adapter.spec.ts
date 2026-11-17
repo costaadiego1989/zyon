@@ -63,6 +63,18 @@ describe("Meta Cloud template sender", () => {
     assert.equal(old.requests.length, 0);
   });
 
+  test("account link sends a six-digit body and copy-code button with verified five-minute expiry", async () => {
+    const h = harness({ template: { type: "buyer_whatsapp_link_otp", metaCategory: "AUTHENTICATION", metaVariableMap: { "1": "otpCode" } } });
+    let expected: any;
+    const sender = new WhatsAppTemplateSenderAdapter(h.configs, h.templates, { createAndSubmit: async () => { throw Error("unused"); }, syncStatus: async (_m, contentSid, value) => { expected = value; return { status: "approved", contentSid }; } });
+    const otp = { ...input, type: "buyer_whatsapp_link_otp" as const, contentVariables: { "1": "654321" } };
+    assert.equal((await sender.sendTemplate(otp)).status, "sent");
+    assert.equal(expected.authenticationExpirationMinutes, 5);
+    assert.deepEqual(JSON.parse(String(h.requests[0].init?.body)).template.components, [{ type: "body", parameters: [{ type: "text", text: "654321" }] }, { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: "654321" }] }]);
+    assert.equal((await sender.sendTemplate({ ...otp, contentVariables: { "1": "invalid" } })).reason, "authentication_code_invalid");
+    assert.equal(h.requests.length, 1);
+  });
+
   test("a template notification carries its durable ledger ID to Meta receipts", async () => {
     const h = harness();
     const correlationId = "order_notification:" + "a".repeat(64);

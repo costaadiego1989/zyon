@@ -109,3 +109,24 @@ describe("Meta Cloud template submission", () => {
     assert.equal((await new MetaCloudTemplateAdapter(configs).syncStatus(input.merchantId, "zyon_test", expected)).status, "approved");
   });
 });
+
+test("five-minute account link model uses its own name and verifies the actual provider expiry", async () => {
+  const original = globalThis.fetch;
+  const config = { findByMerchantId: async () => ({ merchantId: "m1", enabled: true, provider: "META_CLOUD", status: "ACTIVE", credentials: { accessToken: "local", wabaId: "123456789", phoneNumberId: "987654321" } }) } as any;
+  const input = { merchantId: "m1", friendlyName: "buyer_whatsapp_link_otp_m1_v1", language: "pt_BR", category: "AUTHENTICATION", metaBody: "{{1}} é seu código de verificação.", sampleVariables: { "1": "123456" } };
+  const payloads: any[] = [];
+  try {
+    globalThis.fetch = (async (_u, init) => { payloads.push(JSON.parse(String(init?.body))); return Response.json({ status: "PENDING" }); }) as typeof fetch;
+    const five = await new MetaCloudTemplateAdapter(config).createAndSubmit({ ...input, authenticationExpirationMinutes: 5 });
+    const ten = await new MetaCloudTemplateAdapter(config).createAndSubmit(input);
+    assert.notEqual(five.contentSid, ten.contentSid);
+    assert.deepEqual(payloads[0].components, [{ type: "BODY", add_security_recommendation: true }, { type: "FOOTER", code_expiration_minutes: 5 }, { type: "BUTTONS", buttons: [{ type: "OTP", otp_type: "COPY_CODE", text: "Copiar código" }] }]);
+    assert.equal(payloads[1].components[1].code_expiration_minutes, 10);
+    const expected = { language: "pt_BR", category: "AUTHENTICATION", body: input.metaBody, authenticationExpirationMinutes: 5 as const };
+    for (const expiry of [5, 10, undefined]) {
+      globalThis.fetch = (async () => Response.json({ data: [{ name: five.contentSid, language: "pt_BR", category: "AUTHENTICATION", status: "APPROVED", components: [{ type: "BODY", text: "{{1}} Código" }, ...(expiry ? [{ type: "FOOTER", text: `Este código expira em ${expiry} minutos.` }] : []), { type: "BUTTONS", buttons: [{ type: "OTP", otp_type: "COPY_CODE" }] }] }] })) as typeof fetch;
+      const state = await new MetaCloudTemplateAdapter(config).syncStatus("m1", five.contentSid, expected);
+      assert.equal(state.status, expiry === 5 ? "approved" : "disabled");
+    }
+  } finally { globalThis.fetch = original; }
+});
