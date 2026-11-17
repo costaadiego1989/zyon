@@ -37,6 +37,9 @@ export async function main(args=process.argv.slice(2)){
   const allowed=new Set(['PATH','PATHEXT','SYSTEMROOT','SYSTEMDRIVE','WINDIR','TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','COMSPEC','NUMBER_OF_PROCESSORS','PROCESSOR_ARCHITECTURE','PROGRAMFILES','PROGRAMFILES(X86)','PROGRAMW6432','HOMEDRIVE','HOMEPATH']);
   for(const name of Object.keys(process.env))if(!allowed.has(name.toUpperCase()))delete process.env[name];
   process.env.NODE_ENV='test';process.env.CYPRESS_VERIFY_TIMEOUT='120000';
+  // Bound only this isolated runner's children on shared development machines.
+  process.env.NODE_OPTIONS='--max-old-space-size=768';
+  process.env.ELECTRON_EXTRA_LAUNCH_ARGS='--js-flags=--max-old-space-size=768';
   await database();if(await open(3019)||await open(5179))throw Error('agentic_test_port_in_use');
   const nonce=randomBytes(32).toString('hex'),artifact=path.join(workspace,'.specs/features/agentic-dashboard-assistant/cypress-results',new Date().toISOString().replaceAll(':','-'));
   await mkdir(artifact,{recursive:true});
