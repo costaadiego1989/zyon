@@ -21,7 +21,7 @@ export class InitialLaunchService{
   async review(merchantId:string,actorId:string,campaignId:string,proposalId?:string):Promise<MetaAdsCampaignLaunchReview>{
     await this.actor(merchantId,actorId);requireIdentifier(campaignId);if(proposalId)requireIdentifier(proposalId);
     const current=await this.deps.campaigns.owned(merchantId,campaignId),state=await this.deps.repo.read(merchantId);
-    const candidates=Object.values(state.proposals).filter(p=>p.campaignId===campaignId&&p.kind==='launch').reverse();
+    const candidates=Object.values(state.proposals).filter(p=>p.campaignId===campaignId&&p.kind==='launch').sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id));
     const proposal=proposalId?candidates.find(p=>p.id===proposalId):candidates.find(p=>p.status==='pending_review'||p.status==='approved')??candidates[0];
     if(!proposal)throw new MetaAdsError('proposal_not_found',404);
     assertReviewedProposal(merchantId,proposal,await this.deps.repo.getRecord(merchantId,`proposal-version:${proposal.id}`));
@@ -36,6 +36,7 @@ export class InitialLaunchService{
       proposal.after.accountId!==(state.connection.account?.id??null)||proposal.after.pageId!==(state.connection.page?.id??null)||proposal.after.datasetId!==(state.connection.dataset?.id??null)||proposal.after.whatsappId!==(state.connection.whatsapp?.id??null))missing.push('proposal_stale');
     const preparations=await this.deps.preparations.list(merchantId,campaignId),notices=await this.deps.notices.list(merchantId,campaignId);
     const preparation=preparations.find(job=>job.proposalId===proposal.id)??null,notice=notices.find(n=>n.proposalId===proposal.id&&n.proposalDigest===proposal.digest)??null;
+    if(notice?.reviewState==='superseded')missing.push('proposal_stale');
     // The displayed material is the frozen review, even when the live campaign changed.
     const campaign={...current,draft:structuredClone(proposal.after.draft) as MetaAdsCampaignDraft,products:structuredClone(proposal.after.products) as MetaAdsProduct[]};
     const execution=proposal.executionId?state.executions[proposal.executionId]??null:null;

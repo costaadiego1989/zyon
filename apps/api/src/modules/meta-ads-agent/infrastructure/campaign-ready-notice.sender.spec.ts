@@ -1,33 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {CampaignReadyNoticeSender} from './campaign-ready-notice.sender.js';
-import {campaignLaunchFixture} from '../application/__tests__/launch-fixture.js';
-import {CampaignNoticeContactService} from '../application/campaign-notice-contact.service.js';
-import {InitialLaunchService} from '../application/initial-launch.service.js';
-import {WhatsAppTemplateSenderAdapter} from '../../whatsapp-templates/infrastructure/adapters/whatsapp-template-sender.adapter.js';
-import {getTemplateDefinition} from '../../whatsapp-templates/domain/catalog/template-catalog.js';
-import type {WhatsAppTemplateRecord,WhatsAppTemplateRepositoryPort} from '../../whatsapp-templates/domain/ports/whatsapp-template-repository.port.js';
-import type {WhatsAppChannelConfigEntity,WhatsAppConfigRepository} from '../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js';
+import {campaignNoticeFixture as fixture} from './__tests__/campaign-notice-fixture.js';
 
-async function fixture(){
-  const f=await campaignLaunchFixture(),originalFetch=globalThis.fetch;let transport='accepted';const requests:Array<{url:string;init?:RequestInit}>=[];
-  const config:WhatsAppChannelConfigEntity={id:'config-a',merchantId:'store-a',enabled:true,provider:'META_CLOUD',status:'ACTIVE',credentials:{accessToken:'store-a-private-token',wabaId:'123456789',phoneNumberId:'987654321'},whatsappNumber:'+5511999990000',createdAt:new Date(),updatedAt:new Date()};
-  const def=getTemplateDefinition('campaign_ready','Loja Aurora');
-  const template:WhatsAppTemplateRecord={id:'template-a',merchantId:'store-a',type:'campaign_ready',channel:'whatsapp',name:def.label,body:def.freeformBody,subject:null,isActive:true,metaCategory:def.category,metaLanguage:'pt_BR',metaTemplateBody:def.metaBody,metaVariableMap:def.variableMap,twilioContentSid:'store_campaign_ready',metaStatus:'approved',metaRejectionReason:null,metaWabaId:'123456789',metaRevision:1,metaLastCheckedAt:new Date(),createdAt:new Date(),updatedAt:new Date()};
-  const configs={findByMerchantId:async()=>structuredClone(config)} as unknown as WhatsAppConfigRepository;
-  const templates={findByMerchantAndType:async()=>structuredClone(template)} as unknown as WhatsAppTemplateRepositoryPort;
-  let duringSync=async()=>{};
-  const templateSender=new WhatsAppTemplateSenderAdapter(configs,templates,{createAndSubmit:async()=>{throw Error('not authorized');},syncStatus:async(_merchant,sid)=>{await duringSync();return{status:'approved',contentSid:sid};}});
-  globalThis.fetch=async(url,init)=>{requests.push({url:String(url),init});if(transport==='timeout')throw Error('lost store-a-private-token');if(transport==='empty')return Response.json({});if(transport==='reject')return new Response('rejected',{status:400});if(transport==='server')return new Response('error',{status:503});return Response.json({messages:[{id:'wamid.campaign-a'}]});};
-  const contacts=new CampaignNoticeContactService({db:f.prisma,authorizeActor:f.authorizeActor,senderNumber:async()=>config.whatsappNumber??null,clock:f.clock});
-  await contacts.save('store-a','owner-a',{phoneNumber:'+5511988887777',consented:true,expectedVersion:0});
-  const launches=new InitialLaunchService({repo:f.repo,commerce:f.commerce,campaigns:f.service.campaigns,proposals:f.service.proposals,executions:f.executions,preparations:f.preparations,notices:f.notices,authorizeActor:f.authorizeActor,enabled:()=>true,clock:f.clock});
-  const sender=new CampaignReadyNoticeSender({db:f.prisma,notices:f.notices,configs,templates,templateSender,launches,authorizeActor:f.authorizeActor,storeName:async()=> 'Loja Aurora',dashboardUrl:'https://dashboard.example.test',clock:f.clock});
-  const p=await f.propose('launch'),notice=await f.notices.admit({merchantId:'store-a',campaignId:f.campaignId,proposalId:p.id,proposalDigest:p.digest});
-  await f.notices.ensureInbox('store-a',notice.id,{campaignName:'Camisa',reviewUrl:`https://dashboard.example.test/#meta-ads-agent?store=store-a&campaign=${f.campaignId}&proposal=${p.id}`});
-  const lease=(await f.notices.claim('store-a',notice.id))!;
-  return{...f,p,notice,lease,sender,contacts,config,template,requests,transport:(value:string)=>{transport=value;},duringSync:(fn:()=>Promise<void>)=>{duringSync=fn;},close:async()=>{globalThis.fetch=originalFetch;await f.close();}};
-}
 test('ACAP-19 official readiness send uses the pinned administrative contact exact store credential and review version',async()=>{
   const f=await fixture();try{const result=await f.sender.send(f.lease);assert.equal(result.whatsappStatus,'accepted');assert.equal(f.requests.length,1);assert.equal(f.requests[0].url,'https://graph.facebook.com/v23.0/987654321/messages');assert.equal(new Headers(f.requests[0].init?.headers).get('Authorization'),'Bearer store-a-private-token');const body=JSON.parse(String(f.requests[0].init?.body));assert.equal(body.to,'5511988887777');assert.equal(body.template.name,'store_campaign_ready');assert.equal(body.template.language.code,'pt_BR');assert.deepEqual(body.template.components[0].parameters.map((p:{text:string})=>p.text),['Camisa',f.p.digest.slice(0,12),`https://dashboard.example.test/#meta-ads-agent?store=store-a&campaign=${f.campaignId}&proposal=${f.p.id}`]);assert.match(body.biz_opaque_callback_data,/^campaign_ready:[a-f0-9]{64}$/);const delivery=await f.prisma.whatsAppDelivery.findUniqueOrThrow({where:{id:body.biz_opaque_callback_data}});assert.equal(delivery.configId,'config-a');assert.equal(delivery.providerMessageId,'wamid.campaign-a');assert.equal(delivery.state,'sent');assert.equal(await f.prisma.merchantNotification.count(),1);assert.equal(JSON.stringify(result).includes('private-token'),false);assert.equal(JSON.stringify(result).includes('5511988887777'),false);}finally{await f.close();}
 });
