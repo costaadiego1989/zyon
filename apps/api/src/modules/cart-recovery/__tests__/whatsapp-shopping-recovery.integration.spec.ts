@@ -113,14 +113,16 @@ test("unbound native shopping silence qualifies once and preserves activity", as
 for (const variant of ["empty", "expired", "handoff", "pending", "superseded_checkout"]) {
   test(`unbound native shopping suppresses ${variant} before dispatch`, async t => {
     const f = await fixture(t); await f.adapter.respondStore(f.input); await f.age();
+    await f.scanner.scan(); assert.equal(f.delegated.length, 1, "the unsuppressed old shopping session must actually dispatch");
+    f.delegated.length = 0;
     if (variant === "empty") await db.storefrontCart.updateMany({ where: { merchantId: f.merchantId }, data: { items: [] } });
     if (variant === "expired") await db.storefrontCart.updateMany({ where: { merchantId: f.merchantId }, data: { expiresAt: new Date(0) } });
-    if (variant === "handoff") await db.whatsAppSession.update({ where: { id: f.wa.id }, data: { status: "handoff" } });
+    if (variant === "handoff") await db.whatsAppSession.update({ where: { id: f.wa.id }, data: { status: "handoff", lastActivityAt: f.old } });
     if (variant === "pending") await db.whatsAppWebhookInbox.create({ data: { dedupKey: randomUUID(), eventId: randomUUID(), kind: "message", merchantId: f.merchantId,
       configId: f.deviceId.slice(11), deviceId: f.deviceId, streamKey: createHash("sha256").update(JSON.stringify([f.merchantId, f.deviceId.slice(11), "message", f.phone])).digest("hex"), payload: {}, payloadHash: "owned", status: "pending" } });
-    if (variant === "superseded_checkout") await db.whatsAppSession.update({ where: { id: f.wa.id }, data: { checkoutSessionId: "new-checkout" } });
+    if (variant === "superseded_checkout") await db.whatsAppSession.update({ where: { id: f.wa.id }, data: { checkoutSessionId: "new-checkout", lastActivityAt: f.old } });
     await f.scanner.scan(); assert.equal(f.delegated.length, 0);
-    await db.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: f.merchantId, sessionId: f.conversationId } }, data: { triggerAgent: true, abandonmentScore: 0.8 } });
+    await db.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: f.merchantId, sessionId: f.conversationId } }, data: { triggerAgent: true, abandonmentScore: 0.8, updatedAt: f.old } });
     await f.scanner.scan(); assert.equal(f.delegated.length, 0);
   });
 }
