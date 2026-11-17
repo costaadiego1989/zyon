@@ -17,6 +17,7 @@ import {
 } from "../../domain/ports/whatsapp-config-repository.port.js";
 import { connectedTwilioCredentials, twilioAuthorityAccountId } from "../../domain/services/connected-twilio-credentials.js";
 import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
+import { twilioOperatorStatusCallbackUrl } from "../../domain/services/public-url.js";
 
 interface TwilioCredentials {
   accountSid: string;
@@ -72,6 +73,10 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
         From: senderId,
         Body: msg.text,
       });
+      if (currentWhatsAppSubmissionScope() && msg.correlationId) {
+        const callback = twilioOperatorStatusCallbackUrl(config.id, msg.correlationId);
+        if (callback) params.set("StatusCallback", callback);
+      }
 
       const response = await startWhatsAppRequest({ kind: "whatsapp", merchantId: config.merchantId, configId: config.id,
         deviceId: msg.deviceId, provider: "TWILIO", accountId: twilioAuthorityAccountId(config), recipient: toNumber,

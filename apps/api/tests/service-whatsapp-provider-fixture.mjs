@@ -4,7 +4,8 @@ import {MODULE_METADATA} from '@nestjs/common/constants.js';
 export function validateLocalWhatsAppOptions(value){
   assert.ok(value===true||value&&typeof value==='object'&&!Array.isArray(value),'local_whatsapp_fixture_required');
   const options=value===true?{}:value;
-  assert.ok(Object.keys(options).every(key=>['voiceTranscripts','operatorOutcomes'].includes(key)),'local_whatsapp_fixture_options_invalid');
+  assert.ok(Object.keys(options).every(key=>['voiceTranscripts','operatorOutcomes','operatorStatusCallbacks'].includes(key)),'local_whatsapp_fixture_options_invalid');
+  assert.ok(options.operatorStatusCallbacks===undefined||options.operatorStatusCallbacks===true,'local_operator_status_fixture_invalid');
   const transcripts=options.voiceTranscripts??{};
   assert.ok(transcripts&&typeof transcripts==='object'&&!Array.isArray(transcripts)&&Object.keys(transcripts).length<=20,'local_voice_fixture_invalid');
   for(const [mediaId,text]of Object.entries(transcripts))assert.ok(/^\d{1,80}$/.test(mediaId)&&typeof text==='string'&&text.trim()&&text.length<=4000,'local_voice_fixture_invalid');
@@ -17,7 +18,8 @@ export function validateLocalWhatsAppOptions(value){
       &&(outcome.status==='queued'||outcome.status==='sent'?!!outcome.messageId&&!/\s|[\u0000-\u001f\u007f]/.test(outcome.messageId):outcome.messageId===''),
     'local_operator_fixture_invalid');
   }
-  return {voiceTranscripts:{...transcripts},...(outcomes===undefined?{}:{operatorOutcomes:outcomes.map(outcome=>({...outcome}))})};
+  return {voiceTranscripts:{...transcripts},...(outcomes===undefined?{}:{operatorOutcomes:outcomes.map(outcome=>({...outcome}))}),
+    ...(options.operatorStatusCallbacks?{operatorStatusCallbacks:true}:{})};
 }
 
 /** Test child DI only. No global network function or production module source

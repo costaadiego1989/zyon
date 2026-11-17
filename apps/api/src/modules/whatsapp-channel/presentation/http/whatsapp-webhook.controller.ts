@@ -30,7 +30,9 @@ import { AcceptBubbleWhatsWebhookUseCase } from "../../application/use-cases/acc
 import { HandleStatusUpdateUseCase } from "../../application/use-cases/handle-status-update.use-case.js";
 import { validateTwilioSignature } from "../../domain/services/twilio-signature-validator.js";
 import { parseTwilioInbound } from "../../infrastructure/adapters/twilio-webhook-parser.js";
-import { twilioWhatsAppCallbackUrl } from "../../domain/services/public-url.js";
+import { twilioWhatsAppCallbackUrl, twilioOperatorStatusRequestUrl } from "../../domain/services/public-url.js";
+import { readTwilioReceiptForm, parseTwilioOperatorReceipt } from "../../domain/services/whatsapp-operator-receipt.js";
+import { WhatsAppSupportDeliveryService } from "../../application/services/whatsapp-support-delivery.service.js";
 
 interface BubbleWhatsMessagePayload {
   id: string;
@@ -84,7 +86,7 @@ interface MetaWebhookPayload {
         metadata?: { phone_number_id?: string };
         contacts?: Array<{ profile?: { name?: string } }>;
         messages?: MetaInboundMessage[];
-        statuses?: Array<{ id?: string; status?: string; timestamp?: string; biz_opaque_callback_data?: string; errors?: Array<{ code?: number }> }>;
+        statuses?: Array<{ id?: string; status?: string; timestamp?: string; recipient_id?: string; biz_opaque_callback_data?: string; errors?: Array<{ code?: number }> }>;
       };
     }>;
   }>;
@@ -99,6 +101,7 @@ export class WhatsAppWebhookController {
     private readonly acceptBubbleWhats: AcceptBubbleWhatsWebhookUseCase,
     @Optional() private readonly delivery?: WhatsAppDeliveryService,
     @Optional() private readonly metaStatus?: HandleStatusUpdateUseCase,
+    @Optional() private readonly supportDelivery?: WhatsAppSupportDeliveryService,
   ) {}
 
   @Get("meta")
@@ -144,6 +147,8 @@ export class WhatsAppWebhookController {
         for (const status of change.value?.statuses ?? []) {
           if (!this.delivery) throw new ServiceUnavailableException("whatsapp_delivery_not_configured");
           await this.delivery.reconcileMeta(config.merchantId, config.id, status);
+          if (this.supportDelivery) await this.supportDelivery.reconcileMeta(config, phoneNumberId, status);
+          else if (status.biz_opaque_callback_data?.startsWith("support_message:")) throw new ServiceUnavailableException("whatsapp_support_receipts_not_configured");
         }
         for (const status of change.value?.statuses ?? []) {
           if (!status.id || !status.status) continue;
@@ -234,9 +239,43 @@ export class WhatsAppWebhookController {
   }
 
   /**
-   * Twilio WhatsApp message webhook.
-   * Receives form-encoded POST body with HMAC-SHA1 signature validation.
+   * Operator status callbacks authenticate the exact encoded public URL and
+   * complete form before resolving an immutable historical command.
    */
+  @Post("twilio/status")
+  @HttpCode(200)
+  async receiveTwilioStatus(
+    @Headers("x-twilio-signature") signature: string | undefined,
+    @Body() body: unknown,
+    @Req() req: Request,
+  ): Promise<string> {
+    if (!req.is("application/x-www-form-urlencoded")) throw new BadRequestException("twilio_status_form_required");
+    const form = readTwilioReceiptForm(body);
+    if (!form) throw new BadRequestException("invalid_twilio_status_form");
+    const requestUrl = twilioOperatorStatusRequestUrl(req.originalUrl);
+    if (!requestUrl) throw new ServiceUnavailableException("twilio_status_url_not_configured");
+    const query = new URL(requestUrl).searchParams, entries = [...query.entries()];
+    const configId = query.get("configId"), correlationId = query.get("correlationId");
+    if (entries.length !== 2 || query.getAll("configId").length !== 1 || query.getAll("correlationId").length !== 1
+      || !configId || configId.length > 1024 || configId.trim() !== configId || /[\u0000-\u001f\u007f]/.test(configId)
+      || !correlationId || correlationId.length > 1024 || !correlationId.startsWith("support_message:")
+      || correlationId.length <= "support_message:".length || /[\s\u0000-\u001f\u007f]/.test(correlationId))
+      throw new BadRequestException("invalid_twilio_status_scope");
+    const config = await this.configRepo.findById(configId);
+    if (!config || config.provider !== "TWILIO") throw new UnauthorizedException("invalid_twilio_account");
+    const authToken = config.credentials.authToken;
+    if (typeof authToken !== "string" || !authToken.trim()) throw new ServiceUnavailableException("twilio_webhook_auth_not_configured");
+    if (typeof signature !== "string" || !validateTwilioSignature(signature, requestUrl, form, authToken))
+      throw new UnauthorizedException("invalid_twilio_signature");
+    const receipt = parseTwilioOperatorReceipt(form);
+    if (!receipt) throw new BadRequestException("invalid_twilio_status");
+    if (receipt.providerAccountId !== config.credentials.accountSid) throw new UnauthorizedException("invalid_twilio_account");
+    if (!this.supportDelivery) throw new ServiceUnavailableException("whatsapp_support_receipts_not_configured");
+    await this.supportDelivery.reconcile(config, { ...receipt, correlationId });
+    return "";
+  }
+
+  /** Legacy inbound message parsing stays separate from status receipts. */
   @Post("twilio")
   @HttpCode(200)
   async receiveTwilioMessage(

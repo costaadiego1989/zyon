@@ -61,5 +61,91 @@ export async function operatorTerminalDiagnostic(f,messageId){
   console.info('t54_terminal_diagnostic',JSON.stringify(diagnostic));
 }
 export function operatorCloseDiagnostic(error){
+  try{observeProviderTrapFailure(error);}catch{}
   console.info('t54_close_diagnostic',JSON.stringify({observedAt:new Date().toISOString(),pid:process.pid,error:operatorDiagnosticError(error)}));
+}
+
+// Additive failure-only parent projection of the existing bounded worker suffix.
+const MARKER='service_provider_attempt_forbidden:';
+const MAX_CODE=8192,MAX_ITEM=4096,MAX_ATTEMPTS=3,MAX_FRAMES=6;
+
+function frameLocation(value){
+  if(typeof value!=='string'||value.length>1500)return;
+  const frame=value.trim().replaceAll('\\','/'),result={};
+  const prefix=frame.match(/^at (?:(?:async|new) )?([A-Za-z_$][A-Za-z0-9_$.]{0,95})(?: \(|$)/);
+  if(prefix)result.function=prefix[1];
+  const root='/apps/api/dist/',index=frame.lastIndexOf(root);
+  if(index>=0){
+    const location=frame.slice(index+root.length).replace(/\)$/,'');
+    const match=location.match(/^([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.js):([1-9]\d{0,5})(?::\d{1,5})?$/);
+    if(match&&match[1].split('/').every(segment=>segment!=='.'&&segment!=='..')){
+      result.path='dist/'+match[1];result.line=Number(match[2]);
+    }
+  }
+  return Object.keys(result).length?result:undefined;
+}
+
+function attempt(value){
+  if(!value||typeof value!=='object'||Array.isArray(value)||!['fetch','socket'].includes(value.kind)||!Array.isArray(value.frames))return;
+  return{kind:value.kind,frames:value.frames.slice(0,MAX_FRAMES).map(frameLocation).filter(Boolean)};
+}
+
+function parseProviderTrapCode(code){
+  try{
+    if(typeof code!=='string')return[];
+    const source=code.slice(0,MAX_CODE),marker=source.indexOf(MARKER);
+    if(marker<0)return[];
+    let begin=marker+MARKER.length;
+    while(begin<source.length&&/\s/.test(source[begin]))begin++;
+    if(source[begin]!=='[')return[];
+    const result=[];let arrays=1,objects=0,start=-1,quoted=false,escaped=false;
+    for(let index=begin+1;index<source.length&&result.length<MAX_ATTEMPTS;index++){
+      const char=source[index];
+      if(quoted){if(escaped)escaped=false;else if(char==='\\')escaped=true;else if(char==='"')quoted=false;continue;}
+      if(char==='"'){quoted=true;continue;}
+      if(char==='['){arrays++;continue;}
+      if(char===']'){if(--arrays===0)break;continue;}
+      if(char==='{'){if(objects===0&&arrays===1)start=index;objects++;continue;}
+      if(char==='}'){
+        if(--objects<0)break;
+        if(objects===0&&start>=0){
+          if(index-start+1<=MAX_ITEM){
+            try{const parsed=attempt(JSON.parse(source.slice(start,index+1)));if(parsed)result.push(parsed);}catch{}
+          }
+          start=-1;
+        }
+      }
+    }
+    return result;
+  }catch{return[];}
+}
+
+function providerTrapData(value){
+  try{
+    const messages=[],seen=new Set();let remaining=6;
+    const visit=(item,depth)=>{
+      if(remaining===0||depth>3||item==null)return;
+      if(typeof item==='string'){remaining--;messages.push(item.slice(0,MAX_CODE));return;}
+      if(typeof item!=='object'||seen.has(item))return;
+      remaining--;seen.add(item);
+      const children=[...(Array.isArray(item.errors)?item.errors.slice(0,6):[]),...(item.cause?[item.cause]:[])];
+      for(const child of children)visit(child,depth+1);
+      if(typeof item.message==='string')messages.push(item.message.slice(0,MAX_CODE));
+    };
+    visit(value,0);let matched=false;
+    for(const message of messages){
+      if(!message.includes(MARKER))continue;matched=true;
+      const diagnostics=parseProviderTrapCode(message);if(diagnostics.length)return{matched,diagnostics};
+    }
+    return{matched,diagnostics:[]};
+  }catch{return{matched:false,diagnostics:[]};}
+}
+export function extractProviderTrapFailure(value){
+  try{return providerTrapData(value).diagnostics;}catch{return[];}
+}
+export function observeProviderTrapFailure(value){
+  try{
+    const result=providerTrapData(value);
+    if(result.matched)console.info('t54_provider_trap_diagnostic',JSON.stringify(result.diagnostics));
+  }catch{}
 }

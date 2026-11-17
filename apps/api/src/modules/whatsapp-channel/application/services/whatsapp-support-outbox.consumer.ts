@@ -24,10 +24,11 @@ const object = (value: unknown): Record<string, unknown> => value !== null && ty
 const scopeOf = (a: StoredOperatorAuthority) => ({ merchantId: a.merchantId, configId: a.configId, whatsappSessionId: a.whatsappSessionId });
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 class OperatorNotStarted extends Error { constructor(readonly code: string) { super(code); } }
-interface Facts { connection: OperatorConnection; member: MerchantUser | null }
+interface Facts { connection: OperatorConnection; member: MerchantUser | null; receiptIdentity?: { providerAccountId: string; sender?: string } }
 interface Attempt {
   proof: Readonly<OperatorDispatchProof>; authority: Readonly<StoredOperatorAuthority>; token: string;
   requestScope: OperatorRequestScope; text: string;
+  providerAccountId?: string; sender?: string;
 }
 interface RequestTracker { invoked: boolean; commitUnknown: boolean; denied?: string }
 
@@ -100,8 +101,8 @@ export class WhatsAppSupportOutboxConsumer implements OnModuleInit {
       const token = randomUUID(), requestScope = Object.freeze({ ...facts.connection.scope, messageId: proof.correlationId });
       await saveOperatorDeliveryWithin(tx, command, { status: "queued", providerMessageId: null }, { internalState: "preparing", processingToken: token,
         privatePatch: { submission: { attemptToken: token, outboxEventId: proof.eventId, outboxLeaseToken: proof.leaseToken,
-          credentialDigest: requestScope.credentialDigest, phase: "preparing" } } });
-      return { proof, authority, token, requestScope, text: command.message.content };
+          credentialDigest: requestScope.credentialDigest, ...facts.receiptIdentity, phase: "preparing" } } });
+      return { proof, authority, token, requestScope, text: command.message.content, ...facts.receiptIdentity };
     });
   }
   private async start<T>(attempt: Attempt, tracker: RequestTracker, actual: Extract<WhatsAppRequestScope, { kind: "whatsapp" }>, start: () => Promise<T>): Promise<T> {
@@ -161,7 +162,8 @@ export class WhatsAppSupportOutboxConsumer implements OnModuleInit {
     });
   }
   private attemptJson(attempt: Attempt) { return { attemptToken: attempt.token, outboxEventId: attempt.proof.eventId,
-    outboxLeaseToken: attempt.proof.leaseToken, credentialDigest: attempt.requestScope.credentialDigest }; }
+    outboxLeaseToken: attempt.proof.leaseToken, credentialDigest: attempt.requestScope.credentialDigest,
+    ...(attempt.providerAccountId ? { providerAccountId: attempt.providerAccountId } : {}), ...(attempt.sender ? { sender: attempt.sender } : {}) }; }
   private ownsAttempt(command: StoredOperatorCommand, attempt: Attempt): boolean {
     const value = object(command.response.submission);
     return value.attemptToken === attempt.token && value.outboxEventId === attempt.proof.eventId && value.outboxLeaseToken === attempt.proof.leaseToken
@@ -186,7 +188,12 @@ export class WhatsAppSupportOutboxConsumer implements OnModuleInit {
     const config: WhatsAppChannelConfigEntity = { ...raw, credentials: decodeWhatsAppCredentials(object(raw.credentials)),
       whatsappNumber: raw.whatsappNumber ?? undefined, deviceId: raw.deviceId ?? undefined, phoneNumber: raw.phoneNumber ?? undefined,
       webhookSecret: raw.webhookSecret ?? undefined, connectedAt: raw.connectedAt ?? undefined };
-    return { member, connection: operatorConnection(config, authority) };
+    const connection = operatorConnection(config, authority);
+    const providerAccountId = config.provider === "META_CLOUD" ? config.credentials.phoneNumberId : config.credentials.accountSid;
+    const sender = config.provider === "TWILIO" && typeof config.credentials.senderId === "string"
+      ? whatsappE164(config.credentials.senderId.replace(/^whatsapp:/, "")) : undefined;
+    return { member, connection, ...(connection.kind === "ready" && typeof providerAccountId === "string"
+      ? { receiptIdentity: { providerAccountId, ...(sender ? { sender } : {}) } } : {}) };
   }
   private denied(command: StoredOperatorCommand, locked: LockedWhatsAppConversation, facts: Facts): string | undefined {
     const a = command.authority, binding = locked.binding;

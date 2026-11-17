@@ -173,7 +173,7 @@ describe("T74", () => {
   });
 
   it("reports an uncertain network result without changing local records or resending the mutation", async () => {
-    const f = await fixture({ handle: r => { if (r.method !== "GET") throw new Error("network unavailable"); } });
+    const f = await fixture({ handle: r => { if (r.method !== "GET") throw new Error("network unavailable"); return undefined; } });
     await act(async () => { await f.vm().actions.deactivateProfessional(professional.id, 7); });
     expect(f.vm().command).toMatchObject({ status: "uncertain", errorKind: "network" });
     expect(f.vm().loadState.data?.professionals.items[0].isActive).toBe(true);

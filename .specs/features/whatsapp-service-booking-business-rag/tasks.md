@@ -1230,6 +1230,8 @@ T107 → T106
 
 ### T55: Preserve delivery and read receipts
 
+**Status**: Complete (local Full/Build, 2026-11-17). Current own Root e6a53bad2-based source: unfiltered53-file727/727 components, actual native173/173 in18wholefiles, compiledTwilio2, normal48/widget176, privacy7 and header9/9; own ordinary checked2552/inpute48c83ce/artifact7c492f64, APIlint/types0. Native/product/worker cleanup0 and final ownprocesses0. Historical failures/refusals, static-count wrapperd691FAILED, TS2322 and cache-env build failure are retained in task-55-evidence.json; later passes do not assign their cause. Original approved54dbd exact; public privacy and original-account/attempt fences preserved. T55 marked before its focused atomic commit; no provider/production/final-feature acceptance claim.
+
 **What**: Mapear queued/accepted/delivered/read/failed/unknown com correlação e eventos fora de ordem; callback autenticado e monotonicidade, aceite não é leitura.
 **Where**: `apps/api/src/modules/whatsapp-channel/application/services/whatsapp-support-delivery.service.ts`
 **Depends on**: T54
@@ -1238,12 +1240,12 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP callback/DB: read antes de delivered, duplicata, outro tenant/providerId, assinatura inválida e unknown reconciliado.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] HTTP callback/DB: read antes de delivered, duplicata, outro tenant/providerId, assinatura inválida e unknown reconciliado.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: HTTP callback/DB: read antes de delivered, duplicata, outro tenant/providerId, assinatura inválida e unknown reconciliado.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T55$" ./src/modules/whatsapp-channel/application/services/whatsapp-support-delivery.service.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T55 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Focused `domain/services/whatsapp-operator-receipt.spec.ts`, unchanged delivery merge/authority companions, public-url and explicit fixture contracts, existing status/AI/order receipt regressions; actual signed callback AppModule/auth/HTTP/Socket.IO/SQL `tests/whatsapp-operator-receipt.integration.spec.mjs` and owned-PG `tests/whatsapp-operator-receipt-db.integration.spec.mjs`. Read-before-delivered, full-row duplicate/no-op preservation, original unknown/early/deferred-COMMIT settlement, durable no-start refusal, late history, exact tenant/config/account/ID/sender/recipient/signature/encoded query, complete evolving form and final realtime-outbox rollback; no provider delivery/read claim.
+**Gate**: Build (end of Phase7): header **Build** commands and Phase7 component/native regression gates, including the unchanged T54 unit/native55 scope and original signed intake/routing/AI fences. Protected Node unit runner without a name filter for the concrete companions in Tests. Fresh official checked API build; from apps/api `node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/whatsapp-operator-receipt.integration.spec.mjs ./tests/whatsapp-operator-receipt-db.integration.spec.mjs` plus the existing phase companions recorded in T48-T54. Every root/child executes, zero skipped. These concrete spec-derived companions replace the proposed artificial missing root spec; final HUM-05/HUM-07 checks and feature-level verification remain mandatory.
 **Commit**: `feat(service-business): t55 preserve delivery and read receipts`
 
 ### T56: Close the active human case and resume once
@@ -2558,6 +2560,8 @@ Tasks: T107.
 Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; independent70/components, types/lint/build and six native captures reviewed PASS. See task-107-evidence.json; no105/106/final-feature claim.
 
 ## Handoff
+
+**Integrated T55:** Exact worker commit 5a10fad61 contributes authenticated receipts and relay startup repair. Gates727 components/173 native/2 compiled/224 products/privacy7 and all9 header checks passed on its own2552/e48c/7c49 artifact. Root keeps the71 model-script delta uncommitted beside the staged55 worker blob. Earlier failures remain recorded. Combined Root API requires a fresh checked build; no integration runtime or remote action claimed. M56 source-only; C sole runtime for105.
 
 **Integrated local T77:** Cc1439c7b9 current187/16,lint15,current API admission and wholeBrowser4/eight native pictures passed with original quotas. Root reviewed five changed/new pictures and three byte-equal originals. Integrate25 exact C blobs plus scoped task/state metadata, preserving Root71 source work. User visual feedback remains pending; no105/106/78 or API/package/schema changes.
 

@@ -4,6 +4,13 @@ import test from 'node:test';
 import {MODULE_METADATA} from '@nestjs/common/constants.js';
 import {createLocalWhatsAppProviderFixture,validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
 
+test('operator receipt fixture admits only an explicit owned-listener callback option, never a caller URL',()=>{
+  assert.deepEqual(validateLocalWhatsAppOptions({operatorStatusCallbacks:true}),{voiceTranscripts:{},operatorStatusCallbacks:true});
+  for(const value of [false,'https://outside.example.test',{},[]])
+    assert.throws(()=>validateLocalWhatsAppOptions({operatorStatusCallbacks:value}),/local_operator_status_fixture_invalid/);
+  assert.deepEqual(validateLocalWhatsAppOptions(true),{voiceTranscripts:{}});
+});
+
 test('local WhatsApp fixture rejects endpoints, credentials, malformed and oversized transcripts',()=>{
   assert.deepEqual(validateLocalWhatsAppOptions(true),{voiceTranscripts:{}});
   for(const value of [false,null,{url:'https://outside.example.test'},{accessToken:'not-allowed'},{voiceTranscripts:{bad:'Text'}},{voiceTranscripts:{'123':'x'.repeat(4001)}},{voiceTranscripts:{'123':''}}])

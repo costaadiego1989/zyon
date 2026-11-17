@@ -30,3 +30,28 @@ export function twilioWhatsAppCallbackUrl(env: NodeJS.ProcessEnv = process.env):
   const base = resolvePublicApiBaseUrl(env);
   return base ? `${base}/v1/webhooks/whatsapp/twilio` : null;
 }
+
+const OPERATOR_STATUS_PATH = "/v1/webhooks/whatsapp/twilio/status";
+const callbackSelector = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 1024 && value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value);
+function operatorStatusBase(env: NodeJS.ProcessEnv): string | null {
+  const base = resolvePublicApiBaseUrl(env); if (!base) return null;
+  const url = new URL(base);
+  return url.username || url.password || url.search || url.hash ? null : base;
+}
+/** Public selectors only. Private attempt, lease and credential facts stay in
+ * storage and cannot be granted by a copied callback URL. */
+export function twilioOperatorStatusCallbackUrl(configId: string, correlationId: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const base = operatorStatusBase(env);
+  if (!base || !callbackSelector(configId) || !callbackSelector(correlationId)
+    || !correlationId.startsWith("support_message:") || correlationId.length <= "support_message:".length) return null;
+  return `${base}${OPERATOR_STATUS_PATH}?configId=${encodeURIComponent(configId)}&correlationId=${encodeURIComponent(correlationId)}`;
+}
+/** Preserve the original encoded query exactly for signature validation. The
+ * configured public prefix supplies the external URL; Host is not authority. */
+export function twilioOperatorStatusRequestUrl(originalUrl: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const base = operatorStatusBase(env);
+  if (!base || typeof originalUrl !== "string" || originalUrl.length > 8192 || originalUrl.includes("#")) return null;
+  const query = originalUrl.indexOf("?");
+  if ((query < 0 ? originalUrl : originalUrl.slice(0, query)) !== OPERATOR_STATUS_PATH) return null;
+  return base + originalUrl;
+}

@@ -134,9 +134,11 @@ try{
   await tracker.capture({warmLazy:true});
   stage('clients_ready');
   const address=app.getHttpServer().address();assert.equal(address.address,'127.0.0.1');
+  if(localWhatsApp?.operatorStatusCallbacks)process.env.API_PUBLIC_URL=`http://127.0.0.1:${address.port}`;
   assert.equal(trap.evidence().providerCalls,0);
   process.send({type:'ready',apiOrigin:`http://127.0.0.1:${address.port}`,evidence:{canonicalAppModule:true,
-    repositoryOverrides:false,authOverrides:false,providerCalls:0,localProviderOverrides:fixtureOverrideNames,...(modelFixture?{localModelOverrides:modelOverrideNames}:{}),embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
+    repositoryOverrides:false,authOverrides:false,providerCalls:0,localProviderOverrides:fixtureOverrideNames,
+    ...(localWhatsApp?.operatorStatusCallbacks?{localOperatorStatusCallbacks:true}:{}),...(modelFixture?{localModelOverrides:modelOverrideNames}:{}),embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
   process.on('message',async message=>{
     if(message?.type!=='close')return;
     try{const evidence=await close();cleanupResources('before_closed_ack');process.send({type:'closed',evidence},()=>process.disconnect());}

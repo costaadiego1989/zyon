@@ -5,6 +5,7 @@ import { OutboxBullMqRelay } from "./outbox-bullmq-relay.service.js";
 import { OutboxDispatcher } from "../outbox-dispatcher.service.js";
 import { InMemoryOutboxRepository } from "./in-memory-outbox.repository.js";
 import { InMemoryDomainEventBus } from "../../events/in-memory-domain-event-bus.js";
+import { MetricsService } from "../../observability/metrics.service.js";
 
 // Actual relay process, declared dispatcher/worker/metric doubles only. This
 // does not start BullMQ, Redis, Nest HTTP, a provider or a durable dispatcher.
@@ -74,4 +75,74 @@ test("a fresh relay instance still dispatches normally after a different instanc
   const closing = fresh.relay.onModuleDestroy(); fresh.dispatcher.release(); await flush();
   try { assert.deepEqual(fresh.order, ["worker:start", "worker:closed", "queue:closed"]); }
   finally { t.mock.timers.setTime(60_000); t.mock.timers.tick(1000); await flush(); await Promise.all([active, closing]); }
+});
+
+// Additional component cases. The four original test bodies and their fixture
+// remain unchanged. Clock doubles here never enter a real PG/Redis runtime.
+class StartupReadyDispatcher extends OutboxDispatcher {
+  calls = 0;
+  completedAt = 0;
+  failure?: Error;
+  private releaseGate!: () => void;
+  private readonly gate = new Promise<void>(resolve => { this.releaseGate = resolve; });
+  constructor() { super(new InMemoryOutboxRepository(), new InMemoryDomainEventBus()); }
+  override async dispatch(): Promise<void> { this.calls++; await this.gate; if (this.failure) throw this.failure; this.completedAt = 123_000; }
+  override getLastCompletedRoundAt(): number { return this.completedAt; }
+  release() { this.releaseGate(); }
+}
+function startupReadinessFixture() {
+  const dispatcher = new StartupReadyDispatcher(), observability = new MetricsService();
+  const relay = new OutboxBullMqRelay(dispatcher, observability);
+  const clients = [{ status: "ready" }, { status: "ready" }, { status: "ready" }];
+  let running = true, active: Promise<void> = Promise.resolve();
+  Reflect.set(relay, "queueClient", clients[0]); Reflect.set(relay, "workerClient", clients[1]); Reflect.set(relay, "blockingClient", clients[2]);
+  Reflect.set(relay, "worker", { isRunning: () => running, async close() { await active; } });
+  Reflect.set(relay, "queue", { async close() {} });
+  const process = Reflect.get(relay, "process"); assert.equal(typeof process, "function");
+  const metric = async (name: string) => {
+    const gauge = observability.registry.getSingleMetric(name); assert.ok(gauge);
+    const value = await gauge.get(); assert.equal(value.values.length, 1); return value.values[0]!.value;
+  };
+  return { dispatcher, relay, clients, metric, setRunning(value: boolean) { running = value; }, start() { active = Reflect.apply(process, relay, [{}]); return active; } };
+}
+
+test("connected clients are not ready before the first real process round completes and stopping clears readiness", async t => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 1_000 });
+  const f = startupReadinessFixture(); assert.equal(await f.metric("outbox_relay_ready"), 0);
+  const active = f.start(); let closing: Promise<void> | undefined;
+  try {
+    assert.equal(f.dispatcher.calls, 1); assert.equal(await f.metric("outbox_relay_ready"), 0);
+    assert.equal(await f.metric("outbox_relay_last_dispatch_timestamp_seconds"), 0);
+    f.dispatcher.release(); await flush();
+    assert.equal(await f.metric("outbox_relay_ready"), 1);
+    assert.equal(await f.metric("outbox_relay_last_dispatch_timestamp_seconds"), 123);
+    closing = f.relay.onModuleDestroy(); assert.equal(await f.metric("outbox_relay_ready"), 0);
+  } finally {
+    closing ??= f.relay.onModuleDestroy(); f.dispatcher.release(); await flush();
+    t.mock.timers.tick(1000); await flush(); await Promise.all([active, closing]);
+  }
+});
+
+test("a completed first round cannot make disconnected Redis clients or a stopped worker ready", async t => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 1_000 });
+  const f = startupReadinessFixture(), active = f.start(); f.dispatcher.release(); await flush();
+  try {
+    assert.equal(await f.metric("outbox_relay_ready"), 1);
+    for (const client of f.clients) {
+      client.status = "reconnecting"; assert.equal(await f.metric("outbox_relay_ready"), 0);
+      client.status = "ready"; assert.equal(await f.metric("outbox_relay_ready"), 1);
+    }
+    f.setRunning(false); assert.equal(await f.metric("outbox_relay_ready"), 0);
+  } finally {
+    const closing = f.relay.onModuleDestroy(); await flush(); t.mock.timers.tick(1000); await flush(); await Promise.all([active, closing]);
+  }
+});
+
+test("a failed initial process round never advertises readiness or a completed dispatch timestamp", async t => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 1_000 });
+  const f = startupReadinessFixture(), failure = new Error("synthetic_initial_dispatch_failed"); f.dispatcher.failure = failure;
+  const active = f.start(), rejected = assert.rejects(active, error => error === failure); f.dispatcher.release(); await rejected;
+  assert.equal(await f.metric("outbox_relay_ready"), 0);
+  assert.equal(await f.metric("outbox_relay_last_dispatch_timestamp_seconds"), 0);
+  await assert.rejects(f.relay.onModuleDestroy(), error => error === failure);
 });

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, OnModuleInit, OnModuleDestroy, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy, Optional } from "@nestjs/common";
 import { Queue, Worker, type Job } from "bullmq";
 import type { RedisOptions } from "ioredis";
 import { OutboxDispatcher } from "../outbox-dispatcher.service.js";
@@ -44,7 +44,7 @@ function redisConnection(): RedisOptions | null {
  * - DLQ after MAX_ATTEMPTS
  */
 @Injectable()
-export class OutboxBullMqRelay implements OnModuleInit, OnModuleDestroy {
+export class OutboxBullMqRelay implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(OutboxBullMqRelay.name);
   private queue: Queue<OutboxRelayJobData> | null = null;
   private worker: Worker<OutboxRelayJobData> | null = null;
@@ -59,15 +59,15 @@ export class OutboxBullMqRelay implements OnModuleInit, OnModuleDestroy {
     @Optional() @Inject(MetricsService) metrics?: MetricsService) {
     if (metrics) {
       const registers = [metrics.registry];
-      this.ready = new Gauge({ name: "outbox_relay_ready", help: "Whether the worker and its existing Redis clients are ready", registers,
+      this.ready = new Gauge({ name: "outbox_relay_ready", help: "Whether the worker and Redis clients are ready after a completed dispatcher round", registers,
         collect: () => this.ready!.set(!this.metricsStopping && this.worker?.isRunning() && this.queueClient?.status === "ready" &&
-          this.workerClient?.status === "ready" && this.blockingClient?.status === "ready" ? 1 : 0) });
+          this.workerClient?.status === "ready" && this.blockingClient?.status === "ready" && this.dispatcher.getLastCompletedRoundAt() > 0 ? 1 : 0) });
       this.lastDispatch = new Gauge({ name: "outbox_relay_last_dispatch_timestamp_seconds", help: "Last completed dispatcher round; not proof of external delivery", registers });
       this.lastDispatch.set(0);
     }
   }
 
-  async onModuleInit(): Promise<void> {
+  async onApplicationBootstrap(): Promise<void> {
     const connection = redisConnection();
     if (!connection) return; // OutboxDispatcher handles fallback
 
@@ -75,14 +75,14 @@ export class OutboxBullMqRelay implements OnModuleInit, OnModuleDestroy {
     // Observe the existing clients without waiting or changing startup flow.
     void this.queue.client.then(client => { this.queueClient = client; }).catch(() => {});
 
-    // Ensure a recurring job fires every minute
+    // Enter the existing BullMQ job immediately; later iterations keep the minute cron.
     try {
       await this.queue.add(
         JOB_NAME,
         { triggeredAt: new Date().toISOString() },
         {
           jobId: RECURRING_JOB_KEY,
-          repeat: { pattern: CRON_EVERY_SECOND },
+          repeat: { pattern: CRON_EVERY_SECOND, immediately: true },
           removeOnComplete: 100,
           removeOnFail: 500,
         },
