@@ -66,10 +66,20 @@ export class WhatsAppCheckoutIdentityService {
     if (!config || !conversation || payload?.provider !== "META_CLOUD" ||
       payload.fromNumber?.replace(/\D/g, "") !== proof.fromNumber.replace(/\D/g, "")) return noBuyer;
     const owner = { merchantId: input.merchantId, conversationId: input.conversationId, phone: proof.fromNumber.replace(/\D/g, "") };
+    // A confirmed channel link is independent from the editable profile phone.
+    // Resolve it only after proving this turn's current merchant/inbox/sender.
+    const links = await this.prisma.buyerVerifiedPhone?.findMany({ where: {
+      phone: { in: phones.filter(phone => phone.startsWith("55") && phone.length >= 12) },
+    }, select: { buyerId: true } }) ?? [];
+    const linkedIds = [...new Set(links.map(link => link.buyerId))];
+    if (linkedIds.length > 1) return { status: "ambiguous", owner };
+    const linkedId = linkedIds[0];
+    const linkedAccount = linkedId ? await this.buyers.findByGlobalUserId(linkedId) : null;
+    if (linkedId && (!linkedAccount || linkedAccount.email.endsWith("@buyer.aacp"))) return { ...noBuyer, owner };
     // An email disambiguates accounts already belonging to this verified phone;
     // it never authorizes recognition of an account registered to another phone.
     const hint = input.emailHint?.trim().toLowerCase();
-    let accounts = await this.buyers.findRegisteredByPhones(phones);
+    let accounts = linkedAccount ? [linkedAccount] : await this.buyers.findRegisteredByPhones(phones);
     if (accounts.length > 1) {
       if (!hint || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(hint)) return { status: "ambiguous", owner };
       const selected = await this.buyers.findRegisteredByPhones(phones, hint);
@@ -87,7 +97,7 @@ export class WhatsAppCheckoutIdentityService {
       accounts = [...guests.values()];
     }
     const account = accounts[0];
-    if (!account?.phone || !brazilianPhoneForms(account.phone).some(phone => phones.includes(phone))) return { ...noBuyer, owner };
+    if (!account || !linkedId && (!account.phone || !brazilianPhoneForms(account.phone).some(phone => phones.includes(phone)))) return { ...noBuyer, owner };
     const [addresses, preference] = await Promise.all([
       this.prisma.buyerAddress.findMany({ where: { globalUserId: account.globalUserId }, take: 2,
         orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }] }),
@@ -107,7 +117,7 @@ export class WhatsAppCheckoutIdentityService {
       globalUserId: account.globalUserId, customer: { fullName: account.email.endsWith("@buyer.aacp") ? undefined : account.displayName,
         email: account.email.endsWith("@buyer.aacp") ? undefined : account.email,
         cpf: account.cpf, phone: proof.fromNumber.replace(/\D/g, ""), phone_verified: true, email_verified: false,
-        recognized_buyer: true, isReturning: true, address, address_verified: isCompleteBuyerAddress(address) }, preferences } };
+        recognized_buyer: true, isReturning: true, address, address_verified: linkedId ? false : isCompleteBuyerAddress(address) }, preferences } };
   }
 
   async emailHint(merchantId: string, buyer: { globalUserId: string; phone: string }): Promise<string | undefined> {
