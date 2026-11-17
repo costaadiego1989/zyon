@@ -4,6 +4,7 @@ import { cleanEmailSubject } from "../../../shared/messaging/email-content.js";
 
 /** Recipient-facing subjects are independent of the labels in the template editor. */
 export const EMAIL_TEMPLATE_SUBJECTS: Record<WhatsAppTemplateType, string> & Record<string, string> = {
+  campaign_ready:'{{storeName}} | Campanha {{campaignName}} pronta para aprovação',
   cashback_available: "{{storeName}} | Seu cashback está disponível",
   cashback_expiring: "{{storeName}} | Seu cashback está próximo do vencimento",
   shopping_agent_alert: "{{storeName}} | Atualização do seu agente pessoal",

@@ -29,6 +29,7 @@ export interface WhatsAppTemplateDefinition {
 }
 
 const SAMPLES: Record<string, string> = {
+  campaignName:'Coleção verão',campaignVersion:'b541e8027a19',campaignReviewLink:'https://app.zyon-payments.com.br/#meta-ads-agent?store=loja_exemplo&campaign=campanha_exemplo&proposal=proposta_exemplo',
   cashbackAmount: "R$ 10,00", cashbackExpiresAt: "21/11/2026",
 alertName: "MarketplaceOutboxDeliveryFailures",
 alertStatus: "ativo",
@@ -59,6 +60,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
   sampleVariables: Record<string, string>;
 } {
   const ordered: Array<{ name: string; token: RegExp }> = [
+    ...['campaignName','campaignVersion','campaignReviewLink'].map(name=>({name,token:new RegExp('\\{\\{'+name+'\\}\\}','g')})),
     ...["cashbackAmount", "cashbackExpiresAt"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
     ...["alertName", "alertStatus", "alertSeverity", "observedAt"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
     ...["merchantName", "planName", "expiresAt", "dashboardLink"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
@@ -90,6 +92,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
 
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
+  campaign_ready:'A campanha {{campaignName}} da {{storeName}}, revisão {{campaignVersion}}, está pronta para aprovação administrativa. Revise criativos, público, datas e orçamento no painel: {{campaignReviewLink}}.\n\nA campanha só será publicada após aprovação no painel.',
   cashback_available: "Olá, {{buyerName}}. Você tem {{cashbackAmount}} de cashback disponível na {{storeName}}. Consulte seu saldo e as regras na sua conta da loja. O mesmo crédito pode ser usado no site e no WhatsApp.",
   cashback_expiring: "Olá, {{buyerName}}. Seu cashback de {{cashbackAmount}} na {{storeName}} vence em {{cashbackExpiresAt}}. Consulte o saldo e as condições na sua conta da loja.",
   shopping_agent_alert: "Olá, {{buyerName}}. Seu agente pessoal encontrou uma atualização para {{productName}}. Revise a tarefa e as condições atuais: {{link}}.\n\nAtenciosamente,\n{{storeName}}",
@@ -130,6 +133,7 @@ Consulte as informações da sua compra. O acesso a produtos digitais é enviado
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
+  campaign_ready:false,
   cashback_available: false, cashback_expiring: false,
   shopping_agent_alert: false,
 marketplace_operational_alert: false,
@@ -152,6 +156,7 @@ marketplace_operational_alert: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
+  campaign_ready:'Campanha pronta para aprovação',
   cashback_available: "Cashback disponível", cashback_expiring: "Cashback próximo do vencimento",
   shopping_agent_alert: "Aviso do agente pessoal",
 marketplace_operational_alert: "Marketplace: alerta operacional",

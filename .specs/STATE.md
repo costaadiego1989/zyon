@@ -24,3 +24,5 @@
 - T13 complete: explicit preparation service and public status, preserves quota/blockers/unknown jobs and refreshes stale review without new image identity.9 PG/full547 API, lint0. T14 worker and purpose-bound generation next.
 
 - T14 complete: purpose-bound durable preparation worker; server-only generation authority and dispatch callbacks.31 focused/full563 API, lint0.14 worker cases; paid unknown hold, two-worker exclusivity, proposal/outbox recovery and verified replacement reuse. T15 templates next; T16-T35 and final independent gates remain.
+
+- T15 complete: separate campaign_ready catalog type and scoped variables; proposed Utility, not proof of Meta eligibility.18 catalog/factory/compatibility cases and lint0. T16 sender next.
