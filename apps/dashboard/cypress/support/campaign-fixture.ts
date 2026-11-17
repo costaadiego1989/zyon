@@ -1,4 +1,4 @@
-import {api,control,eventuallyFacts} from './agentic.js';
+import {api,closeChat,control,eventuallyFacts,openChat} from './agentic.js';
 export const command=(path:string,body:Cypress.RequestBody={})=>cy.request({url:api()+'/v1/meta-ads-agent'+path,method:'POST',headers:{origin:'http://127.0.0.1:5179'},body});
 /** Prerequisite data through real signed canonical APIs. Campaign gestures are proved separately. */
 export function preparedCampaign(){
@@ -11,5 +11,5 @@ export function preparedCampaign(){
   });
 }
 export function externalImages(){cy.intercept('GET','https://media.example.test/**',{statusCode:200,headers:{'content-type':'image/png'},fixture:'agentic-creative.png,null'});}
-export function openReport(){cy.contains('button','Atualizar conversa').click();cy.contains('[role="tab"]','Métricas').click();cy.contains('summary','Relatórios diários').then(summary=>{if(!(summary[0].parentElement as HTMLDetailsElement).open)cy.wrap(summary).click();});cy.get('[aria-label="Dia do relatório"]').select('16/11/2026 · America/Sao_Paulo');}
+export function openReport(){openChat();cy.contains('button','Atualizar conversa').click();closeChat();cy.contains('[role="tab"]','Métricas').click();cy.contains('summary','Relatórios diários').then(summary=>{if(!(summary[0].parentElement as HTMLDetailsElement).open)cy.wrap(summary).click();});cy.get('[aria-label="Dia do relatório"]').select('16/11/2026 · America/Sao_Paulo');}
 export function clock(now:string){return control('clock',{now});}

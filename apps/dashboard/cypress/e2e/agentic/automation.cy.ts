@@ -1,4 +1,4 @@
-import {api,ask,control,enter,eventuallyFacts,reset,scenario} from '../../support/agentic.js';
+import {api,ask,closeChat,control,enter,eventuallyFacts,reset,scenario} from '../../support/agentic.js';
 const panel='[aria-label="Autonomia dos anúncios"]';
 function campaign(automatic=false){ask(`Quero vender mais camisas na loja, priorizar vendas pagas no Brasil e aprovar ${automatic?'automaticamente':'manualmente'}.`);ask('R$ 100 no total, de 16/11/2026 às 12h UTC até 23/11/2026 às 12h UTC.');}
 function review(limit=100){cy.get(panel).contains('button','Automático').click();cy.get('.chat-dock-reply').last().should('contain.text','limites');ask(`Autorizar Camisa para novas campanhas na loja, vendas pagas no Brasil; preparar, publicar, pausar e alterar orçamento; teto por campanha R$ ${limit}, teto da loja R$ 200 no total de 16/11/2026 às 12h UTC até 23/11/2026 às 12h UTC.`);cy.get(panel).should('contain.text','Revise a política automática');}
@@ -27,7 +27,7 @@ describe('Autonomia limitada pelo lojista',()=>{
   });
   scenario('ADAS-57','return to manual while a dispatched image is pending prevents all subsequent campaign writes',()=>{
     review();accept();control('images',{hold:true});campaign(true);eventuallyFacts(body=>body.images===1&&body.states[0].generations.some((job:{status:string})=>job.status==='running'));
-    cy.get(panel).contains('button','Voltar para aprovação manual').click();cy.get(panel).should('contain.text','Modo atual: aprovação manual');control('images',{hold:false});eventuallyFacts(body=>body.states[0].generations.some((job:{status:string})=>job.status==='succeeded'));control('automatic',{});
+    closeChat();cy.get(panel).contains('button','Voltar para aprovação manual').click();cy.get(panel).should('contain.text','Modo atual: aprovação manual');control('images',{hold:false});eventuallyFacts(body=>body.states[0].generations.some((job:{status:string})=>job.status==='succeeded'));control('automatic',{});
     control('facts').then(({body})=>{const state=body.states[0];expect(state.policy.mode).eq('manual');expect(state.policy.policy.revokedAt).not.eq(null);expect(state.automation.activePolicyId).eq(null);expect(state.policy.committedCents).eq(0);expect(body.writes).deep.eq([]);expect(body.images).eq(1);expect(state.credits.monthlyAvailable).eq(29);expect(state.executions).deep.eq([]);});
   });
 });

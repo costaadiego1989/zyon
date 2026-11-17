@@ -5,6 +5,7 @@ export function reset(){return control('reset',{});}
 export function eventuallyFacts(check:(body:any)=>boolean,left=240):Cypress.Chainable<any>{return control('facts').then(({body})=>{if(check(body))return cy.wrap(body,{log:false});if(!left)throw Error('Persisted state did not reach the required condition');cy.wait(250,{log:false});return eventuallyFacts(check,left-1);});}
 export function enter(){cy.intercept('GET','https://fonts.googleapis.com/**',{statusCode:200,headers:{'content-type':'text/css'},body:''});cy.visit('/');cy.contains('button','Entrar na loja de teste').click();cy.get('h1').should('contain.text','Anúncios com IA');cy.get('.chat-dock-composer textarea').should('exist');}
 export function openChat(){cy.get('[aria-label="Abrir assistente"]').then(button=>{if(!button[0].hidden)cy.wrap(button).click();});}
+export function closeChat(){cy.get('.chat-dock-panel').then(panel=>{if(!panel[0].hidden)cy.get('[aria-label="Recolher assistente"]').click();});}
 /** Dispatch complete Chromium key data for native button activation and focus traversal. */
 export function nativeKey(key:'Enter'|'Tab'|'Escape'|'ArrowLeft'|'ArrowRight'){
   const code={Enter:13,Tab:9,Escape:27,ArrowLeft:37,ArrowRight:39}[key],params={key,code:key,windowsVirtualKeyCode:code,nativeVirtualKeyCode:code};
