@@ -21,6 +21,9 @@ model Merchant {
   metaAdsAgentRecords MetaAdsAgentRecord[]
   assistantThreads MerchantAssistantThread[]
   metaAdsDailyRuns MetaAdsDailyRun[]
+  metaAdsCampaignPreparations MetaAdsCampaignPreparation[]
+  metaAdsCampaignNoticeContact MetaAdsCampaignNoticeContact?
+  metaAdsCampaignReadyNotices MetaAdsCampaignReadyNotice[]
   id                      String       @id
   // Stores in a Scale account share the platform subscription, never their
   // commercial integrations. A root store points to itself after migration.
@@ -180,6 +183,76 @@ model MetaAdsDailyRun {
   @@unique([merchantId, accountId, localDay, timezone], map: "meta_ads_daily_runs_day_scope_key")
   @@index([status, nextAttemptAt], map: "meta_ads_daily_runs_pending_idx")
   @@map("meta_ads_daily_runs")
+}
+
+model MetaAdsCampaignPreparation {
+  id String @id
+  merchantId String @map("merchant_id")
+  campaignId String @map("campaign_id")
+  intentDigest String @map("intent_digest")
+  campaignDigest String @map("campaign_digest")
+  requestedBy String @map("requested_by")
+  requestedImages Int @map("requested_images")
+  status String @default("queued")
+  generationId String? @map("generation_id")
+  proposalId String? @map("proposal_id")
+  checkpoint Json @default("{}")
+  missing Json @default("[]")
+  error String?
+  fence Int @default(0)
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @db.Timestamptz(3) @map("lease_until")
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3) @map("next_attempt_at")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, campaignId, intentDigest], map: "meta_ads_campaign_preparations_intent_key")
+  @@index([status, nextAttemptAt, leaseUntil], map: "meta_ads_campaign_preparations_pending_idx")
+  @@map("meta_ads_campaign_preparations")
+}
+
+model MetaAdsCampaignNoticeContact {
+  merchantId String @id @map("merchant_id")
+  phoneNumber String? @map("phone_number")
+  version Int @default(0)
+  consentVersion String? @map("consent_version")
+  consentedBy String? @map("consented_by")
+  consentedAt DateTime? @db.Timestamptz(3) @map("consented_at")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("meta_ads_campaign_notice_contacts")
+}
+
+model MetaAdsCampaignReadyNotice {
+  id String @id
+  merchantId String @map("merchant_id")
+  campaignId String @map("campaign_id")
+  proposalId String @map("proposal_id")
+  proposalDigest String @map("proposal_digest")
+  notificationId String @unique @map("notification_id")
+  reviewState String @default("awaiting_approval") @map("review_state")
+  whatsappStatus String @default("queued") @map("whatsapp_status")
+  inboxCreatedAt DateTime? @db.Timestamptz(3) @map("inbox_created_at")
+  dispatchSnapshot Json? @map("dispatch_snapshot")
+  dispatchStartedAt DateTime? @db.Timestamptz(3) @map("dispatch_started_at")
+  error String?
+  fence Int @default(0)
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @db.Timestamptz(3) @map("lease_until")
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3) @map("next_attempt_at")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  delivery WhatsAppDelivery?
+  notification MerchantNotification?
+
+  @@unique([id, merchantId], map: "meta_ads_campaign_ready_notices_scope_key")
+  @@unique([merchantId, proposalId, proposalDigest], map: "meta_ads_campaign_ready_notices_review_key")
+  @@index([whatsappStatus, nextAttemptAt, leaseUntil], map: "meta_ads_campaign_ready_notices_pending_idx")
+  @@map("meta_ads_campaign_ready_notices")
 }
 
 model MelhorEnvioWallet {
@@ -3470,7 +3543,10 @@ model MerchantNotification {
   metadata   Json?
   read       Boolean  @default(false)
   createdAt  DateTime @default(now()) @map("created_at")
+  campaignReadyNoticeId String? @map("campaign_ready_notice_id")
+  campaignReadyNotice MetaAdsCampaignReadyNotice? @relation(fields: [campaignReadyNoticeId, merchantId], references: [id, merchantId], onDelete: Cascade, map: "merchant_notifications_campaign_notice_scope_fkey")
 
+  @@unique([campaignReadyNoticeId, merchantId], map: "merchant_notifications_campaign_notice_key")
   @@index([merchantId, createdAt])
   @@index([merchantId, read])
   @@map("merchant_notifications")
@@ -3675,6 +3751,9 @@ model WhatsAppDelivery {
   providerMessageId String? @map("provider_message_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+  campaignReadyNoticeId String? @map("campaign_ready_notice_id")
+  campaignReadyNotice MetaAdsCampaignReadyNotice? @relation(fields: [campaignReadyNoticeId, merchantId], references: [id, merchantId], onDelete: Cascade, map: "whatsapp_deliveries_campaign_notice_scope_fkey")
+  @@unique([campaignReadyNoticeId, merchantId], map: "whatsapp_deliveries_campaign_notice_key")
   @@index([merchantId, state])
   @@index([providerMessageId])
   @@map("whatsapp_deliveries")
