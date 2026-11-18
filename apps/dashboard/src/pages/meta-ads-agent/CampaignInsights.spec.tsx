@@ -13,7 +13,7 @@ test("results distinguish conversations, confirmed orders and attributed revenue
   expect(screen.container.textContent).toContain("Conversas18"); expect(screen.container.textContent).toContain("Compras pagas confirmadas3");
   expect(screen.container.textContent).toContain("Receita paga confirmadaR$ 300,00"); expect(screen.container.textContent).toContain("Vendas informadas pela MetaR$ 500,00");
   expect(screen.container.textContent).toContain("Resultado com custos informadosIndisponível"); expect(screen.container.textContent).toContain("parcial"); expect(screen.container.textContent).toContain("Dados desatualizados");
-  expect(screen.container.textContent).toContain("America/Sao_Paulo"); expect(screen.container.textContent).toContain("7 dias após clique"); expect(screen.container.textContent).toContain("não são uma garantia de vendas causadas pelos anúncios");
+  expect(screen.container.textContent).not.toContain("America/Sao_Paulo"); expect(screen.container.textContent).toContain("7 dias após clique"); expect(screen.container.textContent).toContain("não são uma garantia de vendas causadas pelos anúncios");
   expect(screen.container.querySelectorAll("button")).toHaveLength(0); expect(screen.container.textContent).toContain("Somente análise");
 });
 test("recommendation shows priority, hypothesis and evidence and requires an explicit proposal gesture", async () => {

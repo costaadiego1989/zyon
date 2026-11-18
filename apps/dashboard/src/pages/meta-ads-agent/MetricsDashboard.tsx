@@ -7,6 +7,7 @@ import {buildAdsDashboard,type AdsPoint,type AdsTotals} from './metrics-dashboar
 import {money,useAction} from './presentation.js';
 import './metrics-dashboard.css';
 import {AdTermsHelp} from './AdTermsHelp.js';
+import {PeriodFilter} from '../../components/PeriodFilter.js';
 
 interface Props {
   reports:MetaAdsDailyReport[];accountId:string|null;campaignNames:Record<string,string>;
@@ -43,18 +44,20 @@ function MetricChart({points,currency,kind,active}:{points:AdsPoint[];currency:s
 }
 
 export function MetricsDashboard({reports,accountId,campaignNames,active=true,error,loading,onRefresh,onSettings}:Props) {
-  const [days,setDays]=useState<1|7|30>(7),[campaignId,setCampaignId]=useState(''),[refreshing,setRefreshing]=useState(false),[refreshError,setRefreshError]=useState('');
+  const [period,setPeriod]=useState('7'),[range,setRange]=useState<{days:number;throughDay:string}|null>(null),[campaignId,setCampaignId]=useState(''),[refreshing,setRefreshing]=useState(false),[refreshError,setRefreshError]=useState('');
   const id=useId();
   const feedback=useAction();
-  const data=useMemo(()=>buildAdsDashboard(reports,{accountId,days,campaignId}),[reports,accountId,days,campaignId]);
+  const data=useMemo(()=>buildAdsDashboard(reports,{accountId,days:range?.days??Number(period),throughDay:range?.throughDay,campaignId}),[reports,accountId,period,range,campaignId]);
+  function changeDate(field:'from'|'to',value:string){if(!value){setRange(null);setPeriod('7');return;}let from=field==='from'?value:data.since??value,to=field==='to'?value:data.until??value;if(from>to){if(field==='from')to=from;else from=to;}setRange({days:Math.round((Date.parse(to+'T12:00:00Z')-Date.parse(from+'T12:00:00Z'))/86400000)+1,throughDay:to});}
   const campaigns=useMemo(()=>[...new Set([...Object.keys(campaignNames),...reports.filter(report=>report.accountId===accountId).flatMap(report=>report.campaigns.map(row=>row.campaignId))])].map((value,index)=>({id:value,name:campaignNames[value]??`Campanha ${index+1}`})),[reports,accountId,campaignNames]);
   const name=(value:string)=>campaigns.find(c=>c.id===value)?.name??'Campanha';
   const note=(key:keyof AdsTotals)=>data.totals[key]!==null&&data.partialMetrics.includes(key)?'Parcial':undefined;
   async function refresh(){if(refreshing)return;setRefreshing(true);setRefreshError('');await feedback.run(async()=>{try{await onRefresh();}catch(error){setRefreshError('Não foi possível atualizar as métricas.');throw error;}},'Consulta de métricas atualizada. Confira a data da coleta.');setRefreshing(false);}
   return <section className="mga-metrics" aria-labelledby={`${id}-title`}>
-    <div className="mga-metrics-heading"><div><h2 id={`${id}-title`}>Desempenho dos anúncios</h2><p>{data.since&&data.until?`${day(data.since)} a ${day(data.until)}`:'Aguardando a primeira coleta'}{data.timezone&&<> · {data.timezone}</>}</p></div>
+    <div className="mga-metrics-heading"><div><h2 id={`${id}-title`}>Desempenho dos anúncios</h2><p>{data.since&&data.until?`${day(data.since)} a ${day(data.until)}`:'Aguardando a primeira coleta'}</p></div>
       <button type="button" className="mga-secondary mga-metrics-refresh" aria-label="Atualizar métricas" disabled={loading||refreshing} onClick={()=>void refresh()}><RefreshCw size={15} aria-hidden="true"/>{refreshing?'Atualizando…':'Atualizar'}</button></div>
-    <div className="mga-metrics-filters"><label>Período<select aria-label="Período das métricas" value={days} onChange={event=>setDays(Number(event.target.value) as 1|7|30)}><option value="1">Último dia</option><option value="7">7 dias</option><option value="30">30 dias</option></select></label>
+    <PeriodFilter presets={[{key:'1',label:'Último dia'},{key:'7',label:'Últimos 7 dias'},{key:'15',label:'Últimos 15 dias'},{key:'30',label:'Últimos 30 dias'}]} active={range?'custom':period} onPreset={key=>{setPeriod(key);setRange(null);}} from={data.since??''} to={data.until??''} onDate={changeDate}/>
+    <div className="mga-metrics-filters">
       <label>Campanha<select aria-label="Campanha das métricas" value={campaignId} onChange={event=>setCampaignId(event.target.value)}><option value="">Todas</option>{campaigns.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label></div>
     {(error||refreshError)&&<p className="mga-notice" role="alert">{error||refreshError}</p>}
     <div className="mga-metrics-status"><span>{data.hasData?(data.partial?`${data.daysWithData} de ${data.totalDays} dias com dados · coleta parcial`:'Coleta disponível'):'Sem métricas coletadas'}</span>{data.updatedAt&&<time dateTime={data.updatedAt}>Atualizado em {new Date(data.updatedAt).toLocaleString('pt-BR',{timeZone:data.timezone??'UTC'})}</time>}</div>
