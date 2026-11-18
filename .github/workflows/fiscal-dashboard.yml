@@ -1,0 +1,51 @@
+name: Fiscal dashboard checks
+
+on:
+  pull_request:
+    paths:
+      - 'apps/dashboard/**'
+      - 'packages/shared-types/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/fiscal-dashboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fiscal-dashboard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fiscal-dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.0'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zyon/shared-types build
+      - run: pnpm --filter @zyon/dashboard typecheck
+      - name: Fiscal settings, navigation, permissions and subscription guards
+        run: >-
+          pnpm --filter @zyon/dashboard exec vitest run --maxWorkers=1 --minWorkers=1
+          src/api/fiscal.spec.ts src/shell/fiscal-navigation.spec.ts
+          src/pages/fiscal/FiscalSettingsPage.spec.tsx
+          src/pages/fiscal/FiscalInvoicesPage.spec.tsx
+          src/pages/fiscal/FiscalInvoiceDetail.spec.tsx
+          src/shell/SubscriptionAccessGate.spec.tsx
+          src/shell/subscription-route-policy.spec.ts
+          src/shell/subscription-access-wiring.spec.ts
+          src/shell/nav-config.spec.ts src/shell/DashboardShell.spec.tsx
+          src/lib/auth/permissions.spec.ts
+      - run: pnpm --filter @zyon/dashboard build
+      - name: Install the browser used by the existing acceptance script
+        run: pnpm --filter @zyon/dashboard exec playwright install --with-deps msedge
+      - name: Olist authorization and private notification journeys
+        run: node apps/dashboard/tests/fiscal-olist-browser.mjs
