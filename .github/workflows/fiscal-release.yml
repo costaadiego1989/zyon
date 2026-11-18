@@ -1,0 +1,99 @@
+name: Fiscal release checks
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'apps/storefront/**'
+      - 'apps/widget_v2/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/fiscal-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fiscal-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fiscal-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fiscal
+          POSTGRES_PASSWORD: fiscal_ci_local_only
+          POSTGRES_DB: zyon_fiscal
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://fiscal:fiscal_ci_local_only@127.0.0.1:5432/zyon_fiscal
+      FISCAL_TEST_DATABASE_URL: postgresql://fiscal:fiscal_ci_local_only@127.0.0.1:5432/zyon_fiscal
+      NODE_ENV: test
+      NODE_OPTIONS: --max-old-space-size=4096
+      REDIS_URL: ''
+      REDIS_ENABLED: 'false'
+      BILLING_TRIAL_QUEUE_REQUIRED: 'false'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.0'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build current production API and shared dependencies
+        env:
+          NODE_ENV: production
+        run: pnpm --filter @zyon/api build
+      - name: Run every discovered fiscal source suite
+        run: pnpm --filter @zyon/api test:fiscal
+      - name: Preserve current payment and immutable checkout guards
+        run: |
+          pnpm --filter @zyon/api test:payment
+          pnpm --filter @zyon/api test:widget-cross-sell-boundaries
+          pnpm --filter @zyon/api test:storefront-coupon-admission
+      - name: Preserve ERP contracts and current stock balance guards
+        run: >-
+          node --import ./apps/api/tests/test-network-guard.mjs
+          --loader ./apps/api/tests/fiscal-runtime-loader.mjs
+          --test --test-concurrency=1
+          apps/api/src/modules/inventory/application/services/erp-sync.service.spec.ts
+          apps/api/src/modules/inventory/application/services/erp-provider-contracts.spec.ts
+          apps/api/src/modules/inventory/application/services/erp-merchant-auth.spec.ts
+          apps/api/src/modules/inventory/application/services/erp-stock-current-balance.spec.ts
+      - name: Run current widget source tests
+        run: node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/widget_v2/tests/checkout-test-loader.mjs --test --test-concurrency=1 apps/widget_v2/tests/*.spec.ts
+      - name: Build widget app then restore its library for storefront
+        env:
+          NODE_ENV: production
+        run: |
+          pnpm --filter @zyon/widget-v2 typecheck
+          pnpm --filter @zyon/widget-v2 build:app
+          pnpm --filter @zyon/widget-v2 build
+      - name: Run current storefront regressions and fiscal contracts
+        run: |
+          pnpm --filter @zyon/storefront test:regression
+          pnpm --filter @zyon/storefront exec playwright test --config e2e/fiscal-unit.playwright.config.ts
+      - name: Build current storefront
+        env:
+          NODE_ENV: production
+        run: pnpm --filter @zyon/storefront build
+      - name: Install isolated browser dependencies
+        run: pnpm --filter @zyon/storefront exec playwright install --with-deps chromium msedge
+      - name: Preserve current payment choices and fiscal Stripe gestures
+        run: node apps/widget_v2/tests/fiscal-checkout-browser-runner.mjs
+      - name: Run current orders and full fiscal buyer journeys
+        run: |
+          pnpm --filter @zyon/storefront exec playwright test --config e2e/fiscal-current-orders.playwright.config.ts
+          pnpm --filter @zyon/storefront exec playwright test --config e2e/fiscal.playwright.config.ts
