@@ -7,6 +7,23 @@ import { overview } from "./fixtures.js";
 import { ui } from "./test-helpers.js";
 let screen: ReturnType<typeof ui>;
 afterEach(async () => {await screen?.close(); window.history.replaceState({}, "", "/");});
+test('AGW-03 setup explains Pixel and catalog in distinct containers with safe shortcuts',async()=>{
+  screen=ui();await screen.render(<ConnectionPanel connection={overview().connection} entitled api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+  const pixel=screen.container.querySelector('[aria-labelledby="mga-pixel-title"]')!;
+  const catalog=screen.container.querySelector('[aria-labelledby="mga-catalog-title"]')!;
+  expect(pixel.textContent).toContain('visitas e compras');expect(catalog.textContent).toContain('Opcional');
+  expect(catalog.textContent).toContain('produtos da Zyon');
+  const help=pixel.querySelector('details')!;expect(help.open).toBe(false);
+  await act(async()=>{help.querySelector('summary')!.click();});expect(help.open).toBe(true);
+  expect(pixel.textContent).toContain('mesmo ID');expect(pixel.textContent).toContain('Busca e rastreamento');
+  const links=Array.from(screen.container.querySelectorAll<HTMLAnchorElement>('a[target="_blank"]'));
+  expect(links.map(a=>a.href)).toContain('https://business.facebook.com/events_manager2/');
+  expect(links.map(a=>a.href)).toContain('https://business.facebook.com/commerce/');
+  expect(links.every(a=>a.rel.includes('noopener')&&a.rel.includes('noreferrer'))).toBe(true);
+  expect(pixel.querySelector('a[href="#store-settings"]')).not.toBeNull();
+  expect(screen.container.querySelector('[aria-labelledby="mga-page-title"]')).not.toBeNull();
+  expect(screen.container.querySelector('[aria-labelledby="mga-whatsapp-title"]')).not.toBeNull();
+});
 test('AF-02 explains advertising authorization separately and keeps WhatsApp connected',async()=>{screen=ui();await screen.render(<ConnectionPanel connection={overview().connection} entitled api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);expect(screen.container.textContent).toContain('Para criar anúncios, autorize também sua conta de anúncios');expect(screen.container.textContent).toContain('Não é preciso reconectar o WhatsApp');});
 test('ADAS-71 unchanged refresh preserves unsaved asset selections while a changed connection invalidates them',async()=>{
   screen=ui();const connection=overview().connection;connection.page=null;connection.whatsappNumbers=[{id:'phone',name:'Phone',pageId:'234'}];
