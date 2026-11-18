@@ -126,7 +126,10 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
       if(missing.has('variantIds')&&/produto|catalogo|categoria|anunciar|anuncio/.test(hint))questions.push(/qual categoria|nome da categoria/.test(hint)?'Qual categoria da sua loja você quer divulgar?':/nome do produto|qual produto|produto especifico/.test(hint)&&!hint.includes('categoria')?'Qual é o nome do produto que você quer anunciar?':productScopeQuestion);
       if(missing.has('priority')&&/objetivo|prioridade|resultado|roas/.test(hint))questions.push('O resultado orienta as escolhas do anúncio. Você quer mais vendas, gastar menos por compra ou ter mais retorno sobre o valor investido?');
       if(missing.has('destination')&&/loja|whatsapp|destino/.test(hint))questions.push('Na loja, a pessoa compra pelo site. No WhatsApp, ela conversa com você antes. Prefere loja ou WhatsApp?');
-      if(missing.has('budget')&&/orcamento|valor|investir|por dia|diari|total|periodo|datas|comec|inici|termin|encerr|acabar|finaliz|ate que dia|ate quando|ate qual data/.test(hint))questions.push(/termin|encerr|acabar|finaliz|ate que dia|ate quando|ate qual data|data final/.test(hint)?'Até que dia a campanha deve ficar no ar?':/comec|inici|data inicial/.test(hint)?'Em que dia você quer começar a campanha?':/por dia|diari|total/.test(hint)?'Esse valor é por dia ou para todo o período?':'Qual será o orçamento?');
+      if(missing.has('budget')&&/orcamento|valor|investir|por dia|diari|total|periodo|datas|comec|inici|termin|encerr|acabar|finaliz|ate que dia|ate quando|ate qual data/.test(hint)){
+        const cadence=/por dia|diari|total/.test(hint),multiple=(hint.match(/\?/g)??[]).length>1;
+        questions.push(cadence&&multiple?'Esse valor é por dia ou para todo o período?':/termin|encerr|acabar|finaliz|ate que dia|ate quando|ate qual data|data final/.test(hint)?'Até que dia a campanha deve ficar no ar?':/comec|inici|data inicial/.test(hint)?'Em que dia você quer começar a campanha?':cadence?'Esse valor é por dia ou para todo o período?':'Qual será o orçamento?');
+      }
       if(missing.has('country')&&/pais|regiao|publico/.test(hint))questions.push('Vamos escolher quem pode ver o anúncio. Em qual país deseja anunciar?');
       if(questions.length)return questions[0];
     }
