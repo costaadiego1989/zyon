@@ -50,7 +50,12 @@ const result = (data: unknown, ...artifacts: AssistantArtifact[]): AssistantTool
 const normalizedText=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
 const destinationQuestion='Vamos começar pelo destino do anúncio. Você prefere vender pela loja ou receber clientes no WhatsApp?';
 const productScopeQuestion='Você quer anunciar um produto específico ou escolher uma categoria do catálogo da loja?';
-function genericCampaignRequest(message:string){return /^(?:(?:oi|ola)[,! .]*)?(?:(?:eu )?(?:quero|gostaria de|preciso(?: de)?|vamos) )?(?:(?:criar|crie|fazer|faca|montar|monte|preparar|prepare) )?(?:(?:um|uma|o|a|meu|minha) )?(?:anuncio|campanha|anunciar)(?: (?:para mim|dos meus produtos|para (?:a )?minha loja|na (?:minha )?loja))?[.!? ]*$/.test(normalizedText(message));}
+function genericCampaignRequest(message:string){
+  const value=normalizedText(message).replace(/[.!?,;:]/g,' ');
+  if(!/\b(criar|crie|fazer|faca|montar|monte|preparar|prepare|anunciar|anuncie)\b/.test(value)||!/\b(anuncio|anuncios|campanha|campanhas|anunciar|anuncie)\b/.test(value))return false;
+  const genericWords=new Set('oi ola eu quero gostaria preciso poderia pode voce me ajude ajudar de em um uma o a os as anuncio anuncios campanha campanhas criar crie fazer faca montar monte preparar prepare anunciar anuncie para mim dos das da do meus minhas minha meu produtos produto loja por favor vamos'.split(' '));
+  return value.split(/\s+/).filter(Boolean).every(word=>genericWords.has(word));
+}
 function catalogChoices(evidence:UncitedAssistantResponse['evidence'],facts=''):string|null {
   const data=[...evidence].reverse().find(item=>item.name==='merchant_ads_catalog')?.result.data as {selectionRequired?:boolean;categories?:Array<{name:string}>;products?:Array<{name:string;priceCents:number;currency:string;stockQuantity:number|null}>;hasMore?:boolean}|undefined;
   if(!data||data.selectionRequired)return null;
@@ -76,8 +81,8 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     const message=input.message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const planning=/\b(crie|criar|monte|montar|fazer|anunciar|anuncie|prepare|preparar)\b/.test(message)&&/\b(anuncio|anuncios|campanha|anunciar)\b/.test(message);
     const saved=input.evidence.some(item=>item.name==='merchant_ads_save_draft');
-    const help=/\b(pixel|fundos|saldo|pagamento|conectar|conexao|o que e|para que serve)\b/.test(message);
-    if(genericCampaignRequest(message)&&!input.campaign?.campaignId&&!input.campaign?.draft.variantIds?.length)return input.campaign?.draft.destination?productScopeQuestion:destinationQuestion;
+    const help=/\b(pixel|fundos|saldo|pagamento|conectar|conexao|o que e|como funciona|para que serve|explique|entender)\b/.test(message);
+    if(genericCampaignRequest(message)&&!input.campaign?.campaignId){const draft=input.campaign?.draft;if(!draft?.destination)return destinationQuestion;if(!draft.variantIds?.length)return productScopeQuestion;if(!draft.priority)return 'Qual resultado você quer buscar: mais vendas, gastar menos por compra ou mais retorno por real investido?';if(!draft.budget)return this.uncitedResponse({...input,evidence:[],suggestedReply:input.suggestedReply.trim().endsWith('?')?input.suggestedReply:'Qual será o orçamento?'})??'Qual será o orçamento?';if(!draft.country)return 'Em qual país você quer anunciar?';}
     if(!help&&!input.campaign?.draft.variantIds?.length){const choices=catalogChoices(input.evidence,input.message);if(choices)return choices;}
     if(!planning&&!saved&&(!input.campaign||help))return null;
     const hint=input.suggestedReply.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -121,7 +126,7 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
       if(missing.has('variantIds')&&/produto|catalogo|categoria|anunciar|anuncio/.test(hint))questions.push(/qual categoria|nome da categoria/.test(hint)?'Qual categoria da sua loja você quer divulgar?':/nome do produto|qual produto|produto especifico/.test(hint)&&!hint.includes('categoria')?'Qual é o nome do produto que você quer anunciar?':productScopeQuestion);
       if(missing.has('priority')&&/objetivo|prioridade|resultado|roas/.test(hint))questions.push('O resultado orienta as escolhas do anúncio. Você quer mais vendas, gastar menos por compra ou ter mais retorno sobre o valor investido?');
       if(missing.has('destination')&&/loja|whatsapp|destino/.test(hint))questions.push('Na loja, a pessoa compra pelo site. No WhatsApp, ela conversa com você antes. Prefere loja ou WhatsApp?');
-      if(missing.has('budget')&&/orcamento|valor|investir|por dia|diari|total|periodo|datas|comec|inici|termin|ate que dia/.test(hint))questions.push(/termin|ate que dia|data final/.test(hint)?'Até que dia a campanha deve ficar no ar?':/comec|inici|data inicial/.test(hint)?'Em que dia você quer começar a campanha?':/por dia|diari|total/.test(hint)?'Esse valor é por dia ou para todo o período?':'Qual será o orçamento?');
+      if(missing.has('budget')&&/orcamento|valor|investir|por dia|diari|total|periodo|datas|comec|inici|termin|encerr|acabar|finaliz|ate que dia|ate quando|ate qual data/.test(hint))questions.push(/termin|encerr|acabar|finaliz|ate que dia|ate quando|ate qual data|data final/.test(hint)?'Até que dia a campanha deve ficar no ar?':/comec|inici|data inicial/.test(hint)?'Em que dia você quer começar a campanha?':/por dia|diari|total/.test(hint)?'Esse valor é por dia ou para todo o período?':'Qual será o orçamento?');
       if(missing.has('country')&&/pais|regiao|publico/.test(hint))questions.push('Vamos escolher quem pode ver o anúncio. Em qual país deseja anunciar?');
       if(questions.length)return questions[0];
     }
@@ -168,7 +173,7 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
   }
   private async thread(input: AssistantToolInput) {
     return this.deps.conversations.atomic(input.scope, input.threadId, async tx => {
-      assertAssistantTurnLease(await tx.turn(input.turnId), input.leaseToken, this.clock()); return structuredClone(tx.thread);
+      const turn=await tx.turn(input.turnId);assertAssistantTurnLease(turn, input.leaseToken, this.clock()); return {...structuredClone(tx.thread),requestMessage:turn.message};
     });
   }
   private async progress(input: AssistantToolInput, value: AssistantCampaignProgress | null) {
@@ -239,6 +244,9 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     await this.deps.authorizeTool(input.scope, input.name);
     const thread = await this.thread(input);
     const { service } = this.deps; const merchantId = input.scope.merchantId; const args = input.args;
+    const genericPlanning=genericCampaignRequest(thread.requestMessage)&&(!thread.campaignProgress||thread.campaignProgress.awaitingFields.length>0);
+    if(genericPlanning&&input.name==='merchant_ads_catalog')return result({selectionRequired:true,products:[],hasMore:false});
+    if(genericPlanning&&['merchant_ads_save_draft','merchant_ads_new_campaign','merchant_ads_select_campaign','merchant_ads_generate','merchant_ads_propose','merchant_ads_execute','merchant_ads_review_automation','merchant_ads_prepare'].includes(input.name))return result({clarificationRequired:true,progress:thread.campaignProgress});
     switch (input.name) {
       case 'merchant_ads_catalog': {
         if(args.kind!==undefined&&!['products','categories'].includes(args.kind as string))throw new AssistantError('assistant_tool_arguments_invalid');
