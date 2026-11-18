@@ -1,6 +1,6 @@
 # Anúncios com IA
 
-Módulo de aquisição por loja, adicional ao Growth e Escala. Usa produtos canônicos, gera imagens e prepara propostas de campanha para loja ou WhatsApp. Toda alteração na Meta exige aprovação humana do conteúdo exato. O monitoramento produz diagnósticos e recomendações, sem executar mudanças por conta própria.
+Módulo de aquisição por loja, adicional ao Growth e Escala. Usa produtos canônicos, gera imagens e prepara propostas de campanha para loja ou WhatsApp. Toda campanha nova exige aprovação administrativa do conteúdo exato. Conversa, fontes, política, avisos e execução diária estão descritos no [guia do assistente](../merchant-assistant/README.md), incluindo flags e limites de prova.
 
 ## Commercial contract
 
@@ -35,10 +35,10 @@ No dashboard, proprietário ou administrador abre **Anúncios com IA**. O módul
 1. Conferir oferta, saldo e contrato da loja; conectar a Meta e salvar os ativos autorizados.
 2. Escolher produtos, destino e prioridade: vendas pagas, custo por compra, ROAS ou contribuição após mídia. Os requisitos de dados aparecem sem trocar a escolha do lojista.
 3. Informar orçamento BRL, modalidade diária ou total e período. Salvar o rascunho não envia alterações à Meta.
-4. Revisar quantidade e reserva de créditos antes de confirmar a geração. Selecionar e ordenar imagens verificadas, conferir produto/preço e salvar o rascunho.
-5. Criar a proposta. Revisar objetos, valores anteriores e propostos, imagens e orçamento. Aprovar e executar são gestos distintos.
-6. A preparação cria estrutura em rascunho ou pausada. Publicar exige outra proposta e aprovação explícita. `publishing` é processamento; `active_unconfirmed` não comprova entrega. Apenas uma leitura confirmada pode registrar veiculação.
-7. Revisar recomendações antes de criar propostas de pausa, orçamento, público ou criativo. Campanhas existentes são somente para análise; um nome contendo Zyon não concede autoria.
+4. Completar o briefing pela conversa. Com o motor habilitado, a preparação interna usa a quantidade solicitada e a franquia disponível, sem comprar extras nem criar objetos na Meta. A edição manual e a geração expressamente confirmada continuam disponíveis.
+5. Abrir a revisão pela campanha ou pelo aviso do painel. Conferir produtos, criativos em slides na ordem revisada, textos, destino, prioridade, público, datas e orçamento. **Aprovar e publicar** autoriza somente essa versão com um único aceite; uma correção exige nova revisão.
+6. Após o aceite, o executor cria objetos pausados, confere seu estado e publica sem segunda aprovação. `publishing` é processamento; `active_unconfirmed` não comprova entrega. Apenas uma leitura confirmada pode registrar veiculação. Resultado desconhecido exige consulta, sem recriação cega.
+7. Revisar recomendações antes de criar propostas de pausa, orçamento, público ou criativo. A política automática é uma autoridade separada, limitada e revogável, nunca um aceite implícito do chat. Campanhas externas são somente para análise; um nome contendo Zyon não concede autoria.
 
 Somente campanhas com origem persistida pelo agente podem ser alteradas. Antes de escrever, o servidor revalida aprovação, conexão, produtos e estado remoto. Outra proposta não contorna uma execução `reserved`, `sending`, `publishing` ou `execution_unknown` da mesma campanha. Uma preparação parcial ou concluída também impede recriação por outra proposta já aprovada. O replay da mesma execução preserva sua identidade.
 

@@ -1,4 +1,4 @@
-import type { MetaAdsOverview, MetaAdsCampaign, MetaAdsProduct, MetaAdsProposal } from "@zyon/shared-types";
+import type { MetaAdsOverview, MetaAdsCampaign, MetaAdsProduct, MetaAdsProposal, MetaAdsCampaignLaunchReview } from "@zyon/shared-types";
 export const product: MetaAdsProduct = { productId: "product1", variantId: "variant1", name: "Bolsa Aurora", description: "Couro", sku: "BA1", imageUrl: "https://images.example.test/bolsa.png", priceCents: 9900, currency: "BRL", stockQuantity: 5, active: true, storefrontUrl: "https://store.example.test/bolsa", commercialVersion: "v1" };
 export function overview(): MetaAdsOverview { return {
   eligible: true, entitled: true, offer: {version: "offer1", monthlyPriceCents: 14900, currency: "BRL", cadence: "monthly", monthlyImageCredits: 30, extraImageCredits: 10, extraImagePriceCents: 3900, maxManagedCampaigns: 5, commercialReady: true, unavailableReasons: []},
@@ -8,3 +8,9 @@ export function overview(): MetaAdsOverview { return {
 }; }
 export function campaign(): MetaAdsCampaign { return {id: "campaign1", draft: {name: "Coleção Aurora", destination: "store", priority: "paid_sales", variantIds: [product.variantId], budget: {amountCents: 2000, currency: "BRL", cadence: "daily", startsAt: "2026-11-15T12:00:00Z", endsAt: null}, mediaIds: [], headline: "Bolsa Aurora", primaryText: "Conheça a coleção", country: "BR"}, products: [product], createdByAgent: true, managed: true, remoteCampaignId: null, remoteAdSetId: null, remoteAdIds: [], status: "draft", createdAt: "2026-11-15T00:00:00Z", updatedAt: "2026-11-15T00:00:00Z"}; }
 export function proposal(): MetaAdsProposal { return {id: "proposal1", campaignId: "campaign1", kind: "publish", status: "pending_review", before: {status: "PAUSED"}, after: {status: "ACTIVE", budget: campaign().draft.budget, objects: [{type: "campaign", id: "999"}]}, digest: "digest1", connectionEpoch: 1, reasoning: "Publicar coleção aprovada", createdAt: "2026-11-15T00:00:00Z", approvedAt: null, approvedBy: null, executionId: null}; }
+export function launchReview():MetaAdsCampaignLaunchReview {
+  const c=campaign();c.draft.budget={amountCents:10000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-16T12:00:00Z',endsAt:'2026-11-23T12:00:00Z'};c.draft.mediaIds=['media2','media1'];
+  const media=c.draft.mediaIds.map(id=>({id,campaignId:c.id,variantId:product.variantId,productId:product.productId,url:`https://media.example.test/${id}.png`,productVersion:'v1',createdAt:c.createdAt,commercialReview:{status:'verified' as const,productVersion:'v1',imageSha256:'a'.repeat(64)}}));
+  const p={...proposal(),kind:'launch' as const,digest:'a'.repeat(64),after:{accountId:'123',pageId:'234',datasetId:'345',whatsappId:null,draft:c.draft,products:c.products,media,objects:[],status:'ACTIVE'}};
+  return{campaign:c,proposal:p,media,preparation:null,notice:null,execution:null,canApprove:true,missing:[]};
+}

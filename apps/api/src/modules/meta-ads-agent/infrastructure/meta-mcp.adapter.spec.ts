@@ -8,6 +8,136 @@ const access = (): MetaAccess => ({ merchantId: "store-a", accessToken: "scoped-
 const campaign = (): MetaAdsCampaign => ({ id: "local-a", createdByAgent: true, managed: true, remoteCampaignId: "200", remoteAdSetId: "300", remoteAdIds: ["500"], status: "remote_paused", createdAt: "2026-11-14T12:00:00Z", updatedAt: "2026-11-14T12:00:00Z", products: [{ productId: "product-a", variantId: "variant-a", name: "Produto", description: "Produto real", sku: "SKU-A", imageUrl: "https://media.example.test/original.png", priceCents: 10000, currency: "BRL", stockQuantity: 5, active: true, storefrontUrl: "https://store.example.test/product-a", commercialVersion: "v1" }], draft: { name: "Campanha", destination: "store", priority: "paid_sales", variantIds: ["variant-a"], budget: { amountCents: 2000, currency: "BRL", cadence: "daily", startsAt: "2026-11-15T12:00:00Z", endsAt: null }, mediaIds: ["media-a"], headline: "Produto", primaryText: "Conheca o produto", country: "BR" } });
 const media: MetaAdsMedia[] = [{ id: "media-a", campaignId: "local-a", variantId: "variant-a", productId: "product-a", url: "https://media.example.test/generated.png", productVersion: "v1", createdAt: "2026-11-14T12:00:00Z" }];
 const proposal = (kind: MetaAdsProposal["kind"]): MetaAdsProposal => ({ id: "proposal-a", campaignId: "local-a", kind, status: "approved", before: {}, after: {}, digest: "approved-digest", connectionEpoch: 1, reasoning: "Revisado", createdAt: "2026-11-14T12:00:00Z", approvedAt: "2026-11-14T12:01:00Z", approvedBy: "owner-a", executionId: null });
+
+function launchFixture(override?: (call: Call) => unknown | Promise<unknown>, omitted: string[] = []) {
+  const c = campaign(); Object.assign(c, { remoteCampaignId: null, remoteAdSetId: null, remoteAdIds: [], remoteAccountId: null });
+  c.draft.budget = { amountCents: 10000, currency: 'BRL', cadence: 'lifetime', startsAt: '2026-11-17T12:00:00.000Z', endsAt: '2026-11-24T12:00:00.000Z' };
+  const selected = structuredClone(media); selected[0].commercialReview = { status: 'verified', productVersion: 'v1', imageSha256: 'a'.repeat(64) };
+  const p = { ...proposal('launch'), after: structuredClone({ objects: ['campaign', 'ad_set', 'creative', 'ad'], draft: c.draft, products: c.products, media: selected, accountId: '100', pageId: '110', datasetId: '120', whatsappId: null, status: 'ACTIVE' }) };
+  const f = fixture(async call => {
+    const result = await override?.(call); if (result !== undefined) return result;
+    if (call.name === 'ads_activate_entity') return { result: { status: 'ACTIVE' } };
+    if (call.name === 'ads_get_ad_entities') {
+      const shared = { account_id: '100', campaign_id: '200', status: 'PAUSED', effective_status: 'PAUSED' };
+      const row = call.args.level === 'campaign' ? { ...shared, id: '200', lifetime_budget: '10000', daily_budget: '0' }
+        : call.args.level === 'adset' ? { ...shared, id: '300', start_time: c.draft.budget!.startsAt, end_time: c.draft.budget!.endsAt }
+        : { ...shared, id: '500', adset_id: '300', creative_id: '400' };
+      return { ad_entities: JSON.stringify([row]) };
+    }
+    return undefined;
+  }, omitted);
+  let checks = 0;
+  const scoped = { ...access(), assertWriteAuthorized: async () => { checks++; } };
+  return { ...f, c, p, selected, scoped, checks: () => checks };
+}
+test('ACAP-13 native launch creates paused objects and publishes the same reviewed version with one approval', async () => {
+  const f = launchFixture(), before = structuredClone(f.p), progress: MetaAdsExecution['objects'][] = [];
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async refs => { progress.push(structuredClone(refs)); });
+  assert.equal(result.status, 'active_unconfirmed'); assert.deepEqual(result.objects, [{ type: 'campaign', id: '200' }, { type: 'ad_set', id: '300' }, { type: 'creative', id: '400' }, { type: 'ad', id: '500' }]);
+  assert.deepEqual(f.p, before); assert.equal(f.checks(), 7); assert.equal(progress.length, 7); assert.deepEqual(progress[3], result.objects);
+  assert.equal(f.calls.find(call => call.name === 'ads_create_campaign')!.args.campaign_lifetime_budget, 10000);
+  assert.equal(f.calls.find(call => call.name === 'ads_create_ad_set')!.args.end_time, '2026-11-24T12:00:00.000Z');
+  assert.deepEqual(f.calls.filter(call => call.name === 'ads_activate_entity').map(call => [call.args.entity_type, call.args.entity_id]), [['campaign', '200'], ['ad_set', '300'], ['ad', '500']]);
+});
+test('ACAP-13 native launch preserves reviewed carousel order and copy', async () => {
+  const f = launchFixture(), second = { ...f.selected[0], id: 'media-b', url: 'https://media.example.test/second.png' };
+  f.c.draft.mediaIds = ['media-b', 'media-a']; f.p.after.draft = structuredClone(f.c.draft); f.p.after.media = [second, f.selected[0]];
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {}); assert.equal(result.status, 'active_unconfirmed');
+  const creative = f.calls.find(call => call.name === 'ads_create_creative')!.args;
+  assert.deepEqual((creative.cards as Array<{ image_url: string }>).map(card => card.image_url), ['https://media.example.test/second.png', 'https://media.example.test/generated.png']);
+  assert.equal(creative.message, f.c.draft.primaryText); assert.equal(creative.headline, f.c.draft.headline);
+});
+test('ACAP-14 native launch rejects changed reviewed draft media and selected assets before creation', async () => {
+  for (const change of ['copy', 'order', 'asset', 'review']) {
+    const f = launchFixture();
+    if (change === 'copy') f.c.draft.primaryText = 'Texto alterado'; if (change === 'order') f.c.draft.mediaIds = ['media-b']; if (change === 'asset') f.scoped.pageId = '111'; if (change === 'review') (f.p.after.media as MetaAdsMedia[])[0].commercialReview!.status = 'rejected';
+    const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+    assert.equal(result.status, 'failed'); assert.equal(result.error, 'proposal_stale'); assert.deepEqual(result.objects, []); assert.equal(f.calls.some(call => call.name.startsWith('ads_create_')), false);
+  }
+});
+test('ACAP-14 native launch rechecks authority between paused preparation and activation', async () => {
+  const f = launchFixture(); let checks = 0;
+  f.scoped.assertWriteAuthorized = async () => { if (++checks > 4) throw new Error('revoked'); };
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+  assert.equal(result.objects.length, 4); assert.notEqual(result.status, 'active_unconfirmed'); assert.equal(checks, 5); assert.equal(f.calls.filter(call => call.name === 'ads_activate_entity').length, 0);
+});
+test('ACAP-14 native launch verifies exact remote budget dates account and parent bindings before activation', async () => {
+  for (const [level, changed] of [['campaign', { lifetime_budget: '9999' }], ['campaign', { daily_budget: '100' }], ['campaign', { account_id: '999' }], ['adset', { start_time: '2026-11-18T12:00:00Z' }], ['adset', { end_time: '2026-11-23T12:00:00Z' }], ['adset', { campaign_id: '999' }], ['ad', { adset_id: '999' }], ['ad', { creative_id: '999' }]] as const) {
+    const f = launchFixture(call => call.name === 'ads_get_ad_entities' && call.args.level === level ? { ad_entities: JSON.stringify([{ id: level === 'campaign' ? '200' : level === 'adset' ? '300' : '500', account_id: '100', campaign_id: '200', adset_id: '300', creative_id: '400', status: 'PAUSED', effective_status: 'PAUSED', lifetime_budget: '10000', daily_budget: '0', start_time: '2026-11-17T12:00:00.000Z', end_time: '2026-11-24T12:00:00.000Z', ...changed }]) } : undefined);
+    const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+    assert.equal(result.status, 'failed'); assert.equal(result.objects.length, 4); assert.equal(f.calls.filter(call => call.name === 'ads_activate_entity').length, 0);
+  }
+});
+test('ACAP-15 a lost native creation response keeps partial IDs without creating or publishing again', async () => {
+  const f = launchFixture(call => { if (call.name === 'ads_create_ad_set') throw new Error('lost response'); });
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+  assert.equal(result.status, 'execution_unknown'); assert.deepEqual(result.objects, [{ type: 'campaign', id: '200' }]);
+  assert.equal(f.calls.filter(call => call.name === 'ads_create_campaign').length, 1); assert.equal(f.calls.filter(call => call.name === 'ads_create_ad_set').length, 1); assert.equal(f.calls.filter(call => call.name === 'ads_activate_entity').length, 0);
+});
+test('ACAP-15 an uncertain activation preserves all objects and never retries the submitted activation', async () => {
+  const f = launchFixture(call => { if (call.name === 'ads_activate_entity') throw new Error('lost activation'); });
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+  assert.equal(result.status, 'execution_unknown'); assert.equal(result.objects.length, 4); assert.equal(f.calls.filter(call => call.name === 'ads_activate_entity').length, 1); assert.equal(f.calls.filter(call => call.name === 'ads_create_campaign').length, 1);
+});
+test('ACAP-15 native PUBLISHING remains pending without claiming delivery or repeating the activation', async () => {
+  const f = launchFixture(call => call.name === 'ads_activate_entity' ? { result: { status: 'PUBLISHING' } } : undefined);
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+  assert.equal(result.status, 'publishing'); assert.equal(result.objects.length, 4); assert.equal(f.calls.filter(call => call.name === 'ads_activate_entity').length, 1);
+});
+test('ACAP-14 native launch refuses existing remote objects instead of activating another campaign', async () => {
+  const f = launchFixture(); f.c.remoteCampaignId = '999';
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+  assert.equal(result.status, 'failed'); assert.equal(result.error, 'campaign_already_prepared'); assert.deepEqual(result.objects, []); assert.equal(f.calls.length, 0);
+});
+test('ACAP-11 native launch requires a human receipt and publication capability before any creation', async () => {
+  const f = launchFixture(undefined, ['ads_activate_entity']);
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {}); assert.equal(result.status, 'failed'); assert.equal(result.error, 'meta_capability_unavailable'); assert.equal(f.calls.some(call => call.name.startsWith('ads_create_')), false);
+  const other = launchFixture(); other.p.approvedBy = null;
+  await assert.rejects(other.adapter.execute(other.scoped, other.c, other.p, async () => {}), { code: 'proposal_not_approved' }); assert.equal(other.calls.length, 0);
+});
+
+test('ADAS-29 native MCP budget currency wrappers normalize major BRL units to exact cents', async () => {
+  const f = fixture(call => call.name === 'ads_get_ad_entities' && call.args.level === 'campaign' ? { ad_entities: JSON.stringify({ data: [{ id: '200', status: 'PAUSED', effective_status: 'PAUSED', daily_budget: { value: 0, unit: 'BRL' }, lifetime_budget: { value: '100.05', unit: 'BRL' }, spend_cap: { value: 0, unit: 'BRL' } }] }) } : undefined);
+  const snapshot = await f.adapter.snapshot(access(), campaign());
+  assert.deepEqual(snapshot.budget, { daily_budget: 0, lifetime_budget: 10005, spend_cap: 0 });
+});
+
+test('ADAS-44 native metric fields use canonical names and exact currency or integer values', async () => {
+  const f = fixture(call => {
+    if (call.name === 'ads_get_ad_entities' && call.args.level === 'account') return { ad_entities: JSON.stringify([{ id: '100', timezone_name: 'America/Sao_Paulo' }]) };
+    if (call.name === 'ads_get_field_context') return { unknown_fields: [], fields: (call.args.field_names as string[]).map(name => ({ name, levels: name === 'timezone_name' ? ['ad_account'] : ['campaign', 'ad_account'], type: ['amount_spent', 'offsite_conversion_fb_pixel_purchase_values'].includes(name) ? 'CURRENCY' : name.includes('conversion') ? 'INTEGER' : 'STRING' })) };
+    if (call.name === 'ads_get_ad_entities' && call.args.level === 'campaign') return { ad_entities: JSON.stringify([{ id: '200', amount_spent: { value: '10.05', unit: 'BRL' }, offsite_conversion_fb_pixel_purchase_values: { value: 99, unit: 'BRL' }, offsite_conversion_fb_pixel_purchase: { value: 2 }, 'actions:onsite_conversion.messaging_conversation_started_7d': { value: 3 } }]) };
+    return undefined;
+  });
+  const result = await f.adapter.metrics(access(), campaign(), '2026-11-15', '2026-11-15');
+  assert.equal(result.spendCents, 1005); assert.equal(result.attributedRevenueCents, 9900); assert.equal(result.attributedPurchases, 2); assert.equal(result.conversations, 3); assert.equal(result.timezone, 'America/Sao_Paulo');
+  const fields = f.calls.find(c => c.name === 'ads_get_ad_entities' && c.args.level === 'campaign')!.args.fields as string[];
+  assert.ok(fields.includes('amount_spent')); assert.ok(fields.includes('actions:onsite_conversion.messaging_conversation_started_7d')); assert.equal(fields.includes('spend'), false);
+});
+
+test('ADAS-43 missing or incompatible native metric values remain unknown rather than confirmed zeros', async () => {
+  const f = fixture(call => {
+    if (call.name === 'ads_get_ad_entities' && call.args.level === 'account') return { ad_entities: JSON.stringify([{ id: '100', timezone_name: 'America/Sao_Paulo' }]) };
+    if (call.name === 'ads_get_ad_entities' && call.args.level === 'campaign') return { ad_entities: JSON.stringify([{ id: '200', amount_spent: { value: '10', unit: 'USD' } }]) };
+    return undefined;
+  });
+  const result = await f.adapter.metrics(access(), campaign(), '2026-11-15', '2026-11-15');
+  assert.equal(result.spendCents, null); assert.equal(result.attributedRevenueCents, null); assert.equal(result.attributedPurchases, null); assert.equal(result.conversations, null);
+});
+
+test('ADAS-34 native MCP accepts an automatic pending proposal only with the exact server authority and live write lease', async () => {
+  const f = fixture(), p = { ...proposal('pause'), status: 'pending_review' as const, approvedBy: null, approvedAt: null }; let checks = 0;
+  const scoped = { ...access(), executionAuthority: { kind: 'automatic', proposalId: p.id, proposalDigest: p.digest, connectionEpoch: p.connectionEpoch, policyId: 'policy-a', policyVersion: 1 }, assertWriteAuthorized: async () => { checks++; } };
+  const result = await f.adapter.execute(scoped as never, campaign(), p, async () => {});
+  assert.equal(result.status, 'remote_paused'); assert.equal(checks, 1); assert.equal(p.approvedBy, null); assert.equal(p.status, 'pending_review');
+});
+
+test('ADAS-31 native MCP refuses a forged or unfenced automatic authorization without weakening manual approval', async () => {
+  const f = fixture(), p = { ...proposal('pause'), status: 'pending_review' as const, approvedBy: null, approvedAt: null };
+  const authority = { kind: 'automatic', proposalId: p.id, proposalDigest: p.digest, connectionEpoch: p.connectionEpoch, policyId: 'policy-a', policyVersion: 1 };
+  for (const scoped of [{ ...access(), executionAuthority: authority }, { ...access(), executionAuthority: { ...authority, proposalDigest: 'changed' }, assertWriteAuthorized: async () => {} }]) await assert.rejects(f.adapter.execute(scoped as never, campaign(), p, async () => {}), { code: 'proposal_not_approved' });
+  assert.equal(f.calls.some(call => call.name === 'ads_update_entity'), false);
+});
 type Call = { name: string; args: Record<string, unknown> };
 const toolNames = ["ads_get_ad_accounts", "ads_get_ad_account_pages", "ads_get_user_pages", "ads_catalog_list_catalogs", "ads_get_datasets", "ads_get_field_context", "ads_get_ad_entities", "ads_create_campaign", "ads_create_ad_set", "ads_create_creative", "ads_create_ad", "ads_activate_entity", "ads_update_entity", "ads_get_opportunity_score", "ads_account_get_activity_logs"];
 function fixture(override?: (call: Call) => unknown | Promise<unknown>, omitted: string[] = []) {

@@ -11,9 +11,9 @@ test("results distinguish conversations, confirmed orders and attributed revenue
   screen = ui(); const c = campaign(); c.createdByAgent = false; c.managed = false; c.draft.name = "Zyon importada";
   await screen.render(<CampaignInsights campaign={c} metrics={metrics} recommendations={[]} entitled onEdit={vi.fn()} onPropose={vi.fn()}/>);
   expect(screen.container.textContent).toContain("Conversas18"); expect(screen.container.textContent).toContain("Compras pagas confirmadas3");
-  expect(screen.container.textContent).toContain("Receita paga confirmadaR$ 300,00"); expect(screen.container.textContent).toContain("Receita atribuída pela MetaR$ 500,00");
-  expect(screen.container.textContent).toContain("Contribuição após mídiaIndisponível"); expect(screen.container.textContent).toContain("parcial"); expect(screen.container.textContent).toContain("Dados desatualizados");
-  expect(screen.container.textContent).toContain("America/Sao_Paulo"); expect(screen.container.textContent).toContain("7d_click"); expect(screen.container.textContent).toContain("sem prova de incremento causal");
+  expect(screen.container.textContent).toContain("Receita paga confirmadaR$ 300,00"); expect(screen.container.textContent).toContain("Vendas informadas pela MetaR$ 500,00");
+  expect(screen.container.textContent).toContain("Resultado com custos informadosIndisponível"); expect(screen.container.textContent).toContain("parcial"); expect(screen.container.textContent).toContain("Dados desatualizados");
+  expect(screen.container.textContent).toContain("America/Sao_Paulo"); expect(screen.container.textContent).toContain("7 dias após clique"); expect(screen.container.textContent).toContain("não são uma garantia de vendas causadas pelos anúncios");
   expect(screen.container.querySelectorAll("button")).toHaveLength(0); expect(screen.container.textContent).toContain("Somente análise");
 });
 test("recommendation shows priority, hypothesis and evidence and requires an explicit proposal gesture", async () => {
@@ -25,4 +25,7 @@ test("recommendation shows priority, hypothesis and evidence and requires an exp
 test("no metrics remains awaiting data and never invents zero revenue or a winner", async () => {
   screen = ui(); await screen.render(<CampaignInsights campaign={campaign()} recommendations={[]} entitled={false} onEdit={vi.fn()} onPropose={vi.fn()}/>);
   expect(screen.container.textContent).toContain("Aguardando dados"); expect(screen.container.textContent).not.toContain("R$ 0,00"); expect(screen.container.querySelectorAll("button")).toHaveLength(0);
+});
+test('ADAS-44 a missing conversation reading remains unavailable instead of disappearing or becoming zero',async()=>{
+  screen=ui();await screen.render(<CampaignInsights campaign={campaign()} metrics={{...metrics,conversations:null}} recommendations={[]} entitled={false} onEdit={vi.fn()} onPropose={vi.fn()}/>);const row=Array.from(screen.container.querySelectorAll('dl > div')).find(value=>value.querySelector('dt')?.textContent==='Conversas')!;expect(row.querySelector('dd')?.textContent).toBe('Indisponível');
 });

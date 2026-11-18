@@ -17,6 +17,7 @@ const samples: Record<string, string> = { alertName: "MarketplaceOutboxDeliveryF
 // Cashback variables belong only to their declared marketing templates; they
 // cannot turn an operational/utility template into promotional content.
 const scopedSamples: Partial<Record<WhatsAppTemplateType, Record<string, string>>> = {
+  campaign_ready:{campaignName:'Coleção verão',campaignVersion:'b541e8027a19',campaignReviewLink:'https://app.zyon-payments.com.br/#meta-ads-agent?store=loja_exemplo&campaign=campanha_exemplo&proposal=proposta_exemplo'},
   cashback_available: { cashbackAmount: "R$ 10,00" },
   cashback_expiring: { cashbackAmount: "R$ 10,00", cashbackExpiresAt: "21/11/2026" },
 };

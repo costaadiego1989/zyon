@@ -37,7 +37,7 @@ export class ProposalService {
     private readonly provider: Pick<MetaAdsProviderPort, "snapshot">, private readonly clock: Clock = () => new Date(), private readonly id: IdFactory = randomUUID) {}
 
   private fields(input: ProposalInput): Record<string, unknown> {
-    if (!["prepare", "publish", "pause", "budget", "audience", "creative"].includes(input.kind)) throw new MetaAdsError("meta_action_invalid");
+    if (!["prepare", "publish", "pause", "budget", "audience", "creative", "launch"].includes(input.kind)) throw new MetaAdsError("meta_action_invalid");
     const after = input.after ?? {};
     const allowed = input.kind === "budget" ? ["budget"] : input.kind === "audience" ? ["country"] : [];
     if (!after || typeof after !== "object" || Array.isArray(after) || Object.keys(after).some(key => !allowed.includes(key)) || allowed.some(key => !Object.hasOwn(after, key))) throw new MetaAdsError("proposal_fields_invalid");
@@ -62,19 +62,25 @@ export class ProposalService {
       if (!targetBudget || targetBudget.cadence !== campaign.draft.budget?.cadence) throw new MetaAdsError("campaign_budget_cadence_change_unsupported");
     }
     if (input.kind === "audience") normalizeCampaignDraft({ ...campaign.draft, country: fields.country as string });
-    const operation = input.kind === "prepare" ? "prepare" : input.kind === "publish" ? "publish" : "optimize";
+    const initial = input.kind === "prepare" || input.kind === "launch";
+    const operation = input.kind === "prepare" ? "prepare" : input.kind === "publish" || input.kind === "launch" ? "publish" : "optimize";
     const access = await this.connection.access(merchantId, { destination: campaign.draft.destination, operation });
     if (campaign.remoteCampaignId && campaign.remoteAccountId !== access.accountId) throw new MetaAdsError("meta_asset_forbidden", 403);
-    if (input.kind === "prepare" && campaign.remoteCampaignId) throw new MetaAdsError("campaign_already_prepared", 409);
-    if (input.kind !== "prepare" && !campaign.remoteCampaignId) throw new MetaAdsError("campaign_preparation_required", 409);
+    if (initial && campaign.remoteCampaignId) throw new MetaAdsError("campaign_already_prepared", 409);
+    if (!initial && !campaign.remoteCampaignId) throw new MetaAdsError("campaign_preparation_required", 409);
     if (input.kind === "publish" && (!campaign.remoteAdSetId || !campaign.remoteAdIds.length || !campaign.draft.budget)) throw new MetaAdsError("campaign_preparation_incomplete", 409);
-    const remoteBefore = input.kind === "prepare" ? null : await this.provider.snapshot(access, campaign);
+    const remoteBefore = initial ? null : await this.provider.snapshot(access, campaign);
     const before: Record<string, unknown> = remoteBefore ? { objects: objectRefs(campaign), status: remoteBefore.status, budget: remoteBefore.budget, targeting: remoteBefore.targeting, creativeIds: remoteBefore.creativeIds } : { objects: [], status: "not_created", budget: null };
     if (remoteBefore?.objectStates) before.objectStates = remoteBefore.objectStates;
     before.productState = reviewedProducts.map(product => ({ variantId: product.variantId, commercialVersion: product.commercialVersion, stockQuantity: product.stockQuantity, active: product.active }));
     let after: Record<string, unknown>;
-    if (input.kind === "prepare") after = { objects: ["campaign", "ad_set", "creative", "ad"], draft: campaign.draft, products: reviewedProducts,
-      media: campaign.draft.mediaIds.map(id => state.media[id]), accountId: access.accountId, pageId: access.pageId, datasetId: access.datasetId, whatsappId: access.whatsappId };
+    if (initial) {
+      const media = campaign.draft.mediaIds.map(id => state.media[id]);
+      if (media.some(item => !item)) throw new MetaAdsError("proposal_stale", 409);
+      after = { objects: ["campaign", "ad_set", "creative", "ad"], draft: campaign.draft, products: reviewedProducts,
+        media, accountId: access.accountId, pageId: access.pageId, datasetId: access.datasetId, whatsappId: access.whatsappId,
+        ...(input.kind === "launch" ? { status: "ACTIVE" } : {}) };
+    }
     else if (input.kind === "publish") {
       const budget = campaign.draft.budget!; const remoteAmount = remoteBefore!.budget[budget.cadence === "daily" ? "daily_budget" : "lifetime_budget"];
       if (Number(remoteAmount) !== budget.amountCents) throw new MetaAdsError("proposal_stale", 409);
@@ -98,6 +104,7 @@ export class ProposalService {
       const live = current.campaigns[campaignId]; const origin = records.get(`campaign-origin:${campaignId}`)?.payload as { source?: string; campaignId?: string } | undefined;
       if (!live?.managed || !live.createdByAgent || origin?.source !== "agent" || origin.campaignId !== campaignId) throw new MetaAdsError("campaign_read_only", 403);
       if (current.connection.epoch !== access.connectionEpoch || stableDigest(live.draft) !== stableDigest(campaign.draft) || stableDigest(live.products) !== stableDigest(campaign.products)) throw new MetaAdsError("proposal_stale", 409);
+      if (initial && (live.draft.mediaIds.some(id => !Object.hasOwn(current.media, id)) || stableDigest(live.draft.mediaIds.map(id => current.media[id])) !== stableDigest(after.media))) throw new MetaAdsError("proposal_stale", 409);
       current.proposals[id] = proposal;
       return { result: proposal, records: [{ key: requestKey, kind: "proposal", payload: { id, digest: inputDigest }, createdAt: now }, { key: `proposal-version:${id}`, kind: "proposal", payload: proposal, createdAt: now }] };
     });

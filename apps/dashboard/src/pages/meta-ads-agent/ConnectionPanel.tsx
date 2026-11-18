@@ -6,7 +6,8 @@ const selection = (c: MetaAdsConnection): MetaAdsSelection => ({accountId: c.acc
 function navigateMeta(url: string) {const target = new URL(url); if (target.protocol !== "https:" || !["www.facebook.com", "facebook.com"].includes(target.hostname)) throw new Error("invalid_oauth_url"); window.location.assign(target.href);}
 export function ConnectionPanel({connection, entitled, api, onUpdated, navigate = navigateMeta}: {connection: MetaAdsConnection; entitled: boolean; api: MetaAdsAgentApi; onUpdated: () => void | Promise<void>; navigate?: (url: string) => void}) {
   const [view, setView] = useState(connection); const [selected, setSelected] = useState(() => selection(connection)); const [review, setReview] = useState(false); const [notice, setNotice] = useState(""); const callback = useRef(false); const action = useAction();
-  useEffect(() => {setView(connection); setSelected(selection(connection));}, [connection]);
+  const saved=useRef(JSON.stringify({epoch:connection.epoch,status:connection.status,...selection(connection)}));
+  useEffect(() => {setView(connection);const next=JSON.stringify({epoch:connection.epoch,status:connection.status,...selection(connection)});if(next!==saved.current){setSelected(selection(connection));saved.current=next;}}, [connection]);
   useEffect(() => {
     const url = new URL(window.location.href); const code = url.searchParams.get("code"), state = url.searchParams.get("state");
     if (callback.current || !entitled || url.searchParams.get("tab") !== "meta-ads-agent" || (!code && !url.searchParams.has("error"))) return;
@@ -15,10 +16,9 @@ export function ConnectionPanel({connection, entitled, api, onUpdated, navigate 
     void action.run(async () => {const result = await api.completeConnection(state, code); setView(result); setSelected(selection(result)); setNotice("Conexão autorizada. Selecione a conta e os ativos desta loja."); await onUpdated();});
   });
   const scoped = (assets: MetaAdsAsset[]) => assets.filter(a => !a.accountId || a.accountId === selected.accountId);
-  const assetSelect = (label: string, field: keyof MetaAdsSelection, assets: MetaAdsAsset[]) => <label>{label}<select aria-label={label} value={selected[field] ?? ""} disabled={!entitled || action.busy} onChange={e => setSelected({...selected, [field]: e.target.value || null, ...(field === "pageId" ? {whatsappId: null} : {})})}><option value="">Não selecionado</option>{scoped(assets).map(a => <option key={a.id} value={a.id}>{a.name} ({a.id})</option>)}</select></label>;
+  const assetSelect = (label: string, field: keyof MetaAdsSelection, assets: MetaAdsAsset[]) => <label>{label}<select aria-label={label} value={selected[field] ?? ""} disabled={!entitled || action.busy} onChange={e => {const value=e.target.value||null;setSelected(current=>({...current,[field]:value,...(field === "pageId" ? {whatsappId: null} : {})}));}}><option value="">Não selecionado</option>{scoped(assets).map(a => <option key={a.id} value={a.id}>{a.name} ({a.id})</option>)}</select></label>;
   const connected = ["connected", "limited", "authorizing", "reconnect_required"].includes(view.status);
   return <section className="mga-panel" aria-labelledby="mga-connection-title"><h2 id="mga-connection-title">Conexão com a Meta</h2>
-    <p>Use a conta da sua loja. A autorização define quais contas, páginas e catálogos ficam disponíveis.</p>
     <p role="status">{view.status === "connected" ? "Conectada" : view.status === "limited" ? "Conectada com limitações" : view.status === "reconnect_required" ? "Autorize novamente para continuar" : view.status === "authorizing" ? "Autorização em andamento" : "Desconectada"}</p>
     {!view.oauthConfigured && <p>A conexão ainda não está disponível. Solicite a configuração ao suporte.</p>}
     <button type="button" disabled={!entitled || !view.oauthConfigured || action.busy} onClick={() => void action.run(async () => {const result = await api.startConnection(); navigate(result.authorizationUrl);})}>{action.busy ? "Consultando Meta…" : connected ? "Autorizar novamente" : "Conectar Meta"}</button>
@@ -35,6 +35,7 @@ export function ConnectionPanel({connection, entitled, api, onUpdated, navigate 
     </div>}
     {action.error && <p role="alert">{action.error}</p>}{notice && <p role="status">{notice}</p>}
     {connected && <button type="button" className="mga-secondary" disabled={action.busy} onClick={() => setReview(true)}>Desconectar Meta</button>}
+    <details className="mga-connection-guidance mga-inline-details"><summary>Sobre a conexão</summary><p>Use a conta da sua loja. A autorização define quais contas, páginas e catálogos ficam disponíveis.</p></details>
     {review && <div className="mga-notice"><p>As campanhas podem continuar consumindo verba na Meta. A desconexão bloqueia novas operações e invalida aprovações; para parar os anúncios, aprove a pausa antes de desconectar ou use o Gerenciador de Anúncios.</p><div className="mga-actions"><button type="button" disabled={action.busy} onClick={() => void action.run(async () => {await api.disconnect(); setReview(false); setView({...view, status: "disconnected"}); setNotice("Meta desconectada. As campanhas externas não foram pausadas."); await onUpdated();})}>Confirmar desconexão</button><button type="button" className="mga-secondary" disabled={action.busy} onClick={() => setReview(false)}>Manter conexão</button></div></div>}
   </section>;
 }

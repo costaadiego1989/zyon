@@ -18,7 +18,7 @@ test("MGA-23 all four priorities describe required evidence and preserve merchan
   screen = ui(); const saveCampaign = vi.fn(async (_id, draft) => ({...campaign(), draft}));
   await screen.render(<CampaignComposer overview={overview()} campaign={campaign()} api={{products: vi.fn().mockResolvedValue([product]), saveCampaign} as unknown as MetaAdsAgentApi} onSaved={vi.fn()} onUpdated={vi.fn()}/>);
   expect(screen.container.querySelector('select[aria-label="Prioridade"]')?.querySelectorAll("option")).toHaveLength(4);
-  for (const [value, text] of [["paid_sales", "pagamentos confirmados"], ["cost_per_purchase", "gasto de mídia"], ["roas", "receita atribuída"], ["contribution", "custos históricos"]]) {
+  for (const [value, text] of [["paid_sales", "pagamentos confirmados"], ["cost_per_purchase", "gasto de mídia"], ["roas", "vendas informadas pela Meta"], ["contribution", "custos históricos"]]) {
     await screen.change("Prioridade", value); expect(screen.container.textContent).toContain(text);
   }
   await screen.click("Salvar rascunho"); expect(saveCampaign.mock.calls[0][1].priority).toBe("contribution");

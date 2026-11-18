@@ -7,6 +7,43 @@ import { proposal } from "./fixtures.js";
 import { ui } from "./test-helpers.js";
 let screen: ReturnType<typeof ui>;
 afterEach(async () => screen?.close());
+
+test("ADAS-72 an equivalent refresh preserves the reviewed acknowledgement and approves the exact version", async () => {
+  screen = ui(); const p = proposal(); const approve = vi.fn().mockResolvedValue({...p, status:"approved"});
+  const props = {entitled:true, connectionEpoch:1, api:{approve} as unknown as MetaAdsAgentApi, onUpdated:vi.fn()};
+  await screen.render(<ProposalReview {...props} proposal={p}/>);
+  await import("react").then(({act}) => act(async () => {(screen.container.querySelector('input[type="checkbox"]') as HTMLInputElement).click();}));
+  await screen.render(<ProposalReview {...props} proposal={structuredClone(p)}/>);
+  expect((screen.container.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(true);
+  expect((screen.container.querySelector('button[data-action="approve"]') as HTMLButtonElement).disabled).toBe(false);
+  await screen.click("Aprovar publicação"); expect(approve).toHaveBeenCalledWith(p.id,p.digest);
+  expect(screen.container.textContent).toContain("Aprovação registrada");
+});
+
+test("ADAS-72 changed identity digest reviewed content or effective connection clears acknowledgement", async () => {
+  screen = ui(); const p = proposal(); const props={entitled:true,connectionEpoch:1,api:{} as MetaAdsAgentApi,onUpdated:vi.fn()};
+  const changes = [{proposal:{...p,id:'another-proposal'}},{proposal:{...p,digest:'another-digest'}},{proposal:{...p,after:{...p.after,budget:{amountCents:9000,currency:'BRL',cadence:'daily'}}}},{proposal:{...p,reasoning:'Outro motivo revisado'}},{proposal:p,connectionEpoch:2}];
+  for(const change of changes){
+    await screen.render(<ProposalReview {...props} proposal={p}/>);
+    await import("react").then(({act}) => act(async () => {(screen.container.querySelector('input[type="checkbox"]') as HTMLInputElement).click();}));
+    expect((screen.container.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(true);
+    await screen.render(<ProposalReview {...props} {...change}/>);
+    const checkbox=screen.container.querySelector('input[type="checkbox"]') as HTMLInputElement|null;
+    expect(checkbox?.checked??false).toBe(false);
+    expect((screen.container.querySelector('button[data-action="approve"]') as HTMLButtonElement|null)?.disabled??true).toBe(true);
+  }
+});
+
+test("ADAS-72 database key ordering retains the same reviewed content and acknowledgement", async () => {
+  screen = ui(); const p=proposal(); const props={entitled:true,connectionEpoch:1,api:{} as MetaAdsAgentApi,onUpdated:vi.fn()};
+  await screen.render(<ProposalReview {...props} proposal={p}/>);
+  await import("react").then(({act})=>act(async()=>{(screen.container.querySelector('input[type="checkbox"]') as HTMLInputElement).click();}));
+  const budget=Object.fromEntries(Object.entries(p.after.budget as Record<string,unknown>).reverse());
+  const after=Object.fromEntries(Object.entries({...p.after,budget}).reverse());
+  await screen.render(<ProposalReview {...props} proposal={{...p,after}}/>);
+  expect((screen.container.querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(true);
+  expect((screen.container.querySelector('button[data-action="approve"]') as HTMLButtonElement).disabled).toBe(false);
+});
 test("MGA-39 before/after and affected objects precede approval; rejection never executes", async () => {
   screen = ui(); const p = proposal(); p.kind = "budget"; p.before = {objects: [{type: "campaign", id: "999"}], budget: {daily_budget: "1000"}};
   const reject = vi.fn().mockResolvedValue({...p, status: "rejected"}), execute = vi.fn();

@@ -4,6 +4,7 @@ import type {
   MetaAdsMedia, MetaAdsMetrics, MetaAdsOffer, MetaAdsProduct,
   MetaAdsProposal, MetaAdsRecommendation, MetaAdsSubscription,
 } from "@zyon/shared-types";
+import type { MetaAdsExposureState } from './exposure.js';
 
 export class MetaAdsError extends Error {
   constructor(public readonly code: string, public readonly status = 400) { super(code); this.name = "MetaAdsError"; }
@@ -54,6 +55,8 @@ export interface StoredProposal extends MetaAdsProposal {
 export interface MetaAdsStoreState {
   schemaVersion: 1;
   merchantId: string;
+  automation?: { version: number; activePolicyId: string | null; lastPolicyId: string | null };
+  exposure?: MetaAdsExposureState;
   subscription: StoredSubscription | null;
   credits: CreditState;
   connection: StoredConnection;
@@ -145,6 +148,8 @@ export interface MetaOAuthPort {
   exchange(code: string, redirectUri: string): Promise<{ accessToken: string; scopes: string[]; expiresAt: string | null }>;
 }
 export interface MetaAccess {
+  /** Server-only proof. Never serialized into provider tool arguments or supplied by a model. */
+  executionAuthority?: Pick<Extract<import('./execution-authority.port.js').ResolvedExecutionAuthority, { kind: 'automatic' }>, 'kind' | 'proposalId' | 'proposalDigest' | 'connectionEpoch' | 'policyId' | 'policyVersion'>;
   /** Server-only lease check, awaited immediately before each external write. */
   assertWriteAuthorized?: () => Promise<void>;
   merchantId: string;
@@ -167,6 +172,7 @@ export interface MetaDiscovery {
   errors: string[];
 }
 export interface RemoteSnapshot {
+  schedule?: { startsAt: string | null; endsAt: string | null };
   campaignId: string;
   status: string;
   effectiveStatus: string;
@@ -192,7 +198,7 @@ export interface ProviderMetricSnapshot {
   spendCents: number | null;
   attributedRevenueCents: number | null;
   attributedPurchases: number | null;
-  conversations: number;
+  conversations: number | null;
 }
 export interface MetaAdsProviderPort {
   discover(access: MetaAccess): Promise<MetaDiscovery>;
@@ -247,8 +253,10 @@ export interface CreativeReviewPort {
 }
 export interface ImageGenerationPort {
   configured(): boolean;
-  generate(input: { merchantId: string; generationId: string; imageIndex: number; product: MetaAdsProduct; brief: MetaAdsCampaignDraft }): Promise<GeneratedImageResult>;
+  generate(input: { merchantId: string; generationId: string; imageIndex: number; product: MetaAdsProduct; brief: MetaAdsCampaignDraft; assertAuthorized?:()=>Promise<void> }): Promise<GeneratedImageResult>;
 }
+export interface PreparationGenerationAuthority {preparationId:string;intentDigest:string;}
+export type GenerationAuthorizer=(merchantId:string,authority:PreparationGenerationAuthority,campaign:MetaAdsCampaign)=>Promise<void>;
 export interface AttributionReceipt {
   originSessionId?: string;
   id: string;
@@ -295,7 +303,9 @@ export const META_ADS_SESSION_BINDING = Symbol("MetaAdsSessionBinding");
 export interface ConversionsPort { send(access: MetaAccess, signal: PurchaseSignal): Promise<{ status: "sent" | "failed" | "unknown"; error: string | null }>; }
 export interface RecommendationPort {
   configured?(): boolean;
-  recommend(input: { merchantId: string; campaigns: Array<{ campaign: MetaAdsCampaign; metrics: MetaAdsMetrics }> }): Promise<{ recommendations: MetaAdsRecommendation[]; usage: TextModelUsage | null }>;
+  /** Stable analysis keys recover known paid steps without replaying unknown calls. */
+  durable?: boolean;
+  recommend(input: { merchantId: string; analysisKey?: string; campaigns: Array<{ campaign: MetaAdsCampaign; metrics: MetaAdsMetrics }> }): Promise<{ recommendations: MetaAdsRecommendation[]; usage: TextModelUsage | null }>;
 }
 
 export type Clock = () => Date;
