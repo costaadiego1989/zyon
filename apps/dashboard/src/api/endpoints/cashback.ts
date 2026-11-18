@@ -1,4 +1,4 @@
-import type { CashbackCustomer, CashbackMetrics, CashbackPage, CashbackProgramView, CashbackRules, CashbackTransaction, CashbackWalletView } from "@zyon/shared-types";
+import type { CashbackConfigurationWrite, CashbackCustomer, CashbackDraft, CashbackMetrics, CashbackPage, CashbackProgramView, CashbackTransaction, CashbackWalletView } from "@zyon/shared-types";
 import { dashboardFetch, dashboardJson } from "../http/client.js";
 import { DashboardHttpError } from "../http/error.js";
 
@@ -23,17 +23,27 @@ function queryString(input: CashbackListQuery & { kind?: string }): string {
   return encoded ? `?${encoded}` : "";
 }
 
+function configurationWrite(command: CashbackConfigurationWrite): CashbackConfigurationWrite {
+  if (!command || !/^[a-f0-9]{64}$/.test(command.expectedRevision) || typeof command.idempotencyKey !== "string"
+    || !command.idempotencyKey.trim() || command.idempotencyKey.length > 200) {
+    throw new DashboardHttpError(400, "cashback_configuration_revision_required");
+  }
+  return { expectedRevision: command.expectedRevision, idempotencyKey: command.idempotencyKey };
+}
+
 export function cashbackEndpoints(base: string, f: typeof fetch) {
   const path = "/dashboard/cashback";
   return {
     getCashbackProgram(): Promise<CashbackProgramView> {
       return dashboardJson(base, `${path}/program`, { method: "GET" }, f);
     },
-    saveCashbackDraft(rules: Partial<CashbackRules>): Promise<CashbackProgramView> {
-      return dashboardJson(base, `${path}/program`, { method: "PATCH", jsonBody: { rules } }, f);
+    async saveCashbackDraft(rules: CashbackDraft, command: CashbackConfigurationWrite): Promise<CashbackProgramView> {
+      const write = configurationWrite(command);
+      return dashboardJson(base, `${path}/program`, { method: "PATCH", jsonBody: { rules, ...write }, headers: { "Idempotency-Key": write.idempotencyKey } }, f);
     },
-    publishCashbackProgram(): Promise<CashbackProgramView> {
-      return dashboardJson(base, `${path}/program/publish`, { method: "POST" }, f);
+    async publishCashbackProgram(command: CashbackConfigurationWrite): Promise<CashbackProgramView> {
+      const write = configurationWrite(command);
+      return dashboardJson(base, `${path}/program/publish`, { method: "POST", jsonBody: write, headers: { "Idempotency-Key": write.idempotencyKey } }, f);
     },
     pauseCashbackProgram(): Promise<CashbackProgramView> {
       return dashboardJson(base, `${path}/program/pause`, { method: "POST" }, f);

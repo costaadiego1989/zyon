@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CashbackCustomer, CashbackMetrics, CashbackPage, CashbackProgramView, CashbackRules, CashbackTransaction, CashbackWalletView } from "@zyon/shared-types";
+import type { CashbackConfigurationWrite, CashbackCustomer, CashbackDraft, CashbackMetrics, CashbackPage, CashbackProgramView, CashbackRules, CashbackTransaction, CashbackWalletView } from "@zyon/shared-types";
 import { useApi } from "../../hooks/useApi.js";
 import type { CashbackCustomerFilter } from "../../api/endpoints/cashback.js";
+import { createIdempotencyKey } from "../../api/http/idempotency.js";
 
 export type CashbackTab = "overview" | "settings" | "customers" | "transactions";
 export type CashbackPeriodPreset = "month" | "today" | "7d" | "15d" | "30d";
@@ -137,13 +138,20 @@ export function useCashbackPage() {
       if (epoch === contextEpoch.current) setBusy(null);
     }
   }
-  async function saveDraft(rules: Partial<CashbackRules>) {
-    const result = await mutate("save", () => api.saveCashbackDraft(rules), "Rascunho salvo. O programa só muda quando você publica.");
+  function configurationWrite(view: CashbackProgramView | null): CashbackConfigurationWrite {
+    if (!view?.configurationRevision) throw new Error("Atualize as regras antes de continuar.");
+    return { expectedRevision: view.configurationRevision, idempotencyKey: createIdempotencyKey() };
+  }
+  async function saveDraft(rules: CashbackDraft) {
+    const result = await mutate("save", () => api.saveCashbackDraft(rules, configurationWrite(program.data)), "Rascunho salvo. O programa só muda quando você publica.");
     if (result) setProgram({ data: result, loading: false, error: null });
     return result;
   }
   async function publish(rules: CashbackRules) {
-    const result = await mutate("publish", async () => { await api.saveCashbackDraft(rules); return api.publishCashbackProgram(); }, "Cashback publicado. As novas regras valem para os próximos pedidos elegíveis.");
+    const result = await mutate("publish", async () => {
+      const saved = await api.saveCashbackDraft(rules, configurationWrite(program.data));
+      return api.publishCashbackProgram(configurationWrite(saved));
+    }, "Cashback publicado. As novas regras valem para os próximos pedidos elegíveis.");
     if (result) setProgram({ data: result, loading: false, error: null });
     return result;
   }
