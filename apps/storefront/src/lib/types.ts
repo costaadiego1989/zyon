@@ -314,7 +314,13 @@ export interface ReviewSubmissionBlock {
   data: { reviewId: string; productId: string; status: "pending_moderation" };
 }
 
+export interface FiscalInvoicesBlock {
+  type: "fiscal_invoices";
+  data: { orderId: string; invoices: Array<{ intentId: string; sellerMerchantId: string; environment: "production" | "homologation"; state: string; documentState: string; number?: string; options: Array<{ label: string; action: "navigate"; href: string }> }> };
+}
+
 export type ConversationBlock =
+  | FiscalInvoicesBlock
   | ProductQuestionsBlock
   | BuyerProductQuestionsBlock
   | ProductQuestionInputBlock

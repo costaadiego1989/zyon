@@ -21,6 +21,7 @@ import CrossSellBlock from "./CrossSellBlock";
 import CouponListBlock from "./CouponListBlock";
 import ProductContentBlock from "./ProductContentBlock";
 import ProductQuestions from "./ProductQuestionsBlock";
+import FiscalInvoicesBlock from "./FiscalInvoicesBlock";
 
 export default function BlockRenderer({
   block,
@@ -37,6 +38,8 @@ export default function BlockRenderer({
   onOpenCrossSell?: (product: CrossSellDisplayProduct) => void;
 }) {
   switch (block.type) {
+    case "fiscal_invoices":
+      return <FiscalInvoicesBlock block={block} />;
     case "product_questions":
     case "buyer_product_questions":
     case "product_question_input":
