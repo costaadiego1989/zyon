@@ -7,6 +7,12 @@ import { ChatDock } from './ChatDock.js';
 let screen: ReturnType<typeof ui>; afterEach(async () => screen?.close());
 const context = {id:'inventory',label:'Estoque',capabilities:[]};
 const turn: AssistantTurn = {id:'t',threadId:'h',ordinal:1,status:'completed',message:'Olá',reply:'Produto disponível',references:[],artifacts:[],error:null,createdAt:'2026-11-16T12:00:00Z',updatedAt:'2026-11-16T12:00:00Z'};
+test('ACF-01 Enter sends once while Shift+Enter and composition preserve the message',async()=>{
+ screen=ui();let resolve!:()=>void;const send=vi.fn(()=>new Promise<void>(done=>{resolve=done;}));await screen.render(<ChatDock context={context} turns={[]} onSend={send}/>);await screen.change('Mensagem para a IA','Minha campanha');const textarea=screen.container.querySelector('textarea')!;
+ for(const options of [{shiftKey:true},{isComposing:true},{keyCode:229}]){await act(async()=>textarea.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true,...options})));expect(send).not.toHaveBeenCalled();expect(textarea.value).toBe('Minha campanha');}
+ await act(async()=>{textarea.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));textarea.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));});expect(send.mock.calls).toEqual([['Minha campanha']]);expect(textarea.value).toBe('Minha campanha');expect(screen.container.querySelector('.chat-dock-thinking')?.textContent).toBe('Zyon pensando…');expect(screen.container.querySelector('.chat-dock-thinking .zyon-agent-orb')).not.toBeNull();expect(screen.container.textContent).not.toContain('Processando');await act(async()=>resolve());expect(textarea.value).toBe('');expect(screen.container.querySelector('.chat-dock-thinking')).toBeNull();
+});
+test('ACF-01 admitted turn has one mascot thinking status and then displays the answer',async()=>{screen=ui();const props={context,turns:[{...turn,status:'running' as const,reply:null}],busy:true,onSend:async()=>{}};await screen.render(<ChatDock {...props} presentation="floating" expanded/>);expect(screen.container.querySelectorAll('.chat-dock-thinking')).toHaveLength(1);expect(screen.container.querySelector('.chat-dock-reply > strong')?.textContent).toBe('Zyon pensando…');expect(screen.container.querySelector('.chat-dock-composer [role="status"]')).toBeNull();await screen.render(<ChatDock {...props} turns={[turn]} busy={false} presentation="floating" expanded/>);expect(screen.container.querySelector('.chat-dock-thinking')).toBeNull();expect(screen.container.querySelector('.chat-dock-reply p')?.textContent).toBe('Produto disponível');});
 
 test('RD-01 unavailable sending preserves the draft without claiming processing and resumes once eligible',async()=>{
   screen=ui();const send=vi.fn(),retry=vi.fn();
@@ -50,7 +56,7 @@ test('ADAS-13 keyboard collapse and reopen preserve draft and processing with pr
   const input=screen.container.querySelector('textarea')!; input.focus();
   await act(async()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
   const trigger=screen.container.querySelector('[aria-label="Abrir assistente"]') as HTMLButtonElement; expect(document.activeElement).toBe(trigger);
-  await screen.click('Abrir assistente'); expect(document.activeElement).toBe(screen.container.querySelector('textarea')); expect(screen.container.textContent).toContain('Processando'); expect(screen.container.textContent).toContain('Olá');
+  await screen.click('Abrir assistente'); expect(document.activeElement).toBe(screen.container.querySelector('textarea')); expect(screen.container.textContent).toContain('Zyon pensando…'); expect(screen.container.textContent).toContain('Olá');
 });
 
 test('ADAS-13 sending from the keyboard returns focus before the focused submit control becomes disabled',async()=>{

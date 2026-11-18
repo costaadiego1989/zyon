@@ -106,7 +106,8 @@ export interface PaidOrderFact {
 export interface CommerceContextPort {
   getPlan(merchantId: string): Promise<"starter" | "starter179" | "growth" | "scale">;
   getProfile(merchantId: string): Promise<MerchantProfile>;
-  products(merchantId: string, input?: { variantIds?: string[]; query?: string; limit?: number }): Promise<MetaAdsProduct[]>;
+  products(merchantId: string, input?: { variantIds?: string[]; query?: string; categoryId?:string; limit?: number }): Promise<MetaAdsProduct[]>;
+  categories?(merchantId:string,input?:{query?:string;limit?:number}):Promise<{categories:Array<{id:string;name:string;productCount:number}>;hasMore:boolean}>;
   paidOrder(merchantId: string, orderId: string): Promise<PaidOrderFact | null>;
   paidOrders(merchantId: string, since: string, until: string): Promise<PaidOrderFact[]>;
 }
