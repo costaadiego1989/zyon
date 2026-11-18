@@ -315,11 +315,11 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | HUM-01 | Fixed menu entry | T57 | Complete (LOCAL; T57 menu and signed gesture gated; final feature verification pending) |
 | HUM-02 | Handoff intake | T49, T50, T57 | Complete (LOCAL; T49/T50/T57 intake, router and button/text/voice with canonical acknowledgement gated; final feature verification pending) |
 | HUM-03 | AI pause | T4, T48, T49, T50, T51, T109 | Complete (LOCAL; T4/T48-T51 and T109 locally gated; final feature verification pending) |
-| HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52 exact claim,T53send,T59permissionprimitives complete; queue/UI pending) |
+| HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52/T53/T58/T59 local authority/queue complete; T60-T62 visual operation pending) |
 | HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | In Progress (T53 queue, T54 local transport and T55 authenticated local receipt processing complete; T60/T61 console and final verification pending) |
 | HUM-06 | Automatic AI resume | T56, T61 | In Progress (T56 canonical closure/automatic resume locally complete; T61 operator UI and final proof pending) |
-| HUM-07 | Unavailable team/provider | T54, T55, T58, T109 | In Progress (T54/T55/T109 locally complete; T58 team notices pending) |
-| HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | In Progress (T59permissionprimitives complete; tab/route wiring pending) |
+| HUM-07 | Unavailable team/provider | T54, T55, T58, T109 | In Progress (T54/T55/T58/T109 server truth locally complete; final UI/feature verification pending) |
+| HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | In Progress (T58 scoped API/bootstrap and T59 permissions complete; T60/T62/T82 tab/route wiring pending) |
 | RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Implemented locally including T104 bounded-write repair; final proof pending |
 | RAG-02 | Retirement | T65, T67, T68, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |
 | RAG-03 | Retry and source durability | T64, T66, T67, T104 | Implemented locally including T104 bounded-write repair; final proofs pending |

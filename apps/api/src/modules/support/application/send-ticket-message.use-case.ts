@@ -19,7 +19,7 @@ export const WHATSAPP_SUPPORT_MESSAGE_REQUESTED="whatsapp.support.message.reques
 export const whatsappSupportDeliveryId=(messageId:string)=>"support_message:"+messageId;
 export interface TicketMessageCommand { ticketId:string;merchantId:string;senderType:"buyer"|"merchant"|"system";
   content:string;metadata?:SupportMessageMetadata;clientMessageId?:string;operatorId?:string }
-export interface TicketMessageServerContext { readonly principal:TenantPrincipal }
+export interface TicketMessageServerContext { readonly principal:TenantPrincipal; readonly requiredSource?:"whatsapp" }
 
 export interface TicketMessageDto {
   id: string; ticketId: string; senderType: "buyer" | "merchant" | "system";
@@ -34,6 +34,7 @@ export class SendTicketMessageUseCase {
     if (input.clientMessageId !== undefined && (typeof input.clientMessageId !== "string" || !/^[A-Za-z0-9_-]{8,100}$/.test(input.clientMessageId))) throw new BadRequestException("invalid_message_id");
     const direct=await this.prisma.supportTicket.findFirst({where:{id:input.ticketId,merchantId:input.merchantId}});
     if(!direct)throw new NotFoundException("ticket_not_found");
+    if(context?.requiredSource==="whatsapp"&&direct.source!=="whatsapp")throw new NotFoundException("whatsapp_case_not_found");
     if(direct.source==="whatsapp")return this.queueWhatsApp(input,context);
     const message = await this.prisma.$transaction(async tx => {
       await admitWhatsAppEffectInTransaction(tx,input.merchantId);

@@ -1,3 +1,4 @@
+import { conversationContext } from "../../application/whatsapp-conversation-context.js";
 import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
 import {
   Body,
@@ -76,6 +77,14 @@ export class SupportController {
     @Optional() private readonly tenantContext: TenantContextService = new TenantContextService(),
     @Optional() private readonly closeWhatsAppConversation?: CloseWhatsAppConversationUseCase,
   ) {}
+
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @RequireTenantAccess({ humanOnly: true, humanRoles: ["owner", "admin", "staff"] })
+  @RequireTenantRoles("owner", "admin", "staff")
+  @Get("whatsapp/conversations/context")
+  getWhatsAppConversationContext(@Req() request: unknown, @Query() query: unknown) {
+    return conversationContext(currentTenantPrincipal(request as Parameters<typeof currentTenantPrincipal>[0]), query);
+  }
 
   /**
    * P0 fix: chat now requires a verified embed token. `merchant_id` is derived

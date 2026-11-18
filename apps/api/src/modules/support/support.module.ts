@@ -14,6 +14,8 @@ import { UpdateSupportTicketStatusUseCase } from "./application/update-support-t
 import { CreateSupportTicketUseCase } from "./application/create-support-ticket.use-case.js";
 import { ClaimWhatsAppConversationUseCase } from "./application/claim-whatsapp-conversation.use-case.js";
 import { CloseWhatsAppConversationUseCase } from "./application/close-whatsapp-conversation.use-case.js";
+import { ReadWhatsAppConversationsUseCase } from "./application/read-whatsapp-conversations.use-case.js";
+import { WhatsAppConversationsController } from "./presentation/http/whatsapp-conversations.controller.js";
 import { SendTicketMessageUseCase } from "./application/send-ticket-message.use-case.js";
 import { ListTicketMessagesUseCase } from "./application/list-ticket-messages.use-case.js";
 import { TransferTicketUseCase } from "./application/transfer-ticket.use-case.js";
@@ -42,7 +44,7 @@ import { SupportNotificationSettingsController } from "./presentation/http/suppo
 @Module({
   // EmbedModule provides EmbedAuthGuard used by chat/faq endpoints (P0 fix)
   imports: [EmbedModule, IntegrationsModule, HttpModule, KnowledgeBaseModule, WhatsAppHandoffModule],
-  controllers: [SupportController, SupportMessagesController, SupportNotificationSettingsController],
+  controllers: [SupportController, SupportMessagesController, SupportNotificationSettingsController, WhatsAppConversationsController],
   providers: [
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     SendSupportMessageUseCase,
@@ -54,6 +56,7 @@ import { SupportNotificationSettingsController } from "./presentation/http/suppo
     CreateSupportTicketUseCase,
     ClaimWhatsAppConversationUseCase,
     CloseWhatsAppConversationUseCase,
+    ReadWhatsAppConversationsUseCase,
     SendTicketMessageUseCase,
     ListTicketMessagesUseCase,
     TransferTicketUseCase,
