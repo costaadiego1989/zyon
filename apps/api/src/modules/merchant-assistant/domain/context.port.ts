@@ -28,4 +28,6 @@ export interface AssistantContextPort {
   uncitedResponse?(input:UncitedAssistantResponse):string|null;
   /** Context-owned canonical questions/facts may also replace cited claims. */
   guidedResponse?(input:UncitedAssistantResponse & {message:string}):string|null;
+  /** Known malformed model reply only. Canonical questions/read facts, never tool replay. */
+  recoveredResponse?(input:UncitedAssistantResponse & {message:string}):string|null;
 }

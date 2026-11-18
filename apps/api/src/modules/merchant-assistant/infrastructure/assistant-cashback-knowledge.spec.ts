@@ -10,6 +10,9 @@ import {AssistantApiService} from '../application/assistant-api.service.js';
 import {PrismaAssistantRepository} from './prisma-assistant.repository.js';
 import {assistantDatabase} from './__tests__/database.js';
 import type {AssistantContextPort} from '../domain/context.port.js';
+import type {AssistantModelPort} from '../domain/model.port.js';
+import {AssistantError} from '../domain/assistant.port.js';
+import {CASHBACK_KNOWLEDGE_FALLBACK_NOTICE} from '../domain/knowledge.port.js';
 
 const clock=()=>new Date('2026-11-18T12:00:00Z');
 const scope={merchantId:'store-a',context:'cashback',audience:'merchant' as const};
@@ -93,14 +96,14 @@ test('graph exceptions recover only reviewed fallback content without leaking tr
   }
 });
 
-async function responseFixture(retriever:AssistantKnowledgeRetriever){
+async function responseFixture(retriever:AssistantKnowledgeRetriever,model?:AssistantModelPort){
   const db=await assistantDatabase(),actor={merchantId:'store-a',actorId:'owner-a',context:'cashback'};
   const repo=new PrismaAssistantRepository(db.prisma,clock),thread=await repo.createThread(actor);
   await repo.atomic(actor,thread.id,async tx=>{await tx.append({id:'cbx-turn',requestKey:'cbx-turn',inputHash:'a'.repeat(64),message:'Como usar cashback?',budgetAmountMicros:100n});
     await tx.update('cbx-turn',{status:'running',leaseToken:'cbx-lease',leaseUntil:'2026-11-18T12:01:00Z'});});
   const context:AssistantContextPort={descriptor:{id:'cashback',label:'Cashback',capabilities:[]},knowledgeScope:{...scope,merchantId:'store-b'},
     authorize:async()=>{},authorizeInvocation:async()=>{},tools:()=>[],execute:async()=>{throw Error('no writes');}};
-  const service=new AssistantService({repo,context,knowledge:retriever,clock,model:{complete:async input=>({reply:'O uso depende das regras publicadas da loja.',
+  const service=new AssistantService({repo,context,knowledge:retriever,clock,model:model??{complete:async input=>({reply:'O uso depende das regras publicadas da loja.',
     referenceIds:input.knowledge.length?[input.knowledge[0]!.reference.id]:[],toolCalls:[],providerRequestId:'controlled-local',costMicros:0n})}});
   return {db,repo,context,actor,thread,service,respond:()=>service.respond({scope:actor,threadId:thread.id,turnId:'cbx-turn',leaseToken:'cbx-lease'})};
 }
@@ -113,6 +116,19 @@ test('CBX-21 unavailable empty or stale graph produces reviewed evidence and a s
       assert.match(response.reply,/O uso depende das regras publicadas da loja\./);assert.doesNotMatch(response.reply,/Cypher|Neo4j/);
     }finally{await f.db.close();}
   }
+  const retriever=new AssistantKnowledgeRetriever(undefined,clock,graph({status:'unavailable',reason:'disabled'}));
+  const recovered=await responseFixture(retriever,{complete:async()=>{throw new AssistantError('assistant_model_response_invalid',502);}});
+  try{
+    recovered.context.recoveredResponse=()=> 'Consulte o checklist para retomar a próxima decisão.';
+    const response=await recovered.respond();
+    assert.equal(response.reply,`${CASHBACK_KNOWLEDGE_FALLBACK_NOTICE}\n\nConsulte o checklist para retomar a próxima decisão.`);
+    assert.deepEqual(response.references,[]);assert.deepEqual(response.artifacts,[]);
+  }finally{await recovered.db.close();}
+  const unknown=await responseFixture(retriever,{complete:async()=>{throw new AssistantError('assistant_outcome_unknown',409);}});
+  try{
+    unknown.context.recoveredResponse=()=> 'Esta resposta não pode esconder um resultado desconhecido.';
+    await assert.rejects(unknown.respond(),{code:'assistant_outcome_unknown'});
+  }finally{await unknown.db.close();}
 });
 test('assistant uses authenticated server merchant for retrieval validation and source despite context authority fields',async()=>{
   const scopes:unknown[]=[];const graphRequests:unknown[]=[];

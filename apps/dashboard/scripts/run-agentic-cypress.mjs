@@ -50,7 +50,7 @@ export async function main(args=process.argv.slice(2)){
   try{
     let ready=false;for(let i=0;i<360;i++){try{ready=(await fetch(apiBase+'/__test/health')).ok;}catch{}if(ready||child.exitCode!==null)break;await wait(250);}if(!ready)throw Error('agentic_api_start_failed: '+logs.slice(-6000));
     if(!(await fetch(apiBase+'/__test/facts',{headers})).ok)throw Error('agentic_api_owner_mismatch');
-    const {createServer}=await import('vite');vite=await createServer({configFile:path.join(dashboard,'e2e/agentic-assistant/vite.config.ts'),define:{__AGENTIC_API__:JSON.stringify(apiBase),__AGENTIC_NONCE__:JSON.stringify(nonce)}});await vite.listen();await vite.warmupRequest('/entry.tsx');
+    const {createServer}=await import('vite');vite=await createServer({configFile:path.join(dashboard,'e2e/agentic-assistant/vite.config.ts'),cacheDir:path.join(artifact,'vite-cache'),define:{__AGENTIC_API__:JSON.stringify(apiBase),__AGENTIC_NONCE__:JSON.stringify(nonce)}});await vite.listen();await vite.warmupRequest('/entry.tsx');
     process.stdout.write(`Local API and dashboard ready: ${front}\n`);
     if(options.serve){await Promise.race([exited,new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);})]);return;}
     process.stdout.write('Starting Cypress in isolated Edge\n');

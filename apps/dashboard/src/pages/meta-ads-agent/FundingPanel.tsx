@@ -26,11 +26,11 @@ export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh,sho
   async function refresh(){if(lock.current||busy)return;lock.current=true;setRefreshing(true);setRefreshError('');try{await onRefresh();feedback.notify('success','Consulta de pagamentos atualizada. Confira a situação da conta.');}catch{const message='Não foi possível atualizar. Consulte os pagamentos na Meta e tente verificar novamente.';setRefreshError(message);feedback.notify('error',message);}finally{lock.current=false;setRefreshing(false);}}
   return <section className="mga-panel mga-funding" aria-label="Verba dos anúncios">
     <div className="mga-funding-heading"><CreditCard size={18} aria-hidden="true"/><div><h2>Verba dos anúncios</h2>{account&&<small className={compact?'mga-funding-status':undefined}>{compact?(snapshot?.billingType==='prepaid'?'Pré-paga · Adicione fundos na Meta':snapshot?.billingType==='postpaid'?'Pós-paga · Confira o método de pagamento':'Pagamentos não confirmados'):`${account.name} · Conta ${account.id}`}</small>}</div></div>
-    {showCostNotice&&<p className="mga-funding-separation">Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.</p>}
+    {showCostNotice&&<p className="mga-funding-separation">O investimento dos anúncios é pago <span className="mga-nowrap">diretamente à Meta.</span></p>}
     {!account?<p>Conecte e selecione sua conta de anúncios para consultar os pagamentos.</p>:<>
       {loading&&<p role="status">Consultando pagamentos da conta…</p>}
       {current?.status==='blocked'&&<p className="mga-funding-block" role="alert"><strong>Publicação bloqueada.</strong> Resolva a pendência financeira na Meta.</p>}
-      <div className="mga-actions">{url?<a className="mga-payment-link" href={url} target="_blank" rel="noopener noreferrer">Abrir pagamentos na Meta<ExternalLink size={14} aria-hidden="true"/></a>:<button type="button" disabled>Acesso aos pagamentos indisponível</button>}
+      <div className="mga-actions">{url?<a className="mga-payment-link" href={url} target="_blank" rel="noopener noreferrer">Abrir pagamentos na Meta<ExternalLink size={14} aria-hidden="true"/></a>:<button type="button" className="mga-secondary" disabled>Acesso aos pagamentos indisponível</button>}
         <button type="button" className="mga-secondary" disabled={loading||busy||refreshing} onClick={()=>void refresh()}>{refreshing?'Verificando…':'Verificar novamente'}</button></div>
       <details className="mga-funding-details mga-disclosure"><summary>Detalhes dos pagamentos</summary>
       {snapshot&&<><dl className="mga-ledger">
@@ -41,7 +41,8 @@ export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh,sho
       </dl><small>Consulta em <time dateTime={snapshot.checkedAt}>{new Date(snapshot.checkedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time> · Dados consultados na Meta</small></>}
       {current?.message&&<p>{current.message}</p>}
       <details className="mga-payment-guidance mga-inline-details mga-disclosure"><summary>Ajuda sobre pagamentos</summary>
-      <p>Os créditos de imagens também não incluem a verba de anúncios.</p>
+      <ol><li>Abra os pagamentos na Meta e confira a conta selecionada.</li><li>Se a conta usa saldo antecipado, escolha Adicionar fundos. Se usa cobrança automática, confira a forma de pagamento.</li><li>Depois volte aqui e use Verificar novamente para consultar a situação.</li></ol>
+      <p>A assinatura da Zyon e os créditos de imagens não incluem a verba dos anúncios.</p>
       {current?.status==='unknown'&&<p>Não foi possível verificar os pagamentos desta conta. Confira as informações no painel da Meta.</p>}
       {snapshot?.billingType==='prepaid'&&<p>Pré-paga: adicione fundos na Meta para financiar os anúncios. As opções e a confirmação aparecem na sua conta da Meta.</p>}
       {snapshot?.billingType==='postpaid'&&<p>Pós-paga: confira seu método de pagamento e os valores devidos na Meta. Esse modelo não exige recarga pré-paga.</p>}
