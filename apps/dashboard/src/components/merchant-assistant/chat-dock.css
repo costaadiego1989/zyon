@@ -29,6 +29,10 @@
 .chat-dock-send > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .chat-dock [role=alert] { color: var(--color-error); }
 .chat-dock img { max-width: 100%; height: auto; }
+.chat-dock-thinking { display: flex; align-items: center; gap: 8px; color: var(--color-text-secondary); font-size: 13px; font-weight: 500; }
+.chat-dock-thinking-ellipsis { display: inline-block; animation: chat-dock-thinking-pulse 1.4s ease-in-out infinite; }
+@keyframes chat-dock-thinking-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+@media(prefers-reduced-motion:reduce) { .chat-dock-thinking-ellipsis { animation: none; } }
 @media (max-width: 900px) {
   .chat-dock { position: static; }
   .chat-dock-trigger { position: fixed; bottom: max(16px,env(safe-area-inset-bottom)); right: 16px; z-index: 30; max-width: calc(100vw - 32px); }
