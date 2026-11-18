@@ -72,18 +72,38 @@ export class CashbackQueriesService {
   async metrics(merchantId: string, q: CashbackListQuery): Promise<CashbackMetrics> {
     const { from, to } = range(q); await this.service.reconcile(merchantId);
     return this.repository.transaction(merchantId, async tx => {
+      const asOf = new Date();
       const rows = await tx.$queryRaw<Array<{ type: string; amount: bigint; buyers: bigint; orders: bigint }>>`SELECT type,SUM(amount_cents)::bigint AS amount,count(DISTINCT COALESCE(a.canonical_buyer_id,e.buyer_id))::bigint AS buyers,count(DISTINCT order_id)::bigint AS orders
         FROM cashback_ledger_entries e LEFT JOIN cashback_buyer_aliases a ON a.merchant_id=e.merchant_id AND a.alias_buyer_id=e.buyer_id
         WHERE e.merchant_id=${merchantId} AND occurred_at>=${from} AND occurred_at<=${to} GROUP BY type`;
       const sums = new Map(rows.map(x => [x.type, x])); const amount = (type: string) => Number(sums.get(type)?.amount ?? 0);
+      const days = await tx.$queryRaw<Array<{ date: string; granted: bigint; redeemed: bigint }>>`
+        WITH days AS (
+          SELECT generate_series(
+            ((${from}::timestamptz AT TIME ZONE 'America/Sao_Paulo')::date)::timestamp,
+            ((${to}::timestamptz AT TIME ZONE 'America/Sao_Paulo')::date)::timestamp,
+            interval '1 day')::date AS day
+        ), movements AS (
+          SELECT (occurred_at AT TIME ZONE 'America/Sao_Paulo')::date AS day,
+            SUM(CASE WHEN type='grant' THEN amount_cents ELSE 0 END)::bigint AS granted,
+            SUM(CASE WHEN type='redeem' THEN amount_cents ELSE 0 END)::bigint AS redeemed
+          FROM cashback_ledger_entries
+          WHERE merchant_id=${merchantId} AND occurred_at>=${from} AND occurred_at<=${to} AND type IN ('grant','redeem')
+          GROUP BY 1
+        )
+        SELECT to_char(days.day,'YYYY-MM-DD') AS date,COALESCE(movements.granted,0)::bigint AS granted,
+          COALESCE(movements.redeemed,0)::bigint AS redeemed
+        FROM days LEFT JOIN movements ON movements.day=days.day ORDER BY days.day`;
       const wallets = await tx.$queryRaw<Array<{ pending: bigint; available: bigint; reserved: bigint }>>`SELECT COALESCE(SUM((balance->>'pendingCents')::bigint),0)::bigint AS pending,COALESCE(SUM((balance->>'availableCents')::bigint),0)::bigint AS available,COALESCE(SUM((balance->>'reservedCents')::bigint),0)::bigint AS reserved
         FROM cashback_wallets w WHERE merchant_id=${merchantId} AND NOT EXISTS(SELECT 1 FROM cashback_buyer_aliases a WHERE a.merchant_id=w.merchant_id AND a.alias_buyer_id=w.buyer_id)`;
       const revenue = await tx.$queryRaw<Array<{ amount: bigint }>>`SELECT COALESCE(SUM((q.data->>'orderTotalCents')::bigint),0)::bigint AS amount FROM cashback_earning_quotes q WHERE q.merchant_id=${merchantId} AND q.state='confirmed' AND (q.data->>'cashbackCents')::bigint>0 AND EXISTS(SELECT 1 FROM cashback_ledger_entries e WHERE e.merchant_id=q.merchant_id AND e.order_id=q.data->>'orderId' AND e.type='redeem' AND e.occurred_at>=${from} AND e.occurred_at<=${to})`;
-      const monthParts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).formatToParts(new Date());
+      const monthParts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).formatToParts(asOf);
       const month = `${monthParts.find(p => p.type === "year")!.value}-${monthParts.find(p => p.type === "month")!.value}`;
       const budget = await tx.$queryRaw<Array<{ committed_cents: bigint; issued_cents: bigint }>>`SELECT committed_cents,issued_cents FROM cashback_budget_periods WHERE merchant_id=${merchantId} AND period=${month}`;
       const program = await this.repository.program(tx, merchantId);
-      return { from: from.toISOString(), to: to.toISOString(), asOf: new Date().toISOString(), grantedCents: amount("grant"), releasedCents: amount("release"), redeemedCents: amount("redeem"), restoredCents: amount("restore"), expiredCents: amount("expire"), reversedCents: amount("reverse"), lossCents: amount("loss"),
+      return { from: from.toISOString(), to: to.toISOString(), asOf: asOf.toISOString(),
+        dailyMovements: days.map(day => ({ date: day.date, grantedCents: Number(day.granted), redeemedCents: Number(day.redeemed) })),
+        grantedCents: amount("grant"), releasedCents: amount("release"), redeemedCents: amount("redeem"), restoredCents: amount("restore"), expiredCents: amount("expire"), reversedCents: amount("reverse"), lossCents: amount("loss"),
         pendingCents: Number(wallets[0]?.pending ?? 0), availableCents: Number(wallets[0]?.available ?? 0), reservedCents: Number(wallets[0]?.reserved ?? 0), buyersGranted: Number(sums.get("grant")?.buyers ?? 0), buyersRedeemed: Number(sums.get("redeem")?.buyers ?? 0), ordersWithCashback: Number(sums.get("redeem")?.orders ?? 0), associatedRevenueCents: Number(revenue[0]?.amount ?? 0), budgetCommittedCents: Number(budget[0]?.committed_cents ?? 0), budgetIssuedCents: Number(budget[0]?.issued_cents ?? 0), budgetLimitCents: program.published?.monthlyBudgetCents ?? null };
     });
   }

@@ -26,7 +26,9 @@ export async function cashbackConfigurationFixture() {
   await db.query(`SET search_path TO "${schema}"`);
   await db.query(`CREATE TABLE merchant_rules(merchant_id TEXT PRIMARY KEY,max_discount_percent NUMERIC,minimum_margin_percent NUMERIC);
     CREATE TABLE buyer_accounts(global_user_id TEXT PRIMARY KEY,display_name TEXT,email TEXT);
+    CREATE TABLE buyer_identities(merchant_id TEXT,identity_key TEXT,global_user_id TEXT,PRIMARY KEY(merchant_id,identity_key));
     CREATE TABLE payment_intents(id TEXT PRIMARY KEY,merchant_id TEXT,session_id TEXT,idempotency_key TEXT,status TEXT,amount_cents INTEGER,amount_breakdown JSONB);`);
+  await db.query(await readFile(new URL("../../../../../prisma/migrations/20261114091000_buyer_verified_phones/migration.sql", import.meta.url), "utf8"));
   await db.query(await readFile(new URL("../../../../../prisma/migrations/20261114120000_cashback/migration.sql", import.meta.url), "utf8"));
   const prisma = new PrismaClient({ datasources: { db: { url: `${databaseUrl}?schema=${schema}` } } });
   const repository = new CashbackRepository(prisma);
