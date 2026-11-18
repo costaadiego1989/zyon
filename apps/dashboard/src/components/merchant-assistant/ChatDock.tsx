@@ -5,7 +5,7 @@ import { ArrowUp, ChevronDown, MessageSquare, X } from 'lucide-react';
 import {ZyonAgentOrb} from './ZyonAgentOrb.js';
 
 export interface ChatDockProps {
-  context: AssistantContextDescriptor; turns: AssistantTurn[]; loading?: boolean; busy?: boolean;
+  context: AssistantContextDescriptor; turns: AssistantTurn[]; loading?: boolean; busy?: boolean; disabled?: boolean;
   error?: string; empty?: ReactNode; headerExtra?: ReactNode;
   onSend: (message: string) => Promise<void>; onRetry?: () => void | Promise<void>;
   renderTurnDetails?: (turn: AssistantTurn) => ReactNode;
@@ -13,7 +13,7 @@ export interface ChatDockProps {
   expanded?: boolean; onExpandedChange?: (expanded:boolean)=>void;
   presentation?:'inline'|'floating'; pageKey?:string; hints?:readonly string[];
 }
-export function ChatDock({context,turns,loading,busy,error,empty,headerExtra,onSend,onRetry,renderTurnDetails,older,expanded,onExpandedChange,presentation='inline',pageKey=context.id,hints=[]}: ChatDockProps) {
+export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,headerExtra,onSend,onRetry,renderTurnDetails,older,expanded,onExpandedChange,presentation='inline',pageKey=context.id,hints=[]}: ChatDockProps) {
   const floating=presentation==='floating';
   const [localOpen,setLocalOpen]=useState(()=>!floating&&(typeof matchMedia==='undefined'||!matchMedia('(max-width: 900px)').matches));
   const open=expanded??localOpen;
@@ -38,7 +38,7 @@ export function ChatDock({context,turns,loading,busy,error,empty,headerExtra,onS
   useEffect(()=>{if(focus.current==='composer') composer.current?.focus(); if(focus.current==='trigger') trigger.current?.focus(); focus.current=null;},[open]);
   function toggle(next:boolean) {focus.current=next?'composer':'trigger';setLocalOpen(next);onExpandedChange?.(next);}
   async function send() {
-    const text=message.trim(); if(lock.current||busy||loading||!text||text.length>8000) return;
+    const text=message.trim(); if(lock.current||disabled||busy||loading||!text||text.length>8000) return;
     composer.current?.focus();
     following.current=true;followRequested.current=true;
     lock.current=true;setSending(true);setSendError('');
@@ -46,7 +46,7 @@ export function ChatDock({context,turns,loading,busy,error,empty,headerExtra,onS
     finally {lock.current=false;setSending(false);}
   }
   async function retry() {
-    if(!onRetry||lock.current||busy)return;
+    if(!onRetry||lock.current||disabled||busy)return;
     composer.current?.focus();
     const failedSend=!!sendError,previous=message;lock.current=true;setSending(true);
     following.current=true;followRequested.current=true;
@@ -66,9 +66,9 @@ export function ChatDock({context,turns,loading,busy,error,empty,headerExtra,onS
         {turns.map(turn=><article className="chat-dock-turn" key={turn.id} data-turn-id={turn.id}><div className="chat-dock-user"><strong>Você</strong><p>{turn.message}</p></div><div className="chat-dock-reply"><strong>{floating&&<ZyonAgentOrb size={23}/>}Assistente</strong>{turn.reply&&<p>{turn.reply}</p>}{['queued','running'].includes(turn.status)&&<p role="status">Processando sua mensagem…</p>}{turn.status==='unknown'&&<p role="status">Resultado ainda desconhecido. Consulte o histórico antes de repetir a ação.</p>}{turn.status==='failed'&&<p role="status">Este turno não foi concluído. Consulte os detalhes antes de continuar.</p>}{renderTurnDetails?.(turn)}</div></article>)}
       </div></div>
       <form className="chat-dock-composer" onSubmit={event=>{event.preventDefault();void send();}}>
-        {(error||sendError)&&<div role="alert"><p>{error||sendError}</p>{onRetry&&<button type="button" disabled={sending||busy} onClick={()=>void retry()}>Retomar envio</button>}</div>}
+        {(error||sendError)&&<div role="alert"><p>{error||sendError}</p>{onRetry&&<button type="button" disabled={disabled||sending||busy} onClick={()=>void retry()}>Retomar envio</button>}</div>}
         <label className="chat-dock-sr-only" htmlFor={`${id}-message`}>Mensagem para a IA</label><textarea ref={composer} id={`${id}-message`} aria-label="Mensagem para a IA" placeholder="Descreva sua ideia ou faça uma pergunta…" value={message} rows={3} maxLength={8000} onChange={event=>setMessage(event.target.value)} aria-describedby={`${id}-limit`}/>
-        <div className="chat-dock-send"><small id={`${id}-limit`}>{message.length}/8000</small><button type="submit" disabled={loading||busy||sending||!message.trim()||message.trim().length>8000}>Enviar mensagem<ArrowUp size={15} aria-hidden="true"/></button></div>
+        <div className="chat-dock-send"><small id={`${id}-limit`}>{message.length}/8000</small><button type="submit" disabled={disabled||loading||busy||sending||!message.trim()||message.trim().length>8000}>Enviar mensagem<ArrowUp size={15} aria-hidden="true"/></button></div>
         {(busy||sending)&&<span role="status">Processando… Você pode recolher o chat e continuar na página.</span>}
       </form>
     </section>

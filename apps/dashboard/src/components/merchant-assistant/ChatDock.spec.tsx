@@ -7,6 +7,19 @@ import { ChatDock } from './ChatDock.js';
 let screen: ReturnType<typeof ui>; afterEach(async () => screen?.close());
 const context = {id:'inventory',label:'Estoque',capabilities:[]};
 const turn: AssistantTurn = {id:'t',threadId:'h',ordinal:1,status:'completed',message:'Olá',reply:'Produto disponível',references:[],artifacts:[],error:null,createdAt:'2026-11-16T12:00:00Z',updatedAt:'2026-11-16T12:00:00Z'};
+
+test('RD-01 unavailable sending preserves the draft without claiming processing and resumes once eligible',async()=>{
+  screen=ui();const send=vi.fn(),retry=vi.fn();
+  const props={context,turns:[],onSend:send,onRetry:retry,error:'Acesso indisponível'};
+  await screen.render(<ChatDock {...props} disabled/>);await screen.change('Mensagem para a IA','Meu anúncio');
+  expect((screen.container.querySelector('button[type=submit]') as HTMLButtonElement).disabled).toBe(true);
+  expect(Array.from(screen.container.querySelectorAll('button')).find(b=>b.textContent==='Retomar envio')!.disabled).toBe(true);
+  await act(async()=>screen.container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  await screen.click('Retomar envio');expect(send).not.toHaveBeenCalled();expect(retry).not.toHaveBeenCalled();
+  expect(screen.container.textContent).not.toContain('Processando');expect(screen.container.querySelector('textarea')!.value).toBe('Meu anúncio');
+  await screen.render(<ChatDock {...props}/>);await screen.click('Enviar mensagem');
+  expect(send).toHaveBeenCalledTimes(1);expect(send).toHaveBeenCalledWith('Meu anúncio');expect(screen.container.querySelector('textarea')!.value).toBe('');
+});
 test('ADAS-15 the same dock mounts a second inert context with no ad capabilities', async () => {
   screen=ui(); await screen.render(<ChatDock context={context} turns={[]} onSend={async()=>{}} empty={<p>Consulte seu estoque</p>}/>);
   expect(screen.container.textContent).toContain('Estoque'); expect(screen.container.textContent).toContain('Consulte seu estoque'); expect(screen.container.textContent).not.toContain('Meta'); expect(screen.container.querySelector('textarea')).not.toBeNull();
