@@ -2,6 +2,20 @@ import { expect, it, test, vi } from "vitest";
 import type { CashbackConfigurationWrite } from "@zyon/shared-types";
 import { cashbackEndpoints } from "./cashback.js";
 
+it("CBX-33 forwards the current scope abort signal for reads and configuration writes", async () => {
+  const f = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => json());
+  const api = cashbackEndpoints("https://api.example.test", f as typeof fetch), controller = new AbortController();
+  await api.getCashbackProgram(controller.signal);
+  await api.getCashbackMetrics({}, controller.signal);
+  await api.getCashbackCustomers({}, controller.signal);
+  await api.getCashbackCustomer("buyer", controller.signal);
+  await api.getCashbackTransactions({}, controller.signal);
+  await api.saveCashbackDraft({minimumEarnCents:0}, write, controller.signal);
+  await api.publishCashbackProgram(write, controller.signal);
+  expect(f.mock.calls).toHaveLength(7);
+  for (const [,init] of f.mock.calls) expect(init?.signal).toBe(controller.signal);
+});
+
 const write = { expectedRevision: "a".repeat(64), idempotencyKey: "cashback-save-one" };
 const program = { merchantId: "merchant-a", status: "disabled", draft: { earnRateBps: 500 }, published: null,
   version: 0, updatedAt: "2026-11-18T12:00:00Z", configurationRevision: "b".repeat(64), generalDiscountCapBps: 2000 };

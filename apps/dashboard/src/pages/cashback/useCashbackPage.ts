@@ -31,7 +31,9 @@ export function cashbackPeriodQuery(from: string, to: string) {
   return { from: `${from}T00:00:00-03:00`, to: `${to}T23:59:59.999-03:00` };
 }
 
-export function useCashbackPage() {
+type ConfigurationOperation = { kind: "save" | "publish"; command: CashbackConfigurationWrite; rules?: CashbackDraft };
+
+export function useCashbackPage(scopeKey = "cashback") {
   const api = useApi();
   const [tab, setTab] = useState<CashbackTab>("overview");
   const [program, setProgram] = useState<Resource<CashbackProgramView>>(emptyResource);
@@ -54,6 +56,13 @@ export function useCashbackPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const mutationInFlight = useRef<symbol | null>(null);
   const contextEpoch = useRef(0);
+  const lifetime = useRef(new AbortController());
+  const programRead = useRef(0);
+  const canonical = useRef<CashbackProgramView | null>(null);
+  const reviewed = useRef<CashbackProgramView | null>(null);
+  const operation = useRef<ConfigurationOperation | null>(null);
+  const [reviewedProgram, setReviewedProgram] = useState<CashbackProgramView | null>(null);
+  const [needsReconciliation, setNeedsReconciliation] = useState(false);
   const validPeriod = /^\d{4}-\d{2}-\d{2}$/.test(period.from) && /^\d{4}-\d{2}-\d{2}$/.test(period.to) && period.from <= period.to;
   const dates = cashbackPeriodQuery(period.from, period.to);
 
@@ -63,62 +72,76 @@ export function useCashbackPage() {
   }, [customerQuery]);
   useEffect(() => {
     contextEpoch.current++;
+    lifetime.current = new AbortController(); programRead.current++;
+    canonical.current = null; reviewed.current = null; operation.current = null;
+    setReviewedProgram(null); setNeedsReconciliation(false);
     setProgram(emptyResource()); setMetrics(emptyResource()); setCustomers(emptyResource()); setTransactions(emptyResource()); setWallet(emptyResource());
     setSelectedCustomer(null); setActionError(null); setNotice(null);
     mutationInFlight.current = null; setBusy(null);
-    return () => { contextEpoch.current++; };
-  }, [api]);
+    return () => { contextEpoch.current++; lifetime.current.abort(); };
+  }, [api, scopeKey]);
+  function acceptProgram(data: CashbackProgramView) {
+    canonical.current = data;
+    if (reviewed.current?.configurationRevision !== data.configurationRevision) { reviewed.current = null; setReviewedProgram(null); }
+    setProgram({data,loading:false,error:null});
+  }
+  async function refreshProgram() {
+    const epoch = contextEpoch.current, request = ++programRead.current;
+    const data = await api.getCashbackProgram(lifetime.current.signal);
+    if (epoch !== contextEpoch.current || request !== programRead.current) return null;
+    acceptProgram(data); return data;
+  }
   useEffect(() => {
     let cancelled = false;
     setProgram(value => ({ ...value, loading: true, error: null }));
-    api.getCashbackProgram().then(data => { if (!cancelled) setProgram({ data, loading: false, error: null }); })
+    refreshProgram().then(() => undefined)
       .catch(() => { if (!cancelled) setProgram({ data: null, loading: false, error: FAILURE }); });
     return () => { cancelled = true; };
-  }, [api, revision]);
+  }, [api, scopeKey, revision]);
   useEffect(() => {
     if (tab !== "overview" || !validPeriod) return;
-    let cancelled = false;
+    let cancelled = false; const controller = new AbortController();
     setMetrics(value => ({ ...value, loading: true, error: null }));
-    api.getCashbackMetrics(dates).then(data => { if (!cancelled) setMetrics({ data, loading: false, error: null }); })
+    api.getCashbackMetrics(dates, controller.signal).then(data => { if (!cancelled) setMetrics({ data, loading: false, error: null }); })
       .catch(() => { if (!cancelled) setMetrics({ data: null, loading: false, error: FAILURE }); });
-    return () => { cancelled = true; };
-  }, [api, tab, period.from, period.to, validPeriod, revision]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [api, scopeKey, tab, period.from, period.to, validPeriod, revision]);
   useEffect(() => {
     if (tab !== "customers") return;
-    let cancelled = false;
+    let cancelled = false; const controller = new AbortController();
     setCustomers(value => ({ ...value, loading: true, error: null }));
-    api.getCashbackCustomers({ q: debouncedQuery, filter: customerFilter, page: customerPage, pageSize }).then(data => {
+    api.getCashbackCustomers({ q: debouncedQuery, filter: customerFilter, page: customerPage, pageSize }, controller.signal).then(data => {
       if (cancelled) return;
       const lastPage = Math.max(1, Math.ceil(data.total / pageSize));
       if (customerPage > lastPage) { setCustomerPage(lastPage); return; }
       setCustomers({ data, loading: false, error: null });
     }).catch(() => { if (!cancelled) setCustomers({ data: null, loading: false, error: FAILURE }); });
-    return () => { cancelled = true; };
-  }, [api, tab, debouncedQuery, customerFilter, customerPage, revision]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [api, scopeKey, tab, debouncedQuery, customerFilter, customerPage, revision]);
   useEffect(() => {
     if (!selectedCustomer) return;
-    let cancelled = false;
+    let cancelled = false; const controller = new AbortController();
     setWallet(emptyResource());
-    api.getCashbackCustomer(selectedCustomer.buyerId).then(data => { if (!cancelled) setWallet({ data, loading: false, error: null }); })
+    api.getCashbackCustomer(selectedCustomer.buyerId, controller.signal).then(data => { if (!cancelled) setWallet({ data, loading: false, error: null }); })
       .catch(() => { if (!cancelled) setWallet({ data: null, loading: false, error: FAILURE }); });
-    return () => { cancelled = true; };
-  }, [api, selectedCustomer?.buyerId, revision]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [api, scopeKey, selectedCustomer?.buyerId, revision]);
   useEffect(() => {
     if ((tab !== "transactions" && !selectedCustomer) || !validPeriod) return;
-    let cancelled = false;
+    let cancelled = false; const controller = new AbortController();
     setTransactions(value => ({ ...value, loading: true, error: null }));
-    api.getCashbackTransactions({ ...dates, buyerId: selectedCustomer?.buyerId, type: transactionType, page: transactionPage, pageSize }).then(data => {
+    api.getCashbackTransactions({ ...dates, buyerId: selectedCustomer?.buyerId, type: transactionType, page: transactionPage, pageSize }, controller.signal).then(data => {
       if (cancelled) return;
       const lastPage = Math.max(1, Math.ceil(data.total / pageSize));
       if (transactionPage > lastPage) { setTransactionPage(lastPage); return; }
       setTransactions({ data, loading: false, error: null });
     }).catch(() => { if (!cancelled) setTransactions({ data: null, loading: false, error: FAILURE }); });
-    return () => { cancelled = true; };
-  }, [api, tab, selectedCustomer?.buyerId, transactionType, transactionPage, period.from, period.to, validPeriod, revision]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [api, scopeKey, tab, selectedCustomer?.buyerId, transactionType, transactionPage, period.from, period.to, validPeriod, revision]);
 
   const reload = useCallback(() => setRevision(value => value + 1), []);
   async function mutate<T>(name: string, action: () => Promise<T>, message: string): Promise<T | null> {
-    if (mutationInFlight.current) return null;
+    if (mutationInFlight.current || (operation.current && name !== operation.current.kind && name !== "reconcile")) return null;
     const mutationToken = Symbol(name);
     mutationInFlight.current = mutationToken;
     const epoch = contextEpoch.current;
@@ -126,7 +149,7 @@ export function useCashbackPage() {
     try {
       const result = await action();
       if (epoch !== contextEpoch.current) return null;
-      setNotice(message); reload(); return result;
+      setNotice(message); if (!["save", "publish", "review", "reconcile"].includes(name)) reload(); return result;
     } catch (error) {
       if (epoch === contextEpoch.current) {
         const text = error instanceof Error ? error.message : "";
@@ -138,22 +161,60 @@ export function useCashbackPage() {
       if (epoch === contextEpoch.current) setBusy(null);
     }
   }
-  function configurationWrite(view: CashbackProgramView | null): CashbackConfigurationWrite {
-    if (!view?.configurationRevision) throw new Error("Atualize as regras antes de continuar.");
-    return { expectedRevision: view.configurationRevision, idempotencyKey: createIdempotencyKey() };
-  }
-  async function saveDraft(rules: CashbackDraft) {
-    const result = await mutate("save", () => api.saveCashbackDraft(rules, configurationWrite(program.data)), "Rascunho salvo. O programa só muda quando você publica.");
-    if (result) setProgram({ data: result, loading: false, error: null });
+  function invalidateReview() { reviewed.current = null; setReviewedProgram(null); }
+  async function reviewDraft() {
+    if (operation.current || mutationInFlight.current) return null;
+    const result = await mutate("review", refreshProgram, "Confira as regras salvas antes de publicar.");
+    if (result?.configurationRevision) { reviewed.current = structuredClone(result); setReviewedProgram(reviewed.current); setTab("settings"); }
     return result;
   }
-  async function publish(rules: CashbackRules) {
-    const result = await mutate("publish", async () => {
-      const saved = await api.saveCashbackDraft(rules, configurationWrite(program.data));
-      return api.publishCashbackProgram(configurationWrite(saved));
-    }, "Cashback publicado. As novas regras valem para os próximos pedidos elegíveis.");
-    if (result) setProgram({ data: result, loading: false, error: null });
+  async function runConfiguration(op: ConfigurationOperation) {
+    const epoch = contextEpoch.current;
+    let failureStatus: number | undefined;
+    const result = await mutate(op.kind, async () => {
+      try {
+        const receipt = op.kind === "save" ? await api.saveCashbackDraft(op.rules!, op.command, lifetime.current.signal) : await api.publishCashbackProgram(op.command, lifetime.current.signal);
+        if (epoch !== contextEpoch.current) return null;
+        // Durable receipts can contain old snapshots. Always read canonical state.
+        await refreshProgram();
+        if (epoch === contextEpoch.current) { operation.current = null; setNeedsReconciliation(false); invalidateReview(); }
+        return receipt;
+      } catch (error) {
+        if (epoch !== contextEpoch.current) throw error;
+        const status = (error as {status?:number}).status;
+        failureStatus = status;
+        if (status && status >= 400 && status < 500 && status !== 408) {
+          operation.current = null; setNeedsReconciliation(false); invalidateReview();
+          if (status === 409) { try { await refreshProgram(); } catch { /* Keep conflict visible even if readback fails. */ } }
+        } else setNeedsReconciliation(true);
+        throw error;
+      }
+    }, op.kind === "save" ? "Rascunho salvo. O programa só muda quando você publica." : "Cashback publicado. As novas regras valem para os próximos pedidos elegíveis.");
+    if (epoch === contextEpoch.current && !result) {
+      if (operation.current) setActionError("Não foi possível confirmar a operação. Confira o resultado antes de uma nova escrita.");
+      else setActionError(failureStatus === 409 ? "As regras podem ter sido alteradas. Seus campos foram mantidos. Carregue o rascunho atual e revise novamente." : failureStatus === 403 ? "Sua conta não tem permissão para esta alteração." : "Não foi possível concluir a operação. Seus campos foram mantidos; confira as regras e tente novamente.");
+    }
     return result;
+  }
+  async function saveDraft(rules: CashbackDraft, expectedRevision = canonical.current?.configurationRevision) {
+    if (operation.current || mutationInFlight.current) return null;
+    if (!expectedRevision) { setActionError("Atualize as regras antes de continuar."); return null; }
+    invalidateReview();
+    const op: ConfigurationOperation = {kind:"save",rules:structuredClone(rules),command:{expectedRevision,idempotencyKey:createIdempotencyKey()}};
+    operation.current = op; return runConfiguration(op);
+  }
+  async function publish(_rules?: CashbackRules) {
+    if (operation.current || mutationInFlight.current) return null;
+    if (!reviewed.current?.configurationRevision) { setActionError("Revise o rascunho salvo antes de publicar."); return null; }
+    const op: ConfigurationOperation = {kind:"publish",command:{expectedRevision:reviewed.current.configurationRevision,idempotencyKey:createIdempotencyKey()}};
+    operation.current = op; return runConfiguration(op);
+  }
+  async function retryConfiguration() {
+    const op = operation.current, epoch = contextEpoch.current;
+    if (!op || mutationInFlight.current) return null;
+    const current = await mutate("reconcile", refreshProgram, "Resultado consultado.");
+    if (!current || epoch !== contextEpoch.current) return null;
+    return runConfiguration(op);
   }
   async function pause() {
     const result = await mutate("pause", () => api.pauseCashbackProgram(), "Novos ganhos pausados. Os créditos existentes continuam sendo honrados.");
@@ -173,8 +234,10 @@ export function useCashbackPage() {
     return result;
   }
   async function exportCsv(kind: "customers" | "transactions") {
+    const epoch = contextEpoch.current;
     return mutate("export", async () => {
       const blob = await api.exportCashback(kind === "customers" ? { kind, q: debouncedQuery, filter: customerFilter } : { kind, ...dates, buyerId: selectedCustomer?.buyerId, type: transactionType });
+      if (epoch !== contextEpoch.current) return false;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a"); link.href = url; link.download = `cashback-${kind === "customers" ? "clientes" : "extrato"}-${localDate(new Date())}.csv`;
       document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -193,5 +256,6 @@ export function useCashbackPage() {
     customerPage, setCustomerPage, transactionPage, setTransactionPage, transactionType,
     setTransactionType: (next: string) => { setTransactionType(next); setTransactionPage(1); }, selectedCustomer, selectCustomer,
     pageSize, busy, actionError, notice, clearActionError: () => setActionError(null), reload, saveDraft, publish, pause, end, adjust, exportCsv,
+    reviewedProgram, needsReconciliation, reviewDraft, invalidateReview, retryConfiguration, refreshProgram,
   };
 }

@@ -34,16 +34,16 @@ function configurationWrite(command: CashbackConfigurationWrite): CashbackConfig
 export function cashbackEndpoints(base: string, f: typeof fetch) {
   const path = "/dashboard/cashback";
   return {
-    getCashbackProgram(): Promise<CashbackProgramView> {
-      return dashboardJson(base, `${path}/program`, { method: "GET" }, f);
+    getCashbackProgram(signal?: AbortSignal): Promise<CashbackProgramView> {
+      return dashboardJson(base, `${path}/program`, { method: "GET", signal }, f);
     },
-    async saveCashbackDraft(rules: CashbackDraft, command: CashbackConfigurationWrite): Promise<CashbackProgramView> {
+    async saveCashbackDraft(rules: CashbackDraft, command: CashbackConfigurationWrite, signal?: AbortSignal): Promise<CashbackProgramView> {
       const write = configurationWrite(command);
-      return dashboardJson(base, `${path}/program`, { method: "PATCH", jsonBody: { rules, ...write }, headers: { "Idempotency-Key": write.idempotencyKey } }, f);
+      return dashboardJson(base, `${path}/program`, { method: "PATCH", signal, jsonBody: { rules, ...write }, headers: { "Idempotency-Key": write.idempotencyKey } }, f);
     },
-    async publishCashbackProgram(command: CashbackConfigurationWrite): Promise<CashbackProgramView> {
+    async publishCashbackProgram(command: CashbackConfigurationWrite, signal?: AbortSignal): Promise<CashbackProgramView> {
       const write = configurationWrite(command);
-      return dashboardJson(base, `${path}/program/publish`, { method: "POST", jsonBody: write, headers: { "Idempotency-Key": write.idempotencyKey } }, f);
+      return dashboardJson(base, `${path}/program/publish`, { method: "POST", signal, jsonBody: write, headers: { "Idempotency-Key": write.idempotencyKey } }, f);
     },
     pauseCashbackProgram(): Promise<CashbackProgramView> {
       return dashboardJson(base, `${path}/program/pause`, { method: "POST" }, f);
@@ -51,17 +51,17 @@ export function cashbackEndpoints(base: string, f: typeof fetch) {
     endCashbackProgram(): Promise<CashbackProgramView> {
       return dashboardJson(base, `${path}/program/end`, { method: "POST" }, f);
     },
-    getCashbackMetrics(query: Pick<CashbackListQuery, "from" | "to">): Promise<CashbackMetrics> {
-      return dashboardJson(base, `${path}/metrics${queryString(query)}`, { method: "GET" }, f);
+    getCashbackMetrics(query: Pick<CashbackListQuery, "from" | "to">, signal?: AbortSignal): Promise<CashbackMetrics> {
+      return dashboardJson(base, `${path}/metrics${queryString(query)}`, { method: "GET", signal }, f);
     },
-    getCashbackCustomers(query: CashbackListQuery): Promise<CashbackPage<CashbackCustomer>> {
-      return dashboardJson(base, `${path}/customers${queryString(query)}`, { method: "GET" }, f);
+    getCashbackCustomers(query: CashbackListQuery, signal?: AbortSignal): Promise<CashbackPage<CashbackCustomer>> {
+      return dashboardJson(base, `${path}/customers${queryString(query)}`, { method: "GET", signal }, f);
     },
-    getCashbackCustomer(buyerId: string): Promise<CashbackWalletView> {
-      return dashboardJson(base, `${path}/customers/${encodeURIComponent(buyerId)}`, { method: "GET" }, f);
+    getCashbackCustomer(buyerId: string, signal?: AbortSignal): Promise<CashbackWalletView> {
+      return dashboardJson(base, `${path}/customers/${encodeURIComponent(buyerId)}`, { method: "GET", signal }, f);
     },
-    getCashbackTransactions(query: CashbackListQuery): Promise<CashbackPage<CashbackTransaction>> {
-      return dashboardJson(base, `${path}/transactions${queryString(query)}`, { method: "GET" }, f);
+    getCashbackTransactions(query: CashbackListQuery, signal?: AbortSignal): Promise<CashbackPage<CashbackTransaction>> {
+      return dashboardJson(base, `${path}/transactions${queryString(query)}`, { method: "GET", signal }, f);
     },
     adjustCashbackCustomer(buyerId: string, input: { amountCents: number; reason: string; idempotencyKey: string; expiryDays?: number | null }): Promise<CashbackWalletView> {
       return dashboardJson(base, `${path}/customers/${encodeURIComponent(buyerId)}/adjustments`, { method: "POST", jsonBody: input, headers: { "Idempotency-Key": input.idempotencyKey } }, f);
