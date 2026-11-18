@@ -66,6 +66,51 @@ const shippingOutput = z.unknown().transform((raw, ctx) => {
   return z.NEVER;
 });
 
+// Fiscal data comes from the authenticated order handler. Preserve its public
+// projection without admitting provider URLs, credentials or invented files.
+const fiscalInvoice = z.object({
+  intentId: id, sellerMerchantId: id, orderId: id, environment: z.enum(["production", "homologation"]),
+  state: z.enum(["awaiting_payment", "not_eligible_before_activation", "queued", "processing", "reconciliation_required",
+    "action_required", "rejected", "authorized", "cancelled", "suppressed"]),
+  documentState: z.enum(["available", "document_pending"]),
+  number: id.optional(), series: id.optional(), accessKey: id.optional(), authorizationProtocol: id.optional(),
+  authorizedAt: z.iso.datetime().optional(), cancellationProtocol: id.optional(), cancelledAt: z.iso.datetime().optional(),
+  documents: z.array(z.object({ kind: z.enum(["xml", "danfe"]), available: z.boolean() })).max(2),
+  options: z.array(z.object({ label: text, action: z.literal("navigate"),
+    href: z.string().min(1).max(2048).regex(/^\/store\/[^/?#]+\?[^#]+$/) })).max(2),
+}).superRefine((invoice, ctx) => {
+  const reject = () => ctx.addIssue({ code: "custom", message: "invalid_fiscal_projection" });
+  const confirmed = invoice.state === "authorized" || invoice.state === "cancelled";
+  const authorization = [invoice.number, invoice.series, invoice.accessKey, invoice.authorizationProtocol, invoice.authorizedAt];
+  if (confirmed ? authorization.some(value => value === undefined) : authorization.some(value => value !== undefined)
+      || invoice.documents.some(document => document.available) || invoice.options.length > 0) reject();
+  if (invoice.state === "cancelled"
+    ? invoice.cancellationProtocol === undefined || invoice.cancelledAt === undefined
+    : invoice.cancellationProtocol !== undefined || invoice.cancelledAt !== undefined) reject();
+  if (new Set(invoice.documents.map(document => document.kind)).size !== invoice.documents.length
+      || new Set(invoice.options.map(option => option.href)).size !== invoice.options.length) reject();
+  for (const option of invoice.options) {
+    const query = new URL(option.href, "https://storefront.invalid").searchParams;
+    const keys = [...query.keys()];
+    if (keys.length !== 5 || new Set(keys).size !== 5
+      || query.get("buyerHub") !== "orders" || query.get("orderId") !== invoice.orderId
+      || query.get("fiscalIntentId") !== invoice.intentId || query.get("fiscalEnvironment") !== invoice.environment
+      || !invoice.documents.some(document => document.available && document.kind === query.get("fiscalDocument"))) reject();
+  }
+});
+const invoiceOutput = z.object({ orderId: id.optional(), invoiceAvailable: z.boolean(), message: text,
+  requiresIdentification: z.literal(true).optional(), invoices: list(fiscalInvoice).optional(),
+}).superRefine((output, ctx) => {
+  // A recognized but malformed invoices array must never fall through to a
+  // legacy unavailable result and silently lose its fiscal state.
+  if (output.invoices === undefined ? output.invoiceAvailable : !output.orderId || output.requiresIdentification === true
+    || output.invoices.some(invoice => invoice.orderId !== output.orderId)
+    || new Set(output.invoices.map(invoice => invoice.intentId)).size !== output.invoices.length
+    || output.invoiceAvailable !== output.invoices.some(invoice => invoice.state === "authorized" || invoice.state === "cancelled")) {
+    ctx.addIssue({ code: "custom", message: "invalid_fiscal_projection" });
+  }
+});
+
 /** Success payloads for every native tool. No unknown/passthrough result schema. */
 export const storefrontToolOutputSchemas = {
   search_products: z.object({ products: list(pricedProduct), nextCursor: text.nullable().optional(), query: text.optional(), categoryId: id.optional(),
@@ -127,7 +172,7 @@ export const storefrontToolOutputSchemas = {
   get_daily_deals: z.object({ deals: list(pricedProduct.extend({ variantId: id.optional(), expiresAt: z.iso.datetime().optional(), expiresAtFormatted: text.optional() })) }),
   get_faq: z.object({ faqs: list(z.object({ question: text, answer: text })) }),
   escalate_to_human: z.object({ escalated: z.literal(true), ticketId: id, message: text, reason: text.optional() }),
-  get_invoice: z.object({ orderId: id.optional(), invoiceAvailable: z.literal(false), message: text }),
+  get_invoice: invoiceOutput,
   cancel_order: z.object({ orderId: id.optional(), cancellationAvailable: z.literal(false), status: z.literal("unavailable").optional(), message: text }),
 } satisfies Record<StorefrontToolName, z.ZodType>;
 

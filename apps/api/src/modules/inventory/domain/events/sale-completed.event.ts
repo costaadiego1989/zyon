@@ -1,4 +1,6 @@
+import type { FiscalOrderPolicy } from "../../../fiscal/domain/fiscal-order-commit.port.js";
 export interface SaleCompletedEvent {
+  fiscalStockOwnership?: FiscalOrderPolicy;
   merchantId: string;
   orderId: string;
   items: Array<{

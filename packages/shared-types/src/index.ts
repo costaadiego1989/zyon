@@ -149,8 +149,20 @@ export interface CustomerAddress {
   state?: string;
 }
 
+export interface FiscalRecipientData {
+  name?: string;
+  taxId?: string;
+  email?: string;
+  phone?: string;
+  address?: { street?: string; number?: string; complement?: string; neighborhood?: string; city?: string;
+    state?: string; postalCode?: string; cityCode?: string; countryCode?: string };
+}
+
 export interface CustomerHints {
   deliveryAddressLabel?: string;
+  fiscalRecipientMode?: "buyer" | "other";
+  /** Fiscal company identity is separate from the buyer's personal CPF/payment account. */
+  fiscalRecipient?: FiscalRecipientData;
   externalCustomerId?: string;
   asaasCustomerId?: string;
   email?: string;

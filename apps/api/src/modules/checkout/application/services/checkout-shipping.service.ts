@@ -125,7 +125,7 @@ export class CheckoutShippingService {
       }
       const ln = extractAddressDetailLine(text);
       if (!ln?.number) return null;
-      return { address: { ...addr, number: ln.number, complement: ln.complement } };
+      return { address: { ...addr, number: ln.number, complement: ln.complement ?? addr.complement } };
     }
 
     if (addr.complement === undefined) {

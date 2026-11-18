@@ -17,6 +17,8 @@ import {
   isBrazilianMobilePhone,
 } from "../../domain/services/customer-extraction.service.js";
 import { OtpDeliveryError, OtpService, OtpValidationError } from "./otp.service.js";
+import { hasCheckoutCpf } from "../../domain/services/customer-extraction.service.js";
+import { normalizeFiscalTaxId } from "../../../fiscal/domain/fiscal-recipient.js";
 import { BuyerRecognitionService } from "./buyer-recognition.service.js";
 import { BuyerAccountPersistenceService } from "./buyer-account-persistence.service.js";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
@@ -271,7 +273,7 @@ export class CheckoutCustomerService {
 
     // A contact email does not start account authentication. Previously issued
     // challenges may still be consumed without making checkout wait for them.
-    if (currentEmail && !existing?.email_verified && existing?.otp_code && !patch.email && this.otpService) {
+    if (currentEmail && !existing?.email_verified && this.otpService && (existing?.fiscalRecipientMode === "buyer" || existing?.otp_code && !patch.email)) {
       const isNewEmail = Boolean(patch.email);
       const otpResult = this.otpService.processEmailOtp(
         userMessage,
@@ -295,8 +297,9 @@ export class CheckoutCustomerService {
     // there must not be consumed as CPF just because both contain 11 digits.
     const answeringPhone = /\b(celular|telefone|DDD)\b/i.test(lastAgentTurn ?? "")
       || (!existing?.phone && !!phone && isBrazilianMobilePhone(phone) && !explicitCpf);
-    if (!existing?.cpf && !answeringPhone) {
+    if (!hasCheckoutCpf(existing) && !answeringPhone) {
       const cpf = extractCpf(userMessage);
+      if (cpf && existing?.fiscalRecipientMode === "buyer" && normalizeFiscalTaxId(cpf)?.length !== 11) throw new OtpValidationError("Confira seu CPF e informe novamente.");
       if (cpf) patch.cpf = cpf;
     }
 

@@ -1,6 +1,7 @@
 import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
+import { FISCAL_ASSISTANT, type FiscalAssistant } from "../../../fiscal/fiscal-runtime.ports.js";
 import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
 import type { StorefrontConversationScopePort } from "../../domain/ports/conversation-scope.port.js";
 import { classifyStorefrontIntent } from "../ai/structured-intent-classifier.js";
@@ -108,6 +109,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Optional() @Inject(STOREFRONT_COUPON_CART) private readonly couponCart?: StorefrontCouponCartPort,
     @Optional() @Inject(STOREFRONT_PROVIDER_FETCH_FACTORY) providerFetchFactory?: StorefrontProviderFetchFactory,
     @Optional() @Inject(STOREFRONT_SHIPPING_REFERENCE) private readonly shippingReference?: StorefrontShippingReferencePort,
+    @Optional() @Inject(FISCAL_ASSISTANT) private readonly fiscal?: FiscalAssistant,
   ) {
     this.observer = new StorefrontObserver({ enabled: process.env.STOREFRONT_LLM_OBSERVABILITY === "enabled",
       metrics: this.metrics, record: event => this.logger.log({ event: "storefront.observation", ...event }) });
@@ -137,6 +139,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       : undefined;
 
     this.handlerDeps = {
+      fiscal: this.fiscal,
       productRepo: this.productRepo,
       stockRepo: this.stockRepo,
       cartRepo: this.cartRepo,

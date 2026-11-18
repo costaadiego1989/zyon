@@ -10,6 +10,7 @@ import * as Sentry from "@sentry/node";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { resolveSentryConfig, type SentryConfig } from "./sentry.config.js";
 import { SentryExceptionFilter } from "./sentry-exception.filter.js";
+import { redactFiscalTelemetryRequest } from "../logger/log-redaction.js";
 
 const SENTRY_CONFIG = Symbol("SentryConfig");
 const SENTRY_SDK = Symbol("SentrySdk");
@@ -109,6 +110,7 @@ function initSdk(config: SentryConfig): typeof Sentry | null {
       tracesSampleRate: config.tracesSampleRate,
       profilesSampleRate: config.profilesSampleRate,
       integrations: [nodeProfilingIntegration()],
+      beforeSend: event => redactFiscalTelemetryRequest(event),
       enabled: true,
     });
     return Sentry;

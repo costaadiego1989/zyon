@@ -108,20 +108,29 @@ test("mixed-provider cart pushes only the items mapped to this ERP account", asy
     return reply({ status: "OK" });
   }) as typeof fetch;
   t.after(() => { globalThis.fetch = original; });
-  const service = new ErpSyncService({
+  const service = new ErpSyncService({ fiscalSaleSnapshot: { findMany: async () => [] },
     inventorySaleReceipt: { findFirst: async () => ({ orderId: "order_a", payload: { items: [{ sku: "BLING-ONLY", productType: "physical" }, { sku: "TINY-ONLY", productType: "physical" }, { sku: "LOCAL-ONLY", productType: "physical" }] }, result: { items: [
       { sku: "BLING-ONLY", itemId: "item_bling", quantity: 1, remainingQuantity: 7 },
-      { sku: "TINY-ONLY", itemId: "item_tiny", quantity: 1, remainingQuantity: 10 },
+      { sku: "TINY-ONLY", itemId: "item_tiny", locationId: "warehouse_a", quantity: 1, remainingQuantity: 10 },
       { sku: "LOCAL-ONLY", itemId: "item_local", quantity: 1, remainingQuantity: 3 },
     ] } }) },
     productVariant: { findMany: async () => ["BLING-ONLY", "TINY-ONLY", "LOCAL-ONLY"].map(sku => ({ sku })) },
     erpProductMapping: { findFirst: async ({ where }: any) => {
       assert.equal(where.merchantId, "merchant_a");
       assert.equal(where.connectionId, "tiny_connection");
-      return where.sku === "TINY-ONLY" ? { externalProductId: "123" } : null;
+      return where.sku === "TINY-ONLY" ? { sku: "TINY-ONLY", variantId: "variant_tiny", externalProductId: "123", externalLocationId: "0" } : null;
     } },
+    $transaction: async (work: (tx: unknown) => Promise<unknown>) => work({
+      $queryRaw: async () => [{ id: "merchant_a" }],
+      erpConnection: { findFirst: async () => ({ id: "tiny_connection" }) },
+      erpProductMapping: { findMany: async () => [{ variantId: "variant_tiny", externalProductId: "123", externalLocationId: "0" }] },
+      productVariant: { findMany: async () => [{ id: "variant_tiny", stock: [{ quantity: 10, reserved: 0 }] }] },
+      inventoryLocation: { findMany: async () => [{ id: "warehouse_a", isDefault: true }] },
+      inventoryItem: { findMany: async () => [{ id: "item_tiny", quantity: 10, reserved: 0 }] },
+    }),
   } as never);
-  await (service as any).pushSale({ ...tinyConnection, id: "tiny_connection", provider: "tiny" }, "merchant_a", "receipt_a");
+  t.mock.method(service as any, "withDurableAbsoluteStockWrite", async (_job: unknown, _connection: unknown, _input: unknown, work: () => Promise<void>) => work());
+  await (service as any).pushSale({ ...tinyConnection, id: "tiny_connection", merchantId: "merchant_a", provider: "tiny", status: "connected", directionMode: "bidirectional" }, "merchant_a", "receipt_a");
   assert.equal(writes.length, 1);
   assert.equal(writes[0].estoque.idProduto, 123);
   assert.equal(writes[0].estoque.quantidade, "10");
@@ -164,9 +173,11 @@ for (const reason of ["queued sale", "failed sale", "sale completed during snaps
   test(`a stale snapshot cannot restore sold stock while there is a ${reason}`, async () => {
     let merchantLocked = false;
     let stockTouched = false;
-    const tx = {
-      $queryRaw: async () => { merchantLocked = true; },
-      erpSyncJob: { findFirst: async () => { assert.equal(merchantLocked, true); return { id: "sale_job" }; } },
+    const tx = { fiscalSaleSnapshot: { findMany: async () => [] },
+      $queryRaw: async () => { merchantLocked = true; return [{ locked: true }]; },
+      erpSyncJob: { findMany: async () => { assert.equal(merchantLocked, true); return [{ id: "sale_job", kind: "sale", payload: { receiptId: "receipt_a" },
+        status: reason === "failed sale" ? "failed" : reason === "sale completed during snapshot" ? "completed" : "queued", completedAt: new Date() }]; } },
+      inventorySaleReceipt: { findFirst: async () => ({ result: { items: [{ sku: "TEST" }] } }) },
       inventoryLocation: { findMany: async () => { stockTouched = true; return []; } },
     };
     const service = new ErpSyncService({ $transaction: async (fn: any) => fn(tx) } as never);
@@ -191,7 +202,10 @@ test("snapshot waits for a pending sale without exhausting its own retry limit",
     },
     $transaction: async (ops: any[]) => Promise.all(ops),
   };
-  await (new ErpSyncService(prisma as never) as any).process("full_a");
+  const service = new ErpSyncService(prisma as never) as any;
+  service.pullSnapshots = async () => [{ sku: "TEST" }];
+  service.applySnapshot = async () => { throw new Error("erp_snapshot_waiting_for_sales"); };
+  await service.process("full_a");
   assert.equal(jobWrites[0].status, "queued");
   assert.equal(jobWrites[0].attempts, 5);
   assert.equal(jobWrites[0].lastErrorCode, "erp_snapshot_waiting_for_sales");

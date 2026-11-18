@@ -1,4 +1,6 @@
 import { hasPreparedCheckoutPayment } from "../checkout-payment-scope.js";
+import { recordFiscalOrderChange } from "../../../../shared/persistence/fiscal-commercial-change.js";
+import type { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 import { resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
 import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 import { createDigitalOrderFulfillment } from "../../../../shared/persistence/digital-order-fulfillment.js";
@@ -61,6 +63,7 @@ import { detachNormalCheckoutBuyerEmailInTransaction } from "../../../../shared/
 import type { CheckoutEmailOtpVerificationScope, CheckoutEmailOtpVerificationCommand } from "../../domain/services/checkout-email-otp-verification.js";
 import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
 import type { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
+import type { FiscalOrderCommitInput, FiscalOrderCommitPort } from "../../../fiscal/domain/fiscal-order-commit.port.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -90,11 +93,20 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     private readonly inTransaction = false,
     private readonly orderQuota?: OrderQuotaService,
     private readonly commercialBenefits?: CheckoutCommercialBenefitsService,
+    private readonly fiscalParticipant?: (transaction: Prisma.TransactionClient) => FiscalOrderCommitPort,
+    private readonly fiscalTenants?: TenantContextService,
   ) {}
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     if (this.inTransaction) return work(this);
-    return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits)));
+    return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits, this.fiscalParticipant, this.fiscalTenants)));
+  }
+
+  async recordFiscalSale(input: FiscalOrderCommitInput) {
+    if (!this.fiscalParticipant) return undefined;
+    if (!this.inTransaction) throw new Error("fiscal_order_transaction_required");
+    const policy = await this.fiscalParticipant(this.prisma as Prisma.TransactionClient).record(input);
+    return policy.sellers.length ? policy : undefined;
   }
 
   async verifyEmailOtpAndRecognize(scope: CheckoutEmailOtpVerificationScope, command: CheckoutEmailOtpVerificationCommand,
@@ -901,6 +913,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     reason: string;
     cancelledAt: string;
   }): Promise<{ order: CompletedOrder; idempotent: boolean } | undefined> {
+    if (!this.inTransaction) return this.transaction(async repo => repo.cancelCompletedOrder(input));
     const existing = await this.getCompletedOrder(
       input.merchantId,
       input.sessionId,
@@ -924,6 +937,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
           cancellationReason: input.reason,
         },
       });
+      if (result.count) await recordFiscalOrderChange(this.prisma as Prisma.TransactionClient, { merchantId: input.merchantId, orderId: input.externalOrderId,
+        trigger: { id: "cancel:" + input.externalOrderId, kind: "cancelled" } }, this.fiscalTenants);
       const order = await this.getCompletedOrder(
         input.merchantId,
         input.sessionId,

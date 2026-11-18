@@ -1,4 +1,6 @@
-import { ConflictException, Injectable, Logger } from "@nestjs/common";
+import { recordFiscalReturnRefund } from "../../../../shared/persistence/fiscal-commercial-change.js";
+import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
+import { ConflictException, Injectable, Logger, Optional } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { lockMarketplaceOrder } from "../../../marketplace/infrastructure/repositories/prisma-marketplace-funding.repository.js";
 import {
@@ -24,7 +26,7 @@ import {
 export class PrismaReturnRepository implements ReturnRepositoryPort {
   private readonly logger = new Logger(PrismaReturnRepository.name);
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient, @Optional() private readonly fiscalTenants?: TenantContextService) {}
 
   async create(input: CreateReturnInput): Promise<ReturnEntity> {
     const row = await this.prisma.$transaction(async tx => {
@@ -227,15 +229,16 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
   }
 
   async saveRefund(input: SaveRefundInput): Promise<ReturnRefundProps> {
+    const row = await this.prisma.$transaction(async tx => {
     // The financial reservation exists before the PSP call. A late pending
     // response must not overwrite a completion observed by reconciliation.
-    const persisted = await this.prisma.returnRefund.findUnique({ where: { returnId: input.returnId } });
+    const persisted = await tx.returnRefund.findUnique({ where: { returnId: input.returnId } });
     if (persisted) {
       if (persisted.amountInCents > 0 && input.amountInCents !== persisted.amountInCents) throw new Error("refund_amount_requires_reconciliation");
-      await this.prisma.returnRefund.updateMany({ where: { returnId: input.returnId, status: { notIn: input.status === "PENDING" ? ["COMPLETED", "FAILED"] : input.status === "FAILED" ? ["COMPLETED"] : [] } },
+      await tx.returnRefund.updateMany({ where: { returnId: input.returnId, status: { notIn: input.status === "PENDING" ? ["COMPLETED", "FAILED"] : input.status === "FAILED" ? ["COMPLETED"] : [] } },
         data: { paymentIntentId: input.paymentIntentId, providerRefundId: input.providerRefundId, amountInCents: persisted.amountInCents || input.amountInCents, status: input.status } });
     }
-    const row = persisted ? await this.prisma.returnRefund.findUniqueOrThrow({ where: { returnId: input.returnId } }) : await this.prisma.returnRefund.upsert({
+    const row = persisted ? await tx.returnRefund.findUniqueOrThrow({ where: { returnId: input.returnId } }) : await tx.returnRefund.upsert({
       where: { returnId: input.returnId },
       create: {
         returnId: input.returnId,
@@ -251,6 +254,9 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
         status: input.status,
       },
     });
+    await recordFiscalReturnRefund(tx, input.returnId, this.fiscalTenants);
+    return row;
+    });
     return {
       id: row.id,
       returnId: row.returnId,
@@ -264,9 +270,12 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
   }
 
   async updateRefundStatus(returnId: string, status: string, processedAt?: Date): Promise<void> {
-    await this.prisma.returnRefund.updateMany({
+    await this.prisma.$transaction(async tx => {
+    await tx.returnRefund.updateMany({
       where: { returnId, ...(status !== "COMPLETED" ? { status: { not: "COMPLETED" } } : {}) },
       data: { status, ...(processedAt ? { processedAt } : {}) },
+    });
+    await recordFiscalReturnRefund(tx, returnId, this.fiscalTenants);
     });
   }
 

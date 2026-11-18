@@ -25,7 +25,8 @@ export class InventoryOnOrderCompletedHandler implements OnModuleInit {
       if (snapshot.version !== 1) throw new Error("inventory_sale_snapshot_version_unsupported");
       if (snapshot.stocked_items_only === true && Array.isArray(snapshot.items) && !snapshot.items.length) return;
       // Tenant/order identity always comes from the domain envelope, never nested data.
-      await this.handleSaleCompleted.execute(validateInventorySale({ ...snapshot, merchantId, orderId }));
+      await this.handleSaleCompleted.execute(validateInventorySale({ ...snapshot, merchantId, orderId,
+        ...(payload.fiscal_stock_ownership ? { fiscalStockOwnership: payload.fiscal_stock_ownership as SaleCompletedEvent["fiscalStockOwnership"] } : {}) }));
       return;
     }
     // Legacy events lack a durable sale snapshot. Resolve via the required checkout port;

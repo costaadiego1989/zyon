@@ -25,6 +25,10 @@ model Merchant {
   metaAdsCampaignPreparations MetaAdsCampaignPreparation[]
   metaAdsCampaignNoticeContact MetaAdsCampaignNoticeContact?
   metaAdsCampaignReadyNotices MetaAdsCampaignReadyNotice[]
+  fiscalConnections FiscalConnection[]
+  fiscalOlistOAuthSessions FiscalOlistOAuthSession[]
+  fiscalProfiles FiscalProfileVersion[]
+  fiscalSaleSnapshots FiscalSaleSnapshot[]
   id                      String       @id
   // Stores in a Scale account share the platform subscription, never their
   // commercial integrations. A root store points to itself after migration.
@@ -872,6 +876,7 @@ model CompletedOrder {
 
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
   strategyCostSnapshot StrategyOrderCostSnapshot?
+  fiscalSaleSnapshots FiscalSaleSnapshot[]
 
   @@unique([id, merchantId])
   @@unique([merchantId, sessionId, externalOrderId])
@@ -1220,6 +1225,7 @@ model PaymentIntent {
   approvedAmountCents Int?     @map("approved_amount_cents")
   acceptedOfferId     String?  @map("accepted_offer_id")
   commerceOrderId     String?  @map("commerce_order_id")
+  privateReceipt Json? @map("private_receipt")
   buyerFacing         Json?    @map("buyer_facing")
   version             Int      @default(0)
   amountBreakdown     Json?    @map("amount_breakdown")
@@ -5389,4 +5395,325 @@ model PlatformSupportMonthlyUsage {
   used Int @default(0)
   @@id([accountId, month])
   @@map("platform_support_monthly_usage")
+}
+
+enum FiscalProvider {
+  bling
+  omie
+  tiny
+  focus
+}
+
+enum FiscalEnvironment {
+  homologation
+  production
+}
+
+model FiscalOlistOAuthSession {
+  stateHash String @id @map("state_hash") @db.Char(64)
+  merchantId String @map("merchant_id")
+  actorId String @map("actor_id")
+  environment FiscalEnvironment
+  credentialCipher String? @map("credential_cipher")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  claimedAt DateTime? @map("claimed_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  resultConnectionId String? @map("result_connection_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, environment, expiresAt], map: "fiscal_olist_oauth_scope_expiry")
+  @@map("fiscal_olist_oauth_sessions")
+}
+
+model FiscalConnection {
+  id               String            @id @default(cuid())
+  merchantId       String            @map("merchant_id")
+  provider         FiscalProvider
+  environment      FiscalEnvironment
+  issuerTaxId      String            @map("issuer_tax_id")
+  credentialCipher String?           @map("credential_cipher")
+  setupCipher      String?           @map("setup_cipher")
+  olistNotificationId String?         @map("olist_notification_id") @db.Char(64)
+  olistNotificationAt DateTime?       @map("olist_notification_at") @db.Timestamptz(3)
+  erpConnectionId  String?           @map("erp_connection_id")
+  readiness        Json              @default("[]")
+  isActive         Boolean           @default(false) @map("is_active")
+  activatedAt      DateTime?         @map("activated_at") @db.Timestamptz(3)
+  disconnectedAt   DateTime?         @map("disconnected_at") @db.Timestamptz(3)
+  stockOwner       String            @default("zyon") @map("stock_owner")
+  emailOwner       String            @default("zyon") @map("email_owner")
+  whatsappOwner    String            @default("zyon") @map("whatsapp_owner")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  merchant Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  intents  FiscalIntent[]
+
+  // One active connection per merchant/environment is a partial unique SQL index.
+  @@unique([id, merchantId, environment], map: "fiscal_connections_scope")
+  @@index([merchantId, environment, isActive], map: "fiscal_connections_merchant_environment")
+  @@map("fiscal_connections")
+}
+
+model FiscalProfileVersion {
+  id                    String            @id @default(cuid())
+  merchantId            String            @map("merchant_id")
+  provider              FiscalProvider
+  environment           FiscalEnvironment
+  operation             String            @default("sale")
+  version               Int
+  issuerRegime          String            @map("issuer_regime")
+  itemRules             Json              @map("item_rules")
+  recipientRequirements Json              @map("recipient_requirements")
+  sourceContractVersion String            @map("source_contract_version")
+  confirmedBy           String?           @map("confirmed_by")
+  confirmedAt           DateTime?         @map("confirmed_at") @db.Timestamptz(3)
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  merchant Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  intents  FiscalIntent[]
+
+  @@unique([id, merchantId, environment], map: "fiscal_profiles_scope")
+  @@unique([merchantId, environment, provider, operation, version], map: "fiscal_profiles_version")
+  @@map("fiscal_profile_versions")
+}
+
+model FiscalSaleSnapshot {
+  id                String            @id @default(cuid())
+  merchantId        String            @map("merchant_id")
+  orderMerchantId   String            @map("order_merchant_id")
+  completedOrderId  String            @map("completed_order_id")
+  orderId           String            @map("order_id")
+  environment       FiscalEnvironment
+  completedAt       DateTime          @map("completed_at") @db.Timestamptz(3)
+  buyerGlobalUserId String?           @map("buyer_global_user_id")
+  recipient         Json
+  items             Json
+  currency          String            @default("BRL")
+  subtotalCents     Int               @map("subtotal_cents")
+  discountCents     Int               @map("discount_cents")
+  shippingCents     Int               @map("shipping_cents")
+  totalCents        Int               @map("total_cents")
+  paymentProofRef   String?           @map("payment_proof_ref")
+  contentHash       String            @map("content_hash") @db.Char(64)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  merchant       Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  completedOrder CompletedOrder @relation(fields: [completedOrderId, orderMerchantId], references: [id, merchantId], onDelete: Restrict)
+  intents        FiscalIntent[]
+
+  @@unique([id, merchantId, environment], map: "fiscal_snapshots_scope")
+  @@unique([merchantId, orderId, environment], map: "fiscal_snapshots_sale")
+  @@index([orderMerchantId, completedOrderId], map: "fiscal_snapshots_commercial_order")
+  @@map("fiscal_sale_snapshots")
+}
+
+model FiscalIntent {
+  id              String            @id @default(cuid())
+  merchantId      String            @map("merchant_id")
+  environment     FiscalEnvironment
+  orderId         String            @map("order_id")
+  operation       String            @default("sale")
+  connectionId    String            @map("connection_id")
+  profileVersionId String           @map("profile_version_id")
+  snapshotId      String            @map("snapshot_id")
+  stableReference String            @map("stable_reference")
+  state           String            @default("awaiting_payment")
+  remoteOrderId   String?           @map("remote_order_id")
+  remoteInvoiceId String?           @map("remote_invoice_id")
+  issuanceRevision Int             @default(1) @map("issuance_revision")
+  writeStage      String?           @map("write_stage")
+  writeStartedAt  DateTime?         @map("write_started_at") @db.Timestamptz(3)
+  attempts        Int               @default(0)
+  nextAttemptAt   DateTime          @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  leaseUntil      DateTime?         @map("lease_until") @db.Timestamptz(3)
+  leaseToken      String?           @map("lease_token")
+  leasePurpose    String?           @map("lease_purpose")
+  version         Int               @default(0)
+  lastErrorCode   String?           @map("last_error_code")
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  connection FiscalConnection     @relation(fields: [connectionId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+  profile    FiscalProfileVersion @relation(fields: [profileVersionId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+  snapshot   FiscalSaleSnapshot   @relation(fields: [snapshotId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+  document   FiscalDocument?
+  events     FiscalEvent[]
+  issuanceRevisions FiscalIssuanceRevision[]
+  stageReceipts FiscalProviderStageReceipt[]
+
+  @@unique([id, merchantId, environment], map: "fiscal_intents_scope")
+  @@unique([merchantId, orderId, environment, operation], map: "fiscal_intents_sale_operation")
+  @@unique([connectionId, stableReference], map: "fiscal_intents_remote_reference")
+  @@index([state, nextAttemptAt, leaseUntil], map: "fiscal_intents_queue")
+  @@index([merchantId, environment, createdAt, id], map: "fiscal_intents_merchant_created")
+  @@index([merchantId, state, createdAt, id], map: "fiscal_intents_merchant_state")
+  @@map("fiscal_intents")
+}
+
+model FiscalIssuanceRevision {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  environment FiscalEnvironment
+  intentId String @map("intent_id")
+  revision Int
+  profileVersionId String @map("profile_version_id")
+  issuedAt DateTime @map("issued_at") @db.Timestamptz(3)
+  payload Json
+  payloadHash String @map("payload_hash") @db.Char(64)
+  paymentEvidence Json @map("payment_evidence")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  intent FiscalIntent @relation(fields: [intentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict, onUpdate: NoAction)
+  @@unique([intentId, revision], map: "fiscal_issuance_revisions_operation")
+  @@index([merchantId, environment, intentId], map: "fiscal_issuance_revisions_scope")
+  @@map("fiscal_issuance_revisions")
+}
+
+model FiscalProviderStageReceipt {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  environment FiscalEnvironment
+  intentId String @map("intent_id")
+  revision Int
+  stage String
+  reference String
+  outcome String
+  payloadHash String? @map("payload_hash") @db.Char(64)
+  remoteId String? @map("remote_id")
+  relatedIds Json? @map("related_ids")
+  reasonCode String? @map("reason_code")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  intent FiscalIntent @relation(fields: [intentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict, onUpdate: NoAction, map: "fiscal_provider_stage_receipt_intent_id_merchant_id_enviro_fkey")
+  @@unique([intentId, revision, stage], map: "fiscal_provider_stages_operation")
+  @@index([merchantId, environment, intentId], map: "fiscal_provider_stages_scope")
+  @@map("fiscal_provider_stage_receipts")
+}
+
+model FiscalDocument {
+  id                    String            @id @default(cuid())
+  merchantId            String            @map("merchant_id")
+  environment           FiscalEnvironment
+  intentId              String            @unique @map("intent_id")
+  issuerTaxId           String            @map("issuer_tax_id")
+  state                 String            @default("processing")
+  providerStatus        String?           @map("provider_status")
+  number                String?
+  series                String?
+  accessKey             String?           @map("access_key")
+  authorizationProtocol String?           @map("authorization_protocol")
+  authorizedAt          DateTime?         @map("authorized_at") @db.Timestamptz(3)
+  cancelledAt           DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  cancellationProtocol  String?           @map("cancellation_protocol")
+  documentState         String            @default("document_pending") @map("document_state")
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  intent        FiscalIntent               @relation(fields: [intentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+  artifacts     FiscalArtifact[]
+  deliveries    FiscalDelivery[]
+  cancellations FiscalCancellationReview[]
+
+  @@unique([id, merchantId, environment], map: "fiscal_documents_scope")
+  @@unique([intentId, merchantId, environment], map: "fiscal_documents_intent_scope")
+  @@index([merchantId, environment, state, createdAt], map: "fiscal_documents_merchant_state")
+  @@map("fiscal_documents")
+}
+
+model FiscalArtifact {
+  id               String            @id @default(cuid())
+  merchantId       String            @map("merchant_id")
+  environment      FiscalEnvironment
+  documentId       String            @map("document_id")
+  kind             String
+  privateObjectKey String            @unique @map("private_object_key")
+  content          Bytes
+  sha256           String            @db.Char(64)
+  size             Int
+  mimeType         String            @map("mime_type")
+  retrievedAt      DateTime          @map("retrieved_at") @db.Timestamptz(3)
+
+  document FiscalDocument @relation(fields: [documentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+
+  @@unique([documentId, kind], map: "fiscal_artifacts_document_kind")
+  @@index([merchantId, documentId], map: "fiscal_artifacts_merchant_document")
+  @@map("fiscal_artifacts")
+}
+
+model FiscalEvent {
+  id                  String            @id @default(cuid())
+  merchantId          String            @map("merchant_id")
+  environment         FiscalEnvironment
+  intentId            String            @map("intent_id")
+  actorKind           String            @map("actor_kind")
+  actorId             String?           @map("actor_id")
+  action              String
+  previousState       String?           @map("previous_state")
+  nextState           String?           @map("next_state")
+  safeReasonCode      String?           @map("safe_reason_code")
+  providerEvidenceRef String?           @map("provider_evidence_ref")
+  occurredAt          DateTime          @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  intent FiscalIntent @relation(fields: [intentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+
+  @@index([merchantId, intentId, occurredAt, id], map: "fiscal_events_history")
+  @@map("fiscal_events")
+}
+
+model FiscalDelivery {
+  callbackCredentialCipher String? @map("callback_credential_cipher")
+  id                String            @id @default(cuid())
+  merchantId        String            @map("merchant_id")
+  environment       FiscalEnvironment
+  documentId        String            @map("document_id")
+  channel           String
+  responsibleSender String            @map("responsible_sender")
+  destination       String?
+  idempotencyKey    String?           @map("idempotency_key")
+  transportProvider String?           @map("transport_provider")
+  transportAccountId String?          @map("transport_account_id")
+  transportConnectionId String?       @map("transport_connection_id")
+  state             String            @default("queued")
+  providerMessageId String?           @map("provider_message_id")
+  attempts          Int               @default(0)
+  nextAttemptAt     DateTime          @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  leaseUntil        DateTime?         @map("lease_until") @db.Timestamptz(3)
+  leaseToken        String?           @map("lease_token")
+  version           Int               @default(0)
+  lastAttemptAt     DateTime?         @map("last_attempt_at") @db.Timestamptz(3)
+  deliveredAt       DateTime?         @map("delivered_at") @db.Timestamptz(3)
+  safeReasonCode    String?           @map("safe_reason_code")
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  document FiscalDocument @relation(fields: [documentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+
+  @@unique([documentId, channel], map: "fiscal_deliveries_document_channel")
+  @@index([state, nextAttemptAt, leaseUntil], map: "fiscal_deliveries_queue")
+  @@index([merchantId, providerMessageId], map: "fiscal_deliveries_provider_message")
+  @@map("fiscal_deliveries")
+}
+
+model FiscalCancellationReview {
+  id                 String            @id @default(cuid())
+  merchantId         String            @map("merchant_id")
+  environment        FiscalEnvironment
+  documentId         String            @map("document_id")
+  triggerId          String            @map("trigger_id")
+  triggerKind        String            @map("trigger_kind")
+  reviewState        String            @default("needs_confirmation") @map("review_state")
+  confirmedBy        String?           @map("confirmed_by")
+  confirmedAt        DateTime?         @map("confirmed_at") @db.Timestamptz(3)
+  justification      String?
+  providerRequestRef String?           @map("provider_request_ref")
+  safeReasonCode     String?           @map("safe_reason_code")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  document FiscalDocument @relation(fields: [documentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+
+  @@unique([documentId, triggerKind, triggerId], map: "fiscal_cancellations_trigger")
+  @@index([merchantId, reviewState, createdAt], map: "fiscal_cancellations_merchant_state")
+  @@map("fiscal_cancellation_reviews")
 }

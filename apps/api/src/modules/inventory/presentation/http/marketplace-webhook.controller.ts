@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, Headers, HttpCode, Inject, Logger, Param, Post, RawBodyRequest, Req, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Headers, HttpCode, Inject, Logger, Param, Post, Optional, HttpException, type RawBodyRequest, Req, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { ApiTags, ApiOperation } from "@nestjs/swagger";
 import type { PrismaClient } from "@prisma/client";
 import type { Request } from "express";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { verifyBlingWebhookSignature } from "../../../../shared/integrations/bling-webhook-auth.js";
+import { FISCAL_WEBHOOK_DISPATCH, FiscalWebhookDispatchError, type FiscalWebhookDispatchPort } from "../../../../shared/integrations/fiscal-webhook-dispatch.port.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { ErpSyncService } from "../../application/services/erp-sync.service.js";
 
@@ -12,13 +13,6 @@ type BlingWebhookPayload = {
   companyId?: unknown;
 };
 
-function validBlingSignature(rawBody: Buffer | undefined, signature: string | undefined, secret: string): boolean {
-  if (!rawBody || !signature?.startsWith("sha256=")) return false;
-  const actual = signature.slice("sha256=".length).toLowerCase();
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  if (!/^[a-f0-9]+$/.test(actual) || actual.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expected, "hex"));
-}
 
 /**
  * Receives webhook notifications from marketplace providers (ML, Shopee, TikTok Shop).
@@ -31,6 +25,7 @@ export class MarketplaceWebhookController {
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly erpSync: ErpSyncService,
+    @Optional() @Inject(FISCAL_WEBHOOK_DISPATCH) private readonly fiscalWebhook?: FiscalWebhookDispatchPort,
   ) {}
 
   /**
@@ -80,13 +75,13 @@ export class MarketplaceWebhookController {
   private async handleBlingWebhook(rawBody: Buffer | undefined, signature: string | undefined, body: BlingWebhookPayload) {
     const secret = process.env.BLING_CLIENT_SECRET?.trim();
     if (!secret) throw new ServiceUnavailableException("bling_webhook_not_configured");
-    if (!validBlingSignature(rawBody, signature, secret)) throw new UnauthorizedException("bling_webhook_invalid_signature");
+    if (!verifyBlingWebhookSignature(rawBody, signature, secret)) throw new UnauthorizedException("bling_webhook_invalid_signature");
 
     const eventId = typeof body.eventId === "string" ? body.eventId.trim() : "";
     const companyId = typeof body.companyId === "string" ? body.companyId.trim() : "";
     const resource = typeof body.event === "string" ? body.event.split(".", 1)[0] : "";
     if (!eventId || !companyId || !resource) throw new BadRequestException("bling_webhook_invalid_payload");
-    if (!new Set(["product", "stock", "virtual_stock"]).has(resource)) {
+    if (!new Set(["product", "stock", "virtual_stock", "invoice"]).has(resource)) {
       return { received: true, ignored: true };
     }
 
@@ -95,6 +90,12 @@ export class MarketplaceWebhookController {
       select: { merchantId: true, connectionId: true },
     });
     if (!route) throw new BadRequestException("bling_webhook_connection_not_found");
+
+    if (resource === "invoice") {
+      if (!this.fiscalWebhook) throw new ServiceUnavailableException("fiscal_webhook_not_configured");
+      try { return await this.fiscalWebhook.fromBlingAccount({ merchantId: route.merchantId, erpConnectionId: route.connectionId, externalAccountId: companyId, eventId, body }); }
+      catch (error) { if (error instanceof FiscalWebhookDispatchError) throw new HttpException(error.message, error.status); throw new ServiceUnavailableException("fiscal_webhook_unavailable"); }
+    }
 
     const job = await this.erpSync.enqueueWebhookFull(route.merchantId, route.connectionId, eventId);
     this.logger.log("bling.webhook.queued", { connectionId: route.connectionId, eventId, resource, jobId: job.id });

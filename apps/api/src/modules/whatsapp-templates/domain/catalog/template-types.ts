@@ -23,6 +23,7 @@ export const WHATSAPP_TEMPLATE_TYPES = [
   "cart_recovery",
   // Transactional order notifications
   "order_confirmation",
+  "fiscal_invoice",
   "order_nonphysical_confirmation",
   "digital_delivery",
   "order_shipped",

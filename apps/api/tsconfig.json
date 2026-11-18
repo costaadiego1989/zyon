@@ -7,8 +7,9 @@
     "rootDir": "src",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "declaration": false
+    "declaration": false,
+    "allowJs": true
   },
-  "include": ["src"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.mts", "src/**/*.cts", "src/modules/fiscal/infrastructure/fiscal-pdf.worker.mjs"],
   "exclude": ["**/*.spec.ts", "**/__tests__/**", "node_modules"]
 }

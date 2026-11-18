@@ -14,6 +14,7 @@ import type {
 import type { CheckoutCouponOrderAuthority } from "../services/checkout-coupon-binding.js";
 import type { WidgetCheckoutPaymentAuthority } from "../../../payment/domain/widget-checkout-payment-authority.schemas.js";
 import type { NormalCheckoutPaymentAuthority } from "../../../payment/domain/normal-checkout-payment-authority.schemas.js";
+import type { FiscalOrderCommitInput, FiscalOrderPolicy } from "../../../fiscal/domain/fiscal-order-commit.port.js";
 
 // Facade — delegates to split ports. Remove after Wave 2 migration.
 /** @deprecated Use CHECKOUT_SESSION_REPOSITORY, OFFER_REPOSITORY, ORDER_REPOSITORY, OUTBOX_REPOSITORY, MERCHANT_RULES_REPOSITORY, BUYER_IDENTITY_REPOSITORY, or DASHBOARD_READ_MODEL instead. */
@@ -29,6 +30,7 @@ export interface CheckoutRepository {
   assertCouponOrderAuthority?(merchantId: string, sessionId: string, authority?: CheckoutCouponOrderAuthority, paymentIntentId?: string): MaybePromise<void>;
   assertWidgetPaymentOrderAuthority?(merchantId: string, sessionId: string, authority: WidgetCheckoutPaymentAuthority,
     paymentIntentId: string, providerPaymentId: string): MaybePromise<void>;
+  recordFiscalSale?(input: FiscalOrderCommitInput): Promise<FiscalOrderPolicy | undefined>;
   transaction?<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T>;
   /** @deprecated Use MerchantRulesRepository.getRules */
   getRules(merchantId: string): MaybePromise<MerchantRules>;

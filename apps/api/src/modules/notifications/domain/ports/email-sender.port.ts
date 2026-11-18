@@ -20,5 +20,7 @@ export interface SendEmailOutput {
 }
 
 export interface EmailSenderPort {
+  /** Server-only transport identity, without credentials; binds durable delivery callbacks. */
+  deliveryAccountIdentity?(): { provider: "resend"; credentialFingerprint: string; fromEmail: string } | null;
   send(input: SendEmailInput): Promise<SendEmailOutput>;
 }
