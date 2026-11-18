@@ -6,7 +6,6 @@ import {showToast} from '../../components/Toast.js';
 function nationalPhone(value:string){
   const raw=value.replace(/[()\s-]/g,'');
   if(raw.startsWith('+55'))return raw.slice(3);
-  if(/^55\d{10,11}$/.test(raw))return raw.slice(2);
   return raw;
 }
 const canonicalPhone=(value:string)=>{const national=nationalPhone(value);return national?`+55${national}`:null;};
