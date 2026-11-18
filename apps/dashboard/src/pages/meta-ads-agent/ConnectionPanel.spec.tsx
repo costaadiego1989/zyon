@@ -7,6 +7,10 @@ import { overview } from "./fixtures.js";
 import { ui } from "./test-helpers.js";
 let screen: ReturnType<typeof ui>;
 afterEach(async () => {await screen?.close(); window.history.replaceState({}, "", "/");});
+test('AGW-09 a beginner without an ad account can open setup guidance without starting OAuth',async()=>{
+ screen=ui();const api={startConnection:vi.fn()};await screen.render(<ConnectionPanel connection={{...overview().connection,status:'disconnected',account:null}} entitled api={api as unknown as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const help=screen.container.querySelector<HTMLDetailsElement>('[data-meta-first-steps]')!;expect(help).not.toBeNull();await act(async()=>help.querySelector('summary')!.click());expect(help.open).toBe(true);expect(help.textContent).toContain('moeda');expect(help.textContent).toContain('Conectar Meta');expect(help.querySelector('a')?.href).toBe('https://business.facebook.com/');expect(api.startConnection).not.toHaveBeenCalled();
+});
 test('AGW-03 setup explains Pixel and catalog in distinct containers with safe shortcuts',async()=>{
   screen=ui();await screen.render(<ConnectionPanel connection={overview().connection} entitled api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
   const pixel=screen.container.querySelector('[aria-labelledby="mga-pixel-title"]')!;

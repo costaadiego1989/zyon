@@ -41,6 +41,7 @@ export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh,sho
       </dl><small>Consulta em <time dateTime={snapshot.checkedAt}>{new Date(snapshot.checkedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time> · Dados consultados na Meta</small></>}
       {current?.message&&<p>{current.message}</p>}
       <details className="mga-payment-guidance mga-inline-details mga-disclosure"><summary>Ajuda sobre pagamentos</summary>
+      <ol><li>Abra os pagamentos na Meta e confira a conta selecionada.</li><li>Se a conta usa saldo antecipado, escolha Adicionar fundos. Se usa cobrança automática, confira a forma de pagamento.</li><li>Depois volte aqui e use Verificar novamente para consultar a situação.</li></ol>
       <p>Os créditos de imagens também não incluem a verba de anúncios.</p>
       {current?.status==='unknown'&&<p>Não foi possível verificar os pagamentos desta conta. Confira as informações no painel da Meta.</p>}
       {snapshot?.billingType==='prepaid'&&<p>Pré-paga: adicione fundos na Meta para financiar os anúncios. As opções e a confirmação aparecem na sua conta da Meta.</p>}
