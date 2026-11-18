@@ -1,7 +1,7 @@
 import type { AssistantArtifact, AssistantReference } from '@zyon/shared-types';
 import { AssistantError, type AssistantRepository } from '../domain/assistant.port.js';
 import type { AssistantContextPort, AssistantToolInput, UncitedAssistantResponse } from '../domain/context.port.js';
-import type { AssistantKnowledgePort, RetrievedAssistantKnowledge } from '../domain/knowledge.port.js';
+import { CASHBACK_KNOWLEDGE_FALLBACK_NOTICE, type AssistantKnowledgePort, type RetrievedAssistantKnowledge } from '../domain/knowledge.port.js';
 import type { AssistantModelMessage, AssistantModelPort } from '../domain/model.port.js';
 import { assertAssistantTurnLease } from './turn-admission.service.js';
 
@@ -37,7 +37,15 @@ export class AssistantService {
     const messages: AssistantModelMessage[] = history.flatMap(t => [{ role: 'user' as const, content: t.message.slice(0, 1800) }, ...(t.reply ? [{ role: 'assistant' as const, content: t.reply.slice(0, 1800) }] : [])]);
     messages.push({ role: 'user', content: initial.turn.message });
     let knowledge: RetrievedAssistantKnowledge[];
-    try { knowledge = await this.deps.knowledge.retrieve(this.deps.context.knowledgeScope, initial.turn.message); } catch { knowledge = []; }
+    const knowledgeScope=Object.freeze({...this.deps.context.knowledgeScope,merchantId:input.scope.merchantId});
+    let fallback=knowledgeScope.context==='cashback';
+    try {
+      if(this.deps.knowledge.retrieveWithStatus){
+        const retrieved=await this.deps.knowledge.retrieveWithStatus(knowledgeScope,initial.turn.message);
+        knowledge=retrieved.entries;fallback=knowledgeScope.context==='cashback'&&retrieved.status!=='graph_used';
+      }else knowledge=await this.deps.knowledge.retrieve(knowledgeScope,initial.turn.message);
+    } catch { knowledge = []; }
+    const visibleReply=(reply:string)=>fallback?`${CASHBACK_KNOWLEDGE_FALLBACK_NOTICE}\n\n${reply}`:reply;
     const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = []; const evidence:UncitedAssistantResponse['evidence'][number][]=[];
     for (let round = 0; round <= 5; round++) {
       const state = await this.current(input);
@@ -65,13 +73,13 @@ export class AssistantService {
       const current=await this.current(input);
       if (!response.reply?.trim()) throw new AssistantError('assistant_model_response_invalid', 502);
       let references: AssistantReference[];
-      try { references = await this.deps.knowledge.validateReferences(this.deps.context.knowledgeScope, response.referenceIds, knowledge); }
-      catch { return { reply: unavailable, references: [], artifacts: this.latestArtifacts(artifacts) }; }
+      try { references = await this.deps.knowledge.validateReferences(knowledgeScope, response.referenceIds, knowledge); }
+      catch { return { reply: visibleReply(unavailable), references: [], artifacts: this.latestArtifacts(artifacts) }; }
       // A question mark or unrelated tool result never validates model-written claims.
       // Without citations the context may emit only its own canonical facts/questions.
       let canonical:string|null=/^como posso ajudar\?$/i.test(response.reply.trim())?'Como posso ajudar?':null;
       if(!references.length&&!canonical){try{canonical=this.deps.context.uncitedResponse?.({suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence})??null;}catch{canonical=null;}}
-      return { reply: references.length ? response.reply : canonical??unavailable, references, artifacts: this.latestArtifacts(artifacts) };
+      return { reply: visibleReply(references.length ? response.reply : canonical??unavailable), references, artifacts: this.latestArtifacts(artifacts) };
     }
     throw new AssistantError('assistant_tool_round_limit', 429);
   }
