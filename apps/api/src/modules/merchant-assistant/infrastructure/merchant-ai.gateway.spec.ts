@@ -33,6 +33,12 @@ test('ADAS-49 existing provider and metering receive the scoped RAG context and 
     assert.equal(JSON.stringify(f.requests[0].body).includes('synthetic-provider-key'),false);
   }finally{await f.close();}
 });
+test('AGW-10 blank completed provider JSON preserves known cost without a second physical call',async()=>{
+ const f=await fixture();try{
+ f.respond(async()=>new Response(JSON.stringify({id:'blank-json',choices:[{finish_reason:'stop',message:{content:'   '}}],usage:{prompt_tokens:50,completion_tokens:25,total_tokens:75}}),{status:200}));
+ await assert.rejects(f.gateway.complete(f.input),{code:'assistant_model_response_invalid'});assert.equal(f.requests.length,1);const saved=(await f.repo.turns(scope,f.thread.id)).turns[0];assert.equal(saved.usageCostMicros,100n);assert.equal(saved.providerRequests[0].status,'completed');assert.equal(saved.providerRequests[0].providerRequestId,'blank-json');
+ }finally{await f.close();}
+});
 test('ADAS-23 server campaign state reaches the existing motor separately from user instructions',async()=>{
   const f=await fixture();try{
     await f.gateway.complete({...f.input,state:{contextLabel:'Anúncios com IA',now:'2026-11-16T12:00:00Z',campaign:{campaignId:null,draft:{priority:'roas'},awaitingFields:['budget']}}});
