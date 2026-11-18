@@ -10,8 +10,11 @@ export interface GraphCatalogHit extends GraphHitBase { productId: string; varia
 export interface GraphKnowledgeHit extends GraphHitBase {
   sourceType: "faq" | "policy"; sourceId: string; chunkId: string; contentHash: string;
 }
-export type GraphReadResult = { status: "ready"; kind: "catalog" | "knowledge";
-  hits: Array<GraphCatalogHit | GraphKnowledgeHit>; partial: true }
+export interface GraphMerchantGuideHit extends GraphHitBase {
+  sourceType: "merchant_guide"; audience: "merchant"; context: "cashback"; sourceId: string; chunkId: string; contentHash: string;
+}
+export type GraphReadResult = { status: "ready"; kind: "catalog" | "knowledge" | "merchant_help";
+  hits: Array<GraphCatalogHit | GraphKnowledgeHit | GraphMerchantGuideHit>; partial: true }
   | { status: "unavailable"; reason: "disabled" | "invalid_input" | "reader_not_readonly" | "invalid_result" | "neo4j_unavailable" | "embedding_unavailable" | "timeout" };
 export interface GraphReadPort { read(input: GraphReadInput): Promise<GraphReadResult> }
 export interface GraphConnectionSettings {
