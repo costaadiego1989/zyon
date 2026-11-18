@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import type { CheckoutSession, CashbackCheckoutQuote, CashbackPaymentBinding, CashbackRules, CashbackWalletView } from "@zyon/shared-types";
+import type { CheckoutSession, CashbackCheckoutQuote, CashbackConfigurationWrite, CashbackDraft, CashbackPaymentBinding, CashbackProgramView, CashbackRules, CashbackWalletView } from "@zyon/shared-types";
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { requiresPhysicalDelivery } from "../../checkout/domain/services/cart-fulfillment.js";
 import { advance, allocate, cents, CashbackError, consume, earned, fingerprint, grantCredit, MAX_MONEY, release, reserve, restore, reverseGrant, shrinkReservation, validateRules, walletBalance, adjust, type CashbackOrderLine, type Wallet } from "../domain/cashback.js";
@@ -9,6 +9,7 @@ import { cashbackCombinedLimit, validateCombination } from "../domain/cashback-c
 import { CheckoutCommercialBenefitsService } from "./checkout-commercial-benefits.service.js";
 import { cashbackMerchandiseBasis } from "../domain/cashback-merchandise.js";
 import { buyerPhoneLookupHash } from "../../../shared/crypto/pii-cipher.service.js";
+import { validateCashbackDraft } from "../domain/cashback-draft.js";
 
 export interface CashbackRefundInput {
   merchantId: string; orderId: string; commandKey?: string;
@@ -29,6 +30,14 @@ function period(now: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" }).formatToParts(now);
   return `${parts.find(x => x.type === "year")!.value}-${parts.find(x => x.type === "month")!.value}`;
 }
+function configurationRevision(program: CashbackProgramView): string {
+  const { merchantId, status, version, updatedAt, draft, published } = program;
+  return fingerprint({ merchantId, status, version, updatedAt, draft, published });
+}
+function validateConfigurationCommand(command: CashbackConfigurationWrite): void {
+  if (!command || typeof command.expectedRevision !== "string" || !/^[a-f0-9]{64}$/.test(command.expectedRevision)) throw new CashbackError("cashback_configuration_revision_required");
+  scope(command.idempotencyKey, "idempotency_key");
+}
 
 @Injectable()
 export class CashbackService {
@@ -45,32 +54,50 @@ export class CashbackService {
     });
   }
 
-  async getProgram(merchantId: string, options: { includeGeneralCap?: boolean } = {}) {
+  private async configurationView(tx: CashbackTx, merchantId: string, options: { includeGeneralCap?: boolean; includeConfigurationRevision?: boolean } = {}): Promise<CashbackProgramView> {
+    const p = await this.repository.program(tx, merchantId);
+    const view = options.includeGeneralCap || p.published?.combination || p.draft?.combination
+      ? { ...p, generalDiscountCapBps: (await this.benefits.generalLimits(tx, merchantId)).generalDiscountCapBps } : p;
+    return options.includeConfigurationRevision ? { ...view, configurationRevision: configurationRevision(p) } : view;
+  }
+  async getProgram(merchantId: string, options: { includeGeneralCap?: boolean; includeConfigurationRevision?: boolean } = {}) {
+    return this.repository.transaction(merchantId, tx => this.configurationView(tx, merchantId, options));
+  }
+  async saveDraft(merchantId: string, input: CashbackDraft, actorId: string, command?: CashbackConfigurationWrite & { merge?: boolean }) {
+    const draft = validateCashbackDraft(input);
+    scope(actorId, "actor");
+    if (command !== undefined) validateConfigurationCommand(command);
+    if (command?.merge !== undefined && typeof command.merge !== "boolean") throw new CashbackError("cashback_draft_invalid");
     return this.repository.transaction(merchantId, async tx => {
-      const p = await this.repository.program(tx, merchantId);
-      return options.includeGeneralCap || p.published?.combination || p.draft?.combination
-        ? { ...p, generalDiscountCapBps: (await this.benefits.generalLimits(tx, merchantId)).generalDiscountCapBps } : p;
+      const save = async () => {
+        const current = await this.repository.program(tx, merchantId);
+        if (command && command.expectedRevision !== configurationRevision(current)) throw new CashbackError("cashback_configuration_changed", 409);
+        const base = current.draft ?? current.published;
+        const saved = command?.merge ? validateCashbackDraft({ ...base, ...draft,
+          ...(draft.combination ? { combination: { ...base?.combination, ...draft.combination } } : {}) }) : draft;
+        await tx.$executeRaw`INSERT INTO cashback_programs(merchant_id,draft) VALUES(${merchantId},${JSON.stringify(saved)}::jsonb)
+          ON CONFLICT(merchant_id) DO UPDATE SET draft=EXCLUDED.draft,updated_at=now()`;
+        return this.configurationView(tx, merchantId, { includeGeneralCap: !!command, includeConfigurationRevision: !!command });
+      };
+      return command ? this.repository.command(tx, merchantId, `configuration:draft:${fingerprint({ actorId, key: command.idempotencyKey })}`,
+        { actorId, expectedRevision: command.expectedRevision, draft, merge: command.merge === true }, save) : save();
     });
   }
-  async saveDraft(merchantId: string, draft: Partial<CashbackRules>, actorId: string) {
-    if (!draft || typeof draft !== "object" || Array.isArray(draft) || JSON.stringify(draft).length > 16000) throw new CashbackError("cashback_draft_invalid");
+  async publishProgram(merchantId: string, actorId: string, options: { requireCombination?: boolean; command?: CashbackConfigurationWrite } = {}) {
     scope(actorId, "actor");
+    if (options.command !== undefined) validateConfigurationCommand(options.command);
     return this.repository.transaction(merchantId, async tx => {
-      await tx.$executeRaw`INSERT INTO cashback_programs(merchant_id,draft) VALUES(${merchantId},${JSON.stringify(draft)}::jsonb)
-        ON CONFLICT(merchant_id) DO UPDATE SET draft=EXCLUDED.draft,updated_at=now()`;
-      const p = await this.repository.program(tx, merchantId);
-      return draft.combination ? { ...p, generalDiscountCapBps: (await this.benefits.generalLimits(tx, merchantId)).generalDiscountCapBps } : p;
-    });
-  }
-  async publishProgram(merchantId: string, actorId: string, options: { requireCombination?: boolean } = {}) {
-    scope(actorId, "actor");
-    return this.repository.transaction(merchantId, async tx => {
-      const p = await this.repository.program(tx, merchantId); const rules = validateRules(p.draft); const version = p.version + 1;
-      if (options.requireCombination) validateCombination(rules.combination);
-      await tx.$executeRaw`UPDATE cashback_programs SET published=${JSON.stringify(rules)}::jsonb,status='active',version=${version},updated_at=now() WHERE merchant_id=${merchantId}`;
-      await tx.$executeRaw`INSERT INTO cashback_rule_versions(merchant_id,version,rules,actor_id) VALUES(${merchantId},${version},${JSON.stringify(rules)}::jsonb,${actorId})`;
-      const published = await this.repository.program(tx, merchantId);
-      return rules.combination ? { ...published, generalDiscountCapBps: (await this.benefits.generalLimits(tx, merchantId)).generalDiscountCapBps } : published;
+      const publish = async () => {
+        const p = await this.repository.program(tx, merchantId);
+        if (options.command && options.command.expectedRevision !== configurationRevision(p)) throw new CashbackError("cashback_configuration_changed", 409);
+        const rules = validateRules(p.draft); const version = p.version + 1;
+        if (options.requireCombination) validateCombination(rules.combination);
+        await tx.$executeRaw`UPDATE cashback_programs SET published=${JSON.stringify(rules)}::jsonb,status='active',version=${version},updated_at=now() WHERE merchant_id=${merchantId}`;
+        await tx.$executeRaw`INSERT INTO cashback_rule_versions(merchant_id,version,rules,actor_id) VALUES(${merchantId},${version},${JSON.stringify(rules)}::jsonb,${actorId})`;
+        return this.configurationView(tx, merchantId, { includeGeneralCap: !!options.command, includeConfigurationRevision: !!options.command });
+      };
+      return options.command ? this.repository.command(tx, merchantId, `configuration:publish:${fingerprint({ actorId, key: options.command.idempotencyKey })}`,
+        { actorId, expectedRevision: options.command.expectedRevision, requireCombination: options.requireCombination === true }, publish) : publish();
     });
   }
   async pauseProgram(merchantId: string, actorId: string, end = false) {
