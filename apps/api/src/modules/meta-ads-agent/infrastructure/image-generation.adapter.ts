@@ -57,7 +57,7 @@ export class ImageGenerationAdapter implements ImageGenerationPort {
       usage.inputImageTokens = tokenCount(body.usage?.input_tokens_details?.image_tokens);
       usage.outputImageTokens = tokenCount(body.usage?.output_tokens_details?.image_tokens ?? body.usage?.output_tokens);
       // Version-specific list rates are an estimate, never a provider invoice.
-      if (model === defaultModel && usage.inputTextTokens !== null && usage.inputImageTokens !== null && usage.outputImageTokens !== null) {
+      if ([defaultModel, "gpt-image-2.5-sunburst-2026-09-08"].includes(model) && usage.inputTextTokens !== null && usage.inputImageTokens !== null && usage.outputImageTokens !== null) {
         usage.costMicros = (BigInt(usage.inputTextTokens) * 5n + BigInt(usage.inputImageTokens) * 8n + BigInt(usage.outputImageTokens) * 30n).toString(); usage.currency = "USD"; usage.costStatus = "estimated";
       }
       if (!response.ok || body.error) return result("failed", "image_provider_rejected");

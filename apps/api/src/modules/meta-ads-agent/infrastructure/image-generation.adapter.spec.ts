@@ -39,6 +39,27 @@ test("image adapter records unknown cost instead of zero when provider usage is 
   const f = fixture(async () => new Response(JSON.stringify({ data: [{ b64_json: png }] })));
   const result = await f.adapter.generate(input); assert.equal(result.status, "succeeded"); assert.equal(result.usage.costMicros, null); assert.equal(result.usage.costStatus, "unpriced"); assert.equal(result.usage.outputImageTokens, null);
 });
+
+test('configured Sunburst snapshot generates from the product and records its known token cost', async () => {
+  const f = fixture(async () => new Response(JSON.stringify({ data: [{ b64_json: png }], usage: { input_tokens_details: { text_tokens: 100, image_tokens: 200 }, output_tokens: 300 } }), { headers: { 'x-request-id': 'sunburst-request' } }));
+  const adapter = new ImageGenerationAdapter({ ...env, META_ADS_IMAGE_MODEL: 'gpt-image-2.5-sunburst-2026-09-08' }, f.storage, f.request);
+  const result = await adapter.generate(input);
+  assert.equal(result.status, 'succeeded');
+  const body = JSON.parse(String(f.requests[0].init?.body));
+  assert.equal(body.model, 'gpt-image-2.5-sunburst-2026-09-08');
+  assert.deepEqual(body.images, [{ image_url: input.product.imageUrl }]);
+  assert.equal(body.n, 1);
+  assert.deepEqual(result.usage, { provider: 'openai', model: 'gpt-image-2.5-sunburst-2026-09-08', providerRequestId: 'sunburst-request', inputTextTokens: 100, inputImageTokens: 200, outputImageTokens: 300, costMicros: '11100', currency: 'USD', costStatus: 'estimated' });
+});
+
+test('unlisted Sunburst snapshot never inherits a known snapshot price', async () => {
+  const f = fixture(async () => new Response(JSON.stringify({ data: [{ b64_json: png }], usage: { input_tokens_details: { text_tokens: 100, image_tokens: 200 }, output_tokens: 300 } })));
+  const result = await new ImageGenerationAdapter({ ...env, META_ADS_IMAGE_MODEL: 'gpt-image-2.5-sunburst-2026-09-09' }, f.storage, f.request).generate(input);
+  assert.equal(result.usage.model, 'gpt-image-2.5-sunburst-2026-09-09');
+  assert.equal(result.usage.costMicros, null);
+  assert.equal(result.usage.currency, null);
+  assert.equal(result.usage.costStatus, 'unpriced');
+});
 test("image adapter retains unknown network outcomes and never retries paid generation", async () => {
   const f = fixture(async () => { throw new Error("network lost"); }); const result = await f.adapter.generate(input);
   assert.equal(result.status, "unknown"); assert.equal(result.usage.costMicros, null); assert.equal(result.url, null); assert.equal(f.requests.length, 1); assert.equal(f.saved.length, 0);
