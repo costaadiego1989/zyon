@@ -11,6 +11,7 @@ export function buildMetrics(input: { campaignId: string; remote: ProviderMetric
   return { campaignId: input.campaignId, since: remote.since, until: remote.until, updatedAt: input.updatedAt, timezone: remote.timezone,
     currency: remote.currency, attributionWindow: remote.attributionWindow, source: "meta_reported+zyon_reconciled", spendCents: spend,
     attributedRevenueCents: remote.attributedRevenueCents, confirmedRevenueCents: revenue, paidOrders: orders.length, conversations: remote.conversations,
+    attributedPurchases: remote.attributedPurchases, impressions: remote.impressions??null, reach: remote.reach??null, linkClicks: remote.linkClicks??null,
     costPerPurchaseCents: matchingCurrency && orders.length && spend !== null ? Math.round(spend / orders.length) : null,
     roas: matchingCurrency && spend !== null && spend > 0 && remote.attributedRevenueCents !== null ? remote.attributedRevenueCents / spend : null,
     contributionCents: matchingCurrency && coverage === "complete" && spend !== null && revenue !== null ? revenue - orders.reduce((total, order) => total + order.costCents!, 0) - spend : null,

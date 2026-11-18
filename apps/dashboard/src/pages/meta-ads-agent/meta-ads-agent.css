@@ -217,3 +217,14 @@
 .mga-campaign-filters .tab-bar { width: 100%; max-width: 100%; flex-wrap: wrap; overflow: visible; }
 .mga-campaign-filters .tab-bar__tab { white-space: normal; }
 .mga-pending-badge { color: var(--color-text); font-weight: 600; }
+.mga-list-metrics { width: 100%; min-width: 0; }
+.mga-list-metrics > dl { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 16px 24px; margin: 4px 0 12px; }
+.mga-list-metrics dt { font-size: 12px; line-height: 1.5; color: var(--color-text-secondary); }
+.mga-list-metrics dd { margin: 5px 0 0; font-size: 16px; line-height: 1.4; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-text); }
+.mga-list-metrics small { margin-top: 4px; }
+.mga-list-metrics-note { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.mga-list-metrics-help { margin-top: 16px; border-bottom: 1px solid var(--color-border); }
+.mga-list-metrics-help dl { max-width: 70ch; }
+.mga-list-metrics-help dt { margin-top: 14px; font-weight: 600; }
+.mga-list-metrics-help dd { margin: 4px 0 16px; color: var(--color-text-secondary); }
+@media(max-width:680px) { .mga-list-metrics > dl { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; } }

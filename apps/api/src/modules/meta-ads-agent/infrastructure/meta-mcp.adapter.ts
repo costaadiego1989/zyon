@@ -297,7 +297,7 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
   }
   async metrics(access: MetaAccess, campaign: MetaAdsCampaign, since: string, until: string): Promise<ProviderMetricSnapshot> {
     const session = this.session(access, "assess_and_optimize_performance", true); await session.start(); const account = await this.account(session, access);
-    const fields = ["id", "amount_spent", "offsite_conversion_fb_pixel_purchase", "offsite_conversion_fb_pixel_purchase_values", "actions:onsite_conversion.messaging_conversation_started_7d"];
+    const fields = ["id", "amount_spent", "offsite_conversion_fb_pixel_purchase", "offsite_conversion_fb_pixel_purchase_values", "actions:onsite_conversion.messaging_conversation_started_7d", "impressions", "reach", "link_click"];
     const context = await session.call("ads_get_field_context", { field_names: fields });
     const available = fields.filter(name => list(context.fields).some(field => field.name === name && Array.isArray(field.levels) && field.levels.includes('campaign')));
     if (!available.includes('id')) throw new MetaAdsError("meta_metrics_unavailable", 503);
@@ -311,7 +311,10 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       spendCents: available.includes('amount_spent') ? metaCurrencyCents(row.amount_spent, currency) : null,
       attributedRevenueCents: available.includes('offsite_conversion_fb_pixel_purchase_values') ? metaCurrencyCents(row.offsite_conversion_fb_pixel_purchase_values, currency) : null,
       attributedPurchases: available.includes('offsite_conversion_fb_pixel_purchase') ? count(row.offsite_conversion_fb_pixel_purchase) : null,
-      conversations: available.includes('actions:onsite_conversion.messaging_conversation_started_7d') ? count(row['actions:onsite_conversion.messaging_conversation_started_7d']) : null };
+      conversations: available.includes('actions:onsite_conversion.messaging_conversation_started_7d') ? count(row['actions:onsite_conversion.messaging_conversation_started_7d']) : null,
+      impressions: available.includes('impressions')?count(row.impressions):null,
+      reach: available.includes('reach')?count(row.reach):null,
+      linkClicks: available.includes('link_click')?count(row.link_click):null };
   }
   async accountTimezone(access: MetaAccess): Promise<string> {
     const session = this.session(access, 'assess_and_optimize_performance', true); await session.start(); await this.account(session, access);
