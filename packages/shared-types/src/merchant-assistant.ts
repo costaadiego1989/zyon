@@ -19,6 +19,7 @@ export interface AssistantTurnInput { message: string; idempotencyKey: string; e
 export interface AssistantCampaignBriefing {
   selectionKind?: 'product' | 'category' | 'catalog';
   selectionQuery?: string;
+  selectedVariantId?: string;
   categoryId?: string;
   budget?: { amountCents?: number; cadence?: 'daily' | 'lifetime'; startText?: string; endText?: string; startsAt?: string; endsAt?: string | null };
   /** Exact merchant answers awaiting interpretation; bounded and never treated as instructions. */

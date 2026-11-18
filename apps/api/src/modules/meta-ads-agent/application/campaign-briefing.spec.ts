@@ -22,7 +22,7 @@ test('ACF-05 short choices are explicit while suggestions never select canonical
   assert.equal(progress.draft.destination,'store');assert.equal(briefingChecklist(progress).next,'selection');
   progress.briefing!.productOptions=[{variantId:'v1',name:'Camisa'},{variantId:'v2',name:'Calça'}];
   progress=receiveBriefingAnswer(progress,'a segunda','choice')!;
-  assert.equal(progress.briefing!.selectionQuery,'Calça');assert.equal(progress.draft.variantIds,undefined);
+  assert.equal(progress.briefing!.selectionQuery,'Calça');assert.equal(progress.briefing!.selectedVariantId,'v2');assert.equal(progress.draft.variantIds,undefined);
   assert.equal(progress.campaignId,null);assert.equal(progress.approvalPreference,'manual');
   assert.equal(receiveBriefingAnswer(null,'O que é Pixel?','help'),null);
 });
