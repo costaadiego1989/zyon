@@ -1,0 +1,65 @@
+name: Ads guided acceptance
+
+"on":
+  push:
+    branches: [test/ads-guided-ci-20261118]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ads-guided-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: meta_ads
+          POSTGRES_PASSWORD: meta-ads-local-test
+          POSTGRES_DB: meta_ads
+        ports:
+          - 15435:5432
+        options: >-
+          --health-cmd "pg_isready -U meta_ads -d meta_ads"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.20.0
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Prepare shared types and disposable database client
+        env:
+          DATABASE_URL: postgresql://meta_ads:meta-ads-local-test@127.0.0.1:15435/meta_ads
+        run: |
+          pnpm --filter @zyon/shared-types build
+          pnpm --filter @zyon/api exec prisma generate --schema prisma/schema.prisma
+      - name: Run all 17 approval and creative journeys in Edge
+        run: node apps/dashboard/scripts/run-agentic-cypress.mjs --case ACAP-27
+      - name: Save synthetic acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ads-guided-acceptance
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            .specs/features/agentic-dashboard-assistant/cypress-results/**/results.json
+            .specs/features/agentic-dashboard-assistant/cypress-results/**/api.log
+            .specs/features/agentic-dashboard-assistant/cypress-results/**/screenshots/**
