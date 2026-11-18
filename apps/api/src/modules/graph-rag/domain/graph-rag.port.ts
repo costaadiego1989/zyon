@@ -47,8 +47,11 @@ export interface GraphCatalogRequest {
 export type GraphUnavailable = Extract<GraphReadResult, { status: "unavailable" }>;
 export type GraphCatalogSelection = { status: "ready"; hits: GraphCatalogHit[]; partial: true } | GraphUnavailable;
 export type GraphKnowledgeSelection = { status: "ready"; hits: GraphKnowledgeHit[]; partial: true } | GraphUnavailable;
+export interface GraphMerchantGuideRequest { merchantId: string; context: "cashback"; query: string; limit?: number }
+export type GraphMerchantGuideSelection = { status: "ready"; hits: GraphMerchantGuideHit[]; partial: true } | GraphUnavailable;
 export interface GraphRetrievalPort {
   enabledFor(merchantId: string): boolean;
   searchCatalog(input: GraphCatalogRequest): Promise<GraphCatalogSelection>;
   searchKnowledge(input: Pick<GraphCatalogRequest, "merchantId" | "query" | "limit">): Promise<GraphKnowledgeSelection>;
+  searchMerchantGuides(input: GraphMerchantGuideRequest): Promise<GraphMerchantGuideSelection>;
 }
