@@ -100,14 +100,14 @@ for (const width of [390, 1440]) {
       ),
     });
     const expanded = page
-      .getByRole("button", { name: /Recolher pedido de/ })
+      .getByRole("button", { name: "Ocultar nota fiscal" })
       .first();
     await expanded.click();
     await expect(
       page.getByRole("region", { name: `Notas fiscais do pedido ${s.orderId}` })
     ).toHaveCount(0);
     await page
-      .getByRole("button", { name: /Expandir pedido de/ })
+      .getByRole("button", { name: "Ver nota fiscal" })
       .first()
       .click();
     await expect(
@@ -393,11 +393,11 @@ for (const width of [390, 1440]) {
     const s = await scenario(request, "disconnected");
     await authenticate(page, s);
     await openStore(page, "/store/" + s.slug);
-    await page.getByRole("button", { name: /Por chat/ }).click();
     const composer = page.getByRole("textbox", {
       name: "Mensagem",
       exact: true,
     });
+    await composer.click();
     await composer.fill("Nota fiscal do pedido " + s.orderId);
     await composer.press("Enter");
     const option = page.getByRole("link", {

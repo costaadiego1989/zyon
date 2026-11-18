@@ -16,7 +16,7 @@ export default async function fiscalGlobalSetup() {
     ["/store/" + encodeURIComponent(seed.slug), 200],
     ["/api/v1/buyer/me", 401],
     ["/api/storefront-conversations", 405],
-    ["/api/storefront-proxy/conversations/fiscal_warmup/events", 404],
+    ["/api/storefront-proxy/conversations/fiscal_warmup/events", 403],
   ];
   for (const [route, status] of routes) {
     const response = await fetch("http://localhost:3001" + route, {

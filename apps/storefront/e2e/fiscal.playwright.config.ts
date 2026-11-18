@@ -20,7 +20,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "node --loader ./apps/api/tests/platform-support-loader.mjs ./apps/api/tests/fiscal-buyer-browser-server.ts",
+        "node --import ./apps/api/tests/test-network-guard.mjs --loader ./apps/api/tests/fiscal-runtime-loader.mjs ./apps/api/tests/fiscal-buyer-browser-server.ts",
       cwd: path.resolve(__dirname, "../../.."),
       url: "http://127.0.0.1:3024/v1/__health",
       timeout: 120000,
