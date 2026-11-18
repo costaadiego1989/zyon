@@ -22,4 +22,8 @@ export interface AssistantContextPort {
   execute(input: AssistantToolInput): Promise<AssistantToolResult>;
   /** Server-rendered questions/facts only; untrusted model prose cannot establish evidence. */
   uncitedResponse?(input:UncitedAssistantResponse):string|null;
+  /** Context-owned clarification, also applied to cited campaign questionnaires. No actions. */
+  guidedResponse?(input:UncitedAssistantResponse & {message:string}):string|null;
+  /** Known malformed model reply only. Canonical questions/read facts, never tool replay. */
+  recoveredResponse?(input:UncitedAssistantResponse & {message:string}):string|null;
 }

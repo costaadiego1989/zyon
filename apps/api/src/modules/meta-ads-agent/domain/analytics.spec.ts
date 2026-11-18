@@ -4,6 +4,12 @@ import type { MetaAdsMetrics } from "@zyon/shared-types";
 import type { ProviderMetricSnapshot, PaidOrderFact, MetaAdsRecord } from "./types.js";
 import { buildMetrics, assessData, summarizeUsage } from "./analytics.js";
 const remote: ProviderMetricSnapshot = { campaignId: "campaign-a", currency: "BRL", since: "2026-11-01", until: "2026-11-14", timezone: "America/Sao_Paulo", attributionWindow: "7d_click+1d_view", spendCents: 2000, attributedRevenueCents: 15000, attributedPurchases: 2, conversations: 15 };
+test('AGW-07 Meta delivery counts and purchases remain separate from confirmed Zyon orders',()=>{
+ const result=metrics(undefined,{...remote,impressions:1200,reach:900,linkClicks:40});
+ assert.equal(result.attributedPurchases,2);assert.equal(result.paidOrders,1);assert.equal(result.costPerPurchaseCents,2000);
+ assert.equal(result.impressions,1200);assert.equal(result.reach,900);assert.equal(result.linkClicks,40);
+ const missing=metrics();assert.equal(missing.impressions,null);assert.equal(missing.reach,null);assert.equal(missing.linkClicks,null);
+});
 const order: PaidOrderFact = { orderId: "order-a", sessionId: "session-a", merchantId: "store-a", paid: true, paidAt: "2026-11-10T12:00:00Z", currency: "BRL", paidCents: 10000, refundedCents: 2000, costCents: null, costCoverage: "unavailable" };
 const metrics = (orders = [order], snapshot = remote): MetaAdsMetrics => buildMetrics({ campaignId: "campaign-a", remote: snapshot, orders, updatedAt: "2026-11-15T12:00:00Z" });
 test("MGA-51 reported metrics identify period, currency, update, source, timezone and attribution window", () => {

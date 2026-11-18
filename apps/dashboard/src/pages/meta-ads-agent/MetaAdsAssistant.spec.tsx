@@ -9,7 +9,17 @@ import { ui } from './test-helpers.js';
 import { campaign,overview,launchReview } from './fixtures.js';
 import type {CampaignApprovalApi} from './api.js';
 import { DashboardHttpError } from '../../api/http/error.js';
+import {ToastContainer} from '../../components/Toast.js';
 let screen:ReturnType<typeof ui>;afterEach(async()=>{await screen?.close();vi.useRealTimers();});
+test('AGW-06 opening another campaign leaves the old notification target and shows the selected review',async()=>{
+ screen=ui();const f=fixture(),first=launchReview(),second=launchReview();second.campaign.id='campaign2';second.campaign.draft.name='Segunda campanha';second.proposal.id='proposal2';second.proposal.campaignId='campaign2';
+ f.props.overview.campaigns=[first.campaign,second.campaign];f.props.overview.proposals=[first.proposal,second.proposal];f.approval.review.mockImplementation(async(id:string)=>id==='campaign2'?second:first);
+ const target={merchantId:'a',campaignId:'campaign1',proposalId:'proposal1'};
+ await screen.render(<MetaAdsAssistant {...f.props} reviewTarget={target}/>);expect(screen.container.querySelector('.mga-launch')!.textContent).toContain(first.campaign.draft.name);
+ await screen.render(<MetaAdsAssistant {...f.props} reviewTarget={target} selectedCampaignId="campaign2"/>);
+ expect(screen.container.querySelector('.mga-launch')!.textContent).toContain('Segunda campanha');
+ expect(f.approval.review).toHaveBeenLastCalledWith('campaign2',undefined,expect.any(AbortSignal));expect(f.approval.approveLaunch).not.toHaveBeenCalled();
+});
 const turn=(patch:Partial<AssistantTurn>={}):AssistantTurn=>({id:'t',threadId:'h',ordinal:1,status:'completed',message:'Ajuda',reply:'Resposta persistida',references:[],artifacts:[],error:null,createdAt:'2026-11-16T12:00:00Z',updatedAt:'2026-11-16T12:00:00Z',...patch});
 const thread=(turns:AssistantTurn[]=[]):AssistantThread=>({id:'h',context:{id:'meta-ads',label:'Anúncios com IA',capabilities:[]},revision:turns.length,campaign:null,turns,nextCursor:null,updatedAt:'2026-11-16T12:00:00Z'});
 const manual={mode:'manual' as const,policy:null,committedCents:0,availableCents:null,version:0};
@@ -24,6 +34,8 @@ function fixture(history=thread()){
 
 function campaignFixture(status='queued',missing:string[]=[]){const h=thread();h.campaign={campaignId:'campaign1',draft:campaign().draft,awaitingFields:[]};const f=fixture(h);f.props.overview.campaigns=[campaign()];f.approval.preparation.mockResolvedValue({campaignDigest:'a'.repeat(64),preparations:[preparation(status,missing)]} as never);return f;}
 async function reviewImages(){await act(async()=>screen.container.querySelectorAll('.mga-launch img').forEach(image=>image.dispatchEvent(new Event('load'))));}
+test('AF-05 loading the final page of older messages announces success and removes pagination',async()=>{screen=ui();const history={...thread([turn()]),nextCursor:'older'},f=fixture(history);f.client.page.mockResolvedValue({...thread([turn({id:'older',ordinal:0,reply:'Mensagem anterior recuperada'})]),nextCursor:null});await screen.render(<><ToastContainer/><MetaAdsAssistant {...f.props}/></>);await screen.click('Abrir assistente');expect(screen.container.querySelector('.ui-toast')).toBeNull();await screen.click('Carregar mensagens anteriores');expect(screen.container.textContent).toContain('Mensagem anterior recuperada');expect(screen.container.querySelector('.ui-toast--success span')?.textContent).toBe('Mensagens anteriores carregadas.');expect(Array.from(screen.container.querySelectorAll('button')).some(button=>button.textContent==='Carregar mensagens anteriores')).toBe(false);expect(f.client.page).toHaveBeenCalledWith('meta-ads','h','older',expect.any(AbortSignal));});
+test('AF-05 replayed failed admission announces once and refresh does not repeat historical errors',async()=>{screen=ui();const f=fixture();f.client.submit.mockResolvedValue({turn:turn({status:'failed',reply:null}),revision:1,replayed:true} as never);await screen.render(<><ToastContainer/><MetaAdsAssistant {...f.props}/></>);await screen.click('Abrir assistente');await screen.change('Mensagem para a IA','Retomar pedido');await screen.click('Enviar mensagem');expect(screen.container.querySelectorAll('.ui-toast--error')).toHaveLength(1);f.client.thread.mockResolvedValue(thread([turn({status:'failed',reply:null})]));await screen.click('Atualizar conversa');expect(screen.container.querySelectorAll('.ui-toast--error')).toHaveLength(1);expect(f.client.submit).toHaveBeenCalledTimes(1);});
 
 test('RD-01 the actual ads page distinguishes unavailable access from processing and preserves its draft when access returns',async()=>{
   screen=ui();const f=fixture();await screen.render(<MetaAdsAssistant {...f.props} overview={{...f.props.overview,entitled:false}}/>);

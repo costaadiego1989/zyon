@@ -124,6 +124,16 @@ test('ADAS-43 missing or incompatible native metric values remain unknown rather
   const result = await f.adapter.metrics(access(), campaign(), '2026-11-15', '2026-11-15');
   assert.equal(result.spendCents, null); assert.equal(result.attributedRevenueCents, null); assert.equal(result.attributedPurchases, null); assert.equal(result.conversations, null);
 });
+test('AGW-07 native list metrics use verified campaign fields and preserve zero versus unknown',async()=>{
+ const f=fixture(call=>{
+  if(call.name==='ads_get_field_context')return {unknown_fields:[],fields:(call.args.field_names as string[]).filter(name=>name!=='reach').map(name=>({name,levels:['campaign','ad_account']}))};
+  if(call.name==='ads_get_ad_entities'&&call.args.level==='campaign')return {ad_entities:JSON.stringify([{id:'200',impressions:{value:1200},link_click:{value:0},reach:999}])};return undefined;
+ });
+ const result=await f.adapter.metrics(access(),campaign(),'2026-11-17','2026-11-17');
+ assert.equal(result.impressions,1200);assert.equal(result.linkClicks,0);assert.equal(result.reach,null);
+ const fields=f.calls.find(call=>call.name==='ads_get_ad_entities'&&call.args.level==='campaign')!.args.fields as string[];
+ assert.ok(fields.includes('impressions'));assert.ok(fields.includes('link_click'));assert.equal(fields.includes('reach'),false);assert.equal(fields.includes('inline_link_clicks'),false);
+});
 
 test('ADAS-34 native MCP accepts an automatic pending proposal only with the exact server authority and live write lease', async () => {
   const f = fixture(), p = { ...proposal('pause'), status: 'pending_review' as const, approvedBy: null, approvedAt: null }; let checks = 0;

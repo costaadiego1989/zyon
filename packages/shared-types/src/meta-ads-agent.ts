@@ -186,6 +186,11 @@ export interface MetaAdsMetrics {
   confirmedRevenueCents: number | null;
   paidOrders: number;
   conversations: number | null;
+  /** Optional on historical snapshots; never substitute confirmed Zyon orders. */
+  attributedPurchases?: number | null;
+  impressions?: number | null;
+  reach?: number | null;
+  linkClicks?: number | null;
   costPerPurchaseCents: number | null;
   roas: number | null;
   contributionCents: number | null;

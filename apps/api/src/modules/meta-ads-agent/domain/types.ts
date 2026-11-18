@@ -199,6 +199,9 @@ export interface ProviderMetricSnapshot {
   attributedRevenueCents: number | null;
   attributedPurchases: number | null;
   conversations: number | null;
+  impressions?: number | null;
+  reach?: number | null;
+  linkClicks?: number | null;
 }
 export interface MetaAdsProviderPort {
   discover(access: MetaAccess): Promise<MetaDiscovery>;

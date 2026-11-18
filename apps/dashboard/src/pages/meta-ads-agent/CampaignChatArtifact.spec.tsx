@@ -5,8 +5,17 @@ import type { MetaAdsAgentApi } from '../../api/endpoints/meta-ads-agent.js';
 import { ui } from './test-helpers.js';
 import { campaign,overview,proposal } from './fixtures.js';
 import { CampaignChatArtifact } from './CampaignChatArtifact.js';
+import {ToastContainer} from '../../components/Toast.js';
 let screen:ReturnType<typeof ui>;afterEach(async()=>screen?.close());
 const props=()=>({campaign:campaign(),overview:overview(),api:{} as MetaAdsAgentApi,onUpdated:vi.fn().mockResolvedValue(undefined),onRequest:vi.fn().mockResolvedValue(undefined)});
+test.each([
+ ['reserved','success','Geração de imagens solicitada. Acompanhe o preparo.'],
+ ['running','success','Geração de imagens solicitada. Acompanhe o preparo.'],
+ ['succeeded','success','Imagens geradas. Revise os criativos.'],
+ ['partial','success','Parte das imagens ficou pronta. Revise os resultados.'],
+ ['failed','error','A geração precisa de revisão. Consulte o resultado antes de solicitar novamente.'],
+ ['unknown','error','A geração precisa de revisão. Consulte o resultado antes de solicitar novamente.'],
+])('AF-05 generation %s announces its actual state through the dashboard toast',async(status,type,text)=>{screen=ui();const p=props(),generate=vi.fn().mockResolvedValue({id:'g',campaignId:p.campaign.id,requestedImages:1,status,mediaIds:[],error:null,createdAt:'2026-11-18',updatedAt:'2026-11-18'});p.api={generate} as unknown as MetaAdsAgentApi;await screen.render(<><ToastContainer/><CampaignChatArtifact {...p}/></>);await screen.click('Gerar criativos');expect(screen.container.querySelector(`.ui-toast--${type} span`)?.textContent).toBe(text);expect(screen.container.querySelectorAll('.ui-toast')).toHaveLength(1);expect(generate).toHaveBeenCalledTimes(1);});
 test('ADAS-26 campaign review shows canonical products stock price texts priority region and budget without a form',async()=>{
   screen=ui();await screen.render(<CampaignChatArtifact {...props()}/>);for(const text of ['Bolsa Aurora','BA1','99,00','Estoque: 5','Vendas pagas','Loja','BR','20,00','diário','Conheça a coleção'])expect(screen.container.textContent).toContain(text);expect(screen.container.querySelector('input[type=text]')).toBeNull();
 });

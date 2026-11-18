@@ -35,10 +35,10 @@ export function AutomationPolicyPanel({accountId,state,review,productNames,campa
     <p><strong>{!state?error?'Modo atual: não confirmado':'Consultando modo de aprovação…':`${error?'Último modo confirmado':'Modo atual'}: ${automatic?'automático':'aprovação manual'}`}</strong></p>
     </div>
     <div className="mga-actions"><button type="button" className="mga-secondary" disabled={blocked} onClick={()=>void action.run(async()=>{await onChooseAutomatic();})}>Automático</button>
-      {policy&&!policy.revokedAt&&<button type="button" className="mga-secondary" disabled={busy||action.busy} onClick={()=>void action.run(onManual)}>Voltar para aprovação manual</button>}</div></div>
+      {policy&&!policy.revokedAt&&<button type="button" className="mga-secondary" disabled={busy||action.busy} onClick={()=>void action.run(onManual,"Aprovação manual ativada. Anúncios existentes não foram pausados.")}>Voltar para aprovação manual</button>}</div></div>
     <p>Toda campanha nova exige aprovação administrativa antes de publicar.</p>{!state&&<p>Confira a política atual antes de autorizar ações. A falta de uma leitura não confirma que a automação esteja desativada.</p>}
-    {!automatic&&state&&!error&&!currentReview&&<details className="mga-inline-details"><summary>Como funciona a aprovação</summary><p>Cada alteração na Meta exige sua aprovação individual. Escolher automático inicia a definição de uma política; só o aceite dos termos abaixo autoriza ações futuras.</p></details>}
-    {policy&&<details className="mga-inline-details"><summary>Ver política e limites</summary><p>Política {policy.version} · Conta {policy.accountId} · aceita em <time dateTime={policy.acceptedAt}>{new Date(policy.acceptedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time></p>
+    {!automatic&&state&&!error&&!currentReview&&<details className="mga-inline-details mga-disclosure"><summary>Como funciona a aprovação</summary><p>Cada alteração na Meta exige sua aprovação individual. Escolher automático inicia a definição de uma política; só o aceite dos termos abaixo autoriza ações futuras.</p></details>}
+    {policy&&<details className="mga-inline-details mga-disclosure"><summary>Ver política e limites</summary><p>Política {policy.version} · Conta {policy.accountId} · aceita em <time dateTime={policy.acceptedAt}>{new Date(policy.acceptedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time></p>
       <Terms value={policy} productNames={productNames} campaignNames={campaignNames}/>
       <p>Compromisso registrado: {money(state!.committedCents)}. Disponível no teto: {money(state!.availableCents)}.</p>
       <p>Voltar ao manual impede novos envios e não desfaz operações já recebidas pela Meta. Não pausa anúncios existentes.</p>
@@ -49,7 +49,7 @@ export function AutomationPolicyPanel({accountId,state,review,productNames,campa
       {!!currentReview.warnings.length&&<ul>{currentReview.warnings.map(warning=><li key={warning}>{adReason(warning)}</li>)}</ul>}
       <p>Os tetos incluem operações em andamento e de resultado desconhecido. A IA não pode elevar esses limites nem alterar campanhas de terceiros.</p>
       <label className="mga-ack"><input type="checkbox" checked={acknowledged} disabled={blocked} onChange={event=>setAcknowledged(event.target.checked)}/>Li e autorizo as ações, os produtos, as campanhas e os tetos desta política.</label>
-      <button type="button" disabled={blocked||!acknowledged} onClick={()=>void action.run(async()=>{await onAccept(currentReview);setAcknowledged(false);})}>Aceitar política automática</button>
+      <button type="button" disabled={blocked||!acknowledged} onClick={()=>void action.run(async()=>{await onAccept(currentReview);setAcknowledged(false);},"Política aceita. Toda campanha nova continua exigindo aprovação.")}>Aceitar política automática</button>
     </div>}
     {action.busy&&<p role="status">Confirmando política…</p>}{(action.error||error)&&<p role="alert">{error||action.error}</p>}
   </section>;

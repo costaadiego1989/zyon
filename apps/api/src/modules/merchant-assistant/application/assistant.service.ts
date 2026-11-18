@@ -2,7 +2,7 @@ import type { AssistantArtifact, AssistantReference } from '@zyon/shared-types';
 import { AssistantError, type AssistantRepository } from '../domain/assistant.port.js';
 import type { AssistantContextPort, AssistantToolInput, UncitedAssistantResponse } from '../domain/context.port.js';
 import type { AssistantKnowledgePort, RetrievedAssistantKnowledge } from '../domain/knowledge.port.js';
-import type { AssistantModelMessage, AssistantModelPort } from '../domain/model.port.js';
+import type { AssistantModelMessage, AssistantModelPort, AssistantModelResult } from '../domain/model.port.js';
 import { assertAssistantTurnLease } from './turn-admission.service.js';
 
 interface Dependencies { repo: AssistantRepository; context: AssistantContextPort; knowledge: AssistantKnowledgePort; model: AssistantModelPort; clock?: () => Date; }
@@ -41,8 +41,16 @@ export class AssistantService {
     const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = []; const evidence:UncitedAssistantResponse['evidence'][number][]=[];
     for (let round = 0; round <= 5; round++) {
       const state = await this.current(input);
-      const response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,
-        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress } });
+      let response:AssistantModelResult;
+      try{response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,
+        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress } });}
+      catch(error){
+        if(safeCode(error)!=='assistant_model_response_invalid')throw error;
+        const current=await this.current(input);let reply:string|null=null;
+        try{reply=this.deps.context.recoveredResponse?.({message:initial.turn.message,suggestedReply:'',campaign:current.thread.campaignProgress,evidence})??null;}catch{ /* Invalid read evidence cannot support a response. */ }
+        if(!reply)throw error;
+        return {reply,references:[],artifacts:this.latestArtifacts(artifacts)};
+      }
       if (response.toolCalls.length) {
         if (round === 5) throw new AssistantError('assistant_tool_round_limit', 429);
         if (response.toolCalls.length > 5 || response.toolCalls.some(call => !tools.some(t => t.name === call.name))) throw new AssistantError('assistant_tool_forbidden', 403);
@@ -57,7 +65,8 @@ export class AssistantService {
           } catch (error) {
             const code = safeCode(error);
             if (['assistant_forbidden', 'assistant_lease_lost', 'assistant_context_unavailable', 'assistant_outcome_unknown', 'assistant_operation_already_dispatched'].includes(code) || (error as { status?: number })?.status === 403 && code !== 'approval_required') throw error;
-            messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ error: code, completed: false }) });
+            const failure={data:{error:code,completed:false},artifacts:[]};evidence.push({name:call.name,result:failure});
+            messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(failure.data) });
           }
         }
         continue;
@@ -67,6 +76,8 @@ export class AssistantService {
       let references: AssistantReference[];
       try { references = await this.deps.knowledge.validateReferences(this.deps.context.knowledgeScope, response.referenceIds, knowledge); }
       catch { return { reply: unavailable, references: [], artifacts: this.latestArtifacts(artifacts) }; }
+      const guided=this.deps.context.guidedResponse?.({message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence});
+      if(guided)return {reply:guided,references:[],artifacts:this.latestArtifacts(artifacts)};
       // A question mark or unrelated tool result never validates model-written claims.
       // Without citations the context may emit only its own canonical facts/questions.
       let canonical:string|null=/^como posso ajudar\?$/i.test(response.reply.trim())?'Como posso ajudar?':null;
