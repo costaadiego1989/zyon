@@ -121,6 +121,15 @@ export interface CashbackDailyMovement {
   redeemedCents: number;
 }
 
+export interface CashbackAssistantReport {
+  merchantId: string;
+  currency: "BRL";
+  timeZone: "America/Sao_Paulo";
+  /** Current budget month at metrics.asOf, independent of the selected period. */
+  budgetMonth: string;
+  metrics: CashbackMetrics;
+}
+
 export interface CashbackMetrics {
   from: string;
   to: string;
