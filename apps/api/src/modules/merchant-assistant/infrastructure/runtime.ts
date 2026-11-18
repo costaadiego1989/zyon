@@ -13,11 +13,13 @@ import { AssistantKnowledgeRetriever } from './assistant-knowledge.retriever.js'
 import { PrismaAssistantRepository } from './prisma-assistant.repository.js';
 import { MerchantAiGateway } from './merchant-ai.gateway.js';
 import { AssistantWorker } from './assistant.worker.js';
+import type { GraphRetrievalPort } from '../../graph-rag/domain/graph-rag.port.js';
 
 interface Dependencies {
   prisma: PrismaClient; memberships: Pick<MerchantStoreRepository, 'findMembership'>;
   tenant: TenantContextService; governance: Pick<AiGovernanceService, 'authorize'>;
   env: Record<string, string | undefined>; transport?: typeof fetch; clock?: () => Date;
+  graph?: Pick<GraphRetrievalPort, 'enabledFor' | 'searchMerchantGuides'>;
 }
 const budget = (raw: string | undefined, fallback: bigint) => {
   if (raw === undefined) return fallback;
@@ -38,7 +40,7 @@ export function createMerchantAssistantRuntime(deps: Dependencies) {
   const enabled = () => deps.env.MERCHANT_ASSISTANT_ENABLED === 'true';
   const repo = new PrismaAssistantRepository(deps.prisma, clock);
   const contexts = new AssistantContextRegistry();
-  const knowledge = new AssistantKnowledgeRetriever(undefined, clock);
+  const knowledge = new AssistantKnowledgeRetriever(undefined, clock, deps.graph);
   const membership = async (scope: AssistantScope) => {
     validateAssistantScope(scope);
     const member = await deps.memberships.findMembership(scope.actorId, scope.merchantId);
