@@ -10,6 +10,7 @@ import { CheckoutCommercialBenefitsService } from "./checkout-commercial-benefit
 import { cashbackMerchandiseBasis } from "../domain/cashback-merchandise.js";
 import { buyerPhoneLookupHash } from "../../../shared/crypto/pii-cipher.service.js";
 import { validateCashbackDraft } from "../domain/cashback-draft.js";
+import { parseCashbackConfigurationAnswer } from "../domain/cashback-configuration-step.js";
 
 export interface CashbackRefundInput {
   merchantId: string; orderId: string; commandKey?: string;
@@ -63,6 +64,30 @@ export class CashbackService {
   async getProgram(merchantId: string, options: { includeGeneralCap?: boolean; includeConfigurationRevision?: boolean } = {}) {
     return this.repository.transaction(merchantId, tx => this.configurationView(tx, merchantId, options));
   }
+  private async persistDraft(tx: CashbackTx, merchantId: string, draft: CashbackDraft, base: CashbackDraft | null, merge: boolean, guarded: boolean) {
+    const saved = merge ? validateCashbackDraft({ ...base, ...draft,
+      ...(draft.combination ? { combination: { ...base?.combination, ...draft.combination } } : {}) }) : draft;
+    await tx.$executeRaw`INSERT INTO cashback_programs(merchant_id,draft) VALUES(${merchantId},${JSON.stringify(saved)}::jsonb)
+      ON CONFLICT(merchant_id) DO UPDATE SET draft=EXCLUDED.draft,updated_at=now()`;
+    return this.configurationView(tx, merchantId, { includeGeneralCap: guarded, includeConfigurationRevision: guarded });
+  }
+  /** The context supplies the persisted user turn. Receipt lookup precedes parsing
+   * so a replay cannot reinterpret a bare answer against a later draft. */
+  async saveGuidedDraftAnswer(merchantId: string, answer: { field: string; message: string }, actorId: string,
+    command: CashbackConfigurationWrite, beforeWrite: () => void) {
+    scope(actorId, "actor"); validateConfigurationCommand(command);
+    return this.repository.transaction(merchantId, tx => this.repository.command(tx, merchantId,
+      `configuration:guided:${fingerprint({ actorId, key: command.idempotencyKey })}`, { actorId, ...answer, expectedRevision: command.expectedRevision }, async () => {
+        const current = await this.repository.program(tx, merchantId);
+        if (command.expectedRevision !== configurationRevision(current)) throw new CashbackError("cashback_configuration_changed", 409);
+        const base = current.draft ?? current.published;
+        const draft = parseCashbackConfigurationAnswer({ ...answer, draft: base ?? {} });
+        // The assistant thread is locked by the caller. Fence the lease after the
+        // awaited cashback lock/read, immediately before any configuration write.
+        beforeWrite();
+        return this.persistDraft(tx, merchantId, draft, base, true, true);
+      }));
+  }
   async saveDraft(merchantId: string, input: CashbackDraft, actorId: string, command?: CashbackConfigurationWrite & { merge?: boolean }) {
     const draft = validateCashbackDraft(input);
     scope(actorId, "actor");
@@ -72,12 +97,7 @@ export class CashbackService {
       const save = async () => {
         const current = await this.repository.program(tx, merchantId);
         if (command && command.expectedRevision !== configurationRevision(current)) throw new CashbackError("cashback_configuration_changed", 409);
-        const base = current.draft ?? current.published;
-        const saved = command?.merge ? validateCashbackDraft({ ...base, ...draft,
-          ...(draft.combination ? { combination: { ...base?.combination, ...draft.combination } } : {}) }) : draft;
-        await tx.$executeRaw`INSERT INTO cashback_programs(merchant_id,draft) VALUES(${merchantId},${JSON.stringify(saved)}::jsonb)
-          ON CONFLICT(merchant_id) DO UPDATE SET draft=EXCLUDED.draft,updated_at=now()`;
-        return this.configurationView(tx, merchantId, { includeGeneralCap: !!command, includeConfigurationRevision: !!command });
+        return this.persistDraft(tx, merchantId, draft, current.draft ?? current.published, command?.merge === true, !!command);
       };
       return command ? this.repository.command(tx, merchantId, `configuration:draft:${fingerprint({ actorId, key: command.idempotencyKey })}`,
         { actorId, expectedRevision: command.expectedRevision, draft, merge: command.merge === true }, save) : save();

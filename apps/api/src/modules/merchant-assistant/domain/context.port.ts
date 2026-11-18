@@ -22,4 +22,6 @@ export interface AssistantContextPort {
   execute(input: AssistantToolInput): Promise<AssistantToolResult>;
   /** Server-rendered questions/facts only; untrusted model prose cannot establish evidence. */
   uncitedResponse?(input:UncitedAssistantResponse):string|null;
+  /** Context-owned canonical questions/facts may also replace cited claims. */
+  guidedResponse?(input:UncitedAssistantResponse & {message:string}):string|null;
 }

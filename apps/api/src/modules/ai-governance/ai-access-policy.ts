@@ -3,7 +3,8 @@ export type AiActorRole = typeof AI_ACTOR_ROLES[number];
 export const AI_TOOLS = ["aacp_evaluate_discount", "aacp_evaluate_shipping", "aacp_generate_message", "aacp_search_catalog", "aacp_get_agent_card",
   "merchant_ads_catalog", "merchant_ads_overview", "merchant_ads_funding", "merchant_ads_save_draft", "merchant_ads_select_campaign", "merchant_ads_new_campaign",
   "merchant_ads_generate", "merchant_ads_propose", "merchant_ads_execute", "merchant_ads_status", "merchant_ads_analyze_existing", "merchant_ads_review_automation", "merchant_ads_daily_reports",
-  "merchant_ads_planning_context", "merchant_ads_prepare", "merchant_ads_preparation"] as const;
+  "merchant_ads_planning_context", "merchant_ads_prepare", "merchant_ads_preparation",
+  "cashback_read_program", "cashback_next_step", "cashback_save_draft_answer"] as const;
 export type AiGrant = { kind: "model" | "tool"; resource: string; roles: AiActorRole[]; sources: string[] };
 export type AiPolicy = { version: number; grants: AiGrant[] };
 export type AiIdentity = { merchantId: string; actorId?: string; actorRole: AiActorRole; teamId?: string; source: string; correlationId?: string };
