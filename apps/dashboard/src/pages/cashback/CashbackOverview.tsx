@@ -1,0 +1,33 @@
+import type {CashbackMetrics,CashbackProgramView} from '@zyon/shared-types';
+import {ArrowDownLeft,ArrowUpRight,CalendarDays,Clock3,MessageSquare,Settings2,Wallet,Undo2} from 'lucide-react';
+import {StatCard,StatCardGroup} from '../overview/components/StatCard.js';
+import {SectionHeader} from '../../components/SectionHeader.js';
+import {DataPanel} from '../../components/DataPanel.js';
+import {EmptyState} from '../../components/EmptyState.js';
+import {Button} from '../../components/Button.js';
+import {CashbackMovementChart} from './CashbackMovementChart.js';
+import {cashbackDate,cashbackMoney} from './cashback-form.js';
+import './cashback-overview.css';
+
+interface Props {data:CashbackMetrics | null;program:CashbackProgramView | null;loading?:boolean;error?:string | null;onConfigure:()=>void;onStartAssistant:()=>void;onRetry:()=>void;}
+const businessDate=(value:string)=>new Date(value).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});
+export function CashbackOverview({data,program,loading,error,onConfigure,onStartAssistant,onRetry}:Props){
+ if(loading)return <div className="cashback-loading" role="status"><span/><span/><span/><p>Carregando visão geral do cashback…</p></div>;
+ if(error||!data)return <EmptyState icon={Undo2} title="Informações indisponíveis" description={error||'Atualize para consultar os dados do programa.'} action={<Button variant="outline" onClick={onRetry}>Tentar novamente</Button>}/>;
+ const month=new Date(data.asOf).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo',month:'long',year:'numeric'});
+ const occupied=data.budgetIssuedCents+data.budgetCommittedCents;
+ const percentage=data.budgetLimitCents===null||data.budgetLimitCents===0?null:occupied/data.budgetLimitCents*100;
+ const movements=[['Crédito liberado',data.releasedCents],['Crédito restituído',data.restoredCents],['Crédito expirado',data.expiredCents],['Crédito estornado',data.reversedCents],['Perda promocional',data.lossCents]] as const;
+ return <div className="cashback-overview">
+  {program&&!program.published&&<section className="cashback-get-started"><div className="cashback-get-started__icon"><Wallet size={24} aria-hidden="true"/></div><div><h2>Comece pelas regras da sua loja</h2><p>Defina quanto conceder, quando liberar e como usar. O programa só começa após sua revisão e publicação.</p></div><div className="cashback-state-actions"><Button onClick={onStartAssistant}><MessageSquare size={16} aria-hidden="true"/>Configurar com o assistente</Button><Button variant="outline" onClick={onConfigure}><Settings2 size={16} aria-hidden="true"/>Configurar manualmente</Button></div></section>}
+  <div className="cashback-period-caption" aria-label="Período das movimentações"><CalendarDays size={16} aria-hidden="true"/><span>Movimentações de <strong>{businessDate(data.from)}</strong> a <strong>{businessDate(data.to)}</strong> · Brasília</span></div>
+  <StatCardGroup columns={4}><StatCard label="Crédito gerado" value={cashbackMoney(data.grantedCents)} icon={<ArrowUpRight size={16} aria-hidden="true"/>} note="Créditos concedidos no período"/><StatCard label="Cashback utilizado" value={cashbackMoney(data.redeemedCents)} icon={<ArrowDownLeft size={16} aria-hidden="true"/>} note="Usado pelos clientes em compras"/><StatCard label="Clientes que ganharam" value={data.buyersGranted} note={`${data.buyersRedeemed} clientes utilizaram saldo`}/><StatCard label="Pedidos com cashback" value={data.ordersWithCashback} note="Pedidos com uso no período"/></StatCardGroup>
+  <div className="cashback-overview-main"><DataPanel title="Evolução do cashback"><div className="cashback-chart-panel"><CashbackMovementChart data={data.dailyMovements}/></div></DataPanel>
+   <section className="panel cashback-stock-panel" aria-label="Saldos atuais"><SectionHeader icon={Wallet} title="Saldo atual do programa" variant="secondary"/><p className="cashback-panel-caption"><Clock3 size={14} aria-hidden="true"/>Posição em {cashbackDate(data.asOf)} · Brasília</p><dl className="cashback-stock-values"><div className="cashback-stock-primary"><dt>Disponível para usar</dt><dd>{cashbackMoney(data.availableCents)}</dd></div><div><dt>Aguardando liberação</dt><dd>{cashbackMoney(data.pendingCents)}</dd></div><div><dt>Reservado em compras</dt><dd>{cashbackMoney(data.reservedCents)}</dd></div></dl><p className="cashback-help">Inclui créditos de períodos anteriores. Saldo compartilhado entre site e WhatsApp.</p></section>
+  </div>
+  <div className="cashback-overview-secondary"><section className="panel cashback-budget-panel" aria-label="Orçamento mensal atual"><SectionHeader icon={CalendarDays} title="Orçamento do mês" variant="secondary"/><p className="cashback-panel-caption">{month} · Brasília</p>{data.budgetLimitCents===null?<p className="cashback-budget-headline">Sem limite mensal</p>:<><div className="cashback-budget-headline"><strong>{percentage===null?'Limite zero':`${percentage.toLocaleString('pt-BR',{maximumFractionDigits:1})}%`}</strong><span>do orçamento ocupado</span></div>{percentage!==null&&<progress aria-label="Ocupação do orçamento mensal" value={Math.min(100,Math.max(0,percentage))} max={100}/>} {occupied>=data.budgetLimitCents&&<p className="cashback-budget-warning">Limite mensal atingido</p>}</>}<dl className="cashback-metric-list"><div><dt>Concedido neste mês</dt><dd>{cashbackMoney(data.budgetIssuedCents)}</dd></div><div><dt>Comprometido em compras</dt><dd>{cashbackMoney(data.budgetCommittedCents)}</dd></div><div><dt>Limite configurado</dt><dd>{data.budgetLimitCents===null?'Sem limite':cashbackMoney(data.budgetLimitCents)}</dd></div></dl><p className="cashback-help">Ocupação = concedido + comprometido. O mês atual independe do período do gráfico.</p></section>
+   <section className="panel cashback-movements-panel"><SectionHeader icon={Undo2} title="Outras movimentações" variant="secondary"/><p className="cashback-panel-caption">No período selecionado</p><dl className="cashback-metric-list">{movements.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{cashbackMoney(value)}</dd></div>)}</dl></section>
+   <section className="panel cashback-revenue-panel"><SectionHeader icon={ArrowUpRight} title="Compras associadas" variant="secondary"/><p className="cashback-panel-caption">Receita dos pedidos com uso de cashback</p><p className="cashback-revenue-value">{cashbackMoney(data.associatedRevenueCents)}</p><p className="cashback-help">Não representa aumento de receita causado pelo programa.</p><p className="cashback-help">{data.ordersWithCashback} pedidos · {data.buyersRedeemed} clientes no período selecionado.</p></section>
+  </div>
+ </div>;
+}
