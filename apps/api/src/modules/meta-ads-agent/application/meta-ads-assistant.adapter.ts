@@ -120,6 +120,17 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
       return campaign?.draft.destination?productScopeQuestion:destinationQuestion;
     }
     if(/conta|meta|facebook/.test(text)&&/comeco|comecar|zero|criar/.test(text))return 'Vamos por partes. Você já consegue entrar no Facebook?';
+    if(campaign?.briefing&&!campaign.campaignId&&!isBriefingHelp(message)){
+      const choices=!campaign.draft.variantIds?.length?catalogChoices(evidence,message):null;if(choices)return choices;
+      const checklist=briefingChecklist(campaign);
+      if(!campaign.draft.variantIds?.length){
+        if(campaign.briefing.selectionKind==='category')return 'Qual é o nome da categoria que você quer divulgar?';
+        if(campaign.briefing.selectionKind==='product')return 'Qual é o nome do produto que você quer anunciar?';
+        return campaign.draft.destination?productScopeQuestion:destinationQuestion;
+      }
+      const questions:Partial<Record<string,string>>={destination:destinationQuestion,priority:'Qual resultado você quer buscar: mais vendas, gastar menos por compra ou mais retorno por real investido?',amount:'Quanto você quer investir no anúncio?',cadence:'Esse valor é por dia ou para todo o período?',start:'Em que dia você quer começar a campanha?',end:'Até que dia a campanha deve ficar no ar?',country:'Em qual país você quer anunciar?'};
+      return checklist.next?questions[checklist.next]??null:null;
+    }
     return null;
   }
   uncitedResponse({suggestedReply,campaign,evidence}:UncitedAssistantResponse):string|null {
@@ -231,6 +242,8 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     const { args, scope } = input;
     fields(args, Object.keys(draftFields));
     const previous = (await this.thread(input)).campaignProgress;
+    const criterionPending=previous?.briefing?.selectionKind&&!previous.draft.variantIds?.length&&!previous.briefing.selectionQuery&&!previous.briefing.categoryId&&!previous.briefing.selectedVariantId;
+    if(input.origin==='model'&&criterionPending&&(Object.hasOwn(args,'variantIds')||args.briefing&&typeof args.briefing==='object'&&['selectionQuery','categoryId'].some(key=>Object.hasOwn(args.briefing as object,key))))throw new AssistantError('assistant_selection_required',409);
     const patch = { ...args }; delete patch.approvalPreference;delete patch.imageCount;delete patch.briefing;
     const briefing:AssistantCampaignBriefing=structuredClone(previous?.briefing??{});
     if(args.briefing!==undefined){
