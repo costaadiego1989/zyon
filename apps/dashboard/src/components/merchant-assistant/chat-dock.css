@@ -30,6 +30,7 @@
 .chat-dock [role=alert] { color: var(--color-error); }
 .chat-dock img { max-width: 100%; height: auto; }
 .chat-dock-thinking { display: flex; align-items: center; gap: 8px; color: var(--color-text-secondary); font-size: 13px; font-weight: 500; }
+.chat-dock-pending { padding: 20px 0; }
 .chat-dock-thinking-ellipsis { display: inline-block; animation: chat-dock-thinking-pulse 1.4s ease-in-out infinite; }
 @keyframes chat-dock-thinking-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 @media(prefers-reduced-motion:reduce) { .chat-dock-thinking-ellipsis { animation: none; } }

@@ -9,19 +9,21 @@ import { AssistantService } from './assistant.service.js';
 
 const answer = (reply: string, referenceIds: string[] = []): AssistantModelResult => ({ reply, referenceIds, toolCalls: [], providerRequestId: 'req-a', costMicros: 20n });
 const tools = (name: string, args: Record<string, unknown>): AssistantModelResult => ({ ...answer(''), reply: null, toolCalls: [{ id: 'call-a', name, args }] });
+test('ACF-02 generic creation asks one destination question without catalog work or campaign writes',async()=>{const f=await fixture(input=>answer('Camisa: R$ 99. Qual produto e qual orçamento?',[input.knowledge[0].reference.id]));try{await f.message('quero criar uma campanha');const response=await f.process();assert.match(response.reply,/loja.*WhatsApp/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.doesNotMatch(response.reply,/Camisa|99|estoque|orçamento/);assert.equal(f.inputs.length,1);assert.deepEqual(f.catalogReads,[]);assert.deepEqual(response.artifacts,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
+test('ACF-04 source-free category discovery returns only bounded real names without choosing products',async()=>{const f=await fixture((_input,call)=>call===1?tools('merchant_ads_catalog',{kind:'categories'}):answer('Todos os produtos: inventado. Escolha várias coisas.'));try{const scopes:string[]=[];f.commerce.categories=async merchantId=>{scopes.push(merchantId);return{categories:Array.from({length:100},(_,i)=>({id:'c'+i,name:'Categoria '+i,productCount:10})),hasMore:true};};await f.message('Quero escolher por categoria');const response=await f.process();assert.equal(response.reply.split('\n').filter(line=>line.startsWith('•')).length,5);assert.match(response.reply,/Categoria 0/);assert.doesNotMatch(response.reply,/Categoria 5\b|inventado|R\$/);assert.match(response.reply,/mais opções/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual(scopes,['store-a']);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
 test('AGW-01 cited imperative questionnaire without punctuation still asks one absent decision',async()=>{
  const f=await fixture(input=>answer('Para preparar seu anúncio, informe produto, objetivo, destino, orçamento, datas e região.',[input.knowledge[0].reference.id]));try{
- await f.message('Crie um anúncio dos meus produtos');const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,/produto/i);assert.doesNotMatch(response.reply,/orçamento|datas|região/);
+ await f.message('Crie um anúncio dos meus produtos');const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,/loja.*WhatsApp/i);assert.doesNotMatch(response.reply,/orçamento|datas|região/);
  }finally{await f.close();}
 });
 test('AGW-10 invalid format after a catalog read recovers canonical products without replaying the tool',async()=>{
- const f=await fixture((_input,call)=>{if(call===1)return tools('merchant_ads_catalog',{});throw new AssistantError('assistant_model_response_invalid',502);});try{
- await f.message('Crie um anúncio dos meus produtos');const response=await f.process();assert.match(response.reply,/Camisa/);assert.match(response.reply,/99,00/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual(f.catalogReads,['store-a']);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});assert.equal(f.inputs.length,2);
+ const f=await fixture((_input,call)=>{if(call===1)return tools('merchant_ads_catalog',{query:'Camisa'});throw new AssistantError('assistant_model_response_invalid',502);});try{
+ await f.message('Crie um anúncio de Camisa e informe o preço');const response=await f.process();assert.match(response.reply,/Camisa/);assert.match(response.reply,/99,00/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual(f.catalogReads,['store-a']);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});assert.equal(f.inputs.length,2);
  }finally{await f.close();}
 });
 test('AGW-10 invalid creation and funding replies recover a safe next question without invented claims',async()=>{
  for(const message of ['Crie um anúncio dos meus produtos','Como adicionar fundos para os anúncios?']){const f=await fixture(()=>{throw new AssistantError('assistant_model_response_invalid',502);});try{
- await f.message(message);const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,message.startsWith('Crie')?/produto/i:/conectou.*Meta|conta de anúncios/i);assert.doesNotMatch(response.reply,/Pix|R\$|confirmamos|saldo disponível|publicad/i);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).executions,{});assert.equal(f.inputs.length,1);
+ await f.message(message);const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,message.startsWith('Crie')?/loja.*WhatsApp/i:/conectou.*Meta|conta de anúncios/i);assert.doesNotMatch(response.reply,/Pix|R\$|confirmamos|saldo disponível|publicad/i);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).executions,{});assert.equal(f.inputs.length,1);
  }finally{await f.close();}}
 });
 test('AGW-10 unknown provider outcome is not hidden by conversational recovery',async()=>{
@@ -85,6 +87,7 @@ async function fixture(run: (input: AssistantModelInput, call: number) => Assist
   const model: AssistantModelPort = { complete: async input => { inputs.push(structuredClone(input)); return run(input, inputs.length); } };
   const service = new AssistantService({ repo: f.conversations, context: f.adapter, knowledge, model, clock: f.clock });
   const message = async (value: string) => f.sql.query('UPDATE merchant_assistant_turns SET message=$1 WHERE id=$2', [value, f.turn.id]);
+  await message('Ajude com meus anúncios');
   return { ...f, inputs, knowledge, documents, service, message, process: () => service.respond(f.input) };
 }
 test('ADAS-16 actual retrieval precedes model and only validated current references leave the service', async () => {
@@ -183,7 +186,7 @@ test('ADAS-48 role revocation after first model response denies tools before any
   } finally { await f.close(); }
 });
 test('ADAS-49 repeated tool cycle is bounded and cannot endlessly consume model calls', async () => {
-  const f = await fixture(() => tools('merchant_ads_catalog', {})); try {
+  const f = await fixture(() => tools('merchant_ads_catalog', {query:'Camisa'})); try {
     await assert.rejects(f.process(), /assistant_tool_round_limit/);
     assert.equal(f.inputs.length, 6); assert.equal(f.catalogReads.length, 5);
   } finally { await f.close(); }
@@ -195,14 +198,14 @@ test('ADAS-21 model cannot return an arbitrary tool or an injected approval capa
 });
 test('ADAS-24 catalog facts remain answerable without a document citation after an authorized live tool read', async () => {
   const f = await fixture((_input, call) => call === 1 ? tools('merchant_ads_catalog', { query: 'camisa' }) : answer('Camisa: R$ 99,00, com 8 unidades em estoque.')); try {
-    f.documents.splice(0); const response = await f.process();
+    f.documents.splice(0); await f.message('Qual o preço e estoque da camisa?'); const response = await f.process();
     assert.equal(response.reply, 'Camisa: R$ 99,00, com 8 unidades em estoque.');
     assert.deepEqual(f.catalogReads, ['store-a']); assert.deepEqual(response.references, []);
   } finally { await f.close(); }
 });
 
 test('ADAS-18 a question suffix cannot make an invented payment procedure supported',async()=>{const f=await fixture(()=>answer('Faça um Pix de R$ 237 para a Zyon para adicionar fundos à Meta, combinado?'));try{f.documents.splice(0);await f.message('Onde faço o pagamento da verba?');const response=await f.process();assert.doesNotMatch(response.reply,/Pix|237|combinado/);assert.match(response.reply,/não (encontrei|tenho)|evidência|indisponível/i);assert.deepEqual(response.references,[]);}finally{await f.close();}});
-test('ADAS-18 a canonical catalog read cannot support an invented payment procedure',async()=>{const f=await fixture((_input,call)=>call===1?tools('merchant_ads_catalog',{}):answer('Faça um Pix de R$ 237 para a Zyon para adicionar fundos à Meta.'));try{f.documents.splice(0);await f.message('Como pago a verba da minha camisa?');const response=await f.process();assert.doesNotMatch(response.reply,/Pix|237/);assert.deepEqual(f.catalogReads,['store-a']);assert.deepEqual(response.references,[]);}finally{await f.close();}});
+test('ADAS-18 a canonical catalog read cannot support an invented payment procedure',async()=>{const f=await fixture((_input,call)=>call===1?tools('merchant_ads_catalog',{query:'Camisa'}):answer('Faça um Pix de R$ 237 para a Zyon para adicionar fundos à Meta.'));try{f.documents.splice(0);await f.message('Como pago a verba da minha camisa?');const response=await f.process();assert.doesNotMatch(response.reply,/Pix|237/);assert.deepEqual(f.catalogReads,['store-a']);assert.deepEqual(response.references,[]);}finally{await f.close();}});
 test('ADAS-18 source-free clarification is rendered by the host without repeating model payment claims',async()=>{const f=await fixture(()=>answer('Faça um Pix de R$ 237. Qual será o orçamento?'));try{f.documents.splice(0);const response=await f.process();assert.equal(response.reply,'Qual será o orçamento?');assert.deepEqual(response.references,[]);assert.deepEqual(f.catalogReads,[]);}finally{await f.close();}});
 
 test('ADAS-53 a sixth tool in one response is rejected before business actions or image consumption',async()=>{const f=await fixture(()=>({...answer(''),reply:null,toolCalls:Array.from({length:6},(_,i)=>({id:`too-many-${i}`,name:'merchant_ads_catalog',args:{}}))}));try{await assert.rejects(f.process(),{code:'assistant_tool_forbidden'});assert.equal(f.inputs.length,1);assert.deepEqual(f.catalogReads,[]);const state=await f.repo.read('store-a');assert.deepEqual(state.campaigns,{});assert.deepEqual(state.generations,{});assert.equal(state.credits.monthlyAvailable,30);}finally{await f.close();}});
