@@ -13,6 +13,7 @@ import {createLocalWhatsAppProviderFixture,validateLocalWhatsAppOptions} from '.
 import {createPublicSupportModelFixture} from './service-public-support-model-fixture.mjs';
 import {validateServedModelScript} from './service-served-model-script.mjs';
 import {createPublicStorefrontModelFixture} from './service-public-storefront-model-fixture.mjs';
+import {observeCanonicalLiveReader} from './business-rag-canonical-live-observer.mjs';
 
 const [databaseUrl,databaseRunId,redisUrl,redisRunId,...extra]=process.argv.slice(2);
 const stage=(name,details={})=>process.send?.({type:'stage',stage:name,...details});
@@ -31,11 +32,14 @@ const cleanupResources=stage=>{
   process.stderr.write('service_cleanup_resources:'+JSON.stringify({stage,resourceTypes:process.getActiveResourcesInfo(),handles,timers})+'\n');
 };
 stage('worker_started');
-assert.ok(extra.length<=1);let localWhatsApp;let localSupportQueryModel=false,localStorefrontQueryModel=false,localModelScript;
+assert.ok(extra.length<=1);let localWhatsApp;let localSupportQueryModel=false,localStorefrontQueryModel=false,localModelScript,localBusinessRagObservation=false;
 if(extra.length){
   assert.ok(extra[0].length<=8192);const parsed=JSON.parse(extra[0]);
   assert.ok(parsed&&typeof parsed==='object'&&!Array.isArray(parsed));
-  const{supportQueryModel,storefrontQueryModel,modelScript,...whatsappOptions}=parsed;
+  const{supportQueryModel,storefrontQueryModel,modelScript,businessRagObservation,...whatsappOptions}=parsed;
+  assert.ok(businessRagObservation===undefined||businessRagObservation===true);
+  assert.ok(!businessRagObservation||supportQueryModel&&!storefrontQueryModel&&Object.keys(whatsappOptions).length===0);
+  localBusinessRagObservation=businessRagObservation===true;
   assert.ok(supportQueryModel===undefined||supportQueryModel===true,'local_support_query_flag_invalid');
   assert.ok(storefrontQueryModel===undefined||storefrontQueryModel===true,'local_storefront_query_flag_invalid');
   assert.ok(!(supportQueryModel&&storefrontQueryModel),'local_model_flags_mutually_exclusive');
@@ -56,7 +60,7 @@ try{assert.deepEqual(await verify.$queryRaw`SELECT run_id FROM synthetic_native_
 const {Redis}=await import('ioredis');const redis=new Redis(redisUrl,{lazyConnect:true,maxRetriesPerRequest:0,retryStrategy:()=>null});
 try{await redis.connect();assertSyntheticRedisIdentity(redisUrl,redisRunId,await redis.get('aacp:synthetic:run'));}finally{redis.disconnect();}
 stage('owned_markers_checked');
-let app,tracker,trap,closed=false,fixture,fixtureOverrideNames=[],modelFixture,modelTokens,modelOverrideNames=[];
+let app,tracker,trap,closed=false,fixture,fixtureOverrideNames=[],modelFixture,modelTokens,modelOverrideNames=[],businessReaderObserver;
 async function close(){
   if(closed)return;closed=true;const errors=[];
   modelFixture?.closeModelScript?.();
@@ -66,11 +70,13 @@ async function close(){
   try{if(app)await bounded(app.close(),25_000,'service_app_close_timeout');}catch(e){errors.push(e);}
   stage('closing_owned_clients');
   try{if(tracker)await tracker.close();}catch(e){errors.push(e);}
+  const businessObservation=businessReaderObserver?.evidence();
+  try{businessReaderObserver?.restore();}catch(e){errors.push(e);}
   const provider=trap?.evidence();
   try{if(trap)await trap.dispose();}catch(e){errors.push(e);}
   if(provider?.providerCalls)errors.push(new Error('service_provider_attempt_forbidden:'+JSON.stringify(trap.diagnostics())));
   if(errors.length)throw new AggregateError(errors,'service_app_cleanup_failed:'+errors.map(error=>String(error.message).slice(0,1400)).join('|'));
-  return{appClosed:true,providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0,...(modelFixture?(localSupportQueryModel?{localSupportModel:modelFixture.evidence()}:{localStorefrontModel:modelFixture.evidence()}):{} )};
+  return{appClosed:true,...(businessObservation?{businessRagObservation:businessObservation}:{}),providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0,...(modelFixture?(localSupportQueryModel?{localSupportModel:modelFixture.evidence()}:{localStorefrontModel:modelFixture.evidence()}):{} )};
 }
 try{
   trap=await installConstructionProviderTrap(Number(database.port),Number(new URL(redisUrl).port));
@@ -130,6 +136,19 @@ try{
   finally{modelInstallation?.restore();fixtureInstallation?.restore();}
   if(fixture){assert.equal(app.get(channelToken),fixture.sender);if(localWhatsApp.voiceTranscripts&&Object.keys(localWhatsApp.voiceTranscripts).length)assert.equal(app.get(mediaType),fixture.media);}
   if(modelFixture)modelFixture.assertBindings(app,modelTokens);
+  if(localBusinessRagObservation){
+    const{PrismaCurrentServiceFactsReader}=await import('../dist/modules/knowledge-base/infrastructure/prisma-current-service-facts-reader.js');
+    const{PublicBusinessLiveTools}=await import('../dist/modules/knowledge-base/application/services/public-business-live-tools.js');
+    const reader=app.get(PrismaCurrentServiceFactsReader);
+    assert.ok(reader instanceof PrismaCurrentServiceFactsReader);assert.equal(app.get(PublicBusinessLiveTools).live,reader);
+    assert.equal(app.get(modelTokens.ServiceBusinessAnswerFactory).live,app.get(PublicBusinessLiveTools));
+    let sequence=0;
+    businessReaderObserver=observeCanonicalLiveReader(reader,PrismaCurrentServiceFactsReader.prototype.read,observation=>{
+      const event={runId:databaseRunId,sequence:++sequence,...observation};
+      assert.ok(Buffer.byteLength(JSON.stringify(event))<=100000,'evaluation_observation_bounds');
+      process.send({type:'local_business_read_observation',event});
+    });
+  }
   stage('app_constructed');
   tracker=createOwnedJourneyClientTracker(app,Number(new URL(redisUrl).port));
   const {apiVersioningMiddleware}=await import('../dist/shared/http/api-versioning.js');app.use(apiVersioningMiddleware);
@@ -142,7 +161,8 @@ try{
   if(localWhatsApp?.operatorStatusCallbacks)process.env.API_PUBLIC_URL=`http://127.0.0.1:${address.port}`;
   assert.equal(trap.evidence().providerCalls,0);
   process.send({type:'ready',apiOrigin:`http://127.0.0.1:${address.port}`,evidence:{canonicalAppModule:true,
-    repositoryOverrides:false,authOverrides:false,providerCalls:0,localProviderOverrides:fixtureOverrideNames,
+    repositoryOverrides:false,authOverrides:false,providerCalls:0,
+    ...(localBusinessRagObservation?{localBusinessRagObservation:true}:{}),localProviderOverrides:fixtureOverrideNames,
     ...(localWhatsApp?.operatorStatusCallbacks?{localOperatorStatusCallbacks:true}:{}),...(modelFixture?{localModelOverrides:modelOverrideNames}:{}),embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
   process.on('message',async message=>{
     if(message?.type==='local_model_release'){

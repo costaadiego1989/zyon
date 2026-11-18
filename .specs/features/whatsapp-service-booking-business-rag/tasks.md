@@ -1645,12 +1645,12 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] business-rag-evaluation.spec.mjs: crítico errado não passa por média alta, ground truth por negócio, coverage e relatório com revisão.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] business-rag-evaluation.spec.mjs: crítico errado não passa por média alta, ground truth por negócio, coverage e relatório com revisão.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: business-rag-evaluation.spec.mjs: crítico errado não passa por média alta, ground truth por negócio, coverage e relatório com revisão.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T72$" ./tests/business-rag-evaluation.spec.mjs` Teste raiz T72 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/business-rag-evaluation.spec.mjs ./tests/business-rag-canonical-live-observer.spec.mjs ./tests/business-rag-evaluation.truth.spec.mjs ./tests/business-rag-evaluation.integration.spec.mjs` Teste raiz T72 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t72 evaluate the same rag across three business fixtures`
 
 ### T73: Type the service administration API client
@@ -2544,7 +2544,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T2, T5, T26, T92, T95.
 
 **C66** - WHEN o RAG é avaliado THEN the system SHALL medir respostas apoiadas por fonte, tratamento de ausência/contradição e uso correto de ferramentas em três ramos, exigindo aprovação de todos os casos críticos antes da ativação. (QA-04, AC 4)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^QA-04$" ./tests/business-rag-evaluation.spec.mjs`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/business-rag-evaluation.spec.mjs ./tests/business-rag-canonical-live-observer.spec.mjs ./tests/business-rag-evaluation.truth.spec.mjs ./tests/business-rag-evaluation.integration.spec.mjs`
 Tasks: T72, T94, T95.
 
 **C67** - IF um ID de profissional, empresa ou horário pertence a outro tenant THEN the system SHALL rejeitar a ação sem expor dados desse tenant. (EDGE-01, AC 1)
@@ -3162,6 +3162,8 @@ Tasks: T110.
 **T110 Full complete 2026-11-18:** Own checked ec2488ae/c7d6e2b5/2565, actual real-hasher/JWT unit15 and owned AppModule HTTP8, API lint/types, normal48/widget176 all passed naturally0,0skip and providers0 with normal cleanup. Only one password-verification destructuring declaration changed. See task-110-evidence.json for exact hashes/receipts. T110 marked before its focused local commit;64/110 tasks now closed,46 remain. No production or whole-feature completion claim. T72 harness remains safely protected during consolidation.
 
 **T31 Full complete 2026-11-18:** Own checked85724804/23a1d44f/2567, unit14/newHTTP-SQL12/preservation324 (100TAP+normal48+widget176) and API lint/types all natural0,0skip. Exact approved403 fixture retained, P untouched, unrelated WIP preserved. T31 marked before its atomic local commit;65/110 tasks closed. T32 and phase-endBuild remain next. See task-31-evidence.json.
+
+**T72 Full complete 2026-11-18:** Actual adopted pure32 and owned AppModule HTTP25 passed naturally0, zero failures/skips/cancelled/todo. All21 critical cases across clinic/salon/consulting and three last-await source-revision races passed; normal cleanup and measured providerCalls0. Own checked6e677f7f/27d810ec/2568 and seven independent build/type headers plus lint accepted. Exact task-72-evidence.json pins all eleven unchanged adopted files and raw receipts. Scripted model transport does not prove provider answer quality. T72 marked before focused local commit;66/110 tasks closed,44 open. Current compiled program includes pending32 source; same-HEAD final proofs/build/verifier/screens remain mandatory. Prior startup RED preserved. No production action.
 
 ## Phase Execution Map
 

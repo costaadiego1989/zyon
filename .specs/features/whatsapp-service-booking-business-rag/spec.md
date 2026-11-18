@@ -294,7 +294,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | ONB-03 | Merchant appointment policy | T4, T7, T11, T27, T81 | In Progress (T4, T7, T11 and T27 complete) |
 | ONB-04 | Non-destructive mode change | T5, T7, T12, T17 | In Progress (T17 complete) |
 | ONB-05 | About field in company data | T13, T14, T15, T16 | Implemented locally |
-| ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | In Progress (T96 and T97 complete; T72 pending) |
+| ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | Complete locally (T96/T97/T63/T72); final feature proof pending |
 | AGENDA-01 | Professional resources | T4, T18, T20, T21, T76, T106 | In Progress (T18, T20 and T21 complete) |
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
@@ -328,8 +328,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | RAG-06 | Insufficient/conflicting evidence | T68, T71 | Complete locally at T68/T71 Full; missing/conflicting/stale sources refuse, final verification pending |
 | RAG-07 | Public/private isolation | T6, T63, T68, T69 | Implemented locally (T6/T63/T68/T69 complete; final integrated proof pending) |
 | RAG-08 | Controlled Cypher | T2, T70 | Implemented locally; final integrated proof pending |
-| RAG-09 | Professional boundary | T71, T72 | In Progress; T71 professional boundary locally proved; scored T72 and final verification pending |
-| RAG-10 | Generic onboarding | T63, T67, T71, T72 | In Progress; T71 same composition across three fixtures proved; scored T72 pending |
+| RAG-09 | Professional boundary | T71, T72 | Complete locally (T71/T72 scripted composition and professional boundary); provider-quality and final verification pending |
+| RAG-10 | Generic onboarding | T63, T67, T71, T72 | Complete locally (T63/T67/T71/T72, three-business scored fixtures); final verification pending |
 | RAG-11 | Existing forms feed context | T13, T14, T15, T63, T64, T65 | Pending |
 | ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | In Progress (T73 typed client and T74 view-state complete; management route and UI pending) |
 | ATEND-02 | Professional administration | T18, T19, T76, T106 | In Progress (T18 and T19 complete) |
@@ -365,7 +365,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | Pending |
 | QA-03 | Persisted state proof | T2, T5, T26, T108, T92, T95 | In Progress (T26 complete) |
-| QA-04 | RAG evaluation | T72, T94, T95 | Pending |
+| QA-04 | RAG evaluation | T72, T94, T95 | In Progress (T72 critical evaluation locally complete; T94/T95 final activation gates pending) |
 | EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 and T22 complete) |
 | EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | In Progress (T30 complete) |
 | EDGE-03 | Optional media failure | T38, T39 | Pending |

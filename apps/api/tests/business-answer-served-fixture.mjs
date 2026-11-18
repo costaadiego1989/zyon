@@ -9,8 +9,11 @@ export const liveDate=future.toISOString().slice(0,10);
 export const liveRequest={productId:serviceId,professionalId,variantId,fromDate:liveDate,toDate:liveDate};
 export const answer='PUBLISHED_PREPARATION_T71: consulte as orientações públicas da equipe.';
 const hash=value=>createHash('sha256').update(value).digest('hex');
-export async function servedBusinessFixture(channel,modelScript){
-  const runtime=await createServiceTestRuntime({local:true,[channel==='support'?'supportQueryModel':'storefrontQueryModel']:true,modelScript});
+export async function servedBusinessFixture(channel,modelScript,options={}){
+  assert.ok(options&&Object.keys(options).every(key=>key==='observeBusinessRag'));
+  assert.ok(options.observeBusinessRag===undefined||options.observeBusinessRag===true);
+  assert.ok(!options.observeBusinessRag||channel==='support');
+  const runtime=await createServiceTestRuntime({local:true,[channel==='support'?'supportQueryModel':'storefrontQueryModel']:true,modelScript,...options});
   let prisma;
   try{
     const{PrismaClient}=await import('@prisma/client');prisma=new PrismaClient({datasources:{db:{url:runtime.db.prismaUrl}}});

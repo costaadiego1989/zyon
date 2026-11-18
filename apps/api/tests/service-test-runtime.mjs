@@ -21,7 +21,7 @@ export function assertServiceCaseSummary(value){
   return Object.freeze({...value});
 }
 export async function createServiceTestRuntime(options){
-  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile','supportQueryModel','storefrontQueryModel','modelScript'].includes(k))
+  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile','supportQueryModel','storefrontQueryModel','modelScript','observeBusinessRag'].includes(k))
     &&(options.graph===undefined||typeof options.graph==='boolean')
     &&(options.supportQueryModel===undefined||options.supportQueryModel===true)
     &&(options.storefrontQueryModel===undefined||options.storefrontQueryModel===true)
@@ -30,10 +30,13 @@ export async function createServiceTestRuntime(options){
   const whatsapp=options.whatsapp===undefined?undefined:validateLocalWhatsAppOptions(options.whatsapp);
   const supportQueryModel=options.supportQueryModel===true;
   const storefrontQueryModel=options.storefrontQueryModel===true;
+  assert.ok(options.observeBusinessRag===undefined||options.observeBusinessRag===true,'local_business_observation_flag_invalid');
+  const observeBusinessRag=options.observeBusinessRag===true;
+  assert.ok(!observeBusinessRag||supportQueryModel&&!whatsapp&&!options.graph,'local_business_observation_requires_support_fixture');
   const modelScript=options.modelScript===undefined?undefined:validateServedModelScript(options.modelScript);
   assert.ok(!modelScript||supportQueryModel||storefrontQueryModel,'local_model_script_requires_model_fixture');
-  const fixtureSecret=whatsapp?randomBytes(32).toString('hex'):undefined,localEvents=[],localModelEvents=[],localStorefrontModelEvents=[];
-  const fixtureArgument=whatsapp||supportQueryModel||storefrontQueryModel?JSON.stringify({...(modelScript?{modelScript}:{}),...(whatsapp?{...whatsapp,metaSecret:fixtureSecret}:{}),...(supportQueryModel?{supportQueryModel:true}:{}),...(storefrontQueryModel?{storefrontQueryModel:true}:{})}):undefined;
+  const fixtureSecret=whatsapp?randomBytes(32).toString('hex'):undefined,localEvents=[],localModelEvents=[],localStorefrontModelEvents=[],businessReadEvents=[];
+  const fixtureArgument=whatsapp||supportQueryModel||storefrontQueryModel?JSON.stringify({...(observeBusinessRag?{businessRagObservation:true}:{}),...(modelScript?{modelScript}:{}),...(whatsapp?{...whatsapp,metaSecret:fixtureSecret}:{}),...(supportQueryModel?{supportQueryModel:true}:{}),...(storefrontQueryModel?{storefrontQueryModel:true}:{})}):undefined;
   assert.ok(fixtureArgument===undefined||fixtureArgument.length<=8192,'local_whatsapp_fixture_size_invalid');
   const build=assertServiceArtifacts(),apiRoot=fileURLToPath(new URL('../',import.meta.url));
   let vectorEvidence;
@@ -50,6 +53,8 @@ export async function createServiceTestRuntime(options){
     try{if(worker&&appEvidence){
       if(worker.exitCode===null&&worker.connected)worker.send({type:'close'});
       const final=await deadline(appClosed,35_000,'service_close_ack_timeout');assert.equal(final.appClosed,true);assert.equal(final.providerCalls,0);
+      if(observeBusinessRag){assert.equal(final.businessRagObservation.observerFaults,0,'evaluation_observation_fault');
+        assert.equal(final.businessRagObservation.observedReads,businessReadEvents.length,'evaluation_observation_missing');}
       const exit=await deadline(workerExited,5000,'service_worker_natural_exit_required');assert.equal(exit.code,0);assert.equal(exit.signal,null);
     }}
     catch(e){errors.push(e);}
@@ -100,6 +105,13 @@ export async function createServiceTestRuntime(options){
         assert.ok(localStorefrontModelEvents.length<40&&Buffer.byteLength(JSON.stringify(event))<=100000,'local_storefront_model_event_bounds');
         localStorefrontModelEvents.push(event);
       }
+      else if(message?.type==='local_business_read_observation'){
+        const event=message.event;
+        assert.ok(observeBusinessRag&&event?.runId===db.runId&&event.sequence===businessReadEvents.length+1,'evaluation_observation_scope');
+        assert.ok(businessReadEvents.length<20&&Buffer.byteLength(JSON.stringify(event))<=100000,'evaluation_observation_bounds');
+        assert.deepEqual(Object.keys(event).sort(),['choice','merchantId','result','runId','sequence']);
+        businessReadEvents.push(structuredClone(event));
+      }
       else if(message?.type==='stage'){lastStage=message.stage;if(message.failure)stageFailure=message.failure;
         if(message.stage==='owned_markers_checked')preflightResolve();}
       else if(message?.type==='ready')readyResolve(message);
@@ -116,6 +128,7 @@ export async function createServiceTestRuntime(options){
     assert.ok(Number(origin.port)>1024);appEvidence=Object.freeze({...info.evidence,checkedBuild:build,startupTimings:timings,...(vectorEvidence?{postgresVector:vectorEvidence}:{})});
     return Object.freeze({db,redis,graph,apiOrigin:info.apiOrigin,evidence:()=>whatsapp?Object.freeze({...appEvidence,localProviderEvents:localEvents.length}):appEvidence,cleanupEvidence:()=>cleanup,close,
       ...(modelScript?{modelScript:Object.freeze({release(step){assert.ok(Number.isSafeInteger(step)&&modelScript[step-1]?.hold===true);assert.equal(closed,false);worker.send({type:'local_model_release',runId:db.runId,step});}})}:{}),
+      ...(observeBusinessRag?{businessRagObservation:Object.freeze({events:()=>structuredClone(businessReadEvents)})}:{}),
       ...(supportQueryModel?{supportQueryModel:Object.freeze({events:()=>structuredClone(localModelEvents),
         counts:()=>({queryEmbeddings:localModelEvents.filter(event=>event.kind==='queryEmbedding').length,
           completions:localModelEvents.filter(event=>event.kind==='chatCompletion').length})})}:{}),

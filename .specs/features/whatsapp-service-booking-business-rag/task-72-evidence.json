@@ -1,0 +1,132 @@
+{
+  "task": "T72",
+  "date": "2026-11-18",
+  "status": "Full passed locally",
+  "base": "3a9e0946b5ce403510136a44b3d1038bfa9be23d",
+  "scope": "Three-business evaluation infrastructure, current actual HTTP/SQL/Redis composition and final-source fences",
+  "testsFirst": true,
+  "source": [
+    {
+      "path": "apps/api/tests/business-rag-evaluation.spec.mjs",
+      "sha256": "06ff3b22a38dc667c01e2ae48ddfdb4347a4ecc87a0816f1d36213fd76702a60"
+    },
+    {
+      "path": "apps/api/tests/business-rag-evaluation.truth.spec.mjs",
+      "sha256": "a393192e7f8e2b40877ddb5c39ea1e4171dd2b0923f9339ab4efd0e3e02e0d66"
+    },
+    {
+      "path": "apps/api/tests/business-rag-canonical-live-observer.spec.mjs",
+      "sha256": "5fd989b2f58a5256b80ee4b1e3eba47ec91ab9bc23b1d2d289eb484ea3e5a699"
+    },
+    {
+      "path": "apps/api/tests/business-rag-evaluation.integration.spec.mjs",
+      "sha256": "bae69fda2af3ff225c3b0560dd896d7040b95140084a779b16335c572c5cc31e"
+    },
+    {
+      "path": "apps/api/tests/business-rag-evaluation.mjs",
+      "sha256": "2dfd5564b612ce736bd8a09baf748591d066e401500c40529a125497f17b2366"
+    },
+    {
+      "path": "apps/api/tests/business-rag-evaluation-corpus.mjs",
+      "sha256": "a759825deb84a3cd9fe5a73c4ea8e796e478c63020d410568f73dc6288c2f860"
+    },
+    {
+      "path": "apps/api/tests/business-rag-evaluation.truth.mjs",
+      "sha256": "5ee1cf41e9dd76985e225e0ce59a620e7c58b47415b8933353fd265283f10943"
+    },
+    {
+      "path": "apps/api/tests/business-rag-canonical-live-observer.mjs",
+      "sha256": "c97538b35eacc0549f094040695977a6e222f95cd5cfdf8e851fa505f111f86e"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.mjs",
+      "sha256": "0fd8090e954e826500329a5464315bd912f53acb6fb0b5987563c120ccb06f70"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.worker.mjs",
+      "sha256": "c7ddda2ede74cbe4beafc96ab00f789fb36190b60de91394c05393aa1478f160"
+    },
+    {
+      "path": "apps/api/tests/business-answer-served-fixture.mjs",
+      "sha256": "35b61cbd05c753755afe9aab30aa82eb29e254de55de8e3eadf119d15f1eefe4"
+    }
+  ],
+  "pure": {
+    "receipt": ".cache/t72-actual-pure-gates/2026-11-17T19-37-53.214Z/receipt.json",
+    "sha256": "0fa7919f3a0cba6f80f5f68ab7214c43e2d95bf48f306f2e54599294092039c6",
+    "counts": {
+      "tests": 32,
+      "pass": 32,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "logSha256": "d4750a551ad722527685be5afc51f241e5762db26d3b35f402dabde67651fe3b"
+  },
+  "native": {
+    "receipt": ".cache/t72-actual-native-gates/2026-11-18T10-41-17.010Z/receipt.json",
+    "sha256": "faa9bfa8765e76f1a9d18a63df9440dccc06f5b390ef2aa57cc8b6a62a84d70f",
+    "counts": {
+      "tests": 25,
+      "pass": 25,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "todo": 0
+    },
+    "logSha256": "5e622a255d9df965a43808cfaf712b16bc9b8303e9b5d28ae14f899d444d485f",
+    "artifact": {
+      "checked": true,
+      "inputSha256": "6e677f7ffe626d7cdc868b20c167ed165acc2c677b910310157ddefbedd22121",
+      "artifactSha256": "27d810eca19215088b3bde94c83f09ebe338486e36f35ae4810d81eee1a2f660",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2568
+      }
+    }
+  },
+  "scoredReport": {
+    "path": ".cache/t72-owned-evaluation-report.json",
+    "sha256": "e74a0e4bcaaa49e84bfc0696c891e7989982b3bd5b0351285ef280b274a223b2",
+    "criticalPassed": 21,
+    "criticalFailed": 0,
+    "businesses": [
+      "clinic",
+      "salon",
+      "consulting"
+    ],
+    "sourceRevisionFences": 3
+  },
+  "acceptedBuildHeaders": {
+    "receipt": ".cache/t32-root-consolidation-20261118/independent-headers-passed-20261118T1035.json",
+    "sha256": "76d0375fdbc6e78bbaaf5bcd5ec1bdce487ed655cbf0943b94a8821e88ed43ad",
+    "commandsPassed": 7,
+    "apiBuildAndRecordExitCode": 0,
+    "lintLog": ".cache/t71-gates/2026-11-18T10-24-32.755Z/lint.log",
+    "lintLogSha256": "75e47252305c04be115fde2fb95e8fcbd9c8cb4e51efdd61fcc253330ab5f84a"
+  },
+  "guardsCommitMiB": {
+    "pure": 1024,
+    "native": 2048,
+    "ordinaryCaptureBuildRecordTypes": 5168
+  },
+  "budgetsMs": {
+    "wholeNative": 600000,
+    "preflight": 150000,
+    "boot": 110000
+  },
+  "providerCalls": 0,
+  "providerAccuracyProven": false,
+  "semanticTransport": "scripted_fixture",
+  "provenance": "Own checked current program includes pending T32 production source. This is not a same-HEAD final-feature proof; all final proofs/build/verifier/screens remain required.",
+  "preservation": "All eleven adopted source/test/harness hashes match their original reviewed candidates; pure32 remains exact. Existing product normal48/widget176 and T31 preservation passed before this harness adoption. Default harness behavior is unchanged; evaluation mode and default-path preservation are exercised by the native composition and mandatory future final proofs.",
+  "previousNativeFailure": {
+    "receipt": ".cache/t72-actual-native-gates/2026-11-17T19-55-25.769Z/receipt.json",
+    "status": "Preserved startup failure; no critical scenario executed in that failed attempt"
+  },
+  "taskNotWholeFeature": true,
+  "push": false,
+  "deploy": false,
+  "productionDatabaseChanges": false
+}
