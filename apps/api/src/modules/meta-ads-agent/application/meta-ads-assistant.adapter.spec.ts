@@ -9,6 +9,14 @@ import {assistantCampaignFixture} from './__tests__/assistant-campaign-fixture.j
 
 const brief={name:'Camisa da loja',variantIds:['variant-a'],destination:'store',priority:'roas',country:'BR',budget:{amountCents:10000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-16T12:00:00Z',endsAt:'2026-11-23T12:00:00Z'},headline:'Camisa',primaryText:'Conheça a camisa da loja'};
 
+test('ACF-05 changing to category clears an obsolete product choice and waits for the new merchant criterion',async()=>{const f=await metaAssistantFixture();try{
+  await f.conversations.atomic(assistantScope,f.thread.id,tx=>tx.setProgress({campaignId:null,draft:{destination:'store'},awaitingFields:['variantIds','priority','budget','country'],approvalPreference:'manual',briefing:{selectionKind:'product',selectionQuery:'Camisa',selectedVariantId:'variant-a',productOptions:[{variantId:'variant-a',name:'Camisa'}]}}));
+  await f.sql.query('UPDATE merchant_assistant_turns SET message=$1 WHERE id=$2',['Prefiro escolher uma categoria',f.turn.id]);await f.adapter.prepareTurn(f.input);
+  const before=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!;assert.equal(before.briefing!.selectionKind,'category');assert.equal(before.briefing!.selectedVariantId,undefined);assert.equal(before.briefing!.selectionQuery,undefined);assert.equal(before.briefing!.productOptions,undefined);assert.equal(before.draft.variantIds,undefined);
+  for(const args of [{variantIds:['variant-a']},{briefing:{selectionQuery:'Camisa'}},{briefing:{categoryId:'invented-category'}}])await assert.rejects(f.adapter.execute({...f.input,origin:'model',name:'merchant_ads_save_draft',args}),{code:'assistant_selection_required'});
+  assert.deepEqual((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,before);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
+}finally{await f.close();}});
+
 test('ACF-05 partial briefing assembles only a fully validated budget and cannot inject completion or authority',async()=>{const f=await metaAssistantFixture();try{
   await f.call('merchant_ads_save_draft',{destination:'store',briefing:{budget:{amountCents:10000}}});
   await f.call('merchant_ads_save_draft',{briefing:{budget:{cadence:'lifetime',startText:'Dia 20'}}});

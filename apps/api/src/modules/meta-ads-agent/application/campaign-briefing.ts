@@ -36,9 +36,10 @@ export function receiveBriefingAnswer(previous:AssistantCampaignProgress|null,me
   if(/^(por dia|diario|diaria|diariamente)$/.test(value)){budget.cadence='daily';answers.cadence=message;recognized=true;}
   if(/^(no total|total|todo o periodo|para todo o periodo)$/.test(value)){budget.cadence='lifetime';answers.cadence=message;recognized=true;}
   const amount=money(message.trim());if(amount!==undefined&&(next==='amount'||/^r\$/i.test(message.trim()))){budget.amountCents=amount;answers.amount=message;recognized=true;}
-  if(/^(produto|um produto|produto especifico|um produto especifico)$/.test(value)){memory.selectionKind='product';answers.selection=message;recognized=true;}
-  if(/^(categoria|uma categoria|por categoria|escolher por categoria)$/.test(value)){memory.selectionKind='category';answers.selection=message;recognized=true;}
-  if(/^(catalogo|pelo catalogo|ver o catalogo)$/.test(value)){memory.selectionKind='catalog';answers.selection=message;recognized=true;}
+  const selectScope=(kind:NonNullable<AssistantCampaignBriefing['selectionKind']>)=>{delete draft.variantIds;delete memory.selectedVariantId;delete memory.selectionQuery;delete memory.categoryId;delete memory.productOptions;delete memory.categoryOptions;memory.selectionKind=kind;answers.selection=message;recognized=true;};
+  if(/^(produto|um produto|produto especifico|um produto especifico)$/.test(value))selectScope('product');
+  if(/^(?:(?:prefiro|quero) (?:escolher |anunciar )?)?(categoria|uma categoria|por categoria|escolher por categoria)$/.test(value))selectScope('category');
+  if(/^(catalogo|pelo catalogo|ver o catalogo)$/.test(value))selectScope('catalog');
   if(next==='selection'&&!recognized){const product=choice(value,memory.productOptions??[],item=>item.name),category=choice(value,memory.categoryOptions??[],item=>item.name);if(product){memory.selectedVariantId=product.variantId;memory.selectionQuery=product.name;memory.selectionKind='product';answers.selection=message;recognized=true;}else if(category){delete memory.selectedVariantId;memory.categoryId=category.id;memory.selectionQuery=category.name;memory.selectionKind='category';answers.selection=message;recognized=true;}}
   if(next==='start'&&!recognized&&message.trim().length<=200){budget.startText=message.trim();answers.start=message;recognized=true;}
   if(next==='end'&&!recognized&&message.trim().length<=200){budget.endText=message.trim();answers.end=message;if(budget.cadence==='daily'&&/^(sem fim|sem data de fim|sem prazo|continuo)$/.test(value))budget.endsAt=null;recognized=true;}
