@@ -107,6 +107,10 @@ export interface LeadRegistrationInput {
 interface PendingPayment {
   method: CheckoutPaymentMethod;
   installments?: number;
+  chain?: "polygon" | "base";
+  sessionId?: string;
+  context?: string;
+  confirmedCartFingerprint?: string;
 }
 type PendingPriceReview = PendingPayment & { chain?: "polygon" | "base"; review: CheckoutPriceReview };
 
@@ -307,6 +311,15 @@ export interface Message {
 }
 
 interface CheckoutState {
+  fiscalRecipient: Record<string, unknown>;
+  fiscalFields: string[] | null;
+  fiscalActive: boolean;
+  fiscalMode: "buyer" | "other";
+  fiscalUpdating: boolean;
+  collectionStage: string | null;
+  collectionRequested: boolean;
+  collectFiscalRecipient: (error: unknown) => boolean;
+  requestCustomerCollection: (selection?: Pick<PendingPayment, "method" | "installments" | "chain" | "confirmedCartFingerprint">) => Promise<void>;
   shippingMode?: "standard" | "marketplace";
   status: CheckoutStatus;
   error: string | null;
@@ -581,7 +594,38 @@ function startPolling(): void {
   }, 3000);
 }
 
+export function fiscalIdentityNeedsRegistration(state: Pick<CheckoutState, "fiscalMode" | "fiscalFields">): boolean {
+  return state.fiscalMode === "buyer" && Boolean(state.fiscalFields?.some(field => ["name", "taxId", "email", "phone"].includes(field)));
+}
+
+export function fiscalDataBlocksPayment(state: Pick<CheckoutState, "fiscalMode" | "fiscalFields">): boolean {
+  return Boolean(state.fiscalFields?.length) && !fiscalIdentityNeedsRegistration(state);
+}
+
+function collectionPaymentContext(state: CheckoutState) {
+  return JSON.stringify([state.sessionId, state.shippingMode, state.cart.items, state.cart.total, state.cart.discount,
+    state.cart.serviceFee, state.cart.shipping, state.cart.cashbackCents ?? 0, state.cart.commercialBenefitsVersion ?? 0]);
+}
+
 export const useCheckoutStore = create<CheckoutState>((set, get) => ({
+  fiscalRecipient: {}, fiscalFields: null, fiscalActive: false, fiscalMode: "buyer", fiscalUpdating: false,
+  collectionStage: null, collectionRequested: false,
+  requestCustomerCollection: async selection => {
+    const state = get();
+    if (!state.api || !state.sessionId || state.isTyping || state.cartUpdating || state.fiscalUpdating || state.paymentCreating
+      || state.paymentSubmitting || state.chatRecovery || state.api.requiresChatRecovery || state.status === "completed") return;
+    if (selection) set({ pendingPayment: { ...selection, sessionId: state.sessionId, context: collectionPaymentContext(state) } });
+    if (state.collectionRequested) return;
+    set({ collectionRequested: true });
+    await get().sendMessage("Quero continuar");
+  },
+  collectFiscalRecipient: error => {
+    if (!(error instanceof CheckoutApiError) || error.code !== "fiscal_customer_data_required") return false;
+    const fields = error.details?.fields?.length ? error.details.fields : ["name", "taxId"];
+    set({ fiscalActive: true, fiscalMode: "buyer", fiscalFields: fields, paymentSubmitting: false, paymentCreating: false });
+    void get().requestCustomerCollection();
+    return true;
+  },
   status: "loading",
   error: null,
   sessionId: null,
@@ -628,6 +672,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, onRefreshEmbedToken, paymentRevision });
       get().stopPolling();
       set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null, selectedPaymentMethod: null,
+        fiscalRecipient: {}, fiscalFields: null, fiscalActive: false, fiscalMode: "buyer", fiscalUpdating: false,
+        collectionStage: null, collectionRequested: false,
         staleCrossSellQuotes: {}, preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {}, crossSellRecoveryRequired: false,
         pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false, quickPurchaseApplying: false });
 
@@ -676,6 +722,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
       set({
         sessionId: response.session_id,
+        fiscalRecipient: response.fiscal?.recipient ?? {},
+        fiscalActive: response.fiscal?.active === true,
+        fiscalFields: response.fiscal?.active && response.fiscal.fields.length ? response.fiscal.fields : null,
+        fiscalMode: response.fiscal?.mode ?? "buyer",
+        fiscalUpdating: false,
+        collectionStage: exp?.stage ?? null,
+        collectionRequested: false,
         chatRecovery: api.requiresChatRecovery ? "blocked" : null,
         chatResponseUnavailable: !api.requiresChatRecovery && api.chatState?.request?.response_outcome === "withheld",
         brand,
@@ -868,7 +921,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const paymentStage = Boolean(get().paymentIntent || get().cart.status === "ready_to_pay"
       || latestAgent?.checkoutStage === "payment" || latestAgent?.checkoutStage === "payment_pending");
     const editSection = text.trim().toLowerCase() === "voltar" && paymentStage ? "payment" : checkoutEditIntent(text);
-    if (get().status === "completed" || get().isTyping || get().chatRecovery || ((get().crossSellRecoveryRequired || get().api?.requiresCrossSellReconciliation || get().api?.requiresChatRecovery) && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
+    if (get().status === "completed" || get().isTyping || get().fiscalUpdating || get().chatRecovery || ((get().crossSellRecoveryRequired || get().api?.requiresCrossSellReconciliation || get().api?.requiresChatRecovery) && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
     const explicitPayment = paymentMethodForQuickReply(text);
     if (explicitPayment && (get().paymentIntent || get().cart.status === "ready_to_pay"
       || (get().selectedPaymentMethod && get().cart.shipping)
@@ -927,7 +980,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
     const normalizedConfirm = text.trim().toLowerCase().replace(/[.!?,;]+$/, "");
     const isAddrConfirm = ["sim", "correto", "confirmo", "certo", "isso", "é esse", "esse mesmo"].includes(normalizedConfirm);
-    if (isAddrConfirm) {
+    const collectingFiscalCustomer = get().fiscalActive && (get().collectionStage === "data_collection" || Boolean(get().fiscalFields?.length));
+    if (isAddrConfirm && !collectingFiscalCustomer) {
       const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
       if (!lastAgentMsg?.checkoutStage && lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
         const { buyer } = get();
@@ -977,7 +1031,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
 
     const lastAgentMessage = [...messages].reverse().find((message) => message.role === "agent");
-    if (text.startsWith("Entrega ·") && !lastAgentMessage?.checkoutStage) {
+    if (text.startsWith("Entrega ·") && !lastAgentMessage?.checkoutStage && !collectingFiscalCustomer) {
       const { merchantPaymentConfig } = get();
       const methods = paymentChoicesForConfig(merchantPaymentConfig);
       set((s) => ({
@@ -1060,9 +1114,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const responseBlocks = crossSellBlock
         ? [...baseBlocks, crossSellBlock]
         : baseBlocks;
+      const fiscalResponseBlocks = get().fiscalActive
+        ? responseBlocks.filter(block => block.type !== "lead_capture") : responseBlocks;
       const mergedBlocks = get().paymentIntent
-        ? responseBlocks.filter(block => !["payment_methods", "coupon_input", "shipping_options", "address_confirmation", "form_field"].includes(block.type))
-        : responseBlocks;
+        ? fiscalResponseBlocks.filter(block => !["payment_methods", "coupon_input", "shipping_options", "address_confirmation", "form_field"].includes(block.type))
+        : fiscalResponseBlocks;
       const agentText = resolveAgentText(res.message, mergedBlocks);
       const agentMsg: Message = {
         displayRef: agentText === res.message ? res.display_ref : undefined,
@@ -1077,7 +1133,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       set((s) => ({
         messages: [...s.messages, agentMsg],
         buyer: updatedBuyer,
-        leadRegistered: hasCompleteLead(updatedBuyer),
+        leadRegistered: hasCompleteLead(updatedBuyer) && (!s.fiscalActive || (res.stage ?? res.experience?.stage) !== "data_collection"),
+        collectionStage: res.stage ?? res.experience?.stage ?? s.collectionStage,
+        collectionRequested: s.fiscalActive && ["data_collection", "shipping"].includes(res.stage ?? res.experience?.stage ?? ""),
         isTyping: false,
         cart: res.experience?.items && res.experience.totals ? { ...s.cart, ...cartFromExperience(res.experience),
           shipping: experienceShipping, status: cartStatusFromExperience({ ...res.experience, stage: res.stage ?? res.experience.stage }) } : s.cart,
@@ -1142,8 +1200,31 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       if (orderBlock) {
         set({ status: "completed", cart: { ...get().cart, status: "paid" } });
       }
+      if (get().fiscalActive) {
+        const pending = get().pendingPayment;
+        if (pending?.context && (pending.sessionId !== get().sessionId || pending.context !== collectionPaymentContext(get()))) {
+          set({ pendingPayment: null });
+        }
+        if ((res.stage ?? res.experience?.stage) === "payment" && get().leadRegistered && get().status !== "completed") {
+          set({ fiscalUpdating: true });
+          try {
+            const fiscal = await api.prepareFiscalRecipient("buyer");
+            if (get().api !== api) return;
+            set({ fiscalRecipient: fiscal.recipient, fiscalFields: fiscal.fields.length ? fiscal.fields : null,
+              fiscalActive: fiscal.active, fiscalMode: fiscal.mode });
+          } finally { if (get().api === api) set({ fiscalUpdating: false }); }
+          const selection = get().pendingPayment;
+          if (selection && !get().paymentIntent && !api.chatState?.payment_intent_id && !get().fiscalFields?.length
+            && selection.sessionId === get().sessionId && selection.context === collectionPaymentContext(get())) {
+            set({ pendingPayment: null });
+            if (selection.chain) await get().selectCryptoChain(selection.chain, selection.confirmedCartFingerprint);
+            else await get().pay(selection.method, selection.installments, selection.confirmedCartFingerprint);
+          }
+        }
+      }
     } catch (err) {
       if (get().api !== api) return;
+      set({ collectionRequested: false });
       if (api.usesDurableChat) {
         // Never run legacy shipping/payment fallbacks for an uncertain request.
         set({ isTyping: false, chatRecovery: "blocked" });
@@ -1499,7 +1580,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
     const needsDocument = paymentRequiresCpf(method, get().merchantPaymentConfig.paymentMethods?.providers)
       && get().buyer.cpf?.replace(/\D/g, "").length !== 11;
-    if (!leadRegistered || needsDocument) {
+    if (get().fiscalActive && (!leadRegistered || get().collectionStage === "data_collection" || get().fiscalFields?.length)) {
+      await get().requestCustomerCollection({ method, installments, confirmedCartFingerprint });
+      return;
+    }
+    if (!leadRegistered || (!get().fiscalActive && needsDocument)) {
       set((state) => ({
         pendingPayment: { method, installments },
         messages: [...state.messages, {
@@ -1587,6 +1672,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       if (get().api !== api) return;
       const review = priceReviewPatch(error, get(), { method, installments });
       if (review) { set(review); return; }
+      if (error instanceof CheckoutApiError && error.code === "fiscal_customer_data_required") {
+        set({ pendingPayment: { method, installments, confirmedCartFingerprint, sessionId: get().sessionId!, context: collectionPaymentContext(get()) } });
+        if (get().collectFiscalRecipient(error)) return;
+      }
       if (isMerchantSalesSuspendedError(error)) {
         set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE });
         return;
@@ -1609,6 +1698,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const { api, leadRegistered } = get();
     if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
+    if (get().fiscalActive && (get().collectionStage === "data_collection" || get().fiscalFields?.length)) {
+      await get().requestCustomerCollection({ method: "crypto", chain, confirmedCartFingerprint });
+      return;
+    }
 
     if (!leadRegistered) {
       await get().pay("crypto");
@@ -1658,6 +1751,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       if (get().api !== api) return;
       const review = priceReviewPatch(error, get(), { method: "crypto", chain });
       if (review) { set(review); return; }
+      if (error instanceof CheckoutApiError && error.code === "fiscal_customer_data_required") {
+        set({ pendingPayment: { method: "crypto", chain, confirmedCartFingerprint, sessionId: get().sessionId!, context: collectionPaymentContext(get()) } });
+        if (get().collectFiscalRecipient(error)) return;
+      }
       if (isMerchantSalesSuspendedError(error)) {
         set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE });
         return;
@@ -1908,6 +2005,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     set({
       status: "loading",
+      fiscalRecipient: {}, fiscalFields: null, fiscalActive: false, fiscalMode: "buyer", fiscalUpdating: false,
+      collectionStage: null, collectionRequested: false,
       api: null,
       sessionId: null,
       chatRecovery: null,
