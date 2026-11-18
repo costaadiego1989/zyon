@@ -1,4 +1,4 @@
-import type { CashbackRules } from "@zyon/shared-types";
+import type { CashbackDraft, CashbackRules } from "@zyon/shared-types";
 
 export type LimitChoice = "" | "limited" | "unlimited";
 export interface CashbackForm {
@@ -41,7 +41,7 @@ export function cashbackDecimal(value: string): number | null {
 const asDecimal = (value: number | undefined) => value === undefined ? "" : (value / 100).toFixed(2).replace(".", ",");
 const limitChoice = (value: number | null | undefined): LimitChoice => value === undefined ? "" : value === null ? "unlimited" : "limited";
 
-export function cashbackFormFromRules(rules: Partial<CashbackRules> | null): CashbackForm {
+export function cashbackFormFromRules(rules: CashbackDraft | null): CashbackForm {
   if (!rules) return { ...EMPTY_CASHBACK_FORM };
   return {
     earnRatePercent: asDecimal(rules.earnRateBps), minimumEarn: asDecimal(rules.minimumEarnCents),

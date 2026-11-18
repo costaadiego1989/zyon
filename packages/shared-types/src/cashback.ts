@@ -25,14 +25,26 @@ export interface CashbackRules {
   terms: string;
 }
 
+/** Drafts retain only explicit choices, including incomplete combination rules. */
+export type CashbackDraft = Omit<Partial<CashbackRules>, "combination"> & {
+  combination?: Partial<CashbackCombinationRules>;
+};
+
 export interface CashbackProgramView {
   merchantId: string;
   status: "disabled" | "active" | "paused" | "ended";
-  draft: Partial<CashbackRules> | null;
+  draft: CashbackDraft | null;
   published: CashbackRules | null;
   version: number;
   updatedAt: string | null;
   generalDiscountCapBps?: number | null;
+  /** Opaque server revision of the configuration reviewed before a write. */
+  configurationRevision?: string;
+}
+
+export interface CashbackConfigurationWrite {
+  expectedRevision: string;
+  idempotencyKey: string;
 }
 
 export interface CashbackBalance {
@@ -85,6 +97,13 @@ export interface CashbackCustomer {
   ordersWithCashback: number;
 }
 
+export interface CashbackDailyMovement {
+  /** Business day in America/Sao_Paulo, formatted as YYYY-MM-DD. */
+  date: string;
+  grantedCents: number;
+  redeemedCents: number;
+}
+
 export interface CashbackMetrics {
   from: string;
   to: string;
@@ -106,6 +125,8 @@ export interface CashbackMetrics {
   budgetCommittedCents: number;
   budgetIssuedCents: number;
   budgetLimitCents: number | null;
+  /** Absent only while reading an API version predating daily metrics. */
+  dailyMovements?: CashbackDailyMovement[];
 }
 
 export interface CashbackCheckoutQuote {

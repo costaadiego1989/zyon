@@ -1,5 +1,8 @@
 ## Handoff
 
+- Cashback experience (2026-11-18): isolated worktree C:/tmp/zyon-cashback-experience-20261118, branch feat/cashback-experience-20261118, base 0968e6811009448dad4a105230cf764fa4cd9316. Original dirty checkout preserved. Spec and design/tasks separately approved with "prossiga". T1 contracts complete: shared-types build and 10 existing form-helper tests pass. Phase 1 worker cashback_canonical proceeds sequentially through T2-T6. Feature evidence .specs/features/cashback-experience; no remote mutation or deployment.
+- Cashback decision: user selected "Montar rascunho e exigir revisão antes de ativar (recomendado)". Chat uses the existing component/runtime, real scoped Cypher plus reviewed fallback, and draft-only tools. Publication requires the exact persisted reviewed snapshot; preserve unsaved manual edits. All prior financial, wallet, plan and discount decisions remain.
+
 - Worktree C:/tmp/zyon-agentic-homolog-20261117, branch fix/ads-ui-feedback-20261118, based on current deployed f0584ec7. Original dirty checkout untouched; preserve concurrent published fixes.
 - User authorized administrative phone mask, uniform disclosure typography/spacing, campaign analysis spacing and complete action success/error toasts. Homologation then production explicitly authorized. Existing WhatsApp connection does not grant ads authorization; no token copying or OAuth redesign.
 - Production API deployment1f83758d-c6e9-41d5-aef2-922bf80065c5 and Vercel dpl_DgQ4sfXiZo19nvdTypk9UTd3ji6v serve f058. Homolog API cf3ca881-4247-41a3-9e38-e70c4fde0364 / dashboard61615db1-e760-4080-bea2-069aa18097b8 serve f058. Actual homolog UI dashboard-sandbox-59d9.up.railway.app; app-sandbox custom domain belongs to another branch.
