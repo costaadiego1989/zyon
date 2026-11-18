@@ -179,3 +179,10 @@
   cursor: pointer;
 }
 .meta-ads-agent .mga-existing-actions { margin: 20px 0 0; }
+.mga-connection-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
+}
+.mga-connection-actions > button { min-width: 0; width: 100%; }
