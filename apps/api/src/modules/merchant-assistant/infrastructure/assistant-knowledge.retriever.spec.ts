@@ -9,7 +9,14 @@ const doc=(change:Partial<AssistantKnowledgeDocument>={}):AssistantKnowledgeDocu
   reviewedAt:'2026-11-16',validFrom:'2026-11-16T00:00:00Z',validUntil:null,url:'/?tab=meta-ads-agent&help=sample',externalSources:[],
   sections:[{id:'saldo',keywords:['fundos','pagamento'],content:'Adicione fundos no ambiente oficial quando a conta for pré-paga.'}],...change});
 
-const currentClock=()=>new Date('2026-11-17T12:00:00Z');
+const currentClock=()=>new Date('2026-11-18T12:00:00Z');
+test('RD-04 payment guidance explains money owed plainly and carries its reviewed revision',async()=>{
+  const retriever=new AssistantKnowledgeRetriever(()=>META_ADS_MERCHANT_KNOWLEDGE,()=>new Date('2026-11-18T12:00:00Z'));
+  const article=await retriever.source(scope,'verba-e-pagamentos');assert.ok(article);
+  const content=article.sections.find(s=>s.id==='tipo')!.content;
+  assert.match(content,/pré-paga.*fundos/);assert.match(content,/pós-paga/);assert.match(content,/valor em aberto.*dívida/i);assert.match(content,/não.*dinheiro disponível/i);
+  assert.doesNotMatch(content,/\bAPI\b|\bbalance\b/);assert.equal(article.version,'2026-11-18.1');assert.equal(article.reviewedAt,'2026-11-18');
+});
 test('ACAP-11 current guidance requires one administrative approval for every new campaign despite optimization policy',async()=>{
   const retriever=new AssistantKnowledgeRetriever(()=>META_ADS_MERCHANT_KNOWLEDGE,currentClock),article=await retriever.source(scope,'aprovacao-e-automatico');assert.ok(article);assert.notEqual(article.version,'2026-11-16.1');const manual=article.sections.find(s=>s.id==='manual')!.content,automatic=article.sections.find(s=>s.id==='automatico')!.content;assert.match(manual,/toda campanha nova/i);assert.match(manual,/administrativa/i);assert.match(manual,/Aprovar e publicar/);assert.match(automatic,/já aprovadas|inicialmente aprovadas/);assert.match(automatic,/tetos/);assert.equal(automatic.includes('pode criar, publicar'),false);const retrieved=await retriever.retrieve(scope,'A política automática permite aprovar campanha nova?');assert.ok(retrieved.some(r=>r.reference.id.startsWith('aprovacao-e-automatico:')));assert.ok((await retriever.validateReferences(scope,retrieved.map(r=>r.reference.id),retrieved)).length>0);
 });
@@ -33,7 +40,7 @@ test('ADAS-16 retrieval supplies current approved content and preserves its sour
   assert.equal((await retriever.validateReferences(scope,['sample:saldo'],result))[0].url,'/?tab=meta-ads-agent&help=sample');
 });
 test('ADAS-19 questions across all nine subjects retrieve the relevant curated document first',async()=>{
-  const retriever=new AssistantKnowledgeRetriever(()=>META_ADS_MERCHANT_KNOWLEDGE,now);
+  const retriever=new AssistantKnowledgeRetriever(()=>META_ADS_MERCHANT_KNOWLEDGE,currentClock);
   const examples=[['Como conectar minha Página no aplicativo Zyon?','conexao-meta'],['Como adicionar fundos e recarregar saldo?','verba-e-pagamentos'],
     ['Qual a franquia de créditos e o pacote extra?','assinatura-e-franquia'],['Como escolher produtos do catálogo?','catalogo-e-produtos'],
     ['Quero criar uma imagem fiel e um carrossel','criativos'],['Como autorizar o modo automático e revogar a política?','aprovacao-e-automatico'],

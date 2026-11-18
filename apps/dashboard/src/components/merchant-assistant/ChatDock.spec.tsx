@@ -20,6 +20,16 @@ test('RD-01 unavailable sending preserves the draft without claiming processing 
   await screen.render(<ChatDock {...props}/>);await screen.click('Enviar mensagem');
   expect(send).toHaveBeenCalledTimes(1);expect(send).toHaveBeenCalledWith('Meu anúncio');expect(screen.container.querySelector('textarea')!.value).toBe('');
 });
+
+test('RD-03 sourced replies omit only exact validated markers while source controls and escaped text remain',async()=>{
+  screen=ui();const reference={id:'verba-e-pagamentos:tipo',version:'2026-11-18.1',title:'Pagamentos',url:'/?help=verba-e-pagamentos',reviewedAt:'2026-11-18',excerpt:'Valor em aberto é uma dívida.'};
+  const reply='R$ 100 em 7 dias [verba-e-pagamentos:tipo]. [99] [outra:fonte] <img src=x onerror=alert(1)>';
+  const original={...turn,reply,references:[reference]};
+  await screen.render(<ChatDock context={context} turns={[original]} onSend={async()=>{}} renderTurnDetails={item=><button type="button">Ver fonte: {item.references[0].title}</button>}/>);
+  const shown=screen.container.querySelector('.chat-dock-reply p')!.textContent!;
+  expect(shown).not.toContain('[verba-e-pagamentos:tipo]');expect(shown).toContain('R$ 100 em 7 dias');expect(shown).toContain('[99] [outra:fonte]');expect(shown).toContain('<img src=x onerror=alert(1)>');
+  expect(screen.container.querySelector('img')).toBeNull();expect(screen.container.textContent).toContain('Ver fonte: Pagamentos');expect(original.reply).toBe(reply);expect(original.references).toEqual([reference]);
+});
 test('ADAS-15 the same dock mounts a second inert context with no ad capabilities', async () => {
   screen=ui(); await screen.render(<ChatDock context={context} turns={[]} onSend={async()=>{}} empty={<p>Consulte seu estoque</p>}/>);
   expect(screen.container.textContent).toContain('Estoque'); expect(screen.container.textContent).toContain('Consulte seu estoque'); expect(screen.container.textContent).not.toContain('Meta'); expect(screen.container.querySelector('textarea')).not.toBeNull();

@@ -13,6 +13,9 @@ export interface ChatDockProps {
   expanded?: boolean; onExpandedChange?: (expanded:boolean)=>void;
   presentation?:'inline'|'floating'; pageKey?:string; hints?:readonly string[];
 }
+function readableReply(turn:AssistantTurn):string{
+  return turn.references.reduce((reply,reference)=>reply.split(`[${reference.id}]`).join(''),turn.reply??'').trim();
+}
 export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,headerExtra,onSend,onRetry,renderTurnDetails,older,expanded,onExpandedChange,presentation='inline',pageKey=context.id,hints=[]}: ChatDockProps) {
   const floating=presentation==='floating';
   const [localOpen,setLocalOpen]=useState(()=>!floating&&(typeof matchMedia==='undefined'||!matchMedia('(max-width: 900px)').matches));
@@ -63,7 +66,7 @@ export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,
       <div ref={history} className="chat-dock-history" role="log" aria-label="Conversa com a IA" aria-live="polite" tabIndex={0} onScroll={event=>{const el=event.currentTarget;following.current=el.scrollHeight-el.scrollTop-el.clientHeight<=32;}}><div ref={messages} className="chat-dock-messages">
         {older}{loading&&<p role="status">Carregando conversa…</p>}
         {!loading&&!turns.length&&(empty??<p>Descreva o que você quer fazer. Eu ajudo com os próximos passos.</p>)}
-        {turns.map(turn=><article className="chat-dock-turn" key={turn.id} data-turn-id={turn.id}><div className="chat-dock-user"><strong>Você</strong><p>{turn.message}</p></div><div className="chat-dock-reply"><strong>{floating&&<ZyonAgentOrb size={23}/>}Assistente</strong>{turn.reply&&<p>{turn.reply}</p>}{['queued','running'].includes(turn.status)&&<p role="status">Processando sua mensagem…</p>}{turn.status==='unknown'&&<p role="status">Resultado ainda desconhecido. Consulte o histórico antes de repetir a ação.</p>}{turn.status==='failed'&&<p role="status">Este turno não foi concluído. Consulte os detalhes antes de continuar.</p>}{renderTurnDetails?.(turn)}</div></article>)}
+        {turns.map(turn=><article className="chat-dock-turn" key={turn.id} data-turn-id={turn.id}><div className="chat-dock-user"><strong>Você</strong><p>{turn.message}</p></div><div className="chat-dock-reply"><strong>{floating&&<ZyonAgentOrb size={23}/>}Assistente</strong>{turn.reply&&<p>{readableReply(turn)}</p>}{['queued','running'].includes(turn.status)&&<p role="status">Processando sua mensagem…</p>}{turn.status==='unknown'&&<p role="status">Resultado ainda desconhecido. Consulte o histórico antes de repetir a ação.</p>}{turn.status==='failed'&&<p role="status">Este turno não foi concluído. Consulte os detalhes antes de continuar.</p>}{renderTurnDetails?.(turn)}</div></article>)}
       </div></div>
       <form className="chat-dock-composer" onSubmit={event=>{event.preventDefault();void send();}}>
         {(error||sendError)&&<div role="alert"><p>{error||sendError}</p>{onRetry&&<button type="button" disabled={disabled||sending||busy} onClick={()=>void retry()}>Retomar envio</button>}</div>}

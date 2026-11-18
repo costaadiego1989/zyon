@@ -1,10 +1,10 @@
 import type {AssistantKnowledgeDocument} from '../../domain/knowledge.port.js';
 
 const source=(id:string)=>`/?tab=meta-ads-agent&help=${encodeURIComponent(id)}`;
-function document(id:string,title:string,sections:AssistantKnowledgeDocument['sections'],externalSources:AssistantKnowledgeDocument['externalSources']=[]):AssistantKnowledgeDocument{
+function document(id:string,title:string,sections:AssistantKnowledgeDocument['sections'],externalSources:AssistantKnowledgeDocument['externalSources']=[],reviewedAt='2026-11-16'):AssistantKnowledgeDocument{
   // Policy provenance is the administrative approval of 16 November; revision2 retires initial autolaunch guidance.
-  return {id,title,version:'2026-11-16.2',context:'meta_ads',audience:'merchant',published:true,
-    reviewedAt:'2026-11-16',validFrom:'2026-11-16T00:00:00Z',validUntil:null,url:source(id),sections,externalSources};
+  return {id,title,version:reviewedAt==='2026-11-16'?'2026-11-16.2':`${reviewedAt}.1`,context:'meta_ads',audience:'merchant',published:true,
+    reviewedAt,validFrom:`${reviewedAt}T00:00:00Z`,validUntil:null,url:source(id),sections,externalSources};
 }
 
 /** Curated product guidance. Account facts and offer amounts must come from live scoped tools. */
@@ -19,10 +19,10 @@ export const META_ADS_MERCHANT_KNOWLEDGE:readonly AssistantKnowledgeDocument[]=[
     {id:'separacao',keywords:['verba','pagar','pago','pagamento','mensalidade','investimento','dinheiro','anuncios','pix'],
       content:'Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta. A Zyon ajuda a preparar e gerenciar campanhas; o orçamento de mídia é separado do plano, do adicional e dos créditos de criação de imagens.'},
     {id:'tipo',keywords:['fundos','saldo','pre','pos','prepago','pospago','cartao','recarga','cobranca','divida'],
-      content:'Uma conta pré-paga precisa de fundos para veicular. Uma conta pós-paga usa seu fluxo de cobrança e método de pagamento. Se a consulta autorizada não identificar o tipo ou a situação, confirme os pagamentos na Meta. O campo balance da API representa valor devido e não saldo de fundos disponível.'},
+      content:'Uma conta pré-paga precisa de fundos para veicular. Uma conta pós-paga cobra os anúncios na forma de pagamento cadastrada. Confira a situação em Pagamentos na Meta. Valor em aberto é uma dívida à Meta, não dinheiro disponível para anunciar.'},
     {id:'botao',keywords:['adicionar','depositar','carregar','credito','pagamentos','verificar','atualizar','bloqueio'],
       content:'Abrir pagamentos na Meta leva ao ambiente oficial para a conta conectada. A Zyon não recebe Pix ou cartão de mídia nesta versão. Depois de conferir ou pagar na Meta, use Verificar novamente. Clicar ou retornar não confirma crédito; somente uma nova leitura autorizada pode atualizar o diagnóstico. Bloqueio financeiro confirmado impede publicação automática.'},
-  ],[{title:'Meta: campos da conta de anúncios',url:'https://developers.facebook.com/docs/graph-api/reference/ad-account/'}]),
+  ],[{title:'Meta: campos da conta de anúncios',url:'https://developers.facebook.com/docs/graph-api/reference/ad-account/'}],'2026-11-18'),
   document('assinatura-e-franquia','Assinatura, franquia e créditos de criação',[
     {id:'oferta',keywords:['plano','growth','escala','assinar','assinatura','adicional','preco','valor','custo','quanto','149'],
       content:'Anúncios com IA é um adicional por loja elegível no Growth e no Escala. Consulte a oferta vigente e o contrato aceito para preço, período e condições; o assistente não pode alterar esses valores. Uma assinatura ou retorno do checkout só libera acesso depois do pagamento confirmado pelo servidor.'},
