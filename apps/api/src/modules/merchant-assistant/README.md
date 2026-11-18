@@ -1,5 +1,9 @@
 # Assistente do lojista
 
+O chat e a análise diária usam `MERCHANT_ASSISTANT_PROVIDER` (`deepseek`, `openai` ou `openrouter`) e, opcionalmente, `MERCHANT_ASSISTANT_MODEL`. A seleção usa somente a chave e o endereço do provedor escolhido; uma chave ausente não autoriza troca automática. Sem seleção explícita, permanece a prioridade OpenRouter, OpenAI e DeepSeek. DeepSeek usa `deepseek-flash` como padrão atual. A tarifa vigente e a governança continuam obrigatórias.
+
+As artes usam uma integração separada: `META_ADS_IMAGE_MODEL` e `META_ADS_IMAGE_API_KEY`. Uma chave DeepSeek válida para conversar não habilita geração de imagens. A configuração dos anúncios não modifica as chaves globais usadas pelos demais módulos.
+
 Conversa persistente por loja, ator e contexto. A primeira integração atende Anúncios com IA: ajuda com fontes, catálogo canônico, rascunhos revisáveis, pagamentos, política de execução e relatórios diários. O ChatDock é reutilizável; esta entrega não o expõe em outras telas.
 
 ## Authority and rollout

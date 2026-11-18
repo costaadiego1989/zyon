@@ -24,10 +24,13 @@ const budget = (raw: string | undefined, fallback: bigint) => {
   if (!/^[1-9]\d{0,18}$/.test(raw) || BigInt(raw) > 9223372036854775807n) throw new AssistantError('assistant_ai_budget_invalid', 503);
   return BigInt(raw);
 };
-function configuration(env: Dependencies['env']) {
-  if (env.OPENROUTER_API_KEY) return { apiKey: env.OPENROUTER_API_KEY, model: env.OPENROUTER_MODEL || 'openai/gpt-4o-mini', baseUrl: env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1' };
-  if (env.OPENAI_API_KEY) return { apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL || 'gpt-4o-mini', baseUrl: env.OPENAI_BASE_URL || 'https://api.openai.com/v1' };
-  return { apiKey: env.DEEPSEEK_API_KEY || '', model: env.DEEPSEEK_MODEL || 'deepseek-chat', baseUrl: env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' };
+export function merchantAssistantModelConfiguration(env: Dependencies['env']) {
+  const selected = env.MERCHANT_ASSISTANT_PROVIDER;
+  if (selected !== undefined && !['deepseek', 'openai', 'openrouter'].includes(selected)) throw new AssistantError('assistant_provider_invalid', 503);
+  const provider = selected ?? (env.OPENROUTER_API_KEY ? 'openrouter' : env.OPENAI_API_KEY ? 'openai' : 'deepseek');
+  if (provider === 'openrouter') return { apiKey: env.OPENROUTER_API_KEY || '', model: env.MERCHANT_ASSISTANT_MODEL || env.OPENROUTER_MODEL || 'openai/gpt-4o-mini', baseUrl: env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1' };
+  if (provider === 'openai') return { apiKey: env.OPENAI_API_KEY || '', model: env.MERCHANT_ASSISTANT_MODEL || env.OPENAI_MODEL || 'gpt-4o-mini', baseUrl: env.OPENAI_BASE_URL || 'https://api.openai.com/v1' };
+  return { apiKey: env.DEEPSEEK_API_KEY || '', model: env.MERCHANT_ASSISTANT_MODEL || env.DEEPSEEK_MODEL || 'deepseek-flash', baseUrl: env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' };
 }
 /** Lazy composition. Constructing this runtime performs no AI, Meta, billing or SQL operation. */
 export function createMerchantAssistantRuntime(deps: Dependencies) {
@@ -65,7 +68,7 @@ export function createMerchantAssistantRuntime(deps: Dependencies) {
     return { inputMicrosPerMillion: input, outputMicrosPerMillion: output,
       ...(read('cached') === undefined ? {} : { cachedMicrosPerMillion: read('cached') }), ...(read('cache_write') === undefined ? {} : { cacheWriteMicrosPerMillion: read('cache_write') }) };
   };
-  const gateway = new MerchantAiGateway({ repo, admission, config: () => configuration(deps.env), clock, rates, transport: deps.transport,
+  const gateway = new MerchantAiGateway({ repo, admission, config: () => merchantAssistantModelConfiguration(deps.env), clock, rates, transport: deps.transport,
     authorizeModel: async (scope, resource) => { await asActor(scope, () => deps.governance.authorize({ merchantId: scope.merchantId, source: 'merchant_assistant' }, 'model', resource)); } });
   const worker = new AssistantWorker({ repo, admission, clock, enabled: enabled(), contexts: () => contexts.ids(), accepts: scope => contexts.has(scope.context), respond: async input => {
     if (!enabled()) throw new AssistantError('assistant_unavailable', 503);
@@ -85,7 +88,7 @@ export function createMerchantAssistantRuntime(deps: Dependencies) {
     };
     const dailyAdmission = new TurnAdmissionService(repo, authorize,
       () => ({ turnMicros: budget(deps.env.MERCHANT_ASSISTANT_TURN_BUDGET_MICROS, 50000n), monthlyMicros: budget(deps.env.MERCHANT_ASSISTANT_MONTHLY_BUDGET_MICROS, 2000000n) }), clock);
-    const model = new MerchantAiGateway({ repo, admission: dailyAdmission, config: () => configuration(deps.env), clock, rates, transport: deps.transport,
+    const model = new MerchantAiGateway({ repo, admission: dailyAdmission, config: () => merchantAssistantModelConfiguration(deps.env), clock, rates, transport: deps.transport,
       authorizeModel: async (scope, resource) => { await asService(scope, () => deps.governance.authorize({ merchantId: scope.merchantId, source: 'meta_ads_daily_analysis' }, 'model', resource)); } });
     return { repo, admission: dailyAdmission, model, authorize, asService, clock };
   };
