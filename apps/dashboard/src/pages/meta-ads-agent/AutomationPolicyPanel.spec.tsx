@@ -11,7 +11,7 @@ const automatic:MetaAdsAutomationState={mode:'automatic',policy:{...review,id:'p
 const props=()=>({accountId:'100',state:manual,onChooseAutomatic:vi.fn().mockResolvedValue(undefined),onAccept:vi.fn().mockResolvedValue(undefined),onManual:vi.fn().mockResolvedValue(undefined)});
 const acknowledge=async()=>{await act(async()=>(screen.container.querySelector('input[type=checkbox]') as HTMLInputElement).click());};
 test('ADAS-30 selecting Automatic only starts planning and manual remains the effective default',async()=>{
-  screen=ui();const p=props();await screen.render(<AutomationPolicyPanel {...p}/>);expect(screen.container.textContent).toContain('Modo atual: aprovação manual');await screen.click('Automático');expect(p.onChooseAutomatic).toHaveBeenCalledTimes(1);expect(p.onAccept).not.toHaveBeenCalled();expect(screen.container.textContent).toContain('Modo atual: aprovação manual');
+  screen=ui();const p=props();await screen.render(<AutomationPolicyPanel {...p}/>);expect(screen.container.textContent).toContain('Modo atual: aprovação manual');await screen.click('Configurar modo autônomo');expect(p.onChooseAutomatic).toHaveBeenCalledTimes(1);expect(p.onAccept).not.toHaveBeenCalled();expect(screen.container.textContent).toContain('Modo atual: aprovação manual');
 });
 test('ADAS-32 exact scope amounts cadence validity and explicit acknowledgement precede acceptance',async()=>{
   screen=ui();const p=props();await screen.render(<AutomationPolicyPanel {...p} review={review} productNames={{v:'Bolsa Aurora'}} campaignNames={{c:'Coleção'}}/>);
@@ -33,7 +33,7 @@ test('ADAS-38 revoke gesture preserves visibility of sent actions and only confi
   await screen.render(<AutomationPolicyPanel {...p} state={{...manual,policy:{...automatic.policy!,revokedAt:'2026-11-16T12:01:00Z'}}}/>);expect(screen.container.textContent).toContain('Modo atual: aprovação manual');expect(screen.container.textContent).toContain('Histórico de ações já enviadas');
 });
 test('ADAS-48 foreign account review cannot be accepted and disabled configuration cannot start planning',async()=>{
-  screen=ui();const p=props();await screen.render(<AutomationPolicyPanel {...p} accountId="200" review={review} disabled/>);expect(screen.container.querySelector('input[type=checkbox]')).toBeNull();expect(screen.container.textContent).not.toContain('200,00');expect(Array.from(screen.container.querySelectorAll('button')).find(b=>b.textContent==='Automático')!.disabled).toBe(true);expect(p.onAccept).not.toHaveBeenCalled();
+  screen=ui();const p=props();await screen.render(<AutomationPolicyPanel {...p} accountId="200" review={review} disabled/>);expect(screen.container.querySelector('input[type=checkbox]')).toBeNull();expect(screen.container.textContent).not.toContain('200,00');expect(Array.from(screen.container.querySelectorAll('button')).find(b=>b.textContent==='Configurar modo autônomo')!.disabled).toBe(true);expect(p.onAccept).not.toHaveBeenCalled();
 });
 test('ADAS-33 acceptance failure keeps manual mode and the reviewed terms visible for safe recovery',async()=>{
   screen=ui();const p=props();p.onAccept.mockRejectedValue(new Error('conflict'));await screen.render(<AutomationPolicyPanel {...p} review={review}/>);await acknowledge();await screen.click('Aceitar política automática');expect(screen.container.querySelector('[role=alert]')?.textContent).toContain('confirmar');expect(screen.container.textContent).toContain('Modo atual: aprovação manual');expect(screen.container.textContent).toContain('100,00');expect(p.onManual).not.toHaveBeenCalled();

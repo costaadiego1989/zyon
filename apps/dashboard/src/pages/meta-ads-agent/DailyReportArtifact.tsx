@@ -1,5 +1,5 @@
 import type { MetaAdsDailyReport } from '@zyon/shared-types';
-import { adReason, executionStates, money, priorities, attributionWindowLabel } from './presentation.js';
+import { adReason, executionStates, money, priorities, attributionWindowLabel, metricSourceLabel } from './presentation.js';
 
 const analysis={pending:'Análise pendente',completed:'Análise concluída',awaiting_data:'Dados insuficientes para avaliar desempenho',unknown:'Análise com resultado desconhecido. O consumo não será repetido automaticamente.',unavailable:'Análise indisponível'};
 const outcome:Record<string,string>={...executionStates,pending_review:'Aguardando aprovação',approved:'Aprovada, aguardando execução',executed:'Execução registrada',rejected:'Proposta rejeitada',stale:'Proposta desatualizada',blocked:'Ação bloqueada',generation_pending:'Aguardando novos criativos',creative_review_required:'Revise os novos criativos antes de alterar a campanha',awaiting_data:'Dados insuficientes',manual:'Aprovação manual necessária'};
@@ -17,7 +17,7 @@ function evidenceValue(key:string,value:string|number|boolean|null,zone:string,c
 }
 export function DailyReportArtifact({report,campaignNames={},onReview}:{report:MetaAdsDailyReport;campaignNames?:Record<string,string>;onReview?:(proposalId:string)=>void}) {
   return <article className="mga-daily-report" aria-label={`Relatório diário ${report.localDay}`}>
-    <header className="mga-report-heading"><div><h3>Relatório de {report.localDay.split('-').reverse().join('/')}</h3><small>Conta {report.accountId} · {report.timezone}</small></div><span className="mga-report-state" data-state={report.status}>{report.status==='partial'?'Coleta parcial':report.status==='collecting'?'Coleta em andamento':'Coleta concluída'}</span></header>
+    <header className="mga-report-heading"><div><h3>Relatório de {report.localDay.split('-').reverse().join('/')}</h3></div><span className="mga-report-state" data-state={report.status}>{report.status==='partial'?'Coleta parcial':report.status==='collecting'?'Coleta em andamento':'Coleta concluída'}</span></header>
     <p className="mga-report-period">Dia encerrado: <time dateTime={report.since}>{instant(report.since,report.timezone)}</time> até <time dateTime={report.until}>{instant(report.until,report.timezone)}</time>. A janela de avaliação do desempenho pode abranger mais dias.</p>
     <p className="mga-report-assessment">{analysis[report.analysisStatus]}</p>
     {!report.campaigns.length&&<p>Nenhuma campanha disponível para este dia. Isso não confirma gasto zero.</p>}
@@ -34,7 +34,7 @@ export function DailyReportArtifact({report,campaignNames={},onReview}:{report:M
         <div><dt>Custo por compra</dt><dd>{money(row.metrics.costPerPurchaseCents,row.metrics.currency)}</dd></div>
         <div><dt>Retorno dos anúncios</dt><dd>{row.metrics.roas===null?'Indisponível':`${row.metrics.roas.toLocaleString('pt-BR')}×`}</dd></div>
         <div><dt>Resultado com custos informados</dt><dd>{money(row.metrics.contributionCents,row.metrics.currency)}</dd></div>
-      </dl><small>Fonte: {row.metrics.source} · Atribuição: {row.metrics.attributionWindow} · Cobertura de custos: {coverage[row.metrics.costCoverage]}</small>
+      </dl><small>Fonte: {metricSourceLabel(row.metrics.source)} · Prazo considerado pela Meta: {attributionWindowLabel(row.metrics.attributionWindow)} · Cobertura de custos: {coverage[row.metrics.costCoverage]}</small>
         {row.metrics.stale&&<p>Dados anteriores, ainda sem atualização confirmada para esta coleta.</p>}
         {!!row.metrics.notes.length&&<ul>{row.metrics.notes.map(value=><li key={value}>{adReason(value)}</li>)}</ul>}
       </details></>:<p>Valores indisponíveis. Ausência de dados não significa ausência de gasto ou vendas.</p>}
