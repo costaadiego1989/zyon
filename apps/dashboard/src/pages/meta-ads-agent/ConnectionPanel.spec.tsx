@@ -7,6 +7,7 @@ import { overview } from "./fixtures.js";
 import { ui } from "./test-helpers.js";
 let screen: ReturnType<typeof ui>;
 afterEach(async () => {await screen?.close(); window.history.replaceState({}, "", "/");});
+test('AF-02 explains advertising authorization separately and keeps WhatsApp connected',async()=>{screen=ui();await screen.render(<ConnectionPanel connection={overview().connection} entitled api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);expect(screen.container.textContent).toContain('Para criar anúncios, autorize também sua conta de anúncios');expect(screen.container.textContent).toContain('Não é preciso reconectar o WhatsApp');});
 test('ADAS-71 unchanged refresh preserves unsaved asset selections while a changed connection invalidates them',async()=>{
   screen=ui();const connection=overview().connection;connection.page=null;connection.whatsappNumbers=[{id:'phone',name:'Phone',pageId:'234'}];
   const props={connection,entitled:true,api:{} as MetaAdsAgentApi,onUpdated:async()=>{}};await screen.render(<ConnectionPanel {...props}/>);await screen.change('Página','234');await screen.change('WhatsApp vinculado à página','phone');
