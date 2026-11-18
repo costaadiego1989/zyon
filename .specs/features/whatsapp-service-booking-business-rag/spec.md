@@ -299,7 +299,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | Pending |
-| AGENDA-05 | Shared capacity | T23, T26, T34 | In Progress (T23 and T26 complete) |
+| AGENDA-05 | Shared capacity | T23, T26, T34 | In Progress (T23/T26/T34 locally complete; T35 legacy/payment writer integration and final proof pending) |
 | AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 and T24 complete) |
 | AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | Pending |
 | BOOK-01 | Provisional hold | T27 | Implemented (T27; final proof pending) |
@@ -309,8 +309,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | BOOK-05 | Pay online | T29, T35, T40 | Pending |
 | BOOK-06 | Late payment | T36 | Pending |
 | BOOK-07 | On-site receipt | T4, T37, T41, T80 | Pending |
-| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33 locally complete; T35-T38/T84 financial commands/final proof pending) |
-| BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T33 linked-request cancellation/owned cleanup and T49 trusted intake/reference locally complete; T34 reschedule/T41/T80 UI pending) |
+| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34 locally complete; T35-T38/T84 financial commands/final proof pending) |
+| BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T33 cancellation/T34 canonical accepted reschedule and T49 trusted intake locally complete; T41/T80 UI and final human-flow proof pending) |
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | Pending |
 | HUM-01 | Fixed menu entry | T57 | Complete (LOCAL; T57 menu and signed gesture gated; final feature verification pending) |
 | HUM-02 | Handoff intake | T49, T50, T57 | Complete (LOCAL; T49/T50/T57 intake, router and button/text/voice with canonical acknowledgement gated; final feature verification pending) |

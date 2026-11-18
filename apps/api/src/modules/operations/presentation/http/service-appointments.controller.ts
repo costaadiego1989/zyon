@@ -8,6 +8,7 @@ import { CreateManualServiceAppointmentUseCase, type ManualServiceAppointmentCom
 
 import { TransitionServiceAppointmentUseCase, type AttendanceTransitionCommand } from "../../application/transition-service-appointment.use-case.js";
 import { CancelServiceAppointmentUseCase, type CancelServiceAppointmentCommand } from "../../application/cancel-service-appointment.use-case.js";
+import { RescheduleServiceAppointmentUseCase, type RescheduleCommand, type ReschedulePreview } from "../../application/reschedule-service-appointment.use-case.js";
 
 import { publicAppointmentView } from "./service-appointment-public-view.js";
 
@@ -22,7 +23,8 @@ function operator(request: TenantPrincipalRequest): ServiceActor {
 export class ServiceAppointmentsController {
   constructor(private readonly manual: CreateManualServiceAppointmentUseCase,
     private readonly attendance: TransitionServiceAppointmentUseCase,
-    private readonly cancellation: CancelServiceAppointmentUseCase) {}
+    private readonly cancellation: CancelServiceAppointmentUseCase,
+    private readonly rescheduling: RescheduleServiceAppointmentUseCase) {}
 
   @Post("manual")
   @RequireTenantRoles("owner", "admin")
@@ -49,6 +51,22 @@ export class ServiceAppointmentsController {
     @Body() body: Omit<CancelServiceAppointmentCommand, "appointmentId">) {
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.hasOwn(body, "appointmentId")) throw new BadRequestException("service_cancellation_command_invalid");
     return this.cancellation.execute(operator(request), { ...body, appointmentId }).then(publicAppointmentView);
+  }
+
+  @Post(":appointmentId/reschedule-quote")
+  @RequireTenantRoles("owner", "admin")
+  rescheduleQuote(@Req() request: TenantPrincipalRequest, @Param("appointmentId") appointmentId: string,
+    @Body() body: Omit<ReschedulePreview, "appointmentId">) {
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.hasOwn(body, "appointmentId")) throw new BadRequestException("service_reschedule_command_invalid");
+    return this.rescheduling.preview(operator(request), { ...body, appointmentId }).then(publicAppointmentView);
+  }
+
+  @Post(":appointmentId/reschedule")
+  @RequireTenantRoles("owner", "admin")
+  reschedule(@Req() request: TenantPrincipalRequest, @Param("appointmentId") appointmentId: string,
+    @Body() body: Omit<RescheduleCommand, "appointmentId">) {
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.hasOwn(body, "appointmentId")) throw new BadRequestException("service_reschedule_command_invalid");
+    return this.rescheduling.execute(operator(request), { ...body, appointmentId }).then(publicAppointmentView);
   }
 
 }

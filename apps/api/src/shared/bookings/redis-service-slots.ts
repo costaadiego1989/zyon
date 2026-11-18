@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ConflictException, ServiceUnavailableException } from "@nestjs/common";
 import { Redis } from "ioredis";
-import type { OwnedAppointmentLease } from "./appointment-lease-proof.js";
+import { parseAppointmentLease, type OwnedAppointmentLease } from "./appointment-lease-proof.js";
 
 export interface SlotRequest { resourceId: string; slotId: string; startsAt: string; endsAt: string }
 export interface SlotHold { expiresAt: string; slots: SlotRequest[] }
@@ -32,6 +32,7 @@ const ACQUIRE = `
 local nowParts = redis.call('TIME')
 local now = tonumber(nowParts[1]) * 1000 + math.floor(tonumber(nowParts[2]) / 1000)
 local wanted = cjson.decode(ARGV[1])
+local ignored = ARGV[3] and cjson.decode(ARGV[3]) or nil
 local previous = redis.call('GET', KEYS[1])
 if previous then
   local held = cjson.decode(previous)
@@ -57,7 +58,11 @@ for i = 2, #KEYS do
     elseif held.owner ~= wanted.owner then
       for _, a in ipairs(wanted.slots) do
         for _, b in ipairs(held.slots) do
-          if a.resourceId == b.resourceId and a.startMs < b.endMs and a.endMs > b.startMs then return 'unavailable' end
+          local ownSource = ignored and held.owner == ignored.ownerHash and held.generation == ignored.generation
+            and (held.originFingerprint or held.fingerprint) == ignored.fingerprint
+            and b.resourceId == ignored.target.resourceId and b.slotId == ignored.target.slotId
+            and b.startsAt == ignored.target.startsAt and b.endsAt == ignored.target.endsAt
+          if not ownSource and a.resourceId == b.resourceId and a.startMs < b.endMs and a.endMs > b.startMs then return 'unavailable' end
         end
       end
     end
@@ -187,6 +192,25 @@ export class RedisServiceSlots {
     return { merchantId, ownerHash: held.owner, generation: held.generation,
       fingerprint: held.originFingerprint ?? held.fingerprint, selectionFingerprint: held.fingerprint,
       expiresAt: new Date(held.expiresAt).toISOString(), slots: held.slots.map(({ resourceId, slotId, startsAt, endsAt }) => ({ resourceId, slotId, startsAt, endsAt })) };
+  }
+  /** Original immutable SQL binding authorizes only this target's overlap. */
+  async acquireForAppointmentReschedule(merchantId: string, sessionId: string, slots: SlotRequest[], ttlMs: number,
+    source: OwnedAppointmentLease): Promise<SlotHold> {
+    const capture = parseAppointmentLease(source);
+    if (!capture || capture.kind !== "owned" || capture.merchantId !== merchantId || capture.ownerHash === digest(sessionId))
+      throw new ConflictException("service_hold_cleanup_foreign_proof");
+    const keys = this.keys(merchantId, sessionId, slots), fingerprint = slotFingerprint(slots);
+    const wanted = { owner: digest(sessionId), generation: randomUUID(), originFingerprint: fingerprint, fingerprint,
+      slots: slots.map(s => ({ ...s, startMs: Date.parse(s.startsAt), endMs: Date.parse(s.endsAt) })) };
+    const result = await this.command(() => this.redis.eval(ACQUIRE, keys.length, ...keys, JSON.stringify(wanted), ttlMs, JSON.stringify(capture))) as string;
+    if (result === "unavailable") throw new ConflictException("service_slot_unavailable");
+    if (result === "changed") throw new ConflictException("checkout_service_slot_changed");
+    const held = JSON.parse(result) as StoredHold;
+    return withOriginalSlotLeaseProof({ expiresAt: new Date(held.expiresAt).toISOString(), slots }, {
+      merchantId, ownerHash: held.owner, generation: held.generation, fingerprint: held.originFingerprint ?? held.fingerprint,
+      selectionFingerprint: held.fingerprint, expiresAt: new Date(held.expiresAt).toISOString(),
+      slots: held.slots.map(({ resourceId, slotId, startsAt, endsAt }) => ({ resourceId, slotId, startsAt, endsAt })),
+    });
   }
   async active(merchantId: string, resourceId: string): Promise<Array<StoredHold>> {
     const result = await this.command(() => this.redis.eval(READ, 1, this.resourceKey(merchantId, resourceId))) as string[];

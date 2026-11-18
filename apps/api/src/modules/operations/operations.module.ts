@@ -6,6 +6,7 @@ import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../shared/events/domai
 import { CreateManualServiceAppointmentUseCase } from "./application/create-manual-service-appointment.use-case.js";
 import { TransitionServiceAppointmentUseCase } from "./application/transition-service-appointment.use-case.js";
 import { CancelServiceAppointmentUseCase } from "./application/cancel-service-appointment.use-case.js";
+import { RescheduleServiceAppointmentUseCase } from "./application/reschedule-service-appointment.use-case.js";
 import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { ServiceAppointmentHoldCleanupConsumer } from "./application/service-appointment-hold-cleanup.consumer.js";
 import { ServiceAppointmentsController } from "./presentation/http/service-appointments.controller.js";
@@ -45,6 +46,8 @@ import {
     PaymentsController,
   ],
   providers: [
+    { provide: RescheduleServiceAppointmentUseCase, useFactory: (prisma: PrismaClient) =>
+      new RescheduleServiceAppointmentUseCase(prisma), inject: [PRISMA_CLIENT] },
     { provide: ServiceAppointmentHoldCleanupConsumer,
       useFactory: (prisma: PrismaClient, events: DomainEventBus, tenant: TenantContextService) =>
         new ServiceAppointmentHoldCleanupConsumer(prisma, events, tenant),
