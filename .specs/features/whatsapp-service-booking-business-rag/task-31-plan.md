@@ -1,0 +1,7 @@
+# T31 Root consolidation
+
+Assumptions: T30 is complete and Root HEAD f66c276fb includes T110. Existing local implementation and delegation approval authorizes this consolidation; no remote action. The exact approved foreign-body403 expectation is in P native SHA AF7CAE30685B20905E3379144F8D0D499A9E96823ACFEF81551CE817CFDFFBB7. Original P source/cache packets remain untouched. Root is the sole runtime owner.
+
+Files: create-manual-service-appointment.use-case.ts and .spec.ts; operations/presentation/http/service-appointments.controller.ts; operations.module.ts minimum provider/controller union; tests/service-manual-appointment-http.integration.spec.ts; this plan, task-31-evidence.json, and scoped T31 task/spec status. Preserve unrelated .specs and eight T72 untracked files and backup.
+
+Success: copy criterion tests first with identical bytes, adopt command/controller and minimal module union; run whole unit14 and native12 with zero skips; run original admission/holds/checkout/payment/financial and WhatsApp preservation plus normal48/widget176, actual own standard full API build with fresh5168 before capture/build/record and official artifact admission, API lint/types. Original1024/2048 guards, default heaps/runtime600/preflight150/boot110, owned markers/network/cleanup stay unchanged. Mark T31 before its focused atomic commit. Start T32 only afterward; finish phase-end header Build and phase tests. No final whole-feature completion claim.

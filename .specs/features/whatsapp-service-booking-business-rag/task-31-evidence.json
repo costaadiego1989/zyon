@@ -1,0 +1,272 @@
+{
+  "task": "T31",
+  "status": "Full passed locally",
+  "base": "f66c276fb",
+  "date": "2026-11-18",
+  "approval": "Existing local implementation/delegation authorization; exact native403 correction approved call_ff475992c3644563adb9d550a3a02d97",
+  "source": [
+    {
+      "path": "apps/api/src/modules/operations/application/create-manual-service-appointment.use-case.spec.ts",
+      "sha256": "da37d8596368db219af5a1c01b6a800cb6379096ecace4684dac110c57578696"
+    },
+    {
+      "path": "apps/api/tests/service-manual-appointment-http.integration.spec.ts",
+      "sha256": "af7cae30685b20905e3379144f8d0d499a9e96823acfef81551ce817cfdffbb7"
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/create-manual-service-appointment.use-case.ts",
+      "sha256": "567e39cf7a9e783d7a34667739a257501dee0a2a99c09877acca80e3f43e1f4b"
+    },
+    {
+      "path": "apps/api/src/modules/operations/presentation/http/service-appointments.controller.ts",
+      "sha256": "ff6ca5889a80fffbd8d2fd6dddd8ef4492bf1532f9a3b70f4ac6ad198212785d"
+    },
+    {
+      "path": "apps/api/src/modules/operations/operations.module.ts",
+      "sha256": "10d9a37d3b9c9aabed2bce6ee810249ad1f9c7051b1d2d76739fcf6b0e66833d"
+    }
+  ],
+  "sourceUnchangedAfterAdoption": true,
+  "nativeSha256": "af7cae30685b20905e3379144f8d0d499a9e96823acfef81551ce817cfdffbb7",
+  "wholeUnfiltered": true,
+  "defaultTimeoutsMs": {
+    "runtime": 600000,
+    "preflight": 150000,
+    "boot": 110000
+  },
+  "guardsCommitMiB": {
+    "unit": 1024,
+    "native": 2048,
+    "eachCaptureBuildRecordAndTypes": 5168
+  },
+  "sessions": {
+    "ownCheckedBuild": 69578,
+    "manualHttp": 28848,
+    "wholePreservationLintTypes": 23390
+  },
+  "ownCheckedBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "857248040ab04739a20329b87bf8335bab4c3181e77b12c81e676fab0ea63706",
+    "artifactSha256": "23a1d44f5ccd5bf70970e702db143fdf5651adcc3270d0703022b408ccd36b18",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2567
+    },
+    "recordedAt": "2026-11-18T09:59:43.149Z"
+  },
+  "buildLogs": ".cache/t110-root-checked-gates/2026-11-18T09-57-56.076Z",
+  "buildExitCodes": {
+    "capture": 0,
+    "build": 0,
+    "record": 0,
+    "officialAdmission": 0
+  },
+  "tests": [
+    {
+      "log": ".cache/phase3-gates/t31-whole-components.log",
+      "sha256": "133b71612d9bca30ded72b509544c243626abc4bbae5be4957b2d72dc489cf20",
+      "exitCode": 0,
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-manual-http.log",
+      "sha256": "cb6f692dfb1a3235c0454401cd1f3435d554de2a4c05c849bccf7c3c0e5f49b1",
+      "exitCode": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-confirmation-native.log",
+      "sha256": "8f08aea795f7b09ba822bb9f361191c3b57a4489bfe8fc40b2019c0731c0468d",
+      "exitCode": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-confirmation-http.log",
+      "sha256": "7efea3fc9ad83cc9310b776ebd9a76df82d1dd82f484fe0da6a7265f57cd3bfe",
+      "exitCode": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-confirmed-resume.log",
+      "sha256": "3bb44f77afdcdaab8711f82432069179e3f59c1383a3859320165dd88523bfee",
+      "exitCode": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-original-admission.log",
+      "sha256": "ba453fcbbc2910833f5c0a5d782865710d0b87466a93525d9325fe750acbda3f",
+      "exitCode": 0,
+      "tests": 17,
+      "pass": 17,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-checkout-preservation.log",
+      "sha256": "954d4c421544836c9dc136463c2e496a1664b37798fce4029cac026be1ae9e27",
+      "exitCode": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-holds-preservation.log",
+      "sha256": "087209aaff0667159d17c8f59fc0e179e99b73cec333171e9ec4a21cfb3967a4",
+      "exitCode": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-payment-http-preservation.log",
+      "sha256": "fa8de2a8f4b6ab72e38c310e57c38809436049267b60888c4c130bb92e998ec1",
+      "exitCode": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-journal-preservation.log",
+      "sha256": "137018b4c7997a5c799af687d1b74ab0b2330c4197dc5c69acc694ec191f183d",
+      "exitCode": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "log": ".cache/phase3-gates/t31-whatsapp-coexistence.log",
+      "sha256": "cdd10a42a7ce7bbdde258a0ad0f0a0b52f79657d8175b955ae1d24d3f1bf2386",
+      "exitCode": 0,
+      "tests": 27,
+      "pass": 27,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  ],
+  "products": [
+    {
+      "log": ".cache/t71-gates/2026-11-18T10-08-26.132Z/product-normal.log",
+      "sha256": "3b657a5c2ee8490dadc31e3023813d82fe4eba0f83cea060d3ade9a18d822fa3",
+      "exitCode": 0,
+      "summary": {
+        "phase": "normal-checkout-payment",
+        "coverageMode": "baseline-and-identity",
+        "passed": 48,
+        "waiters": 3,
+        "prismaClientConstructed": true,
+        "providerCalls": 0,
+        "scope": "normal-standalone-source-coupon-identity-detachment",
+        "checkoutVersionTrigger": true,
+        "checkoutStrategyTrigger": true
+      },
+      "cleanup": {
+        "phase": "normal-checkout-payment",
+        "coverageMode": "baseline-and-identity",
+        "status": "passed",
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true,
+        "durationMs": 26095,
+        "network": "none",
+        "productionAccess": false
+      }
+    },
+    {
+      "log": ".cache/t71-gates/2026-11-18T10-08-52.489Z/product-widget.log",
+      "sha256": "fdfda4d726e61531bbc4e2bb77cd11d7ded9e68f78e43e622981c4876cf775a0",
+      "exitCode": 0,
+      "summary": {
+        "status": "passed",
+        "passed": 176,
+        "realLockWaiters": 32,
+        "syntheticOnly": true,
+        "providerCalls": 0
+      },
+      "cleanup": {
+        "status": "passed",
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true,
+        "durationMs": 93259,
+        "network": "none",
+        "productionAccess": false
+      }
+    }
+  ],
+  "headers": [
+    {
+      "command": "node .cache/run-t71-approved-gate.mjs lint",
+      "exitCode": 0,
+      "log": ".cache/t71-gates/2026-11-18T10-10-25.962Z/lint.log",
+      "sha256": "75e47252305c04be115fde2fb95e8fcbd9c8cb4e51efdd61fcc253330ab5f84a"
+    },
+    {
+      "command": "node .cache/run-t71-approved-gate.mjs api-types",
+      "exitCode": 0,
+      "log": ".cache/t71-gates/2026-11-18T10-10-41.576Z/api-types.log",
+      "sha256": "9e639f51bdded2db304b832ff633c3178dcaa23569813bef81bd8653533c8fdc"
+    }
+  ],
+  "total": {
+    "unit": 14,
+    "newNative": 12,
+    "preservationTap": 100,
+    "normal": 48,
+    "widget": 176,
+    "nativeTotal": 336,
+    "all": 350,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "cleanup": "Every named runner returned naturally0; actual native cleanup assertions passed; both product workers measured providerCalls0 and cleanupErrors0",
+  "protectedPriorPaths": 13,
+  "unrelatedWorkingChangesPreserved": true,
+  "PWorktreeAndHistoricalFailuresPreserved": true,
+  "remoteActions": 0,
+  "finalFeatureVerification": "pending after all110 tasks"
+}

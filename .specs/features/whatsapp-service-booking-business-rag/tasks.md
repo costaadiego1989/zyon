@@ -811,12 +811,14 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + HTTP/DB: manual×buyer, avulso+appointment rollback, fora de política, duplicata, cliente estrangeiro e online/no atendimento.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit + HTTP/DB: manual×buyer, avulso+appointment rollback, fora de política, duplicata, cliente estrangeiro e online/no atendimento.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Unit + HTTP/DB: manual×buyer, avulso+appointment rollback, fora de política, duplicata, cliente estrangeiro e online/no atendimento.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T31$" ./src/modules/operations/application/create-manual-service-appointment.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T31 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Full: whole unfiltered `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/operations/application/create-manual-service-appointment.use-case.spec.ts` + `./tests/service-manual-appointment-http.integration.spec.ts` with the same protected Node runner. Whole original admission/holds/checkout/payment/confirmation/WhatsApp companions plus normal48/widget176 remain required. Actual14unit +12newNative +324preservation,0skip. Current own standard checked API, lint and types; final criterion checks remain mandatory.
+**Evidence**: task-31-evidence.json. Own API85724804/23a1d44f/2567; capture/build/record/admission0. Unit14, new real HTTP/SQL12 and preservation324 all passed naturally0,0fail/skip/cancel. API lint/types0; default budgets and exact approved403 retained. Native336 and total350. No whole requirement or feature completion; final same-HEAD verification remains pending.
+
 **Commit**: `feat(service-business): t31 create a manual appointment atomically`
 
 ### T32: Record explicit attendance transitions
@@ -3158,6 +3160,8 @@ Tasks: T110.
 
 
 **T110 Full complete 2026-11-18:** Own checked ec2488ae/c7d6e2b5/2565, actual real-hasher/JWT unit15 and owned AppModule HTTP8, API lint/types, normal48/widget176 all passed naturally0,0skip and providers0 with normal cleanup. Only one password-verification destructuring declaration changed. See task-110-evidence.json for exact hashes/receipts. T110 marked before its focused local commit;64/110 tasks now closed,46 remain. No production or whole-feature completion claim. T72 harness remains safely protected during consolidation.
+
+**T31 Full complete 2026-11-18:** Own checked85724804/23a1d44f/2567, unit14/newHTTP-SQL12/preservation324 (100TAP+normal48+widget176) and API lint/types all natural0,0skip. Exact approved403 fixture retained, P untouched, unrelated WIP preserved. T31 marked before its atomic local commit;65/110 tasks closed. T32 and phase-endBuild remain next. See task-31-evidence.json.
 
 ## Phase Execution Map
 

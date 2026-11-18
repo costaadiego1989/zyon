@@ -2,6 +2,9 @@ import { Module } from "@nestjs/common";
 import { OrderFulfillmentUseCase } from "./application/order-fulfillment.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../shared/events/domain-event-bus.port.js";
+import { CreateManualServiceAppointmentUseCase } from "./application/create-manual-service-appointment.use-case.js";
+import { ServiceAppointmentsController } from "./presentation/http/service-appointments.controller.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
@@ -32,11 +35,14 @@ import {
 @Module({
   imports: [IntegrationsModule, CheckoutModule, CommerceModule],
   controllers: [
+    ServiceAppointmentsController,
     OrdersController,
     CustomersController,
     PaymentsController,
   ],
   providers: [
+    { provide: CreateManualServiceAppointmentUseCase, useFactory: (prisma: PrismaClient, events: DomainEventBus) =>
+      new CreateManualServiceAppointmentUseCase(prisma, events), inject: [PRISMA_CLIENT, DOMAIN_EVENT_BUS] },
     OrderFulfillmentUseCase,
     ListOrdersUseCase,
     GetOrderUseCase,
