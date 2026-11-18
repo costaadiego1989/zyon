@@ -1,4 +1,4 @@
-import type { CashbackDraft } from "@zyon/shared-types";
+import type { CashbackConfigurationChecklistItem, CashbackDraft } from "@zyon/shared-types";
 import { CashbackError } from "./cashback.js";
 import { validateCashbackDraft } from "./cashback-draft.js";
 
@@ -23,12 +23,18 @@ const decisions = [
 ] as const;
 export type CashbackConfigurationField = typeof decisions[number][0];
 export const CASHBACK_CONFIGURATION_FIELDS: readonly CashbackConfigurationField[] = decisions.map(d => d[0]);
+export const CASHBACK_CONFIGURATION_DECISIONS = decisions.map(([field, type, prompt, aliases], index) => {
+  const kind: CashbackConfigurationChecklistItem["kind"] = type.startsWith("percent") ? "percent" : type.startsWith("money") ? "money" : type === "days" || type === "expiry" ? "days" : type === "boolean" ? "boolean" : type === "terms" ? "text" : "choice";
+  const group: CashbackConfigurationChecklistItem["group"] = index < 5 ? "earn" : index < 8 ? "release" : index < 11 ? "redeem" : index < 16 ? "combination" : "terms";
+  const unit: CashbackConfigurationChecklistItem["unit"] = kind === "money" ? "BRL" : kind === "percent" ? "percent" : kind === "days" ? "days" : null;
+  return { field, label: aliases[0][0]!.toUpperCase() + aliases[0].slice(1), kind, group, unit, prompt };
+});
 const normalized = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, " ");
-function read(draft: CashbackDraft, field: CashbackConfigurationField): unknown {
+export function cashbackConfigurationValue(draft: CashbackDraft, field: CashbackConfigurationField): unknown {
   return field.startsWith("combination.") ? draft.combination?.[field.slice(12) as keyof NonNullable<CashbackDraft["combination"]>] : draft[field as keyof CashbackDraft];
 }
 export function missingCashbackConfigurationFields(draft: CashbackDraft): CashbackConfigurationField[] {
-  return CASHBACK_CONFIGURATION_FIELDS.filter(field => read(draft, field) === undefined);
+  return CASHBACK_CONFIGURATION_FIELDS.filter(field => cashbackConfigurationValue(draft, field) === undefined);
 }
 export function nextCashbackConfigurationStep(draft: CashbackDraft) {
   const missing = missingCashbackConfigurationFields(draft), field = missing[0];

@@ -30,6 +30,23 @@ export type CashbackDraft = Omit<Partial<CashbackRules>, "combination"> & {
   combination?: Partial<CashbackCombinationRules>;
 };
 
+export interface CashbackConfigurationChecklistItem {
+  field: string;
+  group: "earn" | "release" | "redeem" | "combination" | "terms";
+  label: string;
+  kind: "percent" | "money" | "days" | "boolean" | "choice" | "text";
+  unit: "BRL" | "percent" | "days" | null;
+  completed: boolean;
+  /** Absent is pending; false, zero and null are explicit persisted choices. */
+  value?: number | boolean | string | null;
+}
+export interface CashbackConfigurationChecklist {
+  items: CashbackConfigurationChecklistItem[];
+  completed: number;
+  total: number;
+  nextField: string | null;
+}
+
 export interface CashbackProgramView {
   merchantId: string;
   status: "disabled" | "active" | "paused" | "ended";
