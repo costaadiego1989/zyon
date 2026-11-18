@@ -10,6 +10,12 @@ import { AssistantService } from './assistant.service.js';
 const answer = (reply: string, referenceIds: string[] = []): AssistantModelResult => ({ reply, referenceIds, toolCalls: [], providerRequestId: 'req-a', costMicros: 20n });
 const tools = (name: string, args: Record<string, unknown>): AssistantModelResult => ({ ...answer(''), reply: null, toolCalls: [{ id: 'call-a', name, args }] });
 
+test('ACF-05 a known malformed reply after a captured destination continues safely without replaying the model',async()=>{const f=await fixture(()=>{throw new AssistantError('assistant_model_response_invalid',502);});try{
+  f.conversations.turns=async()=>({turns:[{...f.turn,id:'start',ordinal:0,message:'quero criar uma campanha',reply:'Prefere loja ou WhatsApp?',status:'completed' as const}],nextCursor:null});
+  await f.message('Na loja');const response=await f.process();assert.match(response.reply,/produto específico.*categoria/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress?.draft.destination,'store');assert.equal(f.inputs.length,1);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
+  const unknown=new AssistantService({repo:f.conversations,context:f.adapter,knowledge:f.knowledge,model:{complete:async()=>{throw new AssistantError('assistant_outcome_unknown',409);}},clock:f.clock});await assert.rejects(unknown.respond(f.input),{code:'assistant_outcome_unknown'});
+}finally{await f.close();}});
+
 test('ACF-05 checklist persists short answers before a tool-free LLM and survives help new turns and reload',async()=>{
   const f=await fixture(input=>answer(input.messages.at(-1)?.content.includes('Pixel')?'O Pixel ajuda a medir ações na sua loja. Você já tem um Pixel?':'Qual será o próximo detalhe da campanha?',input.knowledge.slice(0,1).map(item=>item.reference.id)));
   try{

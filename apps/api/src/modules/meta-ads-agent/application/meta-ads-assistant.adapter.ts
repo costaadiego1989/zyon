@@ -102,6 +102,7 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     const reads=new Set(['merchant_ads_catalog','merchant_ads_overview','merchant_ads_funding','merchant_ads_planning_context','merchant_ads_save_draft']);
     if(evidence.some(item=>!reads.has(item.name))||campaign?.campaignId&&evidence.some(item=>item.name==='merchant_ads_save_draft'))return null;
     const text=message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    if(!campaign?.campaignId&&campaign?.draft.destination&&!campaign.draft.variantIds?.length&&campaign.briefing?.capturedTurnId&&/^(na loja|loja|pelo site|no site|site|pela loja|whatsapp|no whatsapp|pelo whatsapp|wpp|zap)[.!\s]*$/.test(text.trim()))return productScopeQuestion;
     if(/fundos|pagamento|recarregar|saldo/.test(text)){
       const funding=[...evidence].reverse().find(item=>item.name==='merchant_ads_funding')?.result.data as Partial<MetaAdsFundingDiagnosis>|undefined;
       if(funding?.snapshot?.billingType==='prepaid')return 'Vamos por partes. Em Configurações, abra os pagamentos na Meta e confira a conta. Você encontra a opção Adicionar fundos?';
