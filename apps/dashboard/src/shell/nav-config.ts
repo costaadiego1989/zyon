@@ -1,4 +1,5 @@
 import {
+  BookOpenCheck,
   Activity,
   Landmark,
   AlertTriangle,
@@ -46,6 +47,9 @@ export type TabKey =
   | "overview"
   | "finance"
   | "integrations"
+  | "fiscal-settings"
+  | "fiscal-invoices"
+  | "fiscal-detail"
   | "integrations-api"
   | "crm-integrations"
   | "erp-integrations"
@@ -143,6 +147,8 @@ export interface NavItem {
 const STORE = ["STORE_ONLY", "BOTH"] as MerchantPlan[];
 
 export const NAV_ITEMS: NavItem[] = [
+  { key: "fiscal-invoices", label: "Notas fiscais", section: "sales", icon: BookOpenCheck, keywords: ["nf-e", "fiscal", "notas", "invoice"] },
+  { key: "fiscal-settings", label: "Emissão fiscal", section: "integrations", icon: BookOpenCheck, keywords: ["emissor", "focus", "nf-e", "fiscal", "contador"] },
   // ─── Início (não numa seção — sempre no topo quando presente) ───
   { key: "onboarding", label: "Primeiros passos", section: "daily", icon: Rocket, keywords: ["onboarding", "começar", "setup", "início"] },
 

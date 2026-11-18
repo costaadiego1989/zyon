@@ -7,6 +7,9 @@ import type { Role } from "./roles.js";
  * OWNER is implicit — no need to add OWNER to a list.
  */
 export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
+  "fiscal-settings": ["OWNER", "ADMIN"],
+  "fiscal-invoices": ["OWNER", "ADMIN"],
+  "fiscal-detail": ["OWNER", "ADMIN"],
   // Diário
   "cart-recovery": ["OWNER", "ADMIN"],
   finance: ["OWNER", "ADMIN"],
@@ -66,7 +69,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
 };
 
 export function canAccessTab(role: Role | undefined, tab: TabKey): boolean {
-  if (!role) return true; // defensive — pre-session should not 403
+  if (!role) return !["fiscal-settings", "fiscal-invoices", "fiscal-detail"].includes(tab); // fiscal access requires a resolved merchant role
   if (role === "OWNER") return true;
   const allow = PERMISSIONS[tab];
   if (!allow) return true; // unrestricted
