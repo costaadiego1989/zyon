@@ -62,8 +62,35 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     const hint=input.suggestedReply.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const fields=[/produto|catalogo/,/objetivo|prioridade|resultado|roas/,/destino|whatsapp|loja/,/orcamento|por dia|diario|periodo|datas/,/pais|regiao|publico/];
     const unexplainedGoal=/\b(roas|contribuicao|cpa)\b/.test(hint)&&!/\b(roas|contribuicao|cpa)\b/.test(message);
-    if(!hint.includes('?')||!unexplainedGoal&&fields.filter(pattern=>pattern.test(hint)).length<2&&(hint.match(/\?/g)??[]).length<2)return null;
+    const fieldCount=fields.filter(pattern=>pattern.test(hint)).length,questionCount=(hint.match(/\?/g)??[]).length;
+    const fieldLines=hint.split('\n').filter(line=>/^\s*(?:\d+[.)]\s*)?(?:produtos?|objetivo|prioridade|destino|orcamento|datas?|pais|regiao)\s*:/.test(line)).length;
+    const imperative=fieldCount>=4||fieldLines>=2||/\b(informe|preciso|preencha|responda|faltam?|obrigatorios|me diga)\b/.test(hint)&&fieldCount>=2;
+    if(!imperative&&(!questionCount||!unexplainedGoal&&fieldCount<2&&questionCount<2))return null;
     return this.uncitedResponse({...input,suggestedReply:input.suggestedReply.trim()+'?'});
+  }
+  recoveredResponse({message,campaign,evidence}:UncitedAssistantResponse & {message:string}):string|null {
+    const reads=new Set(['merchant_ads_catalog','merchant_ads_overview','merchant_ads_funding','merchant_ads_planning_context','merchant_ads_save_draft']);
+    if(evidence.some(item=>!reads.has(item.name))||campaign?.campaignId&&evidence.some(item=>item.name==='merchant_ads_save_draft'))return null;
+    const text=message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    if(/fundos|pagamento|recarregar|saldo/.test(text)){
+      const funding=[...evidence].reverse().find(item=>item.name==='merchant_ads_funding')?.result.data as Partial<MetaAdsFundingDiagnosis>|undefined;
+      if(funding?.snapshot?.billingType==='prepaid')return 'Vamos por partes. Em Configurações, abra os pagamentos na Meta e confira a conta. Você encontra a opção Adicionar fundos?';
+      if(funding?.snapshot?.billingType==='postpaid')return 'Sua conta usa cobrança automática. Em Configurações, abra os pagamentos na Meta para conferir a forma de pagamento. Você conseguiu abrir essa página?';
+      return 'Vamos por partes. Você já conectou sua conta de anúncios na aba Configurações da Zyon?';
+    }
+    if(/\b(crie|criar|monte|montar|fazer|anunciar|anuncie|prepare|preparar)\b/.test(text)&&/\b(anuncio|anuncios|campanha|anunciar)\b/.test(text)){
+      const catalog=[...evidence].reverse().find(item=>item.name==='merchant_ads_catalog');
+      const products=(catalog?.result.data as {products?:unknown[]}|undefined)?.products;
+      if(Array.isArray(products)){
+        if(!products.length)return 'Não encontrei produtos disponíveis nesta consulta. Primeiro confira o cadastro, as imagens e o estoque em Produtos. Quer ajuda com essa etapa?';
+        const facts=this.uncitedResponse({suggestedReply:'',campaign,evidence:[{...catalog!,result:{data:{products:products.slice(0,3)},artifacts:[]}}]});
+        return facts?`${facts}\nQual desses produtos você quer anunciar?`:null;
+      }
+      if(campaign?.draft.variantIds?.length)return null;
+      return 'Vamos por partes. Qual produto da sua loja você quer anunciar?';
+    }
+    if(/conta|meta|facebook/.test(text)&&/comeco|comecar|zero|criar/.test(text))return 'Vamos por partes. Você já consegue entrar no Facebook?';
+    return null;
   }
   uncitedResponse({suggestedReply,campaign,evidence}:UncitedAssistantResponse):string|null {
     if(suggestedReply.trim().endsWith('?')){

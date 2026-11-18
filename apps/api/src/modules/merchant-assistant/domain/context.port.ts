@@ -24,4 +24,6 @@ export interface AssistantContextPort {
   uncitedResponse?(input:UncitedAssistantResponse):string|null;
   /** Context-owned clarification, also applied to cited campaign questionnaires. No actions. */
   guidedResponse?(input:UncitedAssistantResponse & {message:string}):string|null;
+  /** Known malformed model reply only. Canonical questions/read facts, never tool replay. */
+  recoveredResponse?(input:UncitedAssistantResponse & {message:string}):string|null;
 }

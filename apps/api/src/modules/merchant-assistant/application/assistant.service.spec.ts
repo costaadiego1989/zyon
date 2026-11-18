@@ -9,6 +9,35 @@ import { AssistantService } from './assistant.service.js';
 
 const answer = (reply: string, referenceIds: string[] = []): AssistantModelResult => ({ reply, referenceIds, toolCalls: [], providerRequestId: 'req-a', costMicros: 20n });
 const tools = (name: string, args: Record<string, unknown>): AssistantModelResult => ({ ...answer(''), reply: null, toolCalls: [{ id: 'call-a', name, args }] });
+test('AGW-01 cited imperative questionnaire without punctuation still asks one absent decision',async()=>{
+ const f=await fixture(input=>answer('Para preparar seu anúncio, informe produto, objetivo, destino, orçamento, datas e região.',[input.knowledge[0].reference.id]));try{
+ await f.message('Crie um anúncio dos meus produtos');const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,/produto/i);assert.doesNotMatch(response.reply,/orçamento|datas|região/);
+ }finally{await f.close();}
+});
+test('AGW-10 invalid format after a catalog read recovers canonical products without replaying the tool',async()=>{
+ const f=await fixture((_input,call)=>{if(call===1)return tools('merchant_ads_catalog',{});throw new AssistantError('assistant_model_response_invalid',502);});try{
+ await f.message('Crie um anúncio dos meus produtos');const response=await f.process();assert.match(response.reply,/Camisa/);assert.match(response.reply,/99,00/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual(f.catalogReads,['store-a']);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});assert.equal(f.inputs.length,2);
+ }finally{await f.close();}
+});
+test('AGW-10 invalid creation and funding replies recover a safe next question without invented claims',async()=>{
+ for(const message of ['Crie um anúncio dos meus produtos','Como adicionar fundos para os anúncios?']){const f=await fixture(()=>{throw new AssistantError('assistant_model_response_invalid',502);});try{
+ await f.message(message);const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,message.startsWith('Crie')?/produto/i:/conectou.*Meta|conta de anúncios/i);assert.doesNotMatch(response.reply,/Pix|R\$|confirmamos|saldo disponível|publicad/i);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).executions,{});assert.equal(f.inputs.length,1);
+ }finally{await f.close();}}
+});
+test('AGW-10 unknown provider outcome is not hidden by conversational recovery',async()=>{
+ const f=await fixture(()=>{throw new AssistantError('assistant_outcome_unknown',409);});try{await f.message('Crie um anúncio');await assert.rejects(f.process(),{code:'assistant_outcome_unknown'});assert.deepEqual(f.catalogReads,[]);}finally{await f.close();}
+});
+test('AGW-01 imperative clarification preserves supplied products destination and country',async()=>{
+ const f=await fixture(input=>answer('Informe produtos, objetivo, destino, orçamento, datas e região.',[input.knowledge[0].reference.id]));try{
+ await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],priority:'paid_sales',destination:'whatsapp',country:'PT'});await f.message('Me ajude a criar a campanha');const before=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress;const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,/orçamento/i);assert.doesNotMatch(response.reply,/Qual produto|qual país/i);assert.deepEqual((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,before);
+ }finally{await f.close();}
+});
+test('AGW-10 recovery rechecks revoked access and refuses evidence from business actions',async()=>{
+ const f=await fixture(()=>{f.adapter.authorizeInvocation=async()=>{throw new AssistantError('assistant_forbidden',403);};throw new AssistantError('assistant_model_response_invalid',502);});try{
+ await f.message('Crie um anúncio');await assert.rejects(f.process(),{code:'assistant_forbidden'});
+ assert.equal(f.adapter.recoveredResponse({message:'Crie um anúncio',suggestedReply:'',campaign:null,evidence:[{name:'merchant_ads_execute',result:{data:{},artifacts:[]}}]}),null);
+ }finally{await f.close();}
+});
 
 test('AGW-01 cited campaign questionnaire becomes one simple product decision', async () => {
   const f = await fixture(input => answer('Antes preciso de dados. Qual prioridade: ROAS ou contribuição? Quais produtos? Loja ou WhatsApp? Qual orçamento? Quais datas? Qual região?', [input.knowledge[0].reference.id]));
