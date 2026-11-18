@@ -7,6 +7,7 @@ import { HandleIncomingMessageUseCase } from "./handle-incoming-message.use-case
 import { SendWhatsAppResponseUseCase } from "./send-whatsapp-response.use-case.js";
 import { RouteToSessionUseCase } from "./route-to-session.use-case.js";
 import { WhatsAppWebhookWorker } from "../services/whatsapp-webhook-worker.service.js";
+import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 import { WhatsAppWebhookController } from "../../presentation/http/whatsapp-webhook.controller.js";
 import { MultiProviderSenderAdapter } from "../../whatsapp-channel.module.js";
 import { PrismaWhatsAppConfigRepository } from "../../infrastructure/repositories/prisma-whatsapp-config.repository.js";
@@ -221,7 +222,7 @@ describe("BubbleWhats worker failure propagation", () => {
         complete: async () => { assert.fail("must not complete"); },
       };
       const worker = new WhatsAppWebhookWorker(inbox as any, { findById: async () => current } as any,
-        { execute: async () => { assert.fail("must not process invalidated config"); } } as any, {} as any);
+        { execute: async () => { assert.fail("must not process invalidated config"); } } as any, {} as any, undefined, new TenantContextService());
       await worker.drain();
       assert.deepEqual(failures, ["whatsapp_channel_changed_or_disabled"]);
     }
@@ -240,7 +241,7 @@ describe("BubbleWhats worker failure propagation", () => {
       claimNext: async () => { const result = next; next = null; return result; },
       fail: async () => { failed++; return true; }, complete: async () => { completed++; return true; },
     };
-    const worker = new WhatsAppWebhookWorker(inbox as any, { findById: async () => config() } as any, incoming, {} as any, { process: async (_claim: unknown, run: () => Promise<void>) => run() } as any);
+    const worker = new WhatsAppWebhookWorker(inbox as any, { findById: async () => config() } as any, incoming, {} as any, { process: async (_claim: unknown, run: () => Promise<void>) => run() } as any, new TenantContextService());
     await worker.drain();
     assert.deepEqual({ failed, sends, completed }, { failed: 1, sends: 1, completed: 0 });
   });
@@ -318,7 +319,7 @@ describe("BubbleWhats worker failure propagation", () => {
       claimNext: async () => { const result = next; next = null; return result; },
       complete: async () => { completed++; return true; },
     } as any, { findById: async () => config() } as any,
-    { execute: async () => { entered(); await gate; } } as any, {} as any, { process: async (_claim: unknown, run: () => Promise<void>) => run() } as any);
+    { execute: async () => { entered(); await gate; } } as any, {} as any, { process: async (_claim: unknown, run: () => Promise<void>) => run() } as any, new TenantContextService());
     const first = worker.drain();
     assert.equal(worker.drain(), first);
     await enteredPromise;

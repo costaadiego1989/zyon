@@ -15,7 +15,6 @@ import { ensureProductDiscovery } from "../agents/product-discovery-fallback.js"
 import { resolveNativeShippingReference } from "../agents/native-shipping-reference.js";
 import { knowledgeHelpNavigation } from "../shortcuts/knowledge-help-navigation.js";
 import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/index.js";
-import { createSupportHandlers } from "../tool-handlers/support.handlers.js";
 import { buildCrossSellSuggestions } from "../tool-handlers/cart-cross-sell.helper.js";
 import { STOREFRONT_SHIPPING_REFERENCE, type StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
@@ -282,8 +281,13 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         // The ordinary scoped handoff owns authorization independently of
         // knowledge entitlement or whether the business later changes mode.
         const reason = "Decisão profissional individual: " + input.userMessage.slice(0, 1800);
-        const human = createSupportHandlers(this.handlerDeps, { ...ctx, sessionId: input.sessionId });
-        const handoff = await callStorefrontTool("escalate_to_human", { reason }, () => human.escalateToHuman({ reason }));
+        const handoff = await callStorefrontTool("escalate_to_human", { reason }, async () => {
+          const result = await this.handlerDeps.supportHandoff.createHandoff({
+            merchantId: input.merchantId, sessionId: input.sessionId,
+            buyerMessage: reason, buyerId: ctx.buyer?.globalUserId, initialMessage: input.userMessage,
+          });
+          return { escalated: true, ticketId: result.ticketId, message: result.reply, reason };
+        });
         if (handoff.ok) output = { message: (handoff.data as { message: string }).message,
           blocks: [], cartId: input.cartId || input.sessionId, suggestedNext: ["Menu principal"] };
       } catch { /* A write may have committed. Never claim success or retry. */ }

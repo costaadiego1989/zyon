@@ -451,10 +451,11 @@ export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): Me
   const productContext = metaProductContext(view);
   if (productContext) return { ...view, productContext, choices: view.choices.filter(choice => {
     const action = choice.action;
+    const message = action.kind === "message" ? action.message.replace(/^[^\p{L}\p{N}/]+|[^\p{L}\p{N}]+$/gu, "").trim() : "";
     if (action.kind === "cart_edit_items") return false;
     if (["back", "menu", "catalog_options"].includes(action.kind)) return false;
     if (action.kind === "tool" && ["search_products", "get_cart", "checkout", "list_categories", "get_daily_deals", "get_wishlist", "edit_cart_item", "update_cart_item", "remove_cart_item"].includes(action.tool)) return false;
-    return !(action.kind === "message" && /^(?:\/atalhos|menu|ver produtos|encontrar produto|categorias|ofertas do dia|selecionar produto|ver carrinho|finalizar (?:pedido|compra))$/i.test(action.message));
+    return !(action.kind === "message" && /^(?:\/(?:atalhos|atendente)|falar com atendente|menu|ver produtos|encontrar produto|categorias|ofertas do dia|selecionar produto|ver carrinho|finalizar (?:pedido|compra))$/i.test(message));
   }) };
   const browsing: MetaUiChoice[] = [
     { label: "Ver produtos", action: tool("search_products", { query: "*" }) },

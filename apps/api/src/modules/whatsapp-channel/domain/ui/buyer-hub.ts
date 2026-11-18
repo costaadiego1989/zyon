@@ -11,6 +11,7 @@ export const BUYER_HUB_COMMANDS = [
   { command: "/dados", label: "👤 Meus dados", protected: true },
   { command: "/enderecos", label: "📍 Meus endereços", protected: true },
   { command: "/ajuda", label: "💬 Ajuda da loja", message: "Quero tirar uma dúvida sobre a loja" },
+  { command: "/atendente", label: "Falar com atendente", message: "Falar com atendente" },
 ] as const;
 
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();

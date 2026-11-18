@@ -23,7 +23,7 @@ export function createSupportHandlers(deps: SupportHandlerDeps, ctx: ToolRequest
     },
 
     escalateToHuman: async (args: any) => {
-      const result = await deps.supportHandoff.createHandoff({
+      const result = await deps.supportHandoff.createToolHandoff({
         merchantId: ctx.merchantId,
         sessionId: ctx.sessionId,
         buyerMessage: args.reason || "Solicitação de atendimento humano",

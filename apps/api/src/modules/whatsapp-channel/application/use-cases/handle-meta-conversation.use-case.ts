@@ -168,6 +168,13 @@ export class HandleMetaConversationUseCase {
         (input.interactiveId || !state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0))) action = { kind: "message", message: "/atalhos" };
       if (action?.kind === "message" && /^(ver carrinho|finalizar compra|finalizar pedido|continuar checkout|continuar comprando|ver produtos)$/i.test(action.message.trim())) action = metaStoreQuickReplyAction(action.message, state) ?? action;
 
+      const mainMenu=state.view?.blocks.some(block=>block.type==="buyer_hub_actions"&&block.data.scope==="main_menu");
+      const currentMapping=input.interactiveId?state.selections?.[input.interactiveId]===action
+        :!state.expectsFreeInput&&numeric>=1&&state.numericSelections?.[numeric-1]===action;
+      if(mainMenu&&currentMapping&&!invalidSelection&&action?.kind==="message"&&action.message==="Falar com atendente") {
+        const selectedNotice=await this.humanIntake?.requestSelectedHumanAction();
+        if(selectedNotice){await this.sendHandoffNotice(input,route,selectedNotice);return;}
+      }
       const revision = claim.id;
       let view: MetaUiView | undefined = state.view ? { ...state.view, stage: state.view.stage ?? state.stage } : undefined;
       if (recoveredView) {
@@ -260,6 +267,8 @@ export class HandleMetaConversationUseCase {
         if (view) state = { ...state, previousViews: [...state.previousViews, view].slice(-6) };
         view = withMetaProductNavigation(buildMetaUiView(response), view, state); state.page = 0;
       }
+      const confirmed=this.humanIntake?.takeNotice();
+      if(confirmed){await this.sendHandoffNotice(input,route,confirmed);return;}
       if (!view) throw new Error("whatsapp_ui_view_missing");
       // Returning to an archived welcome restores its text and controls. Its
       // original clip belongs to the first greeting, not every Back selection.

@@ -22,12 +22,18 @@ export function assertOwnedContainer(info, id, runId) {
   assert.equal(info.Name, `/aacp-write-db-${runId}`);
 }
 
-export function assertIsolatedPostgresContainer(info, id, runId) {
+export function localPostgresPidsLimit(value = 128) {
+  assert.ok(value === 128 || value === 256, "unsupported_disposable_postgres_pids_limit");
+  return value;
+}
+
+export function assertIsolatedPostgresContainer(info, id, runId, requestedPidsLimit) {
   assertOwnedContainer(info, id, runId);
   assert.equal(info.HostConfig.NetworkMode, "none");
   assert.equal(info.HostConfig.ReadonlyRootfs, true);
   assert.equal(Object.keys(info.HostConfig.PortBindings ?? {}).length, 0);
   assert.ok(info.Mounts.every(mount => mount.Type === "tmpfs"), "host_or_volume_mount_forbidden");
+  if (requestedPidsLimit !== undefined) assert.equal(info.HostConfig.PidsLimit, localPostgresPidsLimit(requestedPidsLimit), "owned_postgres_pids_limit_mismatch");
 }
 
 /** Explicit test-only TCP facade; Docker never publishes a port or joins a network. */
@@ -102,8 +108,9 @@ export async function openOwnedPostgresBridge({ id, runId, context, endpoint, en
 /** Explicit local harness only: no URL/env-file connection or host PostgreSQL. */
 export async function createDisposablePostgres(options = {}) {
   assert.ok(options && typeof options === "object" && !Array.isArray(options));
-  assert.ok(Object.keys(options).every(key => key === "transport" || key === "profile"), "unknown_disposable_postgres_option");
+  assert.ok(Object.keys(options).every(key => key === "transport" || key === "profile" || key === "pidsLimit"), "unknown_disposable_postgres_option");
   const profile = localPostgresProfile(options.profile);
+  const pidsLimit = localPostgresPidsLimit(options.pidsLimit);
   const transport = options.transport ?? "unix";
   assert.ok(transport === "unix" || transport === "loopback-exec", "unsupported_disposable_postgres_transport");
   const env = dockerEnvironment(process.env);
@@ -125,7 +132,11 @@ export async function createDisposablePostgres(options = {}) {
   const runId = randomUUID();
   const name = `aacp-write-db-${runId}`;
   let id, bridge, createAttempted = false;
-  const inspect = async () => JSON.parse(await docker(["inspect", id]))[0];
+  const inspect = async () => {
+    const actual = JSON.parse(await docker(["inspect", id]))[0];
+    assert.equal(actual.HostConfig.PidsLimit, pidsLimit, "owned_postgres_pids_limit_mismatch");
+    return actual;
+  };
   const dispose = async () => {
     let bridgeError;
     try { await bridge?.close(); } catch (error) { bridgeError = error; }
@@ -134,6 +145,7 @@ export async function createDisposablePostgres(options = {}) {
       try {
         const created = JSON.parse(await docker(["inspect", name]))[0];
         assertOwnedContainer(created, created.Id, runId);
+        assert.equal(created.HostConfig.PidsLimit, pidsLimit, "owned_postgres_pids_limit_mismatch");
         id = created.Id;
       } catch (error) {
         if (error.stderr?.includes("No such object") || error.stderr?.includes("No such container")) {
@@ -160,7 +172,7 @@ export async function createDisposablePostgres(options = {}) {
     createAttempted = true;
     id = await docker(["create", "--pull=never", "--name", name,
       "--label", `com.zyon.storefront-write-test=${runId}`, "--network", "none", "--read-only", "--user", `${profile.uid}:${profile.uid}`,
-      "--memory", "512m", "--cpus", "1", "--pids-limit", "128", "--security-opt", "no-new-privileges", "--cap-drop", "ALL",
+      "--memory", "512m", "--cpus", "1", "--pids-limit", String(pidsLimit), "--security-opt", "no-new-privileges", "--cap-drop", "ALL",
       "--tmpfs", `/var/lib/postgresql/data:rw,size=256m,uid=${profile.uid},gid=${profile.uid},mode=0700`,
       "--tmpfs", `/var/run/postgresql:rw,size=16m,uid=${profile.uid},gid=${profile.uid}`, "--tmpfs", "/tmp:rw,size=16m",
       "--env", "POSTGRES_HOST_AUTH_METHOD=trust", "--env", "POSTGRES_DB=storefront_synthetic",
@@ -181,7 +193,7 @@ export async function createDisposablePostgres(options = {}) {
     }
     assert.ok(ready, "disposable_postgres_not_ready");
     const info = await inspect();
-    assertIsolatedPostgresContainer(info, id, runId);
+    assertIsolatedPostgresContainer(info, id, runId, pidsLimit);
     const sql = (query) => docker(["exec", "--interactive", id, "psql", "--no-psqlrc", "--quiet", "--tuples-only", "--no-align",
       "--username=postgres", "--dbname=storefront_synthetic", "--set=ON_ERROR_STOP=1", "--set=VERBOSITY=verbose"],
       `SET statement_timeout='12s'; SET lock_timeout='4s'; SET standard_conforming_strings=on;\n${query}`);
@@ -216,7 +228,7 @@ export async function createDisposablePostgres(options = {}) {
         if (/No such (?:object|container)/i.test(String(error.stderr ?? ""))) return { exists: false, id: ownedId, runId };
         throw error;
       }
-      assertIsolatedPostgresContainer(actual, ownedId, runId);
+      assertIsolatedPostgresContainer(actual, ownedId, runId, pidsLimit);
       if (profile.name === "pgvector16") assertPgvectorContainer(actual);
       const mounts = actual.Mounts.map(mount => ({ type: mount.Type,
         destination: mount.Destination, readOnly: mount.RW === false }));

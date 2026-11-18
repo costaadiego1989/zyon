@@ -11,10 +11,14 @@ export interface VerifiedWhatsAppTurn {
   origin: "text" | "button" | "voice";
 }
 
+export interface ConfirmedWhatsAppHandoffNotice {
+  confirmed: true; reply: string; ticketId: string; bindingId: string; epoch: number;
+}
+
 /** Filled by the authenticated inbox pipeline, never model or HTTP arguments. */
 @Injectable()
 export class WhatsAppTurnContext {
-  private readonly storage = new AsyncLocalStorage<{ turn: Readonly<VerifiedWhatsAppTurn> }>();
+  private readonly storage = new AsyncLocalStorage<{ turn: Readonly<VerifiedWhatsAppTurn>; notice?: Readonly<ConfirmedWhatsAppHandoffNotice>; denial?: Readonly<{confirmed:false;reply:string}>; noticeTaken?: boolean }>();
   current(): Readonly<VerifiedWhatsAppTurn> | undefined { return this.storage.getStore()?.turn; }
   run<T>(turn: VerifiedWhatsAppTurn, work: () => T): T {
     return this.storage.run({ turn: Object.freeze({ ...turn, scope: Object.freeze({ ...turn.scope }) }) }, work);
@@ -23,6 +27,29 @@ export class WhatsAppTurnContext {
     const turn = this.current();
     if (!turn) throw new Error("whatsapp_turn_context_required");
     return this.run({ ...turn, message, origin }, work);
+  }
+  /** Only the canonical handoff service supplies its actual SQL result. This
+   * remembered reply is not send authority; the existing notice fence still
+   * verifies original inbox/case/epoch/config/window at request initiation. */
+  confirmHandoff(value: Omit<ConfirmedWhatsAppHandoffNotice, "confirmed">): void {
+    const store=this.storage.getStore();if(!store)throw Error("whatsapp_turn_context_required");
+    if(![value.ticketId,value.bindingId].every(id=>typeof id==="string"&&id.trim()===id&&id.length>0&&id.length<=191)
+      ||typeof value.reply!=="string"||!value.reply.trim()||value.reply.length>7900
+      ||!Number.isSafeInteger(value.epoch)||value.epoch<1||value.epoch>2_147_483_647)throw Error("whatsapp_handoff_notice_invalid");
+    const notice=Object.freeze({confirmed:true as const,reply:value.reply,ticketId:value.ticketId,bindingId:value.bindingId,epoch:value.epoch});
+    if(store.notice&&JSON.stringify(store.notice)!==JSON.stringify(notice))throw Error("whatsapp_handoff_notice_changed");
+    if(!store.notice)store.notice=notice;
+  }
+  rejectHandoff(intent: "clarify" | "not_requested"): void {
+    const store=this.storage.getStore();if(!store)throw Error("whatsapp_turn_context_required");
+    if(store.notice||store.noticeTaken)return;
+    store.denial=Object.freeze({confirmed:false as const,reply:intent==="clarify"
+      ? "🤖 *Atendimento humano*\n\nVocê quer falar com um atendente da equipe da loja?"
+      : "🤖 *Conversa mantida*\n\nSeu atendimento continua por aqui. Não abri um chamado para a equipe."});
+  }
+  takeHandoffNotice(): Readonly<ConfirmedWhatsAppHandoffNotice | {confirmed:false;reply:string}> | undefined {
+    const store=this.storage.getStore();if(!store||!store.notice&&!store.denial||store.noticeTaken)return;
+    store.noticeTaken=true;return store.notice??store.denial;
   }
   /** Called only after the media adapter's typed result and exact turn scope. */
   authorizeSpeech(message: string): void {

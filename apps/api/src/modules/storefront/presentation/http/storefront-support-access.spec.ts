@@ -29,7 +29,7 @@ test("guest support claim requires both private conversation capability and auth
 
 test("handoff tool ignores model-supplied ownership and uses verified conversation context", async () => {
   const calls: unknown[] = [];
-  const deps = { supportHandoff: { createHandoff: async (input: unknown) => { calls.push(input); return { ticketId: "ticket", reply: "Aberto" }; } } } as never;
+  const deps = { supportHandoff: { createToolHandoff: async (input: unknown) => { calls.push(input); return { ticketId: "ticket", reply: "Aberto" }; } } } as never;
   const args = { reason: "Não encontrei o produto", buyerId: "victim", merchantId: "foreign", sessionId: "foreign" };
   await createSupportHandlers(deps, { merchantId: "merchant", sessionId: "conversation", userMessage: "Falar com humano", buyer: { globalUserId: "verified_buyer" } }).escalateToHuman(args);
   await createSupportHandlers(deps, { merchantId: "merchant", sessionId: "guest" }).escalateToHuman(args);

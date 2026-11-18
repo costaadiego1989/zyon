@@ -9,6 +9,7 @@ import { ConflictException } from "@nestjs/common";
 import { PrismaWhatsAppWebhookInbox } from "./prisma-whatsapp-webhook-inbox.repository.js";
 import { AcceptBubbleWhatsWebhookUseCase } from "../../application/use-cases/accept-bubblewhats-webhook.use-case.js";
 import { WhatsAppWebhookWorker } from "../../application/services/whatsapp-webhook-worker.service.js";
+import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 import { HandleIncomingMessageUseCase } from "../../application/use-cases/handle-incoming-message.use-case.js";
 import { SendWhatsAppResponseUseCase } from "../../application/use-cases/send-whatsapp-response.use-case.js";
 import type { WhatsAppInboxEvent } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
@@ -156,12 +157,12 @@ describe("BubbleWhats durable inbox (PostgreSQL)", { skip: !clientPath || !datab
       execute: async () => ({ whatsappSession: { id: "session-1", checkoutSessionId: "checkout-1", currentOptions: [], previousOptions: [], currentPage: 0 } }),
     } as any, new SendWhatsAppResponseUseCase(sender, delivery),
     { updateMenuState: async () => {} } as any, { respond: async () => ({ agentMessage: "Resposta do checkout", quickReplies: [] }) });
-    const worker = () => new WhatsAppWebhookWorker(new PrismaWhatsAppWebhookInbox(prisma), { findById: async () => config } as any, incoming, {} as any, delivery);
+    const worker = () => new WhatsAppWebhookWorker(new PrismaWhatsAppWebhookInbox(prisma), { findById: async () => config } as any, incoming, {} as any, delivery, new TenantContextService());
     await worker().drain();
     let stored = (await rows())[0];
     assert.equal(stored.status, "pending");
     assert.equal(stored.attempts, 1);
-    assert.equal(stored.lastError, "whatsapp_inbox_processing_failed");
+    assert.equal(stored.lastError, "whatsapp_send_rejected");
     await prisma.whatsAppWebhookInbox.update({ where: { id: stored.id }, data: { availableAt: new Date(0) } });
     await worker().drain();
     stored = (await rows())[0];
@@ -175,7 +176,7 @@ describe("BubbleWhats durable inbox (PostgreSQL)", { skip: !clientPath || !datab
     let enabled = false;
     let messages = 0;
     const worker = new WhatsAppWebhookWorker(repository, { findById: async () => ({ ...config, enabled }) } as any,
-      { execute: async () => { messages++; } } as any, {} as any, { process: async (_claim: unknown, run: () => Promise<void>) => run() } as any);
+      { execute: async () => { messages++; } } as any, {} as any, { process: async (_claim: unknown, run: () => Promise<void>) => run() } as any, new TenantContextService());
     await worker.drain();
     const stored = (await rows())[0];
     assert.equal(stored.status, "pending");

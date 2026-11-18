@@ -119,7 +119,9 @@ export async function createServiceTestRuntime(options){
       else if(message?.type==='failure'){const error=new Error(message.code??'service_worker_failed');preflightReject(error);readyReject(error);closeReject(error);}
     });
     workerExited=new Promise(resolve=>worker.once('close',(code,signal)=>resolve({code,signal})));
-    worker.on('exit',code=>{if(!appEvidence){const error=new Error(`service_worker_exit_before_ready:${code}:${stderr.slice(-4000)}`);
+    worker.on('exit',(code,signal)=>{if(!appEvidence){
+      console.error('service_worker_before_ready_diagnostic',JSON.stringify({pid:worker.pid,code,signal,lastStage}));
+      const error=new Error(`service_worker_exit_before_ready:${code}:${stderr.slice(-4000)}`);
       preflightReject(error);readyReject(error);}if(code!==0)closeReject(new Error(`service_worker_exit:${code}`));});
     let info,timings;
     try{({info,timings}=await awaitServiceStartup(preflight,ready));}

@@ -10,6 +10,7 @@ import { HandleIncomingMessageUseCase, type IncomingMessageInput } from "../use-
 import { HandleStatusUpdateUseCase, type StatusUpdateInput } from "../use-cases/handle-status-update.use-case.js";
 
 import { WhatsAppDeliveryService, WhatsAppDeliveryUncertainError } from "./whatsapp-delivery.service.js";
+import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 
 const POLL_INTERVAL_MS = 1_000;
 /** When a poll keeps failing, back off so a misconfigured DB doesn't flood logs. */
@@ -33,7 +34,8 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
     @Inject(WHATSAPP_CONFIG_REPOSITORY) private readonly configRepo: WhatsAppConfigRepository,
     private readonly handleMessage: HandleIncomingMessageUseCase,
     private readonly handleStatus: HandleStatusUpdateUseCase,
-    private readonly delivery?: WhatsAppDeliveryService,
+    @Inject(WhatsAppDeliveryService) private readonly delivery: WhatsAppDeliveryService | undefined,
+    private readonly tenant: TenantContextService,
   ) {}
 
   onModuleInit(): void {
@@ -120,19 +122,23 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
           throw new Error(errorCode);
         }
         if (leaseLost) throw new Error("whatsapp_inbox_lease_lost");
-        if (claim.kind === "message") {
-          const payload = claim.payload as IncomingMessageInput & { ignored?: boolean };
-          if (!payload.ignored) {
-            if (payload.provider === "META_CLOUD") await this.handleMessage.execute({ ...payload, inboxClaim: claim });
-            else {
-              if (!this.delivery) throw new Error("whatsapp_delivery_not_configured");
-              await this.delivery.process(claim, () => this.handleMessage.execute(payload), () => this.inbox.renew(claim),
-                authority => this.handleMessage.recordSuppressed(claim, authority));
+        // This background claim owns its verified merchant, never ambient or
+        // payload auth. The technical context grants no human/operator identity.
+        await this.tenant.run({ merchantId: config.merchantId, userId: "whatsapp-inbox", role: "buyer", correlationId: claim.id }, async () => {
+          if (claim.kind === "message") {
+            const payload = claim.payload as IncomingMessageInput & { ignored?: boolean };
+            if (!payload.ignored) {
+              if (payload.provider === "META_CLOUD") await this.handleMessage.execute({ ...payload, inboxClaim: claim });
+              else {
+                if (!this.delivery) throw new Error("whatsapp_delivery_not_configured");
+                await this.delivery.process(claim, () => this.handleMessage.execute(payload), () => this.inbox.renew(claim),
+                  authority => this.handleMessage.recordSuppressed(claim, authority));
+              }
             }
+          } else {
+            await this.handleStatus.execute(claim.payload as StatusUpdateInput);
           }
-        } else {
-          await this.handleStatus.execute(claim.payload as StatusUpdateInput);
-        }
+        });
         if (leaseLost || !await this.inbox.complete(claim)) {
           this.logger.warn(`whatsapp_inbox_completion_lease_lost id=${claim.id}`);
         }

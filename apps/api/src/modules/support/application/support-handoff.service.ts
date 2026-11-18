@@ -2,7 +2,7 @@ import { admitWhatsAppEffectInTransaction } from "../../../shared/whatsapp/whats
 /**
  * SUPP-H3: Handoff logic — ticket creation + message formatting.
  */
-import { Inject, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
@@ -17,6 +17,7 @@ import { SupportTicketEventPublisher } from "./support-ticket-event.publisher.js
 import { productQuestionIntakeSchema, productQuestionMessageMetadataSchema, type BuyerProductQuestion } from "../domain/product-question-history.js";
 import { PrismaWhatsAppHandoffRepository } from "../../whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.js";
 import { WhatsAppTurnContext } from "../../whatsapp-channel/domain/services/whatsapp-turn-context.js";
+import { humanEscalationIntent } from "../../whatsapp-channel/domain/services/whatsapp-human-intent.js";
 import { persistWhatsAppSupportIntake, type WhatsAppSupportIntake } from "./whatsapp-support-intake.js";
 
 export interface HandoffInput {
@@ -46,6 +47,17 @@ export class SupportHandoffService {
     @Optional() private readonly whatsappTurn?: WhatsAppTurnContext,
   ) {}
 
+  /** The ordinary model tool has no authority from its reason/summary.
+   * Non-WhatsApp behavior and explicit professional referral remain separate. */
+  async createToolHandoff(input: HandoffInput): Promise<HandoffResult> {
+    const turn=this.whatsappTurn?.current();
+    const intent=turn?humanEscalationIntent(turn.message):"request";
+    if(turn&&intent!=="request"){
+      this.whatsappTurn!.rejectHandoff(intent);throw new BadRequestException("whatsapp_human_request_not_confirmed");
+    }
+    return this.createHandoff(input);
+  }
+
   async createHandoff(
     input: HandoffInput,
     contextReply?: string,
@@ -53,7 +65,9 @@ export class SupportHandoffService {
     const turn = this.whatsappTurn?.current();
     if (turn) {
       if (turn.scope.merchantId !== input.merchantId) throw new ServiceUnavailableException("whatsapp_handoff_scope_mismatch");
-      return this.createWhatsAppHandoff({ ...turn, message: turn.message });
+      const result=await this.createWhatsAppHandoff({ ...turn, message: turn.message });
+      this.whatsappTurn!.confirmHandoff({reply:result.reply,ticketId:result.ticketId,bindingId:result.binding.id,epoch:result.binding.epoch});
+      return result;
     }
     if (this.prisma) return this.persistHandoff(input, contextReply);
     const ticket = await this.tickets.save(

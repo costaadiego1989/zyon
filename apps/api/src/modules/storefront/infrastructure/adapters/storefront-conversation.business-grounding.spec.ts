@@ -163,3 +163,21 @@ test("T71 required live response with an absent or failed tool selection cannot 
     assert.deepEqual(f.records[0].admission.evidence, []);
   }
 });
+
+test("T57 professional referral preserves canonical handoff when ordinary tool admission refuses", async t => {
+  const f = await fixture(t); f.kind("professional_decision");
+  const service = (f.adapter as unknown as { handlerDeps: { supportHandoff: SupportHandoffService } }).handlerDeps.supportHandoff;
+  Object.defineProperty(service, "createToolHandoff", { value: async () => {
+    throw Error("ordinary_tool_must_not_own_professional_referral");
+  } });
+  const result = await f.reply({ userMessage: "Que tratamento devo seguir?", cartId: "preserved-product-cart" });
+  const tickets = await f.tickets.list(merchantId);
+  assert.equal(tickets.length, 1);
+  assert.equal(tickets[0]!.merchantId, merchantId);
+  assert.equal(tickets[0]!.sessionId, "turn");
+  assert.equal(tickets[0]!.buyerMessage, "Decisão profissional individual: Que tratamento devo seguir?");
+  assert.match(result.message, /Referência:/);
+  assert.equal(result.cartId, "preserved-product-cart");
+  assert.deepEqual(result.blocks, []);
+  assert.equal(f.runContexts.length, 0);
+});

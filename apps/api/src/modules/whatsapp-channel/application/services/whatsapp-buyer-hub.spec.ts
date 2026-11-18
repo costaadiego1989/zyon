@@ -32,9 +32,9 @@ test("HUB-01 root registry produces executable native shortcuts and retains curr
   assert.deepEqual(result.response.quickReplies, BUYER_HUB_COMMANDS.map(c => c.label));
   assert.deepEqual(result.response.state.payment, before.payment); assert.equal(result.response.state.checkoutSessionId, before.checkoutSessionId);
   const view = buildMetaUiView(result.response);
-  assert.equal(withMetaCartNavigation(view, true).choices.length, 9);
+  assert.equal(withMetaCartNavigation(view, true).choices.length, 10);
   const shown = presentMetaUi(view, "root", 0, { canGoBack: true });
-  assert.equal(shown.totalPages, 1); assert.equal(shown.numericSelections.length, 9);
+  assert.equal(shown.totalPages, 1); assert.equal(shown.numericSelections.length, 10);
   assert.equal(shown.numericSelections.some(action => action.kind === "back"), false);
   assert.match(result.response.agentMessage, /Escolha o que deseja fazer no menu abaixo/);
   assert.doesNotMatch(result.response.agentMessage, /digite|\/atalhos/);

@@ -7,10 +7,16 @@ export function validateServedModelScript(value){
   const steps=structuredClone(value);
   for(const step of steps){
     assert.ok(step&&typeof step==='object'&&!Array.isArray(step));
-    assert.ok(Object.keys(step).every(key=>['phase','response','toolCall','hold'].includes(key)));
+    assert.ok(Object.keys(step).every(key=>['phase','response','toolCall','humanToolCall','hold'].includes(key)));
     assert.ok(phases.has(step.phase));assert.ok(step.hold===undefined||typeof step.hold==='boolean');
-    assert.equal(Object.hasOwn(step,'response'),!Object.hasOwn(step,'toolCall'));
-    if(Object.hasOwn(step,'toolCall'))assert.equal(step.phase,'storefront.sales');
+    assert.equal(['response','toolCall','humanToolCall'].filter(key=>Object.hasOwn(step,key)).length,1);
+    if(Object.hasOwn(step,'toolCall')||Object.hasOwn(step,'humanToolCall'))assert.equal(step.phase,'storefront.sales');
+    if(Object.hasOwn(step,'humanToolCall')){
+      const call=step.humanToolCall;
+      assert.ok(call&&typeof call==='object'&&!Array.isArray(call));
+      assert.deepEqual(Object.keys(call),['reason']);
+      assert.ok(typeof call.reason==='string'&&call.reason.trim().length>0&&call.reason.length<=2000);
+    }
     assert.ok(JSON.stringify(step).length<=6000,'local_model_script_step_bounded');
   }
   assert.ok(JSON.stringify(steps).length<=6500,'local_model_script_total_bounded');return steps;

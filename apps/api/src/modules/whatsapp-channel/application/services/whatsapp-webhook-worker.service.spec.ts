@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
 import { WhatsAppWebhookWorker } from "./whatsapp-webhook-worker.service.js";
+import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 
 /**
  * Regression coverage for the worker's log-back-off policy.
@@ -18,7 +19,7 @@ describe("WhatsAppWebhookWorker log back-off", () => {
     const handleMessage = { execute: mock.fn(async () => undefined) } as never;
     const handleStatus = { execute: mock.fn(async () => undefined) } as never;
     const configRepo = { findById: async () => null } as never;
-    return new WhatsAppWebhookWorker(inbox as never, configRepo, handleMessage, handleStatus);
+    return new WhatsAppWebhookWorker(inbox as never, configRepo, handleMessage, handleStatus, undefined, new TenantContextService());
   }
 
   // The worker's drain() de-duplicates concurrent calls (only one batch runs

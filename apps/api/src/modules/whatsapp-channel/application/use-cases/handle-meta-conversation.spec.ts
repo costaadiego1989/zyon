@@ -174,7 +174,8 @@ for (const mode of ['native', 'numeric', 'typed', 'legacy-native', 'archived-leg
   const next = f.route.whatsappSession.conversationState;
   assert.equal(next.conversationId, 'conv1'); assert.equal(next.payment.intentId, 'pending-payment');
   assert.deepEqual(next.history.slice(0, 1), state.history);
-  assert.equal(next.numericSelections.length, 9); assert.equal(next.page, 0);
+  assert.equal(next.numericSelections.length, 10); assert.equal(next.page, 0);
+  assert.equal(next.numericSelections.filter((action: any) => action.kind === "message" && action.message === "Falar com atendente").length, 1);
   assert.ok(!next.numericSelections.some((a: any) => ['back', 'catalog_options', 'page'].includes(a.kind)));
   assert.ok(f.emitted.every(m => m.type !== 'image'));
   assert.ok(f.emitted.some(m => /Menu principal/.test(messageBody(m))));

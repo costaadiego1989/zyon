@@ -39,6 +39,13 @@ export class WhatsAppHumanIntakeService {
   }
 
   currentClaim() { return this.delivery.currentClaim(); }
+  takeNotice() { return this.context.takeHandoffNotice(); }
+  /** Called only after the pipeline resolved the fixed human action from the
+   * CURRENT persisted main-menu selection mapping. No action/body is admitted. */
+  requestSelectedHumanAction(): Promise<WhatsAppHumanNotice | undefined> {
+    const turn=this.context.current();if(!turn)return Promise.resolve(undefined);
+    return this.context.withMessage(turn.message,turn.origin==="voice"?"voice":"button",()=>this.persistCurrent());
+  }
 
   async requestVoice(input: IncomingMessageInput, interpreted: MetaInboundMediaResult | undefined): Promise<WhatsAppHumanNotice | undefined> {
     const turn = this.context.current();

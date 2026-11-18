@@ -119,7 +119,8 @@ test("the persisted incoming pipeline greets by name and opens the main menu fro
     { sendUi: async (request: any) => { emitted.push(request.uiMessage); return { status: "sent", messageId: "sent-" + emitted.length }; } } as any);
   await pipeline.execute(input, route);
   assert.ok(emitted.some(m => /Diego/.test(asText(m))));
-  assert.equal(route.whatsappSession.conversationState.numericSelections.length, 9);
+  assert.equal(route.whatsappSession.conversationState.numericSelections.length, 10);
+  assert.equal(route.whatsappSession.conversationState.numericSelections.filter((action: any) => action.kind === "message" && action.message === "Falar com atendente").length, 1);
   assert.equal(claim.responseState.phase, "complete");
   input.body = "Quero conhecer a loja"; input.inboxClaim = { ...claim, id: "question", responseState: undefined }; claim.responseState = undefined;
   await pipeline.execute(input, route);
@@ -128,7 +129,8 @@ test("the persisted incoming pipeline greets by name and opens the main menu fro
   input.body = "Menu principal"; input.interactiveId = menuId;
   input.inboxClaim = { ...claim, id: "open-menu", responseState: undefined }; claim.responseState = undefined;
   await pipeline.execute(input, route);
-  assert.equal(route.whatsappSession.conversationState.numericSelections.length, 9);
+  assert.equal(route.whatsappSession.conversationState.numericSelections.length, 10);
+  assert.equal(route.whatsappSession.conversationState.numericSelections.filter((action: any) => action.kind === "message" && action.message === "Falar com atendente").length, 1);
   assert.equal(f.calls.length, 1, "only the store question invokes the model; hello and menu are deterministic");
   assert.equal(route.whatsappSession.conversationState.conversationId, initial.conversationId);
   assert.ok(emitted.some(m => m.type === "interactive" && m.interactive.type === "list" && m.interactive.action.button === "Menu principal"));

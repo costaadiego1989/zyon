@@ -134,7 +134,7 @@ export class HandleIncomingMessageUseCase {
     const claim = input.inboxClaim ?? this.humanIntake?.currentClaim();
     if (this.aiFence) {
       if (!claim) throw new Error("whatsapp_turn_context_required");
-      try { await this.aiFence.run(claim, () => this.processAiRouted(input, route)); }
+      try { await this.aiFence.run(claim, () => this.processAiWithNotice(input, route)); }
       catch (error) {
         if (!(error instanceof WhatsAppAiSuppressedError)) throw error;
         // Preserve authenticated input for the exact human case when one now
@@ -145,7 +145,7 @@ export class HandleIncomingMessageUseCase {
       }
       return;
     }
-    await this.processAiRouted(input, route);
+    await this.processAiWithNotice(input, route);
   }
 
   /** Called by the durable delivery owner as well as the live pipeline. It
@@ -176,6 +176,16 @@ export class HandleIncomingMessageUseCase {
       return;
     }
     return this.aiFence.notice(claim, authority, notice, send);
+  }
+
+  private async processAiWithNotice(input: IncomingMessageInput, route: RouteResult): Promise<void> {
+    try { await this.processAiRouted(input,route); }
+    catch(error) {
+      // A tool may have canonically handed off before ordinary generation is
+      // suppressed by the changed epoch. Consume once inside original context.
+      const notice=this.humanIntake?.takeNotice();if(!notice)throw error;
+      await this.sendNotice(input,route,notice);
+    }
   }
 
   private async processAiRouted(input: IncomingMessageInput, route: RouteResult): Promise<void> {
@@ -238,6 +248,8 @@ export class HandleIncomingMessageUseCase {
     const engineResponse = await this.conversation.respond({
       merchantId: input.merchantId, checkoutSessionId: session.checkoutSessionId, message: textForEngine,
     });
+    const confirmed=this.humanIntake?.takeNotice();
+    if(confirmed){await this.sendNotice(input,route,confirmed);return;}
     const quickReplies: string[] = engineResponse.quickReplies;
     const agentText: string = engineResponse.agentMessage;
 

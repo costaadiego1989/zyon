@@ -1,0 +1,2181 @@
+{
+  "task": "T57",
+  "status": "Complete: T57 local Full gate passed with current own9850/4612 checks/build, retained unaffected304/wire1/native109 by exact emitted/default equivalence, capacity25/protectedDB9/normal48/widget176 passed. Overall feature and final independent verification remain incomplete.",
+  "completed": true,
+  "baseHead": "b25d054ea34f26dd59b72e1894dcd689ea84f344",
+  "plan": ".specs/features/whatsapp-service-booking-business-rag/task-57-plan.md",
+  "receipts": {
+    "quick": {
+      "path": ".cache/t57-full-gates/2026-11-18T12-10-29.579Z/receipt.json",
+      "sha256": "083e4395ae814074ef1eb1566ba4c83315d9503b2dce36b620d5fa1c25ca36d0",
+      "status": "passed_natural_exit0",
+      "startedAtUtc": "2026-11-18T12:10:29.587Z",
+      "finishedAtUtc": "2026-11-18T12:11:03.184Z",
+      "children": [
+        {
+          "label": "components",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T12-10-29.579Z\\components.log",
+          "logSha256": "25ea8756c8dbb1731dd8b288661df23b6edca6fdb3605c87a2e27c4bd38f3dc6",
+          "tap": {
+            "tests": 275,
+            "pass": 275,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        }
+      ]
+    },
+    "lint": {
+      "path": ".cache/t57-full-gates/2026-11-18T12-11-15.242Z/receipt.json",
+      "sha256": "20b06b7295ede1a4236a618e07e82a5a27dc303668189635d60795d453a2d350",
+      "status": "passed_natural_exit0",
+      "startedAtUtc": "2026-11-18T12:11:15.260Z",
+      "finishedAtUtc": "2026-11-18T12:11:32.592Z",
+      "children": [
+        {
+          "label": "api-lint",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T12-11-15.242Z\\api-lint.log",
+          "logSha256": "7af2718db12f685f3d2fa32fbcf5ded2243a1ce7588acabac0feaa97e8123814"
+        }
+      ]
+    },
+    "types": {
+      "path": ".cache/t57-full-gates/2026-11-18T12-26-20.197Z/receipt.json",
+      "sha256": "f403204d661aa2a97e0bfc40b19405cd5ffb8f8ad6aab8c2fe9e74f264fc1c37",
+      "status": "passed_natural_exit0",
+      "startedAtUtc": "2026-11-18T12:26:20.203Z",
+      "finishedAtUtc": "2026-11-18T12:27:03.219Z",
+      "children": [
+        {
+          "label": "api-types",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T12-26-20.197Z\\api-types.log",
+          "logSha256": "818fe5999865f631f13c2fc66b918bc438b0ab81497498df14d9ae1b7c47b4c6"
+        }
+      ]
+    },
+    "checkedBuild": {
+      "path": ".cache/t57-full-gates/2026-11-18T12-27-19.212Z/receipt.json",
+      "sha256": "524e2e7d3e2ab7fc6b56409d0d53dc79194645e7170c2cf4536c3630f639fa59",
+      "status": "passed_natural_exit0",
+      "startedAtUtc": "2026-11-18T12:27:19.228Z",
+      "finishedAtUtc": "2026-11-18T12:29:46.392Z",
+      "children": [
+        {
+          "label": "capture",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T12-27-19.212Z\\capture.log",
+          "logSha256": "6033c9ded90766410777221fcf87cd89010a61026a166b22bace4cdefa9ca405"
+        },
+        {
+          "label": "api-build",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T12-27-19.212Z\\api-build.log",
+          "logSha256": "bf319d7b41a6f99ed946ce7bffce7f0182a6e6c389a1d43834e741663c3d0db1"
+        },
+        {
+          "label": "record",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T12-27-19.212Z\\record.log",
+          "logSha256": "7835d371754905f999a8f50043d07fcb5645d3527ad4b39b63a6a8c4439869d9"
+        }
+      ]
+    },
+    "firstNativeRed": {
+      "path": ".cache/t57-full-gates/2026-11-18T12-31-42.946Z/receipt.json",
+      "sha256": "2184c41539dd90be32583a263abb91cf789b64e5276c62ba1d079deb61e6f3ec",
+      "status": "failed",
+      "startedAtUtc": "2026-11-18T12:31:42.966Z",
+      "finishedAtUtc": "2026-11-18T12:41:07.901Z",
+      "children": [
+        {
+          "label": "whatsapp-human-model.integration.spec",
+          "status": "failed",
+          "code": 1,
+          "signal": null,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T12-31-42.946Z\\whatsapp-human-model.integration.spec.log",
+          "logSha256": "ed3b37dedca9b98060a05ce2f9f9cf2a2f164636101f6b5629c041bed69a0bcf",
+          "tap": {
+            "tests": 11,
+            "pass": 3,
+            "fail": 8,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        }
+      ]
+    },
+    "diagnosticRefusal": {
+      "path": ".cache/t57-full-gates/2026-11-18T12-42-55.774Z/receipt.json",
+      "sha256": "abf3acdea4dddbd715ec1b3de2d7883be479e32ddfac3d296e9a4f6b5b03a2ac",
+      "status": "ENVREFUSAL_BEFORE_CHILD",
+      "startedAtUtc": "2026-11-18T12:42:55.789Z",
+      "finishedAtUtc": "2026-11-18T12:43:06.562Z",
+      "children": []
+    }
+  },
+  "runtimeExplicitlyReturnedToRoot": false,
+  "noActiveOwnTestProcess": true,
+  "remainingNativeWholeFilesNotStarted": 12,
+  "productNormal48NotStarted": true,
+  "productWidget176NotStarted": true,
+  "noSkippedDeletedOrWeakenedTests": true,
+  "noProductionProviderOrCustomerAction": true,
+  "initialWholeNative": {
+    "tests": 11,
+    "pass": 3,
+    "fail": 8,
+    "skipped": 0,
+    "cancelled": 0,
+    "failedSemanticChildren": 7,
+    "failure": "synthetic_human_inbox_terminal:dead",
+    "underlyingCause": "unknown; no diagnostic invocation reached child",
+    "allTenFixtureNormalCleanupAssertionsCompleted": true
+  },
+  "observer": {
+    "receipt": ".cache/t57-diagnostic-observer-20261118/receipt.json",
+    "beforeFixtureSha256": "145e6468b853f8ba913b3e31960fdd9ae35ef5d0e6e75949d9858c948822c134",
+    "afterFixtureSha256": "ea62946c453d065b05393162daf6fb7e8e52654f1af1f9cb42cf6d60e4c8e858",
+    "inverseExact": true,
+    "unchangedNativeTestSha256": "c66d1d0428827f316963f2d92c962e24fa2eca7c98d346901b37ad5dd72f5da9",
+    "onlyStableSanitizedCodeAndBoundedEventKindPhaseCounts": true,
+    "diagnosticMjsExcludedFromProductionCompilationInputs": true,
+    "newCompilerNotRequiredAbsentProductiveChange": true
+  },
+  "remaining": "Await user approval of exact expectation patch5800783e original476->candidate105. Keep all old six cases/assertions and no Full claim until applied and whole current affected gates rerun. Root/Core33 owns next runtime. Later integrate only committed33 safely, current own real build/affectedQuick/native109+legacy9/products224 and focused57commit; old7230 never retagged.",
+  "sourceOnlyAuditAfterDiagnosticRefusal": {
+    "productiveOrFixtureMutations": 0,
+    "conclusion": "No mandatory canonical BuyerAccount/catalog/cart precondition violation proved for this phone-owned support path; keep original seed and all outcomes unchanged. Actual underlying cause remains unknown.",
+    "seedFacts": [
+      "BuyerIdentity and phone-owned CheckoutSession/WhatsAppSession exist; BuyerAccount/catalog product/variant/StorefrontCart do not.",
+      "Both identifiers accept bounded nonempty strings; no UUID or BuyerAccount FK requirement on the seeded BuyerIdentity/CheckoutSession schema.",
+      "Recognize may legitimately return unrecognized for a phone-only buyer; store use-case account hydration and history persistence are best-effort."
+    ],
+    "firstGuardRefs": [
+      "checkout-whatsapp-conversation.adapter.ts:124 hub reply returns before ordinary identity/session path",
+      "checkout-whatsapp-conversation.adapter.ts:128 reads checkout snapshot; fixture setup uses same toCheckoutSession projection",
+      "checkout-whatsapp-conversation.adapter.ts:140 recognize; whatsapp-checkout-identity.service.ts:89 absent account returns unrecognized",
+      "checkout-whatsapp-conversation.adapter.ts:227 routes current human discussion outside collector; 396 invokes same store use-case",
+      "send-store-message.use-case.ts:81 input schema; 216 context schema; no absent-account/catalog requirement",
+      "storefront-conversation.adapter.ts:233 ordinary agent prepare; store-langgraph-agent.ts:248 classification uses same injected provider"
+    ],
+    "bindingRefs": [
+      "whatsapp-channel.module.ts:108 real WhatsApp port uses CheckoutWhatsAppConversationAdapter",
+      "storefront.module.ts:131 storefront port uses existing StorefrontConversationAdapter",
+      "service-test-runtime.worker.mjs:125-138 installs and asserts StorefrontModule provider fixture",
+      "service-public-storefront-model-fixture.mjs:82-110 verifies actual StorefrontConversationAdapter and query/provider bindings"
+    ],
+    "terminalCodeLimitation": "Meta saves generating at114 before ordinary adapter work; a later attempt sees generating at112 and raises whatsapp_turn_result_unknown. Worker140/repository180-190 can replace an earlier pending lastError with terminal unknown. Final code alone may not expose original cause; a bounded history of already-sanitized observed lastError codes was proposed to Root, not implemented.",
+    "applicationImportsParsersTestsBuildsOrResourceProbes": 0
+  },
+  "firstErrorDiagnosticPrepared": {
+    "sourceOnlyAuditAcceptedByRoot": true,
+    "sameSeedAndBusinessGuards": true,
+    "beforeFixtureSha256": "145e6468b853f8ba913b3e31960fdd9ae35ef5d0e6e75949d9858c948822c134",
+    "afterFixtureSha256": "33ffbfa8a13a7300d782903e77834defe5d191ab565a8f68f304261202642fdc",
+    "inverseExact": true,
+    "unchangedTestFileSha256": "c66d1d0428827f316963f2d92c962e24fa2eca7c98d346901b37ad5dd72f5da9",
+    "maxUniqueSanitizedCodes": 3,
+    "maxModelEvents": 40,
+    "noAdditionalQueriesWaitsOrRetries": true,
+    "notExecutedYet": false
+  },
+  "actualFirstErrorDiagnostic": {
+    "receipt": ".cache/t57-full-gates/2026-11-18T12-54-39.638Z/receipt.json",
+    "receiptSha256": "accf6bfca26c6d2f38fdf38bcba18dbd6005b256480b4339b732e6a19ee62cc9",
+    "logSha256": "ad6dea9b48ff862f5faa072b44a1bfe777041aece9939f8aaf75ce79cd0adae4",
+    "naturalExitCode": 1,
+    "signal": null,
+    "tap": {
+      "tests": 11,
+      "pass": 2,
+      "fail": 7,
+      "cancelled": 2,
+      "skipped": 0,
+      "todo": 0
+    },
+    "observedSemanticFailures": 7,
+    "sameBoundedObservationInAllSeven": {
+      "code": "whatsapp_turn_result_unknown",
+      "observedCodes": [
+        "whatsapp_inbox_processing_failed",
+        "whatsapp_turn_result_unknown"
+      ],
+      "eventCounts": {
+        "queryEmbedding": 0,
+        "providerFetch": 1
+      },
+      "phases": {
+        "storefront.intent": 1,
+        "storefront.sales": 0,
+        "storefront.reply-review": 0
+      }
+    },
+    "rootBudgetMs": 600000,
+    "rootTimeoutAndLastChildCancelled": true,
+    "budgetNotChanged": true,
+    "normalCleanupBeforeClosedAckReports": 10,
+    "normalCleanupDisconnectedReports": 10,
+    "failureCleanupDiagnosticEmitted": false,
+    "noWholeGateSuccessClaim": true
+  },
+  "sourceCompositionDefectProposedBeforeEdits": {
+    "underlyingRawRuntimeExceptionNotCaptured": true,
+    "provenSourceGap": "Inbox worker has no TenantContext binding; business factory and knowledge-response audit require a matching tenant context. The verified webhook poll is independent of the HTTP request ALS.",
+    "refs": [
+      "whatsapp-webhook-worker.service.ts:25-35 constructor and108-143 verified claim processing have no TenantContext binding",
+      "service-business-answer.factory.ts:44 assertScope requires tenant.get merchant;65-93 open catches denial and yields unavailable",
+      "storefront-conversation.adapter.ts:274-276 captures unavailable admission and returns before sales model",
+      "send-store-message.use-case.ts:307-310 audits captured admission",
+      "knowledge-response-audit.service.ts:27-30 throws knowledge_audit_scope_mismatch for absent tenant",
+      "whatsapp-processing-error.ts maps that non-whatsapp message to genericcode",
+      "handle-meta-conversation.use-case.ts:112-114 generating prevents blind retry and later reports unknown"
+    ],
+    "minimalProposal": "Add a spec-derived worker scope regression first, then bind existing TenantContext only around handling an authenticated claim after current config/merchant/provider checks, using canonical checked merchant; preserve inbox/ALS/human/AI/request-start fences and phone-only seed. No implementation made yet.",
+    "noSeedBusinessGuardOrOracleChange": true
+  },
+  "causalRegressionBeforeFix": {
+    "test": "apps/api/src/modules/whatsapp-channel/application/services/whatsapp-webhook-worker.tenant.spec.ts",
+    "testSha256": "84edcbae69b1ba6e566b7820b5426ef2f7f66ea67efb2040735a6557ef473281",
+    "preparedCases": 6,
+    "usesActualTenantContextFactoryAndAudit": true,
+    "productiveWorkerUnchanged": true,
+    "oldArtifactStaleDueNewTsInput": true,
+    "expectedRedNotExecutedYet": false,
+    "plannedSmallGuardMiB": 1024,
+    "actualRed": {
+      "receipt": ".cache/t57-full-gates/2026-11-18T13-15-23.215Z/receipt.json",
+      "receiptSha256": "8d28627f05bed173b092063287c6ad038f355ababca831e109efe2e597d9ca76",
+      "logSha256": "5f7d26a1b40c5e0658a0fae598ed56f5043fd2f66e880d9cd61f019a7db20180",
+      "tests": 6,
+      "pass": 2,
+      "fail": 4,
+      "skipped": 0,
+      "cancelled": 0,
+      "exactActualAuditException": "knowledge_audit_scope_mismatch"
+    }
+  },
+  "minimalWorkerFix": {
+    "path": "apps/api/src/modules/whatsapp-channel/application/services/whatsapp-webhook-worker.service.ts",
+    "sha256": "4c3598b558cd05dc9e3720bcb6d3d21e7d0d08700b254be926321fabc651a341",
+    "canonicalContextAfterExistingGuards": true,
+    "fixedTechnicalIdentityOnly": true,
+    "noHumanAuthPrincipal": true,
+    "deliveryExplicitInjectPreserved": true,
+    "mechanicalReceipt": ".cache/t57-worker-scope-fix-20261118/receipt.json",
+    "mechanicalReceiptSha256": "90abc05d2c66f5ec94811afc03cffde7c96008005bc5adff2275b42094d836f4",
+    "greenGateNotExecutedYet": false,
+    "old64157ArtifactStale": true,
+    "legacyNineNativeCompanionMandatory": true,
+    "greenQuick": {
+      "receipt": ".cache/t57-full-gates/2026-11-18T13-20-22.590Z/receipt.json",
+      "receiptSha256": "093366a063dea9afafe63c2b2a097d109353d34b747ec2afca352319ffc3d7a9",
+      "logSha256": "18cc4539aa28aafc57ce6a95370ce9a90abd2e2fbdb86eac93485dcac72d0c76",
+      "tests": 301,
+      "pass": 301,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0
+    }
+  },
+  "currentAfterTenantFix": {
+    "lintReceipt": ".cache/t57-full-gates/2026-11-18T13-22-48.561Z/receipt.json",
+    "typesReceipt": ".cache/t57-full-gates/2026-11-18T13-23-10.504Z/receipt.json",
+    "checkedReceipt": ".cache/t57-full-gates/2026-11-18T13-26-28.825Z/receipt.json",
+    "checkedReceiptSha256": "210c5cd1ab86dbc64f21ccf4a597c760e98ead70e5065e2f14efea56322a6831",
+    "inputSha256": "7230b7b81b7d76940db1ab380ef3bccb2e3880ec3dd9a11daf440956aa0c4932",
+    "artifactSha256": "0183c10cbef8bdbfbb820c4ebceabfc30c0aa56ca6212ec199cc2eaa6c6e5e68",
+    "actualCompilerSourceCount": 2573,
+    "eachOrdinaryChildFresh5168Admitted": true
+  },
+  "legacyNineAdapterPrepared": {
+    "path": "apps/api/tests/whatsapp-inbox-owned-ready-prod.mjs",
+    "sha256": "2664129d095c781a9ea1d1920dab4c55b5280e3e3d6e047cc2d44064824ab0de",
+    "protectedHelpersUnmodified": true,
+    "constantOwnedCloneTupleAndMarkersRequired": true,
+    "nativeOriginalWhole9Required": true,
+    "notExecutedYet": true
+  },
+  "actualNativeAfterTenantFix": {
+    "receipt": ".cache/t57-full-gates/2026-11-18T13-31-27.070Z/receipt.json",
+    "receiptSha256": "562e5b7946352ea12ddcec8dee00c3d674b596349051886d03694a3c9e3fdca2",
+    "logSha256": "a9c03fb11d55c09204bad52b2df8dc08b82103a720f6b549bcd12657c0329333",
+    "naturalExitCode": 1,
+    "signal": null,
+    "tap": {
+      "tests": 11,
+      "pass": 3,
+      "fail": 8,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "inboxDeadNoLongerObserved": true,
+    "positiveTicketCount": 0,
+    "positiveExpectedTicketCountUnchanged": 1,
+    "negativeActualReplyMatchesScopeClarificationBranch": true,
+    "allTenFixturesNormalCleanupCompleted": true,
+    "otherTwelveNativeLegacyNineAndProductsNotStarted": true,
+    "firstCompositionFixNotTreatedAsWhole57Success": true
+  },
+  "caseFailureObserverPrepared": {
+    "receipt": ".cache/t57-case-failure-observer-20261118/receipt.json",
+    "receiptSha256": "0876d163197c673e84ce727be032431fa09fe25a8599002a93dbfbb69488bcb1",
+    "fixtureSha256": "481004747290d23654a3aa961a5cd2e09170872304278259834eca71dcea8048",
+    "integrationSha256": "1fd53e16ced17954ac902a0e9c3a387b80eef32e71597bf4e756c6e9dd2aab39",
+    "stripsToOriginalFixture145AndIntegrationC66": true,
+    "sameErrorAllOriginalAssertionsPreserved": true,
+    "boundedExistingModelEventsAndSyntheticClassifierEnumsOnly": true,
+    "newQueriesWaitsRetries": 0,
+    "notExecutedYet": true,
+    "productive7230ArtifactStillValid": true
+  },
+  "focusedWireCompositionPrepared": {
+    "path": "apps/api/tests/whatsapp-human-classifier-wire.contract.spec.mjs",
+    "sha256": "94349c64dce7c1a66010d242f0e96b9f1af77bb9a773f9b65c41e7ef9feaa7f0",
+    "usesRealCompiledProviderClassifierAndPrepare": true,
+    "exactNativeFixtureTransportAndScript": true,
+    "noApplicationDatabaseAuthOrWorkerStarted": true,
+    "noFrameModelUsageChanges": true,
+    "inertMetadataIsOnlyTransportExposureNotApplicationDi": true,
+    "oneTestThreeIndependentFirstFrames": true,
+    "guardMiB": 1024,
+    "notExecutedYet": false
+  },
+  "focusedWireActual": {
+    "receipt": ".cache/t57-full-gates/2026-11-18T13-48-49.226Z/receipt.json",
+    "receiptSha256": "5869c2696d704cb15a0638f4462d5ff533197dfc7879bd1a487e0dd3b05337c6",
+    "logSha256": "6cfc3986892077372ae5ca41bf45ba335c61f410d1b4f01be11f3c21d26711e5",
+    "tap": {
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "fresh1024Admitted": 6375,
+    "nativeFrameModelUsageUnmodified": true,
+    "wireParsedAndConsistent": true,
+    "actualUsage": {
+      "promptTokens": 3,
+      "completionTokens": 2,
+      "totalTokens": 5
+    },
+    "usageKnown": true,
+    "classificationSource": "structured",
+    "classificationDomain": "STORE_SUPPORT",
+    "preparedAllowed": true,
+    "classifierRejectionReasons": [],
+    "noAppDatabaseAuthOrWorkerStarted": true
+  },
+  "sourceRoleContractFinding": {
+    "refs": [
+      "ai-governance.service.ts:24-26 uses tenant.role directly, except embed->buyer; source storefront defaults to buyer only when tenant absent",
+      "ai-access-policy.ts:1 allows owner/admin/staff/buyer/service, not system",
+      "structured-intent-classifier.ts:51 catches provider/governance exception and returns fallback"
+    ],
+    "concreteSourceDefect": "New producer context role system is outside the existing AI actor contract; a native metered model request under that context is rejected before transport. Pure fixture/provider/parser composition without configured governance passed.",
+    "rawNativeRoleExceptionNotYetCaptured": true,
+    "minimalProducerProposal": "Use least-privileged buyer role with unchanged fixed technical userId/config-derived merchant/correlation and all guards; no governance role widening, no fake human/admin/staff principal. New causal actualGovernance identity/authorize regression before any change.",
+    "proposalNotImplementedYet": false
+  },
+  "buyerRoleExpectationReview": {
+    "patch": ".cache/t57-buyer-role-expectation-review-20261118/proposed.patch",
+    "originalSha256": "476afd18f57df9467bc837926165a3e6e7dd3d486438d09764d446746aeec2c2",
+    "candidateSha256": "105f43d8c37e004520882fd1a702271f0fb7ac122241506672c5cfeef7d72455",
+    "patchSha256": "5800783e1b10b9a60046eddd2a04d5e33be1a6a14a6a8bdd71559d38a4ba9323",
+    "applied": true,
+    "userReviewRequired": false,
+    "stillActualOriginalSha256": "105f43d8c37e004520882fd1a702271f0fb7ac122241506672c5cfeef7d72455",
+    "currentApprovedSha256": "105f43d8c37e004520882fd1a702271f0fb7ac122241506672c5cfeef7d72455",
+    "userApproval": {
+      "date": "2026-11-18",
+      "replyCall": "call_1171bbbf910d4f1a8e47c07afcd8d4b1",
+      "verbatim": "sim corrija e onde estamos nas festures?"
+    },
+    "approvedApplicationReceipt": ".cache/t57-buyer-role-expectation-review-20261118/user-approved-applied-20261118.json",
+    "approvedApplicationReceiptSha256": "f4ad8e966b42ba9fe3d16f40ee5d35dc1246c773682f4a42fc83af69201aa28b",
+    "oneExpectedWordOnlyVerifiedAgain": true
+  },
+  "buyerRoleCausalPrepared": {
+    "path": "apps/api/src/modules/whatsapp-channel/application/services/whatsapp-webhook-worker.ai-role.spec.ts",
+    "sha256": "cd733da7117007d0f30db93d9a23b46c967730611aa8f5a92658e191d2383f5c",
+    "actualGovernanceAndWorker": true,
+    "cases": 3,
+    "writtenBeforeProducerRoleFlip": true,
+    "notExecutedYet": false,
+    "noCompilerNativeInThisWindow": true
+  },
+  "buyerRoleCausalActualRed": {
+    "receipt": ".cache/t57-full-gates/2026-11-18T13-57-13.227Z/receipt.json",
+    "receiptSha256": "8538d0123b3e866a15545195921f28cdc514fdf1f1a7795bf66e9bc2c551d32c",
+    "logSha256": "8a74a9a232a8d107680eecf07616723e3881f934cd5a6b9bfb1a33e56f5f29dc",
+    "tests": 3,
+    "pass": 1,
+    "fail": 2,
+    "skipped": 0,
+    "cancelled": 0,
+    "actualException": "ai_invalid_actor_role"
+  },
+  "buyerProducerOnlyFix": {
+    "path": "apps\\api\\src\\modules\\whatsapp-channel\\application\\services\\whatsapp-webhook-worker.service.ts",
+    "sha256": "beba525270640bf9f7ffb63d67c9af63531ccf6d879974f3b1690c09839585a8",
+    "receipt": ".cache/t57-producer-buyer-role-20261118/receipt.json",
+    "governanceUnchanged": true,
+    "oldSixExpectationReviewStillUnapplied": false,
+    "old7230ArtifactStale": true,
+    "newThreeGreenPending": false
+  },
+  "buyerRoleCausalActualGreen": {
+    "receipt": ".cache/t57-full-gates/2026-11-18T13-58-08.426Z/receipt.json",
+    "receiptSha256": "7e71e3d3a813ca0a60262ed7f7781d153d7940c1fce30d8c8da17edfec044078",
+    "logSha256": "dffbe7cc11ed8cf4f14200c06a362f2ee5d882b08d18f75894211eb3889d9278",
+    "tap": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "naturalExitCode": 0,
+    "noGovernancePolicyChange": true,
+    "buyerOnlyGrantAdmitted": true,
+    "ownerOnlyGrantDenied": true,
+    "unsupportedSystemStillRejected": true
+  },
+  "noCompilerOrNativeAfterBuyerRoleChange": true,
+  "approvedContextAndRoleBoundedValidation": {
+    "files": [
+      {
+        "path": "apps/api/src/modules/whatsapp-channel/application/services/whatsapp-webhook-worker.tenant.spec.ts",
+        "expectedTests": 6,
+        "sha256": "105f43d8c37e004520882fd1a702271f0fb7ac122241506672c5cfeef7d72455"
+      },
+      {
+        "path": "apps/api/src/modules/whatsapp-channel/application/services/whatsapp-webhook-worker.ai-role.spec.ts",
+        "expectedTests": 3,
+        "sha256": "cd733da7117007d0f30db93d9a23b46c967730611aa8f5a92658e191d2383f5c"
+      }
+    ],
+    "freshGuardPerChildMiB": 1024,
+    "notExecutedYet": false,
+    "noCurrent304OrFullClaim": true,
+    "status": "passed_natural_exit0",
+    "receipt": ".cache/t57-full-gates/2026-11-18T15-07-02.208Z/receipt.json",
+    "receiptSha256": "408f2db9e43b01adc3a87d479f1699c5d4464ec7429cf06c9528a33c8420871d",
+    "startedAtUtc": "2026-11-18T15:07:02.216Z",
+    "finishedAtUtc": "2026-11-18T15:07:05.210Z",
+    "executedTests": 9,
+    "pass": 9,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "todo": 0,
+    "children": [
+      {
+        "label": "whatsapp-webhook-worker.tenant.spec",
+        "pid": 40676,
+        "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T15-07-02.208Z\\whatsapp-webhook-worker.tenant.spec.log",
+        "startedAtUtc": "2026-11-18T15:07:02.292Z",
+        "status": "natural_exit0",
+        "code": 0,
+        "signal": null,
+        "finishedAtUtc": "2026-11-18T15:07:04.031Z",
+        "logSha256": "f308a04378888561619f0e35bbe2d6c0448bd89aef144f674dba822a81417c74",
+        "tap": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      {
+        "label": "whatsapp-webhook-worker.ai-role.spec",
+        "pid": 45692,
+        "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T15-07-02.208Z\\whatsapp-webhook-worker.ai-role.spec.log",
+        "startedAtUtc": "2026-11-18T15:07:04.094Z",
+        "status": "natural_exit0",
+        "code": 0,
+        "signal": null,
+        "finishedAtUtc": "2026-11-18T15:07:05.207Z",
+        "logSha256": "d4051881d4c70df0b86c7af79090342ebbc7e9e44fba67fad7640d303a7187d1",
+        "tap": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      }
+    ],
+    "admissions": [
+      {
+        "label": "whatsapp-webhook-worker.tenant.spec",
+        "requiredCommitMiB": 1024,
+        "physicalInformational": true,
+        "memory": {
+          "observedAtUtc": "2026-11-18T15:07:02.281746+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 2139,
+          "commitAvailableMiB": 8868,
+          "memoryLoadPercent": 86
+        },
+        "admitted": true
+      },
+      {
+        "label": "whatsapp-webhook-worker.ai-role.spec",
+        "requiredCommitMiB": 1024,
+        "physicalInformational": true,
+        "memory": {
+          "observedAtUtc": "2026-11-18T15:07:04.083865+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 2179,
+          "commitAvailableMiB": 8907,
+          "memoryLoadPercent": 86
+        },
+        "admitted": true
+      }
+    ],
+    "allChildrenNaturalExit0": true,
+    "noCompilerOrNativeStarted": true,
+    "runtimeExplicitlyReturnedToRootCore33": true,
+    "prior301NotRerunOrRetotalled": true
+  },
+  "joint33CurrentFull": {
+    "dispatched": true,
+    "rootMergeReceipt": ".cache/m-before-t33-merge-20261118/integrated-receipt.json",
+    "old7230ArtifactStale": true,
+    "status": "passed_all_required_local_gates",
+    "quickExpectedTests": 304,
+    "quickWholeFiles": 27,
+    "compiledWireExpectedTests": 1,
+    "nativeExpectedTests": 109,
+    "nativeWholeFiles": 13,
+    "legacyDatabaseExpectedTests": 9,
+    "productExpectedPassed": 224,
+    "runtimeOwner": "Root after first renewed PID-cap failure",
+    "stopFirstFailureOrRefusal": true,
+    "receipts": {
+      "lint": {
+        "path": ".cache/t57-full-gates/2026-11-18T16-08-05.643Z/receipt.json",
+        "sha256": "8b3c033c302eeae551447105a3b04d0c42610c546e5712add3bf99668a8ca8ee",
+        "task": "T57",
+        "mode": "api-lint",
+        "launcherSha256": "d155c3d4f79daaeeefa3cb40da51649f6443e0bb317c61e312bf8a447ad7e404",
+        "startedAtUtc": "2026-11-18T16:08:05.678Z",
+        "logs": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T16-08-05.643Z",
+        "status": "passed_natural_exit0",
+        "children": [
+          {
+            "label": "api-lint",
+            "pid": 34412,
+            "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T16-08-05.643Z\\api-lint.log",
+            "startedAtUtc": "2026-11-18T16:08:05.919Z",
+            "status": "natural_exit0",
+            "code": 0,
+            "signal": null,
+            "finishedAtUtc": "2026-11-18T16:08:40.908Z",
+            "logSha256": "7af2718db12f685f3d2fa32fbcf5ded2243a1ce7588acabac0feaa97e8123814"
+          }
+        ],
+        "admissions": [
+          {
+            "label": "api-lint",
+            "requiredCommitMiB": 1024,
+            "physicalInformational": true,
+            "memory": {
+              "observedAtUtc": "2026-11-18T16:08:05.890860+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 2633,
+              "commitAvailableMiB": 7403,
+              "memoryLoadPercent": 83
+            },
+            "admitted": true
+          }
+        ],
+        "sourceFreeze": ".cache/t57-gates-20261118/freeze-full-v16.json",
+        "sourceFreezeSha256": "11ff2af3602cc007d6f5afe414b9385f140b9544bbddb5e84c2e22f78b4f9ae4",
+        "finishedAtUtc": "2026-11-18T16:08:40.910Z"
+      },
+      "types": {
+        "path": ".cache/t57-full-gates/2026-11-18T16-08-45.537Z/receipt.json",
+        "sha256": "6a736b0f4840e5d18ce23c5f026eb54ce19e18a18fdd0dc945452767cd7c51f7",
+        "task": "T57",
+        "mode": "api-types",
+        "launcherSha256": "d155c3d4f79daaeeefa3cb40da51649f6443e0bb317c61e312bf8a447ad7e404",
+        "startedAtUtc": "2026-11-18T16:08:45.551Z",
+        "logs": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T16-08-45.537Z",
+        "status": "passed_natural_exit0",
+        "children": [
+          {
+            "label": "api-types",
+            "pid": 27268,
+            "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T16-08-45.537Z\\api-types.log",
+            "startedAtUtc": "2026-11-18T16:08:45.680Z",
+            "status": "natural_exit0",
+            "code": 0,
+            "signal": null,
+            "finishedAtUtc": "2026-11-18T16:12:26.605Z",
+            "logSha256": "5a307de043ed990955b4dc651204a4d011c8a70389a3029903883efd30369a46"
+          }
+        ],
+        "admissions": [
+          {
+            "label": "api-types",
+            "requiredCommitMiB": 5168,
+            "physicalInformational": true,
+            "memory": {
+              "observedAtUtc": "2026-11-18T16:08:45.659801+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 2793,
+              "commitAvailableMiB": 7674,
+              "memoryLoadPercent": 82
+            },
+            "admitted": true
+          }
+        ],
+        "sourceFreeze": ".cache/t57-gates-20261118/freeze-full-v16.json",
+        "sourceFreezeSha256": "11ff2af3602cc007d6f5afe414b9385f140b9544bbddb5e84c2e22f78b4f9ae4",
+        "finishedAtUtc": "2026-11-18T16:12:26.620Z"
+      },
+      "checkedBuildAttempt": {
+        "path": ".cache/t57-full-gates/2026-11-18T16-12-43.846Z/receipt.json",
+        "sha256": "77cbb13620640743faa49bc627b854053a18dc5bbbd73febfe90c46ade67c370",
+        "task": "T57",
+        "mode": "checked-api",
+        "launcherSha256": "d155c3d4f79daaeeefa3cb40da51649f6443e0bb317c61e312bf8a447ad7e404",
+        "startedAtUtc": "2026-11-18T16:12:43.896Z",
+        "logs": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T16-12-43.846Z",
+        "status": "ENVREFUSAL_BEFORE_CHILD",
+        "children": [
+          {
+            "label": "capture",
+            "pid": 43760,
+            "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T16-12-43.846Z\\capture.log",
+            "startedAtUtc": "2026-11-18T16:12:44.019Z",
+            "status": "natural_exit0",
+            "code": 0,
+            "signal": null,
+            "finishedAtUtc": "2026-11-18T16:13:27.543Z",
+            "logSha256": "c5d829c4ea9c0fe8aba4b12865e54c80e07c8f053044b61e92158b3f4483b8d6"
+          },
+          {
+            "label": "api-build",
+            "pid": 38996,
+            "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T16-12-43.846Z\\api-build.log",
+            "startedAtUtc": "2026-11-18T16:13:27.651Z",
+            "status": "natural_exit0",
+            "code": 0,
+            "signal": null,
+            "finishedAtUtc": "2026-11-18T16:16:26.222Z",
+            "logSha256": "69420ffec6e714368b53f1f53bcda891d6c3a0d76fd98ae45ef97da044b3c8ce"
+          }
+        ],
+        "admissions": [
+          {
+            "label": "checked-api",
+            "requiredCommitMiB": 5168,
+            "physicalInformational": true,
+            "memory": {
+              "observedAtUtc": "2026-11-18T16:12:44.004475+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 1435,
+              "commitAvailableMiB": 6125,
+              "memoryLoadPercent": 91
+            },
+            "admitted": true
+          },
+          {
+            "label": "checked-api-build",
+            "requiredCommitMiB": 5168,
+            "physicalInformational": true,
+            "memory": {
+              "observedAtUtc": "2026-11-18T16:13:27.634904+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 1749,
+              "commitAvailableMiB": 5235,
+              "memoryLoadPercent": 89
+            },
+            "admitted": true
+          },
+          {
+            "label": "checked-api-record",
+            "requiredCommitMiB": 5168,
+            "physicalInformational": true,
+            "memory": {
+              "observedAtUtc": "2026-11-18T16:16:26.327645+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 2235,
+              "commitAvailableMiB": 5160,
+              "memoryLoadPercent": 86
+            },
+            "admitted": false
+          }
+        ],
+        "sourceFreeze": ".cache/t57-gates-20261118/freeze-full-v16.json",
+        "sourceFreezeSha256": "11ff2af3602cc007d6f5afe414b9385f140b9544bbddb5e84c2e22f78b4f9ae4",
+        "finishedAtUtc": "2026-11-18T16:16:26.337Z",
+        "failure": "ENVREFUSAL_BEFORE_CHILD"
+      }
+    },
+    "compilerInputCoverage": 2577,
+    "captureAndStandardBuildNaturalExit0": true,
+    "recordStarted": true,
+    "currentCheckedArtifactAdmitted": true,
+    "recordAdmissionCommitMiB": 5160,
+    "recordAdmissionRequiredMiB": 5168,
+    "quick304Executed": true,
+    "compiledWireExecuted": true,
+    "native109Executed": true,
+    "legacy9Executed": true,
+    "products224Executed": true,
+    "runtimeExplicitlyReturned": true,
+    "noOwnActiveChildrenAfterNaturalLauncherExit": true,
+    "retryStarted": false,
+    "sourceOrAssertionsChangedDuringGate": false,
+    "noProviderOrProductionActions": true,
+    "recordOnlyResume": {
+      "status": "ENVREFUSAL_BEFORE_CHILD",
+      "originalReceiptSha256": "77cbb13620640743faa49bc627b854053a18dc5bbbd73febfe90c46ade67c370",
+      "capturedInputSha256": "aed72ee9454063d3ead707c0b8e1f2c03dc0a9c8d7f119bd4998020819b314b3",
+      "capturedCompilerCoverage": {
+        "checked": true,
+        "sourceCount": 2577
+      },
+      "sameProductiveSourcePinsVerified": true,
+      "noCompilerOrCaptureRepeat": true,
+      "freshGuardMiB": 5168,
+      "receipt": ".cache/t57-full-gates/2026-11-18T16-19-14.118Z/receipt.json",
+      "receiptSha256": "45783819016e9586eaa34b2639e63d0f4ced01a56e0ce696b346c2970c24c108",
+      "childrenStarted": 0,
+      "commitAvailableMiB": 4168,
+      "requiredCommitMiB": 5168,
+      "observedAtUtc": "2026-11-18T16:19:14.204747+00:00",
+      "noCompilerCaptureRepeat": true,
+      "runtimeExplicitlyReturned": true,
+      "retryStarted": false
+    },
+    "recordOperationCategoryCorrection": {
+      "source": "apps/api/tests/service-test-artifacts.mjs:78-96",
+      "compilerProgramOnlyCapture": true,
+      "recordOnlySequentialFilesystemHashAndJson": true,
+      "oldRecordGuardMiB": 5168,
+      "correctRecordGuardMiB": 1024,
+      "captureCompilerGuardMiB": 5168,
+      "nativeGuardMiB": 2048,
+      "originalCommandAndAssertionsUnchanged": true,
+      "priorRefusalsRetained": true,
+      "status": "ENVREFUSAL_BEFORE_CHILD",
+      "receipt": ".cache/t57-full-gates/2026-11-18T16-38-25.019Z/receipt.json",
+      "receiptSha256": "47e0bda741a89226c5ffd5a4d923dd3e5cbd54d209ba347e63ead700cbee8d57",
+      "admission": {
+        "label": "checked-api-record",
+        "requiredCommitMiB": 1024,
+        "physicalInformational": true,
+        "memory": {
+          "observedAtUtc": "2026-11-18T16:38:25.628103+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 446,
+          "commitAvailableMiB": 463,
+          "memoryLoadPercent": 97
+        },
+        "admitted": false
+      },
+      "childrenStarted": 0,
+      "helperDiffReceipt": ".cache/t57-record-light-classification-20261118/receipt.json",
+      "helperPatchSha256": "fdec9f60961db5d37f2a904065e3331a0542206964689ecdc8c216ad7a0dc570",
+      "inverseByteExact": true,
+      "runtimeExplicitlyReturned": true,
+      "noRetry": true
+    },
+    "recordResumeAfterExternalCompletion": {
+      "userVerbatim": "J? terminou",
+      "replyCall": "call_79a7adbaaedf44cb951a1eae4dd57cf4",
+      "status": "passed_natural_exit0",
+      "originalCaptureBuildProvenanceVerified": true,
+      "capturedInputSha256": "aed72ee9454063d3ead707c0b8e1f2c03dc0a9c8d7f119bd4998020819b314b3",
+      "compilerCoverage": 2577,
+      "freshRecordGuardMiB": 1024,
+      "noRepeatedCompilerCaptureTypesLintOrPrior9": true,
+      "receipt": ".cache/t57-full-gates/2026-11-18T17-25-05.854Z/receipt.json",
+      "receiptSha256": "7d1f3e6753bcc8623d48a4d82790a6b764620be0cac140d13ef9589b5f7ff030",
+      "recordNatural0": true,
+      "currentOwnAdmission": {
+        "checked": true,
+        "inputSha256": "aed72ee9454063d3ead707c0b8e1f2c03dc0a9c8d7f119bd4998020819b314b3",
+        "artifactSha256": "be2660d8a2f7d83efaeb9d5d7ba040fc22de0f06e7a061270b764546121a7f1d",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2577
+        }
+      },
+      "admissions": [
+        {
+          "label": "checked-api-record",
+          "requiredCommitMiB": 1024,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T17:25:06.347123+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 193,
+            "commitAvailableMiB": 1383,
+            "memoryLoadPercent": 98
+          },
+          "admitted": true
+        }
+      ],
+      "children": [
+        {
+          "label": "record",
+          "pid": 42308,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T17-25-05.854Z\\record.log",
+          "startedAtUtc": "2026-11-18T17:25:06.379Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T17:25:23.028Z",
+          "logSha256": "7835d371754905f999a8f50043d07fcb5645d3527ad4b39b63a6a8c4439869d9"
+        }
+      ]
+    },
+    "currentOwnChecked": {
+      "checked": true,
+      "inputSha256": "9850491c8933e860c0e6f06c7111e6b729d6ce98b55dfed99aea4d5df954b778",
+      "artifactSha256": "4612024520363495b33ac529d3abc631c3c3fed11a42370ac582b531305b4deb",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2577
+      }
+    },
+    "nativeInterruptedReconciliation": {
+      "task": "T57",
+      "observedAtUtc": "2026-11-18T19:26:18.145355+00:00",
+      "originalReceipt": ".cache/t57-full-gates/2026-11-18T17-43-28.027Z/receipt.json",
+      "originalReceiptSha256": "f5fd6d9f80c7ff923a0b6ed6e4b06761e73fd7cd92da7b11205ee252e598385e",
+      "originalLogSha256": "c4a094d1754821acb87d4ab941cbc9707053fb8a4b3d88cfb3769bef2bbe094a",
+      "originalReceiptRetainedUnmodified": true,
+      "status": "interrupted_final_outcome_unknown",
+      "ownedLauncherPid": 48468,
+      "ownedNativeChildPid": 19684,
+      "bothOwnedPidsAbsent": true,
+      "knownDirectDescendantsAbsent": true,
+      "oldUnifiedSession18800": "Unknown process id",
+      "lastObservedPassedCase": "products main menu exposes a current fixed human control and admits its gesture once",
+      "lastCaseDurationMs": 82543.6856,
+      "lastCaseNormalCleanupStages": [
+        "before_closed_ack",
+        "disconnected"
+      ],
+      "wholeNative11FinalTapSummaryMissing": true,
+      "noNaturalExitOrTimeoutCauseClaim": true,
+      "remainingNativeFilesNotStarted": 12,
+      "cleanupFinal": "unknown; runtime resource IDs not persisted",
+      "boundedReadOnlyDockerRecovery": {
+        "sinceUtc": "2026-11-18T17:43:39Z",
+        "untilUtc": "2026-11-18T17:54:00Z",
+        "namespaces": [
+          "com.zyon.storefront-write-test",
+          "com.zyon.auth-redis-test"
+        ],
+        "localContextEndpointValidated": true,
+        "status": "failed_before_event_results",
+        "errorCode": "local_docker_engine_pipe_not_found",
+        "notHistoricalCauseClaim": true,
+        "resourceIdsRecovered": 0,
+        "resourcesRemoved": 0
+      },
+      "firstFailureStopped": true,
+      "newSutStarted": false,
+      "runtimeExplicitlyReturnedToRoot": true,
+      "reconciliationReceipt": ".cache/t57-full-gates/2026-11-18T17-43-28.027Z/interruption-reconciliation-20261118.json",
+      "reconciliationReceiptSha256": "5749488b18f0040fd3e57cc8327e02899ca9cf9562ce436f803781e6c215e96c"
+    },
+    "currentQuick304": {
+      "receipt": ".cache/t57-full-gates/2026-11-18T17-26-13.364Z/receipt.json",
+      "receiptSha256": "08fe24a9dd615e6d7adfedc88a9d9e087e8c6b1af8ee5c38403c8f2c25e5e7f4",
+      "tests": 304,
+      "pass": 304,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "wholeFiles": 27,
+      "naturalExitCode": 0,
+      "delayCause": "undetermined; finished naturally"
+    },
+    "currentWire1": {
+      "receipt": ".cache/t57-full-gates/2026-11-18T17-38-25.068Z/receipt.json",
+      "receiptSha256": "81ad29c9e3baae826d39b5d39ed7ebcbf2ba98008734da724e8737d77658e3b9",
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "naturalExitCode": 0
+    },
+    "recoveredEnvironmentWholeNativeResume": {
+      "status": "ENVREFUSAL_BEFORE_CHILD",
+      "rootDaemonAndExactResidualRecoveryReported": true,
+      "onlyOriginalWhole109NativeSelected": true,
+      "noQuickWireCompilerRepeat": true,
+      "sameCurrentStampVerified": true,
+      "detachedHiddenOriginalLauncher": true,
+      "sameAssertionsLimitsAndGuards": true,
+      "receipt": ".cache/t57-full-gates/2026-11-18T19-40-01.305Z/receipt.json",
+      "receiptSha256": "ad5825ae1fbd955c800a5007a3c63308b5b02da07c31c4acfef83845b40c29b6",
+      "checkedBeforeNative": {
+        "checked": true,
+        "inputSha256": "aed72ee9454063d3ead707c0b8e1f2c03dc0a9c8d7f119bd4998020819b314b3",
+        "artifactSha256": "be2660d8a2f7d83efaeb9d5d7ba040fc22de0f06e7a061270b764546121a7f1d",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2577
+        }
+      },
+      "admissions": [
+        {
+          "label": "whatsapp-human-model.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T19:40:28.792136+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 837,
+            "commitAvailableMiB": 1871,
+            "memoryLoadPercent": 94
+          },
+          "admitted": false
+        }
+      ],
+      "childrenStarted": 0,
+      "detachedLaunchReceipt": ".cache/t57-detached-native-20261118T194001120Z/launch.json",
+      "nativeResourceCreationStarted": false,
+      "noQuickWireBuildRepeat": true,
+      "runtimeExplicitlyReturned": true,
+      "automaticRetry": false
+    },
+    "nativeResumeAfterCore34Actual18": {
+      "status": "ENVREFUSAL_BEFORE_CHILD",
+      "parentActualCore34Quick18Natural0": true,
+      "parentQuickReceipt": "e7498ff9",
+      "parentFreshCommitMiB": 2867,
+      "priorMNativeRefusalMiB": 1871,
+      "soleRuntimeExplicitlyReturnedToM": true,
+      "oneOriginalDetachedNative109Only": true,
+      "fresh2048Decisive": true,
+      "noQuickWireBuildRepeatOrGuardChange": true,
+      "receipt": ".cache/t57-full-gates/2026-11-18T19-45-27.638Z/receipt.json",
+      "receiptSha256": "4f60151855dabca40d22fc6cc79343ab600d2bf2753b9397bb90b7a5a9b91d49",
+      "checkedBeforeNative": {
+        "checked": true,
+        "inputSha256": "aed72ee9454063d3ead707c0b8e1f2c03dc0a9c8d7f119bd4998020819b314b3",
+        "artifactSha256": "be2660d8a2f7d83efaeb9d5d7ba040fc22de0f06e7a061270b764546121a7f1d",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2577
+        }
+      },
+      "admissions": [
+        {
+          "label": "whatsapp-human-model.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T19:45:47.598546+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 461,
+            "commitAvailableMiB": 135,
+            "memoryLoadPercent": 97
+          },
+          "admitted": false
+        }
+      ],
+      "childrenStarted": 0,
+      "runtimeExplicitlyReturned": true,
+      "noAdditionalRamQueriesOrAutomaticRetry": true,
+      "allocationCauseNotInferred": true
+    },
+    "nativeResumeAfterActual195643Window": {
+      "status": "failed",
+      "parentOriginalProbeObservedAtUtc": "2026-11-18T19:56:43Z",
+      "parentCommitAvailableMiB": 4052,
+      "physicalMemoryInformationalOnly": true,
+      "freshNative2048StillDecisive": true,
+      "oneOriginalDetached109Only": true,
+      "sourceHelperGuardsUnchanged": true,
+      "noAcceptedChecksRepeated": true,
+      "receipt": ".cache/t57-full-gates/2026-11-18T19-57-46.283Z/receipt.json",
+      "receiptSha256": "6f1377bb50931f26ce796ebf8e64b5ecfda60da2ba0b98984ef06840f5543dfb",
+      "actualTap": {
+        "tests": 11,
+        "pass": 9,
+        "fail": 2,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "logSha256": "4ea4e3127f02c0ae71fbb7529d4297420ecdee3942128b1d5583345f0166d974",
+      "auditReceipt": ".cache/t57-full-gates/2026-11-18T19-57-46.283Z/native-causal-audit-20261118.json",
+      "auditReceiptSha256": "4906832708edc87e9e5106f6c158d0aeabfef7e2d1ae33c1af689a70f3e5c404",
+      "causeUnproven": true
+    },
+    "currentNativeCausalAudit": {
+      "task": "T57",
+      "observedAtUtc": "2026-11-18T20:21:05.192884+00:00",
+      "nativeReceiptSha256": "6f1377bb50931f26ce796ebf8e64b5ecfda60da2ba0b98984ef06840f5543dfb",
+      "nativeLogSha256": "4ea4e3127f02c0ae71fbb7529d4297420ecdee3942128b1d5583345f0166d974",
+      "actualTap": {
+        "tests": 11,
+        "pass": 9,
+        "fail": 2,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "nativeChildNaturalExitCode": 1,
+      "nativeChildSignal": null,
+      "original600sBudgetNotExceeded": true,
+      "actualDurationMs": 574830.8856,
+      "failure": "products semantic text fixture worker exited before ready; case body not reached",
+      "workerExitCode": 3765269347,
+      "workerExitHex": "0xe06d7363",
+      "workerStderr": "empty",
+      "workerPidNotPersisted": true,
+      "lastStageNotIncludedInExistingExitError": true,
+      "launcher50816AndChild45212Absent": true,
+      "successfulCases": 9,
+      "normalCleanupReportPairs": 9,
+      "cleanupFailuresReported": false,
+      "failedSetupCleanupSource": "service-test-runtime.mjs:140 catches setup failure, awaits close and returns original plain error; cleanup failure would be AggregateError service_runtime_setup_cleanup_failed",
+      "noAdditionalContainerEnumerationOrRemoval": true,
+      "boundedWindowsEvents": {
+        "fromUtc": "2026-11-18T20:00:00Z",
+        "untilUtc": "2026-11-18T20:04:00Z",
+        "application1000or1001Count": 4,
+        "system2004Count": 2,
+        "nodeRelatedCount": 0,
+        "noRawUnrelatedEventOrDumpRead": true,
+        "causeUnproven": true
+      },
+      "cacheProvenance": {
+        "currentHelperSha256": "767ea5aadaa99e95a7e0067fb521fea559a8cf89f54fe8888f33f1ad2d6e0d50",
+        "currentFreezeSha256": "7a8cf8a040a729d29efdb74c8384758a68aef92336348c539c3bfcb28f7a455f",
+        "twoPinOnlyInverseSha256": "4c2a6c44b72860879773d67a5d6957eed8f61a5b9ac39f949e49556c12817b1c",
+        "helperExecutableInstructionsIdenticalToInterruptedOriginalExceptFreezeLiterals": true,
+        "immutableCommonV16ToV17Pins": 100,
+        "immutablePinMismatches": [],
+        "additionalV17MetadataPins": [
+          ".cache/t57-full-gates/2026-11-18T16-12-43.846Z/receipt.json",
+          ".cache/t57-full-gates/2026-11-18T17-25-05.854Z/receipt.json",
+          "apps/api/.sandbox-state/service-test-build-inputs.json",
+          "apps/api/.sandbox-state/service-test-build.json"
+        ],
+        "productiveProgramInputsStillReported": "aed72ee9454063d3ead707c0b8e1f2c03dc0a9c8d7f119bd4998020819b314b3",
+        "artifactStillReported": "be2660d8a2f7d83efaeb9d5d7ba040fc22de0f06e7a061270b764546121a7f1d"
+      },
+      "noSutRetryOrProductiveOracleLimitEdit": true,
+      "runtimeExplicitlyReturnedToRootAfterAudit": true
+    },
+    "beforeReadyFailureObservation": {
+      "status": "wholeNative109Passed",
+      "path": "apps/api/tests/service-test-runtime.mjs",
+      "beforeSha256": "0fd8090e954e826500329a5464315bd912f53acb6fb0b5987563c120ccb06f70",
+      "afterSha256": "18832018164abb67b630904444e02476728bf15ec30d876f583d260f2c8d3283",
+      "patchSha256": "c1a7b965e4939111c2100fef61d10e5783f16b697198de64c61ff95609ef498e",
+      "inverseByteExact": true,
+      "existingErrorControlTimersAssertionsArgsUnchanged": true,
+      "onlyFields": [
+        "pid",
+        "code",
+        "signal",
+        "lastStage"
+      ],
+      "noProductiveInputsChanged": true,
+      "originalFreeze78dfExactlyReconstructed": false,
+      "archive": ".cache/t57-before-ready-observer-20261118",
+      "oneWholeNativeReproductionAuthorized": true,
+      "noHistoricalCauseOrFixClaim": true
+    },
+    "currentNative109": {
+      "status": "passed_natural_exit0",
+      "receipt": ".cache/t57-full-gates/2026-11-18T20-22-57.980Z/receipt.json",
+      "receiptSha256": "d8addb752f239ac516fd1a7cfcf99d9a2345447d83856229bdee1548058b734e",
+      "executedTests": 109,
+      "pass": 109,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "wholeFiles": 13,
+      "children": [
+        {
+          "label": "whatsapp-human-model.integration.spec",
+          "pid": 31700,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-human-model.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:23:07.753Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:27:51.852Z",
+          "logSha256": "ab6341094ffa05329b0c1d92df01a458a082d8f0e983797952a4e14f218f6c4c",
+          "tap": {
+            "tests": 11,
+            "pass": 11,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-human-intake.integration.spec",
+          "pid": 16948,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-human-intake.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:28:00.806Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:28:40.171Z",
+          "logSha256": "e947ae4227217b79c6b567c7a2c163adfe419a2165a116994563f8eb38ce250e",
+          "tap": {
+            "tests": 12,
+            "pass": 12,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-human-message-router.integration.spec",
+          "pid": 4288,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-human-message-router.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:28:46.844Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:29:41.325Z",
+          "logSha256": "d3e449da73721fad0b96f94e43bc2137f241d7e67614de0a6e70234ff6e2a4b9",
+          "tap": {
+            "tests": 10,
+            "pass": 10,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-ai-dispatch-fence.integration.spec",
+          "pid": 22048,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-ai-dispatch-fence.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:29:46.974Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:30:11.263Z",
+          "logSha256": "b26eb8bac4be08350975bb550807fb538b7e431cb5a87769e193de70abd31310",
+          "tap": {
+            "tests": 27,
+            "pass": 27,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-ai-dispatch-http.integration.spec",
+          "pid": 20456,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-ai-dispatch-http.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:30:20.062Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:30:56.532Z",
+          "logSha256": "c1997b0de5f2ddfd846c2cdcfa03317bf94fbf147961a370e77dcb1dc4ef6447",
+          "tap": {
+            "tests": 7,
+            "pass": 7,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-ai-request-commit.integration.spec",
+          "pid": 46008,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-ai-request-commit.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:31:01.403Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:31:14.227Z",
+          "logSha256": "1afdac4e12dc80b3fc902903b25788430aa5b8a46a768d64d60e81f67d75f8fd",
+          "tap": {
+            "tests": 1,
+            "pass": 1,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-human-unknown-replay.integration.spec",
+          "pid": 28960,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-human-unknown-replay.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:31:20.171Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:31:34.049Z",
+          "logSha256": "85d68d01e6fc542d778e85d906f720c1ea52aa1f91df8fae50f849618e1775a6",
+          "tap": {
+            "tests": 3,
+            "pass": 3,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-human-unknown-history.integration.spec",
+          "pid": 42972,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-human-unknown-history.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:31:38.906Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:31:52.555Z",
+          "logSha256": "39dcd2e8ba63632b03402ad13ae089da15a1c0e7ed1555fae973a397c2bad771",
+          "tap": {
+            "tests": 2,
+            "pass": 2,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-human-handoff.integration.spec",
+          "pid": 50764,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-human-handoff.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:31:57.539Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:32:28.293Z",
+          "logSha256": "57a92362dc5545f8dc815a048eb0128f78c20447a2e3edb69771873be87ddd63",
+          "tap": {
+            "tests": 6,
+            "pass": 6,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-human-close-db.integration.spec",
+          "pid": 9532,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-human-close-db.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:32:33.200Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:32:47.998Z",
+          "logSha256": "d9ca3a86d8e983283f5905eaf1aeaccfbeedbb2d80841d331e36c98c76f80066",
+          "tap": {
+            "tests": 8,
+            "pass": 8,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-resume-request.integration.spec",
+          "pid": 18708,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-resume-request.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:32:53.150Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:33:08.622Z",
+          "logSha256": "a8313ac6e35e09657fdf64e6034671cb44529b95160118c39953d393adc683f6",
+          "tap": {
+            "tests": 8,
+            "pass": 8,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "whatsapp-resume-overlap.integration.spec",
+          "pid": 29500,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\whatsapp-resume-overlap.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:33:14.176Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:33:29.804Z",
+          "logSha256": "439cf0bd76b02fec3430cf0c2907ce74a33a62f2e17ef9444f686fd0eda06791",
+          "tap": {
+            "tests": 1,
+            "pass": 1,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "label": "business-answer-served-http.integration.spec",
+          "pid": 50116,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-22-57.980Z\\business-answer-served-http.integration.spec.log",
+          "startedAtUtc": "2026-11-18T20:33:34.329Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:35:03.727Z",
+          "logSha256": "3af56bd35c17f2b77ede51eb5f108f5e8b01681aae365601693d7e5bc9a0f772",
+          "tap": {
+            "tests": 13,
+            "pass": 13,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        }
+      ],
+      "admissions": [
+        {
+          "label": "whatsapp-human-model.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:23:03.258513+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 4013,
+            "commitAvailableMiB": 5384,
+            "memoryLoadPercent": 75
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-human-intake.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:27:56.262812+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 1335,
+            "commitAvailableMiB": 6944,
+            "memoryLoadPercent": 91
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-human-message-router.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:28:43.665091+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 1789,
+            "commitAvailableMiB": 7605,
+            "memoryLoadPercent": 88
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-ai-dispatch-fence.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:29:44.125741+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 1827,
+            "commitAvailableMiB": 7620,
+            "memoryLoadPercent": 88
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-ai-dispatch-http.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:30:16.009791+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 1335,
+            "commitAvailableMiB": 7126,
+            "memoryLoadPercent": 91
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-ai-request-commit.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:30:58.984336+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2046,
+            "commitAvailableMiB": 8147,
+            "memoryLoadPercent": 87
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-human-unknown-replay.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:31:16.741584+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 1895,
+            "commitAvailableMiB": 8016,
+            "memoryLoadPercent": 88
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-human-unknown-history.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:31:36.497720+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2576,
+            "commitAvailableMiB": 8169,
+            "memoryLoadPercent": 83
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-human-handoff.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:31:55.004744+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2627,
+            "commitAvailableMiB": 8186,
+            "memoryLoadPercent": 83
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-human-close-db.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:32:30.793882+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2496,
+            "commitAvailableMiB": 8115,
+            "memoryLoadPercent": 84
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-resume-request.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:32:50.735944+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2431,
+            "commitAvailableMiB": 8045,
+            "memoryLoadPercent": 84
+          },
+          "admitted": true
+        },
+        {
+          "label": "whatsapp-resume-overlap.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:33:11.225843+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2382,
+            "commitAvailableMiB": 8056,
+            "memoryLoadPercent": 85
+          },
+          "admitted": true
+        },
+        {
+          "label": "business-answer-served-http.integration.spec",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:33:32.092066+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2814,
+            "commitAvailableMiB": 7999,
+            "memoryLoadPercent": 82
+          },
+          "admitted": true
+        }
+      ],
+      "checkedAfterNative": {
+        "checked": true,
+        "inputSha256": "aed72ee9454063d3ead707c0b8e1f2c03dc0a9c8d7f119bd4998020819b314b3",
+        "artifactSha256": "be2660d8a2f7d83efaeb9d5d7ba040fc22de0f06e7a061270b764546121a7f1d",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2577
+        }
+      }
+    },
+    "currentLegacy9": {
+      "status": "failed",
+      "receipt": ".cache/t57-full-gates/2026-11-18T20-36-36.996Z/receipt.json",
+      "receiptSha256": "3abba659ded09fabeb796d6e4719327ed952b53cbfe94e5aa3aa3867691b1847",
+      "children": [
+        {
+          "label": "legacy-inbox",
+          "pid": 21884,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T20-36-36.996Z\\legacy-inbox.log",
+          "startedAtUtc": "2026-11-18T20:36:39.859Z",
+          "status": "failed",
+          "code": 1,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T20:36:59.198Z",
+          "logSha256": "6176d5706fd6a76cf786263ebc996c862703d13240f84e4f8138818abc71a941",
+          "tap": {
+            "tests": 9,
+            "pass": 7,
+            "fail": 2,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "legacyInbox": {
+            "cleanup": {
+              "cleanupErrors": 0,
+              "disposableDatabaseRemoved": true,
+              "bridgeClosed": true
+            }
+          }
+        }
+      ],
+      "admissions": [
+        {
+          "label": "legacy-inbox",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T20:36:37.066157+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2910,
+            "commitAvailableMiB": 7999,
+            "memoryLoadPercent": 81
+          },
+          "admitted": true
+        }
+      ],
+      "actualTap": {
+        "tests": 9,
+        "pass": 7,
+        "fail": 2,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "cleanup": {
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true
+      },
+      "concurrent40Failure": "webhook_inbox_unavailable; original low-level exception hidden by AcceptBubbleWhatsWebhookUseCase.persist, cause not established",
+      "oldDiagnosticExpectationFailure": {
+        "expected": "whatsapp_inbox_processing_failed",
+        "actual": "whatsapp_send_rejected",
+        "baselineSpecificDeliveryAndErrorMappingUnchangedByT57": true
+      },
+      "reviewPatch": ".cache/t57-legacy-inbox-expectation-review-20261118/proposed.patch",
+      "reviewPatchSha256": "ebc1557b81facde49a20709bedfecf0d2b33849ae90ba1d5428b2376b21b74e0",
+      "reviewPatchApplied": true,
+      "userReviewRequired": false,
+      "normalAndWidgetNotStarted": true
+    },
+    "metadataEncodingRepair": {
+      "receipt": ".cache/t57-metadata-encoding-repair-20261118/receipt.json",
+      "oneCp1252ReadUtf8WriteExactlyReversed": true,
+      "onlyTasksBytesChangedByInverse": true,
+      "preCheckpointFreezeExactlyReconstructed": "2f2ee352139fc915ff2be01c75c13c437f8a5de834468cd75305e3a8eb68c8cf",
+      "noProductiveTestOrOutcomeModification": true
+    },
+    "legacyCgroupObservation": {
+      "status": "failed",
+      "beforeSha256": "2664129d095c781a9ea1d1920dab4c55b5280e3e3d6e047cc2d44064824ab0de",
+      "afterSha256": "b6aafbe2b456b7b88e9c9ced0493972517d93d86a425c6128a1d7e131f6cb39b",
+      "patchSha256": "abf02e4031819d015a3dc7bc5bc43288df2cf540cefea3ee0cb3a5ae7dbfb62d",
+      "inverseByteExact": true,
+      "failureOnlyOriginalFailureAndCleanupUnchanged": true,
+      "onlyLiteralBoundedCgroupReads": true,
+      "bridgeIdleAndSameOwnedIdentityRequired": true,
+      "testExpectationPatchPendingNotApplied": true,
+      "noProductiveTsOrLimitsChanged": true,
+      "cache": ".cache/t57-legacy-cgroup-observer-20261118",
+      "onlyWholeLegacy9Authorized": true,
+      "receipt": ".cache/t57-full-gates/2026-11-18T20-46-54.423Z/receipt.json",
+      "receiptSha256": "9ccf1d59ddb51bd497e2ecd124ea958bb7092a5ca8e5ba0de7d0466b9e6315a6",
+      "logSha256": "a99c03a783fb0f65f2243ee730ba08a0d87517a74a888f3c9140d83b7e970396",
+      "actualTap": {
+        "tests": 9,
+        "pass": 7,
+        "fail": 2,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "diagnostic": {
+        "ownedIdentityVerified": true,
+        "bridge": {
+          "listening": true,
+          "sockets": 0,
+          "children": 0
+        },
+        "counters": {
+          "pidsCurrent": "11\n",
+          "pidsMax": "128\n",
+          "pidsPeak": "128\n",
+          "pidsEvents": "max 16\n"
+        }
+      },
+      "cleanup": {
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true
+      },
+      "pidCeilingReachedObserved": true,
+      "sixteenPidLimitRefusalsObserved": true,
+      "specificOriginalPrismaExceptionStillWrapped": true,
+      "noFurtherInstrumentOrLimitChange": true,
+      "oldExpectationPatchStillNotApplied": true,
+      "runtimeExplicitlyReturned": true
+    },
+    "legacyPg16ProfileComparison": {
+      "status": "failed",
+      "beforeSha256": "b6aafbe2b456b7b88e9c9ced0493972517d93d86a425c6128a1d7e131f6cb39b",
+      "afterSha256": "66e0ac9b338ac225cf87bf15960c6de072251ea33e32c8346bc710f30743234b",
+      "patchSha256": "3e983042a1643e6c6efede10056e9dfd35ea1b78bd89d7cb45802c4b1e49fa76",
+      "inverseByteExact": true,
+      "onlyOneExistingProfileOption": true,
+      "postgresMajor16Both": true,
+      "sameLimitsPoolConcurrencyClaimantsAndTuple": true,
+      "testExpectationStillPendingNotApplied": true,
+      "noDefaultHelperOrTsOrApiChange": true,
+      "cache": ".cache/t57-legacy-pg16-profile-comparison-20261118",
+      "target": "actual40concurrency outcome and PID counters under same128 limit",
+      "oneWholeDiagnostic9Only": true,
+      "receipt": ".cache/t57-full-gates/2026-11-18T20-50-22.436Z/receipt.json",
+      "receiptSha256": "1e6d9de204536e8caa28328524aa815e5b1c48adc0b1403315fb9689fdd981a4",
+      "logSha256": "566f9e17f6fab720a85d5ea94ed2cb81e8fc5f0f3a0719b1aaf64e73e3c71281",
+      "actualTap": {
+        "tests": 9,
+        "pass": 8,
+        "fail": 1,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "first40DeliveriesAnd20ClaimantsPassed": true,
+      "onlyRemainingFailure": "old expected generic code versus existing whatsapp_send_rejected",
+      "diagnostic": {
+        "ownedIdentityVerified": true,
+        "bridge": {
+          "listening": true,
+          "sockets": 0,
+          "children": 0
+        },
+        "counters": {
+          "pidsCurrent": "8\n",
+          "pidsMax": "128\n",
+          "pidsPeak": "124\n",
+          "pidsEvents": "max 0\n"
+        }
+      },
+      "cleanup": {
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true
+      },
+      "priorProfileMeasuredPeak": 128,
+      "priorProfileMeasuredMaxEvents": 16,
+      "currentProfileMeasuredPeak": 124,
+      "currentProfileMeasuredMaxEvents": 0,
+      "samePidLimit": 128,
+      "samePoolLimit": 24,
+      "testExpectationStillUnapplied": true,
+      "noFurtherSutOrSourceChange": true,
+      "runtimeExplicitlyReturned": true
+    },
+    "approvedLegacyExpectationApplication": {
+      "status": "applied_own_checks_build_and_emitted_identity_passed",
+      "userQuote": "Corrigir somente essa expectativa",
+      "replyCall": "call_969f6953aac942559d35211819af7e43",
+      "patchSha256": "ebc1557b81facde49a20709bedfecf0d2b33849ae90ba1d5428b2376b21b74e0",
+      "originalSha256": "5c2f9eab46fbb94e4da1f84c9852b100972cbbc5ae766091304d3c7bc68d0564",
+      "candidateSha256": "24e61cee05464f568efcc25773c6d84924c1d98babd1dc2766a854621087cff3",
+      "applied": true,
+      "onlyOneExpectedString": true,
+      "otherAssertionsAnd40Deliveries20ClaimantsUnchanged": true,
+      "emittedBeforeFiles": 2669,
+      "emittedBeforeSha256": "7cef5415521cb925a768ff1814f1dfa16e7455751ce0d5f7c0b14bb6e95faaaa",
+      "oldConservativeArtifactNowStale": true,
+      "noApiOrLimitsChange": true,
+      "receipt": ".cache/t57-approved-legacy-expectation-20261118/applied-receipt.json",
+      "checks": {
+        "lintReceipt": ".cache/t57-full-gates/2026-11-18T20-56-22.842Z/receipt.json",
+        "typesReceipt": ".cache/t57-full-gates/2026-11-18T20-57-17.925Z/receipt.json",
+        "ownCheckedBuildReceipt": ".cache/t57-full-gates/2026-11-18T20-59-02.511Z/receipt.json",
+        "ownCheckedBuildReceiptSha256": "ebee3cc720e518f64693c267cfa024a910be07cb2587a00110fc4e6113b0a20e",
+        "checkedAfterBuild": {
+          "checked": true,
+          "inputSha256": "9850491c8933e860c0e6f06c7111e6b729d6ce98b55dfed99aea4d5df954b778",
+          "artifactSha256": "4612024520363495b33ac529d3abc631c3c3fed11a42370ac582b531305b4deb",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2577
+          }
+        }
+      }
+    },
+    "currentConservativeArtifactStaleAfterTestOnlyChange": false,
+    "productiveEmittedIdentity": {
+      "receipt": ".cache/t57-approved-legacy-expectation-20261118/emitted-identity-receipt.json",
+      "sha256": "0ebc967ecbf6309e10d7b8f1c45fad1b8f147b15452bfd70b0115124de013efc",
+      "beforeFiles": 2669,
+      "afterFiles": 2669,
+      "beforeEmittedBytesSha256": "7cef5415521cb925a768ff1814f1dfa16e7455751ce0d5f7c0b14bb6e95faaaa",
+      "afterEmittedBytesSha256": "7cef5415521cb925a768ff1814f1dfa16e7455751ce0d5f7c0b14bb6e95faaaa",
+      "byteIdentical": true,
+      "difference": {
+        "added": [],
+        "removed": [],
+        "changed": []
+      },
+      "sameProductiveSourcesAndOnlyApprovedLegacyAssertionChanged": true,
+      "retainUnaffected109_304_WireReceiptsWithoutRelabel": true,
+      "existingReceiptsRetainedNotRecountedAsNew": true
+    },
+    "currentLegacy9AfterApproval": {
+      "status": "failed",
+      "receipt": ".cache/t57-full-gates/2026-11-18T21-05-17.905Z/receipt.json",
+      "receiptSha256": "a7352598ce6b26bf5493feda1a0c8be55163bf33eb8877b65c78bbff08b9fb35",
+      "logSha256": "ffd0138e72e9f7a764d6546ac243c87c81e414b79d9201a2c118172f785f0543",
+      "actualTap": {
+        "tests": 9,
+        "pass": 8,
+        "fail": 1,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "admissions": [
+        {
+          "label": "legacy-inbox",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T21:05:17.972429+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2172,
+            "commitAvailableMiB": 6167,
+            "memoryLoadPercent": 86
+          },
+          "admitted": true
+        }
+      ],
+      "checkedBeforeLegacyInbox": {
+        "checked": true,
+        "inputSha256": "9850491c8933e860c0e6f06c7111e6b729d6ce98b55dfed99aea4d5df954b778",
+        "artifactSha256": "4612024520363495b33ac529d3abc631c3c3fed11a42370ac582b531305b4deb",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2577
+        }
+      },
+      "approvedRetryCase7Passed": true,
+      "onlyFailure": "40 concurrent delivery persistence: masked webhook_inbox_unavailable",
+      "diagnostic": {
+        "ownedIdentityVerified": true,
+        "bridge": {
+          "listening": true,
+          "sockets": 0,
+          "children": 0
+        },
+        "counters": {
+          "pidsCurrent": "8\n",
+          "pidsMax": "128\n",
+          "pidsPeak": "128\n",
+          "pidsEvents": "max 12\n"
+        }
+      },
+      "cleanup": {
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true
+      },
+      "samePG16ProfileStillReachesPidCap": true,
+      "priorSingleComparisonNotStableRepair": true,
+      "testCandidate24eUnchanged": true,
+      "noRetryPoolLimitOrConcurrencyChange": true,
+      "normalWidgetNotStarted": true,
+      "runtimeExplicitlyReturned": true
+    },
+    "boundedPidCapacityCorrection": {
+      "status": "contracts25_and_whole_legacy9_passed",
+      "postgresBeforeSha256": "95af1af2751375c4e06c86f22348a800148821c4ba834e52f8fcb023c1ab1e1a",
+      "postgresAfterSha256": "3c7032213c91488ff49eb37437a831530cdbdda902539ac3889e811013dc37e4",
+      "postgresPatchSha256": "e8ef57315aff4fc978a14af9d0a643b17e28dda611c73dd64ed4cee1c305cc41",
+      "postgresExactInverse": true,
+      "defaultDockerCreateArgvByteEquivalentWhen128": true,
+      "default128ResolvedBeforeDocker": true,
+      "onlyBounded128or256": true,
+      "wrapperBeforeSha256": "66e0ac9b338ac225cf87bf15960c6de072251ea33e32c8346bc710f30743234b",
+      "wrapperAfterSha256": "cf0ceb508f1c67dd40fa2f05d1523b55c6913599eabdcd12a19314775cd6c39f",
+      "wrapperPatchSha256": "76cef47127d0333d16a885c83bed706ae97e1d30ce0e51ba09df4435ccdd917b",
+      "wrapperCounterProofBothTerminalOutcomes": true,
+      "originalFailurePreservedAndFinallyCleanupUnchanged": true,
+      "onlyLegacyRequests256": true,
+      "noProductiveTsOrOldAssertionModified": true,
+      "cache": ".cache/t57-pids-capacity-correction-20261118",
+      "redReceipt": ".cache/t57-full-gates/2026-11-18T21-14-55.331Z/receipt.json",
+      "redTap": {
+        "tests": 25,
+        "pass": 21,
+        "fail": 4,
+        "skipped": 0,
+        "cancelled": 0
+      },
+      "userApprovedExpected24eUnchanged": true,
+      "greenContractsReceipt": ".cache/t57-full-gates/2026-11-18T21-16-37.312Z/receipt.json",
+      "greenContractsReceiptSha256": "116264c0478728f0699bf47ec4b855ada47a7aaf13cf0880c5371cacb2e82386",
+      "greenContractsTests": 25,
+      "new6Old19AllPreserved": true,
+      "retained109DefaultExecutionEquivalence": true,
+      "native13FilesRequestNoPidOverride": true
+    },
+    "finalLegacy9": {
+      "status": "passed_natural_exit0",
+      "receipt": ".cache/t57-full-gates/2026-11-18T21-17-11.074Z/receipt.json",
+      "receiptSha256": "90116f8a8b76be81e176cbe40de15cf67028bce9279d1305363fb30524b71db8",
+      "children": [
+        {
+          "label": "legacy-inbox",
+          "pid": 11692,
+          "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T21-17-11.074Z\\legacy-inbox.log",
+          "startedAtUtc": "2026-11-18T21:17:17.109Z",
+          "status": "natural_exit0",
+          "code": 0,
+          "signal": null,
+          "finishedAtUtc": "2026-11-18T21:17:48.406Z",
+          "logSha256": "941123199ed899456f9db50d85607b9fe74162b655281c66b402b4c75955c5e8",
+          "tap": {
+            "tests": 9,
+            "pass": 9,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "legacyInbox": {
+            "summary": {
+              "legacyInbox": {
+                "tests": 9,
+                "pass": 9,
+                "fail": 0,
+                "cancelled": 0,
+                "skipped": 0,
+                "todo": 0
+              },
+              "ownedMarkerChecked": true,
+              "currentDatabaseChecked": true,
+              "nativeClientVerified": true
+            },
+            "cleanup": {
+              "cleanupErrors": 0,
+              "disposableDatabaseRemoved": true,
+              "bridgeClosed": true
+            }
+          }
+        }
+      ],
+      "admissions": [
+        {
+          "label": "legacy-inbox",
+          "requiredCommitMiB": 2048,
+          "physicalInformational": true,
+          "memory": {
+            "observedAtUtc": "2026-11-18T21:17:11.208808+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 1891,
+            "commitAvailableMiB": 6195,
+            "memoryLoadPercent": 88
+          },
+          "admitted": true
+        }
+      ],
+      "actualTap": {
+        "tests": 9,
+        "pass": 9,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "capacityProof": {
+        "ownedIdentityVerified": true,
+        "requestedPidsLimit": 256,
+        "bridge": {
+          "listening": true,
+          "sockets": 0,
+          "children": 0
+        },
+        "counters": {
+          "pidsCurrent": "8\n",
+          "pidsMax": "256\n",
+          "pidsPeak": "146\n",
+          "pidsEvents": "max 0\n"
+        }
+      },
+      "cleanup": {
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true
+      },
+      "checkedAfterLegacyInbox": {
+        "checked": true,
+        "inputSha256": "9850491c8933e860c0e6f06c7111e6b729d6ce98b55dfed99aea4d5df954b778",
+        "artifactSha256": "4612024520363495b33ac529d3abc631c3c3fed11a42370ac582b531305b4deb",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2577
+        }
+      }
+    },
+    "productPreservation": {
+      "normal": {
+        "receipt": ".cache/t57-full-gates/2026-11-18T21-19-46.266Z/receipt.json",
+        "receiptSha256": "3fbf323a714e17fe474f0452c916076755d62641faa90bd915183a30e5554820",
+        "status": "passed_natural_exit0",
+        "children": [
+          {
+            "label": "normal-checkout",
+            "pid": 44216,
+            "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T21-19-46.266Z\\normal-checkout.log",
+            "startedAtUtc": "2026-11-18T21:19:49.010Z",
+            "status": "natural_exit0",
+            "code": 0,
+            "signal": null,
+            "finishedAtUtc": "2026-11-18T21:20:21.609Z",
+            "logSha256": "5da640596a04037b8a7285a1d7cb824f1d9720c70c66e7a3f30139b95aa08216",
+            "product": {
+              "summary": {
+                "phase": "normal-checkout-payment",
+                "coverageMode": "baseline-and-identity",
+                "passed": 48,
+                "waiters": 3,
+                "prismaClientConstructed": true,
+                "providerCalls": 0,
+                "scope": "normal-standalone-source-coupon-identity-detachment",
+                "checkoutVersionTrigger": true,
+                "checkoutStrategyTrigger": true
+              },
+              "cleanup": {
+                "phase": "normal-checkout-payment",
+                "coverageMode": "baseline-and-identity",
+                "status": "passed",
+                "cleanupErrors": 0,
+                "disposableDatabaseRemoved": true,
+                "bridgeClosed": true,
+                "durationMs": 32530,
+                "network": "none",
+                "productionAccess": false
+              }
+            }
+          }
+        ],
+        "admissions": [
+          {
+            "label": "product-normal",
+            "requiredCommitMiB": 2048,
+            "physicalInformational": true,
+            "memory": {
+              "observedAtUtc": "2026-11-18T21:19:46.339453+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 2166,
+              "commitAvailableMiB": 6634,
+              "memoryLoadPercent": 86
+            },
+            "admitted": true
+          }
+        ],
+        "checkedAfterProduct": {
+          "checked": true,
+          "inputSha256": "9850491c8933e860c0e6f06c7111e6b729d6ce98b55dfed99aea4d5df954b778",
+          "artifactSha256": "4612024520363495b33ac529d3abc631c3c3fed11a42370ac582b531305b4deb",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2577
+          }
+        }
+      },
+      "widget": {
+        "receipt": ".cache/t57-full-gates/2026-11-18T21-21-29.109Z/receipt.json",
+        "receiptSha256": "f085f01f91ed1c396c3b9272f64d7f37a9d0ec36bfd34699892f532fc300f0be",
+        "status": "passed_natural_exit0",
+        "children": [
+          {
+            "label": "widget-checkout",
+            "pid": 30784,
+            "log": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.cache\\t57-full-gates\\2026-11-18T21-21-29.109Z\\widget-checkout.log",
+            "startedAtUtc": "2026-11-18T21:21:31.760Z",
+            "status": "natural_exit0",
+            "code": 0,
+            "signal": null,
+            "finishedAtUtc": "2026-11-18T21:23:17.546Z",
+            "logSha256": "9497c9e7a250ce48930de225a55a7116c34788fa34a6411e8fcc8c382cd374cc",
+            "product": {
+              "summary": {
+                "status": "passed",
+                "passed": 176,
+                "realLockWaiters": 32,
+                "syntheticOnly": true,
+                "providerCalls": 0
+              },
+              "cleanup": {
+                "status": "passed",
+                "cleanupErrors": 0,
+                "disposableDatabaseRemoved": true,
+                "bridgeClosed": true,
+                "durationMs": 105724,
+                "network": "none",
+                "productionAccess": false
+              }
+            }
+          }
+        ],
+        "admissions": [
+          {
+            "label": "product-widget",
+            "requiredCommitMiB": 2048,
+            "physicalInformational": true,
+            "memory": {
+              "observedAtUtc": "2026-11-18T21:21:29.207160+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 2628,
+              "commitAvailableMiB": 6835,
+              "memoryLoadPercent": 83
+            },
+            "admitted": true
+          }
+        ],
+        "checkedAfterProduct": {
+          "checked": true,
+          "inputSha256": "9850491c8933e860c0e6f06c7111e6b729d6ce98b55dfed99aea4d5df954b778",
+          "artifactSha256": "4612024520363495b33ac529d3abc631c3c3fed11a42370ac582b531305b4deb",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2577
+          }
+        }
+      }
+    },
+    "acceptedCohorts": {
+      "quickWholeFiles27": 304,
+      "wireWholeFile": 1,
+      "nativeWholeFiles13": 109,
+      "capacityWholeFiles3": 25,
+      "legacyDatabaseWholeFile": 9,
+      "normalProductPreservation": 48,
+      "widgetProductPreservation": 176,
+      "totalAcceptedDistinctCases": 672,
+      "retained304Wire109NotClaimedAsFreshReplays": true
+    },
+    "postGateSelfCheck": {
+      "everyNewTestAsserts": true,
+      "canonicalStateAndNegativeCasesCovered": true,
+      "checksC23C24SelectActualWholeFilesIncludingTenantAndGovernance": true,
+      "noOldAssertionWeakenedOrSkipped": true,
+      "onlyExplicitUserApprovedExpectedChanges": true,
+      "noUnnecessaryProductiveChanges": true,
+      "testCapacityDecisionExplicitTechnicalOnly": true,
+      "noProductionOrProviderAccess": true
+    },
+    "runtimeStateAtFinalTaskRecord": "All required local commands ended naturally; no active SUT. Focused local commit and explicit Root handover follow this task record."
+  },
+  "completedAtUtc": "2026-11-18T21:25:29.486276+00:00",
+  "commitMessage": "feat(service-business): t57 add a fixed human action to the main menu",
+  "commitBaseHead": "b25d054ea34f26dd59b72e1894dcd689ea84f344",
+  "requirementsSettled": [
+    "HUM-01",
+    "HUM-02"
+  ],
+  "requirementsStillPartial": [
+    "REG-02"
+  ],
+  "featureLevelVerificationStillPending": true
+}

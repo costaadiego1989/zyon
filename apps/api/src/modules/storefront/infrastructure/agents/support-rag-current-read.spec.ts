@@ -215,7 +215,8 @@ test("the actual FAQ handler preserves a database outage through the agent curre
   let queries = 0, handoffs = 0;
   const support = createSupportHandlers({ prisma: { supportSetting: { findUnique: async (args: any) => {
     queries++;assert.equal(args.where.merchantId, "merchant");throw Error("database unavailable");
-  } } }, supportHandoff: { createHandoff: async () => { handoffs++;throw Error("unexpected handoff"); } } } as never,
+  } } }, supportHandoff: { createHandoff: async () => { handoffs++;throw Error("unexpected handoff"); },
+    createToolHandoff: async () => { handoffs++;throw Error("unexpected handoff"); } } } as never,
   { merchantId: "merchant", sessionId: "owned" });
   const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: {
     ...support, getStorePolicies: async () => policies,

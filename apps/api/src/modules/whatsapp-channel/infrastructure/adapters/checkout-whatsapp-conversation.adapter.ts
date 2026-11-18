@@ -34,6 +34,7 @@ import { metaWelcomeMessage } from "../../domain/ui/meta-ui-renderer.js";
 import { presentationAssetUrl, withCartAnimations } from "../../domain/ui/commerce-animations.js";
 import { metaCatalogCopy } from "../../domain/ui/meta-compact-presentation.js";
 import { BUYER_HUB_COMMANDS } from "../../domain/ui/buyer-hub.js";
+import { isHumanSupportDiscussion } from "../../domain/services/whatsapp-human-intent.js";
 import { projectPaidOrderReceipt } from "../../../notifications/domain/paid-order-receipt.js";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../../storefront/domain/ports/conversation.port.js";
 import { CheckoutShippingService } from "../../../checkout/application/services/checkout-shipping.service.js";
@@ -223,7 +224,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       input.message.trim() === checkoutShippingLabel(option) || input.message.trim() === `Escolho o frete ${option.carrier} ${option.method}`) ||
       /^(?:escolho o frete |entrega ·|(?:quero (?:o |a )?(?:frete|entrega) )?mais (?:barat[oa]|r[aá]pid[oa]))/i.test(input.message.trim()));
     const shippingQuestion = nextRequestedField === "frete" && (isShippingQuickReplyQuestion(input.message) || /(?:frete (?:gr[aá]tis|gratuito)|(?:op[cç][oõ]es|prazo|valor|pre[cç]o|transportadora).*(?:frete|entrega)|(?:frete|entrega).*(?:op[cç][oõ]es|prazo|valor|pre[cç]o|transportadora))/i.test(input.message));
-    const checkoutInput = state.pendingCoupon || awaitingField || shippingAnswer || shippingQuestion || /^(calcular novamente|verificar pagamento|reenviar c[oó]digo|alterar email|pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito))$/i.test(input.message.trim());
+    const checkoutInput = !isHumanSupportDiscussion(input.message) && (state.pendingCoupon || awaitingField || shippingAnswer || shippingQuestion || /^(calcular novamente|verificar pagamento|reenviar c[oó]digo|alterar email|pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito))$/i.test(input.message.trim()));
     if (state.stage === "checkout" && (browsing || !checkoutAction && !checkoutInput)) {
       state.stage = "store"; state.pendingCoupon = undefined; state.pendingCheckoutEdit = undefined; state.expectsFreeInput = false;
     }
