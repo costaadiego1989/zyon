@@ -165,3 +165,17 @@
 @media (prefers-reduced-motion: reduce) {
   .meta-ads-agent *, .meta-ads-agent *::before, .meta-ads-agent *::after { transition: none; animation: none; scroll-behavior: auto; }
 }
+
+/* Shared native disclosure rows follow the dashboard's compact type scale. */
+.meta-ads-agent details.mga-disclosure > summary {
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 14px 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 21px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.meta-ads-agent .mga-existing-actions { margin: 20px 0 0; }

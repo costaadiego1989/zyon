@@ -9,5 +9,5 @@ export const adTermDefinitions={
 export function AdTermsHelp({text,label}:{text:string;label?:string}){
  const terms=(Object.keys(adTermDefinitions) as Array<keyof typeof adTermDefinitions>).filter(term=>new RegExp(`\\b${term}\\b`,'i').test(text));
  if(!terms.length)return null;
- return <details className="mga-term-help"><summary>{label??`Entender os termos: ${terms.join(', ')}`}</summary><dl>{terms.map(term=><div key={term}><dt>{term}</dt><dd>{adTermDefinitions[term]}</dd></div>)}</dl></details>;
+ return <details className={label?"mga-term-help mga-disclosure":"mga-term-help"}><summary>{label??`Entender os termos: ${terms.join(', ')}`}</summary><dl>{terms.map(term=><div key={term}><dt>{term}</dt><dd>{adTermDefinitions[term]}</dd></div>)}</dl></details>;
 }

@@ -36,7 +36,7 @@ export function ConnectionPanel({connection, entitled, api, onUpdated, navigate 
     </div>}
     {action.error && <p role="alert">{action.error}</p>}{notice && <p role="status">{notice}</p>}
     {connected && <button type="button" className="mga-secondary" disabled={action.busy} onClick={() => setReview(true)}>Desconectar Meta</button>}
-    <details className="mga-connection-guidance mga-inline-details"><summary>Sobre a conexão</summary><p>Use a conta da sua loja. A autorização define quais contas, páginas e catálogos ficam disponíveis.</p></details>
+    <details className="mga-connection-guidance mga-inline-details mga-disclosure"><summary>Sobre a conexão</summary><p>Use a conta da sua loja. A autorização define quais contas, páginas e catálogos ficam disponíveis.</p></details>
     {review && <div className="mga-notice"><p>As campanhas podem continuar consumindo verba na Meta. A desconexão bloqueia novas operações e invalida aprovações; para parar os anúncios, aprove a pausa antes de desconectar ou use o Gerenciador de Anúncios.</p><div className="mga-actions"><button type="button" disabled={action.busy} onClick={() => void action.run(async () => {await api.disconnect(); setReview(false); setView({...view, status: "disconnected"}); setNotice("Meta desconectada. As campanhas externas não foram pausadas."); await onUpdated();})}>Confirmar desconexão</button><button type="button" className="mga-secondary" disabled={action.busy} onClick={() => setReview(false)}>Manter conexão</button></div></div>}
   </section>;
 }
