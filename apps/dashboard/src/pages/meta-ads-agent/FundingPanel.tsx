@@ -51,6 +51,6 @@ export function FundingPanel({account,diagnosis,loading,busy,error,onRefresh,sho
       </details>
       </details>
     </>}
-    {(error||refreshError)&&<p role="alert">{error||refreshError}</p>}
+    {account&&(error||refreshError)&&<p role="alert">{error||refreshError}</p>}
   </section>;
 }
