@@ -9,6 +9,7 @@ import { ui } from './test-helpers.js';
 import { campaign,overview,launchReview } from './fixtures.js';
 import type {CampaignApprovalApi} from './api.js';
 import { DashboardHttpError } from '../../api/http/error.js';
+import {ToastContainer} from '../../components/Toast.js';
 let screen:ReturnType<typeof ui>;afterEach(async()=>{await screen?.close();vi.useRealTimers();});
 const turn=(patch:Partial<AssistantTurn>={}):AssistantTurn=>({id:'t',threadId:'h',ordinal:1,status:'completed',message:'Ajuda',reply:'Resposta persistida',references:[],artifacts:[],error:null,createdAt:'2026-11-16T12:00:00Z',updatedAt:'2026-11-16T12:00:00Z',...patch});
 const thread=(turns:AssistantTurn[]=[]):AssistantThread=>({id:'h',context:{id:'meta-ads',label:'Anúncios com IA',capabilities:[]},revision:turns.length,campaign:null,turns,nextCursor:null,updatedAt:'2026-11-16T12:00:00Z'});
@@ -24,6 +25,7 @@ function fixture(history=thread()){
 
 function campaignFixture(status='queued',missing:string[]=[]){const h=thread();h.campaign={campaignId:'campaign1',draft:campaign().draft,awaitingFields:[]};const f=fixture(h);f.props.overview.campaigns=[campaign()];f.approval.preparation.mockResolvedValue({campaignDigest:'a'.repeat(64),preparations:[preparation(status,missing)]} as never);return f;}
 async function reviewImages(){await act(async()=>screen.container.querySelectorAll('.mga-launch img').forEach(image=>image.dispatchEvent(new Event('load'))));}
+test('AF-05 replayed failed admission announces once and refresh does not repeat historical errors',async()=>{screen=ui();const f=fixture();f.client.submit.mockResolvedValue({turn:turn({status:'failed',reply:null}),revision:1,replayed:true} as never);await screen.render(<><ToastContainer/><MetaAdsAssistant {...f.props}/></>);await screen.click('Abrir assistente');await screen.change('Mensagem para a IA','Retomar pedido');await screen.click('Enviar mensagem');expect(screen.container.querySelectorAll('.ui-toast--error')).toHaveLength(1);f.client.thread.mockResolvedValue(thread([turn({status:'failed',reply:null})]));await screen.click('Atualizar conversa');expect(screen.container.querySelectorAll('.ui-toast--error')).toHaveLength(1);expect(f.client.submit).toHaveBeenCalledTimes(1);});
 
 test('RD-01 the actual ads page distinguishes unavailable access from processing and preserves its draft when access returns',async()=>{
   screen=ui();const f=fixture();await screen.render(<MetaAdsAssistant {...f.props} overview={{...f.props.overview,entitled:false}}/>);

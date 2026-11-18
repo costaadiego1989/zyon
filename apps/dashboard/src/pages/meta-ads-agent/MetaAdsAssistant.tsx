@@ -84,8 +84,10 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
   useEffect(()=>{if(source){setExpanded(false);sourceHeading.current?.focus();}},[source]);
   const processing=!!thread?.turns.some(turn=>!terminal(turn));
   const observedPending=useRef(new Set<string>());
+  const announcedFailures=useRef(new Set<string>());
+  function reportTurnFailure(turn:AssistantTurn){if(!['failed','unknown'].includes(turn.status)||announcedFailures.current.has(turn.id))return;announcedFailures.current.add(turn.id);feedback.notify('error',turn.status==='unknown'?'A IA não confirmou o resultado. Consulte a conversa antes de tentar novamente.':'A IA não concluiu a solicitação. Confira a conversa para retomar.');}
   useEffect(()=>{
-    let completed=false;for(const turn of thread?.turns??[]){if(!terminal(turn))observedPending.current.add(turn.id);else if(observedPending.current.delete(turn.id)){completed=true;if(['failed','unknown'].includes(turn.status))feedback.notify('error',turn.status==='unknown'?'A IA não confirmou o resultado. Consulte a conversa antes de tentar novamente.':'A IA não concluiu a solicitação. Confira a conversa para retomar.');}}
+    let completed=false;for(const turn of thread?.turns??[]){if(!terminal(turn))observedPending.current.add(turn.id);else if(observedPending.current.delete(turn.id)){completed=true;reportTurnFailure(turn);}}
     if(completed)void Promise.allSettled([loadPanels(),Promise.resolve(updated.current())]);
   },[thread,loadPanels]);
   const pendingWork=overview.generations.some(job=>['reserved','running'].includes(job.status))||overview.executions.some(job=>['reserved','sending','publishing'].includes(job.status));
@@ -100,6 +102,7 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
     if(sendLock.current||!client.current||!lifetime.current||!threadRef.current)throw new Error('assistant_not_ready');
     sendLock.current=true;setSubmitting(true);const port=client.current,signal=lifetime.current.signal;
     try{const result=await port.submit('meta-ads',threadRef.current.id,input,signal);if(!alive.current||signal.aborted)throw new DOMException('Contexto encerrado','AbortError');
+      reportTurnFailure(result.turn);
       apply({...threadRef.current,revision:result.revision,turns:[result.turn]});pending.current=null;setChatError('');
       void Promise.resolve(updated.current()).catch(()=>{});
     }catch(error){if(alive.current&&!signal.aborted){let conflict=false;
