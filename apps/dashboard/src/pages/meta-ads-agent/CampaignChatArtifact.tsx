@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import type { MetaAdsCampaign, MetaAdsGeneration, MetaAdsOverview, MetaAdsProposal } from '@zyon/shared-types';
 import type { MetaAdsAgentApi } from '../../api/endpoints/meta-ads-agent.js';
 import { ProposalReview } from './ProposalReview.js';
-import { executionStates, money, priorities, useAction } from './presentation.js';
+import { executionStates, generationFeedback, money, priorities, useAction } from './presentation.js';
 export interface CampaignChatArtifactProps {
   campaign:MetaAdsCampaign; overview:MetaAdsOverview; api:MetaAdsAgentApi; busy?:boolean;
   onUpdated:()=>void|Promise<void>; onRequest:(message:string)=>Promise<void>;
@@ -21,7 +21,7 @@ export function CampaignChatArtifact({campaign,overview,api,busy,onUpdated,onReq
   const media=overview.media.filter(m=>m.campaignId===campaign.id&&m.commercialReview?.status==='verified');
   const proposals=[...new Map([...(localProposal?[localProposal]:[]),...overview.proposals.filter(p=>p.campaignId===campaign.id)].map(p=>[p.id,p])).values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
   const latest=proposals[0];const credits=overview.wallet.monthlyAvailable+overview.wallet.extraAvailable;
-  async function generate(){const intent=JSON.stringify({type:'generate',campaign:campaign.id,draft,count,jobs:overview.generations.filter(g=>g.campaignId===campaign.id).map(g=>g.id).sort()});setLocalJob(await api.generate(campaign.id,count,key(intent)));await onUpdated();}
+  async function generate(){const intent=JSON.stringify({type:'generate',campaign:campaign.id,draft,count,jobs:overview.generations.filter(g=>g.campaignId===campaign.id).map(g=>g.id).sort()});const result=await api.generate(campaign.id,count,key(intent));setLocalJob(result);await onUpdated();return result;}
   async function propose(){const kind=campaign.remoteCampaignId?'publish':'prepare';const reasoning=kind==='prepare'?'Preparar esta campanha em rascunho ou pausada para revisão.':'Solicitar publicação da campanha revisada.';
     const input={kind,after:{},reasoning,idempotencyKey:key(JSON.stringify({kind,campaign:campaign.id,draft}))} as const;setLocalProposal(await api.propose(campaign.id,input));await onUpdated();}
   if(onReview)return <article className="mga-chat-campaign" aria-label={`Campanha ${draft.name}`}><h3>{draft.name}</h3>{campaign.status!=='draft'&&<p>{executionStates[campaign.status]}</p>}<p><strong>{draft.headline}</strong></p><small>{campaign.products.map(product=>`${product.name} · ${money(product.priceCents,product.currency)} · Estoque: ${product.stockQuantity??'não informado'}`).join(' · ')}</small><p>{draft.budget?`${money(draft.budget.amountCents,draft.budget.currency)} ${draft.budget.cadence==='lifetime'?'no total':'por dia'}`:'Orçamento a definir'} · {draft.destination==='store'?'Loja online':'WhatsApp'}</p><button type="button" className="mga-secondary" onClick={onReview}>{campaign.remoteCampaignId?'Ver campanha':'Ver preparo da campanha'}</button></article>;
@@ -38,8 +38,8 @@ export function CampaignChatArtifact({campaign,overview,api,busy,onUpdated,onReq
       <p>A geração usa seus créditos de imagens. Não compra extras. A verba dos anúncios é paga à Meta; preparar mantém os objetos pausados.</p>
       <label>Quantidade de imagens<select aria-label="Quantidade de imagens" value={count} disabled={disabled} onChange={e=>setCount(Number(e.target.value))}>{Array.from({length:10},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}</option>)}</select></label>
       <small>{credits} crédito(s) disponível(is). Cada imagem nova usa um crédito.</small>
-      <div className="mga-actions"><button type="button" disabled={disabled||count>credits} onClick={()=>void action.run(generate)}>Gerar criativos</button>
-        <button type="button" className="mga-secondary" disabled={disabled||!draft.budget||!draft.mediaIds.length} onClick={()=>void action.run(propose)}>{campaign.remoteCampaignId?'Solicitar publicação':'Solicitar preparo pausado'}</button>
+      <div className="mga-actions"><button type="button" disabled={disabled||count>credits} onClick={()=>void action.run(generate,generationFeedback)}>Gerar criativos</button>
+        <button type="button" className="mga-secondary" disabled={disabled||!draft.budget||!draft.mediaIds.length} onClick={()=>void action.run(propose,"Proposta criada. Revise os detalhes antes de aprovar.")}>{campaign.remoteCampaignId?'Solicitar publicação':'Solicitar preparo pausado'}</button>
         <button type="button" className="mga-secondary" disabled={disabled} onClick={()=>void action.run(()=>onRequest(`Quero revisar os dados e criativos da campanha ${draft.name} (${campaign.id}), preservando o planejamento.`))}>Revisar pela conversa</button></div>
       {!draft.mediaIds.length&&<p>Selecione os criativos pela conversa antes de preparar. Você pode pedir uma imagem simples ou um carrossel.</p>}
       {localProposal&&<p>Nenhuma alteração enviada à Meta. Revise a proposta abaixo.</p>}

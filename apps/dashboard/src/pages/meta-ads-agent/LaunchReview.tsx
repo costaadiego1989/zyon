@@ -1,7 +1,8 @@
 import {useEffect,useRef,useState} from 'react';
 import type {MetaAdsCampaignLaunchReview} from '@zyon/shared-types';
 import type {CampaignApprovalApi} from './api.js';
-import {errorMessage,executionStates,money,priorities} from './presentation.js';
+import {errorMessage,executionFeedback,executionStates,money,priorities} from './presentation.js';
+import {showToast} from '../../components/Toast.js';
 import {ChevronLeft,ChevronRight} from 'lucide-react';
 import './launch-review.css';
 
@@ -39,8 +40,8 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true}:Pr
   async function approve(){
     if(lock.current||!entitled||!current.canApprove||!previewReady||approved||unknown)return;
     lock.current=true;setBusy(true);setError('');key.current??=crypto.randomUUID();
-    try{const next=await api.approveLaunch(campaign.id,proposal.id,{digest:proposal.digest,idempotencyKey:key.current});if(alive.current){setResult(next);void onUpdated(next);}}
-    catch(e){if(alive.current){setUncertain(true);setError(errorMessage(e));}}
+    try{const next=await api.approveLaunch(campaign.id,proposal.id,{digest:proposal.digest,idempotencyKey:key.current});if(alive.current){setResult(next);const message=next.execution?executionFeedback(next.execution):{type:'success' as const,text:'Aprovação registrada. Aguardando envio à Meta.'};showToast(message.type,message.text);void onUpdated(next);}}
+    catch(e){if(alive.current){setUncertain(true);setError(errorMessage(e));showToast('error',errorMessage(e));}}
     finally{lock.current=false;if(alive.current)setBusy(false);}
   }
   async function consult(){
@@ -48,8 +49,8 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true}:Pr
     try{
       if(execution&&['execution_unknown','publishing','active_unconfirmed','remote_draft','remote_paused'].includes(execution.status)&&onReconcile)await onReconcile(execution.id);
       const next=await api.review(campaign.id,proposal.id);
-      if(alive.current){setResult(next);if(next.proposal.status!=='pending_review'||next.execution)setUncertain(false);void onUpdated(next);}
-    }catch(e){if(alive.current)setError(errorMessage(e));}
+      if(alive.current){setResult(next);if(next.proposal.status!=='pending_review'||next.execution)setUncertain(false);const message=next.execution?executionFeedback(next.execution):{type:'success' as const,text:'Revisão atualizada. Confira o estado da aprovação.'};showToast(message.type,message.text);void onUpdated(next);}
+    }catch(e){if(alive.current){setError(errorMessage(e));showToast('error',errorMessage(e));}}
     finally{lock.current=false;if(alive.current)setBusy(false);}
   }
   return <section className="mga-launch" aria-label={`Revisão: ${draft.name}`}>

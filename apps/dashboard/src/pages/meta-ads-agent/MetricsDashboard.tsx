@@ -4,7 +4,7 @@ import type {MetaAdsDailyReport} from '@zyon/shared-types';
 import {BarChart3,RefreshCw} from 'lucide-react';
 import {StatCard,StatCardGroup} from '../overview/components/StatCard.js';
 import {buildAdsDashboard,type AdsPoint,type AdsTotals} from './metrics-dashboard.js';
-import {money} from './presentation.js';
+import {money,useAction} from './presentation.js';
 import './metrics-dashboard.css';
 import {AdTermsHelp} from './AdTermsHelp.js';
 
@@ -45,11 +45,12 @@ function MetricChart({points,currency,kind,active}:{points:AdsPoint[];currency:s
 export function MetricsDashboard({reports,accountId,campaignNames,active=true,error,loading,onRefresh,onSettings}:Props) {
   const [days,setDays]=useState<1|7|30>(7),[campaignId,setCampaignId]=useState(''),[refreshing,setRefreshing]=useState(false),[refreshError,setRefreshError]=useState('');
   const id=useId();
+  const feedback=useAction();
   const data=useMemo(()=>buildAdsDashboard(reports,{accountId,days,campaignId}),[reports,accountId,days,campaignId]);
   const campaigns=useMemo(()=>[...new Set([...Object.keys(campaignNames),...reports.filter(report=>report.accountId===accountId).flatMap(report=>report.campaigns.map(row=>row.campaignId))])].map((value,index)=>({id:value,name:campaignNames[value]??`Campanha ${index+1}`})),[reports,accountId,campaignNames]);
   const name=(value:string)=>campaigns.find(c=>c.id===value)?.name??'Campanha';
   const note=(key:keyof AdsTotals)=>data.totals[key]!==null&&data.partialMetrics.includes(key)?'Parcial':undefined;
-  async function refresh(){if(refreshing)return;setRefreshing(true);setRefreshError('');try{await onRefresh();}catch{setRefreshError('Não foi possível atualizar as métricas.');}finally{setRefreshing(false);}}
+  async function refresh(){if(refreshing)return;setRefreshing(true);setRefreshError('');await feedback.run(async()=>{try{await onRefresh();}catch(error){setRefreshError('Não foi possível atualizar as métricas.');throw error;}},'Consulta de métricas atualizada. Confira a data da coleta.');setRefreshing(false);}
   return <section className="mga-metrics" aria-labelledby={`${id}-title`}>
     <div className="mga-metrics-heading"><div><h2 id={`${id}-title`}>Desempenho dos anúncios</h2><p>{data.since&&data.until?`${day(data.since)} a ${day(data.until)}`:'Aguardando a primeira coleta'}{data.timezone&&<> · {data.timezone}</>}</p></div>
       <button type="button" className="mga-secondary mga-metrics-refresh" aria-label="Atualizar métricas" disabled={loading||refreshing} onClick={()=>void refresh()}><RefreshCw size={15} aria-hidden="true"/>{refreshing?'Atualizando…':'Atualizar'}</button></div>
