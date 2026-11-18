@@ -1298,6 +1298,8 @@ T107 → T106
 
 ### T56: Close the active human case and resume once
 
+**Status**: Complete LOCAL Full; 756 components +202 native +2 compiled +48 normal +176 widget, zero skipped, own checked2571/e9936809/99728e69 and all nine header commands passed. Prior cleanup RED preserved with cause unknown; subsequent whole HTTP6 passed with original b21 oracles and observation-only diagnostics. See task-56-evidence.json.
+
 **What**: Fechar ticket e mudar modo/epoch + retorno outbox atomicamente; só vínculo ativo; ticket antigo/duplicata não retoma outro caso nem reenvia cobrança.
 **Where**: `apps/api/src/modules/support/application/close-whatsapp-conversation.use-case.ts`
 **Depends on**: T55, T59, T109
@@ -1306,12 +1308,12 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] whatsapp-human-handoff.integration.spec.ts: double close, old ticket, crash/retry, novo handoff concorrente e checkout produto preservado.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] whatsapp-human-handoff.integration.spec.ts: double close, old ticket, crash/retry, novo handoff concorrente e checkout produto preservado.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: whatsapp-human-handoff.integration.spec.ts: double close, old ticket, crash/retry, novo handoff concorrente e checkout produto preservado. Dedicated `tests/whatsapp-human-unknown-history.integration.spec.mjs` must retain and execute the original Meta historical close/new-handoff assertions after T109; no skipped prerequisite or fabricated transition.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T56$" ./src/modules/support/application/close-whatsapp-conversation.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T56 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/support/application/close-whatsapp-conversation.use-case.spec.ts ./src/modules/whatsapp-channel/domain/services/whatsapp-resume-command.spec.ts ./src/modules/whatsapp-channel/application/services/whatsapp-resume-message-state.spec.ts ./src/modules/whatsapp-channel/application/services/whatsapp-resume-outbox.consumer.spec.ts ./tests/whatsapp-human-close-db.integration.spec.mjs ./tests/whatsapp-human-handoff.integration.spec.ts ./tests/whatsapp-resume-request.integration.spec.mjs ./tests/whatsapp-resume-overlap.integration.spec.mjs ./tests/whatsapp-human-unknown-history.integration.spec.mjs` Whole four unit companions and five actual close/request/overlap/history files; every child executes, zero skips. Complete accepted preservation202/compiled2/normal48/widget176 and header evidence remain recorded in task-56-evidence.json; final same-HEAD criterion proofs remain required.
 **Commit**: `feat(service-business): t56 close the active human case and resume once`
 
 ### T57: Add a fixed human action to the main menu
@@ -2392,7 +2394,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T53, T54, T55, T60, T61.
 
 **C28** - WHEN operador encerra o atendimento THEN the system SHALL restaurar o modo IA e informar a devolução uma única vez, mesmo com eventos repetidos. (HUM-06, AC 6)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^HUM-06$" ./tests/whatsapp-human-handoff.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/whatsapp-human-close-db.integration.spec.mjs ./tests/whatsapp-human-handoff.integration.spec.ts ./tests/whatsapp-resume-request.integration.spec.mjs ./tests/whatsapp-resume-overlap.integration.spec.mjs ./tests/whatsapp-human-unknown-history.integration.spec.mjs`
 Tasks: T56, T61.
 
 **C29** - IF a fila, a entrega ou a equipe está indisponível THEN the system SHALL informar o estado real, sem prometer atendimento imediato ou resposta já enviada. (HUM-07, AC 7)
@@ -3164,6 +3166,14 @@ Tasks: T110.
 **T31 Full complete 2026-11-18:** Own checked85724804/23a1d44f/2567, unit14/newHTTP-SQL12/preservation324 (100TAP+normal48+widget176) and API lint/types all natural0,0skip. Exact approved403 fixture retained, P untouched, unrelated WIP preserved. T31 marked before its atomic local commit;65/110 tasks closed. T32 and phase-endBuild remain next. See task-31-evidence.json.
 
 **T72 Full complete 2026-11-18:** Actual adopted pure32 and owned AppModule HTTP25 passed naturally0, zero failures/skips/cancelled/todo. All21 critical cases across clinic/salon/consulting and three last-await source-revision races passed; normal cleanup and measured providerCalls0. Own checked6e677f7f/27d810ec/2568 and seven independent build/type headers plus lint accepted. Exact task-72-evidence.json pins all eleven unchanged adopted files and raw receipts. Scripted model transport does not prove provider answer quality. T72 marked before focused local commit;66/110 tasks closed,44 open. Current compiled program includes pending32 source; same-HEAD final proofs/build/verifier/screens remain mandatory. Prior startup RED preserved. No production action.
+
+**Dispatched:** 2026-11-18 human_close_consolidate owns sole runtime in M after safe fast-forward ae0->d870 and exact preservation of21 WIP source/test/plan/evidence files plus one metadata merge. New own ordinary checked API capture/build/record each fresh5168, then APItypes/lint, all24native202 (new23+legacy173+history6), compiled2, normal48/widget176 and sixfrontendheaders, each original guarded child, natural cleanup/provider0; no competing probes, no new monitor framework. All58component files and all24native tests match prior approved hashes; existing756components green remains accepted because unit source bodies/oracles and their domain dependencies are unchanged. Only committed Root Auth/manual production additions and three local72MJS harness deltas were incorporated; real natives/FullBuild will exercise current composition. No test edits, heap/time-budget changes, production actions or Root32 incorporation. Stop first failure/refusal, report exact evidence and return runtime. Current old M artifact stale until own fresh full build.
+
+**Dispatched:** 2026-11-18 one whole failed T56 HTTP file6 with observation-only existing operatorDiagnosticError/observeProviderTrapFailure and owned PG/Redis runIds from returned wrappers before close. Exact stripped observer import/finally diagnostic returns approvedb21d source byte-for-byte; all assertions, five business cases, close call, thrown error identity and budgets unchanged. Prior actual16newnative green retained; prior HTTP5businesspass/rootcleanupRED/rawac9d28bc remains historical. Own currente9936809/99728e69/2571 must readmit unchanged fingerprint before this one original2048 wholeHTTP run; no API recompilation, no other test or provider traffic, no raw exception/URL/config/payload logging. Root explicitly reviewed existing diagnostic helper boundary; do not infer a cause or successful cleanup from business assertions. Scoped resource identities permit exact later inspection only, no global enumeration.
+
+**Dispatched:** 2026-11-18 Root explicitly continued original Full56 remainder after observed HTTP6/6 normal cleanup0, raw10af0515/receipta934fa3f, own checked e9936809/99728e69/2571 unchanged. Prior cleanup RED remains cause-unknown. Existing bank8/request8 plus fullHTTP6=22 accepted; now execute original remaining21files/180cases in original order starting real relay overlap, plus compiled2/normal48/widget176/sixfrontendheaders. No repetition of accepted22 or756pure, no orphan skip/namefilter/oracle change, every original2048/1024/5168 child guard unchanged. Source freeze updated only diagnosticHTTP and dispatch metadata; reverse-proven b21 oracle body retained. Same sole-runtime worker until return; stop first failure/refusal and report before retry. No production/provider/external message action.
+
+**T56 Full complete 2026-11-18:** Own checked2571 e9936809/99728e69, unchanged756components plus202whole actual native/2compiled/normal48/widget176 and all9header commands passed naturally0, zero skipped, provider0 and current normal cleanup. Fixed resume text, atomic exact active closure/replay/rollback, historical new handoff and all original AI/operator/product fences proved. Original HTTP cleanup RED retained cause-unknown; observation-only93eb strips exactly to approvedb21 and subsequent whole6passed. Scope only23task files; no production action. C28 and Full56 now select actual whole unit/close/request/overlap/history files, not nonexistent names. Task56 marked before its own atomic commit;67/110 tasks locally closed. Final integrated sameHEAD proofs/Build/fresh Verifier/screens remain mandatory.
 
 ## Phase Execution Map
 

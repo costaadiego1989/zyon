@@ -317,7 +317,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | HUM-03 | AI pause | T4, T48, T49, T50, T51, T109 | Complete (LOCAL; T4/T48-T51 and T109 locally gated; final feature verification pending) |
 | HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52 exact claim,T53send,T59permissionprimitives complete; queue/UI pending) |
 | HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | In Progress (T53 queue, T54 local transport and T55 authenticated local receipt processing complete; T60/T61 console and final verification pending) |
-| HUM-06 | Automatic AI resume | T56, T61 | Pending |
+| HUM-06 | Automatic AI resume | T56, T61 | In Progress (T56 canonical closure/automatic resume locally complete; T61 operator UI and final proof pending) |
 | HUM-07 | Unavailable team/provider | T54, T55, T58, T109 | In Progress (T54/T55/T109 locally complete; T58 team notices pending) |
 | HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | In Progress (T59permissionprimitives complete; tab/route wiring pending) |
 | RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Implemented locally including T104 bounded-write repair; final proof pending |
@@ -369,7 +369,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 and T22 complete) |
 | EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | In Progress (T30 complete) |
 | EDGE-03 | Optional media failure | T38, T39 | Pending |
-| EDGE-04 | In-flight AI response | T48, T51, T56 | In Progress (T48/T51 complete; T56 close/resume composition pending) |
+| EDGE-04 | In-flight AI response | T48, T51, T56 | Complete locally (T48/T51/T56 and actual AI dispatch/request/commit fences); final integrated verification pending |
 | EDGE-05 | Retrieved-content injection | T70, T71 | Pending |
 
 **Coverage:** 72 identified requirements: the original approved71 plus the directly requested ONB-06 service-name list. Product refinements are recorded in context.md; original approvals remain unchanged.

@@ -17,6 +17,8 @@ export class UpdateSupportTicketStatusUseCase {
       const ticket = await tx.supportTicket.findFirst({ where: { id: ticketId, merchantId } });
       if (!ticket) throw new NotFoundException("support_ticket_not_found");
       if (ticket.source === "whatsapp" && status === "in_progress") throw new ConflictException("use_whatsapp_conversation_claim");
+      if (ticket.source === "whatsapp" && ["closed", "resolved"].includes(status)) throw new ConflictException("use_whatsapp_conversation_close");
+      if (ticket.source === "whatsapp" && ticket.status !== status) throw new ConflictException("use_whatsapp_conversation_command");
       if (ticket.status === status) return;
       if (["closed", "resolved"].includes(status) && ticket.returnId) {
         const ret = await tx.return.findFirst({ where: { id: ticket.returnId, merchantId } });

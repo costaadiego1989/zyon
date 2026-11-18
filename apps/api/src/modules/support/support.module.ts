@@ -13,6 +13,7 @@ import { UpdateSupportSettingsUseCase } from "./application/update-support-setti
 import { UpdateSupportTicketStatusUseCase } from "./application/update-support-ticket-status.use-case.js";
 import { CreateSupportTicketUseCase } from "./application/create-support-ticket.use-case.js";
 import { ClaimWhatsAppConversationUseCase } from "./application/claim-whatsapp-conversation.use-case.js";
+import { CloseWhatsAppConversationUseCase } from "./application/close-whatsapp-conversation.use-case.js";
 import { SendTicketMessageUseCase } from "./application/send-ticket-message.use-case.js";
 import { ListTicketMessagesUseCase } from "./application/list-ticket-messages.use-case.js";
 import { TransferTicketUseCase } from "./application/transfer-ticket.use-case.js";
@@ -52,6 +53,7 @@ import { SupportNotificationSettingsController } from "./presentation/http/suppo
     UpdateSupportTicketStatusUseCase,
     CreateSupportTicketUseCase,
     ClaimWhatsAppConversationUseCase,
+    CloseWhatsAppConversationUseCase,
     SendTicketMessageUseCase,
     ListTicketMessagesUseCase,
     TransferTicketUseCase,

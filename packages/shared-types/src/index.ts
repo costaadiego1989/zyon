@@ -900,6 +900,7 @@ export type RevenueManagerDomainEventType =
 export type DomainEventType =
   | "support.case.changed"
   | "whatsapp.support.message.requested"
+  | "whatsapp.support.resume.requested"
   | CheckoutDomainEventType
   | CrossSellDomainEventType
   | CouponsDomainEventType
@@ -1364,6 +1365,8 @@ export type SupportMessageMetadata =
       epoch: number; operatorId: string; clientMessageId: string; delivery: WhatsAppSupportDelivery }
   | { kind: "whatsapp_claim"; schemaVersion: 1; bindingId: string; configId: string; whatsappSessionId: string;
       previousEpoch: number; epoch: number; operatorId: string }
+  | { kind: "whatsapp_resume"; schemaVersion: 1; bindingId: string; configId: string; whatsappSessionId: string;
+      previousEpoch: number; epoch: number; operatorId: string; delivery: WhatsAppSupportDelivery }
   | { kind: "whatsapp_incoming"; schemaVersion: 1; configId: string; whatsappSessionId: string; inboxId: string;
       origin: "text" | "button" | "voice" | "media"; bindingId: string; epoch: number; media?: { inboxId: string } }
   | { kind: "whatsapp_intake"; schemaVersion: 1; configId: string; whatsappSessionId: string; inboxId: string;
