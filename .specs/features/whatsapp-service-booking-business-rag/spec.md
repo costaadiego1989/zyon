@@ -309,7 +309,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | BOOK-05 | Pay online | T29, T35, T40 | Pending |
 | BOOK-06 | Late payment | T36 | Pending |
 | BOOK-07 | On-site receipt | T4, T37, T41, T80 | Pending |
-| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31 locally complete; later commands pending) |
+| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32 locally complete; later financial commands/final proof pending) |
 | BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T49 trusted intake/reference complete; operations/UI pending) |
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | Pending |
 | HUM-01 | Fixed menu entry | T57 | Pending |
@@ -337,7 +337,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21, T23, T24 and T25 complete) |
 | ATEND-05 | One-off times | T22, T25, T78 | In Progress (T22 and T25 complete) |
 | ATEND-06 | Manual appointments | T31, T41, T74, T79 | In Progress (T31 canonical command locally complete; API aggregation and UI pending) |
-| ATEND-07 | Attendance lifecycle | T32, T41, T74, T80 | Pending |
+| ATEND-07 | Attendance lifecycle | T32, T41, T74, T80 | In Progress (T32 canonical backend locally complete; later management/UI gestures and final proof pending) |
 | ATEND-08 | Management authorization | T6, T11, T19, T25, T41, T47, T52, T59, T73, T75, T83, T87 | In Progress (T19/T25backend, T59 client management primitive and T73 typed transport complete; remaining HTTP/UI pending) |
 | ATEND-09 | Unavailability blocks | T22, T25, T78 | In Progress (T22 and T25 complete) |
 | ATEND-10 | Explicit outside-hours appointment | T25, T31, T79 | In Progress (T25/T31 locally complete; T79 UI pending) |
@@ -346,7 +346,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | KPI-03 | Capacity occupancy | T86, T89 | Pending |
 | KPI-04 | Separate financial metrics | T37, T85, T86, T89 | Pending |
 | KPI-05 | Consistent filters | T85, T87, T88, T91 | Pending |
-| KPI-06 | Explicit attendance evidence | T32, T85, T86, T89 | Pending |
+| KPI-06 | Explicit attendance evidence | T32, T85, T86, T89 | In Progress (T32 canonical operational evidence locally complete; metrics consumers/panel pending) |
 | KPI-07 | Unknown and empty metrics | T86, T87, T88, T89, T91 | Pending |
 | REG-01 | Separate business journeys in both channels | T7, T9, T17, T28, T43, T45, T46, T47, T62, T82, T83, T90, T91, T93 | In Progress (T17 complete) |
 | REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | In Progress (T17 complete) |

@@ -831,12 +831,14 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + service-booking.integration.spec.ts: todas transições permitidas/negadas, local pendente, duplicata e foreign.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit + service-booking.integration.spec.ts: todas transições permitidas/negadas, local pendente, duplicata e foreign.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: Unit + service-booking.integration.spec.ts: todas transições permitidas/negadas, local pendente, duplicata e foreign.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T32$" ./src/modules/operations/application/transition-service-appointment.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T32 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Whole transition-service-appointment.use-case.spec.ts12 (all18 allowed/denied state-action cells, finance separation, replay/CAS/auth/rollback) and service-attendance-transitions-http.integration.spec.ts7 actual served HTTP/SQL; original preservation336 plus committed56 HTTP6/history2. All cases/assertions retained; only exact user-approved fixture projection5d6f29bc.
+**Gate**: Full + phase-end Build: whole unfiltered `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/operations/application/transition-service-appointment.use-case.spec.ts ./tests/service-attendance-transitions-http.integration.spec.ts`; new native7 plus preservation336 and composition56HTTP6/history2, current own standard API build/admission, API lint/types and all six frontend header commands. Accepted unchanged126phase components include32unit12. No skipped/name-filtered/nonexistent roots. Final same-HEAD criterion collectors and future UI/metrics proof obligations remain required.
+**Evidence**: task-32-evidence.json. Current own24039819/cef682c3/2572, native351/351 natural0/0skip, all9 Build/header commands0, post-header admission0; unchanged126phase components retained with exact source proof. Both explicit user approvals recorded for exact fixture5d6f29bc/patch913b7aa2; prior RED/refusals preserved. Global idempotency, metrics consumers and later UI remain In Progress.
+
 **Commit**: `feat(service-business): t32 record explicit attendance transitions`
 
 ### T33: Cancel an appointment through authorized operations
@@ -2362,7 +2364,8 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T4, T37, T41, T80.
 
 **C20** - IF mensagem, confirmação ou webhook é repetido THEN the system SHALL manter um único agendamento e uma única aplicação do mesmo evento financeiro. (BOOK-08, AC 8)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^BOOK-08$" ./tests/service-booking.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-booking.integration.spec.ts ./tests/service-local-confirmation.integration.spec.ts ./tests/service-confirmation-http.integration.spec.ts ./tests/service-manual-appointment-http.integration.spec.ts ./tests/service-attendance-transitions-http.integration.spec.ts`
+Scope: Current canonical26/30/31/32 contribution only. Extend with actual whole financial/idempotency33-38/84 and final coverage when those tasks exist; BOOK-08 stays In Progress.
 Tasks: T26, T30, T31, T32, T33, T35, T36, T37, T38, T84.
 
 **C21** - WHEN o comprador solicita cancelar ou remarcar THEN the system SHALL encaminhar à central humana com o vínculo do agendamento e a política publicada da empresa. (BOOK-09, AC 9)
@@ -2474,7 +2477,8 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T31, T41, T74, T79.
 
 **C48** - WHEN operador inicia, conclui ou registra ausência de um atendimento THEN the system SHALL persistir a transição operacional explícita sem inferir quitação financeira ou comparecimento pelo pagamento. (ATEND-07, AC 7)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ATEND-07$" ./tests/service-administration.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/operations/application/transition-service-appointment.use-case.spec.ts ./tests/service-attendance-transitions-http.integration.spec.ts`
+Scope: Actual canonical32 backend proof. Later80 UI initiation/completion/absence gestures and management composition remain required; ATEND-07 stays In Progress.
 Tasks: T32, T41, T74, T80.
 
 **C49** - IF um operador tenta gerir profissional, categoria, grade ou agendamento de outra empresa THEN the system SHALL recusar a operação sem expor o registro solicitado. (ATEND-08, AC 8)
@@ -2510,7 +2514,8 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T85, T87, T88, T91.
 
 **C57** - WHEN o painel mostra concluídos ou ausências THEN the system SHALL usar somente os estados operacionais registrados, sem inferir conclusão por pagamento ou ausência pelo decurso do horário. (KPI-06, AC 6)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^KPI-06$" ./tests/service-metrics.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/operations/application/transition-service-appointment.use-case.spec.ts ./tests/service-attendance-transitions-http.integration.spec.ts`
+Scope: Canonical32 operational evidence contribution only. Actual85/86/89 metrics-consumer and panel proofs must be added when implemented; this does not prove KPI-06 consumer/panel behavior.
 Tasks: T32, T85, T86, T89.
 
 **C58** - IF uma leitura de métricas falha ou o denominador de uma taxa não existe THEN the system SHALL distinguir dados indisponíveis de zero e mostrar taxa não calculável sem fabricar percentuais. (KPI-07, AC 7)
@@ -3174,6 +3179,8 @@ Tasks: T110.
 **Dispatched:** 2026-11-18 Root explicitly continued original Full56 remainder after observed HTTP6/6 normal cleanup0, raw10af0515/receipta934fa3f, own checked e9936809/99728e69/2571 unchanged. Prior cleanup RED remains cause-unknown. Existing bank8/request8 plus fullHTTP6=22 accepted; now execute original remaining21files/180cases in original order starting real relay overlap, plus compiled2/normal48/widget176/sixfrontendheaders. No repetition of accepted22 or756pure, no orphan skip/namefilter/oracle change, every original2048/1024/5168 child guard unchanged. Source freeze updated only diagnosticHTTP and dispatch metadata; reverse-proven b21 oracle body retained. Same sole-runtime worker until return; stop first failure/refusal and report before retry. No production/provider/external message action.
 
 **T56 Full complete 2026-11-18:** Own checked2571 e9936809/99728e69, unchanged756components plus202whole actual native/2compiled/normal48/widget176 and all9header commands passed naturally0, zero skipped, provider0 and current normal cleanup. Fixed resume text, atomic exact active closure/replay/rollback, historical new handoff and all original AI/operator/product fences proved. Original HTTP cleanup RED retained cause-unknown; observation-only93eb strips exactly to approvedb21 and subsequent whole6passed. Scope only23task files; no production action. C28 and Full56 now select actual whole unit/close/request/overlap/history files, not nonexistent names. Task56 marked before its own atomic commit;67/110 tasks locally closed. Final integrated sameHEAD proofs/Build/fresh Verifier/screens remain mandatory.
+
+**T32 Full complete 2026-11-18:** Current Root base5f7f0120, own standard24039819/cef682c3/2572 and post-header admission0. NewHTTP7 +original preservation336 +committed56HTTP6/history2 =351 current native, all natural0/0skip/cleanup; accepted unchanged126phase components, all9 Build/header commands0. Exact fixture5d6f29bc/patch913b7aa2 approved by user: "Corrigir somente essa comparação (recomendado)" (call_22688801c1f347588ed6ff5694b18148) and "Autorizar somente esse ajuste no teste" (call_49bbb1a095aa4bfca31a66e12ec65a0d). All other assertions/oracles unchanged; prior failures preserved. T32 marked before focused local commit,68/110 tasks complete,42 open. C20/C48/C57 actual whole proofs retain later financial/UI/metrics obligations. Unrelated metadata/source preserved; no M57 source/output, production/push/provider/customer action. Runtime returns after commit; no33 without explicit handover. See task-32-evidence.json.
 
 ## Phase Execution Map
 

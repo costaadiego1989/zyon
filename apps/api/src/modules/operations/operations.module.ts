@@ -4,6 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../shared/events/domain-event-bus.port.js";
 import { CreateManualServiceAppointmentUseCase } from "./application/create-manual-service-appointment.use-case.js";
+import { TransitionServiceAppointmentUseCase } from "./application/transition-service-appointment.use-case.js";
 import { ServiceAppointmentsController } from "./presentation/http/service-appointments.controller.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
@@ -41,6 +42,8 @@ import {
     PaymentsController,
   ],
   providers: [
+    { provide: TransitionServiceAppointmentUseCase, useFactory: (prisma: PrismaClient) =>
+      new TransitionServiceAppointmentUseCase(prisma), inject: [PRISMA_CLIENT] },
     { provide: CreateManualServiceAppointmentUseCase, useFactory: (prisma: PrismaClient, events: DomainEventBus) =>
       new CreateManualServiceAppointmentUseCase(prisma, events), inject: [PRISMA_CLIENT, DOMAIN_EVENT_BUS] },
     OrderFulfillmentUseCase,
