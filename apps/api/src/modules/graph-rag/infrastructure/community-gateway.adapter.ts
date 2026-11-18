@@ -8,8 +8,9 @@ import { Neo4jGraphAdapter } from "./neo4j-graph.adapter.js";
 
 const capability = z.strictObject({ protocol: z.literal(GRAPH_QUERY_PROTOCOL), templateHash: z.literal(GRAPH_TEMPLATE_HASH),
   modelId: z.literal(GRAPH_EMBEDDING_ID), merchantIds: z.array(z.string()).min(1).max(20), mode: z.literal("community_controlled"),
-  operations: z.tuple([z.literal("catalog"), z.literal("knowledge")]) });
-const ready = z.strictObject({ status: z.literal("ready"), kind: z.enum(["catalog", "knowledge"]),
+  operations: z.union([z.tuple([z.literal("catalog"), z.literal("knowledge")]),
+    z.tuple([z.literal("catalog"), z.literal("knowledge"), z.literal("merchant_help")])]) });
+const ready = z.strictObject({ status: z.literal("ready"), kind: z.enum(["catalog", "knowledge", "merchant_help"]),
   hits: z.array(z.unknown()).max(20), partial: z.literal(true) });
 
 export class CommunityGatewayAdapter implements GraphRuntimeAdapter {
