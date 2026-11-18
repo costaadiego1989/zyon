@@ -7,7 +7,11 @@ export interface AssistantToolInput {
   scope: AssistantScope; threadId: string; turnId: string; leaseToken: string;
   name: string; args: Record<string, unknown>;
 }
-export interface AssistantToolResult { data: unknown; artifacts: AssistantArtifact[]; }
+export interface AssistantToolResult {
+  data: unknown; artifacts: AssistantArtifact[];
+  /** Server-owned compact model representation; never request/model authority. */
+  modelData?: unknown;
+}
 export interface UncitedAssistantResponse {
   suggestedReply:string; campaign:AssistantCampaignProgress|null;
   evidence:ReadonlyArray<{name:string;result:AssistantToolResult}>;

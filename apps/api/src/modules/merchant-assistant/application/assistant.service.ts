@@ -13,8 +13,12 @@ const safeCode = (error: unknown) => {
   const value = error as { code?: unknown; status?: unknown };
   return typeof value?.code === 'string' && /^(assistant_|campaign_|creative_|image_|generation_|proposal_|approval_|addon_|meta_)[a-z0-9_]{1,100}$/.test(value.code) ? value.code : 'assistant_tool_failed';
 };
-function toolContent(value: unknown): string {
+function toolContent(value: unknown, exactCashback = false): string {
   const json = JSON.stringify(value);
+  if (exactCashback) {
+    if (Buffer.byteLength(json, 'utf8') > 48000) throw new AssistantError('assistant_context_limit', 429);
+    return json;
+  }
   if (Buffer.byteLength(json, 'utf8') <= 10000) return json;
   // Large descriptions/media stay canonical in artifacts and persistence, not in model history.
   return JSON.stringify({ truncated: true, content: json.slice(0, 4500), note: 'Consulte o artefato canônico. Conteúdo truncado não comprova campos omitidos.' });
@@ -61,7 +65,7 @@ export class AssistantService {
             const resolved = await this.deps.context.execute({ ...input, name: call.name, args: call.args });
             evidence.push({name:call.name,result:resolved});
             artifacts.push(...resolved.artifacts);
-            messages.push({ role: 'tool', tool_call_id: call.id, content: toolContent(resolved.data) });
+            messages.push({ role: 'tool', tool_call_id: call.id, content: toolContent(resolved.modelData ?? resolved.data, this.deps.context.descriptor.id === 'cashback' && resolved.modelData !== undefined) });
           } catch (error) {
             const code = safeCode(error);
             if (['assistant_forbidden', 'assistant_lease_lost', 'assistant_context_unavailable', 'assistant_outcome_unknown', 'assistant_operation_already_dispatched'].includes(code) || (error as { status?: number })?.status === 403 && code !== 'approval_required') throw error;

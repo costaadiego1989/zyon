@@ -5,6 +5,7 @@ import { AiGovernanceService } from "../../../ai-governance/ai-governance.servic
 import { PrismaMerchantStoreRepository } from "../../../merchant/infrastructure/prisma-merchant-store.repository.js";
 import { createMerchantAssistantRuntime } from "../../../merchant-assistant/infrastructure/runtime.js";
 import { CashbackAssistantContext } from "../cashback-assistant.context.js";
+import { CashbackAssistantReportService } from "../cashback-assistant-report.service.js";
 
 export async function cashbackAssistantFixture() {
   const f = await cashbackConfigurationFixture(), tenant = new TenantContextService(), requests: any[] = [], graphRequests: any[] = [];
@@ -30,7 +31,7 @@ export async function cashbackAssistantFixture() {
         return new Response(JSON.stringify({ id: `local-${requests.length}`, model: "gpt-4o-mini", choices: [{ finish_reason: "stop", message }], usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 } }), { status: 200 });
       } });
     return { ...f, tenant, governance, memberships, runtime, env, requests, graphRequests, modelReply: (fn: typeof modelReply) => { modelReply = fn; },
-      register() { const context = new CashbackAssistantContext({ service: f.service, conversations: runtime.repo, authorizeActor: runtime.authorizeActor, authorizeTool: runtime.authorizeTool }); runtime.contexts.register(context); return context; },
+      register() { const context = new CashbackAssistantContext({ service: f.service, reports: new CashbackAssistantReportService(f.queries), conversations: runtime.repo, authorizeActor: runtime.authorizeActor, authorizeTool: runtime.authorizeTool }); runtime.contexts.register(context); return context; },
       async close() { await runtime.worker.onModuleDestroy(); await f.close(); } };
   } catch (error) { await f.close(); throw error; }
 }
