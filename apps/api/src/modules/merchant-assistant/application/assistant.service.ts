@@ -67,6 +67,8 @@ export class AssistantService {
       let references: AssistantReference[];
       try { references = await this.deps.knowledge.validateReferences(this.deps.context.knowledgeScope, response.referenceIds, knowledge); }
       catch { return { reply: unavailable, references: [], artifacts: this.latestArtifacts(artifacts) }; }
+      const guided=this.deps.context.guidedResponse?.({message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence});
+      if(guided)return {reply:guided,references:[],artifacts:this.latestArtifacts(artifacts)};
       // A question mark or unrelated tool result never validates model-written claims.
       // Without citations the context may emit only its own canonical facts/questions.
       let canonical:string|null=/^como posso ajudar\?$/i.test(response.reply.trim())?'Como posso ajudar?':null;

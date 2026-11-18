@@ -9,9 +9,42 @@ import { AssistantService } from './assistant.service.js';
 
 const answer = (reply: string, referenceIds: string[] = []): AssistantModelResult => ({ reply, referenceIds, toolCalls: [], providerRequestId: 'req-a', costMicros: 20n });
 const tools = (name: string, args: Record<string, unknown>): AssistantModelResult => ({ ...answer(''), reply: null, toolCalls: [{ id: 'call-a', name, args }] });
+
+test('AGW-01 cited campaign questionnaire becomes one simple product decision', async () => {
+  const f = await fixture(input => answer('Antes preciso de dados. Qual prioridade: ROAS ou contribuição? Quais produtos? Loja ou WhatsApp? Qual orçamento? Quais datas? Qual região?', [input.knowledge[0].reference.id]));
+  try {
+    await f.message('Crie um anúncio para mim dos meus produtos');
+    const response = await f.process();
+    assert.equal((response.reply.match(/\?/g) ?? []).length, 1);
+    assert.match(response.reply, /produto/i);
+    assert.doesNotMatch(response.reply, /ROAS|contribuição|orçamento|datas|região/);
+    assert.deepEqual((await f.repo.read('store-a')).campaigns, {});
+  } finally { await f.close(); }
+});
+
+test('AGW-01 guided creation preserves supplied products and focuses on the next absent field', async () => {
+  const f = await fixture(input => answer('Qual objetivo? Quais produtos? Qual orçamento e datas? Qual região?', [input.knowledge[0].reference.id]));
+  try {
+    await f.call('merchant_ads_save_draft', {variantIds:['variant-a'],destination:'store',country:'BR'});
+    await f.message('Quero criar essa campanha, me ajude a escolher o resultado');
+    const before = (await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress;
+    const response = await f.process();
+    assert.equal((response.reply.match(/\?/g) ?? []).length,1);
+    assert.match(response.reply,/resultado/i);
+    assert.doesNotMatch(response.reply,/Qual produto|Quais produtos|orçamento|datas|região|ROAS/);
+    assert.deepEqual((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,before);
+  } finally { await f.close(); }
+});
+
+test('AGW-01 setup questions do not become campaign planning or lose grounded instructions', async () => {
+  const expected='O Pixel ajuda a medir ações na loja. O catálogo reúne produtos. Você já criou o Pixel? Precisa de ajuda para abrir o catálogo?';
+  const f = await fixture(input => answer(expected,[input.knowledge[0].reference.id]));
+  try { await f.message('O que é Pixel e para que serve o catálogo?');const response=await f.process();assert.equal(response.reply,expected);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,null); }
+  finally { await f.close(); }
+});
 async function fixture(run: (input: AssistantModelInput, call: number) => AssistantModelResult | Promise<AssistantModelResult>) {
-  const f = await metaAssistantFixture(); f.setNow('2026-11-16T12:00:00Z');
-  await f.conversations.atomic(assistantScope, f.thread.id, async tx => { await tx.update(f.turn.id, { leaseUntil: '2026-11-16T12:02:00Z' }); });
+  const f = await metaAssistantFixture(); f.setNow('2026-11-18T12:00:00Z');
+  await f.conversations.atomic(assistantScope, f.thread.id, async tx => { await tx.update(f.turn.id, { leaseUntil: '2026-11-18T12:02:00Z' }); });
   const inputs: AssistantModelInput[] = []; const documents = structuredClone(META_ADS_MERCHANT_KNOWLEDGE);
   const knowledge = new AssistantKnowledgeRetriever(() => documents, f.clock);
   const model: AssistantModelPort = { complete: async input => { inputs.push(structuredClone(input)); return run(input, inputs.length); } };
@@ -22,12 +55,13 @@ async function fixture(run: (input: AssistantModelInput, call: number) => Assist
 test('ADAS-16 actual retrieval precedes model and only validated current references leave the service', async () => {
   const f = await fixture(input => {
     assert.ok(input.knowledge.some(k => k.reference.id.startsWith('verba-e-pagamentos:')));
-    assert.ok(input.knowledge.every(k => k.reference.version === '2026-11-16.2'));
-    return answer('O investimento em anúncios é pago diretamente à Meta.', [input.knowledge[0].reference.id]);
+    const payment=input.knowledge.find(k=>k.reference.id==='verba-e-pagamentos:tipo')!;
+    assert.equal(payment.reference.version,'2026-11-18.1');
+    return answer('O investimento em anúncios é pago diretamente à Meta.', [payment.reference.id]);
   }); try {
     await f.message('Como adicionar fundos para os anúncios?'); const response = await f.process();
     assert.equal(response.reply, 'O investimento em anúncios é pago diretamente à Meta.');
-    assert.equal(response.references.length, 1); assert.equal(response.references[0].reviewedAt, '2026-11-16');
+    assert.equal(response.references.length, 1); assert.equal(response.references[0].reviewedAt, '2026-11-18');
     assert.match(response.references[0].url, /^\/\?tab=meta-ads-agent&help=/);
     assert.equal(f.inputs.length, 1);
   } finally { await f.close(); }
@@ -94,7 +128,7 @@ test('ADAS-51 completed history is supplied with current progress after reconstr
       await tx.update(f.turn.id, { status: 'completed', reply: 'Prefere loja ou WhatsApp?', budgetState: 'settled', usageCostMicros: 0n });
     });
     const next = await f.admission.submit(assistantScope, f.thread.id, { message: 'Loja', expectedRevision: 1, idempotencyKey: 'next-turn' });
-    await f.conversations.atomic(assistantScope, f.thread.id, async tx => { await tx.update(next.turn.id, { status: 'running', leaseToken: 'lease-b', leaseUntil: '2026-11-16T12:02:00Z' }); });
+    await f.conversations.atomic(assistantScope, f.thread.id, async tx => { await tx.update(next.turn.id, { status: 'running', leaseToken: 'lease-b', leaseUntil: '2026-11-18T12:02:00Z' }); });
     const response = await f.service.respond({ ...f.input, turnId: next.turn.id, leaseToken: 'lease-b' });
     assert.equal(response.reply, 'Qual será o orçamento?');
   } finally { await f.close(); }
