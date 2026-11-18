@@ -43,6 +43,8 @@ jobs:
           cache: pnpm
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Install Cypress browser runtime
+        run: pnpm --dir apps/dashboard exec cypress install
       - name: Prepare shared types and disposable database client
         env:
           DATABASE_URL: postgresql://meta_ads:meta-ads-local-test@127.0.0.1:15435/meta_ads
