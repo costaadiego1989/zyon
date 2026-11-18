@@ -67,7 +67,7 @@ export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,
       {headerExtra}
       <div ref={history} className="chat-dock-history" role="log" aria-label="Conversa com a IA" aria-live="polite" tabIndex={0} onScroll={event=>{const el=event.currentTarget;following.current=el.scrollHeight-el.scrollTop-el.clientHeight<=32;}}><div ref={messages} className="chat-dock-messages">
         {older}{loading&&<p role="status">Carregando conversa…</p>}
-        {!loading&&!turns.length&&(empty??<p>Descreva o que você quer fazer. Eu ajudo com os próximos passos.</p>)}
+        {!loading&&!turns.length&&!busy&&!sending&&(empty??<p>Descreva o que você quer fazer. Eu ajudo com os próximos passos.</p>)}
         {turns.map(turn=><article className="chat-dock-turn" key={turn.id} data-turn-id={turn.id}><div className="chat-dock-user"><strong>Você</strong><p>{turn.message}</p></div><div className="chat-dock-reply">{['queued','running'].includes(turn.status)?<ThinkingLabel/>:<strong>{floating&&<ZyonAgentOrb size={23}/>}Zyon</strong>}{turn.reply&&<p>{readableReply(turn)}</p>}{turn.status==='unknown'&&<p role="status">Resultado ainda desconhecido. Consulte o histórico antes de repetir a ação.</p>}{turn.status==='failed'&&<p role="status">Este turno não foi concluído. Consulte os detalhes antes de continuar.</p>}{renderTurnDetails?.(turn)}</div></article>)}
         {(busy||sending)&&!admittedPending&&!disabled&&<div className="chat-dock-pending"><ThinkingLabel/></div>}
       </div></div>
