@@ -51,7 +51,7 @@ jobs:
         run: |
           pnpm --filter @zyon/shared-types build
           pnpm --filter @zyon/api exec prisma generate --schema prisma/schema.prisma
-      - name: Run all 17 approval and creative journeys in Edge
+      - name: Run all 18 approval and creative journeys in Edge
         run: node apps/dashboard/scripts/run-agentic-cypress.mjs --case ACAP-27
       - name: Save synthetic acceptance evidence
         if: always()
