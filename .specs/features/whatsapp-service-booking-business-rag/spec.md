@@ -309,8 +309,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | BOOK-05 | Pay online | T29, T35, T40 | Pending |
 | BOOK-06 | Late payment | T36 | Pending |
 | BOOK-07 | On-site receipt | T4, T37, T41, T80 | Pending |
-| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32 locally complete; later financial commands/final proof pending) |
-| BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T49 trusted intake/reference complete; operations/UI pending) |
+| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33 locally complete; T35-T38/T84 financial commands/final proof pending) |
+| BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T33 linked-request cancellation/owned cleanup and T49 trusted intake/reference locally complete; T34 reschedule/T41/T80 UI pending) |
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | Pending |
 | HUM-01 | Fixed menu entry | T57 | Pending |
 | HUM-02 | Handoff intake | T49, T50, T57 | In Progress (T49 intake and T50 router complete; menu pending) |

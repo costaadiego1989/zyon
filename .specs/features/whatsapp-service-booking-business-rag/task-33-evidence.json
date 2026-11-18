@@ -1,0 +1,1270 @@
+{
+  "task": "T33",
+  "status": "Full passed locally",
+  "base": "b9f4d8049747db5468551a68ec1761323cb3c5db",
+  "date": "2026-11-18",
+  "scope": "authorized operational cancellation and original-generation exact owned hold cleanup; financial facts remain independent",
+  "source": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/task-33-plan.md",
+      "sha256": "81998def3ee078568a769056ea0672ac99eafecdf4aed8048298b7fe3da65974",
+      "bytes": 12125
+    },
+    {
+      "path": "apps/api/prisma/deploy-migrations/20261118000000_service_appointment_original_lease/migration.sql",
+      "sha256": "2b66e1f369973b52af8a54b52402814d9077696310445752e54f190c7d9e99c7",
+      "bytes": 3080
+    },
+    {
+      "path": "apps/api/prisma/migrations/20261118000000_service_appointment_original_lease/migration.sql",
+      "sha256": "2b66e1f369973b52af8a54b52402814d9077696310445752e54f190c7d9e99c7",
+      "bytes": 3080
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/confirm-service-appointment.use-case.ts",
+      "sha256": "6a4afc40524142cfb9e41abac191d342efa4a816b1b172fab8433373688db5a7",
+      "bytes": 10202
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/cancel-service-appointment.use-case.spec.ts",
+      "sha256": "18dbb73cfa09d62856976ec72463223cf6b1134d3a4045faf8caf30dcc8bea19",
+      "bytes": 22297
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/cancel-service-appointment.use-case.ts",
+      "sha256": "6fdf58aa86cfb6388be24c5e4575a78b62c927c931c39878d8f3583ac08ef677",
+      "bytes": 13832
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/create-manual-service-appointment.use-case.spec.ts",
+      "sha256": "220b0d852e353caf1b95a3ff0ab04308084f3fdb0479730bec66e84d07a221a9",
+      "bytes": 24362
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/create-manual-service-appointment.use-case.ts",
+      "sha256": "fb0ca8527cd76f90d33c173da23edbfde70bf536fc40cf59b96f3d1738a3f71d",
+      "bytes": 15315
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/service-appointment-hold-cleanup.consumer.spec.ts",
+      "sha256": "cef02c7ebd92c5fbb65cc647b63a92f459b17e87e865d1853c38f019aad0358c",
+      "bytes": 6872
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/service-appointment-hold-cleanup.consumer.ts",
+      "sha256": "e1cfd1a9bc346f3b07294d01ac4932fca99770b7e6d7ccad47825c5d36ccfb9b",
+      "bytes": 6906
+    },
+    {
+      "path": "apps/api/src/modules/operations/operations.module.ts",
+      "sha256": "7ddefc85ef74920d5e462b268ea5290d5029428a94432604be33a1c44ad2b89a",
+      "bytes": 4132
+    },
+    {
+      "path": "apps/api/src/modules/operations/presentation/http/service-appointment-public-view.spec.ts",
+      "sha256": "c74db62055c94be3e255fcb4dfa2039113bb94cce5290f96dbafed7cf47b5f57",
+      "bytes": 1589
+    },
+    {
+      "path": "apps/api/src/modules/operations/presentation/http/service-appointment-public-view.ts",
+      "sha256": "33ba4ce11e48cb5a2ab6ee62f84a93003a38e08ef9016c4b74465f877531b684",
+      "bytes": 632
+    },
+    {
+      "path": "apps/api/src/modules/operations/presentation/http/service-appointments.controller.ts",
+      "sha256": "95c61613c9e746d6afb00e39e3e873e8aecbf80ffe6b2dfcff1f291551fcc475",
+      "bytes": 3404
+    },
+    {
+      "path": "apps/api/src/shared/bookings/appointment-lease-proof.spec.ts",
+      "sha256": "f9448fad2615661d41cf19163f9880d9f88f404b98cd31ab4ca820266c2fb265",
+      "bytes": 6087
+    },
+    {
+      "path": "apps/api/src/shared/bookings/appointment-lease-proof.ts",
+      "sha256": "4423372fb26f4d68f54b6d7e88a9091cdaf35a84ab8eceebe816ab2db41f1695",
+      "bytes": 7367
+    },
+    {
+      "path": "apps/api/src/shared/bookings/professional-service-lease.spec.ts",
+      "sha256": "b156a1a0583abd7e8de46106ca144c998dfc17d390719966398f132cb93db165",
+      "bytes": 3766
+    },
+    {
+      "path": "apps/api/src/shared/bookings/professional-service-lease.ts",
+      "sha256": "0ccd0395ab3a2f7abd5ac6ca957cad2e0b68c6200c316f55af5373cf2e48639d",
+      "bytes": 1684
+    },
+    {
+      "path": "apps/api/src/shared/bookings/redis-service-slots.ts",
+      "sha256": "bad113863d18ca668a4bbfefa83cae1d0bb2daab3e3f9502788dfa2d05813bbb",
+      "bytes": 14938
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-appointment-admission.service.ts",
+      "sha256": "cdda5f43fe2612e9a0e5cbe2b823080ccd3f94c5248e511e0598253a926ab566",
+      "bytes": 17042
+    },
+    {
+      "path": "apps/api/tests/service-appointment-cancellation-http.integration.spec.ts",
+      "sha256": "47c477217b1419dbdda4246bea679e1b6aef055cc44c257e4d562fa5c39cb401",
+      "bytes": 13479
+    },
+    {
+      "path": "apps/api/tests/service-appointment-hold-cleanup-http.integration.spec.ts",
+      "sha256": "1d4108147160b86ef0b04fbd4505028ba00a71cf0c8e58ad68529dda891629d7",
+      "bytes": 19222
+    },
+    {
+      "path": "apps/api/tests/service-appointment-lease-release.integration.spec.ts",
+      "sha256": "9718ecdb38d7721fbe129c4271c933b0e006f199b29e2ac26abbffec8c166506",
+      "bytes": 8325
+    }
+  ],
+  "executionFreeze": {
+    "path": ".cache/t33-full-gates/source-freeze-v6-cohort.json",
+    "sha256": "118c2391ed15044a96c8120822966a671f303b8211393ed38d738dd96e2c55d9",
+    "sourceSetSha256": "8c8c208ba8e0205d3fd64e9f9ccbc4db38e45c592e5c44cc384e97247962b347",
+    "all22ApiSourceTestMigrationFilesUnchangedAfterGates": true,
+    "planMetadataUpdatedAfterGates": true
+  },
+  "shared32FixtureSha256": "5d6f29bc14742ee823b2f2ac11969dcc9f38bd37df73cf86d05295adae4157af",
+  "ownStandardBuild": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "14016743adf31db343c07a200b5def141eb97f6e7257bca244682dec881b5fd7",
+    "artifactSha256": "6a3e9fef8df866a8d49316d705ae4bba20653c40cdca365ba412eac00a3f0d76",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2576
+    },
+    "recordedAt": "2026-11-18T14:10:06.840Z"
+  },
+  "ownBuildSteps": [
+    {
+      "step": "capture",
+      "exitCode": 0,
+      "log": ".cache/t110-root-checked-gates/2026-11-18T14-05-38.784Z/capture.log",
+      "sha256": "f7d3ee50d5205bdbed2a382bc46145fc87f681ffcae0eed533a0dc79bd722f3b"
+    },
+    {
+      "step": "build",
+      "exitCode": 0,
+      "log": ".cache/t110-root-checked-gates/2026-11-18T14-05-38.784Z/build.log",
+      "sha256": "fdb900a0cd0e7039324e59581a80a5e93aeaa2f0523c814d8c26bb51d43a8ff5"
+    },
+    {
+      "step": "record",
+      "exitCode": 0,
+      "log": ".cache/t110-root-checked-gates/2026-11-18T14-05-38.784Z/record.log",
+      "sha256": "7835d371754905f999a8f50043d07fcb5645d3527ad4b39b63a6a8c4439869d9"
+    }
+  ],
+  "ownBuildFreshCommitMiB": {
+    "capture": 5358,
+    "build": 5523,
+    "record": 6528
+  },
+  "apiHeaders": [
+    {
+      "step": "api-types",
+      "exitCode": 0,
+      "log": ".cache/t71-gates/2026-11-18T14-10-29.245Z/api-types.log",
+      "sha256": "71de44422d780bf3b18070ad78afd031be7b68ef70003fedeebd2e09ff9185e9"
+    },
+    {
+      "step": "lint",
+      "exitCode": 0,
+      "log": ".cache/t71-gates/2026-11-18T14-13-12.213Z/lint.log",
+      "sha256": "75e47252305c04be115fde2fb95e8fcbd9c8cb4e51efdd61fcc253330ab5f84a"
+    }
+  ],
+  "wholeUnits": [
+    {
+      "file": "src/shared/bookings/appointment-lease-proof.spec.ts",
+      "counts": {
+        "tests": 9,
+        "pass": 9,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "naturalExitCode": 0,
+      "rawLog": ".cache/phase3-gates/t33-full-unit-1.log",
+      "sha256": "9e11646e79e99bfe188489bd8eda10e1dffa0361a3ddb0a820300e865348e8dd",
+      "memory": {
+        "observedAtUtc": "2026-11-18T14:02:13.892677+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 2898,
+        "commitAvailableMiB": 7813,
+        "memoryLoadPercent": 81
+      }
+    },
+    {
+      "file": "src/modules/operations/application/service-appointment-hold-cleanup.consumer.spec.ts",
+      "counts": {
+        "tests": 7,
+        "pass": 7,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "naturalExitCode": 0,
+      "rawLog": ".cache/phase3-gates/t33-full-unit-2.log",
+      "sha256": "269340c5e1e968fbef773ceb7c4009c7718869e30cd294544b1d39d9a58ea0f6",
+      "memory": {
+        "observedAtUtc": "2026-11-18T14:02:14.842047+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 2888,
+        "commitAvailableMiB": 7813,
+        "memoryLoadPercent": 82
+      }
+    },
+    {
+      "file": "src/modules/operations/presentation/http/service-appointment-public-view.spec.ts",
+      "counts": {
+        "tests": 3,
+        "pass": 3,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "naturalExitCode": 0,
+      "rawLog": ".cache/phase3-gates/t33-full-unit-3.log",
+      "sha256": "69f0ed9aab6b9d939fecd4f4c50b757817e9eac5b42c5e807253bfce8f1119f1",
+      "memory": {
+        "observedAtUtc": "2026-11-18T14:02:15.648537+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 2899,
+        "commitAvailableMiB": 7804,
+        "memoryLoadPercent": 81
+      }
+    },
+    {
+      "file": "src/modules/operations/application/cancel-service-appointment.use-case.spec.ts",
+      "counts": {
+        "tests": 24,
+        "pass": 24,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "naturalExitCode": 0,
+      "rawLog": ".cache/phase3-gates/t33-full-unit-4.log",
+      "sha256": "69030f9fa5def6ef84d0aee1f405e38865da591cc32abf26b0e920db958613ec",
+      "memory": {
+        "observedAtUtc": "2026-11-18T14:02:16.032800+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 2908,
+        "commitAvailableMiB": 7806,
+        "memoryLoadPercent": 81
+      }
+    },
+    {
+      "file": "src/modules/operations/application/create-manual-service-appointment.use-case.spec.ts",
+      "counts": {
+        "tests": 16,
+        "pass": 16,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "naturalExitCode": 0,
+      "rawLog": ".cache/phase3-gates/t33-full-unit-5-abi.log",
+      "sha256": "2c2d547c9e44c197ec67abd3a07e59903d3f3fd17d829d789db58c89214f5f07",
+      "memory": {
+        "observedAtUtc": "2026-11-18T14:05:16.477056+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1803,
+        "commitAvailableMiB": 6324,
+        "memoryLoadPercent": 88
+      }
+    },
+    {
+      "file": "src/shared/bookings/professional-service-lease.spec.ts",
+      "counts": {
+        "tests": 6,
+        "pass": 6,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "naturalExitCode": 0,
+      "rawLog": ".cache/phase3-gates/t33-full-unit-6-abi.log",
+      "sha256": "9206ed7fb0f06ca6606e4caeb36da0f44e24c27b56788ca82fe91777f6225a52",
+      "memory": {
+        "observedAtUtc": "2026-11-18T14:05:17.661077+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1742,
+        "commitAvailableMiB": 6276,
+        "memoryLoadPercent": 89
+      }
+    },
+    {
+      "file": "src/shared/bookings/service-appointment-admission.service.spec.ts",
+      "counts": {
+        "tests": 18,
+        "pass": 18,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "naturalExitCode": 0,
+      "rawLog": ".cache/phase3-gates/t33-full-unit-7-abi.log",
+      "sha256": "5bf4f2e9d04a159b993bdac10556f26b6d43979fac7e604067eebc2ea5182788",
+      "memory": {
+        "observedAtUtc": "2026-11-18T14:05:18.495472+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1688,
+        "commitAvailableMiB": 6246,
+        "memoryLoadPercent": 89
+      }
+    },
+    {
+      "file": "src/shared/bookings/service-payment-policy.spec.ts",
+      "counts": {
+        "tests": 7,
+        "pass": 7,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "naturalExitCode": 0,
+      "rawLog": ".cache/phase3-gates/t33-full-unit-8-abi.log",
+      "sha256": "39bdb67b522fb2478fc22bea63d71828450026feae92fe9ca3c86ada3b175a88",
+      "memory": {
+        "observedAtUtc": "2026-11-18T14:05:19.540722+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1614,
+        "commitAvailableMiB": 6204,
+        "memoryLoadPercent": 89
+      }
+    }
+  ],
+  "wholeNative": [
+    {
+      "file": "tests/service-appointment-lease-release.integration.spec.ts",
+      "label": "t33-full-native-1",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 8,
+        "pass": 8,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-1.log",
+      "sha256": "bd434728b8a5496807ad6039c7f44ec635c37a056fc32e744cf916b02af12349",
+      "memory": {
+        "observedAtUtc": "2026-11-18T14:14:39.844587+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1126,
+        "commitAvailableMiB": 2577,
+        "memoryLoadPercent": 92
+      },
+      "cleanupDiagnostics": [],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-appointment-hold-cleanup-http.integration.spec.ts",
+      "label": "t33-full-native-2-fixture",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 9,
+        "pass": 9,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-2-fixture.log",
+      "sha256": "9a50070afa8cbea9641a39248b51e29d78a53ba28decc75779283cd1db7a50df",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:14:25.372525+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 2532,
+        "commitAvailableMiB": 8925,
+        "memoryLoadPercent": 84
+      },
+      "cleanupDiagnostics": [
+        {
+          "stage": "before_closed_ack",
+          "resourceTypes": [
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        },
+        {
+          "stage": "disconnected",
+          "resourceTypes": [
+            "SimpleWriteWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        }
+      ],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-appointment-cancellation-http.integration.spec.ts",
+      "label": "t33-full-native-3-cohort",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 10,
+        "pass": 10,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-3-cohort.log",
+      "sha256": "09057aa3121553237349325216a46791fcb2caf5517f5d2212e3531084d831f6",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:22:10.918110+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1660,
+        "commitAvailableMiB": 6625,
+        "memoryLoadPercent": 89
+      },
+      "cleanupDiagnostics": [
+        {
+          "stage": "before_closed_ack",
+          "resourceTypes": [
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap",
+            "TCPSocketWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            },
+            {
+              "type": "Socket"
+            }
+          ],
+          "timers": []
+        },
+        {
+          "stage": "disconnected",
+          "resourceTypes": [
+            "SimpleWriteWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        }
+      ],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-booking.integration.spec.ts",
+      "label": "t33-full-native-4-current",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 17,
+        "pass": 17,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-4-current.log",
+      "sha256": "9c1902adf9e9e8d4f9dbaa4e507c115a343e61be399bf552c2202f977459efb0",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:24:26.528733+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1195,
+        "commitAvailableMiB": 6242,
+        "memoryLoadPercent": 92
+      },
+      "cleanupDiagnostics": [],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-holds.integration.spec.ts",
+      "label": "t33-full-native-5-current",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 11,
+        "pass": 11,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-5-current.log",
+      "sha256": "b7b777705ed5fbdb389e8dccd9a0be64da2dc3f80e5a1291a70254f1cf53cd44",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:25:33.202433+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1548,
+        "commitAvailableMiB": 6577,
+        "memoryLoadPercent": 90
+      },
+      "cleanupDiagnostics": [],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-payment-http.integration.spec.ts",
+      "label": "t33-full-native-6-current",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 7,
+        "pass": 7,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-6-current.log",
+      "sha256": "8edbc11d6d9b362946458c9091a5ca550c680b8cd349fd6239101ce6de4fbd9e",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:27:16.271954+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1444,
+        "commitAvailableMiB": 4637,
+        "memoryLoadPercent": 91
+      },
+      "cleanupDiagnostics": [
+        {
+          "stage": "before_closed_ack",
+          "resourceTypes": [
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        },
+        {
+          "stage": "disconnected",
+          "resourceTypes": [
+            "SimpleWriteWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        }
+      ],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-local-confirmation.integration.spec.ts",
+      "label": "t33-full-native-7-current",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 10,
+        "pass": 10,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-7-current.log",
+      "sha256": "9fb27e57d1fcfadf9d76fd3ef6bf95f1549514f784105c40f623d2f3606ded4d",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:28:56.051225+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 1075,
+        "commitAvailableMiB": 5034,
+        "memoryLoadPercent": 93
+      },
+      "cleanupDiagnostics": [],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-confirmation-http.integration.spec.ts",
+      "label": "t33-full-native-8-current",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 7,
+        "pass": 7,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-8-current.log",
+      "sha256": "83b7677cbc79d798e5747d5c2964a5802f4a99921152fce8f6c0242bf2f18827",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:29:51.480575+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 630,
+        "commitAvailableMiB": 4700,
+        "memoryLoadPercent": 96
+      },
+      "cleanupDiagnostics": [
+        {
+          "stage": "before_closed_ack",
+          "resourceTypes": [
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap",
+            "TCPSocketWrap",
+            "Timeout"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            },
+            {
+              "type": "Socket"
+            }
+          ],
+          "timers": [
+            {
+              "delayMs": 2000,
+              "ref": true,
+              "frames": [
+                "    at emitInitNative (node:internal/async_hooks:206:43)",
+                "    at emitInitScript (node:internal/async_hooks:513:3)",
+                "    at initAsyncResource (node:internal/timers:170:5)",
+                "    at new Timeout (node:internal/timers:201:5)",
+                "    at setTimeout (node:timers:138:19)",
+                "    at StandaloneConnector.disconnect (C:\\\\tmp\\\\zyon-service-business-20261114\\\\node_modules\\\\.pnpm\\\\ioredis@5.11.1\\\\node_modules\\\\ioredis\\\\built\\\\connectors\\\\AbstractConnector.js:17:29)",
+                "    at EventEmitter.disconnect (C:\\\\tmp\\\\zyon-service-business-20261114\\\\node_modules\\\\.pnpm\\\\ioredis@5.11.1\\\\node_modules\\\\ioredis\\\\built\\\\Redis.js:246:28)",
+                "    at closeServiceSlotStore (file:///C:/tmp/zyon-service-business-20261114/apps/api/dist/shared/bookings/redis-service-slots.js:252:61)",
+                "    at ServiceSlotHoldLifecycle.onApplicationShutdown (file:///C:/tmp/zyon-service-business-20261114/apps/api/dist/shared/bookings/service-slot-holds.module.js:32:31)"
+              ]
+            }
+          ]
+        },
+        {
+          "stage": "disconnected",
+          "resourceTypes": [
+            "SimpleWriteWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap",
+            "TCPSocketWrap",
+            "Timeout"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            },
+            {
+              "type": "Socket"
+            }
+          ],
+          "timers": [
+            {
+              "delayMs": 2000,
+              "ref": true,
+              "frames": [
+                "    at emitInitNative (node:internal/async_hooks:206:43)",
+                "    at emitInitScript (node:internal/async_hooks:513:3)",
+                "    at initAsyncResource (node:internal/timers:170:5)",
+                "    at new Timeout (node:internal/timers:201:5)",
+                "    at setTimeout (node:timers:138:19)",
+                "    at StandaloneConnector.disconnect (C:\\\\tmp\\\\zyon-service-business-20261114\\\\node_modules\\\\.pnpm\\\\ioredis@5.11.1\\\\node_modules\\\\ioredis\\\\built\\\\connectors\\\\AbstractConnector.js:17:29)",
+                "    at EventEmitter.disconnect (C:\\\\tmp\\\\zyon-service-business-20261114\\\\node_modules\\\\.pnpm\\\\ioredis@5.11.1\\\\node_modules\\\\ioredis\\\\built\\\\Redis.js:246:28)",
+                "    at closeServiceSlotStore (file:///C:/tmp/zyon-service-business-20261114/apps/api/dist/shared/bookings/redis-service-slots.js:252:61)",
+                "    at ServiceSlotHoldLifecycle.onApplicationShutdown (file:///C:/tmp/zyon-service-business-20261114/apps/api/dist/shared/bookings/service-slot-holds.module.js:32:31)"
+              ]
+            }
+          ]
+        }
+      ],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-manual-appointment-http.integration.spec.ts",
+      "label": "t33-full-native-9-current",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 12,
+        "pass": 12,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-9-current.log",
+      "sha256": "178c11b72e626022ea6488d847789d55719ab58a6341b1e6bb2a74ba54b7774d",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:31:52.620336+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 753,
+        "commitAvailableMiB": 3966,
+        "memoryLoadPercent": 95
+      },
+      "cleanupDiagnostics": [
+        {
+          "stage": "before_closed_ack",
+          "resourceTypes": [
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        },
+        {
+          "stage": "disconnected",
+          "resourceTypes": [
+            "SimpleWriteWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        }
+      ],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-attendance-transitions-http.integration.spec.ts",
+      "label": "t33-full-native-10-current",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 7,
+        "pass": 7,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-10-current.log",
+      "sha256": "a386de6388393cd9bc87f3e449b80ca4f97a9e16408bfd89b4b742882a3b62e9",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:34:30.600026+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 913,
+        "commitAvailableMiB": 4042,
+        "memoryLoadPercent": 94
+      },
+      "cleanupDiagnostics": [
+        {
+          "stage": "before_closed_ack",
+          "resourceTypes": [
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap",
+            "TCPSocketWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            },
+            {
+              "type": "Socket"
+            }
+          ],
+          "timers": []
+        },
+        {
+          "stage": "disconnected",
+          "resourceTypes": [
+            "SimpleWriteWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        }
+      ],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    },
+    {
+      "file": "tests/service-checkout.integration.spec.ts",
+      "label": "t33-full-native-11-current",
+      "naturalExitCode": 0,
+      "counts": {
+        "tests": 9,
+        "pass": 9,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "log": ".cache/phase3-gates/t33-full-native-11-current.log",
+      "sha256": "53ec2f07fa97a412399921affbb220dd8d431f9ce1810a7882b4601a32d59499",
+      "memory": {
+        "observedAtUtc": "2026-11-18T15:36:36.521986+00:00",
+        "source": "Windows GlobalMemoryStatusEx read-only",
+        "physicalTotalMiB": 16087,
+        "physicalAvailableMiB": 900,
+        "commitAvailableMiB": 3798,
+        "memoryLoadPercent": 94
+      },
+      "cleanupDiagnostics": [
+        {
+          "stage": "before_closed_ack",
+          "resourceTypes": [
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        },
+        {
+          "stage": "disconnected",
+          "resourceTypes": [
+            "SimpleWriteWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "PipeWrap",
+            "TCPServerWrap"
+          ],
+          "handles": [
+            {
+              "type": "Pipe"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Socket"
+            },
+            {
+              "type": "Server",
+              "listening": false,
+              "connections": 0,
+              "loopback": null,
+              "appHttpServer": false
+            }
+          ],
+          "timers": []
+        }
+      ],
+      "cleanupBasis": "served runtimes require closed ACK, natural worker0, owned containers/bridge sockets0; SQL/Redis-only scopes await dispose and naturally exit0"
+    }
+  ],
+  "nativeCleanupDiagnostic": "native8 reports existing ioredis2000ms disconnect timer type Timeout at ACK/disconnected, followed by natural worker/file0 and passed cleanup assertions; no command Timeout error",
+  "normalProduct": {
+    "summary": {
+      "phase": "normal-checkout-payment",
+      "coverageMode": "baseline-and-identity",
+      "passed": 48,
+      "waiters": 3,
+      "prismaClientConstructed": true,
+      "providerCalls": 0,
+      "scope": "normal-standalone-source-coupon-identity-detachment",
+      "checkoutVersionTrigger": true,
+      "checkoutStrategyTrigger": true
+    },
+    "cleanup": {
+      "phase": "normal-checkout-payment",
+      "coverageMode": "baseline-and-identity",
+      "status": "passed",
+      "cleanupErrors": 0,
+      "disposableDatabaseRemoved": true,
+      "bridgeClosed": true,
+      "durationMs": 58424,
+      "network": "none",
+      "productionAccess": false
+    },
+    "log": ".cache/t71-gates/2026-11-18T15-39-01.581Z/product-normal.log",
+    "sha256": "47028c0d54438fbce8cbe809bb06128da3b46f26f9fec76fb886851121e51cd3",
+    "freshCommitMiB": 3952
+  },
+  "widgetProduct": {
+    "task": "T33",
+    "recordedAt": "2026-11-18T15:55:36.590537+00:00",
+    "status": "required whole widget176GREEN unchangedworker/defaults",
+    "wrapperExitCode": 0,
+    "workerNaturalExitCode": 0,
+    "workerSignal": null,
+    "workerExitProof": "unchanged original wrapper asserts result.code0/result.signalnull before its success/cleanup result",
+    "summary": {
+      "status": "passed",
+      "passed": 176,
+      "realLockWaiters": 32,
+      "syntheticOnly": true,
+      "providerCalls": 0
+    },
+    "cleanup": {
+      "status": "passed",
+      "cleanupErrors": 0,
+      "disposableDatabaseRemoved": true,
+      "bridgeClosed": true,
+      "durationMs": 156606,
+      "network": "none",
+      "productionAccess": false
+    },
+    "log": ".cache/t71-gates/2026-11-18T15-52-03.153Z/product-widget.log",
+    "logSha256": "df9c8134bc5487dd8a863284ee337155397a345eaf13ab168baaf362240558ba",
+    "sidecar": ".cache/t71-gates/2026-11-18T15-52-03.153Z/product-widget.chunks.json",
+    "sidecarSha256": "921081a67ada05f749eeb9ad5d9a9afcd1ed2a8202ade18ef061f668bb9df38d",
+    "sidecarFieldsOnly": [
+      "elapsedMs",
+      "offset",
+      "length",
+      "stream"
+    ],
+    "chunkCount": 180,
+    "rawBytes": 19937,
+    "sidecarExactRawCoverage": true,
+    "firstChunkMs": 135.2792,
+    "lastChunkMs": 156742.307,
+    "maxBetweenChunkGapMs": 10246.6117,
+    "originalWorkerHeapMiB": 256,
+    "originalWorkerDeadlineMs": 180000,
+    "minimumCommitMiB": 2048,
+    "freshCommitMiB": 4288,
+    "all483ProtectedRepoFilesUnchanged": true,
+    "all23V6PinsUnchanged": true,
+    "priorDeadlineFailurePreserved": "widget-deadline-stopped-receipt.json",
+    "causeOfPriorTimeout": "not established; no attribution from this pass alone",
+    "ownBuildUnchanged": {
+      "version": 1,
+      "buildCommand": "pnpm --dir apps/api build",
+      "buildExitCode": 0,
+      "checked": true,
+      "inputSha256": "14016743adf31db343c07a200b5def141eb97f6e7257bca244682dec881b5fd7",
+      "artifactSha256": "6a3e9fef8df866a8d49316d705ae4bba20653c40cdca365ba412eac00a3f0d76",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2576
+      },
+      "recordedAt": "2026-11-18T14:10:06.840Z"
+    }
+  },
+  "totals": {
+    "unitFiles": 8,
+    "units": 90,
+    "nativeFiles": 11,
+    "native": 107,
+    "normalProduct": 48,
+    "widgetProduct": 176,
+    "tests": 421,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "providerEvidence": "network guard on every child; served test scopes and runtime.close assert providerCalls0; DB/Redis-only scopes construct no provider",
+  "allWorkLocalOnly": true,
+  "changesDuringValidation": [
+    {
+      "kind": "mock SQL ABI plumbing strings+values; assertions/production unchanged",
+      "receipt": ".cache/t33-full-gates/manual-sql-abi-receipt.json"
+    },
+    {
+      "kind": "native2 fixture reuse plus scheduled/version1/live-hold preconditions; all original assertions retained",
+      "receipt": ".cache/t33-full-gates/native2-fixture-reuse-approved-receipt.json"
+    },
+    {
+      "kind": "native3 two real HTTP-registered owners in same runtime; exact9children/original assertions, real quotas53/28",
+      "receipt": ".cache/t33-full-gates/native3-two-cohort-approved-receipt.json"
+    },
+    {
+      "kind": "cached raw-log elapsed/offset metadata observer only; no repository widget/fixture/provider change",
+      "receipt": ".cache/t33-full-gates/widget-observer-helper-receipt.json"
+    }
+  ],
+  "preservedFailures": [
+    {
+      "receipt": ".cache/t33-full-gates/first-units-stopped-receipt.json",
+      "sha256": "e4911edff5c36dbe217c8779365b93636f9f8b87ad0eb221668d3819a664f411"
+    },
+    {
+      "receipt": ".cache/t33-full-gates/native-stopped-refusal-receipt.json",
+      "sha256": "ed2407a5e6ecdc9f7cb1e751a7eb66c17d629b3ccb1063029516f01f6922fbf8"
+    },
+    {
+      "receipt": ".cache/t33-full-gates/native-resume1-refused-receipt.json",
+      "sha256": "209f82d636b537e56c4ccdc13a5f4fbe94a19443e333a6a684fd5933ec31abfb"
+    },
+    {
+      "receipt": ".cache/t33-full-gates/native2-rate-limit-stopped-receipt.json",
+      "sha256": "7a7b605f4828a700a06d78dc85afa02c664775f7a9b22599b7fd02f9e561f1e8"
+    },
+    {
+      "receipt": ".cache/t33-full-gates/native3-two-cohort-proposed-receipt.json",
+      "sha256": "51930b6705980bd4e59f483efe7fadb62862bd05ee5fe600f3f25e02995717d9"
+    },
+    {
+      "receipt": ".cache/t33-full-gates/widget-deadline-stopped-receipt.json",
+      "sha256": "0a8a61ef851305920c5a6bc79c5e98eb4d9ed6c875a6c123fa7179a4616cb50d"
+    }
+  ],
+  "extraPostProductAdmit": {
+    "command": "node .cache/run-t71-approved-gate.mjs admit",
+    "exitCode": 1,
+    "minimumCommitMiB": 1024,
+    "memory": {
+      "observedAtUtc": "2026-11-18T15:55:37.016116+00:00",
+      "physicalTotalMiB": 16087,
+      "physicalAvailableMiB": 788,
+      "commitAvailableMiB": 821,
+      "memoryLoadPercent": 95
+    },
+    "admitFunctionInvoked": false,
+    "nativeOrCompilerSpawned": false,
+    "artifactOrSourceChanged": false,
+    "newOfficialReadmitClaimed": false
+  },
+  "extraRefusalDoesNotReplaceOriginalSuccessfulAdmit": true,
+  "futureObligations": [
+    "BOOK08 global financial/idempotency T35-T38/T84 and final whole proof remain pending",
+    "BOOK09 T34 reschedule and T41/T80 UI remain pending; T33 proves stored intake/operator request cancellation locally",
+    "T34 must record NEW generation/latest target binding, explicit kind:none and action-specific original-target cleanup validation",
+    "T35 must preserve/reference original capture and promote manual pending by trusted durable server correlation on SAME appointment ID, never coordinates/name/body",
+    "T41 must apply publicAppointmentView before exposing audit data",
+    "phase-ending T39 Build remains required",
+    "final whole-feature independent Verifier/mutations/screens/walk remain after110 tasks"
+  ],
+  "staticReview": "hold_cancel_review read-only source review reported no blocking new33 private path defect; not final Verifier/no runtime approval"
+}

@@ -6,7 +6,9 @@ import { getProfessionalAvailability } from "../../modules/catalog/application/g
 import { fulfillmentPaymentEligible } from "../persistence/order-fulfillment.js";
 import { lockServiceProfessional } from "./service-professional-lock.js";
 import { assertProfessionalLease, type ProfessionalLeaseOwner } from "./professional-service-lease.js";
-import { professionalSlotId, type ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
+import { professionalSlotId, professionalHoldRequests, type ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
+import { captureAppointmentLease, noAppointmentLease, assertLeaseCaptureUnusedWithin } from "./appointment-lease-proof.js";
+import type { ActiveSlotLeaseProof } from "./redis-service-slots.js";
 import { hasUnclassifiedServiceReservations } from "./service-legacy-readiness.js";
 import { admitWhatsAppEffectInTransaction } from "../whatsapp/whatsapp-automation-context.js";
 
@@ -36,6 +38,8 @@ interface AdmissionContext {
   clock?: () => Date;
   leaseOwner?: ProfessionalLeaseOwner;
   leaseSelections?: ProfessionalCheckoutSelection[];
+  /** Private original acquire result supplied by a trusted pending writer. */
+  acquiredLeaseProof?: ActiveSlotLeaseProof;
   /** Internal unit-test seam. HTTP/channel callers use the canonical default. */
   readAvailability?: typeof getProfessionalAvailability;
 }
@@ -175,16 +179,23 @@ export async function admitServiceAppointment(
     && Date.parse(candidate.startsAt) === startsAt.getTime() && Date.parse(candidate.endsAt) === endsAt.getTime());
   if (availability.status !== "ready" || !slot || startsAt <= now) throw new ConflictException("service_slot_unavailable");
   if (availability.policyVersion !== input.policyVersion) throw new ConflictException("service_policy_changed");
-  if (input.confirmation.kind !== "pending" && business.policy.holdEnabled) {
-    const selected = { productId: input.productId, variantId: input.variantId, professionalId: input.professionalId,
-      professionalVersion: input.professionalVersion, policyVersion: input.policyVersion, date: input.date,
-      startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), timeZone: slot.timeZone,
-      durationMinutes: slot.durationMinutes, priceInCents: variant.price.basePriceInCents, currency: variant.price.currency };
-    const own = { ...selected, slotId: professionalSlotId(input.merchantId, selected) };
+  const selected = { productId: input.productId, variantId: input.variantId, professionalId: input.professionalId,
+    professionalVersion: input.professionalVersion, policyVersion: input.policyVersion, date: input.date,
+    startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), timeZone: slot.timeZone,
+    durationMinutes: slot.durationMinutes, priceInCents: variant.price.basePriceInCents, currency: variant.price.currency };
+  const own = { ...selected, slotId: professionalSlotId(input.merchantId, selected) };
+  const leaseTarget = professionalHoldRequests([own])[0];
+  let privateLease = noAppointmentLease(leaseTarget, business.policy.holdEnabled ? "pending_without_lease" : "hold_off") as
+    ReturnType<typeof noAppointmentLease> | ReturnType<typeof captureAppointmentLease>;
+  if (business.policy.holdEnabled && (input.confirmation.kind !== "pending" || context.acquiredLeaseProof)) {
     const leaseSelections = context.leaseSelections ?? [own];
     if (!leaseSelections.some(candidate => candidate.slotId === own.slotId && professionalSlotId(input.merchantId, candidate) === own.slotId))
       throw new ConflictException("service_hold_selection_mismatch");
-    await assertProfessionalLease(input.merchantId, leaseSelections, business.policy, context.leaseOwner);
+    if (!context.leaseOwner?.ownerId) throw new ConflictException("service_hold_required");
+    const proof = input.confirmation.kind === "pending" ? context.acquiredLeaseProof
+      : await assertProfessionalLease(input.merchantId, leaseSelections, business.policy, context.leaseOwner);
+    privateLease = captureAppointmentLease(input.merchantId, context.leaseOwner.ownerId, proof, leaseTarget);
+    await assertLeaseCaptureUnusedWithin(tx, input.merchantId, privateLease);
   }
   await assertApprovedOrderUnit(tx, input, slot);
   const status = input.confirmation.kind === "pending" ? "pending" : "scheduled";
@@ -200,9 +211,16 @@ export async function admitServiceAppointment(
     ...(input.confirmation.kind === "approved_order_unit" ? { orderId: input.confirmation.orderId, orderUnitId: input.confirmation.unitId } : {}),
     confirmedAt: status === "scheduled" ? now : null,
   } });
-  await tx.appointmentAudit.create({ data: { merchantId: input.merchantId, appointmentId: appointment.id,
-    commandId: input.idempotencyKey, version: 1, action: "admit", actorId: input.actorId, origin: input.origin, occurredAt: now,
-    after: { operationalStatus: status, policyVersion: input.policyVersion, priceInCents: appointment.priceInCents, currency: appointment.currency } } });
+  try {
+    await tx.appointmentAudit.create({ data: { merchantId: input.merchantId, appointmentId: appointment.id,
+      commandId: input.idempotencyKey, version: 1, action: "admit", actorId: input.actorId, origin: input.origin, occurredAt: now,
+      after: { operationalStatus: status, policyVersion: input.policyVersion, priceInCents: appointment.priceInCents, currency: appointment.currency,
+        ...(privateLease.kind === "owned" ? { privateLease } : {}) } } });
+  } catch (error) {
+    if (privateLease.kind === "owned" && error && typeof error === "object" && "code" in error && error.code === "P2002")
+      throw new ConflictException("service_hold_generation_consumed");
+    throw error;
+  }
   const eventType = "service.appointment." + status;
   const eventId = createHash("sha256").update(JSON.stringify([input.merchantId, appointment.id, 1, eventType])).digest("hex");
   await tx.outboxMessage.create({ data: { eventId, eventType, schemaVersion: 1, merchantId: input.merchantId,

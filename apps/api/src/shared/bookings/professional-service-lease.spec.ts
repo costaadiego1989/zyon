@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { slotFingerprint } from "./redis-service-slots.js";
 import { ConflictException } from "@nestjs/common";
 import { acquireProfessionalLease, assertProfessionalLease, type ProfessionalLeaseOwner } from "./professional-service-lease.js";
 import { professionalSlotId, type ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
@@ -26,7 +28,9 @@ test("T27 lease policy", async t => {
       const hold = { expiresAt: "2030-01-01T09:17:00.000Z", slots };
       const owner: ProfessionalLeaseOwner = { ownerId: "authenticated-checkout", store: () => ({
         acquire: async (...args) => { commands.push(["acquire", ...args]); return hold; },
-        assertActive: async (...args) => { commands.push(["assert", ...args]); },
+        assertActive: async (...args) => { commands.push(["assert", ...args]); return {
+          merchantId: args[0], ownerHash: createHash("sha256").update(args[1]).digest("hex"), generation: "00000000-0000-4000-8000-000000000001",
+          fingerprint: slotFingerprint(args[2]), selectionFingerprint: slotFingerprint(args[2]), expiresAt: hold.expiresAt, slots: args[2] }; },
         get: async () => hold, release: async () => {},
       }) };
       assert.deepEqual(await acquireProfessionalLease("merchant", [selected], policy, owner), hold);

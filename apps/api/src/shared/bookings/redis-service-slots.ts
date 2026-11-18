@@ -1,10 +1,24 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { ConflictException, ServiceUnavailableException } from "@nestjs/common";
 import { Redis } from "ioredis";
+import type { OwnedAppointmentLease } from "./appointment-lease-proof.js";
 
 export interface SlotRequest { resourceId: string; slotId: string; startsAt: string; endsAt: string }
 export interface SlotHold { expiresAt: string; slots: SlotRequest[] }
-type StoredHold = { owner: string; fingerprint: string; expiresAt: number; slots: SlotRequest[] };
+type StoredHold = { owner: string; generation?: string; originFingerprint?: string; fingerprint: string; expiresAt: number; slots: SlotRequest[] };
+/** Internal result only. Public acquire/get responses never include this proof. */
+export interface ActiveSlotLeaseProof { merchantId: string; ownerHash: string; generation?: string;
+  fingerprint: string; selectionFingerprint: string; expiresAt: string; slots: SlotRequest[] }
+// The capability survives trusted in-process composition, never JSON/HTTP.
+const originalProof = Symbol("original-service-slot-acquisition");
+export function withOriginalSlotLeaseProof(hold: SlotHold, proof: ActiveSlotLeaseProof): SlotHold {
+  const slots = Object.freeze(proof.slots.map(slot => Object.freeze({ ...slot })));
+  const snapshot = Object.freeze({ ...proof, slots }) as unknown as ActiveSlotLeaseProof;
+  return Object.defineProperty(hold, originalProof, { value: snapshot, enumerable: false });
+}
+export function originalSlotLeaseProof(hold: SlotHold | undefined): ActiveSlotLeaseProof | undefined {
+  return hold ? (hold as SlotHold & { [originalProof]?: ActiveSlotLeaseProof })[originalProof] : undefined;
+}
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 // JSONB may reorder object properties. Compare canonical fields so persisted
 // outbox events still identify the lease acquired before that round trip.
@@ -25,7 +39,9 @@ if previous then
     if held.fingerprint ~= wanted.fingerprint then return 'changed' end
     for i = 2, #KEYS do
       local lease = redis.call('HGET', KEYS[i], held.owner)
-      if not lease or cjson.decode(lease).fingerprint ~= held.fingerprint then return 'unavailable' end
+      if not lease then return 'unavailable' end
+      local indexed = cjson.decode(lease)
+      if indexed.fingerprint ~= held.fingerprint or indexed.generation ~= held.generation then return 'unavailable' end
     end
     return previous
   end
@@ -64,9 +80,11 @@ local held = cjson.decode(raw)
 if held.expiresAt <= now or held.fingerprint ~= ARGV[1] then return 0 end
 for i = 2, #KEYS do
   local lease = redis.call('HGET', KEYS[i], held.owner)
-  if not lease or cjson.decode(lease).fingerprint ~= held.fingerprint then return 0 end
+  if not lease then return 0 end
+  local indexed = cjson.decode(lease)
+  if indexed.fingerprint ~= held.fingerprint or indexed.generation ~= held.generation then return 0 end
 end
-return 1`;
+return raw`;
 const READ = `
 local time = redis.call('TIME')
 local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
@@ -84,6 +102,44 @@ if not raw or cjson.decode(raw).fingerprint ~= ARGV[1] then return 0 end
 for i = 2, #KEYS do redis.call('HDEL', KEYS[i], ARGV[2]) end
 redis.call('DEL', KEYS[1])
 return 1`;
+
+// Private cleanup: no current-cart guess and no whole-owner release. The parent
+// and every original resource may already belong to a newer generation.
+const RELEASE_CAPTURED = `
+local wanted = cjson.decode(ARGV[1])
+local resources = cjson.decode(ARGV[2])
+local remaining = cjson.decode(ARGV[3])
+local expected = ARGV[4]
+local encoded = ARGV[5]
+local parent = redis.call('GET', KEYS[1])
+local function own(raw)
+  if not raw then return false end
+  local held = cjson.decode(raw)
+  return held.owner == wanted.ownerHash and held.generation == wanted.generation
+    and (held.originFingerprint or held.fingerprint) == wanted.fingerprint
+end
+local function consistent(raw)
+  if not own(raw) then return true end
+  return cjson.decode(raw).fingerprint == expected
+end
+if not consistent(parent) then return 'changed' end
+for i = 2, #KEYS do
+  if not consistent(redis.call('HGET', KEYS[i], wanted.ownerHash)) then return 'changed' end
+end
+if own(parent) then
+  if #remaining == 0 then redis.call('DEL', KEYS[1])
+  else redis.call('SET', KEYS[1], encoded, 'KEEPTTL') end
+end
+for i = 2, #KEYS do
+  local raw = redis.call('HGET', KEYS[i], wanted.ownerHash)
+  if own(raw) then
+    local keep = false
+    for _, slot in ipairs(remaining) do if slot.resourceId == resources[i - 1] then keep = true end end
+    if keep then redis.call('HSET', KEYS[i], wanted.ownerHash, encoded)
+    else redis.call('HDEL', KEYS[i], wanted.ownerHash) end
+  end
+end
+return 'released'`;
 
 export class RedisServiceSlots {
   constructor(readonly redis: Redis) {}
@@ -112,16 +168,25 @@ export class RedisServiceSlots {
   }
   async acquire(merchantId: string, sessionId: string, slots: SlotRequest[], ttlMs = 10 * 60_000): Promise<SlotHold> {
     const keys = this.keys(merchantId, sessionId, slots);
-    const wanted = { owner: digest(sessionId), fingerprint: slotFingerprint(slots), slots: slots.map(s => ({ ...s, startMs: Date.parse(s.startsAt), endMs: Date.parse(s.endsAt) })) };
+    const wanted = { owner: digest(sessionId), generation: randomUUID(), originFingerprint: slotFingerprint(slots), fingerprint: slotFingerprint(slots), slots: slots.map(s => ({ ...s, startMs: Date.parse(s.startsAt), endMs: Date.parse(s.endsAt) })) };
     const result = await this.command(() => this.redis.eval(ACQUIRE, keys.length, ...keys, JSON.stringify(wanted), ttlMs)) as string;
     if (result === "unavailable") throw new ConflictException("service_slot_unavailable");
     if (result === "changed") throw new ConflictException("checkout_service_slot_changed");
     const held = JSON.parse(result) as StoredHold;
-    return { expiresAt: new Date(held.expiresAt).toISOString(), slots };
+    return withOriginalSlotLeaseProof({ expiresAt: new Date(held.expiresAt).toISOString(), slots }, {
+      merchantId, ownerHash: held.owner, generation: held.generation, fingerprint: held.originFingerprint ?? held.fingerprint,
+      selectionFingerprint: held.fingerprint, expiresAt: new Date(held.expiresAt).toISOString(),
+      slots: held.slots.map(({ resourceId, slotId, startsAt, endsAt }) => ({ resourceId, slotId, startsAt, endsAt })),
+    });
   }
-  async assertActive(merchantId: string, sessionId: string, slots: SlotRequest[]): Promise<void> {
+  async assertActive(merchantId: string, sessionId: string, slots: SlotRequest[]): Promise<ActiveSlotLeaseProof> {
     const keys = this.keys(merchantId, sessionId, slots);
-    if (await this.command(() => this.redis.eval(ASSERT, keys.length, ...keys, slotFingerprint(slots))) !== 1) throw new ConflictException("checkout_service_hold_expired");
+    const raw = await this.command(() => this.redis.eval(ASSERT, keys.length, ...keys, slotFingerprint(slots)));
+    if (typeof raw !== "string") throw new ConflictException("checkout_service_hold_expired");
+    const held = JSON.parse(raw) as StoredHold;
+    return { merchantId, ownerHash: held.owner, generation: held.generation,
+      fingerprint: held.originFingerprint ?? held.fingerprint, selectionFingerprint: held.fingerprint,
+      expiresAt: new Date(held.expiresAt).toISOString(), slots: held.slots.map(({ resourceId, slotId, startsAt, endsAt }) => ({ resourceId, slotId, startsAt, endsAt })) };
   }
   async active(merchantId: string, resourceId: string): Promise<Array<StoredHold>> {
     const result = await this.command(() => this.redis.eval(READ, 1, this.resourceKey(merchantId, resourceId))) as string[];
@@ -147,6 +212,28 @@ export class RedisServiceSlots {
     if (fingerprint && fingerprint !== held.fingerprint) return;
     const keys = this.keys(merchantId, sessionId, held.slots);
     await this.command(() => this.redis.eval(RELEASE, keys.length, ...keys, held.fingerprint, digest(sessionId)));
+  }
+  /** Safe after SQL commit and safe to replay after a lost Redis response. */
+  async releaseCaptured(merchantId: string, capture: OwnedAppointmentLease): Promise<{ released: boolean }> {
+    if (capture.merchantId !== merchantId || !/^[a-f0-9]{64}$/.test(capture.ownerHash)
+      || !Array.isArray(capture.resources) || !capture.resources.includes(capture.target.resourceId))
+      throw new ConflictException("service_hold_cleanup_foreign_proof");
+    const resources = [...new Set(capture.resources)].sort();
+    const keys = [this.prefix(merchantId) + ":checkout:" + capture.ownerHash, ...resources.map(id => this.resourceKey(merchantId, id))];
+    const raws = await this.command(async () => [await this.redis.get(keys[0]), ...await Promise.all(keys.slice(1).map(key => this.redis.hget(key, capture.ownerHash)))]);
+    const held = raws.filter((v): v is string => typeof v === "string").map(raw => JSON.parse(raw) as StoredHold)
+      .find(value => value.owner === capture.ownerHash && value.generation === capture.generation
+        && (value.originFingerprint ?? value.fingerprint) === capture.fingerprint
+        && value.slots.some(slot => slot.resourceId === capture.target.resourceId && slot.slotId === capture.target.slotId
+          && slot.startsAt === capture.target.startsAt && slot.endsAt === capture.target.endsAt));
+    if (!held) return { released: false };
+    const remaining = held.slots.filter(slot => !(slot.resourceId === capture.target.resourceId && slot.slotId === capture.target.slotId
+      && slot.startsAt === capture.target.startsAt && slot.endsAt === capture.target.endsAt));
+    const updated = { ...held, fingerprint: slotFingerprint(remaining), slots: remaining };
+    const result = await this.command(() => this.redis.eval(RELEASE_CAPTURED, keys.length, ...keys,
+      JSON.stringify(capture), JSON.stringify(resources), JSON.stringify(remaining), held.fingerprint, JSON.stringify(updated)));
+    if (result === "changed") throw new ConflictException("service_hold_cleanup_changed");
+    return { released: result === "released" };
   }
   async cacheSchedule(merchantId: string, resourceId: string, schedule: unknown): Promise<void> {
     await this.command(() => this.redis.set(`${this.prefix(merchantId)}:resource:${digest(resourceId)}:schedule`, JSON.stringify(schedule), "EX", 86400));

@@ -7,6 +7,7 @@ import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-
 import { lockCatalogMerchant } from "../../../shared/persistence/catalog-stock-ledger.js";
 import { readProfessionalCheckout } from "../../../shared/bookings/read-professional-checkout.js";
 import { admitServiceAppointment } from "../../../shared/bookings/service-appointment-admission.service.js";
+import { retainAppointmentLease } from "../../../shared/bookings/appointment-lease-proof.js";
 import { ensureAtAttendancePayment } from "../../../shared/bookings/service-at-attendance-payment.js";
 import { serviceSlotStore } from "../../../shared/bookings/redis-service-slots.js";
 import type { ProfessionalLeaseStore } from "../../../shared/bookings/professional-service-lease.js";
@@ -91,12 +92,14 @@ async function confirmWithin(tx: Prisma.TransactionClient, principal: Principal,
     const payment = await ensureAtAttendancePayment(tx, result.appointment, now);
     appointments.push({ ...result.appointment, payments: [payment] });
   }
+  const originalCapture = await tx.appointmentAudit.findUnique({ where: { merchantId_commandId: {
+    merchantId: buyer.merchantId, commandId: input.commandId } } });
   await tx.appointmentAudit.update({ where: { merchantId_commandId: { merchantId: buyer.merchantId, commandId: input.commandId } },
-    data: { action: "checkout_confirm", after: { requestFingerprint: fingerprint,
+    data: { action: "checkout_confirm", after: retainAppointmentLease(originalCapture?.after, { requestFingerprint: fingerprint,
       admissionFingerprint: appointments[0]!.requestFingerprint, checkoutSessionId: buyer.sessionId,
       cartFingerprint: input.cartFingerprint, operationalStatus: appointments[0]!.operationalStatus,
       policyVersion: appointments[0]!.policyVersion, priceInCents: appointments[0]!.priceInCents, currency: appointments[0]!.currency,
-      appointmentIds: appointments.map(value => value.id) } } });
+      appointmentIds: appointments.map(value => value.id) }) } });
   return { appointments, replayed: false };
 }
 

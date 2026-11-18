@@ -14,10 +14,11 @@ import { saveAvailabilityException } from "../../catalog/application/save-availa
 import { getProfessionalAvailability } from "../../catalog/application/get-professional-availability.js";
 import { resolveServiceBusinessPolicy } from "../../merchant/domain/service-business-policy.js";
 import { admitServiceAppointment } from "../../../shared/bookings/service-appointment-admission.service.js";
+import { retainAppointmentLease } from "../../../shared/bookings/appointment-lease-proof.js";
 import { ensureAtAttendancePayment } from "../../../shared/bookings/service-at-attendance-payment.js";
 import { acquireProfessionalLease, type ProfessionalLeaseStore } from "../../../shared/bookings/professional-service-lease.js";
 import { professionalSlotId, type ProfessionalCheckoutSelection } from "../../../shared/bookings/service-checkout-selection.js";
-import { serviceSlotStore } from "../../../shared/bookings/redis-service-slots.js";
+import { serviceSlotStore, originalSlotLeaseProof } from "../../../shared/bookings/redis-service-slots.js";
 import type { DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
 
 type Contact = { name: string; phone?: string; email?: string };
@@ -162,22 +163,24 @@ export async function createManualServiceAppointmentWithin(tx: Prisma.Transactio
   selected.slotId = professionalSlotId(actor.merchantId, selected);
   const leaseOwner = { ownerId: digest(["manual-lease-v1", actor.merchantId, actor.userId, input.commandId]),
     store: context.store ?? serviceSlotStore };
-  await acquireProfessionalLease(actor.merchantId, [selected], business.policy, leaseOwner);
+  const acquired = await acquireProfessionalLease(actor.merchantId, [selected], business.policy, leaseOwner);
   let decisionAt!: Date;
   const admitted = await admitServiceAppointment(tx, { merchantId: actor.merchantId, productId: facts.productId,
     variantId: facts.variantId, professionalId: facts.professionalId, professionalVersion: facts.professionalVersion,
     policyVersion: input.expectedPolicyVersion, date, startsAt: slot.startsAt, endsAt: slot.endsAt,
     priceInCents: facts.priceInCents, currency: facts.currency, ...customer, actorId: actor.userId, origin: "manual",
     idempotencyKey: input.commandId, confirmation: { kind: business.policy.paymentMode === "at_attendance" ? "at_attendance" : "pending" } },
-  { clock: () => { decisionAt = clock(context); return decisionAt; }, leaseOwner, leaseSelections: [selected] });
+  { clock: () => { decisionAt = clock(context); return decisionAt; }, leaseOwner, leaseSelections: [selected], acquiredLeaseProof: originalSlotLeaseProof(acquired) });
   if (business.policy.paymentMode === "at_attendance") await ensureAtAttendancePayment(tx, admitted.appointment, decisionAt);
   const appointment = await tx.serviceAppointment.update({ where: { id: admitted.appointment.id, merchantId: actor.merchantId },
     data: { availabilityExceptionId: exceptionId }, include: { payments: true } });
+  const originalCapture = await tx.appointmentAudit.findUnique({ where: { merchantId_commandId: {
+    merchantId: actor.merchantId, commandId: input.commandId } } });
   await tx.appointmentAudit.update({ where: { merchantId_commandId: { merchantId: actor.merchantId, commandId: input.commandId } },
-    data: { action: "manual_create", after: { requestFingerprint, admissionFingerprint: appointment.requestFingerprint,
+    data: { action: "manual_create", after: retainAppointmentLease(originalCapture?.after, { requestFingerprint, admissionFingerprint: appointment.requestFingerprint,
       professionalVersion: facts.professionalVersion, availabilityExceptionId: exceptionId,
       operationalStatus: appointment.operationalStatus, policyVersion: appointment.policyVersion,
-      priceInCents: appointment.priceInCents, currency: appointment.currency } } });
+      priceInCents: appointment.priceInCents, currency: appointment.currency }) } });
   return { appointment, replayed: false, professionalVersion: facts.professionalVersion, availabilityExceptionId: exceptionId };
 }
 

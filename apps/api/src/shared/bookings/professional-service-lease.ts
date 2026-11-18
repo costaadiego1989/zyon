@@ -1,6 +1,6 @@
 import { ConflictException } from "@nestjs/common";
 import type { ServicePolicyConfiguration } from "../../modules/merchant/domain/service-business-policy.js";
-import type { RedisServiceSlots } from "./redis-service-slots.js";
+import type { ActiveSlotLeaseProof, RedisServiceSlots } from "./redis-service-slots.js";
 import { professionalHoldRequests, type ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
 
 export type ProfessionalLeaseStore = Pick<RedisServiceSlots, "acquire" | "assertActive" | "get" | "release">;
@@ -16,9 +16,9 @@ export async function acquireProfessionalLease(merchantId: string, selections: P
 }
 
 export async function assertProfessionalLease(merchantId: string, selections: ProfessionalCheckoutSelection[],
-  policy: ServicePolicyConfiguration, owner?: ProfessionalLeaseOwner): Promise<void> {
+  policy: ServicePolicyConfiguration, owner?: ProfessionalLeaseOwner): Promise<ActiveSlotLeaseProof | undefined> {
   // Off deliberately does not instantiate/connect to Redis.
   if (!policy.holdEnabled) return;
   if (!owner?.ownerId) throw new ConflictException("service_hold_required");
-  await owner.store().assertActive(merchantId, owner.ownerId, professionalHoldRequests(selections));
+  return owner.store().assertActive(merchantId, owner.ownerId, professionalHoldRequests(selections));
 }

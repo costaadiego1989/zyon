@@ -851,13 +851,14 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP/DB: authorized/forbidden, repetição, versão antiga, política, provider unknown e nenhum efeito em outro appointment.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] HTTP/DB: authorized/forbidden, repetição, versão antiga, política, provider unknown e nenhum efeito em outro appointment.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: HTTP/DB: authorized/forbidden, repetição, versão antiga, política, provider unknown e nenhum efeito em outro appointment.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T33$" ./src/modules/operations/application/cancel-service-appointment.use-case.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T33 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: Whole cancellation/private proof/consumer/privacy components plus actual SQL/Redis/HTTP cancellation and cleanup files, and affected original26/27/29/30/31/32/product preservation; exact commands/counts in task-33-evidence.json.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/operations/application/cancel-service-appointment.use-case.spec.ts ./src/shared/bookings/appointment-lease-proof.spec.ts ./src/modules/operations/application/service-appointment-hold-cleanup.consumer.spec.ts ./src/modules/operations/presentation/http/service-appointment-public-view.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-appointment-cancellation-http.integration.spec.ts ./tests/service-appointment-hold-cleanup-http.integration.spec.ts ./tests/service-appointment-lease-release.integration.spec.ts` + affected original whole scopes and product48/176. Actual421/421, zero skipped/cancelled; own checkedAPI/types/lint0. See task-33-evidence.json for full eight-component/eleven-native file inventory and raw hashes.
 **Commit**: `feat(service-business): t33 cancel an appointment through authorized operations`
+**Status**: Full passed locally2026-11-18;421 required checks, own14016743/6a3e9fef/2576; scoped operational task complete.
 
 ### T34: Reschedule without losing the original slot
 
@@ -2364,12 +2365,13 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T4, T37, T41, T80.
 
 **C20** - IF mensagem, confirmação ou webhook é repetido THEN the system SHALL manter um único agendamento e uma única aplicação do mesmo evento financeiro. (BOOK-08, AC 8)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-booking.integration.spec.ts ./tests/service-local-confirmation.integration.spec.ts ./tests/service-confirmation-http.integration.spec.ts ./tests/service-manual-appointment-http.integration.spec.ts ./tests/service-attendance-transitions-http.integration.spec.ts`
-Scope: Current canonical26/30/31/32 contribution only. Extend with actual whole financial/idempotency33-38/84 and final coverage when those tasks exist; BOOK-08 stays In Progress.
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-booking.integration.spec.ts ./tests/service-local-confirmation.integration.spec.ts ./tests/service-confirmation-http.integration.spec.ts ./tests/service-manual-appointment-http.integration.spec.ts ./tests/service-attendance-transitions-http.integration.spec.ts ./src/modules/operations/application/cancel-service-appointment.use-case.spec.ts ./src/modules/operations/application/service-appointment-hold-cleanup.consumer.spec.ts ./tests/service-appointment-cancellation-http.integration.spec.ts ./tests/service-appointment-hold-cleanup-http.integration.spec.ts ./tests/service-appointment-lease-release.integration.spec.ts`
+Scope: Current canonical26/30/31/32/33 contribution, including original owned cleanup/replay only. Extend actual whole financial/idempotency35-38/84 and final coverage; BOOK-08 stays In Progress.
 Tasks: T26, T30, T31, T32, T33, T35, T36, T37, T38, T84.
 
 **C21** - WHEN o comprador solicita cancelar ou remarcar THEN the system SHALL encaminhar à central humana com o vínculo do agendamento e a política publicada da empresa. (BOOK-09, AC 9)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^BOOK-09$" ./tests/service-booking.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/operations/application/cancel-service-appointment.use-case.spec.ts ./src/shared/bookings/appointment-lease-proof.spec.ts ./src/modules/operations/application/service-appointment-hold-cleanup.consumer.spec.ts ./src/modules/operations/presentation/http/service-appointment-public-view.spec.ts ./tests/service-appointment-cancellation-http.integration.spec.ts ./tests/service-appointment-hold-cleanup-http.integration.spec.ts ./tests/service-appointment-lease-release.integration.spec.ts`
+Scope: Current33 proves stored trusted intake or explicit authenticated operator request, canonical policy and exact own cancellation/cleanup. T34 reschedule, T41/T80 UI and final human-flow proof remain pending; BOOK-09 stays In Progress.
 Tasks: T33, T34, T41, T49, T80.
 
 **C22** - WHEN uma reserva de serviço é concluída THEN the system SHALL emitir confirmação com serviço, profissional, data, hora, fuso e situação financeira, sem tratá-la como produto enviado ou baixar estoque físico. (BOOK-10, AC 10)
@@ -3181,6 +3183,9 @@ Tasks: T110.
 **T56 Full complete 2026-11-18:** Own checked2571 e9936809/99728e69, unchanged756components plus202whole actual native/2compiled/normal48/widget176 and all9header commands passed naturally0, zero skipped, provider0 and current normal cleanup. Fixed resume text, atomic exact active closure/replay/rollback, historical new handoff and all original AI/operator/product fences proved. Original HTTP cleanup RED retained cause-unknown; observation-only93eb strips exactly to approvedb21 and subsequent whole6passed. Scope only23task files; no production action. C28 and Full56 now select actual whole unit/close/request/overlap/history files, not nonexistent names. Task56 marked before its own atomic commit;67/110 tasks locally closed. Final integrated sameHEAD proofs/Build/fresh Verifier/screens remain mandatory.
 
 **T32 Full complete 2026-11-18:** Current Root base5f7f0120, own standard24039819/cef682c3/2572 and post-header admission0. NewHTTP7 +original preservation336 +committed56HTTP6/history2 =351 current native, all natural0/0skip/cleanup; accepted unchanged126phase components, all9 Build/header commands0. Exact fixture5d6f29bc/patch913b7aa2 approved by user: "Corrigir somente essa comparação (recomendado)" (call_22688801c1f347588ed6ff5694b18148) and "Autorizar somente esse ajuste no teste" (call_49bbb1a095aa4bfca31a66e12ec65a0d). All other assertions/oracles unchanged; prior failures preserved. T32 marked before focused local commit,68/110 tasks complete,42 open. C20/C48/C57 actual whole proofs retain later financial/UI/metrics obligations. Unrelated metadata/source preserved; no M57 source/output, production/push/provider/customer action. Runtime returns after commit; no33 without explicit handover. See task-32-evidence.json.
+
+
+**T33 Full complete 2026-11-18:** Required current421/421 passed locally (wholeunits90/native107/normal48/widget176), zero fail/skip/cancel; own14016743/6a3e9fef/2576 standard/APItypes/lint0. Exact original-generation owned subset cleanup, immutable audit/index, committed private intent/real claim consumer, rollback/retry/ABA/privacy proved. Prior REDs/refusals and the widget deadline are preserved; successful widget176 kept original heap256/deadline180000 and cleanup0. Extra post-product admit821<1024 refused before function adds no new admit claim and does not invalidate accepted own proof/unchanged inputs. T33 marked before focused local commit;69/110 tasks complete,41 open. C20/C21 whole actual proof bindings retain later financial/reschedule/UI obligations. STATE and unrelated working metadata preserved; no Task34 production/SUT/provider/push/deploy. See task-33-evidence.json.
 
 ## Phase Execution Map
 

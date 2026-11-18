@@ -1,6 +1,8 @@
 // T31 criterion components. Preserves all12 prepared cases; first runtime is pending.
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
+import { slotFingerprint, withOriginalSlotLeaseProof } from "../../../shared/bookings/redis-service-slots.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { ProfessionalLeaseStore } from "../../../shared/bookings/professional-service-lease.js";
 import { getProfessionalAvailability } from "../../catalog/application/get-professional-availability.js";
@@ -41,16 +43,27 @@ function fixture(paymentMode: "online" | "at_attendance" = "at_attendance", hold
   const forbidden = async () => assert.fail("manual command must not create PSP, order or physical-stock effects");
   const store: ProfessionalLeaseStore = {
     acquire: async (merchantId, owner, slots, ttlMs = 0) => { acquireCalls++; held.push({ merchantId, owner, slots, ttlMs });
-      onAcquire?.(); return { expiresAt: new Date(currentNow.getTime() + ttlMs).toISOString(), slots }; },
+      const expiresAt = new Date(currentNow.getTime() + ttlMs).toISOString();
+      const result = withOriginalSlotLeaseProof({ expiresAt, slots }, { merchantId,
+        ownerHash: createHash("sha256").update(owner).digest("hex"), generation: "00000000-0000-4000-8000-000000000001",
+        fingerprint: slotFingerprint(slots), selectionFingerprint: slotFingerprint(slots), expiresAt, slots });
+      onAcquire?.(); return result; },
     assertActive: async (merchantId, owner, slots) => { assertCalls++;
       if (failure === "lease") throw new Error("service_hold_required");
       assert.equal(held.at(-1)?.merchantId, merchantId); assert.equal(held.at(-1)?.owner, owner);
-      assert.deepEqual(held.at(-1)?.slots, slots); },
+      assert.deepEqual(held.at(-1)?.slots, slots); return { merchantId, ownerHash: createHash("sha256").update(owner).digest("hex"),
+        generation: "00000000-0000-4000-8000-000000000001", fingerprint: slotFingerprint(slots), selectionFingerprint: slotFingerprint(slots),
+        expiresAt: new Date(currentNow.getTime() + (held.at(-1)?.ttlMs ?? 0)).toISOString(), slots }; },
     get: async () => undefined,
     release: async () => {},
   };
   const tx = {
-    $queryRaw: async () => { locks++; return [{ id: "resource" }]; },
+    $queryRaw: async (sql: TemplateStringsArray | Prisma.Sql, ...values: unknown[]) => { locks++;
+      const strings = Array.isArray(sql) ? sql : (sql as Prisma.Sql).strings;
+      const parameters = Array.isArray(sql) ? values : (sql as Prisma.Sql).values;
+      if (strings.join(" ").includes("FROM appointment_audits")) return state.audits.filter((row: any) => row.merchantId === parameters[0]
+        && row.after?.privateLease?.generation === parameters[1] && row.after?.privateLease?.targetKey === parameters[2]);
+      return [{ id: "resource" }]; },
     merchant: { findUnique: async ({ where }: any) => where.id === actor.merchantId ? state.merchant : null },
     serviceBusinessPolicy: { findUnique: async ({ where }: any) => where.merchantId === actor.merchantId ? state.policy : null },
     serviceReservation: { findFirst: async () => null, count: async () => 0 },
@@ -96,7 +109,8 @@ function fixture(paymentMode: "online" | "at_attendance" = "at_attendance", hold
     appointmentAudit: {
       findUnique: async ({ where }: any) => state.audits.find((row: any) => row.merchantId === where.merchantId_commandId.merchantId
         && row.commandId === where.merchantId_commandId.commandId) ?? null,
-      create: async ({ data }: any) => { state.audits.push(data); return data; },
+      create: async ({ data }: any) => { if (failure === "capture_unique") throw Object.assign(new Error("synthetic_capture_unique"), { code: "P2002" });
+        state.audits.push(data); return data; },
       update: async ({ where, data }: any) => { if (failure === "receipt") throw new Error("synthetic_manual_receipt_failure");
         const row = state.audits.find((value: any) => value.merchantId === where.merchantId_commandId.merchantId
           && value.commandId === where.merchantId_commandId.commandId); assert.ok(row); Object.assign(row, data); return row; },
@@ -258,4 +272,23 @@ test("T31", async t => {
     await assert.rejects(createManualServiceAppointmentWithin(f.prisma as unknown as Prisma.TransactionClient, actor, input()),
       /service_manual_transaction_required/); assert.deepEqual(f.state, before);
   });
+});
+
+
+test("T33 pending manual retains original acquired proof without adding a confirmation assertion", async () => {
+  const f = fixture("online", true), result = await f.run();
+  const capture = f.state.audits[0].after.privateLease;
+  assert.equal(result.appointment.operationalStatus, "pending");
+  assert.equal(f.acquired, 1); assert.equal(f.asserted, 0);
+  assert.equal(capture.kind, "owned"); assert.equal(capture.generation, "00000000-0000-4000-8000-000000000001");
+  assert.equal(capture.ownerHash, createHash("sha256").update(f.held[0].owner).digest("hex"));
+  assert.equal(capture.target.resourceId, "professional:professional");
+  assert.equal(capture.target.startsAt, result.appointment.startsAt.toISOString());
+  assert.equal(f.state.audits[0].action, "manual_create");
+  assert.equal(JSON.stringify(f.state.events).includes(capture.generation), false);
+});
+
+test("T33 owned capture SQL uniqueness maps to conflict and rolls back the pending attempt", async () => {
+  const f = fixture("online", true), before = structuredClone(f.state); f.fail("capture_unique");
+  await assert.rejects(f.run(), /service_hold_generation_consumed/); assert.deepEqual(f.state, before);
 });
