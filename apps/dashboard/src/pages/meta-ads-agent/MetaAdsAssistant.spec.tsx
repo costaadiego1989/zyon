@@ -11,6 +11,15 @@ import type {CampaignApprovalApi} from './api.js';
 import { DashboardHttpError } from '../../api/http/error.js';
 import {ToastContainer} from '../../components/Toast.js';
 let screen:ReturnType<typeof ui>;afterEach(async()=>{await screen?.close();vi.useRealTimers();});
+test('AGW-06 opening another campaign leaves the old notification target and shows the selected review',async()=>{
+ screen=ui();const f=fixture(),first=launchReview(),second=launchReview();second.campaign.id='campaign2';second.campaign.draft.name='Segunda campanha';second.proposal.id='proposal2';second.proposal.campaignId='campaign2';
+ f.props.overview.campaigns=[first.campaign,second.campaign];f.props.overview.proposals=[first.proposal,second.proposal];f.approval.review.mockImplementation(async(id:string)=>id==='campaign2'?second:first);
+ const target={merchantId:'a',campaignId:'campaign1',proposalId:'proposal1'};
+ await screen.render(<MetaAdsAssistant {...f.props} reviewTarget={target}/>);expect(screen.container.querySelector('.mga-launch')!.textContent).toContain(first.campaign.draft.name);
+ await screen.render(<MetaAdsAssistant {...f.props} reviewTarget={target} selectedCampaignId="campaign2"/>);
+ expect(screen.container.querySelector('.mga-launch')!.textContent).toContain('Segunda campanha');
+ expect(f.approval.review).toHaveBeenLastCalledWith('campaign2',undefined,expect.any(AbortSignal));expect(f.approval.approveLaunch).not.toHaveBeenCalled();
+});
 const turn=(patch:Partial<AssistantTurn>={}):AssistantTurn=>({id:'t',threadId:'h',ordinal:1,status:'completed',message:'Ajuda',reply:'Resposta persistida',references:[],artifacts:[],error:null,createdAt:'2026-11-16T12:00:00Z',updatedAt:'2026-11-16T12:00:00Z',...patch});
 const thread=(turns:AssistantTurn[]=[]):AssistantThread=>({id:'h',context:{id:'meta-ads',label:'Anúncios com IA',capabilities:[]},revision:turns.length,campaign:null,turns,nextCursor:null,updatedAt:'2026-11-16T12:00:00Z'});
 const manual={mode:'manual' as const,policy:null,committedCents:0,availableCents:null,version:0};

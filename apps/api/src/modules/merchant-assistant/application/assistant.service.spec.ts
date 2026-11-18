@@ -42,6 +42,12 @@ test('AGW-01 setup questions do not become campaign planning or lose grounded in
   try { await f.message('O que é Pixel e para que serve o catálogo?');const response=await f.process();assert.equal(response.reply,expected);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,null); }
   finally { await f.close(); }
 });
+test('AGW-01 a novice goal question uses everyday outcomes instead of unexplained acronyms',async()=>{
+ const f=await fixture(input=>answer('Qual prioridade: ROAS ou contribuição após mídia?',[input.knowledge[0].reference.id]));try{
+ await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'store',country:'BR'});await f.message('Me ajude a escolher o objetivo');const response=await f.process();
+ assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,/mais vendas/);assert.match(response.reply,/gastar menos por compra/);assert.doesNotMatch(response.reply,/ROAS|contribuição|CPA/);
+ }finally{await f.close();}
+});
 async function fixture(run: (input: AssistantModelInput, call: number) => AssistantModelResult | Promise<AssistantModelResult>) {
   const f = await metaAssistantFixture(); f.setNow('2026-11-18T12:00:00Z');
   await f.conversations.atomic(assistantScope, f.thread.id, async tx => { await tx.update(f.turn.id, { leaseUntil: '2026-11-18T12:02:00Z' }); });

@@ -211,3 +211,9 @@
   gap: 12px;
 }
 .mga-connection-actions > button { min-width: 0; width: 100%; }
+.mga-connection .mga-connection-form { max-width: none; }
+.meta-ads-agent .mga-settings :is(.mga-section-heading h2,.mga-automation h2) { font-size: 16px; }
+.mga-campaign-filters { margin: 20px 0; }
+.mga-campaign-filters .tab-bar { width: 100%; max-width: 100%; flex-wrap: wrap; overflow: visible; }
+.mga-campaign-filters .tab-bar__tab { white-space: normal; }
+.mga-pending-badge { color: var(--color-text); font-weight: 600; }

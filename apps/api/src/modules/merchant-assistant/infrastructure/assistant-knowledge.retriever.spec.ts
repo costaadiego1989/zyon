@@ -39,13 +39,13 @@ test('ADAS-16 retrieval supplies current approved content and preserves its sour
   assert.match(result[0].content,/pré-paga/);assert.equal(result[0].reference.reviewedAt,'2026-11-16');assert.equal(result[0].reference.version,'v1');
   assert.equal((await retriever.validateReferences(scope,['sample:saldo'],result))[0].url,'/?tab=meta-ads-agent&help=sample');
 });
-test('ADAS-19 questions across all nine subjects retrieve the relevant curated document first',async()=>{
+test('ADAS-19 questions across all ten subjects retrieve the relevant curated document first',async()=>{
   const retriever=new AssistantKnowledgeRetriever(()=>META_ADS_MERCHANT_KNOWLEDGE,currentClock);
   const examples=[['Como conectar minha Página no aplicativo Zyon?','conexao-meta'],['Como adicionar fundos e recarregar saldo?','verba-e-pagamentos'],
     ['Qual a franquia de créditos e o pacote extra?','assinatura-e-franquia'],['Como escolher produtos do catálogo?','catalogo-e-produtos'],
     ['Quero criar uma imagem fiel e um carrossel','criativos'],['Como autorizar o modo automático e revogar a política?','aprovacao-e-automatico'],
-    ['Como publicar e acompanhar a veiculação?','publicacao'],['Onde vejo métricas e o relatório da meia-noite?','metricas'],['O envio deu timeout e resultado desconhecido, posso repetir?','erros-e-recuperacao']];
-  assert.equal(META_ADS_MERCHANT_KNOWLEDGE.length,9);
+    ['Como publicar e acompanhar a veiculação?','publicacao'],['Onde vejo métricas e o relatório da meia-noite?','metricas'],['O envio deu timeout e resultado desconhecido, posso repetir?','erros-e-recuperacao'],['Como configurar o Pixel para medir compras?','pixel-e-catalogo']];
+  assert.equal(META_ADS_MERCHANT_KNOWLEDGE.length,10);
   for(const [query,id]of examples){const result=await retriever.retrieve(scope,query);assert.equal(result[0]?.reference.id.split(':')[0],id,query);}
 });
 test('ADAS-20 revoked and superseded versions cannot enter a new turn or validate an old citation',async()=>{

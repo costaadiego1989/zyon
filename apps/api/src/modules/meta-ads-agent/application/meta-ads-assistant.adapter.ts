@@ -61,7 +61,8 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     if(!planning&&!saved&&(!input.campaign||help))return null;
     const hint=input.suggestedReply.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const fields=[/produto|catalogo/,/objetivo|prioridade|resultado|roas/,/destino|whatsapp|loja/,/orcamento|por dia|diario|periodo|datas/,/pais|regiao|publico/];
-    if(!hint.includes('?')||fields.filter(pattern=>pattern.test(hint)).length<2&&(hint.match(/\?/g)??[]).length<2)return null;
+    const unexplainedGoal=/\b(roas|contribuicao|cpa)\b/.test(hint)&&!/\b(roas|contribuicao|cpa)\b/.test(message);
+    if(!hint.includes('?')||!unexplainedGoal&&fields.filter(pattern=>pattern.test(hint)).length<2&&(hint.match(/\?/g)??[]).length<2)return null;
     return this.uncitedResponse({...input,suggestedReply:input.suggestedReply.trim()+'?'});
   }
   uncitedResponse({suggestedReply,campaign,evidence}:UncitedAssistantResponse):string|null {
