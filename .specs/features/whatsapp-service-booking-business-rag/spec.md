@@ -352,7 +352,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | In Progress (T17 complete) |
 | REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | Pending |
 | REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17 complete) |
-| AUTH-01 | Reject invalid buyer passwords before JWT | T110 | In Progress; P-only minimal repair and Quick15 passed, HTTP/build/merge pending |
+| AUTH-01 | Reject invalid buyer passwords before JWT | T110 | Complete |
 | QA-01 | Criteria proofs | T1, T108, T109, T95 | Pending; native collector and replay repairs do not close final feature proof |
 | CAT-01 | Product-mode creation options | T98 | Complete locally;55unit+2real browser, no skips; final screen review later |
 | CAT-02 | Service-mode creation and defaults | T98 | Complete locally; defaults/reset/payload/history and actual stale-mode409 proved |
