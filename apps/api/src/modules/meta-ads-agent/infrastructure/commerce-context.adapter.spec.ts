@@ -5,9 +5,27 @@ import type { ProductProps } from "../../catalog/domain/entities/product.entity.
 import type { BillingSubscriptionSnapshot } from "../../payment/domain/payment-platform.types.js";
 import { testDatabase } from "./__tests__/database.js";
 import { CommerceContextAdapter } from "./commerce-context.adapter.js";
+import { PrismaMerchantRepository } from "../../merchant/infrastructure/prisma-merchant.repository.js";
+import type { PrismaClient } from "@prisma/client";
 import { PrismaProductRepository } from "../../catalog/infrastructure/repositories/prisma-product.repository.js";
 
 const productProps: ProductProps = { id: "product-a", merchantId: "store-a", name: "Produto", description: "Dados canonicos", type: "physical", isActive: true, createdAt: new Date("2026-11-01"), updatedAt: new Date("2026-11-01"), variants: [{ id: "variant-a", sku: "A", attributes: {}, isActive: true, basePriceInCents: 12500, costInCents: 4000, taxPercent: 0, currency: "BRL", stockQuantity: 8, stockReserved: 2, media: [{ id: "image-a", url: "https://media.example.test/source.png", type: "IMAGE", order: 0 }] }] };
+test('RD-07 canonical merchant repository supports checkout profile and product destination without a top-level slug',async()=>{
+  const prisma={merchant:{findUnique:async(input:{where:{id:string}})=>{assert.equal(input.where.id,'store-a');return{id:'store-a',name:'Loja canônica',storeSlug:'loja-canonica',storeSettings:{slug:'slug-antigo',company:{email:'owner@example.test'}},plan:'growth',theme:null};}}} as unknown as PrismaClient;
+  const merchants=new PrismaMerchantRepository(prisma),profile=await merchants.getProfile('store-a');assert.equal(profile?.storeSettings?.slug,'loja-canonica');assert.equal(profile?.slug,undefined);
+  const catalog={search:async()=>({products:[new ProductEntity(productProps)],total:1}),findByVariantIds:async()=>[new ProductEntity(productProps)]};
+  const adapter=new CommerceContextAdapter(prisma,catalog,merchants,{getBilling:async()=>null},{STOREFRONT_PUBLIC_URL:'https://store.example.test'});
+  assert.deepEqual(await adapter.getProfile('store-a'),{name:'Loja canônica',email:'owner@example.test',storefrontUrl:'https://store.example.test/store/loja-canonica',stripeCustomerId:null});
+  assert.equal((await adapter.products('store-a',{variantIds:['variant-a']}))[0].storefrontUrl,'https://store.example.test/store/loja-canonica?show=content&product=product-a');
+});
+
+test('RD-07 missing or malformed store slugs fail before catalog access',async()=>{
+  for(const slug of [undefined,'',42,{}]){
+    let reads=0;const merchants={getProfile:async()=>({id:'store-a',name:'Loja',storeSettings:{slug}})};
+    const adapter=new CommerceContextAdapter({} as PrismaClient,{search:async()=>{reads++;return{products:[],total:0};},findByVariantIds:async()=>[]},merchants as never,{getBilling:async()=>null},{STOREFRONT_PUBLIC_URL:'https://store.example.test'});
+    await assert.rejects(adapter.products('store-a'),{code:'storefront_url_unavailable',status:503});assert.equal(reads,0);
+  }
+});
 async function fixture() {
   const db = await testDatabase(); let product = new ProductEntity(productProps);
   let billing = { merchantId: "store-a", status: "active", planKey: "growth", cancelAtPeriodEnd: false, createdAt: "2026-11-01T00:00:00Z", updatedAt: "2026-11-01T00:00:00Z" } as BillingSubscriptionSnapshot;

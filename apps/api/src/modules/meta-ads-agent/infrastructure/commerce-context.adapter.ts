@@ -27,8 +27,9 @@ export class CommerceContextAdapter implements CommerceContextPort {
     if (!profile || profile.id !== merchantId) throw new MetaAdsError("merchant_not_found", 404);
     try {
       const url = new URL(this.env.STOREFRONT_PUBLIC_URL ?? "");
-      if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !profile.slug) throw new Error();
-      url.pathname = `/store/${encodeURIComponent(profile.slug)}`;
+      const slug = profile.storeSettings?.slug ?? profile.slug;
+      if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || typeof slug !== 'string' || !slug.trim()) throw new Error();
+      url.pathname = `/store/${encodeURIComponent(slug)}`;
       return { profile, url };
     } catch { throw new MetaAdsError("storefront_url_unavailable", 503); }
   }

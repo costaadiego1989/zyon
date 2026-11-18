@@ -24,6 +24,14 @@ function fixture(history=thread()){
 
 function campaignFixture(status='queued',missing:string[]=[]){const h=thread();h.campaign={campaignId:'campaign1',draft:campaign().draft,awaitingFields:[]};const f=fixture(h);f.props.overview.campaigns=[campaign()];f.approval.preparation.mockResolvedValue({campaignDigest:'a'.repeat(64),preparations:[preparation(status,missing)]} as never);return f;}
 async function reviewImages(){await act(async()=>screen.container.querySelectorAll('.mga-launch img').forEach(image=>image.dispatchEvent(new Event('load'))));}
+
+test('RD-01 the actual ads page distinguishes unavailable access from processing and preserves its draft when access returns',async()=>{
+  screen=ui();const f=fixture();await screen.render(<MetaAdsAssistant {...f.props} overview={{...f.props.overview,entitled:false}}/>);
+  await screen.click('Abrir assistente');await screen.change('Mensagem para a IA','Campanha preservada');
+  expect((screen.container.querySelector('.chat-dock button[type=submit]') as HTMLButtonElement).disabled).toBe(true);expect(screen.container.querySelector('.chat-dock')!.textContent).not.toContain('Processando');
+  await act(async()=>screen.container.querySelector('.chat-dock form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(f.client.submit).not.toHaveBeenCalled();
+  await screen.render(<MetaAdsAssistant {...f.props}/>);expect(screen.container.querySelector('textarea')!.value).toBe('Campanha preservada');await screen.click('Enviar mensagem');expect(f.client.submit).toHaveBeenCalledTimes(1);
+});
 test.each([false,true])('FG-05 canonical pending review suppresses tips with overview proposal present=%s',async(known)=>{
  vi.useFakeTimers();screen=ui();const f=campaignFixture('review_ready');
  f.props.overview.proposals=known?[launchReview().proposal]:[];
