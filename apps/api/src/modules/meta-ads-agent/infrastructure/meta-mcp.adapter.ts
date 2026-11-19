@@ -316,6 +316,10 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       reach: available.includes('reach')?count(row.reach):null,
       linkClicks: available.includes('link_click')?count(row.link_click):null };
   }
+  async accountBudgetConstraints(access:MetaAccess){
+    const session=this.session(access,'plan_future_campaigns');await session.start();const account=await this.account(session,access),minimum=count(account.min_daily_budget_cents);
+    return{accountId:access.accountId!,currency:typeof account.currency==='string'&&/^[A-Z]{3}$/.test(account.currency)?account.currency:null,minimumDailyBudgetCents:minimum!==null&&minimum>0?minimum:null};
+  }
   async accountTimezone(access: MetaAccess): Promise<string> {
     const session = this.session(access, 'assess_and_optimize_performance', true); await session.start(); await this.account(session, access);
     const context = await session.call('ads_get_field_context', { field_names: ['id', 'timezone_name'] });

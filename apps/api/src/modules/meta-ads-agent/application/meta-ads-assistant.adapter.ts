@@ -13,6 +13,7 @@ import type {AssistantCampaignBriefing} from '@zyon/shared-types';
 import {briefingChecklist,receiveBriefingAnswer,isBriefingHelp} from './campaign-briefing.js';
 import {automationChecklist,automationQuestion,isAutomationRequest,receiveAutomationAnswer} from './automation-briefing.js';
 import {normalizeAutomationPolicy} from '../domain/automation-policy.js';
+import {assessBudget,type BudgetAccountContext} from './budget-guidance.js';
 
 interface Dependencies {
   service: MetaAdsAgentService;
@@ -28,7 +29,7 @@ interface Dependencies {
   clock?: () => Date;
   preparation?:Pick<CampaignPreparationService,'read'|'request'>;
   launchReview?:(merchantId:string,actorId:string,campaignId:string)=>Promise<MetaAdsCampaignLaunchReview>;
-  planningContext?:(merchantId:string)=>Promise<{accountId:string;timezone:string}>;
+  planningContext?:(merchantId:string)=>Promise<BudgetAccountContext&{timezone:string}>;
 }
 const string = { type: 'string' };
 const enumOf = (...values: string[]) => ({ type: 'string', enum: values });
@@ -84,6 +85,7 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
   private readonly clock: () => Date;
   constructor(private readonly deps: Dependencies) { this.clock = deps.clock ?? (() => new Date()); }
   guidedResponse(input:UncitedAssistantResponse & {message:string}):string|null {
+    const budget=this.budgetResponse(input.evidence);if(budget)return budget;
     if(input.campaign?.planningKind==='automation'&&(!isBriefingHelp(input.message)||isAutomationRequest(input.message))){
       const questions=(input.suggestedReply.match(/\?/g)??[]).length;
       return questions>1||/^\s*\d+[.)]/m.test(input.suggestedReply)?this.automationResponse(input):null;
@@ -106,8 +108,9 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     const unexplainedGoal=/\b(roas|contribuicao|cpa)\b/.test(hint)&&!/\b(roas|contribuicao|cpa)\b/.test(message);
     const fieldCount=fields.filter(pattern=>pattern.test(hint)).length,questionCount=(hint.match(/\?/g)??[]).length;
     const fieldLines=hint.split('\n').filter(line=>/^\s*(?:\d+[.)]\s*)?(?:produtos?|objetivo|prioridade|destino|orcamento|datas?|pais|regiao)\s*:/.test(line)).length;
-    const imperative=fieldCount>=4||fieldLines>=2||/\b(informe|preciso|preencha|responda|faltam?|obrigatorios|me diga)\b/.test(hint)&&fieldCount>=2;
-    if(!imperative&&(!questionCount||!unexplainedGoal&&fieldCount<2&&questionCount<2))return null;
+    const questionText=hint.split(/(?:[.!]\s+|\n|\\n)/).filter(line=>line.includes('?')).join(' '),questionFields=fields.filter(pattern=>pattern.test(questionText)).length;
+    const imperative=fieldLines>=2||/\b(informe|preciso|preencha|responda|faltam?|obrigatorios|me diga)\b/.test(hint)&&fieldCount>=2;
+    if(!imperative&&(!questionCount||!unexplainedGoal&&questionFields<2&&questionCount<2))return null;
     return this.uncitedResponse({...input,suggestedReply:input.suggestedReply.trim()+'?'});
   }
   recoveredResponse({message,campaign,evidence}:UncitedAssistantResponse & {message:string}):string|null {
@@ -231,6 +234,12 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     if(!campaign.automationBriefing?.scope.variantIds?.length){const choices=catalogChoices(evidence);if(choices)return choices.replace('quer anunciar?','quer incluir no modo automático?');}
     return automationQuestion(campaign);
   }
+  private budgetResponse(evidence:UncitedAssistantResponse['evidence']){
+    const data=[...evidence].reverse().find(item=>item.name==='merchant_ads_save_draft')?.result.data as {budgetNeedsRevision?:boolean;budgetAssessment?:ReturnType<typeof assessBudget>}|undefined;
+    const value=data?.budgetAssessment;if(!data?.budgetNeedsRevision||value?.status!=='below_account_minimum'||value.minimumDailyBudgetCents===null)return null;
+    const minimum=new Intl.NumberFormat('pt-BR',{style:'currency',currency:value.currency}).format(value.minimumDailyBudgetCents/100);
+    return `O valor ficou abaixo do mínimo diário informado pela Meta para esta conta: ${minimum}. Qual valor por dia, a partir desse mínimo, você quer usar?`;
+  }
   checklist(progress:AssistantCampaignProgress|null){return progress?.planningKind==='automation'?automationChecklist(progress):briefingChecklist(progress);}
   async prepareTurn(input:Pick<AssistantToolInput,'scope'|'threadId'|'turnId'|'leaseToken'>):Promise<AssistantToolResult|undefined>{
     await this.authorizeInvocation(input.scope);
@@ -333,11 +342,24 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     const approvalPreference = (args.approvalPreference ?? previous?.approvalPreference??'manual') as AssistantCampaignProgress['approvalPreference'];
     const awaitingFields = ['priority', 'variantIds', 'destination', 'budget', 'country'].filter(field => !draft[field as keyof MetaAdsCampaignDraft]);
     const progress: AssistantCampaignProgress = { campaignId: previous?.campaignId ?? null, draft, awaitingFields, approvalPreference,planningKind:'campaign',...(previous?.automationBriefing?{automationBriefing:previous.automationBriefing}:{}),...(Object.keys(briefing).length?{briefing}:{}),...(requestedImages!==undefined?{requestedImages}:{}) };
+    let budgetAssessment:ReturnType<typeof assessBudget>|undefined;
+    const budgetInput=draft.budget??(partialBudget?.amountCents&&partialBudget.cadence?{...partialBudget,amountCents:partialBudget.amountCents,cadence:partialBudget.cadence,currency:'BRL' as const}:null);
+    if(budgetInput&&this.deps.planningContext){
+        await this.deps.authorizeTool(scope,'merchant_ads_planning_context');
+        let account:BudgetAccountContext;try{account=await this.deps.planningContext(scope.merchantId);}catch(error){if(error instanceof AssistantError)throw error;account={accountId:'unavailable'};}
+        budgetAssessment=assessBudget(budgetInput,account,this.clock().toISOString());
+        if(budgetAssessment.status==='below_account_minimum'){
+          briefing.budgetIssue={amountCents:budgetInput.amountCents,minimumDailyBudgetCents:budgetAssessment.minimumDailyBudgetCents!,currency:budgetInput.currency,accountId:budgetAssessment.accountId,checkedAt:budgetAssessment.checkedAt};progress.briefing=briefing;
+          if(!progress.awaitingFields.includes('budget'))progress.awaitingFields.push('budget');await this.progress(input,progress);
+          return result({progress,budgetAssessment,budgetNeedsRevision:true},{type:'campaign_progress',progress});
+        }
+        delete briefing.budgetIssue;
+    }
     if (!awaitingFields.length) {
       if(input.origin==='model'&&(!draft.headline?.trim()||!draft.primaryText?.trim())){
         await this.progress(input,progress);
         const products=await this.deps.service.commerce.products(scope.merchantId,{variantIds:draft.variantIds!});
-        return result({progress,copyRequired:true,nextAction:'Gere headline e primaryText com estes produtos e salve antes de encerrar. Não peça textos ao lojista.',products},{type:'campaign_progress',progress});
+        return result({progress,copyRequired:true,...(budgetAssessment?{budgetAssessment}:{}),nextAction:'Gere headline e primaryText com estes produtos e salve antes de encerrar. Não peça textos ao lojista.',products},{type:'campaign_progress',progress});
       }
       const full = normalizeCampaignDraft({ name: 'Campanha da loja', mediaIds: [], headline: '', primaryText: '', ...draft } as MetaAdsCampaignDraft);
       const campaign = progress.campaignId ? await this.deps.service.campaigns.owned(scope.merchantId, progress.campaignId) : null;
@@ -349,7 +371,7 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
       await this.deps.campaignSaved?.(scope, saved, approvalPreference);
       let preparation;
       if(this.deps.preparation){try{preparation=await this.prepare(input,progress);}catch(error){if(error instanceof MetaAdsError&&['campaign_preparation_forbidden','campaign_preparation_unavailable'].includes(error.code))preparation={status:'blocked',missing:[error.code],error:error.code};else throw error;}}
-      return result({ progress,...(preparation?{preparation}:{}) }, { type: 'campaign_progress', progress }, { type: 'campaign', campaign: saved });
+      return result({ progress,...(budgetAssessment?{budgetAssessment}:{}),...(preparation?{preparation}:{}) }, { type: 'campaign_progress', progress }, { type: 'campaign', campaign: saved });
     }
     await this.progress(input, progress); return result({ progress }, { type: 'campaign_progress', progress });
   }

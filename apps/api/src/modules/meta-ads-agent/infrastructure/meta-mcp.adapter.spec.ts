@@ -5,6 +5,14 @@ import type { MetaAccess } from "../domain/types.js";
 import { MetaMcpAdapter } from "./meta-mcp.adapter.js";
 
 const access = (): MetaAccess => ({ merchantId: "store-a", accessToken: "scoped-token", clientConversationId: "AbCdEfGhIjKlMnOpQr12", connectionEpoch: 1, accountId: "100", pageId: "110", catalogId: null, datasetId: "120", whatsappId: null });
+
+test('ACJ-07 budget guidance reads only the authorized account floor and does not invent missing minimums',async()=>{
+ for(const raw of [570,undefined,0,'unknown']){
+  const f=fixture(call=>call.name==='ads_get_ad_accounts'?{ad_accounts:[{ad_account_id:'100',ad_account_name:'Conta',currency:'BRL',is_queryable:true,is_ads_mcp_enabled:true,min_daily_budget_cents:raw}]}:undefined);
+  assert.deepEqual(await f.adapter.accountBudgetConstraints(access()),{accountId:'100',currency:'BRL',minimumDailyBudgetCents:raw===570?570:null});
+  await assert.rejects(f.adapter.accountBudgetConstraints({...access(),accountId:'999'}),{code:'meta_asset_forbidden'});assert.equal(f.calls.some(call=>/create|activate|update/.test(call.name)),false);
+ }
+});
 const campaign = (): MetaAdsCampaign => ({ id: "local-a", createdByAgent: true, managed: true, remoteCampaignId: "200", remoteAdSetId: "300", remoteAdIds: ["500"], status: "remote_paused", createdAt: "2026-11-14T12:00:00Z", updatedAt: "2026-11-14T12:00:00Z", products: [{ productId: "product-a", variantId: "variant-a", name: "Produto", description: "Produto real", sku: "SKU-A", imageUrl: "https://media.example.test/original.png", priceCents: 10000, currency: "BRL", stockQuantity: 5, active: true, storefrontUrl: "https://store.example.test/product-a", commercialVersion: "v1" }], draft: { name: "Campanha", destination: "store", priority: "paid_sales", variantIds: ["variant-a"], budget: { amountCents: 2000, currency: "BRL", cadence: "daily", startsAt: "2026-11-15T12:00:00Z", endsAt: null }, mediaIds: ["media-a"], headline: "Produto", primaryText: "Conheca o produto", country: "BR" } });
 const media: MetaAdsMedia[] = [{ id: "media-a", campaignId: "local-a", variantId: "variant-a", productId: "product-a", url: "https://media.example.test/generated.png", productVersion: "v1", createdAt: "2026-11-14T12:00:00Z" }];
 const proposal = (kind: MetaAdsProposal["kind"]): MetaAdsProposal => ({ id: "proposal-a", campaignId: "local-a", kind, status: "approved", before: {}, after: {}, digest: "approved-digest", connectionEpoch: 1, reasoning: "Revisado", createdAt: "2026-11-14T12:00:00Z", approvedAt: "2026-11-14T12:01:00Z", approvedBy: "owner-a", executionId: null });

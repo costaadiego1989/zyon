@@ -10,6 +10,13 @@ import { AssistantService } from './assistant.service.js';
 const answer = (reply: string, referenceIds: string[] = []): AssistantModelResult => ({ reply, referenceIds, toolCalls: [], providerRequestId: 'req-a', costMicros: 20n });
 const tools = (name: string, args: Record<string, unknown>): AssistantModelResult => ({ ...answer(''), reply: null, toolCalls: [{ id: 'call-a', name, args }] });
 
+test('ACJ-06 a sourced explanation may summarize confirmed choices while asking just one new question',async()=>{
+ const text='Guardei o produto, o destino WhatsApp e o objetivo de compras na região escolhida. O orçamento da campanha é o limite de gasto. Quer entender a diferença entre orçamento e saldo?';
+ const f=await fixture(input=>answer(text,input.knowledge.slice(0,1).map(item=>item.reference.id)));
+ try{await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'whatsapp',priority:'paid_sales',country:'BR'});await f.message('E qual a diferença de orçamento e saldo?');const response=await f.process();assert.equal(response.reply,text);assert.equal(response.references.length,1);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!.campaignId,null);
+ }finally{await f.close();}
+});
+
 test('ACJ-06 a contextual follow-up retrieves the preceding payment topic and preserves a sourced explanation',async()=>{
  const f=await fixture(input=>{const payment=input.knowledge.find(item=>/fundos|cobrança/i.test(item.content));assert.ok(payment);return answer('O investimento dos anúncios é pago diretamente à Meta. Posso explicar o próximo passo?',[payment.reference.id]);});
  try{f.conversations.turns=async()=>({turns:[{...f.turn,id:'previous',ordinal:0,message:'Como colocar saldo na Meta?',reply:'Os fundos dos anúncios são pagos na Meta. Você encontrou a opção de adicionar fundos?',status:'completed' as const}],nextCursor:null});await f.message('E como isso funciona?');const response=await f.process();assert.equal(response.reply,'O investimento dos anúncios é pago diretamente à Meta. Posso explicar o próximo passo?');assert.equal(response.references.length,1);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
