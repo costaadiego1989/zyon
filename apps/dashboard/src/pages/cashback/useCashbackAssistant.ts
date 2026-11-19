@@ -14,7 +14,7 @@ interface Options {
   pollMs?: number;
 }
 interface State { thread: AssistantThread | null; loading: boolean; admitting: boolean; error: string | null; source: AssistantSourceView | null; sourceError: string | null; olderLoading: boolean; }
-interface Scope { client: CashbackAssistantClient; abort: AbortController; merchantId: string; thread: AssistantThread | null; operation: {threadId: string; input: AssistantTurnInput} | null; admitting: boolean; seenDrafts: Set<string>; }
+interface Scope { client: CashbackAssistantClient; abort: AbortController; merchantId: string; thread: AssistantThread | null; operation: {threadId: string; input: AssistantTurnInput} | null; admitting: boolean; seenDrafts: Set<string>; sourceRequest: number; }
 const initial = (): State => ({thread:null,loading:true,admitting:false,error:null,source:null,sourceError:null,olderLoading:false});
 const unavailable = 'Assistente indisponível. Continue pela configuração manual ou tente novamente.';
 const uncertain = 'Não foi possível confirmar o envio. Consulte o resultado antes de tentar novamente.';
@@ -34,12 +34,14 @@ export function useCashbackAssistant({apiBaseUrl,merchantId,scopeKey,client,onDr
     const next = {...data,revision:Math.max(data.revision,s.thread?.revision || 0),turns:older ? mergeTurns(turns,s.thread?.turns || []) : mergeTurns(s.thread?.turns || [],turns),nextCursor:older ? data.nextCursor : s.thread ? s.thread.nextCursor : data.nextCursor};
     s.thread = next;
     setState(v=>({...v,thread:next,loading:false,error:turns.some(t=>t.status === 'unknown') ? unknown : null}));
+    let draftChanged = false;
     for (const t of turns) {
       if (t.status !== 'completed' || !t.artifacts.some(a=>a.type === 'cashback_draft') || s.seenDrafts.has(t.id)) continue;
       s.seenDrafts.add(t.id);
-      // A receipt/history snapshot can be older than manual changes. Read current server state.
-      void Promise.resolve(notify.current?.()).catch(()=>{if(alive(s))setState(v=>({...v,error:'O rascunho foi atualizado. Recarregue a configuração para conferir os dados atuais.'}));});
+      draftChanged = true;
     }
+    // One current read per history batch; original receipt snapshots may be old.
+    if(draftChanged)void Promise.resolve(notify.current?.()).catch(()=>{if(alive(s))setState(v=>({...v,error:'O rascunho foi atualizado. Recarregue a configuração para conferir os dados atuais.'}));});
   }
   async function read(s: Scope) {
     const data = await s.client.thread('cashback',s.abort.signal);
@@ -68,7 +70,7 @@ export function useCashbackAssistant({apiBaseUrl,merchantId,scopeKey,client,onDr
   }
   useEffect(()=>{
     const owned = client ? null : merchantAssistantEndpoints(apiBaseUrl);
-    const s: Scope = {client:client || owned!,abort:new AbortController(),merchantId,thread:null,operation:null,admitting:false,seenDrafts:new Set()};
+    const s: Scope = {client:client || owned!,abort:new AbortController(),merchantId,thread:null,operation:null,admitting:false,seenDrafts:new Set(),sourceRequest:0};
     scope.current=s;setState(initial());
     void read(s).catch(()=>{if(alive(s))setState(v=>({...v,loading:false,error:unavailable}));});
     return ()=>{s.abort.abort();owned?.dispose();if(scope.current === s)scope.current=null;};
@@ -90,10 +92,10 @@ export function useCashbackAssistant({apiBaseUrl,merchantId,scopeKey,client,onDr
     await admit(s);
   }
   async function retry() {
-    const s=scope.current;if(!s || s.admitting)return;
+    const s=scope.current;if(!s || s.admitting)return false;
     setState(v=>({...v,loading:!s.thread,error:null}));
-    try {await read(s);if(alive(s) && s.operation && !s.thread?.turns.some(t=>t.status==='unknown'))await admit(s);}
-    catch {if(alive(s))setState(v=>({...v,loading:false,error:s.operation ? uncertain : unavailable}));}
+    try {await read(s);if(alive(s) && s.operation && !s.thread?.turns.some(t=>t.status==='unknown'))await admit(s);return alive(s) && !s.operation && !s.thread?.turns.some(t=>t.status==='unknown');}
+    catch {if(alive(s))setState(v=>({...v,loading:false,error:s.operation ? uncertain : unavailable}));return false;}
   }
   async function loadOlder() {
     const s=scope.current;if(!s?.thread?.nextCursor || state.olderLoading)return;
@@ -104,10 +106,11 @@ export function useCashbackAssistant({apiBaseUrl,merchantId,scopeKey,client,onDr
   }
   async function openSource(id: string) {
     const s=scope.current;if(!s)return;
+    const request=++s.sourceRequest;
     setState(v=>({...v,source:null,sourceError:null}));
-    try {const source=await s.client.source('cashback',id,s.abort.signal);if(alive(s))setState(v=>({...v,source}));}
-    catch {if(alive(s))setState(v=>({...v,sourceError:'Não foi possível carregar a fonte revisada.'}));}
+    try {const source=await s.client.source('cashback',id,s.abort.signal);if(alive(s)&&s.sourceRequest===request)setState(v=>({...v,source}));}
+    catch {if(alive(s)&&s.sourceRequest===request)setState(v=>({...v,sourceError:'Não foi possível carregar a fonte revisada.'}));}
   }
   const busy = state.admitting || !!state.thread?.turns.some(activeTurn);
-  return {...state,turns:state.thread?.turns || [],busy,canSend:!!state.thread && !busy && !scope.current?.operation && !state.thread.turns.some(t=>t.status==='unknown'),send,retry,loadOlder,openSource,closeSource:()=>setState(v=>({...v,source:null,sourceError:null}))};
+  return {...state,turns:state.thread?.turns || [],busy,canSend:!!state.thread && !busy && !scope.current?.operation && !state.thread.turns.some(t=>t.status==='unknown'),send,retry,loadOlder,openSource,closeSource:()=>{if(scope.current)scope.current.sourceRequest++;setState(v=>({...v,source:null,sourceError:null}));}};
 }
