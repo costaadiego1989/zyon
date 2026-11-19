@@ -92,7 +92,7 @@ fieldset > .cashback-help { padding-bottom: 16px; }
 .cashback-table td { padding: 17px 20px; border-top: 1px solid var(--color-border); vertical-align: top; line-height: 1.55; }
 .cashback-table small { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 12px; overflow-wrap: anywhere; }
 .cashback-table tbody tr:hover { background: var(--surface-2); }
-.cashback-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cashback-table .cashback-amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cashback-reference { max-width: 240px; overflow-wrap: anywhere; }
 .cashback-customer-link { display: block; padding: 4px 0; color: var(--color-brand); font: 600 14px/1.5 var(--font-sans); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-align: left; border: 0; background: none; }
 .cashback-customer-detail { display: grid; gap: 20px; }
@@ -122,6 +122,10 @@ fieldset > .cashback-help { padding-bottom: 16px; }
   .cashback-state-actions .zyn-btn { flex: 1 1 auto; }
   .cashback-table th, .cashback-table td { padding-inline: 16px; }
 }
+.cashback-page .chat-dock-collapsed .chat-dock-trigger { display: none; }
+@media (max-width: 768px) {
+  .cashback-page .page-header__copy { flex: 0 1 auto; }
+}
 @media (max-width: 700px) {
   .console-content.dashboard-ui > .cashback-page { --page-section-gap: 16px; gap: 16px; }
   .console-content.dashboard-ui:has(> .cashback-page[data-tab="settings"]) { padding-top: 16px !important; }
@@ -131,7 +135,6 @@ fieldset > .cashback-help { padding-bottom: 16px; }
   .cashback-page .cashback-header-action, .cashback-page .cashback-program-configure { min-width: 44px; width: 44px; height: 44px; padding: 10px; }
   .cashback-header-action .zyn-btn__label > span, .cashback-program-configure .zyn-btn__label > span { display: none; }
   .cashback-page[data-tab="settings"] .cashback-program-note { display: none; }
-  .cashback-page[data-tab="settings"] .chat-dock-collapsed .chat-dock-trigger { display: none; }
   .cashback-settings[data-compact="true"] .cashback-settings-layout { padding-top: 0; border-top: 0; }
   .cashback-settings[data-compact="true"] .cashback-section-lead { display: none; }
 }

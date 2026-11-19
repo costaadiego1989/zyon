@@ -575,6 +575,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             <div className="ui-breadcrumb"><ActiveIcon size={17} aria-hidden="true" /><span>{activeSection}</span><span aria-hidden="true">/</span><span className="ui-breadcrumb__current">{activeItem.label}</span></div>
           </div>
           <div className="console-topbar-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {!subscriptionRequired && tab === "cashback" && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} presentation="inline" />}
             {!subscriptionRequired && (me.plan === "STORE_ONLY" || me.plan === "BOTH") && storefrontHref && (
               <a
                 href={storefrontHref}
@@ -841,7 +842,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </PageErrorBoundary>
         </section>
       </main>
-      {!subscriptionRequired && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} />}
+      {!subscriptionRequired && tab !== "cashback" && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} />}
       <ToastContainer />
       {!subscriptionRequired && <ImportProgressBanner />}
       </div>
