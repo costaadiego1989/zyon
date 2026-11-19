@@ -29,6 +29,7 @@ import { SUBSCRIPTION_RECOVERY_TABS } from "./subscription-route-policy.js";
 import { SubscriptionAccessGate } from "./SubscriptionAccessGate.js";
 import { MarketplaceRemediationActions } from "../pages/onboarding-wizard/MarketplaceRemediationActions.js";
 import { Button } from "../components/Button.js";
+import type { ConversationNavigation } from "../pages/whatsapp-seller/useConversationNavigation.js";
 
 function ShellImportProgressProvider({ children, suspended = false }: { children: React.ReactNode; suspended?: boolean }) {
   const catalog = useCatalogApi();
@@ -132,9 +133,10 @@ export interface DashboardShellProps {
   onboardingCompleted?: boolean;
   subscriptionRequired?: boolean;
   onRefreshSubscription?: () => Promise<void>;
+  conversationNavigation?: ConversationNavigation;
 }
 
-export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: initialOnboardingCompleted, subscriptionRequired = false, onRefreshSubscription }: DashboardShellProps) {
+export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: initialOnboardingCompleted, subscriptionRequired = false, onRefreshSubscription, conversationNavigation }: DashboardShellProps) {
   const resolveInitialTab = (): TabKey => {
     const hash = window.location.hash.slice(1).split("?")[0];
     if (hash) return hash as TabKey;
@@ -245,9 +247,10 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   }, [searchQuery]);
 
   const changeTab = useCallback((next: TabKey) => {
-    setTab(next);
-    window.location.hash = next;
-  }, []);
+    const commit = () => { setTab(next); window.location.hash = next; };
+    if (conversationNavigation) conversationNavigation.request("#" + next, commit);
+    else commit();
+  }, [conversationNavigation]);
 
   const toggleSectionCollapse = useCallback((sectionId: string) => {
     setCollapsedSections((prev) => {
@@ -747,7 +750,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "marketplace-contributions" ? <RouteGuard me={me} require="marketplace-contributions"><MarketplaceContributionsPage me={me} /></RouteGuard> : null}
             {tab === "marketplace-fees" ? <RouteGuard me={me} require="marketplace-fees"><MarketplaceSellerFeesPage me={me} /></RouteGuard> : null}
             {tab === "marketplace-host-fees" ? <RouteGuard me={me} require="marketplace-host-fees"><MarketplaceSellerFeesPage family="host" me={me} /></RouteGuard> : null}
-            {tab === "whatsapp-seller" ? <RouteGuard me={me} require="whatsapp-seller"><WhatsAppSellerPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "whatsapp-seller" ? <RouteGuard me={me} require="whatsapp-seller"><WhatsAppSellerPage apiBaseUrl={API_BASE_URL} me={me} navigation={conversationNavigation} /></RouteGuard> : null}
             {tab === "coupons" ? <RouteGuard me={me} require="coupons"><CouponsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "experiments" ? (
               <RouteGuard me={me} require="experiments">

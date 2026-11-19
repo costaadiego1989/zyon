@@ -13,6 +13,10 @@ import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js
 import { friendlyAuthError } from "./auth/auth-error.js";
 import { authModeFromUrl, authUrlForMode } from "./auth/auth-navigation.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
+import { WhatsAppStaffWorkspace } from "./pages/whatsapp-seller/WhatsAppStaffWorkspace.js";
+import { resolveStaffConversationContext } from "./pages/whatsapp-seller/conversation-bootstrap.js";
+import type { ConversationContext } from "./pages/whatsapp-seller/conversation-types.js";
+import { useConversationNavigation } from "./pages/whatsapp-seller/useConversationNavigation.js";
 import { LoadingSplash } from "./components/LoadingSplash.js";
 import { PlanSelection } from "./pages/onboarding-wizard/steps/PlanSelection.js";
 import { MarketplaceRemediationActions } from "./pages/onboarding-wizard/MarketplaceRemediationActions.js";
@@ -50,8 +54,11 @@ interface AppProps {
   api: ReturnType<typeof useApiInstance>;
 }
 
-function App({ api }: AppProps) {
+export function App({ api }: AppProps) {
+  const [staffContext, setStaffContext] = useState<ConversationContext | null>(null);
+  const sessionGeneration = useRef(0), pendingStaffGeneration = useRef<number | null>(null);
   const [me, setMe] = useState<MerchantDashboardProfile | null>(null);
+  const conversationNavigation = useConversationNavigation(sessionGeneration.current);
   const [authMode, setCurrentAuthMode] = useState<AuthMode>(() => authModeFromUrl(window.location.href));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -76,6 +83,7 @@ function App({ api }: AppProps) {
   const onboardingRedirectedRef = useRef(false);
   function setAuthMode(mode: AuthMode) {
     window.history.replaceState(window.history.state, "", authUrlForMode(window.location.href, mode));
+    conversationNavigation.reset();
     setCurrentAuthMode(mode);
     setCaptchaToken(null);
     setAuthHint(null);
@@ -90,10 +98,13 @@ function App({ api }: AppProps) {
   }, []);
 
   async function refreshSession() {
-    setCheckingSession(true);
+    const generation = ++sessionGeneration.current; pendingStaffGeneration.current = null;
+    setStaffContext(null); setCheckingSession(true);
     try {
       const profile = await api.merchantProfile();
+      if (generation !== sessionGeneration.current) return;
       const settings = await api.getStoreSettings();
+      if (generation !== sessionGeneration.current) return;
       const choosingPlan = settings.plan_selection_pending === true;
       setPlanSelectionPending(choosingPlan);
       if (!choosingPlan && (settings.registration_pending === true || settings.oauth_registration_pending === true)) {
@@ -108,6 +119,7 @@ function App({ api }: AppProps) {
       setAuthHint(null);
       try {
         const subscription = await api.getBillingSubscription();
+        if (generation !== sessionGeneration.current) return;
         setSubscriptionRequired(subscription.trial_expired === true);
       } catch (error) {
         // A transient billing lookup must not unlock a confirmed restriction.
@@ -115,6 +127,7 @@ function App({ api }: AppProps) {
       }
       try {
         const onboarding = await api.getOnboardingState();
+        if (generation !== sessionGeneration.current) return;
         setOnboardingCompleted(onboarding.completed);
         // Open onboarding on first session resolution if incomplete.
         // One-shot flag prevents re-directing when user manually navigates away.
@@ -127,14 +140,18 @@ function App({ api }: AppProps) {
         reportError({ source: "main.refreshSession.onboarding", error: err, severity: "warning" });
       }
     } catch (err) {
-      if (err instanceof DashboardHttpError && err.status === 401) {
-        setMe(null);
-      } else {
-        setMe(null);
+      if (generation !== sessionGeneration.current) return;
+      setMe(null); setSubscriptionRequired(false);
+      if (err instanceof DashboardHttpError && err.status === 403) {
+        pendingStaffGeneration.current = generation;
+        const context = await resolveStaffConversationContext(err, api);
+        if (generation !== sessionGeneration.current) return;
+        setStaffContext(context);
       }
-      setSubscriptionRequired(false);
     } finally {
-      setCheckingSession(false);
+      if (generation === sessionGeneration.current) {
+        pendingStaffGeneration.current = null; setCheckingSession(false);
+      }
     }
   }
 
@@ -149,14 +166,15 @@ function App({ api }: AppProps) {
 
   useEffect(() => {
     function handleSessionExpired() {
-      if (checkingSession || !me) return;
-      setMe(null);
+      if (!me && !staffContext && pendingStaffGeneration.current === null) return;
+      sessionGeneration.current++; pendingStaffGeneration.current = null;
+      setMe(null); setStaffContext(null); setCheckingSession(false);
       setAuthMode("login");
       setAuthHint("Sessão expirada. Entre novamente.");
     }
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
-  }, [checkingSession, me]);
+  }, [checkingSession, me, staffContext]);
 
   useEffect(() => {
     if (!me) return;
@@ -183,6 +201,7 @@ function App({ api }: AppProps) {
 
   async function submitAuth(event: React.FormEvent) {
     event.preventDefault();
+    sessionGeneration.current++; pendingStaffGeneration.current = null; setStaffContext(null);
     setBusy(true);
     setAuthHint(null);
     try {
@@ -238,12 +257,14 @@ function App({ api }: AppProps) {
     clearSubscriptionIntent();
     setSubscriptionIntent(null);
     window.history.replaceState({}, "", "/");
+    conversationNavigation.reset();
     setPlanSelectionPending(false);
     setOauthProfile(null);
     await refreshSession();
   }
 
   async function logout() {
+    sessionGeneration.current++; pendingStaffGeneration.current = null;
     setBusy(true);
     try {
       await api.logout();
@@ -251,7 +272,7 @@ function App({ api }: AppProps) {
       // local state still clears the console when the API is unreachable.
       reportError({ source: "main.logout", error: err, severity: "warning" });
     } finally {
-      setMe(null);
+      setMe(null); setStaffContext(null); setCheckingSession(false);
       setPassword("");
       setBusy(false);
       setAuthMode("login");
@@ -275,6 +296,8 @@ function App({ api }: AppProps) {
   }
 
   if (checkingSession) return <LoadingSplash />;
+
+  if (staffContext) return <WhatsAppStaffWorkspace context={staffContext} apiBaseUrl={API_BASE_URL} onLogout={logout} busy={busy} navigation={conversationNavigation} />;
 
   if (me && (!me.role || me.role === "OWNER") && !subscriptionRequired && (planSelectionPending || subscriptionIntent)) {
     if (hostFeeRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
@@ -346,7 +369,7 @@ function App({ api }: AppProps) {
     );
   }
 
-  return <DashboardShell me={me} initialTab={initialTab} onLogout={logout} onboardingCompleted={onboardingCompleted} subscriptionRequired={subscriptionRequired} onRefreshSubscription={refreshSession} />;
+  return <DashboardShell me={me} initialTab={initialTab} onLogout={logout} onboardingCompleted={onboardingCompleted} subscriptionRequired={subscriptionRequired} onRefreshSubscription={refreshSession} conversationNavigation={conversationNavigation} />;
 }
 
 function AppRoot() {

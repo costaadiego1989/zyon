@@ -154,3 +154,6 @@ As correções explícitas de animação antes do texto e dez produtos por lote 
 
 
 **Fixed timezone delivery placement (2026-11-18):** Explicit answers are delivered by111 new-record server policy,112 canonical booking/trusted-history compatibility and113 UI/control evolution after83/47 and before84. No global timezone rewrite or public legacy flag. Existing new-write/control tests evolve for the new user rule; unrelated historical/security/payment/stock assertions stay protected.
+
+
+**Desktop visual style approved 2026-11-19T17:55:35.310017+00:00:** user: "Aprovar o estilo do desktop" (call_28d46de81a384fc5991547007d8ae055). Approval concerns the two real desktop previews, queue205f1326 and drawer26935f85, with premium presentation tokens/styles preserved through the later selected-tab and quiet-read fixes. It is not approval of unfinished technical gates, mobile behavior, feature completion or publication. No question on desktop style remains pending.

@@ -1,6 +1,6 @@
 import { formatWhatsAppPhone } from "../../utils/masks.js";
 ﻿import { PageHeader } from "../../components/PageHeader.js";
-import React, { useState } from "react";
+import React, { useLayoutEffect, useRef } from "react";
 import { CheckCircle, CircleCheck, CreditCard, ExternalLink, Loader2, PackageCheck, RefreshCw, ShieldCheck, ShoppingBag, X } from "lucide-react";
 import { Button } from "../../components/Button.js";
 import { TabBar } from "../../components/TabBar.js";
@@ -11,6 +11,11 @@ import { WhatsAppUsageTab, WhatsAppProcessingNotice } from "./WhatsAppUsageTab.j
 import { WhatsAppTemplatesTab } from "./WhatsAppTemplatesTab.js";
 import { WhatsAppBrandIcon } from "../../components/WhatsAppBrandIcon.js";
 import { PremiumFeatureGate } from "../../components/PremiumFeatureGate.js";
+import { canConfigureWhatsApp } from "../../lib/auth/permissions.js";
+import { WhatsAppConversationsTab } from "./WhatsAppConversationsTab.js";
+import { useWhatsAppRoute } from "./useWhatsAppRoute.js";
+import type { WhatsAppTab } from "./conversation-navigation.js";
+import type { ConversationNavigation } from "./useConversationNavigation.js";
 import "./whatsapp-seller.css";
 
 const stateCopy: Record<string, { title: string; text: string }> = {
@@ -20,11 +25,38 @@ const stateCopy: Record<string, { title: string; text: string }> = {
 };
 
 const whatsappManagerUrl = "https://business.facebook.com/wa/manage/phone-numbers/";
+const WHATSAPP_TABS = [{ key: "connection", label: "Conexão", panelId: "whatsapp-connection" }, { key: "templates", label: "Modelos de mensagem", panelId: "whatsapp-templates" }, { key: "orders", label: "Pedidos no WhatsApp", panelId: "whatsapp-orders" }, { key: "usage", label: "Consumo e cobrança", panelId: "whatsapp-usage" }, { key: "conversations", label: "Conversas", panelId: "whatsapp-conversations" }];
 
-export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
+export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProfile | null; navigation?: ConversationNavigation }) {
+  const route = useWhatsAppRoute(props.me?.role, props.navigation);
+  const conversationsHost = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!route.allowed || route.tab !== "conversations") return;
+    const strip = conversationsHost.current?.querySelector<HTMLElement>('[role="tablist"]');
+    const selected = strip?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!strip || !selected || !strip.clientWidth) return;
+    const bounds = strip.getBoundingClientRect(), active = selected.getBoundingClientRect();
+    const left = bounds.left + strip.clientLeft, right = left + strip.clientWidth;
+    if (active.left < left) strip.scrollLeft += active.left - left;
+    else if (active.right > right) strip.scrollLeft += active.right - right;
+  }, [route.allowed, route.tab, props.me?.id]);
+  if (!props.me) return <div className="page-container whatsapp-seller"><PageHeader title="WhatsApp" /><p>Entre na sua conta para configurar o WhatsApp.</p></div>;
+  if (!route.allowed || !route.tab) return <div className="page-container whatsapp-seller"><PageHeader title="WhatsApp" />
+    <div className="panel-error" role="alert"><p>Esta opção não está disponível para seu perfil.</p>
+      <Button variant="outline" onClick={() => route.navigate(canConfigureWhatsApp(props.me?.role) ? "connection" : "conversations")}>Abrir WhatsApp</Button></div></div>;
+  if (route.tab === "conversations") return <div ref={conversationsHost} className="page-container whatsapp-seller">
+    <PageHeader title="WhatsApp" description="Acompanhe as conversas e cuide do atendimento aos clientes." />
+    <TabBar tabs={WHATSAPP_TABS} activeTab="conversations" label="WhatsApp" onTabChange={key => route.navigate(key as WhatsAppTab)} />
+    <WhatsAppConversationsTab apiBaseUrl={props.apiBaseUrl} expectedMerchantId={props.me.id} ticketId={route.ticketId} navigation={props.navigation}
+      onSelectTicket={id => route.navigate("conversations", id)} onCloseTicket={() => route.navigate("conversations")} />
+  </div>;
+  return <WhatsAppConfigurationPage {...props} tab={route.tab} onTabChange={tab => route.navigate(tab)} />;
+}
+
+function WhatsAppConfigurationPage(props: { apiBaseUrl: string; me: MerchantProfile | null; tab: Exclude<WhatsAppTab, "conversations">; onTabChange: (tab: WhatsAppTab) => void }) {
   const vm = useWhatsAppSellerPage({ me: props.me });
   const usage = useWhatsAppUsage(props.me?.id);
-  const [tab, setTab] = useState<"connection" | "templates" | "orders" | "usage">("connection");
+  const tab = props.tab, setTab = props.onTabChange;
   const status = vm.config?.status ?? "disconnected";
   const pending = stateCopy[status];
   const active = status === "active";
@@ -40,9 +72,9 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
       {!props.me ? <p>Entre na sua conta para configurar o WhatsApp.</p> : <>
         <TabBar
-          tabs={[{ key: "connection", label: "Conexão", panelId: "whatsapp-connection" }, { key: "templates", label: "Modelos de mensagem", panelId: "whatsapp-templates" }, { key: "orders", label: "Pedidos no WhatsApp", panelId: "whatsapp-orders" }, { key: "usage", label: "Consumo e cobrança", panelId: "whatsapp-usage" }]}
+          tabs={WHATSAPP_TABS}
           activeTab={tab}
-          onTabChange={key => setTab(key as "connection" | "templates" | "orders" | "usage")}
+          onTabChange={key => setTab(key as WhatsAppTab)}
           label="Configurações do WhatsApp"
         />
         {tab === "usage" && <WhatsAppUsageTab vm={usage} />}

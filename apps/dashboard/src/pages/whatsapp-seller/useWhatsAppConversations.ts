@@ -73,12 +73,16 @@ export function useWhatsAppConversations({ context, api, socket }: { context: Co
     }
   }, [api, scope]);
 
-  const open = useCallback(async (ticketId: string) => {
+  const readDetail = useCallback(async (ticketId: string, quiet = false) => {
     if (!scope) return;
     const token = stamp(), request = ++selection.current;
     if (selected.current !== ticketId) stream.current = { ticketId, rows: [] };
     selected.current = ticketId;
-    setState(old => ({ ...old, detail: old.detail?.ticket.id === ticketId ? old.detail : null, detailLoading: true, detailError: null, actionError: null }));
+    setState(old => {
+      const retained = old.detail?.ticket.id === ticketId ? old.detail : null;
+      return { ...old, detail: retained, detailLoading: quiet && retained ? old.detailLoading : true,
+        detailError: quiet ? old.detailError : null, actionError: quiet ? old.actionError : null };
+    });
     try {
       const detail = await api.getWhatsAppConversation(ticketId, { limit: 100 });
       if (!live(token) || request !== selection.current) return;
@@ -95,6 +99,8 @@ export function useWhatsAppConversations({ context, api, socket }: { context: Co
     }
   }, [api, scope]);
 
+  const open = useCallback((ticketId: string) => readDetail(ticketId), [readDetail]);
+
   const refresh = useMemo(() => {
     let queued: { token: ReturnType<typeof stamp>; detail: boolean } | undefined;
     let active: Promise<void> | undefined;
@@ -106,13 +112,13 @@ export function useWhatsAppConversations({ context, api, socket }: { context: Co
             const job = queued; queued = undefined;
             if (!live(job.token)) continue;
             const ticketId = job.detail ? selected.current : null;
-            await Promise.all([reload(), ...(ticketId ? [open(ticketId)] : [])]);
+            await Promise.all([reload(), ...(ticketId ? [readDetail(ticketId, true)] : [])]);
           }
         } finally { queued = undefined; active = undefined; }
       });
       return active;
     };
-  }, [reload, open]);
+  }, [reload, readDetail]);
 
   useEffect(() => {
     selected.current = null; selection.current++; listRequest.current++; working.current = false; pending.current.clear();

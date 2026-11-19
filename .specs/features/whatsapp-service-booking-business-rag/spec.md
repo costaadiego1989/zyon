@@ -424,3 +424,9 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 **Local T36 closure:** Full422 GREEN across documented cohorts; own API b2ec26bd/241178bc/2586, types/lint/build0, mandatory owned cleanup and provider0. Task marked before focused local commit. No production/push/deploy; T37 onward and final same-HEAD verification remain pending.
 
 **Local T37 closure:** Full378 across149 current+229 retained unchanged products; own API2249dc61/73f9474e/2587, types/lint/build0 and native cleanup/provider0. Task marked before focused local commit. T38/T41/T80/metrics and final proof remain pending.
+
+
+**Desktop visual style approved 2026-11-19T17:55:35.310017+00:00:** user: "Aprovar o estilo do desktop" (call_28d46de81a384fc5991547007d8ae055). Approval concerns the two real desktop previews, queue205f1326 and drawer26935f85, with premium presentation tokens/styles preserved through the later selected-tab and quiet-read fixes. It is not approval of unfinished technical gates, mobile behavior, feature completion or publication. No question on desktop style remains pending.
+
+
+**T62 local closure 2026-11-19T18:28:56.480169+00:00:** Actual source/dependency62 pins adopted byte-exact from M ed126a774cf9fe5db6d6aa09b427aa34607aa03c plus tested task62 changes.166 distinct accepted across UI138(92+46), retained13pure+11provider and current4Browser; types6df9/build e251/Browser ecf27c4a natural0 with normal cleanup/provider0. Root viewed all4 unresized current captures, desktop style explicitly approved. Own M API1668/ed20/2585 is test provenance only, no Root artifact borrowing. No product permission/authority change or production publication. HUM08 still also requires T82; feature remains incomplete. Task62 marked before its own atomic commit.

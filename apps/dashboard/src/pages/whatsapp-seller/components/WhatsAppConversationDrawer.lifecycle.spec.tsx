@@ -12,7 +12,7 @@ const context: ConversationContext = { merchant_id: "merchant-a", user_id: "oper
 const mounts: Array<{ root: Root; host: HTMLElement }> = [];
 beforeEach(() => { vi.stubGlobal("crypto", { randomUUID }); Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true }); });
 afterEach(async () => { for (const item of mounts.splice(0)) { await act(async () => item.root.unmount()); item.host.remove(); } vi.unstubAllGlobals(); });
-const button = (text: string) => [...document.querySelectorAll("button")].find(el => el.textContent?.trim() === text)!;
+const button = (text: string) => Array.from(document.querySelectorAll("button")).find(el => el.textContent?.trim() === text)!;
 async function click(text: string) { await act(async () => button(text).click()); }
 async function enter(value: string) {
   const input = document.querySelector("textarea")!;

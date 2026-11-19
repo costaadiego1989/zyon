@@ -1430,6 +1430,8 @@ T107 → T106
 
 ### T62: Mount Conversations inside WhatsApp
 
+**Status**: Complete - local UI138 accepted as18whole92+2whole46, unchanged pure13/provider11 retained, current wholeBrowser4 GREEN; dashboard types/build0, mandatory normal cleanup/provider0. See task-62-evidence.json. Final same-HEAD feature acceptance remains pending.
+
 **What**: Aba Conversas no módulo existente para ambos modos, permissions por aba e URL; Conexão/Modelos/Consumo preservados e sem central RAG.
 **Where**: `apps/dashboard/src/pages/whatsapp-seller/WhatsAppSellerPage.tsx`
 **Depends on**: T61
@@ -1438,12 +1440,12 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] WhatsAppSellerPage.conversations.spec.tsx + browser direct tab/refresh/back/role, screenshot da tab e erro.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] WhatsAppSellerPage.conversations.spec.tsx + browser direct tab/refresh/back/role, screenshot da tab e erro.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: WhatsAppSellerPage.conversations.spec.tsx + browser direct tab/refresh/back/role, screenshot da tab e erro.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/whatsapp-seller/WhatsAppSellerPage.spec.tsx -t "^T62$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T62$"` Teste raiz T62 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser: current whole UI138 (20 files), pure13, provider11, dashboard types/build and checked own API admission plus actual whole Browser4. Commands: `pnpm --dir apps/dashboard exec vitest run src/pages/whatsapp-seller/WhatsAppSellerPage.conversations.spec.tsx src/main.conversations.spec.tsx src/pages/whatsapp-seller/WhatsAppSellerPage.mount.spec.tsx src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.spec.tsx src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.lifecycle.spec.tsx src/pages/support-settings/components/CanonicalSupportChat.draft-text.spec.tsx src/shell/subscription-access-wiring.spec.ts src/components/RouteGuard.spec.tsx src/pages/whatsapp-seller/conversation-draft-navigation.spec.tsx src/pages/support-settings-page.spec.tsx src/pages/whatsapp-seller/useWhatsAppConversations.spec.ts src/pages/whatsapp-seller/useWhatsAppConversations.lifecycle.spec.ts src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.background.spec.tsx src/pages/whatsapp-seller/useWhatsAppConversations.intent-lifecycle.spec.ts src/pages/whatsapp-seller/useWhatsAppConversations.refresh-budget.spec.tsx src/pages/whatsapp-seller/conversation-reconciliation.spec.ts src/pages/whatsapp-seller/conversation-actions.permissions.spec.ts src/api/endpoints/whatsapp-conversations.contract.spec.ts src/hooks/useSupportSocket.conversations.spec.ts src/pages/whatsapp-seller/conversation-actions.spec.ts --pool=forks --maxWorkers=1 --minWorkers=1 --no-file-parallelism`; `pnpm --dir apps/dashboard exec vitest run src/pages/whatsapp-seller/conversation-navigation.spec.ts src/pages/whatsapp-seller/conversation-bootstrap.spec.ts --pool=forks --maxWorkers=1 --minWorkers=1 --no-file-parallelism`; `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/service-whatsapp-provider-fixture.contract.spec.mjs ./tests/service-whatsapp-recipient-outcomes.contract.spec.mjs`; `pnpm --dir apps/dashboard typecheck`; `pnpm --dir apps/dashboard build`; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-whatsapp-conversations-app-local.config.ts`. Accepted166 distinct across documented whole-file cohorts, not a fresh166 or all138 successful aggregate. Original one-worker/retries0/resource/time/heap guards preserved; exact receipts/raw hashes in task-62-evidence.json; no skip/filter/old-oracle weakening. Browser includes real claim/send/close/URL/history/roles/private-error/mobile gestures and mandatory provider-trap/owned cleanup0.
 **Commit**: `feat(service-business): t62 mount conversations inside whatsapp`
 
 ### T63: Project only approved public business fields
@@ -2486,7 +2488,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T54, T55, T58, T109.
 
 **C30** - WHEN o operador abre o módulo WhatsApp THEN the system SHALL oferecer a aba "Conversas" para operar o atendimento humano existente sem exigir uma central separada para o RAG. (HUM-08, AC 8)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^HUM-08$" ./tests/whatsapp-human-handoff.integration.spec.ts`
+Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-whatsapp-conversations-app-local.config.ts`
 Tasks: T58, T59, T60, T62, T82.
 
 **C31** - WHEN cadastro público da empresa, profissional, serviço, horário de funcionamento, FAQ ou política é publicado ou alterado THEN the system SHALL registrar atualização idempotente da projeção de conhecimento com tenant, origem e versão. (RAG-01, AC 1)
@@ -3539,3 +3541,9 @@ Phase15 adds99→100→101, with55 also required by100 and62 by101. Phase16 adds
 **Local T36 closure:** Full422 GREEN across documented cohorts; own API b2ec26bd/241178bc/2586, types/lint/build0, mandatory owned cleanup and provider0. Task marked before focused local commit. No production/push/deploy; T37 onward and final same-HEAD verification remain pending.
 
 **Local T37 closure:** Full378 across149 current+229 retained unchanged products; own API2249dc61/73f9474e/2587, types/lint/build0 and native cleanup/provider0. Task marked before focused local commit. T38/T41/T80/metrics and final proof remain pending.
+
+
+**Desktop visual style approved 2026-11-19T17:55:35.310017+00:00:** user: "Aprovar o estilo do desktop" (call_28d46de81a384fc5991547007d8ae055). Approval concerns the two real desktop previews, queue205f1326 and drawer26935f85, with premium presentation tokens/styles preserved through the later selected-tab and quiet-read fixes. It is not approval of unfinished technical gates, mobile behavior, feature completion or publication. No question on desktop style remains pending.
+
+
+**T62 local closure 2026-11-19T18:28:56.480169+00:00:** Actual source/dependency62 pins adopted byte-exact from M ed126a774cf9fe5db6d6aa09b427aa34607aa03c plus tested task62 changes.166 distinct accepted across UI138(92+46), retained13pure+11provider and current4Browser; types6df9/build e251/Browser ecf27c4a natural0 with normal cleanup/provider0. Root viewed all4 unresized current captures, desktop style explicitly approved. Own M API1668/ed20/2585 is test provenance only, no Root artifact borrowing. No product permission/authority change or production publication. HUM08 still also requires T82; feature remains incomplete. Task62 marked before its own atomic commit.

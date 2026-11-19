@@ -30,21 +30,21 @@ describe("T61 bound drawer reuses support UI without private configuration acces
     expect(document.body.textContent).not.toContain("Entregue");expect(document.body.textContent).not.toContain("Lida");
   });
   it("retains the authorized close while an unavailable channel disables send",async()=>{
-    const f=await fixture();const close=[...document.querySelectorAll('button')].find(value=>value.textContent?.includes("Encerrar e retomar IA"));
+    const f=await fixture();const close=Array.from(document.querySelectorAll('button')).find(value=>value.textContent?.includes("Encerrar e retomar IA"));
     expect(close).toBeTruthy();expect((close as HTMLButtonElement).disabled).toBe(false);
-    const send=[...document.querySelectorAll('button')].find(value=>value.textContent?.includes("Enviar resposta"));expect((send as HTMLButtonElement).disabled).toBe(true);
+    const send=Array.from(document.querySelectorAll('button')).find(value=>value.textContent?.includes("Enviar resposta"));expect((send as HTMLButtonElement).disabled).toBe(true);
     await act(async()=>{(close as HTMLButtonElement).click();});expect(f.vm.closeCase).toHaveBeenCalledTimes(1);
   });
   it("another claimed operator remains read only in the mounted drawer",async()=>{
     await fixture({detail:{...detail,binding:{...detail.binding!,assignedOperatorId:"another-operator"}}});
-    expect([...document.querySelectorAll('button')].some(value=>value.textContent?.includes("Encerrar e retomar IA"))).toBe(false);
-    const send=[...document.querySelectorAll('button')].find(value=>value.textContent?.includes("Enviar resposta"));expect((send as HTMLButtonElement).disabled).toBe(true);
+    expect(Array.from(document.querySelectorAll('button')).some(value=>value.textContent?.includes("Encerrar e retomar IA"))).toBe(false);
+    const send=Array.from(document.querySelectorAll('button')).find(value=>value.textContent?.includes("Enviar resposta"));expect((send as HTMLButtonElement).disabled).toBe(true);
   });
   it("uncertain send keeps the draft instead of showing a fake successful message",async()=>{
     const f=await fixture({detail:{...detail,channel:{id:"config-a",provider:"META_CLOUD",status:"ACTIVE",enabled:true}}});
     const input=document.querySelector('textarea')!;
     await act(async()=>{Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value")!.set!.call(input,"Rascunho preservado");input.dispatchEvent(new Event("input",{bubbles:true}));});
-    const send=[...document.querySelectorAll('button')].find(value=>value.textContent?.includes("Enviar resposta"))!;
+    const send=Array.from(document.querySelectorAll('button')).find(value=>value.textContent?.includes("Enviar resposta"))!;
     await act(async()=>{send.click();});expect(f.vm.send).toHaveBeenCalledWith("Rascunho preservado");expect(input.value).toBe("Rascunho preservado");
     expect(document.querySelectorAll('.support-msg')).toHaveLength(2);
   });

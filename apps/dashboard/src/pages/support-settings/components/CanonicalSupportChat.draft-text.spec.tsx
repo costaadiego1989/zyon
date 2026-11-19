@@ -50,7 +50,7 @@ async function enter(value: string) {
   });
 }
 async function send() {
-  const control = [...document.querySelectorAll("button")].find(button => button.textContent?.trim() === "Enviar resposta")!;
+  const control = Array.from(document.querySelectorAll("button")).find(button => button.textContent?.trim() === "Enviar resposta")!;
   expect(control.disabled).toBe(false);
   await act(async () => control.click());
 }

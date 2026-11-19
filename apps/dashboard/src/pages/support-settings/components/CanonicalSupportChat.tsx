@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Send } from "lucide-react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Headphones, Send } from "lucide-react";
 import { Modal } from "../../../components/Modal.js";
 import { FormTextarea } from "../../../components/FormField.js";
 import { Button } from "../../../components/Button.js";
@@ -17,6 +17,7 @@ export interface CanonicalSupportChatState {
   loadMore: () => Promise<void>;
   modeLabel: string;
   sendHint: string;
+  registerNavigationGuard?: (guard: ((proceed: () => void) => boolean) | null) => void;
 }
 interface Props {
   ticketId: string;
@@ -42,9 +43,20 @@ export function CanonicalSupportChat(props: Props) {
   const [historyBusy, setHistoryBusy] = useState(false);
   const [intent, setIntent] = useState<{ ticketId: string; clientMessageId: string; draft: string } | null>(null);
   const alive = useRef(true), inFlight = useRef(false), footer = useRef<HTMLDivElement>(null), bottom = useRef<HTMLDivElement>(null);
+  const pendingLeave = useRef<(() => void) | null>(null);
+  const navigationGuard = useRef<(proceed: () => void) => boolean>(() => false);
   const busy = props.busy || submitting;
   const canSend = view.canSend && !busy && !view.loading && !view.error;
   const closed = props.status === "closed" || props.status === "resolved";
+  navigationGuard.current = proceed => {
+    if (busy) return true;
+    if (!input.trim()) return false;
+    pendingLeave.current = proceed; setConfirmClose(true); return true;
+  };
+  useLayoutEffect(() => {
+    view.registerNavigationGuard?.(proceed => navigationGuard.current(proceed));
+    return () => { view.registerNavigationGuard?.(null); pendingLeave.current = null; };
+  }, [view.registerNavigationGuard]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const lastMessageId = view.messages[view.messages.length - 1]?.id;
   useEffect(() => { bottom.current?.scrollIntoView?.({ block: "end", behavior: "auto" }); }, [lastMessageId]);
@@ -57,7 +69,13 @@ export function CanonicalSupportChat(props: Props) {
     setIntent(null);
   }, [intent, props.ticketId, view.messages]);
 
-  function close() { if (busy) return; if (input.trim()) setConfirmClose(true); else props.onClose(); }
+  function close() {
+    // The integrated router asks this same guard exactly once. The standalone
+    // drawer keeps its local confirmation and existing close callback.
+    if (view.registerNavigationGuard) props.onClose();
+    else if (!navigationGuard.current(props.onClose)) props.onClose();
+  }
+  function discardAndLeave() { const proceed = pendingLeave.current ?? props.onClose; pendingLeave.current = null; proceed(); }
   function updateStatus(status: SupportTicketStatus) {
     if (busy || view.loading || view.error) return;
     if (status === "closed" && input.trim()) setConfirmEnd(true);
@@ -86,38 +104,40 @@ export function CanonicalSupportChat(props: Props) {
     finally { if (alive.current) setHistoryBusy(false); }
   }
   function continueEditing() {
-    setConfirmClose(false); setConfirmEnd(false);
+    pendingLeave.current = null; setConfirmClose(false); setConfirmEnd(false);
     // The footer remounts its textarea after the confirmation closes.
     requestAnimationFrame(() => footer.current?.querySelector("textarea")?.focus());
   }
   return <Modal isOpen title={"Conversa #" + props.ticketId.slice(-6).toUpperCase()}
-    subtitle="Histórico e atendimento no WhatsApp da empresa." presentation="center" size="lg" onClose={close}
+    eyebrow="WhatsApp" subtitle="Histórico e atendimento no WhatsApp da empresa." presentation="center" size="lg" onClose={close}
     footer={confirmEnd ? <div className="support-chat__close"><p>Há uma resposta não enviada. Ao encerrar, a IA volta a atender esta conversa.</p>
       <Button variant="outline" disabled={busy} onClick={continueEditing}>Continuar editando</Button><Button variant="danger" disabled={busy} onClick={() => props.onStatus("closed")}>Encerrar sem enviar</Button></div>
       : confirmClose ? <div className="support-chat__close"><p>Há uma resposta que ainda não foi enviada.</p>
-      <Button variant="outline" onClick={continueEditing}>Continuar editando</Button><Button variant="danger" onClick={props.onClose}>Descartar e fechar</Button></div>
+      <Button variant="outline" onClick={continueEditing}>Continuar editando</Button><Button variant="danger" onClick={discardAndLeave}>Descartar e fechar</Button></div>
       : <div className="support-chat__footer" ref={footer}>{closed ? <p>Atendimento encerrado. O histórico continua disponível para consulta.</p> : <>
         <FormTextarea label="Sua resposta" value={input} onChange={setInput} maxLength={4000} rows={3} disabled={busy}
           placeholder="Escreva uma resposta clara para o cliente." hint={view.sendHint} />
         <Button variant="primary" disabled={!input.trim() || !canSend} loading={submitting} onClick={() => void send()}><Send size={16} aria-hidden="true" /> Enviar resposta</Button></>}
       </div>}>
-    <div className="support-chat configuration-form">
+    <div className="support-chat configuration-form support-chat--whatsapp">
       <div className="support-chat__toolbar">
-        <div className="support-chat__status"><span className={"badge " + (closed ? "muted" : "warn")}>{view.modeLabel}</span>
-          <span role="status">{props.connected ? "Atendimento conectado" : "Reconectando ao atendimento"}</span></div>
+        <div className="support-chat__status"><span className={"badge support-chat__mode " + (closed ? "muted" : "warn")}><Headphones size={15} aria-hidden="true" />{view.modeLabel}</span>
+          <span className="support-chat__connection" data-connected={props.connected} role="status">{props.connected ? "Atendimento conectado" : "Reconectando ao atendimento"}</span></div>
         {(props.actionError || sendError) && <div className="panel-error" role="alert">{props.actionError || sendError}</div>}
         {props.statusOptions.length > 0 && <div className="support-chat__actions" aria-label="Ações do atendimento">{props.statusOptions.map(option =>
-          <Button key={option.value} variant="outline" size="sm" disabled={busy || view.loading || Boolean(view.error)} onClick={() => updateStatus(option.value)}>{option.label}</Button>)}</div>}
+          <Button key={option.value} variant={option.value === "in_progress" ? "primary" : "outline"} size="sm" disabled={busy || view.loading || Boolean(view.error)} onClick={() => updateStatus(option.value)}>{option.label}</Button>)}</div>}
       </div>
+      <div className="support-chat__history-heading" aria-hidden="true"><span>Histórico da conversa</span><span>WhatsApp</span></div>
       {view.error && <div className="panel-error" role="alert"><p>{view.error}</p><Button variant="outline" onClick={view.reload}>Recarregar histórico</Button></div>}
       {view.loading && <p role="status">Carregando histórico da conversa…</p>}
       {view.hasMore && <Button variant="ghost" loading={historyBusy} disabled={view.loading} onClick={() => void older()}>Carregar mais mensagens</Button>}
       <div className="support-chat__messages" role="log" aria-label="Histórico da conversa" aria-live="polite" aria-relevant="additions text" aria-busy={view.loading}>
         {!view.loading && !view.error && view.messages.length === 0 && <p>Nenhuma mensagem registrada nesta conversa.</p>}
         {view.messages.map(message => <div key={message.id} className={"support-msg support-msg--" + message.senderType}>
-          <span className="support-msg-label">{message.senderType === "buyer" ? "Cliente" : message.senderType === "system" ? "Assistente virtual" : "Você"}</span>
-          <p>{message.content}</p><time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</time>
-          {message.deliveryLabel && <span className="support-chat__delivery">{message.deliveryLabel}</span>}
+          <div className="support-chat__message-meta"><span className="support-msg-label">{message.senderType === "buyer" ? "Cliente" : message.senderType === "system" ? "Assistente virtual" : "Você"}</span>
+            <time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</time></div>
+          <p>{message.content}</p>
+          {message.deliveryLabel && <span className="support-chat__delivery" data-delivery={message.delivery?.status}>{message.deliveryLabel}</span>}
         </div>)}
         <div ref={bottom} />
       </div>

@@ -14,7 +14,8 @@ afterEach(async()=>{for(const value of mounts.splice(0)){await act(async()=>valu
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(done=>{resolve=done;});return{promise,resolve};}
 async function fixture(options:{api?:Partial<ConversationApi>;context?:ConversationContext|null}={}){
   Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});
-  let vm!:ReturnType<typeof useWhatsAppConversations>,current=options.context??context;
+  let vm!:ReturnType<typeof useWhatsAppConversations>;
+  let current:ConversationContext|null=options.context??context;
   let listener:(raw:unknown)=>void=()=>{};
   const socket={connected:true,joinTicket:vi.fn(),leaveTicket:vi.fn(),onNewMessage:(handler:(raw:unknown)=>void)=>{listener=handler;return()=>{listener=()=>{};};}};
   const api:ConversationApi={getWhatsAppConversationContext:async()=>context,

@@ -122,7 +122,7 @@ describe("T60 canonical queue lifecycle and command races", () => {
     const waiting = { ...structuredClone(detail), ticket: { ...detail.ticket, status: "open" as const }, binding: { ...detail.binding!, mode: "waiting_human" as const, epoch: 1, assignedOperatorId: null } };
     const claim = vi.fn(async () => { await held.promise; won = true; return {}; });
     const f = await fixture({ getWhatsAppConversation: async () => won ? structuredClone(detail) : waiting, claimWhatsAppConversation: claim });
-    await act(async () => f.vm.open("ticket-a")); let pending!: Promise<void>;
+    await act(async () => f.vm.open("ticket-a")); let pending!: ReturnType<typeof f.vm.claim>;
     await act(async () => { pending = f.vm.claim(); });
     await act(async () => { await expect(f.vm.claim()).rejects.toThrow("conversation_command_unavailable"); });
     expect(claim).toHaveBeenCalledTimes(1); expect(f.vm.detail?.binding?.mode).toBe("waiting_human");
@@ -142,7 +142,7 @@ describe("T60 canonical queue lifecycle and command races", () => {
     const second = { ...structuredClone(detail), ticket: { ...detail.ticket, id: "ticket-b" }, binding: { ...detail.binding!, ticketId: "ticket-b" } };
     const send = vi.fn((_id: string, _body: { content: string; clientMessageId: string }) => held.promise);
     const f = await fixture({ getWhatsAppConversation: async id => id === "ticket-b" ? second : structuredClone(detail), sendWhatsAppConversationMessage: send });
-    await act(async () => f.vm.open("ticket-a")); let pending!: Promise<void>; await act(async () => { pending = f.vm.send("Reply"); });
+    await act(async () => f.vm.open("ticket-a")); let pending!: ReturnType<typeof f.vm.send>; await act(async () => { pending = f.vm.send("Reply"); });
     await act(async () => f.vm.open("ticket-b"));
     await act(async () => { held.resolve({ ...message(), clientMessageId: send.mock.calls[0]![1].clientMessageId }); await pending; });
     expect(f.vm.detail?.ticket.id).toBe("ticket-b"); expect(f.vm.detail?.messages).toEqual([]); expect(f.vm.actionError).toBeNull();

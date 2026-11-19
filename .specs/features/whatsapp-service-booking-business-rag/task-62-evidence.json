@@ -1,0 +1,480 @@
+{
+  "task": 62,
+  "baseM": "ed126a774cf9fe5db6d6aa09b427aa34607aa03c",
+  "acceptedDistinctCases": 166,
+  "countMeaning": "UI138=92 accepted in18completefiles+46current in2completefiles. Pure13 and provider11 are separate unchanged cohorts. Browser4allcurrentfresh. No successfulfresh138/166run claim.",
+  "commands": {
+    "ui138": "pnpm --dir apps/dashboard exec vitest run src/pages/whatsapp-seller/WhatsAppSellerPage.conversations.spec.tsx src/main.conversations.spec.tsx src/pages/whatsapp-seller/WhatsAppSellerPage.mount.spec.tsx src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.spec.tsx src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.lifecycle.spec.tsx src/pages/support-settings/components/CanonicalSupportChat.draft-text.spec.tsx src/shell/subscription-access-wiring.spec.ts src/components/RouteGuard.spec.tsx src/pages/whatsapp-seller/conversation-draft-navigation.spec.tsx src/pages/support-settings-page.spec.tsx src/pages/whatsapp-seller/useWhatsAppConversations.spec.ts src/pages/whatsapp-seller/useWhatsAppConversations.lifecycle.spec.ts src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.background.spec.tsx src/pages/whatsapp-seller/useWhatsAppConversations.intent-lifecycle.spec.ts src/pages/whatsapp-seller/useWhatsAppConversations.refresh-budget.spec.tsx src/pages/whatsapp-seller/conversation-reconciliation.spec.ts src/pages/whatsapp-seller/conversation-actions.permissions.spec.ts src/api/endpoints/whatsapp-conversations.contract.spec.ts src/hooks/useSupportSocket.conversations.spec.ts src/pages/whatsapp-seller/conversation-actions.spec.ts --pool=forks --maxWorkers=1 --minWorkers=1 --no-file-parallelism",
+    "pure13": "pnpm --dir apps/dashboard exec vitest run src/pages/whatsapp-seller/conversation-navigation.spec.ts src/pages/whatsapp-seller/conversation-bootstrap.spec.ts --pool=forks --maxWorkers=1 --minWorkers=1 --no-file-parallelism",
+    "provider11": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/service-whatsapp-provider-fixture.contract.spec.mjs ./tests/service-whatsapp-recipient-outcomes.contract.spec.mjs",
+    "types": "pnpm --dir apps/dashboard typecheck",
+    "build": "pnpm --dir apps/dashboard build",
+    "browser4": "pnpm --dir apps/dashboard exec playwright test --config playwright.service-whatsapp-conversations-app-local.config.ts",
+    "actualCheckedAPIandBrowserLauncher": "node .cache/run-t62-background-browser.mjs independent"
+  },
+  "ui138WholeFiles": [
+    {
+      "file": "src/pages/whatsapp-seller/WhatsAppSellerPage.conversations.spec.tsx",
+      "cases": 10,
+      "reason": "original8 preserved plus2 real loaded-count and current-selection gestures",
+      "sha256": "76a245657b2bc47867b1898a2414af95aad41de7d075011babc866b1c01460e9"
+    },
+    {
+      "file": "src/main.conversations.spec.tsx",
+      "cases": 5,
+      "reason": "new-session",
+      "sha256": "42c4b796a6a19d7d78170b779e1d950bba79706e699bc29b001f9262006c7076"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/WhatsAppSellerPage.mount.spec.tsx",
+      "cases": 5,
+      "reason": "old4 byte-exact prefix plus1 narrow selected-tab URL/keyboard visibility control",
+      "sha256": "9bbae95829a4c426a399553cff67d871b08b0669f1119333fd1f8dc20fcb7dab"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.spec.tsx",
+      "cases": 5,
+      "reason": "changed-optional-close-consumer",
+      "sha256": "681d48f9171c6df7d602bc042fd2d046d2ea125554c1eb8255145a69e9b250fa"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.lifecycle.spec.tsx",
+      "cases": 11,
+      "reason": "changed-optional-close-consumer",
+      "sha256": "d0cfc7f63cb3c403a992e40551be17c71e737e733453096563310cb82ee51d05"
+    },
+    {
+      "file": "src/pages/support-settings/components/CanonicalSupportChat.draft-text.spec.tsx",
+      "cases": 3,
+      "reason": "draft-close-preservation",
+      "sha256": "cb0c166d358506ea22edaf959a191a2e99a2b703513c2c5a4896fc135dbe7bc2"
+    },
+    {
+      "file": "src/shell/subscription-access-wiring.spec.ts",
+      "cases": 3,
+      "reason": "changed-main-private-bootstrap-consumer",
+      "sha256": "654c2c20dd134816564d0666e16bfff61c9559c05b707f7a3b00a57494117d54"
+    },
+    {
+      "file": "src/components/RouteGuard.spec.tsx",
+      "cases": 3,
+      "reason": "private-role-guard-preservation",
+      "sha256": "d6e96b19181a059dd3234070f0224b91c212ad3badbcd8aa0c7dc2a9e3568619"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/conversation-draft-navigation.spec.tsx",
+      "cases": 8,
+      "reason": "new-real-App-Staff-Shell-draft-navigation-and-privacy-gestures",
+      "sha256": "b1b7505e36e0c7a9587dd857773d461b2b8113a389bf3ef3ae0dc5d18253baaf"
+    },
+    {
+      "file": "src/pages/support-settings-page.spec.tsx",
+      "cases": 38,
+      "reason": "existing-support-feature-consumer-recursively-reads-CanonicalSupportChat-and-imports-support-page",
+      "sha256": "e5b96fe814f1646413ad3da460c66e3bce4d59228752e7d3b1f6013a34aca333"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/useWhatsAppConversations.spec.ts",
+      "cases": 3,
+      "reason": "type-annotation-only changed fixture, all assertions retained",
+      "sha256": "1ca32f973b594e6459b00241a49424f1c28aea79b11d2f267b7eb4c3976c1045"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/useWhatsAppConversations.lifecycle.spec.ts",
+      "cases": 13,
+      "reason": "type-annotation-only changed fixture, all assertions retained",
+      "sha256": "e8132551886962326ca8fe9ea9c03146bbffd878601d3d104520a09e106f88df"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.background.spec.tsx",
+      "cases": 4,
+      "reason": "new causal background gesture and real negative controls",
+      "sha256": "f0edc5e5d12f07cb7b9f0cb7e18172b272b41070c5aa9afcf27895a25e5fb6f9"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/useWhatsAppConversations.intent-lifecycle.spec.ts",
+      "cases": 4,
+      "reason": "unknown/queued original intent identity and no reconnect sends",
+      "sha256": "60b9e09a6ecd1a529f2e03376b6af7074efa850453cdce9e39bc03e81edfcfc0"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/useWhatsAppConversations.refresh-budget.spec.tsx",
+      "cases": 4,
+      "reason": "bounded coalescing and tenant/reconnect/final-authority reads",
+      "sha256": "077e10d62b370b99c6576607bb96bb4ba1a3d97c08afa3a24d3418f2b15c855a"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/conversation-reconciliation.spec.ts",
+      "cases": 4,
+      "reason": "same ticket/client identity, delivery revision and contradiction guards",
+      "sha256": "7e6d660058de31ab972869a5b19c39298f2930e1b1bb856c0e92afbffbea6f8f"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/conversation-actions.permissions.spec.ts",
+      "cases": 3,
+      "reason": "real assigned actor/role/offline/epoch-binding command guards",
+      "sha256": "d026bdef0f04ce555f8cba2cf0d93a19fefbcbc701e51965a81cbdcd027c995d"
+    },
+    {
+      "file": "src/api/endpoints/whatsapp-conversations.contract.spec.ts",
+      "cases": 4,
+      "reason": "actual SDK wire contract and operator command path",
+      "sha256": "b825172f6a8c9421814d85379edabd9e7c0f8d75a0a6c26c2c71a7207918e1a2"
+    },
+    {
+      "file": "src/hooks/useSupportSocket.conversations.spec.ts",
+      "cases": 4,
+      "reason": "actual authenticated socket event/scope boundary",
+      "sha256": "1a87c21dd60e04799d2a770bd7c826cdc2a14d67c7a86f080a90eb99c72cf0dd"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/conversation-actions.spec.ts",
+      "cases": 4,
+      "reason": "truthful canonical command availability and delivery labels",
+      "sha256": "671b5374bfded72f1f7c69d3f77b3348324a82a33592febff7b11fed140fa53a"
+    }
+  ],
+  "ui92WholeFiles": [
+    {
+      "file": "src/main.conversations.spec.tsx",
+      "cases": 5,
+      "passed": 5,
+      "failures": [],
+      "testSha256": "42c4b796a6a19d7d78170b779e1d950bba79706e699bc29b001f9262006c7076"
+    },
+    {
+      "file": "src/components/RouteGuard.spec.tsx",
+      "cases": 3,
+      "passed": 3,
+      "failures": [],
+      "testSha256": "d6e96b19181a059dd3234070f0224b91c212ad3badbcd8aa0c7dc2a9e3568619"
+    },
+    {
+      "file": "src/hooks/useSupportSocket.conversations.spec.ts",
+      "cases": 4,
+      "passed": 4,
+      "failures": [],
+      "testSha256": "1a87c21dd60e04799d2a770bd7c826cdc2a14d67c7a86f080a90eb99c72cf0dd"
+    },
+    {
+      "file": "src/shell/subscription-access-wiring.spec.ts",
+      "cases": 3,
+      "passed": 3,
+      "failures": [],
+      "testSha256": "654c2c20dd134816564d0666e16bfff61c9559c05b707f7a3b00a57494117d54"
+    },
+    {
+      "file": "src/api/endpoints/whatsapp-conversations.contract.spec.ts",
+      "cases": 4,
+      "passed": 4,
+      "failures": [],
+      "testSha256": "b825172f6a8c9421814d85379edabd9e7c0f8d75a0a6c26c2c71a7207918e1a2"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/conversation-actions.permissions.spec.ts",
+      "cases": 3,
+      "passed": 3,
+      "failures": [],
+      "testSha256": "d026bdef0f04ce555f8cba2cf0d93a19fefbcbc701e51965a81cbdcd027c995d"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/conversation-actions.spec.ts",
+      "cases": 4,
+      "passed": 4,
+      "failures": [],
+      "testSha256": "671b5374bfded72f1f7c69d3f77b3348324a82a33592febff7b11fed140fa53a"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/conversation-reconciliation.spec.ts",
+      "cases": 4,
+      "passed": 4,
+      "failures": [],
+      "testSha256": "7e6d660058de31ab972869a5b19c39298f2930e1b1bb856c0e92afbffbea6f8f"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/useWhatsAppConversations.intent-lifecycle.spec.ts",
+      "cases": 4,
+      "passed": 4,
+      "failures": [],
+      "testSha256": "60b9e09a6ecd1a529f2e03376b6af7074efa850453cdce9e39bc03e81edfcfc0"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/useWhatsAppConversations.lifecycle.spec.ts",
+      "cases": 13,
+      "passed": 13,
+      "failures": [],
+      "testSha256": "e8132551886962326ca8fe9ea9c03146bbffd878601d3d104520a09e106f88df"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/useWhatsAppConversations.refresh-budget.spec.tsx",
+      "cases": 4,
+      "passed": 4,
+      "failures": [],
+      "testSha256": "077e10d62b370b99c6576607bb96bb4ba1a3d97c08afa3a24d3418f2b15c855a"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/useWhatsAppConversations.spec.ts",
+      "cases": 3,
+      "passed": 3,
+      "failures": [],
+      "testSha256": "1ca32f973b594e6459b00241a49424f1c28aea79b11d2f267b7eb4c3976c1045"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/WhatsAppSellerPage.conversations.spec.tsx",
+      "cases": 10,
+      "passed": 10,
+      "failures": [],
+      "testSha256": "76a245657b2bc47867b1898a2414af95aad41de7d075011babc866b1c01460e9"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/WhatsAppSellerPage.mount.spec.tsx",
+      "cases": 5,
+      "passed": 5,
+      "failures": [],
+      "testSha256": "9bbae95829a4c426a399553cff67d871b08b0669f1119333fd1f8dc20fcb7dab"
+    },
+    {
+      "file": "src/pages/support-settings/components/CanonicalSupportChat.draft-text.spec.tsx",
+      "cases": 3,
+      "passed": 3,
+      "failures": [],
+      "testSha256": "cb0c166d358506ea22edaf959a191a2e99a2b703513c2c5a4896fc135dbe7bc2"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.background.spec.tsx",
+      "cases": 4,
+      "passed": 4,
+      "failures": [],
+      "testSha256": "f0edc5e5d12f07cb7b9f0cb7e18172b272b41070c5aa9afcf27895a25e5fb6f9"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.lifecycle.spec.tsx",
+      "cases": 11,
+      "passed": 11,
+      "failures": [],
+      "testSha256": "d0cfc7f63cb3c403a992e40551be17c71e737e733453096563310cb82ee51d05"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.spec.tsx",
+      "cases": 5,
+      "passed": 5,
+      "failures": [],
+      "testSha256": "681d48f9171c6df7d602bc042fd2d046d2ea125554c1eb8255145a69e9b250fa"
+    }
+  ],
+  "ui46WholeFiles": [
+    {
+      "file": "src/pages/support-settings-page.spec.tsx",
+      "cases": 38,
+      "sha256": "e5b96fe814f1646413ad3da460c66e3bce4d59228752e7d3b1f6013a34aca333"
+    },
+    {
+      "file": "src/pages/whatsapp-seller/conversation-draft-navigation.spec.tsx",
+      "cases": 8,
+      "sha256": "b1b7505e36e0c7a9587dd857773d461b2b8113a389bf3ef3ae0dc5d18253baaf"
+    }
+  ],
+  "retainedPure13Pins": [
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/conversation-navigation.spec.ts",
+      "sha256": "a8609cc6772e723617e817669411506a89dee04d681549c44365b4daee1f31a3"
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/conversation-bootstrap.spec.ts",
+      "sha256": "cce34dcd8119de380a5ecb799f7097c90453d90d029206bda6f32b2a97b0677f"
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/conversation-navigation.ts",
+      "sha256": "d5a0445820cca278396f0e6c6079b8b3557c9ccbe8d5a5dd43ddde30067151f1"
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/conversation-bootstrap.ts",
+      "sha256": "3a18bf41420b0aa0132906d783e1a2379f2eac8a7afb8c7cb868dd57937e7e6d"
+    }
+  ],
+  "provider11WholeFiles": [
+    {
+      "file": "./tests/service-whatsapp-provider-fixture.contract.spec.mjs",
+      "cases": 7,
+      "sha256": "a1a5af5a863da630653255264eab72b55bf006b33c86309cb4a477205aabad77"
+    },
+    {
+      "file": "./tests/service-whatsapp-recipient-outcomes.contract.spec.mjs",
+      "cases": 4,
+      "sha256": "7cbde1e35ac9bc2455c12d96463a8e88da55ac22e4c1f7ac990dee5410ce77c2"
+    }
+  ],
+  "receipts": {
+    "ui92": {
+      "path": ".cache/t62-background-read-review-20261119/full138-red-ed4826/full138-receipt.json",
+      "sha256": "ed4826fde0b09dfdc274be1b65e97c3cbc9809225b27494b4b3767f957040588"
+    },
+    "ui46": {
+      "path": ".cache/t62-background-read-review-20261119/remaining46-receipt.json",
+      "sha256": "23080c57e4be90694b037dc565f559cde28a1acf460b2c234bb08033876da30c"
+    },
+    "pure13": {
+      "path": ".cache/t62-source-20261119/initial13-receipt.json",
+      "sha256": "de4a29fdcf22ac4712482255d300780a144e7e4939cddf1a1a4cd03300c84e25"
+    },
+    "fixture11": {
+      "path": ".cache/t62-template-fixture-browser-gates/2026-11-19T16-14-01.816Z/receipt.json",
+      "sha256": "bee81fc1319c3dc912d3d109d5089ffa67a04f776e164c4ea42b90454e3c739c"
+    },
+    "types": {
+      "path": ".cache/t62-background-header-gates/2026-11-19T18-00-33.680Z/receipt.json",
+      "sha256": "6df9f06c3def47de5772db996c2735b2f0b50ffc0d92b4b4595522ceb0cdfd83"
+    },
+    "build": {
+      "path": ".cache/t62-background-build-only-gates/2026-11-19T18-13-38.560Z/receipt.json",
+      "sha256": "e2512b67666ca56fd1c9db12d8d82d67b7b6b00035bc80a4fd39d13a66280f34"
+    },
+    "browser4": {
+      "path": ".cache/t62-background-browser-gates/2026-11-19T18-19-12.606Z/receipt.json",
+      "sha256": "ecf27c4a46547a83179601e2c2f8f151316c93862f06fce67a2f4bf0ecaf792d"
+    }
+  },
+  "ownAPI": {
+    "checked": true,
+    "inputSha256": "16682447e8ca8f1ddea54587de0f5692854dc506d8cfd0aec3560756c50b70bb",
+    "artifactSha256": "ed20518829a3c7fd41cf84b447214d4cd888713a8491c271deea263045c77441",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2585
+    }
+  },
+  "cleanup": {
+    "appClosed": true,
+    "remainingContainers": 0,
+    "remainingBridgeSockets": 0,
+    "providerCalls": 0,
+    "normalGlobalTeardownExit": 0,
+    "sourceProof": [
+      "apps/api/tests/service-test-runtime.mjs:55",
+      "apps/api/tests/whatsapp-handoff-fixture.mjs:44"
+    ],
+    "noExternalProviderDeliveryClaim": true
+  },
+  "captures": [
+    {
+      "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations-tab.running.png",
+      "sha256": "effba3df075c2e629e7fe1aa0db2140722e433796cbb4ef8c6bea82dcf1bcc68",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations-drawer.running.png",
+      "sha256": "cb9b8779e8b3874cbae282b72ec4f7375cd85f9cffbbb0a218b56b3880061548",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations-tab-error.running.png",
+      "sha256": "cf780d12582616bb2e57aabb8ccf741ae36b62d4412c75c894f27f60efc4129f",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations-tab-mobile.running.png",
+      "sha256": "f8f62ef877dec8c574945f2fa4f72f1df35f80e58e26dda0b1f98dca238c4c2a",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "browserStats": {
+    "startTime": "2026-11-19T18:19:20.592Z",
+    "duration": 80993.53899999999,
+    "expected": 4,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "browserGlobalErrors": [],
+  "sourceGuards": {
+    "ui": 1024,
+    "headersEach": 5168,
+    "browser": 2048,
+    "oneWorker": true,
+    "retries": 0,
+    "timeoutsUnchanged": true,
+    "noPreloadOrForcedExit": true
+  },
+  "desktopStyleApproval": {
+    "question": "call_28d46de81a384fc5991547007d8ae055",
+    "quote": "Aprovar o estilo do desktop"
+  },
+  "RootCurrentPNGReview": "Root inspected all4 current readableandconsistent; closure remainsparentowned",
+  "status": "COMPLETE_LOCAL_GATE_PASSED_BEFORE_FOCUSED_COMMIT",
+  "acceptedAtUtc": "2026-11-19T18:28:56.480169+00:00",
+  "testedWorktree": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117",
+  "integratedWorktree": "C:\\tmp\\zyon-service-business-20261114",
+  "artifactBoundary": "Own checked API1668/ed20 was exercised in M; no copied outputs or claim of a current Root API stamp. All62 listed source/dependency pins match Root after exact file adoption. Final same-HEAD feature proofs remain required.",
+  "sourceDependencyPins": {
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-navigation.ts": "d5a0445820cca278396f0e6c6079b8b3557c9ccbe8d5a5dd43ddde30067151f1",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-bootstrap.ts": "3a18bf41420b0aa0132906d783e1a2379f2eac8a7afb8c7cb868dd57937e7e6d",
+    "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppRoute.ts": "fe054d2b497c9c8a2f59404ead507ed58f91236e1713d0d54e36ffbdd6831289",
+    "apps/dashboard/src/pages/whatsapp-seller/WhatsAppConversationsTab.tsx": "afe4c53c99ae45a5cb11f434351b61d194f473ff8264d749480f77680f80d860",
+    "apps/dashboard/src/pages/whatsapp-seller/WhatsAppStaffWorkspace.tsx": "b21ff3d621f93fc0916ec9723e0b2e6d69bb1e79c40defd3ec9fb37bf331a248",
+    "apps/dashboard/src/main.tsx": "80917df6234203047ea404bc62f411201d46ee4e8dd67c94b536be59a3331574",
+    "apps/dashboard/src/pages/whatsapp-seller/WhatsAppSellerPage.tsx": "7d0d939629b49a3a12c9c494ccec7d40de08ccd5f3ea7db51def3f16e67297c2",
+    "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.tsx": "51038bb8c6af45aab199042a1b6cfce1cdea5027e76218ac46d0950dde90170e",
+    "apps/dashboard/src/pages/whatsapp-seller/whatsapp-seller.css": "c79251a2a43133a2429abeb7740f76d01486a9e40b34dff68fd4f7b687092427",
+    "apps/dashboard/src/shell/DashboardShell.tsx": "6fb35ee7eb69821b3d90bc9246d2d77d551fa48a7e3b93b1abd195c12f256732",
+    "apps/dashboard/src/lib/auth/permissions.ts": "3be1cb64a3678b311361ef9aa5e7ec12378468de17b8cb51d35dbadd8e49c7f3",
+    "apps/dashboard/src/components/RouteGuard.tsx": "cb15dc2fcace4be155815713f28e83a61ea33b62e48f919242b05f42442c1c9e",
+    "apps/dashboard/src/api-client.ts": "6dc2710e1f390b83b84ab86cabdd489d304725045dc6a00c460eeb52228427e2",
+    "apps/dashboard/src/hooks/useApi.ts": "87814e3fde1d67e9c0401826e7f910beb8495b89a61f276e1febe550be8b9a34",
+    "apps/dashboard/src/hooks/useSupportSocket.ts": "bfa93023520026c1c11eb07870eba3a377fead02c5254d4ec038718041936c93",
+    "apps/dashboard/vitest.config.ts": "e99da065c9dbbc1890726749bc83414cb880343f762d5cb44a43165a355bd532",
+    "apps/dashboard/package.json": "409694294b14dbe1e0cd27fdc69c1fa2820bceb13f10a1f63cef0032ab5f851a",
+    "apps/api/tests/test-network-guard.mjs": "01ef2a1e77e738ed3e2931fc53af074f644cc1a6ace9deb8193fcc7eebe27aaa",
+    "apps/dashboard/tsconfig.json": "e0684d45211f386a99ee79cab5456795c3de8697a1b5f3065d703ac94151bef8",
+    "tsconfig.base.json": "251af1dd9cfca0c36dc802da2b71b52527832ee52517067f7f482d09d143445b",
+    "scripts/lib/dashboard-auth-build-policy.cjs": "d87582d7f09978e90aae0c1976c8c1c0ae24a7c59e40bdb81a7a15e1ea64a325",
+    "apps/dashboard/scripts/verify-public-auth-env.mjs": "aac769b31dd99676d3993276a70ea1645f3739765ae8511fb59aafa01a322853",
+    "apps/dashboard/vite.config.ts": "7874a0b800566ad427e344d3095e54d09f5e24cacd4e52ee0bfa6bbbe00118a4",
+    "apps/api/tests/service-test-artifacts.mjs": "23b094d36a28ed27610b7a8b5f890155d477a202563bb72af309da8ca5cfbfc2",
+    "apps/dashboard/src/main.conversations.spec.tsx": "42c4b796a6a19d7d78170b779e1d950bba79706e699bc29b001f9262006c7076",
+    "apps/dashboard/src/pages/whatsapp-seller/WhatsAppSellerPage.mount.spec.tsx": "9bbae95829a4c426a399553cff67d871b08b0669f1119333fd1f8dc20fcb7dab",
+    "apps/dashboard/src/pages/whatsapp-seller/WhatsAppSellerPage.conversations.spec.tsx": "76a245657b2bc47867b1898a2414af95aad41de7d075011babc866b1c01460e9",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-bootstrap.spec.ts": "cce34dcd8119de380a5ecb799f7097c90453d90d029206bda6f32b2a97b0677f",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-navigation.spec.ts": "a8609cc6772e723617e817669411506a89dee04d681549c44365b4daee1f31a3",
+    "apps/dashboard/src/pages/support-settings/components/CanonicalSupportChat.tsx": "28c41fbd37763462cf3fb08e31ad7ce3cd03eada83c36374cc28cf03dbe2a362",
+    "apps/dashboard/src/pages/whatsapp-seller/useConversationNavigation.ts": "b948a1b497c687d12ae1b6ce77cec1fc562f1f41d0d32df96de8d3870a7b5a6e",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-draft-navigation.spec.tsx": "b1b7505e36e0c7a9587dd857773d461b2b8113a389bf3ef3ae0dc5d18253baaf",
+    "apps/dashboard/e2e/service-whatsapp-conversations-app.spec.ts": "2e1ea95587f23bb15c62eb072d9cc62b1faa904f0b4c2be4a3f27371d8931afd",
+    "apps/dashboard/e2e/service-whatsapp-conversations-app-setup.mjs": "62f4b191f32372da6b015a77aa96c6ea9f6c0c1ea4a994f4edb01edf7dfabb8e",
+    "apps/dashboard/e2e/service-whatsapp-conversations-fixture.mjs": "7159731cb19721cc3859630aab24cf5037ae31f4c09852106b80957673c03d4f",
+    "apps/dashboard/e2e/service-local-setup.mjs": "b96f31bc2d192cb0eb531f4e5d233005cf19e8449abdc3887edbed673e67e024",
+    "apps/dashboard/playwright.service-whatsapp-conversations-app-local.config.ts": "58df31e60cac5f011a603d0d74c34e83863497b2de701fe5244b84abc065f7ac",
+    "apps/dashboard/playwright.service-local.config.ts": "a534345dda7cf513bc7c525cb0b00c5b9fc2973f222a6fd2cb573d48b7bac026",
+    "apps/dashboard/e2e/service-local-scope.mjs": "67a54730174410fe1b2abfc66da9e7e2e653f5703b8a6e38c8b01411e91988c5",
+    "apps/dashboard/src/pages/support-settings/components/SupportChatDrawer.tsx": "f34d75827b2d32a5e2bb22853138e31d6e51fe938ea39e76e70d6db51614c18e",
+    "apps/dashboard/src/pages/support-settings-page.tsx": "e5d0bac4af5c0358852609ac4edc57d2ae5487967c319ce4ac2432fd8515ecff",
+    "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.ts": "ccae1387116bc2954565e0236152365d7c41684f4103d45debe54c6eb1965876",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-types.ts": "53821803d2fe04d9a5ab1825e051c695ae66075412bca8cbd1050d9b2ab3c289",
+    "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.spec.tsx": "681d48f9171c6df7d602bc042fd2d046d2ea125554c1eb8255145a69e9b250fa",
+    "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.lifecycle.spec.tsx": "d0cfc7f63cb3c403a992e40551be17c71e737e733453096563310cb82ee51d05",
+    "apps/dashboard/src/pages/support-settings/components/CanonicalSupportChat.draft-text.spec.tsx": "cb0c166d358506ea22edaf959a191a2e99a2b703513c2c5a4896fc135dbe7bc2",
+    "apps/dashboard/src/shell/subscription-access-wiring.spec.ts": "654c2c20dd134816564d0666e16bfff61c9559c05b707f7a3b00a57494117d54",
+    "apps/dashboard/src/components/RouteGuard.spec.tsx": "d6e96b19181a059dd3234070f0224b91c212ad3badbcd8aa0c7dc2a9e3568619",
+    "apps/dashboard/src/pages/support-settings-page.spec.tsx": "e5b96fe814f1646413ad3da460c66e3bce4d59228752e7d3b1f6013a34aca333",
+    "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.spec.ts": "1ca32f973b594e6459b00241a49424f1c28aea79b11d2f267b7eb4c3976c1045",
+    "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.lifecycle.spec.ts": "e8132551886962326ca8fe9ea9c03146bbffd878601d3d104520a09e106f88df",
+    "apps/api/tests/service-whatsapp-provider-fixture.contract.spec.mjs": "a1a5af5a863da630653255264eab72b55bf006b33c86309cb4a477205aabad77",
+    "apps/api/tests/service-whatsapp-recipient-outcomes.contract.spec.mjs": "7cbde1e35ac9bc2455c12d96463a8e88da55ac22e4c1f7ac990dee5410ce77c2",
+    "apps/dashboard/src/pages/support-settings/support-settings.css": "d867eb259873e6ca9e9fba7af1d89fa0a30212920f9c1339637f52345cf0d821",
+    "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.background.spec.tsx": "f0edc5e5d12f07cb7b9f0cb7e18172b272b41070c5aa9afcf27895a25e5fb6f9",
+    "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.intent-lifecycle.spec.ts": "60b9e09a6ecd1a529f2e03376b6af7074efa850453cdce9e39bc03e81edfcfc0",
+    "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.refresh-budget.spec.tsx": "077e10d62b370b99c6576607bb96bb4ba1a3d97c08afa3a24d3418f2b15c855a",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-reconciliation.spec.ts": "7e6d660058de31ab972869a5b19c39298f2930e1b1bb856c0e92afbffbea6f8f",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-actions.permissions.spec.ts": "d026bdef0f04ce555f8cba2cf0d93a19fefbcbc701e51965a81cbdcd027c995d",
+    "apps/dashboard/src/api/endpoints/whatsapp-conversations.contract.spec.ts": "b825172f6a8c9421814d85379edabd9e7c0f8d75a0a6c26c2c71a7207918e1a2",
+    "apps/dashboard/src/hooks/useSupportSocket.conversations.spec.ts": "1a87c21dd60e04799d2a770bd7c826cdc2a14d67c7a86f080a90eb99c72cf0dd",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-actions.spec.ts": "671b5374bfded72f1f7c69d3f77b3348324a82a33592febff7b11fed140fa53a"
+  },
+  "noProduction": true,
+  "sourceTestsModifiedToPass": false,
+  "source38PinsPreserved": true,
+  "finalFeatureAcceptance": false
+}
