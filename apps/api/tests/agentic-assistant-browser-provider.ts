@@ -10,6 +10,7 @@ export class AgenticBrowserProvider {
   whatsappMode:'accepted'|'timeout'|'reject'='accepted';whatsappRequests:Json[]=[];
   private holdImages=false;private imageWaiters:Array<()=>void>=[];
   metricsUnavailable=false;sampleMetrics=false;private holdModel=false;private modelWaiters:Array<()=>void>=[];
+  minimumDailyBudgetCents=100;pageWhatsAppLinked=true;catalogCopies=0;
   get modelPending(){return this.modelWaiters.length;}
   private modelScript:Array<{reply:string}|{tool:{name:string;args:Json}}>=[];
   get modelScriptRemaining(){return this.modelScript.length;}
@@ -20,7 +21,7 @@ export class AgenticBrowserProvider {
   setModelHold(value:boolean){this.holdModel=value;if(!value)for(const release of this.modelWaiters.splice(0))release();}
   setImageHold(value:boolean){this.holdImages=value;if(!value)for(const release of this.imageWaiters.splice(0))release();}
   constructor(readonly clock:()=>Date){}
-  reset(){this.modelScript=[];this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.whatsappMode='accepted';this.whatsappRequests=[];this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;this.sampleMetrics=false;}
+  reset(){this.minimumDailyBudgetCents=100;this.pageWhatsAppLinked=true;this.catalogCopies=0;this.modelScript=[];this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.whatsappMode='accepted';this.whatsappRequests=[];this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;this.sampleMetrics=false;}
   private model(body:Json):Response {
     this.modelCalls++;
     const messages=body.messages as Json[];
@@ -86,6 +87,7 @@ export class AgenticBrowserProvider {
     return reply('Qual resultado você quer buscar e quais produtos deseja anunciar?');
   }
   request:typeof fetch=async(input,init)=>{
+    if(String(input)==='https://media.example.test/product.png'){this.catalogCopies++;return new Response(pixel,{headers:{'content-type':'image/png'}});}
     const url=new URL(String(input));const body=init?.body?JSON.parse(String(init.body)):{};
     if(url.href==='https://api.openai.com/v1/chat/completions'){if(this.holdModel)await new Promise<void>(resolve=>this.modelWaiters.push(resolve));return this.model(body);}
     if(url.href==='https://api.openai.com/v1/images/edits'){this.images++;if(this.holdImages)await new Promise<void>(resolve=>this.imageWaiters.push(resolve));return json({data:[{b64_json:pixel.toString('base64')}],usage:{input_tokens_details:{text_tokens:1,image_tokens:1},output_tokens_details:{image_tokens:1}}});}
@@ -94,7 +96,7 @@ export class AgenticBrowserProvider {
     if(url.hostname==='graph.facebook.com'){
       const id=url.pathname.split('/').at(-1)!.replace(/^act_/,'');
       if(id==='messages'){this.whatsappRequests.push({url:url.href,...body});if(this.whatsappMode==='timeout')throw Error('controlled_whatsapp_timeout');if(this.whatsappMode==='reject')return json({error:{message:'controlled rejection'}},400);return json({messages:[{id:'wamid.controlled-'+this.whatsappRequests.length}]});}
-      if(id==='110'||id==='111')return json({id,has_whatsapp_number:true,whatsapp_number:id==='110'?'5511999999999':'5511988888888'});
+      if(id==='110'||id==='111')return json({id,has_whatsapp_number:this.pageWhatsAppLinked,...(this.pageWhatsAppLinked?{whatsapp_number:id==='110'?'5511999999999':'5511988888888'}:{})});
       if(id!==accountId)throw new Error('controlled_account_scope_mismatch');
       return json({id,currency:'BRL',...(this.fundingMode==='unknown'?{}:{is_prepay_account:this.fundingMode==='prepaid',balance:String(this.dueCents),funding_source:'12345'}),account_status:this.blocked?3:1,disable_reason:0});
     }
@@ -105,7 +107,7 @@ export class AgenticBrowserProvider {
     else if(body.method==='tools/list')result={tools:names.map(name=>({name,inputSchema:{type:'object',properties:{},additionalProperties:true}}))};
     else{
       const args=body.params.arguments as Json,name=String(body.params.name);if(args.ad_account_id&&args.ad_account_id!==accountId)throw new Error('controlled_account_scope_mismatch');let value:Json;
-      if(name==='ads_get_ad_accounts')value={ad_accounts:[{ad_account_id:accountId,ad_account_name:storeB?'Conta da loja B':'Conta da loja A',currency:'BRL',is_queryable:true,is_ads_mcp_enabled:true,min_daily_budget_cents:100,...(this.fundingMode==='unknown'?{}:{has_payment_method:true})}]};
+      if(name==='ads_get_ad_accounts')value={ad_accounts:[{ad_account_id:accountId,ad_account_name:storeB?'Conta da loja B':'Conta da loja A',currency:'BRL',is_queryable:true,is_ads_mcp_enabled:true,min_daily_budget_cents:this.minimumDailyBudgetCents,...(this.fundingMode==='unknown'?{}:{has_payment_method:true})}]};
       else if(name==='ads_get_field_context')value={fields:args.field_names.map((name:string)=>({name,levels:['campaign','adset','ad','ad_account'],type:/budget|amount_spent|values|spend_cap/.test(name)?'CURRENCY':/purchase$|^actions:/.test(name)?'INTEGER':'STRING',filterable:true,supported_filter_operators:['IN']})),unknown_fields:[]};
       else if(name==='ads_get_datasets')value={datasets:[{dataset_id:storeB?'121':'120',name:'Compras',is_active:true}]};
       else if(['ads_get_user_pages','ads_get_ad_account_pages'].includes(name))value={pages:[{page_id:storeB?'111':'110',page_name:'Página da loja'}]};

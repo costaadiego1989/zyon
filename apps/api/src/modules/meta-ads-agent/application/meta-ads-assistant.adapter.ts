@@ -13,7 +13,7 @@ import type {AssistantCampaignBriefing} from '@zyon/shared-types';
 import {briefingChecklist,receiveBriefingAnswer,isBriefingHelp} from './campaign-briefing.js';
 import {automationChecklist,automationQuestion,isAutomationRequest,receiveAutomationAnswer} from './automation-briefing.js';
 import {normalizeAutomationPolicy} from '../domain/automation-policy.js';
-import {assessBudget,type BudgetAccountContext} from './budget-guidance.js';
+import {assessBudget,needsBudgetRevision,type BudgetAccountContext} from './budget-guidance.js';
 
 interface Dependencies {
   service: MetaAdsAgentService;
@@ -237,8 +237,12 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
   }
   private budgetResponse(evidence:UncitedAssistantResponse['evidence']){
     const data=[...evidence].reverse().find(item=>item.name==='merchant_ads_save_draft')?.result.data as {budgetNeedsRevision?:boolean;budgetAssessment?:ReturnType<typeof assessBudget>}|undefined;
-    const value=data?.budgetAssessment;if(!data?.budgetNeedsRevision||value?.status!=='below_account_minimum'||value.minimumDailyBudgetCents===null)return null;
+    const value=data?.budgetAssessment;if(!data?.budgetNeedsRevision||!value||!needsBudgetRevision(value)||value.minimumDailyBudgetCents===null)return null;
     const minimum=new Intl.NumberFormat('pt-BR',{style:'currency',currency:value.currency}).format(value.minimumDailyBudgetCents/100);
+    if(value.status==='below_estimated_period_minimum'){
+      const money=(cents:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:value.currency}).format(cents/100);
+      return `Esse total equivale a cerca de ${money(value.dailyEquivalentCents!)} por dia. A Meta informa ${minimum} como mínimo diário desta conta; para esse período, a referência é ${money(value.estimatedMinimumTotalCents!)} no total. Vamos revisar a verba antes de preparar o anúncio. Você prefere ajustar o valor ou reduzir os dias?`;
+    }
     return `O valor ficou abaixo do mínimo diário informado pela Meta para esta conta: ${minimum}. Qual valor por dia, a partir desse mínimo, você quer usar?`;
   }
   checklist(progress:AssistantCampaignProgress|null){return progress?.planningKind==='automation'?automationChecklist(progress):briefingChecklist(progress);}
@@ -355,8 +359,8 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
         await this.deps.authorizeTool(scope,'merchant_ads_planning_context');
         let account:BudgetAccountContext;try{account=await this.deps.planningContext(scope.merchantId);}catch(error){if(error instanceof AssistantError)throw error;account={accountId:'unavailable'};}
         budgetAssessment=assessBudget(budgetInput,account,this.clock().toISOString());
-        if(budgetAssessment.status==='below_account_minimum'){
-          briefing.budgetIssue={amountCents:budgetInput.amountCents,minimumDailyBudgetCents:budgetAssessment.minimumDailyBudgetCents!,currency:budgetInput.currency,accountId:budgetAssessment.accountId,checkedAt:budgetAssessment.checkedAt};progress.briefing=briefing;
+        if(needsBudgetRevision(budgetAssessment)){
+          briefing.budgetIssue={amountCents:budgetInput.amountCents,minimumDailyBudgetCents:budgetAssessment.minimumDailyBudgetCents!,currency:budgetInput.currency,accountId:budgetAssessment.accountId,checkedAt:budgetAssessment.checkedAt,cadence:budgetInput.cadence,startsAt:budgetInput.startsAt,endsAt:budgetInput.endsAt,estimatedMinimumTotalCents:budgetAssessment.estimatedMinimumTotalCents};progress.briefing=briefing;
           if(!progress.awaitingFields.includes('budget'))progress.awaitingFields.push('budget');await this.progress(input,progress);
           return result({progress,budgetAssessment,budgetNeedsRevision:true},{type:'campaign_progress',progress});
         }

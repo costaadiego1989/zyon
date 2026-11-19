@@ -11,6 +11,7 @@ const accepted=(v=launchReview()):MetaAdsCampaignLaunchReview=>({...v,canApprove
 function setup(value=launchReview(),extras:Record<string,unknown>={}){screen=ui();const api={review:vi.fn().mockResolvedValue(value),approveLaunch:vi.fn().mockResolvedValue(accepted(value))};return{value,api,props:{merchantId:'store1',value,api,onUpdated:vi.fn(),timezone:'America/Sao_Paulo',...extras}};}
 async function loaded(){await act(async()=>{screen.container.querySelectorAll('img').forEach(img=>img.dispatchEvent(new Event('load')));});}
 const approve=()=>screen.container.querySelector<HTMLButtonElement>('[data-action="approve-launch"]')!;
+test('FR-04 final review keeps the approved total and explains the daily equivalent',async()=>{const{props,api}=setup();await screen.render(<LaunchReview {...props}/>);expect(screen.container.textContent?.replace(/\u00a0/g,' ')).toContain('R$ 100,00 no total');expect(screen.container.textContent?.replace(/\u00a0/g,' ')).toContain('Cerca de R$ 14,29 por dia');expect(api.approveLaunch).not.toHaveBeenCalled();});
 test('ACAP-12 shows frozen products copy destination priority audience exact dates and total before approval',async()=>{
  const {props}=setup();await screen.render(<LaunchReview {...props}/>);const text=screen.container.textContent!;
  for(const expected of ['Coleção Aurora','Bolsa Aurora','BA1','99,00','5 disponíveis','Conheça a coleção','Loja online','Vendas pagas','Brasil','100,00','total','16/11/2026','23/11/2026','09:00'])expect(text).toContain(expected);
