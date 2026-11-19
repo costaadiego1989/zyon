@@ -14,7 +14,7 @@ interface PurchaseRow { id: string; merchant_id: string; session_id: string; ord
 
 /** Anti-corruption adapter: domain reads use exported contracts; payment reconciliation is a tenant-filtered read projection. */
 export class CommerceContextAdapter implements CommerceContextPort {
-  constructor(private readonly prisma: PrismaClient, private readonly catalog: Pick<ProductRepositoryPort, "search" | "findByVariantIds">,
+  constructor(private readonly prisma: PrismaClient, private readonly catalog: Pick<ProductRepositoryPort, "search" | "findByVariantIds"> & Partial<Pick<ProductRepositoryPort,"listCategories">>,
     private readonly merchants: Pick<MerchantRepository, "getProfile">, private readonly billing: Pick<PaymentPlatformRepository, "getBilling">,
     private readonly env: MetaAdsEnvironment, private readonly clock: Clock = () => new Date()) {}
   async getPlan(merchantId: string) {
@@ -45,14 +45,24 @@ export class CommerceContextAdapter implements CommerceContextPort {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new MetaAdsError("addon_billing_email_required", 409);
     return { name: profile.name, email, storefrontUrl: url.href, stripeCustomerId: subscription?.stripeCustomerId ?? null };
   }
-  async products(merchantId: string, input: { variantIds?: string[]; query?: string; limit?: number } = {}): Promise<MetaAdsProduct[]> {
+  async categories(merchantId:string,input:{query?:string;limit?:number}={}){
+    requireIdentifier(merchantId);const limit=input.limit??5;
+    if(!Number.isSafeInteger(limit)||limit<1||limit>5||(input.query?.length??0)>200)throw new MetaAdsError('catalog_query_invalid');
+    if(!this.catalog.listCategories)throw new MetaAdsError('catalog_categories_unavailable',503);
+    const normalize=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    const query=normalize(input.query?.trim()??'');
+    const rows=(await this.catalog.listCategories(merchantId,{publicOnly:true})).filter(row=>row.productCount>0&&(!query||normalize(row.name).includes(query))).sort((a,b)=>a.id.localeCompare(b.id));
+    return {categories:rows.slice(0,limit).map(({id,name,productCount})=>({id,name,productCount})),hasMore:rows.length>limit};
+  }
+  async products(merchantId: string, input: { variantIds?: string[]; query?: string; categoryId?:string; limit?: number } = {}): Promise<MetaAdsProduct[]> {
     const { url } = await this.store(merchantId);
     const limit = input.limit ?? 20;
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 || (input.query?.length ?? 0) > 200) throw new MetaAdsError("catalog_query_invalid");
     if (input.variantIds && (input.variantIds.length < 1 || input.variantIds.length > 30 || new Set(input.variantIds).size !== input.variantIds.length)) throw new MetaAdsError("campaign_products_invalid");
     for (const variantId of input.variantIds ?? []) requireIdentifier(variantId);
+    if(input.categoryId)requireIdentifier(input.categoryId);
     if (input.variantIds && !this.catalog.findByVariantIds) throw new MetaAdsError("catalog_selection_unavailable", 503);
-    const products = input.variantIds ? await this.catalog.findByVariantIds!(merchantId, input.variantIds) : (await this.catalog.search({ merchantId, query: input.query, limit, status: "active" })).products;
+    const products = input.variantIds ? await this.catalog.findByVariantIds!(merchantId, input.variantIds) : (await this.catalog.search({ merchantId, query: input.query, ...(input.categoryId?{categoryId:input.categoryId}:{}), limit, status: "active" })).products;
     const variants: MetaAdsProduct[] = [];
     for (const product of products) {
       if (product.merchantId !== merchantId) throw new MetaAdsError("catalog_tenant_mismatch", 403);

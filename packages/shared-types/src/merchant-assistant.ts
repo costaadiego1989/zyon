@@ -16,6 +16,19 @@ export interface AssistantReference {
 }
 export type AssistantTurnStatus = 'queued' | 'running' | 'completed' | 'failed' | 'unknown';
 export interface AssistantTurnInput { message: string; idempotencyKey: string; expectedRevision: number; }
+/** Conversation data only. It cannot authorize spend, publication or an optimization policy. */
+export interface AssistantCampaignBriefing {
+  selectionKind?: 'product' | 'category' | 'catalog';
+  selectionQuery?: string;
+  selectedVariantId?: string;
+  categoryId?: string;
+  budget?: { amountCents?: number; cadence?: 'daily' | 'lifetime'; startText?: string; endText?: string; startsAt?: string; endsAt?: string | null };
+  /** Exact merchant answers awaiting interpretation; bounded and never treated as instructions. */
+  answers?: Partial<Record<'destination'|'selection'|'priority'|'amount'|'cadence'|'start'|'end'|'country',string>>;
+  categoryOptions?: Array<{id:string;name:string}>;
+  productOptions?: Array<{variantId:string;name:string}>;
+  capturedTurnId?: string;
+}
 export interface AssistantCampaignProgress {
   campaignId: string | null;
   draft: Partial<MetaAdsCampaignDraft>;
@@ -24,6 +37,7 @@ export interface AssistantCampaignProgress {
   approvalPreference?: 'manual' | 'automatic';
   /** Creative count requested during planning, within the existing image allowance. */
   requestedImages?: number;
+  briefing?: AssistantCampaignBriefing;
 }
 export interface AssistantTurn {
   id: string;

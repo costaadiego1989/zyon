@@ -16,10 +16,12 @@ export interface ChatDockProps {
 function readableReply(turn:AssistantTurn):string{
   return turn.references.reduce((reply,reference)=>reply.split(`[${reference.id}]`).join(''),turn.reply??'').trim();
 }
+function ThinkingLabel(){return <strong className="chat-dock-thinking" role="status"><ZyonAgentOrb size={23}/><span>Zyon pensando<span className="chat-dock-thinking-ellipsis">…</span></span></strong>;}
 export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,headerExtra,onSend,onRetry,renderTurnDetails,older,expanded,onExpandedChange,presentation='inline',pageKey=context.id,hints=[]}: ChatDockProps) {
   const floating=presentation==='floating';
   const [localOpen,setLocalOpen]=useState(()=>!floating&&(typeof matchMedia==='undefined'||!matchMedia('(max-width: 900px)').matches));
   const open=expanded??localOpen;
+  const admittedPending=turns.some(turn=>['queued','running'].includes(turn.status));
   const [hintIndex,setHintIndex]=useState(-1),[hintDismissed,setHintDismissed]=useState(false);
   useEffect(()=>{setHintIndex(-1);setHintDismissed(false);if(!floating||open||!hints.length)return;const timer=setInterval(()=>{if(document.visibilityState!=='hidden')setHintIndex(previous=>(previous+1)%hints.length);},10000);return()=>clearInterval(timer);},[floating,open,pageKey,hints]);
   const [message,setMessage]=useState(''); const [sending,setSending]=useState(false); const [sendError,setSendError]=useState('');
@@ -65,14 +67,14 @@ export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,
       {headerExtra}
       <div ref={history} className="chat-dock-history" role="log" aria-label="Conversa com a IA" aria-live="polite" tabIndex={0} onScroll={event=>{const el=event.currentTarget;following.current=el.scrollHeight-el.scrollTop-el.clientHeight<=32;}}><div ref={messages} className="chat-dock-messages">
         {older}{loading&&<p role="status">Carregando conversa…</p>}
-        {!loading&&!turns.length&&(empty??<p>Descreva o que você quer fazer. Eu ajudo com os próximos passos.</p>)}
-        {turns.map(turn=><article className="chat-dock-turn" key={turn.id} data-turn-id={turn.id}><div className="chat-dock-user"><strong>Você</strong><p>{turn.message}</p></div><div className="chat-dock-reply"><strong>{floating&&<ZyonAgentOrb size={23}/>}Assistente</strong>{turn.reply&&<p>{readableReply(turn)}</p>}{['queued','running'].includes(turn.status)&&<p role="status">Processando sua mensagem…</p>}{turn.status==='unknown'&&<p role="status">Resultado ainda desconhecido. Consulte o histórico antes de repetir a ação.</p>}{turn.status==='failed'&&<p role="status">Este turno não foi concluído. Consulte os detalhes antes de continuar.</p>}{renderTurnDetails?.(turn)}</div></article>)}
+        {!loading&&!turns.length&&!busy&&!sending&&(empty??<p>Descreva o que você quer fazer. Eu ajudo com os próximos passos.</p>)}
+        {turns.map(turn=><article className="chat-dock-turn" key={turn.id} data-turn-id={turn.id}><div className="chat-dock-user"><strong>Você</strong><p>{turn.message}</p></div><div className="chat-dock-reply">{['queued','running'].includes(turn.status)?<ThinkingLabel/>:<strong>{floating&&<ZyonAgentOrb size={23}/>}Zyon</strong>}{turn.reply&&<p>{readableReply(turn)}</p>}{turn.status==='unknown'&&<p role="status">Resultado ainda desconhecido. Consulte o histórico antes de repetir a ação.</p>}{turn.status==='failed'&&<p role="status">Este turno não foi concluído. Consulte os detalhes antes de continuar.</p>}{renderTurnDetails?.(turn)}</div></article>)}
+        {(busy||sending)&&!admittedPending&&!disabled&&<div className="chat-dock-pending"><ThinkingLabel/></div>}
       </div></div>
       <form className="chat-dock-composer" onSubmit={event=>{event.preventDefault();void send();}}>
         {(error||sendError)&&<div role="alert"><p>{error||sendError}</p>{onRetry&&<button type="button" disabled={disabled||sending||busy} onClick={()=>void retry()}>Retomar envio</button>}</div>}
-        <label className="chat-dock-sr-only" htmlFor={`${id}-message`}>Mensagem para a IA</label><textarea ref={composer} id={`${id}-message`} aria-label="Mensagem para a IA" placeholder="Descreva sua ideia ou faça uma pergunta…" value={message} rows={3} maxLength={8000} onChange={event=>setMessage(event.target.value)} aria-describedby={`${id}-limit`}/>
+        <label className="chat-dock-sr-only" htmlFor={`${id}-message`}>Mensagem para a IA</label><textarea ref={composer} id={`${id}-message`} aria-label="Mensagem para a IA" placeholder="Descreva sua ideia ou faça uma pergunta…" value={message} rows={3} maxLength={8000} onChange={event=>setMessage(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&!event.nativeEvent.isComposing&&event.keyCode!==229){event.preventDefault();void send();}}} aria-describedby={`${id}-limit`}/>
         <div className="chat-dock-send"><small id={`${id}-limit`}>{message.length}/8000</small><button type="submit" disabled={disabled||loading||busy||sending||!message.trim()||message.trim().length>8000}>Enviar mensagem<ArrowUp size={15} aria-hidden="true"/></button></div>
-        {(busy||sending)&&<span role="status">Processando… Você pode recolher o chat e continuar na página.</span>}
       </form>
     </section>
   </aside>;

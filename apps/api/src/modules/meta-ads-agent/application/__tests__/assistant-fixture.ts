@@ -35,7 +35,7 @@ export async function metaAssistantFixture() {
   const adapter = new MetaAdsAssistantAdapter({ service, conversations, authorizeActor: actor, authorizeTool: async (_scope, name) => { governed.push(name); }, clock: f.clock });
   const admission = new TurnAdmissionService(conversations, scope => adapter.authorizeInvocation(scope), () => ({ turnMicros: 10000n, monthlyMicros: 100000n }), f.clock);
   const thread = await conversations.createThread(assistantScope);
-  const { turn } = await admission.submit(assistantScope, thread.id, { message: 'Quero anunciar', expectedRevision: 0, idempotencyKey: 'request-a' });
+  const { turn } = await admission.submit(assistantScope, thread.id, { message: 'Quero anunciar a Camisa', expectedRevision: 0, idempotencyKey: 'request-a' });
   await conversations.atomic(assistantScope, thread.id, async tx => { await tx.update(turn.id, { status: 'running', leaseToken: 'lease-a', leaseUntil: new Date(f.clock().getTime() + 60000).toISOString() }); });
   const input = { scope: assistantScope, threadId: thread.id, turnId: turn.id, leaseToken: 'lease-a' };
   const call = (name: string, args: Record<string, unknown> = {}) => adapter.execute({ ...input, name, args });

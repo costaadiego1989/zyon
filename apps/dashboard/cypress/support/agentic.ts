@@ -14,6 +14,6 @@ export function nativeKey(key:'Enter'|'Tab'|'Escape'|'ArrowLeft'|'ArrowRight'){
 }
 export function ask(message:string){openChat();cy.get('.chat-dock-history').then(history=>{
   const count=history.find('.chat-dock-turn').length;cy.get('[aria-label="Mensagem para a IA"]').clear().type(message);cy.contains('button','Enviar mensagem').click();
-  cy.get('.chat-dock-turn',{timeout:120000}).should('have.length',count+1).last().find('.chat-dock-reply',{timeout:120000}).should('not.contain.text','Processando sua mensagem').and('not.contain.text','Este turno não foi concluído').and('not.contain.text','Resultado ainda desconhecido');
+  cy.get('.chat-dock-turn',{timeout:120000}).should('have.length',count+1).last().find('.chat-dock-reply',{timeout:120000}).should('not.contain.text','Zyon pensando').and('not.contain.text','Este turno não foi concluído').and('not.contain.text','Resultado ainda desconhecido');
 });}
 afterEach(function(){if(this.currentTest?.state==='failed')return control('facts').then(({body})=>cy.writeFile('../../.specs/features/agentic-dashboard-assistant/cypress-last-failed-facts.json',{test:this.currentTest?.title,...body}));});
