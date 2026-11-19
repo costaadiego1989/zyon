@@ -38,6 +38,7 @@ export class AgenticBrowserProvider {
     const scripted=this.modelScript.shift();if(scripted)return 'tool' in scripted?completion(null,scripted.tool):completion({reply:scripted.reply,referenceIds:scripted.referenceIds??refs.map(ref=>ref.id)});
     const reply=(value:string)=>completion({reply:value,referenceIds:refs.map(ref=>ref.id)});
     if(state.contextLabel==='Cashback'){
+      if(typeof state.acceptedInput?.field==='string'&&typeof state.acceptedInput.saved==='boolean'&&typeof state.acceptedInput.reply==='string')return reply(state.acceptedInput.reply);
       const normalized=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
       const message=normalized(text);
       if(/relatorio/.test(message)){

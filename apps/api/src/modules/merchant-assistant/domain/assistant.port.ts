@@ -1,4 +1,4 @@
-import type {AssistantCampaignProgress,AssistantTurn} from '@zyon/shared-types';
+import type {AssistantArtifact,AssistantCampaignProgress,AssistantTurn,CashbackDraft} from '@zyon/shared-types';
 
 export class AssistantError extends Error {
   constructor(public readonly code:string,public readonly status=400){super(code);this.name='AssistantError';}
@@ -19,7 +19,13 @@ export interface AssistantProviderAttempt {
   result?:{reply:string|null;referenceIds:string[];toolCalls:Array<{id:string;name:string;args:Record<string,unknown>}>;costMicros:string;usage?:import('./model.port.js').AssistantModelUsage};
 }
 export type AssistantBudgetState='none'|'reserved'|'dispatched'|'settled'|'released'|'unknown';
-export interface StoredAssistantTurn extends AssistantTurn {
+/** Private durable preimage. Never a public draft artifact or a provider request. */
+export interface CashbackDraftIntent {
+  type:'cashback_draft_intent';version:1;merchantId:string;turnId:string;inputHash:string;
+  field:string;expectedRevision:string;preimage:CashbackDraft;
+}
+export interface StoredAssistantTurn extends Omit<AssistantTurn,'artifacts'> {
+  artifacts:Array<AssistantArtifact|CashbackDraftIntent>;
   merchantId:string;requestKey:string;inputHash:string;leaseToken:string|null;leaseUntil:string|null;
   budgetAmountMicros:bigint;budgetState:AssistantBudgetState;usageCostMicros:bigint|null;
   providerRequests:AssistantProviderAttempt[];

@@ -11,7 +11,7 @@ interface Dependencies {
 }
 export function publicAssistantTurn(turn: StoredAssistantTurn): AssistantTurn {
   return { id: turn.id, threadId: turn.threadId, ordinal: turn.ordinal, status: turn.status, message: turn.message, reply: turn.reply,
-    references: turn.references, artifacts: turn.artifacts, error: turn.error, createdAt: turn.createdAt, updatedAt: turn.updatedAt };
+    references: turn.references, artifacts: turn.artifacts.filter(artifact=>artifact.type!=='cashback_draft_intent'), error: turn.error, createdAt: turn.createdAt, updatedAt: turn.updatedAt };
 }
 export class AssistantApiService {
   constructor(private readonly deps: Dependencies) {}

@@ -7,10 +7,11 @@ export interface AssistantModelMessage {
   tool_calls?:Array<{id:string;type:'function';function:{name:string;arguments:string}}>;
 }
 export interface AssistantToolDescriptor {name:string;description:string;inputSchema:Record<string,unknown>;}
+export interface AssistantAcceptedInput {field:string;saved:boolean;reply:string;error?:string;nextStep:{field:string;prompt:string;completed:number;total:number}|null;}
 export interface AssistantModelInput {
   scope:AssistantScope;threadId:string;turnId:string;leaseToken:string;
   messages:AssistantModelMessage[];knowledge:RetrievedAssistantKnowledge[];tools:AssistantToolDescriptor[];
-  state?:{contextLabel:string;now:string;campaign:AssistantCampaignProgress|null;checklist?:Record<string,unknown>};
+  state?:{contextLabel:string;now:string;campaign:AssistantCampaignProgress|null;checklist?:Record<string,unknown>;acceptedInput?:AssistantAcceptedInput};
   /** Server-selected orchestration step, scoped to this durable turn. */
   step?:number;
   /** Trusted server orchestration, separate from catalog and campaign data. */

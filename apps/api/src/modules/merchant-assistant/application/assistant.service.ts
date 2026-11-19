@@ -2,7 +2,7 @@ import type { AssistantArtifact, AssistantReference } from '@zyon/shared-types';
 import { AssistantError, type AssistantRepository } from '../domain/assistant.port.js';
 import type { AssistantContextPort, AssistantToolInput, UncitedAssistantResponse } from '../domain/context.port.js';
 import { CASHBACK_KNOWLEDGE_FALLBACK_NOTICE, type AssistantKnowledgePort, type RetrievedAssistantKnowledge } from '../domain/knowledge.port.js';
-import type { AssistantModelMessage, AssistantModelPort, AssistantModelResult } from '../domain/model.port.js';
+import type { AssistantAcceptedInput, AssistantModelMessage, AssistantModelPort, AssistantModelResult } from '../domain/model.port.js';
 import { assertAssistantTurnLease } from './turn-admission.service.js';
 
 interface Dependencies { repo: AssistantRepository; context: AssistantContextPort; knowledge: AssistantKnowledgePort; model: AssistantModelPort; clock?: () => Date; }
@@ -58,7 +58,9 @@ export class AssistantService {
       }else knowledge=await this.deps.knowledge.retrieve(knowledgeScope,retrievalQuery);
     } catch { knowledge = []; }
     const visibleReply=(reply:string)=>fallback?`${CASHBACK_KNOWLEDGE_FALLBACK_NOTICE}\n\n${reply}`:reply;
-    const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = [...(captured?.artifacts??[])]; const evidence:UncitedAssistantResponse['evidence'][number][]=captured?[{name:'merchant_ads_save_draft',result:captured}]:[];
+    const cashback=this.deps.context.descriptor.id==='cashback';
+    const acceptedInput=cashback?(captured?.modelData as {acceptedInput?:AssistantAcceptedInput}|undefined)?.acceptedInput:undefined;
+    const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = [...(captured?.artifacts??[])]; const evidence:UncitedAssistantResponse['evidence'][number][]=captured?[{name:cashback?'cashback_save_draft_answer':'merchant_ads_save_draft',result:captured}]:[];
     let completionRequirement:string|null=null;
     for (let round = 0; round <= 5; round++) {
       // Keep the current turn's tool protocol intact while retaining more short guided answers.
@@ -66,7 +68,7 @@ export class AssistantService {
       const state = await this.current(input);
       let response:AssistantModelResult;
       try{response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,...(completionRequirement?{completionRequirement}:{}),
-        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress,...(this.deps.context.checklist?{checklist:this.deps.context.checklist(state.thread.campaignProgress)}:{}) } });}
+        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress,...(this.deps.context.checklist?{checklist:this.deps.context.checklist(state.thread.campaignProgress)}:{}),...(acceptedInput?{acceptedInput}:{}) } });}
       catch(error){
         if(safeCode(error)!=='assistant_model_response_invalid')throw error;
         const current=await this.current(input);let reply:string|null=null;
