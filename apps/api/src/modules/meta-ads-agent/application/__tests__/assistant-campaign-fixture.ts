@@ -1,8 +1,8 @@
 import {agenticRuntimeFixture} from '../../infrastructure/__tests__/runtime-fixture.js';
 import {assistantScope} from './assistant-fixture.js';
 
-export async function assistantCampaignFixture(flags:Record<string,string|undefined>={}){
-  const f=await agenticRuntimeFixture({META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED:'true',...flags});
+export async function assistantCampaignFixture(flags:Record<string,string|undefined>={},options:{minimumDailyBudgetCents?:number}={}){
+  const f=await agenticRuntimeFixture({META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED:'true',...flags},options);
   try{
     const context=await f.assistant.contexts.resolve(assistantScope),thread=await f.assistant.repo.createThread(assistantScope);
     const turn=(await f.assistant.admission.submit(assistantScope,thread.id,{message:'Quero anunciar a camisa da loja',expectedRevision:0,idempotencyKey:'briefing'})).turn;

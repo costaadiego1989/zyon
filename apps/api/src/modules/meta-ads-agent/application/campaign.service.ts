@@ -80,6 +80,7 @@ export class CampaignService {
     for (const id of campaign.draft.mediaIds) {
       const item = state.media[id]; const product = fresh.find(p => p.variantId === item?.variantId);
       if (!item || !product || product.commercialVersion !== item.productVersion) { missingSetup.push("campaign_media_unavailable"); continue; }
+      if(item.source==='catalog'&&(item.canonicalImageUrl!==product.imageUrl||item.commercialReview?.method!=='canonical_source')){missingSetup.push('campaign_media_unavailable');continue;}
       if (item.commercialReview?.status === "rejected") missingSetup.push("creative_terms_mismatch");
       else if (item.commercialReview?.status !== "verified" || item.commercialReview.productVersion !== product.commercialVersion || !/^[a-f0-9]{64}$/i.test(item.commercialReview.imageSha256)) missingSetup.push("creative_terms_unverified");
     }

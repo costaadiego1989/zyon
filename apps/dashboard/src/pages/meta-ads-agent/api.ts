@@ -1,7 +1,7 @@
-import type {MetaAdsApproveLaunchInput,MetaAdsCampaignLaunchReview,MetaAdsCampaignNoticeContact,MetaAdsCampaignNoticeContactInput,MetaAdsCampaignPreparation,MetaAdsCampaignPreparationInput} from '@zyon/shared-types';
+import type {MetaAdsApproveLaunchInput,MetaAdsBudgetAssessment,MetaAdsCampaignLaunchReview,MetaAdsCampaignNoticeContact,MetaAdsCampaignNoticeContactInput,MetaAdsCampaignPreparation,MetaAdsCampaignPreparationInput} from '@zyon/shared-types';
 import {dashboardJson} from '../../api/http/client.js';
 
-export interface CampaignPreparationView{campaignDigest:string;preparations:MetaAdsCampaignPreparation[];}
+export interface CampaignPreparationView{campaignDigest:string;preparations:MetaAdsCampaignPreparation[];budgetAssessment?:MetaAdsBudgetAssessment;}
 const aborted=()=>new DOMException('Contexto encerrado','AbortError');
 /** One mounted store owns one instance; dispose it before changing the store. */
 export function campaignApprovalEndpoints(base:string,f:typeof fetch=globalThis.fetch){

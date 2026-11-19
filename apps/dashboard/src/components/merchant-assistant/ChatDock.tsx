@@ -12,12 +12,13 @@ export interface ChatDockProps {
   older?: ReactNode;
   expanded?: boolean; onExpandedChange?: (expanded:boolean)=>void;
   presentation?:'inline'|'floating'; pageKey?:string; hints?:readonly string[];
+  choices?:ReadonlyArray<{label:string;message:string}>;
 }
 function readableReply(turn:AssistantTurn):string{
   return turn.references.reduce((reply,reference)=>reply.split(`[${reference.id}]`).join(''),turn.reply??'').trim();
 }
 function ThinkingLabel(){return <strong className="chat-dock-thinking" role="status"><ZyonAgentOrb size={23}/><span>Zyon pensando<span className="chat-dock-thinking-ellipsis">…</span></span></strong>;}
-export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,headerExtra,onSend,onRetry,renderTurnDetails,older,expanded,onExpandedChange,presentation='inline',pageKey=context.id,hints=[]}: ChatDockProps) {
+export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,headerExtra,onSend,onRetry,renderTurnDetails,older,expanded,onExpandedChange,presentation='inline',pageKey=context.id,hints=[],choices=[]}: ChatDockProps) {
   const floating=presentation==='floating';
   const [localOpen,setLocalOpen]=useState(()=>!floating&&(typeof matchMedia==='undefined'||!matchMedia('(max-width: 900px)').matches));
   const open=expanded??localOpen;
@@ -42,12 +43,13 @@ export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,
   },[open,floating]);
   useEffect(()=>{if(focus.current==='composer') composer.current?.focus(); if(focus.current==='trigger') trigger.current?.focus(); focus.current=null;},[open]);
   function toggle(next:boolean) {focus.current=next?'composer':'trigger';setLocalOpen(next);onExpandedChange?.(next);}
-  async function send() {
-    const text=message.trim(); if(lock.current||disabled||busy||loading||!text||text.length>8000) return;
+  async function send(selected?:string) {
+    const text=(selected??message).trim(); if(lock.current||disabled||busy||loading||!text||text.length>8000) return;
+    if(selected)setMessage(text);
     composer.current?.focus();
     following.current=true;followRequested.current=true;
     lock.current=true;setSending(true);setSendError('');
-    try {await onSend(text);setMessage(current=>current===message?'':current);} catch {setSendError('Não foi possível confirmar o envio. Você pode retomar sem perder a mensagem.');}
+    try {await onSend(text);setMessage(current=>current===(selected??message)?'':current);} catch {setSendError('Não foi possível confirmar o envio. Você pode retomar sem perder a mensagem.');}
     finally {lock.current=false;setSending(false);}
   }
   async function retry() {
@@ -70,6 +72,7 @@ export function ChatDock({context,turns,loading,busy,disabled=false,error,empty,
         {!loading&&!turns.length&&!busy&&!sending&&(empty??<p>Descreva o que você quer fazer. Eu ajudo com os próximos passos.</p>)}
         {turns.map(turn=><article className="chat-dock-turn" key={turn.id} data-turn-id={turn.id}><div className="chat-dock-user"><strong>Você</strong><p>{turn.message}</p></div><div className="chat-dock-reply">{['queued','running'].includes(turn.status)?<ThinkingLabel/>:<strong>{floating&&<ZyonAgentOrb size={23}/>}Zyon</strong>}{turn.reply&&<p>{readableReply(turn)}</p>}{turn.status==='unknown'&&<p role="status">Resultado ainda desconhecido. Consulte o histórico antes de repetir a ação.</p>}{turn.status==='failed'&&<p role="status">Este turno não foi concluído. Consulte os detalhes antes de continuar.</p>}{renderTurnDetails?.(turn)}</div></article>)}
         {(busy||sending)&&!admittedPending&&!disabled&&<div className="chat-dock-pending"><ThinkingLabel/></div>}
+        {!loading&&!busy&&!sending&&!disabled&&!message.trim()&&choices.length>0&&<div className="chat-dock-options" role="group" aria-label="Respostas sugeridas">{choices.slice(0,5).map(choice=><button type="button" key={choice.message} onClick={()=>void send(choice.message)}>{choice.label}</button>)}</div>}
       </div></div>
       <form className="chat-dock-composer" onSubmit={event=>{event.preventDefault();void send();}}>
         {(error||sendError)&&<div role="alert"><p>{error||sendError}</p>{onRetry&&<button type="button" disabled={disabled||sending||busy} onClick={()=>void retry()}>Retomar envio</button>}</div>}

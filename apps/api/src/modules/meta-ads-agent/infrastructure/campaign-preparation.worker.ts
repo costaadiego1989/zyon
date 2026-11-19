@@ -8,12 +8,17 @@ import type {CampaignService} from '../application/campaign.service.js';
 import type {ConnectionService} from '../application/connection.service.js';
 import type {GenerationService} from '../application/generation.service.js';
 import type {ProposalService} from '../application/proposal.service.js';
+import {budgetBlocker,type CampaignBudgetAssessmentPort} from '../application/budget-guidance.js';
+import type {CatalogCreativeService} from '../application/catalog-creative.service.js';
+import {creditWallet} from '../application/credits.service.js';
 
 interface Dependencies{
   repo:MetaAdsRepository;commerce:Pick<CommerceContextPort,'getPlan'|'products'>;campaigns:Pick<CampaignService,'owned'|'save'>;
-  connection:Pick<ConnectionService,'access'>;generations:Pick<GenerationService,'request'>;proposals:Pick<ProposalService,'create'>;
+  connection:Pick<ConnectionService,'access'>;generations:Pick<GenerationService,'request'>&Partial<Pick<GenerationService,'configured'>>;proposals:Pick<ProposalService,'create'>;
   preparations:CampaignPreparationRepository;notices:Pick<CampaignReadyNoticeRepository,'admit'|'list'|'setReviewState'>;
   authorizeActor:(merchantId:string,actorId:string)=>Promise<void>;enabled:()=>boolean;clock?:Clock;
+  budgetAssessment?:CampaignBudgetAssessmentPort;
+  catalogCreatives?:Pick<CatalogCreativeService,'capture'>;
 }
 export class CampaignPreparationWorker{
   private timer:ReturnType<typeof setInterval>|undefined;private active:Promise<void>|undefined;private stopping=false;
@@ -26,6 +31,7 @@ export class CampaignPreparationWorker{
     if(!this.deps.enabled())throw new MetaAdsError('campaign_preparation_unavailable',503);
     const state=await this.deps.repo.read(job.merchantId);requireEntitlement(await this.deps.commerce.getPlan(job.merchantId),state,(this.deps.clock??(()=>new Date()))());
     const campaign=await this.deps.campaigns.owned(job.merchantId,job.campaignId);
+    const budgetIssue=budgetBlocker(await this.deps.budgetAssessment?.(job.merchantId,campaign.draft.budget));if(budgetIssue)throw new MetaAdsError(budgetIssue,409);
     if(campaign.remoteCampaignId||campaignPreparationIntent(job.merchantId,campaign,job.requestedImages)!==job.intentDigest)throw new MetaAdsError('preparation_intent_changed',409);
     const products=await this.deps.commerce.products(job.merchantId,{variantIds:campaign.draft.variantIds});
     const content=campaignPreparationContent(campaign,products,Object.values(state.media));
@@ -50,7 +56,11 @@ export class CampaignPreparationWorker{
       let context=await this.context(current);await this.deps.preparations.heartbeat(current);
       let generation=current.generationId?context.state.generations[current.generationId]:null;
       if(current.generationId&&!generation){await this.blocked(current,'generation_input_missing','unknown');return;}
-      const needed=Math.max(0,current.requestedImages-context.content.reusableMediaIds.length);
+      let needed=Math.max(0,current.requestedImages-context.content.reusableMediaIds.length);
+      if(generation?.status==='unknown'){await this.blocked(current,'image_provider_outcome_unknown','unknown');return;}
+      const wallet=creditWallet(context.state,(this.deps.clock??(()=>new Date()))());
+      const fallback=needed&&this.deps.catalogCreatives&&(!generation&&(this.deps.generations.configured?.()===false||needed>wallet.monthlyAvailable+wallet.extraAvailable)||generation&&['failed','partial'].includes(generation.status));
+      if(fallback){await this.deps.catalogCreatives!.capture(current.merchantId,current.campaignId,current.requestedImages);context=await this.context(current);needed=Math.max(0,current.requestedImages-context.content.reusableMediaIds.length);}
       if(!generation&&needed){
         generation=await this.deps.generations.request(current.merchantId,current.campaignId,{imageCount:needed,idempotencyKey:`prep-image-${current.id}`},{preparationId:current.id,intentDigest:current.intentDigest});
         current=await this.deps.preparations.checkpoint(current,{generationId:generation.id});

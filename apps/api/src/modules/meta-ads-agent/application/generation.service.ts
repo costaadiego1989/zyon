@@ -37,6 +37,7 @@ function finish(state: MetaAdsStoreState, value: MetaAdsGeneration): void {
 export class GenerationService {
   constructor(private readonly repo: MetaAdsRepository, private readonly commerce: Pick<CommerceContextPort, "getPlan" | "products">,
     private readonly images: ImageGenerationPort, private readonly clock: Clock = () => new Date(), private readonly id: IdFactory = randomUUID,private readonly authorize?:GenerationAuthorizer) {}
+  configured():boolean{return this.images.configured();}
 
   async request(merchantId: string, campaignId: string, input: { imageCount: number; idempotencyKey: string },authority?:PreparationGenerationAuthority): Promise<MetaAdsGeneration> {
     requireIdentifier(input.idempotencyKey);

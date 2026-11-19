@@ -89,6 +89,13 @@ export interface MetaAdsBudget {
   endsAt: string | null;
 }
 
+export interface MetaAdsBudgetAssessment {
+  accountId:string;currency:string;minimumDailyBudgetCents:number|null;checkedAt:string;
+  status:'minimum_unavailable'|'period_unavailable'|'below_account_minimum'|'below_estimated_period_minimum'|'account_floor_met';
+  dailyEquivalentCents:number|null;estimatedMinimumTotalCents:number|null;periodDays:number|null;
+  finalMetaValidationRequired:true;performanceGuaranteed:false;
+}
+
 export interface MetaAdsCampaignDraft {
   name: string;
   destination: MetaAdsDestination;
@@ -125,7 +132,9 @@ export interface MetaAdsMedia {
   url: string;
   productVersion: string;
   createdAt: string;
-  commercialReview?: { status: "verified" | "rejected" | "unavailable"; productVersion: string; imageSha256: string };
+  source?:'catalog'|'generated';
+  canonicalImageUrl?:string;
+  commercialReview?: { status: "verified" | "rejected" | "unavailable"; productVersion: string; imageSha256: string;method?:'model'|'canonical_source' };
 }
 
 export interface MetaAdsCampaignReadiness {
@@ -294,6 +303,7 @@ export interface MetaAdsCampaignLaunchReview {
   execution: MetaAdsExecution | null;
   canApprove: boolean;
   missing: string[];
+  budgetAssessment?:MetaAdsBudgetAssessment;
 }
 export interface MetaAdsCampaignPreparationInput {
   campaignDigest: string;
