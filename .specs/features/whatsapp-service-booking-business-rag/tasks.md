@@ -1,5 +1,7 @@
 # Service Businesses, WhatsApp Conversations and Generic Business RAG Tasks
 
+**User-directed timezone refinement (2026-11-18):** user: "Sempre horário de Brasília, sem configuração"; "Sim, Brasília em todos os novos cadastros e agendamentos (recomendado)". AGENDA-08/ATEND-13 and T111-T113 implement fixed America/Sao_Paulo for new service records without a chooser, preserving historical zones/instants and trusted in-flight terms. Local scope84 criteria/113 tasks; original product commerce and approvals remain protected. New-write/control tests evolve under this explicit new rule; unrelated historical/security/payment/stock assertions stay intact.
+
 **Discovered authentication prerequisite (2026-11-17):** Local source and real-hasher/JWT RED8 (3pass/5fail) reproduced password-login acceptance when verify returns valid:false. AUTH-01/T110 records the required rejection contract before service buyer authentication can be claimed. This corrects an existing security defect; no new business choice, provider action or production validation. Current scope82criteria/110tasks; original approvals remain unchanged.
 
 **Discovered uncertain-replay repair (2026-11-17):** Actual owned SQL/incoming/Meta-adapter RED reproduced two physical local attempts after an unknown handoff notice, while legacy retained one. T109 repairs the existing HUM-03/HUM-07 contract independently from uncommitted T56, with no new criterion, product decision, timeout, provider action or oracle change. Current scope is81 criteria/109 tasks; original approvals remain unchanged. Historical close/new-handoff validation remains mandatory with T56/T57 after that capability exists.
@@ -158,13 +160,23 @@ T71 → T72
 T78 → T79 → T80 → T81 → T82 → T83 → T84
 ```
 
-### Phase 12: Business-specific metrics
+### Phase 12: Fixed service timezone policy
+
+```
+T83 -> T111
+T47 -> T111
+T111 -> T112 -> T113 -> T84
+T83 -> T113
+T47 -> T78
+```
+
+### Phase 13: Business-specific metrics
 
 ```
 T85 → T86 → T87 → T88 → T89 → T90 → T91
 ```
 
-### Phase 13: Coexistence evidence and activation gates
+### Phase 14: Coexistence evidence and activation gates
 
 ```
 T92 → T93 → T94
@@ -1753,7 +1765,7 @@ T107 → T106
 
 **What**: Grade/fuso/avulso/bloqueio com preview canônico; conflito confirmado bloqueia salvar sem cancelar; descontinuar escrita independente do ServiceScheduleEditor quando nova autoridade ativa. For canonical service businesses, align the existing catalog editor with professional-owned availability: retain modality/location/duration and direct availability to Atendimento instead of presenting legacy per-variant slots as another capacity authority. Preserve historical metadata and product flows; do not silently convert stored schedules.
 **Where**: `apps/dashboard/src/pages/service-attendance/components/AvailabilityPanel.tsx`
-**Depends on**: T77
+**Depends on**: T77, T47
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-04, ATEND-05, ATEND-09
 
@@ -1857,11 +1869,65 @@ T107 → T106
 **Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/shell/DashboardShell.spec.tsx -t "^T83$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T83$"` Teste raiz T83 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t83 guard and mount the service route in the shell`
 
+### T111: Fix timezone on new professional availability records
+
+**What**: enforce a shared fixed-zone policy at actual new professional, grade and one-off/block writers after existing auth/tenant/version checks. Preserve exact historic rows, ordinary historic deactivation and existing appointments. Do not globally coerce old profile fields or process.env.TZ.
+**Where**: `apps/api/src/modules/catalog/application/save-professional-availability.use-case.ts`
+**Depends on**: T83, T47
+**Reuses**: Existing canonical service authority, IANA conversion, private historical proof, design primitives and owned T2 runtime.
+**Requirement**: AGENDA-08, ATEND-04, ATEND-05, REG-01
+
+**Done when**:
+
+- [ ] The What outcome is demonstrated with fixed new zones and exact historical/in-flight preservation; authorization, version, financial and product guards stay intact.
+- [ ] Whole named tests cover the specified cases and real gestures where applicable, with no skipped/deleted cases or weakened historical/security/payment/stock assertions.
+- [ ] Gate Full passes with actual counts; mark before one focused local commit, no push/deploy.
+
+**Tests**: fixed-service-time-zone.spec.ts plus fixed-service-time-zone-http.integration.spec.ts. Real owner/admin requests with omitted/Sao_Paulo/new unsupported zone, valid Staff403 and foreign denial, current CAS409, no rewrite of historical Manaus/UTC intervals or confirmed appointments, precise UTC calculations. No body flag grants historic-authority bypass.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/fixed-service-time-zone.spec.ts ./tests/fixed-service-time-zone-http.integration.spec.ts` plus current own checked API and affected preservation from Gate Check Commands. Whole files, original budgets.
+**Commit**: `feat(service-business): t111 fix new availability timezone`
+
+### T112: Align new booking dates with fixed timezone and trusted history
+
+**What**: canonical availability date windows, slot labels/IDs, manual dates, lease identity and new appointment snapshots agree on Brasilia. Historical recurring rows still generate their real UTC intervals in their original stored zone. Reuse existing private stored proof for accepted paid units, exact held generations and same-ID manual pending continuations; never infer authority from caller flags, eventual insert time or a guessed professional.
+**Where**: `apps/api/src/modules/catalog/application/get-professional-availability.ts`
+**Depends on**: T111
+**Reuses**: Existing canonical service authority, IANA conversion, private historical proof, design primitives and owned T2 runtime.
+**Requirement**: AGENDA-08, AGENDA-03, BOOK-05, BOOK-08, EDGE-02
+
+**Done when**:
+
+- [ ] The What outcome is demonstrated with fixed new zones and exact historical/in-flight preservation; authorization, version, financial and product guards stay intact.
+- [ ] Whole named tests cover the specified cases and real gestures where applicable, with no skipped/deleted cases or weakened historical/security/payment/stock assertions.
+- [ ] Gate Full passes with actual counts; mark before one focused local commit, no push/deploy.
+
+**Tests**: service-booking-time-zone-compatibility.integration.spec.ts plus existing domain calendar tests. Three-reader parity, Brasilia midnight versus historical local dates, trusted pre-change paid/held/pending terms and replay, spoofed legacy flags, old lease ABA/expiry, no second appointment/charge, genuine historical reschedule/backfill requirements. Mixed physical/digital flows stay unchanged.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/professional-availability.fixed-time-zone.spec.ts ./tests/service-booking-time-zone-compatibility.integration.spec.ts` plus current own checked API and affected preservation from Gate Check Commands. Whole files, original budgets.
+**Commit**: `feat(service-business): t112 preserve trusted timezone continuations`
+
+### T113: Remove new service timezone choices from the UI
+
+**What**: new professional/grade/exception/manual booking drafts use Brasilia and have no timezone field. Existing historical zones remain read-only facts. Creating a new Brasilia grade from a historical grade must be explicit rather than silently reusing wall-minute values under a new zone; use canonical preview and preserve exact historic deactivation. Buyer pickers use returned canonical slots and never calculate capacity in the browser.
+**Where**: `apps/dashboard/src/pages/service-attendance/components/AvailabilityPanel.tsx`
+**Depends on**: T112, T83
+**Reuses**: Existing canonical service authority, IANA conversion, private historical proof, design primitives and owned T2 runtime.
+**Requirement**: ATEND-13, AGENDA-08, QA-02, REG-01
+
+**Done when**:
+
+- [ ] The What outcome is demonstrated with fixed new zones and exact historical/in-flight preservation; authorization, version, financial and product guards stay intact.
+- [ ] Whole named tests cover the specified cases and real gestures where applicable, with no skipped/deleted cases or weakened historical/security/payment/stock assertions.
+- [ ] Gate Build passes with actual counts; mark before one focused local commit, no push/deploy.
+
+**Tests**: fixed-service-time-zone.spec.tsx and e2e/service-fixed-time-zone.spec.ts. Evolve only new-write/control cases under the explicit new user rule. Preserve historical zone/integer-instant tests, all conflict403/409/rollback/CAS/payment/stock assertions and original budgets. New-record valid preconditions use Sao_Paulo; historical UTC/Manaus data is explicitly seeded as historic, without auth/repository overrides. Save real desktop/mobile captures and test the actual gestures.
+**Gate**: Build: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/fixed-service-time-zone.spec.tsx` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-availability-local.config.ts e2e/service-fixed-time-zone.spec.ts` and the existing Build/Gate Check Commands. Whole files, original budgets.
+**Commit**: `feat(service-business): t113 fix service timezone controls`
+
 ### T84: Prepare a resumable historical appointment backfill
 
 **What**: Ferramenta dry-run por padrão inventaria reservas anteriores, requer mapeamento explícito de profissional, reexecutável sem duplicar; habilitação só com todos escritores migrados. Testes usam somente runtime próprio local.
 **Where**: `apps/api/scripts/service-appointment-backfill.mjs`
-**Depends on**: T83
+**Depends on**: T83, T113
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: REG-04, BOOK-08
 
@@ -2111,7 +2177,7 @@ T107 → T106
 **Gate**: Browser plus UI build: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/components/ProductForm.business-mode.spec.tsx src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx src/pages/product-detail-page.spec.ts src/pages/product-detail/utils/product-validation.spec.ts src/pages/product-detail/utils/service-schedule-validation.spec.ts` without a skip-producing name filter; `pnpm --dir apps/dashboard typecheck`; existing affected-file lint and dashboard build command; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-catalog-business-mode.spec.ts`. Existing task-specific protected environment/resources/owned cleanup apply. Worker must record any concrete test-command adaptation before execution and preserve every old assertion.
 **Commit**: `feat(service-business): t98 match catalog creation to business mode`
 
-### Phase 14: Private support notification refinement
+### Phase 15: Private support notification refinement
 
 ### T99: Persist the private support fallback recipient
 
@@ -2169,7 +2235,7 @@ T107 → T106
 **Gate**: Browser/UI build: `pnpm --dir apps/dashboard exec vitest run src/pages/support-settings/support-notification-settings.spec.tsx` plus old FAQ/settings/Conversations files recorded before execution; dashboard typecheck/local build; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/support-notification-settings.spec.ts`.
 **Commit**: `feat(service-business): t101 configure human support alerts`
 
-### Phase 15: Appointments daily board
+### Phase 16: Appointments daily board
 
 ### T102: Map canonical appointments to coherent board views
 
@@ -2207,7 +2273,7 @@ T107 → T106
 **Gate**: Browser/UI build: unfiltered new page/view-model and existing Orders/shell/service-management files recorded before execution; dashboard typecheck/local build; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-appointments-board.spec.ts e2e/service-appointments-navigation.spec.ts`.
 **Commit**: `feat(service-business): t103 present service appointments kanban`
 
-### Phase 16: Catalog interaction refinements
+### Phase 17: Catalog interaction refinements
 
 ### T105: Replace catalog boolean checkboxes with toggles
 
@@ -2265,13 +2331,13 @@ T107 → T106
 **Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/product-detail/hooks/useServiceProfessionalLinks.spec.tsx src/pages/product-detail/components/ServiceProfessionalLinks.spec.tsx src/pages/product-detail/components/PromotionSection.entitlement.spec.tsx src/pages/product-detail/components/ProductForm.toggles.spec.tsx src/pages/product-detail/components/ProductBlockEditor.spec.tsx src/pages/product-detail/components/ProductForm.business-mode.spec.tsx src/pages/product-detail/hooks/useProductForm.business-mode.spec.ts src/pages/product-detail/hooks/useProductDetailPage.business-mode.spec.tsx src/pages/product-detail-page.spec.ts src/pages/product-detail/utils/product-validation.spec.ts src/pages/product-detail/utils/service-schedule-validation.spec.ts src/api/endpoints/service-attendance.spec.ts src/api/http/client.spec.ts src/api/http/session-fetch.spec.ts src/api/endpoints/catalog.spec.ts`; `pnpm --dir apps/dashboard typecheck`; affected13-file lint; `node scripts/service-local-build.mjs dashboard`; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-catalog-professionals-local.config.ts e2e/service-catalog-professionals.spec.ts e2e/service-catalog-business-mode.spec.ts e2e/service-catalog-toggles.spec.ts`. Unfiltered manual inventory188/15files, runner authoritative; new4 plus oldCAT02two and CAT03two, whole8 zero skips. Dedicated static catalogProfessionals:true setup inherits every original origin/resource/timeout/reporter/cleanup guard; default setup creates no106companies. Preserve all old status/payload/geometry/reopen assertions, with only actual service Back gestures for the approved saved-editor continuation. Own API artifact requires integral readmission, no automatic rebuild/copy. New8native frames need Root technical inspection before mark/commit.
 **Commit**: `feat(service-business): t106 link professionals from service editor`
 
-### Phase 17: Revision-bound final acceptance
+### Phase 18: Revision-bound final acceptance
 
 ### T95: Collect revision-bound acceptance evidence
 
 **What**: Coletor valida cobertura de todos os critérios atuais da especificação (81 neste plano), teste selecionado executado sem skip, revisão/API/frontend e origem local/provider de artifacts; gera matriz/report de evidências sem atribuir aceite remoto a mocks. T108 native guard evidence and original affected consumer reruns remain distinct.
 **Where**: `apps/api/tests/service-acceptance-report.mjs`
-**Depends on**: T94, T97, T98, T101, T103, T106, T72, T109, T110
+**Depends on**: T94, T97, T98, T101, T103, T106, T72, T109, T110, T113
 **Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: QA-01, QA-02, QA-03, QA-04
 
@@ -2625,7 +2691,17 @@ Result: PASS LOCAL - actual3/3 plus nativecleanup0 at2026-11-16T21:13:11.003Z; i
 Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/buyer-account/application/use-cases/login-buyer.use-case.spec.ts` and `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/buyer-login-http.integration.spec.mjs`
 Tasks: T110.
 
+**C83** - WHEN a new service professional, grade, interval or appointment is created the system SHALL fill/use fixed America/Sao_Paulo, reject a different supplied new zone without writes and preserve historical/proven in-flight terms. (AGENDA-08)
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/fixed-service-time-zone-http.integration.spec.ts ./tests/service-booking-time-zone-compatibility.integration.spec.ts`
+Tasks: T111, T112, T113.
+
+**C84** - WHEN a service company creates new records through the UI the system SHALL show Brasilia without a timezone chooser and submit canonical selection, retaining historical zone facts read-only. (ATEND-13)
+Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-availability-local.config.ts e2e/service-fixed-time-zone.spec.ts`
+Tasks: T113.
+
 ## Handoff
+
+**Formalized fixed service timezone (2026-11-18):** Explicit user answers add AGENDA08/ATEND13, checks83/84 and111-113 after83/before84. Scope84criteria/113tasks,74done39open. Fixed new records/UI choices, historical/in-flight terms and product preservation remain required. New-write/control expectations evolve under the user-directed rule; unrelated wrong-oracle changes still need review. Local only.
 
 **T60 local QuickUI GREEN / marked before focused commit:**107unique accepted cases=65/12wholefiles retainedfrom00242f10 +unchangedwhole38 d6a88559/raw3b3e6634 +causalwhole4 0a8bfd88. Whole38 original5s unchanged/fresh5324?1024/PID29644 natural0/0skip; source2dfa6105/control60b9e09a/alloriginal103/STATE exact. OriginalcausalRED andfirstimport5sdeadlineRED retained, delaycauseunknown/noRAM/cache/repairclaim; no preload/oracle/timeout/sourcechange. Scope/selection/claim/cursor/canonicalrevision/clientintent checks andlegacy72 preserved; all3Task60checkboxes nowmarkedafteractualgatebeforeatomiccommit. MreturnedsoleSUT/probe immediatelyafterrunner; onlyFS/Git/validators follow, STATE/outputs excluded. No build/browser/provider/production/push. T61/T62 visualwork andfinalfeatureproofs/Verifier remainpending.
 
@@ -3398,9 +3474,11 @@ Tasks: T110.
 **Local T35 closure:** Full463 GREEN in documented cohorts (components79 = retained68 + current11; whole natives160; normal48/widget176), own current16682447/ed205188/2585 and APItypes/lint0. Task marked before its focused local commit; task-35-evidence.json retains every RED/plumbing approval/cleanup observation. Public manual producerT41, financial36-38/84, confirmation39/40 and final sameHEAD verification remain open. No provider/push/deploy/customer action.
 ## Phase Execution Map
 
-109 tasks in17 phases; the task-level dependency graph and Depends on fields above are authoritative. Phase1 opens company/professional/human-delivery fronts. Company/professional writers feed Phase9 RAG;25+59 open the independent73–77 administration client/state/UI sequence, while71→72 remains mandatory before final acceptance. Phase4 waits for company/professional integration; Phases5/6 follow its canonical booking admission. Phase8 close/UI depends on55 and its explicit59 permissions. No business-operation dependency or required gate is waived.
+Phase12 adds111-113 after83/47 and before84;84 and95 depend113. Phase11 task78 now explicitly depends47 for its already-required three-reader parity; prior partial source preparation never proves that gate. Both user timezone questions are resolved.
 
-Phase14 adds99→100→101, with55 also required by100 and62 by101. Phase15 adds102→103 after actual41/74, then80/83. Phase16 keeps105→106 and107 entitlement dependencies;104/108 retain their earlier explicit edges. Phase13 coexistence92–94 and all new fronts converge at Phase17 final95 after94/97/98/101/103/106/72. Existing original product regressions,108 consumer guards, same-HEAD proofs, independent mutations/screens/walk and validate_verification remain required before completion. One local atomic commit per completed task; publication is separate.
+113 tasks in18 phases; the task-level dependency graph and Depends on fields above are authoritative. Phase1 opens company/professional/human-delivery fronts. Company/professional writers feed Phase9 RAG;25+59 open the independent73–77 administration client/state/UI sequence, while71→72 remains mandatory before final acceptance. Phase4 waits for company/professional integration; Phases5/6 follow its canonical booking admission. Phase8 close/UI depends on55 and its explicit59 permissions. No business-operation dependency or required gate is waived.
+
+Phase15 adds99→100→101, with55 also required by100 and62 by101. Phase16 adds102→103 after actual41/74, then80/83. Phase17 keeps105→106 and107 entitlement dependencies;104/108 retain their earlier explicit edges. Phase14 coexistence92–94 and all new fronts converge at Phase18 final95 after94/97/98/101/103/106/72. Existing original product regressions,108 consumer guards, same-HEAD proofs, independent mutations/screens/walk and validate_verification remain required before completion. One local atomic commit per completed task; publication is separate.
 
 **Approved T54 test correction:** 2026-11-16 - user: "Sim, corrigir a expectativa do teste (recomendado)" (reply call_f467064279f64627b220b0e1727ef4da). Exact candidate6c32932e9c25c627dbecc49b2bdb46f7db9ddb5092e84dcc6263ae7575884f86/patch06290559f6f04eb24d3ae7e3185e9abc09fb79a53bcf79d1a6eedcf67b589fed applied only after officialoriginala19442c8cd312c84193af6cc8b557cc4ec30714c10bb8c78ce8a6734e8a088b7 verification. Keep the full pre-enqueue snapshot; only expected ticket.updatedAt equals the canonical queued message.createdAt, all other fields/oracles intact. Original9-case failure retained; real9 must pass on currenta104/8b40 before task54 completion.
 

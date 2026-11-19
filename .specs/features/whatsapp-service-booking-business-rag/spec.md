@@ -1,5 +1,7 @@
 # WhatsApp Service Booking and Business RAG Specification
 
+**User-directed timezone refinement (2026-11-18):** user: "Sempre horário de Brasília, sem configuração"; "Sim, Brasília em todos os novos cadastros e agendamentos (recomendado)". AGENDA-08/ATEND-13 and T111-T113 implement fixed America/Sao_Paulo for new service records without a chooser, preserving historical zones/instants and trusted in-flight terms. Local scope84 criteria/113 tasks; original product commerce and approvals remain protected. New-write/control tests evolve under this explicit new rule; unrelated historical/security/payment/stock assertions stay intact.
+
 **Discovered authentication prerequisite (2026-11-17):** Local source and real-hasher/JWT RED8 (3pass/5fail) reproduced password-login acceptance when verify returns valid:false. AUTH-01/T110 records the required rejection contract before service buyer authentication can be claimed. This corrects an existing security defect; no new business choice, provider action or production validation. Current scope82criteria/110tasks; original approvals remain unchanged.
 
 **Discovered uncertain-replay repair (2026-11-17):** Actual owned SQL/incoming/Meta-adapter RED reproduced two physical local attempts after an unknown handoff notice, while legacy retained one. T109 repairs the existing HUM-03/HUM-07 contract independently from uncommitted T56, with no new criterion, product decision, timeout, provider action or oracle change. Current scope is81 criteria/109 tasks; original approvals remain unchanged. Historical close/new-handoff validation remains mandatory with T56/T57 after that capability exists.
@@ -103,6 +105,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 5. IF dois serviÃ§os do mesmo profissional disputam intervalos sobrepostos THEN the system SHALL permitir no mÃ¡ximo um agendamento confirmado nesse intervalo. [AGENDA-05]
 6. IF a agenda estÃ¡ vazia, desatualizada ou indisponÃ­vel THEN the system SHALL informar o estado correspondente sem criar horÃ¡rio ou declarar indisponibilidade total a partir de uma falha de leitura. [AGENDA-06]
 7. WHEN texto ou Ã¡udio descreve uma data ou profissional ambÃ­guo THEN the system SHALL pedir a escolha explÃ­cita entre as opÃ§Ãµes atuais antes de reservar ou cobrar. [AGENDA-07]
+8. WHEN a new service professional, grade, interval or appointment is created THEN the system SHALL use America/Sao_Paulo, fill an omitted zone and reject a different supplied new zone without writes, while preserving historical zones/absolute instants and proven in-flight contractual terms. [AGENDA-08]
 
 **Independent Test:** Dois profissionais, trÃªs serviÃ§os e duas datas; serviÃ§os diferentes com o mesmo profissional; competiÃ§Ã£o concorrente pelo mesmo intervalo; slot vencido; leitura com erro; Ã¡udio ambÃ­guo.
 
@@ -229,6 +232,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 1. WHEN um operador autorizado abre Agendamentos THEN the system SHALL oferecer Kanban e lista da mesma consulta canônica de ServiceAppointment, com os seis estados operacionais, filtros coerentes de período/profissional/serviço e estado financeiro separado, preservando versão e registro anterior quando uma ação falha. [ATEND-11]
 2. WHEN uma empresa de serviços acessa a navegação principal THEN the system SHALL apresentar Agendamentos no lugar da entrada principal de Pedidos e conservar Atendimento para gestão, enquanto empresas de produtos preservam Pedidos e não acessam Agendamentos por menu ou URL, sem apagar o histórico de pedidos de qualquer modalidade. [ATEND-12]
+3. WHEN a service company creates a new professional, grade, interval or appointment through the interfaces THEN the system SHALL show Brasilia without an editable timezone and submit canonical server selection, retaining historical zone facts read-only. [ATEND-13]
 
 **Independent Test:** Mesmos IDs/contagem nos dois modos de visualização, seis estados e pagamentos separados, filtros/fuso, ações permitidas e conflito versionado, navegação/URL nas duas modalidades, histórico preservado e capturas locais desktop/mobile.
 
@@ -302,6 +306,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | AGENDA-05 | Shared capacity | T23, T26, T34, T35 | Implemented locally (all current canonical/legacy writers share authority; final feature proof pending) |
 | AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 and T24 complete) |
 | AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | Pending |
+| AGENDA-08 | Fixed new service timezone and trusted history | T111, T112, T113 | Pending; explicit user decision2026-11-18 |
 | BOOK-01 | Provisional hold | T27 | Implemented (T27; final proof pending) |
 | BOOK-02 | Expiry | T27 | Implemented (T27; final proof pending) |
 | BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | In Progress (T26 and T27 complete) |
@@ -363,6 +368,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Pending; channel confirmed2026-11-16 |
 | ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |
+| ATEND-13 | Fixed timezone UI without a chooser | T113 | Pending; explicit user decision2026-11-18 |
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | Pending |
 | QA-03 | Persisted state proof | T2, T5, T26, T108, T92, T95 | In Progress (T26 complete) |
 | QA-04 | RAG evaluation | T72, T94, T95 | In Progress (T72 critical evaluation locally complete; T94/T95 final activation gates pending) |

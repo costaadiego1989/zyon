@@ -233,3 +233,10 @@ Capturas de Atendimento, Conversas, Dados da empresa, painel e compradores disti
 Tarefas sequenciais, gate e commit por tarefa, subagentes já aceitos. check_proofs no mesmo HEAD, três mutações e verificador independente. Alvos prioritários: retirar tenant, relaxar evidência financeira, ignorar capacidade/fence. Não executar antes de aprovar tarefas.
 
 Release futuro exige revisão API/frontend servida, migração expansiva comprovada, health/ready e habilitação por empresa. Só ativar depois de todos escritores migrarem. Rollback fecha novas reservas e mantém compromissos/financeiro, sem apagar esquema/dados. Aprovação de tarefas é implementação/commits locais; publicação e mudanças remotas continuam ações separadas.
+
+
+## Fixed service timezone refinement
+
+All new service professionals, grades, intervals and appointments use America/Sao_Paulo without a timezone selector. Use existing IANA conversion, not process.env.TZ or a numeric offset. Missing new input is server-filled; a different supplied new zone is rejected without writes after tenant/role guards.111 handles new-record authority,112 canonical date/selection/admission compatibility and113 UI/fixture evolution.
+
+Historical rows generate their original UTC intervals in their own stored zone. Preserve frozen paid units, exact held generations and same-ID manual pending terms through existing private stored proof; public flags or guessed timestamps are never authority. Do not shift old appointments, money, lease identities or immutable receipts to satisfy new presentation. New Brasilia grade publication is explicit, rather than silently reusing historical wall minutes. Company cohort boundaries are fixed without configuration; product commerce/analytics remain unchanged.
