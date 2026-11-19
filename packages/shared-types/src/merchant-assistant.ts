@@ -2,7 +2,6 @@ import type {
   MetaAdsActionKind, MetaAdsCampaign, MetaAdsCampaignDraft, MetaAdsExecution,
   MetaAdsGeneration, MetaAdsMetrics, MetaAdsPriority, MetaAdsProposal, MetaAdsRecommendation,
 } from './meta-ads-agent.js';
-import type {MetaAdsAutomationPolicyInput} from './meta-ads-agent.js';
 
 /** Public assistant contracts. Credentials and execution authority are server-only. */
 export interface AssistantContextDescriptor { id: string; label: string; capabilities: string[]; }
