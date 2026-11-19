@@ -13,6 +13,8 @@ export interface AssistantModelInput {
   state?:{contextLabel:string;now:string;campaign:AssistantCampaignProgress|null;checklist?:Record<string,unknown>};
   /** Server-selected orchestration step, scoped to this durable turn. */
   step?:number;
+  /** Trusted server orchestration, separate from catalog and campaign data. */
+  completionRequirement?:string;
   /** Server-only purpose. Never taken from a merchant tool argument. */
   purpose?:'chat'|'daily_analysis';
 }

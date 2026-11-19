@@ -5,6 +5,14 @@ import type { MetaAccess } from "../domain/types.js";
 import { MetaMcpAdapter } from "./meta-mcp.adapter.js";
 
 const access = (): MetaAccess => ({ merchantId: "store-a", accessToken: "scoped-token", clientConversationId: "AbCdEfGhIjKlMnOpQr12", connectionEpoch: 1, accountId: "100", pageId: "110", catalogId: null, datasetId: "120", whatsappId: null });
+
+test('ACJ-07 budget guidance reads only the authorized account floor and does not invent missing minimums',async()=>{
+ for(const raw of [570,undefined,0,'unknown']){
+  const f=fixture(call=>call.name==='ads_get_ad_accounts'?{ad_accounts:[{ad_account_id:'100',ad_account_name:'Conta',currency:'BRL',is_queryable:true,is_ads_mcp_enabled:true,min_daily_budget_cents:raw}]}:undefined);
+  assert.deepEqual(await f.adapter.accountBudgetConstraints(access()),{accountId:'100',currency:'BRL',minimumDailyBudgetCents:raw===570?570:null});
+  await assert.rejects(f.adapter.accountBudgetConstraints({...access(),accountId:'999'}),{code:'meta_asset_forbidden'});assert.equal(f.calls.some(call=>/create|activate|update/.test(call.name)),false);
+ }
+});
 const campaign = (): MetaAdsCampaign => ({ id: "local-a", createdByAgent: true, managed: true, remoteCampaignId: "200", remoteAdSetId: "300", remoteAdIds: ["500"], status: "remote_paused", createdAt: "2026-11-14T12:00:00Z", updatedAt: "2026-11-14T12:00:00Z", products: [{ productId: "product-a", variantId: "variant-a", name: "Produto", description: "Produto real", sku: "SKU-A", imageUrl: "https://media.example.test/original.png", priceCents: 10000, currency: "BRL", stockQuantity: 5, active: true, storefrontUrl: "https://store.example.test/product-a", commercialVersion: "v1" }], draft: { name: "Campanha", destination: "store", priority: "paid_sales", variantIds: ["variant-a"], budget: { amountCents: 2000, currency: "BRL", cadence: "daily", startsAt: "2026-11-15T12:00:00Z", endsAt: null }, mediaIds: ["media-a"], headline: "Produto", primaryText: "Conheca o produto", country: "BR" } });
 const media: MetaAdsMedia[] = [{ id: "media-a", campaignId: "local-a", variantId: "variant-a", productId: "product-a", url: "https://media.example.test/generated.png", productVersion: "v1", createdAt: "2026-11-14T12:00:00Z" }];
 const proposal = (kind: MetaAdsProposal["kind"]): MetaAdsProposal => ({ id: "proposal-a", campaignId: "local-a", kind, status: "approved", before: {}, after: {}, digest: "approved-digest", connectionEpoch: 1, reasoning: "Revisado", createdAt: "2026-11-14T12:00:00Z", approvedAt: "2026-11-14T12:01:00Z", approvedBy: "owner-a", executionId: null });
@@ -258,6 +266,14 @@ test("MCP WhatsApp campaigns verify the page phone and use the same messaging de
   assert.equal(set.destination_type, "WHATSAPP"); assert.equal(set.optimization_goal, "CONVERSATIONS"); assert.deepEqual(JSON.parse(String(set.promoted_object)), { page_id: "110" });
   const creative = f.calls.find(call => call.name === "ads_create_creative")!.args;
   assert.equal(creative.call_to_action_type, "WHATSAPP_MESSAGE"); assert.equal(creative.link_url, "https://wa.me/5511999999999");
+});
+
+test('ACJ-03 WhatsApp Business linkage is accepted only for the authorized Page while absent or denied links stay distinct',async()=>{
+ for(const state of ['business','absent','denied','foreign']){
+  const f=fixture(),request:typeof fetch=async(url,init)=>String(url).startsWith('https://graph.facebook.com/')?new Response(JSON.stringify(state==='denied'?{error:{code:200}}:{id:state==='foreign'?'999':'110',whatsapp_number:'+55 11 99999-9999',has_whatsapp_number:false,has_whatsapp_business_number:state!=='absent'}),{status:state==='denied'?403:200}):f.request(url,init);
+  const adapter=new MetaMcpAdapter({META_ADS_AGENT_REMOTE_WRITES_ENABLED:'true',META_ADS_GRAPH_API_VERSION:'v26.0'},request),result=await adapter.discover(access());
+  assert.equal(result.whatsappNumbers.length,state==='business'?1:0);assert.equal(result.capabilities.whatsapp,state==='business');assert.equal(result.errors.includes('whatsapp_unavailable'),['denied','foreign'].includes(state));assert.equal(f.calls.some(call=>/create|update|activate/.test(call.name)),false);
+ }
 });
 test("MCP static carousel preserves five images and their canonical product links", async () => {
   const f = fixture(); const images = Array.from({ length: 5 }, (_, i) => ({ ...media[0], id: `media-${i}`, url: `https://media.example.test/${i}.png` }));

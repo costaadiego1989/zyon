@@ -42,6 +42,10 @@ export function errorMessage(error: unknown): string {
     insufficient_image_credits: "Saldo de imagens insuficiente. Revise o consumo ou compre extras.",
     meta_connection_changed: "A conexão mudou. Conecte e revise os ativos novamente.",
     meta_permission_missing: "Falta uma permissão na Meta. Revise sua conexão.",
+    meta_asset_forbidden:"Este item não está disponível nesta conta. Confira a Página e atualize as opções.",
+    meta_whatsapp_not_linked:"Vincule o WhatsApp à Página na Meta. Depois atualize os números e salve a conexão.",
+    meta_whatsapp_access_denied:"A Meta não liberou a consulta do WhatsApp desta Página. Confira seu acesso.",
+    campaign_budget_below_minimum:"A verba ficou abaixo do mínimo aceito pela Meta. Peça à IA para consultar o mínimo desta conta.",
   };
   return messages[code] ?? "Não foi possível confirmar a operação. Atualize os dados antes de tentar novamente.";
 }

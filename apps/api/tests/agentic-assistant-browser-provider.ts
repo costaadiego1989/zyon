@@ -11,10 +11,16 @@ export class AgenticBrowserProvider {
   private holdImages=false;private imageWaiters:Array<()=>void>=[];
   metricsUnavailable=false;sampleMetrics=false;private holdModel=false;private modelWaiters:Array<()=>void>=[];
   get modelPending(){return this.modelWaiters.length;}
+  private modelScript:Array<{reply:string}|{tool:{name:string;args:Json}}>=[];
+  get modelScriptRemaining(){return this.modelScript.length;}
+  setModelScript(value:unknown){
+    if(this.modelScript.length||!Array.isArray(value)||!value.length||value.length>8||value.some(step=>!step||typeof step!=='object'||Array.isArray(step)||Object.keys(step).length!==1||!('reply' in step&&typeof step.reply==='string'&&step.reply.length<=8000||'tool' in step&&step.tool&&typeof step.tool.name==='string'&&step.tool.args&&typeof step.tool.args==='object'&&!Array.isArray(step.tool.args))))throw Error('controlled_script_invalid');
+    this.modelScript=structuredClone(value);
+  }
   setModelHold(value:boolean){this.holdModel=value;if(!value)for(const release of this.modelWaiters.splice(0))release();}
   setImageHold(value:boolean){this.holdImages=value;if(!value)for(const release of this.imageWaiters.splice(0))release();}
   constructor(readonly clock:()=>Date){}
-  reset(){this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.whatsappMode='accepted';this.whatsappRequests=[];this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;this.sampleMetrics=false;}
+  reset(){this.modelScript=[];this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.whatsappMode='accepted';this.whatsappRequests=[];this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;this.sampleMetrics=false;}
   private model(body:Json):Response {
     this.modelCalls++;
     const messages=body.messages as Json[];
@@ -28,6 +34,7 @@ export class AgenticBrowserProvider {
     const toolResult=(name:string)=>{const call=messages.slice(userIndex+1).flatMap(m=>m.tool_calls??[]).find(call=>call.function.name===name);const message=messages.findLast(m=>m.role==='tool'&&m.tool_call_id===call?.id);return message?JSON.parse(message.content):{};};
     const completion=(content:unknown,tool?:{name:string;args:Json})=>json({id:randomUUID(),choices:[{finish_reason:tool?'tool_calls':'stop',message:tool?{content:null,tool_calls:[{id:'call-'+randomUUID(),type:'function',function:{name:tool.name,arguments:JSON.stringify(tool.args)}}]}:{content:JSON.stringify(content)}}],usage:{prompt_tokens:100,completion_tokens:40,total_tokens:140}});
     if(body.tools?.some((t:Json)=>t.function.name==='propose_campaign_changes'))return completion(null,{name:'propose_campaign_changes',args:{recommendations:[]}});
+    const scripted=this.modelScript.shift();if(scripted)return 'tool' in scripted?completion(null,scripted.tool):completion({reply:scripted.reply,referenceIds:refs.map(ref=>ref.id)});
     if(/fundos|pagar|pagamento|verba|saldo/i.test(text)&&!called.includes('merchant_ads_funding'))return completion(null,{name:'merchant_ads_funding',args:{}});
     const reply=(value:string)=>completion({reply:value,referenceIds:refs.map(ref=>ref.id)});
     if(/relat[oó]rio di[aá]rio/i.test(text)){
@@ -43,7 +50,7 @@ export class AgenticBrowserProvider {
     if(/fundos|pagar|pagamento|verba|saldo/i.test(text))return reply('A verba dos anúncios é paga diretamente à Meta e é separada da assinatura e dos créditos de imagens. Confira o tipo de cobrança da conta no painel Verba dos anúncios. Use o botão de pagamentos da conta conectada e depois Verificar novamente; esse botão não adiciona saldo na Zyon.');
     if(/vender.*camisas/i.test(text)){
       if(!called.includes('merchant_ads_catalog'))return completion(null,{name:'merchant_ads_catalog',args:{query:'Camisa'}});
-      if(!called.includes('merchant_ads_save_draft')){const products=toolResult('merchant_ads_catalog').products??[],full=/R\$\s*100 no total/i.test(text);return completion(null,{name:'merchant_ads_save_draft',args:{name:'Camisas da semana',variantIds:products.map((p:Json)=>p.variantId),destination:/WhatsApp/i.test(text)?'whatsapp':'store',priority:'paid_sales',country:'BR',approvalPreference:/automaticamente|autom[aá]tico/i.test(text)?'automatic':'manual',headline:'Camisas para o seu dia',primaryText:'Conheça as camisas da nossa loja.',mediaIds:[],imageCount:/carrossel|2 imagens/i.test(text)?2:1,...(full?{budget:{amountCents:10000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-16T12:00:00.000Z',endsAt:'2026-11-23T12:00:00.000Z'}}:{})}});}
+      if(!called.includes('merchant_ads_save_draft')){const products=toolResult('merchant_ads_catalog').products??[],full=/R\$\s*100 no total/i.test(text);return completion(null,{name:'merchant_ads_save_draft',args:{planningKind:'campaign',name:'Camisas da semana',variantIds:products.map((p:Json)=>p.variantId),destination:/WhatsApp/i.test(text)?'whatsapp':'store',priority:'paid_sales',country:'BR',approvalPreference:/automaticamente|autom[aá]tico/i.test(text)?'automatic':'manual',headline:'Camisas para o seu dia',primaryText:'Conheça as camisas da nossa loja.',mediaIds:[],imageCount:/carrossel|2 imagens/i.test(text)?2:1,...(full?{budget:{amountCents:10000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-16T12:00:00.000Z',endsAt:'2026-11-23T12:00:00.000Z'}}:{})}});}
       return reply(/R\$\s*100 no total/i.test(text)?'Campanha salva. Vou preparar os criativos; a publicação exige sua aprovação administrativa.':'Encontrei a Camisa no catálogo. Qual orçamento deseja investir: diário ou total, com quais datas?');
     }
     if(/^100$/.test(text.trim()))return reply('Esse orçamento é diário ou total? Quais são as datas de início e término?');

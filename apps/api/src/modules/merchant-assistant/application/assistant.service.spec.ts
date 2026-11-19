@@ -10,6 +10,40 @@ import { AssistantService } from './assistant.service.js';
 const answer = (reply: string, referenceIds: string[] = []): AssistantModelResult => ({ reply, referenceIds, toolCalls: [], providerRequestId: 'req-a', costMicros: 20n });
 const tools = (name: string, args: Record<string, unknown>): AssistantModelResult => ({ ...answer(''), reply: null, toolCalls: [{ id: 'call-a', name, args }] });
 
+test('ACJ-06 a sourced explanation may summarize confirmed choices while asking just one new question',async()=>{
+ const text='Guardei o produto, o destino WhatsApp e o objetivo de compras na região escolhida. O orçamento da campanha é o limite de gasto. Quer entender a diferença entre orçamento e saldo?';
+ const f=await fixture(input=>answer(text,input.knowledge.slice(0,1).map(item=>item.reference.id)));
+ try{await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'whatsapp',priority:'paid_sales',country:'BR'});await f.message('E qual a diferença de orçamento e saldo?');const response=await f.process();assert.equal(response.reply,text);assert.equal(response.references.length,1);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!.campaignId,null);
+ }finally{await f.close();}
+});
+
+test('ACJ-06 a contextual follow-up retrieves the preceding payment topic and preserves a sourced explanation',async()=>{
+ const f=await fixture(input=>{const payment=input.knowledge.find(item=>/fundos|cobrança/i.test(item.content));assert.ok(payment);return answer('O investimento dos anúncios é pago diretamente à Meta. Posso explicar o próximo passo?',[payment.reference.id]);});
+ try{f.conversations.turns=async()=>({turns:[{...f.turn,id:'previous',ordinal:0,message:'Como colocar saldo na Meta?',reply:'Os fundos dos anúncios são pagos na Meta. Você encontrou a opção de adicionar fundos?',status:'completed' as const}],nextCursor:null});await f.message('E como isso funciona?');const response=await f.process();assert.equal(response.reply,'O investimento dos anúncios é pago diretamente à Meta. Posso explicar o próximo passo?');assert.equal(response.references.length,1);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
+ }finally{await f.close();}
+});
+
+test('ACJ-01 the amount question cannot imply a daily budget before the merchant chooses its cadence',async()=>{
+ const f=await fixture(input=>answer('Quanto você quer investir por dia nessa campanha?',input.knowledge.slice(0,1).map(item=>item.reference.id)));
+ try{await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'whatsapp',priority:'paid_sales',briefing:{selectionKind:'product'}});await f.message('Meu objetivo é conseguir mais compras pagas');const response=await f.process();assert.equal(response.reply,'Quanto você quer investir no anúncio?');const p=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!;assert.equal(p.briefing!.budget?.cadence,undefined);assert.equal(p.campaignId,null);
+ }finally{await f.close();}
+});
+
+test('ACJ-01 an uncited acknowledgement cannot strand a preserved briefing or introduce unsupported payment claims',async()=>{
+ const f=await fixture((_input,call)=>call===1?tools('merchant_ads_save_draft',{briefing:{budget:{startsAt:'2026-11-20T12:00:00.000Z'}}}):answer('Faça Pix de R$ 237 para continuar. Início entendido.'));
+ try{f.documents.splice(0);await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'whatsapp',priority:'paid_sales',briefing:{budget:{amountCents:12000,cadence:'lifetime'}}});await f.message('Pode começar dia 20');const response=await f.process();
+ assert.equal(response.reply,'Até que dia a campanha deve ficar no ar?');assert.doesNotMatch(response.reply,/Pix|237/);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!.draft.destination,'whatsapp');assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
+ }finally{await f.close();}
+});
+
+test('ACJ-06 a conversational budget correction with a question mark is interpreted by the model',async()=>{
+ const f=await fixture((_input,call)=>call===1?tools('merchant_ads_save_draft',{briefing:{budget:{amountCents:8000,cadence:'daily'}}}):answer('Em que dia você quer começar?'));
+ try{await f.call('merchant_ads_save_draft',{destination:'store',briefing:{budget:{amountCents:12000,cadence:'lifetime'}}});await f.message('Dá pra baixar o orçamento pra oitenta reais por dia?');await f.process();
+ const p=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!;assert.equal(p.briefing!.budget!.amountCents,8000);assert.equal(p.briefing!.budget!.cadence,'daily');assert.equal(p.draft.destination,'store');assert.equal(p.campaignId,null);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
+ }finally{await f.close();}
+});
+test('ACJ-01 a common campaign typo still starts with one destination question and no inventory',async()=>{const f=await fixture(()=>answer('Quais produtos, objetivo e orçamento?'));try{await f.message('quero criar uma camapnha');const response=await f.process();assert.match(response.reply,/loja.*WhatsApp/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
+
 test('ACF-05 a known malformed reply after a captured destination continues safely without replaying the model',async()=>{const f=await fixture(()=>{throw new AssistantError('assistant_model_response_invalid',502);});try{
   f.conversations.turns=async()=>({turns:[{...f.turn,id:'start',ordinal:0,message:'quero criar uma campanha',reply:'Prefere loja ou WhatsApp?',status:'completed' as const}],nextCursor:null});
   await f.message('Na loja');const response=await f.process();assert.match(response.reply,/produto específico.*categoria/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress?.draft.destination,'store');assert.equal(f.inputs.length,1);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
