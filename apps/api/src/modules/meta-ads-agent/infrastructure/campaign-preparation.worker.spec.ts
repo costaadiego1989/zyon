@@ -6,6 +6,7 @@ import {GenerationService} from '../application/generation.service.js';
 import {GenerationWorker} from './generation.worker.js';
 import {campaignLaunchFixture} from '../application/__tests__/launch-fixture.js';
 import {campaignPreparationDigest} from '../domain/campaign-preparation.js';
+import {CatalogCreativeService} from '../application/catalog-creative.service.js';
 
 async function fixture(reuse=false){
   const f=await campaignLaunchFixture();let enabled=true,physical=0,mode='verified';let worker:CampaignPreparationWorker;
@@ -18,6 +19,18 @@ async function fixture(reuse=false){
   const finish=async(jobId:string)=>{const job=await f.preparations.read('store-a',jobId);if(job.generationId)await generations.run('store-a',job.generationId);advance();await worker.drain();return f.preparations.read('store-a',jobId);};
   return{...f,preparation,request,worker,deps,generations,finish,advance,physical:()=>physical,mode:(value:string)=>{mode=value;},enabled:(value:boolean)=>{enabled=value;}};
 }
+
+test('FR-03 no image key falls back to a frozen catalog photograph and a real launch review without credits',async()=>{
+ const f=await fixture();try{let copied=0;const catalogCreatives=new CatalogCreativeService(f.repo,f.commerce,{configured:()=>true,capture:async input=>{copied++;return{url:'https://media.example.test/copied.png',sourceUrl:input.product.imageUrl!,imageSha256:'b'.repeat(64)};}},f.clock),generations={configured:()=>false,request:async()=>{throw Error('paid generation must not run');}},worker=new CampaignPreparationWorker({...f.deps,generations,catalogCreatives});
+ const job=await f.request();await worker.drain();const ready=await f.preparations.read('store-a',job.id),state=await f.repo.read('store-a');assert.equal(ready.status,'review_ready');assert.equal(copied,1);assert.equal(ready.generationId,null);assert.equal(state.credits.monthlyAvailable,30);assert.equal(Object.keys(state.generations).length,0);const proposal=state.proposals[ready.proposalId!],media=(proposal.after.media as any[])[0];assert.equal(proposal.kind,'launch');assert.equal(proposal.status,'pending_review');assert.equal(media.source,'catalog');assert.equal(media.url,'https://media.example.test/copied.png');assert.equal(media.commercialReview.method,'canonical_source');assert.equal(Object.keys(state.executions).length,0);assert.equal(f.calls.includes('launch'),false);
+ }finally{await f.close();}
+});
+
+test('FR-03 an unknown paid generation remains unknown and cannot be concealed by catalog fallback',async()=>{
+ const f=await fixture();try{let copied=0;f.mode('unknown');const worker=new CampaignPreparationWorker({...f.deps,catalogCreatives:{capture:async()=>{copied++;return[];}}});
+ const job=await f.request();await worker.drain();const waiting=await f.preparations.read('store-a',job.id);await f.generations.run('store-a',waiting.generationId!);f.advance();await worker.drain();const result=await f.preparations.read('store-a',job.id);assert.equal(result.status,'unknown');assert.equal(result.proposalId,null);assert.equal(copied,0);assert.equal(f.physical(),1);assert.equal((await f.notices.list('store-a',f.campaignId)).length,0);
+ }finally{await f.close();}
+});
 test('ACAP-06 ACAP-08 verified media is reused into one frozen launch and outbox without image consumption',async()=>{
   const f=await fixture(true);try{const job=await f.request();await f.worker.drain();const final=await f.preparations.read('store-a',job.id),state=await f.repo.read('store-a');assert.equal(final.status,'review_ready');assert.equal(final.generationId,null);assert.equal(f.physical(),0);assert.equal(state.credits.monthlyAvailable,30);const p=state.proposals[final.proposalId!];assert.equal(p.kind,'launch');assert.equal(p.status,'pending_review');assert.deepEqual(p.after.media,[state.media['media-a']]);const notices=await f.notices.list('store-a',f.campaignId);assert.equal(notices.length,1);assert.equal(notices[0].proposalDigest,p.digest);assert.equal(Object.keys(state.executions).length,0);assert.equal(f.calls.includes('launch'),false);}finally{await f.close();}
 });
