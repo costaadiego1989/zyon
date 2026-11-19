@@ -14,6 +14,7 @@ interface Dependencies{
   authorizeActor:(merchantId:string,actorId:string)=>Promise<void>;enabled:()=>boolean;clock?:Clock;
   authorizePreparation?:(merchantId:string,actorId:string)=>Promise<void>;
   budgetAssessment?:CampaignBudgetAssessmentPort;
+  catalogFallbackAvailable?:()=>boolean;
 }
 export class CampaignPreparationService{
   private readonly clock:Clock;
@@ -44,7 +45,7 @@ export class CampaignPreparationService{
     if(!state.campaigns[campaignId]||campaignPreparationDigest(state.campaigns[campaignId])!==digest)throw new MetaAdsError('preparation_version_changed',409);
     let job=await this.deps.preparations.admit({merchantId,campaignId,intentDigest,campaignDigest:digest,requestedBy:actorId,requestedImages:input.imageCount});
     const wallet=creditWallet(state,this.clock()),needed=Math.max(0,input.imageCount-content.reusableMediaIds.length);
-    if(!job.generationId&&needed>wallet.monthlyAvailable+wallet.extraAvailable)missing.push('image_credits_insufficient');
+    if(!job.generationId&&needed>wallet.monthlyAvailable+wallet.extraAvailable&&!this.deps.catalogFallbackAvailable?.())missing.push('image_credits_insufficient');
     const oldProposal=job.proposalId?state.proposals[job.proposalId]:null;
     const forceReview=job.status==='review_ready'&&(!oldProposal||oldProposal.connectionEpoch!==state.connection.epoch||['stale','rejected'].includes(oldProposal.status))||job.status==='blocked'&&missing.length===0;
     if(job.campaignDigest!==digest||job.requestedBy!==actorId||forceReview)job=await this.deps.preparations.revise(merchantId,job.id,job.campaignDigest,{campaignDigest:digest,requestedBy:actorId,forceReview});

@@ -50,6 +50,8 @@ import {CampaignNoticeContactService} from '../application/campaign-notice-conta
 import {InitialLaunchService} from '../application/initial-launch.service.js';
 import {CampaignPreparationWorker} from './campaign-preparation.worker.js';
 import {assessBudget,type CampaignBudgetAssessmentPort} from '../application/budget-guidance.js';
+import {CatalogImageAdapter} from './catalog-image.adapter.js';
+import {CatalogCreativeService} from '../application/catalog-creative.service.js';
 import {CampaignReadyNoticeWorker} from './campaign-ready-notice.worker.js';
 import {CampaignReadyNoticeSender} from './campaign-ready-notice.sender.js';
 
@@ -76,6 +78,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   let preparationWorker:CampaignPreparationWorker;
   const generations = new GenerationService(repo, commerce, new ImageGenerationAdapter(env, input.storage, request, new CreativeReviewAdapter(env, request)), clock,undefined,
     (merchantId,purpose,campaign)=>preparationWorker.authorizeGeneration(merchantId,purpose,campaign));
+  const catalogImageAdapter=new CatalogImageAdapter(env,input.storage,request),catalogCreatives=new CatalogCreativeService(repo,commerce,catalogImageAdapter,clock);
   const proposals = new ProposalService(repo, commerce, campaigns, connection, provider, clock);
   const automationEnabled = () => env.META_ADS_AGENT_ENABLED === 'true' && env.META_ADS_AGENT_AUTOMATION_ENABLED === 'true';
   const authorizeActor = async (merchantId: string, actorId: string) => {
@@ -97,12 +100,12 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const authority = new ExecutionAuthorityService({ repo, commerce, connection, campaigns, policies, exposure, budgetControl, funding, authorizeActor, enabled: automationEnabled,launchEnabled:approvalEnabled, clock });
   const executions = new ExecutionService(repo, commerce, campaigns, connection, provider, clock, undefined, { authority, exposure, budgetControl });
   const preparations=new PrismaCampaignPreparationRepository(input.prisma,clock),notices=new PrismaCampaignReadyNoticeRepository(input.prisma,clock);
-  const preparation=new CampaignPreparationService({repo,commerce,campaigns,connection,preparations,authorizeActor,authorizePreparation,enabled:approvalEnabled,clock,budgetAssessment});
+  const preparation=new CampaignPreparationService({repo,commerce,campaigns,connection,preparations,authorizeActor,authorizePreparation,enabled:approvalEnabled,clock,budgetAssessment,catalogFallbackAvailable:()=>catalogImageAdapter.configured()});
   const launches=new InitialLaunchService({repo,commerce,campaigns,proposals,executions,preparations,notices,authorizeActor,enabled:approvalEnabled,clock,budgetAssessment});
   const contacts=new CampaignNoticeContactService({db:input.prisma,authorizeActor,clock,senderNumber:async merchantId=>{
     const config=await input.whatsapp.findByMerchantId(merchantId);return config?.merchantId===merchantId?config.whatsappNumber??config.phoneNumber??null:null;
   }});
-  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,enabled:approvalEnabled,clock,budgetAssessment});
+  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,enabled:approvalEnabled,clock,budgetAssessment,catalogCreatives});
   const noticeSender=input.templates&&input.templateSender?new CampaignReadyNoticeSender({db:input.prisma,notices,configs:input.whatsapp,templates:input.templates,templateSender:input.templateSender,launches,authorizeActor,
       storeName:async merchantId=>(await commerce.getProfile(merchantId)).name,dashboardUrl:env.META_ADS_CAMPAIGN_REVIEW_URL??env.META_ADS_DASHBOARD_URL??'',clock,enabled:()=>approvalEnabled()&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true'}):null;
   const noticeWorker=new CampaignReadyNoticeWorker({repo,launches,notices,sender:{send:async lease=>{

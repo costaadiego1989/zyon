@@ -132,7 +132,9 @@ export interface MetaAdsMedia {
   url: string;
   productVersion: string;
   createdAt: string;
-  commercialReview?: { status: "verified" | "rejected" | "unavailable"; productVersion: string; imageSha256: string };
+  source?:'catalog'|'generated';
+  canonicalImageUrl?:string;
+  commercialReview?: { status: "verified" | "rejected" | "unavailable"; productVersion: string; imageSha256: string;method?:'model'|'canonical_source' };
 }
 
 export interface MetaAdsCampaignReadiness {
