@@ -6,7 +6,7 @@
 
 **Discovered uncertain-replay repair (2026-11-17):** Actual owned SQL/incoming/Meta-adapter RED reproduced two physical local attempts after an unknown handoff notice, while legacy retained one. T109 repairs the existing HUM-03/HUM-07 contract independently from uncommitted T56, with no new criterion, product decision, timeout, provider action or oracle change. Current scope is81 criteria/109 tasks; original approvals remain unchanged. Historical close/new-handoff validation remains mandatory with T56/T57 after that capability exists.
 
-**Approved**: 2026-11-14 - user: "Aprovar a especificaÃ§Ã£o apresentada"
+**Approved**: 2026-11-14 - user: "Aprovar a especificação apresentada"
 **Refinements approved**: 2026-11-14 - user: "Aprovar o plano e iniciar implementaÃ§Ã£o local". Approval covers all 71 criteria and the 95-task plan, including later explicit refinements.
 **Status:** Approved specification and refinements; tasks approved and Phase 1 implementation started locally.
 **Amendment:** 2026-11-14 - user requested an About field in existing company data, a Conversations tab inside WhatsApp, a service-only Atendimento management page, manual scheduling and business-specific dashboard metrics. User also explicitly required preservation of the approved product journeys in WhatsApp and storefront. Original 47-requirement approval remains recorded above; additions are explicit for task review and have no fabricated approval date.
@@ -312,9 +312,9 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | In Progress (T26 and T27 complete) |
 | BOOK-04 | Pay at attendance | T30, T40, T46 | In Progress (T30 complete) |
 | BOOK-05 | Pay online | T29, T35, T40 | In Progress (T29/T35 locally complete; T40 UI and final proof pending) |
-| BOOK-06 | Late payment | T36 | Pending |
+| BOOK-06 | Late payment | T36 | Complete locally at T36; Full422, actual claim/SQL/Redis and original product regressions; final feature verification pending |
 | BOOK-07 | On-site receipt | T4, T37, T41, T80 | Pending |
-| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34/T35 locally complete; T36-T38/T84 financial commands/final proof pending) |
+| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34/T35/T36 locally complete; T37/T38/T84 and final proof pending) |
 | BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T33 cancellation/T34 canonical accepted reschedule and T49 trusted intake locally complete; T41/T80 UI and final human-flow proof pending) |
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | In Progress (T35 canonical paid admission/no physical stock locally proved; T38/T39 events/confirmation and final proof pending) |
 | HUM-01 | Fixed menu entry | T57 | Complete (LOCAL; T57 menu and signed gesture gated; final feature verification pending) |
@@ -356,7 +356,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | REG-01 | Separate business journeys in both channels | T7, T9, T17, T28, T43, T45, T46, T47, T62, T82, T83, T90, T91, T93 | In Progress (T17 complete) |
 | REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | In Progress (T17 complete) |
 | REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | In Progress (T35 stock/financial/product preservation locally proved; T38/T92/T93 and final proof pending) |
-| REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17 complete) |
+| REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17/T36 locally complete; writer migration, activation and final checks pending) |
 | AUTH-01 | Reject invalid buyer passwords before JWT | T110 | Complete |
 | QA-01 | Criteria proofs | T1, T108, T109, T95 | Pending; native collector and replay repairs do not close final feature proof |
 | CAT-01 | Product-mode creation options | T98 | Complete locally;55unit+2real browser, no skips; final screen review later |
@@ -419,3 +419,6 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 **Approved T35 clock expectations:** 2026-11-18 - user: "Corrigir somente essas três expectativas (recomendado)" (call_9440ffd81bb840818131c0db1c8f0acf). Exact oracle patch abdce49 applied once; only positive clock counts1->2/1->2/1->3, every other assertion retained. Receipt .cache/t35-clock-review-20261118/approved-applied-receipt.json.
 **Local T35 closure:** Full463 GREEN in documented cohorts (components79 = retained68 + current11; whole natives160; normal48/widget176), own current16682447/ed205188/2585 and APItypes/lint0. Task marked before its focused local commit; task-35-evidence.json retains every RED/plumbing approval/cleanup observation. Public manual producerT41, financial36-38/84, confirmation39/40 and final sameHEAD verification remain open. No provider/push/deploy/customer action.
+
+
+**Local T36 closure:** Full422 GREEN across documented cohorts; own API b2ec26bd/241178bc/2586, types/lint/build0, mandatory owned cleanup and provider0. Task marked before focused local commit. No production/push/deploy; T37 onward and final same-HEAD verification remain pending.

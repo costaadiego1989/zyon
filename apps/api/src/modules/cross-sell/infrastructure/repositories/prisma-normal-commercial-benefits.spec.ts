@@ -14,7 +14,7 @@ function fixture() {
     discountBudget:{version:1,originalSubtotalCents:15000,promotionDiscountCents:1500},items:[{
       sku:"SKU",variantId:"variant",product_id:"product",category:"category",name:"Canonical",quantity:1,price:135,originalPrice:150,
       variant:JSON.stringify(["variant",[]])}]};
-  const stored:StoredSession = {id:"row",merchantId:"merchant",sessionId:"session",globalUserId:"buyer",conversationId:"conversation",
+  const stored:StoredSession = {id:"row",merchantId:"merchant",sessionId:"session",globalUserId:"buyer",conversationId:"conversation",serviceOrigin:null,serviceOriginProof:null,
     cart:JSON.parse(JSON.stringify(cart)),customer:null,shipping:null,shippingOptions:null,abandonmentScore:0,triggerAgent:false,
     chatHistory:[],paymentMethod:null,promptVariantId:null,cohort:null,featuresApplied:null,aiCostCents:0,version:2,strategyContextVersion:0,
     createdAt:now,updatedAt:now};

@@ -1,0 +1,1175 @@
+{
+  "task": "T36",
+  "recordedAtUtc": "2026-11-19T15:46:38.910064+00:00",
+  "reviewType": "source/FS/Python evidence reconciliation only; not final Verifier; Root reconciled actual remaining native and product receipts after natural completion",
+  "headBasis": "ed126a774cf9fe5db6d6aa09b427aa34607aa03c",
+  "runtimeOwner": "No owned SUT/compiler/probe active at closure",
+  "sourceIdentity": {
+    "freeze": {
+      "path": ".cache/t36-root-source-20261118/source-freeze-v9-approved-native-corrections.json",
+      "sha256": "86e682c10069a529ddbe4298d414ae58b22f6e36181a15d0ee29e96a68c784de",
+      "bytes": 21762
+    },
+    "sourceSetSha256": "e09fce321c7cc8858fcfdacec29b02cd6398c3934d72a471ec146d7c60582a58",
+    "productiveReconcilerSha256": "9a4425e6f4cd18702593fd53648513ce2fb471ac6fb46a827afb48e63f39b3b8",
+    "ownPinCount": 9,
+    "protectedT35PinCount": 35,
+    "all44PinsVerifiedFromBytes": true,
+    "pins": [
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/task-36-plan.md",
+        "sha256": "5a4ff0567efd01d0534a7e8afb313e7532f34a55a7c97043089dcb41901a02ac",
+        "bytes": 13233
+      },
+      {
+        "path": "apps/api/src/modules/payment/application/reconcile-service-payment.use-case.spec.ts",
+        "sha256": "4b592446b0ba35383ef8530f30e35fd47e943bf27570b663a18d7dfed125ee16",
+        "bytes": 4759
+      },
+      {
+        "path": "apps/api/tests/service-late-payment.integration.spec.ts",
+        "sha256": "c1d774341901e375d8d71a94ec67bae39636da995f345a69924b7af8af4e8962",
+        "bytes": 21770
+      },
+      {
+        "path": "apps/api/tests/service-late-payment-dispatch.integration.spec.ts",
+        "sha256": "86418f48d2510249582ec91f893bbac0aa7ba1896e60d2f47ecd0747cc5f7ad9",
+        "bytes": 19069
+      },
+      {
+        "path": "apps/api/src/modules/payment/application/reconcile-service-payment.use-case.ts",
+        "sha256": "9a4425e6f4cd18702593fd53648513ce2fb471ac6fb46a827afb48e63f39b3b8",
+        "bytes": 14446
+      },
+      {
+        "path": "apps/api/src/modules/payment/payment.module.ts",
+        "sha256": "2960a1e126fe777936c771c78cb0668044d5c668d8fb58bfe25e759b7d1162be",
+        "bytes": 20384
+      },
+      {
+        "path": "apps/api/src/modules/payment/application/reconcile-service-payment.current-state.regression.spec.ts",
+        "sha256": "d4db48db4e64fbd4e1ecc70916be927c8bd48c88c68c412c01912f7992970e88",
+        "bytes": 4723
+      },
+      {
+        "path": "apps/api/src/modules/cross-sell/infrastructure/repositories/prisma-normal-commercial-benefits.spec.ts",
+        "sha256": "48c27c6dc9dec165e7ee11173022241f9ebfd45e6b1cd92e4addc5aa86678d32",
+        "bytes": 19118
+      },
+      {
+        "path": "apps/api/src/modules/revenue-manager/infrastructure/incentive-coupon-binding-boundary.spec.ts",
+        "sha256": "c7df2b2d7428e7d712f1929b4ef855dfa512949da4d9c52d617c08aebfc83dd9",
+        "bytes": 8525
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/task-35-plan.md",
+        "sha256": "933399ce59db1609e7c5a5762ff2e5b227032e3d1279f389697167c874b3ee81",
+        "bytes": 10779
+      },
+      {
+        "path": "apps/api/prisma/deploy-migrations/20261118020000_service_order_authority/migration.sql",
+        "sha256": "0da39a39288e501fe1b9a92fce5583f088d4b418a710270176f5b2357148eaa9",
+        "bytes": 4270
+      },
+      {
+        "path": "apps/api/prisma/migrations/20261118020000_service_order_authority/migration.sql",
+        "sha256": "0da39a39288e501fe1b9a92fce5583f088d4b418a710270176f5b2357148eaa9",
+        "bytes": 4270
+      },
+      {
+        "path": "apps/api/prisma/schema.prisma",
+        "sha256": "6bd2f319fbd8f0cf3768f5a6d1ec9e20e472907c662efa824adcd6bee01e095d",
+        "bytes": 217399
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/confirm-service-appointment.use-case.ts",
+        "sha256": "a84f5eb27637455960d0052ac70d7eae2a49f68f75119c66f6a801d11ec59b26",
+        "bytes": 10256
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/services/checkout-bootstrap.service.ts",
+        "sha256": "acde9a7f327f242f158ee41ce664d3a39abaea3d7cece063356b397a34690c96",
+        "bytes": 13275
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/use-cases/complete-order.use-case.ts",
+        "sha256": "2bb2bd62bea695f131b14eac95c835e91a556a7de745d99c5800c31c85d950e7",
+        "bytes": 30444
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/use-cases/start-checkout.use-case.ts",
+        "sha256": "b835815a78cb05a32e955521bb34fdba317bae58dd2b5cbeab9e6fea991a820a",
+        "bytes": 16711
+      },
+      {
+        "path": "apps/api/src/modules/checkout/domain/ports/checkout-session.repository.port.ts",
+        "sha256": "28e2a5d9992896edf173b6239388fbb25dd8750664c42ecaa4c080ed23404d9c",
+        "bytes": 6172
+      },
+      {
+        "path": "apps/api/src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts",
+        "sha256": "7947193f19d1216c1c2e17f431d33308ca1d9258c40c19a88b9b92ce4e32aa15",
+        "bytes": 74229
+      },
+      {
+        "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "sha256": "11e5b6342e8243533c0700fbfc7322eee8fd47c956f240f783f0064ed99647a2",
+        "bytes": 34672
+      },
+      {
+        "path": "apps/api/src/modules/operations/application/order-fulfillment.use-case.ts",
+        "sha256": "7657c2ebcd3860b344578a23bc744b744fc1dc30570b8045c3e646a086c8e91a",
+        "bytes": 7440
+      },
+      {
+        "path": "apps/api/src/modules/operations/presentation/http/service-appointment-financial-privacy.spec.ts",
+        "sha256": "479044d7b0b0f3dc41588f344a25d298f5449805a09e9756c7153be6be38fd1c",
+        "bytes": 933
+      },
+      {
+        "path": "apps/api/src/modules/operations/presentation/http/service-appointment-public-view.ts",
+        "sha256": "e7f949ba985ffc6578cd2077e3d4b47be86bca9fa232c8124e8717ce3ab67aa6",
+        "bytes": 673
+      },
+      {
+        "path": "apps/api/src/modules/whatsapp-channel/infrastructure/adapters/checkout-whatsapp-conversation.adapter.ts",
+        "sha256": "629e85927793ad4b75ce8c3d6d0b48ffcccb5aa24b4bab5f691fa5e6b50a9349",
+        "bytes": 64778
+      },
+      {
+        "path": "apps/api/src/shared/bookings/manual-service-payment-continuation.ts",
+        "sha256": "d9bafedb3d887c14e9fa080c51060a6176a5247aae7c44f391b0653b37962cd9",
+        "bytes": 15250
+      },
+      {
+        "path": "apps/api/src/shared/bookings/redis-service-slots.ts",
+        "sha256": "7b9f24bbef70afefd3efdb15a4c0ade387eed761b04ebd3abc2fa9ff1898af30",
+        "bytes": 19741
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-admission-final-clock.regression.spec.ts",
+        "sha256": "2ca7599c3ab9283b8a00efc1a30d3e8bf9e9e8a47e5c0d28a385e67e4b58b895",
+        "bytes": 5757
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-appointment-admission.service.spec.ts",
+        "sha256": "1ca6afb3ab33091439ebbdf580820f80e855083d9361148a683996816ae5d6d8",
+        "bytes": 16616
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-appointment-admission.service.ts",
+        "sha256": "d41ab86b015e3260ebb62de8a5ce7ed02d265d01249909ae279422373ee1dfbe",
+        "bytes": 22273
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-checkout-provenance.ts",
+        "sha256": "a56f229545e741f4fa0e0acc6138807fd9bae11c573797fd8b000dfa88a5eafa",
+        "bytes": 3506
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-order-appointment.selection.spec.ts",
+        "sha256": "c97fd93971363e3a0648ebf2d6495a530c7a55e0b6c652ecc7ea2ac49e75cd5c",
+        "bytes": 3774
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-order-appointment.spec.ts",
+        "sha256": "3ae64b1284234d00ce48c1554b1b560430928252caa34e571ff42c75d32248f2",
+        "bytes": 4419
+      },
+      {
+        "path": "apps/api/src/shared/bookings/service-order-appointment.ts",
+        "sha256": "67f2fb39c2fb9974e2ab3ce78a18c0b82b490daf3b9988d7b7f330a26d5adfd5",
+        "bytes": 11722
+      },
+      {
+        "path": "apps/api/src/shared/persistence/order-fulfillment.ts",
+        "sha256": "7cfa53dd3a4cade68628ed9e485428539d83c4cd3f8b70849e28b1e273d1deb8",
+        "bytes": 8511
+      },
+      {
+        "path": "apps/api/tests/normal-checkout-payment.integration.mjs",
+        "sha256": "0f1dd0630a0223a82c5542c2a58ee00a5e28f99afa734baa1a4f684f9510b646",
+        "bytes": 8854
+      },
+      {
+        "path": "apps/api/tests/product-stock-regression.integration.spec.ts",
+        "sha256": "f1aceb1d4a56157b46a9719b9f82022dc632ba941e4815d7023c8ab26cab6a2f",
+        "bytes": 19478
+      },
+      {
+        "path": "apps/api/tests/service-approved-completion.integration.spec.ts",
+        "sha256": "007565cb1244db6ef0a8ca15af01ef7e24be6c03e7d140a43f7981aaf763465c",
+        "bytes": 13544
+      },
+      {
+        "path": "apps/api/tests/service-approved-order.fixture.ts",
+        "sha256": "0d553f1c5bb85a63c44163f2aaf8dc5acf11653e711682158121ddbe441890b6",
+        "bytes": 3085
+      },
+      {
+        "path": "apps/api/tests/service-approved-order.integration.spec.ts",
+        "sha256": "881e87df4410f3155310e61feccfc569af0803e1f503b7e0275319f2a3fc5bec",
+        "bytes": 8957
+      },
+      {
+        "path": "apps/api/tests/service-booking.integration.spec.ts",
+        "sha256": "0dd39d1399450422720be290844ab2c7d58b1241e83832d60bbb0875c036f505",
+        "bytes": 28562
+      },
+      {
+        "path": "apps/api/tests/service-checkout-origin.integration.spec.ts",
+        "sha256": "000f776f122123db3b653dddc3ce491d24b5959fd93eb9a3ffb3f1fcd701c610",
+        "bytes": 10312
+      },
+      {
+        "path": "apps/api/tests/service-local-confirmation.integration.spec.ts",
+        "sha256": "12b78872e4524984623f646cbedcd3d9ae41810447c97cd17aef4942f72116d2",
+        "bytes": 17049
+      },
+      {
+        "path": "apps/api/tests/service-manual-payment-continuation.integration.spec.ts",
+        "sha256": "9d143eda81fd7d8e680d3f5f2b4efa298163328356b6cd58d1095f960e2d2bcf",
+        "bytes": 16764
+      },
+      {
+        "path": "apps/api/tests/widget-cross-sell-checkout.integration.mjs",
+        "sha256": "90afff2d6eb7799fa63ff5ef1d32c81e09759daeb4f8dd2adcb3579c3068e689",
+        "bytes": 4656
+      }
+    ],
+    "note": "Old execution/pending flags in freeze/plan are historical; actual receipts/raw below determine this draft."
+  },
+  "components": {
+    "summary": {
+      "path": ".cache/t36-full-gates/components146-summary.json",
+      "sha256": "b5d14c83dcf971341a3013bcf17f089fb505b654f1cbd2cf73823987bda9695b",
+      "bytes": 711
+    },
+    "acceptedUniqueTests": 146,
+    "cohorts": [
+      {
+        "receipt": {
+          "path": ".cache/t36-full-gates/t36-full-quick-1-receipt.json",
+          "sha256": "48e6231bd840d8ef16c871427d6331140827f02a3a227f5a75f3445e4532b273",
+          "bytes": 1411
+        },
+        "file": "apps/api/src/modules/payment/application/reconcile-service-payment.use-case.spec.ts",
+        "fileSha256": "4b592446b0ba35383ef8530f30e35fd47e943bf27570b663a18d7dfed125ee16",
+        "raw": {
+          "path": ".cache/phase3-gates/t36-full-quick-1.log",
+          "sha256": "51ed41db092e9d49370d1114313103abaed8b2c0d15445b6b1a2cb829de8c3a8",
+          "bytes": 2997
+        },
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "wholeUnfiltered": true,
+        "command": [
+          "node",
+          ".cache/phase3-gates/run-ts-gate.mjs",
+          "t36-full-quick-1",
+          "src/modules/payment/application/reconcile-service-payment.use-case.spec.ts"
+        ],
+        "originalReceiptState": "GREEN",
+        "acceptedCurrentSource": true
+      },
+      {
+        "receipt": {
+          "path": ".cache/t36-full-gates/t36-full-quick-2-receipt.json",
+          "sha256": "802bb76fd33d1c8e8e575d5792c9ab23af4ccd3e674b2b8ac9af65983d9be4d5",
+          "bytes": 1440
+        },
+        "file": "apps/api/src/modules/payment/application/reconcile-service-payment.current-state.regression.spec.ts",
+        "fileSha256": "d4db48db4e64fbd4e1ecc70916be927c8bd48c88c68c412c01912f7992970e88",
+        "raw": {
+          "path": ".cache/phase3-gates/t36-full-quick-2.log",
+          "sha256": "0ad1a7a4525894d2eb8687a76ac41aa37324523bead52068292b4783c57e69d9",
+          "bytes": 1522
+        },
+        "counts": {
+          "tests": 4,
+          "pass": 4,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "wholeUnfiltered": true,
+        "command": [
+          "node",
+          ".cache/phase3-gates/run-ts-gate.mjs",
+          "t36-full-quick-2",
+          "src/modules/payment/application/reconcile-service-payment.current-state.regression.spec.ts"
+        ],
+        "originalReceiptState": "GREEN",
+        "acceptedCurrentSource": true
+      },
+      {
+        "receipt": {
+          "path": ".cache/t36-full-gates/t36-full-quick-3-receipt.json",
+          "sha256": "5b4c01648f1ba93ff41164c2837d6734ad3262b4624165ac39161efe6ed16efc",
+          "bytes": 1343
+        },
+        "file": "apps/api/src/modules/payment/payment.module.spec.ts",
+        "fileSha256": "c646c0dfda6d8375d7ae0d1d96223229dab8803ac0dc26de73252794d2bd62c6",
+        "raw": {
+          "path": ".cache/phase3-gates/t36-full-quick-3.log",
+          "sha256": "a1cdc2048deef89901aeb88fbaca39460f35049a934e2423752a41e1b86a8bee",
+          "bytes": 788
+        },
+        "counts": {
+          "tests": 1,
+          "pass": 1,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "wholeUnfiltered": true,
+        "command": [
+          "node",
+          ".cache/phase3-gates/run-ts-gate.mjs",
+          "t36-full-quick-3",
+          "src/modules/payment/payment.module.spec.ts"
+        ],
+        "originalReceiptState": "GREEN",
+        "acceptedCurrentSource": true
+      },
+      {
+        "receipt": {
+          "path": ".cache/t36-full-gates/t36-full-quick-4-receipt.json",
+          "sha256": "f14fce1e37ffd7aeb8a276e0dfaaf34bd22d46219dcd49ed024b49db43ec7c9f",
+          "bytes": 1406
+        },
+        "file": "apps/api/src/modules/payment/application/services/payment-dispatch.service.spec.ts",
+        "fileSha256": "beab142e6694cae14781443bd83f6c991054e9d482e2b1e89e16a77f60ca80e6",
+        "raw": {
+          "path": ".cache/phase3-gates/t36-full-quick-4.log",
+          "sha256": "ff23ed144ea7ddb9514fb9cd75cec27666113c7d7b6e010946b45c0362f8eff1",
+          "bytes": 2173
+        },
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "wholeUnfiltered": true,
+        "command": [
+          "node",
+          ".cache/phase3-gates/run-ts-gate.mjs",
+          "t36-full-quick-4",
+          "src/modules/payment/application/services/payment-dispatch.service.spec.ts"
+        ],
+        "originalReceiptState": "GREEN",
+        "acceptedCurrentSource": true
+      },
+      {
+        "receipt": {
+          "path": ".cache/t36-full-gates/t36-full-quick-5-receipt.json",
+          "sha256": "32e13eb1bc5324a7ae5dae254432663cf02763a9b74b06cc3eb46938e0437be5",
+          "bytes": 1400
+        },
+        "file": "apps/api/src/modules/payment/application/handle-asaas-webhook.use-case.spec.ts",
+        "fileSha256": "19c9d7506a600eaa75be82cba7ebd88ee8397b37b812063abd7844225b52c2f9",
+        "raw": {
+          "path": ".cache/phase3-gates/t36-full-quick-5.log",
+          "sha256": "f59e1a4e791289d18efa0ab97ea41ca215be4b9c12b79a4a253aca42efc32bd8",
+          "bytes": 41202
+        },
+        "counts": {
+          "tests": 66,
+          "pass": 66,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "wholeUnfiltered": true,
+        "command": [
+          "node",
+          ".cache/phase3-gates/run-ts-gate.mjs",
+          "t36-full-quick-5",
+          "src/modules/payment/application/handle-asaas-webhook.use-case.spec.ts"
+        ],
+        "originalReceiptState": "RED",
+        "acceptedCurrentSource": true,
+        "countMetadataReconciliation": {
+          "path": ".cache/t36-full-gates/quick-count-reconciliation.json",
+          "sha256": "781dd5d0a8bbeb989c02c0746bb977ead03b03ca087f8f1487b1fde0507d523c",
+          "bytes": 1264
+        },
+        "countMetadataOnlyNoSourceRerun": true
+      },
+      {
+        "receipt": {
+          "path": ".cache/t36-full-gates/t36-fixture-abi-quick-1-receipt.json",
+          "sha256": "bcd1f7d9d6ebd6770a58d24e4f931f04dc863e66779327e4a75691ba509f47a9",
+          "bytes": 1413
+        },
+        "file": "apps/api/src/modules/cross-sell/infrastructure/repositories/prisma-normal-commercial-benefits.spec.ts",
+        "fileSha256": "48c27c6dc9dec165e7ee11173022241f9ebfd45e6b1cd92e4addc5aa86678d32",
+        "raw": {
+          "path": ".cache/phase3-gates/t36-fixture-abi-quick-1.log",
+          "sha256": "3565cfc49cbdbdb1c1ef98dad1e9b5036058b6265a3b2089e6d73372bdb1b1c1",
+          "bytes": 7032
+        },
+        "counts": {
+          "tests": 30,
+          "pass": 30,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "wholeUnfiltered": true,
+        "command": [
+          "node",
+          ".cache/phase3-gates/run-ts-gate.mjs",
+          "t36-fixture-abi-quick-1",
+          "src/modules/cross-sell/infrastructure/repositories/prisma-normal-commercial-benefits.spec.ts"
+        ],
+        "originalReceiptState": "RED",
+        "acceptedCurrentSource": true,
+        "countMetadataReconciliation": {
+          "path": ".cache/t36-full-gates/fixture-abi-first-count-reconciliation.json",
+          "sha256": "2c726a678d244d00dab03aad7425e5f2ec848db488b969873e10707728ebcbef",
+          "bytes": 589
+        },
+        "countMetadataOnlyNoSourceRerun": true
+      },
+      {
+        "receipt": {
+          "path": ".cache/t36-full-gates/t36-fixture-abi-quick-2-receipt.json",
+          "sha256": "d10889e8d2444269c52ae1c68d1c27d21120fb614be85ece33ef9afe3c7940e5",
+          "bytes": 1399
+        },
+        "file": "apps/api/src/modules/revenue-manager/infrastructure/incentive-coupon-binding-boundary.spec.ts",
+        "fileSha256": "c7df2b2d7428e7d712f1929b4ef855dfa512949da4d9c52d617c08aebfc83dd9",
+        "raw": {
+          "path": ".cache/phase3-gates/t36-fixture-abi-quick-2.log",
+          "sha256": "d06951c59ab72091c19070628d46278c4ddd68c95b3c3beabbe9a649025f2e9a",
+          "bytes": 6820
+        },
+        "counts": {
+          "tests": 27,
+          "pass": 27,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "wholeUnfiltered": true,
+        "command": [
+          "node",
+          ".cache/phase3-gates/run-ts-gate.mjs",
+          "t36-fixture-abi-quick-2",
+          "src/modules/revenue-manager/infrastructure/incentive-coupon-binding-boundary.spec.ts"
+        ],
+        "originalReceiptState": "GREEN",
+        "acceptedCurrentSource": true
+      }
+    ],
+    "noAggregateReplayClaim": true
+  },
+  "headers": {
+    "summary": {
+      "path": ".cache/t36-full-gates/current-headers-own-build-green-20261119.json",
+      "sha256": "c70ee4f122b5a0306e48b5e191953408a798f8ead092fd3bc5629fd65b0ccd9b",
+      "bytes": 1623
+    },
+    "ownArtifact": {
+      "version": 1,
+      "buildCommand": "pnpm --dir apps/api build",
+      "buildExitCode": 0,
+      "checked": true,
+      "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+      "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2586
+      },
+      "recordedAt": "2026-11-19T13:37:57.417Z"
+    },
+    "typesExit": 0,
+    "captureBuildRecordExit": 0,
+    "independentAdmitExit": 0,
+    "logs": {
+      "apiTypes": {
+        "path": ".cache/t71-gates/2026-11-19T13-26-37.662Z/api-types.log",
+        "sha256": "3e1800d1e8c2409b466a41fb24a4ffe36b791b6f5fd0a8d6350994274c5a5803",
+        "bytes": 1212
+      },
+      "capture": {
+        "path": ".cache/t110-root-checked-gates/2026-11-19T13-28-26.785Z/capture.log",
+        "sha256": "bc22d1dce76b1c83ca1316435f5f2dd7795c86d5315982196e3103f5c3beff47",
+        "bytes": 38
+      },
+      "build": {
+        "path": ".cache/t110-root-checked-gates/2026-11-19T13-28-26.785Z/build.log",
+        "sha256": "5a77811316f5ce1e254aa6408a42af40d9ab21c4fa5351df4304c66e5111b717",
+        "bytes": 2030
+      },
+      "record": {
+        "path": ".cache/t110-root-checked-gates/2026-11-19T13-28-26.785Z/record.log",
+        "sha256": "7835d371754905f999a8f50043d07fcb5645d3527ad4b39b63a6a8c4439869d9",
+        "bytes": 45
+      }
+    },
+    "lint": {
+      "receipt": {
+        "path": ".cache/t36-full-gates/lint-after-fixture-abi-receipt.json",
+        "sha256": "85be1171ab95f8d7b0f88a9bbbbac4b8004e5bd79e12684f5bf1abcd68feeafa",
+        "bytes": 1218
+      },
+      "wrapper": {
+        "path": ".cache/t36-full-gates/lint-after-fixture-abi-wrapper.log",
+        "sha256": "29ddaae8676acab5a5e8412223b9f053ea2cb425fdceaae41c32fce066d03d36",
+        "bytes": 878
+      },
+      "naturalExit": 0,
+      "retainedNoAffectedProductiveSourceChange": true
+    }
+  },
+  "acceptedNative": {
+    "uniqueTests": 52,
+    "wholeFiles": 7,
+    "cohorts": [
+      {
+        "file": "apps/api/tests/service-late-payment.integration.spec.ts",
+        "sourceSha256": "c1d774341901e375d8d71a94ec67bae39636da995f345a69924b7af8af4e8962",
+        "receipt": {
+          "path": ".cache/t36-full-gates/2026-11-19T13-46-45.290Z-remaining-native/receipt.json",
+          "sha256": "5086ec4d1501c7086abbe0c883c057d83f13422e2898adb13647a40af5e6d247",
+          "bytes": 2866
+        },
+        "stageIndex": 0,
+        "raw": {
+          "path": ".cache/t36-full-gates/2026-11-19T13-46-45.290Z-remaining-native/t36-current-native-1.log",
+          "sha256": "17dc7ced64de706ef50e33e4cf602c5a60ce20bc284d30d1dd04ba47470d883b",
+          "bytes": 4532
+        },
+        "counts": {
+          "tests": 12,
+          "pass": 12,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "signal": null,
+        "wholeUnfiltered": true,
+        "ownArtifact": {
+          "checked": true,
+          "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+          "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2586
+          }
+        },
+        "freshGuardMinimumCommitMiB": 2048,
+        "observedCommitMiB": 2960,
+        "mandatoryOwnedCleanupPassedByNaturalRootCompletion": true,
+        "cleanupContract": {
+          "file": "apps/api/tests/service-operations-http.fixture.ts",
+          "lines": [
+            50,
+            54
+          ],
+          "asserted": {
+            "appClosed": true,
+            "remainingContainers": 0,
+            "remainingBridgeSockets": 0
+          }
+        },
+        "strictLocalProviderBoundary": "actual owned AppModule/SQL/Redis; synthetic financial evidence and direct local webhook input; no real PSP payment or production operation"
+      },
+      {
+        "file": "apps/api/tests/service-late-payment-dispatch.integration.spec.ts",
+        "sourceSha256": "86418f48d2510249582ec91f893bbac0aa7ba1896e60d2f47ecd0747cc5f7ad9",
+        "receipt": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-21-52.033Z-outstanding-dispatch8/receipt.json",
+          "sha256": "41686eae0f642356535ed7622c106a6f9d129c48a81d8d4bc006d308823ffe86",
+          "bytes": 1788
+        },
+        "stageIndex": 0,
+        "raw": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-21-52.033Z-outstanding-dispatch8/t36-current-native-2.log",
+          "sha256": "82d4eb9b0efbc8a78195953a82f790da72868f09692d809de66c9e28c1eae79b",
+          "bytes": 5793
+        },
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "signal": null,
+        "wholeUnfiltered": true,
+        "ownArtifact": {
+          "checked": true,
+          "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+          "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2586
+          }
+        },
+        "freshGuardMinimumCommitMiB": 2048,
+        "observedCommitMiB": 5083,
+        "mandatoryOwnedCleanupPassedByNaturalRootCompletion": true,
+        "cleanupContract": {
+          "file": "apps/api/tests/service-operations-http.fixture.ts",
+          "lines": [
+            50,
+            54
+          ],
+          "asserted": {
+            "appClosed": true,
+            "remainingContainers": 0,
+            "remainingBridgeSockets": 0
+          }
+        },
+        "strictLocalProviderBoundary": "actual owned AppModule/SQL/Redis; synthetic financial evidence and direct local webhook input; no real PSP payment or production operation"
+      },
+      {
+        "file": "apps/api/tests/service-manual-payment-continuation.integration.spec.ts",
+        "sourceSha256": "9d143eda81fd7d8e680d3f5f2b4efa298163328356b6cd58d1095f960e2d2bcf",
+        "receipt": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-29-29.479Z-outstanding-native32/receipt.json",
+          "sha256": "f647296affad84bb2a065f61b6ba75604e3ec8afbe3fc20c26241111c15b0cdc",
+          "bytes": 3807
+        },
+        "stageIndex": 0,
+        "raw": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-29-29.479Z-outstanding-native32/t36-current-native-3.log",
+          "sha256": "5312e1bba902733b25297c8d0e5d3edaf5f408468921f123daa327bd725f54d1",
+          "bytes": 3632
+        },
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "signal": null,
+        "wholeUnfiltered": true,
+        "ownArtifact": {
+          "checked": true,
+          "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+          "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2586
+          }
+        },
+        "freshGuardMinimumCommitMiB": 2048,
+        "observedCommitMiB": 6734,
+        "mandatoryOwnedCleanupPassedByNaturalRootCompletion": true,
+        "strictLocalProviderBoundary": "owned local SQL/Redis/AppModule or guarded stock fixture; synthetic data only"
+      },
+      {
+        "file": "apps/api/tests/service-approved-order.integration.spec.ts",
+        "sourceSha256": "881e87df4410f3155310e61feccfc569af0803e1f503b7e0275319f2a3fc5bec",
+        "receipt": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-29-29.479Z-outstanding-native32/receipt.json",
+          "sha256": "f647296affad84bb2a065f61b6ba75604e3ec8afbe3fc20c26241111c15b0cdc",
+          "bytes": 3807
+        },
+        "stageIndex": 1,
+        "raw": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-29-29.479Z-outstanding-native32/t36-current-native-4.log",
+          "sha256": "c3602b50a4f02ed01dcd299ad8f005bc130a2d20bd84f49bd1744e301e25692a",
+          "bytes": 3107
+        },
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "signal": null,
+        "wholeUnfiltered": true,
+        "ownArtifact": {
+          "checked": true,
+          "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+          "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2586
+          }
+        },
+        "freshGuardMinimumCommitMiB": 2048,
+        "observedCommitMiB": 6021,
+        "mandatoryOwnedCleanupPassedByNaturalRootCompletion": true,
+        "strictLocalProviderBoundary": "owned local SQL/Redis/AppModule or guarded stock fixture; synthetic data only"
+      },
+      {
+        "file": "apps/api/tests/service-approved-completion.integration.spec.ts",
+        "sourceSha256": "007565cb1244db6ef0a8ca15af01ef7e24be6c03e7d140a43f7981aaf763465c",
+        "receipt": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-36-57.900Z-outstanding-native15/receipt.json",
+          "sha256": "766bc9114b382e6362ca5e6e9f4c83e05ead2860196b541238bba3db0d578627",
+          "bytes": 4854
+        },
+        "stageIndex": 0,
+        "raw": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-36-57.900Z-outstanding-native15/t36-current-native-5.log",
+          "sha256": "38e68f86576f16d46ab529a79ca76368fb4c9cf0e986a2e31551384ed1e73ed5",
+          "bytes": 3574
+        },
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "signal": null,
+        "wholeUnfiltered": true,
+        "ownArtifact": {
+          "checked": true,
+          "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+          "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2586
+          }
+        },
+        "freshGuardMinimumCommitMiB": 2048,
+        "observedCommitMiB": 4277,
+        "mandatoryOwnedCleanupPassedByNaturalRootCompletion": true,
+        "strictLocalProviderBoundary": "owned local SQL/Redis/AppModule or guarded stock fixture; synthetic data only"
+      },
+      {
+        "file": "apps/api/tests/product-stock-regression.integration.spec.ts",
+        "sourceSha256": "f1aceb1d4a56157b46a9719b9f82022dc632ba941e4815d7023c8ab26cab6a2f",
+        "receipt": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-36-57.900Z-outstanding-native15/receipt.json",
+          "sha256": "766bc9114b382e6362ca5e6e9f4c83e05ead2860196b541238bba3db0d578627",
+          "bytes": 4854
+        },
+        "stageIndex": 1,
+        "raw": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-36-57.900Z-outstanding-native15/t36-current-native-6.log",
+          "sha256": "5f6da03ce970a8bb329eea8f2059dca4409aa82aa1025b0d05cf1b451d68f5f6",
+          "bytes": 1921
+        },
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "signal": null,
+        "wholeUnfiltered": true,
+        "ownArtifact": {
+          "checked": true,
+          "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+          "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2586
+          }
+        },
+        "freshGuardMinimumCommitMiB": 2048,
+        "observedCommitMiB": 4116,
+        "mandatoryOwnedCleanupPassedByNaturalRootCompletion": true,
+        "strictLocalProviderBoundary": "owned local SQL/Redis/AppModule or guarded stock fixture; synthetic data only"
+      },
+      {
+        "file": "apps/api/tests/service-checkout-origin.integration.spec.ts",
+        "sourceSha256": "000f776f122123db3b653dddc3ce491d24b5959fd93eb9a3ffb3f1fcd701c610",
+        "receipt": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-36-57.900Z-outstanding-native15/receipt.json",
+          "sha256": "766bc9114b382e6362ca5e6e9f4c83e05ead2860196b541238bba3db0d578627",
+          "bytes": 4854
+        },
+        "stageIndex": 2,
+        "raw": {
+          "path": ".cache/t36-full-gates/2026-11-19T15-36-57.900Z-outstanding-native15/t36-current-native-7.log",
+          "sha256": "3f1f8dd4a5904327dabe242e276589e8c0f1fcbb03205d06ecd0bd0a14b76609",
+          "bytes": 2548
+        },
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "naturalExit": 0,
+        "signal": null,
+        "wholeUnfiltered": true,
+        "ownArtifact": {
+          "checked": true,
+          "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+          "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2586
+          }
+        },
+        "freshGuardMinimumCommitMiB": 2048,
+        "observedCommitMiB": 6978,
+        "mandatoryOwnedCleanupPassedByNaturalRootCompletion": true,
+        "strictLocalProviderBoundary": "owned local SQL/Redis/AppModule or guarded stock fixture; synthetic data only"
+      }
+    ],
+    "finalFenceRealSqlProofNowPassedInWhole8": true,
+    "dispatchCleanupDiagnostic": "Raw includes an observed 2000ms ioredis disconnect timer; it is a diagnostic, not an exception or assertion that timers were empty."
+  },
+  "progressAtDraftBoundary": {
+    "acceptedTests": 166,
+    "equation": "146 components +12 native +8 native =166",
+    "plannedFull": 422,
+    "remainingExpected": 256,
+    "pendingNative": {
+      "expectedTests": 32,
+      "wholeFiles": [
+        {
+          "file": "tests/service-manual-payment-continuation.integration.spec.ts",
+          "expectedTests": 9,
+          "sha256": "9d143eda81fd7d8e680d3f5f2b4efa298163328356b6cd58d1095f960e2d2bcf",
+          "wholeUnfiltered": true,
+          "runnerCommand": [
+            "node",
+            ".cache/phase3-gates/run-ts-gate.mjs",
+            "t36-<scoped-label>",
+            "tests/service-manual-payment-continuation.integration.spec.ts"
+          ]
+        },
+        {
+          "file": "tests/service-approved-order.integration.spec.ts",
+          "expectedTests": 8,
+          "sha256": "881e87df4410f3155310e61feccfc569af0803e1f503b7e0275319f2a3fc5bec",
+          "wholeUnfiltered": true,
+          "runnerCommand": [
+            "node",
+            ".cache/phase3-gates/run-ts-gate.mjs",
+            "t36-<scoped-label>",
+            "tests/service-approved-order.integration.spec.ts"
+          ]
+        },
+        {
+          "file": "tests/service-approved-completion.integration.spec.ts",
+          "expectedTests": 5,
+          "sha256": "007565cb1244db6ef0a8ca15af01ef7e24be6c03e7d140a43f7981aaf763465c",
+          "wholeUnfiltered": true,
+          "runnerCommand": [
+            "node",
+            ".cache/phase3-gates/run-ts-gate.mjs",
+            "t36-<scoped-label>",
+            "tests/service-approved-completion.integration.spec.ts"
+          ]
+        },
+        {
+          "file": "tests/product-stock-regression.integration.spec.ts",
+          "expectedTests": 5,
+          "sha256": "f1aceb1d4a56157b46a9719b9f82022dc632ba941e4815d7023c8ab26cab6a2f",
+          "wholeUnfiltered": true,
+          "runnerCommand": [
+            "node",
+            ".cache/phase3-gates/run-ts-gate.mjs",
+            "t36-<scoped-label>",
+            "tests/product-stock-regression.integration.spec.ts"
+          ]
+        },
+        {
+          "file": "tests/service-checkout-origin.integration.spec.ts",
+          "expectedTests": 5,
+          "sha256": "000f776f122123db3b653dddc3ce491d24b5959fd93eb9a3ffb3f1fcd701c610",
+          "wholeUnfiltered": true,
+          "runnerCommand": [
+            "node",
+            ".cache/phase3-gates/run-ts-gate.mjs",
+            "t36-<scoped-label>",
+            "tests/service-checkout-origin.integration.spec.ts"
+          ]
+        }
+      ],
+      "state": "Root running; no result read/adopted by reviewer"
+    },
+    "pendingProducts": {
+      "expectedTests": 224,
+      "normal": 48,
+      "widget": 176,
+      "state": "unexecuted at parent dispatch; no result claimed"
+    }
+  },
+  "correctionsAndRetainedFailures": {
+    "approvedNativeTestCorrection": {
+      "path": ".cache/t36-native-first-failure-20261119/oracle-approved-applied.json",
+      "sha256": "d2302058eafe55487028eebe16c707942e75b8b61f01ac665a5648da5e859462",
+      "bytes": 510
+    },
+    "approvedPatchSha256": "15238afd40318157b716c6c94f92f2edb6ecb2212b1d5af4544fa2b46e6e3caf",
+    "userQuoteAsRecorded": "Corrigir somente essa expectativa (Recomendado)",
+    "noProductiveApiChangeFromCorrection": true,
+    "originalDispatchStartupFailure": {
+      "receipt": {
+        "path": ".cache/t36-full-gates/2026-11-19T13-46-45.290Z-remaining-native/receipt.json",
+        "sha256": "5086ec4d1501c7086abbe0c883c057d83f13422e2898adb13647a40af5e6d247",
+        "bytes": 2866
+      },
+      "raw": {
+        "path": ".cache/t36-full-gates/2026-11-19T13-46-45.290Z-remaining-native/t36-current-native-2.log",
+        "sha256": "9f294d49d8d1480422ec20e76ce82f2bf23b6fbf1e8db85043086bbb1428c671",
+        "bytes": 1882
+      },
+      "counts": {
+        "tests": 1,
+        "pass": 0,
+        "fail": 1,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "code": 1,
+      "childrenExecuted": 0,
+      "lastStage": "offline_embeddings_configured",
+      "cause": "unknown; do not relabel as memory/embedding failure"
+    },
+    "originalCountMetadataMismatchesPreserved": true,
+    "earlierNative12Failure": "8pass/4fail pre-correction historical, not accepted current evidence; exact correction receipt retained",
+    "historicalCausalRed": "prior current-state source RED/GREEN remains separate from final-fence source; no pre-fence causality claim manufactured",
+    "approvedPatch": {
+      "path": ".cache/t36-native-first-failure-20261119/expired-record-oracle.proposed.patch",
+      "sha256": "15238afd40318157b716c6c94f92f2edb6ecb2212b1d5af4544fa2b46e6e3caf",
+      "bytes": 1466
+    },
+    "nativeCorrectionCandidateVerified": true,
+    "mechanicalFixtureAbi": {
+      "receipt": {
+        "path": ".cache/t36-type-fixture-abi-20261119/applied-receipt.json",
+        "sha256": "7cfc64a1d488eab042e353d6b435e8ad77079b9480374d963b85690c98b4e431",
+        "bytes": 1957
+      },
+      "originalTypeFailure": {
+        "path": ".cache/t36-full-gates/api-types-receipt.json",
+        "sha256": "67a15ea087c97e0090b88a05af61037d281b6e706a8fc35b417a9e6fc8e636b4",
+        "bytes": 1472
+      },
+      "currentTwoFixtureBytesVerified": true,
+      "acceptedAssertionsOrCasesChanged": false,
+      "onlyAddedFields": {
+        "serviceOrigin": null,
+        "serviceOriginProof": null
+      }
+    }
+  },
+  "selfCheck": [
+    {
+      "criterion": "BOOK-06",
+      "source": "reconcile-service-payment.use-case.ts:84-94,115-148",
+      "proofs": [
+        "service-late-payment.integration.spec.ts whole12: occupied capacity, true Redis expiry, disabled admission, mismatched/non-approved evidence, manual pending identity, SQL notice/outbox rollback",
+        "service-late-payment-dispatch.integration.spec.ts whole8: served approved webhook while admissions disabled and persisted claimed worker"
+      ],
+      "assessment": "Actual approval retained; singular owner-visible regularization and no nonexistent booking/second charge; synthetic PSP evidence explicitly bounded."
+    },
+    {
+      "criterion": "BOOK-08",
+      "source": "reconcile-service-payment.use-case.ts:17-18,97-112,44-57,71-80",
+      "proofs": [
+        "component whole10+current-state regression4: identity, token/scope, actual current booking replay without receipt rewrite",
+        "native12: concurrent/replayed command, unchanged actual financial rows/audits/events and per-unit facts",
+        "native8: forged/replaced/pending/wrong-payload claim, completion gap, rollback/redelivery, actual second SQL connection NOWAIT55P03 at final fence"
+      ],
+      "assessment": "Each accepted case asserts state/identity/value or a meaningful actual lock outcome; no test deletion/skip/weakening is inferred. Final mutation remains required after last feature task; no mutation proof claimed now."
+    },
+    {
+      "criterion": "REG-04",
+      "source": "reconcile-service-payment.use-case.ts:88-94,118-119; canonical T35 admission replay",
+      "proofs": [
+        "native12 disabled-admissions subcase preserves started money and confirmed appointment, replay does not book after later re-enable",
+        "native8 first served webhook scenario: real persisted payment and consumer processing after disable"
+      ],
+      "assessment": "Current late-payment continuation plus all five protected native regressions and original224 product checks passed; final feature acceptance remains pending."
+    }
+  ],
+  "scopeBoundaries": {
+    "taskComplete": true,
+    "ledgerEdited": true,
+    "indexEdited": false,
+    "committed": false,
+    "newTestsInvented": false,
+    "productionPushDeployOrRemoteAction": false,
+    "noRealCustomerProviderPaymentProof": true,
+    "providerTransport": "strictly local captured/direct synthetic evidence only",
+    "T37NotStartedByReviewer": true,
+    "futureT38T39AndBuyerFlowsNotClaimedComplete": true,
+    "featureFinalProofBuildMutationScreensVerifierPending": true,
+    "commitState": "Atomic task commit follows this gate/status record",
+    "featureComplete": false,
+    "finalFeatureProofsPending": true
+  },
+  "blockersOrConcreteTestGaps": [
+    "No remaining T36 local gate stage; final feature verification/mutations and T37 onward remain separate."
+  ],
+  "products": {
+    "receipt": {
+      "path": ".cache/t36-full-gates/2026-11-19T15-41-29.280Z-products224/receipt.json",
+      "sha256": "8057ae50c4892cc0c3fb31ab6928aee3db4f739ddd41ed689ebc0a261950eb48",
+      "bytes": 4293
+    },
+    "uniqueTests": 224,
+    "stages": [
+      {
+        "mode": "product-normal",
+        "expectedTests": 48,
+        "minimumCommitMiB": 2048,
+        "memory": {
+          "observedAtUtc": "2026-11-19T15:41:29.375643+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 2547,
+          "commitAvailableMiB": 6926,
+          "memoryLoadPercent": 84
+        },
+        "childStarted": true,
+        "ownArtifact": {
+          "checked": true,
+          "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+          "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2586
+          }
+        },
+        "wrapperLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t36-full-gates\\2026-11-19T15-41-29.280Z-products224\\product-normal-wrapper.log",
+        "pid": 23896,
+        "startedAt": "2026-11-19T15:41:34.427Z",
+        "code": 0,
+        "signal": null,
+        "finishedAt": "2026-11-19T15:42:22.581Z",
+        "wrapperSha256": "29c3158dba699c8c74478d95094fdaa6c6b7c3ae2fadc2a619688e63d2693aa1",
+        "status": "passed",
+        "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-19T15-41-34.493Z\\product-normal.log",
+        "rawSha256": "55df820a13015730d7c9c160fa85c87e1c723b78be52c28c4be0d6f35dd8ede2",
+        "executedTests": 48,
+        "summary": {
+          "phase": "normal-checkout-payment",
+          "coverageMode": "baseline-and-identity",
+          "passed": 48,
+          "waiters": 3,
+          "prismaClientConstructed": true,
+          "providerCalls": 0,
+          "scope": "normal-standalone-source-coupon-identity-detachment",
+          "checkoutVersionTrigger": true,
+          "checkoutStrategyTrigger": true
+        },
+        "cleanup": {
+          "phase": "normal-checkout-payment",
+          "coverageMode": "baseline-and-identity",
+          "status": "passed",
+          "cleanupErrors": 0,
+          "disposableDatabaseRemoved": true,
+          "bridgeClosed": true,
+          "durationMs": 47937,
+          "network": "none",
+          "productionAccess": false
+        }
+      },
+      {
+        "mode": "product-widget",
+        "expectedTests": 176,
+        "minimumCommitMiB": 2048,
+        "memory": {
+          "observedAtUtc": "2026-11-19T15:42:22.654017+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 1837,
+          "commitAvailableMiB": 5987,
+          "memoryLoadPercent": 88
+        },
+        "childStarted": true,
+        "ownArtifact": {
+          "checked": true,
+          "inputSha256": "b2ec26bd95d650c362969d797871821cce751f2611d80b976e17cbf7b1ce7630",
+          "artifactSha256": "241178bcf3803bb024f36d9b38cfdd6c804904369c7b58be497795652edb5ed1",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2586
+          }
+        },
+        "wrapperLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t36-full-gates\\2026-11-19T15-41-29.280Z-products224\\product-widget-wrapper.log",
+        "pid": 34456,
+        "startedAt": "2026-11-19T15:42:31.113Z",
+        "code": 0,
+        "signal": null,
+        "finishedAt": "2026-11-19T15:44:45.357Z",
+        "wrapperSha256": "e68d7c548fbb7993bf1299340672eaead6ae6eb28f35506909ca7906377ee8d1",
+        "status": "passed",
+        "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-19T15-42-31.176Z\\product-widget.log",
+        "rawSha256": "5c8f383a460eae6339026142552b996ffd7d8452189f89d70f009e26073f5e69",
+        "executedTests": 176,
+        "summary": {
+          "status": "passed",
+          "passed": 176,
+          "realLockWaiters": 32,
+          "syntheticOnly": true,
+          "providerCalls": 0
+        },
+        "cleanup": {
+          "status": "passed",
+          "cleanupErrors": 0,
+          "disposableDatabaseRemoved": true,
+          "bridgeClosed": true,
+          "durationMs": 134046,
+          "network": "none",
+          "productionAccess": false
+        }
+      }
+    ]
+  },
+  "status": "FULL_GATE_PASSED_LOCAL_MARKED_BEFORE_COMMIT",
+  "finalGate": {
+    "components": 146,
+    "native": 52,
+    "normalProducts": 48,
+    "widgetProducts": 176,
+    "totalUniqueTests": 422,
+    "allNaturalExit0": true,
+    "noFailedSkippedCancelledTodo": true,
+    "typesLintCheckedOwnBuildPassed": true,
+    "sameProductiveSourceAcrossDocumentedCohorts": true,
+    "noFreshAggregate422ReplayClaim": true
+  },
+  "launcherCorrection": {
+    "path": ".cache/t36-full-gates/product-launcher-env-correction/receipt.json",
+    "sha256": "eb95513a6ee20c86cb41c508fb8b8c2f822aa545031e350ba76a8e61ab99b88f",
+    "bytes": 566
+  }
+}

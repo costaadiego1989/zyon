@@ -28,6 +28,7 @@ import { HandleAsaasTransferWebhookUseCase } from "./application/handle-asaas-tr
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
 import { HandleMercadoPagoWebhookUseCase } from "./application/handle-mercadopago-webhook.use-case.js";
 import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
+import { ReconcileServicePaymentUseCase } from "./application/reconcile-service-payment.use-case.js";
 import {
   ChargebackPaymentHoldUseCase,
   CreatePaymentHoldUseCase,
@@ -202,6 +203,7 @@ import {
     ScheduledMerchantSplitService,
     PaymentHoldPayoutReadinessJob,
     PaymentDispatchService,
+    ReconcileServicePaymentUseCase,
     BillingPlanMeteringService,
     PrismaOrderQuotaRepository,
     { provide: ORDER_QUOTA_REPOSITORY, useExisting: PrismaOrderQuotaRepository },

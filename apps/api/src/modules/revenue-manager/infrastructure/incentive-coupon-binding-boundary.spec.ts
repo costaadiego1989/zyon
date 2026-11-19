@@ -26,7 +26,7 @@ function row(value?: unknown, present = true): CheckoutSession {
   const cart = { cart_ref: "synthetic-cart", items: [{ sku: "SKU", variantId: "variant", name: "Item", price: 10, quantity: 1 }],
     total: 10, currentDiscount: 1, currency: "BRL", source: "storefront", commercialNudge: { ruleId: "assignment", kind: "coupon" },
     ...(present ? { [key]: value } : {}) };
-  return { id: "row", merchantId, sessionId, globalUserId: "synthetic-buyer", conversationId: "synthetic-conversation",
+  return { id: "row", merchantId, sessionId, globalUserId: "synthetic-buyer", conversationId: "synthetic-conversation", serviceOrigin: null, serviceOriginProof: null,
     cart: cart as unknown as Prisma.JsonValue, customer: null, shipping: { customerPrice: 1, realCost: 1 }, shippingOptions: null,
     abandonmentScore: 0, triggerAgent: false, chatHistory: [], paymentMethod: null, promptVariantId: null, cohort: "treatment",
     featuresApplied: null, aiCostCents: 0, strategyContextVersion: 0, version: 1, createdAt: new Date(0), updatedAt: new Date(0) };
