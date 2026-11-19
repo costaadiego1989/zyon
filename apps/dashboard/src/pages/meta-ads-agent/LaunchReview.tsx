@@ -32,6 +32,7 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true,onS
   });},[value]);
   const current=result??value;
   const {campaign,proposal,execution}=current,draft=campaign.draft,budget=draft.budget;
+  const periodDays=budget?.endsAt?(Date.parse(budget.endsAt)-Date.parse(budget.startsAt))/86400000:null,dailyEquivalent=budget?.cadence==='lifetime'&&periodDays&&periodDays>0?Math.round(budget.amountCents/periodDays):null;
   const media=draft.mediaIds.map(id=>current.media.find(image=>image.id===id)).filter(image=>!!image);
   const previewReady=media.length===draft.mediaIds.length&&media.length>0&&media.every(image=>previews[image.id]==='loaded');
   const previewFailed=Object.values(previews).includes('failed');
@@ -73,7 +74,7 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true,onS
       <details><summary>Produtos anunciados ({campaign.products.length})</summary><ul className="mga-launch-products">{campaign.products.map(product=><li key={product.variantId}><strong>{product.name}</strong><span>SKU {product.sku} · {money(product.priceCents,product.currency)} · {product.stockQuantity} disponíveis</span></li>)}</ul></details>
     </div><div>
       <dl className="mga-ledger"><div><dt>Objetivo</dt><dd>{priorities[draft.priority]}</dd></div><div><dt>Destino</dt><dd>{draft.destination==='store'?'Loja online':'WhatsApp'}</dd></div><div><dt>Público</dt><dd>{draft.country==='BR'?'Brasil':draft.country}</dd></div>
-        <div><dt>Investimento</dt><dd>{budget?`${money(budget.amountCents,budget.currency)} ${budget.cadence==='lifetime'?'no total':'por dia'}`:'Não definido'}</dd></div>
+        <div><dt>Investimento</dt><dd>{budget?`${money(budget.amountCents,budget.currency)} ${budget.cadence==='lifetime'?'no total':'por dia'}`:'Não definido'}{budget&&dailyEquivalent!==null&&<small> Cerca de {money(dailyEquivalent,budget.currency)} por dia</small>}</dd></div>
         <div><dt>Início</dt><dd>{budget?.startsAt?<time dateTime={budget.startsAt}>{formatTime(budget.startsAt)}</time>:'Não definido'}</dd></div><div><dt>Término</dt><dd>{budget?.endsAt?<time dateTime={budget.endsAt}>{formatTime(budget.endsAt)}</time>:'Sem data final'}</dd></div>
       </dl>
       <p className="mga-launch-cost">Investimento pago diretamente à Meta. A aprovação autoriza a publicação desta versão.</p>
