@@ -7,12 +7,14 @@ import {assertReviewedProposal} from './proposal.service.js';
 import type {ProposalService} from './proposal.service.js';
 import type {CampaignService} from './campaign.service.js';
 import type {ExecutionService} from './execution.service.js';
+import {budgetBlocker,type CampaignBudgetAssessmentPort} from './budget-guidance.js';
 
 interface Dependencies{
   repo:MetaAdsRepository;commerce:Pick<CommerceContextPort,'getPlan'|'products'>;
   campaigns:Pick<CampaignService,'owned'|'readiness'>;proposals:Pick<ProposalService,'approve'>;executions:Pick<ExecutionService,'execute'>;
   preparations:Pick<CampaignPreparationRepository,'list'>;notices:Pick<CampaignReadyNoticeRepository,'list'|'setReviewState'>;
   authorizeActor:(merchantId:string,actorId:string)=>Promise<void>;enabled:()=>boolean;clock?:Clock;
+  budgetAssessment?:CampaignBudgetAssessmentPort;
 }
 export class InitialLaunchService{
   private readonly clock:Clock;private timer:ReturnType<typeof setInterval>|undefined;private active:Promise<void>|undefined;private stopping=false;
@@ -26,6 +28,7 @@ export class InitialLaunchService{
     if(!proposal)throw new MetaAdsError('proposal_not_found',404);
     assertReviewedProposal(merchantId,proposal,await this.deps.repo.getRecord(merchantId,`proposal-version:${proposal.id}`));
     const missing:string[]=[];
+    const budgetIssue=budgetBlocker(await this.deps.budgetAssessment?.(merchantId,current.draft.budget));if(budgetIssue)missing.push(budgetIssue);
     try{requireEntitlement(await this.deps.commerce.getPlan(merchantId),state,this.clock());}catch(error){missing.push(error instanceof MetaAdsError?error.code:'addon_not_entitled');}
     if(!this.deps.enabled())missing.push('campaign_launch_unavailable');
     if(!state.connection.capabilities.publish)missing.push('meta_capability_unavailable');

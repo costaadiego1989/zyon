@@ -8,12 +8,14 @@ import type {CampaignService} from '../application/campaign.service.js';
 import type {ConnectionService} from '../application/connection.service.js';
 import type {GenerationService} from '../application/generation.service.js';
 import type {ProposalService} from '../application/proposal.service.js';
+import {budgetBlocker,type CampaignBudgetAssessmentPort} from '../application/budget-guidance.js';
 
 interface Dependencies{
   repo:MetaAdsRepository;commerce:Pick<CommerceContextPort,'getPlan'|'products'>;campaigns:Pick<CampaignService,'owned'|'save'>;
   connection:Pick<ConnectionService,'access'>;generations:Pick<GenerationService,'request'>;proposals:Pick<ProposalService,'create'>;
   preparations:CampaignPreparationRepository;notices:Pick<CampaignReadyNoticeRepository,'admit'|'list'|'setReviewState'>;
   authorizeActor:(merchantId:string,actorId:string)=>Promise<void>;enabled:()=>boolean;clock?:Clock;
+  budgetAssessment?:CampaignBudgetAssessmentPort;
 }
 export class CampaignPreparationWorker{
   private timer:ReturnType<typeof setInterval>|undefined;private active:Promise<void>|undefined;private stopping=false;
@@ -26,6 +28,7 @@ export class CampaignPreparationWorker{
     if(!this.deps.enabled())throw new MetaAdsError('campaign_preparation_unavailable',503);
     const state=await this.deps.repo.read(job.merchantId);requireEntitlement(await this.deps.commerce.getPlan(job.merchantId),state,(this.deps.clock??(()=>new Date()))());
     const campaign=await this.deps.campaigns.owned(job.merchantId,job.campaignId);
+    const budgetIssue=budgetBlocker(await this.deps.budgetAssessment?.(job.merchantId,campaign.draft.budget));if(budgetIssue)throw new MetaAdsError(budgetIssue,409);
     if(campaign.remoteCampaignId||campaignPreparationIntent(job.merchantId,campaign,job.requestedImages)!==job.intentDigest)throw new MetaAdsError('preparation_intent_changed',409);
     const products=await this.deps.commerce.products(job.merchantId,{variantIds:campaign.draft.variantIds});
     const content=campaignPreparationContent(campaign,products,Object.values(state.media));
