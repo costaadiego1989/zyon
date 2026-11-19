@@ -32,18 +32,26 @@ export class AssistantService {
   }
   async respond(input: AssistantResponseInput): Promise<AssistantResponse> {
     const initial = await this.current(input);
+    const captured=await this.deps.context.prepareTurn?.(input);
     const history = (await this.deps.repo.turns(input.scope, input.threadId, { limit: 12 })).turns
-      .filter(t => t.ordinal < initial.turn.ordinal && t.status === 'completed').slice(-4);
-    const messages: AssistantModelMessage[] = history.flatMap(t => [{ role: 'user' as const, content: t.message.slice(0, 1800) }, ...(t.reply ? [{ role: 'assistant' as const, content: t.reply.slice(0, 1800) }] : [])]);
+      .filter(t => t.ordinal < initial.turn.ordinal && t.status === 'completed').slice(-8);
+    const segments:AssistantModelMessage[][]=[];let historyBytes=0;
+    for(const turn of [...history].reverse()){
+      const segment:AssistantModelMessage[]=[{role:'user',content:turn.message.slice(0,1800)},...(turn.reply?[{role:'assistant' as const,content:turn.reply.slice(0,1800)}]:[])];
+      const bytes=Buffer.byteLength(JSON.stringify(segment),'utf8');if(historyBytes+bytes>16000)break;historyBytes+=bytes;segments.unshift(segment);
+    }
+    const messages:AssistantModelMessage[]=segments.flat();let historyMessages=messages.length;
     messages.push({ role: 'user', content: initial.turn.message });
     let knowledge: RetrievedAssistantKnowledge[];
     try { knowledge = await this.deps.knowledge.retrieve(this.deps.context.knowledgeScope, initial.turn.message); } catch { knowledge = []; }
-    const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = []; const evidence:UncitedAssistantResponse['evidence'][number][]=[];
+    const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = [...(captured?.artifacts??[])]; const evidence:UncitedAssistantResponse['evidence'][number][]=captured?[{name:'merchant_ads_save_draft',result:captured}]:[];
     for (let round = 0; round <= 5; round++) {
+      // Keep the current turn's tool protocol intact while retaining more short guided answers.
+      while(messages.length>40&&historyMessages>0){const count=historyMessages>1&&messages[1].role==='assistant'?2:1;messages.splice(0,count);historyMessages-=count;}
       const state = await this.current(input);
       let response:AssistantModelResult;
       try{response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,
-        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress } });}
+        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress,...(this.deps.context.checklist?{checklist:this.deps.context.checklist(state.thread.campaignProgress)}:{}) } });}
       catch(error){
         if(safeCode(error)!=='assistant_model_response_invalid')throw error;
         const current=await this.current(input);let reply:string|null=null;
@@ -58,7 +66,7 @@ export class AssistantService {
         for (const call of response.toolCalls) {
           await this.current(input);
           try {
-            const resolved = await this.deps.context.execute({ ...input, name: call.name, args: call.args });
+            const resolved = await this.deps.context.execute({ ...input, name: call.name, args: call.args,origin:'model' });
             evidence.push({name:call.name,result:resolved});
             artifacts.push(...resolved.artifacts);
             messages.push({ role: 'tool', tool_call_id: call.id, content: toolContent(resolved.data) });
