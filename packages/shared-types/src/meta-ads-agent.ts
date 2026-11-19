@@ -303,6 +303,7 @@ export interface MetaAdsCampaignLaunchReview {
   execution: MetaAdsExecution | null;
   canApprove: boolean;
   missing: string[];
+  budgetAssessment?:MetaAdsBudgetAssessment;
 }
 export interface MetaAdsCampaignPreparationInput {
   campaignDigest: string;

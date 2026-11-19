@@ -10,6 +10,7 @@ interface Props {
   merchantId:string;value:MetaAdsCampaignLaunchReview|null;api:Pick<CampaignApprovalApi,'review'|'approveLaunch'>;
   timezone?:string;loading?:boolean;error?:string;onRetry?:()=>void;entitled?:boolean;
   onUpdated:(value:MetaAdsCampaignLaunchReview)=>void|Promise<void>;onReconcile?:(executionId:string)=>Promise<unknown>;
+  onSetup?:()=>void;onCorrectBudget?:()=>void;
 }
 export function LaunchReview(props:Props){
   if(props.loading)return <section className="mga-launch" aria-label="Revisão da campanha" aria-busy="true"><p role="status">Carregando revisão…</p></section>;
@@ -17,7 +18,7 @@ export function LaunchReview(props:Props){
   if(!props.value)return <p className="mga-empty">A campanha ainda está sendo preparada. A revisão aparecerá aqui.</p>;
   return <ReadyReview key={`${props.merchantId}:${props.value.proposal.id}:${props.value.proposal.digest}:${props.value.proposal.connectionEpoch}`} {...props} value={props.value}/>;
 }
-function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true}:Props&{value:MetaAdsCampaignLaunchReview}){
+function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true,onSetup,onCorrectBudget}:Props&{value:MetaAdsCampaignLaunchReview}){
   const [result,setResult]=useState<MetaAdsCampaignLaunchReview|null>(null),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[error,setError]=useState('');
   const [previews,setPreviews]=useState<Record<string,'loaded'|'failed'>>({}),[imageAttempt,setImageAttempt]=useState(0);
   const [slide,setSlide]=useState(0);
@@ -36,7 +37,9 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true}:Pr
   const previewFailed=Object.values(previews).includes('failed');
   const approved=proposal.status==='approved'||!!proposal.approvedAt||!!execution;
   const unknown=uncertain||execution?.status==='execution_unknown';
-  const formatTime=(value:string)=>new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:timezone,timeZoneName:'short'}).format(new Date(value));
+  const formatTime=(value:string)=>new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:timezone}).format(new Date(value));
+  const budgetIssue=current.missing.some(code=>code.startsWith('campaign_budget_')),setupIssue=current.missing.some(code=>['meta_whatsapp_not_linked','meta_dataset_required','meta_page_required','meta_account_required','meta_connection_required'].includes(code));
+  const reason=current.missing.includes('proposal_stale')?'A campanha mudou. Atualize o planejamento e revise a nova versão.':budgetIssue?'A verba precisa ser conferida para essas datas antes da publicação.':current.missing.includes('meta_whatsapp_not_linked')?'Vincule o número à Página na Meta para publicar este anúncio no WhatsApp.':current.missing.includes('meta_dataset_required')?'Selecione o Pixel da loja antes de publicar.':setupIssue?'Conclua a conexão da conta e da Página da loja na Meta.':'Atualize a revisão para conferir a pendência antes de publicar.';
   async function approve(){
     if(lock.current||!entitled||!current.canApprove||!previewReady||approved||unknown)return;
     lock.current=true;setBusy(true);setError('');key.current??=crypto.randomUUID();
@@ -63,6 +66,7 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true}:Pr
           <span aria-live="polite" aria-atomic="true">{slide+1} de {media.length}{media.length>1?' · Carrossel':''}</span>
           {media.length>1&&<button type="button" className="mga-secondary mga-slide-arrow" aria-label="Próximo criativo" disabled={slide===media.length-1} onClick={()=>setSlide(index=>index+1)}><ChevronRight size={20} aria-hidden="true"/></button>}
         </div>
+        <small>{media[slide]?.source==='catalog'?'Foto do catálogo':'Imagem do anúncio'}</small>
       </div>
       {previewFailed&&<div role="alert"><p>Não foi possível carregar um criativo. Confira as imagens antes de aprovar.</p><button type="button" className="mga-secondary" onClick={()=>{setPreviews({});setImageAttempt(n=>n+1);}}>Recarregar criativos</button></div>}
       <h3>{draft.headline}</h3><p className="mga-launch-copy">{draft.primaryText}</p>
@@ -73,10 +77,13 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true}:Pr
         <div><dt>Início</dt><dd>{budget?.startsAt?<time dateTime={budget.startsAt}>{formatTime(budget.startsAt)}</time>:'Não definido'}</dd></div><div><dt>Término</dt><dd>{budget?.endsAt?<time dateTime={budget.endsAt}>{formatTime(budget.endsAt)}</time>:'Sem data final'}</dd></div>
       </dl>
       <p className="mga-launch-cost">Investimento pago diretamente à Meta. A aprovação autoriza a publicação desta versão.</p>
-      {!!current.missing.length&&<p role="alert">{current.missing.includes('proposal_stale')?'A campanha mudou. Atualize o planejamento e revise a nova versão.':'Há uma pendência na conexão, nos dados ou na autorização. Atualize a revisão antes de aprovar.'}</p>}
+      {!!current.missing.length&&<p role="alert">{reason}</p>}
+      {budgetIssue&&current.budgetAssessment?.estimatedMinimumTotalCents&&<p>Referência para o período: {money(current.budgetAssessment.estimatedMinimumTotalCents,current.budgetAssessment.currency)} no total. Esse valor não garante vendas.</p>}
       <div className="mga-launch-submit">
         {execution?<p role="status">{executionStates[execution.status]}</p>:approved?<p role="status">Aprovação registrada. Aguardando envio à Meta.</p>:unknown?<p role="status">Aguardando confirmação da aprovação. Consulte o estado antes de qualquer nova ação.</p>:<button type="button" data-action="approve-launch" disabled={busy||!entitled||!current.canApprove||!previewReady} onClick={()=>void approve()}>{busy?'Registrando aprovação…':'Aprovar e publicar'}</button>}
         {(unknown||approved)&&<button type="button" className="mga-secondary" disabled={busy} onClick={()=>void consult()}>Consultar estado</button>}
+        {!approved&&!unknown&&!current.canApprove&&budgetIssue&&onCorrectBudget&&<button type="button" className="mga-secondary" onClick={onCorrectBudget}>Corrigir verba</button>}
+        {!approved&&!unknown&&!current.canApprove&&!budgetIssue&&setupIssue&&onSetup&&<button type="button" className="mga-secondary" onClick={onSetup}>Concluir conexão</button>}
         {!approved&&!unknown&&!previewReady&&!previewFailed&&<small>Carregando criativos para revisão…</small>}
         {busy&&<p role="status">{approved||unknown?'Consultando estado…':'Registrando aprovação…'}</p>}{error&&<p role="alert">{error}</p>}
       </div>
