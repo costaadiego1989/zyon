@@ -6,7 +6,6 @@ import {StatCard,StatCardGroup} from '../overview/components/StatCard.js';
 import {buildAdsDashboard,type AdsPoint,type AdsTotals} from './metrics-dashboard.js';
 import {money,useAction} from './presentation.js';
 import './metrics-dashboard.css';
-import {AdTermsHelp} from './AdTermsHelp.js';
 import {PeriodFilter} from '../../components/PeriodFilter.js';
 
 interface Props {
@@ -65,7 +64,7 @@ export function MetricsDashboard({reports,accountId,campaignNames,active=true,er
     <div className="mga-metric-kpis"><StatCardGroup columns={3}>
       <StatCard label="Investimento nos anúncios" value={amount(data.totals.spendCents,data.currency)} note={note('spendCents')??'Valor gasto na Meta'}/>
       <StatCard label="Vendas informadas pela Meta" value={amount(data.totals.attributedRevenueCents,data.currency)} note={note('attributedRevenueCents')??'Vendas que a Meta liga aos anúncios'}/>
-      <StatCard label="Retorno dos anúncios" value={ratio(data.totals.roas)} note={data.totals.roas!==null&&data.currency?`${amount(Math.round(data.totals.roas*100),data.currency)} em vendas por ${amount(100,data.currency)} investido`:'Ainda não há dados suficientes'}/>
+      <StatCard label="Retorno dos anúncios" value={ratio(data.totals.roas)} note={data.totals.roas!==null&&data.currency?`${amount(Math.round(data.totals.roas*100),data.currency)} em vendas por ${amount(100,data.currency)} investido. Não é lucro.`:'Ainda não há dados suficientes'}/>
       <StatCard label="Vendas confirmadas na loja" value={amount(data.totals.confirmedRevenueCents,data.currency)} note={note('confirmedRevenueCents')??'Valor dos pedidos pagos na Zyon'}/>
       <StatCard label="Pedidos pagos" value={number(data.totals.paidOrders)} note={note('paidOrders')??'Compras com pagamento confirmado'}/>
       <StatCard label="Conversas" value={number(data.totals.conversations)} note={note('conversations')??'Contatos iniciados pelos anúncios'}/>
@@ -75,6 +74,5 @@ export function MetricsDashboard({reports,accountId,campaignNames,active=true,er
     <MetricChart points={data.points} currency={data.currency} kind="count" active={active}/>
     {!!data.campaigns.length&&<section className="mga-metrics-campaigns" aria-label="Comparação de campanhas"><h3>Por campanha</h3><div className="mga-metrics-table"><table><thead><tr><th scope="col">Campanha</th><th scope="col">Gasto</th><th scope="col">Pedidos</th><th scope="col">Retorno</th></tr></thead><tbody>{data.campaigns.map(c=><tr key={c.id}><th scope="row"><button type="button" className="mga-secondary" onClick={()=>setCampaignId(c.id)}>{name(c.id)}</button></th><td>{amount(c.totals.spendCents,data.currency)}</td><td>{number(c.totals.paidOrders)}</td><td>{ratio(c.totals.roas)}</td></tr>)}</tbody></table></div></section>}
     <details className="mga-metrics-data mga-disclosure"><summary>Ver dados dos gráficos</summary><div className="mga-metrics-table"><table><thead><tr><th scope="col">Dia</th><th scope="col">Gasto</th><th scope="col">Vendas informadas pela Meta</th><th scope="col">Pedidos</th><th scope="col">Conversas</th></tr></thead><tbody>{data.points.map(point=><tr key={point.day}><th scope="row">{day(point.day)}</th><td>{amount(point.spendCents,data.currency)}</td><td>{amount(point.attributedRevenueCents,data.currency)}</td><td>{number(point.paidOrders)}</td><td>{number(point.conversations)}</td></tr>)}</tbody></table></div><small className="mga-metrics-footnote">Dias encerrados · — sem dados disponíveis. As vendas informadas pela Meta podem ser diferentes dos pedidos pagos na loja.</small></details>
-    <AdTermsHelp text="ROAS" label="Como entender o retorno dos anúncios"/>
   </section>;
 }

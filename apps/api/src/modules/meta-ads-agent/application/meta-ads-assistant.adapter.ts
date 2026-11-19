@@ -396,6 +396,7 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
         const products=await this.deps.service.commerce.products(input.scope.merchantId,{variantIds:variants,limit:variants.length});
         if(products.length!==variants.length||variants.some(id=>!products.some(p=>p.variantId===id))||products.some(p=>!p.active||p.currency!=='BRL'||p.stockQuantity!==null&&p.stockQuantity<=0))throw new MetaAdsError('automation_products_unavailable',409);
         b.scope.variantIds=variants;
+        b.selection={...b.selection,productOptions:products.map(({variantId,name})=>({variantId,name}))};
       }
       if(patch.campaignIds!==undefined){const ids=selectedIds(patch.campaignIds,0);for(const id of ids)await this.deps.service.campaigns.owned(input.scope.merchantId,id);b.scope.campaignIds=ids;}
       if(patch.allowNewCampaigns!==undefined){if(typeof patch.allowNewCampaigns!=='boolean')throw new AssistantError('assistant_tool_arguments_invalid');b.scope.allowNewCampaigns=patch.allowNewCampaigns;}

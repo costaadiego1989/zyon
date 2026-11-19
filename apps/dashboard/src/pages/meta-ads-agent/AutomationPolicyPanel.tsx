@@ -13,7 +13,7 @@ function Terms({value,productNames={},campaignNames={}}:{value:MetaAdsAutomation
   const {scope,limits}=value;
   return <dl className="mga-ledger">
     <div><dt>Produtos autorizados</dt><dd>{scope.variantIds.map(id=>productNames[id]??id).join(', ')}</dd></div>
-    <div><dt>Campanhas autorizadas</dt><dd>{scope.campaignIds.length?scope.campaignIds.map(id=>campaignNames[id]??id).join(', '):'Nenhuma campanha existente'}</dd></div>
+    <div><dt>Campanhas autorizadas</dt><dd>{scope.campaignIds.length?scope.campaignIds.map(id=>campaignNames[id]??id).join(', '):scope.allowNewCampaigns?'Campanhas atuais e futuras gerenciadas pela IA':'Nenhuma campanha existente'}</dd></div>
     <div><dt>Novas campanhas</dt><dd>{scope.allowNewCampaigns?'Preparo permitido; publicação exige aprovação':'Não permitidas'}</dd></div>
     <div><dt>Destino e prioridade</dt><dd>{scope.destination==='store'?'Loja':'WhatsApp'} · {priorities[scope.priority]}</dd></div>
     <div><dt>Região</dt><dd>{scope.country}</dd></div>
