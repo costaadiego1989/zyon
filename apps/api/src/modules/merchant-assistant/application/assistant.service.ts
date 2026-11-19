@@ -47,9 +47,9 @@ export class AssistantService {
     const messages:AssistantModelMessage[]=segments.flat();let historyMessages=messages.length;
     messages.push({ role: 'user', content: initial.turn.message });
     let knowledge: RetrievedAssistantKnowledge[];
-    const previousQuestion=history.at(-1)?.reply??'';
-    const retrievalQuery=previousQuestion?`${initial.turn.message.slice(0,6500)}\nContexto anterior: ${previousQuestion.slice(0,1200)}`:initial.turn.message;
     const knowledgeScope=Object.freeze({...this.deps.context.knowledgeScope,merchantId:input.scope.merchantId});
+    const previousQuestion=knowledgeScope.context==='meta_ads'?(history.at(-1)?.reply??''):'';
+    const retrievalQuery=previousQuestion?`${initial.turn.message.slice(0,6500)}\nContexto anterior: ${previousQuestion.slice(0,1200)}`:initial.turn.message;
     let fallback=knowledgeScope.context==='cashback';
     try {
       if(this.deps.knowledge.retrieveWithStatus){

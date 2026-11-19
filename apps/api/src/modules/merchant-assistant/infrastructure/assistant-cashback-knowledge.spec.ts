@@ -96,10 +96,10 @@ test('graph exceptions recover only reviewed fallback content without leaking tr
   }
 });
 
-async function responseFixture(retriever:AssistantKnowledgeRetriever,model?:AssistantModelPort){
+async function responseFixture(retriever:AssistantKnowledgeRetriever,model?:AssistantModelPort,message='Como usar cashback?',previousReply?:string){
   const db=await assistantDatabase(),actor={merchantId:'store-a',actorId:'owner-a',context:'cashback'};
   const repo=new PrismaAssistantRepository(db.prisma,clock),thread=await repo.createThread(actor);
-  await repo.atomic(actor,thread.id,async tx=>{await tx.append({id:'cbx-turn',requestKey:'cbx-turn',inputHash:'a'.repeat(64),message:'Como usar cashback?',budgetAmountMicros:100n});
+  await repo.atomic(actor,thread.id,async tx=>{if(previousReply){await tx.append({id:'cbx-previous',requestKey:'cbx-previous',inputHash:'b'.repeat(64),message:'Explique as regras anteriores do cashback.',budgetAmountMicros:100n});await tx.update('cbx-previous',{status:'completed',reply:previousReply});}await tx.append({id:'cbx-turn',requestKey:'cbx-turn',inputHash:'a'.repeat(64),message,budgetAmountMicros:100n});
     await tx.update('cbx-turn',{status:'running',leaseToken:'cbx-lease',leaseUntil:'2026-11-18T12:01:00Z'});});
   const context:AssistantContextPort={descriptor:{id:'cashback',label:'Cashback',capabilities:[]},knowledgeScope:{...scope,merchantId:'store-b'},
     authorize:async()=>{},authorizeInvocation:async()=>{},tools:()=>[],execute:async()=>{throw Error('no writes');}};
@@ -146,4 +146,27 @@ test('assistant uses authenticated server merchant for retrieval validation and 
     assert.equal(scopes.length,3);assert.ok(scopes.every(s=>(s as any).merchantId==='store-a'));
     assert.deepEqual(graphRequests,[{merchantId:'store-a',context:'cashback',query:'Como usar cashback?',limit:5}]);
   }finally{await f.db.close();}
+});
+
+
+test('CBX-18 sequential cashback questions keep their current reviewed topic despite a long persisted earlier answer',async()=>{
+ const previousReply=CASHBACK_KNOWLEDGE_FALLBACK_NOTICE+'\n'+['ganhos','uso','pausa','carteira','liberacao'].map(id=>CASHBACK_MERCHANT_KNOWLEDGE.find(doc=>doc.id===`cashback-${id}`)!.sections.map(section=>section.content).join('\n')).join('\n');
+ const topics=[['Como funcionam os ganhos e os produtos elegíveis?','ganhos'],['Qual diferença de crédito pendente e disponível na liberação?','liberacao'],['Como funciona a validade e expiração?','validade'],['Como o cliente pode usar cashback?','uso'],['Cashback pode combinar com cupons?','cupons'],['As regras avançadas têm uma permissão independente?','regras-avancadas'],['Qual a diferença entre teto geral e orçamento mensal?','tetos'],['É a mesma carteira no site e no WhatsApp?','carteira'],['O que acontece com os créditos ao pausar novos ganhos?','pausa']] as const;
+ const observed:string[]=[];
+ for(const [message,topic]of topics){
+  const retriever=new AssistantKnowledgeRetriever(undefined,clock);
+  const f=await responseFixture(retriever,{complete:async input=>({reply:input.knowledge[0]?.content??'Sem ajuda disponível.',referenceIds:input.knowledge[0]?[input.knowledge[0].reference.id]:[],toolCalls:[],providerRequestId:'controlled-local-current-topic',costMicros:0n})},message,previousReply);
+  try{
+   const response=await f.respond();
+   assert.equal(response.references[0]?.id.split(':')[0],`cashback-${topic}`,message);
+   assert.ok(response.reply.startsWith(CASHBACK_KNOWLEDGE_FALLBACK_NOTICE));
+   assert.ok(response.reply.includes(CASHBACK_MERCHANT_KNOWLEDGE.find(doc=>doc.id===`cashback-${topic}`)!.sections[0]!.content));
+   assert.ok(response.references.every(reference=>reference.url.startsWith('/?tab=cashback&help=')));
+   const history=(await f.repo.turns(f.actor,f.thread.id,{limit:10})).turns;
+   assert.equal(history.find(turn=>turn.id==='cbx-previous')?.reply,previousReply);
+   assert.equal(history.find(turn=>turn.id==='cbx-turn')?.message,message);
+   observed.push(topic);
+  }finally{await f.db.close();}
+ }
+ assert.equal(new Set(observed).size,9);
 });
