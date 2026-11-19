@@ -7,6 +7,23 @@ import {automationChecklist} from './automation-briefing.js';
 const reply=(text='Qual é a próxima escolha?',references:string[]=[])=>({reply:text,referenceIds:references,toolCalls:[],providerRequestId:'synthetic',costMicros:0n});
 const tool=(name:string,args:Record<string,unknown>)=>({...reply(),reply:null,toolCalls:[{id:name,name,args}]});
 
+for(const change of [
+ {raw:'startText',typed:'startsAt',other:'endsAt',text:'Amanhã no mesmo horário',instant:'2026-11-19T12:00:00.000Z',checklist:'start'},
+ {raw:'endText',typed:'endsAt',other:'startsAt',text:'Dia 27 no mesmo horário',instant:'2026-11-27T12:00:00.000Z',checklist:'end'},
+] as const)test(`ACJ-02 correcting a confirmed ${change.checklist} date invalidates the old instant before another exact policy review`,async()=>{
+ const f=await assistantCampaignFixture();try{await f.at('2026-11-18T12:00:00Z');
+ const scope={variantIds:['variant-a'],campaignIds:[],allowNewCampaigns:true,actions:['budget','pause'],destination:'whatsapp',priority:'paid_sales',country:'BR'},limits={currency:'BRL',cadence:'daily',campaignCeilingCents:1911,storeCeilingCents:5733,startsAt:'2026-11-18T12:00:00.000Z',endsAt:'2026-11-25T12:00:00.000Z'};
+ const save=(automationBriefing:any)=>f.context.execute({...f.input,name:'merchant_ads_save_draft',args:{automationBriefing}});
+ const original=await save({selection:{selectionKind:'product',selectionQuery:'Camisa'},scope,limits}),originalReview=original.artifacts.find((a:any)=>a.type==='automation_review')?.review;
+ assert.ok(originalReview);assert.deepEqual(originalReview.scope,scope);assert.deepEqual(originalReview.limits,limits);
+ const corrected=await save({[change.raw]:change.text}),progress=(await f.assistant.repo.readThread(f.input.scope,f.input.threadId)).campaignProgress!,briefing=progress.automationBriefing!;
+ assert.equal(Object.hasOwn(briefing.limits,change.typed),false);assert.equal(briefing.limits[change.other],limits[change.other]);assert.equal(briefing[change.raw],change.text);assert.deepEqual(briefing.scope,scope);assert.equal(briefing.limits.campaignCeilingCents,1911);assert.equal(briefing.limits.storeCeilingCents,5733);assert.equal(briefing.limits.cadence,'daily');assert.equal(briefing.limits.currency,'BRL');
+ assert.equal(automationChecklist(progress).complete,false);assert.deepEqual(automationChecklist(progress).needsInterpretation,[change.checklist]);assert.equal(corrected.artifacts.some(a=>a.type==='automation_review'),false);
+ const resolved=await save({limits:{[change.typed]:change.instant}}),review=resolved.artifacts.find((a:any)=>a.type==='automation_review')?.review;
+ assert.ok(review);assert.deepEqual(review.scope,scope);assert.deepEqual(review.limits,{...limits,[change.typed]:change.instant});assert.notEqual(review.digest,originalReview.digest);assert.equal((await f.runtime.policies.view('store-a')).policy,null);assert.equal((await f.runtime.policies.view('store-a')).mode,'manual');assert.deepEqual(f.writes,[]);assert.equal(Object.keys((await f.repo.read('store-a')).campaigns).length,0);
+ }finally{await f.close();}
+});
+
 test('ACJ-02 unfinished date interpretation is completed before a policy can be described as ready',async()=>{
  const f=await assistantCampaignFixture();try{await f.at('2026-11-18T12:00:00Z');
  await f.context.execute({...f.input,name:'merchant_ads_save_draft',args:{automationBriefing:{selection:{selectionKind:'product',selectionQuery:'Camisa'},scope:{variantIds:['variant-a'],campaignIds:[],allowNewCampaigns:true,actions:['pause'],destination:'store',priority:'paid_sales',country:'BR'},limits:{campaignCeilingCents:10000,storeCeilingCents:30000,cadence:'daily',startsAt:'2026-11-18T12:00:00.000Z'},endText:'Daqui a sete dias no mesmo horário'}}});
