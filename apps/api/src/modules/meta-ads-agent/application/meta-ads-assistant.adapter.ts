@@ -87,6 +87,7 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
   guidedResponse(input:UncitedAssistantResponse & {message:string}):string|null {
     const budget=this.budgetResponse(input.evidence);if(budget)return budget;
     if(input.campaign?.planningKind==='automation'&&(!isBriefingHelp(input.message)||isAutomationRequest(input.message))){
+      if(this.completionRequirement(input))return automationQuestion(input.campaign);
       const questions=(input.suggestedReply.match(/\?/g)??[]).length;
       return questions>1||/^\s*\d+[.)]/m.test(input.suggestedReply)?this.automationResponse(input):null;
     }
@@ -241,6 +242,12 @@ export class MetaAdsAssistantAdapter implements AssistantContextPort {
     return `O valor ficou abaixo do mínimo diário informado pela Meta para esta conta: ${minimum}. Qual valor por dia, a partir desse mínimo, você quer usar?`;
   }
   checklist(progress:AssistantCampaignProgress|null){return progress?.planningKind==='automation'?automationChecklist(progress):briefingChecklist(progress);}
+  completionRequirement({message,campaign,evidence}:UncitedAssistantResponse & {message:string}){
+    if(campaign?.planningKind!=='automation'||isBriefingHelp(message)||evidence.some(item=>item.result.artifacts.some(artifact=>artifact.type==='automation_review')))return null;
+    const checklist=automationChecklist(campaign);
+    if(checklist.next||!checklist.needsInterpretation.some(key=>key==='start'||key==='end'))return null;
+    return 'A revisão da política AINDA NÃO foi criada. As datas recebidas precisam ser interpretadas: consulte o contexto temporal se necessário e salve automationBriefing.limits.startsAt/endsAt com merchant_ads_save_draft. Não repita datas já informadas nem declare revisão pronta sem o artefato automation_review. Se houver ambiguidade real, pergunte apenas essa informação.';
+  }
   async prepareTurn(input:Pick<AssistantToolInput,'scope'|'threadId'|'turnId'|'leaseToken'>):Promise<AssistantToolResult|undefined>{
     await this.authorizeInvocation(input.scope);
     const current=await this.deps.conversations.atomic(input.scope,input.threadId,async tx=>{const turn=await tx.turn(input.turnId);assertAssistantTurnLease(turn,input.leaseToken,this.clock());return{turn,progress:structuredClone(tx.thread.campaignProgress)};});
