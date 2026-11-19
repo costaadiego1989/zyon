@@ -51,8 +51,14 @@ jobs:
         run: |
           pnpm --filter @zyon/shared-types build
           pnpm --filter @zyon/api exec prisma generate --schema prisma/schema.prisma
-      - name: Run all 21 approval and guided conversation journeys in Edge
+      - name: Run all 25 approval and guided conversation journeys in Edge
         run: node apps/dashboard/scripts/run-agentic-cypress.mjs --case ACAP-27
+      - name: Compile current API and dashboard sources
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          pnpm --dir apps/api build
+          pnpm --dir apps/dashboard build
       - name: Save synthetic acceptance evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
