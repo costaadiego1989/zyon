@@ -2,6 +2,7 @@ import type {
   MetaAdsActionKind, MetaAdsCampaign, MetaAdsCampaignDraft, MetaAdsExecution,
   MetaAdsGeneration, MetaAdsMetrics, MetaAdsPriority, MetaAdsProposal, MetaAdsRecommendation,
 } from './meta-ads-agent.js';
+import type {MetaAdsAutomationPolicyInput} from './meta-ads-agent.js';
 
 /** Public assistant contracts. Credentials and execution authority are server-only. */
 export interface AssistantContextDescriptor { id: string; label: string; capabilities: string[]; }
@@ -29,6 +30,8 @@ export interface AssistantCampaignBriefing {
   capturedTurnId?: string;
 }
 export interface AssistantCampaignProgress {
+  planningKind?: 'campaign' | 'automation';
+  automationBriefing?: AssistantAutomationBriefing;
   campaignId: string | null;
   draft: Partial<MetaAdsCampaignDraft>;
   awaitingFields: string[];
@@ -37,6 +40,15 @@ export interface AssistantCampaignProgress {
   /** Creative count requested during planning, within the existing image allowance. */
   requestedImages?: number;
   briefing?: AssistantCampaignBriefing;
+}
+/** Draft conversation only; an accepted, versioned policy is stored separately. */
+export interface AssistantAutomationBriefing {
+  scope: Partial<MetaAdsAutomationPolicyInput['scope']>;
+  limits: Partial<MetaAdsAutomationPolicyInput['limits']>;
+  selection?: Pick<AssistantCampaignBriefing,'selectionKind'|'selectionQuery'|'selectedVariantId'|'categoryId'|'categoryOptions'|'productOptions'>;
+  startText?: string; endText?: string;
+  answers?: Record<string,string>;
+  capturedTurnId?: string;
 }
 export interface AssistantTurn {
   id: string;
