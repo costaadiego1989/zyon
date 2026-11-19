@@ -10,7 +10,7 @@ const attribute = z.strictObject({ name: z.string().trim().min(1).max(200),
   value: z.string().trim().min(1).max(1000), operator: z.enum(["equals", "not_equals"]) });
 
 export const graphReadSchema = z.strictObject({
-  kind: z.enum(["catalog", "knowledge"]), merchantId: id, modelId: z.string().min(1).max(250),
+  kind: z.enum(["catalog", "knowledge", "merchant_help"]), context: z.literal("cashback").optional(), merchantId: id, modelId: z.string().min(1).max(250),
   query: z.string().trim().min(1).max(2000), embedding: vector,
   nowEpochMs: z.number().int().safe().positive(),
   maxAgeMs: z.number().int().min(1000).max(3_600_000).default(300_000),
@@ -20,9 +20,9 @@ export const graphReadSchema = z.strictObject({
   categoryId: id.optional(),
   attributes: z.array(attribute).max(20).default([]),
   attributeAnyOf: z.array(z.array(attribute).min(1).max(6)).max(6).default([]),
-});
+}).refine(input => input.kind === "merchant_help" ? input.context === "cashback" : input.context === undefined, "invalid_context");
 export type GraphReadInput = z.input<typeof graphReadSchema>;
-export interface GraphReadCommand { kind: "catalog" | "knowledge"; text: string; parameters: Record<string, unknown> }
+export interface GraphReadCommand { kind: "catalog" | "knowledge" | "merchant_help"; text: string; parameters: Record<string, unknown> }
 
 const CATALOG_QUERY = `
 MATCH (p:ZyonGraphProduct {merchantId: $merchantId})
@@ -81,7 +81,28 @@ RETURN d.merchantId AS merchantId, d.sourceType AS sourceType, d.canonicalId AS 
        vectorScore, (0.8 * vectorScore + 0.2 * lexicalScore) AS score
 ORDER BY score DESC, sourceType, sourceId, chunkId LIMIT $limit`;
 
-export const GRAPH_READ_TEMPLATES = Object.freeze({ catalog: CATALOG_QUERY, knowledge: KNOWLEDGE_QUERY });
+const MERCHANT_HELP_QUERY = `
+MATCH (d:ZyonGraphMerchantGuide {merchantId: $merchantId, audience: $audience, context: $context})
+      -[:ZyonGraphHasGuideChunk {merchantId: $merchantId, audience: $audience, context: $context}]->
+      (c:ZyonGraphMerchantGuideChunk {merchantId: $merchantId, audience: $audience, context: $context})
+WHERE d.active = true AND c.active = true AND c.sourceId = d.canonicalId
+  AND d.schemaVersion = 1 AND c.schemaVersion = 1
+  AND d.sourceType = $sourceType AND c.sourceType = d.sourceType
+  AND c.sourceVersion = d.sourceVersion AND c.sourceHash = d.sourceHash
+  AND d.modelId = $modelId AND c.modelId = $modelId
+  AND d.projectedAt >= $minProjectedAt AND c.projectedAt >= $minProjectedAt
+  AND c.embedding IS NOT NULL AND size(c.embedding) = $dimension
+WITH d, c ORDER BY c.canonicalId LIMIT $scanLimit
+WITH d, c, vector.similarity.cosine(c.embedding, $embedding) AS vectorScore,
+  toFloat(size([term IN $terms WHERE c.normalizedText CONTAINS term])) / size($terms) AS lexicalScore
+WHERE vectorScore >= $threshold
+RETURN d.merchantId AS merchantId, d.audience AS audience, d.context AS context, d.sourceType AS sourceType,
+       d.canonicalId AS sourceId, c.canonicalId AS chunkId, c.contentHash AS contentHash, d.sourceHash AS sourceHash,
+       d.sourceVersion AS sourceVersion, c.modelId AS modelId, d.projectedAt AS projectedAt,
+       vectorScore, (0.8 * vectorScore + 0.2 * lexicalScore) AS score
+ORDER BY score DESC, sourceId, chunkId LIMIT $limit`;
+
+export const GRAPH_READ_TEMPLATES = Object.freeze({ catalog: CATALOG_QUERY, knowledge: KNOWLEDGE_QUERY, merchant_help: MERCHANT_HELP_QUERY });
 
 /** This is the only read compiler. Neither the LLM nor a caller supplies query
  * syntax, labels, relationship names or the database identity. */
@@ -89,11 +110,12 @@ export function compileGraphRead(value: unknown): GraphReadCommand {
   const input = graphReadSchema.parse(value);
   const terms = [...new Set(normalizeGraphText(input.query).split(" ").filter(Boolean))].slice(0, 12);
   if (!terms.length) throw new Error("graph_query_terms_missing");
-  return { kind: input.kind, text: input.kind === "catalog" ? CATALOG_QUERY : KNOWLEDGE_QUERY,
+  return { kind: input.kind, text: GRAPH_READ_TEMPLATES[input.kind],
     parameters: { merchantId: input.merchantId, modelId: input.modelId, dimension: GRAPH_VECTOR_DIMENSIONS,
       query: input.query, terms, embedding: [...input.embedding], limit: input.limit, scanLimit: input.scanLimit,
       threshold: input.threshold, minProjectedAt: input.nowEpochMs - input.maxAgeMs,
       categoryId: input.categoryId ?? null, sourceTypes: ["faq", "policy"],
+      ...(input.kind === "merchant_help" ? { audience: "merchant", context: input.context, sourceType: "merchant_guide" } : {}),
       attributes: input.attributes.map(a => ({ name: normalizeGraphText(a.name), value: normalizeGraphText(a.value), operator: a.operator })),
       attributeAnyOf: input.attributeAnyOf.map(group => group.map(a => ({ name: normalizeGraphText(a.name), value: normalizeGraphText(a.value), operator: a.operator }))) } };
 }

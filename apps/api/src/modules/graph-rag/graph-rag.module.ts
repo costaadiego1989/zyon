@@ -1,6 +1,6 @@
 import { Module, Logger } from "@nestjs/common";
 import type { OnModuleInit, OnApplicationShutdown } from "@nestjs/common";
-import { GRAPH_RETRIEVAL, type GraphCatalogRequest, type GraphConnectionSettings, type GraphRetrievalPort, type GraphRuntimeAdapter } from "./domain/graph-rag.port.js";
+import { GRAPH_RETRIEVAL, type GraphCatalogRequest, type GraphConnectionSettings, type GraphRetrievalPort, type GraphRuntimeAdapter, type GraphMerchantGuideRequest } from "./domain/graph-rag.port.js";
 import { graphRagSettings } from "./graph-rag.settings.js";
 import { Neo4jGraphAdapter } from "./infrastructure/neo4j-graph.adapter.js";
 import { GraphLocalEmbeddingService } from "./infrastructure/graph-local-embedding.service.js";
@@ -36,6 +36,10 @@ export class GraphRagRuntime implements GraphRetrievalPort, OnModuleInit, OnAppl
   }
   async searchKnowledge(input: Pick<GraphCatalogRequest, "merchantId" | "query" | "limit">) {
     return this.readyFor(input.merchantId) ? this.retrieval.searchKnowledge(input)
+      : { status: "unavailable" as const, reason: "disabled" as const };
+  }
+  async searchMerchantGuides(input: GraphMerchantGuideRequest) {
+    return this.readyFor(input.merchantId) ? this.retrieval.searchMerchantGuides(input)
       : { status: "unavailable" as const, reason: "disabled" as const };
   }
   async onApplicationShutdown() { this.stopping = true;this.ready = false;if (this.retry) clearInterval(this.retry);await this.adapter.close(); }

@@ -36,8 +36,28 @@ export class AgenticBrowserProvider {
     const completion=(content:unknown,tool?:{name:string;args:Json})=>json({id:randomUUID(),choices:[{finish_reason:tool?'tool_calls':'stop',message:tool?{content:null,tool_calls:[{id:'call-'+randomUUID(),type:'function',function:{name:tool.name,arguments:JSON.stringify(tool.args)}}]}:{content:JSON.stringify(content)}}],usage:{prompt_tokens:100,completion_tokens:40,total_tokens:140}});
     if(body.tools?.some((t:Json)=>t.function.name==='propose_campaign_changes'))return completion(null,{name:'propose_campaign_changes',args:{recommendations:[]}});
     const scripted=this.modelScript.shift();if(scripted)return 'tool' in scripted?completion(null,scripted.tool):completion({reply:scripted.reply,referenceIds:refs.map(ref=>ref.id)});
-    if(/fundos|pagar|pagamento|verba|saldo/i.test(text)&&!called.includes('merchant_ads_funding'))return completion(null,{name:'merchant_ads_funding',args:{}});
     const reply=(value:string)=>completion({reply:value,referenceIds:refs.map(ref=>ref.id)});
+    if(state.contextLabel==='Cashback'){
+      const normalized=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+      const message=normalized(text);
+      if(/relatorio/.test(message)){
+        if(!called.includes('cashback_report')){const dates=text.match(/\d{4}-\d{2}-\d{2}/g);return completion(null,{name:'cashback_report',args:dates?{from:dates[0],to:dates[1]}:{}});}
+        return reply(toolResult('cashback_report').reply??'Consulte o relatório canônico.');
+      }
+      if(text.includes('?')&&!/ativar|publicar/.test(message))return reply(refs.map(ref=>ref.text).join('\n\n')||'Consulte a ajuda revisada no painel.');
+      if(!called.includes('cashback_read_program'))return completion(null,{name:'cashback_read_program',args:{}});
+      const current=toolResult('cashback_read_program');
+      if(/configur|continuar|retomar|checklist|ativar|publicar/.test(message)){
+        if(!called.includes('cashback_next_step'))return completion(null,{name:'cashback_next_step',args:{}});
+        return reply(toolResult('cashback_next_step').nextStep?.prompt??'Revise o rascunho antes de Publicar e ativar.');
+      }
+      if(!called.includes('cashback_save_draft_answer')){
+        const named=/^([^:\n=]{1,80})\s*[:=]/.exec(text),field=named?current.checklist?.items.find((item:Json)=>normalized(item.label)===normalized(named[1]))?.field:current.nextStep?.field;
+        if(field)return completion(null,{name:'cashback_save_draft_answer',args:{field,expectedRevision:current.program.configurationRevision}});
+      }
+      return reply('Consulte a próxima decisão do rascunho salvo.');
+    }
+    if(/fundos|pagar|pagamento|verba|saldo/i.test(text)&&!called.includes('merchant_ads_funding'))return completion(null,{name:'merchant_ads_funding',args:{}});
     if(/relat[oó]rio di[aá]rio/i.test(text)){
       if(!called.includes('merchant_ads_daily_reports'))return completion(null,{name:'merchant_ads_daily_reports',args:{localDay:'2026-11-16'}});
       return reply('Este é o relatório do dia encerrado. A receita atribuída não comprova aumento causal das vendas.');

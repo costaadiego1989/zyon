@@ -6,13 +6,15 @@ import {errorMessage} from './presentation.js';
 import {showToast} from '../../components/Toast.js';
 import {RefreshCw} from 'lucide-react';
 import {DraftCampaignPreview} from './DraftCampaignPreview.js';import {money} from './presentation.js';
-interface Props{merchantId:string;campaignId:string;proposalId?:string;hasLaunch?:boolean;api:CampaignApprovalApi;entitled:boolean;pollMs:number;timezone?:string;selectedImageCount?:number;onUpdated:()=>void|Promise<void>;onReconcile?:(id:string)=>Promise<unknown>;onReviewPendingChange?:(pending:boolean)=>void;campaign?:MetaAdsCampaign|null;media?:MetaAdsMedia[];connection?:MetaAdsConnection;onSetup?:()=>void;onCorrectBudget?:()=>void;}
+interface Props{merchantId:string;campaignId:string;proposalId?:string;hasLaunch?:boolean;refreshRevision?:string;api:CampaignApprovalApi;entitled:boolean;pollMs:number;timezone?:string;selectedImageCount?:number;onUpdated:()=>void|Promise<void>;onReconcile?:(id:string)=>Promise<unknown>;onReviewPendingChange?:(pending:boolean)=>void;campaign?:MetaAdsCampaign|null;media?:MetaAdsMedia[];connection?:MetaAdsConnection;onSetup?:()=>void;onCorrectBudget?:()=>void;}
 const states={queued:'Preparação na fila',preparing:'Preparando campanha',creative_pending:'Criando e verificando imagens',review_ready:'Pronta para aprovação',blocked:'Preparação pendente',unknown:'Resultado da preparação desconhecido',superseded:'Planejamento atualizado'};
 const blockers:Record<string,string>={campaign_preparation_unavailable:'A preparação está indisponível no momento. Tente consultar novamente.',image_credits_insufficient:'Créditos de imagens insuficientes. Fotos do catálogo não usam créditos; tente concluir com a foto do produto.',meta_connection_required:'Conecte sua conta de anúncios para publicar.',meta_account_required:'Conecte sua conta de anúncios para publicar.',meta_page_required:'Selecione a Página da sua loja na Meta.',meta_whatsapp_not_linked:'O número precisa estar vinculado à Página na Meta. Conectar o atendimento da loja não faz esse vínculo.',meta_dataset_required:'Selecione o Pixel da loja para medir as compras.',campaign_budget_required:'Informe o valor e as datas do anúncio.',campaign_dates_invalid:'Revise as datas do anúncio.',campaign_products_required:'Escolha o produto que será anunciado.',campaign_budget_below_period_minimum:'O valor total está abaixo da referência para esses dias. Ajuste o valor ou reduza o período.',campaign_budget_below_daily_minimum:'O valor por dia está abaixo do mínimo informado pela Meta. Escolha outro valor.',campaign_budget_check_unavailable:'Não foi possível consultar o mínimo da conta. Atualize antes de publicar.',catalog_photo_count_unavailable:'Há menos fotos de produtos do que imagens solicitadas. Ajuste a quantidade de imagens.',catalog_photo_invalid:'Não foi possível preparar a foto. Confira a imagem cadastrada no produto.',catalog_photo_unavailable:'Não foi possível carregar a foto do produto. Atualize para consultar novamente.',catalog_photo_storage_unavailable:'Não foi possível salvar a imagem para aprovação. Consulte novamente mais tarde.'};
 export function CampaignPreparationPanel(props:Props){return <Preparation key={`${props.merchantId}:${props.campaignId}:${props.proposalId??''}`} {...props}/>;}
-function Preparation({merchantId,campaignId,proposalId,hasLaunch=false,api,entitled,pollMs,timezone,selectedImageCount=0,onUpdated,onReconcile,onReviewPendingChange,campaign,media,connection,onSetup,onCorrectBudget}:Props){
+function Preparation({merchantId,campaignId,proposalId,hasLaunch=false,refreshRevision='',api,entitled,pollMs,timezone,selectedImageCount=0,onUpdated,onReconcile,onReviewPendingChange,campaign,media,connection,onSetup,onCorrectBudget}:Props){
  const [state,setState]=useState<CampaignPreparationView|null>(null),[review,setReview]=useState<MetaAdsCampaignLaunchReview|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[count,setCount]=useState(1);
  const life=useRef<AbortController|null>(null),lock=useRef(false),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),read=useRef<(notify?:boolean)=>Promise<void>>(async()=>{}),updated=useRef(onUpdated);updated.current=onUpdated;
+ const revision=useRef(refreshRevision),seenRevision=useRef(refreshRevision),reread=useRef(false);revision.current=refreshRevision;
+ const drain=()=>{if(lock.current||!reread.current||!life.current||life.current.signal.aborted)return false;reread.current=false;clearTimeout(timer.current);void read.current();return true;};
  const knownLaunch=useRef(hasLaunch);knownLaunch.current=hasLaunch;
  const job=state?.preparations[0];
  useLayoutEffect(()=>{onReviewPendingChange?.(!!campaign&&!review||review?.proposal.status==='pending_review');return()=>onReviewPendingChange?.(false);},[campaign?.id,review?.proposal.status,onReviewPendingChange]);
@@ -20,28 +22,30 @@ function Preparation({merchantId,campaignId,proposalId,hasLaunch=false,api,entit
  useEffect(()=>{
   const controller=new AbortController();life.current=controller;
   const load=async(notify=false)=>{
-   if(lock.current||controller.signal.aborted)return;lock.current=true;
+   if(controller.signal.aborted)return;if(lock.current){reread.current=true;return;}lock.current=true;const currentRevision=revision.current;
    try{
     const next=await api.preparation(campaignId,controller.signal);if(controller.signal.aborted)return;
+    if(currentRevision!==revision.current){reread.current=true;return;}
     next.preparations.sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)||b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id));setState(next);
     const reviewed=next.preparations.filter(job=>job.proposalId),id=proposalId??(reviewed.length===1?reviewed[0].proposalId:undefined);
     let current:MetaAdsCampaignLaunchReview|null=null;
-    if(id||knownLaunch.current||reviewed.length){current=await api.review(campaignId,id??undefined,controller.signal);if(controller.signal.aborted)return;setReview(current);}else setReview(null);
+    if(id||knownLaunch.current||reviewed.length){current=await api.review(campaignId,id??undefined,controller.signal);if(controller.signal.aborted)return;if(currentRevision!==revision.current){reread.current=true;return;}setReview(current);}else setReview(null);
     setError('');
     if(notify)showToast('success','Preparo atualizado. Confira o estado da campanha.');
     const pending=next.preparations.some(job=>['queued','preparing','creative_pending'].includes(job.status))||current?.execution&&['reserved','sending','remote_draft','remote_paused','publishing'].includes(current.execution.status)||current?.proposal.status==='approved'&&!current.execution;
     if(pending&&!controller.signal.aborted)timer.current=setTimeout(()=>void load(),pollMs);
-   }catch(e){if(!controller.signal.aborted){setError(errorMessage(e));if(notify)showToast('error',errorMessage(e));}}
-   finally{lock.current=false;if(!controller.signal.aborted)setLoading(false);}
+   }catch(e){if(!controller.signal.aborted){if(currentRevision!==revision.current)reread.current=true;else{setError(errorMessage(e));if(notify)showToast('error',errorMessage(e));}}}
+   finally{lock.current=false;const again=drain();if(!controller.signal.aborted&&!again)setLoading(false);}
   };read.current=load;void load();
   return()=>{controller.abort();clearTimeout(timer.current);};
  },[api,campaignId,proposalId,pollMs]);
+ useEffect(()=>{if(seenRevision.current===refreshRevision)return;seenRevision.current=refreshRevision;clearTimeout(timer.current);void read.current();},[refreshRevision]);
  useEffect(()=>{if(hasLaunch)void read.current();},[hasLaunch]);
  async function prepare(){
   if(lock.current||!state||!entitled||job?.status==='unknown')return;lock.current=true;setBusy(true);setError('');
   try{const saved=await api.preparation(campaignId,life.current?.signal);if(life.current?.signal.aborted)return;const next=await api.prepare(campaignId,{campaignDigest:saved.campaignDigest,imageCount:job?.requestedImages??count},life.current?.signal);if(!life.current?.signal.aborted){setState({...saved,preparations:[next,...saved.preparations.filter(j=>j.id!==next.id)]});showToast(['blocked','unknown'].includes(next.status)?'error':'success',states[next.status]);lock.current=false;await read.current();void updated.current();}}
   catch(e){if(!life.current?.signal.aborted){setError(errorMessage(e));showToast('error',errorMessage(e));}}
-  finally{lock.current=false;if(!life.current?.signal.aborted)setBusy(false);}
+  finally{lock.current=false;if(!life.current?.signal.aborted)setBusy(false);drain();}
  }
  const notice=review?.notice;
  const assessment=state?.budgetAssessment,budgetCode=assessment?.status==='below_estimated_period_minimum'?'campaign_budget_below_period_minimum':assessment?.status==='below_account_minimum'?'campaign_budget_below_daily_minimum':assessment?.status==='minimum_unavailable'?'campaign_budget_check_unavailable':null;

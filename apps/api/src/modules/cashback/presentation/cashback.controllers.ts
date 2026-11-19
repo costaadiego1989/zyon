@@ -1,5 +1,5 @@
 import { Body, Controller, ForbiddenException, Get, Header, NotFoundException, Param, Patch, Post, Query, Req, UseFilters, UseGuards } from "@nestjs/common";
-import type { CashbackRules } from "@zyon/shared-types";
+import type { CashbackConfigurationWrite, CashbackDraft } from "@zyon/shared-types";
 import { AuthGuard, currentUser } from "../../auth/presentation/auth.guard.js";
 import { BuyerJwtAuthGuard, currentBuyer } from "../../buyer-account/presentation/http/buyer-jwt-auth.guard.js";
 import { EmbedAuthGuard } from "../../embed/presentation/http/embed-auth.guard.js";
@@ -17,6 +17,14 @@ function merchant(req: { user?: unknown }) {
   return principal;
 }
 
+function configurationCommand(body: unknown, withRules = false): CashbackConfigurationWrite {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new CashbackError("cashback_configuration_request_invalid");
+  const value = body as Record<string, unknown>;
+  const allowed = withRules ? ["rules", "expectedRevision", "idempotencyKey"] : ["expectedRevision", "idempotencyKey"];
+  if (Object.keys(value).some(key => !allowed.includes(key))) throw new CashbackError("cashback_configuration_request_invalid");
+  return { expectedRevision: value.expectedRevision as string, idempotencyKey: value.idempotencyKey as string };
+}
+
 @Controller("dashboard/cashback")
 @UseGuards(AuthGuard)
 @UseFilters(CashbackErrorFilter)
@@ -24,18 +32,21 @@ function merchant(req: { user?: unknown }) {
 export class CashbackMerchantController {
   constructor(private readonly service: CashbackService, private readonly queries: CashbackQueriesService) {}
   @Get("program") @Header("Cache-Control", "no-store")
-  getProgram(@Req() req: { user?: unknown }) { return this.service.getProgram(merchant(req).merchantId, { includeGeneralCap: true }); }
+  getProgram(@Req() req: { user?: unknown }) { return this.service.getProgram(merchant(req).merchantId, { includeGeneralCap: true, includeConfigurationRevision: true }); }
   @Patch("program")
-  async saveDraft(@Req() req: { user?: unknown }, @Body() body: { rules: Partial<CashbackRules> }) {
-    const user = merchant(req); await this.service.saveDraft(user.merchantId, body?.rules, user.userId);
-    return this.service.getProgram(user.merchantId, { includeGeneralCap: true });
+  async saveDraft(@Req() req: { user?: unknown }, @Body() body: { rules: CashbackDraft } & CashbackConfigurationWrite) {
+    const user = merchant(req); const command = configurationCommand(body, true);
+    return this.service.saveDraft(user.merchantId, body?.rules, user.userId, command);
   }
   @Post("program/publish")
-  async publish(@Req() req: { user?: unknown }) { const user = merchant(req); await this.service.publishProgram(user.merchantId, user.userId, { requireCombination: true }); return this.service.getProgram(user.merchantId, { includeGeneralCap: true }); }
+  async publish(@Req() req: { user?: unknown }, @Body() body: CashbackConfigurationWrite) {
+    const user = merchant(req); const command = configurationCommand(body);
+    return this.service.publishProgram(user.merchantId, user.userId, { requireCombination: true, command });
+  }
   @Post("program/pause")
-  async pause(@Req() req: { user?: unknown }) { const user = merchant(req); await this.service.pauseProgram(user.merchantId, user.userId); return this.service.getProgram(user.merchantId, { includeGeneralCap: true }); }
+  async pause(@Req() req: { user?: unknown }) { const user = merchant(req); await this.service.pauseProgram(user.merchantId, user.userId); return this.service.getProgram(user.merchantId, { includeGeneralCap: true, includeConfigurationRevision: true }); }
   @Post("program/end")
-  async end(@Req() req: { user?: unknown }) { const user = merchant(req); await this.service.pauseProgram(user.merchantId, user.userId, true); return this.service.getProgram(user.merchantId, { includeGeneralCap: true }); }
+  async end(@Req() req: { user?: unknown }) { const user = merchant(req); await this.service.pauseProgram(user.merchantId, user.userId, true); return this.service.getProgram(user.merchantId, { includeGeneralCap: true, includeConfigurationRevision: true }); }
   @Get("metrics") @Header("Cache-Control", "no-store")
   metrics(@Req() req: { user?: unknown }, @Query() query: CashbackListQuery) { return this.queries.metrics(merchant(req).merchantId, query); }
   @Get("customers") @Header("Cache-Control", "no-store")
