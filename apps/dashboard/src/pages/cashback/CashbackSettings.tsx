@@ -30,9 +30,10 @@ interface Props {
   onInvalidateReview?: () => void;
   needsReconciliation?: boolean;
   onReconcile?: () => Promise<unknown> | void;
+  compact?: boolean;
 }
 
-export function CashbackSettings({ program, busy, onSave, onPublish, onReview, reviewedProgram, onInvalidateReview, needsReconciliation=false, onReconcile }: Props) {
+export function CashbackSettings({ program, busy, onSave, onPublish, onReview, reviewedProgram, onInvalidateReview, needsReconciliation=false, onReconcile, compact=false }: Props) {
   const [form, setForm] = useState(() => cashbackFormFromRules(program.draft ?? program.published));
   const [combinationForm, setCombinationForm] = useState(() => cashbackCombinationFormFromRules(program.draft ?? program.published));
   const [errors, setErrors] = useState<Partial<Record<SettingsField, string>>>({});
@@ -161,14 +162,15 @@ export function CashbackSettings({ program, busy, onSave, onPublish, onReview, r
       {combinationForm[choice] === "limited" && <div data-cashback-field={amount}><FormField label={valueLabel} value={combinationForm[amount]} onChange={value=>updateCombination(amount,value)} error={errors[amount]} disabled={!!busy || needsReconciliation} inputProps={{name:amount,inputMode:'decimal',autoComplete:'off'}}/></div>}
     </div>;
   }
-  return <section className="cashback-settings" aria-label="Regras do programa">
-    <div className="cashback-settings-heading"><SectionHeader title="Regras do programa" subtitle={review?'Confira o rascunho salvo antes de ativar.':dirty?'Salve as alterações antes de revisar.':'Defina as regras, salve e revise para ativar.'} trailing={dirty ? <span className="cashback-status">Alterações não salvas</span> : undefined}/></div>
+  return <section className="cashback-settings" data-compact={compact} aria-label="Regras do programa">
+    <div className="cashback-settings-heading" data-compact={compact}><SectionHeader title="Regras do programa" subtitle={review?'Confira o rascunho salvo antes de ativar.':dirty?'Salve as alterações antes de revisar.':'Defina as regras, salve e revise para ativar.'} trailing={dirty ? <span className="cashback-status">Alterações não salvas</span> : undefined}/></div>
+    {compact&&dirty&&<p className="cashback-help" role="status">Alterações não salvas. Salve antes de revisar.</p>}
     {dirty && baseRevision.current !== program.configurationRevision && <div className="cashback-settings-notice" role="status"><p>O rascunho salvo foi alterado. Seus campos foram mantidos.</p><Button variant="outline" disabled={!!busy || needsReconciliation} onClick={loadServer}>Carregar rascunho atual</Button></div>}
     {needsReconciliation && <div className="cashback-settings-notice" role="alert"><p>Confira o resultado da operação antes de salvar ou publicar novamente. Seus campos foram mantidos.</p><Button variant="outline" disabled={!!busy} onClick={()=>void (async()=>{if(await onReconcile?.())setDirty(false);})()}>Conferir resultado e retomar</Button></div>}
     <div className="cashback-settings-layout" hidden={!!review}>
     <nav className="cashback-settings-nav" aria-label="Regras do cashback">{sections.map(({key,label,Icon})=><button key={key} type="button" aria-label={label} aria-current={section===key?'page':undefined} onClick={()=>setSection(key)}><Icon size={17} aria-hidden="true"/>{label}</button>)}</nav>
     <form ref={formPanel} className="cashback-settings-form" noValidate onSubmit={event => { event.preventDefault(); void showReview(); }}>
-      <fieldset className="cashback-settings-group" data-settings-section="earn" hidden={section!=='earn'} disabled={!!busy || needsReconciliation}><legend>Ganhos</legend><p className="cashback-section-lead">Quanto cada compra gera e quais limites aplicar.</p>
+      <fieldset className="cashback-settings-group" data-settings-section="earn" hidden={section!=='earn'} disabled={!!busy || needsReconciliation}><legend>Ganhos</legend><p className="cashback-section-lead">Percentual e limites por compra.</p>
         <div className="cashback-fields">
           {text("earnRatePercent", "Percentual de cashback (%)")}
           {text("minimumEarn", "Compra mínima para ganhar (R$)")}
@@ -178,19 +180,19 @@ export function CashbackSettings({ program, busy, onSave, onPublish, onReview, r
         </div>
         <details className="cashback-disclosure"><summary>Sobre os ganhos</summary><p>Nenhuma regra comercial é ativada automaticamente. O percentual incide sobre os produtos elegíveis, após descontos e cashback usado. Produtos físicos, digitais, serviços e comida próprios desta loja participam. Frete e taxas não geram crédito.</p><p>Informe 0 se não houver compra mínima. Escolha explicitamente um valor ou sem limite para cada limite de ganho e para o orçamento mensal.</p></details>
       </fieldset>
-      <fieldset className="cashback-settings-group" data-settings-section="release" hidden={section!=='release'} disabled={!!busy || needsReconciliation}><legend>Liberação</legend><p className="cashback-section-lead">Quando o crédito fica disponível e até quando vale.</p><div className="cashback-fields">
+      <fieldset className="cashback-settings-group" data-settings-section="release" hidden={section!=='release'} disabled={!!busy || needsReconciliation}><legend>Liberação</legend><p className="cashback-section-lead">Liberação e validade do crédito.</p><div className="cashback-fields">
         {select("releaseTrigger","Marco de liberação",form.releaseTrigger,value=>update('releaseTrigger',value as CashbackForm['releaseTrigger']),[{value:'',label:'Selecione o marco'},{value:'payment_confirmed',label:'Pagamento confirmado'},{value:'order_fulfilled',label:'Pedido concluído'}])}
         {text("releaseDelayDays", "Carência após o marco (dias)", "numeric")}
         {select("expiryChoice","Validade do crédito",form.expiryChoice,value=>update('expiryChoice',value as LimitChoice),[{value:'',label:'Selecione a validade'},{value:'limited',label:'Definir prazo após a liberação'},{value:'unlimited',label:'Sem vencimento'}])}
         {form.expiryChoice === "limited" && text("expiryDays", "Validade após a liberação (dias)", "numeric")}
       </div><details className="cashback-disclosure"><summary>Sobre a liberação</summary><p>Pedido concluído exige a entrega ou execução comprovada de todos os itens, incluindo serviços e digitais. Carência 0 libera o crédito assim que o marco for confirmado.</p><p>O prazo de validade começa quando o crédito fica disponível. Escolha um prazo ou sem vencimento.</p></details></fieldset>
-      <fieldset className="cashback-settings-group" data-settings-section="redeem" hidden={section!=='redeem'} disabled={!!busy || needsReconciliation}><legend>Uso</legend><p className="cashback-section-lead">Quanto o cliente pode usar em uma nova compra.</p><div className="cashback-fields">
+      <fieldset className="cashback-settings-group" data-settings-section="redeem" hidden={section!=='redeem'} disabled={!!busy || needsReconciliation}><legend>Uso</legend><p className="cashback-section-lead">Limites para usar o saldo.</p><div className="cashback-fields">
         {text("minimumRedeemOrder", "Compra mínima para usar (R$)")}
         {text("maximumRedeemPercent", "Limite de uso por compra (%)")}
         {optionalLimit("maximumRedeemChoice", "maximumRedeem", "Valor máximo de uso por compra")}
       </div><details className="cashback-disclosure"><summary>Sobre o uso</summary><p>Informe 0 se não houver compra mínima. Frete e taxas não entram nessa base. O percentual de uso deve ser menor que 100%; o cliente pode escolher usar menos que o limite.</p><p>O saldo é compartilhado entre site e WhatsApp e vale para compras futuras nesta mesma loja.</p></details></fieldset>
       <fieldset className="cashback-settings-group" data-settings-section="combination" hidden={section!=='combination'} disabled={!!busy || needsReconciliation}><legend>Descontos</legend>
-        <p className="cashback-section-lead">Escolha as combinações e o teto total dos benefícios.</p>
+        <p className="cashback-section-lead">Combinações e teto total.</p>
         {typeof (program.draft ?? program.published)?.allowWithDiscounts === "boolean" && !(program.draft ?? program.published)?.combination && <p className="cashback-combination-note">Regras anteriores: escolha as permissões e os tetos para publicar.</p>}
         <div className="cashback-fields">
           {combinationSelect("combinationAllowCoupons", "Combinar cashback com cupons")}
@@ -201,7 +203,7 @@ export function CashbackSettings({ program, busy, onSave, onPublish, onReview, r
         </div>
         <details className="cashback-disclosure"><summary>Sobre os descontos</summary><p>Defina pelo menos um teto. Se informar percentual e reais, vale o menor. Cupom e regra avançada entram pelo desconto efetivo; o cashback usa o espaço restante. O saldo não utilizado continua na carteira.</p><p>{combinationForm.combinationLimitMode==='cashback_specific'?'O teto específico pode superar o geral, mas a soma dos benefícios continua limitada ao valor definido.':program.generalDiscountCapBps!=null?`Teto geral atual: ${program.generalDiscountCapBps/100}%. Prevalece o menor teto aplicável.`:'O teto geral será validado no checkout; nenhum valor é presumido aqui.'} Permitir a combinação não muda validade, exclusividade ou outras condições dos benefícios. As mesmas regras valem no site e no WhatsApp.</p></details>
       </fieldset>
-      <fieldset className="cashback-settings-group" data-settings-section="terms" hidden={section!=='terms'} disabled={!!busy || needsReconciliation}><legend>Regulamento</legend><p className="cashback-section-lead">As condições que o cliente verá antes de participar.</p>
+      <fieldset className="cashback-settings-group" data-settings-section="terms" hidden={section!=='terms'} disabled={!!busy || needsReconciliation}><legend>Regulamento</legend><p className="cashback-section-lead">Condições apresentadas ao cliente.</p>
         <div data-cashback-field="terms"><FormTextarea label="Condições do cashback" value={form.terms} rows={5} maxLength={10000} error={errors.terms} onChange={value=>update('terms',value)} disabled={!!busy || needsReconciliation} inputProps={{name:'terms'}}/></div>
         <details className="cashback-disclosure"><summary>Sobre o regulamento</summary><p>Explique ganho, liberação, uso, validade e devoluções. O crédito é financiado pela loja para compras futuras nesta mesma loja. Publicar novas regras não altera créditos anteriores.</p></details>
       </fieldset>

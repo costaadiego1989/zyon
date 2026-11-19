@@ -1,4 +1,23 @@
 .cashback-page { min-width: 0; }
+.cashback-page > [role="tabpanel"] { min-width: 0; }
+.cashback-page > [role="tabpanel"][hidden] { display: none; }
+.cashback-page > .tab-bar { width: fit-content; max-width: 100%; }
+.cashback-overview-content { display: grid; gap: 24px; min-width: 0; }
+.cashback-page > .cashback-program-state { padding: 14px 20px; background: var(--surface-1); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 12px); }
+.cashback-program-identity { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.cashback-program-identity > svg { flex-shrink: 0; color: var(--color-text-muted); }
+.cashback-program-identity > div { min-width: 0; }
+.cashback-program-labels { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.cashback-program-version { color: var(--color-text-secondary); font-size: 12px; }
+.cashback-program-note { display: block; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; margin-top: 4px; }
+.cashback-program-state > .cashback-state-actions { width: auto; flex-shrink: 0; }
+.cashback-page .cashback-period > .cashback-help { margin-top: 10px; }
+.cashback-page .filter-toolbar, .cashback-page .filter-toolbar__controls, .cashback-page .filter-toolbar__search { min-width: 0; max-width: 100%; }
+.cashback-page .filter-toolbar__controls > .tab-bar { max-width: 100%; flex-wrap: wrap; }
+.cashback-page .filter-toolbar__search { flex-shrink: 1; }
+.cashback-page .filter-toolbar__search > * { max-width: 100%; }
+.cashback-table-wrap:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+.cashback-page .cashback-table { min-width: 680px; }
 .cashback-page .panel, .cashback-page .data-panel__body { min-width: 0; }
 .cashback-section-heading h2, .cashback-statements h2, .cashback-results h2, .cashback-introduction h2 { margin: 0 0 6px; font: 650 18px/1.4 var(--font-sans); letter-spacing: -.02em; }
 .cashback-page h3 { font-family: var(--font-sans); letter-spacing: normal; }
@@ -12,6 +31,7 @@
 .cashback-feedback { padding: 14px 18px; border: 1px solid var(--color-border); border-radius: 10px; font-size: 14px; }
 .cashback-feedback--success { background: var(--color-brand-subtle); color: var(--color-text); }
 .cashback-feedback--error { color: var(--color-error); background: var(--surface-2); }
+.cashback-feedback:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
 .cashback-period { min-width: 0; }
 .cashback-period .cashback-field-error { margin-top: 8px; }
 .cashback-field input, .cashback-field select, .cashback-field textarea { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--color-border); border-radius: 8px; padding: 11px 12px; background: var(--color-bg, var(--surface-1)); color: var(--color-text); font: 400 14px/1.5 var(--font-sans); }
@@ -82,11 +102,12 @@ fieldset > .cashback-help { padding-bottom: 16px; }
 .cashback-adjustment form { padding: 0 24px 24px; display: grid; gap: 18px; }
 .cashback-adjustment form > .zyn-btn { justify-self: start; }
 @media (max-width: 900px) {
-  .cashback-program-state { align-items: flex-start; flex-direction: column; }
   .cashback-overview-columns { grid-template-columns: 1fr; }
   .cashback-balances dd { font-size: 22px; }
 }
 @media (max-width: 560px) {
+  .cashback-page > .tab-bar { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
+  .cashback-page > .cashback-program-state { padding: 12px 14px; }
   .cashback-page .page-header__actions { width: 100%; }
   .cashback-fields, .cashback-definition-list { grid-template-columns: 1fr; }
   .cashback-balances { grid-template-columns: 1fr; gap: 18px; padding-inline: 18px; }
@@ -100,4 +121,20 @@ fieldset > .cashback-help { padding-bottom: 16px; }
   .cashback-state-actions { width: 100%; }
   .cashback-state-actions .zyn-btn { flex: 1 1 auto; }
   .cashback-table th, .cashback-table td { padding-inline: 16px; }
+}
+@media (max-width: 700px) {
+  .console-content.dashboard-ui > .cashback-page { --page-section-gap: 16px; gap: 16px; }
+  .console-content.dashboard-ui:has(> .cashback-page[data-tab="settings"]) { padding-top: 16px !important; }
+  .cashback-page .page-header { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; padding-bottom: 16px; }
+  .cashback-page .page-header__copy { min-width: 0; flex: 1; }
+  .cashback-page .page-header__actions { width: auto; flex-wrap: nowrap; flex-shrink: 0; }
+  .cashback-page .cashback-header-action, .cashback-page .cashback-program-configure { min-width: 44px; width: 44px; height: 44px; padding: 10px; }
+  .cashback-header-action .zyn-btn__label > span, .cashback-program-configure .zyn-btn__label > span { display: none; }
+  .cashback-page[data-tab="settings"] .cashback-program-note { display: none; }
+  .cashback-page[data-tab="settings"] .chat-dock-collapsed .chat-dock-trigger { display: none; }
+  .cashback-settings[data-compact="true"] .cashback-settings-layout { padding-top: 0; border-top: 0; }
+  .cashback-settings[data-compact="true"] .cashback-section-lead { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cashback-page *, .cashback-page *::before, .cashback-page *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }

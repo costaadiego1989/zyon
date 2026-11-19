@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CashbackConfigurationWrite, CashbackCustomer, CashbackDraft, CashbackMetrics, CashbackPage, CashbackProgramView, CashbackRules, CashbackTransaction, CashbackWalletView } from "@zyon/shared-types";
 import { useApi } from "../../hooks/useApi.js";
 import type { CashbackCustomerFilter } from "../../api/endpoints/cashback.js";
@@ -27,8 +27,32 @@ export function cashbackPresetPeriod(preset: CashbackPeriodPreset, now = new Dat
   firstDay.setUTCDate(firstDay.getUTCDate() - days + 1);
   return { from: firstDay.toISOString().slice(0, 10), to };
 }
+const businessDayFormat = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit',era:'short'});
+const businessInstantFormat = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',timeZoneName:'longOffset'});
+function validBusinessDay(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0,4))>=1 && Number(value.slice(0,4))<9999 && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
+}
+/** First actual instant of a civil day; midnight can be skipped by historic DST. */
+function businessBoundary(value: string) {
+  let low=Date.parse(value)-36*3600000,high=Date.parse(value)+36*3600000;
+  while(low<high){
+    const middle=Math.floor((low+high)/2),parts=businessDayFormat.formatToParts(middle);
+    const part=(type:string)=>parts.find(p=>p.type===type)!.value;
+    const day=`${part('era')==='BC'?'-':''}${part('year').padStart(4,'0')}-${part('month')}-${part('day')}`;
+    if(day<value)low=middle+1;else high=middle;
+  }
+  return low;
+}
+function businessInstant(value:number) {
+  const parts=businessInstantFormat.formatToParts(value),part=(type:string)=>parts.find(p=>p.type===type)!.value;
+  const offset=part('timeZoneName').replace('GMT',''),milliseconds=new Date(value).getUTCMilliseconds();
+  if(!/^[+-]\d{2}:\d{2}$/.test(offset))return new Date(value).toISOString();
+  return `${part('year').padStart(4,'0')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}:${part('second')}${milliseconds?`.${String(milliseconds).padStart(3,'0')}`:''}${offset}`;
+}
 export function cashbackPeriodQuery(from: string, to: string) {
-  return { from: `${from}T00:00:00-03:00`, to: `${to}T23:59:59.999-03:00` };
+  if(!validBusinessDay(from)||!validBusinessDay(to)||from>to)return {from:'',to:''};
+  const next=new Date(Date.parse(to)+86400000).toISOString().slice(0,10);
+  return {from:businessInstant(businessBoundary(from)),to:businessInstant(businessBoundary(next)-1)};
 }
 
 type ConfigurationOperation = { kind: "save" | "publish"; command: CashbackConfigurationWrite; rules?: CashbackDraft };
@@ -63,8 +87,8 @@ export function useCashbackPage(scopeKey = "cashback") {
   const operation = useRef<ConfigurationOperation | null>(null);
   const [reviewedProgram, setReviewedProgram] = useState<CashbackProgramView | null>(null);
   const [needsReconciliation, setNeedsReconciliation] = useState(false);
-  const validPeriod = /^\d{4}-\d{2}-\d{2}$/.test(period.from) && /^\d{4}-\d{2}-\d{2}$/.test(period.to) && period.from <= period.to;
-  const dates = cashbackPeriodQuery(period.from, period.to);
+  const validPeriod = validBusinessDay(period.from) && validBusinessDay(period.to) && period.from <= period.to;
+  const dates = useMemo(()=>cashbackPeriodQuery(period.from, period.to),[period.from,period.to]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(customerQuery.trim()), 250);
@@ -251,7 +275,7 @@ export function useCashbackPage(scopeKey = "cashback") {
     tab, setTab, program, metrics, customers, transactions, wallet, period, periodPreset, validPeriod,
     setPeriod: (next: typeof period) => { setPeriod(next); setPeriodPreset("custom"); setTransactionPage(1); },
     setPeriodPreset: (next: CashbackPeriodPreset) => { setPeriod(cashbackPresetPeriod(next)); setPeriodPreset(next); setTransactionPage(1); },
-    customerQuery, setCustomerQuery: (next: string) => { setCustomerQuery(next); setCustomerPage(1); }, customerFilter,
+    customerQuery, setCustomerQuery: (next: string) => { setCustomerQuery(next); if (!next.trim()) setDebouncedQuery(""); setCustomerPage(1); }, customerFilter,
     setCustomerFilter: (next: CashbackCustomerFilter) => { setCustomerFilter(next); setCustomerPage(1); },
     customerPage, setCustomerPage, transactionPage, setTransactionPage, transactionType,
     setTransactionType: (next: string) => { setTransactionType(next); setTransactionPage(1); }, selectedCustomer, selectCustomer,

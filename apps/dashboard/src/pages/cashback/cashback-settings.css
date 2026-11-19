@@ -1,6 +1,7 @@
-.cashback-settings { display: grid; gap: 24px; min-width: 0; }
+.cashback-settings { position: relative; display: grid; gap: 24px; min-width: 0; }
 .cashback-settings [hidden] { display: none !important; }
 .cashback-settings-heading { padding: 0; }
+.cashback-settings-heading[data-compact="true"] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .cashback-settings-layout { display: grid; grid-template-columns: 180px minmax(0,1fr); align-items: start; gap: 32px; padding-top: 28px; border-top: 1px solid var(--color-border); }
 .cashback-settings-nav { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
 .cashback-settings .cashback-settings-nav button { display: flex; min-height: 44px; justify-content: flex-start; align-items: center; gap: 10px; padding: 10px 12px; color: var(--color-text-secondary); background: transparent; border: 1px solid transparent; border-radius: 8px; text-align: left; font: 500 13px/1.5 var(--font-sans); white-space: nowrap; cursor: pointer; }
@@ -31,6 +32,6 @@
 .cashback-settings .cashback-simulation { max-width: none; padding-top: 0; }
 .cashback-settings .cashback-simulation .cashback-fields { grid-template-columns: repeat(3,minmax(0,1fr)); margin-block: 8px 20px; }
 .cashback-settings :is(button,summary):focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
-@media (max-width: 760px) { .cashback-settings-layout { grid-template-columns: minmax(0,1fr); gap: 24px; padding-top: 20px; }.cashback-settings-nav { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }.cashback-settings .cashback-settings-nav button { padding: 10px; }.cashback-settings .cashback-simulation .cashback-fields { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .cashback-settings-layout { grid-template-columns: minmax(0,1fr); gap: 16px; padding-top: 16px; }.cashback-settings-nav { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }.cashback-settings .cashback-settings-nav button { padding: 10px; }.cashback-settings .cashback-section-lead { margin-bottom: 16px; }.cashback-settings .cashback-simulation .cashback-fields { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .cashback-settings .cashback-form-actions > .zyn-btn { width: 100%; }.cashback-settings-notice { padding: 14px 16px; } }
 @media (prefers-reduced-motion: reduce) { .cashback-settings details.cashback-disclosure > summary::after { transition: none; } }
