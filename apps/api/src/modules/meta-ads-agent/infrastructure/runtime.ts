@@ -134,9 +134,9 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
       preparation,launchReview:(merchantId,actorId,campaignId)=>launches.review(merchantId,actorId,campaignId),
       planningContext:async merchantId=>{
         const access=await connection.access(merchantId);if(!access.accountId)throw new MetaAdsError('meta_account_required',409);
-        const timezone=await provider.accountTimezone(access),current=await connection.access(merchantId);
+        const [timezone,budgetConstraints]=await Promise.all([provider.accountTimezone(access),provider.accountBudgetConstraints(access)]),current=await connection.access(merchantId);
         if(current.accountId!==access.accountId||current.connectionEpoch!==access.connectionEpoch)throw new MetaAdsError('meta_connection_changed',409);
-        return{accountId:access.accountId,timezone};
+        return{...budgetConstraints,timezone};
       },
       funding: merchantId => funding.describe(merchantId), reviewAutomation: (merchantId, terms, actorId) => policies.review(merchantId, actorId, terms),
       dailyReports: async (merchantId, localDay) => {

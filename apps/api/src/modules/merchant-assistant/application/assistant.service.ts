@@ -11,7 +11,7 @@ export type AssistantResponseInput = Pick<AssistantToolInput, 'scope' | 'threadI
 const unavailable = 'Não encontrei evidência suficiente nas fontes vigentes para confirmar essa informação. Posso ajudar a verificar os dados da loja ou você pode tentar novamente mais tarde.';
 const safeCode = (error: unknown) => {
   const value = error as { code?: unknown; status?: unknown };
-  return typeof value?.code === 'string' && /^(assistant_|campaign_|creative_|image_|generation_|proposal_|approval_|addon_|meta_)[a-z0-9_]{1,100}$/.test(value.code) ? value.code : 'assistant_tool_failed';
+  return typeof value?.code === 'string' && /^(assistant_|campaign_|creative_|image_|generation_|proposal_|approval_|addon_|meta_|automatic_|automation_)[a-z0-9_]{1,100}$/.test(value.code) ? value.code : 'assistant_tool_failed';
 };
 function toolContent(value: unknown): string {
   const json = JSON.stringify(value);
@@ -43,14 +43,17 @@ export class AssistantService {
     const messages:AssistantModelMessage[]=segments.flat();let historyMessages=messages.length;
     messages.push({ role: 'user', content: initial.turn.message });
     let knowledge: RetrievedAssistantKnowledge[];
-    try { knowledge = await this.deps.knowledge.retrieve(this.deps.context.knowledgeScope, initial.turn.message); } catch { knowledge = []; }
+    const previousQuestion=history.at(-1)?.reply??'';
+    const retrievalQuery=previousQuestion?`${initial.turn.message.slice(0,6500)}\nContexto anterior: ${previousQuestion.slice(0,1200)}`:initial.turn.message;
+    try { knowledge = await this.deps.knowledge.retrieve(this.deps.context.knowledgeScope, retrievalQuery); } catch { knowledge = []; }
     const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = [...(captured?.artifacts??[])]; const evidence:UncitedAssistantResponse['evidence'][number][]=captured?[{name:'merchant_ads_save_draft',result:captured}]:[];
+    let completionRequirement:string|null=null;
     for (let round = 0; round <= 5; round++) {
       // Keep the current turn's tool protocol intact while retaining more short guided answers.
       while(messages.length>40&&historyMessages>0){const count=historyMessages>1&&messages[1].role==='assistant'?2:1;messages.splice(0,count);historyMessages-=count;}
       const state = await this.current(input);
       let response:AssistantModelResult;
-      try{response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,
+      try{response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,...(completionRequirement?{completionRequirement}:{}),
         state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress,...(this.deps.context.checklist?{checklist:this.deps.context.checklist(state.thread.campaignProgress)}:{}) } });}
       catch(error){
         if(safeCode(error)!=='assistant_model_response_invalid')throw error;
@@ -81,6 +84,10 @@ export class AssistantService {
       }
       const current=await this.current(input);
       if (!response.reply?.trim()) throw new AssistantError('assistant_model_response_invalid', 502);
+      if(!completionRequirement&&round<5){
+        completionRequirement=this.deps.context.completionRequirement?.({message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence})??null;
+        if(completionRequirement)continue;
+      }
       let references: AssistantReference[];
       try { references = await this.deps.knowledge.validateReferences(this.deps.context.knowledgeScope, response.referenceIds, knowledge); }
       catch { return { reply: unavailable, references: [], artifacts: this.latestArtifacts(artifacts) }; }
@@ -90,6 +97,7 @@ export class AssistantService {
       // Without citations the context may emit only its own canonical facts/questions.
       let canonical:string|null=/^como posso ajudar\?$/i.test(response.reply.trim())?'Como posso ajudar?':null;
       if(!references.length&&!canonical){try{canonical=this.deps.context.uncitedResponse?.({suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence})??null;}catch{canonical=null;}}
+      if(!references.length&&!canonical&&current.thread.campaignProgress){try{canonical=this.deps.context.recoveredResponse?.({message:initial.turn.message,suggestedReply:'',campaign:current.thread.campaignProgress,evidence})??null;}catch{canonical=null;}}
       return { reply: references.length ? response.reply : canonical??unavailable, references, artifacts: this.latestArtifacts(artifacts) };
     }
     throw new AssistantError('assistant_tool_round_limit', 429);
