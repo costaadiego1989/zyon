@@ -11,6 +11,7 @@ import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServiceTestRuntime} from '../../api/tests/service-test-runtime.mjs';
 import {assertLocalServiceOrigin,serviceBrowserEnvironment} from './service-local-scope.mjs';
+import {observeProviderTrapFailure,operatorDiagnosticError} from '../../api/tests/whatsapp-operator-delivery-diagnostics.mjs';
 
 const directory=dirname(fileURLToPath(import.meta.url)),dashboard=resolve(directory,'..');
 const origin=assertLocalServiceOrigin('http://127.0.0.1:5187');
@@ -19,17 +20,31 @@ const html=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="
 export default async function setup(options={}){
   const previousEnvironment=process.env;
   process.env=serviceBrowserEnvironment(previousEnvironment);
-  let runtime,server;
+  let runtime,server,conversationFixtures,installConversationFixture;
   const close=async()=>{
     const errors=[];
     try{await server?.close();}catch(error){errors.push(error);}
-    try{await runtime?.close();}catch(error){
+    try{if(conversationFixtures)await conversationFixtures.close();else await runtime?.close();}catch(error){
+      // Existing bounded/redacted observer only; preserve this same failure.
+      observeProviderTrapFailure(error);
       try{
         let nodes=0;const names=new Set(['Error','AggregateError','AssertionError','AbortError','TypeError','TimeoutError']);
         const safe=(value,depth)=>{
           nodes++;const message=typeof value?.message==='string'?value.message.slice(0,1024):'';
           const result={name:names.has(value?.name)?value.name:'Error',codes:[...new Set(message.match(/\b(?:service_[a-z0-9_]+|ERR_[A-Z0-9_]+)\b/g)??[])].filter(code=>code.length<=96).slice(0,3),
             ...(typeof value?.actual==='number'||typeof value?.actual==='boolean'?{actual:value.actual}:{}),...(typeof value?.expected==='number'||typeof value?.expected==='boolean'?{expected:value.expected}:{})};
+          result.known=operatorDiagnosticError(value);
+          const nodeCodes=new Set(['ERR_ASSERTION','ERR_CHILD_PROCESS_STDIO_MAXBUFFER','ETIMEDOUT','ECONNRESET','ECONNREFUSED','ENOENT','EAGAIN','ENOMEM','ABORT_ERR']);
+          if(nodeCodes.has(value?.code)||(Number.isSafeInteger(value?.code)&&value.code>=0&&value.code<=255))result.code=value.code;
+          if(['SIGTERM','SIGKILL','SIGABRT'].includes(value?.signal))result.signal=value.signal;
+          if(typeof value?.killed==='boolean')result.killed=value.killed;
+          const command=message.match(/\bdocker(?:\.exe)?(?: --context [A-Za-z0-9_.-]+)? (inspect|rm|ps)\b/);
+          if(command)result.dockerPhase=command[1];
+          if(/No such (?:object|container)/i.test(String(value?.stderr??'')))result.ownedTargetMissing=true;
+          const frames=String(value?.stack??'').split('\n').slice(1,9).flatMap(line=>{
+            const match=line.replaceAll('\\','/').match(/\/(apps\/(?:api\/tests|dashboard\/e2e)\/[A-Za-z0-9_./-]+\.mjs):([1-9]\d{0,5})(?::\d{1,5})?/);
+            return match&&!match[1].split('/').includes('..')?[{path:match[1],line:Number(match[2])}]:[];
+          }).slice(0,6);if(frames.length)result.frames=frames;
           if(depth<3&&Array.isArray(value?.errors)){
             const errors=[];for(const child of value.errors){if(nodes>=6)break;errors.push(safe(child,depth+1));}if(errors.length)result.errors=errors;
           }
@@ -43,7 +58,12 @@ export default async function setup(options={}){
     if(errors.length)throw new AggregateError(errors,'service_browser_cleanup_failed');
   };
   try{
-    runtime=await createServiceTestRuntime({local:true});
+    if(options.whatsappConversations===true){
+      const conversations=await import('./service-whatsapp-conversations-fixture.mjs');
+      conversationFixtures=await conversations.prepareWhatsAppConversationFixtures();
+      installConversationFixture=conversations.installWhatsAppConversationFixture;
+      runtime=conversationFixtures.runtime;
+    }else runtime=await createServiceTestRuntime({local:true});
     console.log('Local service runtime startup:',JSON.stringify(runtime.evidence().startupTimings));
     assertLocalServiceOrigin(runtime.apiOrigin);
     const entitlementFixtures=options.catalogEntitlements===true?await prepareCatalogEntitlementFixtures(runtime):undefined;
@@ -58,6 +78,7 @@ export default async function setup(options={}){
       installCompanyFixture(vite,runtime);
       installCompanyServicesFixture(vite,runtime);
       installCatalogBusinessModeFixture(vite,runtime);
+      if(conversationFixtures)installConversationFixture(vite,conversationFixtures);
       if(entitlementFixtures)installCatalogEntitlementFixture(vite,runtime,entitlementFixtures);
       if(attendanceFixtures)installAttendanceFixture(vite,runtime,attendanceFixtures);
       if(professionalFixtures)installProfessionalFixture(vite,runtime,professionalFixtures);
@@ -91,8 +112,10 @@ export default async function setup(options={}){
     server=await createServer({root:dashboard,configFile:resolve(dashboard,'vite.config.ts'),envFile:false,
       clearScreen:false,logLevel:'error',plugins:[plugin],
       define:{'import.meta.env.VITE_API_BASE_URL':JSON.stringify(origin)},
+      ...(conversationFixtures?{optimizeDeps:{entries:['e2e/fixtures/whatsapp-conversation.tsx']}}:{}),
       server:{host:'127.0.0.1',port:5187,strictPort:true,
-        proxy:{'/v1':{target:runtime.apiOrigin,changeOrigin:false}}}});
+        proxy:{'/v1':{target:runtime.apiOrigin,changeOrigin:false},
+          ...(conversationFixtures?{'/socket.io':{target:runtime.apiOrigin,changeOrigin:false,ws:true}}:{})}}});
     await server.listen();
     return close;
   }catch(error){try{await close();}catch(cleanup){throw new AggregateError([error,cleanup],'service_browser_setup_cleanup_failed');}throw error;}

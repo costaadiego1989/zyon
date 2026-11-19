@@ -320,9 +320,9 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | HUM-01 | Fixed menu entry | T57 | Complete (LOCAL; T57 menu and signed gesture gated; final feature verification pending) |
 | HUM-02 | Handoff intake | T49, T50, T57 | Complete (LOCAL; T49/T50/T57 intake, router and button/text/voice with canonical acknowledgement gated; final feature verification pending) |
 | HUM-03 | AI pause | T4, T48, T49, T50, T51, T109 | Complete (LOCAL; T4/T48-T51 and T109 locally gated; final feature verification pending) |
-| HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52/T53/T58/T59 authority/queue and T60 local hook complete; T61/T62 visual operation pending) |
-| HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | In Progress (T53 queue, T54 local transport, T55 receipt processing and T60 hook reconciliation complete; T61 presentation and final verification pending) |
-| HUM-06 | Automatic AI resume | T56, T61 | In Progress (T56 canonical closure/automatic resume locally complete; T61 operator UI and final proof pending) |
+| HUM-04 | WhatsApp center | T52, T53, T58, T59, T60, T61, T62 | In Progress (T52/T53/T58/T59 authority/queue, T60 hook and T61 mounted drawer locally complete; T62 actual app/tab mount and final feature verification pending) |
+| HUM-05 | Original conversation delivery | T53, T54, T55, T60, T61 | Complete (LOCAL; T53-T55 canonical transport/receipts, T60 reconciliation and T61 truthful delivery/draft presentation locally gated; final integrated verification pending) |
+| HUM-06 | Automatic AI resume | T56, T61 | Complete (LOCAL; T56 canonical closure/resume and T61 actual operator closure/IA return locally gated; final feature proof pending) |
 | HUM-07 | Unavailable team/provider | T54, T55, T58, T109 | In Progress (T54/T55/T58/T109 server truth locally complete; final UI/feature verification pending) |
 | HUM-08 | Conversations tab inside WhatsApp | T58, T59, T60, T62, T82 | In Progress (T58 scoped API/bootstrap, T59 permissions and T60 local hook complete; T62/T82 tab/route wiring pending) |
 | RAG-01 | Automatic indexing | T4, T21, T63, T64, T65, T66, T104 | Implemented locally including T104 bounded-write repair; final proof pending |
@@ -369,7 +369,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-13 | Fixed timezone UI without a chooser | T113 | Pending; explicit user decision2026-11-18 |
-| QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | Pending |
+| QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | In Progress (T61 actual local desktop/mobile drawer captures and Browser gate complete; optional visual approval unanswered, remaining task captures and final screens review pending) |
 | QA-03 | Persisted state proof | T2, T5, T26, T108, T92, T95 | In Progress (T26 complete) |
 | QA-04 | RAG evaluation | T72, T94, T95 | In Progress (T72 critical evaluation locally complete; T94/T95 final activation gates pending) |
 | EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 and T22 complete) |

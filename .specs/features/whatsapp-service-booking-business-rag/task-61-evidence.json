@@ -1,0 +1,651 @@
+{
+  "task": "T61",
+  "status": "COMPLETE_LOCAL_T61_148_ACCEPTED_ACROSS_COHORTS_FINAL_FEATURE_VERIFICATION_PENDING",
+  "complete": true,
+  "executed": 127,
+  "baseCommit": "d245be0e591f653ee226f22bb905536e6906a298",
+  "runtimeOwner": "Root; M onlyFS/Gitclosure, no active SUT/probes",
+  "retainedTests": [
+    {
+      "source": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\phase8-post56-candidates-20261117\\files\\apps\\dashboard\\src\\pages\\whatsapp-seller\\components\\WhatsAppConversationDrawer.spec.tsx",
+      "dest": "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.spec.tsx",
+      "casesStatic": 5,
+      "sha256": "cf85e1109c10dbf95d8264be6dc4e0e39047f1ed315372e9b819e2a88befa163",
+      "byteExact": true
+    },
+    {
+      "source": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\phase8-post56-candidates-20261117\\files\\apps\\dashboard\\src\\pages\\whatsapp-seller\\conversation-actions.spec.ts",
+      "dest": "apps/dashboard/src/pages/whatsapp-seller/conversation-actions.spec.ts",
+      "casesStatic": 4,
+      "sha256": "671b5374bfded72f1f7c69d3f77b3348324a82a33592febff7b11fed140fa53a",
+      "byteExact": true
+    }
+  ],
+  "newTests": [
+    {
+      "file": "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.spec.tsx",
+      "staticCases": 5,
+      "sha256": "cf85e1109c10dbf95d8264be6dc4e0e39047f1ed315372e9b819e2a88befa163"
+    },
+    {
+      "file": "apps/dashboard/src/pages/whatsapp-seller/conversation-actions.spec.ts",
+      "staticCases": 4,
+      "sha256": "671b5374bfded72f1f7c69d3f77b3348324a82a33592febff7b11fed140fa53a"
+    },
+    {
+      "file": "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.lifecycle.spec.tsx",
+      "staticCases": 11,
+      "sha256": "0282ea8a464aaf91debd623c716832484d964874be777040f7e55924af451e4c"
+    }
+  ],
+  "newStaticCases": 20,
+  "original107TestsByteExact": true,
+  "old107ReceiptsNotRelabeledForChangedSource": true,
+  "productiveDeltas": [
+    {
+      "path": "apps/dashboard/src/pages/support-settings/components/CanonicalSupportChat.tsx",
+      "beforeSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSha256": "52e452a93a416f933f01f32568f8f9e3f749acd24f8fc81fcc008e20f46e988b",
+      "patchSha256": "11c1405868143bf21766fbd5efac9577182b9220c57cab3050aa62cb49d2e338"
+    },
+    {
+      "path": "apps/dashboard/src/pages/support-settings/components/SupportChatDrawer.tsx",
+      "beforeSha256": "18d9fe766e09328238fad7ba7e504c8a09f8ada3084688abeadc0ff43d268a80",
+      "afterSha256": "f34d75827b2d32a5e2bb22853138e31d6e51fe938ea39e76e70d6db51614c18e",
+      "patchSha256": "1daec66a988598a68e47c16387dd4aed6ade3aedc8df19b4b40e00c3cb906027"
+    },
+    {
+      "path": "apps/dashboard/src/pages/support-settings/support-settings.css",
+      "beforeSha256": "f6c71afc4e1e61914c0c469ff58373cf1bfb1969ea7e2cae639486fbfc830be1",
+      "afterSha256": "93bb82b96750652c7d05e8e59e98a13c25e6db698e83062a3049cf5a0b00dd8b",
+      "patchSha256": "3b776611d55a7c8d48180bf6aa1cecf152de8ce0d5cf6db9e5448f70f7892269"
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.tsx",
+      "beforeSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSha256": "0446d6f0d874ab3298dd881ef1bf860e7cf49d7c39a2348f24cf4c355e6a55c3",
+      "patchSha256": "163f1a656f44ad3c4cbcb0c602b27fafef3454921d3effa238d169313fff16a9"
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/conversation-actions.ts",
+      "beforeSha256": "aadfbd1fd539c7654a610b7a1e72ba7425cf784dccf7ea73b1c78a9dd51805a3",
+      "afterSha256": "4d39b7a05f0179ac2c25dccc371d3e9c8d4aeb969ea7f22ef5b392173d41c4cb",
+      "patchSha256": "9fdb38435547309b80a9dc2c5517db4fd315070b3f4d468dbc4d1a5c3df9cff3"
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.ts",
+      "beforeSha256": "2dfa6105ca9890078dc81cf5ba8ae350bf8c999757f2c4386a2d8c99c8ae4e6b",
+      "afterSha256": "1a170ad5243ef980175a7a1021ba40fdcff04384e02451050b8d290e865ad8ac",
+      "patchSha256": "31092ffd8e01ec0cdb298d099395f6fd03a4befc8af8eca4f8c03612cb90d6e5"
+    }
+  ],
+  "legacySupportBodyByteExact": true,
+  "assumptionsAndSuccess": "task-61-plan.md",
+  "browserSource": "Actual wholeBrowser3 passed all gestures and normal teardown on local owned T2/auth/API; mounted drawer only, T62 app tab pending",
+  "noT62Mount": true,
+  "quick127": {
+    "status": "PARTIAL_T61_QUICK127_GREEN_BROWSER_PENDING",
+    "receipt": ".cache/t61-quick127-20261118/receipt.json",
+    "receiptSha256": "eb2756e9d0b0328b5ebeabd54211efdcddb0e7a0f575e87baff782605861d3ee",
+    "stdoutSha256": "c209ad730884e50c48fbcc1daaae5a6b047d5d71ee3d3a692093da0db91d72e4",
+    "counts": {
+      "numTotalTests": 127,
+      "numPassedTests": 127,
+      "numFailedTests": 0,
+      "numPendingTests": 0,
+      "numTodoTests": 0
+    },
+    "naturalExit": true,
+    "exitCode": 0,
+    "pid": 51460,
+    "freshCommitAvailableMiB": 4951,
+    "sourceTestsStateExact": true,
+    "runtimeReturnedToRoot": true,
+    "noBrowserApiDbBuildCommit": true
+  },
+  "currentBaseCommit": "c20a94c57685e68e4e78fbf9b0275d79863181e5",
+  "currentSourceWindowNoExecution": false,
+  "currentPendingUnitCases": 0,
+  "currentPendingBrowserCases": 0,
+  "browserSelection": {
+    "status": "HISTORICAL_SOURCE_SELECTION_PRESERVED_CURRENT_GATE_IN_ACCEPTED_SUMMARY",
+    "baseCommit": "c20a94c57685e68e4e78fbf9b0275d79863181e5",
+    "unit20": {
+      "command": "pnpm --dir apps/dashboard exec vitest run src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.spec.tsx src/pages/whatsapp-seller/conversation-actions.spec.ts src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.lifecycle.spec.tsx --pool=forks --maxWorkers=1 --minWorkers=1 --no-file-parallelism",
+      "files": [
+        {
+          "file": "src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.spec.tsx",
+          "cases": 5,
+          "sha256": "cf85e1109c10dbf95d8264be6dc4e0e39047f1ed315372e9b819e2a88befa163"
+        },
+        {
+          "file": "src/pages/whatsapp-seller/conversation-actions.spec.ts",
+          "cases": 4,
+          "sha256": "671b5374bfded72f1f7c69d3f77b3348324a82a33592febff7b11fed140fa53a"
+        },
+        {
+          "file": "src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.lifecycle.spec.tsx",
+          "cases": 11,
+          "sha256": "420b6043b4dc0938e52f25a751638ef75659e72d8e3c4dfbeb2bc59b5c8af4f9"
+        }
+      ],
+      "cases": 20,
+      "wholeFiles": 3,
+      "guardCommitMiB": 1024,
+      "noNameFilterSkipNewDeadline": true
+    },
+    "browser3": {
+      "command": "pnpm --dir apps/dashboard exec playwright test --config playwright.service-whatsapp-conversations-local.config.ts",
+      "file": "apps/dashboard/e2e/service-whatsapp-conversations.spec.ts",
+      "sha256": "ed2cfdabe29213bbcbb481acada87077e4fdae50b6a122f48ccd6bca2acb1138",
+      "cases": 3,
+      "guardCommitMiB": 2048,
+      "usesExistingT2AuthApi": true,
+      "workers": 1,
+      "retries": 0,
+      "testTimeoutMs": 60000,
+      "globalTimeoutMs": 600000,
+      "actionTimeoutMs": 10000,
+      "navigationTimeoutMs": 30000,
+      "viewports": [
+        {
+          "width": 1440,
+          "height": 1000
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "captures": [
+        "captures/artifacts/whatsapp-conversations.running.png",
+        "captures/artifacts/whatsapp-conversations-unknown.running.png",
+        "captures/artifacts/whatsapp-conversations-mobile.running.png"
+      ],
+      "presentation": "Actual local mounted drawer, not tab62 or production"
+    },
+    "buildPrerequisites": {
+      "standardBuildCommand": "pnpm --dir apps/api build",
+      "packageScript": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm --filter @zyon/commerce-adapters build && pnpm --filter @zyon/conversation-engine build && pnpm --filter @zyon/decision-engine build && pnpm --filter @zyon/negotiation-engine build && pnpm --filter @zyon/rules-engine build && pnpm --filter @zyon/shipping-engine build && prisma generate --schema prisma/schema.prisma && nest build",
+      "schema": "apps/api/prisma/schema.prisma",
+      "generator": "prisma-client-js, no custom output",
+      "clientVersion": "6.19.3",
+      "clientPackagePath": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\node_modules\\.pnpm\\@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3\\node_modules\\@prisma\\client",
+      "generatedClientPath": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\node_modules\\.pnpm\\@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3\\node_modules\\.prisma\\client",
+      "pathsVerifiedWithinM": true,
+      "generatedSchemaExistsBeforeBuild": true,
+      "freshBuildStillRequired": true,
+      "typecheckAloneGeneratesPrisma": false,
+      "explanation": "The normal build generates this own client after its8package builds and before checked Nest compilation; it does not run migrations. No copied dist/client/stamps and no manual stamp creation. Existing outputs remain stale after35 until actual standard build and official record/admit.",
+      "actualFilePrerequisites": {
+        "NodeBinaryExists": true,
+        "EdgeBinaryExists": true,
+        "playwrightPackageWithinM": true,
+        "vitePackageWithinM": true
+      },
+      "notProbed": "No Docker/image/port/memory/OS-process/runtime probe; original admission must verify at execution. No pull/install or production environment."
+    },
+    "buildSequence": [
+      {
+        "command": "node apps/api/tests/service-test-artifacts.mjs --capture-inputs",
+        "guardCommitMiB": 5168
+      },
+      {
+        "command": "pnpm --dir apps/api build",
+        "guardCommitMiB": 5168
+      },
+      {
+        "command": "node apps/api/tests/service-test-artifacts.mjs --record-build-exit0",
+        "guardCommitMiB": 1024
+      },
+      {
+        "officialAdmission": "assertServiceArtifacts() from existing service-test-artifacts.mjs, full current own input/artifact integrity; repeated automatically by T2 runtime before container",
+        "guardCommitMiB": 1024
+      }
+    ],
+    "retainedQuick127": {
+      "receipt": ".cache/t61-quick127-20261118/receipt.json",
+      "sha256": "eb2756e9d0b0328b5ebeabd54211efdcddb0e7a0f575e87baff782605861d3ee",
+      "claim": "Historical actual127 UI pass before textual refinement; no Browser or new-copy execution claim"
+    },
+    "firstFailureRefusal": "Stop and return runtime; no auto retry/limit/oracle/source change",
+    "runtimeOwner": "Core; source-only until explicit dispatch"
+  },
+  "copyRefinementReview": {
+    "status": "APPLIED_AUTHORIZED_UI_COPY_SELECTOR_NO_BUSINESS_ORACLE_CHANGE",
+    "path": "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.lifecycle.spec.tsx",
+    "originalSha256": "0282ea8a464aaf91debd623c716832484d964874be777040f7e55924af451e4c",
+    "candidateSha256": "23b1f40cc37cc487e2c2b7b7ed7d581eda397f306f586a7e1cfaac4c8f8e55b7",
+    "patchSha256": "45bba9087ac8721675de0026c155266fc5c714781316060846a9867578b02aa2",
+    "change": "Onlyonebuttonaccessiblelabel selector, Carregar mensagens anteriores -> Carregar mais mensagens",
+    "reason": "Actualread-whatsapp-conversations.use-case.ts:58uses createdAt/idASC and gt cursor, so theoldUIlabelpromisesthewrongdirection",
+    "allOtherAssertionsAndCasesPreserved": true,
+    "currentProductiveLabelStillUnchanged": true,
+    "reviewedBy": "Root: existing UI implementation/polish authorization covers this textual selector/title change; no new user question",
+    "currentTestSha256": "420b6043b4dc0938e52f25a751638ef75659e72d8e3c4dfbeb2bc59b5c8af4f9",
+    "selectorAndTitleInverseRestoresEntireOriginal": true
+  },
+  "defaultSetupInverseRestoresEntireBefore": true,
+  "browserPrerequisites": {
+    "standardBuildCommand": "pnpm --dir apps/api build",
+    "packageScript": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm --filter @zyon/commerce-adapters build && pnpm --filter @zyon/conversation-engine build && pnpm --filter @zyon/decision-engine build && pnpm --filter @zyon/negotiation-engine build && pnpm --filter @zyon/rules-engine build && pnpm --filter @zyon/shipping-engine build && prisma generate --schema prisma/schema.prisma && nest build",
+    "schema": "apps/api/prisma/schema.prisma",
+    "generator": "prisma-client-js, no custom output",
+    "clientVersion": "6.19.3",
+    "clientPackagePath": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\node_modules\\.pnpm\\@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3\\node_modules\\@prisma\\client",
+    "generatedClientPath": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\node_modules\\.pnpm\\@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3\\node_modules\\.prisma\\client",
+    "pathsVerifiedWithinM": true,
+    "generatedSchemaExistsBeforeBuild": true,
+    "freshBuildStillRequired": false,
+    "typecheckAloneGeneratesPrisma": false,
+    "explanation": "Own real capture/build/Prisma/record/admit1668/ed20/2585 completed earlier; current integral admission passed. No backend inputs changed during frontend/MJS repairs.",
+    "actualFilePrerequisites": {
+      "NodeBinaryExists": true,
+      "EdgeBinaryExists": true,
+      "playwrightPackageWithinM": true,
+      "vitePackageWithinM": true
+    },
+    "notProbed": "No Docker/image/port/memory/OS-process/runtime probe; original admission must verify at execution. No pull/install or production environment."
+  },
+  "viteEntryDecision": {
+    "reviewedPatchSha256": "799bb46ba11d7af4bb8740e424e059ec7cf32c14e117bc37d557bcad825f2719",
+    "authorizedBy": "Root technical source review, existing local fixture scope",
+    "decision": "Declare actual TSX dependency entry only for conversations opt-in; no manual preload/warming/limit change",
+    "causeLimit": "Entry mismatch proven; full cause of30s delay and fix efficacy unproven",
+    "recordedBeforeApplication": true
+  },
+  "currentPendingFixtureContracts": 0,
+  "actualOwnBuild": {
+    "receipt": ".cache/t61-browser-gates/2026-11-19T03-21-17.887Z/receipt.json",
+    "inputSha256": "16682447e8ca8f1ddea54587de0f5692854dc506d8cfd0aec3560756c50b70bb",
+    "artifactSha256": "ed20518829a3c7fd41cf84b447214d4cd888713a8491c271deea263045c77441",
+    "sourceCount": 2585,
+    "exclusionProof": "service-test-artifacts.mjs inventory fingerprints apps/api/src and packages/src TS/JSON plus declared configs/schema; no apps/api/tests MJS and no dashboard/e2e/dashboard TSX inputs. Changes after that actual ownbuild are only these test/harness/frontend paths; no backend input edits/copies."
+  },
+  "ui20AfterCopy": {
+    "status": "PASS20/20 natural0 before draft repair",
+    "report": ".cache/t61-browser-gates/2026-11-19T03-21-17.887Z/ui20.json",
+    "sha256": "6d36a459e7fb0824f9aa701052ed5d24ae0d3fe18deb684f79b5f2b2fb11ef95"
+  },
+  "browserRED": {
+    "receiptSha256": "133eb0365627584cf969363143ad3c956b721570baa742aeca27d41e161d520a",
+    "logSha256": "58c96882cb07da6a82d480a205de580a9f0c6d01bacefde5f03baa2a62b393cd",
+    "stats": {
+      "expected": 1,
+      "unexpected": 2,
+      "skipped": 0,
+      "flaky": 0
+    },
+    "globalCleanupError": "service_provider_attempt_forbidden; app.close0/provider0 not proven",
+    "resourceOwnership": "Complete aggregate only held worker-close error; mandatory own worker termination/Redis/PG dispose/bridge verification returned without error. Root accepted own resources cleanup; no new probes or foreign/global cleanup.",
+    "staff": "goto30s before bootstrap/auth; local entry/client/refresh200 responses22.8s, full latency cause not established",
+    "owner": "Trace201 queued0 -> canonical GETunknown1, no accepted; global first outcome leaked across case order after staff skipped send",
+    "captures": [
+      {
+        "path": ".cache/t61-browser-gates/2026-11-19T03-21-17.887Z/retained-browser-artifacts/service-whatsapp-conversat-7769b--draft-keyboard-and-closure/test-failed-1.png",
+        "sha256": "cb9c3b8047859412e8abcaed51ad9ecefb4bd820c8849af4992e593d500d1836",
+        "classification": "original failed Browser evidence, not approved UI"
+      },
+      {
+        "path": ".cache/t61-browser-gates/2026-11-19T03-21-17.887Z/retained-browser-artifacts/service-whatsapp-conversat-7769b--draft-keyboard-and-closure/error-context.md",
+        "sha256": "3cb2e28a72624647e66f87c8d449b30839b209a9609092f1358bfdae4ef448fd",
+        "classification": "original failed Browser evidence, not approved UI"
+      },
+      {
+        "path": ".cache/t61-browser-gates/2026-11-19T03-21-17.887Z/retained-browser-artifacts/service-whatsapp-conversat-7769b--draft-keyboard-and-closure/trace.zip",
+        "sha256": "941c60df319258a68ff5d637f7c678e98413a2dd69eaa8060834780e28547be6",
+        "classification": "original failed Browser evidence, not approved UI"
+      },
+      {
+        "path": ".cache/t61-browser-gates/2026-11-19T03-21-17.887Z/retained-browser-artifacts/service-whatsapp-conversat-566ff-e-accepted-canonical-intent/test-failed-1.png",
+        "sha256": "dc797217964bca356706c6e723e69f205a7eec59ea1bd9945640c62bc8d04a48",
+        "classification": "original failed Browser evidence, not approved UI"
+      },
+      {
+        "path": ".cache/t61-browser-gates/2026-11-19T03-21-17.887Z/retained-browser-artifacts/service-whatsapp-conversat-566ff-e-accepted-canonical-intent/error-context.md",
+        "sha256": "b359e9fbd889c735a8ae18c8dbb52eaf096b54400f3cfc882040116e11b91334",
+        "classification": "original failed Browser evidence, not approved UI"
+      },
+      {
+        "path": ".cache/t61-browser-gates/2026-11-19T03-21-17.887Z/retained-browser-artifacts/service-whatsapp-conversat-566ff-e-accepted-canonical-intent/trace.zip",
+        "sha256": "145761723554a8a9a386d19958a0131ff481a3823b59b6e2a518db624e744946",
+        "classification": "original failed Browser evidence, not approved UI"
+      },
+      {
+        "path": ".cache/t61-browser-gates/2026-11-19T03-21-17.887Z/retained-browser-artifacts/whatsapp-conversations-mobile.running.png",
+        "sha256": "562c651603d97c1bb363219e1228810ff793dcf84dec3eea253612068cd4b387",
+        "width": 390,
+        "height": 844,
+        "classification": "functional case passed but visual rejected by Root; no approval claimed"
+      }
+    ]
+  },
+  "draftTextCausalRED": {
+    "receipt": ".cache/t61-draft-text-causal-20261119/receipt.json",
+    "sha256": "7443ea1b843d7b8e455d2b989ccc968e1e05e2d2699d89cb6e833439255c5878",
+    "stdoutSha256": "24c5b7c33b4c65a2f7f93d1ad4d3e733044fa16473c4aca89c7e508041b3983b",
+    "counts": {
+      "numTotalTests": 3,
+      "numPassedTests": 0,
+      "numFailedTests": 3,
+      "numPendingTests": 0,
+      "numTodoTests": 0
+    },
+    "naturalExit": true,
+    "exitCode": 1,
+    "failures": "Only expected assertions64/73 missing clear and82 erased later edit; component proof, not actual API",
+    "rootSourceRepairSha256": "095dfec5ed218529a99718327e7f863b1e804bd7799474796f84330746559b81",
+    "currentRepairExecuted": 3,
+    "currentRepairResult": "GREEN3 within wholeUI23, same assertions"
+  },
+  "repairs": {
+    "fixtureRecipientMap": "Strict bounded static recipient option, exact authority tuple remains checked, ordinal/default branch unchanged;4new tests written before implementation +7old byteexact, executed0",
+    "providerObserver": "Existing observeProviderTrapFailure in same setup catch; failure-only bounded/redacted frames; same original error/trap/worker retained. Exact provider path unknown until observed.",
+    "capture": "Strengthens physical visibility proof; original bad mobile PNG retained, no visual approval claimed",
+    "viteEntry": {
+      "status": "APPLIED_EXACT_ROOT_REVIEWED_TECHNICAL_ENTRY_DECLARATION",
+      "beforeSha256": "1e8d4e39abec25eed8a3589113d382efddf507ec2e44e402c5aa97533a43f1ad",
+      "candidateSha256": "2add30422b0527d2f3bff0f0d47c068eba22b3a10f1301a292b3f4ce1cd00fe0",
+      "patchSha256": "799bb46ba11d7af4bb8740e424e059ec7cf32c14e117bc37d557bcad825f2719",
+      "change": "Only explicit test fixture entry in Vite optimizeDeps when whatsappConversations option is used; no manual import/preload/cache warmup or limit change",
+      "evidence": "Staff trace entry/@vite/client/@react-refresh requests200 around22.8s before auth; installed Vite computeEntries14218-14246 defaults to filesystemHTML when no entries; actual fixture HTML is middleware-only and entryTSX absent from that default scan",
+      "causalLimit": "Entry mismatch is source-proven; full cause of initial30s delay and improvement not yet executed/proven",
+      "defaultOptionAbsent": "No new Vite option; original T3/T10 path unchanged",
+      "execution": 0
+    }
+  },
+  "repairSelection": ".cache/t61-source-20261118/repair-gate-selection.json",
+  "repairRun2": {
+    "receipt": ".cache/t61-repair-gates/2026-11-19T03-53-09.367Z/receipt.json",
+    "receiptSha256": "2ff60fe2e3ea3cad698b72daa868ec8ca7af683a342228de4779d5699f278734",
+    "browserLogSha256": "1a22bb296978356171043b0c03bc2ffc1914579f659a3913191e84cc5a8892d2",
+    "UI23": {
+      "passed": 23,
+      "failed": 0,
+      "naturalExit": 0
+    },
+    "fixtureContracts11": {
+      "passed": 11,
+      "failed": 0,
+      "naturalExit": 0
+    },
+    "ownAdmission": "GREEN16682447/ed205188/2585; no backend source edit or rebuild",
+    "browser": {
+      "passed": 2,
+      "failed": 1,
+      "skipped": 0,
+      "flaky": 0,
+      "globalErrors": 0,
+      "naturalExit": 1,
+      "failedCase": "owner bootstrap contextHTTP429 before drawer opens; no owner send or acceptance reached"
+    },
+    "cleanup": "This run teardown returned normally; no providertrap/cleanup error. Launcher9276 and Browser33076 ended. Historical earlier providertrap still unresolved, not retroactively green.",
+    "runtimeOwner": "Returned explicitly to Root; Core now sole SUT; Msource-only",
+    "quotaEvidence": {
+      "file": ".cache/t61-repair-gates/2026-11-19T03-53-09.367Z/quota-diagnostic.json",
+      "endpoint": "GET /v1/support/whatsapp/conversations/context",
+      "status": 429,
+      "limit": 60,
+      "remaining": 0,
+      "retryAfterSeconds": 29,
+      "loginStatus": 201
+    },
+    "retainedArtifacts": ".cache/t61-repair-gates/2026-11-19T03-53-09.367Z/retained-artifacts.json",
+    "captures": [
+      {
+        "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations.running.png",
+        "sha256": "3649a97420037bbf88042cf23e4a075619c43aff76251fbd4227b5850ad6bc24",
+        "width": 1440,
+        "height": 1000,
+        "classification": "new real local mounted drawer, physical visibility checks passed, pending Root visual review"
+      },
+      {
+        "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations-unknown.running.png",
+        "sha256": "9232ba3af963534c6deedfb73bccacb6e2a019fce8f0459f014b5c7f057781bb",
+        "width": 1440,
+        "height": 1000,
+        "classification": "new real local mounted drawer, physical visibility checks passed, pending Root visual review"
+      },
+      {
+        "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations-mobile.running.png",
+        "sha256": "802ae1ccef3de42e5f896649af899d363b4eca984e4f9fdd281fcb44817cb61d",
+        "width": 390,
+        "height": 844,
+        "classification": "new real local mounted drawer, physical visibility checks passed, pending Root visual review"
+      }
+    ],
+    "capturesVisualReview": "Root opened and showed desktop/mobile as legible partial local preview. Toolbar mode/actions hidden by history scroll, requires refinement. No final approval claimed."
+  },
+  "sourceOnlyRepairsPlanned": {
+    "assumptions": "HUM04/QA02 require mode and ownership actions to stay visible while reading; independent owner accepted scenario need not share tenant quota with staff history. All business outcomes/auth/guard/limits preserved.",
+    "files": [
+      "apps/dashboard/e2e/service-whatsapp-conversations.spec.ts",
+      "apps/dashboard/e2e/service-whatsapp-conversations-fixture.mjs",
+      "apps/dashboard/src/pages/support-settings/components/CanonicalSupportChat.tsx",
+      "apps/dashboard/src/pages/support-settings/support-settings.css"
+    ],
+    "testsFirst": "Strengthen existing3 real Browser cases with actual wheel and full viewport intersection of mode/ownership action; retain all existing assertions/gestures/counts/limits.",
+    "minimalImplementation": "Canonical-only sticky status/action wrapper; original Modal/legacy unchanged. Owner accepted uses existing registered f.foreignAuth services owner + own channelphone, no quota/auth bypass.",
+    "success": "Current UI23 (affectedcomponent), wholeBrowser3, real viewport screenshots showing toolbar; trap/cleanup normal. Current contracts11 already green and unrelated by unchanged sender fixture.",
+    "execution": 0,
+    "status": "APPLIED_SOURCE_ONLY_NOT_EXECUTED",
+    "filesAndPins": [
+      {
+        "path": "apps/dashboard/e2e/service-whatsapp-conversations.spec.ts",
+        "before": "b21d9175752a368a55e267e07f4dc19304a30e8cd86b9a03ce7cadcc20b1bfa3",
+        "after": "c814ee2ec52deff595227d29f3f472166cbb4dfe99f56723c5c0295ec6da5be0",
+        "patch": "5b6ec48e9375fbca93c61a3d962ef564c95cfa316335953ecf995aa8ed90798f"
+      },
+      {
+        "path": "apps/dashboard/e2e/service-whatsapp-conversations-fixture.mjs",
+        "before": "5cc5642f411ec26373ddea2aea7c8619b1adca90dc5fe74a5438d996f42899e2",
+        "after": "1d6d80a77ff7564557d2846c9e0acbccae70dc9e5373a7da0e2ab34279a77959",
+        "patch": "89698d313329bf98662656eedafd1ab057a1cfbe9d71da5e87b44d7c2faa8e16"
+      },
+      {
+        "path": "apps/dashboard/src/pages/support-settings/components/CanonicalSupportChat.tsx",
+        "before": "095dfec5ed218529a99718327e7f863b1e804bd7799474796f84330746559b81",
+        "after": "ac467a7219f2fdf7d91d81ba422a80c0752faa8f746780f7432d7f7233f3a860",
+        "patch": "017472817a86bc7443dae1079c59f40381c71dbfff7cd3ebf62ad23c1aa8f61f"
+      },
+      {
+        "path": "apps/dashboard/src/pages/support-settings/support-settings.css",
+        "before": "93bb82b96750652c7d05e8e59e98a13c25e6db698e83062a3049cf5a0b00dd8b",
+        "after": "3329096653867d8016d7d4eb744fe2a48511781f1ce2d55f8b583fbcf948be08",
+        "patch": "d4ea5dbcf8450cee21950e890bf2118de7bab86cea4e28d42c338cfa44c2cec4"
+      }
+    ],
+    "rootReview": "Root approved existing owner isolation; all original Browserlines exact, only stronger checks added before productive wrapper.",
+    "capacityLimit": "No tenant quota/load capacity proof; no successful Staff trace retained, observed per-endpoint count unavailable. Initial failed run Staff trace has zero authenticated requests before goto timeout. Next observation must retain success trace explicitly.",
+    "traceRetention": {
+      "authorization": "Root explicit observation permission, recorded before apply",
+      "file": "apps/dashboard/playwright.service-whatsapp-conversations-local.config.ts",
+      "before": "34ce75dd8626c0b175b82df746aefd74830f92f39874cbbf4e5d82f002f27b90",
+      "after": "bd8b2684b6974676daf77c4c86be39b024b580b90bdde4921d0187d995994732",
+      "patch": "d7da9138ed335bc8e9bd6a91801541bad86cb6d83a21791a704484e10e83c662",
+      "dedicatedOnly": true,
+      "allCasesLimitsAuthUnchanged": true,
+      "execution": 0
+    }
+  },
+  "repairRun3": {
+    "receipt": ".cache/t61-repair-gates/2026-11-19T05-53-05.367Z/receipt.json",
+    "sha256": "8059ea824b5034cf49a90bf16619b1b3829bd5c884225bf45632e68ca04c24e8",
+    "ui23": {
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0,
+      "naturalExit": 0,
+      "reportSha256": "24d5f890c74e855ae2572559a6ff69ab6b6ddf3e17534a6c3e374962d0042ddf"
+    },
+    "contracts11": {
+      "passed": 11,
+      "failed": 0,
+      "naturalExit": 0
+    },
+    "ownAdmission": "GREEN16682447/ed205188/2585",
+    "browser": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "globalCleanupErrors": 1,
+      "naturalExit": 1,
+      "logSha256": "6b82a478f99561b69473a6223e67bcfdd91ab9c2ae02bace402e176fc2f50925"
+    },
+    "cleanup": "Runtime aggregate has exactly2 plainErrors without persisted cause. Worker before_closed_ack proves successful workerclose branch after app.close/trap; parentACK/exit/Redis/PG completion not proven. Root found oldPG stopped by metadata only; neither old object associated/removed, ownership remainsUNKNOWN. No Mprobe/cleanup/replay.",
+    "preservation": ".cache/t61-repair-gates/2026-11-19T05-53-05.367Z/retained-artifacts.json",
+    "requestCounts": ".cache/t61-repair-gates/2026-11-19T05-53-05.367Z/trace-request-counts.json",
+    "captures": [
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/whatsapp-conversations-mobile.running.png",
+        "sha256": "d944ceac9d5d1b2e260950ae4517b7b2d0ce25877714db51f40a4ade8d6db372",
+        "width": 390,
+        "height": 844,
+        "classification": "Actual run3 local mounted drawer, toolbar viewport assertions passed, Root showed partial preview, no final technical approval"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/whatsapp-conversations-unknown.running.png",
+        "sha256": "52e8684b6deab07038a37599344a258635e383cd5dbe2f7a1bfb0909c90fe03c",
+        "width": 1440,
+        "height": 1000,
+        "classification": "Actual run3 local mounted drawer, toolbar viewport assertions passed, Root showed partial preview, no final technical approval"
+      },
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/whatsapp-conversations.running.png",
+        "sha256": "c11d8b7024e2dd6136fbd7bf08925f4e54d30dc28f099c421d01a22694c1abd6",
+        "width": 1440,
+        "height": 1000,
+        "classification": "Actual run3 local mounted drawer, toolbar viewport assertions passed, Root showed partial preview, no final technical approval"
+      }
+    ],
+    "runtimeOwner": "Explicitly returned to Root; M source-only"
+  },
+  "cleanupObserver": {
+    "approvedPatch": "5bdee7421e3877ddf28e753f65936b85a8810da4d9251c29e38d733b24231995",
+    "appliedReceipt": ".cache/t61-cleanup-observer-review-20261119/applied-receipt.json",
+    "execution": "Installed for actual wholeBrowser3 pass; failure-only diagnostic branch not triggered",
+    "sameFailureControlFlow": true
+  },
+  "readCoalescingSourceReview": {
+    "verdict": "NO_BLOCKER_FOUND_BY_SOURCE_REVIEW_NOT_RUNTIME_VERIFICATION",
+    "hookSha256": "a1db88405402b149eba43ce37129d4cbc953485084b1c19443e4d93f6180149c",
+    "testSha256": "077e10d62b370b99c6576607bb96bb4ba1a3d97c08afa3a24d3418f2b15c855a",
+    "sourceFacts": [
+      {
+        "lines": "98-114",
+        "fact": "Same-scope refresh scheduler coalesces queued work into one pending record and serializes the final reread; no timer/poll or new transport."
+      },
+      {
+        "lines": "102-109",
+        "fact": "Retains origin generation token, discards stale scope before HTTP, then reads the currently selected ticket; no stored private identity/body role grant."
+      },
+      {
+        "lines": "143-157",
+        "fact": "Existing socket events enter scheduler; authenticated callback is authoritative when offered, connected edge remains only fallback, avoiding double trigger."
+      },
+      {
+        "lines": "182-215",
+        "fact": "Command ownership/epoch/pending intent/reconciliation fences unchanged; only read synchronization is routed through scheduler."
+      }
+    ],
+    "risks": [
+      "No test executed after source repair because fresh guard773<1024 refused before child; not a causal RED or GREEN.",
+      "Runtime read reduction and cleanup2errors still require actual134/Browser3; no tenant load-capacity proof."
+    ],
+    "noEditsToHookOrTests": true
+  },
+  "readCoalescingCurrentExecution": {
+    "currentWholeUnitCases": 134,
+    "newRefreshCasesIncluded": 4,
+    "actualGreenSummary": ".cache/t61-read-coalescing-root-20261119/green134-summary.json"
+  },
+  "readCoalescingRefusal": "Root fresh773<1024 before child; no RED, no after-correction test claim",
+  "acceptedSummary": {
+    "casesAcceptedAcrossCohorts": 148,
+    "freshAggregate148Claim": false,
+    "unit134": {
+      "stage": "CURRENT_WHOLE134_GREEN_AND_RUNTIME_RETURNED",
+      "naturalExit": {
+        "code": 0,
+        "signal": null
+      },
+      "counts": {
+        "tests": 134,
+        "pass": 134,
+        "fail": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "files": 19,
+      "rawSha256": "e1023932bc7725f053b8a1bc1e563a3ce4e4d052d38927b74f535a185d13bee7",
+      "receiptSha256": "07acaee217840c28e64558fff9bb250f89985d5803cc0d6d2a9c375ead188cf0",
+      "freezeSha256": "85d46ea20bc3d8e8caed15489ae46a932e29ffc7e3037fdf64232b4c6da750dc",
+      "selectionSha256": "f3b8783c3837c90fd7992b9d03466dd3a030f3cd8bb3b1edb5800a17c258883d",
+      "allFrozenPinsStillExact": true,
+      "sourceHook": "a1db88405402b149eba43ce37129d4cbc953485084b1c19443e4d93f6180149c",
+      "runtimeReturned": true,
+      "noBrowserOrBackendBuild": true
+    },
+    "fixture11": {
+      "receipt": ".cache/t61-repair-gates/2026-11-19T05-53-05.367Z/receipt.json",
+      "logSha256": "c797be83472ac6ba9f683e115271006062d2babdb3df415f533eaa190a3f73a4",
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0,
+      "retention": "Provider fixture and both contractfiles unchanged since actual pass; later observer/dashboard changes do not enter these pure contracts."
+    },
+    "browser3": {
+      "receipt": ".cache/t61-repair-gates/2026-11-19T13-07-09.684Z/receipt.json",
+      "receiptSha256": "7a73914cde0116baaf63669f3784d4f25f93484bcf25c4b7570297022a74d2eb",
+      "reportSha256": "602b7e44aa732e34eadb0b12b28d8a23a8842262204c37471bf3460c19556e42",
+      "rawSha256": "a0eda8187d43dee31eb24dd290e68226882ff49b412750302a15a0ebfec30e29",
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "globalErrors": 0,
+      "naturalExit": 0,
+      "cleanup": "Normal mandatory f.close validated appClosedtrue/remainingContainers0/remainingBridgeSockets0; providerCalls0. Failure-only observer not triggered, raw resource IDs not printed on success.",
+      "traces": ".cache/t61-repair-gates/2026-11-19T13-07-09.684Z/trace-request-counts.json",
+      "retainedArtifacts": ".cache/t61-repair-gates/2026-11-19T13-07-09.684Z/retained-artifacts.json",
+      "captures": [
+        {
+          "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations.running.png",
+          "sha256": "03fb2010ec059e4bd7748c37532a1f2e0ae0329e6a793aae5c788fe10cd2b0b3",
+          "width": 1440,
+          "height": 1000
+        },
+        {
+          "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations-unknown.running.png",
+          "sha256": "5a53d2f246ef2315807abbf7bb5cde5327ac45db87067506c469d2ae065eeeb8",
+          "width": 1440,
+          "height": 1000
+        },
+        {
+          "path": "C:\\tmp\\zyon-whatsapp-human-unknown-20261117\\.specs\\features\\whatsapp-service-booking-business-rag\\captures\\artifacts\\whatsapp-conversations-mobile.running.png",
+          "sha256": "66959c9bf473bdcdbfb22afaf1baeadc65b22008f14bb2e3ce92ff37c51c909f",
+          "width": 390,
+          "height": 844
+        }
+      ]
+    },
+    "ownCurrentApi": {
+      "checked": true,
+      "inputSha256": "16682447e8ca8f1ddea54587de0f5692854dc506d8cfd0aec3560756c50b70bb",
+      "artifactSha256": "ed20518829a3c7fd41cf84b447214d4cd888713a8491c271deea263045c77441",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2585
+      }
+    },
+    "sourceStateExactAtGateEnd": true,
+    "runtimeReturnedToRoot": true,
+    "noFurtherProjectExecution": true,
+    "oldObjects": "Old2objects UNKNOWN/intact; current cleanup0 does not retroactively identify old errors or authorize foreign removal.",
+    "visualReview": "Root opened/showed actual desktop/mobile; optional user approval has no response. No user-approved visual label.",
+    "featureScope": "Local T61 complete only; HUM04/T62 full app mount, remaining feature tasks, sameHEAD proofs/Verifier/screens and production are pending."
+  }
+}

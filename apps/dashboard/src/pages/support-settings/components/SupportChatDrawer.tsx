@@ -11,6 +11,7 @@ import { reportError } from "../../../hooks/useErrorReporter.js";
 import type { TicketMessage } from "../../../hooks/useSupportSocket.js";
 import { ExchangeCard } from "./ExchangeCard.js";
 import { PartnerStoreDropdown } from "./PartnerStoreDropdown.js";
+import { CanonicalSupportChat, type CanonicalSupportChatState } from "./CanonicalSupportChat.js";
 
 type DashboardApi = ReturnType<typeof import("../../../api-client.js").createDashboardApi>;
 
@@ -29,9 +30,15 @@ interface SupportChatDrawerProps {
   onJoin: (ticketId: string) => void;
   onLeave: (ticketId: string) => void;
   onNewMessage: (handler: (msg: TicketMessage) => void) => () => void;
+  whatsapp?: CanonicalSupportChatState;
 }
 
 export function SupportChatDrawer(props: SupportChatDrawerProps) {
+  if (props.whatsapp) return <CanonicalSupportChat {...props} whatsapp={props.whatsapp} />;
+  return <LegacySupportChatDrawer {...props} />;
+}
+
+function LegacySupportChatDrawer(props: SupportChatDrawerProps) {
   const { ticketId, buyerMessage, status, api, onClose, onSend, onJoin, onLeave, onNewMessage } = props;
   const { messages, loading, error, reload, addMessage, addOptimisticMerchantMessage } = useSupportChat(api, ticketId);
   const [input, setInput] = React.useState("");

@@ -12,6 +12,7 @@
 .support-tickets__board { display: grid; grid-template-columns: repeat(4, minmax(224px, 1fr)); gap: 12px; min-height: 400px; max-width: 100%; overflow-x: auto; padding: 3px; }
 .support-ticket-card:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 .support-chat { display: grid; gap: 20px; }
+.support-chat__toolbar { position: sticky; top: 0; z-index: 1; display: grid; gap: 12px; padding-block: 4px 12px; background: var(--surface-2); border-bottom: 1px solid var(--color-border); }
 .support-chat__status, .support-chat__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .support-chat__status > span:last-child { color: var(--color-text-muted); font: 13px var(--font-sans); }
 .support-chat__messages { display: flex; flex-direction: column; gap: 16px; min-height: 180px; }
@@ -24,6 +25,9 @@
 .support-chat__footer > p, .support-chat__close > p { margin: 0; color: var(--color-text-muted); font: 14px/1.6 var(--font-sans); }
 .support-chat__close { display: flex; flex-wrap: wrap; gap: 12px; width: 100%; }
 .support-chat__close p { width: 100%; }
+.support-chat__delivery { display: block; margin-top: 4px; color: var(--color-text-muted); font: 12px/1.5 var(--font-sans); }
+.support-chat__messages time { color: var(--color-text-muted); font: 12px/1.5 var(--font-sans); }
+.support-chat__messages .support-msg--system { align-self: center; background: var(--color-surface-alt); color: var(--color-text); }
 .support-chat .partner-store-dropdown label { text-transform: none !important; font-size: 13px !important; }
 .support-chat .partner-store-dropdown input { min-height: 44px; }
 @media (max-width: 600px) {

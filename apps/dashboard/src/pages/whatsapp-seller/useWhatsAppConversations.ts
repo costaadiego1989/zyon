@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ConversationApi, ConversationContext, ConversationDetail, ConversationMessage, ConversationSummary } from "./conversation-types.js";
 import { mergeConversationMessages } from "./conversation-reconciliation.js";
 import { conversationActions } from "./conversation-actions.js";
@@ -95,6 +95,25 @@ export function useWhatsAppConversations({ context, api, socket }: { context: Co
     }
   }, [api, scope]);
 
+  const refresh = useMemo(() => {
+    let queued: { token: ReturnType<typeof stamp>; detail: boolean } | undefined;
+    let active: Promise<void> | undefined;
+    return (token: ReturnType<typeof stamp>, detail: boolean): Promise<void> => {
+      queued = { token, detail: detail || Boolean(queued?.detail && live(queued.token)) };
+      if (!active) active = Promise.resolve().then(async () => {
+        try {
+          while (queued) {
+            const job = queued; queued = undefined;
+            if (!live(job.token)) continue;
+            const ticketId = job.detail ? selected.current : null;
+            await Promise.all([reload(), ...(ticketId ? [open(ticketId)] : [])]);
+          }
+        } finally { queued = undefined; active = undefined; }
+      });
+      return active;
+    };
+  }, [reload, open]);
+
   useEffect(() => {
     selected.current = null; selection.current++; listRequest.current++; working.current = false; pending.current.clear();
     stream.current = { ticketId: null, rows: [] }; setState(blank(scope)); if (scope) void reload();
@@ -124,18 +143,18 @@ export function useWhatsAppConversations({ context, api, socket }: { context: Co
     const token = stamp();
     return socket.onCaseUpdated?.(raw => {
       const event = record(raw); if (!live(token) || typeof event.ticketId !== "string") return;
-      void reload(); if (selected.current === event.ticketId) void open(event.ticketId);
+      void refresh(token, selected.current === event.ticketId);
     });
-  }, [scope, socket.connected, socket.onCaseUpdated, reload, open]);
+  }, [scope, socket.connected, socket.onCaseUpdated, refresh]);
   useEffect(() => {
     const token = stamp();
-    return socket.onConnected?.(() => { if (live(token) && scope) { void reload(); if (selected.current) void open(selected.current); } });
-  }, [scope, socket.connected, socket.onConnected, reload, open]);
+    return socket.onConnected?.(() => { if (live(token) && scope) void refresh(token, true); });
+  }, [scope, socket.connected, socket.onConnected, refresh]);
   const wasConnected = useRef(socket.connected);
   useEffect(() => {
     const restored = socket.connected && !wasConnected.current; wasConnected.current = socket.connected;
-    if (restored && scope) { void reload(); if (selected.current) void open(selected.current); }
-  }, [socket.connected, scope, reload, open]);
+    if (restored && scope && !socket.onConnected) void refresh(stamp(), true);
+  }, [socket.connected, socket.onConnected, scope, refresh]);
 
   const current = state.scope === scope ? state : blank(scope);
   async function loadMoreMessages() {
@@ -162,6 +181,7 @@ export function useWhatsAppConversations({ context, api, socket }: { context: Co
     if (!conversationActions(context, current.detail, socket.connected)[kind]) throw Error("conversation_command_unavailable");
     const token = stamp(), ticketId = current.detail.ticket.id, expectedEpoch = current.detail.binding.epoch;
     working.current = true; setState(old => ({ ...old, busy: true, actionError: null }));
+    let submitted: ConversationMessage | undefined;
     try {
       if (kind === "claim") await api.claimWhatsAppConversation(ticketId, { expectedEpoch });
       else if (kind === "close") await api.closeWhatsAppConversation(ticketId, { expectedEpoch });
@@ -171,16 +191,20 @@ export function useWhatsAppConversations({ context, api, socket }: { context: Co
         pending.current.set(key, clientMessageId);
         const message = await api.sendWhatsAppConversationMessage(ticketId, { content: text, clientMessageId });
         if (message.ticketId !== ticketId || message.clientMessageId !== clientMessageId) throw Error("conversation_scope_mismatch");
+        submitted = message;
         if (live(token) && selected.current === ticketId) {
           const messages = mergeCurrentMessages([message], ticketId);
           setState(old => old.detail?.ticket.id === ticketId ? { ...old, detail: { ...old.detail, messages: stream.current.ticketId === ticketId ? stream.current.rows : messages } } : old);
         }
       }
-      if (live(token)) { if (selected.current === ticketId) await open(ticketId); await reload(); }
+      if (live(token)) await refresh(token, selected.current === ticketId);
+      if (submitted && live(token) && selected.current === ticketId) {
+        const clientMessageId = submitted.clientMessageId;
+        return stream.current.rows.find(row => row.ticketId === ticketId && row.clientMessageId === clientMessageId);
+      }
     } catch (error) {
       if (live(token)) {
-        if (selected.current === ticketId) await open(ticketId);
-        await reload();
+        await refresh(token, selected.current === ticketId);
         if (selected.current === ticketId) setState(old => ({ ...old, actionError: "Não foi possível confirmar a ação. O histórico e seu rascunho foram preservados." }));
       }
       throw error;

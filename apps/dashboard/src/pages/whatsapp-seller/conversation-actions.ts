@@ -9,3 +9,6 @@ export function conversationActions(context:ConversationContext|null,detail:Conv
   return {claim:binding.ticketId===ticket.id&&binding.mode==="waiting_human"&&ticket.status==="open"&&binding.assignedOperatorId===null,
     send:Boolean(own&&connected&&channel?.enabled&&channel.status==="ACTIVE"),close:own};
 }
+export function conversationDeliveryLabel(status:ConversationDeliveryStatus):string{
+  return {queued:"Na fila",accepted:"Aceita pelo canal",delivered:"Entregue",read:"Lida",failed:"Falhou",unknown:"Envio não confirmado"}[status];
+}
