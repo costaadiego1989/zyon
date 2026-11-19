@@ -9,7 +9,7 @@ const metrics:MetaAdsMetrics={campaignId:'c',since:'2026-11-15',until:'2026-11-1
 const report=():MetaAdsDailyReport=>({id:'r',accountId:'100',localDay:'2026-11-15',timezone:'America/Sao_Paulo',since:'2026-11-15T03:00:00Z',until:'2026-11-16T03:00:00Z',status:'completed',analysisStatus:'completed',collectedAt:'2026-11-16T03:01:00Z',updatedAt:'2026-11-16T03:02:00Z',campaigns:[{campaignId:'c',metrics,status:'available',missing:[],recommendations:[],actions:[]}],notes:['Janela de avaliação: 14 dias.']});
 test('ADAS-44 daily report identifies closed day timezone exact collection and separate attributed sales conversations',async()=>{
   screen=ui();await screen.render(<DailyReportArtifact report={report()} campaignNames={{c:'Aurora'}}/>);
-  for(const text of ['15/11/2026','America/Sao_Paulo','Conta 100','Aurora','10,00','Vendas informadas pela Meta','300,00','Vendas confirmadas na Zyon','99,00','Conversas','2','meta_reported+zyon_reconciled','7d_click+1d_view','14 dias'])expect(screen.container.textContent).toContain(text);
+  for(const text of ['15/11/2026','Aurora','10,00','Vendas informadas pela Meta','300,00','Vendas confirmadas na Zyon','99,00','Conversas','2','Meta e pedidos confirmados na Zyon','7 dias após clique e 1 dia após visualização','14 dias'])expect(screen.container.textContent).toContain(text);
   expect(Array.from(screen.container.querySelectorAll('time')).map(t=>t.dateTime)).toContain('2026-11-16T03:01:00Z');
 });
 
@@ -24,7 +24,7 @@ test('ADAS-63 daily decisions use merchant language and keep secondary evidence 
 
 test('ADAS-44 civil report dates remain in the account day rather than shifting to the prior UTC date',async()=>{
   screen=ui();const r=report();r.since=r.until='2026-11-15';await screen.render(<DailyReportArtifact report={r}/>);
-  const times=Array.from(screen.container.querySelectorAll('time'));expect(times[0].dateTime).toBe('2026-11-15');expect(times[0].textContent).toBe('15/11/2026');expect(screen.container.textContent).not.toContain('14/11/2026');expect(screen.container.textContent).toContain('America/Sao_Paulo');
+  const times=Array.from(screen.container.querySelectorAll('time'));expect(times[0].dateTime).toBe('2026-11-15');expect(times[0].textContent).toBe('15/11/2026');expect(screen.container.textContent).not.toContain('14/11/2026');expect(screen.container.textContent).not.toContain('America/Sao_Paulo');
 });
 test('ADAS-43 null fields are unavailable while a measured zero stays zero',async()=>{
   screen=ui();const r=report();r.campaigns[0].metrics={...metrics,spendCents:0,attributedRevenueCents:null,confirmedRevenueCents:null,conversations:null};await screen.render(<DailyReportArtifact report={r}/>);

@@ -10,7 +10,7 @@ export interface AssistantToolDescriptor {name:string;description:string;inputSc
 export interface AssistantModelInput {
   scope:AssistantScope;threadId:string;turnId:string;leaseToken:string;
   messages:AssistantModelMessage[];knowledge:RetrievedAssistantKnowledge[];tools:AssistantToolDescriptor[];
-  state?:{contextLabel:string;now:string;campaign:AssistantCampaignProgress|null};
+  state?:{contextLabel:string;now:string;campaign:AssistantCampaignProgress|null;checklist?:Record<string,unknown>};
   /** Server-selected orchestration step, scoped to this durable turn. */
   step?:number;
   /** Server-only purpose. Never taken from a merchant tool argument. */

@@ -9,7 +9,7 @@ test('AF-04 missing ad account is setup guidance, while failures on a selected a
 const diagnosis=(billingType:'prepaid'|'postpaid'|'unknown'='prepaid'):MetaAdsFundingDiagnosis=>({status:'ready',message:'Leitura confirmada',nextSteps:[],error:null,snapshot:{accountId:'100',accountName:'Minha loja',currency:'BRL',billingType,paymentMethod:'present',confirmedBlock:false,blockCode:null,amountDueCents:5000,prepaidAvailableCents:null,checkedAt:'2026-11-16T12:34:00Z',source:'meta_graph',paymentUrl:'https://business.facebook.com/latest/billing_hub/payment_settings/?payment_account_id=100&asset_id=100&nav_ref=billing_hub&placement=campaign_manager'}});
 test('ADAS-01 funding guidance separates media from subscription and image credits before any chat',async()=>{
   screen=ui();await screen.render(<FundingPanel account={account} diagnosis={diagnosis()} onRefresh={async()=>{}}/>);
-  expect(screen.container.textContent).toContain('Sua assinatura da Zyon não inclui o investimento dos anúncios. Esse valor é pago diretamente à Meta.');
+  expect(screen.container.textContent).toContain('O investimento dos anúncios é pago diretamente à Meta.');
   expect(screen.container.textContent).toContain('pago diretamente à Meta');expect(screen.container.textContent).toContain('assinatura');expect(screen.container.textContent).toContain('créditos de imagens');expect(screen.container.querySelector('input')).toBeNull();
 });
 test('ADAS-05 payment gesture opens the official destination bound to this connected account',async()=>{

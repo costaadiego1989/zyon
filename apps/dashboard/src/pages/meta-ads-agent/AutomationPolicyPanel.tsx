@@ -6,7 +6,7 @@ export interface AutomationPolicyPanelProps {
   accountId:string|null; state?:MetaAdsAutomationState|null; review?:MetaAdsAutomationReview|null;
   productNames?:Record<string,string>; campaignNames?:Record<string,string>;
   disabled?:boolean; busy?:boolean; error?:string;
-  onChooseAutomatic:()=>void|Promise<void>;
+  onChooseAutomatic:()=>void|Promise<void>; onRetry?:()=>void|Promise<void>;
   onAccept:(review:MetaAdsAutomationReview)=>Promise<void>; onManual:()=>Promise<void>;
 }
 function Terms({value,productNames={},campaignNames={}}:{value:MetaAdsAutomationPolicyInput;productNames?:Record<string,string>;campaignNames?:Record<string,string>}) {
@@ -21,10 +21,10 @@ function Terms({value,productNames={},campaignNames={}}:{value:MetaAdsAutomation
     <div><dt>Teto por campanha</dt><dd>{money(limits.campaignCeilingCents,limits.currency)}</dd></div>
     <div><dt>Teto da loja</dt><dd>{money(limits.storeCeilingCents,limits.currency)}</dd></div>
     <div><dt>Periodicidade e moeda</dt><dd>{limits.cadence==='lifetime'?'total do período':'diário'} · {limits.currency}</dd></div>
-    <div><dt>Validade</dt><dd>{[limits.startsAt,limits.endsAt].map((at,i)=><span key={at}>{i?' até ':''}<time dateTime={at}>{new Date(at).toLocaleString('pt-BR',{timeZone:'UTC'})} UTC</time></span>)}</dd></div>
+    <div><dt>Validade</dt><dd>{[limits.startsAt,limits.endsAt].map((at,i)=><span key={at}>{i?' até ':''}<time dateTime={at}>{new Date(at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'})}</time></span>)} <small>Horário de Brasília</small></dd></div>
   </dl>;
 }
-export function AutomationPolicyPanel({accountId,state,review,productNames,campaignNames,disabled,busy,error,onChooseAutomatic,onAccept,onManual}:AutomationPolicyPanelProps) {
+export function AutomationPolicyPanel({accountId,state,review,productNames,campaignNames,disabled,busy,error,onChooseAutomatic,onRetry,onAccept,onManual}:AutomationPolicyPanelProps) {
   const [acknowledged,setAcknowledged]=useState(false);const action=useAction();
   useEffect(()=>setAcknowledged(false),[review?.digest,review?.version,accountId]);
   const policy=state?.policy?.accountId===accountId?state.policy:null;
@@ -34,10 +34,14 @@ export function AutomationPolicyPanel({accountId,state,review,productNames,campa
   return <section className="mga-panel mga-automation" aria-label="Autonomia dos anúncios"><div className="mga-automation-summary"><div><h2>Autonomia da IA</h2>
     <p><strong>{!state?error?'Modo atual: não confirmado':'Consultando modo de aprovação…':`${error?'Último modo confirmado':'Modo atual'}: ${automatic?'automático':'aprovação manual'}`}</strong></p>
     </div>
-    <div className="mga-actions"><button type="button" className="mga-secondary" disabled={blocked} onClick={()=>void action.run(async()=>{await onChooseAutomatic();})}>Automático</button>
-      {policy&&!policy.revokedAt&&<button type="button" className="mga-secondary" disabled={busy||action.busy} onClick={()=>void action.run(onManual,"Aprovação manual ativada. Anúncios existentes não foram pausados.")}>Voltar para aprovação manual</button>}</div></div>
-    <p>Toda campanha nova exige aprovação administrativa antes de publicar.</p>{!state&&<p>Confira a política atual antes de autorizar ações. A falta de uma leitura não confirma que a automação esteja desativada.</p>}
-    {!automatic&&state&&!error&&!currentReview&&<details className="mga-inline-details mga-disclosure"><summary>Como funciona a aprovação</summary><p>Cada alteração na Meta exige sua aprovação individual. Escolher automático inicia a definição de uma política; só o aceite dos termos abaixo autoriza ações futuras.</p></details>}
+    </div>
+    <div className="mga-autonomy-options"><div><h3>Aprovação manual</h3><p>Você revisa e aprova cada alteração antes de a IA executá-la.</p></div><div><h3>Modo autônomo</h3><p>A IA prepara campanhas e ajusta seus anúncios dentro dos limites de verba e das ações que você autorizar.</p></div></div>
+    <p className="mga-autonomy-rule">Toda campanha nova passa pela sua aprovação antes de ir ao ar, nos dois modos.</p>
+    {!error&&<div className="mga-actions"><button type="button" disabled={blocked} onClick={()=>void onChooseAutomatic()}>{automatic?'Ajustar limites com a IA':'Configurar modo autônomo'}</button>
+      {policy&&!policy.revokedAt&&<button type="button" className="mga-secondary" disabled={busy||action.busy} onClick={()=>void action.run(onManual,"Aprovação manual ativada. Anúncios existentes não foram pausados.")}>Voltar para aprovação manual</button>}</div>}
+    {!currentReview&&!error&&<small>A IA vai ajudar a escolher produtos, campanhas e limites. O modo só muda depois que você revisar e aceitar.</small>}
+    {error&&<div className="mga-notice"><p role="alert">Não foi possível consultar o modo atual. Atualize antes de configurar a autonomia.</p>{onRetry&&<button type="button" className="mga-secondary" disabled={busy||action.busy} onClick={()=>void action.run(async()=>{await onRetry();})}>Consultar modo novamente</button>}</div>}
+    {!accountId&&<p>Conecte uma conta Meta para configurar a autonomia.</p>}
     {policy&&<details className="mga-inline-details mga-disclosure"><summary>Ver política e limites</summary><p>Política {policy.version} · Conta {policy.accountId} · aceita em <time dateTime={policy.acceptedAt}>{new Date(policy.acceptedAt).toLocaleString('pt-BR',{timeZoneName:'short'})}</time></p>
       <Terms value={policy} productNames={productNames} campaignNames={campaignNames}/>
       <p>Compromisso registrado: {money(state!.committedCents)}. Disponível no teto: {money(state!.availableCents)}.</p>
@@ -51,6 +55,6 @@ export function AutomationPolicyPanel({accountId,state,review,productNames,campa
       <label className="mga-ack"><input type="checkbox" checked={acknowledged} disabled={blocked} onChange={event=>setAcknowledged(event.target.checked)}/>Li e autorizo as ações, os produtos, as campanhas e os tetos desta política.</label>
       <button type="button" disabled={blocked||!acknowledged} onClick={()=>void action.run(async()=>{await onAccept(currentReview);setAcknowledged(false);},"Política aceita. Toda campanha nova continua exigindo aprovação.")}>Aceitar política automática</button>
     </div>}
-    {action.busy&&<p role="status">Confirmando política…</p>}{(action.error||error)&&<p role="alert">{error||action.error}</p>}
+    {action.busy&&<p role="status">Confirmando política…</p>}{action.error&&<p role="alert">{action.error}</p>}
   </section>;
 }

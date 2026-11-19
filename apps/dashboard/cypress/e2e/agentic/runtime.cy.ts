@@ -24,7 +24,7 @@ describe('Runtime local real',()=>{
     enter();ask('Como adiciono fundos para pagar os anúncios?');ask('Como confiro os fundos dos anúncios na Meta?');
     const history='.chat-dock-history';cy.get(history).should(items=>{const el=items[0];expect(el.scrollHeight).greaterThan(el.clientHeight);expect(el.scrollTop+el.clientHeight).at.least(el.scrollHeight-2);});
     control('model',{hold:true});cy.get('[aria-label="Mensagem para a IA"]').type('Mais uma dúvida de pagamentos');cy.contains('button','Enviar mensagem').click();eventuallyFacts(body=>body.modelPending===1);
-    cy.get(history).scrollTo('top');cy.get('[aria-label="Mensagem para a IA"]').focus();control('model',{hold:false});cy.get('.chat-dock-reply').last().should('not.contain.text','Processando sua mensagem');
+    cy.get(history).scrollTo('top');cy.get('[aria-label="Mensagem para a IA"]').focus();control('model',{hold:false});cy.get('.chat-dock-reply').last().should('not.contain.text','Zyon pensando');
     cy.get(history).should(items=>expect(items[0].scrollTop).eq(0));cy.get('[aria-label="Mensagem para a IA"]').should('be.focused');
     ask('Quero entender a verba dos anúncios.');cy.get(history).should(items=>{const el=items[0];expect(el.scrollTop+el.clientHeight).at.least(el.scrollHeight-2);});cy.get('[aria-label="Mensagem para a IA"]').should('be.focused');
   });

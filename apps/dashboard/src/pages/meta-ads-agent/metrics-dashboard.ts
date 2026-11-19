@@ -9,7 +9,7 @@ export interface AdsDashboardData {
   totals:AdsTotals;partialMetrics:Array<keyof AdsTotals>;partial:boolean;hasData:boolean;daysWithData:number;totalDays:number;
   points:AdsPoint[];campaigns:Array<{id:string;totals:AdsTotals;partial:boolean}>;
 }
-interface Selection {accountId:string|null;days:1|7|30;campaignId?:string;throughDay?:string;}
+interface Selection {accountId:string|null;days:number;campaignId?:string;throughDay?:string;}
 type Observation=MetaAdsMetrics|null;
 const shift=(day:string,offset:number)=>{const date=new Date(day+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);};
 const observed=(row:Observation):row is MetaAdsMetrics=>!!row&&!row.stale;
