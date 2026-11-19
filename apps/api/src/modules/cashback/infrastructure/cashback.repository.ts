@@ -1,12 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
-import type { CashbackProgramView, CashbackRules } from "@zyon/shared-types";
+import type { CashbackDraft, CashbackProgramView, CashbackRules } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { assertWallet, CashbackError, emptyWallet, fingerprint, type Grant, type Reservation, type Wallet } from "../domain/cashback.js";
 import type { CashbackRepositoryPort, CashbackTx, QuoteRow } from "../domain/ports/cashback-repository.port.js";
 
 export interface ProgramRow {
-  merchant_id: string; status: CashbackProgramView["status"]; draft: Partial<CashbackRules> | null;
+  merchant_id: string; status: CashbackProgramView["status"]; draft: CashbackDraft | null;
   published: CashbackRules | null; version: number; updated_at: Date;
 }
 export function programView(row: ProgramRow | undefined, merchantId: string): CashbackProgramView {

@@ -575,6 +575,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             <div className="ui-breadcrumb"><ActiveIcon size={17} aria-hidden="true" /><span>{activeSection}</span><span aria-hidden="true">/</span><span className="ui-breadcrumb__current">{activeItem.label}</span></div>
           </div>
           <div className="console-topbar-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {!subscriptionRequired && tab === "cashback" && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} presentation="inline" />}
             {!subscriptionRequired && (me.plan === "STORE_ONLY" || me.plan === "BOTH") && storefrontHref && (
               <a
                 href={storefrontHref}
@@ -749,7 +750,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "marketplace-host-fees" ? <RouteGuard me={me} require="marketplace-host-fees"><MarketplaceSellerFeesPage family="host" me={me} /></RouteGuard> : null}
             {tab === "whatsapp-seller" ? <RouteGuard me={me} require="whatsapp-seller"><WhatsAppSellerPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "coupons" ? <RouteGuard me={me} require="coupons"><CouponsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
-            {tab === "cashback" ? <RouteGuard me={me} require="cashback"><CashbackPage /></RouteGuard> : null}
+            {tab === "cashback" ? <RouteGuard me={me} require="cashback"><CashbackPage key={`${me.id}:${me.user_id}:${me.role}`} merchantId={me.id} apiBaseUrl={API_BASE_URL} scopeKey={`${me.id}:${me.user_id}:${me.role}`} /></RouteGuard> : null}
             {tab === "experiments" ? (
               <RouteGuard me={me} require="experiments">
                 <PremiumFeatureGate feature="abTests" requiredPlan="Scale" featureLabel="Testes A/B" description="Experimente variações de prompts e estratégias do agente com significância estatística e promoção automática do vencedor.">
@@ -841,7 +842,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </PageErrorBoundary>
         </section>
       </main>
-      {!subscriptionRequired && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} />}
+      {!subscriptionRequired && tab !== "cashback" && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} />}
       <ToastContainer />
       {!subscriptionRequired && <ImportProgressBanner />}
       </div>

@@ -8,7 +8,9 @@ pelo sistema e todos os planos podem configurar o módulo.
 ## Seeds de validação
 
 O comando compilado é `node dist/seeds/cashback-validation-seed.js`, executado
-em `apps/api`. O build da API também compila o seed, sem executá-lo. A rotina
+em `apps/api`. Após o build local da API, execute também
+`node apps/api/prisma/seeds/cashback-validation-build.mjs` na raiz para checar
+os tipos e compilar o seed sem executá-lo. O Docker já executa esse helper. A rotina
 não deve ser adicionada à inicialização do serviço.
 
 Os parâmetros obrigatórios são `CASHBACK_QA_ENV`, `CASHBACK_QA_DATABASE_URL`,
@@ -24,12 +26,24 @@ catálogo: produtos físicos, serviços, digitais e comida. Os identificadores
 começam com `qa-cashback-v1-`. O telefone representa uma pré-condição sintética;
 não comprova posse de OTP ou entrega da Meta. Consentimentos de marketing são
 revogados e os templates das lojas QA, incluindo o registro do seed, ficam
-inativos. Nenhuma conexão de pagamento é criada.
+inativos. Nenhuma conexão de pagamento é criada. A repetição revalida o catálogo
+completo e desativa novos templates dessas mesmas lojas, mesmo após uma
+atualização anterior. O manifest persistido é conferido contra as 15 lojas
+exatas antes de qualquer operação derivada; IDs externos ou com sufixos são recusados.
 
 O manifest contém lojas, compradores, nonces, casos, valores esperados e os
 pedidos/pagamentos explicitamente sintéticos. Não contém JWTs ou a senha do
 lojista. Arquivos privados de autenticação são emitidos separadamente para a
 automação, usando os serviços reais de autenticação e sessões persistidas.
+
+A extensão `cashback-experience-v1` traz revisões reais e checklists vazio,
+parcial e completo, relatório com datas e dias zerados, e um período histórico
+que mantém saldos e orçamento atuais. As quatro escolhas parciais são fixtures
+explícitas de QA; não são valores iniciais para lojas reais. O vencimento
+de três dias declara a passagem de R$ 5 disponíveis/R$ 5 expirados para
+R$ 0/R$ 10 em `referenceAt + 2 dias`. Os valores imediatos originais permanecem
+no manifest; valide o estado atual com essa política temporal, sem regravar
+ledger ou substituir expectativas por valores encontrados no banco.
 
 ## Valores de referência
 

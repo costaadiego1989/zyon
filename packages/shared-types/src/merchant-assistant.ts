@@ -2,6 +2,7 @@ import type {
   MetaAdsActionKind, MetaAdsCampaign, MetaAdsCampaignDraft, MetaAdsExecution,
   MetaAdsGeneration, MetaAdsMetrics, MetaAdsPriority, MetaAdsProposal, MetaAdsRecommendation,
 } from './meta-ads-agent.js';
+import type { CashbackAssistantReport, CashbackConfigurationChecklist, CashbackProgramView } from './cashback.js';
 
 /** Public assistant contracts. Credentials and execution authority are server-only. */
 export interface AssistantContextDescriptor { id: string; label: string; capabilities: string[]; }
@@ -170,6 +171,8 @@ export interface MetaAdsDailyReport {
 }
 
 export type AssistantArtifact =
+  | { type: 'cashback_draft'; program: CashbackProgramView; missingFields: string[]; checklist?: CashbackConfigurationChecklist }
+  | { type: 'cashback_report'; report: CashbackAssistantReport }
   | { type: 'campaign'; campaign: MetaAdsCampaign }
   | { type: 'campaign_progress'; progress: AssistantCampaignProgress }
   | { type: 'generation'; generation: MetaAdsGeneration }

@@ -25,14 +25,43 @@ export interface CashbackRules {
   terms: string;
 }
 
+/** Drafts retain only explicit choices, including incomplete combination rules. */
+export type CashbackDraft = Omit<Partial<CashbackRules>, "combination"> & {
+  combination?: Partial<CashbackCombinationRules>;
+};
+
+export interface CashbackConfigurationChecklistItem {
+  field: string;
+  group: "earn" | "release" | "redeem" | "combination" | "terms";
+  label: string;
+  kind: "percent" | "money" | "days" | "boolean" | "choice" | "text";
+  unit: "BRL" | "percent" | "days" | null;
+  completed: boolean;
+  /** Absent is pending; false, zero and null are explicit persisted choices. */
+  value?: number | boolean | string | null;
+}
+export interface CashbackConfigurationChecklist {
+  items: CashbackConfigurationChecklistItem[];
+  completed: number;
+  total: number;
+  nextField: string | null;
+}
+
 export interface CashbackProgramView {
   merchantId: string;
   status: "disabled" | "active" | "paused" | "ended";
-  draft: Partial<CashbackRules> | null;
+  draft: CashbackDraft | null;
   published: CashbackRules | null;
   version: number;
   updatedAt: string | null;
   generalDiscountCapBps?: number | null;
+  /** Opaque server revision of the configuration reviewed before a write. */
+  configurationRevision?: string;
+}
+
+export interface CashbackConfigurationWrite {
+  expectedRevision: string;
+  idempotencyKey: string;
 }
 
 export interface CashbackBalance {
@@ -85,6 +114,22 @@ export interface CashbackCustomer {
   ordersWithCashback: number;
 }
 
+export interface CashbackDailyMovement {
+  /** Business day in America/Sao_Paulo, formatted as YYYY-MM-DD. */
+  date: string;
+  grantedCents: number;
+  redeemedCents: number;
+}
+
+export interface CashbackAssistantReport {
+  merchantId: string;
+  currency: "BRL";
+  timeZone: "America/Sao_Paulo";
+  /** Current budget month at metrics.asOf, independent of the selected period. */
+  budgetMonth: string;
+  metrics: CashbackMetrics;
+}
+
 export interface CashbackMetrics {
   from: string;
   to: string;
@@ -106,6 +151,8 @@ export interface CashbackMetrics {
   budgetCommittedCents: number;
   budgetIssuedCents: number;
   budgetLimitCents: number | null;
+  /** Absent only while reading an API version predating daily metrics. */
+  dailyMovements?: CashbackDailyMovement[];
 }
 
 export interface CashbackCheckoutQuote {

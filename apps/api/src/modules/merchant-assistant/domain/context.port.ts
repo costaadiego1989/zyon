@@ -9,7 +9,11 @@ export interface AssistantToolInput {
   /** Assigned by server orchestration, never a model argument or request body field. */
   origin?: 'model';
 }
-export interface AssistantToolResult { data: unknown; artifacts: AssistantArtifact[]; }
+export interface AssistantToolResult {
+  data: unknown; artifacts: AssistantArtifact[];
+  /** Server-owned compact model representation; never request/model authority. */
+  modelData?: unknown;
+}
 export interface UncitedAssistantResponse {
   suggestedReply:string; campaign:AssistantCampaignProgress|null;
   evidence:ReadonlyArray<{name:string;result:AssistantToolResult}>;
@@ -30,7 +34,7 @@ export interface AssistantContextPort {
   completionRequirement?(input:UncitedAssistantResponse & {message:string}):string|null;
   /** Server-rendered questions/facts only; untrusted model prose cannot establish evidence. */
   uncitedResponse?(input:UncitedAssistantResponse):string|null;
-  /** Context-owned clarification, also applied to cited campaign questionnaires. No actions. */
+  /** Context-owned canonical questions/facts may also replace cited claims. */
   guidedResponse?(input:UncitedAssistantResponse & {message:string}):string|null;
   /** Known malformed model reply only. Canonical questions/read facts, never tool replay. */
   recoveredResponse?(input:UncitedAssistantResponse & {message:string}):string|null;

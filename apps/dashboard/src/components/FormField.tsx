@@ -47,19 +47,22 @@ export interface FormSelectProps {
   options: Array<{ value: string; label: string }>;
   disabled?: boolean;
   hint?: string;
+  error?: string;
+  inputProps?: Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange" | "id">;
 }
 
-export function FormSelect({ label, value, onChange, options, disabled, hint }: FormSelectProps) {
+export function FormSelect({ label, value, onChange, options, disabled, hint, error, inputProps }: FormSelectProps) {
   const id = useId();
   return (
     <div className="form-field">
       <label htmlFor={id}>{label}</label>
-      <select id={id} aria-describedby={hint ? id + "-help" : undefined} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+      <select {...inputProps} id={id} aria-invalid={!!error} aria-describedby={hint || error ? id + "-help" : undefined} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
-      {hint ? <span id={id + "-help"} className="form-field-hint">{hint}</span> : null}
+      {hint && !error ? <span id={id + "-help"} className="form-field-hint">{hint}</span> : null}
+      {error ? <span id={id + "-help"} className="form-field-error" role="alert">{error}</span> : null}
     </div>
   );
 }
@@ -73,16 +76,20 @@ export interface FormTextareaProps {
   rows?: number;
   hint?: string;
   maxLength?: number;
+  error?: string;
+  inputProps?: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange" | "id">;
 }
 
-export function FormTextarea({ label, placeholder, value, onChange, disabled, rows = 3, hint, maxLength }: FormTextareaProps) {
+export function FormTextarea({ label, placeholder, value, onChange, disabled, rows = 3, hint, maxLength, error, inputProps }: FormTextareaProps) {
   const id = useId();
   return (
     <div className="form-field">
       <label htmlFor={id}>{label}</label>
       <textarea
+        {...inputProps}
         id={id}
-        aria-describedby={hint ? id + "-help" : undefined}
+        aria-invalid={!!error}
+        aria-describedby={hint || error ? id + "-help" : undefined}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -90,7 +97,8 @@ export function FormTextarea({ label, placeholder, value, onChange, disabled, ro
         rows={rows}
         maxLength={maxLength}
       />
-      {hint ? <span id={id + "-help"} className="form-field-hint">{hint}</span> : null}
+      {hint && !error ? <span id={id + "-help"} className="form-field-hint">{hint}</span> : null}
+      {error ? <span id={id + "-help"} className="form-field-error" role="alert">{error}</span> : null}
     </div>
   );
 }
