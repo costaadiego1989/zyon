@@ -1,4 +1,4 @@
-/** Compile the real development routes before the existing browser test clock. */
+/** Warm the compiled production routes before the existing browser test clock. */
 export default async function fiscalGlobalSetup() {
   const scenario = await fetch("http://127.0.0.1:3024/v1/__scenario", {
     method: "POST",

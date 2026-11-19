@@ -32,12 +32,13 @@ export default defineConfig({
       },
     },
     {
-      command: "pnpm dev",
+      command: "pnpm start",
       cwd: path.resolve(__dirname, ".."),
       url: "http://localhost:3001",
       timeout: 120000,
       reuseExistingServer: false,
       env: {
+        NODE_ENV: "production",
         AACP_API_URL: "http://127.0.0.1:3024",
         NEXT_PUBLIC_API_BASE_URL: "/api/v1",
         INTERNAL_SERVICE_TOKEN: "fiscal-browser-synthetic-service",
