@@ -121,7 +121,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 4. WHERE pagamento Ã© `at_attendance` the system SHALL confirmar o agendamento atomicamente com a ocupaÃ§Ã£o do horÃ¡rio e registrar pagamento pendente, sem criar cobranÃ§a antecipada. [BOOK-04]
 5. WHERE pagamento Ã© `online` the system SHALL confirmar o agendamento somente apÃ³s a confirmaÃ§Ã£o financeira do provedor e a aquisiÃ§Ã£o vÃ¡lida da vaga. [BOOK-05]
 6. IF pagamento Ã© aprovado apÃ³s a vaga se tornar indisponÃ­vel THEN the system SHALL manter o pagamento real registrado e sinalizar regularizaÃ§Ã£o para a empresa, sem confirmar vaga inexistente nem cobrar novamente. [BOOK-06]
-7. WHEN a empresa registra recebimento no atendimento THEN the system SHALL guardar valor, forma, operador e momento da quitaÃ§Ã£o, sem apresentar esse registro como confirmaÃ§Ã£o de um provedor externo. [BOOK-07]
+7. WHEN a empresa registra recebimento no atendimento THEN the system SHALL guardar valor, forma, operador e momento da quitaÃ§Ã£o, sem apresentar esse registro como confirmaÃ§Ã£o de um provedor externo. O valor registrado deve quitar exatamente o saldo pendente calculado pelo servidor; recebimentos parciais e valores acima do saldo são rejeitados. [BOOK-07]
 8. IF mensagem, confirmaÃ§Ã£o ou webhook Ã© repetido THEN the system SHALL manter um Ãºnico agendamento e uma Ãºnica aplicaÃ§Ã£o do mesmo evento financeiro. [BOOK-08]
 9. WHEN o comprador solicita cancelar ou remarcar THEN the system SHALL encaminhar Ã  central humana com o vÃ­nculo do agendamento e a polÃ­tica publicada da empresa. [BOOK-09]
 10. WHEN uma reserva de serviÃ§o Ã© concluÃ­da THEN the system SHALL emitir confirmaÃ§Ã£o com serviÃ§o, profissional, data, hora, fuso e situaÃ§Ã£o financeira, sem tratÃ¡-la como produto enviado ou baixar estoque fÃ­sico. [BOOK-10]
@@ -313,8 +313,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | BOOK-04 | Pay at attendance | T30, T40, T46 | In Progress (T30 complete) |
 | BOOK-05 | Pay online | T29, T35, T40 | In Progress (T29/T35 locally complete; T40 UI and final proof pending) |
 | BOOK-06 | Late payment | T36 | Complete locally at T36; Full422, actual claim/SQL/Redis and original product regressions; final feature verification pending |
-| BOOK-07 | On-site receipt | T4, T37, T41, T80 | Pending |
-| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34/T35/T36 locally complete; T37/T38/T84 and final proof pending) |
+| BOOK-07 | On-site receipt | T4, T37, T41, T80 | In Progress (T37 local integral financial writer/HTTP/SQL complete; T41/T80 UI and final proof pending) |
+| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34/T35/T36/T37 locally complete; T38/T84 and final proof pending) |
 | BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T33 cancellation/T34 canonical accepted reschedule and T49 trusted intake locally complete; T41/T80 UI and final human-flow proof pending) |
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | In Progress (T35 canonical paid admission/no physical stock locally proved; T38/T39 events/confirmation and final proof pending) |
 | HUM-01 | Fixed menu entry | T57 | Complete (LOCAL; T57 menu and signed gesture gated; final feature verification pending) |
@@ -349,7 +349,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | KPI-01 | Business-specific dashboard | T82, T87, T88, T89, T90, T91 | Pending |
 | KPI-02 | Appointment cohort and counts | T85, T86, T89 | Pending |
 | KPI-03 | Capacity occupancy | T86, T89 | Pending |
-| KPI-04 | Separate financial metrics | T37, T85, T86, T89 | Pending |
+| KPI-04 | Separate financial metrics | T37, T85, T86, T89 | In Progress (T37 immutable local financial evidence complete; aggregates/panel and final proof pending) |
 | KPI-05 | Consistent filters | T85, T87, T88, T91 | Pending |
 | KPI-06 | Explicit attendance evidence | T32, T85, T86, T89 | In Progress (T32 canonical operational evidence locally complete; metrics consumers/panel pending) |
 | KPI-07 | Unknown and empty metrics | T86, T87, T88, T89, T91 | Pending |
@@ -422,3 +422,5 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 
 **Local T36 closure:** Full422 GREEN across documented cohorts; own API b2ec26bd/241178bc/2586, types/lint/build0, mandatory owned cleanup and provider0. Task marked before focused local commit. No production/push/deploy; T37 onward and final same-HEAD verification remain pending.
+
+**Local T37 closure:** Full378 across149 current+229 retained unchanged products; own API2249dc61/73f9474e/2587, types/lint/build0 and native cleanup/provider0. Task marked before focused local commit. T38/T41/T80/metrics and final proof remain pending.

@@ -7,6 +7,7 @@ import { CreateManualServiceAppointmentUseCase } from "./application/create-manu
 import { TransitionServiceAppointmentUseCase } from "./application/transition-service-appointment.use-case.js";
 import { CancelServiceAppointmentUseCase } from "./application/cancel-service-appointment.use-case.js";
 import { RescheduleServiceAppointmentUseCase } from "./application/reschedule-service-appointment.use-case.js";
+import { RecordAttendanceReceiptUseCase } from "./application/record-attendance-receipt.use-case.js";
 import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { ServiceAppointmentHoldCleanupConsumer } from "./application/service-appointment-hold-cleanup.consumer.js";
 import { ServiceAppointmentsController } from "./presentation/http/service-appointments.controller.js";
@@ -46,6 +47,8 @@ import {
     PaymentsController,
   ],
   providers: [
+    { provide: RecordAttendanceReceiptUseCase, useFactory: (prisma: PrismaClient) =>
+      new RecordAttendanceReceiptUseCase(prisma), inject: [PRISMA_CLIENT] },
     { provide: RescheduleServiceAppointmentUseCase, useFactory: (prisma: PrismaClient) =>
       new RescheduleServiceAppointmentUseCase(prisma), inject: [PRISMA_CLIENT] },
     { provide: ServiceAppointmentHoldCleanupConsumer,

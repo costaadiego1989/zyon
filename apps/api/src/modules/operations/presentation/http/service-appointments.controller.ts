@@ -9,6 +9,7 @@ import { CreateManualServiceAppointmentUseCase, type ManualServiceAppointmentCom
 import { TransitionServiceAppointmentUseCase, type AttendanceTransitionCommand } from "../../application/transition-service-appointment.use-case.js";
 import { CancelServiceAppointmentUseCase, type CancelServiceAppointmentCommand } from "../../application/cancel-service-appointment.use-case.js";
 import { RescheduleServiceAppointmentUseCase, type RescheduleCommand, type ReschedulePreview } from "../../application/reschedule-service-appointment.use-case.js";
+import { RecordAttendanceReceiptUseCase, type AttendanceReceiptCommand } from "../../application/record-attendance-receipt.use-case.js";
 
 import { publicAppointmentView } from "./service-appointment-public-view.js";
 
@@ -24,7 +25,8 @@ export class ServiceAppointmentsController {
   constructor(private readonly manual: CreateManualServiceAppointmentUseCase,
     private readonly attendance: TransitionServiceAppointmentUseCase,
     private readonly cancellation: CancelServiceAppointmentUseCase,
-    private readonly rescheduling: RescheduleServiceAppointmentUseCase) {}
+    private readonly rescheduling: RescheduleServiceAppointmentUseCase,
+    private readonly receipts: RecordAttendanceReceiptUseCase) {}
 
   @Post("manual")
   @RequireTenantRoles("owner", "admin")
@@ -43,6 +45,14 @@ export class ServiceAppointmentsController {
   @RequireTenantRoles("owner", "admin")
   operationPolicy(@Req() request: TenantPrincipalRequest, @Param("appointmentId") appointmentId: string) {
     return this.cancellation.policies(operator(request), appointmentId).then(publicAppointmentView);
+  }
+
+  @Post(":appointmentId/attendance-receipts")
+  @RequireTenantRoles("owner", "admin")
+  recordReceipt(@Req() request: TenantPrincipalRequest, @Param("appointmentId") appointmentId: string,
+    @Body() body: Omit<AttendanceReceiptCommand, "appointmentId">) {
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.hasOwn(body, "appointmentId")) throw new BadRequestException("service_receipt_command_invalid");
+    return this.receipts.execute(operator(request), { ...body, appointmentId }).then(publicAppointmentView);
   }
 
   @Post(":appointmentId/cancel")

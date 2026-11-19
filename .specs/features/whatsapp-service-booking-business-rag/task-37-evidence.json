@@ -1,0 +1,646 @@
+{
+  "task": "T37",
+  "recordedAtUtc": "2026-11-19T16:53:42.494542+00:00",
+  "headBasis": "b8e9ea604dc61a0647c00a2f90e89f2a98ba1c44",
+  "scope": "LOCAL ONLY; not feature-final verification or production/provider evidence",
+  "sourceIdentity": {
+    "freeze": {
+      "path": ".cache/t37-source-20261119/source-ready.json",
+      "sha256": "156e99cacbc59d4be0fb6c951269622c759d7b42d50c396f1df813c7d6cf2e9c",
+      "bytes": 3551
+    },
+    "pins": [
+      {
+        "path": ".specs/features/whatsapp-service-booking-business-rag/task-37-plan.md",
+        "sha256": "18403dbc8eeed7c530c1cc85f6692f70bf781ffe49385f8ed92c462cac43f5cf",
+        "bytes": 5880,
+        "lines": 36,
+        "trailingWhitespaceLines": []
+      },
+      {
+        "path": "apps/api/src/modules/operations/application/record-attendance-receipt.use-case.spec.ts",
+        "sha256": "d8705a36ec037065cb35b32fd546780d73f086936d33b261b18b065124ca6a8e",
+        "bytes": 20419,
+        "lines": 220,
+        "trailingWhitespaceLines": []
+      },
+      {
+        "path": "apps/api/tests/service-attendance-receipt-http.integration.spec.ts",
+        "sha256": "a5638d0648e3a53ad4bdb5bfbb39d606c3ee970ceb74ffa09976a04d211e7873",
+        "bytes": 19383,
+        "lines": 190,
+        "trailingWhitespaceLines": []
+      },
+      {
+        "path": "apps/api/src/modules/operations/application/record-attendance-receipt.use-case.ts",
+        "sha256": "69d528dfb300fe40c231e0088db4ed0e4f87795dde34acf87964e6c0a52f2a80",
+        "bytes": 12251,
+        "lines": 147,
+        "trailingWhitespaceLines": []
+      },
+      {
+        "path": "apps/api/src/modules/operations/operations.module.ts",
+        "sha256": "00f3c88b6630c728b69906114de393355c2a11fbf3a5068b467ba0bc7b991fd5",
+        "bytes": 4680,
+        "lines": 100,
+        "trailingWhitespaceLines": []
+      },
+      {
+        "path": "apps/api/src/modules/operations/presentation/http/service-appointments.controller.ts",
+        "sha256": "a4c84816f0327d280bbc85cff8722ac1c6c73c1d9bd8c061c6fecd2d4c30a54b",
+        "bytes": 5459,
+        "lines": 82,
+        "trailingWhitespaceLines": []
+      }
+    ],
+    "allSixPinsExact": true,
+    "allPrior44ProtectedPinsExact": true
+  },
+  "gate": {
+    "freshComponent": 98,
+    "freshNative": 51,
+    "retainedNormalProducts": 48,
+    "retainedWidgetProducts": 176,
+    "retainedStock": 5,
+    "uniqueAcrossDocumentedCohorts": 378,
+    "freshTotal": 149,
+    "retainedTotal": 229,
+    "allNaturalExit0": true,
+    "noSkippedCancelledTodo": true,
+    "typesLintOwnCheckedBuildPassed": true,
+    "noFreshAggregate378Claim": true
+  },
+  "freshProofs": [
+    {
+      "receipt": {
+        "path": ".cache/t37-source-20261119/2026-11-19T16-11-16.099Z-quick19/receipt.json",
+        "sha256": "34a5744637b1044a0f3119ea8d6a3b8310d047b91cb1569b152fd94b633cdda2",
+        "bytes": 909
+      },
+      "details": {
+        "task": 37,
+        "expectedTests": 19,
+        "wholeFiles": 1,
+        "status": "passed",
+        "childStarted": true,
+        "folder": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-11-16.099Z-quick19",
+        "memory": {
+          "observedAtUtc": "2026-11-19T16:11:16.210065+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 1028,
+          "commitAvailableMiB": 3187,
+          "memoryLoadPercent": 93
+        },
+        "requiredCommitMiB": 1024,
+        "pid": 39080,
+        "startedAt": "2026-11-19T16:11:16.223Z",
+        "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-11-16.099Z-quick19\\component19.log",
+        "code": 0,
+        "signal": null,
+        "finishedAt": "2026-11-19T16:11:23.522Z",
+        "rawSha256": "c15895c13f1205d86e91bf17ee1f9e3e46e63fe93b99a4fd50bb2cb95ceb2ede",
+        "executedTests": 19,
+        "pinsUnchanged": true
+      }
+    },
+    {
+      "receipt": {
+        "path": ".cache/t37-source-20261119/2026-11-19T16-25-00.042Z-privacy0/receipt.json",
+        "sha256": "6d508d376b9ea38ae9e974cb622e229eb610decd5c465351a4edce6fc4a1d3c4",
+        "bytes": 904
+      },
+      "details": {
+        "task": 37,
+        "expectedTests": 3,
+        "wholeFiles": 1,
+        "status": "passed",
+        "childStarted": true,
+        "folder": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-25-00.042Z-privacy0",
+        "memory": {
+          "observedAtUtc": "2026-11-19T16:25:00.145901+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 2425,
+          "commitAvailableMiB": 6690,
+          "memoryLoadPercent": 84
+        },
+        "requiredCommitMiB": 1024,
+        "pid": 8540,
+        "startedAt": "2026-11-19T16:25:00.161Z",
+        "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-25-00.042Z-privacy0\\privacy.log",
+        "code": 0,
+        "signal": null,
+        "finishedAt": "2026-11-19T16:25:00.769Z",
+        "rawSha256": "acc05de3ae6f02ca584d208de285631aaba564ab2e7bbc5563f7f0a440bee3e2",
+        "executedTests": 3,
+        "pinsUnchanged": true
+      }
+    },
+    {
+      "receipt": {
+        "path": ".cache/t37-source-20261119/2026-11-19T16-25-19.652Z-privacy1/receipt.json",
+        "sha256": "480a9a7f5c22c52a50be1e90135b7d4b0ad3ca0ce60456fcfe370ffca0ada82f",
+        "bytes": 904
+      },
+      "details": {
+        "task": 37,
+        "expectedTests": 1,
+        "wholeFiles": 1,
+        "status": "passed",
+        "childStarted": true,
+        "folder": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-25-19.652Z-privacy1",
+        "memory": {
+          "observedAtUtc": "2026-11-19T16:25:19.737670+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 2759,
+          "commitAvailableMiB": 7617,
+          "memoryLoadPercent": 82
+        },
+        "requiredCommitMiB": 1024,
+        "pid": 9696,
+        "startedAt": "2026-11-19T16:25:19.753Z",
+        "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-25-19.652Z-privacy1\\privacy.log",
+        "code": 0,
+        "signal": null,
+        "finishedAt": "2026-11-19T16:25:20.309Z",
+        "rawSha256": "aa01cf1ea9a3586915ab0f84582f8cd6b74b5cfe14876f99525452c80e93cd7a",
+        "executedTests": 1,
+        "pinsUnchanged": true
+      }
+    },
+    {
+      "receipt": {
+        "path": ".cache/t37-source-20261119/2026-11-19T16-45-29.949Z-native51/receipt.json",
+        "sha256": "b495846d2715af1505240fcb3f75552fcbf1211075312456f96db1a9267ad532",
+        "bytes": 6587
+      },
+      "details": {
+        "task": 37,
+        "kind": "native",
+        "startedAt": "2026-11-19T16:45:29.949Z",
+        "wholeFiles": 5,
+        "expectedTests": 51,
+        "stages": [
+          {
+            "file": "apps/api/tests/service-attendance-receipt-http.integration.spec.ts",
+            "expectedTests": 13,
+            "minimumCommitMiB": 2048,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:45:30.038693+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 2061,
+              "commitAvailableMiB": 7237,
+              "memoryLoadPercent": 87
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-45-29.949Z-native51\\t37-native-1.log",
+            "pid": 38952,
+            "startedAt": "2026-11-19T16:45:38.433Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:47:13.095Z",
+            "rawSha256": "ef6091e19846dd76417b40f51d93c865e978ce1d116377baf9112b82b5f18be7",
+            "executedTests": 13
+          },
+          {
+            "file": "apps/api/tests/service-manual-appointment-http.integration.spec.ts",
+            "expectedTests": 12,
+            "minimumCommitMiB": 2048,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:47:13.228307+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 638,
+              "commitAvailableMiB": 2568,
+              "memoryLoadPercent": 96
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-45-29.949Z-native51\\t37-native-2.log",
+            "pid": 42104,
+            "startedAt": "2026-11-19T16:47:25.339Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:48:40.331Z",
+            "rawSha256": "aca22cbbf83ef91d440b16f6f18780968c4eff921fb48c521948194039193368",
+            "executedTests": 12
+          },
+          {
+            "file": "apps/api/tests/service-attendance-transitions-http.integration.spec.ts",
+            "expectedTests": 7,
+            "minimumCommitMiB": 2048,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:48:40.415721+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 1076,
+              "commitAvailableMiB": 2406,
+              "memoryLoadPercent": 93
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-45-29.949Z-native51\\t37-native-3.log",
+            "pid": 34552,
+            "startedAt": "2026-11-19T16:48:48.945Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:49:51.570Z",
+            "rawSha256": "786f7d9ef293eb566bbe40bd8443d3583d54315f48c36bbb096daac3d97e1aad",
+            "executedTests": 7
+          },
+          {
+            "file": "apps/api/tests/service-appointment-cancellation-http.integration.spec.ts",
+            "expectedTests": 10,
+            "minimumCommitMiB": 2048,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:49:51.642176+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 1048,
+              "commitAvailableMiB": 4417,
+              "memoryLoadPercent": 93
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-45-29.949Z-native51\\t37-native-4.log",
+            "pid": 11248,
+            "startedAt": "2026-11-19T16:50:06.327Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:51:23.914Z",
+            "rawSha256": "6f3495b958a9938caeac819fa9e361d1c6294016c10246f7bb198a2389e12b76",
+            "executedTests": 10
+          },
+          {
+            "file": "apps/api/tests/service-appointment-reschedule-http.integration.spec.ts",
+            "expectedTests": 9,
+            "minimumCommitMiB": 2048,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:51:23.988729+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 2315,
+              "commitAvailableMiB": 6376,
+              "memoryLoadPercent": 85
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-45-29.949Z-native51\\t37-native-5.log",
+            "pid": 37792,
+            "startedAt": "2026-11-19T16:51:31.785Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:52:22.601Z",
+            "rawSha256": "790d47df0a1c244b6855f8a00ba709ff5c14a3fb7e03f4a6b3a5aee7b7d2cd10",
+            "executedTests": 9
+          }
+        ],
+        "status": "passed",
+        "folder": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-45-29.949Z-native51",
+        "executedTests": 51,
+        "finishedAt": "2026-11-19T16:52:22.610Z"
+      }
+    },
+    {
+      "receipt": {
+        "path": ".cache/t37-source-20261119/2026-11-19T16-52-50.311Z-pure75/receipt.json",
+        "sha256": "812b9cc46c4c5bd59a3411c9ac8af30dccf71e37ec65a93c6388d7bcc8f637d4",
+        "bytes": 6670
+      },
+      "details": {
+        "task": 37,
+        "kind": "pure",
+        "startedAt": "2026-11-19T16:52:50.311Z",
+        "wholeFiles": 5,
+        "expectedTests": 75,
+        "stages": [
+          {
+            "file": "apps/api/src/modules/operations/application/create-manual-service-appointment.use-case.spec.ts",
+            "expectedTests": 16,
+            "minimumCommitMiB": 1024,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:52:50.388394+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 2260,
+              "commitAvailableMiB": 6211,
+              "memoryLoadPercent": 85
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-52-50.311Z-pure75\\t37-pure-1.log",
+            "pid": 8416,
+            "startedAt": "2026-11-19T16:52:54.722Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:52:56.098Z",
+            "rawSha256": "c971744b70076bb45d5b5c5b0c32ed4bfac417bec2d3b2b5af8bca233fc522ee",
+            "executedTests": 16
+          },
+          {
+            "file": "apps/api/src/modules/operations/application/cancel-service-appointment.use-case.spec.ts",
+            "expectedTests": 24,
+            "minimumCommitMiB": 1024,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:52:56.167704+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 1826,
+              "commitAvailableMiB": 5471,
+              "memoryLoadPercent": 88
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-52-50.311Z-pure75\\t37-pure-2.log",
+            "pid": 23212,
+            "startedAt": "2026-11-19T16:53:03.208Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:53:04.621Z",
+            "rawSha256": "c9e71b52ec5fcbec48ed18732a18ba9b29ccd38a99f2da668f66c79a2ab0b912",
+            "executedTests": 24
+          },
+          {
+            "file": "apps/api/src/modules/operations/application/transition-service-appointment.use-case.spec.ts",
+            "expectedTests": 12,
+            "minimumCommitMiB": 1024,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:53:04.684836+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 1666,
+              "commitAvailableMiB": 5342,
+              "memoryLoadPercent": 89
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-52-50.311Z-pure75\\t37-pure-3.log",
+            "pid": 9392,
+            "startedAt": "2026-11-19T16:53:14.838Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:53:15.815Z",
+            "rawSha256": "a097a46601596f883753c963c7911f03babf0034ad3a26fb76b61cb217c09352",
+            "executedTests": 12
+          },
+          {
+            "file": "apps/api/src/modules/operations/application/reschedule-service-appointment.use-case.spec.ts",
+            "expectedTests": 5,
+            "minimumCommitMiB": 1024,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:53:15.929565+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 528,
+              "commitAvailableMiB": 4113,
+              "memoryLoadPercent": 96
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-52-50.311Z-pure75\\t37-pure-4.log",
+            "pid": 9920,
+            "startedAt": "2026-11-19T16:53:23.365Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:53:24.854Z",
+            "rawSha256": "39365e729eacdf37ba8437b991e8ed4403bdf6406315e9995d76a8728cbb7f89",
+            "executedTests": 5
+          },
+          {
+            "file": "apps/api/src/modules/operations/application/reschedule-service-appointment.command.spec.ts",
+            "expectedTests": 18,
+            "minimumCommitMiB": 1024,
+            "status": "passed",
+            "childStarted": true,
+            "memory": {
+              "observedAtUtc": "2026-11-19T16:53:24.912649+00:00",
+              "source": "Windows GlobalMemoryStatusEx read-only",
+              "physicalTotalMiB": 16087,
+              "physicalAvailableMiB": 824,
+              "commitAvailableMiB": 3975,
+              "memoryLoadPercent": 94
+            },
+            "ownArtifact": {
+              "checked": true,
+              "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+              "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2587
+              }
+            },
+            "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-52-50.311Z-pure75\\t37-pure-5.log",
+            "pid": 26336,
+            "startedAt": "2026-11-19T16:53:34.521Z",
+            "code": 0,
+            "signal": null,
+            "finishedAt": "2026-11-19T16:53:36.327Z",
+            "rawSha256": "c5473798346eec641a6bc9bd94b5d076c6a6d7dc6d19e324455ac9331868fc52",
+            "executedTests": 18
+          }
+        ],
+        "status": "passed",
+        "folder": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t37-source-20261119\\2026-11-19T16-52-50.311Z-pure75",
+        "executedTests": 75,
+        "finishedAt": "2026-11-19T16:53:36.336Z"
+      }
+    }
+  ],
+  "retainedProductProofs": [
+    {
+      "file": "apps/api/tests/normal-checkout-payment.integration.mjs",
+      "sourceSha256": "0f1dd0630a0223a82c5542c2a58ee00a5e28f99afa734baa1a4f684f9510b646",
+      "priorActualTests": 48,
+      "priorReceipt": {
+        "path": ".cache/t36-full-gates/2026-11-19T15-41-29.280Z-products224/receipt.json",
+        "sha256": "8057ae50c4892cc0c3fb31ab6928aee3db4f739ddd41ed689ebc0a261950eb48",
+        "bytes": 4293
+      },
+      "priorRaw": {
+        "path": "C:/tmp/zyon-service-business-20261114/.cache/t71-gates/2026-11-19T15-41-34.493Z/product-normal.log",
+        "sha256": "55df820a13015730d7c9c160fa85c87e1c723b78be52c28c4be0d6f35dd8ede2"
+      },
+      "candidate": "Retain T36 product baseline unless Root finds a changed transitive path or explicitly requires fresh product coverage. This is prior accepted evidence, not current artifact execution."
+    },
+    {
+      "file": "apps/api/tests/widget-cross-sell-checkout.integration.mjs",
+      "sourceSha256": "90afff2d6eb7799fa63ff5ef1d32c81e09759daeb4f8dd2adcb3579c3068e689",
+      "priorActualTests": 176,
+      "priorReceipt": {
+        "path": ".cache/t36-full-gates/2026-11-19T15-41-29.280Z-products224/receipt.json",
+        "sha256": "8057ae50c4892cc0c3fb31ab6928aee3db4f739ddd41ed689ebc0a261950eb48",
+        "bytes": 4293
+      },
+      "priorRaw": {
+        "path": "C:/tmp/zyon-service-business-20261114/.cache/t71-gates/2026-11-19T15-42-31.176Z/product-widget.log",
+        "sha256": "5c8f383a460eae6339026142552b996ffd7d8452189f89d70f009e26073f5e69"
+      },
+      "candidate": "Retain T36 product baseline unless Root finds a changed transitive path or explicitly requires fresh product coverage. This is prior accepted evidence, not current artifact execution."
+    },
+    {
+      "file": "apps/api/tests/product-stock-regression.integration.spec.ts",
+      "sourceSha256": "f1aceb1d4a56157b46a9719b9f82022dc632ba941e4815d7023c8ab26cab6a2f",
+      "priorActualTests": 5,
+      "priorReceipt": {
+        "path": ".cache/t36-full-gates/2026-11-19T15-36-57.900Z-outstanding-native15/receipt.json",
+        "sha256": "766bc9114b382e6362ca5e6e9f4c83e05ead2860196b541238bba3db0d578627",
+        "bytes": 4854
+      },
+      "priorRaw": {
+        "path": ".cache/t36-full-gates/2026-11-19T15-36-57.900Z-outstanding-native15/t36-current-native-6.log",
+        "sha256": "5f6da03ce970a8bb329eea8f2059dca4409aa82aa1025b0d05cf1b451d68f5f6",
+        "bytes": 1921
+      },
+      "candidate": "Retain T36 stock5 baseline: direct imports of unchanged CompleteOrder/inventory writers, no OperationsModule/controller entrypoint."
+    }
+  ],
+  "headers": {
+    "ownCheckedBuild": {
+      "version": 1,
+      "buildCommand": "pnpm --dir apps/api build",
+      "buildExitCode": 0,
+      "checked": true,
+      "inputSha256": "2249dc61bc6c7f673c11faa01f5d505463b2928f2e8eb2f9138769e9c8dfee42",
+      "artifactSha256": "73f9474edf5dc3b9494b36d8b2e34beb15d42292361761459716ee38db200f30",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2587
+      },
+      "recordedAt": "2026-11-19T16:36:48.375Z"
+    },
+    "rawFiles": [
+      {
+        "path": ".cache/t37-source-20261119/2026-11-19T16-32-09Z-one-types-window/api-types-wrapper.log",
+        "sha256": "892410dda3f5f244320dd0fe6f312bc9323750189a2ba701f686e3c053ea20f9",
+        "bytes": 1195
+      },
+      {
+        "path": ".cache/t71-gates/2026-11-19T16-16-06.021Z/lint.log",
+        "sha256": "75e47252305c04be115fde2fb95e8fcbd9c8cb4e51efdd61fcc253330ab5f84a",
+        "bytes": 618
+      },
+      {
+        "path": ".cache/t110-root-checked-gates/2026-11-19T16-34-57.322Z/capture.log",
+        "sha256": "dee86d1bc23033cbf375a91e9cbe1a710954eb75cf480aa4d76753aad32496fe",
+        "bytes": 38
+      },
+      {
+        "path": ".cache/t110-root-checked-gates/2026-11-19T16-34-57.322Z/build.log",
+        "sha256": "58fddd038ddfc65e0ec3a2d4b41a4decab7d00ffc6dc0bd82cbc9246cc9db3ca",
+        "bytes": 2025
+      },
+      {
+        "path": ".cache/t110-root-checked-gates/2026-11-19T16-34-57.322Z/record.log",
+        "sha256": "7835d371754905f999a8f50043d07fcb5645d3527ad4b39b63a6a8c4439869d9",
+        "bytes": 45
+      }
+    ],
+    "typesReceipt": {
+      "path": ".cache/t37-source-20261119/2026-11-19T16-32-09Z-one-types-window/receipt.json",
+      "sha256": "8ff0cb4b191fdbebe080c4a626cc073766b73de5d7f939ca6e14616ba5bda4ff",
+      "bytes": 8958
+    }
+  },
+  "testIntegrity": {
+    "newTestsWrittenFirst": {
+      "path": ".cache/t37-source-20261119/tests-first.json",
+      "sha256": "53d3bb872bf5808c65bcda9f70ce3f015d6161ebe1ab3d3b65ae953ce8739c47",
+      "bytes": 1142
+    },
+    "approval": "call_7c50b1827d2648748b894122500479e0",
+    "exactApprovedLogin200To201AppliedOnce": {
+      "path": ".cache/t37-admin-login-precondition-review-20261119/approved-applied-receipt.json",
+      "sha256": "51c9d25b29ce08d5f37eafbb0b314192a92c8cde80c78ba3a1dd12658a14db0f",
+      "bytes": 570
+    },
+    "allExistingAssertionsPreserved": true,
+    "pure75RefreshedBecauseEarlierTransitiveProofPredatesT35": true
+  },
+  "proved": "Exact server-computed integral balance; immutable cents/currency/method/operator/server time; local source distinct from PSP; same-key replay; no attendance rewind; current repriced balance; concurrent keys and rollback; owner/admin/foreign/Staff/parser negatives; no physical/order/provider effects.",
+  "remaining": "T41/T80 operator UI; T38 notifications; T85-T91 metrics and final same-HEAD independent verification. None is inferred complete."
+}
