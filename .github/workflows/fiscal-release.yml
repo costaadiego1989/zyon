@@ -81,6 +81,8 @@ jobs:
           pnpm --filter @zyon/widget-v2 typecheck
           pnpm --filter @zyon/widget-v2 build:app
           pnpm --filter @zyon/widget-v2 build
+      - name: Install isolated browser dependencies
+        run: pnpm --filter @zyon/storefront exec playwright install --with-deps chromium msedge
       - name: Run current storefront regressions and fiscal contracts
         run: |
           pnpm --filter @zyon/storefront test:regression
@@ -89,8 +91,6 @@ jobs:
         env:
           NODE_ENV: production
         run: pnpm --filter @zyon/storefront build
-      - name: Install isolated browser dependencies
-        run: pnpm --filter @zyon/storefront exec playwright install --with-deps chromium msedge
       - name: Preserve current payment choices and fiscal Stripe gestures
         run: node apps/widget_v2/tests/fiscal-checkout-browser-runner.mjs
       - name: Run current orders and full fiscal buyer journeys

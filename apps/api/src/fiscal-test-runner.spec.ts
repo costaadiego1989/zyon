@@ -73,3 +73,12 @@ test("FISCAL-64 scoped CI uses the strict local fiscal database and all source s
   assert.ok(workflow.indexOf("@zyon/widget-v2 build:app") < workflow.lastIndexOf("@zyon/widget-v2 build\n"));
   assert.doesNotMatch(workflow, /secrets\.|contents: write|\bdeploy\b|test-name-pattern/);
 });
+
+test("FISCAL-64 CI installs both browser engines before the first existing storefront browser regression", () => {
+  const workflow = readFileSync(resolve(fiscalApiRoot, "../../.github/workflows/fiscal-release.yml"), "utf8");
+  const install = workflow.indexOf("- name: Install isolated browser dependencies");
+  const regressions = workflow.indexOf("- name: Run current storefront regressions and fiscal contracts");
+  assert.ok(install >= 0 && regressions >= 0, "both preparation and real browser consumer must exist");
+  assert.ok(install < regressions, "install Chromium and Edge before existing storefront browser regressions");
+  assert.match(workflow.slice(install, regressions), /playwright install --with-deps chromium msedge/);
+});
