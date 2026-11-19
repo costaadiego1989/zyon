@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, useState } from 'react';
 import { afterEach, expect, test, vi } from 'vitest';
 import type { AssistantThread, AssistantTurn, AssistantTurnInput, MetaAdsAutomationReview, MetaAdsDailyReport } from '@zyon/shared-types';
 import type { MerchantAssistantApi } from '../../api/endpoints/merchant-assistant.js';
@@ -190,3 +190,36 @@ test('ADAS-30 policy read failure never falsely labels an unknown effective mode
 });
 
 test('ACAP-12 preparation after a manual draft save reads the current saved version before admission',async()=>{screen=ui();const f=fixture();f.props.overview.campaigns=[campaign()];f.approval.prepare.mockResolvedValue(preparation() as never);await screen.render(<MetaAdsAssistant {...f.props} selectedCampaignId='campaign1'/>);f.approval.preparation.mockResolvedValue({campaignDigest:'b'.repeat(64),preparations:[]} as never);await screen.click('Preparar para revisão');expect(f.approval.prepare).toHaveBeenCalledWith('campaign1',{campaignDigest:'b'.repeat(64),imageCount:1},expect.any(AbortSignal));expect(f.approval.approveLaunch).not.toHaveBeenCalled();});
+
+
+test.each([false,true])('CBX-49 terminal chat reconciles an early empty preparation read with stale response still in flight=%s',async(inFlight)=>{
+ screen=ui();vi.useFakeTimers();
+ const history=thread([turn({status:'running',reply:null})]);history.campaign={campaignId:'campaign1',draft:campaign().draft,awaitingFields:[]};const f=fixture(history);
+ const empty={campaignDigest:'a'.repeat(64),preparations:[]};const blocked={campaignDigest:'a'.repeat(64),preparations:[{...preparation('blocked',['campaign_preparation_unavailable']),generationId:null}]};
+ let release!:(value:unknown)=>void;f.approval.preparation.mockResolvedValue(blocked as never).mockImplementationOnce(()=>inFlight?new Promise(resolve=>{release=resolve;}) as never:Promise.resolve(empty) as never);
+ function Parent(){const [data,setData]=useState(overview());return <MetaAdsAssistant {...f.props} overview={data} pollMs={10} onUpdated={async()=>{await f.props.onUpdated();setData({...overview(),campaigns:[campaign()]});}}/>;}
+ await screen.render(<Parent/>);
+ if(!inFlight)expect(screen.container.querySelector('[aria-label="Preparo e aprovação"]')?.textContent).toContain('Rascunho salvo. Prepare os criativos');
+ const completed=thread([turn({reply:'Confira o bloqueio para continuar.',artifacts:[{type:'campaign',campaign:campaign()}]})]);completed.campaign=history.campaign;completed.revision=2;f.client.thread.mockResolvedValue(completed);
+ await act(async()=>{await vi.advanceTimersByTimeAsync(10);});
+ if(inFlight)await act(async()=>release(empty));
+ await act(async()=>{await vi.advanceTimersByTimeAsync(10);});
+ const panel=screen.container.querySelector('[aria-label="Preparo e aprovação"]')!;expect(panel.textContent).toContain('Ative o motor de IA');expect(panel.textContent).toContain('Retomar preparo');expect(panel.textContent).not.toContain('Rascunho salvo. Prepare os criativos');
+ expect(f.props.onUpdated).toHaveBeenCalled();expect(f.approval.preparation).toHaveBeenLastCalledWith('campaign1',expect.any(AbortSignal));expect(f.approval.prepare).not.toHaveBeenCalled();expect(f.approval.approveLaunch).not.toHaveBeenCalled();expect(f.client.submit).not.toHaveBeenCalled();
+});
+
+test('CBX-49 completion refresh preserves the manual image count and does not poll an empty draft',async()=>{
+ screen=ui();vi.useFakeTimers();const history=thread([turn({status:'running',reply:null})]);history.campaign={campaignId:'campaign1',draft:campaign().draft,awaitingFields:[]};const f=fixture(history);
+ await screen.render(<MetaAdsAssistant {...f.props} pollMs={10}/>);await screen.change('Imagens para preparar','4');
+ const completed=thread([turn({reply:'Confira o rascunho salvo.'})]);completed.campaign=history.campaign;completed.revision=2;f.client.thread.mockResolvedValue(completed);
+ await act(async()=>{await vi.advanceTimersByTimeAsync(10);});await act(async()=>{await vi.advanceTimersByTimeAsync(1000);});
+ expect(screen.container.querySelector<HTMLSelectElement>('[aria-label="Imagens para preparar"]')!.value).toBe('4');expect(f.approval.preparation).toHaveBeenCalledTimes(2);expect(f.approval.prepare).not.toHaveBeenCalled();expect(f.approval.approveLaunch).not.toHaveBeenCalled();expect(f.client.submit).not.toHaveBeenCalled();
+});
+
+test('CBX-49 switching store cancels a queued refresh and ignores the old empty response',async()=>{
+ screen=ui();vi.useFakeTimers();const history=thread([turn({status:'running',reply:null})]);history.campaign={campaignId:'campaign1',draft:campaign().draft,awaitingFields:[]};const f=fixture(history);let release!:(value:unknown)=>void;
+ f.approval.preparation.mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}) as never);await screen.render(<MetaAdsAssistant {...f.props} pollMs={10}/>);
+ const completed=thread([turn({reply:'Confira o bloqueio para continuar.',artifacts:[{type:'campaign',campaign:campaign()}]})]);completed.campaign=history.campaign;completed.revision=2;f.client.thread.mockResolvedValue(completed);await act(async()=>{await vi.advanceTimersByTimeAsync(10);});
+ const next=fixture();await screen.render(<MetaAdsAssistant {...next.props} merchantId="b" pollMs={10}/>);await act(async()=>release({campaignDigest:'a'.repeat(64),preparations:[]}));await act(async()=>{await vi.advanceTimersByTimeAsync(1000);});
+ expect(f.approval.dispose).toHaveBeenCalledTimes(1);expect(f.approval.preparation).toHaveBeenCalledTimes(1);expect(next.approval.preparation).not.toHaveBeenCalled();expect(screen.container.querySelector('[aria-label="Preparo e aprovação"]')).toBeNull();expect(screen.container.querySelectorAll('.chat-dock-turn')).toHaveLength(0);expect(f.approval.prepare).not.toHaveBeenCalled();expect(f.approval.approveLaunch).not.toHaveBeenCalled();expect(f.client.submit).not.toHaveBeenCalled();
+});
