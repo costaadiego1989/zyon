@@ -1,3 +1,5 @@
+// Type every character through Cypress without adding a human typing cadence.
+Cypress.Keyboard.defaults({keystrokeDelay:0});
 export const api=()=>String(Cypress.expose('agenticApi'));
 export function scenario(id:string,title:string,run:()=>void){if(!Cypress.expose('agenticCase')||Cypress.expose('agenticCase')===id)it(`${id} ${title}`,run);}
 export function control(path:string,body?:unknown){return cy.env(['agenticNonce'],{log:false}).then(({agenticNonce})=>cy.request({url:api()+'/__test/'+path,method:body===undefined?'GET':'POST',...(path==='workers'?{timeout:120000}:{}),headers:{'x-agentic-test-nonce':String(agenticNonce)},...(body===undefined?{}:{body})}));}
@@ -10,7 +12,14 @@ export function closeChat(){cy.get('.chat-dock-panel').then(panel=>{if(!panel[0]
 export function nativeKey(key:'Enter'|'Tab'|'Escape'|'ArrowLeft'|'ArrowRight'){
   const code={Enter:13,Tab:9,Escape:27,ArrowLeft:37,ArrowRight:39}[key],params={key,code:key,windowsVirtualKeyCode:code,nativeVirtualKeyCode:code};
   // Keep native traversal in the AUT when another desktop window takes OS focus.
-  return cy.window({log:false}).then(win=>Cypress.automation('remote:debugger:protocol',{command:'Page.bringToFront',params:{}}).then(()=>Cypress.automation('remote:debugger:protocol',{command:'Emulation.setFocusEmulationEnabled',params:{enabled:true}})).then(()=>{win.focus();return Cypress.automation('remote:debugger:protocol',{command:'Input.dispatchKeyEvent',params:{type:key==='Enter'?'keyDown':'rawKeyDown',...params,...(key==='Enter'?{text:'\r',unmodifiedText:'\r'}:{})}});}).then(()=>Cypress.automation('remote:debugger:protocol',{command:'Input.dispatchKeyEvent',params:{type:'keyUp',...params}})));
+  return cy.window({log:false}).then(win=>{
+    const target=win.document.activeElement;
+    return Cypress.automation('remote:debugger:protocol',{command:'Page.bringToFront',params:{}}).then(()=>Cypress.automation('remote:debugger:protocol',{command:'Emulation.setFocusEmulationEnabled',params:{enabled:true}})).then(()=>{
+      win.focus();
+      if(target instanceof win.HTMLElement&&target.isConnected){target.focus({preventScroll:true});expect(win.document.activeElement,'native keyboard target').eq(target);}
+      return Cypress.automation('remote:debugger:protocol',{command:'Input.dispatchKeyEvent',params:{type:key==='Enter'?'keyDown':'rawKeyDown',...params,...(key==='Enter'?{text:'\r',unmodifiedText:'\r'}:{})}});
+    }).then(()=>Cypress.automation('remote:debugger:protocol',{command:'Input.dispatchKeyEvent',params:{type:'keyUp',...params}}));
+  });
 }
 export function ask(message:string){openChat();cy.get('.chat-dock-history').then(history=>{
   const count=history.find('.chat-dock-turn').length;cy.get('[aria-label="Mensagem para a IA"]').clear().type(message);cy.contains('button','Enviar mensagem').click();
