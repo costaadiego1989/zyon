@@ -48,6 +48,8 @@
 .mga-connection-card ol { padding-left: 20px; margin: 8px 0 16px; }
 .mga-connection-card li + li { margin-top: 10px; }
 .mga-help-links { display: flex; flex-wrap: wrap; gap: 12px 20px; }
+.mga-whatsapp-actions { display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px; }
+.mga-whatsapp-actions > button { min-height:40px; }
 .mga-connection-card a { font-size: 13px; text-underline-offset: 3px; }
 .mga-connection > .mga-connection-guidance { margin-bottom: 16px; }
 @media(max-width:680px) { .mga-connection-grid,.mga-account-picker { grid-template-columns: minmax(0,1fr); } .mga-connection-card,.mga-setup-account { padding: 16px; } .meta-ads-agent .mga-connection-card > p { min-height: 0; } }

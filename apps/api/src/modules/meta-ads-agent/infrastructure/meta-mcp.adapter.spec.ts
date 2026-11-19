@@ -267,6 +267,14 @@ test("MCP WhatsApp campaigns verify the page phone and use the same messaging de
   const creative = f.calls.find(call => call.name === "ads_create_creative")!.args;
   assert.equal(creative.call_to_action_type, "WHATSAPP_MESSAGE"); assert.equal(creative.link_url, "https://wa.me/5511999999999");
 });
+
+test('ACJ-03 WhatsApp Business linkage is accepted only for the authorized Page while absent or denied links stay distinct',async()=>{
+ for(const state of ['business','absent','denied','foreign']){
+  const f=fixture(),request:typeof fetch=async(url,init)=>String(url).startsWith('https://graph.facebook.com/')?new Response(JSON.stringify(state==='denied'?{error:{code:200}}:{id:state==='foreign'?'999':'110',whatsapp_number:'+55 11 99999-9999',has_whatsapp_number:false,has_whatsapp_business_number:state!=='absent'}),{status:state==='denied'?403:200}):f.request(url,init);
+  const adapter=new MetaMcpAdapter({META_ADS_AGENT_REMOTE_WRITES_ENABLED:'true',META_ADS_GRAPH_API_VERSION:'v26.0'},request),result=await adapter.discover(access());
+  assert.equal(result.whatsappNumbers.length,state==='business'?1:0);assert.equal(result.capabilities.whatsapp,state==='business');assert.equal(result.errors.includes('whatsapp_unavailable'),['denied','foreign'].includes(state));assert.equal(f.calls.some(call=>/create|update|activate/.test(call.name)),false);
+ }
+});
 test("MCP static carousel preserves five images and their canonical product links", async () => {
   const f = fixture(); const images = Array.from({ length: 5 }, (_, i) => ({ ...media[0], id: `media-${i}`, url: `https://media.example.test/${i}.png` }));
   assert.equal((await f.adapter.prepare(access(), campaign(), images, async () => {})).status, "remote_paused");
