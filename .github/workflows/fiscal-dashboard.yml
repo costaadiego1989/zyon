@@ -44,7 +44,16 @@ jobs:
           src/shell/subscription-access-wiring.spec.ts
           src/shell/nav-config.spec.ts src/shell/DashboardShell.spec.tsx
           src/lib/auth/permissions.spec.ts
-      - run: pnpm --filter @zyon/dashboard build
+      - name: Build with the reviewed public authentication configuration
+        run: pnpm --filter @zyon/dashboard build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_MICROSOFT_CLIENT_ID: ${{ vars.VITE_MICROSOFT_CLIENT_ID }}
+          VITE_FACEBOOK_CLIENT_ID: ${{ vars.VITE_FACEBOOK_CLIENT_ID }}
+          VITE_OAUTH_REDIRECT_URI: ${{ vars.VITE_OAUTH_REDIRECT_URI }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+          VITE_FACEBOOK_LOGIN_ENABLED: ${{ vars.VITE_FACEBOOK_LOGIN_ENABLED }}
       - name: Install the browser used by the existing acceptance script
         run: pnpm --filter @zyon/dashboard exec playwright install --with-deps msedge
       - name: Olist authorization and private notification journeys

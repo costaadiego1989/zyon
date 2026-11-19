@@ -10,7 +10,7 @@ const { createServer } = await import(pathToFileURL(requireDashboard.resolve("vi
 const { default: react } = await import(pathToFileURL(requireDashboard.resolve("@vitejs/plugin-react")).href);
 const artifacts = fileURLToPath(new URL("../../../.specs/features/tiny-fiscal-completion/browser", import.meta.url));
 mkdirSync(artifacts, { recursive: true });
-const server = await createServer({ root: dashboard, configFile: false, plugins: [react()], logLevel: "error", server: { host: "127.0.0.1", port: 0, strictPort: true } });
+const server = await createServer({ root: dashboard, configFile: false, plugins: [react()], optimizeDeps: { entries: ["tests/fiscal-olist.fixture.html"] }, logLevel: "error", server: { host: "127.0.0.1", port: 0, strictPort: true } });
 let browser;
 const results = [];
 try {
