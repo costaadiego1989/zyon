@@ -53,8 +53,8 @@ export class AssistantService {
       while(messages.length>40&&historyMessages>0){const count=historyMessages>1&&messages[1].role==='assistant'?2:1;messages.splice(0,count);historyMessages-=count;}
       const state = await this.current(input);
       let response:AssistantModelResult;
-      try{response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,
-        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress,...(completionRequirement?{completionRequirement}:{}),...(this.deps.context.checklist?{checklist:this.deps.context.checklist(state.thread.campaignProgress)}:{}) } });}
+      try{response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,...(completionRequirement?{completionRequirement}:{}),
+        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress,...(this.deps.context.checklist?{checklist:this.deps.context.checklist(state.thread.campaignProgress)}:{}) } });}
       catch(error){
         if(safeCode(error)!=='assistant_model_response_invalid')throw error;
         const current=await this.current(input);let reply:string|null=null;
