@@ -22,6 +22,7 @@ export interface CampaignPreparationContent {ready:boolean;missing:string[];reus
 const sellable=(p:MetaAdsProduct)=>p.active&&(p.stockQuantity===null||p.stockQuantity>0)&&p.currency==='BRL'&&Number.isSafeInteger(p.priceCents)&&p.priceCents>=0;
 function verifiedMedia(campaignId:string,media:MetaAdsMedia,products:MetaAdsProduct[]):boolean {
   const product=products.find(p=>p.variantId===media.variantId&&p.productId===media.productId);
+  if(media.source==='catalog'&&(media.canonicalImageUrl!==product?.imageUrl||media.commercialReview?.method!=='canonical_source'))return false;
   if(media.campaignId!==campaignId||!product||!sellable(product)||media.productVersion!==product.commercialVersion||media.commercialReview?.status!=='verified'||media.commercialReview.productVersion!==product.commercialVersion||!/^[a-f0-9]{64}$/i.test(media.commercialReview.imageSha256))return false;
   try{const url=new URL(media.url);return url.protocol==='https:'&&!url.username&&!url.password;}catch{return false;}
 }

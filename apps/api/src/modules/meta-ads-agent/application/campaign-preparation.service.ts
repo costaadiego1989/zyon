@@ -6,12 +6,15 @@ import {publicCampaignPreparation,type CampaignPreparationRepository} from '../d
 import type {CampaignService} from './campaign.service.js';
 import type {ConnectionService} from './connection.service.js';
 import {creditWallet} from './credits.service.js';
+import {budgetBlocker,type CampaignBudgetAssessmentPort} from './budget-guidance.js';
 
 interface Dependencies{
   repo:MetaAdsRepository;commerce:Pick<CommerceContextPort,'getPlan'|'products'>;campaigns:Pick<CampaignService,'owned'>;
   connection:Pick<ConnectionService,'access'>;preparations:CampaignPreparationRepository;
   authorizeActor:(merchantId:string,actorId:string)=>Promise<void>;enabled:()=>boolean;clock?:Clock;
   authorizePreparation?:(merchantId:string,actorId:string)=>Promise<void>;
+  budgetAssessment?:CampaignBudgetAssessmentPort;
+  catalogFallbackAvailable?:()=>boolean;
 }
 export class CampaignPreparationService{
   private readonly clock:Clock;
@@ -19,7 +22,8 @@ export class CampaignPreparationService{
   private async actor(merchantId:string,actorId:string,campaignId:string){for(const id of [merchantId,actorId,campaignId])requireIdentifier(id);await this.deps.authorizeActor(merchantId,actorId);}
   async read(merchantId:string,actorId:string,campaignId:string){
     await this.actor(merchantId,actorId,campaignId);const campaign=await this.deps.campaigns.owned(merchantId,campaignId);
-    return{campaignDigest:campaignPreparationDigest(campaign),preparations:(await this.deps.preparations.list(merchantId,campaignId)).map(publicCampaignPreparation)};
+    const budgetAssessment=await this.deps.budgetAssessment?.(merchantId,campaign.draft.budget);
+    return{campaignDigest:campaignPreparationDigest(campaign),preparations:(await this.deps.preparations.list(merchantId,campaignId)).map(publicCampaignPreparation),...(budgetAssessment?{budgetAssessment}:{})};
   }
   async request(merchantId:string,actorId:string,campaignId:string,input:MetaAdsCampaignPreparationInput){
     await this.actor(merchantId,actorId,campaignId);
@@ -32,6 +36,7 @@ export class CampaignPreparationService{
     const intentDigest=campaignPreparationIntent(merchantId,campaign,input.imageCount),products=await this.deps.commerce.products(merchantId,{variantIds:campaign.draft.variantIds});
     const content=campaignPreparationContent(campaign,products,Object.values(state.media));
     const missing=content.missing.filter(code=>!['campaign_media_required','creative_terms_unverified','campaign_media_unavailable'].includes(code));
+    const budgetIssue=budgetBlocker(await this.deps.budgetAssessment?.(merchantId,campaign.draft.budget));if(budgetIssue)missing.push(budgetIssue);
     if(!this.deps.enabled())missing.unshift('campaign_preparation_unavailable');
     try{await this.deps.connection.access(merchantId,{destination:campaign.draft.destination,operation:'prepare'});}catch(error){missing.push(error instanceof MetaAdsError?error.code:'meta_connection_required');}
     await this.actor(merchantId,actorId,campaignId);
@@ -40,7 +45,7 @@ export class CampaignPreparationService{
     if(!state.campaigns[campaignId]||campaignPreparationDigest(state.campaigns[campaignId])!==digest)throw new MetaAdsError('preparation_version_changed',409);
     let job=await this.deps.preparations.admit({merchantId,campaignId,intentDigest,campaignDigest:digest,requestedBy:actorId,requestedImages:input.imageCount});
     const wallet=creditWallet(state,this.clock()),needed=Math.max(0,input.imageCount-content.reusableMediaIds.length);
-    if(!job.generationId&&needed>wallet.monthlyAvailable+wallet.extraAvailable)missing.push('image_credits_insufficient');
+    if(!job.generationId&&needed>wallet.monthlyAvailable+wallet.extraAvailable&&!this.deps.catalogFallbackAvailable?.())missing.push('image_credits_insufficient');
     const oldProposal=job.proposalId?state.proposals[job.proposalId]:null;
     const forceReview=job.status==='review_ready'&&(!oldProposal||oldProposal.connectionEpoch!==state.connection.epoch||['stale','rejected'].includes(oldProposal.status))||job.status==='blocked'&&missing.length===0;
     if(job.campaignDigest!==digest||job.requestedBy!==actorId||forceReview)job=await this.deps.preparations.revise(merchantId,job.id,job.campaignDigest,{campaignDigest:digest,requestedBy:actorId,forceReview});
