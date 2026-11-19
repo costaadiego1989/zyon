@@ -1,4 +1,4 @@
-import {api,ask,control,enter,eventuallyFacts,nativeKey,openChat,reset,scenario} from '../../support/agentic.js';
+import {api,ask,closeChat,control,enter,eventuallyFacts,nativeKey,openChat,reset,scenario} from '../../support/agentic.js';
 import {externalImages} from '../../support/campaign-fixture.js';
 const review='.mga-agentic-content .mga-launch';
 const complete=(extra='')=>ask(`Quero vender mais camisas na loja, vendas pagas no Brasil, R$ 100 no total de 16/11/2026 até 23/11/2026, carrossel de 2 imagens. ${extra}`);
@@ -6,9 +6,50 @@ function ready(){control('workers',{});cy.contains('button','Atualizar conversa'
 function publish(){cy.get(review).contains('button','Aprovar e publicar').click();control('workers',{});return eventuallyFacts(body=>body.states[0].campaigns[0]?.status==='active_unconfirmed');}
 function saveContact(phone='+5511988887777'){cy.contains('[role="tab"]','Configurações').click();cy.get('.mga-settings-nav').contains('button','Avisos').click();cy.get('#campaign-notice-phone').clear().type(phone.replace(/^\+55/,''));cy.get('[aria-label="Avisos de campanhas"] input[type=checkbox]').check();cy.get('[aria-label="Avisos de campanhas"]').contains('button','Salvar contato').click();cy.get('[aria-label="Avisos de campanhas"]').should('contain.text','Contato salvo');}
 function refreshNotice(){cy.get('[aria-label="Preparo e aprovação"]').contains('button','Atualizar preparo').click();}
+const scriptedTool=(name:string,args:Record<string,unknown>)=>({tool:{name,args}});
+function scriptedAsk(message:string,steps:unknown[],reply:string){control('model',{script:[...steps,{reply}]});ask(message);cy.get('.chat-dock-reply').last().should(el=>expect((el.text().match(/\?/g)??[]).length).at.most(1));}
 describe('Preparo e aprovação administrativa',()=>{
  beforeEach(()=>{externalImages();reset();enter();});
  afterEach(()=>{control('images',{hold:false});control('model',{hold:false});});
+ scenario('ACAP-27','ACJ full guided WhatsApp campaign survives help and reload then reaches the exact creative review',()=>{
+  scriptedAsk('quero criar uma campanha',[],'Prefere vender na loja ou conversar no WhatsApp?');
+  scriptedAsk('Queria que quem clicar viesse conversar comigo pelo zap',[scriptedTool('merchant_ads_save_draft',{planningKind:'campaign',destination:'whatsapp'})],'Quer anunciar um produto específico ou uma categoria?');
+  scriptedAsk('Um produto específico',[],'Qual é o nome do produto?');
+  scriptedAsk('Camisa',[scriptedTool('merchant_ads_catalog',{query:'Camisa'}),scriptedTool('merchant_ads_save_draft',{variantIds:['variant-a']})],'Qual resultado deseja buscar?');
+  scriptedAsk('Meu objetivo é conseguir mais compras pagas',[scriptedTool('merchant_ads_save_draft',{priority:'paid_sales'})],'Quanto quer investir?');
+  scriptedAsk('Posso separar cento e vinte reais',[scriptedTool('merchant_ads_save_draft',{briefing:{budget:{amountCents:12000}}})],'Esse valor é por dia ou para todo o período?');
+  scriptedAsk('Como funciona a verba?',[],'A verba é o limite de gasto dos anúncios, pago à Meta. Quer continuar a configuração?');cy.reload();cy.get('h1').should('contain.text','Anúncios com IA');
+  cy.request(api()+'/v1/merchant-assistant/contexts/meta-ads/thread').then(({body})=>{expect(body.campaign.briefing.budget.amountCents).eq(12000);expect(body.campaign.draft.destination).eq('whatsapp');expect(body.campaign.campaignId).eq(null);});
+  scriptedAsk('É a verba para a campanha inteira, não para cada dia',[scriptedTool('merchant_ads_save_draft',{briefing:{budget:{cadence:'lifetime'}}})],'Em que dia quer começar?');
+  scriptedAsk('Começar em 20 de novembro de 2026 às nove da manhã',[scriptedTool('merchant_ads_save_draft',{briefing:{budget:{startsAt:'2026-11-20T12:00:00.000Z'}}})],'Até que dia deve ficar no ar?');
+  scriptedAsk('Terminar em 27 de novembro de 2026 às nove da manhã',[scriptedTool('merchant_ads_save_draft',{briefing:{budget:{endsAt:'2026-11-27T12:00:00.000Z'}}})],'Em qual país deseja anunciar?');
+  scriptedAsk('Pode exibir em todo o Brasil',[scriptedTool('merchant_ads_save_draft',{country:'BR'}),scriptedTool('merchant_ads_save_draft',{headline:'Camisa de algodão',primaryText:'Conheça a camisa e converse com a nossa loja pelo WhatsApp.'})],'O preparo foi solicitado. Você revisará antes de publicar.');ready();
+  cy.get(review).should('contain.text','Camisa de algodão').and('contain.text','WhatsApp').and('contain.text','120,00 no total');control('facts').then(({body})=>{const s=body.states[0];expect(s.campaigns).have.length(1);expect(s.campaigns[0].draft.budget).deep.eq({amountCents:12000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-20T12:00:00.000Z',endsAt:'2026-11-27T12:00:00.000Z'});expect(s.proposals[0].status).eq('pending_review');expect(s.proposals[0].approvedBy).eq(null);expect(body.images).eq(1);expect(body.writes).deep.eq([]);});
+ });
+ scenario('ACAP-27','ACJ guided automatic policy requires an explicit final acceptance and creates no campaign',()=>{
+  control('model',{script:[{reply:'Vamos escolher os produtos. Prefere um produto específico ou uma categoria?'}]});cy.contains('[role="tab"]','Configurações').click();cy.get('.mga-settings-nav').contains('button','Autonomia').click();cy.contains('button','Configurar modo autônomo').click();cy.get('.chat-dock-reply').last().should('contain.text','produto');
+  const save=(automationBriefing:unknown)=>scriptedTool('merchant_ads_save_draft',{automationBriefing});
+  scriptedAsk('Um produto específico',[],'Qual produto quer incluir?');
+  scriptedAsk('Camisa',[scriptedTool('merchant_ads_catalog',{query:'Camisa'}),save({scope:{variantIds:['variant-a']}})],'Quer incluir todas as campanhas da IA ou escolher algumas?');
+  scriptedAsk('Pode cuidar tanto das que já existem quanto das próximas que eu aprovar',[save({scope:{campaignIds:[],allowNewCampaigns:true}})],'Quais ações você quer autorizar?');
+  scriptedAsk('Se estiver ruim pode interromper e mexer no investimento, só isso',[save({scope:{actions:['pause','budget']}})],'Os anúncios devem levar para a loja ou para o WhatsApp?');
+  scriptedAsk('Prefiro que finalizem a compra no meu site',[save({scope:{destination:'store'}})],'Qual resultado quer buscar?');
+  scriptedAsk('Mais vendas',[save({scope:{priority:'paid_sales'}})],'Em qual país deseja anunciar?');scriptedAsk('Brasil',[save({scope:{country:'BR'}})],'Qual o limite por campanha?');
+  scriptedAsk('Não ultrapasse cem reais em cada uma',[save({limits:{campaignCeilingCents:10000}})],'Qual o limite somando todas as campanhas?');
+  scriptedAsk('Somando tudo, no máximo trezentos reais',[save({limits:{storeCeilingCents:30000}})],'Esses limites são por dia ou para todo o período?');
+  scriptedAsk('Esses valores são para cada dia',[save({limits:{cadence:'daily'}})],'Quando pode começar a valer?');
+  scriptedAsk('Hoje às nove da manhã',[save({limits:{startsAt:'2026-11-16T12:00:00.000Z'}})],'Até que dia pode valer?');
+  scriptedAsk('Até 23 de novembro às nove da manhã',[save({limits:{endsAt:'2026-11-23T12:00:00.000Z'}})],'Suas regras estão prontas para revisão.');closeChat();
+  const policy='[aria-label="Autonomia dos anúncios"]';cy.get(policy).should('contain.text','Camisa').and('not.contain.text','variant-a').and('contain.text','100,00').and('contain.text','300,00');cy.get(policy).find('input[type=checkbox]').should('not.be.checked');cy.get(policy).contains('button','Aceitar política automática').should('be.disabled');
+  control('facts').then(({body})=>{expect(body.states[0].policy.mode).eq('manual');expect(body.states[0].policy.policy).eq(null);expect(body.images).eq(0);expect(body.writes).deep.eq([]);});cy.get(policy).find('input[type=checkbox]').check();cy.get(policy).contains('button','Aceitar política automática').click();
+  eventuallyFacts(body=>body.states[0].policy.mode==='automatic').then(body=>{const s=body.states[0];expect(s.policy.policy.scope.variantIds).deep.eq(['variant-a']);expect(s.policy.policy.scope.actions).deep.eq(['budget','pause']);expect(s.policy.policy.scope.allowNewCampaigns).eq(true);expect(s.policy.policy.limits.campaignCeilingCents).eq(10000);expect(s.policy.policy.limits.storeCeilingCents).eq(30000);expect(s.policy.policy.limits.cadence).eq('daily');expect(s.campaigns).deep.eq([]);expect(body.writes).deep.eq([]);});
+ });
+ scenario('ACAP-27','ACJ a low daily budget explains the live minimum and only a new merchant choice permits preparation',()=>{
+  const draft={planningKind:'campaign',variantIds:['variant-a'],destination:'whatsapp',priority:'paid_sales',country:'BR',headline:'Camisa',primaryText:'Conheça a camisa da nossa loja.',budget:{amountCents:50,currency:'BRL',cadence:'daily',startsAt:'2026-11-20T12:00:00.000Z',endsAt:'2026-11-27T12:00:00.000Z'}};
+  scriptedAsk('Quero anunciar a Camisa pelo WhatsApp por cinquenta centavos por dia, de 20 a 27 de novembro, buscando vendas no Brasil',[scriptedTool('merchant_ads_catalog',{query:'Camisa'}),scriptedTool('merchant_ads_save_draft',draft)],'O valor ficou abaixo do mínimo desta conta. Quer escolher outro valor?');cy.get('.chat-dock-reply').last().should('contain.text','mínimo').and('contain.text','1,00');
+  cy.request(api()+'/v1/merchant-assistant/contexts/meta-ads/thread').then(({body})=>{expect(body.campaign.draft.budget.amountCents).eq(50);expect(body.campaign.briefing.budgetIssue.minimumDailyBudgetCents).eq(100);});control('facts').then(({body})=>{expect(body.states[0].campaigns).deep.eq([]);expect(body.states[0].preparations).deep.eq([]);expect(body.images).eq(0);expect(body.writes).deep.eq([]);});
+  scriptedAsk('Então pode usar dois reais por dia',[scriptedTool('merchant_ads_save_draft',{briefing:{budget:{amountCents:200}}})],'O preparo foi solicitado e vai aguardar sua revisão.');ready();control('facts').then(({body})=>{expect(body.states[0].campaigns[0].draft.budget.amountCents).eq(200);expect(body.states[0].proposals[0].status).eq('pending_review');expect(body.images).eq(1);expect(body.writes).deep.eq([]);});
+ });
  scenario('ACAP-27','Enter starts a single fluid campaign conversation with mascot status and no inventory dump',()=>{
   control('model',{hold:true});openChat();cy.get('[aria-label="Mensagem para a IA"]').type('quero criar uma campanha');nativeKey('Enter');cy.get('.chat-dock-thinking').should('have.length',1).and('contain.text','Zyon pensando');cy.get('.chat-dock-thinking .zyon-agent-orb').should('exist');cy.get('.chat-dock-composer [role="status"]').should('not.exist');control('model',{hold:false});cy.get('.chat-dock-reply').last().should('not.contain.text','Zyon pensando').and('contain.text','loja').and('contain.text','WhatsApp').and('not.contain.text','estoque').and('not.contain.text','Planejamento salvo');cy.get('.chat-dock-turn').should('have.length',1);cy.get('[aria-label="Mensagem para a IA"]').type('Linha 1{shift+enter}Linha 2').should('have.value','Linha 1\nLinha 2');cy.get('.chat-dock-turn').should('have.length',1);control('facts').then(({body})=>{expect(body.states[0].campaigns).deep.eq([]);expect(body.images).eq(0);expect(body.writes).deep.eq([]);});
  });
