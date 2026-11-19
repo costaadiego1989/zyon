@@ -37,7 +37,7 @@ export interface OpenRouterChatRequest {
   };
   messages: OpenRouterChatMessage[];
   tools?: OpenRouterToolDefinition[];
-  toolChoice?: "auto" | "none" | { type: "function"; function: { name: string } };
+  toolChoice?: "auto" | "none" | "required" | { type: "function"; function: { name: string } };
   maxTokens?: number;
   temperature?: number;
   stop?: string[];

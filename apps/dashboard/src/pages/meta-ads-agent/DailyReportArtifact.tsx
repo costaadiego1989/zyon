@@ -1,4 +1,5 @@
 import type { MetaAdsDailyReport } from '@zyon/shared-types';
+import {BarChart3} from 'lucide-react';
 import { adReason, executionStates, money, priorities, attributionWindowLabel, metricSourceLabel } from './presentation.js';
 
 const analysis={pending:'Análise pendente',completed:'Análise concluída',awaiting_data:'Dados insuficientes para avaliar desempenho',unknown:'Análise com resultado desconhecido. O consumo não será repetido automaticamente.',unavailable:'Análise indisponível'};
@@ -17,35 +18,33 @@ function evidenceValue(key:string,value:string|number|boolean|null,zone:string,c
 }
 export function DailyReportArtifact({report,campaignNames={},onReview}:{report:MetaAdsDailyReport;campaignNames?:Record<string,string>;onReview?:(proposalId:string)=>void}) {
   return <article className="mga-daily-report" aria-label={`Relatório diário ${report.localDay}`}>
-    <header className="mga-report-heading"><div><h3>Relatório de {report.localDay.split('-').reverse().join('/')}</h3></div><span className="mga-report-state" data-state={report.status}>{report.status==='partial'?'Coleta parcial':report.status==='collecting'?'Coleta em andamento':'Coleta concluída'}</span></header>
-    <p className="mga-report-period">Dia encerrado: <time dateTime={report.since}>{instant(report.since,report.timezone)}</time> até <time dateTime={report.until}>{instant(report.until,report.timezone)}</time>. A janela de avaliação do desempenho pode abranger mais dias.</p>
-    <p className="mga-report-assessment">{analysis[report.analysisStatus]}</p>
-    {!report.campaigns.length&&<p>Nenhuma campanha disponível para este dia. Isso não confirma gasto zero.</p>}
-    {report.campaigns.map(row=><section key={row.campaignId} className="mga-daily-campaign"><h4>{campaignNames[row.campaignId]??'Campanha da loja'}</h4>
-      {row.status!=='available'&&<p>{row.status==='awaiting_data'?'Dados insuficientes':'Métricas indisponíveis'}. A avaliação aguarda cobertura e maturação suficientes.</p>}
-      {!!row.missing.length&&<p className="mga-report-missing">Para avaliar, precisamos de {row.missing.map(adReason).join(', ')}.</p>}
+    <header className="mga-report-heading"><div><h3>Relatório de <time dateTime={report.since}>{report.localDay.split('-').reverse().join('/')}</time></h3>{report.analysisStatus!=='completed'&&(report.campaigns.length>0||report.analysisStatus==='unknown')&&<p className="mga-report-assessment">{analysis[report.analysisStatus]}</p>}</div><span className="mga-report-state" data-state={report.status}>{report.status==='partial'?'Coleta parcial':report.status==='collecting'?'Coleta em andamento':'Coleta concluída'}</span></header>
+    {!report.campaigns.length&&<div className="mga-report-empty" data-report-empty><BarChart3 size={26} strokeWidth={1.5} aria-hidden="true"/><div><strong>Sem campanhas disponíveis neste dia</strong><p>Os resultados aparecerão aqui quando houver campanhas com dados coletados.</p></div></div>}
+    {report.campaigns.map(row=><section key={row.campaignId} className="mga-daily-campaign"><div className="mga-report-campaign-heading"><h4>{campaignNames[row.campaignId]??'Campanha da loja'}</h4><span className="mga-report-row-state">{row.status==='available'?'Resultados coletados':row.status==='awaiting_data'?'Dados insuficientes':'Métricas indisponíveis'}</span></div>
       {row.metrics?<><dl className="mga-report-metrics">
-        <div><dt>Investimento nos anúncios</dt><dd>{money(row.metrics.spendCents,row.metrics.currency)}</dd></div>
-        <div><dt>Vendas informadas pela Meta</dt><dd>{money(row.metrics.attributedRevenueCents,row.metrics.currency)}</dd></div>
-        <div><dt>Vendas confirmadas na Zyon</dt><dd>{money(row.metrics.confirmedRevenueCents,row.metrics.currency)}</dd></div>
-        <div><dt>Conversas</dt><dd>{row.metrics.conversations??'Indisponível'}</dd></div>
-      </dl><details className="mga-report-details"><summary>Mais métricas e origem</summary><dl className="mga-ledger">
+        <div><dt>Investimento nos anúncios</dt><dd className={row.metrics.spendCents===null?'mga-report-unavailable':undefined}>{money(row.metrics.spendCents,row.metrics.currency)}</dd></div>
+        <div><dt>Vendas informadas pela Meta</dt><dd className={row.metrics.attributedRevenueCents===null?'mga-report-unavailable':undefined}>{money(row.metrics.attributedRevenueCents,row.metrics.currency)}</dd></div>
+        <div><dt>Vendas confirmadas na Zyon</dt><dd className={row.metrics.confirmedRevenueCents===null?'mga-report-unavailable':undefined}>{money(row.metrics.confirmedRevenueCents,row.metrics.currency)}</dd></div>
+        <div><dt>Conversas</dt><dd className={row.metrics.conversations===null?'mga-report-unavailable':undefined}>{row.metrics.conversations??'Indisponível'}</dd></div>
+      </dl><details className="mga-report-details mga-disclosure"><summary>Mais métricas e origem</summary><dl className="mga-ledger">
         <div><dt>Pedidos pagos confirmados</dt><dd>{row.metrics.paidOrders}</dd></div>
         <div><dt>Custo por compra</dt><dd>{money(row.metrics.costPerPurchaseCents,row.metrics.currency)}</dd></div>
-        <div><dt>Retorno dos anúncios</dt><dd>{row.metrics.roas===null?'Indisponível':`${row.metrics.roas.toLocaleString('pt-BR')}×`}</dd></div>
+        <div><dt>Retorno dos anúncios<small>Vendas da Meta por real gasto. Não é lucro.</small></dt><dd>{row.metrics.roas===null?'Indisponível':`${row.metrics.roas.toLocaleString('pt-BR')}×`}</dd></div>
         <div><dt>Resultado com custos informados</dt><dd>{money(row.metrics.contributionCents,row.metrics.currency)}</dd></div>
       </dl><small>Fonte: {metricSourceLabel(row.metrics.source)} · Prazo considerado pela Meta: {attributionWindowLabel(row.metrics.attributionWindow)} · Cobertura de custos: {coverage[row.metrics.costCoverage]}</small>
         {row.metrics.stale&&<p>Dados anteriores, ainda sem atualização confirmada para esta coleta.</p>}
         {!!row.metrics.notes.length&&<ul>{row.metrics.notes.map(value=><li key={value}>{adReason(value)}</li>)}</ul>}
-      </details></>:<p>Valores indisponíveis. Ausência de dados não significa ausência de gasto ou vendas.</p>}
+      </details></>:<div className="mga-report-empty mga-report-empty--compact"><BarChart3 size={22} strokeWidth={1.5} aria-hidden="true"/><p>Aguardando métricas. Valores indisponíveis não confirmam gasto zero.</p></div>}
+      {!!row.missing.length&&<details className="mga-report-details mga-disclosure"><summary>O que falta para avaliar</summary><p className="mga-report-missing">Para avaliar, precisamos de {row.missing.map(adReason).join(', ')}.</p></details>}
       {row.recommendations.map(recommendation=><div className="mga-daily-recommendation" key={recommendation.id}><strong>{recommendation.status==='awaiting_data'?'Aguardando dados':'Recomendação'} · {priorities[recommendation.priority]}</strong><p>{adReason(recommendation.hypothesis)}</p>
-        <details className="mga-recommendation-evidence mga-report-details"><summary>Ver dados da recomendação</summary><dl className="mga-ledger">{Object.entries(recommendation.evidence).map(([key,value])=><div key={key}><dt>{labels[key]??'Dado complementar'}</dt><dd>{labels[key]?evidenceValue(key,value,report.timezone,row.metrics?.currency??'BRL'):'Indisponível'}</dd></div>)}</dl></details>
+        <details className="mga-recommendation-evidence mga-report-details mga-disclosure"><summary>Ver dados da recomendação</summary><dl className="mga-ledger">{Object.entries(recommendation.evidence).map(([key,value])=><div key={key}><dt>{labels[key]??'Dado complementar'}</dt><dd>{labels[key]?evidenceValue(key,value,report.timezone,row.metrics?.currency??'BRL'):'Indisponível'}</dd></div>)}</dl></details>
       </div>)}
       {row.actions.map((action,index)=><div className="mga-daily-action" key={action.proposalId||`${row.campaignId}-${index}`}><p><strong>{outcome[action.status]??'Resultado requer revisão'}</strong></p><p>{adReason(action.reason)}</p>{action.error&&<p role="status">{errors[action.error]??'Não foi possível confirmar esta ação. Consulte a proposta e o histórico.'}</p>}
         {onReview&&action.proposalId&&action.status==='pending_review'&&<button type="button" className="mga-secondary" onClick={()=>onReview(action.proposalId)}>Revisar proposta</button>}
       </div>)}
     </section>)}
-    <details className="mga-report-details mga-report-method"><summary>Período e atualização da coleta</summary><p>Coleta: {report.collectedAt?<time dateTime={report.collectedAt}>{instant(report.collectedAt,report.timezone)}</time>:'Ainda não concluída'} · Atualização: <time dateTime={report.updatedAt}>{instant(report.updatedAt,report.timezone)}</time></p></details>
-    {!!report.notes.length&&<ul className="mga-report-notes">{report.notes.map(value=><li key={value}>{adReason(value)}</li>)}</ul>}
+    <details className="mga-report-details mga-report-method mga-disclosure"><summary>Período e atualização da coleta</summary><dl className="mga-ledger"><div><dt>Período observado</dt><dd><time dateTime={report.since}>{instant(report.since,report.timezone)}</time> até <time dateTime={report.until}>{instant(report.until,report.timezone)}</time></dd></div><div><dt>Coleta</dt><dd>{report.collectedAt?<time dateTime={report.collectedAt}>{instant(report.collectedAt,report.timezone)}</time>:'Ainda não concluída'}</dd></div><div><dt>Atualização</dt><dd><time dateTime={report.updatedAt}>{instant(report.updatedAt,report.timezone)}</time></dd></div></dl>
+      {!!report.notes.length&&<ul className="mga-report-notes">{report.notes.filter(value=>report.campaigns.length||value!=='observed_attribution_not_causal_uplift').map(value=><li key={value}>{adReason(value)}</li>)}</ul>}
+    </details>
   </article>;
 }

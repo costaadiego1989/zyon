@@ -85,11 +85,11 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
   }
   private async pagePhone(access: MetaAccess, pageId: string): Promise<string | null> {
     if (!/^v\d+\.0$/.test(this.env.META_ADS_GRAPH_API_VERSION ?? "")) throw new MetaAdsError("meta_graph_not_configured", 503);
-    const response = await this.request(`https://graph.facebook.com/${this.env.META_ADS_GRAPH_API_VERSION}/${id(pageId)}?fields=id,whatsapp_number,has_whatsapp_number`, { headers: { Authorization: `Bearer ${access.accessToken}` }, redirect: "error", signal: AbortSignal.timeout(15000) });
+    const response = await this.request(`https://graph.facebook.com/${this.env.META_ADS_GRAPH_API_VERSION}/${id(pageId)}?fields=id,whatsapp_number,has_whatsapp_number,has_whatsapp_business_number`, { headers: { Authorization: `Bearer ${access.accessToken}` }, redirect: "error", signal: AbortSignal.timeout(15000) });
     const body = await response.json() as Json;
     if (!response.ok || body.error || String(body.id) !== pageId) throw new MetaAdsError("meta_whatsapp_access_denied", 403);
     const phone = typeof body.whatsapp_number === "string" ? body.whatsapp_number.replace(/\D/g, "") : "";
-    return body.has_whatsapp_number === true && /^\d{10,15}$/.test(phone) ? phone : null;
+    return (body.has_whatsapp_number === true||body.has_whatsapp_business_number===true) && /^\d{10,15}$/.test(phone) ? phone : null;
   }
   private async entities(session: MetaMcpSession, access: MetaAccess, level: string, fields: string[], ids?: string[], extra: Json = {}): Promise<Json[]> {
     await session.fields(fields);
@@ -315,6 +315,10 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       impressions: available.includes('impressions')?count(row.impressions):null,
       reach: available.includes('reach')?count(row.reach):null,
       linkClicks: available.includes('link_click')?count(row.link_click):null };
+  }
+  async accountBudgetConstraints(access:MetaAccess){
+    const session=this.session(access,'plan_future_campaigns');await session.start();const account=await this.account(session,access),minimum=count(account.min_daily_budget_cents);
+    return{accountId:access.accountId!,currency:typeof account.currency==='string'&&/^[A-Z]{3}$/.test(account.currency)?account.currency:null,minimumDailyBudgetCents:minimum!==null&&minimum>0?minimum:null};
   }
   async accountTimezone(access: MetaAccess): Promise<string> {
     const session = this.session(access, 'assess_and_optimize_performance', true); await session.start(); await this.account(session, access);

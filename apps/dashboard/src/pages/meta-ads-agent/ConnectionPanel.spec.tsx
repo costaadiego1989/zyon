@@ -7,6 +7,22 @@ import { overview } from "./fixtures.js";
 import { ui } from "./test-helpers.js";
 let screen: ReturnType<typeof ui>;
 afterEach(async () => {await screen?.close(); window.history.replaceState({}, "", "/");});
+
+test('ACJ-03 a missing ad number has a Page shortcut and a refresh that preserves the selected assets',async()=>{
+ screen=ui();const connection=overview().connection,phone={id:'5511999990000',name:'WhatsApp',pageId:'234',accountId:'123'};
+ const refreshed={...connection,whatsappNumbers:[phone]},selectConnection=vi.fn().mockResolvedValueOnce(refreshed).mockResolvedValueOnce({...refreshed,whatsapp:phone});
+ await screen.render(<ConnectionPanel connection={connection} entitled api={{selectConnection} as unknown as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const card=screen.container.querySelector('[aria-labelledby="mga-whatsapp-title"]')!;expect(card.textContent).toContain('Nenhum número disponível nesta Página');expect(card.querySelector('a')?.href).toBe('https://www.facebook.com/234');
+ const details=card.querySelector('details')!;await act(async()=>details.querySelector('summary')!.click());expect(details.open).toBe(true);expect(details.textContent).toContain('Contas vinculadas');
+ await screen.click('Atualizar números');expect(selectConnection.mock.calls[0][0]).toEqual({accountId:'123',pageId:'234',catalogId:null,datasetId:'345',whatsappId:null});expect(card.textContent).toContain('(11) 99999-0000');expect(card.textContent).not.toContain('Nenhum número disponível');
+ await screen.change('WhatsApp vinculado à página',phone.id);await screen.click('Salvar ativos');expect(selectConnection.mock.calls[1][0].whatsappId).toBe(phone.id);expect((screen.container.querySelector('[aria-label="WhatsApp vinculado à página"]') as HTMLSelectElement).value).toBe(phone.id);
+});
+
+test('ACJ-03 discovery failure is explained as access trouble and no Page cannot refresh numbers',async()=>{
+ screen=ui();const connection={...overview().connection,lastError:'whatsapp_unavailable'},api={selectConnection:vi.fn()};await screen.render(<ConnectionPanel connection={connection} entitled api={api as unknown as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const card=screen.container.querySelector('[aria-labelledby="mga-whatsapp-title"]')!;expect(card.textContent).toContain('Não foi possível consultar os números');expect(card.textContent).not.toContain('Nenhum número disponível');
+ await screen.render(<ConnectionPanel connection={{...connection,page:null,epoch:2}} entitled api={api as unknown as MetaAdsAgentApi} onUpdated={vi.fn()}/>);expect(Array.from(card.querySelectorAll('button')).find(b=>b.textContent==='Atualizar números')!.disabled).toBe(true);expect(api.selectConnection).not.toHaveBeenCalled();
+});
 test('AUC-02 healthy authorization has no reconnect CTA while an expired connection offers recovery',async()=>{screen=ui();const api={startConnection:vi.fn()},p={connection:overview().connection,entitled:true,api:api as unknown as MetaAdsAgentApi,onUpdated:vi.fn()};await screen.render(<ConnectionPanel {...p}/>);expect(Array.from(screen.container.querySelectorAll('button')).some(b=>/Autorizar novamente|Reconectar conta|Conectar Meta/.test(b.textContent??''))).toBe(false);await screen.render(<ConnectionPanel {...p} connection={{...p.connection,status:'reconnect_required'}}/>);expect(Array.from(screen.container.querySelectorAll('button')).some(b=>b.textContent==='Reconectar conta')).toBe(true);expect(api.startConnection).not.toHaveBeenCalled();});
 test('AGW-09 a beginner without an ad account can open setup guidance without starting OAuth',async()=>{
  screen=ui();const api={startConnection:vi.fn()};await screen.render(<ConnectionPanel connection={{...overview().connection,status:'disconnected',account:null}} entitled api={api as unknown as MetaAdsAgentApi} onUpdated={vi.fn()}/>);

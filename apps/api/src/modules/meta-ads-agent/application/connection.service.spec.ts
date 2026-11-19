@@ -27,6 +27,12 @@ test("MGA-17 catalog denial remains an access error instead of a successful empt
 test("MGA-18 WhatsApp requires the authorized number to belong to the selected page and account", async () => {
   const f = await fixture(); try { await f.connect(); await f.select(); assert.equal((await f.service.access("store-a", { destination: "whatsapp" })).whatsappId, "5511999999999"); f.discovery.whatsappNumbers[0].pageId = "other-page"; await assert.rejects(f.select(), { code: "meta_whatsapp_not_linked", status: 403 }); } finally { await f.close(); }
 });
+
+test('ACJ-03 refreshing unchanged selected assets discovers newly linked numbers without changing the approval epoch',async()=>{
+ const f=await fixture();try{f.discovery.whatsappNumbers=[];await f.connect();const selected=await f.service.select('store-a',{accountId:'100',pageId:'110',datasetId:'120'});f.discovery.whatsappNumbers=[{id:'5511999999999',name:'WhatsApp',accountId:'100',pageId:'110'}];
+ const refreshed=await f.service.select('store-a',{accountId:'100',pageId:'110',datasetId:'120'});assert.equal(refreshed.epoch,selected.epoch);assert.equal(refreshed.page!.id,'110');assert.equal(refreshed.dataset!.id,'120');assert.equal(refreshed.whatsapp,null);assert.deepEqual(refreshed.whatsappNumbers,f.discovery.whatsappNumbers);assert.equal(f.calls.includes('prepare'),false);assert.equal(f.calls.includes('execute'),false);
+ }finally{await f.close();}
+});
 test("MGA-19 disconnect clears credentials and invalidates pending approvals without pausing ads", async () => {
   const f = await fixture(); try {
     await f.connect(); await f.select(); const before = (await f.service.view("store-a")).epoch;
