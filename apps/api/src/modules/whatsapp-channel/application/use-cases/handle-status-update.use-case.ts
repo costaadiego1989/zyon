@@ -27,8 +27,9 @@ const STATUS_LABELS: Record<number, string> = {
 
 interface MetaReceiptInput {
   merchantId: string; configId: string; messageId: string; status: string;
-  correlationId?: string; timestamp?: string; errorCode?: number;
+  correlationId?: string; timestamp?: string; errorCode?: number; providerAccountId?: string;
 }
+const SERVICE_CORRELATION = /^service_notification:[a-f0-9]{64}$/;
 const ORDER_CORRELATION = /^order_notification:[a-f0-9]{64}$/;
 const ORDER_NOTIFICATION_TYPES = new Set(["order_confirmation", "order_nonphysical_confirmation", "order_shipped", "order_delivered", "merchant_order_paid", "order_paid_animation", "order_shipped_animation"]);
 // An authenticated positive delivery/read is stronger than a contradictory
@@ -41,8 +42,12 @@ export class HandleStatusUpdateUseCase {
   constructor(@Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient) {}
 
   async receiveMetaReceipt(input: MetaReceiptInput): Promise<void> {
+    if (input.correlationId !== undefined && SERVICE_CORRELATION.test(input.correlationId)) {
+      await this.receiveServiceNotificationReceipt(input); return;
+    }
     if (input.correlationId === undefined || ORDER_CORRELATION.test(input.correlationId)) {
       await this.receiveOrderNotificationReceipt(input);
+      if (input.correlationId === undefined) await this.receiveServiceNotificationReceipt(input);
       return;
     }
     if (!input.correlationId) return;
@@ -143,6 +148,45 @@ export class HandleStatusUpdateUseCase {
         state: failed ? "notification_delivery_failed" : "sent",
       } });
       if (updated.count !== 1) throw new Error("whatsapp_order_receipt_conflict");
+    });
+  }
+
+  /** Authenticated canonical service notices have their own purpose/ledger and
+   * never reopen a conversation inbox or send another notification. */
+  private async receiveServiceNotificationReceipt(input: MetaReceiptInput): Promise<void> {
+    if (!Object.hasOwn(ORDER_RECEIPT_RANK, input.status) || typeof input.messageId !== "string" || !input.messageId || input.messageId.length > 1024
+      || /[\s\u0000-\u001f]/.test(input.messageId) || input.timestamp !== undefined && (typeof input.timestamp !== "string"
+        || !/^[1-9]\d{0,15}$/.test(input.timestamp) || !Number.isSafeInteger(Number(input.timestamp)))) return;
+    if (!this.prisma) throw new Error("whatsapp_receipt_store_unavailable");
+    await this.prisma.$transaction(async tx => {
+      const selector = input.correlationId !== undefined ? Prisma.sql`"id" = ${input.correlationId}`
+        : Prisma.sql`"provider_message_id" = ${input.messageId} AND "id" LIKE 'service_notification:%'`;
+      const rows = await tx.$queryRaw<Array<{ id: string; merchant_id: string; config_id: string; state: string; response: unknown; provider_message_id: string | null }>>(Prisma.sql`
+        SELECT "id", "merchant_id", "config_id", "state", "response", "provider_message_id" FROM "whatsapp_deliveries"
+        WHERE "merchant_id"=${input.merchantId} AND "config_id"=${input.configId} AND ${selector} LIMIT 2 FOR UPDATE`);
+      if (rows.length !== 1) return;
+      const row = rows[0]!;
+      if (!SERVICE_CORRELATION.test(row.id) || row.merchant_id !== input.merchantId || row.config_id !== input.configId
+        || !["sending", "submission_unknown", "sent", "notification_delivery_failed"].includes(row.state)
+        || row.provider_message_id !== null && row.provider_message_id !== input.messageId
+        || input.correlationId === undefined && row.provider_message_id !== input.messageId) return;
+      const m = row.response;
+      if (!m || typeof m !== "object" || Array.isArray(m)) return;
+      const metadata = m as Record<string, unknown>;
+      if (metadata.kind !== "service_notification" || metadata.type !== "service_appointment_notice" || typeof metadata.appointmentId !== "string"
+        || !metadata.appointmentId || typeof metadata.sourceEventId !== "string" || !["text", "media"].includes(String(metadata.part))
+        || typeof metadata.providerAccountId !== "string" || !metadata.providerAccountId || metadata.providerAccountId !== input.providerAccountId) return;
+      const previous = metadata.receipt as Record<string, unknown> | undefined;
+      if (previous !== undefined && (!previous || previous.messageId !== input.messageId || typeof previous.status !== "string"
+        || !Object.hasOwn(ORDER_RECEIPT_RANK, previous.status) || ORDER_RECEIPT_RANK[previous.status]! >= ORDER_RECEIPT_RANK[input.status]!)) return;
+      const failed = input.status === "failed", response: Record<string, unknown> = { ...metadata, status: failed ? "failed" : "accepted",
+        receipt: { messageId: input.messageId, status: input.status, ...(input.timestamp ? { timestamp: input.timestamp } : {}),
+          ...(failed && Number.isSafeInteger(input.errorCode) && input.errorCode! > 0 ? { errorCode: input.errorCode } : {}) } };
+      if (failed) response.reason = "provider_delivery_failed"; else delete response.reason;
+      const changed = await tx.whatsAppDelivery.updateMany({ where: { id: row.id, merchantId: input.merchantId, configId: input.configId,
+        state: row.state, providerMessageId: row.provider_message_id }, data: { state: failed ? "notification_delivery_failed" : "sent",
+        providerMessageId: input.messageId, response: response as Prisma.InputJsonValue } });
+      if (changed.count !== 1) throw new Error("whatsapp_service_receipt_conflict");
     });
   }
 

@@ -29,6 +29,7 @@ export interface WhatsAppTemplateDefinition {
 }
 
 const SAMPLES: Record<string, string> = {
+  appointmentSummary: "Consulta com profissional em 03/01/2030, 10:00, America/Sao_Paulo. Valor R$ 50,00. Pagamento no atendimento: pendente.",
 alertName: "MarketplaceOutboxDeliveryFailures",
 alertStatus: "ativo",
 alertSeverity: "crítica",
@@ -70,6 +71,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
     { name: "discount", token: /\{\{discount\}\}/g },
     { name: "decisionReason", token: /\{\{decisionReason\}\}/g },
     { name: "link", token: /\{\{link\}\}/g },
+    { name: "appointmentSummary", token: /\{\{appointmentSummary\}\}/g },
   ];
   let body = named.replace(/\{\{storeName\}\}/g, storeName);
   const variableMap: Record<string, string> = {};
@@ -88,6 +90,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
 
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
+  service_appointment_notice: "Ol\u00e1, {{buyerName}}. Confira a atualiza\u00e7\u00e3o do seu atendimento na {{storeName}}.\n\n{{appointmentSummary}}\n\nSe precisar de ajuda, fale com a empresa.",
   shopping_agent_alert: "Olá, {{buyerName}}. Seu agente pessoal encontrou uma atualização para {{productName}}. Revise a tarefa e as condições atuais: {{link}}.\n\nAtenciosamente,\n{{storeName}}",
 marketplace_operational_alert: "Zyon: alerta operacional {{alertName}} está {{alertStatus}}, gravidade {{alertSeverity}}. Início: {{observedAt}}. Consulte o painel: {{dashboardLink}}.\n\nEquipe Zyon.",
   plan_expiry_7d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete de 7 dias para que você revise a renovação em {{dashboardLink}}.\n\nEquipe Zyon.",
@@ -126,6 +129,7 @@ Consulte as informações da sua compra. O acesso a produtos digitais é enviado
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
+  service_appointment_notice: false,
   shopping_agent_alert: false,
 marketplace_operational_alert: false,
   checkout_otp: false,
@@ -147,6 +151,7 @@ marketplace_operational_alert: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
+  service_appointment_notice: "Atualiza\u00e7\u00e3o do agendamento",
   shopping_agent_alert: "Aviso do agente pessoal",
 marketplace_operational_alert: "Marketplace: alerta operacional",
   checkout_otp: "Código de confirmação do checkout",

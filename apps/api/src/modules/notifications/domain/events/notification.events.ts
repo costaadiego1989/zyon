@@ -25,6 +25,8 @@ export interface OrderConfirmationEvent {
   total: string;
   currency?: string;
   paidReceipt?: PaidOrderReceipt;
+  /** Rehydrated only from canonical scheduled order units and scoped appointments. */
+  serviceBooking?: { unitIds: string[]; appointments: Array<{ id: string; unitId: string; status: string }>; hasLegacyServices: boolean };
 }
 
 export interface OrderShippedEvent {

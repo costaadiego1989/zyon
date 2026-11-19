@@ -157,3 +157,6 @@ As correções explícitas de animação antes do texto e dez produtos por lote 
 
 
 **Desktop visual style approved 2026-11-19T17:55:35.310017+00:00:** user: "Aprovar o estilo do desktop" (call_28d46de81a384fc5991547007d8ae055). Approval concerns the two real desktop previews, queue205f1326 and drawer26935f85, with premium presentation tokens/styles preserved through the later selected-tab and quiet-read fixes. It is not approval of unfinished technical gates, mobile behavior, feature completion or publication. No question on desktop style remains pending.
+
+
+**Approved T38 zero-price native test correction:** 2026-11-19 - user: "Corrigir somente esse teste (recomendado)" (call_4b91ada15f83480d99c5539622ba1540). Exact patch98dff479/originalb013ab80/candidateaaa42d02 applied once after approval: one new native case now checks the existing zero-price rejection with no business/transport changes and restores fixture price in finally.14 cases/all other13 declarations and assertions preserved; API unchanged. Never reask/reapply; receipt .cache/t38-zero-price-test-review-20261119/approved-applied.json.

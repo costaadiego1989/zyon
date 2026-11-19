@@ -18,6 +18,8 @@ export const WHATSAPP_TEMPLATE_TYPES = [
   "shopping_agent_alert",
   // Cart recovery
   "cart_recovery",
+  // Canonical booked service and local receipt, never an order identity.
+  "service_appointment_notice",
   // Transactional order notifications
   "order_confirmation",
   "order_nonphysical_confirmation",

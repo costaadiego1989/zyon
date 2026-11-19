@@ -1,3 +1,8 @@
+import { currentWhatsAppSubmissionScope, startWhatsAppRequest } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
+import { operatorConnection } from "../../../whatsapp-channel/domain/services/whatsapp-operator-connection.js";
+import { canonicalJson } from "../../../../shared/http/canonical-json.js";
+import { withServiceNoticeTransport } from "../../application/ports/notification-whatsapp-sender.port.js";
+import type { ServiceNotificationInput } from "../../application/ports/notification-whatsapp-sender.port.js";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { createHash, randomUUID } from "node:crypto";
@@ -30,6 +35,48 @@ export class OrderNotificationWhatsAppAdapter implements NotificationWhatsAppSen
     @Inject(WHATSAPP_CONFIG_REPOSITORY) private readonly configs: WhatsAppConfigRepository,
     private readonly templates: SendWhatsAppMessageUseCase,
     @Optional() @Inject(PAID_ORDER_RECEIPT_READER) private readonly receipts?: PaidOrderReceiptReader) {}
+
+  async executeService(input: ServiceNotificationInput): Promise<NotificationWhatsAppResult> {
+    const frame = currentWhatsAppSubmissionScope(), recipient = normalizeRecoveryRecipient(input.toPhone);
+    if (!frame || frame.messageId !== input.deliveryId || frame.merchantId !== input.merchantId || frame.recipient !== recipient
+      || input.type !== "service_appointment_notice" || !input.appointmentId?.trim() || !input.eventId?.trim()) return skipped("service_notice_submission_required");
+    const config = await this.configs.findByMerchantId(input.merchantId), credentials = connectedMetaCloudCredentials(config, input.merchantId);
+    if (!config || !credentials || !recipient) return skipped("meta_connection_unavailable");
+    const connection = operatorConnection(config, { merchantId: input.merchantId, configId: config.id,
+      deviceId: config.deviceId ?? "META_CLOUD:" + config.id, provider: "META_CLOUD", accountId: credentials.phoneNumberId, recipient });
+    if (connection.kind !== "ready") return skipped(connection.code);
+    const scope = Object.freeze({ ...connection.scope, messageId: input.deliveryId });
+    if (canonicalJson(scope) !== canonicalJson(frame)) return skipped("meta_connection_changed");
+    const inbound = await this.authenticatedInbound(input.merchantId, config.id, scope.deviceId, recipient);
+    if (input.part === "media" || this.withinWindow(inbound)) {
+      if (!this.withinWindow(inbound)) return skipped("service_session_window_required");
+      if (input.part === "media") {
+        try { const u = new URL(input.mediaUrl ?? ""); if (u.protocol !== "https:" || u.username || u.password) return skipped("service_media_invalid"); }
+        catch { return skipped("service_media_invalid"); }
+      } else if (!input.freeformText.trim() || input.freeformText.length > 4096) return skipped("notification_content_invalid");
+      try {
+        const response = await withServiceNoticeTransport({ kind: "session" }, () => startWhatsAppRequest(scope, () => fetch(`https://graph.facebook.com/v23.0/${credentials.phoneNumberId}/messages`, {
+          method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000), headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), biz_opaque_callback_data: input.deliveryId,
+            ...(input.part === "media" ? { type: "sticker", sticker: { link: input.mediaUrl } } : { type: "text", text: { body: input.freeformText } }) }),
+        })));
+        if (!response.ok) return response.status >= 400 && response.status < 500 && response.status !== 408
+          ? { status: "failed", channel: "whatsapp_session", reason: `meta_http_${response.status}` } : unknown();
+        const body = await response.json().catch(() => null) as { messages?: Array<{ id?: unknown }> } | null;
+        const messageId = body?.messages?.[0]?.id;
+        return typeof messageId === "string" && !!messageId.trim() ? { status: "accepted", channel: "whatsapp_session", messageId } : unknown();
+      } catch { return unknown(); }
+    }
+    // WhatsApp template variables cannot contain CR/LF/tab. Keep the complete
+    // facts, with paragraph structure in the fixed body; freeform stays readable.
+    const appointmentSummary = (input.variables.appointmentSummary ?? input.freeformText).replace(/[\r\n\t]+/g, " | ").replace(/\s+/g, " ").trim();
+    const sent = await this.templates.execute({ merchantId: input.merchantId, type: "service_appointment_notice", toPhone: recipient,
+      correlationId: input.deliveryId, variables: { ...input.variables, appointmentSummary } });
+    return sent.status === "sent" && sent.channel === "whatsapp_template" && !!sent.messageId?.trim()
+      ? { status: "accepted", channel: "whatsapp_template", messageId: sent.messageId }
+      : sent.status === "skipped" ? skipped(sent.reason ?? "approved_template_unavailable")
+        : sent.status === "failed" ? { status: "failed", channel: "whatsapp_template", reason: sent.reason } : unknown();
+  }
 
   async execute(input: NotificationWhatsAppInput): Promise<NotificationWhatsAppResult> {
     const recipient = input.toPhone ? normalizeRecoveryRecipient(input.toPhone) : null;

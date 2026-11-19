@@ -14,6 +14,11 @@ import { connectedMetaCloudCredentials } from "../../../whatsapp-channel/domain/
 import { normalizeRecoveryRecipient } from "../../domain/services/recovery-whatsapp-policy.js";
 import { WHATSAPP_TEMPLATE_REPOSITORY, type WhatsAppTemplateRepositoryPort } from "../../domain/ports/whatsapp-template-repository.port.js";
 
+import { currentWhatsAppSubmissionScope, startWhatsAppRequest } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
+import { operatorConnection } from "../../../whatsapp-channel/domain/services/whatsapp-operator-connection.js";
+
+import { withServiceNoticeTransport, type ServiceNoticeTransportProof } from "../../../notifications/application/ports/notification-whatsapp-sender.port.js";
+
 const GRAPH = "https://graph.facebook.com/v23.0";
 
 /** Sends merchant-owned, Meta-approved templates through the official Cloud API. */
@@ -28,7 +33,9 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
   ) {}
 
   async sendTemplate(input: TemplateSendInput): Promise<TemplateSendResult> {
+    if (input.type === "service_appointment_notice" && !currentWhatsAppSubmissionScope()) return { messageId: "", status: "skipped", reason: "service_notice_submission_required" };
     if (!input.type) return { messageId: "", status: "skipped", reason: "template_type_required" };
+    let serviceProof: ServiceNoticeTransportProof | undefined;
     const strictTemplate = true;
     const credentials = await this.credentials(input.merchantId);
     if (!credentials) return { messageId: "", status: "skipped", reason: "meta_connection_unavailable" };
@@ -50,6 +57,13 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
         if (!isApprovedSalesTemplate(latestTemplate, input.merchantId, input.type!, credentials.wabaId)
           || latestTemplate.twilioContentSid !== input.contentSid || latestTemplate.metaRevision !== template.metaRevision
           || (input.language || "pt_BR") !== (template.metaLanguage || "pt_BR")) return { messageId: "", status: "skipped", reason: "template_revision_changed" };
+        if (input.type === "service_appointment_notice") {
+          if (latestTemplate.metaCategory !== "UTILITY" || !latestTemplate.metaTemplateBody || !latestTemplate.metaVariableMap)
+            return { messageId: "", status: "skipped", reason: "service_utility_template_required" };
+          serviceProof = { kind: "template", template: { id: latestTemplate.id, revision: latestTemplate.metaRevision ?? 1,
+            wabaId: credentials.wabaId, language: latestTemplate.metaLanguage ?? "pt_BR", category: "UTILITY", body: latestTemplate.metaTemplateBody,
+            variableMap: latestTemplate.metaVariableMap, contentSid: input.contentSid } };
+        }
       }
     }
 
@@ -71,12 +85,22 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
 
     let response: Response;
     try {
-      response = await fetch(`${GRAPH}/${credentials.phoneNumberId}/messages`, {
+      const send = () => fetch(`${GRAPH}/${credentials.phoneNumberId}/messages`, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), type: "template", template,
           ...(input.correlationId ? { biz_opaque_callback_data: input.correlationId } : {}) }),
       });
+      if (input.type === "service_appointment_notice") {
+        const config = await this.configRepo?.findByMerchantId(input.merchantId), latest = connectedMetaCloudCredentials(config, input.merchantId);
+        if (!config || !latest || latest.accessToken !== credentials.accessToken || latest.wabaId !== credentials.wabaId
+          || latest.phoneNumberId !== credentials.phoneNumberId) return { messageId: "", status: "skipped", reason: "meta_connection_changed" };
+        const connection = operatorConnection(config, { merchantId: input.merchantId, configId: config.id, deviceId: config.deviceId ?? "META_CLOUD:" + config.id,
+          provider: "META_CLOUD", accountId: latest.phoneNumberId, recipient });
+        if (connection.kind !== "ready") return { messageId: "", status: "skipped", reason: connection.code };
+        if (!serviceProof) return { messageId: "", status: "skipped", reason: "service_template_proof_required" };
+        response = await withServiceNoticeTransport(serviceProof, () => startWhatsAppRequest(Object.freeze({ ...connection.scope, messageId: input.correlationId }), send));
+      } else response = await send();
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       this.logger.error("Meta template transport failed", { merchantId: input.merchantId, reason });

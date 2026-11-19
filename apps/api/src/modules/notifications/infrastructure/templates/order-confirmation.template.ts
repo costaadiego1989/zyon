@@ -7,7 +7,12 @@ const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g,
 export function orderConfirmationInstructions(event: OrderConfirmationEvent): string {
   const messages: string[] = [];
   if (event.items.some(item => item.productType === "digital")) messages.push("O acesso aos produtos digitais será enviado em uma mensagem separada.");
-  if (event.items.some(item => item.productType === "service")) messages.push("Consulte as informações do serviço para combinar o atendimento com a loja.");
+  if (event.items.some(item => item.productType === "service")) {
+    if (event.serviceBooking?.unitIds.length) {
+      messages.push("A confirma\u00e7\u00e3o e os detalhes do agendamento s\u00e3o informados separadamente.");
+      if (event.serviceBooking.hasLegacyServices) messages.push("Para os demais servi\u00e7os, consulte as informa\u00e7\u00f5es para combinar o atendimento com a loja.");
+    } else messages.push("Consulte as informa\u00e7\u00f5es do servi\u00e7o para combinar o atendimento com a loja.");
+  }
   if (!event.items.length || event.items.some(item => !item.productType || ["physical", "food"].includes(item.productType))) messages.push("Acompanhe as próximas etapas de entrega ou retirada na sua área de compras.");
   return messages.join(" ");
 }

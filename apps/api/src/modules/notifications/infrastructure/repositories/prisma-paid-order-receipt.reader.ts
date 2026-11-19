@@ -41,6 +41,18 @@ export class PrismaPaidOrderReceiptReader implements PaidOrderReceiptReader {
       buyerEmail: original.buyerEmail, buyerName: original.buyerName, buyerPhone: original.buyerPhone,
       items, total: String(order.orderTotal), currency: order.currency };
     if (paidReceipt) event.paidReceipt = paidReceipt;
+    const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+    const serviceLines = (Array.isArray(order.lineItemsJson) ? order.lineItemsJson : []).filter(v => record(v) && v.productType === "service");
+    const canonical = serviceLines.filter(v => record(v) && v.snapshotVersion === 2 && v.fulfillmentStrategy === "scheduled_service"
+      && typeof v.lineId === "string" && !!v.lineId && record(v.schedule) && typeof v.schedule.professionalId === "string" && !!v.schedule.professionalId);
+    const unitIds = canonical.flatMap(v => record(v) && typeof v.lineId === "string" ? [v.lineId] : []);
+    if (unitIds.length) {
+      const appointments = await this.prisma.serviceAppointment.findMany({ where: { merchantId: order.merchantId,
+        orderId: order.id, orderUnitId: { in: unitIds } }, select: { id: true, merchantId: true, orderId: true, orderUnitId: true, operationalStatus: true } });
+      event.serviceBooking = { unitIds, hasLegacyServices: serviceLines.length !== canonical.length,
+        appointments: appointments.filter(a => a.merchantId === order.merchantId && a.orderId === order.id && a.orderUnitId !== null && unitIds.includes(a.orderUnitId))
+          .map(a => ({ id: a.id, unitId: a.orderUnitId!, status: a.operationalStatus })) };
+    }
     return event;
   }
 }

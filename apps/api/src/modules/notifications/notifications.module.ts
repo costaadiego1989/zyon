@@ -1,3 +1,4 @@
+import { ServiceAppointmentEventsConsumer } from "./application/service-appointment-events.consumer.js";
 import { MarketplaceOperationalAlertService } from "./application/services/marketplace-operational-alert.service.js";
 import { MarketplaceOperationalAlertJob } from "./application/services/marketplace-operational-alert.job.js";
 import { MarketplaceOperationalAlertSender } from "./infrastructure/adapters/marketplace-operational-alert.sender.js";
@@ -58,6 +59,7 @@ import { SendPaidOrderReceiptCorrectionUseCase } from "./application/use-cases/s
   imports: [PersistenceModule, forwardRef(() => PaymentModule), WhatsAppTemplatesModule, AuthModule],
   controllers: [MerchantNotificationController, DigitalDownloadController, MarketplaceOperationalAlertController],
   providers: [
+    ServiceAppointmentEventsConsumer,
     MarketplaceOperationalAlertService,
     MarketplaceOperationalAlertJob,
     MarketplaceOperationalAlertSender,

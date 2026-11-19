@@ -1,0 +1,750 @@
+{
+  "task": 38,
+  "status": "COMPLETE_LOCAL_FULL_GATE_PASSED_BEFORE_COMMIT",
+  "at": "2026-11-19T18:58:24.765767+00:00",
+  "dependency37": "736f5b3a2a36b740eee5e9ce7558393c93ce477a",
+  "executedContexts": 253,
+  "countBoundary": "32new+188existing+source3+compiled3+native13+native14, all whole unfiltered files and zero skipped. Module source/compiled repeat the same3 contexts, not6 different features; no single fresh253 aggregate claim.",
+  "proofs": [
+    {
+      "kind": "new32",
+      "receipt": {
+        "path": ".cache\\t38-source-20261119\\2026-11-19T18-23-35.657Z-new32\\receipt.json",
+        "sha256": "77c770a64b8cf3066c92f386684a76347a724c5c4641161072e088f784542d25"
+      },
+      "executed": 32,
+      "stages": [
+        {
+          "file": "apps/api/src/modules/notifications/application/service-appointment-events.consumer.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-new32-1",
+            "src/modules/notifications/application/service-appointment-events.consumer.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-35.657Z-new32\\t38-new32-1.log",
+          "rawSha256": "4dc14a177acee6146785ec0d06acedb398c27101c68f00205efe3c82d1effaad",
+          "tap": {
+            "tests": 18,
+            "pass": 18,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/notifications/application/service-notification-financial-compatibility.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-new32-2",
+            "src/modules/notifications/application/service-notification-financial-compatibility.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-35.657Z-new32\\t38-new32-2.log",
+          "rawSha256": "2da563762f8551d590f557d68c3835c6942dbc9838c493afba1aa5a343b14f53",
+          "tap": {
+            "tests": 7,
+            "pass": 7,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/notifications/infrastructure/adapters/service-notification-transport.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-new32-3",
+            "src/modules/notifications/infrastructure/adapters/service-notification-transport.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-35.657Z-new32\\t38-new32-3.log",
+          "rawSha256": "4cb20f7ec776abe23fde6a439eaba78fb0ef188cc9daaae166d2ab27f9254ac7",
+          "tap": {
+            "tests": 7,
+            "pass": 7,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        }
+      ]
+    },
+    {
+      "kind": "legacy188",
+      "receipt": {
+        "path": ".cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\receipt.json",
+        "sha256": "29a153616e5393290fc447493486cb183d085bf0f13eaeec3e8ddf28f862a286"
+      },
+      "executed": 188,
+      "stages": [
+        {
+          "file": "apps/api/src/modules/notifications/notifications.module-binding.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-1",
+            "src/modules/notifications/notifications.module-binding.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-1.log",
+          "rawSha256": "a15b17ca9b4bb96b362fbaffa097c507dbf728f4926b65c4bcaf6fdffd6a2000",
+          "tap": {
+            "tests": 1,
+            "pass": 1,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/notifications/infrastructure/adapters/order-notification-whatsapp.adapter.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-2",
+            "src/modules/notifications/infrastructure/adapters/order-notification-whatsapp.adapter.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-2.log",
+          "rawSha256": "880dc22243576d976457b7d2238a2c070aadea77c498dfb4de78f6225d9614a0",
+          "tap": {
+            "tests": 79,
+            "pass": 79,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/notifications/infrastructure/repositories/prisma-paid-order-receipt.reader.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-3",
+            "src/modules/notifications/infrastructure/repositories/prisma-paid-order-receipt.reader.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-3.log",
+          "rawSha256": "ac6d118d3add4ce478cefd1ad6ed94696bc28b8f8903851d27757851d409cac7",
+          "tap": {
+            "tests": 8,
+            "pass": 8,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/notifications/application/use-cases/paid-order-receipt-delivery.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-4",
+            "src/modules/notifications/application/use-cases/paid-order-receipt-delivery.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-4.log",
+          "rawSha256": "60402574cdf8723f971ecbada047edfc5b4ace8cd29f63620a7ce86eb64b8c1f",
+          "tap": {
+            "tests": 16,
+            "pass": 16,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/notifications/application/use-cases/transactional-order-routing.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-5",
+            "src/modules/notifications/application/use-cases/transactional-order-routing.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-5.log",
+          "rawSha256": "b4deb41b1719b69f4a86ad63a54098b42fbbf9d857c80ec95c28345c3e685145",
+          "tap": {
+            "tests": 10,
+            "pass": 10,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/notifications/application/use-cases/notification-delivery.use-cases.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-6",
+            "src/modules/notifications/application/use-cases/notification-delivery.use-cases.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-6.log",
+          "rawSha256": "8938cdfca98e64e0e7f2ccfc3470e1c29568af2d6301d5b5591d4479b434507e",
+          "tap": {
+            "tests": 2,
+            "pass": 2,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/notifications/infrastructure/templates/email-copy.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-7",
+            "src/modules/notifications/infrastructure/templates/email-copy.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-7.log",
+          "rawSha256": "8e26aa9273c8676d15733c31787542c936a7826265872e9d01a7969ce2ed8a9a",
+          "tap": {
+            "tests": 3,
+            "pass": 3,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/whatsapp-templates/domain/catalog/template-catalog.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-8",
+            "src/modules/whatsapp-templates/domain/catalog/template-catalog.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-8.log",
+          "rawSha256": "9b8fce382add6382eccbdeb180e200520c31538c6ad8ef5d213623a170adb6f6",
+          "tap": {
+            "tests": 8,
+            "pass": 8,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/whatsapp-templates/domain/email-template-compatibility.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-9",
+            "src/modules/whatsapp-templates/domain/email-template-compatibility.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-9.log",
+          "rawSha256": "4067fbc1291e211da30e59ef31bd5c903fec913abe4c80f5dfe98f9915940fa3",
+          "tap": {
+            "tests": 4,
+            "pass": 4,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/whatsapp-templates/domain/sales-template-content.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-10",
+            "src/modules/whatsapp-templates/domain/sales-template-content.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-10.log",
+          "rawSha256": "a0310c5138fb627478bcce18c3fbda39badb10870bcc3a0d52380d65a0a31237",
+          "tap": {
+            "tests": 4,
+            "pass": 4,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/whatsapp-templates/infrastructure/adapters/whatsapp-template-sender.adapter.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-11",
+            "src/modules/whatsapp-templates/infrastructure/adapters/whatsapp-template-sender.adapter.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-11.log",
+          "rawSha256": "54a7d68ede981d020f44f96381b6b353026bf970806960a650d184fd95cbf1ae",
+          "tap": {
+            "tests": 11,
+            "pass": 11,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/whatsapp-channel/application/use-cases/order-notification-receipts.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-12",
+            "src/modules/whatsapp-channel/application/use-cases/order-notification-receipts.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-12.log",
+          "rawSha256": "34b814c056c4d7b23899ba77eedd6928418a63fdb2a46f48ea762c53abb7d652",
+          "tap": {
+            "tests": 26,
+            "pass": 26,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        },
+        {
+          "file": "apps/api/src/modules/whatsapp-channel/application/use-cases/bubblewhats-inbox.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-legacy188-13",
+            "src/modules/whatsapp-channel/application/use-cases/bubblewhats-inbox.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\t38-legacy188-13.log",
+          "rawSha256": "ec0e5e52117cb740be951ce2cf043c8029aaf8cea65bd30ce0b48addc3ba6379",
+          "tap": {
+            "tests": 16,
+            "pass": 16,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        }
+      ]
+    },
+    {
+      "kind": "cycle-source3",
+      "receipt": {
+        "path": ".cache\\t38-source-20261119\\2026-11-19T18-24-52.376Z-cycle-source3\\receipt.json",
+        "sha256": "9fd520b467a52db97d535215f2d673698b2785ff816c74467ba657cc0b06925f"
+      },
+      "executed": 3,
+      "stages": [
+        {
+          "file": "apps/api/tests/notifications-payment-cycle.integration.mjs",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-native-gate.mjs",
+            "t38-cycle-source3-1",
+            "notifications-payment-cycle.integration.mjs",
+            "--source"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-24-52.376Z-cycle-source3\\t38-cycle-source3-1.log",
+          "rawSha256": "6759676fd3eef0e8c5532257f237b26576cc8a30527f4ae29c3a55ac7164cfd4",
+          "tap": {
+            "tests": 3,
+            "pass": 3,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        }
+      ]
+    },
+    {
+      "kind": "cycle-compiled3",
+      "receipt": {
+        "path": ".cache\\t38-source-20261119\\2026-11-19T18-39-55.701Z-cycle-compiled3\\receipt.json",
+        "sha256": "6c51f91157d94496ce62431340fc56205b38dd990c13fb302a1ce211aa87681e"
+      },
+      "executed": 3,
+      "stages": [
+        {
+          "file": "apps/api/tests/notifications-payment-cycle.integration.mjs",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-native-gate.mjs",
+            "t38-cycle-compiled3-1",
+            "notifications-payment-cycle.integration.mjs",
+            "--compiled"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-39-55.701Z-cycle-compiled3\\t38-cycle-compiled3-1.log",
+          "rawSha256": "fa56aa30f323c8fb2763df29bf41f340c65adfba8e3f37d6bae711a8f2b59458",
+          "tap": {
+            "tests": 3,
+            "pass": 3,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        }
+      ]
+    },
+    {
+      "kind": "native13",
+      "receipt": {
+        "path": ".cache\\t38-source-20261119\\2026-11-19T18-45-52.663Z-native13\\receipt.json",
+        "sha256": "f806637b3b7debcc02d0f6f38fdd24f2f6655958638c7231e601e87f047caa71"
+      },
+      "executed": 13,
+      "stages": [
+        {
+          "file": "apps/api/tests/service-attendance-receipt-http.integration.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-native13-1",
+            "tests/service-attendance-receipt-http.integration.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-45-52.663Z-native13\\t38-native13-1.log",
+          "rawSha256": "b94681986fa01accf9d1752fa48f066c135d14dcc7c6925e750ecea94d9b28b6",
+          "tap": {
+            "tests": 13,
+            "pass": 13,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        }
+      ]
+    },
+    {
+      "kind": "native14",
+      "receipt": {
+        "path": ".cache\\t38-source-20261119\\2026-11-19T18-55-46.665Z-native14\\receipt.json",
+        "sha256": "d0552d5d243d6746b5c8f2f4e74bc3c2a3549a5e489c60d086f8b96f2fac65b4"
+      },
+      "executed": 14,
+      "stages": [
+        {
+          "file": "apps/api/tests/service-appointment-notifications.integration.spec.ts",
+          "command": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "C:\\tmp\\zyon-service-business-20261114\\.cache\\phase3-gates\\run-ts-gate.mjs",
+            "t38-native14-1",
+            "tests/service-appointment-notifications.integration.spec.ts"
+          ],
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-55-46.665Z-native14\\t38-native14-1.log",
+          "rawSha256": "c8f3f03f951362be68727172c27facdd5b8ac91a346b9dc03bdaf147520ac5a7",
+          "tap": {
+            "tests": 14,
+            "pass": 14,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "code": 0,
+          "signal": null,
+          "pinsUnchanged": true
+        }
+      ]
+    }
+  ],
+  "headers": [
+    {
+      "receipt": ".cache\\t38-source-20261119\\2026-11-19T18-26-39Z-one-types-window\\receipt.json",
+      "sha256": "fadcea4ec43e5c01efcfce3e693a25d39a45373f3948df01017a1eebaa70d904",
+      "command": [
+        "node",
+        ".cache/run-t71-approved-gate.mjs",
+        "api-types"
+      ],
+      "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-26-39Z-one-types-window\\api-types-wrapper.log",
+      "rawSha256": "65fba262b7b38570c0936a99fd1bd594cb8ab5356e6965c9dea18f277f9f7d7d",
+      "exitCode": 0
+    },
+    {
+      "receipt": ".cache\\t38-source-20261119\\2026-11-19T18-36-32Z-one-checked-build-window\\receipt.json",
+      "sha256": "207d36ef7f6088de204960ce982c5eff6a0be8459389abffc5f255e03e7419d0",
+      "command": [
+        "node",
+        ".cache/run-t71-approved-gate.mjs",
+        "checked"
+      ],
+      "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t38-source-20261119\\2026-11-19T18-36-32Z-one-checked-build-window\\checked-wrapper.log",
+      "rawSha256": "e0c7b29ac0945e2ebd9787fa3f267db3df74e4ad6abab9c20dba0e5c991d8ced",
+      "exitCode": 0
+    }
+  ],
+  "lint": {
+    "command": "node .cache/run-t71-approved-gate.mjs lint",
+    "observedToolSession": 42961,
+    "naturalExitCode": 0,
+    "log": ".cache/t71-gates/2026-11-19T18-35-38.591Z/lint.log",
+    "sha256": "75e47252305c04be115fde2fb95e8fcbd9c8cb4e51efdd61fcc253330ab5f84a"
+  },
+  "ownCheckedAPI": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "e2cf8b7f31cddaed12deb62a89727a198d1dcbfcaf685f3a80dd768c4da93eff",
+    "artifactSha256": "eb4a1fb543b1669df856ad5fc5ec5c6e90e6b5a7f176848b514d24ddf120b945",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2588
+    },
+    "recordedAt": "2026-11-19T18:39:42.334Z"
+  },
+  "independentReadmission": {
+    "mode": "admit",
+    "guardMiB": 1024,
+    "observedCommitMiB": 7774,
+    "toolNaturalExitCode": 0,
+    "observedAtUtc": "2026-11-19T18:39:47.104854+00:00"
+  },
+  "finalSourceFreeze": {
+    "path": ".cache/t38-source-20261119/source-ready-v7-final.json",
+    "sha256": "2afbe93cc1281fcffd094e25127cabd67a486bdf7aad48ba2dde62975be40a1a"
+  },
+  "runtimeSourcesAndTests": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/task-38-plan.md",
+      "sha256": "0d6732d517b1d533bc2fe5fa8ecf4fa4628d1fc4d71385fe4767ce3e8f31a0d4",
+      "bytes": 6197,
+      "lines": 29
+    },
+    {
+      "path": "apps/api/src/modules/notifications/application/service-appointment-events.consumer.ts",
+      "sha256": "f264d825f0639ad8d4b450b72d77681f9540e78c90e86684550e61175a92909c",
+      "bytes": 27110,
+      "lines": 285
+    },
+    {
+      "path": "apps/api/src/modules/notifications/application/service-appointment-events.consumer.spec.ts",
+      "sha256": "260830ef55af9ff5f0ea93888c056c4e5f60ea158477044aa14d5bbd1ace0e7f",
+      "bytes": 20119,
+      "lines": 176
+    },
+    {
+      "path": "apps/api/src/modules/notifications/application/service-notification-financial-compatibility.spec.ts",
+      "sha256": "3236f97f44bbf4b009c5bfe0090f1a80a1d73b306d77f2c70f20de0527d9a091",
+      "bytes": 7002,
+      "lines": 64
+    },
+    {
+      "path": "apps/api/src/modules/notifications/infrastructure/adapters/service-notification-transport.spec.ts",
+      "sha256": "93139bd4ebad211c0976915a5313fd9b9fdc1b8e8a88a8565b1898615af4ee71",
+      "bytes": 7352,
+      "lines": 66
+    },
+    {
+      "path": "apps/api/tests/service-appointment-notifications.integration.spec.ts",
+      "sha256": "aaa42d02d043b7127b10ff79bafcd0e544d89c4a630322dfc21597bbbc9d5d8e",
+      "bytes": 29406,
+      "lines": 257
+    },
+    {
+      "path": "apps/api/src/modules/notifications/notifications.module.ts",
+      "sha256": "97eea0260d12512952278dcaed463a15caf47fd9a1dbabfd7572e1a12865c0f2",
+      "bytes": 7763,
+      "lines": 115
+    },
+    {
+      "path": "apps/api/src/modules/notifications/application/ports/notification-whatsapp-sender.port.ts",
+      "sha256": "5f9b6b734432a64663734fd90e70650a5a848cf8d24bdad5c12586ee3b6fec1e",
+      "bytes": 2850,
+      "lines": 60
+    },
+    {
+      "path": "apps/api/src/modules/notifications/infrastructure/adapters/order-notification-whatsapp.adapter.ts",
+      "sha256": "a4798592344c4c17002e5802b68bbb4f98bfd860dcccef2b29f39b34f04dfa81",
+      "bytes": 22586,
+      "lines": 276
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/domain/catalog/template-types.ts",
+      "sha256": "eff87f350e8abe3db00714d889e0e43bbe165dc4b529f70d4c11466e356233e1",
+      "bytes": 1609,
+      "lines": 44
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/domain/catalog/template-catalog.ts",
+      "sha256": "afdf29e088f5a4015708cedef7850d2e11727c499871c599cf39b069a4974d6a",
+      "bytes": 14645,
+      "lines": 227
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/domain/email-template-copy.ts",
+      "sha256": "8d670f6edebb4a67d3d18e512e36926dfca05020291f0de8251a23901406fa81",
+      "bytes": 9377,
+      "lines": 104
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/application/use-cases/send-whatsapp-message.use-case.ts",
+      "sha256": "a8a65b0322cbf8ba3c5e6ce29972eceffd288bae2f3e3775bc621c0e9bcd5b3c",
+      "bytes": 10789,
+      "lines": 207
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/infrastructure/adapters/whatsapp-template-sender.adapter.ts",
+      "sha256": "4c8f6f4909f397be3f0afdbab4fcb159ba02869e02bbb9bff221a5b393e36981",
+      "bytes": 10357,
+      "lines": 142
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/handle-status-update.use-case.ts",
+      "sha256": "8075a3eada5751764deffa8f0d12bc9be3e621dc3d830543b0474697961b7992",
+      "bytes": 13432,
+      "lines": 204
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/services/whatsapp-delivery.service.ts",
+      "sha256": "174ac2507fda10b89970a3a896425302506ade1a4d7c188d0978df3ad1eea40a",
+      "bytes": 12070,
+      "lines": 180
+    },
+    {
+      "path": "apps/api/src/modules/notifications/infrastructure/repositories/prisma-paid-order-receipt.reader.ts",
+      "sha256": "43f7a853953beaa0caaece009471a3fe321c04f288f69831d8e59f3555268963",
+      "bytes": 5078,
+      "lines": 58
+    },
+    {
+      "path": "apps/api/src/modules/notifications/domain/events/notification.events.ts",
+      "sha256": "ce7bd4a89ea5cae7e3cbe822b15843e74f252fab118d5f029ec830544677f108",
+      "bytes": 1865,
+      "lines": 78
+    },
+    {
+      "path": "apps/api/src/modules/notifications/infrastructure/templates/order-confirmation.template.ts",
+      "sha256": "6e023180a8ad2007b5b11da355e4d23484fd84fca253da0f3ee71b6405d1a648",
+      "bytes": 7803,
+      "lines": 144
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/domain/sales-template-content.ts",
+      "sha256": "e19034bd9ab464d6feb8e9ba78439d1cfd2196487831ce6d95c95b0bc87bc3f4",
+      "bytes": 4612,
+      "lines": 56
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-webhook.controller.ts",
+      "sha256": "8b789e5a78a2a786a250ac7ed7c1589f95740352a1b5683222c41d25863317a7",
+      "bytes": 14021,
+      "lines": 315
+    },
+    {
+      "path": "apps/api/tests/service-operations-http.fixture.ts",
+      "sha256": "1f34f41a30e44fab387556976c56f686db449e8851a0d9c54b86b69d6d9fa30a",
+      "bytes": 5174,
+      "lines": 57
+    },
+    {
+      "path": "apps/api/tests/service-professional-http-fixture.mjs",
+      "sha256": "b02ea54f186489d49c275cb1cb1e7181d8dd9eab90d871962b6773e68f34d34c",
+      "bytes": 3686,
+      "lines": 46
+    }
+  ],
+  "approvedOnlyWrongOracleCorrection": {
+    "originalSha256": "b013ab809ef4856c36ab00cd0ec101964004de22aad141fb7234aad6b466af83",
+    "candidateSha256": "aaa42d02d043b7127b10ff79bafcd0e544d89c4a630322dfc21597bbbc9d5d8e",
+    "patchSha256": "98dff47952ac27afb313e807dd3dd1de4c71921f3ac725e4bed9c885340c6000",
+    "onlyOneCaseChanged": true,
+    "nativeCaseCountUnchanged": 14,
+    "apiUnchanged": true,
+    "existingCanonicalZeroRejection": "professional-service-link.ts:24; professional-service-link.spec.ts:28",
+    "restoreFixtureOnFailure": true,
+    "preservesOther13DeclarationsAndAssertions": true,
+    "unitZeroNoticeCaseUnchanged": true,
+    "applied": true,
+    "at": "2026-11-19T18:55:16.858257+00:00",
+    "question": "call_4b91ada15f83480d99c5539622ba1540",
+    "userQuote": "Corrigir somente esse teste (recomendado)",
+    "scopeOnlyOneCase": true
+  },
+  "historicalFailuresPreserved": [
+    "initial IANA underscore sanitizer failure, fixed productive text",
+    "missing new positional summary mapping, fixed productive catalog",
+    "missing native ownership marker, added exact existing T26 setup with guards intact",
+    "wrong new zero-price admission assumption, exact one-case patch approved by user"
+  ],
+  "guards": "Original1024/2048/5168,PG128,heap/startup/deadline/no-force-exit unchanged; bounded admission waits start at most one unchanged child.",
+  "providerBoundary": "Actual signed localhost AppModule webhook and owned SQL/outbox; final provider capture only. No external Meta/Twilio/customer delivery or production activation.",
+  "postGateDocsOnly": "Plan corrected the superseded zero-admission assumption. All executable source/test bytes remain exactly those of successful gates; no compiler input changed after checked build.",
+  "preservation": {
+    "sixT37PinsExact": true,
+    "oldOrderExecuteAndFollowingHelpersByteExact": true,
+    "oldOrderReceiptMethodAuthorAndFocalPeerVerifiedExact": true,
+    "noSchemaBookingFinancialStockWritersChanged": true,
+    "product229": "Earlier normal48/widget176/stock5 retained unchanged writer proofs from T37 only; not freshT38 execution. Legacy notification188 actually rerun. Final currentHEAD product gate remains required."
+  },
+  "testSelfCheck": {
+    "assertionsInEachNewCase": true,
+    "specDerivedBusinessStateAndRollback": true,
+    "oldOraclesPreservedExceptExactUserApprovedCase": true,
+    "noSkipsOrDeletedCases": true,
+    "fullCommandSelectorsMatchActualCases": true
+  },
+  "remaining": "T39 tones/final message UI; later real buyer journeys and final sameHEAD verifier/screens/mutations. No feature-complete or production claim."
+}

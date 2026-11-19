@@ -156,13 +156,13 @@ export class WhatsAppDeliveryService {
     if (!input.id || !["sent", "delivered", "read"].includes(input.status ?? "")) return;
     const correlationId = input.biz_opaque_callback_data;
     // Order notifications have their own row-locked receipt state machine.
-    if (typeof correlationId === "string" && (correlationId.startsWith("order_notification:") || correlationId.startsWith("support_message:"))) return;
+    if (typeof correlationId === "string" && (correlationId.startsWith("order_notification:") || correlationId.startsWith("support_message:") || correlationId.startsWith("service_notification:"))) return;
     await this.prisma.$transaction(async tx => {
       const row = await tx.whatsAppDelivery.findFirst({ where: {
         merchantId, configId,
         ...(correlationId ? { id: correlationId } : { providerMessageId: input.id }),
       } });
-      if (row && (row.id.startsWith("order_notification:") || row.id.startsWith("support_message:"))) return;
+      if (row && (row.id.startsWith("order_notification:") || row.id.startsWith("support_message:") || row.id.startsWith("service_notification:"))) return;
       if (!row || !["sending", "submission_unknown", "sent"].includes(row.state)) return;
       if (row.providerMessageId && row.providerMessageId !== input.id) return;
       await tx.whatsAppDelivery.update({ where: { id: row.id }, data: { state: "sent", providerMessageId: input.id } });
