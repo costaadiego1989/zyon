@@ -7,6 +7,27 @@ import {automationChecklist} from './automation-briefing.js';
 const reply=(text='Qual é a próxima escolha?',references:string[]=[])=>({reply:text,referenceIds:references,toolCalls:[],providerRequestId:'synthetic',costMicros:0n});
 const tool=(name:string,args:Record<string,unknown>)=>({...reply(),reply:null,toolCalls:[{id:name,name,args}]});
 
+test('ACJ-02 unfinished date interpretation is completed before a policy can be described as ready',async()=>{
+ const f=await assistantCampaignFixture();try{await f.at('2026-11-18T12:00:00Z');
+ await f.context.execute({...f.input,name:'merchant_ads_save_draft',args:{automationBriefing:{selection:{selectionKind:'product',selectionQuery:'Camisa'},scope:{variantIds:['variant-a'],campaignIds:[],allowNewCampaigns:true,actions:['pause'],destination:'store',priority:'paid_sales',country:'BR'},limits:{campaignCeilingCents:10000,storeCeilingCents:30000,cadence:'daily',startsAt:'2026-11-18T12:00:00.000Z'},endText:'Daqui a sete dias no mesmo horário'}}});
+ await f.sql.query('UPDATE merchant_assistant_turns SET message=$1 WHERE id=$2',['Daqui a sete dias no mesmo horário',f.input.turnId]);
+ const model={complete:async(state:any)=>state.state.completionRequirement&&state.messages.at(-1).role==='user'?tool('merchant_ads_save_draft',{automationBriefing:{limits:{endsAt:'2026-11-25T12:00:00.000Z'}}}):reply('Sua política está pronta para revisão.',state.knowledge.slice(0,1).map((item:any)=>item.reference.id))};
+ const knowledge=new AssistantKnowledgeRetriever(()=>structuredClone(META_ADS_MERCHANT_KNOWLEDGE),f.clock),service=new AssistantService({repo:f.assistant.repo,context:f.context,knowledge,model,clock:f.clock});
+ const response=await service.respond(f.input),review=response.artifacts.find((a:any)=>a.type==='automation_review')?.review;
+ assert.ok(review);assert.equal(review.limits.endsAt,'2026-11-25T12:00:00.000Z');assert.equal(review.limits.campaignCeilingCents,10000);assert.equal(review.limits.storeCeilingCents,30000);assert.deepEqual(review.scope.actions,['pause']);assert.equal((await f.runtime.policies.view('store-a')).policy,null);assert.deepEqual(f.writes,[]);
+ }finally{await f.close();}
+});
+
+test('ACJ-02 an unresolved model correction asks for the date instead of claiming a review exists',async()=>{
+ const f=await assistantCampaignFixture();try{await f.at('2026-11-18T12:00:00Z');
+ await f.context.execute({...f.input,name:'merchant_ads_save_draft',args:{automationBriefing:{selection:{selectionKind:'product',selectionQuery:'Camisa'},scope:{variantIds:['variant-a'],campaignIds:[],allowNewCampaigns:true,actions:['pause'],destination:'store',priority:'paid_sales',country:'BR'},limits:{campaignCeilingCents:10000,storeCeilingCents:30000,cadence:'daily',startsAt:'2026-11-18T12:00:00.000Z'},endText:'No último dia'}}});
+ await f.sql.query('UPDATE merchant_assistant_turns SET message=$1 WHERE id=$2',['No último dia',f.input.turnId]);
+ const model={complete:async(state:any)=>reply('Sua política está pronta para revisão.',state.knowledge.slice(0,1).map((item:any)=>item.reference.id))};
+ const response=await new AssistantService({repo:f.assistant.repo,context:f.context,knowledge:new AssistantKnowledgeRetriever(()=>structuredClone(META_ADS_MERCHANT_KNOWLEDGE),f.clock),model,clock:f.clock}).respond(f.input);
+ assert.match(response.reply,/Até que dia/);assert.equal(response.artifacts.some(a=>a.type==='automation_review'),false);assert.equal((await f.runtime.policies.view('store-a')).policy,null);assert.deepEqual(f.writes,[]);
+ }finally{await f.close();}
+});
+
 test('ACJ-06 the model can interpret a new autonomy request and mixed answers without a parser phrase',async()=>{
  const f=await assistantCampaignFixture();try{await f.at('2026-11-18T12:00:00Z');
  await f.sql.query('UPDATE merchant_assistant_turns SET message=$1 WHERE id=$2',['Deixa você cuidando dos ajustes dos anúncios. Só quero revisar seus limites antes, sem publicar nada novo sozinha.',f.input.turnId]);

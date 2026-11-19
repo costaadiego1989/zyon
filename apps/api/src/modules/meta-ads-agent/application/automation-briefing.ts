@@ -36,7 +36,7 @@ export function receiveAutomationAnswer(previous:AssistantCampaignProgress|null,
  b.capturedTurnId=turnId;progress.automationBriefing=b;return progress;
 }
 export function automationQuestion(progress:AssistantCampaignProgress):string|null{
- const next=automationChecklist(progress).next,b=progress.automationBriefing;
+ const checklist=automationChecklist(progress),next=checklist.next??checklist.needsInterpretation[0],b=progress.automationBriefing;
  const questions:Record<string,string>={selection:b?.selection?.selectionKind==='category'?'Qual categoria você quer incluir no modo automático?':b?.selection?.selectionKind==='product'?'Qual produto você quer incluir no modo automático?':'Vamos escolher os produtos que a IA poderá usar. Prefere um produto específico ou uma categoria?',campaigns:'A política pode incluir campanhas atuais e futuras da IA; cada campanha nova continua exigindo aprovação. Quer incluir todas as campanhas da IA ou escolher algumas?',actions:'A IA pode pausar anúncios, ajustar a verba ou renovar os criativos. Quais dessas ações você quer autorizar?',destination:'Esses anúncios devem levar para a loja ou para o WhatsApp?',priority:'Qual resultado você quer buscar: mais vendas, gastar menos por compra ou mais retorno por real investido?',country:'Em qual país esses anúncios devem aparecer?',campaignCeilingCents:'Qual será o limite de investimento para cada campanha?',storeCeilingCents:'Qual será o limite de investimento da loja somando essas campanhas?',cadence:'Esses limites são por dia ou para todo o período?',start:'Em que dia a política pode começar a valer?',end:'Até que dia a política pode valer?'};
  return next?questions[next]??null:null;
 }

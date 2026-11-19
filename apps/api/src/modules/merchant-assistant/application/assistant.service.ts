@@ -47,13 +47,14 @@ export class AssistantService {
     const retrievalQuery=previousQuestion?`${initial.turn.message.slice(0,6500)}\nContexto anterior: ${previousQuestion.slice(0,1200)}`:initial.turn.message;
     try { knowledge = await this.deps.knowledge.retrieve(this.deps.context.knowledgeScope, retrievalQuery); } catch { knowledge = []; }
     const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = [...(captured?.artifacts??[])]; const evidence:UncitedAssistantResponse['evidence'][number][]=captured?[{name:'merchant_ads_save_draft',result:captured}]:[];
+    let completionRequirement:string|null=null;
     for (let round = 0; round <= 5; round++) {
       // Keep the current turn's tool protocol intact while retaining more short guided answers.
       while(messages.length>40&&historyMessages>0){const count=historyMessages>1&&messages[1].role==='assistant'?2:1;messages.splice(0,count);historyMessages-=count;}
       const state = await this.current(input);
       let response:AssistantModelResult;
       try{response = await this.deps.model.complete({ ...input, step: round, messages: structuredClone(messages), knowledge, tools,
-        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress,...(this.deps.context.checklist?{checklist:this.deps.context.checklist(state.thread.campaignProgress)}:{}) } });}
+        state: { contextLabel: this.deps.context.descriptor.label, now: this.clock().toISOString(), campaign: state.thread.campaignProgress,...(completionRequirement?{completionRequirement}:{}),...(this.deps.context.checklist?{checklist:this.deps.context.checklist(state.thread.campaignProgress)}:{}) } });}
       catch(error){
         if(safeCode(error)!=='assistant_model_response_invalid')throw error;
         const current=await this.current(input);let reply:string|null=null;
@@ -83,6 +84,10 @@ export class AssistantService {
       }
       const current=await this.current(input);
       if (!response.reply?.trim()) throw new AssistantError('assistant_model_response_invalid', 502);
+      if(!completionRequirement&&round<5){
+        completionRequirement=this.deps.context.completionRequirement?.({message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence})??null;
+        if(completionRequirement)continue;
+      }
       let references: AssistantReference[];
       try { references = await this.deps.knowledge.validateReferences(this.deps.context.knowledgeScope, response.referenceIds, knowledge); }
       catch { return { reply: unavailable, references: [], artifacts: this.latestArtifacts(artifacts) }; }

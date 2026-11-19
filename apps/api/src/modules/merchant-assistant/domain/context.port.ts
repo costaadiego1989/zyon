@@ -26,6 +26,8 @@ export interface AssistantContextPort {
   prepareTurn?(input:Pick<AssistantToolInput,'scope'|'threadId'|'turnId'|'leaseToken'>):Promise<AssistantToolResult|undefined>;
   /** Server-derived briefing status and data, never hidden model reasoning or approval. */
   checklist?(campaign:AssistantCampaignProgress|null):Record<string,unknown>;
+  /** Bounded model correction for a reply that precedes required typed interpretation. No actions. */
+  completionRequirement?(input:UncitedAssistantResponse & {message:string}):string|null;
   /** Server-rendered questions/facts only; untrusted model prose cannot establish evidence. */
   uncitedResponse?(input:UncitedAssistantResponse):string|null;
   /** Context-owned clarification, also applied to cited campaign questionnaires. No actions. */
