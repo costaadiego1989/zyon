@@ -4,10 +4,12 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import type { AuthorizedOffer, CashbackRules, CheckoutSession, CashbackCheckoutQuote, CashbackBalance } from "@zyon/shared-types";
+import type { AuthorizedOffer, CashbackRules, CheckoutSession, CashbackCheckoutQuote, CashbackBalance, CashbackConfigurationChecklist, CashbackMetrics, CashbackProgramView } from "@zyon/shared-types";
 import { CashbackRepository } from "../../src/modules/cashback/infrastructure/cashback.repository.js";
 import { CashbackService } from "../../src/modules/cashback/application/cashback.service.js";
 import { CashbackQueriesService } from "../../src/modules/cashback/application/cashback-queries.service.js";
+import { CashbackAssistantReportService } from "../../src/modules/cashback/application/cashback-assistant-report.service.js";
+import { cashbackConfigurationChecklist } from "../../src/modules/cashback/domain/cashback-configuration-checklist.js";
 import { CheckoutCommercialBenefitsService } from "../../src/modules/cashback/application/checkout-commercial-benefits.service.js";
 import { paymentCartFingerprint } from "../../src/modules/checkout/domain/services/payment-cart-fingerprint.js";
 import { PasswordHasher } from "../../src/modules/auth/domain/services/password-hasher.service.js";
@@ -19,8 +21,8 @@ import { CheckoutCartAuthorityService } from "../../src/modules/checkout/applica
 import type { ValidateCartForPaymentUseCase } from "../../src/modules/commerce/application/validate-cart-for-payment.use-case.js";
 import { lockCheckoutSessionAnchor } from "../../src/shared/persistence/checkout-session-lock.js";
 import { lockStorefrontCart } from "../../src/shared/persistence/storefront-cart-lock.js";
-import { CASHBACK_QA_NAMESPACE, CASHBACK_QA_MERCHANT_KEYS, CashbackSeedError, qaMerchantId, qaId, validateCashbackSeedTarget,
-  type CashbackSeedTargetInput, type CashbackQaMerchantKey } from "./cashback-validation-guard.js";
+import { CASHBACK_QA_NAMESPACE, CASHBACK_QA_MERCHANT_KEYS, CashbackSeedError, qaMerchantId, qaId, validateCashbackSeedTarget, assertQaMerchantId,
+  type CashbackSeedTargetInput, type CashbackSeedTarget, type CashbackQaMerchantKey } from "./cashback-validation-guard.js";
 
 const DAY = 86400000;
 const REGISTRY = qaId("registry");
@@ -41,6 +43,12 @@ export interface CashbackSeedCase {
   expected: Partial<Pick<CashbackCheckoutQuote, "eligible" | "reason" | "maximumRedeemCents" | "reservedCents" | "estimatedEarnCents">> & { productsCents?: number; discountCents?: number; cashbackCents?: number; netProductsCents?: number };
   fixture?: string;
 }
+export interface CashbackSeedExperience {
+  version: "cashback-experience-v1";
+  programs: Array<{ key: "disabled" | "draft" | "refund"; merchantId: string; configurationRevision: string; status: CashbackProgramView["status"]; programVersion: number; checklist: CashbackConfigurationChecklist }>;
+  expiry: { merchantId: string; expiresAt: string; before: { availableCents: number; expiredCents: number }; after: { availableCents: number; expiredCents: number } };
+  report: { merchantId: string; period: { from: string; to: string }; historicalPeriod: { from: string; to: string }; dailyMovements: NonNullable<CashbackMetrics["dailyMovements"]>; expected: Record<string, number>; budget: { period: string; issuedCents: number; committedCents: number; limitCents: number } };
+}
 export interface CashbackSeedManifest {
   version: typeof CASHBACK_QA_NAMESPACE; environment: "local" | "homolog"; referenceAt: string; targetHash: string;
   evidenceScope: string; externalCalls: 0; realProviderEvidence: false; markerMerchantId: string;
@@ -53,6 +61,7 @@ export interface CashbackSeedManifest {
   catalog: Array<{ merchantId: string; type: ProductType; productId: string; variantId: string; priceCents: number; costCents: number }>;
   payments: Array<{ id: string; merchantId: string; orderId: string | null; kind: string; amountCents: number; synthetic: true }>;
   refunds: Array<{ merchantId: string; orderId: string; externalRefundCents: number; cashbackRestoreCents: number; fullOrderReturn: boolean }>;
+  experience?: CashbackSeedExperience;
   httpChecks: Array<{ key: string; method: "GET" | "POST"; route: string; merchantId: string; buyerId?: string; body?: Record<string, unknown>; expectedStatus: number; expected?: unknown }>;
 }
 interface SeedMarker { version: string; environment: string; targetHash: string; referenceAt: string; steps: string[]; manifest?: CashbackSeedManifest; }
@@ -60,6 +69,75 @@ export interface CashbackSeedOptions extends CashbackSeedTargetInput { ownerPass
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 function fail(code: string): never { throw new CashbackSeedError(code); }
 function assertEqual(actual: unknown, expected: unknown, code: string) { if (fingerprint(actual) !== fingerprint(expected)) fail(code); }
+/** Persisted JSON is untrusted: validate its complete scope before any derived query or cleanup. */
+function assertManifestScope(manifest:CashbackSeedManifest,target?:CashbackSeedTarget,referenceAt?:string):void{
+  if(!manifest||manifest.version!==CASHBACK_QA_NAMESPACE||!["local","homolog"].includes(manifest.environment)||manifest.markerMerchantId!==REGISTRY
+    ||!Number.isFinite(Date.parse(manifest.referenceAt))||!/^[a-f0-9]{64}$/.test(manifest.targetHash)
+    ||(target&&(manifest.targetHash!==target.targetHash||manifest.environment!==target.environment))||(referenceAt!==undefined&&manifest.referenceAt!==referenceAt))fail("cashback_seed_manifest_target_invalid");
+  const key=(value:string)=>{if(!(CASHBACK_QA_MERCHANT_KEYS as readonly string[]).includes(value))fail("cashback_seed_manifest_merchant_key_invalid");};
+  const scope=(value:string)=>{try{assertQaMerchantId(value);}catch{fail("cashback_seed_manifest_merchant_scope_invalid");}};
+  if(!Array.isArray(manifest.merchants)||manifest.merchants.length!==CASHBACK_QA_MERCHANT_KEYS.length||new Set(manifest.merchants.map(m=>m.key)).size!==CASHBACK_QA_MERCHANT_KEYS.length)fail("cashback_seed_manifest_merchants_invalid");
+  for(const merchant of manifest.merchants){key(merchant.key);scope(merchant.id);if(merchant.id!==qaMerchantId(merchant.key)||merchant.ownerId!==qaId(`owner-${merchant.key}`)||merchant.ownerEmail!==ownerEmail(merchant.key)||merchant.storeSlug!==merchant.id)fail("cashback_seed_manifest_merchant_identity_invalid");}
+  for(const group of [manifest.cases,manifest.catalog,manifest.payments,manifest.refunds,manifest.httpChecks]){if(!Array.isArray(group))fail("cashback_seed_manifest_collection_invalid");for(const item of group)scope(item.merchantId);}
+  for(const values of [manifest.expectedWallets,manifest.expectedMetrics]){if(!values||Array.isArray(values))fail("cashback_seed_manifest_expectations_invalid");for(const value of Object.keys(values))key(value);}
+  if(!manifest.expectedReconciliationIssues||Array.isArray(manifest.expectedReconciliationIssues))fail("cashback_seed_manifest_expectations_invalid");
+  for(const value of Object.keys(manifest.expectedReconciliationIssues))scope(value);
+  if(manifest.experience){
+    const experience=manifest.experience;
+    if(experience.version!=="cashback-experience-v1"||!Array.isArray(experience.programs)||experience.programs.length!==3||new Set(experience.programs.map(p=>p.key)).size!==3)fail("cashback_seed_manifest_experience_invalid");
+    for(const program of experience.programs){scope(program.merchantId);if(!["disabled","draft","refund"].includes(program.key)||program.merchantId!==qaMerchantId(program.key))fail("cashback_seed_manifest_experience_scope_invalid");}
+    scope(experience.expiry.merchantId);if(experience.expiry.merchantId!==qaMerchantId("expiry"))fail("cashback_seed_manifest_expiry_scope_invalid");
+    scope(experience.report.merchantId);if(experience.report.merchantId!==qaMerchantId("refund"))fail("cashback_seed_manifest_report_scope_invalid");
+  }
+}
+const brFormat=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"});
+function brDay(value:Date|number):string{const parts=brFormat.formatToParts(value);return ["year","month","day"].map(type=>parts.find(p=>p.type===type)!.value).join("-");}
+function businessBoundary(value:string):number{let lo=Date.parse(value)-36*3600000,hi=Date.parse(value)+36*3600000;while(lo<hi){const mid=Math.floor((lo+hi)/2);if(brDay(mid)<value)lo=mid+1;else hi=mid;}return lo;}
+function reportBounds(period:{from:string;to:string}){return {from:new Date(businessBoundary(period.from)).toISOString(),to:new Date(businessBoundary(new Date(Date.parse(period.to)+DAY).toISOString().slice(0,10))-1).toISOString()};}
+/** Original assertions stay immutable; only the declared expiring500cent lot ages. */
+function temporalExpected(manifest:CashbackSeedManifest,key:string,expected:Record<string,number>,now:Date):Record<string,number>{
+  if(key!=="expiry"||now.getTime()<Date.parse(manifest.referenceAt)+2*DAY)return expected;
+  if(("availableCents"in expected&&expected.availableCents!==500)||("expiredCents"in expected&&expected.expiredCents!==500))fail("cashback_seed_expiry_baseline_mismatch");
+  const result={...expected};if("availableCents"in result)result.availableCents=0;if("expiredCents"in result)result.expiredCents=1000;return result;
+}
+async function ensureExperience(prisma:PrismaClient,manifest:CashbackSeedManifest):Promise<void>{
+  if(manifest.experience)return;
+  const repository=new CashbackRepository(prisma),cashback=new CashbackService(repository);
+  const draftId=qaMerchantId("draft"),draft=await cashback.getProgram(draftId,{includeConfigurationRevision:true});
+  if(draft.status==="disabled"&&draft.version===0&&Object.keys(draft.draft??{}).length===0){
+    // Explicit synthetic QA choices, never production defaults. Existing edited drafts are retained.
+    await cashback.saveDraft(draftId,{earnRateBps:500,minimumEarnCents:0,maximumEarnPerOrderCents:null,combination:{allowCoupons:false}},qaId("owner-draft"),{expectedRevision:draft.configurationRevision!,idempotencyKey:qaId("experience-partial-draft-v1")});
+  }
+  const programs:CashbackSeedExperience["programs"]=[];
+  for(const key of ["disabled","draft","refund"] as const){const program=await cashback.getProgram(qaMerchantId(key),{includeConfigurationRevision:true});programs.push({key,merchantId:program.merchantId,configurationRevision:program.configurationRevision!,status:program.status,programVersion:program.version,checklist:cashbackConfigurationChecklist(program.draft??program.published??{})});}
+  const ref=Date.parse(manifest.referenceAt),period={from:brDay(ref-6*DAY),to:brDay(ref+DAY)},bounds=reportBounds(period),merchantId=qaMerchantId("refund");
+  // Independent ledger dates provide the fixture, without retimestamping an immutable financial fact.
+  const rows=await prisma.$queryRaw<Array<{date:string;granted:bigint;redeemed:bigint}>>`SELECT to_char(occurred_at AT TIME ZONE 'America/Sao_Paulo','YYYY-MM-DD') AS date,SUM(CASE WHEN type='grant' THEN amount_cents ELSE 0 END)::bigint AS granted,SUM(CASE WHEN type='redeem' THEN amount_cents ELSE 0 END)::bigint AS redeemed FROM cashback_ledger_entries WHERE merchant_id=${merchantId} AND occurred_at>=${new Date(bounds.from)} AND occurred_at<=${new Date(bounds.to)} GROUP BY 1`;
+  const dailyMovements:CashbackSeedExperience["report"]["dailyMovements"]=[];
+  for(let at=Date.parse(period.from);at<=Date.parse(period.to);at+=DAY){const date=new Date(at).toISOString().slice(0,10),row=rows.find(r=>r.date===date);dailyMovements.push({date,grantedCents:Number(row?.granted??0),redeemedCents:Number(row?.redeemed??0)});}
+  assertEqual(dailyMovements.reduce((n,d)=>n+d.grantedCents,0),400,"cashback_seed_experience_grants_mismatch");assertEqual(dailyMovements.reduce((n,d)=>n+d.redeemedCents,0),2000,"cashback_seed_experience_redemptions_mismatch");
+  manifest.experience={version:"cashback-experience-v1",programs,expiry:{merchantId:qaMerchantId("expiry"),expiresAt:new Date(ref+2*DAY).toISOString(),before:{availableCents:500,expiredCents:500},after:{availableCents:0,expiredCents:1000}},report:{merchantId,period,historicalPeriod:{from:brDay(ref-6*DAY),to:brDay(ref-2*DAY)},dailyMovements,expected:{grantedCents:400,redeemedCents:2000,restoredCents:1000,reversedCents:200,availableCents:2200,pendingCents:0,reservedCents:0},budget:{period:brDay(ref).slice(0,7),issuedCents:400,committedCents:0,limitCents:100000}}};
+}
+async function validateExperience(prisma:PrismaClient,manifest:CashbackSeedManifest):Promise<void>{
+  if(!manifest.experience)fail("cashback_seed_experience_missing");
+  const repository=new CashbackRepository(prisma),cashback=new CashbackService(repository),experience=manifest.experience;
+  for(const fixture of experience.programs){const current=await cashback.getProgram(fixture.merchantId,{includeConfigurationRevision:true});assertEqual(current.configurationRevision,fixture.configurationRevision,"cashback_seed_experience_revision_mismatch");assertEqual({status:current.status,version:current.version},{status:fixture.status,version:fixture.programVersion},"cashback_seed_experience_program_mismatch");assertEqual(cashbackConfigurationChecklist(current.draft??current.published??{}),fixture.checklist,"cashback_seed_experience_checklist_mismatch");}
+  const empty=experience.programs.find(p=>p.key==="disabled")!,partial=experience.programs.find(p=>p.key==="draft")!,complete=experience.programs.find(p=>p.key==="refund")!;
+  if(empty.checklist.completed!==0||partial.checklist.completed<1||partial.checklist.completed>=17||complete.checklist.completed!==17||partial.status!=="disabled")fail("cashback_seed_experience_states_invalid");
+  assertEqual(experience.expiry,{merchantId:qaMerchantId("expiry"),expiresAt:new Date(Date.parse(manifest.referenceAt)+2*DAY).toISOString(),before:{availableCents:500,expiredCents:500},after:{availableCents:0,expiredCents:1000}},"cashback_seed_experience_expiry_policy_mismatch");
+  const fixture=experience.report,report=await new CashbackAssistantReportService(new CashbackQueriesService(repository,cashback)).read(fixture.merchantId,fixture.period);
+  assertEqual({from:report.metrics.from,to:report.metrics.to},reportBounds(fixture.period),"cashback_seed_experience_period_mismatch");
+  assertEqual(report.metrics.dailyMovements,fixture.dailyMovements,"cashback_seed_experience_daily_mismatch");
+  for(const [field,value]of Object.entries(fixture.expected))assertEqual(report.metrics[field as keyof CashbackMetrics],value,`cashback_seed_experience_report_mismatch:${field}`);
+  const month=brDay(new Date(report.metrics.asOf)).slice(0,7),sameMonth=month===fixture.budget.period;
+  const historical=await new CashbackAssistantReportService(new CashbackQueriesService(repository,cashback)).read(fixture.merchantId,fixture.historicalPeriod);
+  assertEqual({from:historical.metrics.from,to:historical.metrics.to},reportBounds(fixture.historicalPeriod),"cashback_seed_experience_historical_period_mismatch");
+  assertEqual({granted:historical.metrics.grantedCents,redeemed:historical.metrics.redeemedCents,restored:historical.metrics.restoredCents,reversed:historical.metrics.reversedCents},{granted:0,redeemed:0,restored:0,reversed:0},"cashback_seed_experience_historical_movements_mismatch");
+  assertEqual({available:historical.metrics.availableCents,budgetMonth:historical.budgetMonth,issued:historical.metrics.budgetIssuedCents,committed:historical.metrics.budgetCommittedCents},{available:report.metrics.availableCents,budgetMonth:month,issued:report.metrics.budgetIssuedCents,committed:report.metrics.budgetCommittedCents},"cashback_seed_experience_historical_current_scope_mismatch");
+  if(historical.metrics.dailyMovements?.some(d=>d.grantedCents!==0||d.redeemedCents!==0))fail("cashback_seed_experience_historical_daily_mismatch");
+  assertEqual(report.budgetMonth,month,"cashback_seed_experience_budget_month_mismatch");
+  assertEqual({issued:report.metrics.budgetIssuedCents,committed:report.metrics.budgetCommittedCents,limit:report.metrics.budgetLimitCents},{issued:sameMonth?fixture.budget.issuedCents:0,committed:sameMonth?fixture.budget.committedCents:0,limit:fixture.budget.limitCents},"cashback_seed_experience_budget_mismatch");
+}
 function rulesFor(key: CashbackQaMerchantKey): CashbackRules {
   const rules = structuredClone(BASE_RULES);
   if (key === "general") rules.combination!.limitMode = "respect_general";
@@ -88,7 +166,7 @@ async function ensureSeedMemberships(prisma:PrismaClient,merchants:CashbackSeedM
 async function ensureSeedTemplatesInactive(prisma:PrismaClient,merchants:CashbackSeedManifest["merchants"]):Promise<void>{
   // Precreate the actual complete platform catalog, including the registry
   // merchant seen by the application's normal paginated template initializer.
-  // This one-time QA upgrade changes no consent, financial fact or provider ID.
+  // Replay also covers catalog entries introduced after an earlier completed upgrade.
   for(const merchantId of [REGISTRY,...merchants.map(merchant=>merchant.id)]){
     for(const type of WHATSAPP_TEMPLATE_TYPES)for(const channel of ["email","whatsapp"] as const){
       await prisma.postSaleMessageTemplate.upsert({where:{merchantId_type_channel:{merchantId,type,channel}},
@@ -164,19 +242,21 @@ export async function seedCashbackValidation(options: CashbackSeedOptions): Prom
       if (existing && (existing.storeSettings as { qaSeedVersion?: string } | null)?.qaSeedVersion !== CASHBACK_QA_NAMESPACE) fail("cashback_seed_merchant_collision");
     }
     if (marker?.manifest) {
+      assertManifestScope(marker.manifest,target,marker.referenceAt);
       if(!marker.steps.includes("memberships-v1")){
         await ensureSeedMemberships(prisma,marker.manifest.merchants);marker.steps.push("memberships-v1");
         await prisma.merchant.update({where:{id:REGISTRY},data:{storeSettings:json({cashbackQaSeed:marker})}});
       }
-      if(!marker.steps.includes("communications-catalog-v2")){
-        await ensureSeedTemplatesInactive(prisma,marker.manifest.merchants);marker.steps.push("communications-catalog-v2");
-        await prisma.merchant.update({where:{id:REGISTRY},data:{storeSettings:json({cashbackQaSeed:marker})}});
-      }
+      await ensureSeedTemplatesInactive(prisma,marker.manifest.merchants);
+      if(!marker.steps.includes("communications-catalog-v2"))marker.steps.push("communications-catalog-v2");
       if(!marker.steps.includes("widget-source-cart-v1")){
         await ensureSeedWidgetSource(prisma);marker.steps.push("widget-source-cart-v1");
         await prisma.merchant.update({where:{id:REGISTRY},data:{storeSettings:json({cashbackQaSeed:marker})}});
       }
+      await ensureExperience(prisma,marker.manifest);
+      if(!marker.steps.includes("cashback-experience-v1"))marker.steps.push("cashback-experience-v1");
       await validateCashbackSeedManifest(prisma, marker.manifest);
+      await prisma.merchant.update({where:{id:REGISTRY},data:{storeSettings:json({cashbackQaSeed:marker})}});
       if (options.manifestPath) await writeManifest(options.manifestPath, marker.manifest);
       return marker.manifest;
     }
@@ -355,6 +435,7 @@ export async function seedCashbackValidation(options: CashbackSeedOptions): Prom
     for(const item of manifest.cases)manifest.httpChecks.push({key:`quote:${item.key}`,method:"POST",route:"/embed/cashback/quote",merchantId:item.merchantId,buyerId:item.buyerId,body:{session_id:item.sessionId},expectedStatus:201,expected:item.expected});
     for(const merchant of manifest.merchants){manifest.httpChecks.push({key:`program:${merchant.key}`,method:"GET",route:"/dashboard/cashback/program",merchantId:merchant.id,expectedStatus:200});manifest.httpChecks.push({key:`wallet:${merchant.key}`,method:"GET",route:`/buyer/me/cashback?merchant_id=${merchant.id}`,merchantId:merchant.id,buyerId:CASHBACK_QA_BUYER,expectedStatus:200,expected:manifest.expectedWallets[merchant.key]??{availableCents:0}});}
     manifest.httpChecks.push({key:"tenant-isolation-owner",method:"GET",route:"/dashboard/cashback/customers",merchantId:qaMerchantId("isolation"),expectedStatus:200,expected:{forbiddenBuyerBalancesFromOtherMerchants:true}});
+    await ensureExperience(prisma,manifest);marker.steps.push("cashback-experience-v1");
     await validateCashbackSeedManifest(prisma,manifest);
     marker.manifest=manifest;await mark();
     if(options.manifestPath)await writeManifest(options.manifestPath,manifest);
@@ -364,13 +445,15 @@ export async function seedCashbackValidation(options: CashbackSeedOptions): Prom
 
 /** Independent HTTP still has to prove route auth, DI and presentation. */
 export async function validateCashbackSeedManifest(prisma:PrismaClient,manifest:CashbackSeedManifest):Promise<void>{
+  assertManifestScope(manifest);
   const repository=new CashbackRepository(prisma),cashback=new CashbackService(repository),queries=new CashbackQueriesService(repository,cashback);
   for(const merchant of manifest.merchants){const member=await prisma.merchantTeamMember.findUnique({where:{merchantId_userId:{merchantId:merchant.id,userId:merchant.ownerId}}});if(member?.role !== "OWNER")fail("cashback_seed_owner_membership_missing");}
   const staff=await prisma.merchantTeamMember.findUnique({where:{merchantId_userId:{merchantId:qaMerchantId("specific"),userId:qaId("staff-specific")}}});if(staff?.role !== "STAFF")fail("cashback_seed_staff_membership_missing");
   for(const item of manifest.cases){const row=await prisma.checkoutSession.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId:item.merchantId,sessionId:item.sessionId}}});const session={merchantId:row.merchantId,sessionId:row.sessionId,globalUserId:row.globalUserId,cart:row.cart,shipping:row.shipping} as unknown as CheckoutSession;const actual=await cashback.quoteCheckout(session);for(const [key,value]of Object.entries(item.expected)){if(["productsCents","discountCents","cashbackCents","netProductsCents"].includes(key))continue;assertEqual(actual[key as keyof CashbackCheckoutQuote],value,`cashback_seed_quote_mismatch:${item.key}:${key}`);}
     if(item.expected.netProductsCents!==undefined){const gross=session.cart.items.reduce((n,i)=>n+Math.round(i.price*100)*i.quantity,0),net=gross-Math.round((session.cart.currentDiscount??0)*100)-await cashback.checkoutCashbackCents(session);assertEqual(net,item.expected.netProductsCents,`cashback_seed_net_mismatch:${item.key}`);}}
-  for(const [key,expected]of Object.entries(manifest.expectedWallets)){const actual=await cashback.wallet(qaMerchantId(key as CashbackQaMerchantKey),CASHBACK_QA_BUYER);for(const [field,value]of Object.entries(expected))assertEqual(actual.balance[field as keyof CashbackBalance],value,`cashback_seed_wallet_mismatch:${key}:${field}`);}
-  for(const [key,expected]of Object.entries(manifest.expectedMetrics)){const actual=await queries.metrics(qaMerchantId(key as CashbackQaMerchantKey),{});for(const [field,value]of Object.entries(expected))assertEqual(actual[field as keyof typeof actual],value,`cashback_seed_metrics_mismatch:${key}:${field}`);}
+  for(const [key,expected]of Object.entries(manifest.expectedWallets)){const actual=await cashback.wallet(qaMerchantId(key as CashbackQaMerchantKey),CASHBACK_QA_BUYER);for(const [field,value]of Object.entries(temporalExpected(manifest,key,expected as Record<string,number>,new Date())))assertEqual(actual.balance[field as keyof CashbackBalance],value,`cashback_seed_wallet_mismatch:${key}:${field}`);}
+  for(const [key,expected]of Object.entries(manifest.expectedMetrics)){const actual=await queries.metrics(qaMerchantId(key as CashbackQaMerchantKey),{from:new Date(Date.parse(manifest.referenceAt)-6*DAY).toISOString(),to:new Date().toISOString()});for(const [field,value]of Object.entries(temporalExpected(manifest,key,expected,new Date(actual.asOf))))assertEqual(actual[field as keyof typeof actual],value,`cashback_seed_metrics_mismatch:${key}:${field}`);}
+  await validateExperience(prisma,manifest);
   const site=await cashback.wallet(qaMerchantId("specific"),CASHBACK_QA_BUYER),wa=await cashback.wallet(qaMerchantId("specific"),CASHBACK_QA_PREVIOUS_WA_BUYER);assertEqual(wa.buyerId,site.buyerId,"cashback_seed_canonical_identity_mismatch");assertEqual(wa.balance,site.balance,"cashback_seed_channel_wallet_mismatch");
   const claims=await prisma.campaignContactConsent.count({where:{merchantId:{in:manifest.merchants.map(m=>m.id)},status:"granted"}});if(claims)fail("cashback_seed_contact_consent_not_disabled");
   const templateMerchants=[REGISTRY,...manifest.merchants.map(m=>m.id)];
