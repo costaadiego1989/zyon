@@ -3,6 +3,7 @@ import { env as runtimeEnv } from "node:process";
 import { PrismaClient } from "@prisma/client";
 import type { TestContext } from "node:test";
 import { createFiscalFixture } from "./fiscal-fixture.js";
+import { fiscalFixtureDatabaseTarget } from "./fiscal-local-target.js";
 import { seedFiscalSale } from "./fiscal-schema-seed.js";
 import { PrismaProductRepository } from "../src/modules/catalog/infrastructure/repositories/prisma-product.repository.js";
 import { PrismaImportJobRepository } from "../src/modules/catalog/infrastructure/repositories/prisma-import-job.repository.js";
@@ -25,7 +26,7 @@ import type { SaleCompletedEvent } from "../src/modules/inventory/domain/events/
 
 export { createFiscalFixture };
 export type Fixture = Awaited<ReturnType<typeof createFiscalFixture>>;
-export const LOCAL_DATABASE = "postgresql://fiscal:fiscal_local_only_20261114@127.0.0.1:25432/zyon_fiscal";
+export const LOCAL_DATABASE = fiscalFixtureDatabaseTarget();
 export function deferred() {
   let resolve!: () => void;
   const promise = new Promise<void>(yes => { resolve = yes; });

@@ -6,18 +6,18 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseFiscalTestDatabaseUrl, type createFiscalFixture } from "./fiscal-fixture.js";
+import { fiscalFixtureDatabaseTarget } from "./fiscal-local-target.js";
 
 export const PUBLISHED_FISCAL_BASELINE_REVISION = "5a794058f636229d84ed9d60142d8548d114010c";
 export const PUBLISHED_FISCAL_BASELINE_SCHEMA_SHA256 = "5294e1663f5750c2a4b10d61ebc9ccc38ad92e25cbac3e2e9d60e6a818dda92d";
 const api = fileURLToPath(new URL("../", import.meta.url));
 const repository = fileURLToPath(new URL("../../../", import.meta.url));
 const require = createRequire(import.meta.url);
-const localDatabase = "postgresql://fiscal:fiscal_local_only_20261114@127.0.0.1:25432/zyon_fiscal";
 type FiscalFixture = Awaited<ReturnType<typeof createFiscalFixture>>;
 
-export function requirePublishedFiscalBaselineTarget() {
-  const target = parseFiscalTestDatabaseUrl(process.env.FISCAL_TEST_DATABASE_URL);
-  if (target.toString() !== localDatabase) throw new Error("fiscal_baseline_requires_exact_local_database");
+export function requirePublishedFiscalBaselineTarget(value = process.env.FISCAL_TEST_DATABASE_URL, githubActions = process.env.GITHUB_ACTIONS) {
+  const target = parseFiscalTestDatabaseUrl(value);
+  if (target.toString() !== fiscalFixtureDatabaseTarget(githubActions)) throw new Error("fiscal_baseline_requires_exact_local_database");
   return target;
 }
 
