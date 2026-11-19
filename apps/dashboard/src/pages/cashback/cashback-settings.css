@@ -1,22 +1,36 @@
 .cashback-settings { display: grid; gap: 24px; min-width: 0; }
+.cashback-settings [hidden] { display: none !important; }
 .cashback-settings-heading { padding: 0; }
-.cashback-settings .cashback-settings-form { display: grid; gap: 24px; padding: 0; }
-.cashback-settings fieldset.cashback-settings-group { min-width: 0; padding: 24px; margin: 0; border: 1px solid var(--color-border); border-radius: var(--radius-lg, 12px); background: var(--surface-1); }
-.cashback-settings fieldset.cashback-settings-group legend { display: flex; align-items: center; gap: 10px; float: left; width: 100%; color: var(--color-text); font: 600 15px/1.5 var(--font-sans); padding: 0; margin: 0 0 20px; }
-.cashback-settings-group legend svg { color: var(--color-text-muted); flex-shrink: 0; }
-.cashback-settings-group .cashback-fields { clear: both; }
-.cashback-settings-group > [data-cashback-field] { clear: both; }
+.cashback-settings-layout { display: grid; grid-template-columns: 180px minmax(0,1fr); align-items: start; gap: 32px; padding-top: 28px; border-top: 1px solid var(--color-border); }
+.cashback-settings-nav { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.cashback-settings .cashback-settings-nav button { display: flex; min-height: 44px; justify-content: flex-start; align-items: center; gap: 10px; padding: 10px 12px; color: var(--color-text-secondary); background: transparent; border: 1px solid transparent; border-radius: 8px; text-align: left; font: 500 13px/1.5 var(--font-sans); white-space: nowrap; cursor: pointer; }
+.cashback-settings .cashback-settings-nav button:hover { background: var(--color-surface-raised); }
+.cashback-settings .cashback-settings-nav button[aria-current="page"] { color: var(--color-text); background: var(--color-surface); border-color: var(--color-border-strong); }
+.cashback-settings-nav svg { flex-shrink: 0; }
+.cashback-settings .cashback-settings-form { display: grid; gap: 24px; padding: 0; min-width: 0; }
+.cashback-settings fieldset.cashback-settings-group { display: block; min-width: 0; padding: 0; margin: 0; border: 0; background: transparent; }
+.cashback-settings fieldset.cashback-settings-group legend { display: block; float: left; width: 100%; color: var(--color-text); font: 600 16px/1.5 var(--font-sans); padding: 0; margin: 0 0 6px; }
+.cashback-settings .cashback-section-lead { clear: both; color: var(--color-text-secondary); font: 400 13px/1.6 var(--font-sans); margin: 0 0 24px; }
+.cashback-settings-group .cashback-fields, .cashback-settings-group > [data-cashback-field] { clear: both; }
 .cashback-settings .form-field { margin: 0; }
 .cashback-settings .form-field > label { font: 500 13px/1.5 var(--font-sans); }
-.cashback-settings .form-field-hint { line-height: 1.65; }
-.cashback-settings-notice { padding: 16px 20px; border: 1px solid var(--color-border); border-left: 3px solid var(--color-brand); background: var(--surface-1); border-radius: 8px; font-size: 13px; line-height: 1.6; margin: 0; }
+.cashback-settings-notice { padding: 14px 18px; border: 1px solid var(--color-border); background: var(--surface-1); border-radius: 8px; font-size: 13px; line-height: 1.6; margin: 0; }
 .cashback-settings-notice p { margin: 0 0 12px; }
-.cashback-settings .cashback-review { margin: 0; padding: 24px; background: var(--surface-1); }
-.cashback-settings .cashback-review h3 { font: 600 18px/1.4 var(--font-sans); }
-.cashback-settings .cashback-review:focus { outline: 2px solid var(--color-brand); outline-offset: 4px; }
-.cashback-settings .cashback-review .cashback-definition-list { padding-bottom: 0; gap: 24px 32px; }
+.cashback-settings .cashback-review { margin: 0; padding: 24px 0 0; border-top: 1px solid var(--color-border); border-radius: 0; background: transparent; }
+.cashback-settings .cashback-review h3 { font: 600 18px/1.4 var(--font-sans); margin: 0 0 12px; }
+.cashback-settings .cashback-review:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 4px; }
+.cashback-settings .cashback-review .cashback-definition-list { padding-bottom: 0; gap: 20px 32px; }
 .cashback-settings .cashback-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.cashback-settings .cashback-simulation { max-width: none; border-top: 1px solid var(--color-border); padding-top: 20px; }
-.cashback-settings .cashback-simulation .cashback-fields { grid-template-columns: repeat(3,minmax(0,1fr)); }
-@media (max-width: 760px) { .cashback-settings .cashback-simulation .cashback-fields { grid-template-columns: 1fr; } }
-@media (max-width: 560px) { .cashback-settings fieldset.cashback-settings-group, .cashback-settings .cashback-review { padding: 20px 18px; }.cashback-settings .cashback-form-actions > .zyn-btn { width: 100%; }.cashback-settings-notice { padding: 14px 16px; } }
+.cashback-settings details.cashback-disclosure { margin-top: 24px; border-top: 1px solid var(--color-border); }
+.cashback-settings details.cashback-disclosure > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; box-sizing: border-box; min-height: 52px; padding: 14px 0; font: 600 14px/21px var(--font-sans); color: var(--color-text); list-style: none; cursor: pointer; }
+.cashback-settings details.cashback-disclosure > summary::-webkit-details-marker { display: none; }
+.cashback-settings details.cashback-disclosure > summary::marker { content: ''; }
+.cashback-settings details.cashback-disclosure > summary::after { content: '+' / ''; flex: 0 0 16px; font: 400 22px/1 var(--font-sans); text-align: center; transition: transform 160ms ease; }
+.cashback-settings details.cashback-disclosure[open] > summary::after { transform: rotate(45deg); }
+.cashback-settings details.cashback-disclosure > p { margin: 0 0 14px; max-width: 75ch; color: var(--color-text-secondary); font: 400 13px/1.7 var(--font-sans); }
+.cashback-settings .cashback-simulation { max-width: none; padding-top: 0; }
+.cashback-settings .cashback-simulation .cashback-fields { grid-template-columns: repeat(3,minmax(0,1fr)); margin-block: 8px 20px; }
+.cashback-settings :is(button,summary):focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+@media (max-width: 760px) { .cashback-settings-layout { grid-template-columns: minmax(0,1fr); gap: 24px; padding-top: 20px; }.cashback-settings-nav { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }.cashback-settings .cashback-settings-nav button { padding: 10px; }.cashback-settings .cashback-simulation .cashback-fields { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .cashback-settings .cashback-form-actions > .zyn-btn { width: 100%; }.cashback-settings-notice { padding: 14px 16px; } }
+@media (prefers-reduced-motion: reduce) { .cashback-settings details.cashback-disclosure > summary::after { transition: none; } }
