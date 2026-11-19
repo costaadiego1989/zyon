@@ -1,0 +1,892 @@
+{
+  "task": "T35",
+  "state": "Full locally GREEN; status is marked before one focused local commit",
+  "recordedAt": "2026-11-19T01:20:49.815974+00:00",
+  "gateHead": "d7a3601766da1d1bcef580d57981e23fdbf78b38",
+  "sourceFreeze": {
+    "path": ".cache/t35-full-gates/source-freeze-product-bootstrap-v6.json",
+    "sha256": "4bc05014e9b1f90af780ef611f61d27f8139a7eb8ce3e4d885b07224fb00bcc2"
+  },
+  "sourceSetSha256": "7e49fadbbc09ea81022bc860b5a90b68d31becaa90bc07b32ff4fbca11eba226",
+  "source": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/task-35-plan.md",
+      "sha256": "933399ce59db1609e7c5a5762ff2e5b227032e3d1279f389697167c874b3ee81",
+      "bytes": 10779
+    },
+    {
+      "path": "apps/api/prisma/deploy-migrations/20261118020000_service_order_authority/migration.sql",
+      "sha256": "0da39a39288e501fe1b9a92fce5583f088d4b418a710270176f5b2357148eaa9",
+      "bytes": 4270
+    },
+    {
+      "path": "apps/api/prisma/migrations/20261118020000_service_order_authority/migration.sql",
+      "sha256": "0da39a39288e501fe1b9a92fce5583f088d4b418a710270176f5b2357148eaa9",
+      "bytes": 4270
+    },
+    {
+      "path": "apps/api/prisma/schema.prisma",
+      "sha256": "6bd2f319fbd8f0cf3768f5a6d1ec9e20e472907c662efa824adcd6bee01e095d",
+      "bytes": 217399
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/confirm-service-appointment.use-case.ts",
+      "sha256": "a84f5eb27637455960d0052ac70d7eae2a49f68f75119c66f6a801d11ec59b26",
+      "bytes": 10256
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/services/checkout-bootstrap.service.ts",
+      "sha256": "acde9a7f327f242f158ee41ce664d3a39abaea3d7cece063356b397a34690c96",
+      "bytes": 13275
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/use-cases/complete-order.use-case.ts",
+      "sha256": "2bb2bd62bea695f131b14eac95c835e91a556a7de745d99c5800c31c85d950e7",
+      "bytes": 30444
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/use-cases/start-checkout.use-case.ts",
+      "sha256": "b835815a78cb05a32e955521bb34fdba317bae58dd2b5cbeab9e6fea991a820a",
+      "bytes": 16711
+    },
+    {
+      "path": "apps/api/src/modules/checkout/domain/ports/checkout-session.repository.port.ts",
+      "sha256": "28e2a5d9992896edf173b6239388fbb25dd8750664c42ecaa4c080ed23404d9c",
+      "bytes": 6172
+    },
+    {
+      "path": "apps/api/src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts",
+      "sha256": "7947193f19d1216c1c2e17f431d33308ca1d9258c40c19a88b9b92ce4e32aa15",
+      "bytes": 74229
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+      "sha256": "11e5b6342e8243533c0700fbfc7322eee8fd47c956f240f783f0064ed99647a2",
+      "bytes": 34672
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/order-fulfillment.use-case.ts",
+      "sha256": "7657c2ebcd3860b344578a23bc744b744fc1dc30570b8045c3e646a086c8e91a",
+      "bytes": 7440
+    },
+    {
+      "path": "apps/api/src/modules/operations/presentation/http/service-appointment-financial-privacy.spec.ts",
+      "sha256": "479044d7b0b0f3dc41588f344a25d298f5449805a09e9756c7153be6be38fd1c",
+      "bytes": 933
+    },
+    {
+      "path": "apps/api/src/modules/operations/presentation/http/service-appointment-public-view.ts",
+      "sha256": "e7f949ba985ffc6578cd2077e3d4b47be86bca9fa232c8124e8717ce3ab67aa6",
+      "bytes": 673
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/infrastructure/adapters/checkout-whatsapp-conversation.adapter.ts",
+      "sha256": "629e85927793ad4b75ce8c3d6d0b48ffcccb5aa24b4bab5f691fa5e6b50a9349",
+      "bytes": 64778
+    },
+    {
+      "path": "apps/api/src/shared/bookings/manual-service-payment-continuation.ts",
+      "sha256": "d9bafedb3d887c14e9fa080c51060a6176a5247aae7c44f391b0653b37962cd9",
+      "bytes": 15250
+    },
+    {
+      "path": "apps/api/src/shared/bookings/redis-service-slots.ts",
+      "sha256": "7b9f24bbef70afefd3efdb15a4c0ade387eed761b04ebd3abc2fa9ff1898af30",
+      "bytes": 19741
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-admission-final-clock.regression.spec.ts",
+      "sha256": "2ca7599c3ab9283b8a00efc1a30d3e8bf9e9e8a47e5c0d28a385e67e4b58b895",
+      "bytes": 5757
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-appointment-admission.service.spec.ts",
+      "sha256": "1ca6afb3ab33091439ebbdf580820f80e855083d9361148a683996816ae5d6d8",
+      "bytes": 16616
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-appointment-admission.service.ts",
+      "sha256": "d41ab86b015e3260ebb62de8a5ce7ed02d265d01249909ae279422373ee1dfbe",
+      "bytes": 22273
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-checkout-provenance.ts",
+      "sha256": "a56f229545e741f4fa0e0acc6138807fd9bae11c573797fd8b000dfa88a5eafa",
+      "bytes": 3506
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-order-appointment.selection.spec.ts",
+      "sha256": "c97fd93971363e3a0648ebf2d6495a530c7a55e0b6c652ecc7ea2ac49e75cd5c",
+      "bytes": 3774
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-order-appointment.spec.ts",
+      "sha256": "3ae64b1284234d00ce48c1554b1b560430928252caa34e571ff42c75d32248f2",
+      "bytes": 4419
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-order-appointment.ts",
+      "sha256": "67f2fb39c2fb9974e2ab3ce78a18c0b82b490daf3b9988d7b7f330a26d5adfd5",
+      "bytes": 11722
+    },
+    {
+      "path": "apps/api/src/shared/persistence/order-fulfillment.ts",
+      "sha256": "7cfa53dd3a4cade68628ed9e485428539d83c4cd3f8b70849e28b1e273d1deb8",
+      "bytes": 8511
+    },
+    {
+      "path": "apps/api/tests/normal-checkout-payment.integration.mjs",
+      "sha256": "0f1dd0630a0223a82c5542c2a58ee00a5e28f99afa734baa1a4f684f9510b646",
+      "bytes": 8854
+    },
+    {
+      "path": "apps/api/tests/product-stock-regression.integration.spec.ts",
+      "sha256": "f1aceb1d4a56157b46a9719b9f82022dc632ba941e4815d7023c8ab26cab6a2f",
+      "bytes": 19478
+    },
+    {
+      "path": "apps/api/tests/service-approved-completion.integration.spec.ts",
+      "sha256": "007565cb1244db6ef0a8ca15af01ef7e24be6c03e7d140a43f7981aaf763465c",
+      "bytes": 13544
+    },
+    {
+      "path": "apps/api/tests/service-approved-order.fixture.ts",
+      "sha256": "0d553f1c5bb85a63c44163f2aaf8dc5acf11653e711682158121ddbe441890b6",
+      "bytes": 3085
+    },
+    {
+      "path": "apps/api/tests/service-approved-order.integration.spec.ts",
+      "sha256": "881e87df4410f3155310e61feccfc569af0803e1f503b7e0275319f2a3fc5bec",
+      "bytes": 8957
+    },
+    {
+      "path": "apps/api/tests/service-booking.integration.spec.ts",
+      "sha256": "0dd39d1399450422720be290844ab2c7d58b1241e83832d60bbb0875c036f505",
+      "bytes": 28562
+    },
+    {
+      "path": "apps/api/tests/service-checkout-origin.integration.spec.ts",
+      "sha256": "000f776f122123db3b653dddc3ce491d24b5959fd93eb9a3ffb3f1fcd701c610",
+      "bytes": 10312
+    },
+    {
+      "path": "apps/api/tests/service-local-confirmation.integration.spec.ts",
+      "sha256": "12b78872e4524984623f646cbedcd3d9ae41810447c97cd17aef4942f72116d2",
+      "bytes": 17049
+    },
+    {
+      "path": "apps/api/tests/service-manual-payment-continuation.integration.spec.ts",
+      "sha256": "9d143eda81fd7d8e680d3f5f2b4efa298163328356b6cd58d1095f960e2d2bcf",
+      "bytes": 16764
+    },
+    {
+      "path": "apps/api/tests/widget-cross-sell-checkout.integration.mjs",
+      "sha256": "90afff2d6eb7799fa63ff5ef1d32c81e09759daeb4f8dd2adcb3579c3068e689",
+      "bytes": 4656
+    }
+  ],
+  "ownStandard": {
+    "task": "T35",
+    "stage": "OWN current standard program GREEN",
+    "recordedAt": "2026-11-19T00:12:48.617216+00:00",
+    "head": "d7a3601766da1d1bcef580d57981e23fdbf78b38",
+    "sourceSetSha256": "9c5441c917207c8c03551b1c22a23a07ac9047c2a7fc4fea11da327ccb7a6f8e",
+    "captureExit": 0,
+    "actualStandardBuildExit": 0,
+    "recordExit": 0,
+    "ownCurrentOfficialAdmit": 0,
+    "freshSeparateReadmit": 0,
+    "sourceCount": 2585,
+    "inputSha256": "16682447e8ca8f1ddea54587de0f5692854dc506d8cfd0aec3560756c50b70bb",
+    "artifactSha256": "ed20518829a3c7fd41cf84b447214d4cd888713a8491c271deea263045c77441",
+    "freshCommitMiB": {
+      "capture": 8980,
+      "build": 8979,
+      "record": 7778,
+      "readmit": 8702
+    },
+    "minimumMiB": {
+      "captureBuild": 5168,
+      "recordReadmit": 1024
+    },
+    "logs": [
+      {
+        "path": ".cache/t110-root-checked-gates/2026-11-19T00-09-12.827Z/capture.log",
+        "sha256": "a189095f31231e45705c9a7f45c7e6479dd36717d0fa7b72b88aa1ad681aeb9d"
+      },
+      {
+        "path": ".cache/t110-root-checked-gates/2026-11-19T00-09-12.827Z/build.log",
+        "sha256": "0dff759f9df299bce15fec4e0b832671092f47e38b2f1966b2afd384ee9f95bb"
+      },
+      {
+        "path": ".cache/t110-root-checked-gates/2026-11-19T00-09-12.827Z/record.log",
+        "sha256": "7835d371754905f999a8f50043d07fcb5645d3527ad4b39b63a6a8c4439869d9"
+      }
+    ],
+    "noBorrowedOutputsClientsStamps": true,
+    "sourcePinsExact": true,
+    "old3900HistoricalOnly": true
+  },
+  "headers": {
+    "lint": {
+      "path": ".cache/t35-full-gates/lint-typefix-receipt.json",
+      "sha256": "a51eb2fbea9a2c84bd13b88f0fa411ce570eb5b7fcc50ef46f1a8e315d65b196"
+    },
+    "apiTypes": {
+      "path": ".cache/t35-full-gates/api-types-typefix-receipt.json",
+      "sha256": "d848fe4e8daee282374ffff95a34b3946dbb4b296acae1d8b116a97e0d4d6eba"
+    }
+  },
+  "components": {
+    "tests": 79,
+    "provenance": "68 unchanged tests retained from prior whole10/79; replace only affected selector6+selection5 with their current11 after exact type-only alias repair. Committed58 additions are outside selected imports. This is not one fresh79 run.",
+    "retained68": [
+      {
+        "file": "src/modules/operations/presentation/http/service-appointment-financial-privacy.spec.ts",
+        "tests": 1,
+        "pass": 1,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-current-quick-3.log",
+        "rawSha256": "e362dc9169c72e13c5e959aeee6b1193a0a77f3f8af3ba1852eedfd261157037",
+        "sourceSetAtActualRun": "98f1d1f7f111d77e6fdf8d67220dd2e6de682bb4417859b6c829bd20820368a6"
+      },
+      {
+        "file": "src/shared/bookings/service-admission-final-clock.regression.spec.ts",
+        "tests": 4,
+        "pass": 4,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-current-quick-4.log",
+        "rawSha256": "c6bef0a4a2eb125033ca052e3e6618fce2f5e5b4c5011afa99c2a5c29f999615",
+        "sourceSetAtActualRun": "98f1d1f7f111d77e6fdf8d67220dd2e6de682bb4417859b6c829bd20820368a6"
+      },
+      {
+        "file": "src/shared/bookings/service-appointment-admission.service.spec.ts",
+        "tests": 18,
+        "pass": 18,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-current-quick-5.log",
+        "rawSha256": "b53a3a023e0e1836f1d22239d84d7d557c1b22ca722e33c691b78354f163c326",
+        "sourceSetAtActualRun": "98f1d1f7f111d77e6fdf8d67220dd2e6de682bb4417859b6c829bd20820368a6"
+      },
+      {
+        "file": "src/modules/operations/application/create-manual-service-appointment.use-case.spec.ts",
+        "tests": 16,
+        "pass": 16,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-current-quick-6.log",
+        "rawSha256": "03a0f234e2997835d3230e9c0195a690b713f3dd33f3bc8c3a1e1000825337ad",
+        "sourceSetAtActualRun": "98f1d1f7f111d77e6fdf8d67220dd2e6de682bb4417859b6c829bd20820368a6"
+      },
+      {
+        "file": "src/modules/checkout/__tests__/start-checkout.use-case.spec.ts",
+        "tests": 8,
+        "pass": 8,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-current-quick-7.log",
+        "rawSha256": "c4edd20aa0f275d6d1cab9a09b979e7a8f23db99e4a64cf34408aa29aaa57345",
+        "sourceSetAtActualRun": "98f1d1f7f111d77e6fdf8d67220dd2e6de682bb4417859b6c829bd20820368a6"
+      },
+      {
+        "file": "src/modules/checkout/__tests__/complete-order.use-case.spec.ts",
+        "tests": 7,
+        "pass": 7,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-current-quick-8.log",
+        "rawSha256": "d7aaf5b6b55baf8b4bd43d27b305b0c18cf01bddd4db81826ec3af43b706910c",
+        "sourceSetAtActualRun": "98f1d1f7f111d77e6fdf8d67220dd2e6de682bb4417859b6c829bd20820368a6"
+      },
+      {
+        "file": "src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.spec.ts",
+        "tests": 5,
+        "pass": 5,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-current-quick-9.log",
+        "rawSha256": "006553797a61eb9494e16e3b7437c8ac9fe93903ff77a899ba3eba8bba98638b",
+        "sourceSetAtActualRun": "98f1d1f7f111d77e6fdf8d67220dd2e6de682bb4417859b6c829bd20820368a6"
+      },
+      {
+        "file": "src/shared/persistence/digital-order-fulfillment.spec.ts",
+        "tests": 9,
+        "pass": 9,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-current-quick-10.log",
+        "rawSha256": "dcbc3065237500884a877a9bb4d35f1b2bc12d112f9102229af2290c7bc32be9",
+        "sourceSetAtActualRun": "98f1d1f7f111d77e6fdf8d67220dd2e6de682bb4417859b6c829bd20820368a6"
+      }
+    ],
+    "current11": [
+      {
+        "file": "src/shared/bookings/service-order-appointment.spec.ts",
+        "tests": 6,
+        "pass": 6,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-typefix-quick-1.log",
+        "rawSha256": "a2e23e73c18b203ee8d7d1a966cb53b2201d2cc40bf2b85960ad45a92a02f397",
+        "sourceSetAtActualRun": "9c5441c917207c8c03551b1c22a23a07ac9047c2a7fc4fea11da327ccb7a6f8e"
+      },
+      {
+        "file": "src/shared/bookings/service-order-appointment.selection.spec.ts",
+        "tests": 5,
+        "pass": 5,
+        "fail": 0,
+        "skipped": 0,
+        "cancelled": 0,
+        "exit": 0,
+        "rawLog": ".cache/phase3-gates/t35-typefix-quick-2.log",
+        "rawSha256": "b0fb46191c01b9f83a021a8f16e3c20d98626c762087a618c753e9a5ee6802bf",
+        "sourceSetAtActualRun": "9c5441c917207c8c03551b1c22a23a07ac9047c2a7fc4fea11da327ccb7a6f8e"
+      }
+    ],
+    "originalWhole79Receipt": {
+      "path": ".cache/t35-root-source-20261118/quick-current-summary.json",
+      "sha256": "fa231317e49108fdbe564daa1b68be584c02043be2f1b83e5449a71f970f9ab4"
+    },
+    "affected11Receipt": {
+      "path": ".cache/t35-full-gates/affected-typefix-quick-summary.json",
+      "sha256": "9d82584d2b5e2c4849f0dd2f5761a7ed8d39d25be3c96d1919b0eccb470bcfed"
+    }
+  },
+  "native": {
+    "task": "T35",
+    "stage": "All19whole native files160 GREEN",
+    "recordedAt": "2026-11-19T01:08:46.436647+00:00",
+    "sourceSetSha256": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+    "ownInputSha256": "16682447e8ca8f1ddea54587de0f5692854dc506d8cfd0aec3560756c50b70bb",
+    "ownArtifactSha256": "ed20518829a3c7fd41cf84b447214d4cd888713a8491c271deea263045c77441",
+    "sourceCount": 2585,
+    "wholeFiles": 19,
+    "tests": 160,
+    "pass": 160,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "results": [
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-1-receipt.json",
+        "receiptSha256": "61616cef0e551013e2965e443f25d264ce6afce7a74f6f4646d39736a0f62a1a",
+        "file": "tests/service-manual-payment-continuation.integration.spec.ts",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-1.log",
+        "rawSha256": "781c3da38273937949c0dc715d1ebedc12f176651d9ff2d67f9acf2e595240d7",
+        "sourceSetAtActualRun": "9c5441c917207c8c03551b1c22a23a07ac9047c2a7fc4fea11da327ccb7a6f8e",
+        "freshCommitMiB": 7823
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-2-receipt.json",
+        "receiptSha256": "a2698fd271583daf575c33baf4758ce434837a7aeecd87c71babdda2f17893ff",
+        "file": "tests/service-approved-order.integration.spec.ts",
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-2.log",
+        "rawSha256": "a234e34bcd69a5d5d7a60012ba17ee01af60bab5ea4cebed8fbd8f738fd5b9c3",
+        "sourceSetAtActualRun": "9c5441c917207c8c03551b1c22a23a07ac9047c2a7fc4fea11da327ccb7a6f8e",
+        "freshCommitMiB": 7677
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-3-receipt.json",
+        "receiptSha256": "f1b8157d7b0b4d561ba0444e21ddaf759889ae411e6b471a6715e85deeadbd0c",
+        "file": "tests/service-approved-completion.integration.spec.ts",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-3.log",
+        "rawSha256": "e9e2065ca8087baa49e5751dad68cc2dff0682a95d2caf157bf88ad2d4de5081",
+        "sourceSetAtActualRun": "9c5441c917207c8c03551b1c22a23a07ac9047c2a7fc4fea11da327ccb7a6f8e",
+        "freshCommitMiB": 8713
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-4-eventfix-receipt.json",
+        "receiptSha256": "3b3bd8f0c709d3ac6e7a67abf81324912c3fbef120bdfb0540f29ad16ac496a8",
+        "file": "tests/service-checkout-origin.integration.spec.ts",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-4-eventfix.log",
+        "rawSha256": "e254e253fb76e2db527295956951d504622a32be8fb0d9c35e680bf94fe3d310",
+        "sourceSetAtActualRun": "3e8ca68e5609550a0477ed31966d5ebf00595cb229fc721e928521f2ba39c63d",
+        "freshCommitMiB": 8233
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-5-idfix-receipt.json",
+        "receiptSha256": "ee011bbea02e450508f9baa26850ffde51a21dce9757775c1c13b2d13d074c51",
+        "file": "tests/product-stock-regression.integration.spec.ts",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-5-idfix.log",
+        "rawSha256": "062e78f86c32d1aea42c6e6f73adc26f345c1877f2e79b7c4ef40d72e3c6c42d",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 8156
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-6-receipt.json",
+        "receiptSha256": "0c94a8ec1811b516087c60412d8ba5c65277ea97a3a98106e0eef3bb8ce5081e",
+        "file": "tests/service-appointment-reschedule-lease.integration.spec.ts",
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-6.log",
+        "rawSha256": "2c69bb19726e764af55f169c91d99f5ea8205c5eb5a1b892dd834c8dd0ccf600",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 7408
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-7-receipt.json",
+        "receiptSha256": "977805dc7e4a6d29dc26d0ea4bf88c21b3e03f5b246c3d3db5f09c6495861d55",
+        "file": "tests/service-appointment-reschedule-http.integration.spec.ts",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-7.log",
+        "rawSha256": "4f0e92524e0ac4bf11b9542cff6d856b385149d565eccbf49bb2a79a675d4a28",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 4783
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-8-receipt.json",
+        "receiptSha256": "eb2529a4830fb94a76f2e1d77daffffd370051d797f16c59ab51121c99e1e9a2",
+        "file": "tests/service-appointment-reschedule-holds.integration.spec.ts",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-8.log",
+        "rawSha256": "4516ac575076659bdd55507cb686fb27c929d191dd786b1ff7de78957a7b115e",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 5700
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-9-receipt.json",
+        "receiptSha256": "2018307906ce07519544d5a2e46de724004da0ff9f3d9c1d884bfc347ee3612e",
+        "file": "tests/service-appointment-lease-release.integration.spec.ts",
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-9.log",
+        "rawSha256": "ebe0f8a676325e2c7716d68dc9b9bfbf707732683af7f849522ced61014f28a2",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 5519
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-10-receipt.json",
+        "receiptSha256": "6ec34c4e6b00a5cb2c04d058eee82057114f16bd036dce3e582e0110aeb79d56",
+        "file": "tests/service-appointment-hold-cleanup-http.integration.spec.ts",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-10.log",
+        "rawSha256": "ad8979b542807159f1d6fd77ed57ba3e88ad6a7acec60a1554a49759c96f2c25",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 6022
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-11-receipt.json",
+        "receiptSha256": "974acc9f2e012a182b7e426fe090af0c658b4eee90701af3d6ffb8126cbefaf4",
+        "file": "tests/service-appointment-cancellation-http.integration.spec.ts",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-11.log",
+        "rawSha256": "976d46391d8fd4307b681210a719c10ca15828235b33dc95d8220c5eb2104709",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 4699
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-12-receipt.json",
+        "receiptSha256": "e714f5f9d1c03a83ae9b24302e6e49f8870aaf4f1ae58eaa4b0176822b7c4f1e",
+        "file": "tests/service-booking.integration.spec.ts",
+        "counts": {
+          "tests": 17,
+          "pass": 17,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-12.log",
+        "rawSha256": "b3fd293d726b04d1448457a3f791f598119a7a5cbccac6369a18bc4e25b092e0",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 4971
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-13-receipt.json",
+        "receiptSha256": "3f2d74c771bb8519df100cb44dc857c29abb0c6edf0604ab8184106d64800c86",
+        "file": "tests/service-holds.integration.spec.ts",
+        "counts": {
+          "tests": 11,
+          "pass": 11,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-13.log",
+        "rawSha256": "b22431f47da87a4b4984734a2696d14296a652bb5930a4e063233065828e6ffa",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 4935
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-14-receipt.json",
+        "receiptSha256": "23dc565e88c9faf09f5f4c1d7a0a6ed7c5e493f3bb58f42bd99832d32402367c",
+        "file": "tests/service-payment-http.integration.spec.ts",
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-14.log",
+        "rawSha256": "2e08226dfae14101fc66075ad227f2d31a9af081fe546e5207e1516a7c2e6d5e",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 2316
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-15-receipt.json",
+        "receiptSha256": "f6163274504acf15a93582ad4c545bb070157619343e841b64ec2fff8c4d9deb",
+        "file": "tests/service-local-confirmation.integration.spec.ts",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-15.log",
+        "rawSha256": "c4499d091d02635d76d1e375ffa8a1f30cf6e4f7048e872af842ca75fd6ec670",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 4036
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-16-receipt.json",
+        "receiptSha256": "300a5e1b5f3824effeec392c57e4cf99f2b9fc061ff9718352af35d03bbcea2c",
+        "file": "tests/service-confirmation-http.integration.spec.ts",
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-16.log",
+        "rawSha256": "40ad8f472015db1a70068fec2ed66f32475e41cf4b8b2bb2e00923be52727989",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 2917
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-17-receipt.json",
+        "receiptSha256": "dc7c7f16593fba8fdf364e25cff14608356da74c410d884b03dc456e8761cdde",
+        "file": "tests/service-manual-appointment-http.integration.spec.ts",
+        "counts": {
+          "tests": 12,
+          "pass": 12,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-17.log",
+        "rawSha256": "afa4d94ffbfe5d014e84d0a1647f21310bc512643c190a77fb414704cd7bc1d5",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 3730
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-18-receipt.json",
+        "receiptSha256": "66bed3b78b78327942541ae059f6ffe263595ceee66682e45a246a912b0e9cf9",
+        "file": "tests/service-attendance-transitions-http.integration.spec.ts",
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-18.log",
+        "rawSha256": "b91bb50cc49ca8e79a6332f7de7f4ac34d73cddcf7334af5abdace13a7f2456c",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 5855
+      },
+      {
+        "receipt": ".cache/t35-full-gates/t35-full-native-19-receipt.json",
+        "receiptSha256": "b1b2bd405e960d3a13925670fe4c4d58941e7a38dedcf09343f8abc92574d905",
+        "file": "tests/service-checkout.integration.spec.ts",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawLog": ".cache/phase3-gates/t35-full-native-19.log",
+        "rawSha256": "e434f22bf7732be2baf43d1a407a5def99cbe36be1c76131a43292c775555460",
+        "sourceSetAtActualRun": "e6c4fdf4af8f704c4f41e6527fa2859c16b5cb956534a41f161c7199086b1804",
+        "freshCommitMiB": 6118
+      }
+    ],
+    "defaultPid128AndBudgetsHeapsUntouched": true,
+    "sourcePinsExact": true,
+    "acceptedComponents79SeparateCohorts": true,
+    "products224StillPending": true,
+    "noCurrentWhole463Claim": true
+  },
+  "products": {
+    "normal": {
+      "task": "T35",
+      "stage": "Actual original normal product matrix GREEN after canonical fixture bootstrap",
+      "recordedAt": "2026-11-19T01:15:55.260690+00:00",
+      "command": "node .cache/run-t71-approved-gate.mjs product-normal",
+      "naturalRunnerExit": 0,
+      "expectedTests": 48,
+      "actualCoverage": {
+        "phase": "normal-checkout-payment",
+        "coverageMode": "baseline-and-identity",
+        "passed": 48,
+        "waiters": 3,
+        "prismaClientConstructed": true,
+        "providerCalls": 0,
+        "scope": "normal-standalone-source-coupon-identity-detachment",
+        "checkoutVersionTrigger": true,
+        "checkoutStrategyTrigger": true
+      },
+      "actualCleanup": {
+        "phase": "normal-checkout-payment",
+        "coverageMode": "baseline-and-identity",
+        "status": "passed",
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true,
+        "durationMs": 41317,
+        "network": "none",
+        "productionAccess": false
+      },
+      "freshCommitMiB": 6754,
+      "minimumCommitMiB": 2048,
+      "rawLog": ".cache/t71-gates/2026-11-19T01-14-14.509Z/product-normal.log",
+      "rawSha256": "c3e29d403f1e436d8c03d49bae9621cc202c05fe82f2b232bd658195e2ef9a99",
+      "sourceSetSha256": "7e49fadbbc09ea81022bc860b5a90b68d31becaa90bc07b32ff4fbca11eba226",
+      "sourcePinsExact": true,
+      "priorSchemaFailurePreserved": ".cache/t35-full-gates/stopped-product-normal-schema-failure-receipt.json",
+      "originalWorkerHeapMiB": 256,
+      "originalBaselineDeadlineMs": 180000,
+      "all48OriginalCasesAssertionsUnchanged": true,
+      "ownProgramCurrent": "16682447/ed205188/2585"
+    },
+    "widget": {
+      "task": "T35",
+      "stage": "Actual original whole widget matrix GREEN",
+      "recordedAt": "2026-11-19T01:20:49.765722+00:00",
+      "command": "node .cache/run-t71-approved-gate.mjs product-widget",
+      "naturalRunnerExit": 0,
+      "naturalWorkerExit": 0,
+      "expectedTests": 176,
+      "actualCoverage": {
+        "status": "passed",
+        "passed": 176,
+        "realLockWaiters": 32,
+        "syntheticOnly": true,
+        "providerCalls": 0
+      },
+      "actualCleanup": {
+        "status": "passed",
+        "cleanupErrors": 0,
+        "disposableDatabaseRemoved": true,
+        "bridgeClosed": true,
+        "durationMs": 151219,
+        "network": "none",
+        "productionAccess": false
+      },
+      "freshCommitMiB": 7968,
+      "minimumCommitMiB": 2048,
+      "rawLog": ".cache/t71-gates/2026-11-19T01-15-07.981Z/product-widget.log",
+      "rawSha256": "0dd3b64c167f5b8331c334e06a50b233c5a25116c154a3f051e45b88de113911",
+      "sourceSetSha256": "7e49fadbbc09ea81022bc860b5a90b68d31becaa90bc07b32ff4fbca11eba226",
+      "sourcePinsExact": true,
+      "originalWorkerHeapMiB": 256,
+      "originalDeadlineMs": 180000,
+      "all176OriginalCasesAssertionsUnchanged": true,
+      "ownProgramCurrent": "16682447/ed205188/2585"
+    }
+  },
+  "totalAcceptedTestsAcrossDocumentedCohorts": 463,
+  "fail": 0,
+  "skipped": 0,
+  "cancelled": 0,
+  "scope": "Persisted approved payment -> canonical professional appointment authority, ALL frozen order units and original generation, durable private manual continuation/SAME ID, current-state compatibility projection, closed legacy capacity/status writers and physical product conservation. Synthetic local approved SQL rows and handler execution do not claim a live PSP call.",
+  "approvedOracleCorrection": {
+    "call": "call_9440ffd81bb840818131c0db1c8f0acf",
+    "user": "Corrigir somente essas três expectativas (recomendado)",
+    "patchSha256": "abdce49ac6d22edec208b1575808dbed864f2e71075b5eeb98c4b7a1a1b17489",
+    "receipt": {
+      "path": ".cache/t35-clock-review-20261118/approved-applied-receipt.json",
+      "sha256": "86b84e9b5ec58b68f04c96863275ebdd694cef52c52310b63bd422f900142c0e"
+    },
+    "changes": "Only3positive clock-read expectations1->2/1->2/1->3, all other outcomes retained. Causal4RED/GREEN and exact productionef57 preserved."
+  },
+  "preservedFailures": [
+    {
+      "path": ".cache/t35-clock-causal-20261118/receipt.json",
+      "sha256": "2074b6bd6783db7852ccab9e0987a236c9fdc462b4fe00672922aa7cb7772717"
+    },
+    {
+      "path": ".cache/t35-full-gates/stopped-api-types-failure-receipt.json",
+      "sha256": "5dce2f25abc2d52c653047a6b96d60260a5af732bee7ac71e3d8e89f7e2f34dd"
+    },
+    {
+      "path": ".cache/t35-full-gates/stopped-native4-header-failure-receipt.json",
+      "sha256": "6018e223cfb1013c8e794787629b8c2e427419549b878dbc0b4f2a53ffbbd85e"
+    },
+    {
+      "path": ".cache/t35-full-gates/stopped-native5-stock-id-failure-receipt.json",
+      "sha256": "423f3b7d2070b9d29b1fc5c474356becc8dac9161e251d72e7872ae90f07ed0d"
+    },
+    {
+      "path": ".cache/t35-full-gates/stopped-product-normal-schema-failure-receipt.json",
+      "sha256": "69ee9121d39516a7fc1fbe76ed649bac84a65cfb1ea7397d54170196c0b7fdd1"
+    }
+  ],
+  "technicalPlumbing": {
+    "typeAlias": {
+      "path": ".cache/t35-full-gates/type-narrowing-review/applied-source-only-receipt.json",
+      "sha256": "61eeb06f3080c82ca94d1d074ed760a849e8bb7de69fcf54e7a697624b721607"
+    },
+    "originHeaders": {
+      "path": ".cache/t35-full-gates/origin-header-plumbing-review/applied-receipt.json",
+      "sha256": "673997e6dfd14617341395fbddf802ab27fba8662a77a6b5e660a02d783eb1db"
+    },
+    "originValidEvent": {
+      "path": ".cache/t35-full-gates/origin-event-plumbing-review/applied-receipt.json",
+      "sha256": "83c8064c685ec67fe3bc1efb91b3130c9440f7a57a73a5e50aa9bb60192da5d6"
+    },
+    "stockRequiredIds": {
+      "path": ".cache/t35-full-gates/stock-id-plumbing-review/applied-receipt.json",
+      "sha256": "147efe605c3929240581ee3d43aa8c4b325b4232a4b5dd0099205c19834883ed"
+    },
+    "productBootstrap": {
+      "path": ".cache/t35-full-gates/product-origin-bootstrap-review/applied-receipt.json",
+      "sha256": "9c9d1f5ec57368c17ae861688fa0eb2b0f5d7b92ee3735764c2ffd7cfe14aa85"
+    },
+    "outcomesAssertionsAuthFinancialValuesAndLimitsUnchanged": true
+  },
+  "historicalHeaderOnlyOrigin5NotCounted": {
+    "path": ".cache/t35-full-gates/t35-full-native-4-headerfix-receipt.json",
+    "sha256": "57e4b4f66f1566c50217302abdfdf8f848497036b7a4b5bb7c4e6e756ec4d2eb"
+  },
+  "guards": {
+    "smallLintRecordAdmitCommitMiB": 1024,
+    "nativeProductCommitMiB": 2048,
+    "typesCaptureBuildCommitMiB": 5168,
+    "physicalMemoryInformationalOnly": true,
+    "freshAdmissionBeforeEachOriginalCommand": true
+  },
+  "defaults": {
+    "nativePostgresPidLimit": 128,
+    "nativeTestBudgetMs": 600000,
+    "preflightMs": 150000,
+    "bootMs": 110000,
+    "productWorkerHeapMiB": 256,
+    "normalBaselineAndWidgetWorkerDeadlineMs": 180000,
+    "networkTrapsOwnershipAndCleanupUnchanged": true
+  },
+  "cleanupNote": "Retain every raw resource observation. ioredis StandaloneConnector.disconnect creates a2000ms Timeout timer in native3/8/16/17 before_closed_ack; these are not command exceptions. Accepted runs end naturally and owned cleanup assertions pass. No timer observation was rewritten.",
+  "noDeletedWeakenedSkippedTests": true,
+  "remainingFeatureObligations": [
+    "T36 late financial regularization, T37 attendance receipt, T38 events and T39 confirmation UI remain sequential.",
+    "Public manual pre-dispatch producer/dispatch wiring isT41; helper+realSQL proof under35 does not prove that public flow. T41 must project every private audit.",
+    "BOOK05 needsT40UI; BOOK08 remains In Progress for36-38/84 and final proof. BOOK10/REG03 retain their future consumers/final coverage.",
+    "New Brasilia-only creation refinements are separately recorded by Root; this task preserves canonical booked timezone/history and does not claim that refinement implemented.",
+    "Final sameHEAD proofs/Build/independent Verifier/screens/walk remain Root responsibilities after all tasks."
+  ],
+  "providerCalls": 0,
+  "pushDeployProductionCustomerActions": 0,
+  "borrowedArtifactsClientsStamps": false,
+  "task36Started": false
+}

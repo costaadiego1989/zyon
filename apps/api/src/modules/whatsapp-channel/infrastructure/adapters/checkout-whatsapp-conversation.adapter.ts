@@ -441,7 +441,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         const checkout = await this.startCheckout.execute({
           merchant_id: input.merchantId, session_id: `wa_checkout_${fingerprint}`,
           customer: { phone: checkoutBuyer.phone, email: checkoutBuyer.email },
-        } as any, { storefrontCartRef: state.conversationId, ...(verifiedBuyer ? { trustedBuyer: verifiedBuyer }
+        } as any, { serverChannel: "whatsapp", storefrontCartRef: state.conversationId, ...(verifiedBuyer ? { trustedBuyer: verifiedBuyer }
           : registeredBuyer ? { trustedWhatsAppBuyer: registeredBuyer } : { trustedPhoneBuyer: checkoutBuyer }) });
         state.stage = "checkout";
         // Synchronize payments created on the secure web surface before

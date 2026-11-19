@@ -186,7 +186,7 @@ test("T26", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
     await t.test("an available post-lock decision uses one fresh instant for appointment audit and outbox", async () => {
       const input = request("2030-01-15", "clock-fresh-positive"), state = { now, reads: 0 }, fresh = new Date("2030-01-15T09:59:00Z");
       const result = await admitAfterObservedWait(input, "professional", state, fresh);
-      assert.equal(state.reads, 1); assert.equal(result.appointment.confirmedAt?.toISOString(), fresh.toISOString());
+      assert.equal(state.reads, 2); assert.equal(result.appointment.confirmedAt?.toISOString(), fresh.toISOString());
       const audit = await prisma.appointmentAudit.findFirstOrThrow({ where: { merchantId: input.merchantId, commandId: input.idempotencyKey } });
       const outbox = await prisma.outboxMessage.findFirstOrThrow({ where: { merchantId: input.merchantId, causationId: input.idempotencyKey } });
       assert.equal(audit.occurredAt.toISOString(), fresh.toISOString()); assert.equal(outbox.occurredAt.toISOString(), fresh.toISOString());

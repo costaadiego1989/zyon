@@ -90,6 +90,35 @@ for i = 2, #KEYS do
   if indexed.fingerprint ~= held.fingerprint or indexed.generation ~= held.generation then return 0 end
 end
 return raw`;
+const ASSERT_CAPTURED = `
+local capture = cjson.decode(ARGV[1])
+local resources = cjson.decode(ARGV[2])
+local time = redis.call('TIME')
+local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+local raw = redis.call('GET', KEYS[1])
+if not raw then return 0 end
+local held = cjson.decode(raw)
+if held.owner ~= capture.ownerHash or held.generation ~= capture.generation
+  or (held.originFingerprint or held.fingerprint) ~= capture.fingerprint
+  or held.expiresAt <= now or held.expiresAt ~= tonumber(ARGV[3]) then return 0 end
+local found = false
+for _, slot in ipairs(held.slots) do
+  if slot.resourceId == capture.target.resourceId and slot.slotId == capture.target.slotId
+    and slot.startsAt == capture.target.startsAt and slot.endsAt == capture.target.endsAt then found = true end
+end
+if not found then return 0 end
+for i = 2, #KEYS do
+  local needed = false
+  for _, slot in ipairs(held.slots) do if slot.resourceId == resources[i - 1] then needed = true end end
+  if needed then
+    local indexedRaw = redis.call('HGET', KEYS[i], capture.ownerHash)
+    if not indexedRaw then return 0 end
+    local indexed = cjson.decode(indexedRaw)
+    if indexed.owner ~= held.owner or indexed.generation ~= held.generation or indexed.fingerprint ~= held.fingerprint
+      or indexed.expiresAt ~= held.expiresAt then return 0 end
+  end
+end
+return raw`;
 const READ = `
 local time = redis.call('TIME')
 local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
@@ -215,6 +244,19 @@ export class RedisServiceSlots {
   async active(merchantId: string, resourceId: string): Promise<Array<StoredHold>> {
     const result = await this.command(() => this.redis.eval(READ, 1, this.resourceKey(merchantId, resourceId))) as string[];
     return result.map(raw => JSON.parse(raw) as StoredHold);
+  }
+  /** Original private SQL receipt, never a reconstructed buyer/session owner. */
+  async assertCapturedActive(merchantId: string, source: OwnedAppointmentLease): Promise<ActiveSlotLeaseProof> {
+    const capture = parseAppointmentLease(source);
+    if (!capture || capture.kind !== "owned" || capture.merchantId !== merchantId) throw new ConflictException("service_manual_original_hold_required");
+    const resources = [...capture.resources].sort(), keys = [this.prefix(merchantId) + ":checkout:" + capture.ownerHash,
+      ...resources.map(resource => this.resourceKey(merchantId, resource))];
+    const raw = await this.command(() => this.redis.eval(ASSERT_CAPTURED, keys.length, ...keys, JSON.stringify(capture), JSON.stringify(resources), Date.parse(capture.expiresAt)));
+    if (typeof raw !== "string") throw new ConflictException("service_manual_original_hold_required");
+    const held = JSON.parse(raw) as StoredHold;
+    return { merchantId, ownerHash: held.owner, generation: held.generation, fingerprint: held.originFingerprint ?? held.fingerprint,
+      selectionFingerprint: held.fingerprint, expiresAt: new Date(held.expiresAt).toISOString(),
+      slots: held.slots.map(({ resourceId, slotId, startsAt, endsAt }) => ({ resourceId, slotId, startsAt, endsAt })) };
   }
   async assertNoForeignHold(merchantId: string, resourceId: string, sessionId: string, startsAt: Date, endsAt: Date): Promise<void> {
     const holds = await this.active(merchantId, resourceId);

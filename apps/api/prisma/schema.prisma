@@ -477,6 +477,8 @@ model CheckoutSetting {
 }
 
 model CheckoutSession {
+  serviceOrigin    String? @map("service_origin")
+  serviceOriginProof Json? @map("service_origin_proof")
   id               String   @id @default(cuid())
   merchantId       String   @map("merchant_id")
   sessionId        String   @map("session_id")

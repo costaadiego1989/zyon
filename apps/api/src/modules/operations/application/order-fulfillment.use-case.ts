@@ -2,12 +2,13 @@ import { BadRequestException, ConflictException, Inject, Injectable } from "@nes
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
-import { fulfillmentPaymentEligible, lockFulfillmentOrder, persistFulfillmentTransition, projectDigitalFulfillment, reserveService } from "../../../shared/persistence/order-fulfillment.js";
+import { fulfillmentPaymentEligible, lockFulfillmentOrder, persistFulfillmentTransition, projectDigitalFulfillment } from "../../../shared/persistence/order-fulfillment.js";
 import { hasMarketplaceFulfillmentFunding } from "../../fulfillment/infrastructure/repositories/marketplace-fulfillment-guard.js";
 import { actionsForUnit, readFulfillment } from "../domain/order-fulfillment.js";
-import { resolveSelectedServiceSlot } from "../../catalog/domain/services/service-schedule.js";
 import { ServiceSlotHoldsService } from "../../../shared/bookings/service-slot-holds.service.js";
 import { applyFulfillmentSeed, fulfillmentSeedManifest, SANDBOX_ENVIRONMENT_ID, SANDBOX_MERCHANT_ID } from "../infrastructure/order-fulfillment-qa-fixtures.js";
+import { professionalOrderLine } from "../../../shared/bookings/service-order-appointment.js";
+import { lockCatalogMerchant } from "../../../shared/persistence/catalog-stock-ledger.js";
 
 @Injectable()
 export class OrderFulfillmentUseCase {
@@ -34,6 +35,7 @@ export class OrderFulfillmentUseCase {
     if (proof && proof.length > 500) throw new BadRequestException("fulfillment_proof_invalid");
     const fingerprint = createHash("sha256").update(JSON.stringify([input.orderId, input.unitId, input.action, input.expectedVersion, input.quantity ?? null, proof ?? null, input.scheduleSlotId ?? null])).digest("hex");
     return this.prisma.$transaction(async tx => {
+      await lockCatalogMerchant(tx, input.merchantId);
       const order = await lockFulfillmentOrder(tx, input.merchantId, input.orderId);
       const prior = await tx.orderFulfillmentAction.findUnique({ where: { merchantId_commandId: { merchantId: input.merchantId, commandId: input.commandId } } });
       if (prior) {
@@ -48,6 +50,12 @@ export class OrderFulfillmentUseCase {
       const state = readFulfillment(order.fulfillmentJson);
       const unit = state?.units.find(unit => unit.id === input.unitId);
       if (!state || !unit) throw new BadRequestException("fulfillment_snapshot_review_required");
+      if (unit.strategy === "scheduled_service") {
+        if (professionalOrderLine(order, unit.id)
+          || await tx.serviceAppointment.findFirst({ where: { merchantId: input.merchantId, orderId: order.id, orderUnitId: unit.id }, select: { id: true } }))
+          throw new ConflictException("service_appointment_versioned_command_required");
+        throw new ConflictException("service_legacy_classification_required");
+      }
       const allowed = actionsForUnit(unit).find(action => action.action === input.action);
       if (!allowed) throw new ConflictException("fulfillment_action_not_allowed");
       if (allowed.requiresProof && (!proof || proof.length < 3)) throw new BadRequestException("fulfillment_proof_required");
@@ -59,22 +67,6 @@ export class OrderFulfillmentUseCase {
           action: input.action, actorId: input.actorId, origin: "operator", fromStatus: unit.status, toStatus: unit.status, quantity: 0, occurredAt: new Date() } });
         return { changed: true };
       }
-      if (unit.strategy === "scheduled_service") {
-        if (input.action === "reschedule_service") {
-          const variant = await tx.productVariant.findFirst({ where: { id: unit.variantId, product: { merchantId: input.merchantId } }, include: { product: true } });
-          try { unit.schedule = resolveSelectedServiceSlot(variant?.product.metadata, input.scheduleSlotId); }
-          catch { throw new BadRequestException("service_schedule_invalid"); }
-          if (!unit.schedule) throw new BadRequestException("service_schedule_required");
-          await reserveService(tx, order, unit);
-          delete unit.attention;
-        }
-        else if (input.action === "confirm_schedule") { await reserveService(tx, order, unit); delete unit.attention; }
-        else if (["start_service", "complete_service", "no_show"].includes(input.action)) {
-          const reservation = await tx.serviceReservation.findUnique({ where: { orderId_unitId: { orderId: order.id, unitId: unit.id } } });
-          if (!reservation || reservation.status !== "reserved" || !unit.schedule || reservation.startsAt.toISOString() !== unit.schedule.startsAt || reservation.endsAt.toISOString() !== unit.schedule.endsAt) throw new ConflictException("service_reservation_required");
-        }
-      }
-      if (unit.strategy === "scheduled_service" && ["start_service", "no_show"].includes(input.action) && unit.schedule && new Date(unit.schedule.startsAt) > new Date()) throw new ConflictException("service_schedule_not_started");
       const finishing = allowed.targetStage === "completed";
       const quantity = finishing ? input.quantity ?? unit.quantity - unit.completedQuantity : 0;
       if (finishing && (!Number.isSafeInteger(quantity) || quantity <= 0 || quantity > unit.quantity - unit.completedQuantity)) throw new BadRequestException("fulfillment_quantity_invalid");
@@ -84,7 +76,6 @@ export class OrderFulfillmentUseCase {
       if (input.action === "no_show") unit.attention = "service_no_show";
       await persistFulfillmentTransition(tx, order, state, { unitId: unit.id, action: input.action, commandId: input.commandId, fingerprint,
         actorId: input.actorId, origin: "operator", fromStatus, toStatus: unit.status, quantity, ...(proof ? { proof } : {}) });
-      if (unit.strategy === "scheduled_service" && ["completed", "no_show"].includes(unit.status)) await tx.serviceReservation.update({ where: { orderId_unitId: { orderId: order.id, unitId: unit.id } }, data: { status: unit.status } });
       return { changed: true };
     }, { timeout: 15000 });
   }

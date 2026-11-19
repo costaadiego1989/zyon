@@ -5,7 +5,7 @@ import type { CompletedOrder } from "@prisma/client";
 import { orderTotalCents, type PaymentAmountBreakdown } from "../../modules/payment/domain/payment-amount.js";
 import { initialFulfillment, readFulfillment, summarizeFulfillment, type FulfillmentState } from "../../modules/operations/domain/order-fulfillment.js";
 import type { CompletedOrderLineItem, OrderFulfillmentUnit as Unit } from "@zyon/shared-types";
-import { serviceSlotStore } from "../bookings/redis-service-slots.js";
+import { professionalOrderLine, reserveProfessionalOrderUnit } from "../bookings/service-order-appointment.js";
 
 type Payment = { status: string; amountCents: number; approvedAmountCents: number | null; currency: string; amountBreakdown?: unknown; providerPaymentId?: string | null };
 export function fulfillmentPaymentEligible(order: { orderTotal: unknown; currency: string; externalOrderId: string }, payment?: Payment | null): boolean {
@@ -13,19 +13,8 @@ export function fulfillmentPaymentEligible(order: { orderTotal: unknown; currenc
   try { return Math.round(Number(order.orderTotal) * 100) === orderTotalCents(payment.amountBreakdown as PaymentAmountBreakdown | undefined, payment.amountCents); } catch { return false; }
 }
 export async function reserveService(tx: Prisma.TransactionClient, order: CompletedOrder, unit: Unit): Promise<void> {
-  if (!unit.schedule || unit.quantity !== 1) throw new ConflictException("service_schedule_required");
-  const startsAt = new Date(unit.schedule.startsAt), endsAt = new Date(unit.schedule.endsAt);
-  if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) throw new ConflictException("service_schedule_invalid");
-  // Capacity one per canonical variant; the same lock protects overlapping slots.
-  await tx.$queryRaw(Prisma.sql`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${`${order.merchantId}:service:${unit.variantId}`}, 0))`);
-  await serviceSlotStore().assertNoForeignHold(order.merchantId, unit.variantId, order.sessionId, startsAt, endsAt);
-  const conflict = await tx.serviceReservation.findFirst({ where: { merchantId: order.merchantId, resourceId: unit.variantId, status: "reserved",
-    NOT: { orderId: order.id, unitId: unit.id }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt },
-    order: { status: { notIn: ["cancelled", "refunded", "returned", "failed"] } } } });
-  if (conflict) throw new ConflictException("service_capacity_unavailable");
-  await tx.serviceReservation.upsert({ where: { orderId_unitId: { orderId: order.id, unitId: unit.id } },
-    create: { id: randomUUID(), merchantId: order.merchantId, orderId: order.id, unitId: unit.id, resourceId: unit.variantId, startsAt, endsAt },
-    update: { resourceId: unit.variantId, startsAt, endsAt, status: "reserved" } });
+  if (!professionalOrderLine(order, unit.id)) throw new ConflictException("service_legacy_classification_required");
+  await reserveProfessionalOrderUnit(tx, order.merchantId, order.id, unit.id);
 }
 export async function initializeOrderFulfillment(tx: Prisma.TransactionClient, orderId: string, merchantId: string): Promise<void> {
   const order = await tx.completedOrder.findFirstOrThrow({ where: { id: orderId, merchantId } });
@@ -41,7 +30,7 @@ export async function initializeOrderFulfillment(tx: Prisma.TransactionClient, o
       catch (error) {
         if (!(error instanceof ConflictException)) throw error;
         // Preserve the approved purchase when its appointment needs resolution.
-        unit.attention = "service_capacity_unavailable";
+        unit.attention = error.message === "service_legacy_classification_required" ? error.message : "service_capacity_unavailable";
       }
     }
   }

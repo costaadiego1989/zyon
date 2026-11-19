@@ -18,6 +18,19 @@ try {
   for (const fixture of ["legacy-prisma/checkout-payment.sql", "widget-cross-sell-checkout/synthetic.sql", "widget-cross-sell-checkout/payment.sql"])
     await db.sql(await readFile(new URL(`./fixtures/${fixture}`, import.meta.url), "utf8"));
   await installCheckoutSessionVersionTrigger(db);
+  // The product fixture owns only checkout tables. Install the exact deployed
+  // nullable origin expansion/guards, without claiming a full service migration.
+  const serviceAuthorityName = "20261118020000_service_order_authority/migration.sql";
+  const serviceAuthority = await readFile(new URL(`../prisma/deploy-migrations/${serviceAuthorityName}`, import.meta.url), "utf8");
+  assert.equal(serviceAuthority, await readFile(new URL(`../prisma/migrations/${serviceAuthorityName}`, import.meta.url), "utf8"),
+    "service_checkout_origin_deploy_migration_must_match");
+  const originSchema = serviceAuthority.match(/ALTER TABLE checkout_sessions ADD COLUMN service_origin TEXT;[\s\S]*?FOR EACH ROW EXECUTE FUNCTION preserve_service_checkout_origin\(\);/);
+  assert.ok(originSchema, "exact_service_checkout_origin_expansion_required");
+  await db.sql(originSchema[0]);
+  assert.equal(await db.sql(`SELECT count(*) FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='checkout_sessions'
+      AND column_name IN ('service_origin','service_origin_proof') AND is_nullable='YES' AND column_default IS NULL`), "2",
+    "actual_nullable_service_checkout_origin_columns_required");
   worker = spawn(process.execPath, ["--max-old-space-size=256", "--import", new URL("./test-network-guard.mjs", import.meta.url).href,
     "--loader", new URL("./ready-prod-loader.mjs", import.meta.url).href,
     fileURLToPath(new URL("./widget-cross-sell-checkout.native-worker.mjs", import.meta.url)), db.prismaUrl, db.runId],

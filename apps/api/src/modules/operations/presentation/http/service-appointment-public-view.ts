@@ -5,7 +5,7 @@ export function publicAppointmentView<T>(value: T): T {
   if (Array.isArray(value)) return value.map(publicAppointmentView) as T;
   const result: Record<string, unknown> = {};
   for (const [name, item] of Object.entries(value)) {
-    if (name === "privateLease" || name === "privateLeaseCleanup") continue;
+    if (name === "privateLease" || name === "privateLeaseCleanup" || name === "privatePaymentContinuation") continue;
     result[name] = publicAppointmentView(item);
   }
   return result as T;

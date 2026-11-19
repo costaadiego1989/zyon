@@ -35,6 +35,7 @@ import { parseWidgetCheckoutPaymentAuthority, type WidgetCheckoutPaymentAuthorit
 import { parseNormalCheckoutPaymentAuthority, type NormalCheckoutPaymentAuthority } from "../../../payment/domain/normal-checkout-payment-authority.schemas.js";
 
 interface OrderCommitRepository {
+  lockServiceOrderCompletion?(merchantId: string): Promise<void> | void;
   assertNormalCrossSellPaymentOrderAuthority?(merchantId:string,sessionId:string,authority:NormalCheckoutPaymentAuthority,
     paymentIntentId:string,providerPaymentId:string):Promise<void>|void;
   assertPublicCompletionAllowed?(merchantId: string, sessionId: string): Promise<void> | void;
@@ -211,6 +212,7 @@ export class CompleteOrderUseCase {
         : undefined;
 
     const commit = async (repo: OrderCommitRepository): Promise<boolean> => {
+      if (lineItems.some(line => line.schedule?.professionalId)) await repo.lockServiceOrderCompletion?.(input.merchant_id);
       // A private bound checkout cannot be completed through the public legacy
       // entrypoint. Canonical storage is checked in this same order/outbox TX.
       if (!approval) await repo.assertPublicCompletionAllowed?.(input.merchant_id, input.session_id);

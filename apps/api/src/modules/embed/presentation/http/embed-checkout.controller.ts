@@ -236,7 +236,7 @@ export class EmbedCheckoutController {
       merchant_id: embed.merchantId,
       session_id: sessionId,
       cart: recovered?.cart ?? (embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart),
-    }, { storefrontCartRef: recovered ? (recovered.cart as { cart_ref?: string }).cart_ref : embed.storefrontCartRef, trustedBuyer, trustedPhoneBuyer, requireBuyerProof: true, refreshCart: !!recovered });
+    }, { serverChannel: "storefront", storefrontCartRef: recovered ? (recovered.cart as { cart_ref?: string }).cart_ref : embed.storefrontCartRef, trustedBuyer, trustedPhoneBuyer, requireBuyerProof: true, refreshCart: !!recovered });
     const chatState = await this.reconcileChat?.readState(embed.merchantId, result.session_id);
     // start scope advertises capability only; reading history still requires chat scope.
     return { ...result, ...(chatState?.protocol === "durable_v2" ? { chat_protocol: "durable_v2" as const } : {}) };

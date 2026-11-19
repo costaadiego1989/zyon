@@ -90,7 +90,7 @@ test("T26", async t => {
     const context = { now, clock: () => { assert.equal(locks, 2); clockCalls++; return current; },
       readAvailability: async (_tx: Prisma.TransactionClient, input: { now: Date }) => { capacityNow = input.now; return f.readAvailability(); } };
     const result = await admitServiceAppointment(f.tx, selection, context);
-    assert.equal(clockCalls, 1);
+    assert.equal(clockCalls, 2);
     assert.equal(capacityNow?.toISOString(), fresh.toISOString());
     assert.equal(result.appointment.confirmedAt?.toISOString(), fresh.toISOString());
     assert.equal((f.audits[0].occurredAt as Date).toISOString(), fresh.toISOString());

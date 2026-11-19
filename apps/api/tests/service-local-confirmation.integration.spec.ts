@@ -180,7 +180,7 @@ test("T30", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
       let clockCalls = 0;
       const result = await prisma.$transaction(tx => confirmServiceAppointment(tx, fixture.buyer, fixture.command,
         { clock: () => { clockCalls++; return fresh; }, store: noStore }));
-      const appointment = result.appointments[0]; assert.equal(clockCalls, 1);
+      const appointment = result.appointments[0]; assert.equal(clockCalls, 3);
       assert.equal(appointment.confirmedAt?.toISOString(), fresh.toISOString());
       assert.equal(appointment.payments[0].createdAt.toISOString(), fresh.toISOString());
       assert.equal((await prisma.appointmentAudit.findUniqueOrThrow({ where: { merchantId_commandId: {

@@ -8,7 +8,8 @@ import { lockServiceProfessional } from "./service-professional-lock.js";
 import { assertProfessionalLease, type ProfessionalLeaseOwner } from "./professional-service-lease.js";
 import { professionalSlotId, professionalHoldRequests, type ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
 import { captureAppointmentLease, noAppointmentLease, assertLeaseCaptureUnusedWithin } from "./appointment-lease-proof.js";
-import type { ActiveSlotLeaseProof } from "./redis-service-slots.js";
+import type { ActiveSlotLeaseProof, RedisServiceSlots } from "./redis-service-slots.js";
+import { readManualServicePaymentWithin, assertManualServiceLeaseWithin } from "./manual-service-payment-continuation.js";
 import { hasUnclassifiedServiceReservations } from "./service-legacy-readiness.js";
 import { admitWhatsAppEffectInTransaction } from "../whatsapp/whatsapp-automation-context.js";
 
@@ -34,12 +35,15 @@ export interface ServiceAppointmentAdmissionInput {
 }
 
 interface AdmissionContext {
-  /** Internal clock, read once after resource locks. Never take a buyer timestamp. */
+  /** Internal clock for post-lock preflight and final decision after IO. Never a buyer timestamp. */
   clock?: () => Date;
   leaseOwner?: ProfessionalLeaseOwner;
   leaseSelections?: ProfessionalCheckoutSelection[];
   /** Private original acquire result supplied by a trusted pending writer. */
   acquiredLeaseProof?: ActiveSlotLeaseProof;
+  /** Server-only durable financial link. Never read from an admission DTO. */
+  pendingPaymentRecordId?: string;
+  capturedLeaseStore?: () => Pick<RedisServiceSlots, "assertCapturedActive">;
   /** Internal unit-test seam. HTTP/channel callers use the canonical default. */
   readAvailability?: typeof getProfessionalAvailability;
 }
@@ -93,7 +97,7 @@ function requestFingerprint(input: ServiceAppointmentAdmissionInput): string {
 }
 
 async function assertApprovedOrderUnit(tx: Prisma.TransactionClient, input: ServiceAppointmentAdmissionInput,
-  slot: { timeZone: string; durationMinutes: number }): Promise<void> {
+  slot: { timeZone: string; durationMinutes: number }, manual?: Awaited<ReturnType<typeof readManualServicePaymentWithin>>) {
   if (input.confirmation.kind !== "approved_order_unit") return;
   const order = await tx.completedOrder.findFirst({ where: { id: input.confirmation.orderId, merchantId: input.merchantId } });
   if (!order || order.currency !== input.currency || ["cancelled", "refunded", "returned", "failed"].includes(order.status))
@@ -101,12 +105,14 @@ async function assertApprovedOrderUnit(tx: Prisma.TransactionClient, input: Serv
   const checkout = await tx.checkoutSession.findUnique({ where: {
     merchantId_sessionId: { merchantId: input.merchantId, sessionId: order.sessionId },
   }, select: { globalUserId: true } });
-  if (!checkout || !input.buyerGlobalUserId || checkout.globalUserId !== input.buyerGlobalUserId)
+  if (!checkout || (!manual && (!input.buyerGlobalUserId || checkout.globalUserId !== input.buyerGlobalUserId))
+    || manual && manual.proof.sessionId !== order.sessionId)
     throw new ConflictException("service_payment_buyer_mismatch");
   const payment = await tx.paymentIntent.findFirst({ where: {
     merchantId: input.merchantId, sessionId: order.sessionId, providerPaymentId: order.externalOrderId, status: "approved",
   } });
   if (!fulfillmentPaymentEligible(order, payment)) throw new ConflictException("service_payment_evidence_invalid");
+  if (manual && payment?.id !== manual.proof.paymentIntentId) throw new ConflictException("service_payment_evidence_invalid");
   const lines = Array.isArray(order.lineItemsJson) ? order.lineItemsJson : [];
   const unitId = input.confirmation.unitId;
   const line = lines.find(value => value && typeof value === "object" && !Array.isArray(value) && value.lineId === unitId);
@@ -120,6 +126,7 @@ async function assertApprovedOrderUnit(tx: Prisma.TransactionClient, input: Serv
     || schedule.timeZone !== slot.timeZone || schedule.durationMinutes !== slot.durationMinutes
     || schedule.startsAt !== new Date(input.startsAt).toISOString()
     || schedule.endsAt !== new Date(input.endsAt).toISOString()) throw new ConflictException("service_payment_unit_mismatch");
+  return payment;
 }
 
 /** The caller owns this transaction and commits/rolls back admission, its audit
@@ -139,6 +146,23 @@ export async function admitServiceAppointment(
   const merchantLock = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM merchants WHERE id = ${input.merchantId} FOR UPDATE`;
   if (merchantLock.length !== 1) throw new NotFoundException("merchant_not_found");
   await lockServiceProfessional(tx, input.merchantId, input.professionalId);
+  let manual: Awaited<ReturnType<typeof readManualServicePaymentWithin>>;
+  if (context.pendingPaymentRecordId) {
+    if (input.confirmation.kind !== "approved_order_unit") throw new ConflictException("service_manual_payment_receipt_required");
+    const financial = await tx.appointmentPayment.findFirst({ where: { id: context.pendingPaymentRecordId, merchantId: input.merchantId } });
+    if (!financial?.paymentIntentId) throw new ConflictException("service_manual_payment_receipt_required");
+    manual = await readManualServicePaymentWithin(tx, { merchantId: input.merchantId, paymentIntentId: financial.paymentIntentId, unitId: input.confirmation.unitId });
+    const a = manual?.appointment, s = manual?.selection;
+    if (!manual || financial.id !== manual.payment.id || !a || !s || input.origin !== "manual" || input.actorId !== manual.operatorId
+      || input.professionalId !== s.professionalId || input.productId !== s.productId || input.variantId !== s.variantId
+      || input.professionalVersion !== s.professionalVersion || input.policyVersion !== s.policyVersion || input.date !== s.date
+      || input.startsAt !== s.startsAt || input.endsAt !== s.endsAt || input.priceInCents !== s.priceInCents || input.currency !== s.currency
+      || (input.buyerGlobalUserId ?? null) !== a.buyerGlobalUserId || !a.customerSnapshot || typeof a.customerSnapshot !== "object" || Array.isArray(a.customerSnapshot)
+      || input.customer.name !== a.customerSnapshot.name || (input.customer.email ?? null) !== (a.customerSnapshot.email ?? null)
+      || (input.customer.phone ?? null) !== (a.customerSnapshot.phone ?? null))
+      throw new ConflictException("service_manual_payment_snapshot_changed");
+    await tx.$queryRaw`SELECT id FROM service_appointments WHERE id=${a.id} AND merchant_id=${input.merchantId} FOR UPDATE`;
+  }
   const previous = await tx.serviceAppointment.findUnique({ where: {
     merchantId_idempotencyKey: { merchantId: input.merchantId, idempotencyKey: input.idempotencyKey },
   } });
@@ -166,7 +190,7 @@ export async function admitServiceAppointment(
     include: { product: true, price: true } });
   if (!variant?.price || variant.price.basePriceInCents !== input.priceInCents || variant.price.currency !== input.currency)
     throw new ConflictException("service_offer_changed");
-  const now = context.clock ? context.clock() : new Date();
+  let now = context.clock ? context.clock() : new Date();
   if (!Number.isFinite(now.getTime())) throw new BadRequestException("service_appointment_invalid_clock");
   const availability = await (context.readAvailability ?? getProfessionalAvailability)(tx, {
     merchantId: input.merchantId, productId: input.productId, variantId: input.variantId, professionalId: input.professionalId,
@@ -187,7 +211,9 @@ export async function admitServiceAppointment(
   const leaseTarget = professionalHoldRequests([own])[0];
   let privateLease = noAppointmentLease(leaseTarget, business.policy.holdEnabled ? "pending_without_lease" : "hold_off") as
     ReturnType<typeof noAppointmentLease> | ReturnType<typeof captureAppointmentLease>;
-  if (business.policy.holdEnabled && (input.confirmation.kind !== "pending" || context.acquiredLeaseProof)) {
+  if (manual) {
+    await assertManualServiceLeaseWithin(tx, manual.appointment, own, manual.proof.captureAuditId, { store: context.capturedLeaseStore });
+  } else if (business.policy.holdEnabled && (input.confirmation.kind !== "pending" || context.acquiredLeaseProof)) {
     const leaseSelections = context.leaseSelections ?? [own];
     if (!leaseSelections.some(candidate => candidate.slotId === own.slotId && professionalSlotId(input.merchantId, candidate) === own.slotId))
       throw new ConflictException("service_hold_selection_mismatch");
@@ -197,7 +223,31 @@ export async function admitServiceAppointment(
     privateLease = captureAppointmentLease(input.merchantId, context.leaseOwner.ownerId, proof, leaseTarget);
     await assertLeaseCaptureUnusedWithin(tx, input.merchantId, privateLease);
   }
-  await assertApprovedOrderUnit(tx, input, slot);
+  const approved = await assertApprovedOrderUnit(tx, input, slot, manual);
+  now = context.clock ? context.clock() : new Date();
+  if (!Number.isFinite(now.getTime())) throw new BadRequestException("service_appointment_invalid_clock");
+  if (startsAt <= now) throw new ConflictException("service_slot_unavailable");
+  if (manual && approved && input.confirmation.kind === "approved_order_unit") {
+    const a = manual.appointment, version = a.version + 1;
+    const changed = await tx.serviceAppointment.updateMany({ where: { id: a.id, merchantId: input.merchantId,
+      version: a.version, operationalStatus: "pending", orderId: null, orderUnitId: null, requestFingerprint: manual.proof.admissionFingerprint },
+      data: { operationalStatus: "scheduled", confirmedAt: now, version, orderId: input.confirmation.orderId, orderUnitId: input.confirmation.unitId } });
+    if (changed.count !== 1) throw new ConflictException("service_appointment_version_conflict");
+    const financial = await tx.appointmentPayment.updateMany({ where: { id: manual.payment.id, merchantId: input.merchantId,
+      appointmentId: a.id, paymentIntentId: approved.id, version: manual.payment.version, status: "pending", receivedAt: null },
+      data: { status: "approved", version: { increment: 1 }, providerPaymentId: approved.providerPaymentId,
+        providerEvidence: { paymentIntentId: approved.id, approvedAmountCents: approved.approvedAmountCents, currency: approved.currency }, receivedAt: now } });
+    if (financial.count !== 1) throw new ConflictException("service_manual_payment_snapshot_changed");
+    await tx.appointmentAudit.create({ data: { merchantId: input.merchantId, appointmentId: a.id, commandId: input.idempotencyKey,
+      version, action: "manual_payment_approved", actorId: manual.operatorId, origin: "payment", occurredAt: now,
+      before: { operationalStatus: "pending", version: a.version }, after: { operationalStatus: "scheduled", version,
+        paymentRecordId: manual.payment.id, paymentIntentId: approved.id, continuationAuditId: manual.receipt.id } } });
+    const eventType = "service.appointment.scheduled";
+    await tx.outboxMessage.create({ data: { eventId: createHash("sha256").update(JSON.stringify([input.merchantId, a.id, version, eventType])).digest("hex"),
+      eventType, schemaVersion: 1, merchantId: input.merchantId, occurredAt: now, correlationId: a.id, causationId: input.idempotencyKey,
+      producer: "service-booking", payload: { appointmentId: a.id, version, operationalStatus: "scheduled" } } });
+    return { appointment: await tx.serviceAppointment.findUniqueOrThrow({ where: { id: a.id } }), replayed: false };
+  }
   const status = input.confirmation.kind === "pending" ? "pending" : "scheduled";
   const appointment = await tx.serviceAppointment.create({ data: {
     merchantId: input.merchantId, professionalId: input.professionalId, productId: input.productId, variantId: input.variantId,

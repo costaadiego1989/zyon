@@ -88,7 +88,7 @@ async function confirmWithin(tx: Prisma.TransactionClient, principal: Principal,
       buyerGlobalUserId: buyer.globalUserId, customer: { name: session.customer?.fullName ?? "",
         ...(session.customer?.phone ? { phone: session.customer.phone } : {}), ...(session.customer?.email ? { email: session.customer.email } : {}) },
       actorId: buyer.globalUserId, origin: buyer.origin, idempotencyKey, confirmation: { kind: "at_attendance" } },
-    { clock: () => now, leaseOwner: { ownerId: buyer.sessionId, store: context.store ?? serviceSlotStore }, leaseSelections: current.selections });
+    { clock: () => { now = decisionClock(context, capability); return now; }, leaseOwner: { ownerId: buyer.sessionId, store: context.store ?? serviceSlotStore }, leaseSelections: current.selections });
     const payment = await ensureAtAttendancePayment(tx, result.appointment, now);
     appointments.push({ ...result.appointment, payments: [payment] });
   }

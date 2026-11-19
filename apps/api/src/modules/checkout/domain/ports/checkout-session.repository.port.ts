@@ -1,5 +1,6 @@
 import type { ChatTurn, CheckoutEventName, CheckoutSession, MerchantRules, PaymentMethod } from "@zyon/shared-types";
 import type { CheckoutEmailOtpVerificationScope, CheckoutEmailOtpVerificationCommand } from "../services/checkout-email-otp-verification.js";
+import type { ServiceCheckoutCreationIdentity } from "../../../../shared/bookings/service-checkout-provenance.js";
 
 export const CHECKOUT_SESSION_REPOSITORY = Symbol("CHECKOUT_SESSION_REPOSITORY");
 
@@ -64,7 +65,7 @@ export interface CheckoutSessionRepository {
    * commercial events in one transaction. Never retry with a newer snapshot. */
   commitCommercialMutation?(input: CheckoutCommercialMutation): Promise<CheckoutSession>;
   /** Atomically creates a checkout without replacing an existing buyer/session. */
-  createSessionIfAbsent?(session: CheckoutSession): MaybePromise<{ session: CheckoutSession; created: boolean }>;
+  createSessionIfAbsent?(session: CheckoutSession, creationIdentity?: ServiceCheckoutCreationIdentity): MaybePromise<{ session: CheckoutSession; created: boolean }>;
   /** Persists the server-loaded snapshot; implementations advance its storage
    * token after success. A version conflict must be reread, never blindly retried. */
   saveSession(session: CheckoutSession): MaybePromise<void>;

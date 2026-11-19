@@ -35,7 +35,7 @@ export class CheckoutBootstrapService {
   ) {}
 
   async bootstrap(input: StartCheckoutRequest, globalUserId: string, cartValidated = false,
-    identity?: { trustedBuyer?: TrustedCheckoutBuyer; trustedWhatsAppBuyer?: TrustedWhatsAppCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean; trustedPhoneBuyer?: { globalUserId: string; phone: string } },
+    identity?: { serverChannel?: "storefront" | "whatsapp"; trustedBuyer?: TrustedCheckoutBuyer; trustedWhatsAppBuyer?: TrustedWhatsAppCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean; trustedPhoneBuyer?: { globalUserId: string; phone: string } },
   ): Promise<BootstrapResult> {
     let enrichedInput = input;
 
@@ -124,7 +124,7 @@ export class CheckoutBootstrapService {
         session = await this.customerService.prepareTrustedBuyerForCheckout(session, identity.trustedBuyer);
       }
       if (this.sessions.createSessionIfAbsent) {
-        const result = await this.sessions.createSessionIfAbsent(session);
+        const result = await this.sessions.createSessionIfAbsent(session, identity);
         session = result.session;
         preparedCreatedBuyer = result.created && !!identity?.trustedBuyer && !!this.customerService;
         if (result.created) await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");

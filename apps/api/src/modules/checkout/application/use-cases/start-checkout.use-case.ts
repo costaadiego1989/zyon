@@ -63,7 +63,7 @@ export class StartCheckoutUseCase {
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
   ) { }
 
-  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean;
+  async execute(input: StartCheckoutRequest, trustedContext?: { serverChannel?: "storefront" | "whatsapp"; storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean;
     trustedWhatsAppBuyer?: TrustedWhatsAppCheckoutBuyer;
     trustedPhoneBuyer?: { globalUserId: string; phone: string; fullName?: string; email?: string } }): Promise<StartCheckoutResponse> {
     if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
@@ -117,6 +117,7 @@ export class StartCheckoutUseCase {
 
     // Phase 3: Checkout Bootstrap
     let { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true, {
+      serverChannel: trustedContext?.serverChannel,
       trustedBuyer: trustedContext?.trustedBuyer,
       trustedWhatsAppBuyer: trustedContext?.trustedWhatsAppBuyer,
       trustedPhoneBuyer: trustedContext?.trustedPhoneBuyer,

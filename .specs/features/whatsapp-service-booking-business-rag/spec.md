@@ -299,19 +299,19 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | Pending |
-| AGENDA-05 | Shared capacity | T23, T26, T34 | In Progress (T23/T26/T34 locally complete; T35 legacy/payment writer integration and final proof pending) |
+| AGENDA-05 | Shared capacity | T23, T26, T34, T35 | Implemented locally (all current canonical/legacy writers share authority; final feature proof pending) |
 | AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 and T24 complete) |
 | AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | Pending |
 | BOOK-01 | Provisional hold | T27 | Implemented (T27; final proof pending) |
 | BOOK-02 | Expiry | T27 | Implemented (T27; final proof pending) |
 | BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | In Progress (T26 and T27 complete) |
 | BOOK-04 | Pay at attendance | T30, T40, T46 | In Progress (T30 complete) |
-| BOOK-05 | Pay online | T29, T35, T40 | Pending |
+| BOOK-05 | Pay online | T29, T35, T40 | In Progress (T29/T35 locally complete; T40 UI and final proof pending) |
 | BOOK-06 | Late payment | T36 | Pending |
 | BOOK-07 | On-site receipt | T4, T37, T41, T80 | Pending |
-| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34 locally complete; T35-T38/T84 financial commands/final proof pending) |
+| BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34/T35 locally complete; T36-T38/T84 financial commands/final proof pending) |
 | BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T33 cancellation/T34 canonical accepted reschedule and T49 trusted intake locally complete; T41/T80 UI and final human-flow proof pending) |
-| BOOK-10 | Confirmation and inventory | T35, T38, T39 | Pending |
+| BOOK-10 | Confirmation and inventory | T35, T38, T39 | In Progress (T35 canonical paid admission/no physical stock locally proved; T38/T39 events/confirmation and final proof pending) |
 | HUM-01 | Fixed menu entry | T57 | Complete (LOCAL; T57 menu and signed gesture gated; final feature verification pending) |
 | HUM-02 | Handoff intake | T49, T50, T57 | Complete (LOCAL; T49/T50/T57 intake, router and button/text/voice with canonical acknowledgement gated; final feature verification pending) |
 | HUM-03 | AI pause | T4, T48, T49, T50, T51, T109 | Complete (LOCAL; T4/T48-T51 and T109 locally gated; final feature verification pending) |
@@ -350,7 +350,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | KPI-07 | Unknown and empty metrics | T86, T87, T88, T89, T91 | Pending |
 | REG-01 | Separate business journeys in both channels | T7, T9, T17, T28, T43, T45, T46, T47, T62, T82, T83, T90, T91, T93 | In Progress (T17 complete) |
 | REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | In Progress (T17 complete) |
-| REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | Pending |
+| REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | In Progress (T35 stock/financial/product preservation locally proved; T38/T92/T93 and final proof pending) |
 | REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17 complete) |
 | AUTH-01 | Reject invalid buyer passwords before JWT | T110 | Complete |
 | QA-01 | Criteria proofs | T1, T108, T109, T95 | Pending; native collector and replay repairs do not close final feature proof |
@@ -410,3 +410,6 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 - [ ] Todos os casos crÃ­ticos, os testes vinculados aos critÃ©rios e a verificaÃ§Ã£o independente passam antes de ativaÃ§Ã£o.
 
 **T73 client wire correction approved:** 2026-11-16 - user: "Corrigir essa expectativa (recomendado)" (reply call_8c2dbee1ab4c41bb905ff23cd0ee3de7). Preserve explicit category-parent removal with the already supported parent_id:null wire alias. This corrects one SDK expectation and conditional, not product behavior or backend policy. Current focused client proof49/49; remaining requirement UI/HTTP/final gates stay pending.
+
+**Approved T35 clock expectations:** 2026-11-18 - user: "Corrigir somente essas três expectativas (recomendado)" (call_9440ffd81bb840818131c0db1c8f0acf). Exact oracle patch abdce49 applied once; only positive clock counts1->2/1->2/1->3, every other assertion retained. Receipt .cache/t35-clock-review-20261118/approved-applied-receipt.json.
+**Local T35 closure:** Full463 GREEN in documented cohorts (components79 = retained68 + current11; whole natives160; normal48/widget176), own current16682447/ed205188/2585 and APItypes/lint0. Task marked before its focused local commit; task-35-evidence.json retains every RED/plumbing approval/cleanup observation. Public manual producerT41, financial36-38/84, confirmation39/40 and final sameHEAD verification remain open. No provider/push/deploy/customer action.
