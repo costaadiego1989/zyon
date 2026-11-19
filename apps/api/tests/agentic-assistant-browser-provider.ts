@@ -12,10 +12,10 @@ export class AgenticBrowserProvider {
   metricsUnavailable=false;sampleMetrics=false;private holdModel=false;private modelWaiters:Array<()=>void>=[];
   minimumDailyBudgetCents=100;pageWhatsAppLinked=true;catalogCopies=0;
   get modelPending(){return this.modelWaiters.length;}
-  private modelScript:Array<{reply:string}|{tool:{name:string;args:Json}}>=[];
+  private modelScript:Array<{reply:string;referenceIds?:string[]}|{tool:{name:string;args:Json}}>=[];
   get modelScriptRemaining(){return this.modelScript.length;}
   setModelScript(value:unknown){
-    if(this.modelScript.length||!Array.isArray(value)||!value.length||value.length>8||value.some(step=>!step||typeof step!=='object'||Array.isArray(step)||Object.keys(step).length!==1||!('reply' in step&&typeof step.reply==='string'&&step.reply.length<=8000||'tool' in step&&step.tool&&typeof step.tool.name==='string'&&step.tool.args&&typeof step.tool.args==='object'&&!Array.isArray(step.tool.args))))throw Error('controlled_script_invalid');
+    if(this.modelScript.length||!Array.isArray(value)||!value.length||value.length>8||value.some(step=>!step||typeof step!=='object'||Array.isArray(step)||!('reply' in step&&Object.keys(step).every(key=>['reply','referenceIds'].includes(key))&&typeof step.reply==='string'&&step.reply.length<=8000&&(step.referenceIds===undefined||Array.isArray(step.referenceIds)&&step.referenceIds.length<=5&&step.referenceIds.every((id:unknown)=>typeof id==='string'&&id.length>0&&id.length<=201))||'tool' in step&&Object.keys(step).length===1&&step.tool&&typeof step.tool.name==='string'&&step.tool.args&&typeof step.tool.args==='object'&&!Array.isArray(step.tool.args))))throw Error('controlled_script_invalid');
     this.modelScript=structuredClone(value);
   }
   setModelHold(value:boolean){this.holdModel=value;if(!value)for(const release of this.modelWaiters.splice(0))release();}
@@ -35,7 +35,7 @@ export class AgenticBrowserProvider {
     const toolResult=(name:string)=>{const call=messages.slice(userIndex+1).flatMap(m=>m.tool_calls??[]).find(call=>call.function.name===name);const message=messages.findLast(m=>m.role==='tool'&&m.tool_call_id===call?.id);return message?JSON.parse(message.content):{};};
     const completion=(content:unknown,tool?:{name:string;args:Json})=>json({id:randomUUID(),choices:[{finish_reason:tool?'tool_calls':'stop',message:tool?{content:null,tool_calls:[{id:'call-'+randomUUID(),type:'function',function:{name:tool.name,arguments:JSON.stringify(tool.args)}}]}:{content:JSON.stringify(content)}}],usage:{prompt_tokens:100,completion_tokens:40,total_tokens:140}});
     if(body.tools?.some((t:Json)=>t.function.name==='propose_campaign_changes'))return completion(null,{name:'propose_campaign_changes',args:{recommendations:[]}});
-    const scripted=this.modelScript.shift();if(scripted)return 'tool' in scripted?completion(null,scripted.tool):completion({reply:scripted.reply,referenceIds:refs.map(ref=>ref.id)});
+    const scripted=this.modelScript.shift();if(scripted)return 'tool' in scripted?completion(null,scripted.tool):completion({reply:scripted.reply,referenceIds:scripted.referenceIds??refs.map(ref=>ref.id)});
     const reply=(value:string)=>completion({reply:value,referenceIds:refs.map(ref=>ref.id)});
     if(state.contextLabel==='Cashback'){
       const normalized=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
 import {AssistantKnowledgeRetriever} from './assistant-knowledge.retriever.js';
 import {CASHBACK_MERCHANT_KNOWLEDGE,cashbackGuideSource} from './knowledge/cashback.pt-BR.js';
 import {META_ADS_MERCHANT_KNOWLEDGE} from './knowledge/meta-ads.pt-BR.js';
@@ -13,6 +14,9 @@ import type {AssistantContextPort} from '../domain/context.port.js';
 import type {AssistantModelPort} from '../domain/model.port.js';
 import {AssistantError} from '../domain/assistant.port.js';
 import {CASHBACK_KNOWLEDGE_FALLBACK_NOTICE} from '../domain/knowledge.port.js';
+import {cashbackConfigurationFixture} from '../../cashback/infrastructure/__tests__/cashback-configuration.fixture.js';
+import {CashbackAssistantContext} from '../../cashback/application/cashback-assistant.context.js';
+import {CashbackAssistantReportService} from '../../cashback/application/cashback-assistant-report.service.js';
 
 const clock=()=>new Date('2026-11-18T12:00:00Z');
 const scope={merchantId:'store-a',context:'cashback',audience:'merchant' as const};
@@ -96,12 +100,12 @@ test('graph exceptions recover only reviewed fallback content without leaking tr
   }
 });
 
-async function responseFixture(retriever:AssistantKnowledgeRetriever,model?:AssistantModelPort,message='Como usar cashback?',previousReply?:string){
-  const db=await assistantDatabase(),actor={merchantId:'store-a',actorId:'owner-a',context:'cashback'};
+async function responseFixture(retriever:AssistantKnowledgeRetriever,model?:AssistantModelPort,message='Como usar cashback?',previousReply?:string,contextId='cashback'){
+  const db=await assistantDatabase(),actor={merchantId:'store-a',actorId:'owner-a',context:contextId};
   const repo=new PrismaAssistantRepository(db.prisma,clock),thread=await repo.createThread(actor);
   await repo.atomic(actor,thread.id,async tx=>{if(previousReply){await tx.append({id:'cbx-previous',requestKey:'cbx-previous',inputHash:'b'.repeat(64),message:'Explique as regras anteriores do cashback.',budgetAmountMicros:100n});await tx.update('cbx-previous',{status:'completed',reply:previousReply});}await tx.append({id:'cbx-turn',requestKey:'cbx-turn',inputHash:'a'.repeat(64),message,budgetAmountMicros:100n});
     await tx.update('cbx-turn',{status:'running',leaseToken:'cbx-lease',leaseUntil:'2026-11-18T12:01:00Z'});});
-  const context:AssistantContextPort={descriptor:{id:'cashback',label:'Cashback',capabilities:[]},knowledgeScope:{...scope,merchantId:'store-b'},
+  const context:AssistantContextPort={descriptor:{id:contextId,label:contextId==='cashback'?'Cashback':'Anúncios',capabilities:[]},knowledgeScope:{...scope,merchantId:'store-b',context:contextId==='cashback'?'cashback':'meta_ads'},
     authorize:async()=>{},authorizeInvocation:async()=>{},tools:()=>[],execute:async()=>{throw Error('no writes');}};
   const service=new AssistantService({repo,context,knowledge:retriever,clock,model:model??{complete:async input=>({reply:'O uso depende das regras publicadas da loja.',
     referenceIds:input.knowledge.length?[input.knowledge[0]!.reference.id]:[],toolCalls:[],providerRequestId:'controlled-local',costMicros:0n})}});
@@ -169,4 +173,36 @@ test('CBX-18 sequential cashback questions keep their current reviewed topic des
   }finally{await f.db.close();}
  }
  assert.equal(new Set(observed).size,9);
+});
+
+async function canonicalCashbackFixture(message:string){
+ const f=await cashbackConfigurationFixture();
+ try{await f.db.query("CREATE TABLE merchants(id TEXT PRIMARY KEY); INSERT INTO merchants(id) VALUES ('merchant-a'),('merchant-b')");await f.db.query(await readFile(new URL('../../../../prisma/migrations/20261116103000_merchant_assistant/migration.sql',import.meta.url),'utf8'));}catch(error){await f.close();throw error;}
+ const actor={merchantId:'merchant-a',actorId:'owner-a',context:'cashback'},repo=new PrismaAssistantRepository(f.prisma,clock),thread=await repo.createThread(actor),turnId=randomUUID(),leaseToken=randomUUID();
+ await repo.atomic(actor,thread.id,async tx=>{await tx.append({id:turnId,requestKey:turnId,inputHash:'a'.repeat(64),message,budgetAmountMicros:100n});await tx.update(turnId,{status:'running',leaseToken,leaseUntil:'2026-11-18T12:01:00Z'});});
+ const context=new CashbackAssistantContext({service:f.service,reports:new CashbackAssistantReportService(f.queries,clock),conversations:repo,authorizeActor:async scope=>{assert.deepEqual(scope,actor);},authorizeTool:async()=>{},clock});
+ return {...f,repo,actor,thread,respond:(model:AssistantModelPort)=>new AssistantService({repo,context,knowledge:new AssistantKnowledgeRetriever(undefined,clock),model,clock}).respond({scope:actor,threadId:thread.id,turnId,leaseToken})};
+}
+const invalidCitationReply={reply:'Afirmação inventada que não pode substituir o resultado canônico.',referenceIds:['inventada:uso'],toolCalls:[],providerRequestId:'controlled-invalid-references',costMicros:0n};
+const canonicalNext='Escolha salva no rascunho. Checklist: 1 de 17 decisões preenchidas. Qual o mínimo da compra para ganhar? Informe em R$, inclusive se o mínimo for zero.';
+
+test('CBX-50 persisted guided choice retains its exact next question despite invalid model references',async()=>{
+ const f=await canonicalCashbackFixture('5%');let calls=0;
+ try{
+  const response=await f.respond({complete:async input=>{calls++;if(input.step===0)return {...invalidCitationReply,reply:null,referenceIds:[],toolCalls:[{id:'read',name:'cashback_read_program',args:{}}]};if(input.step===1){const data=JSON.parse(input.messages.filter(message=>message.role==='tool').at(-1)!.content);return {...invalidCitationReply,reply:null,referenceIds:[],toolCalls:[{id:'save',name:'cashback_save_draft_answer',args:{field:'earnRateBps',expectedRevision:data.program.configurationRevision}}]};}return invalidCitationReply;}});
+  const saved=await f.program();assert.deepEqual(saved.draft,{earnRateBps:500});assert.equal(saved.status,'disabled');assert.equal(saved.version,0);assert.equal(saved.published,null);assert.equal(calls,3);
+  const artifact=response.artifacts.find(item=>item.type==='cashback_draft');assert.ok(artifact?.type==='cashback_draft');assert.deepEqual(artifact.program,saved);assert.equal(artifact.checklist.completed,1);assert.equal(artifact.checklist.total,17);assert.equal(artifact.missingFields[0],'minimumEarnCents');
+  assert.equal((await f.db.query('SELECT count(*)::int AS n FROM cashback_ledger_entries')).rows[0].n,0);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM cashback_rule_versions')).rows[0].n,0);
+  assert.deepEqual(response.references,[]);assert.equal(response.reply,`${CASHBACK_KNOWLEDGE_FALLBACK_NOTICE}\n\n${canonicalNext}`);assert.ok(!response.reply.includes(invalidCitationReply.reply));
+ }finally{await f.close();}
+});
+
+test('CBX-50 knowledge-only invalid references still fail closed without a canonical tool outcome',async()=>{
+ const f=await canonicalCashbackFixture('Como o cliente pode usar cashback?');
+ try{const response=await f.respond({complete:async()=>invalidCitationReply});assert.equal(response.reply,`${CASHBACK_KNOWLEDGE_FALLBACK_NOTICE}\n\nNão encontrei evidência suficiente nas fontes vigentes para confirmar essa informação. Posso ajudar a verificar os dados da loja ou você pode tentar novamente mais tarde.`);assert.deepEqual(response.references,[]);assert.deepEqual(response.artifacts,[]);const saved=await f.program();assert.equal(saved.draft,null);assert.equal(saved.status,'disabled');assert.equal(saved.version,0);assert.equal(saved.published,null);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM cashback_event_receipts')).rows[0].n,0);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM cashback_ledger_entries')).rows[0].n,0);assert.equal((await f.db.query('SELECT count(*)::int AS n FROM cashback_rule_versions')).rows[0].n,0);}finally{await f.close();}
+});
+
+test('CBX-50 Meta Ads keeps invalid citations fail closed before its canonical guidance hook',async()=>{
+ const f=await responseFixture(new AssistantKnowledgeRetriever(undefined,clock),{complete:async()=>invalidCitationReply},'Qual o orçamento recomendado?',undefined,'meta-ads');let guided=0;
+ try{f.context.uncitedResponse=()=> 'Pergunta canônica de anúncios.';f.context.guidedResponse=()=>{guided++;return 'Pergunta canônica de anúncios.';};const response=await f.respond();assert.equal(response.reply,'Não encontrei evidência suficiente nas fontes vigentes para confirmar essa informação. Posso ajudar a verificar os dados da loja ou você pode tentar novamente mais tarde.');assert.deepEqual(response.references,[]);assert.deepEqual(response.artifacts,[]);assert.equal(guided,0);const stored=(await f.repo.turns(f.actor,f.thread.id,{limit:10})).turns;assert.equal(stored[0]!.message,'Qual o orçamento recomendado?');}finally{await f.db.close();}
 });
