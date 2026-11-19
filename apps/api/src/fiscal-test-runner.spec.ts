@@ -82,3 +82,12 @@ test("FISCAL-64 CI installs both browser engines before the first existing store
   assert.ok(install < regressions, "install Chromium and Edge before existing storefront browser regressions");
   assert.match(workflow.slice(install, regressions), /playwright install --with-deps chromium msedge/);
 });
+
+test("FISCAL-64 payment smoke runner retains complete natural-exit verdicts for all four source suites", () => {
+  const manifest = JSON.parse(readFileSync(resolve(fiscalApiRoot, "package.json"), "utf8"));
+  const command = manifest.scripts["test:payment"];
+  assert.doesNotMatch(command, /(?:^|\s)--test-force-exit(?:\s|$)/);
+  for (const file of ["create-payment-intent.use-case.spec.ts", "handle-asaas-webhook.use-case.spec.ts",
+    "handle-mercadopago-webhook.use-case.spec.ts", "handle-stripe-webhook.use-case.spec.ts"])
+    assert.ok(command.includes("./src/modules/payment/application/" + file), file);
+});
