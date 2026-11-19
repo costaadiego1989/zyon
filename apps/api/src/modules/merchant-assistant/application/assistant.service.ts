@@ -11,7 +11,7 @@ export type AssistantResponseInput = Pick<AssistantToolInput, 'scope' | 'threadI
 const unavailable = 'Não encontrei evidência suficiente nas fontes vigentes para confirmar essa informação. Posso ajudar a verificar os dados da loja ou você pode tentar novamente mais tarde.';
 const safeCode = (error: unknown) => {
   const value = error as { code?: unknown; status?: unknown };
-  return typeof value?.code === 'string' && /^(assistant_|campaign_|creative_|image_|generation_|proposal_|approval_|addon_|meta_)[a-z0-9_]{1,100}$/.test(value.code) ? value.code : 'assistant_tool_failed';
+  return typeof value?.code === 'string' && /^(assistant_|campaign_|creative_|image_|generation_|proposal_|approval_|addon_|meta_|automatic_|automation_)[a-z0-9_]{1,100}$/.test(value.code) ? value.code : 'assistant_tool_failed';
 };
 function toolContent(value: unknown): string {
   const json = JSON.stringify(value);
@@ -43,7 +43,9 @@ export class AssistantService {
     const messages:AssistantModelMessage[]=segments.flat();let historyMessages=messages.length;
     messages.push({ role: 'user', content: initial.turn.message });
     let knowledge: RetrievedAssistantKnowledge[];
-    try { knowledge = await this.deps.knowledge.retrieve(this.deps.context.knowledgeScope, initial.turn.message); } catch { knowledge = []; }
+    const previousQuestion=history.at(-1)?.reply??'';
+    const retrievalQuery=previousQuestion?`${initial.turn.message.slice(0,6500)}\nContexto anterior: ${previousQuestion.slice(0,1200)}`:initial.turn.message;
+    try { knowledge = await this.deps.knowledge.retrieve(this.deps.context.knowledgeScope, retrievalQuery); } catch { knowledge = []; }
     const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = [...(captured?.artifacts??[])]; const evidence:UncitedAssistantResponse['evidence'][number][]=captured?[{name:'merchant_ads_save_draft',result:captured}]:[];
     for (let round = 0; round <= 5; round++) {
       // Keep the current turn's tool protocol intact while retaining more short guided answers.
@@ -90,6 +92,7 @@ export class AssistantService {
       // Without citations the context may emit only its own canonical facts/questions.
       let canonical:string|null=/^como posso ajudar\?$/i.test(response.reply.trim())?'Como posso ajudar?':null;
       if(!references.length&&!canonical){try{canonical=this.deps.context.uncitedResponse?.({suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence})??null;}catch{canonical=null;}}
+      if(!references.length&&!canonical&&current.thread.campaignProgress){try{canonical=this.deps.context.recoveredResponse?.({message:initial.turn.message,suggestedReply:'',campaign:current.thread.campaignProgress,evidence})??null;}catch{canonical=null;}}
       return { reply: references.length ? response.reply : canonical??unavailable, references, artifacts: this.latestArtifacts(artifacts) };
     }
     throw new AssistantError('assistant_tool_round_limit', 429);

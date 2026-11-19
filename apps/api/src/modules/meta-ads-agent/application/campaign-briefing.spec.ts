@@ -4,6 +4,7 @@ import type {AssistantCampaignProgress} from '@zyon/shared-types';
 import {briefingChecklist,receiveBriefingAnswer} from './campaign-briefing.js';
 
 const selected=():AssistantCampaignProgress=>({campaignId:null,draft:{destination:'store',variantIds:['v1'],priority:'paid_sales'},awaitingFields:['budget','country'],approvalPreference:'manual'});
+test('ACJ-01 ordinary destination phrases are persisted without a second questionnaire',()=>{for(const message of ['Receber clientes no Whatsapp','Prefiro receber clientes pelo WhatsApp','Quero conversar no whatsapp','pelo wpp']){const progress=receiveBriefingAnswer(null,'quero criar uma campanha','start',true)!;const result=receiveBriefingAnswer(progress,message,'answer')!;assert.equal(result.draft.destination,'whatsapp',message);assert.equal(briefingChecklist(result).next,'selection');}const store=receiveBriefingAnswer(receiveBriefingAnswer(null,'quero criar uma campanha','start',true),'Vender na loja','store')!;assert.equal(store.draft.destination,'store');});
 test('ACF-05 durable checklist retains explicit amount cadence and raw dates across help and serialization',()=>{
   let progress=selected();
   for(const [index,message] of ['R$ 120','No total','Dia 20','Dia 27'].entries())progress=receiveBriefingAnswer(progress,message,'t'+index)!;

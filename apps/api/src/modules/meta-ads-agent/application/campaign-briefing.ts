@@ -9,7 +9,8 @@ export function briefingChecklist(progress:AssistantCampaignProgress|null){
   const selection=draft.variantIds?.length?{variantIds:draft.variantIds}:undefined;
   const end=budget.endsAt===null?(budget.cadence==='daily'?'no_end_date':undefined):budget.endsAt;
   const items=[item('destination',draft.destination,answers.destination),item('selection',selection,memory.selectionQuery??answers.selection),item('priority',draft.priority,answers.priority),item('amount',budget.amountCents,answers.amount),item('cadence',budget.cadence,answers.cadence),item('start',budget.startsAt,budget.startText??answers.start),item('end',end,budget.endText??answers.end),item('country',draft.country,answers.country)];
-  const first=items.find(entry=>entry.status!=='confirmed'),collect=items.find(entry=>entry.status!=='confirmed'&&!(entry.status==='received'&&['start','end'].includes(entry.key)));
+  if(memory.budgetIssue&&budget.cadence==='daily'&&memory.budgetIssue.amountCents===budget.amountCents)items.find(entry=>entry.key==='amount')!.status='needs_revision';
+  const first=items.find(entry=>entry.status!=='confirmed'),collect=items.find(entry=>entry.status==='needs_revision')??items.find(entry=>entry.status!=='confirmed'&&!(entry.status==='received'&&['start','end'].includes(entry.key)));
   return {items,next:collect?.key??null,needsInterpretation:items.filter(entry=>entry.status==='received').map(entry=>entry.key),selection:{kind:memory.selectionKind??null,query:memory.selectionQuery??null,selectedVariantId:memory.selectedVariantId??null,categoryId:memory.categoryId??null,categories:memory.categoryOptions??[],products:memory.productOptions??[]},creative:{status:draft.mediaIds?.length?'ready':'agent_prepares',requestedImages:progress?.requestedImages??null},newCampaignApproval:'always_required',complete:!first};
 }
 function money(value:string){const match=value.match(/^(?:r\$\s*)?(\d{1,9}(?:[.,]\d{1,2})?)(?:\s*reais)?$/i);if(!match)return undefined;const cents=Math.round(Number(match[1].replace(',','.'))*100);return Number.isSafeInteger(cents)&&cents>0?cents:undefined;}
@@ -26,8 +27,8 @@ export function receiveBriefingAnswer(previous:AssistantCampaignProgress|null,me
   const memory=progress.briefing??={},draft=progress.draft,budget={...(draft.budget?{amountCents:draft.budget.amountCents,cadence:draft.budget.cadence,startsAt:draft.budget.startsAt,endsAt:draft.budget.endsAt}:{}),...memory.budget},answers={...memory.answers},value=normalizeAnswer(message),next=briefingChecklist(progress).next;
   const priorBudget=JSON.stringify(budget);
   let recognized=false;
-  if(/^(na loja|loja|pelo site|no site|site|pela loja)$/.test(value)){draft.destination='store';answers.destination=message;recognized=true;}
-  if(/^(whatsapp|no whatsapp|pelo whatsapp|wpp|zap)$/.test(value)){draft.destination='whatsapp';answers.destination=message;recognized=true;}
+  if(/^(?:(?:quero|prefiro) )?(?:(?:vender|comprar) (?:na|pela) )?(?:na loja|loja(?: online)?|pelo site|no site|site|pela loja)$/.test(value)){draft.destination='store';answers.destination=message;recognized=true;}
+  if(/^(?:(?:quero|prefiro) )?(?:receber clientes (?:no|pelo) |conversar (?:no|pelo) |no |pelo )?(?:whats ?app|wpp|zap)$/.test(value)){draft.destination='whatsapp';answers.destination=message;recognized=true;}
   if(/^(mais vendas|vender mais|quero mais vendas|vendas pagas)$/.test(value)){draft.priority='paid_sales';answers.priority=message;recognized=true;}
   if(/^(gastar menos por compra|custo por compra)$/.test(value)){draft.priority='cost_per_purchase';answers.priority=message;recognized=true;}
   if(/^(mais retorno|retorno por real investido|roas)$/.test(value)){draft.priority='roas';answers.priority=message;recognized=true;}
