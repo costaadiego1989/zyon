@@ -38,6 +38,8 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true,onS
   const previewFailed=Object.values(previews).includes('failed');
   const approved=proposal.status==='approved'||!!proposal.approvedAt||!!execution;
   const unknown=uncertain||execution?.status==='execution_unknown';
+  const recoveredApproval=uncertain&&approved&&proposal.status!=='stale'&&!current.missing.includes('proposal_stale')&&current.notice?.reviewState!=='superseded';
+  useEffect(()=>{if(recoveredApproval)setError('');},[recoveredApproval]);
   const formatTime=(value:string)=>new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:timezone}).format(new Date(value));
   const budgetIssue=current.missing.some(code=>code.startsWith('campaign_budget_')),setupIssue=current.missing.some(code=>['meta_whatsapp_not_linked','meta_dataset_required','meta_page_required','meta_account_required','meta_connection_required'].includes(code));
   const reason=current.missing.includes('proposal_stale')?'A campanha mudou. Atualize o planejamento e revise a nova versão.':budgetIssue?'A verba precisa ser conferida para essas datas antes da publicação.':current.missing.includes('meta_whatsapp_not_linked')?'Vincule o número à Página na Meta para publicar este anúncio no WhatsApp.':current.missing.includes('meta_dataset_required')?'Selecione o Pixel da loja antes de publicar.':setupIssue?'Conclua a conexão da conta e da Página da loja na Meta.':'Atualize a revisão para conferir a pendência antes de publicar.';
@@ -82,6 +84,7 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true,onS
       {budgetIssue&&current.budgetAssessment?.estimatedMinimumTotalCents&&<p>Referência para o período: {money(current.budgetAssessment.estimatedMinimumTotalCents,current.budgetAssessment.currency)} no total. Esse valor não garante vendas.</p>}
       <div className="mga-launch-submit">
         {execution?<p role="status">{executionStates[execution.status]}</p>:approved?<p role="status">Aprovação registrada. Aguardando envio à Meta.</p>:unknown?<p role="status">Aguardando confirmação da aprovação. Consulte o estado antes de qualquer nova ação.</p>:<button type="button" data-action="approve-launch" disabled={busy||!entitled||!current.canApprove||!previewReady} onClick={()=>void approve()}>{busy?'Registrando aprovação…':'Aprovar e publicar'}</button>}
+        {recoveredApproval&&<p role="status">A confirmação da aprovação desta versão foi recuperada. Nenhuma nova aprovação é necessária.</p>}
         {(unknown||approved)&&<button type="button" className="mga-secondary" disabled={busy} onClick={()=>void consult()}>Consultar estado</button>}
         {!approved&&!unknown&&!current.canApprove&&budgetIssue&&onCorrectBudget&&<button type="button" className="mga-secondary" onClick={onCorrectBudget}>Corrigir verba</button>}
         {!approved&&!unknown&&!current.canApprove&&!budgetIssue&&setupIssue&&onSetup&&<button type="button" className="mga-secondary" onClick={onSetup}>Concluir conexão</button>}
