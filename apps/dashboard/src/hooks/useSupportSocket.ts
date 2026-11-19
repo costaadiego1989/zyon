@@ -5,7 +5,7 @@ import type { SupportMessageMetadata } from "@zyon/shared-types";
 export interface TicketMessage {
   id: string;
   ticketId: string;
-  senderType: "buyer" | "merchant";
+  senderType: "buyer" | "merchant" | "system";
   content: string;
   metadata?: SupportMessageMetadata | null;
   createdAt: string;
@@ -31,7 +31,10 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
   const [newTickets, setNewTickets] = useState<NewTicketEvent[]>([]);
 
   useEffect(() => {
+    setConnected(false);
+    setNewTickets([]);
     if (!merchantId) return;
+    let active = true;
 
     const base = apiBaseUrl.replace(/\/+$/, "");
     const socket = io(`${base}/support`, {
@@ -42,20 +45,23 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
     socketRef.current = socket;
 
     socket.on("authenticated", () => {
+      if (!active) return;
       setConnected(true);
       socket.emit("join_merchant", { merchantId });
       for (const ticketId of joinedTicketsRef.current) socket.emit("join_ticket", { ticketId });
     });
 
-    socket.on("disconnect", () => setConnected(false));
-    socket.on("connect_error", () => setConnected(false));
-    socket.on("error", () => setConnected(false));
+    socket.on("disconnect", () => { if (active) setConnected(false); });
+    socket.on("connect_error", () => { if (active) setConnected(false); });
+    socket.on("error", () => { if (active) setConnected(false); });
 
     socket.on("new_ticket", (ticket: NewTicketEvent) => {
+      if (!active) return;
       setNewTickets((prev) => [ticket, ...prev]);
     });
 
     return () => {
+      active = false;
       socket.disconnect();
       socketRef.current = null;
       joinedTicketsRef.current.clear();
@@ -90,6 +96,21 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
     [],
   );
 
+  // Existing server frames only: support.realtime.v1 and gateway authentication.
+  const onCaseUpdated = useCallback((handler: (event: { ticketId: string; status?: string }) => void) => {
+    const socket = socketRef.current;
+    if (!socket) return () => {};
+    socket.on("case_updated", handler);
+    return () => { socket.off("case_updated", handler); };
+  }, []);
+
+  const onConnected = useCallback((handler: () => void) => {
+    const socket = socketRef.current;
+    if (!socket) return () => {};
+    socket.on("authenticated", handler);
+    return () => { socket.off("authenticated", handler); };
+  }, []);
+
   const onTicketTransferred = useCallback(
     (handler: (event: TicketTransferredEvent) => void) => {
       const socket = socketRef.current;
@@ -110,6 +131,8 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
     leaveTicket,
     sendMessage,
     onNewMessage,
+    onCaseUpdated,
+    onConnected,
     onTicketTransferred,
   };
 }

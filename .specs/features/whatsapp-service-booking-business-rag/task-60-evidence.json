@@ -1,0 +1,463 @@
+{
+  "task": "T60",
+  "status": "COMPLETE_LOCAL_QUICK_UI_GREEN",
+  "complete": true,
+  "executed": 107,
+  "baseCommit": "d7a3601766da1d1bcef580d57981e23fdbf78b38",
+  "runtimeOwner": "Core; M returnedSUT immediately after whole38 natural0, FS/Git only",
+  "retainedOriginalCases": 7,
+  "retainedSources": [
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.spec.ts",
+      "source": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\phase8-post56-candidates-20261117\\files\\apps\\dashboard\\src\\pages\\whatsapp-seller\\useWhatsAppConversations.spec.ts",
+      "sha256": "f4583b45f6062f2844082c2feabe2370382466a2488a0e8b17283fe673a87026"
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/conversation-reconciliation.spec.ts",
+      "source": "C:\\tmp\\zyon-service-booking-admission-20261114\\.cache\\phase8-post56-candidates-20261117\\files\\apps\\dashboard\\src\\pages\\whatsapp-seller\\conversation-reconciliation.spec.ts",
+      "sha256": "7e6d660058de31ab972869a5b19c39298f2930e1b1bb856c0e92afbffbea6f8f"
+    }
+  ],
+  "nonadoptedDraft": "SDK GET undefined exact assertion is not a project oracle; unchanged research draft retained",
+  "gates": [
+    {
+      "status": "CAUSAL_RED_CONFIRMED_REAL_HOOK_REAL_SDK_SUCCESS200",
+      "receipt": ".cache/t60-intent-causal-20261118/receipt.json",
+      "receiptSha256": "7f85df18c1c2af3bada52e2fc4c8a917b5ef20ea88dae941ac491a64bca7d4f3",
+      "stdoutSha256": "c6cc9db625f5790772fa08b15a1b48ce827ed7559785b8867da8402c2ad1e3b7",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pid": 42564,
+      "exitCode": 1,
+      "naturalExit": true,
+      "counts": {
+        "numTotalTests": 3,
+        "numPassedTests": 1,
+        "numFailedTests": 2,
+        "numPendingTests": 0,
+        "numTodoTests": 0
+      },
+      "cause": "pending.current.delete(key) after fulfilled HTTP DTO discards unresolved original clientMessageId; manual same-text retry allocates a second ID for unknown/queued",
+      "failuresOnly": [
+        "intent-lifecycle.spec.ts:75 unknown200 retry ID comparison",
+        "intent-lifecycle.spec.ts:85 queued200 retry ID comparison"
+      ],
+      "control": "authoritative delivered/read permits new intentional ID passed; reconnect produced no POST",
+      "realModule": "useWhatsAppConversations986769f7 +actualSDK/dashboardJson, HTTPtransport200 only",
+      "sourceFixApplied": false,
+      "prior103AndSevenProductivesExact": true,
+      "runtimeReturnedToRoot": true,
+      "noAdditionalSUTOrProbeAfterReturn": true,
+      "proposedMinimalPolicy": "Keep queued/unknown unresolved intent ID (accepted conservatively remains pending); clear only a matching authoritative resolved intent after revision merge, never merely HTTP Promise resolution. Read reconnection has no send/retry. Delivered/read control is explicit; failed handling follows definitive domain evidence, not a guessed outcome."
+    },
+    {
+      "status": "QUICK_UI_GREEN_107_UNIQUE_ACROSS_EXACT_SOURCE_COHORTS",
+      "acceptedAcrossCohorts": 107,
+      "cohorts": [
+        {
+          "cases": 65,
+          "wholeFiles": 12,
+          "receipt": ".cache/t60-quick103-20261118/receipt.json",
+          "receiptSha256": "00242f100594126d2f125a03f9f7c01b83076feb6ce9b639d1d9d7b3e99b2d8e",
+          "stdoutSha256": "b20047ec54133e20093d31d3230864571d750de5a8ce0fa41ee5ec70a1a688be",
+          "note": "Only12 complete passedfiles retained; original failed38file superseded by whole38GREEN"
+        },
+        {
+          "cases": 38,
+          "wholeFiles": 1,
+          "receipt": ".cache/t60-legacy38-20261118/receipt.json",
+          "receiptSha256": "d6a88559305c71bf0a50f877b4a610905dbc3c56b208352d89f01fa771dd72fd",
+          "stdoutSha256": "3b3e6634b45045800e354b721b5395ad7e1de411ae5b030ff029c4e15da0fa64",
+          "naturalExit": true,
+          "exitCode": 0
+        },
+        {
+          "cases": 4,
+          "wholeFiles": 1,
+          "receipt": ".cache/t60-intent-causal-20261118/green4/receipt.json",
+          "receiptSha256": "0a8bfd88a09f5ad26de321cd98b51e65b5447708fab3040ebd5a6dc79071c4a6",
+          "stdoutSha256": "8d8ee243ce1304b2fb96b1be16d7267e1b7f49e0e1fbe8600a55b9e6d8c09c3f",
+          "naturalExit": true,
+          "exitCode": 0
+        }
+      ],
+      "sourceSha256": "2dfa6105ca9890078dc81cf5ba8ae350bf8c999757f2c4386a2d8c99c8ae4e6b",
+      "causalTestSha256": "60b9e09a6ecd1a529f2e03376b6af7074efa850453cdce9e39bc03e81edfcfc0",
+      "original103ByteExact": true,
+      "stateByteExact": true,
+      "originalRedRetained": true,
+      "originalTimeoutRetained": "5s first import deadline exceeded; delay cause unknown; no fix/timeout/preload/source change",
+      "skipOrTodo": 0,
+      "runtimeReturnedToCore": true,
+      "noBuildBrowserProviderProduction": true,
+      "selfCheck": "All new tests assert criterion-derived state/DTO/client identity and applicable negatives; original cases and expectations preserved; no skipped/deleted/weak assertions; no extra feature scope"
+    }
+  ],
+  "sourceReady": true,
+  "testInventory": {
+    "acceptedDistinctCases": 107,
+    "T60Cases": 35,
+    "unchangedPreservationCases": 72,
+    "wholeFiles": 14,
+    "sourceAndOriginalTestsPreserved": true,
+    "cohortReceipts": [
+      {
+        "cases": 65,
+        "wholeFiles": 12,
+        "receipt": ".cache/t60-quick103-20261118/receipt.json",
+        "receiptSha256": "00242f100594126d2f125a03f9f7c01b83076feb6ce9b639d1d9d7b3e99b2d8e",
+        "stdoutSha256": "b20047ec54133e20093d31d3230864571d750de5a8ce0fa41ee5ec70a1a688be",
+        "note": "Only12 complete passedfiles retained; original failed38file superseded by whole38GREEN"
+      },
+      {
+        "cases": 38,
+        "wholeFiles": 1,
+        "receipt": ".cache/t60-legacy38-20261118/receipt.json",
+        "receiptSha256": "d6a88559305c71bf0a50f877b4a610905dbc3c56b208352d89f01fa771dd72fd",
+        "stdoutSha256": "3b3e6634b45045800e354b721b5395ad7e1de411ae5b030ff029c4e15da0fa64",
+        "naturalExit": true,
+        "exitCode": 0
+      },
+      {
+        "cases": 4,
+        "wholeFiles": 1,
+        "receipt": ".cache/t60-intent-causal-20261118/green4/receipt.json",
+        "receiptSha256": "0a8bfd88a09f5ad26de321cd98b51e65b5447708fab3040ebd5a6dc79071c4a6",
+        "stdoutSha256": "8d8ee243ce1304b2fb96b1be16d7267e1b7f49e0e1fbe8600a55b9e6d8c09c3f",
+        "naturalExit": true,
+        "exitCode": 0
+      }
+    ]
+  },
+  "productiveFiles": [
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-types.ts",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-reconciliation.ts",
+    "apps/dashboard/src/pages/whatsapp-seller/conversation-actions.ts",
+    "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.ts",
+    "apps/dashboard/src/api/endpoints/whatsapp-conversations.ts",
+    "apps/dashboard/src/api/index.ts",
+    "apps/dashboard/src/hooks/useSupportSocket.ts"
+  ],
+  "testsFirst": {
+    "status": "ALL_TEST_SOURCES_WRITTEN_BEFORE_PRODUCTIVE_ADOPTION",
+    "tests": [
+      {
+        "path": "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.spec.ts",
+        "sha256": "f4583b45f6062f2844082c2feabe2370382466a2488a0e8b17283fe673a87026"
+      },
+      {
+        "path": "apps/dashboard/src/pages/whatsapp-seller/conversation-reconciliation.spec.ts",
+        "sha256": "7e6d660058de31ab972869a5b19c39298f2930e1b1bb856c0e92afbffbea6f8f"
+      },
+      {
+        "path": "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.lifecycle.spec.ts",
+        "sha256": "2488cb7b98e301679047d1fd8c4aed3579838c52bcb7f529c835fc6a9463078e"
+      },
+      {
+        "path": "apps/dashboard/src/pages/whatsapp-seller/conversation-actions.permissions.spec.ts",
+        "sha256": "d026bdef0f04ce555f8cba2cf0d93a19fefbcbc701e51965a81cbdcd027c995d"
+      },
+      {
+        "path": "apps/dashboard/src/api/endpoints/whatsapp-conversations.contract.spec.ts",
+        "sha256": "b825172f6a8c9421814d85379edabd9e7c0f8d75a0a6c26c2c71a7207918e1a2"
+      },
+      {
+        "path": "apps/dashboard/src/hooks/useSupportSocket.conversations.spec.ts",
+        "sha256": "54cf728419cf15b3f331952818883380a5a919f50dbd31c61ba470677213ea3c"
+      }
+    ],
+    "staticCases": 29,
+    "existingOriginal7ByteExact": true,
+    "productiveNewFilesAbsent": true,
+    "executed": 0,
+    "runtimeOwner": "Core35"
+  },
+  "currentFileDeltas": [
+    {
+      "path": "apps/dashboard/src/api/index.ts",
+      "beforeSha256": "395266308d652417786e7cbf218f9d50c52b12faf88c78d5a145a5c878a1f12b",
+      "afterSha256": "6af064a5d3b595b87268518b4a1449c8b340627a60b4ea3dc8220e240713edda",
+      "patchSha256": "4102e27bb2e46ea23ae15cc50f134bf5780debbf8de7a9d4fbce151ccb67779f",
+      "onlyAdditiveSdkOrExistingSocketFrameAndScopeCleanup": true
+    },
+    {
+      "path": "apps/dashboard/src/hooks/useSupportSocket.ts",
+      "beforeSha256": "94c143fc3c1c96afaf2374637e635f660698d60d2acec7492a4543e1acab4967",
+      "afterSha256": "bfa93023520026c1c11eb07870eba3a377fead02c5254d4ec038718041936c93",
+      "patchSha256": "cc8a87490d54457524e3ffdb8d521719308d79a016043fb4368d42f641cdb549",
+      "onlyAdditiveSdkOrExistingSocketFrameAndScopeCleanup": true
+    }
+  ],
+  "socketInverseRestoresOriginal": true,
+  "limitations": [
+    "Local QuickUI uses actualhook/SDK with syntheticHTTP/sockettransport; browser/native/provider/production not proven by this gate",
+    "T61 bound-conversation presentation and T62 Shell/tab mount remain pending",
+    "Staff403/privateconfig guards unchanged; verified3fieldcontext alone does not prove StaffShell access",
+    "Final criterion proofs/mutations/browser/screens/independentVerifier remainRoot after last task"
+  ],
+  "causalScope": {
+    "file": "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.intent-lifecycle.spec.ts",
+    "sha256": "3fd687976b9cd234045d1bbc8db3f6343b1f34d6844bb0385bca392487d09bf2",
+    "staticCases": 3,
+    "expectedRED": "unknown200 and queued200 original-client-ID comparisons only; delivered/read positive control passes",
+    "realSUT": "actual useWhatsAppConversations +whatsappConversationEndpoints +dashboardJson; only HTTP transport synthetic200",
+    "sourceFixApplied": false,
+    "prior103AndSevenProductivesUnchanged": true,
+    "executed": 0
+  },
+  "causalRED": {
+    "status": "CAUSAL_RED_CONFIRMED_REAL_HOOK_REAL_SDK_SUCCESS200",
+    "receipt": ".cache/t60-intent-causal-20261118/receipt.json",
+    "receiptSha256": "7f85df18c1c2af3bada52e2fc4c8a917b5ef20ea88dae941ac491a64bca7d4f3",
+    "stdoutSha256": "c6cc9db625f5790772fa08b15a1b48ce827ed7559785b8867da8402c2ad1e3b7",
+    "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pid": 42564,
+    "exitCode": 1,
+    "naturalExit": true,
+    "counts": {
+      "numTotalTests": 3,
+      "numPassedTests": 1,
+      "numFailedTests": 2,
+      "numPendingTests": 0,
+      "numTodoTests": 0
+    },
+    "cause": "pending.current.delete(key) after fulfilled HTTP DTO discards unresolved original clientMessageId; manual same-text retry allocates a second ID for unknown/queued",
+    "failuresOnly": [
+      "intent-lifecycle.spec.ts:75 unknown200 retry ID comparison",
+      "intent-lifecycle.spec.ts:85 queued200 retry ID comparison"
+    ],
+    "control": "authoritative delivered/read permits new intentional ID passed; reconnect produced no POST",
+    "realModule": "useWhatsAppConversations986769f7 +actualSDK/dashboardJson, HTTPtransport200 only",
+    "sourceFixApplied": false,
+    "prior103AndSevenProductivesExact": true,
+    "runtimeReturnedToRoot": true,
+    "noAdditionalSUTOrProbeAfterReturn": true,
+    "proposedMinimalPolicy": "Keep queued/unknown unresolved intent ID (accepted conservatively remains pending); clear only a matching authoritative resolved intent after revision merge, never merely HTTP Promise resolution. Read reconnection has no send/retry. Delivered/read control is explicit; failed handling follows definitive domain evidence, not a guessed outcome.",
+    "proposalSupersededBy": "sourceFixReady; accepted/failed are resolved submissions, actual UI status retained"
+  },
+  "currentSourceExecuted": 107,
+  "sourceFixReady": {
+    "status": "SOURCE_FIX_AND_CONTROL_READY_NO_GREEN_EXECUTION",
+    "source": {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.ts",
+      "beforeSha256": "986769f7714cb905efff327c8d39cd4fb4fabb2ecb420b8a4e61761020977e4e",
+      "afterSha256": "2dfa6105ca9890078dc81cf5ba8ae350bf8c999757f2c4386a2d8c99c8ae4e6b",
+      "patchSha256": "0b05389dd082d881bbdc2a18f0cdc714df5585c5f4a251738810516a421127cf"
+    },
+    "causalControl": {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/useWhatsAppConversations.intent-lifecycle.spec.ts",
+      "beforeThreeSha256": "3fd687976b9cd234045d1bbc8db3f6343b1f34d6844bb0385bca392487d09bf2",
+      "afterFourSha256": "60b9e09a6ecd1a529f2e03376b6af7074efa850453cdce9e39bc03e81edfcfc0",
+      "patchSha256": "d66b1a454c2df7abbadcd09627efbbe3096b65282ab232104796ea722fa55a26",
+      "removeOnlyNewMethodAndControlRestoresExactThreeBytes": true,
+      "casesStatic": 4
+    },
+    "original103FilesByteExact": true,
+    "pendingMapTypeStillStringToString": true,
+    "singleExistingRevisionAlgorithm": "mergeConversationMessages",
+    "existingStreamRefMirrorsItsCanonicalArray": true,
+    "clearStates": [
+      "accepted",
+      "delivered",
+      "read",
+      "failed"
+    ],
+    "keepStates": [
+      "queued",
+      "unknown",
+      "missing canonical status"
+    ],
+    "sourceFixExecuted": false,
+    "expectedNextScopes": "whole causal4 GREEN then original103 once, no aggregate107 replay",
+    "inversePatches": {
+      "source-inverse.patch": "b3f43eb48fe11818e5545652f1cea94698614422e4c0e22c6624004344491993",
+      "control-inverse.patch": "912ec0bab98690edd0500834bf80b386dbdfdcef2185bd1492cde6e9e83f7ce1"
+    },
+    "priorCausalThreeOraclesByteExact": true,
+    "otherSixProductiveFilesByteExact": true,
+    "canonicalTruth": "Existing stream ref stores the array returned by existing mergeConversationMessages; no status ledger",
+    "approvalNeeded": false,
+    "runtimeExecuted": false
+  },
+  "causalGREEN": {
+    "receipt": ".cache/t60-intent-causal-20261118/green4/receipt.json",
+    "receiptSha256": "0a8bfd88a09f5ad26de321cd98b51e65b5447708fab3040ebd5a6dc79071c4a6",
+    "stdoutSha256": "8d8ee243ce1304b2fb96b1be16d7267e1b7f49e0e1fbe8600a55b9e6d8c09c3f",
+    "counts": {
+      "numTotalTests": 4,
+      "numPassedTests": 4,
+      "numFailedTests": 0,
+      "numPendingTests": 0,
+      "numTodoTests": 0
+    },
+    "pid": 4424,
+    "naturalExit": true,
+    "exitCode": 0,
+    "original103ByteExact": true,
+    "runtimeReturnedToCore": true,
+    "remainingGate": "original103 once; no aggregate107 replay"
+  },
+  "quick103RED": {
+    "receipt": ".cache/t60-quick103-20261118/receipt.json",
+    "receiptSha256": "00242f100594126d2f125a03f9f7c01b83076feb6ce9b639d1d9d7b3e99b2d8e",
+    "stdoutSha256": "b20047ec54133e20093d31d3230864571d750de5a8ce0fa41ee5ec70a1a688be",
+    "counts": {
+      "numTotalTests": 103,
+      "numPassedTests": 102,
+      "numFailedTests": 1,
+      "numPendingTests": 0,
+      "numTodoTests": 0
+    },
+    "naturalExit": true,
+    "exitCode": 1,
+    "pid": 13612,
+    "sourceAndOriginal103Exact": true,
+    "runtimeReturnedToRoot": true,
+    "soleFailure": "support-settings-page.spec.tsx:31 first dynamic page import/export assertion",
+    "observedFailure": "Original5s deadline exceeded during first dynamic page import,5042.951ms; underlying delay cause unknown",
+    "preservedCausal4": "4/4green receipt0a8bfd88; no rerun",
+    "testOrSourceChangesAfterFailure": false,
+    "sourceClassification": {
+      "classification": "Original5s test deadline exceeded during first dynamic page import",
+      "evidence": "Root inspected installed Vitest chunk-hooks.js:638 STACK_TRACE_ERROR construction and makeTimeoutError reuse; raw duration5042.951ms and37following cases passed",
+      "delayCause": "unknown; no RAM/cold-cache attribution",
+      "unchanged": "test/source/timeout/preload",
+      "nextScope": "only original whole support-settings-page.spec.tsx38; retain other65 and causal4, no103 replay",
+      "runtime": "Await explicit handover; no SUT/probe now"
+    }
+  },
+  "acceptedAcrossCohorts": 107,
+  "actualInvocationsTestExecutions": 148,
+  "acceptedGate": {
+    "status": "QUICK_UI_GREEN_107_UNIQUE_ACROSS_EXACT_SOURCE_COHORTS",
+    "acceptedAcrossCohorts": 107,
+    "cohorts": [
+      {
+        "cases": 65,
+        "wholeFiles": 12,
+        "receipt": ".cache/t60-quick103-20261118/receipt.json",
+        "receiptSha256": "00242f100594126d2f125a03f9f7c01b83076feb6ce9b639d1d9d7b3e99b2d8e",
+        "stdoutSha256": "b20047ec54133e20093d31d3230864571d750de5a8ce0fa41ee5ec70a1a688be",
+        "note": "Only12 complete passedfiles retained; original failed38file superseded by whole38GREEN"
+      },
+      {
+        "cases": 38,
+        "wholeFiles": 1,
+        "receipt": ".cache/t60-legacy38-20261118/receipt.json",
+        "receiptSha256": "d6a88559305c71bf0a50f877b4a610905dbc3c56b208352d89f01fa771dd72fd",
+        "stdoutSha256": "3b3e6634b45045800e354b721b5395ad7e1de411ae5b030ff029c4e15da0fa64",
+        "naturalExit": true,
+        "exitCode": 0
+      },
+      {
+        "cases": 4,
+        "wholeFiles": 1,
+        "receipt": ".cache/t60-intent-causal-20261118/green4/receipt.json",
+        "receiptSha256": "0a8bfd88a09f5ad26de321cd98b51e65b5447708fab3040ebd5a6dc79071c4a6",
+        "stdoutSha256": "8d8ee243ce1304b2fb96b1be16d7267e1b7f49e0e1fbe8600a55b9e6d8c09c3f",
+        "naturalExit": true,
+        "exitCode": 0
+      }
+    ],
+    "sourceSha256": "2dfa6105ca9890078dc81cf5ba8ae350bf8c999757f2c4386a2d8c99c8ae4e6b",
+    "causalTestSha256": "60b9e09a6ecd1a529f2e03376b6af7074efa850453cdce9e39bc03e81edfcfc0",
+    "original103ByteExact": true,
+    "stateByteExact": true,
+    "originalRedRetained": true,
+    "originalTimeoutRetained": "5s first import deadline exceeded; delay cause unknown; no fix/timeout/preload/source change",
+    "skipOrTodo": 0,
+    "runtimeReturnedToCore": true,
+    "noBuildBrowserProviderProduction": true,
+    "selfCheck": "All new tests assert criterion-derived state/DTO/client identity and applicable negatives; original cases and expectations preserved; no skipped/deleted/weak assertions; no extra feature scope"
+  },
+  "initialSourceInventory": {
+    "status": "SOURCE_ONLY_WHOLE_FILES_STATIC_INVENTORY",
+    "files": [
+      {
+        "file": "src/pages/whatsapp-seller/useWhatsAppConversations.spec.ts",
+        "staticCases": 3,
+        "sha256": "f4583b45f6062f2844082c2feabe2370382466a2488a0e8b17283fe673a87026",
+        "kind": "T60"
+      },
+      {
+        "file": "src/pages/whatsapp-seller/conversation-reconciliation.spec.ts",
+        "staticCases": 4,
+        "sha256": "7e6d660058de31ab972869a5b19c39298f2930e1b1bb856c0e92afbffbea6f8f",
+        "kind": "T60"
+      },
+      {
+        "file": "src/pages/whatsapp-seller/useWhatsAppConversations.lifecycle.spec.ts",
+        "staticCases": 13,
+        "sha256": "88fa7b2da769d713b166eb870fc12e9bddab484ddc7ed13a702306b782451fbd",
+        "kind": "T60"
+      },
+      {
+        "file": "src/pages/whatsapp-seller/conversation-actions.permissions.spec.ts",
+        "staticCases": 3,
+        "sha256": "d026bdef0f04ce555f8cba2cf0d93a19fefbcbc701e51965a81cbdcd027c995d",
+        "kind": "T60"
+      },
+      {
+        "file": "src/api/endpoints/whatsapp-conversations.contract.spec.ts",
+        "staticCases": 4,
+        "sha256": "b825172f6a8c9421814d85379edabd9e7c0f8d75a0a6c26c2c71a7207918e1a2",
+        "kind": "T60"
+      },
+      {
+        "file": "src/hooks/useSupportSocket.conversations.spec.ts",
+        "staticCases": 4,
+        "sha256": "1a87c21dd60e04799d2a770bd7c826cdc2a14d67c7a86f080a90eb99c72cf0dd",
+        "kind": "T60"
+      },
+      {
+        "file": "src/api-client.spec.ts",
+        "staticCases": 19,
+        "sha256": "abbbe43091c07b1afef39b34aca18bfbd0ef4462b4feaef8c15dd7177a7cd1ce",
+        "kind": "unchanged-preservation"
+      },
+      {
+        "file": "src/api/http/client.spec.ts",
+        "staticCases": 3,
+        "sha256": "e5c91739eb82058eff4c021a8d9cdd74fa5ec6eec6f5bc8dfc424fd9bb0eb4c0",
+        "kind": "unchanged-preservation"
+      },
+      {
+        "file": "src/api/http/session-fetch.spec.ts",
+        "staticCases": 5,
+        "sha256": "136aa1a8ec33a95b063c32e84fdfc4225e5ecf80b9ad1cdd443bf2a646738d62",
+        "kind": "unchanged-preservation"
+      },
+      {
+        "file": "src/pages/support-settings-page.spec.tsx",
+        "staticCases": 38,
+        "sha256": "e5b96fe814f1646413ad3da460c66e3bce4d59228752e7d3b1f6013a34aca333",
+        "kind": "unchanged-preservation"
+      },
+      {
+        "file": "src/api/endpoints/catalog.spec.ts",
+        "staticCases": 2,
+        "sha256": "a2e3130ac72f2ce976149bbca60351f25686127a45f4b6cace9f68827d9dc275",
+        "kind": "unchanged-preservation"
+      },
+      {
+        "file": "src/api/endpoints/order.spec.ts",
+        "staticCases": 2,
+        "sha256": "418115a09cc1732feb1f850e3605507eecd6685bb01b3297d40ae31df36df1fc",
+        "kind": "unchanged-preservation"
+      },
+      {
+        "file": "src/api/endpoints/checkout-settings.spec.ts",
+        "staticCases": 3,
+        "sha256": "7b9960b903bdb40f4b02a38b98aaa3254a69e52c34eef126a023a3194c943737",
+        "kind": "unchanged-preservation"
+      }
+    ],
+    "proposedCasesStatic": 103,
+    "T60CasesStatic": 31,
+    "unchangedCasesStatic": 72,
+    "wholeFiles": 13,
+    "executed": 0,
+    "noNameFilterOrSkip": true,
+    "runtimeOwner": "Core35",
+    "command": "pnpm --dir apps/dashboard exec vitest run src/pages/whatsapp-seller/useWhatsAppConversations.spec.ts src/pages/whatsapp-seller/conversation-reconciliation.spec.ts src/pages/whatsapp-seller/useWhatsAppConversations.lifecycle.spec.ts src/pages/whatsapp-seller/conversation-actions.permissions.spec.ts src/api/endpoints/whatsapp-conversations.contract.spec.ts src/hooks/useSupportSocket.conversations.spec.ts src/api-client.spec.ts src/api/http/client.spec.ts src/api/http/session-fetch.spec.ts src/pages/support-settings-page.spec.tsx src/api/endpoints/catalog.spec.ts src/api/endpoints/order.spec.ts src/api/endpoints/checkout-settings.spec.ts"
+  }
+}

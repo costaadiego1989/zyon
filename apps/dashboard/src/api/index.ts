@@ -8,6 +8,7 @@ import { authEndpoints } from "./endpoints/auth.js";
 import { merchantEndpoints } from "./endpoints/merchants.js";
 import { checkoutSettingsEndpoints } from "./endpoints/checkout-settings.js";
 import { supportEndpoints } from "./endpoints/support.js";
+import { whatsappConversationEndpoints } from "./endpoints/whatsapp-conversations.js";
 import { otherEndpoints } from "./endpoints/other.js";
 import { catalogEndpoints } from "./endpoints/catalog.js";
 import { productContentEndpoints } from "./endpoints/product-content.js";
@@ -80,6 +81,7 @@ export function createDashboardApi(options: {
     ...merchantEndpoints(base, f),
     ...checkoutSettingsEndpoints(base, f),
     ...supportEndpoints(base, f),
+    ...whatsappConversationEndpoints(base, f),
     ...webhookEndpoints(base, f),
     ...orderEndpoints(base, f),
     ...customerEndpoints(base, f),
