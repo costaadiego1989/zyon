@@ -9,6 +9,7 @@ import { AssistantService } from './assistant.service.js';
 
 const answer = (reply: string, referenceIds: string[] = []): AssistantModelResult => ({ reply, referenceIds, toolCalls: [], providerRequestId: 'req-a', costMicros: 20n });
 const tools = (name: string, args: Record<string, unknown>): AssistantModelResult => ({ ...answer(''), reply: null, toolCalls: [{ id: 'call-a', name, args }] });
+test('ACJ-01 a common campaign typo still starts with one destination question and no inventory',async()=>{const f=await fixture(()=>answer('Quais produtos, objetivo e orçamento?'));try{await f.message('quero criar uma camapnha');const response=await f.process();assert.match(response.reply,/loja.*WhatsApp/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
 
 test('ACF-05 a known malformed reply after a captured destination continues safely without replaying the model',async()=>{const f=await fixture(()=>{throw new AssistantError('assistant_model_response_invalid',502);});try{
   f.conversations.turns=async()=>({turns:[{...f.turn,id:'start',ordinal:0,message:'quero criar uma campanha',reply:'Prefere loja ou WhatsApp?',status:'completed' as const}],nextCursor:null});

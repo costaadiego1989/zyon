@@ -26,8 +26,8 @@ export function receiveBriefingAnswer(previous:AssistantCampaignProgress|null,me
   const memory=progress.briefing??={},draft=progress.draft,budget={...(draft.budget?{amountCents:draft.budget.amountCents,cadence:draft.budget.cadence,startsAt:draft.budget.startsAt,endsAt:draft.budget.endsAt}:{}),...memory.budget},answers={...memory.answers},value=normalizeAnswer(message),next=briefingChecklist(progress).next;
   const priorBudget=JSON.stringify(budget);
   let recognized=false;
-  if(/^(na loja|loja|pelo site|no site|site|pela loja)$/.test(value)){draft.destination='store';answers.destination=message;recognized=true;}
-  if(/^(whatsapp|no whatsapp|pelo whatsapp|wpp|zap)$/.test(value)){draft.destination='whatsapp';answers.destination=message;recognized=true;}
+  if(/^(?:(?:quero|prefiro) )?(?:(?:vender|comprar) (?:na|pela) )?(?:na loja|loja(?: online)?|pelo site|no site|site|pela loja)$/.test(value)){draft.destination='store';answers.destination=message;recognized=true;}
+  if(/^(?:(?:quero|prefiro) )?(?:receber clientes (?:no|pelo) |conversar (?:no|pelo) |no |pelo )?(?:whats ?app|wpp|zap)$/.test(value)){draft.destination='whatsapp';answers.destination=message;recognized=true;}
   if(/^(mais vendas|vender mais|quero mais vendas|vendas pagas)$/.test(value)){draft.priority='paid_sales';answers.priority=message;recognized=true;}
   if(/^(gastar menos por compra|custo por compra)$/.test(value)){draft.priority='cost_per_purchase';answers.priority=message;recognized=true;}
   if(/^(mais retorno|retorno por real investido|roas)$/.test(value)){draft.priority='roas';answers.priority=message;recognized=true;}

@@ -54,7 +54,7 @@ const normalizedText=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u0
 const destinationQuestion='Vamos começar pelo destino do anúncio. Você prefere vender pela loja ou receber clientes no WhatsApp?';
 const productScopeQuestion='Você quer anunciar um produto específico ou escolher uma categoria do catálogo da loja?';
 function genericCampaignRequest(message:string){
-  const value=normalizedText(message).replace(/[.!?,;:]/g,' ');
+  const value=normalizedText(message).replace(/\b(?:camapnha|campnha|capanha)\b/g,'campanha').replace(/[.!?,;:]/g,' ');
   if(!/\b(criar|crie|fazer|faca|montar|monte|preparar|prepare|anunciar|anuncie)\b/.test(value)||!/\b(anuncio|anuncios|campanha|campanhas|anunciar|anuncie)\b/.test(value))return false;
   const genericWords=new Set('oi ola eu quero gostaria preciso poderia pode voce me ajude ajudar de em um uma o a os as anuncio anuncios campanha campanhas criar crie fazer faca montar monte preparar prepare anunciar anuncie para mim dos das da do meus minhas minha meu produtos produto loja por favor vamos'.split(' '));
   return value.split(/\s+/).filter(Boolean).every(word=>genericWords.has(word));
