@@ -18,6 +18,12 @@ export type DirectoryEstablishment = Pick<CompanyRecord, "cnpj" | "baseCnpj" | "
 export type DirectoryDecodedRow = { kind: "entity"; value: DirectoryEntity } | { kind: "establishment"; value: DirectoryEstablishment } | { kind: "tax"; value: { baseCnpj: string; simples: boolean | null; mei: boolean | null } } | { kind: "domain"; value: { kind: string; code: string; label: string } } | { kind: "rejected"; errorCode: string };
 export interface PreparedDirectoryArchive { fileHash: string; compressedBytes: number; rows(): AsyncIterable<DirectoryDecodedRow>; close(): Promise<void> }
 export interface DirectoryArchivePort { prepare(resource: import("@zyon/shared-types").CompanySourceResource): Promise<PreparedDirectoryArchive> }
+export interface DirectoryReadPort {
+  activeSnapshotId():Promise<string|null>;
+  readPage(snapshotId:string,filters:import("@zyon/shared-types").CompanyFilters,afterCnpj:string|null,limit:number):Promise<{items:CompanyRecord[];count:number;competence:string}>;
+  find(cnpj:string,snapshotId?:string):Promise<CompanyRecord|null>;
+  domains(query:import("@zyon/shared-types").CompanyDomainQuery):Promise<import("@zyon/shared-types").CompanyDomainResult>;
+}
 export interface DirectoryImportRepositoryPort {
   saveManifest(manifest: CompanyManifest): Promise<CompanyImportStatus>;
   getImport(id: string): Promise<CompanyImportStatus | null>;
@@ -37,6 +43,7 @@ export interface CompanyDirectoryPort {
   getImport(id: string): Promise<CompanyImportStatus | null>;
   commitBatch(batch: DirectoryBatch): Promise<{ committed: number; replay: boolean }>;
   publish(snapshotId: string, expectedActiveSnapshotId: string | null): Promise<void>;
+  domains(query:import("@zyon/shared-types").CompanyDomainQuery):Promise<import("@zyon/shared-types").CompanyDomainResult>;
 }
 export interface ProspectRepositoryPort {
   add(command: AddProspectsCommand, actor: ProspectingActor): Promise<AddProspectsResult>;

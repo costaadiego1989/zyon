@@ -1,13 +1,28 @@
 import { createHash } from "node:crypto";
 import { Prisma, type PrismaClient } from "../../../../../node_modules/.prisma/company-directory/index.js";
-import type { CompanyImportStatus, CompanyManifest, CompanySnapshotState } from "@zyon/shared-types";
+import type { CompanyImportStatus, CompanyManifest, CompanySnapshotState,CompanySearchQuery,CompanyFilters,CompanyDomainQuery,CompanyDomainResult } from "@zyon/shared-types";
 import type { DirectoryBatch, DirectoryImportRepositoryPort, PreparedDirectoryArchive } from "../../domain/prospecting.ports.js";
 import { assertCompleteDirectoryManifest } from "../../domain/company-directory/directory-manifest.js";
 import { canonicalCnpj } from "../../domain/company-directory/cnpj.js";
 import { normalizeDirectoryText, stableDirectoryJson } from "../../domain/company-directory/directory-values.js";
+import { validateCompanyFilters,validateCompanyDomainQuery } from "../../domain/company-directory/company-filters.js";
+import { SearchCompaniesQuery } from "../../application/company-directory/search-companies.query.js";
+import { readDirectoryPage } from "./directory-search.sql.js";
 
 export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort {
-  constructor(readonly client: PrismaClient) {}
+  constructor(readonly client: PrismaClient,private readonly cursorHmacKey?:string) {}
+  async activeSnapshotId():Promise<string|null>{return (await this.client.companyDirectoryActiveSnapshot.findUnique({where:{id:"national"}}))?.snapshotId??null;}
+  search(query:CompanySearchQuery){return new SearchCompaniesQuery(this,this.cursorHmacKey??"").execute(query);}
+  readPage(snapshotId:string,filters:CompanyFilters,afterCnpj:string|null,limit:number){return readDirectoryPage(this.client,snapshotId,validateCompanyFilters(filters),afterCnpj,limit);}
+  async find(cnpj:string,snapshotId?:string){const id=snapshotId??await this.activeSnapshotId();if(!id)throw new Error("directory_unavailable");return (await this.readPage(id,{cnpj:canonicalCnpj(cnpj)},null,1)).items[0]??null;}
+  async domains(query:CompanyDomainQuery):Promise<CompanyDomainResult>{
+    const validated=validateCompanyDomainQuery(query);const snapshotId=validated.snapshotId??await this.activeSnapshotId();if(!snapshotId)throw new Error("directory_unavailable");
+    return this.client.$transaction(async tx=>{
+      const snapshot=await tx.companySnapshot.findUnique({where:{id:snapshotId}});if(!snapshot||snapshot.state!=="published")throw new Error("snapshot_unavailable");
+      const result=await tx.sourceDomain.findMany({where:{snapshotId,kind:validated.kind,...(validated.afterCode?{code:{gt:validated.afterCode}}:{}),...(validated.search?{OR:[{code:{startsWith:validated.search}},{label:{contains:validated.search,mode:"insensitive"}}]}:{})},select:{kind:true,code:true,label:true},orderBy:{code:"asc"},take:validated.limit!+1});
+      return {snapshotId,competence:snapshot.competence,items:result.slice(0,validated.limit),nextCursor:result.length>validated.limit!?result[validated.limit!-1].code:null};
+    },{isolationLevel:"RepeatableRead"});
+  }
   async saveManifest(manifest: CompanyManifest): Promise<CompanyImportStatus> {
     if (!manifest.resources.length || manifest.resources.some(r=>r.competence!==manifest.competence) || new Set(manifest.resources.map(r=>r.id)).size!==manifest.resources.length) throw new Error("manifest_invalid");
     const snapshot = await this.client.companySnapshot.upsert({where:{competence_manifestHash:{competence:manifest.competence,manifestHash:manifest.hash}},update:{},create:{id:manifest.id,competence:manifest.competence,manifestHash:manifest.hash,manifest:manifest as unknown as Prisma.InputJsonValue,parserVersion:manifest.parserVersion,sourceUrl:manifest.resources[0].url,files:{create:manifest.resources.map(r=>({resourceId:r.id,family:r.family,url:r.url,etag:r.etag,lastModified:r.lastModified,encoding:"win1252"}))}}});
