@@ -33,6 +33,7 @@ import { parseTwilioInbound } from "../../infrastructure/adapters/twilio-webhook
 import { twilioWhatsAppCallbackUrl, twilioOperatorStatusRequestUrl } from "../../domain/services/public-url.js";
 import { readTwilioReceiptForm, parseTwilioOperatorReceipt } from "../../domain/services/whatsapp-operator-receipt.js";
 import { WhatsAppSupportDeliveryService } from "../../application/services/whatsapp-support-delivery.service.js";
+import { SupportCaseAlertDeliveryService } from "../../../support/application/services/support-case-alert-delivery.service.js";
 
 interface BubbleWhatsMessagePayload {
   id: string;
@@ -102,6 +103,7 @@ export class WhatsAppWebhookController {
     @Optional() private readonly delivery?: WhatsAppDeliveryService,
     @Optional() private readonly metaStatus?: HandleStatusUpdateUseCase,
     @Optional() private readonly supportDelivery?: WhatsAppSupportDeliveryService,
+    @Optional() private readonly staffAlertDelivery?: SupportCaseAlertDeliveryService,
   ) {}
 
   @Get("meta")
@@ -149,6 +151,8 @@ export class WhatsAppWebhookController {
           await this.delivery.reconcileMeta(config.merchantId, config.id, status);
           if (this.supportDelivery) await this.supportDelivery.reconcileMeta(config, phoneNumberId, status);
           else if (status.biz_opaque_callback_data?.startsWith("support_message:")) throw new ServiceUnavailableException("whatsapp_support_receipts_not_configured");
+          if (this.staffAlertDelivery) await this.staffAlertDelivery.reconcileMeta(config, phoneNumberId, status);
+          else if (status.biz_opaque_callback_data?.startsWith("support_case_alert:")) throw new ServiceUnavailableException("whatsapp_staff_alert_receipts_not_configured");
         }
         for (const status of change.value?.statuses ?? []) {
           if (!status.id || !status.status) continue;
@@ -181,7 +185,7 @@ export class WhatsAppWebhookController {
             ...(message.interactive?.nfm_reply?.response_json ? { flowResponse: this.metaFlowResponse(message.interactive.nfm_reply.response_json) } : {}),
             messageType: message.type ?? "text",
             timestamp: Number(message.timestamp ?? 0) * 1000 || Date.now(),
-          });
+          }, { provider: "META_CLOUD", accountId: phoneNumberId });
         }
       }
     }
@@ -258,8 +262,8 @@ export class WhatsAppWebhookController {
     const configId = query.get("configId"), correlationId = query.get("correlationId");
     if (entries.length !== 2 || query.getAll("configId").length !== 1 || query.getAll("correlationId").length !== 1
       || !configId || configId.length > 1024 || configId.trim() !== configId || /[\u0000-\u001f\u007f]/.test(configId)
-      || !correlationId || correlationId.length > 1024 || !correlationId.startsWith("support_message:")
-      || correlationId.length <= "support_message:".length || /[\s\u0000-\u001f\u007f]/.test(correlationId))
+      || !correlationId || correlationId.length > 1024 || !(correlationId.startsWith("support_message:") && correlationId.length > "support_message:".length
+        || /^support_case_alert:[a-f0-9]{64}$/.test(correlationId)) || /[\s\u0000-\u001f\u007f]/.test(correlationId))
       throw new BadRequestException("invalid_twilio_status_scope");
     const config = await this.configRepo.findById(configId);
     if (!config || config.provider !== "TWILIO") throw new UnauthorizedException("invalid_twilio_account");
@@ -270,8 +274,13 @@ export class WhatsAppWebhookController {
     const receipt = parseTwilioOperatorReceipt(form);
     if (!receipt) throw new BadRequestException("invalid_twilio_status");
     if (receipt.providerAccountId !== config.credentials.accountSid) throw new UnauthorizedException("invalid_twilio_account");
-    if (!this.supportDelivery) throw new ServiceUnavailableException("whatsapp_support_receipts_not_configured");
-    await this.supportDelivery.reconcile(config, { ...receipt, correlationId });
+    if (correlationId.startsWith("support_case_alert:")) {
+      if (!this.staffAlertDelivery) throw new ServiceUnavailableException("whatsapp_staff_alert_receipts_not_configured");
+      await this.staffAlertDelivery.reconcile(config, { ...receipt, correlationId });
+    } else {
+      if (!this.supportDelivery) throw new ServiceUnavailableException("whatsapp_support_receipts_not_configured");
+      await this.supportDelivery.reconcile(config, { ...receipt, correlationId });
+    }
     return "";
   }
 
@@ -309,7 +318,8 @@ export class WhatsAppWebhookController {
       mediaUrl: normalized.mediaUrl,
       mimetype: normalized.mimetype,
       timestamp: normalized.timestamp,
-    });
+    }, ...(typeof body.AccountSid === "string" && body.AccountSid === config.credentials.accountSid
+      ? [{ provider: "TWILIO", accountId: body.AccountSid, sender: normalized.toNumber }] as const : [] as const));
     return "";
   }
 }

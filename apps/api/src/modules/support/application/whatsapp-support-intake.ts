@@ -6,6 +6,7 @@ import type { HandoffScope } from "../../whatsapp-channel/domain/services/whatsa
 import { whatsappE164 } from "../../whatsapp-channel/domain/services/whatsapp-phone.js";
 import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
 import { appendSupportEvent, lockSupportResource, persistSupportMessage } from "./support-persistence.js";
+import { enqueueStaffAlertWithin } from "./support-case-alert-state.js";
 
 export const WHATSAPP_HANDOFF_ACK = "🤝 *Atendimento humano solicitado*\n\nSeu pedido foi registrado. A equipe responderá por aqui assim que estiver disponível. Seu carrinho está preservado.";
 
@@ -74,6 +75,7 @@ export async function persistWhatsAppSupportIntake(bindings: PrismaWhatsAppHando
         inboxId: input.inboxId, origin: input.origin, epoch: transition.state.epoch,
         ...(appointment ? { appointmentId: appointment.id, policyVersion: appointment.policyVersion } : {}),
       } });
+    if (created) await enqueueStaffAlertWithin(tx, transition.state);
     return { created, ticketId: ticket.id, messageId: message.id, binding: transition.state,
       ticket: { id: ticket.id, merchantId: ticket.merchantId, sessionId: session.id, buyerMessage: ticket.buyerMessage,
         source: "whatsapp" as const, status: ticket.status === "in_progress" ? "in_progress" as const : "open" as const,

@@ -365,7 +365,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | CAT-04 | Professional links in service editor | T106, T76 | Pending |
 | CAT-05 | Advanced-rules UI follows existing plan entitlement | T107 | Complete LOCAL;70components +3actual browser/nativecleanup, types/lint/build, six Root-reviewed native captures; policy unchanged |
 | HUM-09 | Private support fallback recipient | T99, T101 | In Progress (T99 private API/schema/persistence complete locally; T101 UI pending) |
-| HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Pending; channel confirmed2026-11-16 |
+| HUM-10 | Durable staff WhatsApp case alert | T100, T101 | In Progress (T100 durable private alert complete locally with Full346; T101 UI and final verification pending) |
 | ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-13 | Fixed timezone UI without a chooser | T113 | Pending; explicit user decision2026-11-18 |
@@ -445,3 +445,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 
 **T39 local closure 2026-11-20T03:14:30.991751+00:00**: Full322 current contextual executions GREEN, no skips;188historical retained outside322. OwnRoot eaeb72bd/f9e2ff73/2589 and allheaders0, freshlint36d06a40, approved176 rawbf42744b/cleanup0/provider0/duration165319ms. Duration was beloworiginal180 too; no causalclaimthatbudgetfixresolvedslowness. Source8 7edbf80b and alloriginal7inputs exact. Approved local presentation call62b86875 and parent300 call69d9fe48 preserved. Code/queries/writer/transport/stock boundaries held; no realprovider/production/wholefeaturecomplete claim. Taskmarked beforefocusedcommit.
+
+
+**Approved T100 test expectations, consumed once**: 2026-11-19 - user: "Corrigir somente essas expectativas (recomendado)" (call_74bc4d7bea2948fd88d4d5e23b2795ea), exactpatch2d64d81c: only two null expectations and removal of arbitrary5511fragment; both full phone/privacy assertions remain. 2026-11-19 - user: "Corrigir somente o novo caso privado" (call_8b8b2307a0284388b16a518d8102e51e), exactpatch63401404: only expanded support_case_alert negative; all46 cases and other45 bodies/assertions/titleoutputs preserved. API was not changed by these oracle corrections; both were applied ONCE before their green gates.
+
+**T100 local Full closure 2026-11-20T04:37:18.954805+00:00**: Exact28 V3inputs40c451f5 adopted without borrowed client/dist/stamp; currentRoot76 +native46 +products224 =346 passed, no skips. Own e34a051e/5fb2dc67/2593 and all APIheaders0. Recordrefusal and admit-launcher failure preserved, successful compiler never repeated. Linear runtime comparison2683exact, only Root39consumer changed+formatter added; qualified M201/M138 outside346. Original protected inbox9 and40deliveries/20claimants retained with source/harness pins. Approved parent300 baseline fromT39 only; widget286798ms, no SLA/causality claim. Provider0/cleanup0, no production action. Task marked before focused local commit; T101/final feature verification pending.

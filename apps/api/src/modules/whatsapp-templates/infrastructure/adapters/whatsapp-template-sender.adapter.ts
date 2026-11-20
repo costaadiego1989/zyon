@@ -18,6 +18,8 @@ import { currentWhatsAppSubmissionScope, startWhatsAppRequest } from "../../../.
 import { operatorConnection } from "../../../whatsapp-channel/domain/services/whatsapp-operator-connection.js";
 
 import { withServiceNoticeTransport, type ServiceNoticeTransportProof } from "../../../notifications/application/ports/notification-whatsapp-sender.port.js";
+import { staffTemplateSnapshot } from "../../../support/domain/support-case-alert.js";
+import { canonicalJson } from "../../../../shared/http/canonical-json.js";
 
 const GRAPH = "https://graph.facebook.com/v23.0";
 
@@ -33,6 +35,7 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
   ) {}
 
   async sendTemplate(input: TemplateSendInput): Promise<TemplateSendResult> {
+    if (input.type === "support_case_alert") return this.sendStaffAlert(input);
     if (input.type === "service_appointment_notice" && !currentWhatsAppSubmissionScope()) return { messageId: "", status: "skipped", reason: "service_notice_submission_required" };
     if (!input.type) return { messageId: "", status: "skipped", reason: "template_type_required" };
     let serviceProof: ServiceNoticeTransportProof | undefined;
@@ -119,6 +122,41 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
       return { messageId: "", status: "failed", acceptance: "not_accepted", reason: `meta_http_${response.status}` };
     }
     return { messageId: "", status: "uncertain", reason: "provider_acceptance_unknown" };
+  }
+
+  private async sendStaffAlert(input: TemplateSendInput): Promise<TemplateSendResult> {
+    const original = currentWhatsAppSubmissionScope();
+    if (!original) return { status: "skipped", messageId: "", reason: "staff_alert_submission_required" };
+    if (original.merchantId !== input.merchantId || original.provider !== "META_CLOUD" || original.messageId !== input.correlationId
+      || !/^support_case_alert:[a-f0-9]{64}$/.test(input.correlationId ?? "") || original.recipient !== input.toNumber || !original.accountId)
+      return { status: "skipped", messageId: "", reason: "staff_alert_scope_mismatch" };
+    const config = await this.configRepo?.findById(original.configId), credentials = connectedMetaCloudCredentials(config, input.merchantId);
+    if (!config || !credentials) return { status: "skipped", messageId: "", reason: "meta_connection_unavailable" };
+    const connection = operatorConnection(config, { merchantId: original.merchantId, configId: original.configId, deviceId: original.deviceId,
+      provider: original.provider, accountId: original.accountId, recipient: input.toNumber });
+    if (connection.kind !== "ready" || canonicalJson({ ...connection.scope, messageId: input.correlationId }) !== canonicalJson(original))
+      return { status: "skipped", messageId: "", reason: "channel_context_changed" };
+    const template = staffTemplateSnapshot(await this.templates?.findByMerchantAndType(input.merchantId, "support_case_alert", "whatsapp"), input.merchantId, credentials.wabaId, new Date());
+    if (!template || template.contentSid !== input.contentSid || template.language !== input.language
+      || Object.keys(input.contentVariables).length !== 2 || !["1", "2"].every(key => typeof input.contentVariables[key] === "string" && input.contentVariables[key].trim()))
+      return { status: "skipped", messageId: "", reason: "approved_staff_template_unavailable" };
+    try {
+      const response = await startWhatsAppRequest(Object.freeze({ ...connection.scope, messageId: input.correlationId }), () => fetch(`${GRAPH}/${credentials.phoneNumberId}/messages`, {
+        method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
+        headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ messaging_product: "whatsapp", to: input.toNumber.slice(1), type: "template", template: {
+          name: template.contentSid, language: { code: template.language }, components: [{ type: "body", parameters: ["1", "2"].map(key => ({ type: "text", text: input.contentVariables[key] })) }],
+        }, biz_opaque_callback_data: input.correlationId }),
+      }));
+      if (response.ok) {
+        const payload = await response.json().catch(() => null) as { messages?: Array<{ id?: unknown }> } | null;
+        const messageId = payload?.messages?.[0]?.id;
+        return typeof messageId === "string" && messageId.trim() ? { status: "sent", messageId } : { status: "uncertain", messageId: "", reason: "provider_acceptance_unknown" };
+      }
+      return response.status >= 400 && response.status < 500 && response.status !== 408
+        ? { status: "failed", messageId: "", acceptance: "not_accepted", reason: "provider_rejected" }
+        : { status: "uncertain", messageId: "", reason: "provider_acceptance_unknown" };
+    } catch { return { status: "uncertain", messageId: "", reason: "provider_acceptance_unknown" }; }
   }
 
   private async credentials(merchantId: string) {

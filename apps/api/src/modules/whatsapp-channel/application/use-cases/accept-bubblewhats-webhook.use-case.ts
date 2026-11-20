@@ -6,9 +6,10 @@ import {
   WHATSAPP_CONFIG_REPOSITORY, type WhatsAppChannelConfigEntity, type WhatsAppConfigRepository,
 } from "../../domain/ports/whatsapp-config-repository.port.js";
 import {
-  WHATSAPP_WEBHOOK_INBOX, type WhatsAppInboxEvent, type WhatsAppWebhookInbox,
+  WHATSAPP_WEBHOOK_INBOX, type AuthenticatedWhatsAppAccount, type WhatsAppInboxEvent, type WhatsAppWebhookInbox,
 } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
 import type { IncomingMessageInput } from "./handle-incoming-message.use-case.js";
+import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -102,6 +103,7 @@ export class AcceptBubbleWhatsWebhookUseCase {
     source: "TWILIO" | "META",
     eventId: string,
     input: Omit<IncomingMessageInput, "merchantId" | "deviceId" | "provider">,
+    authenticatedAccount?: AuthenticatedWhatsAppAccount,
   ): Promise<{ received: true }> {
     if (!config.enabled || (config.provider !== "TWILIO" && config.provider !== "META_CLOUD")) {
       throw new ServiceUnavailableException("whatsapp_channel_not_ready");
@@ -115,7 +117,18 @@ export class AcceptBubbleWhatsWebhookUseCase {
     if (!Number.isSafeInteger(input.timestamp) || input.timestamp < 0) {
       throw new BadRequestException("webhook_payload_invalid");
     }
-    const payload: IncomingMessageInput = {
+    // The input remains a public message shape. Only separately authenticated
+    // controller evidence can become an immutable recipient-window fact.
+    let account: AuthenticatedWhatsAppAccount | undefined;
+    if (source === "META" && provider === "META_CLOUD" && authenticatedAccount?.provider === "META_CLOUD"
+      && /^\d{1,80}$/.test(authenticatedAccount.accountId) && authenticatedAccount.accountId === config.credentials.phoneNumberId) {
+      account = { provider, accountId: authenticatedAccount.accountId };
+    } else if (source === "TWILIO" && provider === "TWILIO" && authenticatedAccount?.provider === "TWILIO"
+      && /^AC[a-fA-F0-9]{32}$/.test(authenticatedAccount.accountId) && authenticatedAccount.accountId === config.credentials.accountSid) {
+      const sender = whatsappE164(authenticatedAccount.sender);
+      if (sender && sender === whatsappE164(config.whatsappNumber ?? "")) account = { provider, accountId: authenticatedAccount.accountId, sender };
+    }
+    const payload: IncomingMessageInput & { authenticatedAccount?: AuthenticatedWhatsAppAccount } = {
       merchantId: config.merchantId,
       deviceId: config.deviceId ?? `${provider}:${config.id}`,
       fromNumber,
@@ -132,6 +145,7 @@ export class AcceptBubbleWhatsWebhookUseCase {
       ...(input.metaMedia && /^\d{1,80}$/.test(input.metaMedia.id) ? { metaMedia: {
         id: input.metaMedia.id, mimeType: boundedString(input.metaMedia.mimeType, 128, false), name: boundedString(input.metaMedia.name, 200, false),
       } } : {}),
+      ...(account ? { authenticatedAccount: account } : {}),
     };
     const event: WhatsAppInboxEvent = {
       dedupKey: digest(JSON.stringify([source, config.merchantId, config.id, "message", stableEventId])),

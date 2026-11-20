@@ -901,6 +901,7 @@ export type DomainEventType =
   | "support.case.changed"
   | "whatsapp.support.message.requested"
   | "whatsapp.support.resume.requested"
+  | "whatsapp.support.case_alert.requested"
   | CheckoutDomainEventType
   | CrossSellDomainEventType
   | CouponsDomainEventType

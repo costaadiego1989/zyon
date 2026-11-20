@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { canonicalJson } from "../../../../shared/http/canonical-json.js";
 import { mergeWhatsAppTurnResponse } from "../../domain/services/whatsapp-turn-response.js";
@@ -60,6 +60,28 @@ export function isEquivalentTwilioReplay(previous: unknown, candidate: unknown):
   return canonicalJson(original) === canonicalJson(replayed);
 }
 
+/** A provider retry may encounter a row accepted before account evidence was
+ * stored. Accept only the original body/hash; never upgrade that old row into
+ * an authenticated recipient window. New account-bearing rows stay strict. */
+export function isEquivalentLegacyAuthenticatedReplay(previous: unknown, previousHash: string, candidate: unknown): boolean {
+  const message = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value)
+    && ["META_CLOUD", "TWILIO"].includes(String((value as Record<string, unknown>).provider))
+    && ["merchantId", "deviceId", "fromNumber", "body", "messageType"].every(key => typeof (value as Record<string, unknown>)[key] === "string")
+    && Number.isSafeInteger((value as Record<string, unknown>).timestamp) && Number((value as Record<string, unknown>).timestamp) >= 0;
+  if (!message(previous) || !message(candidate) || Object.hasOwn(previous, "authenticatedAccount")) return false;
+  const { authenticatedAccount, ...replayed } = candidate;
+  if (!authenticatedAccount || typeof authenticatedAccount !== "object" || Array.isArray(authenticatedAccount)) return false;
+  const account = authenticatedAccount as Record<string, unknown>;
+  if (account.provider !== candidate.provider || typeof account.accountId !== "string"
+    || (account.provider === "META_CLOUD" ? !/^\d{1,80}$/.test(account.accountId) || Object.keys(account).length !== 2
+      : !/^AC[a-fA-F0-9]{32}$/.test(account.accountId) || typeof account.sender !== "string" || !/^\+[1-9]\d{7,14}$/.test(account.sender) || Object.keys(account).length !== 3)) return false;
+  const equivalent = candidate.provider === "TWILIO" ? isEquivalentTwilioReplay(previous, replayed) : canonicalJson(previous) === canonicalJson(replayed);
+  // Rebuild only the old local ingestion timestamp in the original producer's
+  // property order; JSONB key ordering must not manufacture a new legacy hash.
+  const original = candidate.provider === "TWILIO" ? { ...replayed, timestamp: previous.timestamp } : replayed;
+  return equivalent && createHash("sha256").update(JSON.stringify(original)).digest("hex") === previousHash;
+}
+
 @Injectable()
 export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
@@ -107,7 +129,8 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
             SELECT "payload_hash", "payload" FROM "whatsapp_webhook_inbox" WHERE "dedup_key" = ${event.dedupKey}
           `);
           if (rows[0]?.payload_hash !== event.payloadHash
-            && !(event.kind === "message" && isEquivalentTwilioReplay(rows[0]?.payload, event.payload))) {
+            && !(event.kind === "message" && (isEquivalentTwilioReplay(rows[0]?.payload, event.payload)
+              || isEquivalentLegacyAuthenticatedReplay(rows[0]?.payload, rows[0]?.payload_hash ?? "", event.payload)))) {
             throw new ConflictException("webhook_event_payload_conflict");
           }
         }

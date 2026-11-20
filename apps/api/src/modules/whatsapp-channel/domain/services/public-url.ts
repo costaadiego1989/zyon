@@ -43,7 +43,8 @@ function operatorStatusBase(env: NodeJS.ProcessEnv): string | null {
 export function twilioOperatorStatusCallbackUrl(configId: string, correlationId: string, env: NodeJS.ProcessEnv = process.env): string | null {
   const base = operatorStatusBase(env);
   if (!base || !callbackSelector(configId) || !callbackSelector(correlationId)
-    || !correlationId.startsWith("support_message:") || correlationId.length <= "support_message:".length) return null;
+    || !(correlationId.startsWith("support_message:") && correlationId.length > "support_message:".length
+      || /^support_case_alert:[a-f0-9]{64}$/.test(correlationId))) return null;
   return `${base}${OPERATOR_STATUS_PATH}?configId=${encodeURIComponent(configId)}&correlationId=${encodeURIComponent(correlationId)}`;
 }
 /** Preserve the original encoded query exactly for signature validation. The

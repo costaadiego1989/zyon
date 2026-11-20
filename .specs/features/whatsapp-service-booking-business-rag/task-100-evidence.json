@@ -1,0 +1,1256 @@
+{
+  "task": 100,
+  "status": "LOCAL_TASK100_FULL346_GREEN_NOT_FINAL_FEATURE_VERIFIER",
+  "at": "2026-11-20T04:10:38.827567+00:00",
+  "baseHead": "ed0fd30d23d5b8349876cc142bd6f5b3a2d9fc45",
+  "authority": "LOCAL_ONLY_NO_REMOTE_DB_PROVIDER_OR_SENDS",
+  "sourceFreeze": {
+    "path": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\t100-source-preparation\\source-freeze-v3.json",
+    "sha256": "40c451f5e2881a37cb6e78fe48ac461bf8ec670b13a20c51874d2dcf08899d58"
+  },
+  "canonicalSource28": [
+    {
+      "path": "apps/api/src/modules/support/domain/support-case-alert.ts",
+      "sha256": "96c1e52f93475fe222da0f5a53fef3af99be6114593b57e101d3dbe691d4e26c"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/support-case-alert-state.ts",
+      "sha256": "e089db153f87f2a9b3e53fef7b636f07ce2ac9e68d4a7f330afd5bbf4765c1f9"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/services/support-case-alert.consumer.ts",
+      "sha256": "b989359681ca06de164b5da18ae1fe9a09e98d70e055b7db225463a72d085d8d"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/services/support-case-alert-delivery.service.ts",
+      "sha256": "c06ef29b463c814b24e6ab3cf58743672fe922d999ee4ea5d365ecdab4c8e3ac"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/whatsapp-support-intake.ts",
+      "sha256": "b59b65faf8dbb4a961529916736761f064407e23667183691b999eda8b545c86"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/read-whatsapp-conversations.use-case.ts",
+      "sha256": "82bfc94c343cd5971a62a2c8f090d14a5594c4f0945cb4877a474f1954539c55"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/whatsapp-channel.module.ts",
+      "sha256": "1e580141128664c16cb59107be271995a2468c2543e44b22a20963ea311c239f"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-webhook.controller.ts",
+      "sha256": "67e4dd773ea09b92ca167f7eef62010134c5aa16cd2210914258458b77bdd904"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/domain/catalog/template-types.ts",
+      "sha256": "c2b8cf7bb597af1e875a82f06ae17c580843aace8db7381f6cb8468e3b44973a"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/domain/catalog/template-catalog.ts",
+      "sha256": "83998f1cf1dd4dc90b6210d2730af833d46fdac21a62039c4ecac4af83545597"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/infrastructure/adapters/whatsapp-template-sender.adapter.ts",
+      "sha256": "f01a77410ad9ef9b965080cc47479a4bceaeb6766cab0edc346baeb9227686b0"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/domain/email-template-copy.ts",
+      "sha256": "be1c684653c4c0e5566de961bbfa4b4abf9862d3302ea61474edd06c86e855b5"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/domain/services/public-url.ts",
+      "sha256": "fc481ea1b1b37e0cdabb2b7413f566af13537540b4fb7df3c78270a867aa6b46"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/application/use-cases/send-whatsapp-message.use-case.ts",
+      "sha256": "9fd6d3ff65bc1c8e2acfb0f137ae0e6bbe4dbdb5093475cdba9c7efd00c6e0a8"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/accept-bubblewhats-webhook.use-case.ts",
+      "sha256": "cca532c6b0f900750bafc2557df2b7d7425d1a4e2f720ac37321606b550323b0"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/domain/ports/whatsapp-webhook-inbox.port.ts",
+      "sha256": "f2adbea15fd8835605330d524b9f50cd3683fd26174b26ba53b3ed8ffc9c95b1"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-webhook-inbox.repository.ts",
+      "sha256": "6e3cda8a175bf3a9468970c5f02374cfad03e6b2ef39a2b614f9f636c3bdee19"
+    },
+    {
+      "path": "apps/api/src/modules/support/domain/support-case-alert.spec.ts",
+      "sha256": "a3537821ed99dcf8725d442338ddf7660c6cbf613c098de2d8103d2c7cb2717b"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/services/support-case-alert.consumer.spec.ts",
+      "sha256": "f3b81405de31f2420db7cd9554f32ed6bcf61bd4e59ec3fc08adda89f40bedb7"
+    },
+    {
+      "path": "apps/api/tests/support-case-alert.integration.spec.mjs",
+      "sha256": "ecdc16d76eca185a6a785c7e8abe548ea7b087758e7b11c62490e4b9a9657dc9"
+    },
+    {
+      "path": "apps/api/src/modules/support/application/services/support-case-alert-delivery.spec.ts",
+      "sha256": "7a805ce5cc69c959edf9f1ae4f81de13ac5e74d4c08a4a66a8b45713df294aa3"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/infrastructure/adapters/staff-alert-template-sender.spec.ts",
+      "sha256": "a5269ede6cd1e5dbe2053cc3afda6b4d8178560fc69905b6a266aece97b63c27"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/application/use-cases/staff-alert-purpose-isolation.spec.ts",
+      "sha256": "1396ecedfa5dd7eac83973f4f54ffa0444aafe3b9a6bbd1d99ba2d391604d308"
+    },
+    {
+      "path": "apps/api/tests/support-case-alert-boundary.integration.spec.mjs",
+      "sha256": "13d7c90b23845fa656177bf7ea6786839d46eb9b51278c3004f0ed95fee5ec93"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/presentation/http/staff-alert-webhook-routing.spec.ts",
+      "sha256": "0d0124a8ef43b09f51670f20fd59cbe6939db7af61bc4a45a6108fdf7aba8e79"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/authenticated-inbox-account.spec.ts",
+      "sha256": "5e1f2e9e2818b387d1b8dfeac2fc129c1205b60ce95245ccd91c96b253105746"
+    },
+    {
+      "path": "packages/shared-types/src/index.ts",
+      "sha256": "c988ec01d6df1e7de0439d8f0013a80ab1c5244da3a4b3cfca1f7354e08171cf"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-templates/application/use-cases/send-whatsapp-message.spec.ts",
+      "sha256": "0ed16cb6c0e3fd7c12895b5e60342159945196a748ac62dc1f2b7c8cb4ac22ce"
+    }
+  ],
+  "adoption": {
+    "path": ".cache/t100-root-adoption-v3-applied.json",
+    "sha256": "d5550f26289cc3613e7e923653b329924bc6c8f7823e5e49a97f9b15a55c9faf"
+  },
+  "components76": {
+    "path": ".cache/phase3-gates/t100-root-unit76.receipt.json",
+    "sha256": "39fddb72556dae22b15a6b99bb6662d412ab6e4f60fed889d212208e1fb8a91f"
+  },
+  "actualBuild0RecordUnstarted": {
+    "path": ".cache/t100-root-build0-record-refused.json",
+    "sha256": "06bd5bb399ac7d12dc4a8943eb37a8619ec183b3a4e699a86e963f93048be3bb"
+  },
+  "gateStillOpen": [],
+  "countBoundary": {
+    "currentCanonical76": 76,
+    "singleFreshAggregateClaim": false,
+    "isolatedHistoryNotFreshCanonical": true,
+    "closedTask39NotRepeatedAsNew100": true
+  },
+  "latestApprovals": {
+    "widgetParentOnly": {
+      "call": "69d9fe48fb014b1ba2cd9f4fd8a72599",
+      "quote": "Aprovar apenas o limite de 5 minutos",
+      "patch": "3609375592cfaed06964739babd8efcc478e3780acf7dd193c71fc90f83a8e6c",
+      "appliedOnceBothTrees": true
+    },
+    "newPrivateCaseOnly": {
+      "call": "8b8b2307a0284388b16a518d8102e51e",
+      "quote": "Corrigir somente o novo caso privado",
+      "patchPrefix": "63401404",
+      "all46CasesAndOther45AssertionsKept": true,
+      "appliedOnce": true
+    }
+  },
+  "providerProofBoundary": "Captured local transport only. No real Meta/Twilio/provider or production acceptance.",
+  "finalFeatureVerifierPending": true,
+  "recordOnlyThenLauncherFailure": {
+    "path": ".cache/t100-record-admit/2026-11-20T04-10-56.619Z-record-admit-only/receipt.json",
+    "sha256": "765be2caa681ca8d38066d2c45f0911cacd8509873d0fb85350632f3b99ebc39",
+    "recordExit": 0,
+    "admitFailedBeforeValidation": true,
+    "reason": "LOCALAPPDATA missing from launch environment; explicit corrected admit-only dispatched",
+    "actualArtifactSha256Prefix": "5fb2dc67",
+    "noCaptureOrCompilerRepeated": true
+  },
+  "currentReadmission": {
+    "path": ".cache/t100-record-admit/direct-admit-green-tool-result.json",
+    "sha256": "ac8d8c546eacbe42b56e2d84ea7f46ff0c314b710e9e18999880bfccb64c0af1"
+  },
+  "emissionQualification": {
+    "path": ".cache/t100-record-admit/root-emitted-vs-isolated-m.json",
+    "sha256": "b14092b7eca838a88fdafffedb9f69fc900732dc686ffcffcf2e1f222d5d0c0c"
+  },
+  "currentOwnApi": {
+    "version": 1,
+    "buildCommand": "pnpm --dir apps/api build",
+    "buildExitCode": 0,
+    "checked": true,
+    "inputSha256": "e34a051e6e95fdf0b33fc4f50b45ae624cfd2fa50b3517eddd6bdfa26a0e7e83",
+    "artifactSha256": "5fb2dc67166dd70291b34c6a7ba0acdce49df60ed18dc2ace7d71b9355177110",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2593
+    },
+    "recordedAt": "2026-11-20T04:11:20.040Z"
+  },
+  "emissionSummary": {
+    "baselineCount": 2684,
+    "currentCount": 2685,
+    "added": [
+      "apps/api/dist/modules/whatsapp-channel/domain/ui/service-appointment-confirmation.js"
+    ],
+    "removed": [],
+    "changed": [
+      "apps/api/dist/modules/notifications/application/service-appointment-events.consumer.js"
+    ],
+    "other2683Exact": true,
+    "bounds": "Root39 formatter/consumer are intentionally different; fresh canonical native17 replaces isolated native14."
+  },
+  "retainedHistoryCountBoundary": {
+    "oldComponentsM247": {
+      "retained201": 201,
+      "replacedCorrected46InCurrentRoot76": 46
+    },
+    "oldNativeM152": {
+      "retained138IncludingInbox9": 138,
+      "replacedNotice14ByCurrentRoot17Pending": 14
+    },
+    "notFreshCanonical": true,
+    "basis": ".cache/t100-root-integration-retention-review-20261120.md"
+  },
+  "currentApiHeaders": {
+    "lint": {
+      "receipt": {
+        "path": ".cache/t100-root-lint-green.json",
+        "sha256": "d9d35e767299c10a1dfe6710171aaa9dc0a9700410ff9445ffb896883901399c"
+      },
+      "result": {
+        "task": 100,
+        "scope": "CANONICAL_ROOT_JOINT_LINT",
+        "sessionId": 46790,
+        "naturalExitCode": 0,
+        "rawPath": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-20T03-45-41.916Z\\lint.log",
+        "rawSha256": "75e47252305c04be115fde2fb95e8fcbd9c8cb4e51efdd61fcc253330ab5f84a",
+        "root28PinsEqualM40c451": true,
+        "printedOldEaebRecord": "STALE after source adoption; not accepted or reused.",
+        "approvedNext": "Only ROOT APItypes original5168"
+      }
+    },
+    "types": {
+      "receipt": {
+        "path": ".cache/t100-root-api-types-green.json",
+        "sha256": "0fd6397d97ed7569a07b3e1c9e78a37e26329762376f44e15a59f61b9b9d67cc"
+      },
+      "result": {
+        "task": 100,
+        "scope": "CANONICAL_ROOT_JOINT_API_TYPES",
+        "sessionId": 62323,
+        "naturalExitCode": 0,
+        "apiTypecheckAndAll8Prebuilds": 0,
+        "diagnostics": [],
+        "rawPath": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-20T03-47-35.706Z\\api-types.log",
+        "rawSha256": "ff77e09c4d4b400bb89962039605f78f957e271d1b66613d846c65e3afa7c550",
+        "chunksSha256": "e3471131c6e7bdf4be21818c6eecee50ec70fb09224235aa087d5f1279fc9d54",
+        "root28PinsEqualM40c451": true,
+        "oldEaebF9Build": "STALE_NOT_ADMITTED",
+        "nextAuthorized": "Only own ROOT checked capture/build/record, firstrefusal/error stops."
+      }
+    }
+  },
+  "canonicalNative46": {
+    "receipt": {
+      "path": ".cache/t100-record-admit/canonical-native-sequence.receipt.json",
+      "sha256": "01987f275735a3b281d044f011f1a0d362334d941973a2fb41fc24a945f09588"
+    },
+    "result": {
+      "artifact": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "e34a051e6e95fdf0b33fc4f50b45ae624cfd2fa50b3517eddd6bdfa26a0e7e83",
+        "artifactSha256": "5fb2dc67166dd70291b34c6a7ba0acdce49df60ed18dc2ace7d71b9355177110",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2593
+        },
+        "recordedAt": "2026-11-20T04:11:20.040Z"
+      },
+      "children": [
+        {
+          "startedAt": "2026-11-20T04:15:58.8293577Z",
+          "tap": {
+            "pass": 17,
+            "cancelled": 0,
+            "skipped": 0,
+            "tests": 17,
+            "fail": 0,
+            "todo": 0
+          },
+          "flags": [],
+          "memory": {
+            "observedAtUtc": "2026-11-20T04:15:58.809238+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 415,
+            "commitAvailableMiB": 5314,
+            "memoryLoadPercent": 97
+          },
+          "rawLog": ".cache/phase3-gates/t100-root-native-alert17.log",
+          "label": "t100-root-native-alert17",
+          "rawSha256": "4d9d592f343f33703ac1b0c539077adc9d373c46e4e451732e7e7a08b6db2b0f",
+          "file": "support-case-alert.integration.spec.mjs",
+          "minimumCommitMiB": 2048,
+          "expected": 17,
+          "sourceSha256": "ecdc16d76eca185a6a785c7e8abe548ea7b087758e7b11c62490e4b9a9657dc9",
+          "started": true,
+          "finishedAt": "2026-11-20T04:18:42.3101065Z",
+          "exitCode": 0,
+          "runner": "run-native-gate.mjs"
+        },
+        {
+          "startedAt": "2026-11-20T04:18:42.9072716Z",
+          "tap": {
+            "pass": 6,
+            "cancelled": 0,
+            "skipped": 0,
+            "tests": 6,
+            "fail": 0,
+            "todo": 0
+          },
+          "flags": [],
+          "memory": {
+            "observedAtUtc": "2026-11-20T04:18:42.897102+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 3188,
+            "commitAvailableMiB": 7958,
+            "memoryLoadPercent": 80
+          },
+          "rawLog": ".cache/phase3-gates/t100-root-native-boundary6.log",
+          "label": "t100-root-native-boundary6",
+          "rawSha256": "5f86eb8bcf4d18ee88bb759b1a6e252763a031e35b28e12eec5dc5cf91ddf1a6",
+          "file": "support-case-alert-boundary.integration.spec.mjs",
+          "minimumCommitMiB": 2048,
+          "expected": 6,
+          "sourceSha256": "13d7c90b23845fa656177bf7ea6786839d46eb9b51278c3004f0ed95fee5ec93",
+          "started": true,
+          "finishedAt": "2026-11-20T04:19:23.7628496Z",
+          "exitCode": 0,
+          "runner": "run-native-gate.mjs"
+        },
+        {
+          "startedAt": "2026-11-20T04:19:24.3128545Z",
+          "tap": {
+            "pass": 17,
+            "cancelled": 0,
+            "skipped": 0,
+            "tests": 17,
+            "fail": 0,
+            "todo": 0
+          },
+          "flags": [],
+          "memory": {
+            "observedAtUtc": "2026-11-20T04:19:24.299229+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 2397,
+            "commitAvailableMiB": 7517,
+            "memoryLoadPercent": 85
+          },
+          "rawLog": ".cache/phase3-gates/t100-root-service-notice17.log",
+          "label": "t100-root-service-notice17",
+          "rawSha256": "96affab4ea4cca32ad3debb20da1fc641723cb12d43f1194332e9246b9f4b81f",
+          "file": "tests/service-appointment-notifications.integration.spec.ts",
+          "minimumCommitMiB": 2048,
+          "expected": 17,
+          "sourceSha256": "15dc1b2def37b1bba8279d6156ee005df38e2e98903f1dfc2565ab4d8a4c268e",
+          "started": true,
+          "finishedAt": "2026-11-20T04:21:58.7711808Z",
+          "exitCode": 0,
+          "runner": "run-ts-gate.mjs"
+        },
+        {
+          "startedAt": "2026-11-20T04:21:59.2844803Z",
+          "tap": {
+            "pass": 3,
+            "cancelled": 0,
+            "skipped": 0,
+            "tests": 3,
+            "fail": 0,
+            "todo": 0
+          },
+          "flags": [
+            "--source"
+          ],
+          "memory": {
+            "observedAtUtc": "2026-11-20T04:21:59.274754+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 743,
+            "commitAvailableMiB": 5128,
+            "memoryLoadPercent": 95
+          },
+          "rawLog": ".cache/phase3-gates/t100-root-cycle-source3.log",
+          "label": "t100-root-cycle-source3",
+          "rawSha256": "3c0396c03b59f2fd957a126d859455e55f29047b52f7a74b66b1f0fdb896c79b",
+          "file": "notifications-payment-cycle.integration.mjs",
+          "minimumCommitMiB": 2048,
+          "expected": 3,
+          "sourceSha256": "a7a291af23e4b8b7f9b84bcc25c4315d7ed8f54eedc263da45737231969a8a75",
+          "started": true,
+          "finishedAt": "2026-11-20T04:25:27.3148179Z",
+          "exitCode": 0,
+          "runner": "run-native-gate.mjs"
+        },
+        {
+          "startedAt": "2026-11-20T04:25:27.5814009Z",
+          "tap": {
+            "pass": 3,
+            "cancelled": 0,
+            "skipped": 0,
+            "tests": 3,
+            "fail": 0,
+            "todo": 0
+          },
+          "flags": [
+            "--compiled"
+          ],
+          "memory": {
+            "observedAtUtc": "2026-11-20T04:25:27.569119+00:00",
+            "source": "Windows GlobalMemoryStatusEx read-only",
+            "physicalTotalMiB": 16087,
+            "physicalAvailableMiB": 4024,
+            "commitAvailableMiB": 8806,
+            "memoryLoadPercent": 74
+          },
+          "rawLog": ".cache/phase3-gates/t100-root-cycle-compiled3.log",
+          "label": "t100-root-cycle-compiled3",
+          "rawSha256": "0b6dc8943c27d7ec19f28b06c3282f385fa976dd1641f763d5c725acef3f8147",
+          "file": "notifications-payment-cycle.integration.mjs",
+          "minimumCommitMiB": 2048,
+          "expected": 3,
+          "sourceSha256": "a7a291af23e4b8b7f9b84bcc25c4315d7ed8f54eedc263da45737231969a8a75",
+          "started": true,
+          "finishedAt": "2026-11-20T04:26:18.5477918Z",
+          "exitCode": 0,
+          "runner": "run-native-gate.mjs"
+        }
+      ],
+      "sourceFreezeSha256": "40c451f5e2881a37cb6e78fe48ac461bf8ec670b13a20c51874d2dcf08899d58",
+      "finishedAt": "2026-11-20T04:26:18.7050412Z",
+      "wholeFileCount": 5,
+      "startedAt": "2026-11-20T04:15:58.3667396Z",
+      "status": "passed",
+      "scope": "CANONICAL_ROOT_T100_NATIVE_COMPOSITION",
+      "root": "C:/tmp/zyon-service-business-20261114",
+      "actualTests": 46,
+      "retention": {
+        "oldNotice14Excluded": true,
+        "legacyComponentCases": 201,
+        "legacyNativeInboxCases": 138
+      }
+    },
+    "same3ModuleContextsInTwoModesNot6UniqueFeatureNames": true
+  },
+  "closedAt": "2026-11-20T04:37:18.954805+00:00",
+  "acceptedCurrentContexts": 346,
+  "requiredFullContexts": 346,
+  "equation": "76 components +46 native/composition contexts +48 normal +176 widget =346. Qualified isolated M201/M138 retained separately, outside346.",
+  "currentProducts224": {
+    "receipt": {
+      "path": ".cache/t100-record-admit/current-products224-green.json",
+      "sha256": "56b93aba398dd21a8b05c2bf9d1d7125d3d9a8cc73e04de99c3a178e82879873"
+    },
+    "result": {
+      "task": 100,
+      "scope": "CANONICAL_ROOT_CURRENT_ORIGINAL_PRODUCTS48_AND176",
+      "products": [
+        {
+          "mode": "product-normal",
+          "sessionId": 34558,
+          "naturalExitCode": 0,
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-20T04-26-40.633Z\\product-normal.log",
+          "rawSha256": "141277e798153633f40e5a661155e9549d04be141479d396ee86bb6f34c0cdcc",
+          "actualPassedTestRows": 48,
+          "fixedCountSummary": {
+            "phase": "normal-checkout-payment",
+            "coverageMode": "baseline-and-identity",
+            "passed": 48,
+            "waiters": 3,
+            "prismaClientConstructed": true,
+            "providerCalls": 0,
+            "scope": "normal-standalone-source-coupon-identity-detachment",
+            "checkoutVersionTrigger": true,
+            "checkoutStrategyTrigger": true
+          },
+          "cleanupSummary": {
+            "phase": "normal-checkout-payment",
+            "coverageMode": "baseline-and-identity",
+            "status": "passed",
+            "cleanupErrors": 0,
+            "disposableDatabaseRemoved": true,
+            "bridgeClosed": true,
+            "durationMs": 80697,
+            "network": "none",
+            "productionAccess": false
+          },
+          "beforeChildIntegralAdmit": {
+            "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t100-record-admit\\pre-product-normal-admit.log",
+            "sha256": "8b13cfcead032dde12918b9bae93d6b81184741e1eba2eb6dcdf94c7dd949bb0",
+            "officialReadmission": {
+              "checked": true,
+              "inputSha256": "e34a051e6e95fdf0b33fc4f50b45ae624cfd2fa50b3517eddd6bdfa26a0e7e83",
+              "artifactSha256": "5fb2dc67166dd70291b34c6a7ba0acdce49df60ed18dc2ace7d71b9355177110",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2593
+              }
+            }
+          }
+        },
+        {
+          "mode": "product-widget",
+          "sessionId": 85019,
+          "naturalExitCode": 0,
+          "rawLog": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-20T04-28-15.707Z\\product-widget.log",
+          "rawSha256": "532e36ebc02d3b904a2f2bbedf2afb64132a2670d13f40dbcc19ef350b2445b8",
+          "actualPassedTestRows": 176,
+          "fixedCountSummary": {
+            "status": "passed",
+            "passed": 176,
+            "realLockWaiters": 32,
+            "syntheticOnly": true,
+            "providerCalls": 0
+          },
+          "cleanupSummary": {
+            "status": "passed",
+            "cleanupErrors": 0,
+            "disposableDatabaseRemoved": true,
+            "bridgeClosed": true,
+            "durationMs": 286798,
+            "network": "none",
+            "productionAccess": false
+          },
+          "beforeChildIntegralAdmit": {
+            "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t100-record-admit\\pre-product-widget-admit.log",
+            "sha256": "ec0e15354350b7e0ff97afcc5c05a409ef0a34d04ec8a8d411aa3aa522489afd",
+            "officialReadmission": {
+              "checked": true,
+              "inputSha256": "e34a051e6e95fdf0b33fc4f50b45ae624cfd2fa50b3517eddd6bdfa26a0e7e83",
+              "artifactSha256": "5fb2dc67166dd70291b34c6a7ba0acdce49df60ed18dc2ace7d71b9355177110",
+              "compilerCoverage": {
+                "checked": true,
+                "sourceCount": 2593
+              }
+            }
+          }
+        }
+      ],
+      "all224Passed": true,
+      "ownBuild": {
+        "version": 1,
+        "buildCommand": "pnpm --dir apps/api build",
+        "buildExitCode": 0,
+        "checked": true,
+        "inputSha256": "e34a051e6e95fdf0b33fc4f50b45ae624cfd2fa50b3517eddd6bdfa26a0e7e83",
+        "artifactSha256": "5fb2dc67166dd70291b34c6a7ba0acdce49df60ed18dc2ace7d71b9355177110",
+        "compilerCoverage": {
+          "checked": true,
+          "sourceCount": 2593
+        },
+        "recordedAt": "2026-11-20T04:11:20.040Z"
+      },
+      "source28PinsExact": true,
+      "borrowedApprovedWidgetDriverSha256": "996adffc709534d3fccac6e88d1b62014c55145f18346521525e7c1379b3dcd0",
+      "runtimeExplicitlyReturned": true,
+      "noPostRunProbeOrRetry": true,
+      "noSourceMetadataIndexOrCommitChange": true
+    }
+  },
+  "qualifiedHistoricalRetention": {
+    "components201": [
+      {
+        "label": "t100-legacy-component01",
+        "file": "apps/api/src/modules/support/application/manage-support-notification-settings.use-case.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component01.log",
+        "rawSha256": "6bcaf1ce4886ad1f15318d24aa49328d281b4193dd62636f630097e50d4ec3a7"
+      },
+      {
+        "label": "t100-legacy-component02",
+        "file": "apps/api/src/modules/support/application/read-whatsapp-conversations.snapshot.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component02.log",
+        "rawSha256": "edb2b28a3315add260921e77fc65b3d3de319ad4d37e0366d4f9bcc1ac735597"
+      },
+      {
+        "label": "t100-legacy-component03",
+        "file": "apps/api/src/modules/support/application/read-whatsapp-conversations.use-case.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component03.log",
+        "rawSha256": "f24308720d03e451a5492aeee778a81d89750dfd78f9183806899680ded7b4eb"
+      },
+      {
+        "label": "t100-legacy-component04",
+        "file": "apps/api/src/modules/support/domain/support-notification-settings.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component04.log",
+        "rawSha256": "aa4a8f0c67a9bd0842bc5a925063fb7b53fc99ff811426989cfb79d961f5725a"
+      },
+      {
+        "label": "t100-legacy-component05",
+        "file": "apps/api/src/modules/support/presentation/http/support-notification-settings.controller.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 11,
+          "pass": 11,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component05.log",
+        "rawSha256": "4e3de7437ad87344cf8f37eb476d5212b73d6160834b9a01482d03b19a2c4ba0"
+      },
+      {
+        "label": "t100-legacy-component06",
+        "file": "apps/api/src/modules/support/presentation/http/whatsapp-conversations.controller.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component06.log",
+        "rawSha256": "895cfc00dd3737603061f45d3a2c087b90ef3ce413576c0cb5d0c2f1c75e14d7"
+      },
+      {
+        "label": "t100-legacy-component07",
+        "file": "apps/api/src/modules/whatsapp-channel/domain/services/public-url.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component07.log",
+        "rawSha256": "337f571585ae440bbaada325b2ff157ecbad076b6a94fea67811fbc1c85bfef0"
+      },
+      {
+        "label": "t100-legacy-component08",
+        "file": "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-human-intent.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component08.log",
+        "rawSha256": "77ddb3f576a71df992eeaf0dbc33cd88a31e9efcdc61610c92a1bd5078f1ed4c"
+      },
+      {
+        "label": "t100-legacy-component09",
+        "file": "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-operator-connection.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component09.log",
+        "rawSha256": "3b10de4386052a91b08ff1967cb143f5990198b581e014c6e8f201eeb2e96722"
+      },
+      {
+        "label": "t100-legacy-component10",
+        "file": "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-operator-delivery.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component10.log",
+        "rawSha256": "1b94534b6d1071dcabd488974b68782c6044f6b5e32c6ce27c1555a56fe42911"
+      },
+      {
+        "label": "t100-legacy-component11",
+        "file": "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-operator-receipt.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component11.log",
+        "rawSha256": "bb62f0cd6c18600b9eb7f060d4c981f074570ebf732d858b612f6723fbf4e31f"
+      },
+      {
+        "label": "t100-legacy-component12",
+        "file": "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-resume-command.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 13,
+          "pass": 13,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component12.log",
+        "rawSha256": "cc6d23a78a82a7aaa6ccd8e2309cd1734d0c4453a2450d1f90f6a537c83335aa"
+      },
+      {
+        "label": "t100-legacy-component13",
+        "file": "apps/api/src/modules/whatsapp-templates/application/use-cases/recovery-channel-routing.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 36,
+          "pass": 36,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component13.log",
+        "rawSha256": "6a7d87562e51106fd4dfe984cdadcee48223d6ecda5b2618e46715dedb5dd5c8"
+      },
+      {
+        "label": "t100-legacy-component15",
+        "file": "apps/api/src/modules/whatsapp-templates/domain/catalog/template-catalog.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component15.log",
+        "rawSha256": "1615373c2c353d89485382ab89e5b49d900ccdb19c46d04e38ec8d8e2d0e12a6"
+      },
+      {
+        "label": "t100-legacy-component16",
+        "file": "apps/api/src/modules/whatsapp-templates/domain/email-template-compatibility.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 4,
+          "pass": 4,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component16.log",
+        "rawSha256": "36b77243d8b4480ff6d3155c877f17f9b28688454aeb9209fbe26e8ab37e58bd"
+      },
+      {
+        "label": "t100-legacy-component17",
+        "file": "apps/api/src/modules/whatsapp-templates/domain/sales-template-content.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 4,
+          "pass": 4,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component17.log",
+        "rawSha256": "33f3854d1492df1e31181f4feb2cf7c6c5999cdd7e0084643efebf8a96f6b07b"
+      },
+      {
+        "label": "t100-legacy-component18",
+        "file": "apps/api/src/modules/whatsapp-templates/infrastructure/adapters/whatsapp-template-sender.adapter.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 11,
+          "pass": 11,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component18.log",
+        "rawSha256": "6bed644756c9b01738faf6487056befce17a70bd2ada53fc1e85c1c06f12152a"
+      },
+      {
+        "label": "t100-legacy-component19",
+        "file": "apps/api/src/shared/whatsapp/whatsapp-submission-context.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component19.log",
+        "rawSha256": "fa2b5389beb87dabb7aaff27be7665c148fa711f747af0f2fbb153f46c4f9700"
+      },
+      {
+        "label": "t100-legacy-component20",
+        "file": "apps/api/src/modules/whatsapp-channel/domain/services/whatsapp-handoff-claim.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component20.log",
+        "rawSha256": "736d79cc75bcd1431102f8dec73651d3e3e5806d5780d6c8385852a17dba7e45"
+      },
+      {
+        "label": "t100-legacy-component21",
+        "file": "apps/api/src/modules/whatsapp-channel/domain/services/connected-twilio-credentials.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component21.log",
+        "rawSha256": "dd2cb24ecac5e4300a494663039b99cdff0bdc5603e665e15d733e2eb395257c"
+      },
+      {
+        "label": "t100-legacy-component22",
+        "file": "apps/api/src/modules/whatsapp-channel/infrastructure/adapters/meta-cloud-sender.adapter.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component22.log",
+        "rawSha256": "53005fcc3819357aeb2e300c5e8f4f529bc4021eaa84648c2ef2f77f59d87090"
+      },
+      {
+        "label": "t100-legacy-component23",
+        "file": "apps/api/src/modules/whatsapp-channel/application/use-cases/bubblewhats-inbox.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 16,
+          "pass": 16,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component23.log",
+        "rawSha256": "2d31ef531d4711d81d78b6a9052ce4a02f3aae49438e7a7ab1a5d81abe98bc82"
+      },
+      {
+        "label": "t100-legacy-component24",
+        "file": "apps/api/src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-webhook-inbox.fingerprint.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-component24.log",
+        "rawSha256": "4cb59da0a4c67137beed2a13bf6467eda87529a4242d511b2dfdd6570beaa298"
+      }
+    ],
+    "native138IncludingProtectedInbox9": [
+      {
+        "label": "t100-legacy-native01",
+        "file": "apps/api/tests/support-notification-settings.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 13,
+          "pass": 13,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 13,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native01.log",
+        "rawSha256": "d462c2564e418d19f6ab1071099cdc18adce769a2e6a37a8805ece3452a7408e"
+      },
+      {
+        "label": "t100-legacy-native02",
+        "file": "apps/api/tests/whatsapp-human-intake.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 12,
+          "pass": 12,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 12,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native02.log",
+        "rawSha256": "1d172bda5abb10c0168d29bc92d5328352b111cef046f34211f19ea6ba321658"
+      },
+      {
+        "label": "t100-legacy-native03",
+        "file": "apps/api/tests/whatsapp-operator-claim.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 10,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native03.log",
+        "rawSha256": "95ba1983f155d99516036756aec0294e198a37f98571d1ca6863752a4588575c"
+      },
+      {
+        "label": "t100-legacy-native04",
+        "file": "apps/api/tests/whatsapp-operator-message.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 13,
+          "pass": 13,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 13,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native04.log",
+        "rawSha256": "f12d8a7bc41824cabe39cfe2032d05bf54f60e1b196643076eafdd28b8905e24"
+      },
+      {
+        "label": "t100-legacy-native05",
+        "file": "apps/api/tests/whatsapp-operator-delivery.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 9,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native05.log",
+        "rawSha256": "c3201d588f18e7598435959b4ec87529a3b58828a17e94a66466ad8f82b29c4c"
+      },
+      {
+        "label": "t100-legacy-native06",
+        "file": "apps/api/tests/whatsapp-operator-request.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 16,
+          "pass": 16,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 16,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native06.log",
+        "rawSha256": "fb4f4ad1fc7475129d98af0c9aeb84b68c06fa382620c4c437a226b5530c07ca"
+      },
+      {
+        "label": "t100-legacy-native07",
+        "file": "apps/api/tests/whatsapp-operator-adapter.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 10,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native07.log",
+        "rawSha256": "f2f387d90b83588cd6a9b697ecb321b3e623f42fcce5827a90851edf6e55ce3d"
+      },
+      {
+        "label": "t100-legacy-native08",
+        "file": "apps/api/tests/whatsapp-operator-receipt.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 12,
+          "pass": 12,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 12,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native08.log",
+        "rawSha256": "c33e735c00a7e374894b4f657913db9e6e4663df30fc872e12a09a2b4430b7ff"
+      },
+      {
+        "label": "t100-legacy-native09",
+        "file": "apps/api/tests/whatsapp-operator-receipt-db.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 10,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native09.log",
+        "rawSha256": "b5f32d0b36e11fe10eca0cf286d24edfb1c6374ce91c974b7a285e12251d8ef5"
+      },
+      {
+        "label": "t100-legacy-native10",
+        "file": "apps/api/tests/whatsapp-human-handoff.integration.spec.ts",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 6,
+          "pass": 6,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 6,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native10.log",
+        "rawSha256": "e97206fccc832dc6ada40ad09f87d4ea7997abff360652c89970a6e2ad980ae2"
+      },
+      {
+        "label": "t100-legacy-native11",
+        "file": "apps/api/tests/whatsapp-human-unknown-history.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 2,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native11.log",
+        "rawSha256": "b0ec0777f6f8fb4e19ae507791f1051163a13d734790de9f8e2149da0536b4c0"
+      },
+      {
+        "label": "t100-legacy-native12",
+        "file": "apps/api/tests/whatsapp-human-unknown-replay.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 3,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native12.log",
+        "rawSha256": "f9390a40574b950cc0ead7b8a052de6dfb0e6fc91e5c69f81c34400d3a892605"
+      },
+      {
+        "label": "t100-legacy-native13",
+        "file": "apps/api/tests/whatsapp-conversations.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 8,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native13.log",
+        "rawSha256": "7a798f9d1fc34ed0a7c06de8b389d4a5497d2bb2ee6048b1782fbdd5d3ff5a0e"
+      },
+      {
+        "label": "t100-legacy-native14",
+        "file": "apps/api/tests/whatsapp-conversations-unavailable.integration.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 3,
+          "pass": 3,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 3,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native14.log",
+        "rawSha256": "8f05170a6fe3659984b012ab27b5db081b87262243771818b03ec78a7366b499"
+      },
+      {
+        "label": "t100-legacy-native16",
+        "file": "apps/api/tests/whatsapp-twilio-fingerprint.contract.spec.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 2,
+          "pass": 2,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 2,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-legacy-native16.log",
+        "rawSha256": "262f80f3daae0fa6f0e342f74c6dcdcbc7bff7604b01db0740ff97f76dec4e80"
+      },
+      {
+        "label": "t100-protected-inbox9",
+        "file": "apps/api/tests/whatsapp-inbox-owned-ready-prod.mjs",
+        "naturalExitCode": 0,
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "historicalCandidateCount": 9,
+        "rawPath": "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119\\.cache\\phase3-gates\\t100-protected-inbox9.log",
+        "rawSha256": "0db0a967f3402561568ff3fc69785b078dcce8ba1412d982b451624aa282a7ea"
+      }
+    ],
+    "receipts": [
+      {
+        "path": "C:/tmp/zyon-whatsapp-staff-alerts-source-20261119/.cache/phase3-gates/t100-legacy-components24.receipt.json",
+        "sha256": "9d6503ce831c6028c3649ef695720349340514a23fea70906604fc00f7dbaf35"
+      },
+      {
+        "path": "C:/tmp/zyon-whatsapp-staff-alerts-source-20261119/.cache/phase3-gates/t100-legacy-components15-24.receipt.json",
+        "sha256": "4f7a6517dd4048c38027f6e22e0cb744eaa74483667f47842fa6eacbfe2ced16"
+      },
+      {
+        "path": "C:/tmp/zyon-whatsapp-staff-alerts-source-20261119/.cache/phase3-gates/t100-legacy-native16-and-inbox9.receipt.json",
+        "sha256": "51f2efc7024d09a27cfdea84623d90ebd7fe8e323da44db8893b937a446f9809"
+      }
+    ],
+    "inboxSourceAndHarnessPins": [
+      {
+        "path": "apps/api/tests/whatsapp-inbox-owned-ready-prod.mjs",
+        "sha256": "cf0ceb508f1c67dd40fa2f05d1523b55c6913599eabdcd12a19314775cd6c39f"
+      },
+      {
+        "path": "apps/api/src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-webhook-inbox.integration.spec.ts",
+        "sha256": "24e61cee05464f568efcc25773c6d84924c1d98babd1dc2766a854621087cff3"
+      },
+      {
+        "path": "apps/api/tests/local-disposable-postgres.mjs",
+        "sha256": "3c7032213c91488ff49eb37437a831530cdbdda902539ac3889e811013dc37e4"
+      },
+      {
+        "path": "apps/api/tests/service-migration-bootstrap.mjs",
+        "sha256": "ad5be0426292b9f8183c6bc30f243f34a19e4fd61a73e2cc1f0ce811863a4d52"
+      },
+      {
+        "path": "apps/api/tests/native-prisma-admission-guards.mjs",
+        "sha256": "ac95ab350e95486c5e57fcd1573647c904305b6dc97bfe6e8b7d5ae302244d3b"
+      },
+      {
+        "path": "apps/api/tests/nest-construction-only.guards.mjs",
+        "sha256": "7b45a8a7f03b18c05d4d90387c1701db91dc91d539c329488ae62b4974b93fd2"
+      },
+      {
+        "path": "apps/api/tests/service-test-artifacts.mjs",
+        "sha256": "23b094d36a28ed27610b7a8b5f890155d477a202563bb72af309da8ca5cfbfc2"
+      }
+    ],
+    "notFreshCanonicalRoot": true,
+    "excludedMCorrected46AlreadyInRoot76": true,
+    "excludedMNotice14ReplacedByRoot17": true,
+    "runtimeBasis": {
+      "path": ".cache/t100-record-admit/root-emitted-vs-isolated-m.json",
+      "sha256": "b14092b7eca838a88fdafffedb9f69fc900732dc686ffcffcf2e1f222d5d0c0c"
+    },
+    "sourceBasis": {
+      "path": ".cache/t100-record-admit/old40-source-qualification.json",
+      "sha256": "1dde74f0c6e3b9d2915bc20b0b0b0bdc11664e672ec5181f55eba8af54e3ca17"
+    }
+  },
+  "postProductsOfficialAdmit": {
+    "toolSession": 43557,
+    "naturalExitCode": 0,
+    "completionChunk": "ab6ab7",
+    "freshOriginalMinimumMiB": 1024,
+    "observedCommitAvailableMiB": 5586,
+    "officialReadmission": {
+      "checked": true,
+      "inputSha256": "e34a051e6e95fdf0b33fc4f50b45ae624cfd2fa50b3517eddd6bdfa26a0e7e83",
+      "artifactSha256": "5fb2dc67166dd70291b34c6a7ba0acdce49df60ed18dc2ace7d71b9355177110",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2593
+      }
+    },
+    "rawConsoleNotSavedToFile": true
+  },
+  "testIntegrity": {
+    "newPrivateCaseCorrectionOnlyApproved": true,
+    "all46AndOther45AssertionsKept": true,
+    "widgetOnlyApprovedParent300": true,
+    "functionalCasesHeapsInternalWaitsCleanupNetworkAndMemoryGuardsUnchanged": true,
+    "widgetDurationMs286798BelowApproved300NotOld180": true,
+    "noProductSlaOrCausalSpeedupClaim": true
+  },
+  "source28StillExact": true,
+  "runtimeReturnedAndPostAdmitEnded": true,
+  "productionReady": false
+}

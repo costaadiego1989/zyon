@@ -73,6 +73,7 @@ export class SendWhatsAppMessageUseCase {
   ) {}
 
   async execute(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
+    if (input.type === "support_case_alert") return { channel: "none", status: "skipped", reason: "private_staff_alert_required" };
     if (input.type === "cart_recovery") {
       try {
         const link = new URL(String(input.variables?.link ?? ""));

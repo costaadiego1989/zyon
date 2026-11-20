@@ -2,6 +2,8 @@ import { WhatsAppDeliveryService } from "./application/services/whatsapp-deliver
 import { WhatsAppSupportOutboxConsumer } from "./application/services/whatsapp-support-outbox.consumer.js";
 import { WhatsAppResumeOutboxConsumer } from "./application/services/whatsapp-resume-outbox.consumer.js";
 import { WhatsAppSupportDeliveryService } from "./application/services/whatsapp-support-delivery.service.js";
+import { SupportCaseAlertConsumer } from "../support/application/services/support-case-alert.consumer.js";
+import { SupportCaseAlertDeliveryService } from "../support/application/services/support-case-alert-delivery.service.js";
 import { WhatsAppDeliveryController } from "./presentation/http/whatsapp-delivery.controller.js";
 import { WhatsAppPresentationController } from "./presentation/http/whatsapp-presentation.controller.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
@@ -97,6 +99,8 @@ export class MultiProviderSenderAdapter {
     WhatsAppSupportOutboxConsumer,
     WhatsAppResumeOutboxConsumer,
     WhatsAppSupportDeliveryService,
+    SupportCaseAlertConsumer,
+    SupportCaseAlertDeliveryService,
     WhatsAppHumanIntakeService,
     WhatsAppHumanMessageRouter,
     HandleIncomingMessageUseCase,

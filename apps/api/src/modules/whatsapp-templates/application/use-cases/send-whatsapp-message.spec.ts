@@ -32,7 +32,15 @@ test("approved order templates receive paid charge variables without changing te
   assert.deepEqual(requests[0].contentVariables, { "1": "R$ 13,85", "2": "R$ 13,85", "4": "R$ 13,85",
     "3": "Produtos: R$ 3,00\nTaxa de serviço: R$ 0,99\nTotal pago: R$ 13,85" });
 });
-for (const type of WHATSAPP_TEMPLATE_TYPES) test(`${type}: active merchant approval uses official WhatsApp`, async () => {
+for (const type of WHATSAPP_TEMPLATE_TYPES) test(type === "support_case_alert" ? `${type}: generic sales rejects the private staff purpose` : `${type}: active merchant approval uses official WhatsApp`, async () => {
+  if (type === "support_case_alert") {
+    const h = harness(type);
+    assert.deepEqual(await h.sender.execute({ ...input, type }), {
+      channel: "none", status: "skipped", reason: "private_staff_alert_required",
+    });
+    assert.deepEqual(h.calls, { whatsapp: [], email: [], legacy: 0 });
+    return;
+  }
   const h = harness(type);
   assert.equal((await h.sender.execute({ ...input, type })).messageId, "wamid.1");
   assert.equal(h.calls.email.length + h.calls.legacy, 0);

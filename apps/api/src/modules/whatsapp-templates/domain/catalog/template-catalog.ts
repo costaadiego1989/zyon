@@ -90,6 +90,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
 
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
+  support_case_alert: "Novo atendimento humano em {{storeName}}. Abra a conversa no painel: {{dashboardLink}}. Atendimento da empresa.",
   service_appointment_notice: "Ol\u00e1, {{buyerName}}. Confira a atualiza\u00e7\u00e3o do seu atendimento na {{storeName}}.\n\n{{appointmentSummary}}\n\nSe precisar de ajuda, fale com a empresa.",
   shopping_agent_alert: "Olá, {{buyerName}}. Seu agente pessoal encontrou uma atualização para {{productName}}. Revise a tarefa e as condições atuais: {{link}}.\n\nAtenciosamente,\n{{storeName}}",
 marketplace_operational_alert: "Zyon: alerta operacional {{alertName}} está {{alertStatus}}, gravidade {{alertSeverity}}. Início: {{observedAt}}. Consulte o painel: {{dashboardLink}}.\n\nEquipe Zyon.",
@@ -129,6 +130,7 @@ Consulte as informações da sua compra. O acesso a produtos digitais é enviado
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
+  support_case_alert: false,
   service_appointment_notice: false,
   shopping_agent_alert: false,
 marketplace_operational_alert: false,
@@ -151,6 +153,7 @@ marketplace_operational_alert: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
+  support_case_alert: "Aviso privado de atendimento humano",
   service_appointment_notice: "Atualiza\u00e7\u00e3o do agendamento",
   shopping_agent_alert: "Aviso do agente pessoal",
 marketplace_operational_alert: "Marketplace: alerta operacional",

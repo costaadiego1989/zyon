@@ -4,6 +4,7 @@ import { cleanEmailSubject } from "../../../shared/messaging/email-content.js";
 
 /** Recipient-facing subjects are independent of the labels in the template editor. */
 export const EMAIL_TEMPLATE_SUBJECTS: Record<WhatsAppTemplateType, string> & Record<string, string> = {
+  support_case_alert: "{{storeName}} | Novo atendimento humano",
   service_appointment_notice: "{{storeName}} | Atualiza\u00e7\u00e3o do atendimento",
   shopping_agent_alert: "{{storeName}} | Atualização do seu agente pessoal",
   marketplace_operational_alert: "Zyon | Alerta operacional do marketplace",

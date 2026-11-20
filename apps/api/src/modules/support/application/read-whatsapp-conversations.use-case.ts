@@ -5,6 +5,7 @@ import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js
 import { isSupportTicketStatus } from "../domain/entities/support-ticket.entity.js";
 import { decodeSupportTicketCursor, encodeSupportTicketCursor } from "../domain/ports/support-ticket-repository.port.js";
 import { publicConversationMessage } from "./whatsapp-conversation-projection.js";
+import { staffAlertProjectionWithin } from "./support-case-alert-state.js";
 
 const requireHuman = (principal: TenantPrincipal) => {
   if (principal.kind !== "human" || !["owner", "admin", "staff"].includes(principal.role)) throw new ForbiddenException("human_operator_required");
@@ -57,8 +58,9 @@ export class ReadWhatsAppConversationsUseCase {
     const rows = await tx.supportTicketMessage.findMany({ where: { ticketId, ticket: { merchantId, source: "whatsapp", mergedIntoId: null },
       ...(after ? { OR: [{ createdAt: { gt: after.createdAt } }, { createdAt: after.createdAt, id: { gt: after.id } }] } : {}) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: limit + 1 });
     const visible = rows.slice(0, limit), last = visible.at(-1);
+    const staffAlert = binding ? await staffAlertProjectionWithin(tx, merchantId, ticketId) : undefined;
     return { ticket: { id: ticket.id, status: ticket.status, buyerMessage: ticket.buyerMessage, createdAt: ticket.createdAt.toISOString(), updatedAt: ticket.updatedAt.toISOString() },
-      binding, channel, messages: visible.map(message => publicConversationMessage(message, ticketId)),
+      binding, channel, ...(staffAlert ? { staffAlert } : {}), messages: visible.map(message => publicConversationMessage(message, ticketId)),
       has_more: rows.length > limit, next_cursor: rows.length > limit && last ? encodeSupportTicketCursor(last.createdAt.toISOString(), last.id) : null };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }

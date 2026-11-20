@@ -6,6 +6,11 @@ export const WHATSAPP_WEBHOOK_INBOX = Symbol("WhatsAppWebhookInbox");
 export const INBOX_MAX_ATTEMPTS = 10;
 export const INBOX_LEASE_MS = 120_000;
 
+/** Private evidence set only by an authenticated provider controller. */
+export type AuthenticatedWhatsAppAccount =
+  | { provider: "META_CLOUD"; accountId: string }
+  | { provider: "TWILIO"; accountId: string; sender: string };
+
 export interface WhatsAppInboxEvent {
   dedupKey: string;
   eventId: string;
@@ -14,7 +19,7 @@ export interface WhatsAppInboxEvent {
   configId: string;
   deviceId: string;
   streamKey: string;
-  payload: (IncomingMessageInput & { ignored?: boolean }) | StatusUpdateInput;
+  payload: (IncomingMessageInput & { ignored?: boolean; authenticatedAccount?: AuthenticatedWhatsAppAccount }) | StatusUpdateInput;
   payloadHash: string;
 }
 

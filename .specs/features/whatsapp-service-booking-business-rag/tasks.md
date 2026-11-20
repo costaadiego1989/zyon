@@ -2219,9 +2219,11 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Committed new case produces exactly one alert; duplicate/replayed intake, rollback, another tenant and stale epoch cannot create or adopt an alert.
-- [ ] Local captured transport proves recipient, minimal content/link and original verified channel. Unavailable/failed/unknown results retain truthful durable state; no uncertain automatic resend or delivery/read claim from acceptance.
-- [ ] Full component/owned SQL-outbox gates and existing handoff/delivery regressions pass; old assertions intact; mark complete before one atomic commit.
+- [x] Committed new case produces exactly one alert; duplicate/replayed intake, rollback, another tenant and stale epoch cannot create or adopt an alert.
+- [x] Local captured transport proves recipient, minimal content/link and original verified channel. Unavailable/failed/unknown results retain truthful durable state; no uncertain automatic resend or delivery/read claim from acceptance.
+- [x] Full component/owned SQL-outbox gates and existing handoff/delivery regressions pass; old assertions intact; mark complete before one atomic commit.
+
+**Status**: Complete locally - Full346 contextual executions, zero skipped; own API types/lint/capture/build/record/admit GREEN. Qualified isolated M201/M138 retained outside346. See task-100-evidence.json. T101 UI and final feature verification remain pending.
 
 **Tests**: New `tests/support-case-alert.integration.spec.mjs` root HUM-10 and consumer/receipt tests; actual owned SQL/outbox and strictly local provider capture, including rollback, config/recipient changes, missing window/template, uncertain commit and dedupe.
 **Gate**: Full: unfiltered consumer/receipt and existing handoff/delivery cohorts; `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/support-case-alert.integration.spec.mjs`; unchanged official checked API build/lint. Record exact component selectors first; no provider call.
@@ -2681,7 +2683,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T99, T101.
 
 **C76** - WHEN a new human case is confirmed THEN the system SHALL queue one private staff WhatsApp alert per case/epoch and preserve truthful unavailable/unknown delivery state without moving the customer conversation. (HUM-10, AC 2)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 --test-name-pattern "^HUM-10$" ./tests/support-case-alert.integration.spec.mjs`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --test --test-concurrency=1 ./tests/support-case-alert.integration.spec.mjs ./tests/support-case-alert-boundary.integration.spec.mjs`
 Tasks: T100, T101.
 
 **C77** - WHEN the operator opens Agendamentos THEN the system SHALL show coherent canonical appointment Kanban/list views with six operational statuses, separate finance, filters and versioned actions. (ATEND-11, AC 1)
@@ -3567,3 +3569,8 @@ Phase15 adds99→100→101, with55 also required by100 and62 by101. Phase16 adds
 
 
 **T39 local closure 2026-11-20T03:14:30.991751+00:00**: Full322 current contextual executions GREEN, no skips;188historical retained outside322. OwnRoot eaeb72bd/f9e2ff73/2589 and allheaders0, freshlint36d06a40, approved176 rawbf42744b/cleanup0/provider0/duration165319ms. Duration was beloworiginal180 too; no causalclaimthatbudgetfixresolvedslowness. Source8 7edbf80b and alloriginal7inputs exact. Approved local presentation call62b86875 and parent300 call69d9fe48 preserved. Code/queries/writer/transport/stock boundaries held; no realprovider/production/wholefeaturecomplete claim. Taskmarked beforefocusedcommit.
+
+
+**Approved T100 test expectations, consumed once**: 2026-11-19 - user: "Corrigir somente essas expectativas (recomendado)" (call_74bc4d7bea2948fd88d4d5e23b2795ea), exactpatch2d64d81c: only two null expectations and removal of arbitrary5511fragment; both full phone/privacy assertions remain. 2026-11-19 - user: "Corrigir somente o novo caso privado" (call_8b8b2307a0284388b16a518d8102e51e), exactpatch63401404: only expanded support_case_alert negative; all46 cases and other45 bodies/assertions/titleoutputs preserved. API was not changed by these oracle corrections; both were applied ONCE before their green gates.
+
+**T100 local Full closure 2026-11-20T04:37:18.954805+00:00**: Exact28 V3inputs40c451f5 adopted without borrowed client/dist/stamp; currentRoot76 +native46 +products224 =346 passed, no skips. Own e34a051e/5fb2dc67/2593 and all APIheaders0. Recordrefusal and admit-launcher failure preserved, successful compiler never repeated. Linear runtime comparison2683exact, only Root39consumer changed+formatter added; qualified M201/M138 outside346. Original protected inbox9 and40deliveries/20claimants retained with source/harness pins. Approved parent300 baseline fromT39 only; widget286798ms, no SLA/causality claim. Provider0/cleanup0, no production action. Task marked before focused local commit; T101/final feature verification pending.
