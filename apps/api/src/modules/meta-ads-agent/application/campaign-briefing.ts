@@ -9,7 +9,8 @@ export function briefingChecklist(progress:AssistantCampaignProgress|null){
   const selection=draft.variantIds?.length?{variantIds:draft.variantIds}:undefined;
   const end=budget.endsAt===null?(budget.cadence==='daily'?'no_end_date':undefined):budget.endsAt;
   const items=[item('destination',draft.destination,answers.destination),item('selection',selection,memory.selectionQuery??answers.selection),item('priority',draft.priority,answers.priority),item('amount',budget.amountCents,answers.amount),item('cadence',budget.cadence,answers.cadence),item('start',budget.startsAt,budget.startText??answers.start),item('end',end,budget.endText??answers.end),item('country',draft.country,answers.country)];
-  if(memory.budgetIssue&&budget.cadence==='daily'&&memory.budgetIssue.amountCents===budget.amountCents)items.find(entry=>entry.key==='amount')!.status='needs_revision';
+  const issue=memory.budgetIssue;
+  if(issue&&issue.amountCents===budget.amountCents&&(issue.cadence??'daily')===budget.cadence&&(budget.cadence==='daily'||issue.startsAt===budget.startsAt&&issue.endsAt===budget.endsAt))items.find(entry=>entry.key==='amount')!.status='needs_revision';
   const first=items.find(entry=>entry.status!=='confirmed'),collect=items.find(entry=>entry.status==='needs_revision')??items.find(entry=>entry.status!=='confirmed'&&!(entry.status==='received'&&['start','end'].includes(entry.key)));
   return {items,next:collect?.key??null,needsInterpretation:items.filter(entry=>entry.status==='received').map(entry=>entry.key),selection:{kind:memory.selectionKind??null,query:memory.selectionQuery??null,selectedVariantId:memory.selectedVariantId??null,categoryId:memory.categoryId??null,categories:memory.categoryOptions??[],products:memory.productOptions??[]},creative:{status:draft.mediaIds?.length?'ready':'agent_prepares',requestedImages:progress?.requestedImages??null},newCampaignApproval:'always_required',complete:!first};
 }

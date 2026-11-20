@@ -11,6 +11,7 @@ const accepted=(v=launchReview()):MetaAdsCampaignLaunchReview=>({...v,canApprove
 function setup(value=launchReview(),extras:Record<string,unknown>={}){screen=ui();const api={review:vi.fn().mockResolvedValue(value),approveLaunch:vi.fn().mockResolvedValue(accepted(value))};return{value,api,props:{merchantId:'store1',value,api,onUpdated:vi.fn(),timezone:'America/Sao_Paulo',...extras}};}
 async function loaded(){await act(async()=>{screen.container.querySelectorAll('img').forEach(img=>img.dispatchEvent(new Event('load')));});}
 const approve=()=>screen.container.querySelector<HTMLButtonElement>('[data-action="approve-launch"]')!;
+test('FR-04 final review keeps the approved total and explains the daily equivalent',async()=>{const{props,api}=setup();await screen.render(<LaunchReview {...props}/>);expect(screen.container.textContent?.replace(/\u00a0/g,' ')).toContain('R$ 100,00 no total');expect(screen.container.textContent?.replace(/\u00a0/g,' ')).toContain('Cerca de R$ 14,29 por dia');expect(api.approveLaunch).not.toHaveBeenCalled();});
 test('ACAP-12 shows frozen products copy destination priority audience exact dates and total before approval',async()=>{
  const {props}=setup();await screen.render(<LaunchReview {...props}/>);const text=screen.container.textContent!;
  for(const expected of ['Coleção Aurora','Bolsa Aurora','BA1','99,00','5 disponíveis','Conheça a coleção','Loja online','Vendas pagas','Brasil','100,00','total','16/11/2026','23/11/2026','09:00'])expect(text).toContain(expected);
@@ -35,3 +36,47 @@ test('ACAP-28 a single creative has no inactive carousel arrows',async()=>{const
 test('ACAP-15 canonical execution progress is shown even when two updates share a timestamp',async()=>{const value=accepted();value.execution={id:'e1',campaignId:'campaign1',proposalId:'proposal1',status:'sending',objects:[],error:null,updatedAt:'2026-11-16T12:01:00Z'};const {props}=setup(value);await screen.render(<LaunchReview {...props}/>);await screen.render(<LaunchReview {...props} value={{...value,execution:{...value.execution,status:'active_unconfirmed',objects:[{type:'campaign',id:'remote1'}]}}}/>);expect(screen.container.textContent).toContain('veiculação ainda não confirmada');expect(screen.container.textContent).toContain('remote1');await screen.render(<LaunchReview {...props} value={{...value,execution:{...value.execution,updatedAt:'2026-11-16T12:00:00Z'}}}/>);expect(screen.container.textContent).toContain('veiculação ainda não confirmada');});
 
 test('ACAP-11 a known entitlement loss disables a loaded review immediately',async()=>{const {props,api}=setup();await screen.render(<LaunchReview {...props}/>);await loaded();expect(approve().disabled).toBe(false);await screen.render(<LaunchReview {...props} entitled={false}/>);expect(approve().disabled).toBe(true);await screen.click('Aprovar e publicar');expect(api.approveLaunch).not.toHaveBeenCalled();});
+
+const recoveredConfirmation='A confirmação da aprovação desta versão foi recuperada. Nenhuma nova aprovação é necessária.';
+async function lostApproval(){
+ const f=setup();let reject!:(error:Error)=>void;f.api.approveLaunch.mockImplementation(()=>new Promise<MetaAdsCampaignLaunchReview>((_,fail)=>{reject=fail;}));
+ await screen.render(<LaunchReview {...f.props}/>);await loaded();await screen.click('Aprovar e publicar');
+ return {...f,reject:async()=>{await act(async()=>reject(new Error('lost response')));}};
+}
+function publishedReview(value:MetaAdsCampaignLaunchReview){const next=accepted(value);next.proposal.status='executed';next.execution={id:'recovered-execution',campaignId:value.campaign.id,proposalId:value.proposal.id,status:'active_unconfirmed',objects:[{type:'campaign',id:'remote1'}],error:null,updatedAt:'2026-11-16T12:02:00Z'};return next;}
+
+test.each([true,false])('CBX-51 canonical approval read before lost POST rejection=%s retains recovered confirmation without replay',async(canonicalFirst)=>{
+ const f=await lostApproval(),canonical=publishedReview(f.value);f.api.review.mockResolvedValue(canonical);
+ if(canonicalFirst)await screen.render(<LaunchReview {...f.props} value={canonical}/>);
+ await f.reject();
+ if(!canonicalFirst){expect(screen.container.textContent).toContain('Aguardando confirmação da aprovação');expect(screen.container.textContent).not.toContain(recoveredConfirmation);await screen.render(<LaunchReview {...f.props} value={canonical}/>);}
+ expect(screen.container.textContent).toContain(recoveredConfirmation);expect(screen.container.textContent).toContain('Ativa, veiculação ainda não confirmada');expect(screen.container.textContent).not.toContain('Veiculação confirmada');expect(screen.container.textContent).not.toContain('Não foi possível confirmar a operação');expect(approve()).toBeNull();
+ await screen.click('Consultar estado');expect(f.api.review).toHaveBeenCalledTimes(1);expect(f.api.review).toHaveBeenCalledWith(f.value.campaign.id,f.value.proposal.id);expect(f.api.approveLaunch).toHaveBeenCalledTimes(1);expect(screen.container.textContent).toContain('Ativa, veiculação ainda não confirmada');expect(approve()).toBeNull();
+});
+
+test('CBX-51 approval recovered without an execution never claims activation or delivery',async()=>{
+ const f=await lostApproval(),canonical=accepted(f.value);f.api.review.mockResolvedValue(canonical);await f.reject();await screen.render(<LaunchReview {...f.props} value={canonical}/>);
+ expect(screen.container.textContent).toContain(recoveredConfirmation);expect(screen.container.textContent).toContain('Aprovação registrada. Aguardando envio à Meta.');expect(screen.container.textContent).not.toContain('Ativa');expect(screen.container.textContent).not.toContain('Veiculação confirmada');expect(screen.container.textContent).not.toContain('Não foi possível confirmar a operação');expect(approve()).toBeNull();
+ await screen.click('Consultar estado');expect(f.api.review).toHaveBeenCalledTimes(1);expect(f.api.review).toHaveBeenCalledWith(f.value.campaign.id,f.value.proposal.id);expect(f.api.approveLaunch).toHaveBeenCalledTimes(1);expect(screen.container.textContent).toContain('Aguardando envio à Meta.');
+});
+
+test('CBX-51 unapproved canonical state keeps uncertain admission without recovered confirmation or another approval',async()=>{
+ const f=await lostApproval();await f.reject();await screen.render(<LaunchReview {...f.props} value={structuredClone(f.value)}/>);
+ expect(screen.container.textContent).toContain('Aguardando confirmação da aprovação');expect(screen.container.textContent).not.toContain(recoveredConfirmation);expect(screen.container.textContent).not.toContain('Ativa');expect(approve()).toBeNull();await screen.click('Consultar estado');expect(f.api.review).toHaveBeenCalledTimes(1);expect(f.api.approveLaunch).toHaveBeenCalledTimes(1);expect(screen.container.textContent).not.toContain(recoveredConfirmation);
+});
+
+test('CBX-51 stale superseded review with historical approval never claims recovered current confirmation',async()=>{
+ const f=await lostApproval(),stale=accepted(f.value);stale.proposal.status='stale';stale.missing=['proposal_stale'];stale.notice={id:'old-notice',campaignId:stale.campaign.id,proposalId:stale.proposal.id,proposalDigest:stale.proposal.digest,notificationId:'old-notification',reviewState:'superseded',whatsappStatus:'blocked',recipientHint:null,error:null,createdAt:'2026-11-16T12:00:00Z',updatedAt:'2026-11-16T12:02:00Z'};f.api.review.mockResolvedValue(stale);
+ await f.reject();await screen.render(<LaunchReview {...f.props} value={stale}/>);expect(stale.proposal.approvedAt).not.toBeNull();expect(screen.container.textContent).toContain('A campanha mudou');expect(screen.container.textContent).not.toContain(recoveredConfirmation);expect(screen.container.textContent).not.toContain('Ativa');expect(approve()).toBeNull();await screen.click('Consultar estado');expect(f.api.review).toHaveBeenCalledTimes(1);expect(f.api.approveLaunch).toHaveBeenCalledTimes(1);expect(screen.container.textContent).not.toContain(recoveredConfirmation);
+});
+
+test.each(['store','epoch'] as const)('CBX-51 a late lost approval response cannot introduce recovery feedback after changing %s',async(change)=>{
+ const f=await lostApproval(),next=structuredClone(f.value);if(change==='epoch')next.proposal.connectionEpoch++;else next.campaign.draft.name='Outra loja';
+ await screen.render(<LaunchReview {...f.props} merchantId={change==='store'?'store2':'store1'} value={next}/>);expect(approve().disabled).toBe(true);await f.reject();
+ expect(screen.container.textContent).not.toContain(recoveredConfirmation);expect(screen.container.textContent).not.toContain('Aguardando confirmação da aprovação');expect(screen.container.textContent).not.toContain('Não foi possível confirmar a operação');expect(screen.container.textContent).not.toContain('Ativa');expect(f.props.onUpdated).not.toHaveBeenCalled();expect(f.api.review).not.toHaveBeenCalled();expect(f.api.approveLaunch).toHaveBeenCalledTimes(1);await loaded();expect(approve().disabled).toBe(false);
+});
+
+test('CBX-51 a new consultation failure remains visible after canonical approval confirmation was recovered',async()=>{
+ const f=await lostApproval(),canonical=publishedReview(f.value);await f.reject();await screen.render(<LaunchReview {...f.props} value={canonical}/>);expect(screen.container.textContent).toContain(recoveredConfirmation);expect(screen.container.querySelector('[role="alert"]')).toBeNull();
+ f.api.review.mockRejectedValue(new Error('new read failure'));await screen.click('Consultar estado');expect(screen.container.querySelector('[role="alert"]')?.textContent).toContain('Não foi possível confirmar a operação. Atualize os dados antes de tentar novamente.');expect(screen.container.textContent).toContain(recoveredConfirmation);expect(screen.container.textContent).toContain('Ativa, veiculação ainda não confirmada');expect(screen.container.textContent).not.toContain('Veiculação confirmada');expect(approve()).toBeNull();expect(f.api.review).toHaveBeenCalledTimes(1);expect(f.api.review).toHaveBeenCalledWith(f.value.campaign.id,f.value.proposal.id);expect(f.api.approveLaunch).toHaveBeenCalledTimes(1);expect(f.props.onUpdated).not.toHaveBeenCalled();
+});

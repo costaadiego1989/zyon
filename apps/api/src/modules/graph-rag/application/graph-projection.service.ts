@@ -14,6 +14,10 @@ export const catalogProjectionSchema = z.strictObject({ ...common, kind: z.liter
 export const documentProjectionSchema = z.strictObject({ ...common, kind: z.literal("knowledge"), sourceType: z.enum(["faq", "policy"]),
   chunks: z.array(z.strictObject({ id, content: z.string().min(1).max(8000) })).max(100).default([]),
 }).refine(value => !value.active || value.chunks.length > 0, "active_source_incomplete");
+export const merchantGuideProjectionSchema = z.strictObject({ ...common, kind: z.literal("merchant_help"),
+  audience: z.literal("merchant"), context: z.literal("cashback"), sourceType: z.literal("merchant_guide"),
+  chunks: z.array(z.strictObject({ id, content: z.string().min(1).max(8000) })).max(100).default([]),
+}).refine(value => !value.active || value.chunks.length > 0, "active_source_incomplete");
 export type CatalogProjectionSource = z.input<typeof catalogProjectionSchema>;
 export type DocumentProjectionSource = z.input<typeof documentProjectionSchema>;
 export type GraphProjectionOutcome = { status: "applied" | "ignored"; sourceHash: string }
@@ -26,6 +30,8 @@ export function catalogProjectionHash(value: unknown) { const parsed = catalogPr
   return contentHash({ ...parsed, variants: [...parsed.variants].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) }); }
 export function documentProjectionHash(value: unknown) { const parsed = documentProjectionSchema.parse(value);
   return contentHash({ ...parsed, chunks: [...parsed.chunks].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) }); }
+export function merchantGuideProjectionHash(value: unknown) { const parsed = merchantGuideProjectionSchema.parse(value);
+  return contentHash({ ...parsed, chunks: [...parsed.chunks].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) }); }
 
 // Schema operations run only through the explicit operator bootstrap, never on a query.
 export const GRAPH_SCHEMA_STATEMENTS = [
@@ -35,6 +41,8 @@ export const GRAPH_SCHEMA_STATEMENTS = [
   "CREATE CONSTRAINT zyon_graph_attribute_identity IF NOT EXISTS FOR (n:ZyonGraphAttribute) REQUIRE (n.merchantId, n.canonicalId) IS UNIQUE",
   "CREATE CONSTRAINT zyon_graph_document_identity IF NOT EXISTS FOR (n:ZyonGraphDocument) REQUIRE (n.merchantId, n.sourceType, n.canonicalId) IS UNIQUE",
   "CREATE CONSTRAINT zyon_graph_chunk_identity IF NOT EXISTS FOR (n:ZyonGraphChunk) REQUIRE (n.merchantId, n.sourceType, n.sourceId, n.canonicalId) IS UNIQUE",
+  "CREATE CONSTRAINT zyon_graph_merchant_guide_identity IF NOT EXISTS FOR (n:ZyonGraphMerchantGuide) REQUIRE (n.merchantId, n.audience, n.context, n.canonicalId) IS UNIQUE",
+  "CREATE CONSTRAINT zyon_graph_guide_chunk_identity IF NOT EXISTS FOR (n:ZyonGraphMerchantGuideChunk) REQUIRE (n.merchantId, n.audience, n.context, n.sourceId, n.canonicalId) IS UNIQUE",
 ];
 const ROOT_CATALOG = `MERGE (p:ZyonGraphProduct {merchantId: $merchantId, canonicalId: $sourceId})
 ON CREATE SET p.sourceVersion = -1
@@ -86,6 +94,27 @@ SET c.active = true, c.sourceVersion = $sourceVersion, c.contentHash = item.cont
     c.modelId = $modelId, c.projectedAt = $projectedAt, c.schemaVersion = 1,
     c.embedding = item.embedding, c.normalizedText = item.normalizedText
 MERGE (d)-[:ZyonGraphHasChunk {merchantId: $merchantId}]->(c)`;
+
+const ROOT_GUIDE = `MERGE (d:ZyonGraphMerchantGuide {merchantId: $merchantId, audience: $audience, context: $context, canonicalId: $sourceId})
+ON CREATE SET d.sourceVersion = -1
+SET d._projectionLock = true REMOVE d._projectionLock
+WITH d WHERE d.sourceVersion < $sourceVersion OR (d.sourceVersion = $sourceVersion AND d.sourceHash = $sourceHash)
+SET d.active = $active, d.sourceType = $sourceType, d.sourceVersion = $sourceVersion, d.sourceHash = $sourceHash,
+    d.modelId = $modelId, d.projectedAt = $projectedAt, d.schemaVersion = 1
+RETURN true AS admitted`;
+const RETIRE_GUIDE_CHUNKS = `MATCH (d:ZyonGraphMerchantGuide {merchantId: $merchantId, audience: $audience, context: $context, canonicalId: $sourceId})
+ -[:ZyonGraphHasGuideChunk {merchantId: $merchantId, audience: $audience, context: $context}]->
+ (c:ZyonGraphMerchantGuideChunk {merchantId: $merchantId, audience: $audience, context: $context})
+WHERE c.sourceType = $sourceType AND c.sourceId = $sourceId
+SET c.active = false, c.sourceVersion = $sourceVersion, c.projectedAt = $projectedAt
+REMOVE c.embedding, c.normalizedText`;
+const UPSERT_GUIDE_CHUNKS = `MATCH (d:ZyonGraphMerchantGuide {merchantId: $merchantId, audience: $audience, context: $context, canonicalId: $sourceId})
+UNWIND $chunks AS item
+MERGE (c:ZyonGraphMerchantGuideChunk {merchantId: $merchantId, audience: $audience, context: $context, sourceId: $sourceId, canonicalId: item.id})
+SET c.active = true, c.sourceType = $sourceType, c.sourceVersion = $sourceVersion, c.sourceHash = $sourceHash, c.contentHash = item.contentHash,
+    c.modelId = $modelId, c.projectedAt = $projectedAt, c.schemaVersion = 1,
+    c.embedding = item.embedding, c.normalizedText = item.normalizedText
+MERGE (d)-[:ZyonGraphHasGuideChunk {merchantId: $merchantId, audience: $audience, context: $context}]->(c)`;
 
 export class GraphProjectionService {
   constructor(private readonly graph: GraphProjectionTransactions, private readonly embeddings: GraphEmbeddingPort,
@@ -154,6 +183,29 @@ export class GraphProjectionService {
         const root = await tx.run(ROOT_DOCUMENT, params);
         if (!root.records.length) return { status: "ignored", sourceHash };
         await tx.run(RETIRE_CHUNKS, params);if (chunks.length) await tx.run(UPSERT_CHUNKS, params);
+        return { status: "applied", sourceHash };
+      });
+    } catch { return { status: "unavailable", reason: "graph_unavailable" }; }
+  }
+
+  async projectMerchantGuide(value: unknown): Promise<GraphProjectionOutcome> {
+    const checked = merchantGuideProjectionSchema.safeParse(value);
+    if (!checked.success || checked.data.version > this.clock() + 30_000) return { status: "unavailable", reason: "invalid_source" };
+    const source = checked.data, sourceHash = merchantGuideProjectionHash(source);
+    try {
+      const chunks = [];
+      for (const chunk of source.active ? source.chunks : []) {
+        const embedding = await this.embeddings.generate(chunk.content), vector = graphReadSchema.shape.embedding.safeParse(embedding);
+        if (!vector.success) return { status: "unavailable", reason: "embedding_unavailable" };
+        chunks.push({ id: chunk.id, contentHash: hash(chunk.content), normalizedText: normalizeGraphText(chunk.content), embedding: vector.data });
+      }
+      const params = { merchantId: source.merchantId, sourceId: source.id, sourceType: source.sourceType,
+        audience: source.audience, context: source.context, sourceVersion: source.version, sourceHash,
+        active: source.active, modelId: this.embeddings.modelId, projectedAt: this.clock(), chunks };
+      return await this.graph.withProjection(source.merchantId, async tx => {
+        const root = await tx.run(ROOT_GUIDE, params);
+        if (!root.records.length) return { status: "ignored", sourceHash };
+        await tx.run(RETIRE_GUIDE_CHUNKS, params); if (chunks.length) await tx.run(UPSERT_GUIDE_CHUNKS, params);
         return { status: "applied", sourceHash };
       });
     } catch { return { status: "unavailable", reason: "graph_unavailable" }; }

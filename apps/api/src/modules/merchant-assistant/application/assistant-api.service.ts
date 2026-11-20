@@ -39,7 +39,7 @@ export class AssistantApiService {
   async source(scope: AssistantScope, id: string) {
     const context = await this.context(scope);
     if (typeof id !== 'string' || id.length > 201) throw new AssistantError('assistant_source_not_found', 404);
-    const source = await this.deps.knowledge.source(context.knowledgeScope, id);
+    const source = await this.deps.knowledge.source({...context.knowledgeScope,merchantId:scope.merchantId}, id);
     if (!source) throw new AssistantError('assistant_source_not_found', 404);
     return source;
   }

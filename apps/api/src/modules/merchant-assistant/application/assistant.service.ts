@@ -1,7 +1,7 @@
 import type { AssistantArtifact, AssistantReference } from '@zyon/shared-types';
 import { AssistantError, type AssistantRepository } from '../domain/assistant.port.js';
 import type { AssistantContextPort, AssistantToolInput, UncitedAssistantResponse } from '../domain/context.port.js';
-import type { AssistantKnowledgePort, RetrievedAssistantKnowledge } from '../domain/knowledge.port.js';
+import { CASHBACK_KNOWLEDGE_FALLBACK_NOTICE, type AssistantKnowledgePort, type RetrievedAssistantKnowledge } from '../domain/knowledge.port.js';
 import type { AssistantModelMessage, AssistantModelPort, AssistantModelResult } from '../domain/model.port.js';
 import { assertAssistantTurnLease } from './turn-admission.service.js';
 
@@ -13,8 +13,12 @@ const safeCode = (error: unknown) => {
   const value = error as { code?: unknown; status?: unknown };
   return typeof value?.code === 'string' && /^(assistant_|campaign_|creative_|image_|generation_|proposal_|approval_|addon_|meta_|automatic_|automation_)[a-z0-9_]{1,100}$/.test(value.code) ? value.code : 'assistant_tool_failed';
 };
-function toolContent(value: unknown): string {
+function toolContent(value: unknown, exactCashback = false): string {
   const json = JSON.stringify(value);
+  if (exactCashback) {
+    if (Buffer.byteLength(json, 'utf8') > 48000) throw new AssistantError('assistant_context_limit', 429);
+    return json;
+  }
   if (Buffer.byteLength(json, 'utf8') <= 10000) return json;
   // Large descriptions/media stay canonical in artifacts and persistence, not in model history.
   return JSON.stringify({ truncated: true, content: json.slice(0, 4500), note: 'Consulte o artefato canônico. Conteúdo truncado não comprova campos omitidos.' });
@@ -43,9 +47,17 @@ export class AssistantService {
     const messages:AssistantModelMessage[]=segments.flat();let historyMessages=messages.length;
     messages.push({ role: 'user', content: initial.turn.message });
     let knowledge: RetrievedAssistantKnowledge[];
-    const previousQuestion=history.at(-1)?.reply??'';
+    const knowledgeScope=Object.freeze({...this.deps.context.knowledgeScope,merchantId:input.scope.merchantId});
+    const previousQuestion=knowledgeScope.context==='meta_ads'?(history.at(-1)?.reply??''):'';
     const retrievalQuery=previousQuestion?`${initial.turn.message.slice(0,6500)}\nContexto anterior: ${previousQuestion.slice(0,1200)}`:initial.turn.message;
-    try { knowledge = await this.deps.knowledge.retrieve(this.deps.context.knowledgeScope, retrievalQuery); } catch { knowledge = []; }
+    let fallback=knowledgeScope.context==='cashback';
+    try {
+      if(this.deps.knowledge.retrieveWithStatus){
+        const retrieved=await this.deps.knowledge.retrieveWithStatus(knowledgeScope,retrievalQuery);
+        knowledge=retrieved.entries;fallback=knowledgeScope.context==='cashback'&&retrieved.status!=='graph_used';
+      }else knowledge=await this.deps.knowledge.retrieve(knowledgeScope,retrievalQuery);
+    } catch { knowledge = []; }
+    const visibleReply=(reply:string)=>fallback?`${CASHBACK_KNOWLEDGE_FALLBACK_NOTICE}\n\n${reply}`:reply;
     const tools = this.deps.context.tools(); const artifacts: AssistantArtifact[] = [...(captured?.artifacts??[])]; const evidence:UncitedAssistantResponse['evidence'][number][]=captured?[{name:'merchant_ads_save_draft',result:captured}]:[];
     let completionRequirement:string|null=null;
     for (let round = 0; round <= 5; round++) {
@@ -60,7 +72,7 @@ export class AssistantService {
         const current=await this.current(input);let reply:string|null=null;
         try{reply=this.deps.context.recoveredResponse?.({message:initial.turn.message,suggestedReply:'',campaign:current.thread.campaignProgress,evidence})??null;}catch{ /* Invalid read evidence cannot support a response. */ }
         if(!reply)throw error;
-        return {reply,references:[],artifacts:this.latestArtifacts(artifacts)};
+        return {reply:visibleReply(reply),references:[],artifacts:this.latestArtifacts(artifacts)};
       }
       if (response.toolCalls.length) {
         if (round === 5) throw new AssistantError('assistant_tool_round_limit', 429);
@@ -72,7 +84,7 @@ export class AssistantService {
             const resolved = await this.deps.context.execute({ ...input, name: call.name, args: call.args,origin:'model' });
             evidence.push({name:call.name,result:resolved});
             artifacts.push(...resolved.artifacts);
-            messages.push({ role: 'tool', tool_call_id: call.id, content: toolContent(resolved.data) });
+            messages.push({ role: 'tool', tool_call_id: call.id, content: toolContent(resolved.modelData ?? resolved.data, this.deps.context.descriptor.id === 'cashback' && resolved.modelData !== undefined) });
           } catch (error) {
             const code = safeCode(error);
             if (['assistant_forbidden', 'assistant_lease_lost', 'assistant_context_unavailable', 'assistant_outcome_unknown', 'assistant_operation_already_dispatched'].includes(code) || (error as { status?: number })?.status === 403 && code !== 'approval_required') throw error;
@@ -88,17 +100,23 @@ export class AssistantService {
         completionRequirement=this.deps.context.completionRequirement?.({message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence})??null;
         if(completionRequirement)continue;
       }
+      const guidance={message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence};
+      // Current canonical Cashback tool outcomes do not depend on model-owned citation IDs.
+      if(this.deps.context.descriptor.id==='cashback'&&this.deps.context.uncitedResponse?.(guidance)){
+        const guided=this.deps.context.guidedResponse?.(guidance);
+        if(guided)return {reply:visibleReply(guided),references:[],artifacts:this.latestArtifacts(artifacts)};
+      }
       let references: AssistantReference[];
-      try { references = await this.deps.knowledge.validateReferences(this.deps.context.knowledgeScope, response.referenceIds, knowledge); }
-      catch { return { reply: unavailable, references: [], artifacts: this.latestArtifacts(artifacts) }; }
-      const guided=this.deps.context.guidedResponse?.({message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence});
-      if(guided)return {reply:guided,references:[],artifacts:this.latestArtifacts(artifacts)};
+      try { references = await this.deps.knowledge.validateReferences(knowledgeScope, response.referenceIds, knowledge); }
+      catch { return { reply: visibleReply(unavailable), references: [], artifacts: this.latestArtifacts(artifacts) }; }
+      const guided=this.deps.context.guidedResponse?.(guidance);
+      if(guided)return {reply:visibleReply(guided),references:[],artifacts:this.latestArtifacts(artifacts)};
       // A question mark or unrelated tool result never validates model-written claims.
       // Without citations the context may emit only its own canonical facts/questions.
       let canonical:string|null=/^como posso ajudar\?$/i.test(response.reply.trim())?'Como posso ajudar?':null;
       if(!references.length&&!canonical){try{canonical=this.deps.context.uncitedResponse?.({suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence})??null;}catch{canonical=null;}}
       if(!references.length&&!canonical&&current.thread.campaignProgress){try{canonical=this.deps.context.recoveredResponse?.({message:initial.turn.message,suggestedReply:'',campaign:current.thread.campaignProgress,evidence})??null;}catch{canonical=null;}}
-      return { reply: references.length ? response.reply : canonical??unavailable, references, artifacts: this.latestArtifacts(artifacts) };
+      return { reply: visibleReply(references.length ? response.reply : canonical??unavailable), references, artifacts: this.latestArtifacts(artifacts) };
     }
     throw new AssistantError('assistant_tool_round_limit', 429);
   }

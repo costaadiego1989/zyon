@@ -19,7 +19,7 @@ const feedbackCategories: Array<{ value: PlatformFeedbackCategory; label: string
   { value: "other", label: "Outro feedback" },
 ];
 
-export function PlatformFeedbackFab({ apiBaseUrl, merchantId }: { apiBaseUrl: string; merchantId: string }) {
+export function PlatformFeedbackFab({ apiBaseUrl, merchantId, presentation = "floating" }: { apiBaseUrl: string; merchantId: string; presentation?: "floating" | "inline" }) {
   const api = useApi();
   const supportClient = useMemo(() => createPlatformSupportClient({ baseUrl: apiBaseUrl, kind: "merchant", request: <T,>(path: string, init?: { method?: string; body?: string }) => dashboardJson<T>(apiBaseUrl, path, { ...init, ...(init?.body ? { headers: { "Content-Type": "application/json" } } : {}) }) }), [apiBaseUrl, merchantId]);
   const [supportOpen, setSupportOpen] = useState(false);
@@ -80,19 +80,24 @@ export function PlatformFeedbackFab({ apiBaseUrl, merchantId }: { apiBaseUrl: st
     }
   };
 
+  const openHelp = () => capabilities?.canOpen || hasTickets || !capabilities ? setSupportOpen(true) : setIsOpen(true);
+  const helpLabel = unread ? `Ajuda e feedback, ${unread} mensagens não lidas` : "Ajuda e feedback sobre a Zyon";
   return (
     <>
-      <button
+      {presentation === "inline" ? <Button variant="outline" className="platform-feedback-inline" onClick={openHelp} aria-haspopup="dialog" aria-label={helpLabel} title="Ajuda e feedback">
+        <Bug size={18} aria-hidden="true" />
+        {unread > 0 && <span className="platform-support-unread">{unread}</span>}
+      </Button> : <button
         type="button"
         className="platform-feedback-fab"
-        onClick={() => capabilities?.canOpen || hasTickets || !capabilities ? setSupportOpen(true) : setIsOpen(true)}
+        onClick={openHelp}
         aria-haspopup="dialog"
-        aria-label={unread ? `Ajuda e feedback, ${unread} mensagens não lidas` : "Ajuda e feedback sobre a Zyon"}
+        aria-label={helpLabel}
       >
         <Bug size={18} aria-hidden="true" />
         <span>Ajuda e feedback</span>
         {unread > 0 && <span className="platform-support-unread">{unread}</span>}
-      </button>
+      </button>}
 
       <Modal
         isOpen={isOpen}

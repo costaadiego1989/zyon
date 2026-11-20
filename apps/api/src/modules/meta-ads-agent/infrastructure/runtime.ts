@@ -49,6 +49,9 @@ import {CampaignPreparationService} from '../application/campaign-preparation.se
 import {CampaignNoticeContactService} from '../application/campaign-notice-contact.service.js';
 import {InitialLaunchService} from '../application/initial-launch.service.js';
 import {CampaignPreparationWorker} from './campaign-preparation.worker.js';
+import {assessBudget,type CampaignBudgetAssessmentPort} from '../application/budget-guidance.js';
+import {CatalogImageAdapter} from './catalog-image.adapter.js';
+import {CatalogCreativeService} from '../application/catalog-creative.service.js';
 import {CampaignReadyNoticeWorker} from './campaign-ready-notice.worker.js';
 import {CampaignReadyNoticeSender} from './campaign-ready-notice.sender.js';
 
@@ -63,12 +66,19 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   let attribution: AttributionService;
   const provider = new MetaMcpAdapter(env, request, (merchantId, campaignId, original) => attribution.trackedUrl(merchantId, campaignId, original));
   const connection = new ConnectionService(repo, commerce, new MetaOAuthAdapter(env), new CredentialCodec(env.META_ADS_CREDENTIAL_ENCRYPTION_KEY), provider, env.META_ADS_OAUTH_REDIRECT_URI ?? "", clock);
+  const budgetAssessment:CampaignBudgetAssessmentPort=async(merchantId,budget)=>{
+    if(!budget)return null;
+    let context:{accountId:string;currency?:string|null;minimumDailyBudgetCents?:number|null}={accountId:'unavailable'};
+    try{const access=await connection.access(merchantId),value=await provider.accountBudgetConstraints(access),current=await connection.access(merchantId);if(access.accountId===current.accountId&&access.connectionEpoch===current.connectionEpoch)context=value;}catch{/* Unavailable constraints are reported explicitly, never replaced by an invented floor. */}
+    return assessBudget(budget,context,clock().toISOString());
+  };
   const billing = new BillingService(repo, commerce, new StripeAddonAdapter(env), () => readOffer(env), clock);
   const campaigns = new CampaignService(repo, commerce, connection, provider, clock);
   const approvalEnabled=()=>env.META_ADS_AGENT_ENABLED==='true'&&env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED==='true';
   let preparationWorker:CampaignPreparationWorker;
   const generations = new GenerationService(repo, commerce, new ImageGenerationAdapter(env, input.storage, request, new CreativeReviewAdapter(env, request)), clock,undefined,
     (merchantId,purpose,campaign)=>preparationWorker.authorizeGeneration(merchantId,purpose,campaign));
+  const catalogImageAdapter=new CatalogImageAdapter(env,input.storage,request),catalogCreatives=new CatalogCreativeService(repo,commerce,catalogImageAdapter,clock);
   const proposals = new ProposalService(repo, commerce, campaigns, connection, provider, clock);
   const automationEnabled = () => env.META_ADS_AGENT_ENABLED === 'true' && env.META_ADS_AGENT_AUTOMATION_ENABLED === 'true';
   const authorizeActor = async (merchantId: string, actorId: string) => {
@@ -90,12 +100,12 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const authority = new ExecutionAuthorityService({ repo, commerce, connection, campaigns, policies, exposure, budgetControl, funding, authorizeActor, enabled: automationEnabled,launchEnabled:approvalEnabled, clock });
   const executions = new ExecutionService(repo, commerce, campaigns, connection, provider, clock, undefined, { authority, exposure, budgetControl });
   const preparations=new PrismaCampaignPreparationRepository(input.prisma,clock),notices=new PrismaCampaignReadyNoticeRepository(input.prisma,clock);
-  const preparation=new CampaignPreparationService({repo,commerce,campaigns,connection,preparations,authorizeActor,authorizePreparation,enabled:approvalEnabled,clock});
-  const launches=new InitialLaunchService({repo,commerce,campaigns,proposals,executions,preparations,notices,authorizeActor,enabled:approvalEnabled,clock});
+  const preparation=new CampaignPreparationService({repo,commerce,campaigns,connection,preparations,authorizeActor,authorizePreparation,enabled:approvalEnabled,clock,budgetAssessment,catalogFallbackAvailable:()=>catalogImageAdapter.configured()});
+  const launches=new InitialLaunchService({repo,commerce,campaigns,proposals,executions,preparations,notices,authorizeActor,enabled:approvalEnabled,clock,budgetAssessment});
   const contacts=new CampaignNoticeContactService({db:input.prisma,authorizeActor,clock,senderNumber:async merchantId=>{
     const config=await input.whatsapp.findByMerchantId(merchantId);return config?.merchantId===merchantId?config.whatsappNumber??config.phoneNumber??null:null;
   }});
-  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,enabled:approvalEnabled,clock});
+  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,enabled:approvalEnabled,clock,budgetAssessment,catalogCreatives});
   const noticeSender=input.templates&&input.templateSender?new CampaignReadyNoticeSender({db:input.prisma,notices,configs:input.whatsapp,templates:input.templates,templateSender:input.templateSender,launches,authorizeActor,
       storeName:async merchantId=>(await commerce.getProfile(merchantId)).name,dashboardUrl:env.META_ADS_CAMPAIGN_REVIEW_URL??env.META_ADS_DASHBOARD_URL??'',clock,enabled:()=>approvalEnabled()&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true'}):null;
   const noticeWorker=new CampaignReadyNoticeWorker({repo,launches,notices,sender:{send:async lease=>{

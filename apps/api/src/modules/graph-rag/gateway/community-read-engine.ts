@@ -1,7 +1,7 @@
 import neo4j from "neo4j-driver";
 import { compileGraphRead, graphReadSchema, type GraphReadInput } from "../domain/graph-query.js";
 import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
-import { admitGraphRows } from "../domain/graph-result.js";
+import { admitGraphRows, GraphResultError } from "../domain/graph-result.js";
 import type { GraphReadResult } from "../domain/graph-rag.port.js";
 
 export interface CommunityReadSettings { uri: string; user: string; password: string; database: string; merchantIds: readonly string[] }
@@ -39,7 +39,7 @@ export class CommunityReadEngine implements GatewayReadEngine {
           [key, neo4j.isInt(item) ? item.inSafeRange() ? item.toNumber() : NaN : item])));
         return admitGraphRows(input, rows, this.clock);
       } finally { await session.close(); }
-    } catch { return { status: "unavailable", reason: "neo4j_unavailable" }; }
+    } catch (error) { return { status: "unavailable", reason: error instanceof GraphResultError ? "invalid_result" : "neo4j_unavailable" }; }
   }
   async close() { this.closed = true;await this.driver?.close(); }
 }

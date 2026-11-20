@@ -84,3 +84,7 @@
  .chat-dock .chat-dock-hint-dismiss{width:44px;min-height:44px}
 }
 @media(prefers-reduced-motion:reduce){.chat-dock--floating .chat-dock-panel,.chat-dock-hint{animation:none}}
+.chat-dock-options{display:flex;flex-wrap:wrap;gap:.5rem;padding:.25rem 0 .75rem}
+.chat-dock-options button{max-width:100%;min-height:44px;padding:.55rem .8rem;border:1px solid var(--color-border-strong);border-radius:8px;background:var(--color-surface-alt);color:var(--color-text);font:inherit;font-size:.875rem;text-align:left;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+.chat-dock .chat-dock-options button:hover:not(:disabled){border-color:var(--color-brand);background:var(--color-surface)}
+.chat-dock-options button:focus-visible{outline:2px solid var(--color-brand);outline-offset:2px}

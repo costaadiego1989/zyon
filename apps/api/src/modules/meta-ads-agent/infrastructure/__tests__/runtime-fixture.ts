@@ -10,7 +10,7 @@ import { createMetaAdsRuntime } from '../runtime.js';
 import {installCampaignApprovalSchema} from './campaign-approval-database.js';
 import {PrismaMerchantStoreRepository} from '../../../merchant/infrastructure/prisma-merchant-store.repository.js';
 
-export async function agenticRuntimeFixture(flags: Record<string, string | undefined> = {}) {
+export async function agenticRuntimeFixture(flags: Record<string, string | undefined> = {}, options:{minimumDailyBudgetCents?:number}={}) {
   const f = await metaAssistantFixture(); await f.connect(); f.setNow('2026-11-16T12:00:00Z');
   // This composition fixture starts with no chat; the base helper seeds an unrelated adapter turn.
   await f.sql.query('DELETE FROM merchant_assistant_threads WHERE id=$1', [f.thread.id]);
@@ -40,7 +40,7 @@ export async function agenticRuntimeFixture(flags: Record<string, string | undef
     else if (rpc.method === 'tools/list') result = { tools: names.map(name => ({ name, inputSchema: { type: 'object', properties: {}, additionalProperties: true } })) };
     else {
       const args = rpc.params.arguments, name = rpc.params.name; let body: unknown;
-      if (name === 'ads_get_ad_accounts') body = { ad_accounts: [{ ad_account_id: '100', ad_account_name: 'Conta da loja', currency: 'BRL', is_queryable: true, is_ads_mcp_enabled: true, has_payment_method: true, min_daily_budget_cents: 100 }] };
+      if (name === 'ads_get_ad_accounts') body = { ad_accounts: [{ ad_account_id: '100', ad_account_name: 'Conta da loja', currency: 'BRL', is_queryable: true, is_ads_mcp_enabled: true, has_payment_method: true, min_daily_budget_cents: options.minimumDailyBudgetCents??100 }] };
       else if (name === 'ads_get_field_context') body = { fields: args.field_names.map((name: string) => ({ name, levels: ['campaign', 'adset', 'ad', 'ad_account'], type: name.includes('budget') || ['amount_spent', 'spend_cap'].includes(name) ? 'CURRENCY' : 'STRING', filterable: true, supported_filter_operators: ['IN'] })), unknown_fields: [] };
       else if (name === 'ads_get_ad_entities') body = { ad_entities: JSON.stringify([{ id: args.level === 'account' ? '100' : args.level === 'adset' ? '300' : args.level === 'ad' ? '500' : '200', account_id: '100', campaign_id: '200', adset_id: '300', status: 'PAUSED', effective_status: 'PAUSED', targeting: {}, creative_id: '400', timezone_name: 'America/Sao_Paulo', lifetime_budget: { value: 100, unit: 'BRL' }, daily_budget: { value: 0, unit: 'BRL' }, amount_spent: { value: 0, unit: 'BRL' }, offsite_conversion_fb_pixel_purchase_values: { value: 0, unit: 'BRL' }, offsite_conversion_fb_pixel_purchase: 0, 'actions:onsite_conversion.messaging_conversation_started_7d': 0 }]) };
       else if (name === 'ads_update_entity') { writes.push(name); body = { success: true }; }

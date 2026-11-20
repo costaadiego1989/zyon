@@ -1,7 +1,11 @@
 import type {AssistantReference} from '@zyon/shared-types';
+import {createHash} from 'node:crypto';
 import {AssistantError} from '../domain/assistant.port.js';
-import type {AssistantKnowledgeDocument,AssistantKnowledgeScope,AssistantKnowledgePort,RetrievedAssistantKnowledge} from '../domain/knowledge.port.js';
+import type {AssistantKnowledgeDocument,AssistantKnowledgeScope,AssistantKnowledgePort,RetrievedAssistantKnowledge,AssistantKnowledgeRetrieval} from '../domain/knowledge.port.js';
 import {META_ADS_MERCHANT_KNOWLEDGE} from './knowledge/meta-ads.pt-BR.js';
+import {CASHBACK_MERCHANT_KNOWLEDGE,cashbackGuideSource} from './knowledge/cashback.pt-BR.js';
+import {merchantGuideProjectionHash} from '../../graph-rag/application/graph-projection.service.js';
+import type {GraphRetrievalPort} from '../../graph-rag/domain/graph-rag.port.js';
 
 const stop=new Set('a o as os de da do das dos e em no na nos nas um uma para por com como qual quais que eu minha meu minhas meus quero posso onde quando se ao'.split(' '));
 const identifier=(value:string)=>/^[a-z0-9][a-z0-9_-]{0,99}$/i.test(value)&&value===value.trim();
@@ -19,9 +23,10 @@ function safeSource(doc:AssistantKnowledgeDocument):boolean{
   let safe=false;
   if(doc.url.startsWith('/?')){
     const url=new URL(doc.url,'https://assistant.invalid');
-    safe=url.origin==='https://assistant.invalid'&&url.pathname==='/'&&!url.hash&&url.searchParams.get('tab')==='meta-ads-agent'&&
-      url.searchParams.get('help')===doc.id&&[...url.searchParams.keys()].every(key=>['tab','help'].includes(key));
-  }else safe=officialUrl(doc.url);
+    const tab=doc.context==='meta_ads'?'meta-ads-agent':doc.context==='cashback'?'cashback':null;
+    safe=tab!==null&&url.origin==='https://assistant.invalid'&&url.pathname==='/'&&!url.hash&&url.searchParams.get('tab')===tab&&
+      url.searchParams.get('help')===doc.id&&[...url.searchParams.keys()].length===2&&[...url.searchParams.keys()].every(key=>['tab','help'].includes(key));
+  }else safe=doc.context==='meta_ads'&&officialUrl(doc.url);
   return safe&&doc.externalSources.every(source=>officialUrl(source.url));
 }
 function chunk(doc:AssistantKnowledgeDocument,section:AssistantKnowledgeDocument['sections'][number],score=0):RetrievedAssistantKnowledge{
@@ -31,9 +36,14 @@ function chunk(doc:AssistantKnowledgeDocument,section:AssistantKnowledgeDocument
 const sameReference=(a:AssistantReference,b:AssistantReference)=>a.id===b.id&&a.version===b.version&&a.title===b.title&&a.url===b.url&&a.reviewedAt===b.reviewedAt&&a.excerpt===b.excerpt;
 
 export class AssistantKnowledgeRetriever implements AssistantKnowledgePort {
-  constructor(private readonly load:()=>readonly AssistantKnowledgeDocument[]=()=>META_ADS_MERCHANT_KNOWLEDGE,private readonly clock:()=>Date=()=>new Date()){}
+  constructor(private readonly load:()=>readonly AssistantKnowledgeDocument[]=()=>[...META_ADS_MERCHANT_KNOWLEDGE,...CASHBACK_MERCHANT_KNOWLEDGE],
+    private readonly clock:()=>Date=()=>new Date(),private readonly graph?:Pick<GraphRetrievalPort,'enabledFor'|'searchMerchantGuides'>){}
+  private scopedMerchant(scope:AssistantKnowledgeScope){
+    return scope.audience==='merchant'&&typeof scope.merchantId==='string'&&/^[a-zA-Z0-9][a-zA-Z0-9_.:/@-]{0,190}$/.test(scope.merchantId);
+  }
   private current(scope:AssistantKnowledgeScope){
     const now=this.clock().getTime();const documents=new Map<string,AssistantKnowledgeDocument>();
+    if(scope.context==='cashback'&&!this.scopedMerchant(scope))return documents;
     let loaded:readonly AssistantKnowledgeDocument[];
     try{loaded=this.load();}catch{return documents;}
     for(const doc of loaded){
@@ -46,6 +56,35 @@ export class AssistantKnowledgeRetriever implements AssistantKnowledgePort {
     return documents;
   }
   async retrieve(scope:AssistantKnowledgeScope,query:string):Promise<RetrievedAssistantKnowledge[]>{
+    return (await this.retrieveWithStatus(scope,query)).entries;
+  }
+  async retrieveWithStatus(scope:AssistantKnowledgeScope,query:string):Promise<AssistantKnowledgeRetrieval>{
+    if(scope.context!=='cashback')return Object.freeze({status:'lexical',entries:this.lexical(scope,query)});
+    if(!this.scopedMerchant(scope))return Object.freeze({status:'unavailable',reason:'invalid_scope',entries:[]});
+    const fallback=(reason:string):AssistantKnowledgeRetrieval=>Object.freeze({status:'reviewed_fallback',reason,entries:this.lexical(scope,query)});
+    if(typeof query!=='string'||!query.trim()||query.length>2000)return fallback('invalid_input');
+    if(!this.graph)return fallback('disabled');
+    try{
+      if(!this.graph.enabledFor(scope.merchantId!))return fallback('disabled');
+      const result=await this.graph.searchMerchantGuides({merchantId:scope.merchantId!,context:'cashback',query,limit:5});
+      if(result.status!=='ready')return fallback(result.reason);
+      if(!Array.isArray(result.hits)||!result.hits.length)return fallback('empty_graph');
+      if(result.hits.length>5)return fallback('stale_graph');
+      const current=this.current(scope),entries:RetrievedAssistantKnowledge[]=[],seen=new Set<string>();
+      for(const hit of result.hits){
+        const doc=current.get(hit.sourceId),section=doc?.sections.find(section=>section.id===hit.chunkId);
+        if(!doc||!section||hit.merchantId!==scope.merchantId||hit.context!=='cashback'||hit.audience!=='merchant'||hit.sourceType!=='merchant_guide')return fallback('stale_graph');
+        const source=cashbackGuideSource(scope.merchantId!,doc);
+        if(hit.sourceVersion!==source.version||hit.sourceHash!==merchantGuideProjectionHash(source)||
+          hit.contentHash!==createHash('sha256').update(section.content).digest('hex')||!Number.isFinite(hit.score)||hit.score<0||hit.score>1||
+          !Number.isFinite(hit.projectedAt)||hit.projectedAt<this.clock().getTime()-300000||hit.projectedAt>this.clock().getTime()+30000)return fallback('stale_graph');
+        const entry=chunk(doc,section,hit.score);
+        if(!seen.has(entry.reference.id)){seen.add(entry.reference.id);entries.push(entry);}
+      }
+      return Object.freeze({status:'graph_used',entries});
+    }catch{return fallback('graph_unavailable');}
+  }
+  private lexical(scope:AssistantKnowledgeScope,query:string):RetrievedAssistantKnowledge[]{
     if(typeof query!=='string'||query.length>8000)return [];
     const terms=[...new Set(tokens(query))];if(!terms.length)return [];
     const entries=[...this.current(scope).values()].flatMap(doc=>doc.sections.map(section=>({doc,section,body:tokens(section.content),
