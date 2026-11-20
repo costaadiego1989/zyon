@@ -136,6 +136,6 @@ export class MultiProviderSenderAdapter {
     },
     { provide: WHATSAPP_WEBHOOK_INBOX, useClass: PrismaWhatsAppWebhookInbox },
   ],
-  exports: [SendWhatsAppResponseUseCase, WHATSAPP_POST_SALE_CONTEXT_PORT, WhatsAppConfigModule],
+  exports: [SendWhatsAppResponseUseCase, WHATSAPP_POST_SALE_CONTEXT_PORT, WhatsAppConfigModule, MetaCloudSenderAdapter, TwilioSenderAdapter],
 })
 export class WhatsAppChannelModule {}

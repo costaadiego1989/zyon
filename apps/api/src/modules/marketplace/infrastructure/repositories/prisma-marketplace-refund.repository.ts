@@ -1,4 +1,6 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { recordFiscalOrderChange } from "../../../../shared/persistence/fiscal-commercial-change.js";
+import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
+import { ConflictException, Injectable, Optional } from "@nestjs/common";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import type { MarketplaceRefundObservation, MarketplaceRefundRequest } from "../../domain/ports/marketplace-refund-provider.port.js";
 import type { MarketplaceRefundOperation, MarketplaceRefundRepository } from "../../domain/ports/marketplace-refund-repository.port.js";
@@ -36,7 +38,7 @@ export interface PrepareMarketplaceRefundInput {
 /** Internal only: never repurposes the immutable original payout instructions. */
 @Injectable()
 export class PrismaMarketplaceRefundRepository implements MarketplaceRefundRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient, @Optional() private readonly fiscalTenants?: TenantContextService) {}
 
   /** Preparing a provider command spends nothing. Keep the original allocation
    * and every seller's fee ownership intact, alongside the new net-credit plan. */
@@ -441,6 +443,13 @@ export class PrismaMarketplaceRefundRepository implements MarketplaceRefundRepos
         payload: { refund_plan_id: plan.id, return_id: plan.returnId, payment_intent_id: payment.id,
           order_id: payment.providerPaymentId, amount_cents: plan.amountCents, cumulative_refund_cents: allocation.cumulativeRefundCents,
           allocation_hash: plan.allocationHash, provider_refund_id: observation.providerOperationId } } });
+      const sellers = [...new Set(allocation.lines.map(line => line.sellerMerchantId))];
+      for (const seller of sellers) {
+        const lines = allocation.lines.filter(line => line.sellerMerchantId === seller);
+        // Partial operation never suppresses an entire seller invoice, even when another seller is fully refunded.
+        await recordFiscalOrderChange(tx, { merchantId: operation.hostMerchantId, paymentIntentId: payment.id, orderId: returned.orderId,
+          sellers: [seller], trigger: { id: "marketplace-refund:" + plan.id, kind: allocation.cumulativeRefundCents === payment.amountCents && lines.every(line => line.cumulativeQuantity === line.purchasedQuantity) ? "refund" : "partial_refund" } }, this.fiscalTenants);
+      }
       if (observation.reconciliationRequired) {
         await tx.marketplaceFundingPlan.update({ where: { paymentIntentId: payment.id }, data: { status: "held" } });
         await tx.outboxMessage.create({ data: { eventId: `marketplace_refund_financial_reconciliation_${plan.id}`,

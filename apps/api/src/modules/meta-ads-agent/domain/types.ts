@@ -259,6 +259,10 @@ export interface ImageGenerationPort {
   configured(): boolean;
   generate(input: { merchantId: string; generationId: string; imageIndex: number; product: MetaAdsProduct; brief: MetaAdsCampaignDraft; assertAuthorized?:()=>Promise<void> }): Promise<GeneratedImageResult>;
 }
+export interface CatalogImagePort {
+  configured():boolean;
+  capture(input:{merchantId:string;mediaKey:string;product:MetaAdsProduct}):Promise<{url:string;sourceUrl:string;imageSha256:string}>;
+}
 export interface PreparationGenerationAuthority {preparationId:string;intentDigest:string;}
 export type GenerationAuthorizer=(merchantId:string,authority:PreparationGenerationAuthority,campaign:MetaAdsCampaign)=>Promise<void>;
 export interface AttributionReceipt {

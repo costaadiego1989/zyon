@@ -196,7 +196,10 @@ export interface StartResponse {
   chat_protocol?: "durable_v2";
   session_id: string;
   experience?: Experience;
+  fiscal?: FiscalRecipientPreparation;
 }
+
+export interface FiscalRecipientPreparation { active: boolean; mode: "buyer" | "other"; fields: string[]; recipient: Record<string, unknown> }
 
 export type CrossSellAcceptResponse = Exclude<NormalCheckoutCrossSellHttpAcceptanceResponse, { projection_status: "available" }>
   | (Omit<Extract<NormalCheckoutCrossSellHttpAcceptanceResponse, { projection_status: "available" }>, "experience"> & { experience: Experience });
@@ -965,6 +968,40 @@ export class CheckoutSession {
     });
     if (!res.ok) throw new Error(`embed_customer_failed: ${res.status}`);
     return res.json();
+  }
+
+  async updateFiscalRecipient(recipient: Record<string, unknown>): Promise<{ recipient: Record<string, unknown>; personal?: { cpf?: string; fullName?: string } }> {
+    this.assertSession();
+    this.assertCommercialReconciled();
+    const sessionId = this.sessionId;
+    const response = await fetch(`${this.embedBaseUrl}/embed/customer/fiscal`, { method: "POST", headers: this.headers(),
+      body: JSON.stringify({ session_id: sessionId, recipient }), signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("fiscal_recipient", response);
+    const result = await response.json();
+    if (this.sessionId !== sessionId || result?.ok !== true || !result.recipient || typeof result.recipient !== "object") throw new Error("fiscal_recipient_response_invalid");
+    return { recipient: result.recipient, ...(result.personal ? { personal: result.personal } : {}) };
+  }
+
+  async prepareFiscalRecipient(mode?: "buyer" | "other"): Promise<FiscalRecipientPreparation> {
+    this.assertSession(); const sessionId = this.sessionId;
+    this.assertCommercialReconciled();
+    const response = await fetch(`${this.embedBaseUrl}/embed/customer/fiscal/prepare`, { method: "POST", headers: this.headers(),
+      body: JSON.stringify({ session_id: sessionId, ...(mode ? { mode } : {}) }), signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("fiscal_recipient", response);
+    const result = await response.json();
+    if (this.sessionId !== sessionId || typeof result.active !== "boolean" || !["buyer", "other"].includes(result.mode)
+      || !Array.isArray(result.fields) || !result.recipient || typeof result.recipient !== "object") throw new Error("fiscal_recipient_response_invalid");
+    return result;
+  }
+
+  async lookupFiscalAddress(postalCode: string): Promise<Record<string, string>> {
+    this.assertSession(); const sessionId = this.sessionId;
+    const response = await fetch(`${this.embedBaseUrl}/embed/customer/fiscal/address`, { method: "POST", headers: this.headers(),
+      body: JSON.stringify({ session_id: sessionId, postal_code: postalCode }), signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("fiscal_address", response);
+    const result = await response.json();
+    if (this.sessionId !== sessionId || !/^\d{7}$/.test(result?.address?.cityCode ?? "")) throw new Error("fiscal_address_response_invalid");
+    return result.address;
   }
 
   private assertSession(): void {

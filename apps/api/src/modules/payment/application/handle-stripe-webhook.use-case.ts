@@ -423,7 +423,12 @@ export class HandleStripeWebhookUseCase {
       this.metrics?.paymentWebhookAnomaly.inc({ provider: "stripe", kind: "marketplace_refund_requires_reconciliation" });
       return "marketplace_refund_reconciliation_required";
     }
-    if (charge.amount_refunded < snapshot.amountCents) return "payment_partially_refunded";
+    if (charge.amount_refunded < snapshot.amountCents) {
+      await this.payments.recordFiscalRefundObservation?.({ merchantId: snapshot.merchantId, paymentIntentId: snapshot.id,
+        providerPaymentId: piId, amountCents: charge.amount, currency: charge.currency, refundedCents: charge.amount_refunded,
+        providerEventRef: "stripe-refund:" + charge.id + ":" + charge.amount_refunded });
+      return "payment_partially_refunded";
+    }
 
     await this.paymentDispatch.markRefunded(intentEntity, "charge.refunded");
     await this.refundPaymentHold?.execute(intentId);

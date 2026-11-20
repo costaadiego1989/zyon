@@ -2,6 +2,7 @@ import type {
   MetaAdsActionKind, MetaAdsCampaign, MetaAdsCampaignDraft, MetaAdsExecution,
   MetaAdsGeneration, MetaAdsMetrics, MetaAdsPriority, MetaAdsProposal, MetaAdsRecommendation,
 } from './meta-ads-agent.js';
+import type { CashbackAssistantReport, CashbackConfigurationChecklist, CashbackProgramView } from './cashback.js';
 
 /** Public assistant contracts. Credentials and execution authority are server-only. */
 export interface AssistantContextDescriptor { id: string; label: string; capabilities: string[]; }
@@ -23,7 +24,7 @@ export interface AssistantCampaignBriefing {
   categoryId?: string;
   budget?: { amountCents?: number; cadence?: 'daily' | 'lifetime'; startText?: string; endText?: string; startsAt?: string; endsAt?: string | null };
   /** Server-derived account floor warning. Conversation data, never permission to increase spend. */
-  budgetIssue?: {amountCents:number;minimumDailyBudgetCents:number;currency:string;accountId:string;checkedAt:string};
+  budgetIssue?: {amountCents:number;minimumDailyBudgetCents:number;currency:string;accountId:string;checkedAt:string;cadence?:'daily'|'lifetime';startsAt?:string;endsAt?:string|null;estimatedMinimumTotalCents?:number|null};
   /** Exact merchant answers awaiting interpretation; bounded and never treated as instructions. */
   answers?: Partial<Record<'destination'|'selection'|'priority'|'amount'|'cadence'|'start'|'end'|'country',string>>;
   categoryOptions?: Array<{id:string;name:string}>;
@@ -170,6 +171,8 @@ export interface MetaAdsDailyReport {
 }
 
 export type AssistantArtifact =
+  | { type: 'cashback_draft'; program: CashbackProgramView; missingFields: string[]; checklist?: CashbackConfigurationChecklist }
+  | { type: 'cashback_report'; report: CashbackAssistantReport }
   | { type: 'campaign'; campaign: MetaAdsCampaign }
   | { type: 'campaign_progress'; progress: AssistantCampaignProgress }
   | { type: 'generation'; generation: MetaAdsGeneration }

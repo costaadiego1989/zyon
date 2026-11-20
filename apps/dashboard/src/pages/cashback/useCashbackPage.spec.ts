@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest";
 import { cashbackInitialPeriod, cashbackPeriodQuery, cashbackPresetPeriod } from "./useCashbackPage.js";
 
 describe("cashback reporting periods", () => {
+  it("CBX-11 covers the real 23-hour Brasília day when DST skips midnight", () => {
+    const query = cashbackPeriodQuery("2018-11-04", "2018-11-04");
+    expect(query).toEqual({ from: "2018-11-04T01:00:00-02:00", to: "2018-11-04T23:59:59.999-02:00" });
+    expect(Date.parse(query.to) - Date.parse(query.from) + 1).toBe(23 * 3600000);
+  });
+  it("CBX-11 covers both occurrences of the repeated hour when Brasília DST ends", () => {
+    const query = cashbackPeriodQuery("2018-02-17", "2018-02-17");
+    expect(query).toEqual({ from: "2018-02-17T00:00:00-02:00", to: "2018-02-17T23:59:59.999-03:00" });
+    expect(Date.parse(query.to) - Date.parse(query.from) + 1).toBe(25 * 3600000);
+  });
+  it("CBX-11 keeps invalid or reversed dates out of query construction", () => {
+    for (const [from,to] of [["", "2026-11-18"], ["2026-02-30", "2026-03-01"], ["2026-11-19", "2026-11-18"]]) expect(cashbackPeriodQuery(from,to)).toEqual({from:"",to:""});
+  });
   it("keeps the initial current month in Brasília before UTC and local dates agree", () => {
     expect(cashbackInitialPeriod(new Date("2026-12-01T02:59:59Z"))).toEqual({ from: "2026-11-01", to: "2026-11-30" });
     expect(cashbackInitialPeriod(new Date("2026-12-01T03:00:00Z"))).toEqual({ from: "2026-12-01", to: "2026-12-01" });

@@ -8,10 +8,13 @@ import { OFFER_REPOSITORY } from "./domain/ports/offer.repository.port.js";
 import { ORDER_REPOSITORY } from "./domain/ports/order.repository.port.js";
 import { CHECKOUT_EXPERIENCE_CONFIG } from "./domain/checkout-experience.config.js";
 import { createCheckoutExperienceConfig } from "./infrastructure/checkout-experience.config.factory.js";
+import { FISCAL_ORDER_COMMIT_FACTORY, type FiscalOrderCommitFactory } from "../fiscal/fiscal-runtime.ports.js";
+import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 
 /**
- * Thin persistence module exposing the checkout repository (and its aliases)
- * with only a PrismaClient dependency. It exists to break the catalog↔checkout
+ * Thin persistence module exposing the checkout repository (and its aliases).
+ * An optional global fiscal participant joins any commercial commit without
+ * importing the fiscal module here. It exists to break the catalog↔checkout
  * module cycle: modules that need to READ checkout sessions (e.g. Catalog's
  * AddStorefrontItemUseCase) import THIS neutral module instead of the full
  * CheckoutModule, so no import edge points back from a low-level reader into
@@ -22,8 +25,11 @@ import { createCheckoutExperienceConfig } from "./infrastructure/checkout-experi
   providers: [
     {
       provide: CHECKOUT_REPOSITORY,
-      useFactory: (prisma: PrismaClient) => new PrismaCheckoutRepository(prisma),
-      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: PrismaClient, factory?: FiscalOrderCommitFactory, tenants?: TenantContextService) => {
+        if (factory && !tenants) throw new Error("fiscal_tenant_context_required");
+        return new PrismaCheckoutRepository(prisma, false, undefined, undefined, factory, tenants);
+      },
+      inject: [PRISMA_CLIENT, { token: FISCAL_ORDER_COMMIT_FACTORY, optional: true }, { token: TenantContextService, optional: true }],
     },
     { provide: CHECKOUT_SESSION_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
     { provide: OFFER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },

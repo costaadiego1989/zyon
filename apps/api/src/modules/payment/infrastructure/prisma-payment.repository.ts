@@ -5,6 +5,9 @@ import { ServiceUnavailableException } from "@nestjs/common";
 import { snapshotDigitalPaymentContent } from "../../../shared/persistence/digital-payment-content.js";
 import { Injectable } from "@nestjs/common";
 import { ConflictException } from "@nestjs/common";
+import { isDeepStrictEqual } from "node:util";
+import { recordFiscalOrderChange } from "../../../shared/persistence/fiscal-commercial-change.js";
+import type { TenantContextService } from "../../../shared/tenant/tenant-context.service.js";
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import type { DomainEventEnvelope } from "@zyon/shared-types";
@@ -188,7 +191,8 @@ export class PrismaPaymentRepository implements PaymentRepository {
     private readonly captureCoupon?: (tx: PrismaTx, snapshot: PaymentIntentSnapshot, scope?: StorefrontCouponPaymentScope)
       => Promise<ReturnType<typeof readPaymentCouponAuthority>>,
     private readonly captureWidgetCheckout?: CaptureWidgetCheckoutPayment,
-    private readonly captureNormalCrossSell?: CaptureNormalCrossSellPayment) {}
+    private readonly captureNormalCrossSell?: CaptureNormalCrossSellPayment,
+    private readonly fiscalTenants?: TenantContextService) {}
 
   async listForSession(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]> {
     const rows = await this.prisma.paymentIntent.findMany({ where: { merchantId, sessionId }, orderBy: { createdAt: "desc" } });
@@ -203,11 +207,19 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return row !== null;
   }
 
+  async recordFiscalRefundObservation(input: { merchantId: string; paymentIntentId: string; providerPaymentId: string; amountCents: number; currency: string; refundedCents: number; providerEventRef: string }) {
+    await this.prisma.$transaction(async tx => {
+      const original = await tx.paymentIntent.findFirst({ where: { id: input.paymentIntentId, merchantId: input.merchantId, providerPaymentId: input.providerPaymentId } });
+      if (!original || original.amountCents !== input.amountCents || original.currency.toUpperCase() !== input.currency.toUpperCase() || !Number.isSafeInteger(input.refundedCents) || input.refundedCents <= 0 || input.refundedCents > original.amountCents) throw new Error("fiscal_refund_payment_mismatch");
+      await recordFiscalOrderChange(tx, { merchantId: input.merchantId, paymentIntentId: original.id,
+        trigger: { id: input.providerEventRef, kind: input.refundedCents === original.amountCents ? "refund" : "partial_refund" } }, this.fiscalTenants);
+    });
+  }
   async saveIntent(input: SavePaymentIntentInput): Promise<void> {
     const snapshot = input.intent.snapshot();
     const originalNormal = readPaymentNormalCrossSellAuthority(snapshot);
     const originalWidget = readPaymentWidgetCheckoutAuthority(snapshot);
-    await this.prisma.$transaction(tx => this.saveVersion(tx, snapshot));
+    await this.prisma.$transaction(async tx => { await this.saveVersion(tx, snapshot); await this.savePrivateReceipt(tx, input); });
     const capturedWidget = readPaymentWidgetCheckoutAuthority(snapshot);
     if (capturedWidget && !originalWidget) input.intent.acknowledgeWidgetCheckoutCapture(capturedWidget);
     const capturedNormal = readPaymentNormalCrossSellAuthority(snapshot);
@@ -223,6 +235,8 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const scope = input.storefrontCouponScope === undefined ? undefined : parseStorefrontCouponPaymentScope(input.storefrontCouponScope);
     await this.prisma.$transaction(async tx => {
       await this.saveVersion(tx, snapshot, scope);
+      await this.saveVersion(tx, snapshot);
+      await this.savePrivateReceipt(tx, input);
       if (!snapshot.creation?.input.marketplaceFunding) await appendPlannedSettlementInTransaction(tx, input.settlementPlan);
     });
     const captured = readPaymentCouponAuthority(snapshot);
@@ -241,6 +255,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const outboxArgs = outboxUpsertArgs(event);
     await this.prisma.$transaction(async (tx: PrismaTx) => {
       await this.saveVersion(tx, snapshot);
+      await this.savePrivateReceipt(tx, input);
       await tx.outboxMessage.upsert(outboxArgs);
     });
     const capturedWidget = readPaymentWidgetCheckoutAuthority(snapshot);
@@ -248,6 +263,18 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const capturedNormal = readPaymentNormalCrossSellAuthority(snapshot);
     if (capturedNormal && !originalNormal) input.intent.acknowledgeNormalCrossSellCapture(capturedNormal);
     input.intent.persisted((snapshot.version ?? 0) + 1);
+  }
+
+  private async savePrivateReceipt(tx: PrismaTx, input: SavePaymentIntentInput) {
+    if (!input.privateReceipt) return;
+    const snapshot = input.intent.snapshot(); const evidence = input.privateReceipt; const quote = evidence.quote;
+    const transfers = quote.transfers?.length ? quote.transfers : [{ destinationAddress: quote.destinationAddress, amountAtomic: quote.amountAtomic }];
+    const hashes = snapshot.providerPaymentId?.split(",");
+    if (snapshot.method !== "crypto" || snapshot.status !== "approved" || evidence.kind !== "crypto_v1" || !hashes || hashes.length !== evidence.transfers.length || transfers.length !== evidence.transfers.length || JSON.stringify(quote) !== JSON.stringify(snapshot.buyerFacing) || evidence.transfers.some((r, index) => r.txHash !== hashes[index] || r.chain !== quote.chain || r.network !== quote.evmNetwork || r.chainId !== quote.chainId || r.tokenAddress.toLowerCase() !== quote.tokenAddress.toLowerCase() || r.destinationAddress.toLowerCase() !== transfers[index]!.destinationAddress.toLowerCase() || r.amountAtomic !== transfers[index]!.amountAtomic || !/^0x[0-9a-fA-F]{64}$/.test(r.blockHash) || r.occurredAt !== undefined && !Number.isFinite(Date.parse(r.occurredAt)))) throw new Error("private_payment_receipt_binding_invalid");
+    const current = await tx.paymentIntent.findUniqueOrThrow({ where: { id: snapshot.id } });
+    const normalized = JSON.parse(JSON.stringify(evidence)) as Prisma.InputJsonValue;
+    if (current.privateReceipt && !isDeepStrictEqual(current.privateReceipt, normalized)) throw new Error("private_payment_receipt_immutable");
+    if (!current.privateReceipt) await tx.paymentIntent.update({ where: { id: snapshot.id, merchantId: snapshot.merchantId }, data: { privateReceipt: normalized } });
   }
 
   private async saveVersion(tx: PrismaTx, snapshot: PaymentIntentSnapshot, trustedScope?: StorefrontCouponPaymentScope): Promise<void> {
@@ -431,6 +458,8 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const updated = await tx.paymentIntent.updateMany({ where: { id: snapshot.id, merchantId: snapshot.merchantId, version: snapshot.version ?? 0 }, data: args.update });
     if (updated.count !== 1) throw new PaymentIntentConflictError();
     if (!isMarketplace) await recordIncentivePayment(tx, snapshot);
+    if (snapshot.status === "refunded" && current.status !== "refunded") await recordFiscalOrderChange(tx, { merchantId: snapshot.merchantId,
+      paymentIntentId: snapshot.id, trigger: { id: "payment-refund:" + snapshot.id, kind: "refund" } }, this.fiscalTenants);
   }
 
   async listStalePending(query: StalePendingQuery): Promise<PaymentIntentEntity[]> {

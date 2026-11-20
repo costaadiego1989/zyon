@@ -26,6 +26,10 @@ test('ACAP-27 browser runtime composes canonical approval and administrative not
 test('ADAS-48 browser runtime refuses missing nonce before initializing any database',{timeout:30000},async()=>{
   const f=start({AGENTIC_TEST_NONCE:'',DATABASE_URL:'postgresql://forbidden.invalid/never'});assert.notEqual(await f.exited,0);assert.match(f.output(),/agentic_test_nonce_required/);assert.doesNotMatch(f.output(),/ECONNREFUSED|ENOTFOUND|ready/);
 });
+
+test('CBX-48 browser runtime refuses an unknown context before initializing the local fixture',{timeout:30000},async()=>{
+ const f=start({AGENTIC_TEST_NONCE:randomBytes(32).toString('hex'),AGENTIC_TEST_CONTEXT:'foreign',DATABASE_URL:'postgresql://forbidden.invalid/never'});assert.notEqual(await f.exited,0);assert.match(f.output(),/agentic_test_context_invalid/);assert.doesNotMatch(f.output(),/ECONNREFUSED|ENOTFOUND|ready/);
+});
 test('ADAS-54 browser witness runs actual cookie auth PG history RAG metering and cross-store denial',{timeout:180000},async()=>{
   const nonce=randomBytes(32).toString('hex'),base='http://127.0.0.1:3039',headers={'x-agentic-test-nonce':nonce,'content-type':'application/json'};const f=start({AGENTIC_TEST_NONCE:nonce,AGENTIC_TEST_PORT:'3039',DATABASE_URL:'postgresql://forbidden.invalid/never'});let shutdown=false;
   try{

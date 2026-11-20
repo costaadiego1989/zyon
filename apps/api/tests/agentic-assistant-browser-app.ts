@@ -4,7 +4,12 @@ import {readFile} from 'node:fs/promises';
 import {Controller,Get,Module,Req,UseGuards} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
 import express,{type Request,type Response,type NextFunction} from 'express';
-import {testDatabase} from '../src/modules/meta-ads-agent/infrastructure/__tests__/database.js';
+import {testDatabase} from './agentic-assistant-browser-database.js';
+import {installCashbackBrowserSchema,createCashbackBrowserFixture} from './agentic-assistant-browser-cashback.js';
+import {CashbackMerchantController} from '../src/modules/cashback/presentation/cashback.controllers.js';
+import {CashbackErrorFilter} from '../src/modules/cashback/presentation/cashback-error.filter.js';
+import {CashbackService} from '../src/modules/cashback/application/cashback.service.js';
+import {CashbackQueriesService} from '../src/modules/cashback/application/cashback-queries.service.js';
 import {createMetaAdsRuntime,type MetaAdsRuntime} from '../src/modules/meta-ads-agent/infrastructure/runtime.js';
 import {createMerchantAssistantRuntime,type MerchantAssistantRuntime} from '../src/modules/merchant-assistant/infrastructure/runtime.js';
 import {PrismaAuthRepository} from '../src/modules/auth/infrastructure/prisma-auth.repository.js';
@@ -43,7 +48,8 @@ import {HandleStatusUpdateUseCase} from '../src/modules/whatsapp-channel/applica
 const front='http://127.0.0.1:5179';
 export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:number}) {
   // This fixture function uses an immutable loopback URL, never DATABASE_URL or .env.
-  const db=await testDatabase();let now=new Date('2026-11-16T12:00:00Z');const clock=()=>now;
+  const initialInstant=process.env.AGENTIC_TEST_CONTEXT==='cashback'?'2026-11-19T12:00:00Z':'2026-11-16T12:00:00Z';
+  const db=await testDatabase();let now=new Date(initialInstant);const clock=()=>now;
   try{
     await db.sql.query(await readFile(new URL('../prisma/migrations/20261116103000_merchant_assistant/migration.sql',import.meta.url),'utf8'));
     await db.sql.query(`
@@ -69,6 +75,7 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
       CREATE TABLE completed_orders(id TEXT PRIMARY KEY,merchant_id TEXT,completed_at TIMESTAMPTZ);
     `);
     await installCampaignApprovalSchema(db.sql);
+    await installCashbackBrowserSchema(db.sql);
   }catch(error){await db.close();throw error;}
   const provider=new AgenticBrowserProvider(clock),tenant=new TenantContextService(),memberships=new PrismaMerchantStoreRepository(db.prisma);
   const governance=new AiGovernanceService(db.prisma,tenant),authRepo=new PrismaAuthRepository(db.prisma),jwt=new JwtService(randomBytes(32).toString('base64'),3600,authRepo),cookies=new AuthCookieService('aacp_access_token',false);
@@ -88,9 +95,11 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
   const catalog={findByVariantIds:(merchantId:string,ids:string[])=>products(merchantId,undefined,ids),search:async(input:{merchantId:string;query?:string})=>({products:await products(input.merchantId,input.query)})};
   const merchants={getProfile:async(id:string)=>{const row=(await db.sql.query('SELECT id,name,store_settings FROM merchants WHERE id=$1',[id])).rows[0];return row?{id:row.id,name:row.name,slug:id,storeSettings:row.store_settings}:undefined;}};
   const billing={getBilling:async(merchantId:string)=>{const row=(await db.sql.query('SELECT * FROM agentic_billing WHERE merchant_id=$1',[merchantId])).rows[0];return row?{merchantId,planKey:row.plan_key,status:row.status}:undefined;}};
+  const cashback=createCashbackBrowserFixture(db.prisma,db.sql,clock);
   let assistant:MerchantAssistantRuntime,meta:MetaAdsRuntime;
   const compose=()=>{
     assistant=createMerchantAssistantRuntime({prisma:db.prisma,memberships,tenant,governance,env,transport:provider.request,clock});
+    cashback.register(assistant);
     meta=createMetaAdsRuntime({prisma:db.prisma,catalog:catalog as never,merchants:merchants as never,billing:billing as never,storage:{isConfigured:()=>true,upload:async(_bytes,_type,_folder,name)=>({url:`https://media.example.test/${name}.png`,key:name})},whatsapp:configs as never,templates:templates as never,templateSender,env,assistant,memberships,request:provider.request,clock});
   };
   async function seed(){
@@ -104,12 +113,13 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
   }
   const stopWorkers=async()=>{await assistant.worker.onModuleDestroy();await meta.preparationWorker.onModuleDestroy();await meta.generationWorker.onModuleDestroy();await meta.noticeWorker.onModuleDestroy();await meta.launches.onModuleDestroy();await meta.observation.onModuleDestroy();await meta.automatic.onModuleDestroy();};
   const startWorkers=()=>{assistant.worker.onModuleInit();meta.generationWorker.onModuleInit();meta.preparationWorker.onModuleInit();meta.noticeWorker.onModuleInit();meta.launches.onModuleInit();meta.automatic.onModuleInit();meta.observation.onModuleInit();};
-  compose();await seed();
+  compose();await seed();await cashback.seed();
   const proxy=<T extends object>(select:()=>T)=>new Proxy({} as T,{get(_target,key){const target=select(),value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}});
   Reflect.defineMetadata('design:paramtypes',[JwtService,AuthCookieService],AuthGuard);
   Reflect.defineMetadata('design:paramtypes',[ManageMerchantNotificationInboxUseCase],MerchantNotificationController);
+  Reflect.defineMetadata('design:paramtypes',[CashbackService,CashbackQueriesService],CashbackMerchantController);
   @Controller('agentic-test') @UseGuards(AuthGuard) class SessionController{@Get('session') session(@Req() request:Request){const principal=currentTenantPrincipal(request);return{merchantId:principal.tenantId,userId:principal.userId,role:principal.role};}}
-  @Module({controllers:[MetaAdsAgentController,FundingController,AutomationReportController,MerchantAssistantController,CampaignApprovalController,MerchantNotificationController,SessionController],providers:[AuthGuard,MetaAdsHttpErrorFilter,AssistantHttpErrorFilter,{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:cookies},{provide:MetaAdsAgentService,useValue:proxy(()=>meta.service)},{provide:FundingService,useValue:proxy(()=>meta.funding)},{provide:AutomationPolicyService,useValue:proxy(()=>meta.policies)},{provide:DAILY_OBSERVATION_REPOSITORY,useValue:proxy(()=>meta.daily)},{provide:AssistantApiService,useValue:proxy(()=>assistant.api)},{provide:InitialLaunchService,useValue:proxy(()=>meta.launches)},{provide:CampaignPreparationService,useValue:proxy(()=>meta.preparation)},{provide:CampaignNoticeContactService,useValue:proxy(()=>meta.contacts)},{provide:ManageMerchantNotificationInboxUseCase,useValue:inbox}]})class BrowserModule{}
+  @Module({controllers:[CashbackMerchantController,MetaAdsAgentController,FundingController,AutomationReportController,MerchantAssistantController,CampaignApprovalController,MerchantNotificationController,SessionController],providers:[AuthGuard,CashbackErrorFilter,{provide:CashbackService,useValue:cashback.service},{provide:CashbackQueriesService,useValue:cashback.queries},MetaAdsHttpErrorFilter,AssistantHttpErrorFilter,{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:cookies},{provide:MetaAdsAgentService,useValue:proxy(()=>meta.service)},{provide:FundingService,useValue:proxy(()=>meta.funding)},{provide:AutomationPolicyService,useValue:proxy(()=>meta.policies)},{provide:DAILY_OBSERVATION_REPOSITORY,useValue:proxy(()=>meta.daily)},{provide:AssistantApiService,useValue:proxy(()=>assistant.api)},{provide:InitialLaunchService,useValue:proxy(()=>meta.launches)},{provide:CampaignPreparationService,useValue:proxy(()=>meta.preparation)},{provide:CampaignNoticeContactService,useValue:proxy(()=>meta.contacts)},{provide:ManageMerchantNotificationInboxUseCase,useValue:inbox}]})class BrowserModule{}
   const app=await NestFactory.create(BrowserModule,{logger:false,forceCloseConnections:true});app.setGlobalPrefix('v1');app.enableCors({origin:front,credentials:true});app.use(express.json({limit:'64kb'}));
   let closing:Promise<void>|undefined,dropNextTurnResponse=false,dropNextLaunchResponse=false;
   const close=()=>closing??=(async()=>{provider.setImageHold(false);provider.setModelHold(false);await stopWorkers();await app.close();await db.close();})();
@@ -118,7 +128,7 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
       if(dropNextLaunchResponse&&req.method==='POST'&&req.path.endsWith('/approve-launch')){
         const send=res.json.bind(res);res.json=body=>{if(res.statusCode>=200&&res.statusCode<300){dropNextLaunchResponse=false;res.type('application/json').end('{"incomplete":');return res;}return send(body);};
       }
-      if(dropNextTurnResponse&&req.method==='POST'&&/^\/v1\/merchant-assistant\/contexts\/meta-ads\/threads\/[^/]+\/turns$/.test(req.path)){
+      if(dropNextTurnResponse&&req.method==='POST'&&/^\/v1\/merchant-assistant\/contexts\/(?:meta-ads|cashback)\/threads\/[^/]+\/turns$/.test(req.path)){
         const send=res.json.bind(res);res.json=body=>{if(res.statusCode>=200&&res.statusCode<300){dropNextTurnResponse=false;res.type('application/json').end('{"incomplete":');return res;}return send(body);};
       }
       return next();
@@ -131,11 +141,15 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
         const token=await jwt.issue({merchantId:store,userId:actor,email:role+'@example.test',role});res.setHeader('Set-Cookie',cookies.create({access_token:token,expires_in:3600,token_type:'Bearer'}));return res.json({merchantId:store});
       }
       if(req.path==='/__test/reset'&&req.method==='POST'){
-        provider.setImageHold(false);provider.setModelHold(false);dropNextTurnResponse=false;dropNextLaunchResponse=false;await stopWorkers();await db.sql.query('DELETE FROM meta_ads_campaign_ready_notices; DELETE FROM meta_ads_campaign_preparations; DELETE FROM meta_ads_campaign_notice_contacts; DELETE FROM merchant_notifications; DELETE FROM whatsapp_deliveries; UPDATE agentic_whatsapp_assets SET enabled=TRUE,approved=TRUE; DELETE FROM merchant_assistant_threads; DELETE FROM meta_ads_daily_runs; DELETE FROM meta_ads_agent_records; DELETE FROM meta_ads_agent_stores; DELETE FROM ai_governance_decisions; DELETE FROM merchant_auth_sessions');now=new Date('2026-11-16T12:00:00Z');provider.reset();env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED='true';env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED='true';compose();await seed();startWorkers();return res.json({reset:true});
+        provider.setImageHold(false);provider.setModelHold(false);dropNextTurnResponse=false;dropNextLaunchResponse=false;await stopWorkers();await db.sql.query('DELETE FROM meta_ads_campaign_ready_notices; DELETE FROM meta_ads_campaign_preparations; DELETE FROM meta_ads_campaign_notice_contacts; DELETE FROM merchant_notifications; DELETE FROM whatsapp_deliveries; UPDATE agentic_whatsapp_assets SET enabled=TRUE,approved=TRUE; DELETE FROM merchant_assistant_threads; DELETE FROM meta_ads_daily_runs; DELETE FROM meta_ads_agent_records; DELETE FROM meta_ads_agent_stores; DELETE FROM ai_governance_decisions; DELETE FROM merchant_auth_sessions');now=new Date(initialInstant);await cashback.reset();provider.reset();env.META_ADS_IMAGE_API_KEY='synthetic-image-key';env.MERCHANT_ASSISTANT_ENABLED='true';env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED='true';env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED='true';compose();await seed();startWorkers();return res.json({reset:true});
       }
+      if(req.path==='/__test/cashback-assistant'&&req.method==='POST'){if(typeof req.body?.enabled!=='boolean')return res.status(400).end();env.MERCHANT_ASSISTANT_ENABLED=String(req.body.enabled);return res.json({configured:true});}
       if(req.path==='/__test/funding'&&req.method==='POST'){
         if(!['prepaid','postpaid','unknown'].includes(req.body?.mode))return res.status(400).end();provider.fundingMode=req.body.mode;provider.blocked=req.body.blocked===true;return res.json({configured:true});
       }
+      if(req.path==='/__test/budget'&&req.method==='POST'){const value=req.body?.minimumDailyBudgetCents;if(!Number.isSafeInteger(value)||value<=0)return res.status(400).end();provider.minimumDailyBudgetCents=value;return res.json({configured:true});}
+      if(req.path==='/__test/catalog-photo'&&req.method==='POST'){if(typeof req.body?.enabled!=='boolean')return res.status(400).end();await stopWorkers();env.META_ADS_IMAGE_API_KEY=req.body.enabled?'':'synthetic-image-key';compose();startWorkers();return res.json({configured:true,generationConfigured:!!env.META_ADS_IMAGE_API_KEY});}
+      if(req.path==='/__test/ad-phone'&&req.method==='POST'){if(typeof req.body?.linked!=='boolean')return res.status(400).end();provider.pageWhatsAppLinked=req.body.linked;await meta.service.repo.mutate('store-a',[],state=>{if(!req.body.linked){state.connection.whatsapp=null;state.connection.whatsappNumbers=[];}return{result:null};});return res.json({configured:true});}
       if(req.path==='/__test/images'&&req.method==='POST'){if(typeof req.body?.hold!=='boolean')return res.status(400).end();provider.setImageHold(req.body.hold);return res.json({configured:true});}
       if(req.path==='/__test/model'&&req.method==='POST'){if(typeof req.body?.hold!=='boolean'&&!Array.isArray(req.body?.script))return res.status(400).end();if(Array.isArray(req.body?.script))provider.setModelScript(req.body.script);if(typeof req.body?.hold==='boolean')provider.setModelHold(req.body.hold);return res.json({configured:true});}
       if(req.path==='/__test/metrics'&&req.method==='POST'){if(typeof req.body?.unavailable!=='boolean'||req.body.sampleData!==undefined&&typeof req.body.sampleData!=='boolean')return res.status(400).end();provider.metricsUnavailable=req.body.unavailable;provider.sampleMetrics=req.body.sampleData??false;return res.json({configured:true});}
@@ -169,8 +183,8 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
       if(req.path==='/__test/facts'){
         const row=(await db.sql.query(`SELECT (SELECT count(*) FROM merchant_assistant_threads) threads,(SELECT count(*) FROM merchant_assistant_turns) turns,(SELECT count(*) FROM merchant_auth_sessions) sessions,(SELECT COALESCE(sum(usage_cost_micros),0) FROM merchant_assistant_turns) cost,(SELECT count(*) FROM ai_governance_decisions) decisions`)).rows[0];
         const usage=(await db.sql.query('SELECT merchant_id,count(*) turns,COALESCE(sum(usage_cost_micros),0) cost,array_agg(status ORDER BY ordinal) statuses FROM merchant_assistant_turns GROUP BY merchant_id')).rows;
-        const states=await Promise.all(['store-a','store-b'].map(async merchantId=>{const state=await meta.service.repo.read(merchantId),executions=Object.values(state.executions),measured=usage.find(row=>row.merchant_id===merchantId);const authorities=await Promise.all(executions.map(async execution=>(await meta.service.repo.getRecord<{authority:unknown}>(merchantId,`execution-input:${execution.id}`))?.payload.authority));return{merchantId,campaigns:Object.values(state.campaigns),proposals:Object.values(state.proposals),executions,generations:Object.values(state.generations),credits:{monthlyAvailable:state.credits.monthlyAvailable,extraAvailable:state.credits.extraAvailable},automation:state.automation,policy:await meta.policies.view(merchantId),exposure:state.exposure??{allocations:{},pending:{}},authorities,preparations:(await Promise.all(Object.keys(state.campaigns).map(id=>meta.preparations.list(merchantId,id)))).flat(),notices:(await Promise.all(Object.keys(state.campaigns).map(id=>meta.notices.list(merchantId,id)))).flat(),assistant:{turns:Number(measured?.turns??0),cost:Number(measured?.cost??0),statuses:measured?.statuses??[]}};}));
-        return res.json({databaseHost:'127.0.0.1',threads:Number(row.threads),turns:Number(row.turns),authSessions:Number(row.sessions),confirmedAiCostMicros:Number(row.cost),governanceDecisions:Number(row.decisions),retrievedReferenceIds:[...new Set(provider.retrievedReferenceIds)],writes:provider.writes,images:provider.images,reviewCalls:provider.reviewCalls,modelCalls:provider.modelCalls,modelPending:provider.modelPending,whatsappRequests:provider.whatsappRequests,notifications:await db.prisma.merchantNotification.findMany(),states});
+        const states=await Promise.all(['store-a','store-b'].map(async merchantId=>{const state=await meta.service.repo.read(merchantId),executions=Object.values(state.executions),measured=usage.find(row=>row.merchant_id===merchantId);const authorities=await Promise.all(executions.map(async execution=>(await meta.service.repo.getRecord<{authority:unknown}>(merchantId,`execution-input:${execution.id}`))?.payload.authority));return{merchantId,campaigns:Object.values(state.campaigns),media:Object.values(state.media),proposals:Object.values(state.proposals),executions,generations:Object.values(state.generations),credits:{monthlyAvailable:state.credits.monthlyAvailable,extraAvailable:state.credits.extraAvailable},automation:state.automation,policy:await meta.policies.view(merchantId),exposure:state.exposure??{allocations:{},pending:{}},authorities,preparations:(await Promise.all(Object.keys(state.campaigns).map(id=>meta.preparations.list(merchantId,id)))).flat(),notices:(await Promise.all(Object.keys(state.campaigns).map(id=>meta.notices.list(merchantId,id)))).flat(),assistant:{turns:Number(measured?.turns??0),cost:Number(measured?.cost??0),statuses:measured?.statuses??[]}};}));
+        return res.json({cashback:await cashback.facts(),databaseHost:'127.0.0.1',threads:Number(row.threads),turns:Number(row.turns),authSessions:Number(row.sessions),confirmedAiCostMicros:Number(row.cost),governanceDecisions:Number(row.decisions),retrievedReferenceIds:[...new Set(provider.retrievedReferenceIds)],writes:provider.writes,images:provider.images,catalogCopies:provider.catalogCopies,generationConfigured:!!env.META_ADS_IMAGE_API_KEY,reviewCalls:provider.reviewCalls,modelCalls:provider.modelCalls,modelPending:provider.modelPending,whatsappRequests:provider.whatsappRequests,notifications:await db.prisma.merchantNotification.findMany(),states});
       }
       if(req.path==='/__test/pixel')return res.type('png').send(pixel);
       if(req.path==='/__test/shutdown'&&req.method==='POST'){res.once('finish',()=>{void close().then(()=>process.exit(0)).catch(()=>process.exit(1));});return res.json({closing:true});}

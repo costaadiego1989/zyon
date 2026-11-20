@@ -61,6 +61,7 @@ import { buildExperienceFromSession } from "../../../checkout/application/servic
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
 import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
 import { ReopenEmbedCheckoutUseCase } from "../../application/reopen-embed-checkout.use-case.js";
+import { FiscalRecipientUpdateService } from "../../../fiscal/application/fiscal-recipient-update.service.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -135,6 +136,7 @@ export class EmbedCheckoutController {
     @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
     @Inject(CancelPaymentIntentUseCase) private readonly cancelPaymentIntent?: CancelPaymentIntentUseCase,
     @Optional() private readonly aiMetering?: AiMeteringService,
+    @Optional() private readonly fiscalRecipients?: FiscalRecipientUpdateService,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
@@ -215,7 +217,8 @@ export class EmbedCheckoutController {
     }, { storefrontCartRef: recovered ? (recovered.cart as { cart_ref?: string }).cart_ref : embed.storefrontCartRef, trustedBuyer, trustedPhoneBuyer, requireBuyerProof: true, refreshCart: !!recovered });
     const chatState = await this.reconcileChat?.readState(embed.merchantId, result.session_id);
     // start scope advertises capability only; reading history still requires chat scope.
-    return { ...result, ...(chatState?.protocol === "durable_v2" ? { chat_protocol: "durable_v2" as const } : {}) };
+    const fiscal = await this.fiscalRecipients?.prepare({ merchantId: embed.merchantId, sessionId });
+    return { ...result, ...(fiscal ? { fiscal } : {}), ...(chatState?.protocol === "durable_v2" ? { chat_protocol: "durable_v2" as const } : {}) };
   }
 
   @Post("track")
@@ -252,7 +255,7 @@ export class EmbedCheckoutController {
     return withAiMetering({ merchantId: embed.merchantId, conversationId: body.session_id, source: "checkout", costCenter: admittedVoice ? "voice" : "text", ...voiceContext }, () => this.sendChat.execute({
       ...(rest as Omit<ChatMessageRequest, "merchant_id">),
       merchant_id: embed.merchantId,
-    }, { aiUserId: userId, voiceAdmitted: !!admittedVoice }));
+    }, { aiUserId: userId, voiceAdmitted: !!admittedVoice, checkoutSessionBound: true }));
   }
 
   @Post("chat/reconcile")

@@ -3,7 +3,9 @@ import { AiMeteringModule } from "./modules/ai-metering/ai-metering.module.js";
 import { Module } from "@nestjs/common";
 import { PlatformSupportModule } from "./modules/platform-support/platform-support.module.js";
 import { MetaAdsAgentModule } from "./modules/meta-ads-agent/meta-ads-agent.module.js";
+import { FiscalModule } from "./modules/fiscal/fiscal.module.js";
 import { CashbackCoreModule } from "./modules/cashback/cashback.module.js";
+import { CashbackAssistantModule } from "./modules/cashback/cashback-assistant.module.js";
 import { CashbackHttpModule } from "./modules/cashback/cashback-http.module.js";
 import { CashbackLifecycleJob } from "./modules/cashback/infrastructure/cashback-lifecycle.job.js";
 import { CashbackCommunicationsModule } from "./modules/cashback/cashback-communications.module.js";
@@ -83,7 +85,9 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     ObservabilityModule,
     HttpModule,
     PersistenceModule,
+    FiscalModule,
     CashbackCoreModule,
+    CashbackAssistantModule,
     CashbackHttpModule,
     CashbackCommunicationsModule,
     ServiceSlotHoldsModule,

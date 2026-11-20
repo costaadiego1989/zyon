@@ -2,9 +2,13 @@ import type { StoreToolHandlers } from "../../domain/tools/types.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import type { PrismaClient } from "@prisma/client";
 import { resolveStorePolicies } from "../../../../shared/legal/store-policies.js";
+import type { FiscalDocumentService } from "../../../fiscal/application/fiscal-document.service.js";
+import type { FiscalEnvironment } from "../../../fiscal/domain/fiscal-provider.js";
+import { fiscalBuyerLink } from "../../../fiscal/domain/fiscal-buyer-link.js";
 
 export interface OrderHandlerDeps {
   prisma: PrismaClient;
+  fiscal?: { documents: Pick<FiscalDocumentService, "forOrder">; environment: FiscalEnvironment };
 }
 
 type TrackingStatus =
@@ -155,6 +159,15 @@ export function createOrderHandlers(deps: OrderHandlerDeps, ctx: ToolRequestCont
       const orderId = typeof args.orderId === "string" ? args.orderId.trim() : "";
       if (!orderId) {
         return { invoiceAvailable: false, message: "Informe o número do pedido para verificar a nota fiscal." };
+      }
+      if (deps.fiscal) {
+        if (!ctx.buyer?.globalUserId) return { invoiceAvailable: false, requiresIdentification: true, message: "Entre na sua conta para consultar a nota fiscal do seu pedido." };
+        let invoices: Awaited<ReturnType<FiscalDocumentService["forOrder"]>>;
+        try { invoices = await deps.fiscal.documents.forOrder({ kind: "buyer", globalUserId: ctx.buyer.globalUserId }, { merchantId: ctx.merchantId, environment: deps.fiscal.environment, orderId }); }
+        catch (error) { if (!(error instanceof Error) || error.message !== "fiscal_document_not_found") throw error; return { invoiceAvailable: false, message: "Não encontrei esse pedido na sua conta." }; }
+        const store = await deps.prisma.merchant.findUnique({ where: { id: ctx.merchantId }, select: { storeSlug: true } });
+        const notes = invoices.map(invoice => ({ ...invoice, environment: deps.fiscal!.environment, options: store?.storeSlug ? invoice.documents.filter(d => d.available).map(d => ({ label: d.kind === "xml" ? "Abrir XML no pedido" : "Abrir DANFE no pedido", action: "navigate", href: fiscalBuyerLink(store.storeSlug!, orderId, invoice.intentId, d.kind, deps.fiscal!.environment) })) : [] }));
+        return { orderId, invoiceAvailable: notes.some(note => ["authorized", "cancelled"].includes(note.state)), invoices: notes, message: notes.length ? "Consulte os dados e os arquivos disponíveis da nota no seu pedido." : "Este pedido ainda não possui nota fiscal disponível." };
       }
       // No fiscal-document model exists for a completed order. Payment-provider
       // URLs are payment artifacts, not NF-e documents, so never present them

@@ -140,6 +140,12 @@ marketplacePayment?: {
   };
 };
 
+/** Private GET-only original operation receipt; never part of buyerFacing output. */
+export type ReadPaymentReceiptInput = FetchPaymentStatusInput & { original: CreateProviderPaymentInput };
+export type AuthoritativePaymentReceipt = { provider: "stripe" | "asaas" | "mercadopago"; accountFingerprint: string; environment: "test" | "live";
+  operationId: string; amountCents: number; currency: string; captured: boolean; instrument: "credit" | "debit" | "dynamic_pix" | "static_pix" | "boleto";
+  paidAt: string; authorizationCode?: string; authorizationKind?: "card_authorization" | "pix_end_to_end"; nsu?: string; brand?: string; evidenceReference: string };
+
 export type FetchPaymentStatusOutput = {
   state: AuthoritativePaymentState;
   approvedAmountCents?: number;
@@ -202,6 +208,9 @@ export type FetchRefundStatusOutput = {
 };
 
 export interface PaymentProviderPort {
+  enrichCryptoReceipt?(receipt: import("./crypto-verifier.port.js").PrivateCryptoReceipt): Promise<import("./crypto-verifier.port.js").PrivateCryptoReceipt>;
+  readPaymentReceipt?(input: ReadPaymentReceiptInput): Promise<AuthoritativePaymentReceipt>;
+
   /** Known original standard-checkout charge only; no cross-provider fallback. */
   readCancellationStatus?(input: import("../pending-payment-cancellation.js").PendingPaymentCancellationInput): Promise<import("../pending-payment-cancellation.js").PendingPaymentCancellationResult>;
   /** Must re-read eligibility and never refund or cancel a captured charge. */

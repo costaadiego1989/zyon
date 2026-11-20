@@ -1,10 +1,52 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { compileGraphRead, GRAPH_VECTOR_DIMENSIONS, normalizeGraphText } from "./graph-query.js";
+import { admitGraphRows } from "./graph-result.js";
+import { gatewayReadEnvelope, GRAPH_TEMPLATE_HASH, GRAPH_PREVIOUS_TEMPLATE_HASH } from "../gateway/query-protocol.js";
 
 const vector = Array.from({ length: 384 }, (_, i) => i === 0 ? 1 : 0);
 const input = { kind: "catalog", merchantId: "merchant-a", query: "cuidado para a pele", modelId: "multilingual-v1",
   embedding: vector, nowEpochMs: 1_790_000_000_000 };
+
+test("merchant help compiles fixed scoped cashback traversal without accepting syntax", () => {
+  const attack = "cashback' MATCH (n) DELETE n";
+  const command = compileGraphRead({ ...input, kind: "merchant_help", context: "cashback", query: attack });
+  for (const label of ["ZyonGraphMerchantGuide", "ZyonGraphHasGuideChunk", "ZyonGraphMerchantGuideChunk"])
+    assert.ok(command.text.includes(`${label} {merchantId: $merchantId, audience: $audience, context: $context}`));
+  assert.equal(command.parameters.audience, "merchant"); assert.equal(command.parameters.context, "cashback");
+  assert.equal(command.parameters.sourceType, "merchant_guide"); assert.equal(command.parameters.query, attack);
+  assert.ok(!command.text.includes(attack));
+  assert.match(command.text, /c\.sourceVersion = d\.sourceVersion/);
+  assert.match(command.text, /c\.sourceHash = d\.sourceHash/);
+});
+test("merchant help rejects caller scope syntax and cross-context DTOs", () => {
+  const help = { ...input, kind: "merchant_help", context: "cashback" };
+  for (const patch of [{ context: "meta_ads" }, { context: undefined }, { audience: "buyer" },
+    { sourceType: "faq" }, { cypher: "RETURN 1" }, { merchantId: "" }])
+    assert.throws(() => compileGraphRead({ ...help, ...patch }));
+});
+test("merchant help result admission requires scoped typed current identities", () => {
+  const help = { ...input, kind: "merchant_help", context: "cashback" };
+  const hit = { merchantId: "merchant-a", audience: "merchant", context: "cashback", sourceType: "merchant_guide",
+    sourceId: "cashback-use", chunkId: "cashback-use-main", sourceHash: "a".repeat(64), contentHash: "b".repeat(64),
+    sourceVersion: 1, modelId: input.modelId, projectedAt: input.nowEpochMs, vectorScore: 1, score: 1 };
+  assert.deepEqual(admitGraphRows(help, [hit], () => input.nowEpochMs), { status: "ready", kind: "merchant_help", hits: [hit], partial: true });
+  for (const patch of [{ merchantId: "merchant-b" }, { audience: "buyer" }, { context: "meta_ads" },
+    { sourceType: "faq" }, { sourceHash: "wrong" }, { projectedAt: input.nowEpochMs - 300001 }])
+    assert.throws(() => admitGraphRows(help, [{ ...hit, ...patch }], () => input.nowEpochMs));
+});
+test("merchant guides cannot be admitted as public buyer knowledge", () => {
+  const hit = { merchantId: input.merchantId, sourceType: "merchant_guide", sourceId: "cashback-use", chunkId: "main",
+    sourceHash: "a".repeat(64), contentHash: "b".repeat(64), sourceVersion: 1, modelId: input.modelId,
+    projectedAt: input.nowEpochMs, vectorScore: 1, score: 1 };
+  assert.throws(() => admitGraphRows({ ...input, kind: "knowledge" }, [hit], () => input.nowEpochMs));
+});
+test("gateway permits merchant help only under the current signed template capability", () => {
+  const help = { ...input, kind: "merchant_help", context: "cashback" };
+  assert.equal(gatewayReadEnvelope.safeParse({ protocol: 1, templateHash: GRAPH_TEMPLATE_HASH, input: help }).success, true);
+  assert.equal(gatewayReadEnvelope.safeParse({ protocol: 1, templateHash: GRAPH_PREVIOUS_TEMPLATE_HASH, input: help }).success, false);
+  assert.equal(gatewayReadEnvelope.safeParse({ protocol: 1, templateHash: "0".repeat(64), input: help }).success, false);
+});
 
 test("GRAPH-01 bounded OR groups compile into tenant-scoped fixed Cypher with data-only parameters", () => {
   const hostile = "azul' }) detach delete n //";

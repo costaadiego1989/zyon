@@ -50,7 +50,7 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
         const current = await this.submission.syncStatus(input.merchantId, input.contentSid, { language: template.metaLanguage ?? "pt_BR", body: template.metaTemplateBody, category: template.metaCategory ?? undefined, ...(input.type === "buyer_whatsapp_link_otp" ? { authenticationExpirationMinutes: 5 as const } : {}) }).catch(() => null);
         if (current?.status !== "approved" || current.contentSid !== input.contentSid) return { messageId: "", status: "skipped", reason: "approved_template_unavailable" };
         const latest = await this.credentials(input.merchantId);
-        if (!latest || latest.wabaId !== credentials.wabaId || latest.phoneNumberId !== credentials.phoneNumberId || expectedConnection&&latest.configId!==expectedConnection.configId) return { messageId: "", status: "skipped", reason: "meta_connection_changed" };
+        if (!latest || latest.configId !== credentials.configId || latest.wabaId !== credentials.wabaId || latest.phoneNumberId !== credentials.phoneNumberId) return { messageId: "", status: "skipped", reason: "meta_connection_changed" };
         const latestTemplate = await this.templates?.findByMerchantAndType(input.merchantId, input.type!, "whatsapp").catch(() => null);
         if (!isApprovedSalesTemplate(latestTemplate, input.merchantId, input.type!, credentials.wabaId)
           || latestTemplate.twilioContentSid !== input.contentSid || latestTemplate.metaRevision !== template.metaRevision
@@ -85,7 +85,8 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
           ...(input.correlationId ? { biz_opaque_callback_data: input.correlationId } : {}) }),
       });
     } catch {
-      this.logger.error("Meta template transport failed", { merchantId: input.merchantId, reason:'provider_transport_failed' });
+      if (input.type === "fiscal_invoice") this.logger.error("operational_whatsapp_acceptance_unknown");
+      else this.logger.error("Meta template transport failed", { merchantId: input.merchantId, reason:'provider_transport_failed' });
       return { messageId: "", status: "uncertain", reason: "provider_acceptance_unknown" };
     }
 

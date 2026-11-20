@@ -55,11 +55,11 @@ export function deleteAddress(id: string): Promise<{ success: boolean }> {
   });
 }
 
-export function fetchPurchases(cursor: string, limit = 10, merchantId?: string): Promise<PurchasePage> {
+export function fetchPurchases(cursor: string, limit = 10, merchantId?: string, signal?: AbortSignal): Promise<PurchasePage> {
   const query = new URLSearchParams({ limit: String(limit) });
   if (cursor) query.set("cursor", cursor);
   if (merchantId) query.set("merchant_id", merchantId);
-  return apiCall<PurchasePage>(`/buyer/me/purchases?${query}`, { cache: "no-store" });
+  return apiCall<PurchasePage>(`/buyer/me/purchases?${query}`, { cache: "no-store", signal });
 }
 
 export async function fetchTracking(merchantId?: string): Promise<BuyerPurchase[]> {

@@ -1,4 +1,4 @@
-import type { CashbackCombinationRules, CashbackRules } from "@zyon/shared-types";
+import type { CashbackCombinationRules, CashbackDraft, CashbackRules } from "@zyon/shared-types";
 import { cashbackDecimal } from "./cashback-form.js";
 import type { LimitChoice } from "./cashback-form.js";
 
@@ -17,7 +17,7 @@ export const EMPTY_CASHBACK_COMBINATION_FORM: CashbackCombinationForm = {
   combinationPercentChoice: "", combinationPercent: "", combinationMoneyChoice: "", combinationMoney: "",
 };
 
-export function cashbackCombinationFormFromRules(rules?: Partial<CashbackRules> | null): CashbackCombinationForm {
+export function cashbackCombinationFormFromRules(rules?: CashbackDraft | null): CashbackCombinationForm {
   const combination = rules?.combination;
   if (!combination) return { ...EMPTY_CASHBACK_COMBINATION_FORM };
   const choice = (value: number | null | undefined): LimitChoice => value === null ? "unlimited" : typeof value === "number" && Number.isFinite(value) ? "limited" : "";
@@ -25,7 +25,7 @@ export function cashbackCombinationFormFromRules(rules?: Partial<CashbackRules> 
   return {
     combinationAllowCoupons: typeof combination.allowCoupons !== "boolean" ? "" : combination.allowCoupons ? "yes" : "no",
     combinationAllowAdvancedRules: typeof combination.allowAdvancedRules !== "boolean" ? "" : combination.allowAdvancedRules ? "yes" : "no",
-    combinationLimitMode: ["respect_general", "cashback_specific"].includes(combination.limitMode) ? combination.limitMode : "",
+    combinationLimitMode: combination.limitMode === "respect_general" || combination.limitMode === "cashback_specific" ? combination.limitMode : "",
     combinationPercentChoice: choice(combination.maximumCombinedDiscountBps), combinationPercent: decimal(combination.maximumCombinedDiscountBps),
     combinationMoneyChoice: choice(combination.maximumCombinedDiscountCents), combinationMoney: decimal(combination.maximumCombinedDiscountCents),
   };

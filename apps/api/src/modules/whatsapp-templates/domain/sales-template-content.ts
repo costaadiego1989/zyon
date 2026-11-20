@@ -26,6 +26,7 @@ export function prepareSalesWhatsApp(type: string, body: string) {
   if ((type.startsWith("return_") || type === "exchange_completed") && /\{\{(?:couponBlock|coupon|discount)\}\}/.test(body)) throw new BadRequestException("transactional_template_required");
   if (type === "cart_recovery") return { ...prepareRecoveryWhatsApp(body), category: "MARKETING" };
   const allowedSamples = { ...samples, ...scopedSamples[templateType] };
+  if (type === "fiscal_invoice" && (!/nota fiscal/i.test(body) || !body.includes("{{orderId}}") || !body.includes("{{link}}") || /{{(?:couponBlock|coupon|discount)}}/.test(body))) throw new BadRequestException("invalid_fiscal_template");
   const positions = new Map<string, number>();
   const variableMap: Record<string, string> = {};
   const sampleVariables: Record<string, string> = {};
@@ -47,9 +48,12 @@ export function validateSalesEdit(type: string, value: unknown): RecoveryTemplat
   if (!value || typeof value !== "object") throw new BadRequestException("invalid_template");
   const input = value as RecoveryTemplateEdit;
   if (isAuthenticationTemplateType(type) && input.whatsapp?.body?.trim() !== salesDefaults(type).whatsapp.body) throw new BadRequestException("authentication_template_fixed");
-  const text = (value: unknown, max: number) => {
+  const text = (value: unknown, max: number, subject = false) => {
     if (typeof value !== "string" || !value.trim() || value.length > max) throw new BadRequestException("invalid_template_text");
-    prepareSalesWhatsApp(type, value);
+    if (type === "fiscal_invoice" && subject) {
+      for (const match of value.matchAll(/\{\{(\w+)\}\}/g)) if (!Object.hasOwn(samples, match[1])) throw new BadRequestException("unsupported_template_variable");
+      if (/[{}]/.test(value.replace(/\{\{\w+\}\}/g, ""))) throw new BadRequestException("unsupported_template_variable");
+    } else prepareSalesWhatsApp(type, value);
     return value.trim();
   };
   if (type.startsWith("return_") || type === "exchange_completed") {
@@ -57,7 +61,7 @@ export function validateSalesEdit(type: string, value: unknown): RecoveryTemplat
       if (!input.whatsapp?.body?.includes(`{{${variable}}}`)) throw new BadRequestException("return_template_variables_required");
     }
   }
-  const subject = text(input.email?.subject, 150);
+  const subject = text(input.email?.subject, 150, true);
   if (/[\r\n]/.test(subject)) throw new BadRequestException("invalid_email_subject");
   if (!Number.isSafeInteger(input.whatsapp?.revision) || input.whatsapp.revision < 1) throw new BadRequestException("invalid_template_revision");
   return { email: { subject, body: text(input.email?.body, 10000) }, whatsapp: { body: text(input.whatsapp?.body, 1024), revision: input.whatsapp.revision } };

@@ -19,6 +19,7 @@ import LoyaltyTab from "./tabs/LoyaltyTab";
 import { CashbackWallet } from "./CashbackWallet";
 import { SettingsTab } from "./tabs/SettingsTab";
 import AgentTab from "./tabs/AgentTab";
+import { readBuyerFiscalNavigation } from "@/lib/fiscal-navigation";
 
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
@@ -498,6 +499,21 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, store
   useEffect(() => {
     if (isOpen && new URLSearchParams(window.location.search).has("agent")) vm.setActiveTab("agent");
   }, [isOpen, vm.setActiveTab]);
+  const [fiscalNavigation, setFiscalNavigation] = useState<ReturnType<typeof readBuyerFiscalNavigation>>(null);
+  useEffect(() => {
+    const sync = () => {
+      const target = readBuyerFiscalNavigation(window.location.search);
+      setFiscalNavigation(target);
+      if (target) vm.setActiveTab("orders");
+    };
+    sync();
+    window.addEventListener("aacp:open-buyer-hub", sync);
+    window.addEventListener("popstate", sync);
+    return () => {
+      window.removeEventListener("aacp:open-buyer-hub", sync);
+      window.removeEventListener("popstate", sync);
+    };
+  }, [isOpen, vm.setActiveTab]);
   const [authVersion, setAuthVersion] = useState(0);
   const [registrationOtp, setRegistrationOtp] = useState<{ email: string; otp: string } | null>(null);
 
@@ -784,6 +800,9 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, store
                   hasMore={vm.purchasesHasMore}
                   loadingMore={vm.purchases.loading}
                   onLoadMore={vm.loadMorePurchases}
+                  merchantId={merchantId}
+                  buyer={vm.auth}
+                  fiscalNavigation={fiscalNavigation}
                 />
               )}
               {vm.activeTab === "tracking" && (

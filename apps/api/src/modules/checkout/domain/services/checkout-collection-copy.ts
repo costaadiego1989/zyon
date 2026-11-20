@@ -10,6 +10,7 @@ export function checkoutCollectionCopy(field: string | undefined, session: Check
   const lead = { consultative: "Vamos cuidar dos dados do seu pedido.", premium: "Vamos preparar seu pedido com atenção aos detalhes.",
     direct: "Falta este dado para continuar.", friendly: "Vamos deixar tudo pronto para você!", technical: "Precisamos deste dado para processar o pedido." }[style];
   switch (field) {
+    case "CPF": return "Informe seu CPF para continuar.";
     case "email": return `📧 *E-mail do pedido*\n\n${lead}\nQual é seu e-mail de contato?\n\n_Vamos usá-lo no pagamento e nas atualizações do pedido._`;
     case "nome": return `👤 *Nome do destinatário*\n\n${style === "premium" ? "Como devemos identificar o destinatário?" : style === "direct" ? "Informe seu nome completo." : style === "friendly" ? "Qual é seu nome completo para o pedido? 😊" : "Qual é seu nome completo para o pedido?"}`;
     case "CEP": return `📍 *Endereço de entrega*\n\n${style === "direct" ? "Informe o CEP com 8 dígitos." : "Qual é o CEP da entrega? Com ele, consulto o endereço e as opções de frete."}`;

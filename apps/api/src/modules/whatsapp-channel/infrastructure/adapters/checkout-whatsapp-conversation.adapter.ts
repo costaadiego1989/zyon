@@ -89,7 +89,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       session_id: session.sessionId,
       conversation_id: session.conversationId,
       user_message: input.message,
-    });
+    }, { aiUserId: `buyer:${session.globalUserId}`, messageId: input.requestId });
     const parts = [response.message];
     const experience = response.experience;
     for (const product of experience?.suggestedProducts ?? []) {

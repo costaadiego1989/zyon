@@ -8,6 +8,7 @@ export interface ViaCepLookupResult {
   neighborhood?: string;
   city?: string;
   state?: string;
+  cityCode?: string;
 }
 
 export async function lookupAddressByViaCep(cep: string, fetchFn: typeof fetch = fetch): Promise<ViaCepLookupResult | null> {
@@ -34,6 +35,7 @@ export async function lookupAddressByViaCep(cep: string, fetchFn: typeof fetch =
       bairro?: string;
       localidade?: string;
       uf?: string;
+      ibge?: string;
     } | null;
     if (!raw) return null;
     if (raw.erro === true || raw.erro === "true") return null;
@@ -54,7 +56,8 @@ export async function lookupAddressByViaCep(cep: string, fetchFn: typeof fetch =
       complement,
       neighborhood,
       city,
-      state
+      state,
+      ...(typeof raw.ibge === "string" && /^\d{7}$/.test(raw.ibge) ? { cityCode: raw.ibge } : {})
     };
   } catch {
     // An unavailable provider must not make a valid delivery CEP look invalid.

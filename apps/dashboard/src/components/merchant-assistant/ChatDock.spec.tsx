@@ -4,6 +4,12 @@ import { afterEach, expect, test, vi } from 'vitest';
 import type { AssistantTurn } from '@zyon/shared-types';
 import { ui } from '../../pages/meta-ads-agent/test-helpers.js';
 import { ChatDock } from './ChatDock.js';
+
+test('FR-01 option buttons use normal admission once, preserve free text and hide while a turn is pending',async()=>{
+ screen=ui();let resolve!:()=>void;const send=vi.fn(()=>new Promise<void>(done=>{resolve=done;}));const props={context,turns:[turn],onSend:send,choices:[{label:'Receber no WhatsApp',message:'Quero receber clientes no WhatsApp'}]};await screen.render(<ChatDock {...props}/>);const button=Array.from(screen.container.querySelectorAll('button')).find(b=>b.textContent==='Receber no WhatsApp')!;
+ await act(async()=>{button.click();button.click();});expect(send.mock.calls).toEqual([['Quero receber clientes no WhatsApp']]);expect(screen.container.querySelector('[aria-label="Respostas sugeridas"]')).toBeNull();await act(async()=>resolve());
+ await screen.change('Mensagem para a IA','Prefiro conversar antes de escolher');expect(screen.container.querySelector('[aria-label="Respostas sugeridas"]')).toBeNull();await screen.render(<ChatDock {...props} busy/>);expect(screen.container.querySelector('textarea')!.value).toBe('Prefiro conversar antes de escolher');
+});
 let screen: ReturnType<typeof ui>; afterEach(async () => screen?.close());
 const context = {id:'inventory',label:'Estoque',capabilities:[]};
 const turn: AssistantTurn = {id:'t',threadId:'h',ordinal:1,status:'completed',message:'Olá',reply:'Produto disponível',references:[],artifacts:[],error:null,createdAt:'2026-11-16T12:00:00Z',updatedAt:'2026-11-16T12:00:00Z'};

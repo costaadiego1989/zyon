@@ -2,12 +2,15 @@ import {useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Bug} from 'lucide-react';
 import '../../src/styles.css';
+import {CashbackPage} from '../../src/pages/cashback/CashbackPage.js';
+import {ApiContext,useApiInstance} from '../../src/hooks/useApi.js';
 import {MetaAdsAgentPage} from '../../src/pages/meta-ads-agent/index.js';
 import {NotificationBell} from '../../src/components/NotificationBell.js';
 import {mapInboxNotification,campaignReviewHash,campaignReviewLocation,type NotificationItem} from '../../src/components/notification-inbox.js';
 declare const __AGENTIC_API__:string;
 declare const __AGENTIC_NONCE__:string;
 function App(){
+  const apiClient=useApiInstance(__AGENTIC_API__),cashback=new URLSearchParams(window.location.search).get('module')==='cashback';
   const [merchant,setMerchant]=useState<string|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('');
   const [role,setRole]=useState('owner'),[notifications,setNotifications]=useState<NotificationItem[]>([]),[location,setLocation]=useState(()=>window.location.hash);
   useEffect(()=>{const read=()=>setLocation(window.location.hash);window.addEventListener('hashchange',read);return()=>window.removeEventListener('hashchange',read);},[]);
@@ -18,8 +21,8 @@ function App(){
   const target=merchant?campaignReviewLocation(location,merchant,role.toUpperCase()):{target:null,error:''};
   return <main style={{maxWidth:1120,margin:'0 auto',padding:'16px',minWidth:0}}><header style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',marginBottom:24}}><span>Ambiente local de aceitação</span>{merchant&&<label>Loja ativa<select aria-label="Loja ativa" value={merchant} disabled={loading} onChange={e=>void login(e.target.value)} style={{minHeight:44,marginLeft:8}}><option value="store-a">Loja Aurora</option><option value="store-b">Loja Horizonte</option></select></label>}</header>
     {merchant&&<div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap'}}><label>Perfil de teste<select aria-label="Perfil de teste" value={role} onChange={e=>void login(merchant,e.target.value)}><option value="owner">Proprietário</option><option value="admin">Administrador</option><option value="staff">Equipe</option></select></label><NotificationBell key={`${merchant}:${role}`} notifications={notifications} onClear={async()=>{await fetch(`${__AGENTIC_API__}/v1/merchants/${merchant}/notifications/read-all`,{method:'POST',credentials:'include'});setNotifications([]);}} onClickNotification={async item=>{const hash=campaignReviewHash(item,merchant,role.toUpperCase());if(hash){window.location.hash=hash;setLocation(hash);}await fetch(`${__AGENTIC_API__}/v1/merchants/${merchant}/notifications/${encodeURIComponent(item.id)}/read`,{method:'POST',credentials:'include'});setNotifications(previous=>previous.filter(n=>n.id!==item.id));}}/></div>}
-    {error&&<p role="alert">{error}</p>}{target.error&&<p role="alert">{target.error}</p>}{!merchant?<button type="button" disabled={loading} onClick={()=>void login()} style={{minHeight:44}}>{loading?'Verificando sessão…':'Entrar na loja de teste'}</button>:<MetaAdsAgentPage key={`${merchant}:${role}`} merchantId={merchant} apiBaseUrl={__AGENTIC_API__} reviewTarget={target.target??undefined}/>}
+    {error&&<p role="alert">{error}</p>}{target.error&&<p role="alert">{target.error}</p>}{!merchant?<button type="button" disabled={loading} onClick={()=>void login()} style={{minHeight:44}}>{loading?'Verificando sessão…':'Entrar na loja de teste'}</button>:cashback?<ApiContext.Provider value={apiClient}><CashbackPage key={`${merchant}:${role}`} merchantId={merchant} scopeKey={`${merchant}:${role}`} apiBaseUrl={__AGENTIC_API__}/></ApiContext.Provider>:<MetaAdsAgentPage key={`${merchant}:${role}`} merchantId={merchant} apiBaseUrl={__AGENTIC_API__} reviewTarget={target.target??undefined}/>}
     {/* Position-only fixture uses the production support launcher CSS; no support request. */}
-    {merchant&&<div className="platform-feedback-fab" aria-hidden="true"><Bug size={18}/><span>Ajuda e feedback</span></div>}</main>;
+    {merchant&&!cashback&&<div className="platform-feedback-fab" aria-hidden="true"><Bug size={18}/><span>Ajuda e feedback</span></div>}</main>;
 }
 document.body.style.cssText='overflow:auto;height:auto;min-width:0';document.getElementById('root')!.style.cssText='height:auto;overflow:visible;min-width:0';createRoot(document.getElementById('root')!).render(<App/>);

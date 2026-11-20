@@ -263,8 +263,8 @@ export class BuyerAccountController {
       items: page.records.map((r) => ({
         id: r.id,
         order_id: r.orderId,
-        merchant_name: r.merchantName,
         merchant_id: r.merchantId,
+        merchant_name: r.merchantName,
         tracking_code: r.trackingCode ?? null,
         has_tracking: r.hasTracking,
         tracking_items: purchaseItems(r.trackingItems),
