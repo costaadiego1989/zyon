@@ -19,6 +19,9 @@ import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js
 import { DOMAIN_EVENT_BUS } from "../../../shared/events/domain-event-bus.port.js";
 import { NOTIFICATION_WHATSAPP_SENDER } from "./ports/notification-whatsapp-sender.port.js";
 import { currentServiceNoticeTransport } from "./ports/notification-whatsapp-sender.port.js";
+import { formatServiceAppointmentConfirmation } from "../../whatsapp-channel/domain/ui/service-appointment-confirmation.js";
+import { checkoutTone } from "../../checkout/domain/services/checkout-collection-copy.js";
+import { findMerchantAgentRule } from "../../agent-rules/infrastructure/find-merchant-agent-rule.js";
 import type { NotificationWhatsAppSender, NotificationWhatsAppResult, ServiceNotificationInput } from "./ports/notification-whatsapp-sender.port.js";
 
 const SCHEDULED = "service.appointment.scheduled", RECEIPT = "service.payment.recorded_at_attendance";
@@ -169,22 +172,21 @@ export class ServiceAppointmentEventsConsumer implements OnModuleInit {
       // total. Nominal appointment price is not the approved gross PSP amount.
       financial = "Pagamento confirmado pelo provedor.";
     }
-    const [professional, service, merchant, config] = await Promise.all([
+    const [professional, service, merchant, config, rule] = await Promise.all([
       tx.serviceProfessional.findFirst({ where: { id: a.professionalId, merchantId: p.merchantId } }),
       tx.product.findFirst({ where: { id: a.productId, merchantId: p.merchantId, type: "service" } }),
-      tx.merchant.findUnique({ where: { id: p.merchantId }, select: { name: true } }), this.config(tx, p.merchantId),
+      tx.merchant.findUnique({ where: { id: p.merchantId }, select: { name: true } }), this.config(tx, p.merchantId), findMerchantAgentRule(tx, p.merchantId),
     ]);
     await this.source(tx, p, true);
     if (p.eventType === SCHEDULED && (a.version !== p.appointmentVersion || a.operationalStatus !== "scheduled")) return;
     const customer = object(a.customerSnapshot) ? a.customerSnapshot : {}, recipient = typeof customer.phone === "string" ? normalizeRecoveryRecipient(customer.phone) : null;
     if (!recipient || !config || !this.scope(config, recipient, "check") || !professional || !service || !merchant) return;
-    const date = new Intl.DateTimeFormat("pt-BR", { timeZone: a.timeZone, day: "2-digit", month: "2-digit", year: "numeric" }).format(a.startsAt);
-    const time = new Intl.DateTimeFormat("pt-BR", { timeZone: a.timeZone, hour: "2-digit", minute: "2-digit", hour12: false }).format(a.startsAt);
-    const text = [p.eventType === RECEIPT ? "Recebimento registrado no atendimento" : "Agendamento confirmado", inline(merchant.name),
-      `Servi\u00e7o: ${inline(service.name)}`, `Profissional: ${inline(professional.publicName)}`, `Data: ${date} \u00e0s ${time} (${a.timeZone})`,
-      `Valor do servi\u00e7o: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: a.currency }).format(a.priceInCents / 100)}`, financial].join("\n");
+    const tone = checkoutTone(object(rule?.identity) ? rule.identity.tone : undefined);
+    const text = formatServiceAppointmentConfirmation({ kind: p.eventType === RECEIPT ? "attendance_receipt" : "scheduled", merchantName: inline(merchant.name),
+      serviceName: inline(service.name), professionalName: inline(professional.publicName), operationalStatus: a.operationalStatus,
+      startsAt: a.startsAt, endsAt: a.endsAt, timeZone: a.timeZone, priceInCents: a.priceInCents, currency: a.currency, financialText: financial, tone });
     return { appointmentId: a.id, appointmentVersion: a.version, recipient, text, config,
-      identity: hash([a.id, a.version, a.operationalStatus, a.startsAt, a.endsAt, a.timeZone, a.priceInCents, a.currency, money.id, money.version, money.status, financial, text, recipient]) };
+      identity: hash([a.id, a.version, a.operationalStatus, a.startsAt, a.endsAt, a.timeZone, a.priceInCents, a.currency, money.id, money.version, money.status, financial, text, recipient, tone]) };
   }
   private async prepare(p: Proof, original: Facts, part: "media" | "text", text: string, mediaUrl?: string): Promise<Attempt | undefined> {
     return this.prisma.$transaction(async tx => {

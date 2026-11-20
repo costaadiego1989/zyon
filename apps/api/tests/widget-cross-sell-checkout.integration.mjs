@@ -39,7 +39,7 @@ try {
   const result = await new Promise((resolve, reject) => {
     // The combined corpus now also covers payment admission/order and provider
     // shipping transactions. Keep a bounded worker deadline and owned cleanup.
-    deadline = setTimeout(() => reject(new Error("native_widget_checkout_deadline_exceeded")), 180_000);
+    deadline = setTimeout(() => reject(new Error("native_widget_checkout_deadline_exceeded")), 300_000);
     worker.once("error", reject); worker.once("close", (code, signal) => resolve({ code, signal }));
   }).finally(() => clearTimeout(deadline));
   assert.equal(result.code, 0, "native_widget_checkout_worker_failed"); assert.equal(result.signal, null);

@@ -1,0 +1,1150 @@
+{
+  "task": 39,
+  "status": "LOCAL_TASK39_BUILD_AND_FULL322_GREEN_NOT_FINAL_FEATURE_VERIFIER",
+  "at": "2026-11-20T03:06:24.587208+00:00",
+  "dependency38": "ff0590b7a187a0df2db3ce148092b8ef5a373f00",
+  "derivedFromDraft": {
+    "path": ".cache/t39-source-20261119/evidence-draft-current-v4.json",
+    "sha256": "0a11146fb9a62330fe7059577b906b48f205c7d35b513df33d33c4d4a90cee33"
+  },
+  "originalSourceFreeze7": {
+    "path": ".cache/t39-source-20261119/source-ready.json",
+    "sha256": "7f12f63f9770f1c338ce2333b383642f8942cbe327182383de4c4e5c88fb59e5"
+  },
+  "approvedSourceFreeze8": {
+    "path": ".cache/t39-source-20261119/source-ready-approved-widget-budget.json",
+    "sha256": "7edbf80bd5abe6f364619518a4fab50fb863ec08600fae1c9465c0255d6bcc05",
+    "inputs": 8
+  },
+  "source7CurrentExact": true,
+  "source8CurrentExact": true,
+  "acceptedCurrentContexts": 322,
+  "requiredFullContexts": 322,
+  "equation": "57 components +3 source composition +3 compiled composition +30 native +48 normal +176 widget +5 stock =322 accepted contextual executions, linked to separate actual whole-file receipts. Qualified legacy188 is outside322.",
+  "countBoundary": {
+    "singleFreshAggregate322Executed": false,
+    "tapContexts": 98,
+    "tapFailCancelledSkippedTodoAllZero": true,
+    "fixedCaseJsonContexts": 224,
+    "productsAreNotTap": true,
+    "productsWholeUnfilteredNoSkipCasesExact48And176": true,
+    "sourceAndCompiledRepeatSame3ContextNameStemsIn2Modes": true,
+    "not6DistinctFeatureNames": true,
+    "acceptedPriorCurrentSourceContextsRetained": 146,
+    "newApprovedBudgetWidgetActual": 176,
+    "partial145And158AreNotAdded": true,
+    "otherTaskMProofsExcluded": true
+  },
+  "acceptedProofs": [
+    {
+      "kind": "quick41",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-19T19-16-36.766Z-quick41/receipt.json",
+        "sha256": "17ef6faaa2ead9c1a35d22c279b7bd51940ac644860f008b3b34b524d7a4cabc"
+      },
+      "acceptedExecutedContexts": 41,
+      "stages": [
+        {
+          "file": "apps/api/src/modules/whatsapp-channel/domain/ui/service-appointment-confirmation.spec.ts",
+          "currentTestSourceSha256": "7f389540ba6eb7bbfb810082cc36cae3003449fc8895485bc2b8dad88ca6e79e",
+          "actualTests": 20,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-19T19-16-36.766Z-quick41/t39-quick41-1.log",
+            "sha256": "58b6283741325aba9378d2f74b716785ee79ba9f7e5fe0d820bbd6f0cb6b5ab7"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 20,
+            "pass": 20,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "file": "apps/api/src/modules/notifications/application/service-appointment-events.consumer.spec.ts",
+          "currentTestSourceSha256": "abc9b406447ed96bf33e7046c65aef970b56b435c48181cf8ba0c9fb2abce0a3",
+          "actualTests": 21,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-19T19-16-36.766Z-quick41/t39-quick41-2.log",
+            "sha256": "0629f3733634595768e386d167d2ec21f4cf0b2a2c89e71659898c852f9d1edd"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 21,
+            "pass": 21,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        }
+      ]
+    },
+    {
+      "kind": "remaining16",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-19T19-18-54.702Z-remaining16/receipt.json",
+        "sha256": "1d5cfb6e12d2b610315365a25cbecdbd79c6462c370d9067777381beb81c07f7"
+      },
+      "acceptedExecutedContexts": 16,
+      "stages": [
+        {
+          "file": "apps/api/src/modules/notifications/application/service-notification-financial-compatibility.spec.ts",
+          "currentTestSourceSha256": "3236f97f44bbf4b009c5bfe0090f1a80a1d73b306d77f2c70f20de0527d9a091",
+          "actualTests": 7,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-19T19-18-54.702Z-remaining16/t39-remaining16-1.log",
+            "sha256": "028d31078e69538715e1ed42b75696383f2bd573b527dba5a8f23a9626c91d0c"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 7,
+            "pass": 7,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "file": "apps/api/src/modules/notifications/infrastructure/adapters/service-notification-transport.spec.ts",
+          "currentTestSourceSha256": "93139bd4ebad211c0976915a5313fd9b9fdc1b8e8a88a8565b1898615af4ee71",
+          "actualTests": 7,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-19T19-18-54.702Z-remaining16/t39-remaining16-2.log",
+            "sha256": "93e6a8aba8db947109dd6bb9ff9a49b4be84cd0495e1ad1ba43651b9a5ebde63"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 7,
+            "pass": 7,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        },
+        {
+          "file": "apps/api/src/modules/agent-rules/infrastructure/merchant-agent-rule.spec.ts",
+          "currentTestSourceSha256": "15f93cb4cf173648ab4cda1ac26efff6a412897e6980a0eaab5efed20162c645",
+          "actualTests": 2,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-19T19-18-54.702Z-remaining16/t39-remaining16-3.log",
+            "sha256": "89602d5577f1d927ea8fa35b6bbf41ebba7b5704fa01250d889753af2b0fb501"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 2,
+            "pass": 2,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        }
+      ]
+    },
+    {
+      "kind": "cycle-source3",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-19T19-20-35.097Z-cycle-source3/receipt.json",
+        "sha256": "72cfc56b17ada52e74cb0b3e000e4eff2059bc1fa3ac1c85deae38c0f62f309d"
+      },
+      "acceptedExecutedContexts": 3,
+      "stages": [
+        {
+          "file": "apps/api/tests/notifications-payment-cycle.integration.mjs",
+          "currentTestSourceSha256": "a7a291af23e4b8b7f9b84bcc25c4315d7ed8f54eedc263da45737231969a8a75",
+          "actualTests": 3,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-19T19-20-35.097Z-cycle-source3/t39-cycle-source3-1.log",
+            "sha256": "f0eea6cd96c6b8971bd76cdcb01ecbe8f41153937d8719872f76c3e19685747a"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 3,
+            "pass": 3,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        }
+      ]
+    },
+    {
+      "kind": "cycle-compiled3",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-20T00-44-51.478Z-cycle-compiled3/receipt.json",
+        "sha256": "14c67b583518b2c00d15b3a51e9d29a4671da2cf414f2f4f2bf3e1424c502a05"
+      },
+      "acceptedExecutedContexts": 3,
+      "stages": [
+        {
+          "file": "apps/api/tests/notifications-payment-cycle.integration.mjs",
+          "currentTestSourceSha256": "a7a291af23e4b8b7f9b84bcc25c4315d7ed8f54eedc263da45737231969a8a75",
+          "actualTests": 3,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-20T00-44-51.478Z-cycle-compiled3/t39-cycle-compiled3-1.log",
+            "sha256": "c537a168de38e9757af052dad828cb1465c84259657e0826c7e892ed8e389e93"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 3,
+            "pass": 3,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "actualOfficialOwnArtifactAssertion": {
+            "checked": true,
+            "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+            "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+            "compilerCoverage": {
+              "checked": true,
+              "sourceCount": 2589
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "native30",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-20T00-47-08.916Z-native30/receipt.json",
+        "sha256": "7dc5ec65cd8440076bc5b34c4b9b932da401327a2e576d29e9e83d725002dc85"
+      },
+      "acceptedExecutedContexts": 30,
+      "stages": [
+        {
+          "file": "apps/api/tests/service-appointment-notifications.integration.spec.ts",
+          "currentTestSourceSha256": "15dc1b2def37b1bba8279d6156ee005df38e2e98903f1dfc2565ab4d8a4c268e",
+          "actualTests": 17,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-20T00-47-08.916Z-native30/t39-native30-1.log",
+            "sha256": "8e8029ccdb90007d3078128a2899d7b3d71b8f91b35b36bf467079492492f479"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 17,
+            "pass": 17,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "actualOfficialOwnArtifactAssertion": {
+            "checked": true,
+            "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+            "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+            "compilerCoverage": {
+              "checked": true,
+              "sourceCount": 2589
+            }
+          }
+        },
+        {
+          "file": "apps/api/tests/service-attendance-receipt-http.integration.spec.ts",
+          "currentTestSourceSha256": "a5638d0648e3a53ad4bdb5bfbb39d606c3ee970ceb74ffa09976a04d211e7873",
+          "actualTests": 13,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-20T00-47-08.916Z-native30/t39-native30-2.log",
+            "sha256": "2eebf0d2a543038d59e8b2e608c46b0be0bf1493b47c9c0d2d969d516e7bc984"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 13,
+            "pass": 13,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "actualOfficialOwnArtifactAssertion": {
+            "checked": true,
+            "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+            "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+            "compilerCoverage": {
+              "checked": true,
+              "sourceCount": 2589
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "product-normal48",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-20T00-55-43.588Z-product-normal48/receipt.json",
+        "sha256": "8a902e65c6aab0d3b58deef056134a47f94b06ae1c1720c7955b9298fae63c44"
+      },
+      "acceptedExecutedContexts": 48,
+      "stages": [
+        {
+          "file": "apps/api/tests/normal-checkout-payment.integration.mjs",
+          "currentTestSourceSha256": "0f1dd0630a0223a82c5542c2a58ee00a5e28f99afa734baa1a4f684f9510b646",
+          "actualTests": 48,
+          "raw": {
+            "path": ".cache/t71-gates/2026-11-20T00-55-58.715Z/product-normal.log",
+            "sha256": "12a2d9501d1dd7bf1a08c3c5bfd1e1d65b4bc1ca1b85b3aa39098011a500547b"
+          },
+          "code": 0,
+          "signal": null,
+          "summaryKind": "ORIGINAL_FIXED_CASE_JSON_NOT_TAP",
+          "summary": {
+            "phase": "normal-checkout-payment",
+            "coverageMode": "baseline-and-identity",
+            "passed": 48,
+            "waiters": 3,
+            "prismaClientConstructed": true,
+            "providerCalls": 0,
+            "scope": "normal-standalone-source-coupon-identity-detachment",
+            "checkoutVersionTrigger": true,
+            "checkoutStrategyTrigger": true
+          },
+          "cleanup": {
+            "phase": "normal-checkout-payment",
+            "coverageMode": "baseline-and-identity",
+            "status": "passed",
+            "cleanupErrors": 0,
+            "disposableDatabaseRemoved": true,
+            "bridgeClosed": true,
+            "durationMs": 81268,
+            "network": "none",
+            "productionAccess": false
+          },
+          "wrapper": {
+            "path": ".cache/t39-source-20261119/2026-11-20T00-55-43.588Z-product-normal48/t39-product-normal48-1.log",
+            "sha256": "5ea72a6b39031eb551a5e1ac5ae5c2feb4df5760c3fd6d0b89749f1717ce3e39"
+          },
+          "actualOfficialOwnArtifactAssertion": {
+            "checked": true,
+            "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+            "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+            "compilerCoverage": {
+              "checked": true,
+              "sourceCount": 2589
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "stock5",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-20T01-14-45.120Z-stock5/receipt.json",
+        "sha256": "f6a532584893685aad3b219e734c45c737d8f7399a431988a44c41052a53d06b"
+      },
+      "acceptedExecutedContexts": 5,
+      "stages": [
+        {
+          "file": "apps/api/tests/product-stock-regression.integration.spec.ts",
+          "currentTestSourceSha256": "f1aceb1d4a56157b46a9719b9f82022dc632ba941e4815d7023c8ab26cab6a2f",
+          "actualTests": 5,
+          "raw": {
+            "path": ".cache/t39-source-20261119/2026-11-20T01-14-45.120Z-stock5/t39-stock5-1.log",
+            "sha256": "cbee548872091ee1cc9447ac73da6b611177839d2aa2cf5d42d9eede55ac1cd7"
+          },
+          "code": 0,
+          "signal": null,
+          "actualTap": {
+            "tests": 5,
+            "pass": 5,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "actualOfficialOwnArtifactAssertion": {
+            "checked": true,
+            "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+            "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+            "compilerCoverage": {
+              "checked": true,
+              "sourceCount": 2589
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "product-widget176",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-20T02-55-02.894Z-product-widget176/receipt.json",
+        "sha256": "9c03976d80519cc2d81205a18dbfde9d841a023b77e1362e6193cc487122a89a"
+      },
+      "acceptedExecutedContexts": 176,
+      "approvedBudgetMs": 300000,
+      "stages": [
+        {
+          "file": "apps/api/tests/widget-cross-sell-checkout.integration.mjs",
+          "currentTestSourceSha256": "996adffc709534d3fccac6e88d1b62014c55145f18346521525e7c1379b3dcd0",
+          "actualTests": 176,
+          "raw": {
+            "path": ".cache/t71-gates/2026-11-20T02-55-07.849Z/product-widget.log",
+            "sha256": "bf42744b23d55c57d46c2703117fe369df30c67fc44fec3b564b4c9dbedb61b6"
+          },
+          "wrapper": {
+            "path": ".cache/t39-source-20261119/2026-11-20T02-55-02.894Z-product-widget176/t39-product-widget176-1.log",
+            "sha256": "f8f64a72290679adf7a917f56eb80cfe344d38e5ef42fb000e20eb92cb4fde36"
+          },
+          "code": 0,
+          "signal": null,
+          "summaryKind": "ORIGINAL_FIXED_CASE_JSON_NOT_TAP",
+          "summary": {
+            "status": "passed",
+            "passed": 176,
+            "realLockWaiters": 32,
+            "syntheticOnly": true,
+            "providerCalls": 0
+          },
+          "cleanup": {
+            "status": "passed",
+            "cleanupErrors": 0,
+            "disposableDatabaseRemoved": true,
+            "bridgeClosed": true,
+            "durationMs": 165319,
+            "network": "none",
+            "productionAccess": false
+          },
+          "actualOfficialOwnArtifactAssertion": {
+            "checked": true,
+            "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+            "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+            "compilerCoverage": {
+              "checked": true,
+              "sourceCount": 2589
+            }
+          },
+          "skipCounterBoundary": "Original unfiltered fixed-case JSON driver; no TAP skipped field is emitted. Exact48/176 cases and unchanged guarded flags required."
+        }
+      ]
+    }
+  ],
+  "headers": {
+    "types": {
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-19T19-38-08Z-one-types-window/receipt.json",
+        "sha256": "b5cd605c22e02d95fa2787c1d3d02d110b7acde2614417aa781ed0b08e5de076"
+      },
+      "status": "gate_passed",
+      "exitCode": 0,
+      "sourcePinsUnchanged": true,
+      "raw": {
+        "path": ".cache/t39-source-20261119/2026-11-19T19-38-08Z-one-types-window/api-types-wrapper.log",
+        "sha256": "33ea6c572f894b097fe435e0c8284bee7d38e6149b7adfdf9edb088bfc35d469"
+      },
+      "requiredCommitMiB": 5168,
+      "originalSamplesRetained": 31
+    },
+    "checkedWrapperStopped": {
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-20T00-20-58Z-one-checked-build-window/receipt.json",
+        "sha256": "6d779e260e315ca688f956b9e5b998238e337e07a72be76d675d9a3e8483a733"
+      },
+      "status": "stopped_at_first_gate_error_or_refusal",
+      "exitCode": 1,
+      "sourcePinsUnchanged": true,
+      "raw": {
+        "path": ".cache/t39-source-20261119/2026-11-20T00-20-58Z-one-checked-build-window/checked-wrapper.log",
+        "sha256": "ee107048f8d04bd3814894fa6e4209c7d47c6e6cd1b8f298efefb2ac472fe59c"
+      },
+      "requiredCommitMiB": 5168,
+      "originalSamplesRetained": 59
+    },
+    "captureAndBuildSegmentsActuallyExit0": [
+      {
+        "label": "capture",
+        "actualOriginalWrapperReportsExit0": true,
+        "raw": {
+          "path": ".cache/t71-gates/2026-11-20T00-21-58.250Z/capture.log",
+          "sha256": "5af5863b09f5f4c5c985e130c6f23136749e8214c562ebc5d7adf2649bf9bba6"
+        }
+      },
+      {
+        "label": "build",
+        "actualOriginalWrapperReportsExit0": true,
+        "raw": {
+          "path": ".cache/t71-gates/2026-11-20T00-21-58.250Z/build.log",
+          "sha256": "fc424e8ba70048025f5090333344692559a9a79697d90bdaff3255067b70276a"
+        }
+      }
+    ],
+    "recordRefusal": "Original record-stage fresh5168 refused at4229 after actual capture/build0; wrapper remainsfailed.",
+    "recordAdmitOuterStopped": {
+      "receipt": {
+        "path": ".cache/t39-source-20261119/2026-11-20T00-37-23Z-one-record-admit-window/receipt.json",
+        "sha256": "38003439d537fe76b4e549a438ba7f84aca525375757bcab85166c94e239661d"
+      },
+      "status": "stopped_at_first_gate_error_or_refusal",
+      "exitCode": 1,
+      "sourcePinsUnchanged": true,
+      "raw": {
+        "path": ".cache/t39-source-20261119/2026-11-20T00-37-23Z-one-record-admit-window/record-admit-wrapper.log",
+        "sha256": "9a2caa9f67c97ac9da787c35ce77d1407d6c6b99280b70d410daac3c3fddf059"
+      },
+      "requiredCommitMiB": 5168,
+      "originalSamplesRetained": 320
+    },
+    "recordOnlyReceipt": {
+      "path": ".cache/t39-source-20261119/2026-11-20T00-42-44.652Z-record-admit-only/receipt.json",
+      "sha256": "0b9aab71fc4dc1cda63457b53c99833863fc846e9a96f206134cc300d3b390ff"
+    },
+    "recordAndStandaloneAdmitStages": [
+      {
+        "label": "record",
+        "code": 0,
+        "signal": null,
+        "raw": {
+          "path": ".cache/t39-source-20261119/2026-11-20T00-42-44.652Z-record-admit-only/record.log",
+          "sha256": "7835d371754905f999a8f50043d07fcb5645d3527ad4b39b63a6a8c4439869d9"
+        }
+      },
+      {
+        "label": "admit",
+        "code": 1,
+        "signal": null,
+        "raw": {
+          "path": ".cache/t39-source-20261119/2026-11-20T00-42-44.652Z-record-admit-only/admit.log",
+          "sha256": "9c2f146f78c18d1edd22034ba1e2573b4bec4873539985548b6a846e80d3464c"
+        }
+      }
+    ],
+    "admitToolingFailure": "Standalone originalrunner failed before admission at paths[0] undefined (missing LOCALAPPDATA); preserved as toolingfailure, not API failure. Later actual compiled/native/product/stock receipts each contain the successful official current ownArtifact assertion.",
+    "currentOwnBuildRecord": {
+      "path": "apps/api/.sandbox-state/service-test-build.json",
+      "sha256": "bc031a9b6b6b9395ff45ea3568991aeb0a6caf2c4b8f99a74a7b76b244eccb85"
+    },
+    "currentOwnBuildIdentity": {
+      "version": 1,
+      "buildCommand": "pnpm --dir apps/api build",
+      "buildExitCode": 0,
+      "checked": true,
+      "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+      "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2589
+      },
+      "recordedAt": "2026-11-20T00:43:16.976Z"
+    },
+    "apiLintEvidence": {
+      "status": "CURRENT_FRESH_ACTUAL_LINT_GREEN",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/lint-current-bound.json",
+        "sha256": "36d06a4013e39b87ccd4377cb1a6d4f7d25755edee25a5df4e02c1bea02ab1b1"
+      },
+      "raw": {
+        "path": ".cache\\t71-gates\\2026-11-20T03-03-25.065Z\\lint.log",
+        "sha256": "75e47252305c04be115fde2fb95e8fcbd9c8cb4e51efdd61fcc253330ab5f84a"
+      },
+      "session": 9172,
+      "completionChunk": "cfdb79",
+      "code": 0,
+      "signal": null,
+      "originalRequiredCommitMiB": 1024,
+      "actualCommitMiB": 6062,
+      "currentOwnRootIdentity": {
+        "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+        "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+        "compilerCoverage": 2589
+      },
+      "testContextsAdded": 0
+    },
+    "newBuildInputsRecord": {
+      "path": "apps/api/.sandbox-state/service-test-build-inputs.json",
+      "sha256": "a5a6dde2c5f8d31b45061a88de8713f2adabd0f5fb18c4b7757e36b0267909db"
+    },
+    "apiBuildTypecheckLintLocalGateEvidenceComplete": true
+  },
+  "emissionQualifiedRetention": {
+    "rootComparison": {
+      "path": ".cache/t39-source-20261119/current39-emission-comparison.json",
+      "sha256": "25d256047552ce3d00d004f97c263db3adbdd7fd1c15ab3dd793aff4cbbc1cd0"
+    },
+    "historicalBaseline": {
+      "path": ".cache/t39-source-20261119/historical38-emitted-hashes.json",
+      "sha256": "c4826550dceaa8fde8ca54cb6639fbc387e4782c1fc637735e8f1003426d84cb"
+    },
+    "independentFilesystemRecheck": {
+      "changed": [
+        "apps/api/dist/modules/notifications/application/service-appointment-events.consumer.js"
+      ],
+      "added": [
+        "apps/api/dist/modules/whatsapp-channel/domain/ui/service-appointment-confirmation.js"
+      ],
+      "removed": [],
+      "historical": 2588,
+      "current": 2589
+    },
+    "matchesRootComparison": true,
+    "legacy188OriginalActualReceipt": {
+      "path": ".cache\\t38-source-20261119\\2026-11-19T18-23-43.952Z-legacy188\\receipt.json",
+      "sha256": "29a153616e5393290fc447493486cb183d085bf0f13eaeec3e8ddf28f862a286"
+    },
+    "legacy188PreviousWholeTests": 188,
+    "legacy188FreshThisTask": 0,
+    "all13SourceAndRawHashesVerified": true,
+    "qualification": "Actual historical188 retained under the existing verified source/emission comparison: only service consumer.js changed and formatter.js added; old order/receipt/transport/payment/stock outputs match historical38. This188 is OUTSIDE322 and is not freshly rerun39. No2589 output-tree rehash for this evidence. Approved mjs watchdog is outside production-only compiler inputs."
+  },
+  "visual": {
+    "state": "ACTUALLY_CAPTURED_LOCAL_SYNTHETIC_USER_APPROVED",
+    "generation": {
+      "path": ".cache/t39-source-20261119/visual-preview/generated/generation-receipt.json",
+      "sha256": "0bb86a599f943ee2bfa7629a9cc412c516802826368297e6a9e2be912db59310"
+    },
+    "capture": {
+      "path": ".cache/t39-source-20261119/visual-preview/generated/capture-receipt.json",
+      "sha256": "fa891b714a98e22b844f130df5d8be29f5550c4cd51f88594c13fdac8a819e44"
+    },
+    "wrapperRuns": [
+      {
+        "mode": "generate",
+        "receipt": {
+          "path": ".cache/t39-source-20261119/visual-preview/runs/2026-11-20T01-16-06.903Z-generate/receipt.json",
+          "sha256": "5692591d8054a1607fce6bcccbe84fd82d97c3534385fc748e91954977409fb7"
+        },
+        "raw": {
+          "path": ".cache/t39-source-20261119/visual-preview/runs/2026-11-20T01-16-06.903Z-generate/generate.log",
+          "sha256": "16c4e9d6080de812420cea665a3409b03cdc14161bef831ed8f2246948db39b9"
+        },
+        "code": 0,
+        "signal": null,
+        "artifactReceipt": {
+          "path": ".cache/t39-source-20261119/visual-preview/generated/generation-receipt.json",
+          "sha256": "0bb86a599f943ee2bfa7629a9cc412c516802826368297e6a9e2be912db59310"
+        }
+      },
+      {
+        "mode": "capture",
+        "receipt": {
+          "path": ".cache/t39-source-20261119/visual-preview/runs/2026-11-20T01-16-11.874Z-capture/receipt.json",
+          "sha256": "036c6f9ac9db61df2f72b1fec95cfdefeeb32723d22668afd0a994d0ce00a3a9"
+        },
+        "raw": {
+          "path": ".cache/t39-source-20261119/visual-preview/runs/2026-11-20T01-16-11.874Z-capture/capture.log",
+          "sha256": "289fcfed30a9a43fba76fa4edf3590a23a8d4d21f6ce27ca6d2613ef6d4f8f72"
+        },
+        "code": 0,
+        "signal": null,
+        "artifactReceipt": {
+          "path": ".cache/t39-source-20261119/visual-preview/generated/capture-receipt.json",
+          "sha256": "fa891b714a98e22b844f130df5d8be29f5550c4cd51f88594c13fdac8a819e44"
+        }
+      }
+    ],
+    "formatterIdentity": {
+      "path": "apps/api/src/modules/whatsapp-channel/domain/ui/service-appointment-confirmation.ts",
+      "sha256": "1e76997c33ab3ae5e49fc895f4d006edbe6fc83d3d7af8e7212a2566e92c734d",
+      "importedAtFutureRuntime": true,
+      "copyDuplicated": false
+    },
+    "messageArtifacts": 25,
+    "screenshotArtifacts": 6,
+    "screenshots": [
+      {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t39-source-20261119\\visual-preview\\generated\\captures\\local-local-pending-consultative-mobile.png",
+        "sha256": "412e9d1823298bf59db6478d9504d781edc8db9904607e622aa63c9b35adab05",
+        "scenario": "local-pending",
+        "tone": "consultative",
+        "viewport": {
+          "width": 430,
+          "height": 1100
+        },
+        "messageSha256": "22f21684ba8e54b9a9fc86a78a1b5efdb13c3d117ae16cf8d779406a4002d20a",
+        "localSynthetic": true,
+        "actualPngWidth": 430,
+        "actualPngHeight": 1203
+      },
+      {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t39-source-20261119\\visual-preview\\generated\\captures\\local-provider-confirmed-consultative-mobile.png",
+        "sha256": "4b603ce8fef1ba33123f41831313b855e6e3314d6fca98660a46b9156cdf673b",
+        "scenario": "provider-confirmed",
+        "tone": "consultative",
+        "viewport": {
+          "width": 430,
+          "height": 1100
+        },
+        "messageSha256": "353fd30270016c43b8a33c4c11f9a302d99ce0655d03417ba2ad13f7e1348362",
+        "localSynthetic": true,
+        "actualPngWidth": 430,
+        "actualPngHeight": 1155
+      },
+      {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t39-source-20261119\\visual-preview\\generated\\captures\\local-local-receipt-consultative-mobile.png",
+        "sha256": "fac8145aae4a01a836f0a19e65524d3481e5e07950c726b2469b6bfc2233231a",
+        "scenario": "local-receipt",
+        "tone": "consultative",
+        "viewport": {
+          "width": 430,
+          "height": 1100
+        },
+        "messageSha256": "e3098e31ed97da1afedd94407f14627fa42e26843e91ba1ffa466499f9f4b005",
+        "localSynthetic": true,
+        "actualPngWidth": 430,
+        "actualPngHeight": 1265
+      },
+      {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t39-source-20261119\\visual-preview\\generated\\captures\\local-regularization-no-slot-consultative-mobile.png",
+        "sha256": "33b85e3a3983f40b3635e7406f9a31d0f4f2f8f415497093e36db7528d63234f",
+        "scenario": "regularization-no-slot",
+        "tone": "consultative",
+        "viewport": {
+          "width": 430,
+          "height": 1100
+        },
+        "messageSha256": "4f18ff6a07c62feb7f60b75d41c6d9f42aba8c5e2e40cbd78ee7b69806727d9c",
+        "localSynthetic": true,
+        "actualPngWidth": 430,
+        "actualPngHeight": 1100
+      },
+      {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t39-source-20261119\\visual-preview\\generated\\captures\\local-regularization-with-slot-consultative-mobile.png",
+        "sha256": "74dcf6da116377f6407d45c30129732fd3c25a7e3da1219abfdaff4aa9f01f5e",
+        "scenario": "regularization-with-slot",
+        "tone": "consultative",
+        "viewport": {
+          "width": 430,
+          "height": 1100
+        },
+        "messageSha256": "a0e91f7dfcd154477c7f9c0dad4d8fec3a17b911a6d1115ec76a033d995fdc59",
+        "localSynthetic": true,
+        "actualPngWidth": 430,
+        "actualPngHeight": 1100
+      },
+      {
+        "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t39-source-20261119\\visual-preview\\generated\\captures\\local-five-tones-pending-desktop.png",
+        "sha256": "4689767d67ab2424896fae4ec4d66d4556701e578b51d9ec09b98f55ce0ef8b3",
+        "scenario": "local-pending",
+        "tones": [
+          "consultative",
+          "premium",
+          "direct",
+          "friendly",
+          "technical"
+        ],
+        "viewport": {
+          "width": 1920,
+          "height": 1400
+        },
+        "localSynthetic": true,
+        "actualPngWidth": 1920,
+        "actualPngHeight": 1400
+      }
+    ],
+    "allBodyAndPngHashesVerified": true,
+    "allGeneratedUtf8BoundaryTextVerified": true,
+    "cleanupErrors": 0,
+    "externalPageRequests": 0,
+    "testsAdded": 0,
+    "rootVisualReview": "Root reports all6PNG viewed without clipping and2printlinks shared. User explicitly approved the local presentation via call_62b86875b2524682acd239d3f85af177. This child verified existing artifact/pointer integrity only; no new browser or visual execution.",
+    "boundary": "Local synthetic actualformatter preview only; no actual WhatsApp/provider/API/AppModule/buyer-binding proof. Service journey screens44/45 and finalfeatureproof still pending.",
+    "wrapperSourceSafetyReview": "No concrete source blocker found: exact pinned pure formatter, explicit synthetic inputs, no duplicated message generator, only generate/capture modes, original1024/2048 fresh admissions, clean existing browser environment, Node loopbackguard, ephemeral127.0.0.1 staticroutes/browser same-origin/CSP, fresh Edge context, no customer messages, no API/database/queue fixtures, owned cleanup. Runtime success and raw integrity are Root evidence, not final independent verification.",
+    "userApproval": {
+      "call": "call_62b86875b2524682acd239d3f85af177",
+      "answer": "Aprovar a apresentação",
+      "scope": "local synthetic T39 presentation only",
+      "receipt": {
+        "path": ".cache/t39-source-20261119/user-presentation-approval.json",
+        "sha256": "d914aaa40965377d560bc2a786050432955ca73b03caa6fd0a7c0a1b37ebe171"
+      },
+      "recordedInSharedMetadataObserved": [
+        {
+          "path": ".specs/features/whatsapp-service-booking-business-rag/spec.md",
+          "exactCallAndAnswerObservedUtf8": true,
+          "mutableSharedMetadataNotPinnedOrChangedByChild": true
+        },
+        {
+          "path": ".specs/features/whatsapp-service-booking-business-rag/tasks.md",
+          "exactCallAndAnswerObservedUtf8": true,
+          "mutableSharedMetadataNotPinnedOrChangedByChild": true
+        },
+        {
+          "path": ".specs/features/whatsapp-service-booking-business-rag/context.md",
+          "exactCallAndAnswerObservedUtf8": true,
+          "mutableSharedMetadataNotPinnedOrChangedByChild": true
+        }
+      ],
+      "approvalOfProductionProviderOrRealJourney": false,
+      "canonicalApprovalReceiptReadUtf8": true
+    }
+  },
+  "history": {
+    "drafts": [
+      {
+        "path": ".cache/t39-source-20261119/evidence-draft-current.json",
+        "sha256": "f2f92bd39c0dedeb494a0d1e69a0f47b3f0c2669cadd138bec8b53e7bff55c57",
+        "preservedUnmodified": true
+      },
+      {
+        "path": ".cache/t39-source-20261119/evidence-draft-current-v2.json",
+        "sha256": "113c0cb72a997de85da4b4a3a97378faab375424b6dc735af859c9cce0c21cfe",
+        "preservedUnmodified": true
+      },
+      {
+        "path": ".cache/t39-source-20261119/evidence-draft-current-v3.json",
+        "sha256": "c6ecd6e2cad229d7fbed7de486cd187637c1eb8d8858dc0c28969d95f2557108",
+        "preservedUnmodified": true
+      },
+      {
+        "path": ".cache/t39-source-20261119/evidence-draft-current-v4.json",
+        "sha256": "0a11146fb9a62330fe7059577b906b48f205c7d35b513df33d33c4d4a90cee33",
+        "preservedUnmodified": true
+      }
+    ],
+    "failedOriginalWidget176Attempts": [
+      {
+        "receipt": {
+          "path": ".cache/t39-source-20261119/2026-11-20T00-58-57.325Z-product-widget176/receipt.json",
+          "sha256": "ab3455a59e272fd57195e894bc94f990afdd77a1e9f4c4bf8eadda08dbab30e6"
+        },
+        "wrapper": {
+          "path": ".cache/t39-source-20261119/2026-11-20T00-58-57.325Z-product-widget176/t39-product-widget176-1.log",
+          "sha256": "5b1310726ced77743f85197f58e01a6d3d7fb860b77e98726386f572428b2586"
+        },
+        "innerRaw": {
+          "path": ".cache/t71-gates/2026-11-20T00-59-06.759Z/product-widget.log",
+          "sha256": "e043d3be817012ac4abc3a8dc3cb91c9cce473d10561e6ba567efdbcb27aac3a"
+        },
+        "acceptedWholeContexts": 0,
+        "expectedWholeContexts": 176,
+        "diagnosticPassedCheckpoints": 145,
+        "assertionFailureRows": [],
+        "deadline": "Original180000ms, no guard/heap/deadline change",
+        "cleanup": [
+          {
+            "status": "failed",
+            "cleanupErrors": 0,
+            "disposableDatabaseRemoved": true,
+            "bridgeClosed": true,
+            "durationMs": 187730,
+            "network": "none",
+            "productionAccess": false,
+            "approxElapsedMs": 187920.5315
+          }
+        ],
+        "diagnostic": {
+          "path": ".cache/t39-source-20261119/widget176-first-deadline-diagnostic.json",
+          "sha256": "bdb5d63d2cbf615e4bfaa6e7d283c707976fa8e54245d7718bb3869df1a00634"
+        },
+        "timingComparison": {
+          "path": ".cache/t39-source-20261119/widget176-timing-comparison.json",
+          "sha256": "a8d69a8bc39de3f0246129f1405405742e6c9030f44380f438df47f6fd5b4736"
+        },
+        "causeNotEstablished": true,
+        "notGreen": true,
+        "attempt": 1
+      },
+      {
+        "attempt": 2,
+        "outerSessionPerRoot": 67171,
+        "receipt": {
+          "path": ".cache/t39-source-20261119/2026-11-20T02-13-30.123Z-product-widget176/receipt.json",
+          "sha256": "50d96ac3f19fcd892e1db3f750d7d86e888892cae3618a49cfdc62c2f08b0c95"
+        },
+        "wrapper": {
+          "path": ".cache/t39-source-20261119/2026-11-20T02-13-30.123Z-product-widget176/t39-product-widget176-1.log",
+          "sha256": "70370f454fe14b84123fcd3c939912f5659d03c1a31dac2482fdbb17c891565e"
+        },
+        "innerRaw": {
+          "path": ".cache/t71-gates/2026-11-20T02-13-49.425Z/product-widget.log",
+          "sha256": "42be5be3099f4c444e6f48eae79a90cfa123d28c83d1685b8e581b527474feec"
+        },
+        "acceptedWholeContexts": 0,
+        "expectedWholeContexts": 176,
+        "diagnosticPassedCheckpoints": 158,
+        "assertionFailureRows": [],
+        "deadline": "Original180000ms unchanged; no approved budget patch applied",
+        "childCode": 1,
+        "childSignal": null,
+        "originalGuardCommitMiB": 2048,
+        "cleanup": [
+          {
+            "status": "failed",
+            "cleanupErrors": 0,
+            "disposableDatabaseRemoved": true,
+            "bridgeClosed": true,
+            "durationMs": 186631,
+            "network": "none",
+            "productionAccess": false
+          }
+        ],
+        "failureObserved": "native_widget_checkout_deadline_exceeded; natural wrapper exit1 after cleanup",
+        "causeNotEstablished": true,
+        "notGreen": true,
+        "ownArtifactAssertionRecordedInActualStage": {
+          "checked": true,
+          "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+          "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+          "compilerCoverage": {
+            "checked": true,
+            "sourceCount": 2589
+          }
+        },
+        "artifactTreeRehashedForThisNote": false
+      }
+    ],
+    "quietWindowRefusalsWithoutChild": [
+      {
+        "receipt": {
+          "path": ".cache/t39-source-20261119/2026-11-20T01-17-46Z-one-widget176-quiet-window/receipt.json",
+          "sha256": "a11740e11af9cf574b4245fb271a4559bbd5f289c70c97f2e3cfd5df51667707"
+        },
+        "schedulerSource": {
+          "path": ".cache/t39-source-20261119/await-one-widget-quiet-window.py",
+          "sha256": "e6a987cc385b9d6856f9adf991789f5b09e142269b862254761396edc2096ce4"
+        },
+        "status": "no_stable_window_no_child",
+        "compilerOrGateChildStarted": false,
+        "rootHistoricalSamplesRetained": 598,
+        "requiredCommitMiB": 2048,
+        "additionalPhysicalAvailableMiB": 2048,
+        "stableSeconds": 30,
+        "maximumAdmissionWaitSeconds": 600,
+        "firstHistoricalSample": {
+          "observedAtUtc": "2026-11-20T01:17:46.776197+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 1836,
+          "commitAvailableMiB": 6634,
+          "memoryLoadPercent": 88
+        },
+        "lastHistoricalSample": {
+          "observedAtUtc": "2026-11-20T01:27:47.502469+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 566,
+          "commitAvailableMiB": 6110,
+          "memoryLoadPercent": 96
+        },
+        "plannedCommandNotExecuted": [
+          "node",
+          ".cache/t39-source-20261119/run-full.mjs",
+          "product-widget176",
+          "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+          "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+          "2589"
+        ],
+        "rootReportedOuterTool": {
+          "sessionId": 24709,
+          "exitCode": 1,
+          "provenance": "Explicit Root handoff; child/gate exit code is absent because no child started. Do not infer an exit2."
+        },
+        "widgetWholeRetryExecuted": false,
+        "acceptedContextsAdded": 0,
+        "noCurrentCapacityInferenceFromHistoricalSamples": true,
+        "budgetBoundary": "Conservative scheduling headroom only; original176 runner,2048 child guard,heap and180000ms deadline unchanged. No weaker admission or SUT change.",
+        "notAnAdditionalWidgetTestFailure": "This is a refused scheduling window with no child. The earlier actual whole176 deadline failure remains separate and unresolved."
+      },
+      {
+        "receipt": {
+          "path": ".cache/t39-source-20261119/2026-11-20T01-37-52Z-one-widget176-recovery-window/receipt.json",
+          "sha256": "1698127b34173e5536812759641890c5b63e75b45e6ff61b4db37c69ce361866"
+        },
+        "schedulerSource": {
+          "path": ".cache/t39-source-20261119/await-one-widget-recovery-window.py",
+          "sha256": "f30d15625372a1e913c64621e5ab87575790d8de089f51e8b01d92c7c5958b17"
+        },
+        "status": "no_stable_window_no_child",
+        "compilerOrGateChildStarted": false,
+        "rootHistoricalSamplesRetained": 91,
+        "requiredCommitMiB": 2048,
+        "additionalPhysicalAvailableMiB": 2048,
+        "stableSeconds": 30,
+        "maximumAdmissionWaitSeconds": 90,
+        "firstHistoricalSample": {
+          "observedAtUtc": "2026-11-20T01:37:52.711056+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 1864,
+          "commitAvailableMiB": 7068,
+          "memoryLoadPercent": 88
+        },
+        "lastHistoricalSample": {
+          "observedAtUtc": "2026-11-20T01:39:22.915189+00:00",
+          "source": "Windows GlobalMemoryStatusEx read-only",
+          "physicalTotalMiB": 16087,
+          "physicalAvailableMiB": 1422,
+          "commitAvailableMiB": 6786,
+          "memoryLoadPercent": 91
+        },
+        "plannedCommandNotExecuted": [
+          "node",
+          ".cache/t39-source-20261119/run-full.mjs",
+          "product-widget176",
+          "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+          "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+          "2589"
+        ],
+        "rootReportedOuterTool": {
+          "sessionId": 33071,
+          "exitCode": 1,
+          "provenance": "Explicit Root handoff; no gate child started, so no gate exit code or inferred exit2."
+        },
+        "widgetWholeRetryExecuted": false,
+        "acceptedContextsAdded": 0,
+        "noCurrentCapacityInferenceFromHistoricalSamples": true,
+        "originalSutDeadlineHeapGuardUnchanged": true
+      }
+    ],
+    "originalBudgetFailuresRemainFailed": true,
+    "failedAndRefusedContextsAddedToCurrentCount": 0,
+    "historicalPreapprovalProposalState": {
+      "status": "PENDING_USER_APPROVAL_NOT_APPLIED",
+      "proposal": {
+        "path": ".cache/t39-source-20261119/widget-worker-budget-review/proposal.json",
+        "sha256": "8b185189daff2e580d63d4694a72294f686cb1e588d1f775fb2c8741882e1249"
+      },
+      "patch": {
+        "path": ".cache/t39-source-20261119/widget-worker-budget-review/proposed.patch",
+        "sha256": "3609375592cfaed06964739babd8efcc478e3780acf7dd193c71fc90f83a8e6c"
+      },
+      "independentSourceAdvisory": {
+        "path": ".cache/t39-source-20261119/widget-worker-budget-review/peer-review.md",
+        "sha256": "15dfca467e93c73aad69c8a64ebb1dceae2dfe1f5b4a2080a29a92bbc721a070"
+      },
+      "oldBudgetMs": 180000,
+      "proposedBudgetMs": 300000,
+      "intendedLocalWorktrees": [
+        "C:\\tmp\\zyon-service-business-20261114",
+        "C:\\tmp\\zyon-whatsapp-staff-alerts-source-20261119"
+      ],
+      "path": "apps/api/tests/widget-cross-sell-checkout.integration.mjs",
+      "rootCurrentBeforeSha256": "90afff2d6eb7799fa63ff5ef1d32c81e09759daeb4f8dd2adcb3579c3068e689",
+      "isolatedCurrentBeforeSha256": "90afff2d6eb7799fa63ff5ef1d32c81e09759daeb4f8dd2adcb3579c3068e689",
+      "userApprovalRecordedForThisPatch": false,
+      "functionalAssertionsUnchangedProposed": 176,
+      "innerWaitsHeapPidsCleanupUnchangedProposed": true,
+      "gateTemporalAcceptanceBudgetWouldChange": true,
+      "notNeutralGatePreservation": true,
+      "doesNotProveAll176WouldPassOrExplainTimeout": true,
+      "automaticRetryOrPatchApplicationAuthorizedByThisNote": false
+    },
+    "headerFailuresAndToolingRefusalsRemainInHeaders": true,
+    "earlierUnboundLint": {
+      "reportedSession": 93805,
+      "reportedNaturalExit0": true,
+      "portableBoundReceiptWasMissing": true,
+      "acceptedAsCurrentHeader": false,
+      "currentGapResolvedByOneFreshLintNotByCountingHistoricalReport": true,
+      "rawPath": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t71-gates\\2026-11-20T00-18-07.736Z\\lint.log",
+      "rawSha256": "75e47252305c04be115fde2fb95e8fcbd9c8cb4e51efdd61fcc253330ab5f84a"
+    },
+    "lintDraftPendingTextResolved": "No new lint receipt is asserted by this draft; Root links its actual current result or qualified retention before formal closure."
+  },
+  "approvedWidgetWorkerBudgetException": {
+    "status": "USER_APPROVED_ROOT_APPLIED_ONCE_ACTUAL176_GREEN",
+    "approvalReceipt": {
+      "path": ".cache/t39-source-20261119/widget-worker-budget-review/root-approved-applied.json",
+      "sha256": "f765ca8b8fd82079a1cec33eefb705753931619f440b6b417aa35dcd08d3f1b7"
+    },
+    "userCall": "call_69d9fe48fb014b1ba2cd9f4fd8a72599",
+    "exactQuote": "Aprovar apenas o limite de 5 minutos",
+    "patch": {
+      "path": ".cache/t39-source-20261119/widget-worker-budget-review/proposed.patch",
+      "sha256": "3609375592cfaed06964739babd8efcc478e3780acf7dd193c71fc90f83a8e6c"
+    },
+    "beforeSha256": "90afff2d6eb7799fa63ff5ef1d32c81e09759daeb4f8dd2adcb3579c3068e689",
+    "afterSha256": "996adffc709534d3fccac6e88d1b62014c55145f18346521525e7c1379b3dcd0",
+    "oldParentWatchdogMs": 180000,
+    "approvedParentWatchdogMs": 300000,
+    "functionalAssertionsChanged": 0,
+    "workerCases": 176,
+    "innerWaitsHeap256PostgresPids128MemoryNetworkCleanupUnchanged": true,
+    "temporalAcceptanceBudgetChangedNotNeutral": true,
+    "rootOnlyAppliedReceipt": true,
+    "MDeferredAsRecordedInApprovalReceipt": true,
+    "MApplicationTrackedSeparatelyNotAT39Gate": true,
+    "approvedControls": {
+      "freeze": {
+        "path": ".cache/t39-source-20261119/source-ready-approved-widget-budget.json",
+        "sha256": "7edbf80bd5abe6f364619518a4fab50fb863ec08600fae1c9465c0255d6bcc05"
+      },
+      "inventory": {
+        "path": ".cache/t39-source-20261119/full-inventory-approved-widget-budget.json",
+        "sha256": "35dfcbb238444b472845a22286d76369dec34c5c8fb089b02b37331a8de18626"
+      },
+      "manifest": {
+        "path": ".cache/t39-source-20261119/full-selection-approved-widget-budget.json",
+        "sha256": "017f6fc90d328b9b1246f9b5a7590811e4f48db34671070258d38e0915ea92bf"
+      },
+      "launcher": {
+        "path": ".cache/t39-source-20261119/run-full-approved-widget-budget.mjs",
+        "sha256": "85785c5448fb89864ce177ccf8a63a1b336329eb3225259c83f13dbc2e4e36f7"
+      },
+      "sourceReview": {
+        "path": ".cache/t39-source-20261119/approved-widget-budget-source-review.json",
+        "sha256": "d3ef246cdaccc58567bea807432c4d288224b9c32e60a3eed24110d1ef7bca0b"
+      }
+    },
+    "changedMjsHarnessOutsideProductionCompilerInputs": true,
+    "noRecaptureBuildRequiredSolelyForBudgetChange": true
+  },
+  "widgetFinalActual": {
+    "sessionReportedByRoot": 63519,
+    "receipt": {
+      "path": ".cache/t39-source-20261119/2026-11-20T02-55-02.894Z-product-widget176/receipt.json",
+      "sha256": "9c03976d80519cc2d81205a18dbfde9d841a023b77e1362e6193cc487122a89a"
+    },
+    "naturalExitCode": 0,
+    "signal": null,
+    "whole176": true,
+    "providerCalls": 0,
+    "cleanupErrors": 0,
+    "driverDurationMs": 165319,
+    "observedLessThanOld180000": true,
+    "noCausalClaimBudgetChangeFixedElapsedTime": true,
+    "notRetroactiveGreenForOriginalFailedAttempts": true,
+    "currentOwnArtifactAssertion": {
+      "checked": true,
+      "inputSha256": "eaeb72bdcf5e462ddd9465ad46473c6f8a03d0556227250b41a1f6ca3ab2c576",
+      "artifactSha256": "f9e2ff73954e968f8b285b4a02d10d3acc383331ad4cb93fcaf03fd22960f6ca",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2589
+      }
+    }
+  },
+  "preservation": {
+    "original7SourceEntriesAndBytesExact": true,
+    "onlyAdditionalFreezeInputIsApprovedWidgetDriver": true,
+    "originalQuickFullControlsAndAllEarlierDraftsPreserved": true,
+    "approved38OracleBodiesAndHelperQueryBodiesPreserved": true,
+    "consumerOutsidePresentationToneIdentityUnchanged": true,
+    "noSchemaFinancialBookingOrStockWritersChanged39": true,
+    "onlyCanonical39EvidenceWrittenByThisPreparation": true,
+    "sharedFiveMetadataStatusIndexCommitNotTouched": true
+  },
+  "rootReviewItems": [
+    "Root final evidence review/validators/focused commit remain Root-owned; this child neither marks nor commits the task.",
+    "Fresh portable lint receipt now resolves the inherited lint-link gap. Root owns final validators/metadata/focused atomic commit; no further runtime requested by this evidence preparation."
+  ],
+  "laterFeatureBoundaries": [
+    "Actual journeys44/45/screens and same-HEAD independent final feature verification remain later work.",
+    "Local synthetic UI approval does not prove actual WhatsApp/provider/API/AppModule/buyer-binding journey or production delivery.",
+    "T100/M application and proofs remain separately tracked; none counted39."
+  ],
+  "noRealProviderProductionCustomerSendOrWholeFeatureCompleteClaim": true,
+  "preparation": {
+    "sourceFilesystemOnly": true,
+    "directExistingProofPointerFilesVerified": 58,
+    "source7AndApproved8ExactVerified": true,
+    "sourceImportsParserCompilerSutResourcesBrowserProbes": 0,
+    "no2589EmittedTreeRehash": true,
+    "historicalFailuresRefusalsAndUserBudgetApprovalPreserved": true,
+    "freshLintReceiptAndRawHashBound": true,
+    "source7AndApproved8ExactVerifiedAfterLint": true
+  }
+}

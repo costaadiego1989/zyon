@@ -316,7 +316,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | BOOK-07 | On-site receipt | T4, T37, T41, T80 | In Progress (T37 local integral financial writer/HTTP/SQL complete; T41/T80 UI and final proof pending) |
 | BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34/T35/T36/T37 locally complete; T38/T84 and final proof pending) |
 | BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T33 cancellation/T34 canonical accepted reschedule and T49 trusted intake locally complete; T41/T80 UI and final human-flow proof pending) |
-| BOOK-10 | Confirmation and inventory | T35, T38, T39 | In Progress (T35 canonical paid admission/no physical stock locally proved; T38/T39 events/confirmation and final proof pending) |
+| BOOK-10 | Confirmation and inventory | T35, T38, T39 | Done locally (canonical admission, outbox, formatted confirmation and stock preservation; task-39-evidence.json Full322; real provider and final sameHEAD proof pending) |
 | HUM-01 | Fixed menu entry | T57 | Complete (LOCAL; T57 menu and signed gesture gated; final feature verification pending) |
 | HUM-02 | Handoff intake | T49, T50, T57 | Complete (LOCAL; T49/T50/T57 intake, router and button/text/voice with canonical acknowledgement gated; final feature verification pending) |
 | HUM-03 | AI pause | T4, T48, T49, T50, T51, T109 | Complete (LOCAL; T4/T48-T51 and T109 locally gated; final feature verification pending) |
@@ -436,3 +436,12 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 
 **T38 local Full closure 2026-11-19T18:59:19.729644+00:00:** Actual253 contextual executions passed across32new/188existing/source3/compiled3/native13/native14, zero skipped, all raw hashes and executable source/test bytes verified. Own Root checked API e2cf8b7f/eb4a1fb5/2588 passed original types/lint/capture/build/record/admit. Signed AppModule callbacks and actual owned SQL/outbox preserve booking/finance/stock; original order execute tail and sixT37 pins exact. Only wrong new zero-case oracle corrected after exact user approval; API price policy unchanged, fixture restored in finally. Plan corrected its superseded zero-admission wording after gates, executable inputs unchanged. See task-38-evidence.json. T39 final tone/presentation and later sameHEAD acceptance remain required; no external provider or production claim. Task38 marked before its own atomic commit.
+
+
+**Approved T39 local synthetic presentation**: 2026-11-19 - user: "Aprovar a apresentação" (call_62b86875b2524682acd239d3f85af177). Approval covers the shown appointment confirmation/payment-at-attendance/five-tone local synthetic previews, not actual WhatsApp/provider or final44/45 screens, technical gates, task closure or production. Six exact artifacts in .cache/t39-source-20261119/visual-preview/generated/captures; generation0bb86a59/capturefa891b71.
+
+
+**Approved widget parent watchdog exception**: 2026-11-19 - user: "Aprovar apenas o limite de 5 minutos" (call_69d9fe48fb014b1ba2cd9f4fd8a72599). Exact patch3609375592cfaed06964739babd8efcc478e3780acf7dd193c71fc90f83a8e6c authorizes ONLY test-driver parent watchdog180000->300000 on the TWO local checkouts Root/M; worker176cases/allfunctionalassertions/internalwaits/heap256/PG128/memory/network/cleanup unchanged. This explicitly revises the original gate budget, not a neutral retention or productSLA change. Original145/158partialfailures remainfailed, no whole176pass implied. Rootmayapply now; Mmustwait currentnative16/inbox9 naturalhandback before any sourcechange. No reask/reapply.
+
+
+**T39 local closure 2026-11-20T03:14:30.991751+00:00**: Full322 current contextual executions GREEN, no skips;188historical retained outside322. OwnRoot eaeb72bd/f9e2ff73/2589 and allheaders0, freshlint36d06a40, approved176 rawbf42744b/cleanup0/provider0/duration165319ms. Duration was beloworiginal180 too; no causalclaimthatbudgetfixresolvedslowness. Source8 7edbf80b and alloriginal7inputs exact. Approved local presentation call62b86875 and parent300 call69d9fe48 preserved. Code/queries/writer/transport/stock boundaries held; no realprovider/production/wholefeaturecomplete claim. Taskmarked beforefocusedcommit.

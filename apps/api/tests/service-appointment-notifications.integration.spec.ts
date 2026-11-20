@@ -201,6 +201,45 @@ test("T38 actual service outbox ownership and captured transport preserve bookin
         await p.productPrice.update({ where: { variantId: "booking-short-variant" }, data: { basePriceInCents: price.basePriceInCents } });
       }
     });
+    await t.test("T39 actual canonical SQL tones produce formatted complete unpaid payloads and ignore private or foreign personas", async () => {
+      await p.agentRule.create({ data: { merchantId: "booking-foreign", agentId: "default", userId: null, scope: "merchant_default",
+        identity: { tone: "friendly", persona: "FOREIGN_T39_CANARY" }, capabilities: {}, guardrails: {}, checkoutSettings: {} } });
+      await p.agentRule.create({ data: { merchantId: "booking-services", agentId: "agt_t39_legacy", userId: null, scope: "user_agent",
+        identity: { tone: "technical", persona: "LEGACY_T39_CANARY" }, capabilities: {}, guardrails: {}, checkoutSettings: {} } });
+      const leads = { consultative: "Confira os detalhes do seu atendimento.", premium: "Confira os detalhes do seu atendimento com aten\u00e7\u00e3o.", direct: "Resumo do atendimento:",
+        friendly: "Separei os detalhes para voc\u00ea conferir.", technical: "Resumo do agendamento e da situa\u00e7\u00e3o financeira." };
+      for (const [tone, lead] of Object.entries(leads)) {
+        await p.agentRule.upsert({ where: { merchantId_agentId: { merchantId: "booking-services", agentId: "default" } },
+          create: { merchantId: "booking-services", agentId: "default", userId: null, scope: "merchant_default", identity: { tone, persona: "PRIVATE_T39_CANARY" }, capabilities: {}, guardrails: {}, checkoutSettings: {} },
+          update: { identity: { tone, persona: "PRIVATE_T39_CANARY" } } });
+        const c = await seed(), before = await snapshot(c.appointment.id), offset = requests.length; await dispatcher.dispatch();
+        assert.equal(requests.length, offset + 1); const text = requests.at(-1).freeformText;
+        assert.ok(text.includes(lead)); assert.ok(text.startsWith("\ud83e\udd16")); assert.match(text, /\*Agendamento confirmado\*/);
+        for (const value of ["Synthetic booking-short", "Synthetic professional", "10:00", "10:20", "UTC", "50,00", "no atendimento"]) assert.ok(text.includes(value), value);
+        assert.doesNotMatch(text, /T39_CANARY|Total pago|pedido enviado|confirmado pelo provedor/i); assert.deepEqual(await snapshot(c.appointment.id), before);
+        assert.equal((await delivery(c.appointment.id))[0].state, "sent");
+      }
+    });
+    await t.test("T39 actual SQL default fallback retains same-merchant legacy and never imports the foreign rule", async () => {
+      await p.agentRule.update({ where: { merchantId_agentId: { merchantId: "booking-services", agentId: "default" } }, data: { identity: { tone: "not-a-configured-tone", persona: "PRIVATE_T39_CANARY" } } });
+      const c = await seed(), before = await snapshot(c.appointment.id), offset = requests.length; await dispatcher.dispatch();
+      assert.equal(requests.length, offset + 1); assert.ok(requests.at(-1).freeformText.includes("Confira os detalhes do seu atendimento."));
+      assert.doesNotMatch(requests.at(-1).freeformText, /T39_CANARY|not-a-configured-tone/); assert.deepEqual(await snapshot(c.appointment.id), before);
+      await p.agentRule.delete({ where: { merchantId_agentId: { merchantId: "booking-services", agentId: "default" } } });
+      const legacy = await seed(), legacyBefore = await snapshot(legacy.appointment.id), legacyOffset = requests.length; await dispatcher.dispatch();
+      assert.equal(requests.length, legacyOffset + 1); assert.ok(requests.at(-1).freeformText.includes("Resumo do agendamento e da situa\u00e7\u00e3o financeira."));
+      assert.doesNotMatch(requests.at(-1).freeformText, /T39_CANARY/); assert.deepEqual(await snapshot(legacy.appointment.id), legacyBefore);
+      await p.agentRule.create({ data: { merchantId: "booking-services", agentId: "default", userId: null, scope: "merchant_default", identity: { tone: "consultative" }, capabilities: {}, guardrails: {}, checkoutSettings: {} } });
+    });
+    await t.test("T39 real SQL tone change after capture prevents the obsolete payload from starting and preserves the booking", async () => {
+      await p.agentRule.update({ where: { merchantId_agentId: { merchantId: "booking-services", agentId: "default" } }, data: { identity: { tone: "premium" } } });
+      const c = await seed(), before = await snapshot(c.appointment.id), offset = requests.length;
+      beforeRequest = async () => { beforeRequest = undefined; await p.agentRule.update({ where: { merchantId_agentId: { merchantId: "booking-services", agentId: "default" } }, data: { identity: { tone: "direct" } } }); };
+      await dispatcher.dispatch(); assert.equal(requests.length, offset); assert.equal((await delivery(c.appointment.id))[0].state, "notification_failed");
+      assert.deepEqual(await snapshot(c.appointment.id), before);
+      await p.agentRule.update({ where: { merchantId_agentId: { merchantId: "booking-services", agentId: "default" } }, data: { identity: { tone: "consultative" } } });
+      assert.equal(await p.inventoryMovement.count(), 0);
+    });
     await t.test("real SQL template revision/activation and freeform window changes during preparation deny the actual request", async () => {
       const canonical = { merchantId: "booking-services", type: "service_appointment_notice", channel: "whatsapp", name: "Service notice", body: "Canonical service",
         isActive: true, metaStatus: "approved", metaWabaId: "123456", metaRevision: 1, metaLanguage: "pt_BR", metaCategory: "UTILITY", metaTemplateBody: "Appointment {{1}}. Thank you.",

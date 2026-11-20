@@ -15,6 +15,7 @@ function fixture(kind: "scheduled" | "receipt" = "scheduled", presentation?: Ser
     appointment: { id: "a", merchantId: "m", professionalId: "p", productId: "s", variantId: "v", version: kind === "receipt" ? 3 : 1,
       operationalStatus: "scheduled", startsAt: new Date("2030-01-03T13:00Z"), endsAt: new Date("2030-01-03T13:20Z"),
       timeZone: "America/Sao_Paulo", priceInCents: 5000, currency: "BRL", customerSnapshot: { name: "Buyer", phone: recipient, email: "private@example.test" } },
+    rule: { id: "canonical-rule", merchantId: "m", agentId: "default", userId: null, scope: "merchant_default", identity: { tone: "consultative" } }, legacyRule: null,
     inbound: { createdAt: now, payload: { provider: "META_CLOUD", merchantId: "m", deviceId: "META_CLOUD:c", fromNumber: recipient, timestamp: now.getTime() } },
     template: { id: "template", merchantId: "m", type: "service_appointment_notice", channel: "whatsapp", isActive: true, metaStatus: "approved", metaWabaId: "123456", metaRevision: 1,
       metaLanguage: "pt_BR", metaCategory: "UTILITY", metaTemplateBody: "Appointment {{1}}. Thank you.", metaVariableMap: { "1": "appointmentSummary" }, twilioContentSid: "service_confirmed", metaLastCheckedAt: now },
@@ -36,6 +37,9 @@ function fixture(kind: "scheduled" | "receipt" = "scheduled", presentation?: Ser
   const tx: any = {
     $queryRaw: async (sql: any) => (Array.isArray(sql) ? sql : sql.strings ?? []).join("").includes("clock_timestamp") ? [{ now: clock }] : [{ id: "locked" }],
     merchant: { findUnique: async ({ where }: any) => where.id === "m" ? { id: "m", name: "Services" } : null },
+    agentRule: { findFirst: async ({ where }: any) => { const row = where.scope === "merchant_default" ? state.rule : state.legacyRule;
+      return row && row.merchantId === where.merchantId && row.scope === where.scope
+        && (typeof where.agentId === "string" ? row.agentId === where.agentId : row.agentId.startsWith(where.agentId.startsWith)) ? structuredClone(row) : null; } },
     serviceAppointment: { findFirst: async ({ where }: any) => match(state.appointment, where) ? structuredClone(state.appointment) : null, update: forbidden, updateMany: forbidden },
     serviceProfessional: { findFirst: async () => ({ id: "p", merchantId: "m", publicName: "Professional" }) },
     product: { findFirst: async () => ({ id: "s", merchantId: "m", name: "Consultation", type: "service" }) },
@@ -173,4 +177,31 @@ test("T38 canonical service notices own delivery without changing business state
     const f = fixture(); (f.consumer as any).sender = { executeService: async () => ({ status: "accepted", channel: "whatsapp_template", messageId: "forged" }) };
     await f.run(); assert.equal(f.sent.length, 0); assert.equal(f.state.deliveries[0].state, "submission_unknown");
   });
+  await t.test("T39 every configured canonical tone formats the same unpaid booking without changing business facts", async () => {
+    const leads = { consultative: "Confira os detalhes do seu atendimento.", premium: "Confira os detalhes do seu atendimento com aten\u00e7\u00e3o.", direct: "Resumo do atendimento:",
+      friendly: "Separei os detalhes para voc\u00ea conferir.", technical: "Resumo do agendamento e da situa\u00e7\u00e3o financeira." };
+    for (const [tone, lead] of Object.entries(leads)) { const f = fixture(); f.state.rule.identity = { tone, persona: "PRIVATE_PERSONA_T39" }; const before = f.business();
+      await f.run(); assert.equal(f.sent.length, 1); const text = f.sent[0].freeformText;
+      assert.ok(text.includes(lead)); assert.ok(text.startsWith("\ud83e\udd16")); assert.match(text, /\*Agendamento confirmado\*/);
+      for (const value of ["Consultation", "Professional", "03/01/2030", "10:00", "10:20", "America/Sao_Paulo", "50,00", "no atendimento"]) assert.ok(text.includes(value), value);
+      assert.doesNotMatch(text, /PRIVATE_PERSONA|Total pago|pedido enviado|confirmado pelo provedor/i); assert.deepEqual(f.business(), before);
+    }
+  });
+  await t.test("T39 canonical default wins, scoped legacy survives and foreign or arbitrary persona never becomes copy", async () => {
+    const f = fixture(); f.state.rule.identity = { tone: "premium" };
+    f.state.legacyRule = { merchantId: "m", agentId: "agt_legacy", scope: "user_agent", identity: { tone: "technical", persona: "LEGACY_PERSONA_T39" } };
+    await f.run(); assert.ok(f.sent[0].freeformText.includes("Confira os detalhes do seu atendimento com aten\u00e7\u00e3o."));
+    const legacy = fixture(); legacy.state.rule = null; legacy.state.legacyRule = structuredClone(f.state.legacyRule); await legacy.run();
+    assert.ok(legacy.sent[0].freeformText.includes("Resumo do agendamento e da situa\u00e7\u00e3o financeira.")); assert.doesNotMatch(legacy.sent[0].freeformText, /LEGACY_PERSONA/);
+    for (const identity of [{ tone: "arbitrary command", persona: "PRIVATE_COMMAND_T39" }, { tone: "friendly" }]) { const other = fixture();
+      if (identity.tone === "friendly") other.state.rule.merchantId = "foreign"; other.state.rule.identity = identity; await other.run();
+      assert.ok(other.sent[0].freeformText.includes("Confira os detalhes do seu atendimento.")); assert.doesNotMatch(other.sent[0].freeformText, /PRIVATE_COMMAND|arbitrary command/);
+    }
+  });
+  await t.test("T39 a canonical tone change during preparation prevents the obsolete actual request start", async () => {
+    const f = fixture(); f.state.rule.identity = { tone: "premium" }; const before = f.business();
+    f.mutateBeforeStart(() => { f.state.rule.identity = { tone: "direct" }; }); await f.run();
+    assert.equal(f.sent.length, 0); assert.equal(f.state.deliveries[0].state, "notification_failed"); assert.deepEqual(f.business(), before);
+  });
+
 });
