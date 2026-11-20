@@ -74,7 +74,10 @@ function App({ api }: AppProps) {
   const [subscriptionIntent, setSubscriptionIntent] = useState(readSubscriptionIntent);
   const onboardingRedirectedRef = useRef(false);
   function setAuthMode(mode: AuthMode) {
-    window.history.replaceState(window.history.state, "", authUrlForMode(window.location.href, mode));
+    const fiscalReturn = /^#fiscal-(?:settings|invoices|detail)(?:\?|$)/.test(window.location.hash) ? window.location.hash : "";
+    const authUrl = new URL(authUrlForMode(window.location.href, mode));
+    if (fiscalReturn) authUrl.hash = fiscalReturn;
+    window.history.replaceState(window.history.state, "", authUrl.href);
     setCurrentAuthMode(mode);
     setCaptchaToken(null);
     setAuthHint(null);
