@@ -10,14 +10,14 @@ const family = (name: string) => /^(Empresas|Estabelecimentos|Simples)\d*\.zip$/
 export class ReceitaManifestAdapter {
   constructor(private readonly request: typeof fetch = fetch, private readonly now = () => new Date()) {}
 
-  private allowed(value: string, listing = false): URL {
+  private allowed(value: string, listing = false, rootEntry = false): URL {
     let url: URL;
     try {
       if (/%2e|%2f|%5c|\\|(?:^|\/)\.\.(?:\/|$)/i.test(value)) throw new Error();
       url = new URL(value, root);
       if (url.origin !== root.origin || url.username || url.password || url.hash || url.search || !url.pathname.startsWith(root.pathname)) throw new Error();
       const relative = url.pathname.slice(root.pathname.length);
-      if (!(listing ? /^(?:\d{4}-(?:0[1-9]|1[0-2])\/)?$/ : /^\d{4}-(?:0[1-9]|1[0-2])\/[A-Za-z0-9]+\.zip$/).test(relative)) throw new Error();
+      if (!(rootEntry && relative === "cnpj.tar.gz") && !(listing ? /^(?:\d{4}-(?:0[1-9]|1[0-2])\/)?$/ : /^\d{4}-(?:0[1-9]|1[0-2])\/[A-Za-z0-9]+\.zip$/).test(relative)) throw new Error();
     } catch { throw new Error("source_not_allowed"); }
     return url;
   }
@@ -59,7 +59,7 @@ export class ReceitaManifestAdapter {
   }
   async competences(): Promise<string[]> {
     const entries = await this.list(RECEITA_DIRECTORY_ROOT); const result = new Set<string>();
-    for (const entry of entries) { const url = this.allowed(entry.href, true); const month = url.pathname.slice(root.pathname.length).replace(/\/$/, ""); if (month) result.add(month); }
+    for (const entry of entries) { const url = this.allowed(entry.href, true, true); const month = url.pathname.slice(root.pathname.length).replace(/\/$/, ""); if (/^\d{4}-\d{2}$/.test(month)) result.add(month); }
     return [...result].sort().reverse();
   }
   async discover(competence: string): Promise<CompanyManifest> {

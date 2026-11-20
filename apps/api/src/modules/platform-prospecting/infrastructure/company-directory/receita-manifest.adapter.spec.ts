@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { ReceitaManifestAdapter, RECEITA_DIRECTORY_ROOT } from "./receita-manifest.adapter.js";
 
 const xml = (items: string[]) => `<d:multistatus xmlns:d="DAV:">${items.map(href => `<d:response><d:href>${href}</d:href><d:propstat><d:prop><d:getetag>&quot;revision-1&quot;</d:getetag><d:getlastmodified>Mon, 16 Nov 2026 10:00:23 GMT</d:getlastmodified></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`).join("")}</d:multistatus>`;
@@ -27,6 +28,14 @@ test("PROS-03 AC2 rejects unauthorized resources, paths and redirects before fet
   assert.deepEqual(calls, []);
   await assert.rejects(() => adapter.openResource(`${RECEITA_DIRECTORY_ROOT}2026-11/Cnaes.zip`), /source_not_allowed/);
   assert.deepEqual(calls, [`${RECEITA_DIRECTORY_ROOT}2026-11/Cnaes.zip`]);
+});
+test("PROS-03 AC1 discovers months from the full official root capture including the national tar archive", async () => {
+  const capture = JSON.parse(readFileSync(new URL("../../../../../tests/fixtures/rfb-root-discovery-20261120.json",import.meta.url),"utf8")) as { resources: {href:string}[] };
+  const adapter = new ReceitaManifestAdapter(async () => new Response(xml(capture.resources.map(r=>r.href)), {status:207}));
+  const expected = capture.resources.map(r=>/\/(\d{4}-\d{2})\/$/.exec(r.href)?.[1]).filter((v):v is string=>!!v).sort().reverse();
+  assert.ok(capture.resources.some(r=>r.href.endsWith("cnpj.tar.gz")));
+  assert.deepEqual(await adapter.competences(),expected);
+  assert.equal(expected[0],"2026-11");
 });
 test("PROS-03 AC1 rejects unavailable, oversized or malformed discovery without inventing resources", async () => {
   for (const response of [new Response("denied", {status:401}), new Response("<broken>", {status:207}), new Response("x".repeat(2_097_153), {status:207})]) {
