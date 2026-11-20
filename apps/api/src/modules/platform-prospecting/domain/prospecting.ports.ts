@@ -14,6 +14,10 @@ export interface ProspectingActor { operatorId: string; correlationId: string }
 export interface ProspectingAudit { actorOperatorId: string | null; action: string; resourceId: string; resourceVersion: number; correlationId: string; outcome: string; occurredAt: Date; details?: Record<string, unknown> }
 export interface DirectoryBatch { snapshotId: string; fileId: string; batchIndex: number; rowOffset: number; byteOffset: number; entities: DirectoryEntity[]; establishments: CompanyRecord[]; domains: { kind: string; code: string; label: string }[] }
 export interface DirectoryEntity { baseCnpj: string; legalName: string; legalNature: string | null; size: string | null; capitalCents: string | null; simples: boolean | null; mei: boolean | null }
+export type DirectoryEstablishment = Pick<CompanyRecord, "cnpj" | "baseCnpj" | "tradeName" | "mainCnae" | "secondaryCnaes" | "cityCode" | "uf" | "district" | "openingDate" | "status" | "matrixBranch" | "contacts">;
+export type DirectoryDecodedRow = { kind: "entity"; value: DirectoryEntity } | { kind: "establishment"; value: DirectoryEstablishment } | { kind: "tax"; value: { baseCnpj: string; simples: boolean | null; mei: boolean | null } } | { kind: "domain"; value: { kind: string; code: string; label: string } } | { kind: "rejected"; errorCode: string };
+export interface PreparedDirectoryArchive { fileHash: string; compressedBytes: number; rows(): AsyncIterable<DirectoryDecodedRow>; close(): Promise<void> }
+export interface DirectoryArchivePort { prepare(resource: import("@zyon/shared-types").CompanySourceResource): Promise<PreparedDirectoryArchive> }
 export interface CompanyDirectoryPort {
   search(query: CompanySearchQuery): Promise<CompanySearchResult>;
   find(cnpj: string, snapshotId?: string): Promise<CompanyRecord | null>;
