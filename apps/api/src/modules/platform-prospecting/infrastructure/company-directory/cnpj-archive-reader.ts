@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdtemp, open, rm, statfs } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, relative, dirname, basename } from "node:path";
 import { crc32 } from "node:zlib";
 import yauzl from "yauzl";
 import iconv from "iconv-lite";
@@ -11,6 +11,11 @@ import { canonicalCnpj } from "../../domain/company-directory/cnpj.js";
 import type { DirectoryArchivePort, DirectoryDecodedRow, PreparedDirectoryArchive } from "../../domain/prospecting.ports.js";
 
 interface ArchiveLimits { importMaximumFileBytes: number; importMaximumExpandedBytes: number; importMaximumEntries: number; importMaximumLineBytes: number; importMaximumMemoryBytes: number; importMinimumFreeDiskBytes: number }
+function removeOwnedArchive(directory:string):Promise<void>{
+  const temporaryRoot=resolve(tmpdir());const target=resolve(directory);const child=relative(temporaryRoot,target);
+  if(dirname(target)!==temporaryRoot||!/^zyon-cnpj-[A-Za-z0-9]+$/.test(basename(target))||child.startsWith(".."))throw new Error("archive_cleanup_path_invalid");
+  return rm(target,{recursive:true,force:true});
+}
 const nullable = (value: string) => value.trim() || null;
 function base(value: string) { if (!/^[A-Z0-9]{8}$/.test(value)) throw new Error("invalid_cnpj"); return value; }
 function money(value: string) {
@@ -63,8 +68,8 @@ export class CnpjArchiveReader implements DirectoryArchivePort {
           hash.update(chunk.value); await file.writeFile(chunk.value);
         }
       } finally { await reader.cancel(); await file.close(); }
-      return { fileHash: hash.digest("hex"), compressedBytes: bytes, rows: () => this.rows(path, resource.family), close: () => rm(directory, { recursive: true, force: true }) };
-    } catch (error) { await rm(directory, { recursive: true, force: true }); throw error; }
+      return { fileHash: hash.digest("hex"), compressedBytes: bytes, rows: () => this.rows(path, resource.family), close: () => removeOwnedArchive(directory) };
+    } catch (error) { await removeOwnedArchive(directory); throw error; }
   }
   private async *rows(path: string, family: string): AsyncGenerator<DirectoryDecodedRow> {
     let zip: yauzl.ZipFile | undefined; let expanded = 0; let count = 0;
