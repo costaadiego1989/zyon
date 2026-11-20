@@ -9,7 +9,7 @@
     "eval:ai-governance": "node tests/run-ai-governance-evals.mjs",
     "eval:ai-governance:live": "node tests/run-ai-governance-evals.mjs --live",
     "test:ai-governance": "node --loader ./tests/ready-prod-loader.mjs --test ./src/modules/ai-governance/__tests__/ai-governance.integration.spec.ts ./src/modules/ai-metering/usage.spec.ts ./src/modules/support/infrastructure/openai-chat.adapter.spec.ts",
-    "build": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm --filter @zyon/commerce-adapters build && pnpm --filter @zyon/conversation-engine build && pnpm --filter @zyon/decision-engine build && pnpm --filter @zyon/negotiation-engine build && pnpm --filter @zyon/rules-engine build && pnpm --filter @zyon/shipping-engine build && prisma generate --schema prisma/schema.prisma && nest build",
+    "build": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm --filter @zyon/commerce-adapters build && pnpm --filter @zyon/conversation-engine build && pnpm --filter @zyon/decision-engine build && pnpm --filter @zyon/negotiation-engine build && pnpm --filter @zyon/rules-engine build && pnpm --filter @zyon/shipping-engine build && prisma generate --schema prisma/schema.prisma && prisma generate --config prisma.company-directory.config.ts && nest build",
     "start": "node dist/main.js",
     "lint": "eslint src",
     "typecheck": "pnpm --filter @zyon/contracts --filter @zyon/shared-types --filter @zyon/commerce-adapters --filter @zyon/conversation-engine --filter @zyon/decision-engine --filter @zyon/negotiation-engine --filter @zyon/rules-engine --filter @zyon/shipping-engine build && tsc -p tsconfig.json --noEmit",
@@ -100,7 +100,9 @@
     "seed:marketplace:finance": "npx tsx prisma/seeds/marketplace-finance-seed.ts",
     "seed:demo-store": "npx tsx prisma/seeds/demo-store-seed.ts",
     "seed:advanced-layout": "node --experimental-strip-types prisma/seeds/advanced-product-layout-seed.ts",
-    "test:platform-support": "node --loader ./tests/platform-support-loader.mjs --test ./src/modules/platform-support/domain/platform-support.spec.ts ./src/modules/platform-support/platform-support.integration.spec.ts ./src/modules/platform-support/platform-support-plans.integration.spec.ts"
+    "test:platform-support": "node --loader ./tests/platform-support-loader.mjs --test ./src/modules/platform-support/domain/platform-support.spec.ts ./src/modules/platform-support/platform-support.integration.spec.ts ./src/modules/platform-support/platform-support-plans.integration.spec.ts",
+    "prisma:directory:generate": "prisma generate --config prisma.company-directory.config.ts",
+    "prisma:directory:validate": "prisma validate --config prisma.company-directory.config.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1111.0",
