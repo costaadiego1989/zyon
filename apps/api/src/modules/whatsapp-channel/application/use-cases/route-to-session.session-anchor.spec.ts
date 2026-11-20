@@ -87,6 +87,7 @@ function harness(options: { active?: WhatsAppSessionEntity; buyerExists?: boolea
     },
   };
   const sessions: WhatsAppSessionRepository = {
+    async renewExpiredNative() { throw new Error("unexpected_native_renewal_in_session_anchor_scenario"); },
     async findActiveByPhone(merchantId, phone, deviceId) {
       calls.push("wa:read");
       assert.equal(merchantId, options.merchantId ?? MERCHANT);

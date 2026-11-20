@@ -29,7 +29,7 @@ import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../..
 import { AcceptBubbleWhatsWebhookUseCase } from "../../application/use-cases/accept-bubblewhats-webhook.use-case.js";
 import { HandleStatusUpdateUseCase } from "../../application/use-cases/handle-status-update.use-case.js";
 import { validateTwilioSignature } from "../../domain/services/twilio-signature-validator.js";
-import { parseTwilioInbound } from "../../infrastructure/adapters/twilio-webhook-parser.js";
+import { parseTwilioInbound } from "../../domain/services/twilio-inbound.js";
 import { twilioWhatsAppCallbackUrl } from "../../domain/services/public-url.js";
 import { FISCAL_DELIVERY_DISPATCH, type FiscalDeliveryDispatchPort, type MetaDeliveryStatus } from "../../../../shared/integrations/fiscal-delivery-dispatch.port.js";
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { SubmitTemplatePackageUseCase } from "./submit-template-package.use-case.js";
 import { WHATSAPP_TEMPLATE_TYPES } from "../../domain/catalog/template-types.js";
 // Every pre-existing default still registers; only the new on-demand purpose is excluded.
-const defaultTypes = WHATSAPP_TEMPLATE_TYPES.filter(type => type !== "buyer_whatsapp_link_otp");
+const defaultTypes: readonly string[] = WHATSAPP_TEMPLATE_TYPES.filter(type => type !== "buyer_whatsapp_link_otp");
 
 test("connection registers every template with Meta instead of leaving drafts for the monitor", async () => {
   const submitted: string[] = [];
