@@ -55,6 +55,27 @@ export async function createProspectingDatabase(config = readProspectingTestConf
   return { schema, pg: pool, databaseUrl: config.databaseUrl, async close() { await pool.end(); await admin.query(`DROP SCHEMA "${schema}" CASCADE`); await admin.end(); } };
 }
 
+/** Multi-schema Prisma clients pin @@schema at generation time. Give each test
+ * a disposable logical database so its real company_directory namespace is isolated. */
+export async function createProspectingLogicalDatabase(config = readProspectingTestConfig()) {
+  validateProspectingTestConfig(config);
+  const name = "prospecting_test_" + randomUUID().replaceAll("-", "");
+  const admin = new pg.Pool({ connectionString: config.databaseUrl, connectionTimeoutMillis: 1_000, max: 1 });
+  const url = new URL(config.databaseUrl); url.pathname = "/" + name; url.search = "";
+  const pool = new pg.Pool({ connectionString: url.href, connectionTimeoutMillis: 1_000, max: 4 });
+  let created = false;
+  try { await admin.query(`CREATE DATABASE "${name}"`); created = true; await pool.query("SELECT 1"); }
+  catch (error) {
+    await pool.end(); if (created) await admin.query(`DROP DATABASE "${name}"`); await admin.end();
+    throw new Error("prospecting_fixture_dependency_unavailable:disposable_database", { cause: error });
+  }
+  return { name, pg: pool, databaseUrl: url.href, async close() {
+    // name is generated here and never accepted from env or a caller.
+    if (!/^prospecting_test_[a-f0-9]{32}$/.test(name)) throw new Error("prospecting_fixture_cleanup_refused");
+    await pool.end(); await admin.query(`DROP DATABASE "${name}"`); await admin.end();
+  } };
+}
+
 // Pre-migration identity fixture stores every session in PostgreSQL. Authentication,
 // audience, revocation and authorization still run through the production services.
 class FixtureOperatorRepository implements PlatformOperatorRepository {

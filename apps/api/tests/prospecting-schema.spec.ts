@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { createProspectingDatabase } from "./prospecting-fixture.js";
+import { createProspectingDatabase, createProspectingLogicalDatabase } from "./prospecting-fixture.js";
+import { createDirectoryPrismaClient } from "../src/modules/platform-prospecting/infrastructure/company-directory/directory-prisma-client.js";
 
 const crmMigration = new URL("../prisma/migrations/20261117190000_platform_prospecting/migration.sql", import.meta.url);
+const directoryMigration = new URL("../prisma/company-directory-migrations/20261117190100_company_directory/migration.sql", import.meta.url);
 async function crmDatabase() {
   const db = await createProspectingDatabase();
   try {
@@ -66,4 +68,58 @@ test("PROS-14 AC1 CRM constraints permit one ordinal reservation and rollback du
     const connection = await db.pg.connect();
     try { assert.deepEqual((await connection.query("SELECT state,reserved_amount,provider_message_id FROM outreach_attempts")).rows, [{ state: "outcome_unknown", reserved_amount: "100", provider_message_id: null }]); } finally { connection.release(); }
   } finally { await db.close(); }
+});
+
+test("PROS-05 AC1 directory migration preserves snapshot identities and exact CNPJ/capital with one checkpoint per batch", async () => {
+  const db = await createProspectingLogicalDatabase();
+  const client = createDirectoryPrismaClient({ databaseUrl: db.databaseUrl, directoryDatabaseUrl: db.databaseUrl, directoryPoolSize: 2 });
+  try {
+    await db.pg.query(readFileSync(directoryMigration, "utf8"));
+    for (const id of ["old", "new"]) {
+      await client.companySnapshot.create({ data: { id, competence: id === "old" ? "2026-10" : "2026-11", manifestHash: id, manifest: {}, sourceUrl: "https://arquivos.receitafederal.gov.br/", parserVersion: "1" } });
+      await client.companyEntity.create({ data: { snapshotId: id, baseCnpj: "00ABC123", legalName: "Empresa", normalizedLegalName: "EMPRESA", capitalCents: "900719925474099312345", simples: null, mei: false } });
+      await client.companyEstablishment.create({ data: { snapshotId: id, cnpj: "00ABC123000191", baseCnpj: "00ABC123", mainCnae: "6201501", uf: "SP", cityCode: "7107", status: "02" } });
+    }
+    await client.companySourceFile.create({ data: { id: "file", snapshotId: "new", resourceId: "establishments-0", family: "establishments", url: "https://arquivos.receitafederal.gov.br/file.zip", encoding: "ISO-8859-1", computedHash: "file-hash" } });
+    await db.pg.query("INSERT INTO company_directory.company_import_checkpoints(file_id,batch_index,file_hash,row_offset,byte_offset,committed_count,batch_hash) VALUES ('file',0,'file-hash',100,500,100,'batch-hash') ON CONFLICT DO NOTHING");
+    await db.pg.query("INSERT INTO company_directory.company_import_checkpoints(file_id,batch_index,file_hash,row_offset,byte_offset,committed_count,batch_hash) VALUES ('file',0,'file-hash',100,500,100,'batch-hash') ON CONFLICT DO NOTHING");
+    const records = await client.companyEntity.findMany({ orderBy: { snapshotId: "asc" } });
+    assert.deepEqual(records.map(row => ({ snapshotId: row.snapshotId, cnpj: row.baseCnpj, capital: row.capitalCents?.toFixed(0), simples: row.simples, mei: row.mei })), ["new", "old"].map(snapshotId => ({ snapshotId, cnpj: "00ABC123", capital: "900719925474099312345", simples: null, mei: false })));
+    assert.equal(await client.companyEstablishment.count(), 2);
+    assert.equal(await client.companyImportCheckpoint.count(), 1);
+    const checkpoint = await client.companyImportCheckpoint.findUniqueOrThrow({ where: { fileId_batchIndex: { fileId: "file", batchIndex: 0 } } });
+    assert.deepEqual({ row: checkpoint.rowOffset, byte: checkpoint.byteOffset, count: checkpoint.committedCount, fileHash: checkpoint.fileHash, batchHash: checkpoint.batchHash }, { row: 100n, byte: 500n, count: 100, fileHash: "file-hash", batchHash: "batch-hash" });
+    await assert.rejects(() => db.pg.query("INSERT INTO company_directory.company_import_checkpoints(file_id,batch_index,file_hash,row_offset,byte_offset,committed_count,batch_hash) VALUES ('file',1,'different-hash',200,1000,100,'next')"), { code: "23514" });
+    await assert.rejects(() => db.pg.query("INSERT INTO company_directory.company_establishments(snapshot_id,cnpj,base_cnpj) VALUES ('new','INVALID','00ABC123')"), { code: "23514" });
+  } finally { await client.$disconnect(); await db.close(); }
+});
+
+test("PROS-06 AC1 directory migration supports indexed snapshot/CNAE/location predicates without merchant writes", async () => {
+  const db = await createProspectingLogicalDatabase();
+  const client = createDirectoryPrismaClient({ databaseUrl: db.databaseUrl, directoryDatabaseUrl: db.databaseUrl, directoryPoolSize: 2 });
+  try {
+    await db.pg.query("CREATE TABLE public.merchants(id text PRIMARY KEY,name text); INSERT INTO public.merchants VALUES ('real-preserved','Merchant preserved')");
+    await db.pg.query(readFileSync(directoryMigration, "utf8"));
+    await client.companySnapshot.create({ data: { id: "snapshot", competence: "2026-11", manifestHash: "manifest", manifest: {}, sourceUrl: "https://arquivos.receitafederal.gov.br/", parserVersion: "1" } });
+    await client.companyEntity.create({ data: { snapshotId: "snapshot", baseCnpj: "00123456", legalName: "Empresa", normalizedLegalName: "EMPRESA" } });
+    await client.companyEstablishment.createMany({ data: [
+      { snapshotId: "snapshot", cnpj: "00123456000191", baseCnpj: "00123456", uf: "SP", cityCode: "7107", mainCnae: "6201501", status: "02" },
+      { snapshotId: "snapshot", cnpj: "00123456000272", baseCnpj: "00123456", uf: "RJ", cityCode: "6001", mainCnae: "4711301", status: "02" },
+    ] });
+    await client.establishmentSecondaryCnae.create({ data: { snapshotId: "snapshot", cnpj: "00123456000191", cnae: "6311900" } });
+    const rows = await client.companyEstablishment.findMany({ where: { snapshotId: "snapshot", uf: { in: ["SP", "MG"] }, cityCode: "7107", mainCnae: "6201501", secondaryCnaes: { some: { cnae: "6311900" } } }, orderBy: { cnpj: "asc" } });
+    assert.deepEqual(rows.map(row => row.cnpj), ["00123456000191"]);
+    const indexes = (await db.pg.query("SELECT indexdef FROM pg_indexes WHERE schemaname='company_directory'")).rows.map(row => row.indexdef).join("\n");
+    assert.match(indexes, /snapshot_id, status, uf, city_code, cnpj/);
+    assert.match(indexes, /snapshot_id, main_cnae, cnpj/); assert.match(indexes, /snapshot_id, cnae, cnpj/);
+    assert.deepEqual((await db.pg.query("SELECT * FROM public.merchants")).rows, [{ id: "real-preserved", name: "Merchant preserved" }]);
+    await assert.rejects(() => client.companyDirectoryActiveSnapshot.create({ data: { snapshotId: "missing" } }));
+    await client.companyDirectoryActiveSnapshot.create({ data: { snapshotId: "snapshot" } });
+    await assert.rejects(() => client.$transaction(async tx => {
+      await tx.companyDirectoryActiveSnapshot.update({ where: { id: "national" }, data: { version: { increment: 1 } } });
+      await tx.companyDirectoryActiveSnapshot.update({ where: { id: "national" }, data: { snapshotId: "missing" } });
+    }));
+    assert.deepEqual(await client.companyDirectoryActiveSnapshot.findUnique({ where: { id: "national" }, select: { snapshotId: true, version: true } }), { snapshotId: "snapshot", version: 1 });
+    assert.throws(() => createDirectoryPrismaClient({ databaseUrl: db.databaseUrl, directoryDatabaseUrl: db.databaseUrl.replace(/\/prospecting_test_\w+$/, "/other"), directoryPoolSize: 2 }), { message: "config_invalid:directory_database_mismatch" });
+  } finally { await client.$disconnect(); await db.close(); }
 });
