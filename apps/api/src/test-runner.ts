@@ -544,3 +544,12 @@ import "./modules/checkout/domain/services/bound-coupon-release-proof.spec.js";
 import "./modules/checkout/infrastructure/prisma/prisma-checkout.coupon-lifecycle.spec.js";
 import "./modules/checkout/infrastructure/prisma/storefront-coupon-integration-boundary.spec.js";
 import "./shared/persistence/digital-order-fulfillment.spec.js";
+// Fiscal source suites: retain every preceding legacy import unchanged.
+import "./fiscal-test-runner.spec.js";
+import fiscalTest from "node:test";
+import assertFiscal from "node:assert/strict";
+import { discoverFiscalTestFiles, runFiscalTestFiles } from "./fiscal-test-runner.js";
+fiscalTest("FISCAL-64 all discovered fiscal source suites use the real loader and propagate failures", { timeout: 1_260_000 }, async () => {
+  const result = await runFiscalTestFiles(discoverFiscalTestFiles());
+  assertFiscal.equal(result.exitCode, 0, "fiscal source child must complete without failures");
+});

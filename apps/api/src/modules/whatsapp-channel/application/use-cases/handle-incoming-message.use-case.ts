@@ -48,6 +48,8 @@ export interface IncomingMessageInput {
   mimetype?: string;
   timestamp: number;
   provider?: string; // BUBBLEWHATS | TWILIO (default BUBBLEWHATS for backward compat)
+  /** Set only by an authenticated ingress that checked the provider's event timestamp. */
+  providerTimestampVerified?: boolean;
 }
 
 @Injectable()

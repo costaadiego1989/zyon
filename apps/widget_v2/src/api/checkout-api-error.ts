@@ -1,17 +1,25 @@
 import { chatReceipt, type ChatReceipt } from "./chat-protocol";
 import { checkoutPriceReview, type CheckoutPriceReview } from "./checkout-price-review";
 
+export interface CheckoutApiErrorDetails { sku?: string; availableQuantity?: number; fields?: string[] }
+
 export class CheckoutApiError extends Error {
+  readonly chatRequest?: ChatReceipt;
+  readonly details?: CheckoutApiErrorDetails;
   constructor(
     readonly operation: string,
     readonly status: number,
     readonly code?: string,
     readonly retryAfterSeconds?: number,
-    readonly chatRequest?: ChatReceipt,
+    chatRequestOrDetails?: ChatReceipt | CheckoutApiErrorDetails,
     readonly checkoutReview?: CheckoutPriceReview,
+    details?: CheckoutApiErrorDetails,
   ) {
     super(`${operation}_failed: ${status}${code ? ` ${code}` : ""}`);
     this.name = "CheckoutApiError";
+    this.chatRequest = chatRequestOrDetails && "message_id" in chatRequestOrDetails
+      ? chatRequestOrDetails as ChatReceipt : undefined;
+    this.details = details ?? (this.chatRequest ? undefined : chatRequestOrDetails as CheckoutApiErrorDetails | undefined);
   }
 
   static async fromResponse(operation: string, response: Response): Promise<CheckoutApiError> {
@@ -32,6 +40,10 @@ export class CheckoutApiError extends Error {
       positiveInteger(body.retry_after_seconds) ?? positiveInteger(body.retryAfterSeconds) ?? retryAfterHeader(response),
       chatReceipt(body.chat_request),
       response.status === 409 && body.code === "checkout_review_required" ? checkoutPriceReview(body.review) : undefined,
+      { ...(Array.isArray(body.fields) ? { fields: body.fields.filter((field): field is string => typeof field === "string" && /^(name|taxId|email|phone|address\.(street|number|complement|neighborhood|city|state|postalCode|cityCode|countryCode))$/.test(field)) } : {}),
+        ...(typeof body.sku === "string" ? { sku: body.sku } : {}),
+        ...(typeof body.availableQuantity === "number" && Number.isSafeInteger(body.availableQuantity) && body.availableQuantity >= 0
+          ? { availableQuantity: body.availableQuantity } : {}) },
     );
   }
 }

@@ -31,6 +31,7 @@ import { HandleStatusUpdateUseCase } from "../../application/use-cases/handle-st
 import { validateTwilioSignature } from "../../domain/services/twilio-signature-validator.js";
 import { parseTwilioInbound } from "../../infrastructure/adapters/twilio-webhook-parser.js";
 import { twilioWhatsAppCallbackUrl } from "../../domain/services/public-url.js";
+import { FISCAL_DELIVERY_DISPATCH, type FiscalDeliveryDispatchPort, type MetaDeliveryStatus } from "../../../../shared/integrations/fiscal-delivery-dispatch.port.js";
 
 interface BubbleWhatsMessagePayload {
   id: string;
@@ -85,7 +86,7 @@ interface MetaWebhookPayload {
         metadata?: { phone_number_id?: string };
         contacts?: Array<{ profile?: { name?: string } }>;
         messages?: MetaInboundMessage[];
-        statuses?: Array<{ id?: string; status?: string; timestamp?: string; biz_opaque_callback_data?: string; errors?: Array<{ code?: number }> }>;
+        statuses?: Array<MetaDeliveryStatus & { timestamp?: string; biz_opaque_callback_data?: string; errors?: Array<{ code?: number }> }>;
       };
     }>;
   }>;
@@ -100,6 +101,7 @@ export class WhatsAppWebhookController {
     private readonly acceptBubbleWhats: AcceptBubbleWhatsWebhookUseCase,
     @Optional() private readonly delivery?: WhatsAppDeliveryService,
     @Optional() private readonly metaStatus?: HandleStatusUpdateUseCase,
+    @Optional() @Inject(FISCAL_DELIVERY_DISPATCH) private readonly fiscalDelivery?: FiscalDeliveryDispatchPort,
   ) {}
 
   @Get("meta")
@@ -140,6 +142,12 @@ export class WhatsAppWebhookController {
         const phoneNumberId = change.value?.metadata?.phone_number_id;
         if (!phoneNumberId) continue;
 
+        if (change.value?.statuses?.length) {
+          if (!this.fiscalDelivery) throw new ServiceUnavailableException("fiscal_delivery_dispatch_unavailable");
+          try { await this.fiscalDelivery.fromMeta(phoneNumberId, change.value.statuses); }
+          catch { throw new ServiceUnavailableException("fiscal_delivery_callback_pending"); }
+        }
+
         const config = await this.configRepo.findByMetaPhoneNumberId(phoneNumberId);
         if (!config || config.provider !== "META_CLOUD") continue;
         for (const status of change.value?.statuses ?? []) {
@@ -178,6 +186,7 @@ export class WhatsAppWebhookController {
             messageType: message.type ?? "text",
             timestamp: Number(message.timestamp ?? 0) * 1000 || Date.now(),
             ...(message.referral?.source_type === "ad" && /^\d{1,40}$/.test(message.referral.source_id ?? "") ? { adReferral: { adId: message.referral.source_id! } } : {}),
+            providerTimestampVerified: typeof message.timestamp === "string" && /^\d{10}$/.test(message.timestamp) && Number(message.timestamp) * 1000 <= Date.now() + 60_000,
           });
         }
       }

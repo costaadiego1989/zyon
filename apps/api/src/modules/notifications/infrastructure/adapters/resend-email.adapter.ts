@@ -1,10 +1,11 @@
-import { cleanEmailSubject } from "../../../../shared/messaging/email-content.js";
 import { EmailProviderRejection } from "../../domain/ports/email-provider-rejection.js";
 import { Inject, Logger, Optional } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { EmailSenderPort, SendEmailInput, SendEmailOutput } from "../../domain/ports/email-sender.port.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { applyMerchantEmailBranding, resolveMerchantEmailBranding } from "../../../../shared/email/merchant-email-branding.js";
+import { cleanEmailSubject } from "../../../../shared/messaging/email-content.js";
+import { createHash } from "node:crypto";
 
 const logger = new Logger("ResendEmailAdapter");
 
@@ -30,6 +31,7 @@ export class ResendEmailAdapter implements EmailSenderPort {
   private readonly apiKey = process.env.RESEND_API_KEY;
   private readonly fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@zyon.com.br";
   private readonly resendApiUrl = "https://api.resend.com/emails";
+  deliveryAccountIdentity() { return this.apiKey ? { provider: "resend" as const, credentialFingerprint: createHash("sha256").update(this.apiKey).digest("hex"), fromEmail: this.fromEmail } : null; }
 
   constructor(
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
@@ -76,7 +78,7 @@ export class ResendEmailAdapter implements EmailSenderPort {
           ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
         },
         body: JSON.stringify(payload),
-        ...(input.requireDelivery ? { signal: AbortSignal.timeout(15_000) } : {}),
+        ...(input.requireDelivery ? { signal: AbortSignal.timeout(15_000), redirect: "error" as const } : {}),
       });
 
       if (!response.ok) {

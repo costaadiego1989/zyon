@@ -699,7 +699,9 @@ export default function ConversationShell({
       setBuyerHubOpen(true);
     };
     window.addEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
-    if (new URLSearchParams(window.location.search).has("agent")) { setBuyerHubTab("agent"); setBuyerHubOpen(true); }
+    const buyerQuery = new URLSearchParams(window.location.search);
+    if (buyerQuery.get("buyerHub") === "orders") { setBuyerHubTab("orders"); setBuyerHubOpen(true); }
+    else if (buyerQuery.has("agent")) { setBuyerHubTab("agent"); setBuyerHubOpen(true); }
     window.addEventListener("zyon:open-buyer-hub", onOpenBuyerHub);
     return () => {
       window.removeEventListener("aacp:open-buyer-hub", onOpenBuyerHub);

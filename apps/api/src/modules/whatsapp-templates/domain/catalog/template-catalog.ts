@@ -94,6 +94,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
   campaign_ready:'A campanha {{campaignName}} da {{storeName}}, revisão {{campaignVersion}}, está pronta para aprovação administrativa. Revise criativos, público, datas e orçamento no painel: {{campaignReviewLink}}.\n\nA campanha só será publicada após aprovação no painel.',
+  fiscal_invoice: "A nota fiscal do pedido {{orderId}} está disponível. Consulte o ambiente e os arquivos na sua conta: {{link}}.\n\n{{storeName}}",
   cashback_available: "Olá, {{buyerName}}. Você tem {{cashbackAmount}} de cashback disponível na {{storeName}}. Consulte seu saldo e as regras na sua conta da loja. O mesmo crédito pode ser usado no site e no WhatsApp.",
   cashback_expiring: "Olá, {{buyerName}}. Seu cashback de {{cashbackAmount}} na {{storeName}} vence em {{cashbackExpiresAt}}. Consulte o saldo e as condições na sua conta da loja.",
   shopping_agent_alert: "Olá, {{buyerName}}. Seu agente pessoal encontrou uma atualização para {{productName}}. Revise a tarefa e as condições atuais: {{link}}.\n\nAtenciosamente,\n{{storeName}}",
@@ -136,6 +137,7 @@ Consulte as informações da sua compra. O acesso a produtos digitais é enviado
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
   campaign_ready:false,
+  fiscal_invoice: false,
   cashback_available: false, cashback_expiring: false,
   shopping_agent_alert: false,
 marketplace_operational_alert: false,
@@ -160,6 +162,7 @@ marketplace_operational_alert: false,
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
   campaign_ready:'Campanha pronta para aprovação',
+  fiscal_invoice: "Nota fiscal disponível",
   cashback_available: "Cashback disponível", cashback_expiring: "Cashback próximo do vencimento",
   shopping_agent_alert: "Aviso do agente pessoal",
 marketplace_operational_alert: "Marketplace: alerta operacional",

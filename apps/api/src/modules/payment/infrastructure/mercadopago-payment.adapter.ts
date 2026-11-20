@@ -1,4 +1,5 @@
 import { assertStandardCancellationInput, exactCancellationAmount, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
+import type { ReadPaymentReceiptInput, AuthoritativePaymentReceipt } from "../domain/ports/payment-provider.port.js";
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
@@ -226,6 +227,17 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
         ...(payment.date_of_expiration ? { quoteExpiresAt: payment.date_of_expiration } : {}),
       },
     };
+  }
+
+  async readPaymentReceipt(input: ReadPaymentReceiptInput): Promise<AuthoritativePaymentReceipt> {
+    if (input.marketplaceAccount || input.original.providerAccountFingerprint !== this.creationAccountFingerprint()) throw new Error("payment_receipt_account_mismatch");
+    const response = await this.fetchImpl(this.apiBaseUrl.replace(/\/+$/, "") + "/v1/payments/" + encodeURIComponent(input.providerPaymentId), { method: "GET", redirect: "error", signal: AbortSignal.timeout(15000), headers: { accept: "application/json", Authorization: "Bearer " + this.accessToken } });
+    if (!response.ok) throw new Error("payment_receipt_query_failed"); const payment = await response.json() as Record<string, unknown>; const original = input.original;
+    if (String(payment.id) !== input.providerPaymentId || payment.status !== "approved" || payment.external_reference !== original.intentId || Math.round(Number(payment.transaction_amount) * 100) !== original.amountCents || payment.currency_id !== original.currency || typeof payment.live_mode !== "boolean" || typeof payment.date_approved !== "string" || !Number.isFinite(Date.parse(payment.date_approved))) throw new Error("payment_receipt_identity_mismatch");
+    if (payment.payment_type_id === "bank_transfer" && payment.payment_method_id === "pix") throw new Error("payment_receipt_pix_modality_or_authorization_unavailable");
+    if (!["credit_card", "debit_card"].includes(String(payment.payment_type_id)) || original.method !== "card") throw new Error("payment_receipt_instrument_unsupported");
+    if (typeof payment.authorization_code !== "string" || !payment.authorization_code.trim()) throw new Error("payment_receipt_card_authorization_unavailable");
+    return { provider: "mercadopago", accountFingerprint: input.providerAccountFingerprint!, environment: payment.live_mode ? "live" : "test", operationId: input.providerPaymentId, amountCents: original.amountCents, currency: original.currency, captured: true, instrument: payment.payment_type_id === "credit_card" ? "credit" : "debit", paidAt: payment.date_approved, authorizationCode: payment.authorization_code, authorizationKind: "card_authorization", brand: String(payment.payment_method_id), evidenceReference: "mercadopago:payment:" + input.providerPaymentId };
   }
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {

@@ -1,6 +1,12 @@
 import type { ChatStage, CheckoutSession, CustomerAddress } from "@zyon/shared-types";
 import { requiresPhysicalDelivery } from "./cart-fulfillment.js";
 import { pendingCustomerCorrection, correctionLabels } from "./customer-correction-prompts.js";
+import { normalizeFiscalTaxId } from "../../../fiscal/domain/fiscal-recipient.js";
+
+/** Fiscal buyer sessions already require a valid personal CPF before PSP. Legacy extraction stays unchanged. */
+export function hasCheckoutCpf(customer: CheckoutSession["customer"]): boolean {
+  return Boolean(customer?.cpf && (customer.fiscalRecipientMode !== "buyer" || normalizeFiscalTaxId(customer.cpf)?.length === 11));
+}
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/;
 const NAME_QUESTION_RE = /\b(nome\s*completo|seu\s+nome|posso\s+te\s+chamar|como\s+(?:te\s+chamar|posso\s+te\s+chamar)|chamo|qual\s+(?:o\s+)?seu\s+nome)\b/i;
@@ -164,6 +170,7 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
   const c = session.customer ?? {};
   // Provider-specific fiscal identifiers are enforced when preparing payment.
   // They must not block contact collection, delivery or Mercado Pago Pix.
+  if (c.fiscalRecipientMode === "buyer" && (!hasCheckoutCpf(c) || !c.email_verified)) return "data_collection";
   if (!c.fullName || !c.email || !hasValidContactPhone(c)) return "data_collection";
   const addr = c.address ?? {};
   if (requiresPhysicalDelivery(session.cart) && (
@@ -206,7 +213,12 @@ export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage
   const correction = pendingCustomerCorrection(session);
   if (correction) return [correctionLabels[correction]];
   if (stage === "data_collection") {
-    return DATA_FIELD_ORDER.filter((f) => !f.has(session)).map((f) => f.label);
+    const fields = DATA_FIELD_ORDER.filter((f) => !f.has(session)).map((f) => f.label);
+    if (session.customer?.fiscalRecipientMode === "buyer") {
+      if (session.customer.email && !session.customer.email_verified) fields.unshift("código de verificação");
+      if (!hasCheckoutCpf(session.customer)) fields.push("CPF");
+    }
+    return fields;
   }
   if (stage === "shipping") {
     if (!requiresPhysicalDelivery(session.cart)) return [];

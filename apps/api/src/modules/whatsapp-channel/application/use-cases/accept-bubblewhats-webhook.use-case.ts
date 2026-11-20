@@ -133,6 +133,7 @@ export class AcceptBubbleWhatsWebhookUseCase {
         id: input.metaMedia.id, mimeType: boundedString(input.metaMedia.mimeType, 128, false), name: boundedString(input.metaMedia.name, 200, false),
       } } : {}),
       ...(source === "META" && provider === "META_CLOUD" && input.adReferral && /^\d{1,40}$/.test(input.adReferral.adId) ? { adReferral: { adId: input.adReferral.adId } } : {}),
+      ...(input.providerTimestampVerified === true ? { providerTimestampVerified: true } : {}),
     };
     const event: WhatsAppInboxEvent = {
       dedupKey: digest(JSON.stringify([source, config.merchantId, config.id, "message", stableEventId])),

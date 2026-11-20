@@ -1,3 +1,5 @@
+import { FISCAL_BEFORE_PAYMENT, type FiscalBeforePaymentPort } from "../../../fiscal/domain/fiscal-checkout.port.js";
+import { commitCheckoutMutation } from "../services/commit-checkout-mutation.js";
 import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { checkoutCollectionCopy } from "../../domain/services/checkout-collection-copy.js";
 import { pendingCustomerCorrection } from "../../domain/services/customer-correction-prompts.js";
@@ -45,6 +47,7 @@ import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strate
 import { chatPaymentSelection } from "../../domain/services/chat-payment-selection.js";
 import { checkoutNavigationContext, CHECKOUT_CHAT_NAVIGATION_MESSAGE } from "../../domain/services/checkout-chat-navigation.js";
 import { checkoutEditIntent } from "@zyon/shared-types";
+import { FISCAL_RECIPIENT_COLLECTION, type FiscalRecipientCollectionPort } from "../../../fiscal/domain/fiscal-recipient-collection.port.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -74,20 +77,22 @@ export class SendChatMessageUseCase {
     private readonly conversationRateLimit?: ConversationRateLimitService,
     @Optional() private readonly chatRequests?: CheckoutChatRequestService,
     @Optional() private readonly strategyChat?: StrategyCheckoutChatService,
+    @Optional() @Inject(FISCAL_RECIPIENT_COLLECTION) private readonly fiscalRecipients?: FiscalRecipientCollectionPort,
+    @Optional() @Inject(FISCAL_BEFORE_PAYMENT) private readonly fiscalBeforePayment?: FiscalBeforePaymentPort,
   ) {}
 
-  async execute(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean }): Promise<ChatMessageResponse> {
+  async execute(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean; checkoutSessionBound?: boolean; messageId?: string }): Promise<ChatMessageResponse> {
     return withAiMetering({ merchantId: input.merchant_id, conversationId: input.session_id, source: "checkout" }, async () => {
     if (this.chatRequests) return this.chatRequests.run(input,
-      request => this.preflight(request, authority), (request, claim) => this.processMessage(request, claim));
+      request => this.preflight(request, authority), (request, claim) => this.processMessage(request, claim, authority));
     if (chatRequestsEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
     await this.preflight(input, authority);
-    return this.processMessage(input);
+    return this.processMessage(input, undefined, authority);
 
     });
   }
 
-  private async preflight(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean }): Promise<void> {
+  private async preflight(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean; checkoutSessionBound?: boolean; messageId?: string }): Promise<void> {
     await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
     const storedSession = !authority?.aiUserId && this.conversationRateLimit
       ? await this.sessions.getSession(input.merchant_id, input.session_id) : undefined;
@@ -100,7 +105,7 @@ export class SendChatMessageUseCase {
     });
   }
 
-  private async processMessage(input: ChatMessageRequest, chatRequest?: ChatExchangeClaim): Promise<ChatMessageResponse> {
+  private async processMessage(input: ChatMessageRequest, chatRequest?: ChatExchangeClaim, authority?: { aiUserId?: string; voiceAdmitted?: boolean; checkoutSessionBound?: boolean; messageId?: string }): Promise<ChatMessageResponse> {
     let continuation = await this.strategyChat?.continueWithoutExperiment(input, chatRequest) ?? false;
     // Capture this telemetry before reading a protected snapshot. Its update
     // must not race the compare-and-save used to protect the buyer's cart.
@@ -115,6 +120,15 @@ export class SendChatMessageUseCase {
       input.agent_id,
       input.user_message
     );
+
+    if (!context.session.customer?.fiscalRecipientMode && (await this.fiscalBeforePayment?.requirements?.(context.session))?.length) {
+      context.session = await commitCheckoutMutation(this.sessions, { expected: context.session,
+        next: { ...context.session, customer: { ...context.session.customer, fiscalRecipientMode: "buyer" } } });
+    }
+    const fiscalReply = await this.fiscalRecipients?.handle({ merchantId: input.merchant_id, sessionId: input.session_id,
+      userMessage: input.user_message, buyerId: authority?.aiUserId?.startsWith("buyer:") ? authority.aiUserId.slice(6) : undefined,
+      sessionBound: authority?.checkoutSessionBound, messageId: authority?.messageId });
+    if (fiscalReply) return fiscalReply;
 
     let working = structuredCloneDeep(context.session);
     const lastAgentTurn = [...context.session.chatHistory].reverse().find((t) => t.role === "agent")?.text;

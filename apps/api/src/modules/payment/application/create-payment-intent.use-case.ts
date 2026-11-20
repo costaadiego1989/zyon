@@ -55,6 +55,7 @@ import { CreateMarketplacePaymentService } from "./create-marketplace-payment.se
 import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
 import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../shared/bookings/service-slot-holds.service.js";
 import { CashbackService } from "../../cashback/application/cashback.service.js";
+import { FISCAL_BEFORE_PAYMENT, type FiscalBeforePaymentPort } from "../../fiscal/domain/fiscal-checkout.port.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -266,6 +267,7 @@ export class CreatePaymentIntentUseCase {
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
     @Optional() private readonly shippingQuotes?: QuoteShippingUseCase,
     @Optional() private readonly cashback?: CashbackService,
+    @Optional() @Inject(FISCAL_BEFORE_PAYMENT) private readonly fiscalBeforePayment?: FiscalBeforePaymentPort,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest, context?: {
@@ -293,6 +295,7 @@ export class CreatePaymentIntentUseCase {
     if (!session) throw new NotFoundException("checkout_session_not_found");
     if (storefrontCouponScope && (session.globalUserId !== storefrontCouponScope.buyerId
       || session.cart.cart_ref !== storefrontCouponScope.cartId)) throw new BadRequestException("payment_coupon_authority_conflict");
+    await this.fiscalBeforePayment?.assertBeforePayment(session);
     // Check the persisted scope before either legacy creation or retry. A
     // stale snapshot can omit line markers or the original storefront cart.
     if (!this.prisma) throw new ServiceUnavailableException("marketplace_checkout_scope_unavailable");

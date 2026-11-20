@@ -1,3 +1,5 @@
+import { FISCAL_ORDER_COMMIT_FACTORY, type FiscalOrderCommitFactory } from "../fiscal/fiscal-runtime.ports.js";
+import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { forwardRef, Module } from "@nestjs/common";
 
 import type { PrismaClient } from "@prisma/client";
@@ -201,8 +203,11 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
     ShopifyCommerceOfferAdapter,
     {
       provide: CHECKOUT_REPOSITORY,
-      useFactory: (prisma: PrismaClient, orderQuota: OrderQuotaService, commercialBenefits: CheckoutCommercialBenefitsService) => new PrismaCheckoutRepository(prisma, false, orderQuota, commercialBenefits),
-      inject: [PRISMA_CLIENT, OrderQuotaService, CheckoutCommercialBenefitsService]
+      useFactory: (prisma: PrismaClient, orderQuota: OrderQuotaService, commercialBenefits: CheckoutCommercialBenefitsService, factory?: FiscalOrderCommitFactory, tenants?: TenantContextService) => {
+        if (factory && !tenants) throw new Error("fiscal_tenant_context_required");
+        return new PrismaCheckoutRepository(prisma, false, orderQuota, commercialBenefits, factory, tenants);
+      },
+      inject: [PRISMA_CLIENT, OrderQuotaService, CheckoutCommercialBenefitsService, { token: FISCAL_ORDER_COMMIT_FACTORY, optional: true }, { token: TenantContextService, optional: true }]
     },
     { provide: CHECKOUT_SESSION_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
     { provide: OFFER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },

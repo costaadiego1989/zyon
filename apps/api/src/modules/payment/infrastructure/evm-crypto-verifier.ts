@@ -39,16 +39,27 @@ export class EvmCryptoVerifier implements CryptoVerifierPort {
     const hash = input.txHash.trim() as Hash;
     let receipt: Awaited<ReturnType<ReturnType<typeof createPublicClient>["getTransactionReceipt"]>> | undefined;
     let currentBlock: bigint | undefined;
+    let confirmedBlock: { hash: string | null; number: bigint | null; timestamp: bigint } | undefined;
     let lastRpcError: Error | undefined;
 
     for (const rpcUrl of rpcUrls) {
+      receipt = undefined; currentBlock = undefined; confirmedBlock = undefined;
       try {
         const client = createPublicClient({ chain: viemChain, transport: http(rpcUrl) });
         receipt = await client.getTransactionReceipt({ hash });
         currentBlock = await client.getBlockNumber();
+        try {
+          confirmedBlock = await client.getBlock({ blockHash: receipt.blockHash });
+          if (confirmedBlock.hash !== receipt.blockHash || confirmedBlock.number !== receipt.blockNumber) throw new Error("crypto_receipt_block_mismatch");
+        } catch (error) {
+          if (error instanceof Error && error.message === "crypto_receipt_block_mismatch") throw error;
+          // Fiscal timestamp enrichment never blocks a transfer already proven by the original receipt/confirmation rules.
+          confirmedBlock = undefined;
+        }
         logger.log(`[CRYPTO-VERIFY] RPC ${rpcUrl} succeeded`);
         break;
       } catch (err: any) {
+        receipt = undefined; currentBlock = undefined; confirmedBlock = undefined;
         lastRpcError = err;
         const msg = err?.message || String(err);
         // Rate limit, timeout, or server error → try next provider
@@ -128,7 +139,9 @@ export class EvmCryptoVerifier implements CryptoVerifierPort {
       throw new Error("crypto_transfer_ambiguous_match");
     }
     logger.log(`[CRYPTO-VERIFY] ✓ VERIFIED transfer from=${matches[0]!.from} value=${matches[0]!.value}`);
-    return { from: matches[0]!.from };
+    return { from: matches[0]!.from, receipt: { chainId: evmChainId(chain, network), chain, network, txHash: hash,
+      blockHash: receipt.blockHash, blockNumber: receipt.blockNumber.toString(), ...(confirmedBlock ? { occurredAt: new Date(Number(confirmedBlock.timestamp) * 1000).toISOString() } : {}),
+      tokenAddress: token, from: matches[0]!.from, destinationAddress: treasury, amountAtomic: expectedValue.toString() } };
   }
 }
 

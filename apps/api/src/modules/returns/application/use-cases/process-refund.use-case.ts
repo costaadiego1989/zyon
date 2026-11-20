@@ -1,5 +1,5 @@
 import { Injectable, Inject, BadRequestException, ConflictException, NotFoundException, Logger, Optional } from "@nestjs/common";
-import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
+import { RETURN_REPOSITORY_PORT, type ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { ReturnEntity } from "../../domain/entities/return.entity.js";
 import { RefundPaymentService } from "../../../payment/application/services/refund-payment.service.js";
 import { MarketplaceReturnWorkflowService } from "../marketplace-return-workflow.service.js";

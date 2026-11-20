@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, ConflictException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { CheckoutSession } from "@zyon/shared-types";
@@ -15,6 +15,7 @@ import { ResumePaymentCreationService } from "./resume-payment-creation.service.
 import { OrderQuotaService } from "./services/order-quota.service.js";
 import type { CreatePaymentIntentRequest, CreatePaymentIntentResponseBody } from "./create-payment-intent.use-case.js";
 import { marketplacePublicPaymentProfile, MarketplacePublicPaymentAdmissionService } from "./marketplace-public-payment-admission.service.js";
+import { FISCAL_BEFORE_PAYMENT, type FiscalBeforePaymentPort } from "../../fiscal/domain/fiscal-checkout.port.js";
 
 /** Canonical orchestration. The public entry applies a separate explicit sandbox policy. */
 @Injectable()
@@ -24,7 +25,8 @@ export class CreateMarketplacePaymentService {
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
     private readonly prepare: PrepareMarketplaceCheckoutService,
     private readonly orderQuota: OrderQuotaService,
-    @Inject(MarketplacePublicPaymentAdmissionService) private readonly publicAdmission?: MarketplacePublicPaymentAdmissionService) {}
+    @Inject(MarketplacePublicPaymentAdmissionService) private readonly publicAdmission?: MarketplacePublicPaymentAdmissionService,
+    @Optional() @Inject(FISCAL_BEFORE_PAYMENT) private readonly fiscalBeforePayment?: FiscalBeforePaymentPort) {}
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
     return this.create(body, false);
@@ -43,6 +45,7 @@ export class CreateMarketplacePaymentService {
     if (!["pix", "card"].includes(body.method ?? "pix")) throw new BadRequestException("marketplace_payment_method_invalid");
     const session = await this.checkout.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+    await this.fiscalBeforePayment?.assertBeforePayment(session);
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
     if (existing) return this.resume(existing, body, session, publiclyAdmitted);
     await this.checkout.assertCouponBindingCommandAllowed?.(merchantId, sessionId);

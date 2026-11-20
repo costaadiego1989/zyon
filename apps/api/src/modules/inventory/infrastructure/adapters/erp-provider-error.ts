@@ -1,10 +1,5 @@
-/** Provider responses are translated to safe codes; secrets and raw bodies never enter logs or DTOs. */
-export class ErpProviderError extends Error {
-  constructor(code: string, readonly requiresReconnect = false, readonly retryAfterMs?: number) {
-    super(code);
-    this.name = "ErpProviderError";
-  }
-}
+import { ErpProviderError } from "../../../../shared/integrations/erp-provider-error.js";
+export { ErpProviderError };
 
 export const ERP_AUTH_ERROR_CODES = [
   "erp_bling_reauthorization_required", "erp_bling_app_changed", "erp_bling_app_configuration_invalid",

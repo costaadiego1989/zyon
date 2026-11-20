@@ -6,6 +6,13 @@ import { ErpSyncService } from "./erp-sync.service.js";
 import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
 import type { AppliedInventorySale } from "../../domain/events/sale-completed.event.js";
 
+function currentBlingCredentialFixture(connection: object) {
+  return { $transaction: async (work: (tx: unknown) => Promise<unknown>) => work({
+    $queryRaw: async () => [{ id: "connection_a" }],
+    erpConnection: { findFirst: async () => ({ status: "connected", config: {}, ...connection }) },
+  }) };
+}
+
 const applied: AppliedInventorySale = {
   receiptId: "receipt_a",
   event: { merchantId: "merchant_a", orderId: "order_a", items: [{ sku: "SKU", variantId: "variant_a", productType: "physical", quantity: 2 }], totalCents: 0, timestamp: "2026-09-13T00:00:00.000Z" },
@@ -19,7 +26,7 @@ test("ERP sale work is persisted once per connection before any remote request",
   let creates = 0;
   const catalogReads: unknown[] = [];
   const connectionReads: unknown[] = [];
-  const prisma = {
+  const prisma = { fiscalSaleSnapshot: { findMany: async () => [] },
     productVariant: { findMany: async (input: unknown) => { catalogReads.push(input); return [{ id: "variant_a", sku: "SKU" }]; } },
     erpConnection: {
       findMany: async (input: unknown) => { connectionReads.push(input); return [{ id: "connection_a" }]; },
@@ -133,7 +140,10 @@ test("an existing Bling connection registers its canonical webhook route before 
   globalThis.fetch = async () => new Response(JSON.stringify({ data: { id: "company_42" } }), { status: 200 });
   t.after(() => { globalThis.fetch = originalFetch; });
   const routes: any[] = [];
+  const connection = { id: "connection_a", merchantId: "merchant_a", provider: "bling",
+    accessTokenCipher: encryptErpSecret("opaque-access-token"), tokenExpiresAt: new Date(Date.now() + 5 * 60_000) };
   const service = new ErpSyncService({
+    ...currentBlingCredentialFixture(connection),
     erpWebhookRoute: {
       findUnique: async () => null,
       deleteMany: async () => ({ count: 0 }),
@@ -141,13 +151,7 @@ test("an existing Bling connection registers its canonical webhook route before 
     },
   } as never);
 
-  await (service as any).ensureBlingWebhookRoute({
-    id: "connection_a",
-    merchantId: "merchant_a",
-    provider: "bling",
-    accessTokenCipher: encryptErpSecret("opaque-access-token"),
-    tokenExpiresAt: new Date(Date.now() + 5 * 60_000),
-  });
+  await (service as any).ensureBlingWebhookRoute(connection);
 
   assert.deepEqual(routes, [{ provider: "bling", externalAccountId: "company_42", merchantId: "merchant_a", connectionId: "connection_a" }]);
 });
@@ -171,11 +175,12 @@ test("Bling imports the authoritative physical balance endpoint for each product
   }) as typeof fetch;
   t.after(() => { globalThis.fetch = originalFetch; });
 
-  const service = new ErpSyncService({} as never);
-  const snapshots = await (service as any).pullBling({
+  const connection = { id: "connection_a", merchantId: "merchant_a", provider: "bling",
     accessTokenCipher: encryptErpSecret("access-token"),
     tokenExpiresAt: new Date(Date.now() + 5 * 60_000),
-  });
+  };
+  const service = new ErpSyncService(currentBlingCredentialFixture(connection) as never);
+  const snapshots = await (service as any).pullBling(connection);
 
   assert.deepEqual(snapshots, [{
     externalProductId: "123", externalLocationId: "0", sku: "BLING-123", productName: "Produto de teste",

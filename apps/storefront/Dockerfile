@@ -7,7 +7,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: builder
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
@@ -51,7 +51,7 @@ RUN pnpm --filter @zyon/shared-types build \
 # ---------------------------------------------------------------------------
 # Stage 2: runner
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 ENV NODE_ENV=production
 ENV PORT=8080

@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { MerchantCryptoPayments } from "@zyon/shared-types";
-import { isAddress } from "viem";
+import { isAddress, createPublicClient, http, type Hash } from "viem";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
 import { isCryptoPaymentsEnabled } from "../../merchant/domain/services/merchant-crypto.validation.js";
 import type {
@@ -9,6 +9,7 @@ import type {
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
 import {
+  resolveRpcUrls,
   blockExplorerUrl,
   evmChainId,
   evmChainLabel,
@@ -30,6 +31,25 @@ export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     private readonly cryptoQuote: CryptoQuoteService
   ) {}
+
+  /** Read-only enrichment of the ORIGINAL approved receipt. Quote expiry/current merchant settings cannot revoke a paid transfer. */
+  async enrichCryptoReceipt(receipt: import("../domain/ports/crypto-verifier.port.js").PrivateCryptoReceipt) {
+    const result = structuredClone(receipt); const quote = result.quote;
+    if (result.kind !== "crypto_v1" || (quote.chain !== "polygon" && quote.chain !== "base") || (quote.evmNetwork !== "mainnet" && quote.evmNetwork !== "testnet") || quote.chainId !== evmChainId(quote.chain, quote.evmNetwork)) throw new Error("payment_receipt_crypto_binding_invalid");
+    for (const transfer of result.transfers) {
+      if (transfer.occurredAt) continue;
+      let found = false;
+      for (const url of resolveRpcUrls(quote.chain, quote.evmNetwork)) try {
+        const client = createPublicClient({ transport: http(url, { retryCount: 0 }) });
+        if (await client.getChainId() !== quote.chainId) throw new Error("payment_receipt_crypto_network_mismatch");
+        const block = await client.getBlock({ blockHash: transfer.blockHash as Hash });
+        if (block.hash !== transfer.blockHash || block.number?.toString() !== transfer.blockNumber) throw new Error("payment_receipt_crypto_block_mismatch");
+        transfer.occurredAt = new Date(Number(block.timestamp) * 1000).toISOString(); found = true; break;
+      } catch (error) { if (error instanceof Error && /_mismatch$/.test(error.message)) throw error; }
+      if (!found) throw new Error("payment_receipt_crypto_time_unavailable");
+    }
+    return result;
+  }
 
   // Quote construction has no external financial effect; retry before its first
   // persistence cannot duplicate an on-chain transfer.
