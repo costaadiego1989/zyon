@@ -1,3 +1,5 @@
+import { PROSPECTING_PERMISSIONS } from "@zyon/shared-types";
+
 export const PLATFORM_OPERATOR_ROLES = [
   "platform_admin",
   "billing_ops",
@@ -9,6 +11,7 @@ export const PLATFORM_OPERATOR_ROLES = [
 export type PlatformOperatorRole = (typeof PLATFORM_OPERATOR_ROLES)[number];
 
 export const PLATFORM_PERMISSIONS = [
+  ...PROSPECTING_PERMISSIONS,
   "platform:support:read",
   "platform:support:write",
   "platform:operators:read",
