@@ -12,6 +12,15 @@ function checklist(){open();cy.get('[aria-label="Ver checklist completo"]').then
 
 describe('CBX-48 integrated Cashback guided conversation',()=>{
  beforeEach(()=>{reset();enter();});
+ it('CBX-50 keeps the canonical next question after a saved choice despite forged model citations',()=>{
+  control('facts').then(({body})=>cy.wrap(body.cashback.ledger.hash).as('ledgerBefore'));
+  state().then(s=>control('model',{script:[{tool:{name:'cashback_read_program',args:{}}},{tool:{name:'cashback_save_draft_answer',args:{field:'earnRateBps',expectedRevision:s.program.configurationRevision}}},{reply:'Fonte inventada do modelo que não deve substituir a próxima decisão.',referenceIds:['inventada:uso']}]}));
+  ask('5%');cy.get('.chat-dock-reply').last().should('contain.text','Escolha salva no rascunho. Checklist: 1 de 17 decisões preenchidas. Qual o mínimo da compra para ganhar? Informe em R$, inclusive se o mínimo for zero.').and('not.contain.text','Não encontrei evidência suficiente').and('not.contain.text','Fonte inventada');cy.get('.chat-dock-turn').last().find('.cashback-chat-references').should('not.exist');
+  checklist().should('contain.text','1 de 17 decisões preenchidas');checklist().find('[data-checklist-field="earnRateBps"]').should('contain.text','5%');checklist().find('[data-checklist-field="minimumEarnCents"]').should('have.attr','data-completed','false');
+  thread().then(t=>{expect(t.turns).have.length(1);const turn=t.turns[0];expect(turn.status).eq('completed');expect(turn.references).deep.eq([]);const artifact=turn.artifacts.find((item:any)=>item.type==='cashback_draft');expect(artifact.program.draft).deep.eq({earnRateBps:500});expect(artifact.checklist.completed).eq(1);expect(artifact.missingFields[0]).eq('minimumEarnCents');});
+  state().then(s=>{expect(s.program.draft).deep.eq({earnRateBps:500});expect(s.program.status).eq('disabled');expect(s.program.version).eq(0);expect(s.program.published).eq(null);expect(s.checklist.completed).eq(1);});
+  control('facts').then(({body})=>{cy.get('@ledgerBefore').then(hash=>expect(body.cashback.ledger.hash).eq(hash));expect(body.modelCalls).eq(3);expect(body.writes).deep.eq([]);expect(body.images).eq(0);expect(body.whatsappRequests).deep.eq([]);});
+ });
  it('collects all seventeen explicit decisions, rejects ambiguous units and remains a draft after activation requests',()=>{
   control('facts').then(({body})=>cy.wrap(body.cashback.ledger.hash).as('ledgerBefore'));
   ask('Quero configurar cashback passo a passo.');checklist().find('[data-checklist-field]').should('have.length',17);checklist().should('contain.text','0 de 17 decisões preenchidas');

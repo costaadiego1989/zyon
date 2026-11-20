@@ -100,10 +100,16 @@ export class AssistantService {
         completionRequirement=this.deps.context.completionRequirement?.({message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence})??null;
         if(completionRequirement)continue;
       }
+      const guidance={message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence};
+      // Current canonical Cashback tool outcomes do not depend on model-owned citation IDs.
+      if(this.deps.context.descriptor.id==='cashback'&&this.deps.context.uncitedResponse?.(guidance)){
+        const guided=this.deps.context.guidedResponse?.(guidance);
+        if(guided)return {reply:visibleReply(guided),references:[],artifacts:this.latestArtifacts(artifacts)};
+      }
       let references: AssistantReference[];
       try { references = await this.deps.knowledge.validateReferences(knowledgeScope, response.referenceIds, knowledge); }
       catch { return { reply: visibleReply(unavailable), references: [], artifacts: this.latestArtifacts(artifacts) }; }
-      const guided=this.deps.context.guidedResponse?.({message:initial.turn.message,suggestedReply:response.reply,campaign:current.thread.campaignProgress,evidence});
+      const guided=this.deps.context.guidedResponse?.(guidance);
       if(guided)return {reply:visibleReply(guided),references:[],artifacts:this.latestArtifacts(artifacts)};
       // A question mark or unrelated tool result never validates model-written claims.
       // Without citations the context may emit only its own canonical facts/questions.
