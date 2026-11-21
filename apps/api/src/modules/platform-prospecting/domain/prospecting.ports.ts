@@ -36,6 +36,12 @@ export interface DirectoryImportRepositoryPort {
   failImport(snapshotId:string,ownerToken:string,fileId:string|null,errorCode:string):Promise<void>;
   publish(snapshotId:string,expectedActiveSnapshotId:string|null):Promise<void>;
 }
+export interface DirectoryManifestPort {competences():Promise<string[]>;discover(competence:string):Promise<CompanyManifest>}
+export interface DirectoryImportManagementPort extends Pick<DirectoryImportRepositoryPort,"getImport"> {
+  getImportCommand(clientRequestId:string,requestHash:string,actor:ProspectingActor):Promise<string|null>;
+  enqueueImport(input:{snapshotId:string;manifest?:CompanyManifest;action:"start"|"resume";clientRequestId:string;requestHash:string},actor:ProspectingActor):Promise<string>;
+  pendingImports(limit:number):Promise<string[]>;
+}
 export interface CompanyDirectoryPort {
   search(query: CompanySearchQuery): Promise<CompanySearchResult>;
   find(cnpj: string, snapshotId?: string): Promise<CompanyRecord | null>;

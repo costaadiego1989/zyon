@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
+import { createHash,randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "../../../../../node_modules/.prisma/company-directory/index.js";
 import type { CompanyImportStatus, CompanyManifest, CompanySnapshotState,CompanySearchQuery,CompanyFilters,CompanyDomainQuery,CompanyDomainResult } from "@zyon/shared-types";
-import type { DirectoryBatch, DirectoryImportRepositoryPort, PreparedDirectoryArchive } from "../../domain/prospecting.ports.js";
+import type { DirectoryBatch, DirectoryImportRepositoryPort,DirectoryImportManagementPort,ProspectingActor, PreparedDirectoryArchive } from "../../domain/prospecting.ports.js";
 import { assertCompleteDirectoryManifest } from "../../domain/company-directory/directory-manifest.js";
 import { canonicalCnpj } from "../../domain/company-directory/cnpj.js";
 import { normalizeDirectoryText, stableDirectoryJson } from "../../domain/company-directory/directory-values.js";
@@ -9,7 +9,7 @@ import { validateCompanyFilters,validateCompanyDomainQuery } from "../../domain/
 import { SearchCompaniesQuery } from "../../application/company-directory/search-companies.query.js";
 import { readDirectoryPage } from "./directory-search.sql.js";
 
-export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort {
+export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort,DirectoryImportManagementPort {
   constructor(readonly client: PrismaClient,private readonly cursorHmacKey?:string) {}
   async activeSnapshotId():Promise<string|null>{return (await this.client.companyDirectoryActiveSnapshot.findUnique({where:{id:"national"}}))?.snapshotId??null;}
   search(query:CompanySearchQuery){return new SearchCompaniesQuery(this,this.cursorHmacKey??"").execute(query);}
@@ -32,7 +32,7 @@ export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort 
     const snapshot = await this.client.companySnapshot.findUnique({where:{id},include:{files:{include:{checkpoints:{orderBy:{batchIndex:"desc"},take:1}},orderBy:{resourceId:"asc"}}}});
     if (!snapshot) return null;
     const active = await this.client.companyDirectoryActiveSnapshot.findUnique({where:{id:"national"}});
-    return {id:snapshot.id,snapshotId:snapshot.id,competence:snapshot.competence,state:snapshot.state as CompanySnapshotState,committedCount:snapshot.files.reduce((n,f)=>n+Number(f.committedCount),0),rejectedCount:snapshot.rejectedCount,files:snapshot.files.map(f=>({id:f.id,resourceId:f.resourceId,state:f.state,batchIndex:f.checkpoints[0]?.batchIndex??-1,computedHash:f.computedHash,errorCode:f.errorCode})),activeSnapshotId:active?.snapshotId??null,errorCode:snapshot.errorCode};
+    return {id:snapshot.id,snapshotId:snapshot.id,competence:snapshot.competence,state:snapshot.state as CompanySnapshotState,committedCount:snapshot.files.reduce((n,f)=>n+Number(f.committedCount),0),rejectedCount:snapshot.rejectedCount,files:snapshot.files.map(f=>({id:f.id,resourceId:f.resourceId,state:f.state,batchIndex:f.checkpoints[0]?.batchIndex??-1,computedHash:f.computedHash,errorCode:f.errorCode,rowOffset:f.checkpoints[0]?.rowOffset.toString()??"0",byteOffset:f.checkpoints[0]?.byteOffset.toString()??"0",compressedBytes:f.compressedBytes?.toString()??null,rejectedCount:Number(f.rejectedCount)})),activeSnapshotId:active?.snapshotId??null,errorCode:snapshot.errorCode};
   }
   async commitBatch(batch: DirectoryBatch): Promise<{committed:number;replay:boolean}> {
     if (!/^[a-f0-9]{64}$/.test(batch.fileHash) || [batch.batchIndex,batch.rowOffset,batch.byteOffset,batch.rejectedCount??0].some(n=>!Number.isSafeInteger(n)||n<0)) throw new Error("batch_invalid");
@@ -118,20 +118,51 @@ export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort 
   }
   async failImport(snapshotId:string,ownerToken:string,fileId:string|null,errorCode:string):Promise<void>{
     await this.owned(snapshotId,ownerToken,async(tx,counts)=>{
-      await tx.companySnapshot.update({where:{id:snapshotId},data:{state:"failed",errorCode,counts:{...counts,leaseToken:null,leaseUntil:0} as Prisma.InputJsonValue}});
+      await tx.companySnapshot.update({where:{id:snapshotId},data:{state:"failed",errorCode,counts:{...counts,leaseToken:null,leaseUntil:0,requested:false} as Prisma.InputJsonValue}});
       if(fileId)await tx.companySourceFile.updateMany({where:{id:fileId,snapshotId,state:{not:"validated"}},data:{state:"failed",errorCode}});
     });
   }
   async publish(snapshotId:string,expectedActiveSnapshotId:string|null):Promise<void>{
     await this.client.$transaction(async tx=>{
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('zyon_company_directory_publish'))::text`;
+      await tx.$queryRaw`SELECT id FROM company_directory.company_snapshots WHERE id=${snapshotId} FOR UPDATE`;
       const snapshot=await tx.companySnapshot.findUniqueOrThrow({where:{id:snapshotId},include:{files:true}});
       if(snapshot.state!=="ready"||snapshot.files.some(f=>f.state!=="validated"||!f.computedHash))throw new Error("snapshot_not_ready");assertCompleteDirectoryManifest(snapshot.manifest as unknown as CompanyManifest);
       const pointer=await tx.companyDirectoryActiveSnapshot.findUnique({where:{id:"national"}});
       if((pointer?.snapshotId??null)!==expectedActiveSnapshotId)throw new Error("active_snapshot_conflict");
       await tx.companyDirectoryActiveSnapshot.upsert({where:{id:"national"},create:{snapshotId},update:{snapshotId,version:{increment:1}}});
       const counts=snapshot.counts as Record<string,unknown>;
-      await tx.companySnapshot.update({where:{id:snapshotId},data:{state:"published",publishedAt:new Date(),counts:{...counts,leaseToken:null,leaseUntil:0} as Prisma.InputJsonValue}});
+      await tx.companySnapshot.update({where:{id:snapshotId},data:{state:"published",publishedAt:new Date(),counts:{...counts,leaseToken:null,leaseUntil:0,requested:false} as Prisma.InputJsonValue}});
     });
+  }
+  async getImportCommand(clientRequestId:string,requestHash:string,actor:ProspectingActor):Promise<string|null>{
+    const rows=await this.client.$queryRaw<{actor_operator_id:string;request_hash:string;result:{importJobId:string}}[]>`SELECT actor_operator_id,request_hash,result FROM public.prospect_commands WHERE client_request_id=${clientRequestId}`;
+    if(!rows.length)return null;if(rows[0].actor_operator_id!==actor.operatorId||rows[0].request_hash!==requestHash)throw new Error("idempotency_conflict");return rows[0].result.importJobId;
+  }
+  async enqueueImport(input:Parameters<DirectoryImportManagementPort["enqueueImport"]>[0],actor:ProspectingActor):Promise<string>{
+    return this.client.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"company-import-command:"+input.clientRequestId}))::text`;
+      const previous=await tx.$queryRaw<{actor_operator_id:string;request_hash:string;result:{importJobId:string}}[]>`SELECT actor_operator_id,request_hash,result FROM public.prospect_commands WHERE client_request_id=${input.clientRequestId}`;
+      if(previous.length){if(previous[0].actor_operator_id!==actor.operatorId||previous[0].request_hash!==input.requestHash)throw new Error("idempotency_conflict");return previous[0].result.importJobId;}
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${"company-import-job:"+input.snapshotId}))::text`;
+      if(input.manifest){const manifest=input.manifest;await tx.companySnapshot.upsert({where:{id:input.snapshotId},update:{},create:{id:input.snapshotId,competence:manifest.competence,manifestHash:manifest.hash,manifest:manifest as unknown as Prisma.InputJsonValue,parserVersion:manifest.parserVersion,sourceUrl:manifest.resources[0].url,files:{create:manifest.resources.map(r=>({resourceId:r.id,family:r.family,url:r.url,etag:r.etag,lastModified:r.lastModified,encoding:"win1252"}))}}});}
+      await tx.$queryRaw`SELECT id FROM company_directory.company_snapshots WHERE id=${input.snapshotId} FOR UPDATE`;
+      const snapshot=await tx.companySnapshot.findUnique({where:{id:input.snapshotId}});if(!snapshot)throw new Error("import_not_found");
+      const counts=snapshot.counts as Record<string,unknown>;
+      if(input.action==="resume"&&!["failed","discovered"].includes(snapshot.state))throw new Error("import_not_resumable");
+      if(snapshot.state!=="published"){
+        if(counts.leaseToken&&Number(counts.leaseUntil)>Date.now())throw new Error("import_busy");
+        await tx.companySnapshot.update({where:{id:input.snapshotId},data:{state:"discovered",errorCode:null,counts:{...counts,requested:true,leaseToken:null,leaseUntil:0} as Prisma.InputJsonValue}});
+      }
+      const result=JSON.stringify({importJobId:input.snapshotId});
+      const outcome=snapshot.state==="published"?"already_published":"queued";
+      await tx.$executeRaw`INSERT INTO public.prospect_commands(client_request_id,actor_operator_id,request_hash,kind,state,result) VALUES (${input.clientRequestId},${actor.operatorId},${input.requestHash},${"company_import_"+input.action},'completed',${result}::jsonb)`;
+      await tx.$executeRaw`INSERT INTO public.prospect_audit_events(id,actor_operator_id,action,resource_type,resource_id,resource_version,correlation_id,outcome) VALUES (${randomUUID()},${actor.operatorId},${"company_import_"+input.action},'company_snapshot',${input.snapshotId},1,${actor.correlationId},${outcome})`;
+      return input.snapshotId;
+    });
+  }
+  async pendingImports(limit:number):Promise<string[]>{
+    if(!Number.isInteger(limit)||limit<1||limit>10)throw new Error("invalid_filter:limit");
+    return (await this.client.companySnapshot.findMany({where:{state:{in:["discovered","importing"]},counts:{path:["requested"],equals:true}},orderBy:{createdAt:"asc"},take:limit,select:{id:true}})).map(s=>s.id);
   }
 }

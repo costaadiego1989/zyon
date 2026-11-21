@@ -39,7 +39,8 @@ export interface CompanyRecord {
 export interface CompanySearchResult extends ProspectingPage<CompanyRecord> { snapshotId: string; competence: string; count: number | null; countState: "complete" | "pending"; filterHash: string }
 export interface CompanySourceResource { id: string; family: string; url: string; competence: string; discoveredAt: string; etag: string | null; lastModified: string | null }
 export interface CompanyManifest { id: string; competence: string; hash: string; parserVersion: string; resources: CompanySourceResource[]; discoveredAt: string }
-export interface CompanyImportStatus { id: string; snapshotId: string; competence: string; state: CompanySnapshotState; committedCount: number; rejectedCount: number; files: { id: string; resourceId: string; state: string; batchIndex: number; computedHash: string | null; errorCode: string | null }[]; activeSnapshotId: string | null; errorCode: string | null }
+export interface CompanyImportStatus { id: string; snapshotId: string; competence: string; state: CompanySnapshotState; committedCount: number; rejectedCount: number; files: { id: string; resourceId: string; state: string; batchIndex: number; computedHash: string | null; errorCode: string | null; rowOffset?:string;byteOffset?:string;compressedBytes?:string|null;rejectedCount?:number }[]; activeSnapshotId: string | null; errorCode: string | null }
+export interface CompanyImportAccepted { importJobId:string;status:CompanyImportStatus }
 export interface ImportCompanySnapshot extends ProspectingCommand { manifestId: string; competence: string }
 export interface ProspectContact { endpointId: string; channel: "whatsapp" | "email"; normalizedValue: string | null; confirmationState: "unconfirmed" | "confirmed" | "ambiguous"; evidenceRef: string | null; permission: ContactPermissionStatus; timezone: string | null; timezoneSource: string | null }
 export interface ProspectRecord {
