@@ -41,3 +41,13 @@ test("PROS-04 AC3 rejects oversized downloads and records and unsupported layout
   await assert.rejects(() => rows(fixtureZip(Buffer.from('"01";"' + 'x'.repeat(5000) + '"')), "cnaes"), /archive_record_limit/);
   await assert.rejects(() => rows(fixtureZip(Buffer.from('"01";"a";"extra"')), "cnaes"), /archive_layout_invalid/);
 });
+test("PROS-05 AC1 rejects downloads whose source validators changed after discovery",async()=>{
+  for(const headers of [{etag:'"changed"'},{}]){
+    const reader=new CnpjArchiveReader({openResource:async()=>new Response(fixtureZip(Buffer.from('"01";"arroz"')),{headers})},archiveLimits);
+    await assert.rejects(()=>reader.prepare({...resource("cnaes"),etag:'"observed"'}).then(async archive=>{await archive.close();return archive;}),/source_changed/);
+  }
+  const staleDate=new CnpjArchiveReader({openResource:async()=>new Response(fixtureZip(Buffer.from('"01";"arroz"')),{headers:{"last-modified":"Mon, 16 Nov 2026 10:00:23 GMT"}})},archiveLimits);
+  await assert.rejects(()=>staleDate.prepare({...resource("cnaes"),lastModified:"Tue, 17 Nov 2026 10:00:23 GMT"}).then(async archive=>{await archive.close();return archive;}),/source_changed/);
+  const reader=new CnpjArchiveReader({openResource:async()=>new Response(fixtureZip(Buffer.from('"01";"arroz"')),{headers:{etag:'"observed"'}})},archiveLimits);
+  const archive=await reader.prepare({...resource("cnaes"),etag:'"observed"'});try{assert.match(archive.fileHash,/^[a-f0-9]{64}$/);const result=[];for await(const row of archive.rows())result.push(row);assert.deepEqual(result,[{kind:"domain",value:{kind:"cnaes",code:"01",label:"arroz"}}]);}finally{await archive.close();}
+});

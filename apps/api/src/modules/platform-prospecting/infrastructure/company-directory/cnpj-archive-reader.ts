@@ -59,6 +59,9 @@ export class CnpjArchiveReader implements DirectoryArchivePort {
       if (disk.bavail * disk.bsize < BigInt(this.limits.importMinimumFreeDiskBytes) + BigInt(this.limits.importMaximumFileBytes)) throw new Error("archive_disk_limit");
       const response = await this.source.openResource(resource.url);
       if (!response.ok || !response.body) throw new Error("source_unavailable");
+      if(resource.etag!==null?response.headers.get("etag")!==resource.etag:resource.lastModified!==null&&Date.parse(response.headers.get("last-modified")??"")!==Date.parse(resource.lastModified)){
+        await response.body.cancel();throw new Error("source_changed");
+      }
       const hash = createHash("sha256"); let bytes = 0;
       const file = await open(path, "wx"); const reader = response.body.getReader();
       try {
