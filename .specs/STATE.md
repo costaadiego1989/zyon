@@ -42,3 +42,5 @@
 - Execution T25: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspaceDetail.tsx, apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspaceDetail.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T26.
 
 - Execution T26: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/AutomaticPreparationSettings.tsx, apps/dashboard/src/pages/meta-ads-agent/AutomaticPreparationSettings.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T27.
+
+- Execution T27: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/MetaAdsAssistant.tsx, apps/dashboard/src/pages/meta-ads-agent/MetaAdsAssistant.spec.tsx. Next: T28.
