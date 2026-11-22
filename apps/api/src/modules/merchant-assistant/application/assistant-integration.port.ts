@@ -9,6 +9,7 @@ export interface MerchantAssistantIntegrationPort {
   contexts: { register(context: AssistantContextPort): void };
   authorizeActor(scope: AssistantScope): Promise<void>;
   authorizeTool(scope: AssistantScope, name: string): Promise<void>;
+  createOpportunityPlanning(authorizeStore: (merchantId: string) => Promise<void>): ReturnType<MerchantAssistantIntegrationPort['createDailyAnalysis']>;
   createDailyAnalysis(authorizeStore: (merchantId: string) => Promise<void>): {
     repo: AssistantRepository; admission: TurnAdmissionService; model: AssistantModelPort;
     authorize(scope: AssistantScope): Promise<void>;
