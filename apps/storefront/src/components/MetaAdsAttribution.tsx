@@ -11,10 +11,10 @@ export function MetaAdsAttribution({ conversationId, merchantId }: { conversatio
     if (!consent?.ready || !merchantId || consent.merchantId !== merchantId || typeof window === "undefined") return null;
     if (!source.current) source.current = window.location.href;
     return new MetaAdsAttributionClient({ merchantId, storeKey: consent.storeKey, pixelId: consent.pixelId, consentVersion: consent.version,
-      consent: () => current.current.consent?.granted === true, sourceUrl: () => source.current, cookies: () => document.cookie, now: () => Date.now(),
+      consent: () => current.current.consent?.granted === true, sourceUrl: () => {if(new URL(window.location.href).searchParams.has('zyon_ad'))source.current=window.location.href;return source.current;}, cookies: () => document.cookie, now: () => Date.now(),
       storage: { getItem: key => sessionStorage.getItem(key), setItem: (key, value) => sessionStorage.setItem(key, value), removeItem: key => sessionStorage.removeItem(key) },
-      send: async (id, action, body) => {
-        const response = await conversationFetch(id, `${base}/storefront/conversations/${encodeURIComponent(id)}/meta-ads/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), keepalive: action === "revoke", signal: AbortSignal.timeout(8000) });
+      send: async (id, action, body,metadata) => {
+        const response = await conversationFetch(id, `${base}/storefront/conversations/${encodeURIComponent(id)}/meta-ads/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({...body,...(metadata?{idempotencyKey:metadata.idempotencyKey}:{})}), keepalive: action === "revoke", signal: AbortSignal.timeout(8000) });
         if (!response.ok) throw new Error("attribution_unavailable"); return response.json();
       },
       pixel: (...args) => { const pixel = (window as Window & { fbq?: (...values: unknown[]) => void }).fbq; if (!pixel) throw new Error("pixel_unavailable"); pixel(...args); },

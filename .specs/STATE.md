@@ -73,3 +73,5 @@
 - Execution T16: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/attribution.service.ts, apps/api/src/modules/meta-ads-agent/application/attribution.service.spec.ts, apps/api/src/modules/meta-ads-agent/domain/types.ts, apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.ts, apps/api/prisma/migrations/20261122120000_ads_attribution_touches/migration.sql, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts. Next: T17.
 
 - Execution T17: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/attribution.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/attribution.controller.spec.ts, apps/api/src/modules/meta-ads-agent/application/attribution.service.ts, apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.ts. Next: T18.
+
+- Execution T18: gate0, source stable; apps/storefront/src/lib/meta-ads-attribution.ts, apps/storefront/src/lib/meta-ads-attribution.spec.ts, apps/storefront/src/components/MetaAdsAttribution.tsx. Next: T19.
