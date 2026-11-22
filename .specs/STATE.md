@@ -30,60 +30,13 @@
 
 ## Handoff
 
-- Active feature: `ads-campaign-workspace`, Specify/discovery. User requested tlc-spec-driven on 2026-11-22. No new specification or tasks approval exists.
-- Isolated worktree `C:/tmp/zyon-ads-workspace-20261122`, branch `feat/ads-campaign-workspace-20261122`, base `0cfec38aa7276508f4f64855ad410d85e5661382`. Fresh Railway API and dashboard both serve this revision. Preserve original dirty checkout and concurrent work.
-- Read skill, Specify and Discuss references fully; confirmed lessons query found none for meta-ads. Applied existing dashboard tokens and Impeccable product register for UI audit.
-- Audit artifacts: `.specs/features/ads-campaign-workspace/{audit,context}.md`; `.audit/ads-campaign-workspace-20261122`. No tracked application source changed.
-- Fixtures: 12 and80 campaigns; native1440/768/390; six current UI screenshots; no horizontal document overflow or page errors; pagination10/page. Opening details leaves them3482/3864/5869px below current viewport. Exact receipts in `current-layout-observation.json`.
-- Existing attribution selection:20/20 pass with project ready-prod loader and dedicated local Postgres. No tests altered. Initial missing-tsx/missing-local-database failures are not evidence of application regressions; final current-source result is in `attribution-baseline-result.json`.
-- Five product decisions confirmed2026-11-22: AI selects authorized products and prepares for approval; delete drafts/archive published; last valid click within7days; only audience profile; default1newproposal/day and3pending with both limits editable perstore. Literal answers recorded in context. No spec/tasks approval recorded.
-- Every new campaign still requires one exact final approval. No new real ad/provider/merchant writes, credits, media spend, WhatsApp send, push or deployment. Cashback remains outside this scope.
-- Specification approved2026-11-22 - user: "Aprovar especificação (recomendado)". Task plan and architecture approved2026-11-22 - user: "Aprovar plano e implementar (recomendado)". Exact approvals in spec.md/tasks.md/design.md. Tasks35atomic in5phases,52proofchecks,3mutations; validate_tasks --execute0errors and2reviewed type-only warnings. Execute with one implementation agent; independent Verifier required after final task. No implementation worker or Verifier dispatched. T1in progress, contracts edited, gate and commit pending.
+- Active: ads-campaign-workspace, Execute in C:/tmp/zyon-ads-workspace-20261122, branch feat/ads-campaign-workspace-20261122. Both spec and plan/design approved2026-11-22 in the user's words in feature files. Single implementation agent; fresh independent final Verifier required, none dispatched.
+- T1-T24 complete with atomic commits in tasks.md and .audit/ads-campaign-workspace-20261122/execution.md. T25 implemented: five interaction tests pass; native1440/768/390 recheck after reducing spacing and keeping Back visible. Task gate and capture receipts are source-specific; tasks.md/git win over older notes.
+- T26-T35 and final proof/build/native walk/mutations/Verifier remain. Do not claim full readiness. No remote implementation authority: no push, deployment, real merchant/ad/media/WhatsApp writes. Preserve Cashback and original dirty AACP checkout.
+- Backend: scoped workspace/lifecycle/limits HTTP, metered isolated opportunity planning and runtime, new proposals always reviewed, durable last-click history and frozen payment origin, canonical paid/refund sales queries with order drill-down. Original tracking controls preserved. Actual Meta acknowledgement and production/buyer behavior remain separate from controlled local proofs.
+- Canonical commercial date projection now batches by approved payment time, not completed-order day; PostgreSQL16.16 verified locally supports safe pg_input_is_valid. Production API typecheck(tsconfig.build.json) passed after correcting the internal assistant integration port at22d8344d. Broad test-inclusive TypeScript reported two unrelated unchanged WhatsApp fixture errors. Full final build remains pending.
+- Native UI fixtures use own Vite5207, session58632, config apps/dashboard/.audit/ads-workspace/vite.config.ts. Headless Edge captures are owned only; preserve the user's interactive browsers. Demo imagery is explicitly synthetic and no campaign is published. T23/T24 captures passed three widths; desktop compares five rows. T25 final captures next.
+- Dedicated local Postgres container zyon-meta-ads-postgres-20261114 is running at loopback15435; per-test random schemas clean themselves. Own pnpm dependencies are installed; no dependency junctions remain. Heavy API builds need heap4096 and serial execution; preserve other processes.
+- Assumptions/files/success and gate logs recorded per task under the owned ignored audit directory. Use task-tools.cjs gate/commit for subsequent atomic tasks. Feature docs stay ignored; tracked STATE is staged with git add -u, never force .specs.
 
-- Execution T1: gate0, source stable; packages/shared-types/src/meta-ads-agent.ts. Next: T2.
-
-- Execution T2: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/types.ts. Next: T3.
-
-- Execution T3: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/campaign-name.ts, apps/api/src/modules/meta-ads-agent/domain/campaign-name.spec.ts. Next: T4.
-
-- Execution T4: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/campaign-workspace-query.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign-workspace-query.service.spec.ts. Next: T5.
-
-- Execution T5: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/campaign-lifecycle.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign-lifecycle.service.spec.ts, apps/api/src/modules/meta-ads-agent/domain/types.ts, apps/api/src/modules/meta-ads-agent/infrastructure/prisma-meta-ads.repository.ts. Next: T6.
-
-- Execution T6: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/campaign-lifecycle.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/campaign-lifecycle.controller.spec.ts, apps/api/src/modules/meta-ads-agent/presentation/__tests__/campaign-approval-http-fixture.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T7.
-
-- Execution T7: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/campaign-workspace.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/campaign-workspace.controller.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T8.
-
-- Execution T8: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/preparation-limits.service.ts, apps/api/src/modules/meta-ads-agent/application/preparation-limits.service.spec.ts. Next: T9.
-
-- Execution T9: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/preparation-limits.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/preparation-limits.controller.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T10.
-
-- Execution T10: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/product-opportunity.reader.ts, apps/api/src/modules/meta-ads-agent/infrastructure/product-opportunity.reader.spec.ts. Next: T11.
-
-- Execution T11: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/opportunity-model.adapter.ts, apps/api/src/modules/meta-ads-agent/infrastructure/opportunity-model.adapter.spec.ts, apps/api/src/modules/meta-ads-agent/domain/types.ts, apps/api/src/modules/merchant-assistant/domain/model.port.ts, apps/api/src/modules/merchant-assistant/infrastructure/merchant-ai.gateway.ts, apps/api/src/modules/merchant-assistant/infrastructure/runtime.ts. Next: T12.
-
-- Execution T12: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/campaign-opportunity.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign-opportunity.service.spec.ts, apps/api/src/modules/meta-ads-agent/application/campaign.service.ts. Next: T13.
-
-- Execution T13: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/campaign-opportunity.worker.ts, apps/api/src/modules/meta-ads-agent/infrastructure/campaign-opportunity.worker.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts, apps/api/src/modules/meta-ads-agent/infrastructure/__tests__/runtime-fixture.ts, apps/api/src/modules/meta-ads-agent/application/campaign-opportunity.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign.service.ts, apps/api/src/modules/meta-ads-agent/infrastructure/campaign-preparation.worker.ts. Next: T14.
-
-- Execution T14: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/last-click-attribution.ts, apps/api/src/modules/meta-ads-agent/domain/last-click-attribution.spec.ts. Next: T15.
-
-- Execution T15: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.ts, apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.spec.ts, apps/api/prisma/migrations/20261122120000_ads_attribution_touches/migration.sql. Next: T16.
-
-- Execution T16: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/attribution.service.ts, apps/api/src/modules/meta-ads-agent/application/attribution.service.spec.ts, apps/api/src/modules/meta-ads-agent/domain/types.ts, apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.ts, apps/api/prisma/migrations/20261122120000_ads_attribution_touches/migration.sql, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts. Next: T17.
-
-- Execution T17: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/attribution.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/attribution.controller.spec.ts, apps/api/src/modules/meta-ads-agent/application/attribution.service.ts, apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.ts. Next: T18.
-
-- Execution T18: gate0, source stable; apps/storefront/src/lib/meta-ads-attribution.ts, apps/storefront/src/lib/meta-ads-attribution.spec.ts, apps/storefront/src/components/MetaAdsAttribution.tsx. Next: T19.
-
-- Execution T19: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/checkout-purchase.bridge.ts, apps/api/src/modules/meta-ads-agent/infrastructure/checkout-purchase.bridge.spec.ts, apps/api/src/modules/meta-ads-agent/application/attribution.service.ts, apps/api/src/modules/whatsapp-channel/application/use-cases/handle-incoming-message.use-case.ts. Next: T20.
-
-- Execution T20: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/campaign-sales-query.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign-sales-query.service.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/commerce-context.adapter.ts. Next: T21.
-
-- Execution T21: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/campaign-sales.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/campaign-sales.controller.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T22.
-
-- Execution T22: gate0, source stable; apps/dashboard/src/api/endpoints/meta-ads-agent.ts, apps/dashboard/src/api/endpoints/meta-ads-agent.spec.ts. Next: T23.
-
-- Execution T23: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspace.tsx, apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspace.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T24.
-
-- Execution T24: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/CampaignQuickActions.tsx, apps/dashboard/src/pages/meta-ads-agent/CampaignQuickActions.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T25.
+- Execution T25: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspaceDetail.tsx, apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspaceDetail.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T26.

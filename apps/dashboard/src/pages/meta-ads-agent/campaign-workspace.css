@@ -5,6 +5,28 @@
 .ads-quick-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ads-quick-actions .zyn-btn__label { display: inline-flex; align-items: center; gap: 6px; }
 .ads-quick-actions__notice { margin: 0; max-width: 38ch; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.ads-detail { min-width: 0; }
+.ads-detail__back { display: inline-flex; gap: 8px; align-items: center; margin: 0 0 20px; }
+.ads-detail__heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.ads-detail__heading h2 { margin: 0 0 8px; color: var(--color-text); font: 650 22px/1.4 var(--font-sans); letter-spacing: -.02em; overflow-wrap: anywhere; }
+.ads-detail__heading > div { min-width: 0; flex: 1 1 240px; }
+.ads-detail__audience { padding-bottom: 20px; border-bottom: 1px solid var(--color-border); margin-bottom: 24px; }
+.ads-detail h3 { font: 600 14px/1.5 var(--font-sans); color: var(--color-text); margin: 0 0 6px; }
+.ads-detail__audience p,.ads-detail__opportunity p { color: var(--color-text-secondary); font-size: 13px; line-height: 1.7; margin: 0; max-width: 72ch; }
+.ads-detail__audience small { display: block; margin-top: 4px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.ads-detail__opportunity { margin: 0 0 24px; padding: 16px 20px; border-radius: 8px; background: var(--surface-2); }
+.ads-detail .mga-draft-preview > h2,.ads-detail .mga-launch > .mga-section-heading h2 { display: none; }
+.ads-detail--published .mga-preview-note { display: none; }
+.ads-detail__change { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--color-border); }
+.ads-detail > .mga-panel { border: 0; padding: 0; }
+.ads-detail .mga-launch { border: 0; padding-top: 0; }
+.ads-detail .mga-launch-previews img { height: 360px; aspect-ratio: auto; object-fit: contain; }
+.ads-detail .mga-draft-photo { height: 360px; aspect-ratio: auto; }
+.meta-ads-agent :is(.ads-workspace,.ads-detail,.ads-quick-actions) .zyn-btn:not(.zyn-btn--primary):not(.zyn-btn--danger) { background: transparent; color: var(--color-text); border: 1px solid var(--color-border-strong); }
+.meta-ads-agent :is(.ads-workspace,.ads-detail,.ads-quick-actions) .zyn-btn--ghost { border-color: transparent !important; }
+.meta-ads-agent :is(.ads-workspace,.ads-detail,.ads-quick-actions) .zyn-btn:not(.zyn-btn--primary):not(.zyn-btn--danger):hover:not(:disabled) { background: var(--surface-2); }
+@media (max-width: 600px) { .ads-detail__heading h2 { font-size: 20px; } .ads-detail__opportunity { padding: 14px 16px; } }
+@media (max-width: 600px) { .ads-detail .mga-launch-previews img { height: auto; aspect-ratio: 1; } .ads-detail .mga-draft-photo { height: auto; aspect-ratio: 1; } }
 .ads-workspace__heading p { margin: 5px 0 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
 .ads-workspace > .tab-bar { display: flex; flex-wrap: wrap; width: fit-content; gap: 4px; margin-bottom: 16px; }
 .ads-workspace .tab-bar__tab { white-space: nowrap; font-size: 13px; }
