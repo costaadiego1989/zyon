@@ -17,7 +17,7 @@ function removeOwnedArchive(directory:string):Promise<void>{
   return rm(target,{recursive:true,force:true});
 }
 const nullable = (value: string) => value.trim() || null;
-function base(value: string) { if (!/^[A-Z0-9]{8}$/.test(value)) throw new Error("invalid_cnpj"); return value; }
+function base(value: string) { if (!/^[A-Za-z0-9]{8}$/.test(value)) throw new Error("invalid_cnpj"); return value.toUpperCase(); }
 function money(value: string) {
   if (!value) return null;
   if (!/^\d+(?:,\d{2})?$/.test(value)) throw new Error("archive_layout_invalid:capital");
@@ -40,7 +40,8 @@ function decodeRecord(record: Buffer, family: string): DirectoryDecodedRow | nul
     if (family === "empresas") return { kind: "entity", value: { baseCnpj: base(columns[0]), legalName: columns[1], legalNature: nullable(columns[2]), size: nullable(columns[5]), capitalCents: money(columns[4]), simples: null, mei: null } };
     if (family === "simples") return { kind: "tax", value: { baseCnpj: base(columns[0]), simples: tax(columns[1]), mei: tax(columns[4]) } };
     if (family !== "estabelecimentos") return { kind: "domain", value: { kind: family, code: columns[0], label: columns[1] } };
-    const cnpj = canonicalCnpj(columns[0] + columns[1] + columns[2]);
+    if (!/^[A-Za-z0-9]{4}$/.test(columns[1]) || !/^[0-9]{2}$/.test(columns[2])) throw new Error("invalid_cnpj");
+    const cnpj = canonicalCnpj(base(columns[0]) + columns[1] + columns[2]);
     if (!["", "1", "2"].includes(columns[3])) throw new Error("archive_layout_invalid:matrix_branch");
     const contacts: Extract<DirectoryDecodedRow, {kind:"establishment"}>["value"]["contacts"] = [];
     for (const [ddd, number] of [[columns[21], columns[22]], [columns[23], columns[24]]]) if (number) contacts.push({ channel: "phone", originalValue: ddd + number, normalizedValue: null, validationState: "unknown" });

@@ -51,3 +51,10 @@ test("PROS-05 AC1 rejects downloads whose source validators changed after discov
   const reader=new CnpjArchiveReader({openResource:async()=>new Response(fixtureZip(Buffer.from('"01";"arroz"')),{headers:{etag:'"observed"'}})},archiveLimits);
   const archive=await reader.prepare({...resource("cnaes"),etag:'"observed"'});try{assert.match(archive.fileHash,/^[a-f0-9]{64}$/);const result=[];for await(const row of archive.rows())result.push(row);assert.deepEqual(result,[{kind:"domain",value:{kind:"cnaes",code:"01",label:"arroz"}}]);}finally{await archive.close();}
 });
+
+test("PROS-04 AC2 validates the original base and order widths of CP1252 records", async () => {
+  for (const [base, order, dv] of [["00ABß27", "0003", "45"], ["12ABC34","501DE","35"]]) {
+    const record = [base, order, dv, ...Array(27).fill("")].join(";");
+    assert.deepEqual(await rows(fixtureZip(iconv.encode(record,"win1252")), "estabelecimentos"), [{kind:"rejected",errorCode:"invalid_cnpj"}]);
+  }
+});

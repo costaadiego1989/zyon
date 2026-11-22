@@ -82,3 +82,27 @@ test("PROS-05 AC3 competing complete imports cannot replace an active pointer ch
     assert.equal((await repo.getImport(a.id))!.state,"failed");assert.equal((await repo.getImport(b.id))!.state,"published");
   }finally{release?.();await f.close();}
 });
+
+test("PROS-04 AC2 CP1252 import records the rejected identity without creating the expanded establishment", async () => {
+  const f = await createCompanyDirectoryFixture();
+  try {
+    const repo = new PrismaDirectoryRepository(f.client);
+    const manifest = fixtureManifest();
+    const reader = new CnpjArchiveReader({ async openResource(url) {
+      const resource = manifest.resources.find(resource => resource.url === url)!;
+      let rows = fixtureSourceRows(resource.family);
+      if (url.endsWith("/Estabelecimentos0.zip")) rows += "\n" + ["00ABß27","0003","45",...Array(27).fill("")].join(";");
+      return new Response(companyDirectoryZip(Buffer.from(rows,"latin1")));
+    }}, directoryArchiveLimits);
+    const job = await repo.saveManifest(manifest);
+    const result = await new ImportCompanySnapshotWorker(repo, reader, {ingestionEnabled:true,importBatchSize:2}).run(job.id);
+    assert.equal(result.state, "published");
+    assert.equal(result.rejectedCount, 1);
+    const snapshot = await f.client.companySnapshot.findUniqueOrThrow({where:{id:job.snapshotId}});
+    assert.deepEqual((snapshot.counts as {rejectedReasons:unknown}).rejectedReasons, {invalid_cnpj:1});
+    const rejectedFile = await f.client.companySourceFile.findFirstOrThrow({where:{snapshotId:job.snapshotId,rejectedCount:1n}});
+    assert.equal(rejectedFile.family, "estabelecimentos");
+    assert.equal(await f.client.companyEstablishment.count({where:{snapshotId:job.snapshotId,cnpj:"00ABSS27000345"}}),0);
+    assert.equal(await f.client.companyEstablishment.count({where:{snapshotId:job.snapshotId,cnpj:"12ABC34501DE35"}}),1);
+  } finally { await f.close(); }
+});
