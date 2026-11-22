@@ -28,7 +28,7 @@ export function ProspectingChannelPage(
     }, Math.max(0, Date.parse(state.expiresAt) - Date.now()));
     return () => clearTimeout(timer);
   }, [state]);
-  const sdk = mode === "controlled" ? controlledSdk : platformSignup;
+  const sdk = mode === "controlled" ? controlledSdk ?? platformSignup : platformSignup;
   async function open() {
     if (!sdk || !state || !lifetime.current) return;
     setWaiting(true);

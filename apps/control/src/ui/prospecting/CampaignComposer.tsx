@@ -450,7 +450,7 @@ function Editor(props: PageProps & { data: Options; reload: () => void }) {
             </Button>
           )}
           <div className="prospecting-actions">
-            <Button onClick={() => navigate({ area: "campaigns", id: campaign.id })}>Ver destinatários</Button>
+            <Button disabled={action.disabled} onClick={() => navigate({ area: "campaigns", id: campaign.id })}>Ver destinatários</Button>
             <Button onClick={reload}>Atualizar revisão</Button>
           </div>
         </section>

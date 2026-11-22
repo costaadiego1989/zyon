@@ -12,7 +12,7 @@ async function site(app,port){
  const dashboard=app==="dashboard";
  const root=fileURLToPath(new URL("../../"+app+"/",import.meta.url));
  const server=await createServer({root,configFile:false,envFile:false,resolve:{alias:{"@":fileURLToPath(new URL("../../storefront/src/",import.meta.url))}},optimizeDeps:{entries:["index.html"]},plugins:[react(),{name:"local-preview-label",
-  transformIndexHtml(){return [{tag:"div",attrs:{"aria-label":"Ambiente local",style:"background:#ecf4ef;color:#254333;padding:5px 12px;font:12px system-ui"},children:"Ambiente local · Dados fictícios e provedores simulados",injectTo:"body-prepend"}];}}],
+  transformIndexHtml(){return [...(dashboard?[]:[{tag:"script",attrs:{type:"module",src:"/tests/prospecting-local-sdk.js"},injectTo:"head"}]),{tag:"div",attrs:{"aria-label":"Ambiente local",style:"background:#ecf4ef;color:#254333;padding:5px 12px;font:12px system-ui"},children:"Ambiente local · Dados fictícios e provedores simulados",injectTo:"body-prepend"}];}}],
   define:{"import.meta.env.VITE_PLATFORM_API_BASE_URL":JSON.stringify(origins.api+"/v1"),"import.meta.env.VITE_API_BASE_URL":JSON.stringify(origins.dashboard+"/v1"),
     "import.meta.env.VITE_TURNSTILE_SITE_KEY":JSON.stringify(""),"import.meta.env.VITE_FACEBOOK_LOGIN_ENABLED":JSON.stringify("false")},
   server:{host:"127.0.0.1",port,strictPort:true,hmr:false,https:dashboard?tls:undefined,

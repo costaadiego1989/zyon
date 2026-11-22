@@ -55,6 +55,7 @@ export async function openBrowserData(mode:"preview"|"disposable"){
    } });
    if(mode==="preview")writeFileSync(receipt,JSON.stringify(identity),{flag:"wx"});
   }else if((await pool.query("SELECT owner FROM browser_runtime_owner")).rows[0]?.owner!==identity.owner)throw Error("preview_ownership_mismatch");
-  opened=true;return {pg:pool,prisma,client,driver,redis,namespace:identity.name,close};
+  await pool.query("CREATE TABLE IF NOT EXISTS browser_provider_requests(id bigserial PRIMARY KEY,effect_id text NOT NULL)");
+  opened=true;return {pg:pool,prisma,client,driver,redis,namespace:identity.name,owner:identity.owner,close};
  }catch(e){await close();throw e;}
 }

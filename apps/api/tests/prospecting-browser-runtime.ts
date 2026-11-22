@@ -17,7 +17,7 @@ export async function startProspectingBrowserRuntime(mode:"disposable"|"preview"
  process.loadEnvFile(profile);
  for(const flag of ["META_SEND_ENABLED","LLM_REAL_ENABLED","INGESTION_ENABLED","PAID_INGESTION_ENABLED"])if(process.env["PROSPECTING_"+flag]!=="false")throw Error("real_provider_flag_enabled");
  for(const port of [3019,5179,5180,5181])await available(port);
- const fake={STRIPE_SECRET_KEY_TEST:"sk_test_browser_local",STRIPE_WEBHOOK_SECRET_TEST:"whsec_browser_local",ASAAS_WEBHOOK_TOKEN:"browser-local-captured-asaas"};
+ const fake={PROSPECTING_META_APP_ID:"100001",PROSPECTING_META_APP_SECRET:"local-app",PROSPECTING_META_PHONE_NUMBER_ID:"100004",STRIPE_SECRET_KEY_TEST:"sk_test_browser_local",STRIPE_WEBHOOK_SECRET_TEST:"whsec_browser_local",ASAAS_WEBHOOK_TOKEN:"browser-local-captured-asaas"};
  const prior=Object.fromEntries(Object.keys(fake).map(k=>[k,process.env[k]]));Object.assign(process.env,fake);
  const data=await openBrowserData(mode);
  let app:Awaited<ReturnType<typeof NestFactory.create>>|undefined,child:ReturnType<typeof fork>|undefined;
@@ -50,15 +50,19 @@ export async function startProspectingBrowserRuntime(mode:"disposable"|"preview"
   app.enableCors({origin:[origins.control,origins.dashboard],credentials:true});
   app.use((req:{url:string;method:string},res:{status:(n:number)=>{end:()=>void}},next:()=>void)=>{
    const path=req.url.split("?")[0];
-   if(path.startsWith("/v1/platform/prospecting/")||/^\/v1\/(platform\/auth\/(login|me|refresh|logout)|auth\/(login|register|refresh|logout|me)|merchants\/me(?:\/store-settings)?|billing\/(prospect-proposal\/bind|plans|subscription)|webhooks\/(stripe|asaas\/billing))$/.test(path))next();else res.status(404).end();
+   if(path==="/v1/webhooks/whatsapp/meta-platform"||path==="/v1/platform/operators"||path.startsWith("/v1/platform/prospecting/")||/^\/v1\/(platform\/auth\/(login|me|refresh|logout)|auth\/(login|register|refresh|logout|me)|merchants\/me(?:\/store-settings)?|billing\/(prospect-proposal\/bind|plans|subscription)|webhooks\/(stripe|asaas\/billing))$/.test(path))next();else res.status(404).end();
   });
   await app.listen(3019,"127.0.0.1");
   child=fork(fileURLToPath(new URL("../../control/tests/prospecting-local-sites.mjs",import.meta.url)),[],{execArgv:[],windowsHide:true,stdio:["ignore","ignore","inherit","ipc"],
    env:Object.fromEntries(["PATH","SystemRoot","TEMP","TMP","USERPROFILE","LOCALAPPDATA","APPDATA","ComSpec"].map(k=>[k,process.env[k]]))});
   await new Promise<void>((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error("vite_start_timeout")),60000);child!.once("message",(m:any)=>{clearTimeout(timeout);m.ready?resolve():reject(Error(m.error));});child!.once("exit",code=>{clearTimeout(timeout);reject(Error("vite_exit_"+code));});child!.once("error",reject);});
-  writeFileSync(receiptFile,JSON.stringify({mode,apiPid:process.pid,sitePid:child.pid,origins,database:data.namespace,startedAt:new Date().toISOString()},null,2));receipt=true;
+  writeFileSync(receiptFile,JSON.stringify({mode,apiPid:process.pid,sitePid:child.pid,origins,database:data.namespace,owner:data.owner,startedAt:new Date().toISOString()},null,2));receipt=true;
   async function step(){
    await s.audience.processNext();
+   await s.inbound.processNext();
+   await s.effects.replies("prospect.ai.reply",true);
+   const recipients=await data.prisma.campaignRecipient.findMany({where:{state:"pending",eligibility:"opted_in",campaign:{state:"running"}},take:10,select:{id:true}});
+   for(const r of recipients)await s.initial.processRecipient(r.id);
    const pending=await data.prisma.prospectMessage.findMany({where:{state:"prepared",direction:"outbound",attemptId:null},orderBy:{createdAt:"asc"},take:10,select:{id:true}});
    for(const m of pending)await s.conversation.dispatch(m.id);
   }

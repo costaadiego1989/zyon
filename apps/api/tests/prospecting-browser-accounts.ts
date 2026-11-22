@@ -1,3 +1,6 @@
+import {PlatformOperatorDirectoryController} from "../src/modules/platform-operator-directory/presentation/platform-operator-directory.controller.js";
+import {ListPlatformOperatorDirectoryUseCase} from "../src/modules/platform-operator-directory/application/list-platform-operator-directory.use-case.js";
+import {PrismaPlatformOperatorDirectoryRepository} from "../src/modules/platform-operator-directory/infrastructure/prisma-platform-operator-directory.repository.js";
 import {Reflector} from "@nestjs/core";
 import {type Provider,type Type,ServiceUnavailableException} from "@nestjs/common";
 import {SELF_DECLARED_DEPS_METADATA,PARAMTYPES_METADATA} from "@nestjs/common/constants.js";
@@ -76,7 +79,8 @@ export async function browserAccounts(db:PrismaClient,bridge:ProspectBillingBrid
   [AuthenticateMerchantApiKeyService,{execute:unavailable}],[TenantCredentialGuard,new TenantCredentialGuard(jwt,cookies,{execute:unavailable} as never)],[TenantAccessGuard,new TenantAccessGuard(new Reflector())],
   [GetBillingSubscriptionUseCase,new GetBillingSubscriptionUseCase(billing)],[HandleStripeWebhookUseCase,stripe],[HandleAsaasBillingWebhookUseCase,new HandleAsaasBillingWebhookUseCase(billing)],[SUBSCRIPTION_ATTRIBUTION,bridge]
  ];
- const controllers=[PlatformAuthController,AuthController,MerchantController,BillingController,StripeWebhookController,AsaasBillingWebhookController];
+ entries.push([ListPlatformOperatorDirectoryUseCase,new ListPlatformOperatorDirectoryUseCase(new PrismaPlatformOperatorDirectoryRepository(db))]);
+ const controllers=[PlatformOperatorDirectoryController,PlatformAuthController,AuthController,MerchantController,BillingController,StripeWebhookController,AsaasBillingWebhookController];
  // Controllers share unrelated operations. Only the normal account/plan routes are admitted by this local composition.
  const values=new Map(entries);
  for(const controller of controllers){

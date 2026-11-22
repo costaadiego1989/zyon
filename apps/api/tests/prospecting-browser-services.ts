@@ -1,3 +1,12 @@
+import {WhatsAppWebhookController} from "../src/modules/whatsapp-channel/presentation/http/whatsapp-webhook.controller.js";
+import {WHATSAPP_CONFIG_REPOSITORY} from "../src/modules/whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
+import {AcceptBubbleWhatsWebhookUseCase} from "../src/modules/whatsapp-channel/application/use-cases/accept-bubblewhats-webhook.use-case.js";
+import {PROSPECT_META_DISPATCH} from "../src/shared/integrations/prospect-meta-dispatch.port.js";
+import {ProspectEffectQueue} from "../src/modules/platform-prospecting/infrastructure/prospecting-workers.js";
+import {ProspectFollowUpWorker} from "../src/modules/platform-prospecting/application/campaigns/prospect-follow-up.worker.js";
+import {ProspectDispatchWorker} from "../src/modules/platform-prospecting/application/campaigns/prospect-dispatch.worker.js";
+import {PrismaCampaignRepository} from "../src/modules/platform-prospecting/infrastructure/campaigns/prisma-campaign.repository.js";
+import type {ProspectSendPacket} from "../src/modules/platform-prospecting/domain/prospecting.ports.js";
 import type {openBrowserData} from "./prospecting-browser-data.js";
 import {operator,browserAccounts} from "./prospecting-browser-accounts.js";
 import {fixtureManifest} from "./company-directory-fixture.js";
@@ -70,13 +79,28 @@ export async function browserServices(data:Awaited<ReturnType<typeof openBrowser
  const health=new SenderReadinessService(new PrismaSenderObservationStore(prisma,encryption),{async read(){return {templates:[{...fixtureTemplate,wabaId:binding.wabaId,previewText:"Olá! Esta é uma demonstração da Zyon."}],portfolioLimit:null,portfolioTier:null,entities:[],blockers:[]};}});
  const sources=new PrismaSalesKnowledgeRepository(prisma),publications=new SalesPublicationService(sources,new Neo4jSalesKnowledgeAdapter(driver,namespace));
  if(!await sources.find("local-product")){
-  const draft=await sources.save("local-product",{...knowledgeDraft("Chat"),title:"Guia comercial local da Zyon",facts:[{id:"chat",subject:"Chat",predicate:"feature",value:"A Zyon reúne as conversas da loja no painel."}]},actor);
+  const draft=await sources.save("local-product",{...knowledgeDraft("Chat"),title:"Guia comercial local da Zyon",facts:[{id:"chat",subject:"Chat",predicate:"feature",value:"A Zyon reúne as conversas da loja no painel."},{id:"site-growth",subject:"Como funciona o site do Growth?",predicate:"feature",value:"O site apresenta a Zyon."}]},actor);
   await publications.publish("local-product",{action:"publish",expectedVersion:draft.version,contentHash:draft.contentHash,clientRequestId:"seed-local-publish"},actor);
  }
  const query=new QuerySalesKnowledge(sources,new Neo4jSalesKnowledgeReader(driver,1500,namespace));
  const crm=new PrismaProspectRepository(prisma,directory);
  const history=new PrismaProspectConversationRepository(prisma),commands=new PrismaProspectConversationCommands(history,keys,()=>({amountCents:0,currency:"BRL",validUntil:new Date(Date.now()+60000)}),offers,store.chatLinks(bridge));
- const conversation=new ProspectConversationService(history,commands,health,{async send(p){return {state:"provider_accepted",providerMessageId:"local."+p.attempt.id,acceptedAt:new Date()};}});
+ const capture={async send(packet:ProspectSendPacket){
+  await data.pg.query("INSERT INTO browser_provider_requests(effect_id) VALUES ($1)",[packet.attempt.id]);
+  return {state:"provider_accepted" as const,providerMessageId:"local."+packet.attempt.id,acceptedAt:new Date()};
+ }};
+ const conversation=new ProspectConversationService(history,commands,health,capture);
+ const reservations=new PrismaCampaignRepository(prisma,keys,()=>({amountCents:1,currency:"BRL",validUntil:new Date(Date.now()+60000)}));
+ const initial=new ProspectDispatchWorker(reservations,health,offers,capture);
+ const eligible=await prisma.platformProspect.findUnique({where:{cnpj:"11222333000181"}});
+ if(eligible && !await prisma.contactPermissionReceipt.findFirst({where:{evidenceRef:"browser-synthetic-explicit-consent"}})){
+  const identity={kind:"phone" as const,value:"+15550100009",businessScope:null};
+  await prisma.$transaction(async tx=>{
+   const ep=await tx.prospectEndpoint.create({data:{channel:"whatsapp",senderBindingId:binding.id,normalizedValue:identity.value,...protectedContactLookups(identity,keys)[0]}});
+   await tx.prospectContactBinding.create({data:{endpointId:ep.id,prospectId:eligible.id,confirmationState:"confirmed",evidenceRef:"browser-synthetic-confirmation"}});
+   await tx.contactPermissionReceipt.create({data:{endpointId:ep.id,senderBindingId:binding.id,purpose:"zyon_sales",source:"zyon_platform",status:"opted_in",evidenceRef:"browser-synthetic-explicit-consent",occurredAt:new Date()}});
+  });
+ }
  const agent=new ZyonSalesAgentService(commands,conversation,query,offers,{async respond(input){
   const linkDestination=input.input.includes("site")?"site":"signup";
   return {answer:linkDestination==="site"?input.siteUrl!:input.offer.canonicalUrl,offer:input.offer,facts:input.facts,sources:[],handoff:false,reason:null,callMode:"controlled",linkDestination};
@@ -89,6 +113,7 @@ export async function browserServices(data:Awaited<ReturnType<typeof openBrowser
   await prisma.prospectContactBinding.create({data:{prospectId:lead.id,endpointId:endpoint.id,confirmationState:"confirmed",evidenceRef:"local-synthetic-contact"}});
  }
  const inbox=new PrismaProspectMetaInbox(prisma,keys),inbound=new ProcessProspectInbound(history);
+ const effects=new ProspectEffectQueue(prisma,commands,agent,conversation,initial,new ProspectFollowUpWorker(reservations,initial));
  const incoming=async(text:string,id:string)=>{
   await inbox.accept({appId:binding.appId,wabaId:binding.wabaId,phoneNumberId:binding.phoneNumberId,value:{messages:[{id,from:phone.value.slice(1),timestamp:String(Math.floor(Date.now()/1000)),type:"text",text:{body:text}}]}});
   await inbound.processNext();
@@ -104,9 +129,9 @@ export async function browserServices(data:Awaited<ReturnType<typeof openBrowser
  const status=new ProspectOperationalStatus({runtime,channel:()=>health.readiness(),
   async source(){const id=await directory.activeSnapshotId(),s=id?await directory.getImport(id):null;return {snapshotId:id,competence:s?.competence??null,state:s?.state??"unavailable"};},
   async knowledge(){await driver.verifyConnectivity();return {activePublications:(await sources.active(new Date())).length};}},offers);
- const entries:[any,any][]=[[PROSPECTING_PORTS.directory,directory],[SearchCompaniesQuery,new SearchCompaniesQuery(directory,cursor)],[CompanyImportService,new CompanyImportService(directory,{async competences(){return ["2026-11"];},async discover(c){return fixtureManifest(c);}},{ingestionEnabled:false})],
+ const entries:[any,any][]=[[PROSPECT_META_DISPATCH,inbox],[WHATSAPP_CONFIG_REPOSITORY,{findByMetaPhoneNumberId:async()=>null}],[AcceptBubbleWhatsWebhookUseCase,{}],[PROSPECTING_PORTS.directory,directory],[SearchCompaniesQuery,new SearchCompaniesQuery(directory,cursor)],[CompanyImportService,new CompanyImportService(directory,{async competences(){return ["2026-11"];},async discover(c){return fixtureManifest(c);}},{ingestionEnabled:false})],
   [ProspectService,new ProspectService(crm)],[PROSPECTING_PORTS.segments,new PrismaSegmentRepository(prisma)],[PROSPECTING_PORTS.privacy,new PrismaProspectPrivacyRepository(prisma,directory,keys)],
   [CampaignService,new CampaignService(new PrismaCampaignCommands(prisma,offers,c=>health.forCampaign(c)))],[FreezeCampaignAudience,audience],[SenderReadinessService,health],[PlatformSenderOnboardingService,onboard],
   [KNOWLEDGE_ADMIN,{sources,publications,query}],[ProspectConversationService,conversation],[PROSPECTING_PORTS.billing,bridge],[ProspectConversionHistoryQuery,new ProspectConversionHistoryQuery(prisma)],[ProspectMetricsQueryService,new ProspectMetricsQueryService(prisma)],[ProspectOperationalStatus,status]];
- return {conversationId:thread.id,leadId:lead.id,incoming,audience,conversation,controllers:[...accounts.controllers,CompanyDirectoryController,CompanyImportController,ProspectSegmentController,ProspectController,ProspectPrivacyController,ProspectCampaignController,ProspectSenderController,ProspectKnowledgeController,ProspectConversationController,ProspectMetricsController,ProspectBillingProposalController,ProspectAccountBindingController,ProspectConversionController],providers:[...accounts.providers,...entries.map(([provide,useValue])=>({provide,useValue})),ProspectConversationGateway]};
+ return {inbound,effects,initial,conversationId:thread.id,leadId:lead.id,incoming,audience,conversation,controllers:[...accounts.controllers,WhatsAppWebhookController,CompanyDirectoryController,CompanyImportController,ProspectSegmentController,ProspectController,ProspectPrivacyController,ProspectCampaignController,ProspectSenderController,ProspectKnowledgeController,ProspectConversationController,ProspectMetricsController,ProspectBillingProposalController,ProspectAccountBindingController,ProspectConversionController],providers:[...accounts.providers,...entries.map(([provide,useValue])=>({provide,useValue})),ProspectConversationGateway]};
 }
