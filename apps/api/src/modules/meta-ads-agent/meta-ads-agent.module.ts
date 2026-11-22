@@ -45,6 +45,8 @@ import {CampaignWorkspaceQueryService} from './application/campaign-workspace-qu
 import {PreparationLimitsController} from './presentation/preparation-limits.controller.js';
 import {PreparationLimitsService} from './application/preparation-limits.service.js';
 import {CampaignOpportunityWorker} from './infrastructure/campaign-opportunity.worker.js';
+import {CampaignSalesQueryService} from './application/campaign-sales-query.service.js';
+import {CampaignSalesController} from './presentation/campaign-sales.controller.js';
 import {CampaignPreparationService} from './application/campaign-preparation.service.js';
 import {CampaignNoticeContactService} from './application/campaign-notice-contact.service.js';
 import {InitialLaunchService} from './application/initial-launch.service.js';
@@ -57,7 +59,7 @@ import {WHATSAPP_TEMPLATE_SENDER,type WhatsAppTemplateSenderPort} from '../whats
 const runtime = Symbol("MetaAdsRuntime");
 @Module({
   imports: [PersistenceModule, StorageModule, AuthModule, CatalogModule, MerchantModule, PaymentModule, WhatsAppConfigModule, MessagingModule, CheckoutPersistenceModule, MerchantAssistantModule,WhatsAppTemplatesModule],
-  controllers: [MetaAdsAgentController, StripeAddonWebhookController, AttributionController, FundingController, AutomationReportController,CampaignApprovalController,CampaignLifecycleController,CampaignWorkspaceController,PreparationLimitsController],
+  controllers: [MetaAdsAgentController, StripeAddonWebhookController, AttributionController, FundingController, AutomationReportController,CampaignApprovalController,CampaignLifecycleController,CampaignWorkspaceController,PreparationLimitsController,CampaignSalesController],
   providers: [
     { provide: META_ADS_SESSION_BINDING, useFactory: (sessions: CheckoutSessionRepository) => new CheckoutSessionBindingAdapter(sessions), inject: [CHECKOUT_SESSION_REPOSITORY] },
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
@@ -75,6 +77,7 @@ const runtime = Symbol("MetaAdsRuntime");
     {provide:CampaignWorkspaceQueryService,useFactory:(value:MetaAdsRuntime)=>value.workspace,inject:[runtime]},
     {provide:PreparationLimitsService,useFactory:(value:MetaAdsRuntime)=>value.preparationLimits,inject:[runtime]},
     {provide:CampaignOpportunityWorker,useFactory:(value:MetaAdsRuntime)=>value.opportunityWorker,inject:[runtime]},
+    {provide:CampaignSalesQueryService,useFactory:(value:MetaAdsRuntime)=>value.sales,inject:[runtime]},
     {provide:CampaignNoticeContactService,useFactory:(value:MetaAdsRuntime)=>value.contacts,inject:[runtime]},
     {provide:InitialLaunchService,useFactory:(value:MetaAdsRuntime)=>value.launches,inject:[runtime]},
     {provide:CampaignPreparationWorker,useFactory:(value:MetaAdsRuntime)=>value.preparationWorker,inject:[runtime]},

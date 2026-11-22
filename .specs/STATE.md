@@ -79,3 +79,5 @@
 - Execution T19: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/checkout-purchase.bridge.ts, apps/api/src/modules/meta-ads-agent/infrastructure/checkout-purchase.bridge.spec.ts, apps/api/src/modules/meta-ads-agent/application/attribution.service.ts, apps/api/src/modules/whatsapp-channel/application/use-cases/handle-incoming-message.use-case.ts. Next: T20.
 
 - Execution T20: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/campaign-sales-query.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign-sales-query.service.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/commerce-context.adapter.ts. Next: T21.
+
+- Execution T21: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/campaign-sales.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/campaign-sales.controller.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T22.
