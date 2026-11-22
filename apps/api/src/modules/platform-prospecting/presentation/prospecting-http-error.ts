@@ -5,7 +5,7 @@ export function prospectingHttpError(error:unknown):never {
   if(/^(invalid_|manifest_invalid|manifest_incomplete|source_not_allowed|parser_version_unsupported)/.test(code))throw new BadRequestException(code);
   if(/^(import_not_found|company_not_found|manifest_not_found|prospect_not_found|endpoint_not_found|segment_not_found|selection_not_found|campaign_not_found|command_not_found)/.test(code))throw new NotFoundException(code);
   if(code.startsWith("limits_missing:"))throw new BadRequestException(code);
-  if(/^(provider_policy_blocked|no_opt_in|approval_stale|limits_missing|sender_identity_mismatch|template_binding_mismatch|template_unavailable|permission_unavailable|portfolio_limit|quality_restricted|cost_unknown|sender_unavailable|suppressed|outside_send_window)$/.test(code))throw new ConflictException(code);
+  if(/^(signup_state_invalid|provider_policy_blocked|no_opt_in|approval_stale|limits_missing|sender_identity_mismatch|template_binding_mismatch|template_unavailable|permission_unavailable|portfolio_limit|quality_restricted|cost_unknown|sender_unavailable|suppressed|outside_send_window)$/.test(code))throw new ConflictException(code);
   if(/conflict|import_busy|ingestion_disabled|snapshot_not_writable|import_not_resumable/.test(code))throw new ConflictException(code);
   throw new ServiceUnavailableException(/^(source_unavailable|directory_unavailable|snapshot_unavailable|config_invalid)/.test(code)?code:"prospecting_unavailable");
 }

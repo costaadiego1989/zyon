@@ -19,8 +19,13 @@ export class PrismaSenderBindingRepository implements SenderBindingStore {
     const row = await this.prisma.platformProspectSenderBinding.findFirst({where:{active:true,scope:"zyon_platform"}});
     return row && publicSender(row);
   }
-  async saveState(stateHash:string,operatorId:string,expiresAt:Date) {
-    await this.prisma.prospectSenderSignupState.create({data:{id:randomUUID(),stateHash,operatorId,expiresAt}});
+  issueState(actor:ProspectingActor,clientRequestId:string,mint:()=>{nonce:string;expiresAt:string;stateHash:string}){
+    return prospectCommand(this.prisma,"platform_sender_signup_state",{clientRequestId},actor,async tx=>{
+      const {nonce,expiresAt,stateHash}=mint(),id=randomUUID();
+      await tx.prospectSenderSignupState.create({data:{id,stateHash,operatorId:actor.operatorId,expiresAt:new Date(expiresAt)}});
+      await prospectAudit(tx,actor,"sender.signup_state","sender_signup_state",id,1);
+      return {result:{nonce,expiresAt},resourceIds:[id]};
+    });
   }
   async consume(stateHash:string,operatorId:string) {
     // A failed exchange burns the nonce independently of the binding transaction.

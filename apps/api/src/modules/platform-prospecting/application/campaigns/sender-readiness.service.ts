@@ -1,0 +1,42 @@
+import type { ContactPermissionStatus, PlatformSenderBinding, PlatformSenderReadiness, ProspectingBlocker, ProspectingTemplate } from "@zyon/shared-types";
+
+export interface PlatformSenderCredential {binding:PlatformSenderBinding;accessToken:string;businessId:string}
+export interface SenderObservationStore {
+ credential():Promise<PlatformSenderCredential|null>;
+ save(binding:PlatformSenderBinding,result:PlatformSenderReadiness):Promise<boolean>;
+ permission(senderId:string,endpointId:string):Promise<ContactPermissionStatus>;
+}
+export interface HealthObservation {
+ templates:ProspectingTemplate[]; portfolioLimit:number|null; portfolioTier:string|null; blockers:ProspectingBlocker[];
+ entities:{type:string;id:string;status:string;errorCodes:number[]}[];
+}
+export interface SenderHealthReader {read(credential:PlatformSenderCredential):Promise<HealthObservation>}
+export class SenderReadinessService {
+ constructor(private readonly store:SenderObservationStore,private readonly reader:SenderHealthReader){}
+ async readiness():Promise<PlatformSenderReadiness>{
+  const updatedAt=new Date().toISOString();
+  const unknown:PlatformSenderReadiness={binding:null,updatedAt,status:"unknown",templates:[],portfolioLimit:null,portfolioUsed:null,blockers:["sender_unavailable"]};
+  const credentials=await this.store.credential().catch(()=>null);if(!credentials)return unknown;
+  let result:PlatformSenderReadiness;
+  try{
+   const observation=await this.reader.read(credentials);
+   result={binding:credentials.binding,updatedAt,status:observation.blockers.length?"blocked":"ready",portfolioUsed:null,...observation};
+  }catch{result={...unknown,binding:credentials.binding};}
+  return await this.store.save(credentials.binding,result)?result:unknown;
+ }
+ async forSelection(senderId:string,version:number,template:ProspectingTemplate|null){
+  const health=await this.readiness();const blockers=[...health.blockers];
+  if(health.binding?.id!==senderId||health.binding.version!==version)blockers.push("sender_identity_mismatch");
+  if(!template)blockers.push("template_unavailable");
+  else {
+   const current=health.templates.find(t=>t.id===template.id);
+   if(!current||current.status!=="APPROVED")blockers.push("template_unavailable");
+   else if(current.wabaId!==template.wabaId||current.name!==template.name||current.language!==template.language||current.category!==template.category||current.revision!==template.revision)blockers.push("template_binding_mismatch");
+  }
+  return [...new Set(blockers)];
+ }
+ async preview(senderId:string,endpointId:string){
+  const eligibility=await this.store.permission(senderId,endpointId);
+  return {eligibility,blockers:eligibility==="opted_in"?[]:["no_opt_in","provider_policy_blocked"]};
+ }
+}

@@ -1,0 +1,47 @@
+import {createHash} from "node:crypto";
+import type {ProspectingBlocker,ProspectingTemplate} from "@zyon/shared-types";
+import type {HealthObservation,PlatformSenderCredential,SenderHealthReader} from "../../application/campaigns/sender-readiness.service.js";
+import {stableDirectoryJson} from "../../domain/company-directory/directory-values.js";
+import {platformGraph} from "./platform-meta-authorization.js";
+type Entity={entity_type:string;id:string;can_send_message:string;errors?:{error_code:number}[]};
+type Phone={id:string;status:string;platform_type:string;quality_rating:string;whatsapp_business_manager_messaging_limit:string;health_status?:{can_send_message:string;entities:Entity[]}};
+type Template=Omit<ProspectingTemplate,"wabaId"|"revision">&{components:unknown[]};
+const tiers:Record<string,number>={TIER_250:250,TIER_2K:2000,TIER_10K:10000,TIER_100K:100000};
+export class MetaSenderHealthReader implements SenderHealthReader {
+ constructor(private readonly app:{appId:string;appSecret:string},private readonly fetcher:typeof fetch=fetch){}
+ private async get<T>(path:string,token:string,query:Record<string,string>):Promise<T>{
+  const url=new URL(path,platformGraph);for(const [key,value] of Object.entries(query))url.searchParams.set(key,value);
+  const response=await this.fetcher(url,{headers:{Authorization:"Bearer "+token},redirect:"error",signal:AbortSignal.timeout(5000)});
+  if(!response.ok)throw new Error("sender_unavailable");return await response.json() as T;
+ }
+ async read({binding:b,businessId,accessToken}:PlatformSenderCredential):Promise<HealthObservation>{
+  const blockers=new Set<ProspectingBlocker>();
+  if(b.appId!==this.app.appId||!this.app.appSecret)throw new Error("sender_identity_mismatch");
+  const debug=await this.get<{data:{is_valid:boolean;app_id:string;granular_scopes?:{scope:string;target_ids?:string[]}[]}}>("debug_token",this.app.appId+"|"+this.app.appSecret,{input_token:accessToken});
+  if(debug.data?.app_id!==b.appId)blockers.add("sender_identity_mismatch");
+  if(debug.data?.is_valid!==true||!["whatsapp_business_management","whatsapp_business_messaging"].every(s=>debug.data?.granular_scopes?.some(g=>g.scope===s&&g.target_ids?.includes(b.wabaId))))blockers.add("permission_unavailable");
+  const phone=await this.get<Phone>(b.phoneNumberId,accessToken,{fields:"id,status,platform_type,quality_rating,health_status,whatsapp_business_manager_messaging_limit"});
+  const observed=phone.health_status?.entities??[];
+  const expected:Record<string,string>={PHONE_NUMBER:b.phoneNumberId,WABA:b.wabaId,BUSINESS:businessId,APP:b.appId};
+  if(phone.id!==b.phoneNumberId||Object.entries(expected).some(([type,id])=>!observed.some(e=>e.entity_type===type&&e.id===id)))blockers.add("sender_identity_mismatch");
+  if(phone.status!=="CONNECTED"||phone.platform_type!=="CLOUD_API")blockers.add("sender_unavailable");
+  if(phone.health_status?.can_send_message!=="AVAILABLE"||observed.some(e=>e.can_send_message!=="AVAILABLE")||!["GREEN","YELLOW"].includes(phone.quality_rating))blockers.add("quality_restricted");
+  const entities=observed.filter(e=>expected[e.entity_type]===e.id).map(e=>({type:e.entity_type,id:e.id,status:["AVAILABLE","LIMITED","BLOCKED"].includes(e.can_send_message)?e.can_send_message:"UNKNOWN",errorCodes:(e.errors??[]).map(err=>err.error_code).filter(Number.isSafeInteger).slice(0,10)}));
+  const tier=phone.whatsapp_business_manager_messaging_limit;const known=Object.hasOwn(tiers,tier)||tier==="TIER_UNLIMITED";
+  if(!known)blockers.add("portfolio_limit");
+  const templates:ProspectingTemplate[]=[];const query:Record<string,string>={fields:"id,name,status,language,category,components",limit:"100"};
+  for(let page=0;page<20;page++){
+   const result=await this.get<{data:Template[];paging?:{next:string;cursors?:{after:string}}}>(b.wabaId+"/message_templates",accessToken,query);
+   if(!Array.isArray(result.data))throw new Error("template_unavailable");
+   for(const t of result.data){
+    if(![t.id,t.name,t.language,t.status].every(v=>typeof v==="string"&&v.length>0&&v.length<=512)||!["MARKETING","UTILITY","AUTHENTICATION"].includes(t.category)||!Array.isArray(t.components)||!t.components.length)continue;
+    const {id,name,language,category,status}=t;const revision=createHash("sha256").update(stableDirectoryJson({id,name,language,category,wabaId:b.wabaId,components:t.components})).digest("hex");
+    templates.push({id,name,language,category,status,revision,wabaId:b.wabaId});
+   }
+   if(!result.paging?.next)break;
+   const after=result.paging.cursors?.after;if(!after||after===query.after||page===19){blockers.add("template_unavailable");break;}query.after=after;
+  }
+  if(!templates.some(t=>t.status==="APPROVED"&&t.category==="MARKETING"))blockers.add("template_unavailable");
+  return {entities,templates,portfolioLimit:tiers[tier]??null,portfolioTier:known?tier:null,blockers:[...blockers]};
+ }
+}

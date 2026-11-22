@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { ConnectPlatformSender, PlatformSenderBinding, PlatformSenderSignupState } from "@zyon/shared-types";
 import type { MetaCloudAuthorizedAssets, WhatsAppSignupAuthorization } from "../../../whatsapp-channel/domain/ports/whatsapp-signup-authorization.port.js";
 import type { ProspectingActor } from "../../domain/prospecting.ports.js";
@@ -9,7 +9,7 @@ export interface PlatformSignupConfig {
 }
 export interface SenderBindingStore {
   binding(): Promise<PlatformSenderBinding | null>;
-  saveState(hash: string, operatorId: string, expiresAt: Date): Promise<void>;
+  issueState(actor: ProspectingActor, clientRequestId: string, mint: () => {nonce:string;expiresAt:string;stateHash:string}):Promise<{nonce:string;expiresAt:string}>;
   consume(hash: string, operatorId: string): Promise<void>;
   connect(command: ConnectPlatformSender, actor: ProspectingActor, config: PlatformSignupConfig, authorize: () => Promise<MetaCloudAuthorizedAssets>): Promise<PlatformSenderBinding>;
 }
@@ -18,12 +18,13 @@ export class PlatformSenderOnboardingService {
   constructor(private readonly config: PlatformSignupConfig, private readonly store: SenderBindingStore, private readonly authorization: WhatsAppSignupAuthorization) {
     if (![config.appId, config.configId, config.businessId, config.phoneNumberId].every(id => /^\d+$/.test(id)) || !config.appSecret || !/^[a-f0-9]{64}$/i.test(config.encryptionKey)) throw new Error("sender_unavailable");
   }
-  async signupState(actor: ProspectingActor): Promise<PlatformSenderSignupState> {
-    const nonce = randomBytes(32).toString("base64url");
-    const state = nonce + "." + createHmac("sha256", this.config.encryptionKey).update(actor.operatorId + "|" + nonce).digest("base64url");
-    const expiresAt = new Date(Date.now() + 600_000);
-    await this.store.saveState(hash(state), actor.operatorId, expiresAt);
-    return { state, expiresAt: expiresAt.toISOString(), appId: this.config.appId, configId: this.config.configId, signupVersion: "v5", extras: { version:"v5",features:[{name:"whatsapp_business_app_onboarding",enabled:false}] } };
+  async signupState(actor: ProspectingActor, clientRequestId:string=randomUUID()): Promise<PlatformSenderSignupState> {
+    const sign=(nonce:string)=>nonce+"."+createHmac("sha256",this.config.encryptionKey).update(actor.operatorId+"|"+nonce).digest("base64url");
+    const receipt=await this.store.issueState(actor,clientRequestId,()=>{
+      const nonce=randomBytes(32).toString("base64url");
+      return {nonce,expiresAt:new Date(Date.now()+600_000).toISOString(),stateHash:hash(sign(nonce))};
+    });
+    return {state:sign(receipt.nonce),expiresAt:receipt.expiresAt,appId:this.config.appId,configId:this.config.configId,signupVersion:"v5",extras:{version:"v5",features:[{name:"whatsapp_business_app_onboarding",enabled:false}]}};
   }
   connect(command: ConnectPlatformSender, actor: ProspectingActor) {
     return this.store.connect(command, actor, this.config, async () => {
