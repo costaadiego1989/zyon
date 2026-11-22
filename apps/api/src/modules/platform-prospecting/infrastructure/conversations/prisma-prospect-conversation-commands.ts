@@ -233,7 +233,7 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
    return {attempt:{id:m.id},senderBindingId:binding.id,senderVersion:binding.version,identity,normalizedEndpoint:identity.value,template:null,content:m.content!} satisfies ProspectSendPacket;
   });
  }
- async settleReply(messageId:string,binding:PlatformSenderBinding,final:ProspectSendResult){
+ async settleReply(messageId:string,binding:Pick<PlatformSenderBinding,"id">,final:ProspectSendResult){
   const initial=await this.repository.db.prospectMessage.findUniqueOrThrow({where:{id:messageId}});
   return this.repository.db.$transaction(async tx=>{
    if(final.state==="provider_accepted"&&final.confirmedBsuid){
@@ -243,14 +243,15 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
    const ref=await tx.prospectConversation.findUniqueOrThrow({where:{id:initial.conversationId}});
    await tx.$queryRaw`SELECT id FROM prospect_endpoints WHERE id=${ref.endpointId} FOR UPDATE`;
    const m=await tx.prospectMessage.findUniqueOrThrow({where:{id:messageId}});
-   if(m.state!=="submitting"){
+   const lateAcceptance=m.state==="outcome_unknown"&&final.state==="provider_accepted"&&!!final.providerMessageId?.trim();
+   if(m.state!=="submitting"&&!lateAcceptance){
     if(final.state==="provider_accepted"&&m.providerId===final.providerMessageId&&!m.acceptedAt)await tx.prospectMessage.update({where:{id:m.id},data:{acceptedAt:final.acceptedAt}});
     return publicMessage(m);
    }
    const accepted=final.state==="provider_accepted",unknown=final.state==="outcome_unknown";
    if(!unknown&&m.campaignId&&m.reservedAmount)await tx.prospectCampaign.update({where:{id:m.campaignId},data:{reservedCents:{decrement:m.reservedAmount},...(accepted?{spentCents:{increment:m.reservedAmount}}:{})}});
    const updated=await tx.prospectMessage.update({where:{id:m.id},data:{state:final.state,providerId:accepted?final.providerMessageId:null,acceptedAt:accepted?final.acceptedAt:null,errorCode:accepted?null:final.errorCode,costState:unknown?"reserved":accepted?"committed":"released"}});
-   await tx.prospectOutbox.update({where:{eventId:"chat."+m.id},data:{state:unknown?"held":"completed"}});await changed(tx,m.conversationId,"delivery",m.sequence);
+   await tx.prospectOutbox.update({where:{eventId:"chat."+m.id},data:{state:unknown?"held":"completed",leaseToken:null,leaseExpiresAt:null}});await changed(tx,m.conversationId,"delivery",m.sequence);
    return publicMessage(updated);
   });
  }

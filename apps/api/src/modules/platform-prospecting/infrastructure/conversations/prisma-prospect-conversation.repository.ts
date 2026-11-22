@@ -105,7 +105,9 @@ export class PrismaProspectConversationRepository{
      await tx.outreachAttempt.update({where:{id:attempt.id},data:{...evidence,providerMessageId:p.providerId,costState:"committed",errorCode:null}});
      if(attempt.ordinal===0&&evidence.deliveredAt)await tx.prospectSequence.update({where:{id:attempt.sequenceId},data:{deliveredAt:evidence.deliveredAt}});
      await tx.prospectOutbox.updateMany({where:{eventId:attempt.id},data:{state:"completed",leaseToken:null,leaseExpiresAt:null}});
-    }else if(msg.costState==="reserved"&&msg.campaignId){
+    }else {
+     await tx.prospectOutbox.updateMany({where:{eventId:"chat."+msg.id},data:{state:"completed",leaseToken:null,leaseExpiresAt:null}});
+     if(msg.costState==="reserved"&&msg.campaignId)
      await tx.prospectCampaign.update({where:{id:msg.campaignId},data:{reservedCents:{decrement:msg.reservedAmount},spentCents:{increment:msg.reservedAmount}}});
     }
     await tx.prospectMessage.update({where:{id:msg.id},data:{...evidence,providerId:p.providerId,...(!msg.attemptId?{costState:"committed"}:{}),errorCode:null}});

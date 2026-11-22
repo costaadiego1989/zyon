@@ -188,7 +188,8 @@ export class PrismaCampaignRepository {
       await tx.$queryRaw`SELECT id FROM prospect_endpoints WHERE id=${ref.sequence.endpointId} ORDER BY id FOR UPDATE`;
       const row=await tx.outreachAttempt.findUniqueOrThrow({where:{id:attemptId}});
       if(row.leaseToken!==ownerToken)throw new Error("lease_conflict");
-      if(["delivered","read","provider_accepted","outcome_unknown","not_accepted"].includes(row.state)){
+      const lateAcceptance=row.state==="outcome_unknown"&&result.state==="provider_accepted"&&!!result.providerMessageId?.trim();
+      if(!lateAcceptance&&["delivered","read","provider_accepted","outcome_unknown","not_accepted"].includes(row.state)){
         if(result.state==="provider_accepted"&&row.providerMessageId===result.providerMessageId&&(!row.acceptedAt||result.acceptedAt<row.acceptedAt)){
           const updated=await tx.outreachAttempt.update({where:{id:row.id},data:{acceptedAt:result.acceptedAt}});
           await tx.prospectMessage.updateMany({where:{attemptId},data:{acceptedAt:result.acceptedAt}});
@@ -196,7 +197,7 @@ export class PrismaCampaignRepository {
         }
         return projectAttempt(row);
       }
-      if(row.state!=="submitting"||!ref.recipient)throw new Error("attempt_state_conflict");
+      if((row.state!=="submitting"&&!lateAcceptance)||!ref.recipient)throw new Error("attempt_state_conflict");
       const safe:ProspectSendResult=result.state==="provider_accepted"&&!result.providerMessageId?.trim()?{state:"outcome_unknown",errorCode:"missing_message_id"}:result;
       const accepted=safe.state==="provider_accepted";const unknown=safe.state==="outcome_unknown";
       const updated=await tx.outreachAttempt.update({where:{id:row.id},data:{state:safe.state,providerMessageId:accepted?safe.providerMessageId:null,acceptedAt:accepted?safe.acceptedAt:null,errorCode:accepted?null:safe.errorCode,costState:unknown?"reserved":accepted?"committed":"released"}});
