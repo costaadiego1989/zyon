@@ -1,0 +1,15 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import type {AttributionTouch} from './types.js';
+import {resolveLastClick} from './last-click-attribution.js';
+const paidAt='2026-11-22T12:00:00.000Z';
+const touch=(id='touch-a',observedAt='2026-11-21T12:00:00.000Z',sequence=1):AttributionTouch=>({id,merchantId:'store-a',campaignId:'campaign-a',sessionId:'session-a',observedAt,observationSequence:sequence,idempotencyKey:id,consent:true,consentVersion:'v1',grantedAt:observedAt,revokedAt:null,source:'store',fbc:null,fbp:null});
+const input=(touches:AttributionTouch[])=>({merchantId:'store-a',sessionIds:['session-a','origin-a'],paidAt,touches});
+test('last click selects the latest valid touch across canonically linked store and WhatsApp sessions',()=>{const a=touch(),b={...touch('touch-b','2026-11-22T11:00:00.000Z',2),sessionId:'origin-a',campaignId:'campaign-b',source:'whatsapp' as const};assert.equal(resolveLastClick(input([a,b]))?.id,'touch-b');});
+test('last click includes the exact 168 hour lower boundary',()=>{const a=touch('edge','2026-11-15T12:00:00.000Z');assert.equal(resolveLastClick(input([a]))?.id,'edge');assert.equal(resolveLastClick(input([{...a,observedAt:'2026-11-15T11:59:59.999Z'}])),null);});
+test('last click includes payment time but rejects a later observation',()=>{const a=touch('edge',paidAt);assert.equal(resolveLastClick(input([a]))?.id,'edge');assert.equal(resolveLastClick(input([{...a,observedAt:'2026-11-22T12:00:00.001Z'}])),null);});
+test('last click resolves equal times by persisted server observation sequence',()=>{const a=touch('a',paidAt,5),b=touch('b',paidAt,6);assert.equal(resolveLastClick(input([b,a]))?.id,'b');assert.equal(resolveLastClick(input([a,b]))?.id,'b');});
+test('last click rejects foreign store and unbound session evidence',()=>{assert.equal(resolveLastClick(input([{...touch(),merchantId:'store-b'},{...touch('b'),sessionId:'unbound'}])),null);});
+test('last click ignores malformed dates sequence and missing origin identity',()=>{assert.equal(resolveLastClick(input([{...touch(),observedAt:'invalid'},{...touch('b'),observationSequence:0},{...touch('c'),campaignId:''}])),null);assert.throws(()=>resolveLastClick({...input([]),paidAt:'bad'}),{code:'attribution_payment_invalid'});});
+test('last click absent origin remains unidentified and cannot be inferred from product or phone',()=>{assert.equal(resolveLastClick(input([])),null);assert.equal(resolveLastClick({...input([touch()]),sessionIds:[]}),null);});
+test('last click does not mutate evidence or use client grant time to order clicks',()=>{const a=touch('a','2026-11-21T12:00:00.000Z',1),b=touch('b','2026-11-20T12:00:00.000Z',2);b.grantedAt=paidAt;const original=structuredClone([a,b]);assert.equal(resolveLastClick(input([a,b]))?.id,'a');assert.deepEqual([a,b],original);});

@@ -65,3 +65,5 @@
 - Execution T12: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/campaign-opportunity.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign-opportunity.service.spec.ts, apps/api/src/modules/meta-ads-agent/application/campaign.service.ts. Next: T13.
 
 - Execution T13: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/campaign-opportunity.worker.ts, apps/api/src/modules/meta-ads-agent/infrastructure/campaign-opportunity.worker.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts, apps/api/src/modules/meta-ads-agent/infrastructure/__tests__/runtime-fixture.ts, apps/api/src/modules/meta-ads-agent/application/campaign-opportunity.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign.service.ts, apps/api/src/modules/meta-ads-agent/infrastructure/campaign-preparation.worker.ts. Next: T14.
+
+- Execution T14: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/last-click-attribution.ts, apps/api/src/modules/meta-ads-agent/domain/last-click-attribution.spec.ts. Next: T15.
