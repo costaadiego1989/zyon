@@ -1,4 +1,5 @@
-import { createPlatformSupportClient } from "@zyon/platform-support-ui";
+import { ProspectingApi } from "./prospecting-api.js";
+import { createPlatformSupportClient } from "@zyon/platform-support-ui/client";
 
 export type PlatformOperatorRole =
   | "platform_admin"
@@ -649,6 +650,10 @@ export function resolvePlatformApiBaseUrl(env: ImportMetaEnv): string {
 
 export class PlatformApi {
   constructor(private readonly baseUrl: string) {}
+
+  prospectingClient(token: string) {
+    return new ProspectingApi(<T>(path: string, options?: RequestOptions) => this.request<T>(path, token, options));
+  }
 
   supportClient(token: string) {
     return createPlatformSupportClient({ baseUrl: this.baseUrl, kind: "operator", token,
