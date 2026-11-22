@@ -68,7 +68,7 @@ export class CampaignService {
         remoteCampaignId: null, remoteAdSetId: null, remoteAdIds: [], remoteAccountId: null, status: "draft", createdAt: now, updatedAt: now };
       state.campaigns[id] = campaign;
       if(admission&&preparation){admission.campaignId=id;admission.state='preparing';admission.updatedAt=now;campaign.opportunity=structuredClone(preparation.opportunity);}
-      return { result: campaign, records: [{ key, kind: "audit", payload: { id, digest }, createdAt: now }, { key: `campaign-origin:${id}`, kind: "audit", payload: { source: "agent", campaignId: id }, createdAt: now }] };
+      return { result: campaign, records: [{ key, kind: "audit", payload: { id, digest }, createdAt: now }, { key: `campaign-origin:${id}`, kind: "audit", payload: { source: "agent", campaignId: id }, createdAt: now }, ...(admission?[{key:`automatic-policy-campaign:${admission.policyId}:${id}`,kind:'audit' as const,payload:{policyId:admission.policyId,policyVersion:admission.policyVersion,campaignId:id},createdAt:now}]:[])] };
     });
   }
   async save(merchantId: string, campaignId: string, input: MetaAdsCampaignDraft): Promise<MetaAdsCampaign> {

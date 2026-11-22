@@ -44,6 +44,7 @@ import {CampaignWorkspaceController} from './presentation/campaign-workspace.con
 import {CampaignWorkspaceQueryService} from './application/campaign-workspace-query.service.js';
 import {PreparationLimitsController} from './presentation/preparation-limits.controller.js';
 import {PreparationLimitsService} from './application/preparation-limits.service.js';
+import {CampaignOpportunityWorker} from './infrastructure/campaign-opportunity.worker.js';
 import {CampaignPreparationService} from './application/campaign-preparation.service.js';
 import {CampaignNoticeContactService} from './application/campaign-notice-contact.service.js';
 import {InitialLaunchService} from './application/initial-launch.service.js';
@@ -73,6 +74,7 @@ const runtime = Symbol("MetaAdsRuntime");
     {provide:CampaignLifecycleService,useFactory:(value:MetaAdsRuntime)=>value.lifecycle,inject:[runtime]},
     {provide:CampaignWorkspaceQueryService,useFactory:(value:MetaAdsRuntime)=>value.workspace,inject:[runtime]},
     {provide:PreparationLimitsService,useFactory:(value:MetaAdsRuntime)=>value.preparationLimits,inject:[runtime]},
+    {provide:CampaignOpportunityWorker,useFactory:(value:MetaAdsRuntime)=>value.opportunityWorker,inject:[runtime]},
     {provide:CampaignNoticeContactService,useFactory:(value:MetaAdsRuntime)=>value.contacts,inject:[runtime]},
     {provide:InitialLaunchService,useFactory:(value:MetaAdsRuntime)=>value.launches,inject:[runtime]},
     {provide:CampaignPreparationWorker,useFactory:(value:MetaAdsRuntime)=>value.preparationWorker,inject:[runtime]},

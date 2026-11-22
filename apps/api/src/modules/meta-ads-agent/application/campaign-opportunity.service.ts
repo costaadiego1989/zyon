@@ -14,6 +14,13 @@ const valid=(fact:ProductOpportunityFact,policy:MetaAdsAutomationPolicy)=>{const
 export class CampaignOpportunityService {
  private readonly clock:Clock;
  constructor(private readonly deps:Dependencies){this.clock=deps.clock??(()=>new Date());}
+ async authorizeCampaign(merchantId:string,actorId:string,campaignId:string){
+  const state=await this.deps.repo.read(merchantId),admission=Object.values(state.preparationAdmissions??{}).find(a=>a.campaignId===campaignId);
+  if(!admission)return;
+  const view=await this.deps.policies.view(merchantId),policy=view.policy;
+  if(admission.state==='closed'||view.mode!=='automatic'||!policy||admission.policyId!==policy.id||admission.policyVersion!==policy.version||admission.actorId!==actorId)throw new MetaAdsError('automatic_authority_unavailable',409);
+  await this.authority(merchantId,policy,admission);
+ }
  private async authority(merchantId:string,expected:MetaAdsAutomationPolicy,admission?:PreparationAdmission){
   await this.deps.authorizeActor(merchantId,expected.acceptedBy);const current=await this.deps.policies.view(merchantId);
   if(!this.deps.enabled()||current.mode!=='automatic'||current.policy?.id!==expected.id||current.policy.version!==expected.version||current.policy.digest!==expected.digest)throw new MetaAdsError('automatic_authority_unavailable',409);

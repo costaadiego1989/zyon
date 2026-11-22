@@ -53,6 +53,10 @@ import {assessBudget,type CampaignBudgetAssessmentPort} from '../application/bud
 import {CampaignLifecycleService} from '../application/campaign-lifecycle.service.js';
 import {CampaignWorkspaceQueryService} from '../application/campaign-workspace-query.service.js';
 import {PreparationLimitsService} from '../application/preparation-limits.service.js';
+import {CampaignOpportunityService} from '../application/campaign-opportunity.service.js';
+import {CampaignOpportunityWorker} from './campaign-opportunity.worker.js';
+import {ProductOpportunityFactsReader} from './product-opportunity.reader.js';
+import {OpportunityModelAdapter} from './opportunity-model.adapter.js';
 import {CatalogImageAdapter} from './catalog-image.adapter.js';
 import {CatalogCreativeService} from '../application/catalog-creative.service.js';
 import {CampaignReadyNoticeWorker} from './campaign-ready-notice.worker.js';
@@ -116,7 +120,15 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const contacts=new CampaignNoticeContactService({db:input.prisma,authorizeActor,clock,senderNumber:async merchantId=>{
     const config=await input.whatsapp.findByMerchantId(merchantId);return config?.merchantId===merchantId?config.whatsappNumber??config.phoneNumber??null:null;
   }});
-  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,enabled:approvalEnabled,clock,budgetAssessment,catalogCreatives});
+  const opportunityEnabled=()=>automationEnabled()&&approvalEnabled()&&env.MERCHANT_ASSISTANT_ENABLED==='true'&&!!input.assistant;
+  const opportunityModel=input.assistant?new OpportunityModelAdapter(input.assistant.createOpportunityPlanning(async merchantId=>{
+    if(!opportunityEnabled())throw new MetaAdsError('automatic_mode_unavailable',503);
+    const view=await policies.view(merchantId);if(view.mode!=='automatic'||!view.policy?.scope.allowNewCampaigns)throw new MetaAdsError('automatic_authority_unavailable',409);
+    await authorizeActor(merchantId,view.policy.acceptedBy);await authorizePreparation(merchantId,view.policy.acceptedBy);
+  })): {plan:async():Promise<never>=>{throw new MetaAdsError('opportunity_model_unavailable',503);}};
+  const opportunities=new CampaignOpportunityService({repo,commerce,policies,limits:preparationLimits,campaigns,preparation,facts:new ProductOpportunityFactsReader({db:input.prisma,commerce,repo}),model:opportunityModel,authorizeActor:authorizePreparation,connection,enabled:opportunityEnabled,clock});
+  const opportunityWorker=new CampaignOpportunityWorker({repo,opportunities,enabled:opportunityEnabled,clock});
+  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,authorizeCampaign:(m,a,c)=>opportunities.authorizeCampaign(m,a,c),enabled:approvalEnabled,clock,budgetAssessment,catalogCreatives});
   const noticeSender=input.templates&&input.templateSender?new CampaignReadyNoticeSender({db:input.prisma,notices,configs:input.whatsapp,templates:input.templates,templateSender:input.templateSender,launches,authorizeActor,
       storeName:async merchantId=>(await commerce.getProfile(merchantId)).name,dashboardUrl:env.META_ADS_CAMPAIGN_REVIEW_URL??env.META_ADS_DASHBOARD_URL??'',clock,enabled:()=>approvalEnabled()&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true'}):null;
   const noticeWorker=new CampaignReadyNoticeWorker({repo,launches,notices,sender:{send:async lease=>{
@@ -180,7 +192,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
         if (view.mode === 'automatic' && view.policy?.scope.allowNewCampaigns && !view.policy.scope.campaignIds.includes(campaign.id)) await automatic.bindCampaign(scope.merchantId, campaign.id, view.policy.id);
       } }));
   }
-  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender,noticeWorker,lifecycle,workspace,preparationLimits,
+  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender,noticeWorker,lifecycle,workspace,preparationLimits,opportunities,opportunityWorker,
     generationWorker: new GenerationWorker(repo, generations, enabled && env.META_ADS_AGENT_GENERATION_WORKER_ENABLED === "true", clock),
     purchaseBridge: new CheckoutPurchaseBridge(repo, commerce, attribution, input.events, enabled && env.META_ADS_AGENT_PURCHASE_BRIDGE_ENABLED === "true", undefined, input.sessionBinding),
     observation: new ObservationWorker(repo, commerce, connection, provider, attribution, analysis, billing, { enabled: enabled && env.META_ADS_AGENT_OBSERVATION_ENABLED === "true" }, clock, dailyEngine) };

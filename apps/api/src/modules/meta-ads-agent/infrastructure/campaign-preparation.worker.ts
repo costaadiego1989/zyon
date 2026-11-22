@@ -17,6 +17,7 @@ interface Dependencies{
   connection:Pick<ConnectionService,'access'>;generations:Pick<GenerationService,'request'>&Partial<Pick<GenerationService,'configured'>>;proposals:Pick<ProposalService,'create'>;
   preparations:CampaignPreparationRepository;notices:Pick<CampaignReadyNoticeRepository,'admit'|'list'|'setReviewState'>;
   authorizeActor:(merchantId:string,actorId:string)=>Promise<void>;enabled:()=>boolean;clock?:Clock;
+  authorizeCampaign?:(merchantId:string,actorId:string,campaignId:string)=>Promise<void>;
   budgetAssessment?:CampaignBudgetAssessmentPort;
   catalogCreatives?:Pick<CatalogCreativeService,'capture'>;
 }
@@ -28,6 +29,7 @@ export class CampaignPreparationWorker{
   drain():Promise<void>{if(this.stopping||!this.deps.enabled())return Promise.resolve();return this.active??=this.run().catch(()=>undefined).finally(()=>{this.active=undefined;});}
   private async context(job:CampaignPreparationJob){
     await this.deps.authorizeActor(job.merchantId,job.requestedBy);
+    await this.deps.authorizeCampaign?.(job.merchantId,job.requestedBy,job.campaignId);
     if(!this.deps.enabled())throw new MetaAdsError('campaign_preparation_unavailable',503);
     const state=await this.deps.repo.read(job.merchantId);requireEntitlement(await this.deps.commerce.getPlan(job.merchantId),state,(this.deps.clock??(()=>new Date()))());
     const campaign=await this.deps.campaigns.owned(job.merchantId,job.campaignId);
