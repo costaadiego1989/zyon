@@ -34,6 +34,10 @@ test("PROS-12 AC4 platform campaign HTTP freezes asynchronously and pause/resume
   assert.equal((await (await req(prefix+"/recipients")).json()).items[0].prospectId,f.lead.id);assert.ok((await (await req("")).json()).items.length>=2);
   assert.equal((await req("/missing")).status,404);assert.equal((await req(prefix+"/recipients?unknown=1")).status,400);
   const repo=new PrismaCampaignRepository(f.prisma,f.keys,f.quote);const reserved=await repo.reserveAttempt(f.recipient.id,"worker",new Date());assert.ok(reserved);
+  const scheduled=new Date("2026-11-24T12:00:00Z");
+  await f.prisma.prospectSequence.update({where:{id:reserved.attempt.sequenceId},data:{followUpDueAt:scheduled}});
+  const observed=(await (await req("/"+f.recipient.campaignId+"/recipients")).json()).items.find((row:{id:string})=>row.id===f.recipient.id);
+  assert.equal(observed.followUpDueAt,scheduled.toISOString());assert.equal(observed.attemptState,"reserved");
   await f.prisma.prospectSequence.update({where:{id:reserved.attempt.sequenceId},data:{followUpCount:1}});
   const target="/"+f.campaign.id+"/pause-or-resume";
   for(const [action,state] of [["pause","paused"],["resume","running"]]){

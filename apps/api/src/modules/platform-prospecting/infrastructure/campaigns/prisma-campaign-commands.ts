@@ -89,8 +89,8 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
  async list(cursor?:string){const rows=await this.prisma.prospectCampaign.findMany({where:cursor?{id:{gt:cursor}}:{},orderBy:{id:"asc"},take:51});return {items:rows.slice(0,50).map(project),nextCursor:rows.length>50?rows[49].id:null};}
  async recipients(id:string,cursor?:string){
   if(!await this.prisma.prospectCampaign.findUnique({where:{id},select:{id:true}}))throw new Error("campaign_not_found");
-  const rows=await this.prisma.campaignRecipient.findMany({where:{campaignId:id,...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:"asc"},take:51,include:{attempts:{orderBy:{ordinal:"desc"},take:1}}});
-  const items=rows.slice(0,50).map(r=>({id:r.id,campaignId:r.campaignId,prospectId:r.prospectId,endpointId:r.endpointId,sequenceKey:r.sequenceKey,eligibility:r.eligibility as CampaignRecipientRecord["eligibility"],frozenSnapshot:r.frozenSnapshot as CampaignRecipientRecord["frozenSnapshot"],state:r.state as CampaignRecipientRecord["state"],blockers:r.blockers as ProspectingBlocker[],attemptId:r.attempts[0]?.id??null}));
+  const rows=await this.prisma.campaignRecipient.findMany({where:{campaignId:id,...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:"asc"},take:51,include:{attempts:{orderBy:{ordinal:"desc"},take:1,select:{id:true,state:true,sequence:{select:{followUpDueAt:true,state:true,followUpCount:true}}}}}});
+  const items=rows.slice(0,50).map(r=>({id:r.id,campaignId:r.campaignId,prospectId:r.prospectId,endpointId:r.endpointId,sequenceKey:r.sequenceKey,eligibility:r.eligibility as CampaignRecipientRecord["eligibility"],frozenSnapshot:r.frozenSnapshot as CampaignRecipientRecord["frozenSnapshot"],state:r.state as CampaignRecipientRecord["state"],blockers:r.blockers as ProspectingBlocker[],attemptId:r.attempts[0]?.id??null,attemptState:(r.attempts[0]?.state??null) as CampaignRecipientRecord["attemptState"],followUpDueAt:r.attempts[0]?.sequence.state==="active"&&!r.attempts[0].sequence.followUpCount?r.attempts[0].sequence.followUpDueAt?.toISOString()??null:null}));
   return {items,nextCursor:rows.length>50?rows[49].id:null};
  }
 }
