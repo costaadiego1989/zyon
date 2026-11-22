@@ -10,7 +10,6 @@ export interface PlatformSignupConfig {
 export interface SenderBindingStore {
   binding(): Promise<PlatformSenderBinding | null>;
   issueState(actor: ProspectingActor, clientRequestId: string, mint: () => {nonce:string;expiresAt:string;stateHash:string}):Promise<{nonce:string;expiresAt:string}>;
-  consume(hash: string, operatorId: string): Promise<void>;
   connect(command: ConnectPlatformSender, actor: ProspectingActor, config: PlatformSignupConfig, authorize: () => Promise<MetaCloudAuthorizedAssets>): Promise<PlatformSenderBinding>;
 }
 const hash = (state: string) => createHash("sha256").update(state).digest("hex");
@@ -29,7 +28,6 @@ export class PlatformSenderOnboardingService {
   connect(command: ConnectPlatformSender, actor: ProspectingActor) {
     return this.store.connect(command, actor, this.config, async () => {
       if (typeof command.state !== "string" || command.state.length > 128) throw new Error("signup_state_invalid");
-      await this.store.consume(hash(command.state), actor.operatorId);
       if (!command.code || typeof command.code !== "string" || command.code.length > 4096 || this.config.businessId !== command.businessId || this.config.phoneNumberId !== command.phoneNumberId || command.isOnBizApp !== false || !/^\d+$/.test(command.wabaId) || !Array.isArray(command.messagingAccountIds) || !command.messagingAccountIds.includes(command.wabaId)) throw new Error("sender_identity_mismatch");
       const asset = await this.authorization.authorize(command);
       if (asset.phoneNumberId !== command.phoneNumberId || asset.wabaId !== command.wabaId) throw new Error("sender_identity_mismatch");

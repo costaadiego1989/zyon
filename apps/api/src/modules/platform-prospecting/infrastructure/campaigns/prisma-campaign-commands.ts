@@ -49,14 +49,24 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
    return this.result(tx,updated,actor,"campaign.revise");
   });
  }
- approve(id:string,cmd:ApproveProspectCampaign,actor:ProspectingActor){
+ private async observation(id:string,revision:number,requestId:string,onlyTemplate=false){
+   // Completed commands are replayed under their original identity by prospectCommand.
+   if(await this.prisma.prospectCommand.findUnique({where:{clientRequestId:requestId},select:{clientRequestId:true}}))return [];
+   const campaign=await this.find(id);
+   if(!campaign)throw Error("campaign_not_found");
+   if(campaign.revision!==revision)throw Error("version_conflict");
+   if(onlyTemplate&&!campaign.template)return [];
+   return this.activation(campaign);
+ }
+ async approve(id:string,cmd:ApproveProspectCampaign,actor:ProspectingActor){
+  const observed=await this.observation(id,cmd.expectedRevision,cmd.clientRequestId,true);
   return prospectCommand(this.prisma,"campaign.approve",{...cmd,id},actor,async tx=>{
    const c=await locked(tx,id,cmd.expectedRevision);
    const hash=campaignContentHash(storedReview(c));
    if(c.state!=="review_ready"||!c.audienceHash||!c.dailyRecipientLimit||!c.budgetCents||c.audienceHash!==cmd.audienceHash||cmd.contentHash!==hash)throw new Error("approval_stale");
    await this.current(tx,c);
    if(c.template){
-    const blockers=await this.activation(project(c));
+    const blockers=observed;
     const mismatch=blockers.find(code=>code==="template_binding_mismatch"||code==="template_unavailable");
     if(mismatch)throw new Error(mismatch);
    }
@@ -64,7 +74,8 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
    return this.result(tx,row,actor,"campaign.approve");
   });
  }
- changeState(id:string,cmd:ProspectCampaignAction,actor:ProspectingActor){
+ async changeState(id:string,cmd:ProspectCampaignAction,actor:ProspectingActor){
+  const observed=cmd.action==="pause"?[]:await this.observation(id,cmd.expectedRevision,cmd.clientRequestId);
   return prospectCommand(this.prisma,"campaign."+cmd.action,{...cmd,id},actor,async tx=>{
    if(cmd.action==="pause"){
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('prospect.dispatch'),hashtext(${id}))::text`;
@@ -73,7 +84,7 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
    }
    const c=await locked(tx,id,cmd.expectedRevision);const blockers:ProspectingBlocker[]=[];
    if(cmd.action!=="pause"){
-    await this.current(tx,c);blockers.push(...await this.activation(project(c)));
+    await this.current(tx,c);blockers.push(...observed);
     if(!await tx.campaignRecipient.count({where:{campaignId:id,eligibility:"opted_in",state:{not:"blocked"}}}))blockers.push("provider_policy_blocked");
    }
    const state=campaignTransition(c.state as ProspectCampaign["state"],cmd.action,c.approvedRevision===c.revision && c.approvedHash===campaignContentHash(storedReview(c)),blockers);

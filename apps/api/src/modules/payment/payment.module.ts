@@ -1,3 +1,4 @@
+import { platformProspectingModule } from "../platform-prospecting/platform-prospecting.module.js";
 import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { ShippingQuotesModule } from "../shipping/shipping-quotes.module.js";
 import { PrepareMarketplaceCheckoutService } from "./application/prepare-marketplace-checkout.service.js";
@@ -148,6 +149,7 @@ import {
 
 @Module({
   imports: [
+    platformProspectingModule,
     ShippingQuotesModule,
     BillingPromotionsModule,
     forwardRef(() => CheckoutModule),

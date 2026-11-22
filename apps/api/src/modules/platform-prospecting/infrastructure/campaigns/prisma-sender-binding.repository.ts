@@ -1,11 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient, type PlatformProspectSenderBinding } from "@prisma/client";
 import type { PlatformSenderBinding, ConnectPlatformSender } from "@zyon/shared-types";
 import type { MetaCloudAuthorizedAssets } from "../../../whatsapp-channel/domain/ports/whatsapp-signup-authorization.port.js";
 import { encryptPii } from "../../../../shared/crypto/pii-cipher.service.js";
 import type { PlatformSignupConfig, SenderBindingStore } from "../../application/campaigns/platform-sender-onboarding.service.js";
 import type { ProspectingActor } from "../../domain/prospecting.ports.js";
-import { prospectAudit, prospectCommand } from "../crm/prospect-command.js";
+import { stableDirectoryJson } from "../../domain/company-directory/directory-values.js";
+import { prospectAudit, prospectCommand, validateCommandId } from "../crm/prospect-command.js";
 
 export function publicSender(row: PlatformProspectSenderBinding): PlatformSenderBinding {
   const {id,version,appId,wabaId,phoneNumberId,displayPhoneNumber,authorizationVersion,connectedBy,connectedAt} = row;
@@ -27,14 +28,29 @@ export class PrismaSenderBindingRepository implements SenderBindingStore {
       return {result:{nonce,expiresAt},resourceIds:[id]};
     });
   }
-  async consume(stateHash:string,operatorId:string) {
-    // A failed exchange burns the nonce independently of the binding transaction.
-    const used = await this.prisma.prospectSenderSignupState.updateMany({where:{stateHash,operatorId,consumedAt:null,expiresAt:{gt:new Date()}},data:{consumedAt:new Date()}});
-    if (!used.count) throw new Error("signup_state_invalid");
-  }
-  connect(command:ConnectPlatformSender,actor:ProspectingActor,config:PlatformSignupConfig,authorize:()=>Promise<MetaCloudAuthorizedAssets>) {
-    return prospectCommand(this.prisma,"platform_sender_connect",command,actor,async tx=>{
-      const asset = await authorize();
+  async connect(command:ConnectPlatformSender,actor:ProspectingActor,config:PlatformSignupConfig,authorize:()=>Promise<MetaCloudAuthorizedAssets>) {
+    validateCommandId(command.clientRequestId);
+    const kind="platform_sender_connect",clientRequestId=command.clientRequestId;
+    const requestHash=createHash("sha256").update(stableDirectoryJson({kind,command})).digest("hex");
+    const previous=await this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${clientRequestId}))::text`;
+      const row=await tx.prospectCommand.findUnique({where:{clientRequestId}});
+      if(row){
+        if(row.kind!==kind||row.actorOperatorId!==actor.operatorId||row.requestHash!==requestHash)throw Error("idempotency_conflict");
+        if(row.state==="completed")return row.result as unknown as PlatformSenderBinding;
+        throw Error(row.errorCode??"sender_authorization_pending");
+      }
+      if(typeof command.state!=="string"||command.state.length>128)throw Error("signup_state_invalid");
+      const stateHash=createHash("sha256").update(command.state).digest("hex");
+      const used=await tx.prospectSenderSignupState.updateMany({where:{stateHash,operatorId:actor.operatorId,consumedAt:null,expiresAt:{gt:new Date()}},data:{consumedAt:new Date()}});
+      if(!used.count)throw Error("signup_state_invalid");
+      await tx.prospectCommand.create({data:{clientRequestId,kind,actorOperatorId:actor.operatorId,requestHash,state:"pending"}});
+      return null;
+    });
+    if(previous)return previous;
+    try {
+      const asset=await authorize();
+      return await this.prisma.$transaction(async tx=>{
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('zyon_platform_sender'))::text`;
       const rows=tx.platformProspectSenderBinding;
       const where={scope:"zyon_platform"};
@@ -49,7 +65,19 @@ export class PrismaSenderBindingRepository implements SenderBindingStore {
         connectedBy:actor.operatorId,connectedAt:new Date(),encryptedCredentials:encryptPii(asset.accessToken,{AACP_PII_ENC_KEY:this.encryptionKey}),health:Prisma.DbNull,healthUpdatedAt:null};
       const saved=previous?await rows.update({where:{id:previous.id},data}):await rows.create({data});
       await prospectAudit(tx,actor,"sender_connected","sender",saved.id,saved.version);
-      return {result:publicSender(saved),resourceIds:[saved.id]};
-    });
+      const result=publicSender(saved);
+      await tx.prospectCommand.update({where:{clientRequestId},data:{state:"completed",result:JSON.parse(JSON.stringify(result)),resourceIds:[saved.id]}});
+      return result;
+      });
+    } catch(error) {
+      const code=error instanceof Error && /^[a-z_]{1,80}$/.test(error.message)?error.message:"sender_authorization_unavailable";
+      if(code==="sender_identity_mismatch"||code==="signup_state_invalid") {
+        // A rejected grant did not create a binding. Only a newly issued nonce can be submitted again.
+        await this.prisma.prospectCommand.deleteMany({where:{clientRequestId,state:"pending",requestHash}});
+      } else {
+        await this.prisma.prospectCommand.updateMany({where:{clientRequestId,state:"pending",requestHash},data:{state:"failed",errorCode:code}});
+      }
+      throw error;
+    }
   }
 }
