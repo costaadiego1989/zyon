@@ -79,8 +79,8 @@ export interface OutreachAttemptRecord { id: string; sequenceId: string; ordinal
 export interface ProspectingTemplate { id: string; wabaId: string; name: string; language: string; revision: string; category: "MARKETING" | "UTILITY" | "AUTHENTICATION"; status: string }
 export interface PlatformSenderBinding { id: string; version: number; appId: string; wabaId: string; phoneNumberId: string; displayPhoneNumber: string; authorizationVersion: number; connectedBy: string; connectedAt: string }
 export interface PlatformSenderReadiness { binding: PlatformSenderBinding | null; status: "ready" | "blocked" | "unknown"; updatedAt: string; templates: ProspectingTemplate[]; portfolioLimit: number | null; portfolioUsed: number | null; blockers: ProspectingBlocker[] }
-export interface PlatformSenderSignupState { state: string; expiresAt: string; appId: string; configId: string }
-export interface ConnectPlatformSender extends ProspectingCommand { code: string; state: string; wabaId: string; phoneNumberId: string }
+export interface PlatformSenderSignupState { state: string; expiresAt: string; appId: string; configId: string; signupVersion: "v5"; extras: { version: "v5"; features: [{ name: "whatsapp_business_app_onboarding"; enabled: false }] } }
+export interface ConnectPlatformSender extends ProspectingCommand { code: string; state: string; wabaId: string; phoneNumberId: string; businessId: string; messagingAccountIds: string[]; isOnBizApp: boolean }
 export interface ProspectMessage { id: string; conversationId: string; sequence: number; authorType: ProspectMessageAuthor; authorId: string | null; direction: "inbound" | "outbound"; content: string | null; providerId: string | null; attemptId: string | null; state: OutreachAttemptState | "received"; providerOccurredAt: string | null; createdAt: string }
 export interface ProspectNote { id: string; conversationId: string; operatorId: string; content: string | null; createdAt: string }
 export interface ProspectConversation {
