@@ -147,6 +147,12 @@ export interface MetaAdsRecord<T = unknown> {
 }
 export interface MetaAdsMutation<T> { result: T; records?: MetaAdsRecord[]; }
 
+export interface CampaignLifecycleRepository extends Pick<MetaAdsRepository, 'read' | 'getRecord'> {
+  mutateCampaignLifecycle<T>(merchantId: string, campaignId: string, readKeys: string[], change: (
+    state: MetaAdsStoreState, records: ReadonlyMap<string, MetaAdsRecord>, preparations: Array<{id: string; status: string}>
+  ) => MetaAdsMutation<T> & {invalidatePreparations?: boolean}): Promise<T>;
+}
+
 export interface MetaAdsRepository {
   read(merchantId: string): Promise<MetaAdsStoreState>;
   mutate<T>(merchantId: string, readKeys: string[], change: (state: MetaAdsStoreState, existing: ReadonlyMap<string, MetaAdsRecord>) => MetaAdsMutation<T>): Promise<T>;
