@@ -52,3 +52,5 @@
 - Execution T30: gate0, source stable; apps/dashboard/src/pages/orders-shipments/components/AdOriginDetail.tsx, apps/dashboard/src/pages/orders-shipments/components/AdOriginDetail.spec.tsx, apps/dashboard/src/pages/orders-shipments-page.tsx, apps/dashboard/src/pages/orders-shipments/orders-shipments.css, apps/dashboard/src/pages/meta-ads-agent/CampaignSalesResults.tsx, apps/dashboard/src/pages/meta-ads-agent/index.tsx. Next: T31.
 
 - Execution T31: gate0, source stable; apps/api/src/modules/ai-governance/ai-access-policy.ts, apps/api/src/modules/merchant-assistant/infrastructure/merchant-ai.gateway.ts, apps/api/src/modules/meta-ads-agent/application/meta-ads-assistant.adapter.spec.ts, apps/api/src/modules/meta-ads-agent/application/meta-ads-assistant.adapter.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts. Next: T32.
+
+- Execution T32: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/meta-mcp.adapter.ts, apps/api/src/modules/meta-ads-agent/infrastructure/meta-mcp.adapter.spec.ts, apps/api/src/modules/meta-ads-agent/domain/types.ts, apps/api/src/modules/meta-ads-agent/domain/analytics.ts. Next: T33.

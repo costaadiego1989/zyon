@@ -269,6 +269,8 @@ export interface ProviderMetricSnapshot {
   until: string;
   timezone: string;
   attributionWindow: string;
+  requestedAttributionWindow?: string | null;
+  effectiveAttributionWindow?: string | null;
   spendCents: number | null;
   attributedRevenueCents: number | null;
   attributedPurchases: number | null;
