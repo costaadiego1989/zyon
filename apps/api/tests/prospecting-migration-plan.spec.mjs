@@ -2,8 +2,18 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { readFileSync,readdirSync } from "node:fs";
 import { prospectingMigrationPlan } from "../scripts/prospecting-migration-plan.mjs";
 const base = "postgresql://fixture:fixture@127.0.0.1:15438/prospecting_test";
+test("production history contains every prospecting migration with its original SQL",()=>{
+  const historical=new URL('../prisma/migrations/',import.meta.url),deployed=new URL('../prisma/deploy-migrations/',import.meta.url);
+  const names=readdirSync(historical).filter(name=>name.includes('prospect'));
+  const present=readdirSync(deployed);
+  for(const name of names){
+    assert.ok(present.includes(name),'production history is missing '+name);
+    assert.equal(readFileSync(new URL(name+'/migration.sql',deployed),'utf8').replaceAll('\r\n','\n'),readFileSync(new URL(name+'/migration.sql',historical),'utf8').replaceAll('\r\n','\n'));
+  }
+});
 test("production prospecting keeps the directory migration disabled with the module", async () => {
   assert.equal(await prospectingMigrationPlan({}), null);
   assert.equal(await prospectingMigrationPlan({ PROSPECTING_ENABLED: "false" }), null);
