@@ -1,9 +1,9 @@
 import type {
-  AddProspectsCommand, AddProspectsResult, ApproveProspectCampaign, CampaignRecipientRecord,
+  AddProspectsCommand, AddProspectsResult, ApproveProspectCampaign, BindProspectContactCommand, CampaignRecipientRecord,
   ChangeProspectOwnership, CompanyImportStatus, CompanyManifest, CompanyRecord, CompanySearchQuery,
   CompanySearchResult, FreezeCampaignAudience, OutreachAttemptRecord, PlatformSenderBinding,
   PlatformSenderReadiness, ProspectBillingProposal, ProspectCampaign, ProspectCampaignAction,
-  ProspectContact, ProspectConversation, ProspectConversationHistory, ProspectConversationQuery,
+  ProspectConversation, ProspectConversationHistory, ProspectConversationQuery,
   ProspectConversion, ProspectDetail, ProspectListQuery, ProspectMessage, ProspectNote,
   ProspectOffer, ProspectRecord, ProspectingCommandResult, ProspectingPage, SaveProspectCampaign,
   SaveProspectSegment, SavedProspectSegment, SalesKnowledgeAnswer, SalesKnowledgeFact, ProspectingVersionedCommand,
@@ -56,7 +56,7 @@ export interface ProspectRepositoryPort {
   list(query: ProspectListQuery): Promise<ProspectingPage<ProspectRecord>>;
   find(id: string): Promise<ProspectDetail | null>;
   update(id: string, command: UpdateProspectCommand, actor: ProspectingActor): Promise<ProspectRecord>;
-  bindContact(id: string, contact: ProspectContact, expectedVersion: number, actor: ProspectingActor): Promise<ProspectRecord>;
+  bindContact(id: string, command: BindProspectContactCommand, actor: ProspectingActor): Promise<ProspectRecord>;
   commandResult(clientRequestId: string, actor: ProspectingActor): Promise<ProspectingCommandResult | null>;
 }
 export interface SegmentRepositoryPort {
