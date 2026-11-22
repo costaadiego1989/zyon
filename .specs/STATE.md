@@ -53,3 +53,5 @@
 - Execution T6: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/campaign-lifecycle.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/campaign-lifecycle.controller.spec.ts, apps/api/src/modules/meta-ads-agent/presentation/__tests__/campaign-approval-http-fixture.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T7.
 
 - Execution T7: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/campaign-workspace.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/campaign-workspace.controller.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T8.
+
+- Execution T8: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/preparation-limits.service.ts, apps/api/src/modules/meta-ads-agent/application/preparation-limits.service.spec.ts. Next: T9.
