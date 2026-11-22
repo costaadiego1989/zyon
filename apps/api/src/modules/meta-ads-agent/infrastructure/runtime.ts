@@ -52,6 +52,7 @@ import {CampaignPreparationWorker} from './campaign-preparation.worker.js';
 import {assessBudget,type CampaignBudgetAssessmentPort} from '../application/budget-guidance.js';
 import {CampaignLifecycleService} from '../application/campaign-lifecycle.service.js';
 import {CampaignWorkspaceQueryService} from '../application/campaign-workspace-query.service.js';
+import {PreparationLimitsService} from '../application/preparation-limits.service.js';
 import {CatalogImageAdapter} from './catalog-image.adapter.js';
 import {CatalogCreativeService} from '../application/catalog-creative.service.js';
 import {CampaignReadyNoticeWorker} from './campaign-ready-notice.worker.js';
@@ -98,6 +99,12 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const funding = new FundingService(repo, billing, connection, new MetaFundingAdapter({ graphVersion: env.META_ADS_GRAPH_API_VERSION ?? '', request, clock }), clock);
   const lifecycle=new CampaignLifecycleService({repo,commerce,connection,provider,authorizeActor,clock});
   const workspace=new CampaignWorkspaceQueryService({repo,canManage:async()=>true,clock});
+  const preparationLimits=new PreparationLimitsService({repo,commerce,authorizeActor,clock,localDay:async merchantId=>{
+    const access=await connection.access(merchantId),timezone=await provider.accountTimezone(access),current=await connection.access(merchantId);
+    if(access.accountId!==current.accountId||access.connectionEpoch!==current.connectionEpoch)throw new MetaAdsError('meta_timezone_unavailable',409);
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(clock());
+    return ['year','month','day'].map(type=>parts.find(part=>part.type===type)!.value).join('-');
+  }});
   const budgetControl = new MetaBudgetControlAdapter({ request, clock });
   const policies = new AutomationPolicyService({ repo, commerce, connection, campaigns, authorizeActor, enabled: automationEnabled, clock });
   const exposure = new ExposureReservationService({ repo, commerce, enabled: automationEnabled, clock });
@@ -173,7 +180,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
         if (view.mode === 'automatic' && view.policy?.scope.allowNewCampaigns && !view.policy.scope.campaignIds.includes(campaign.id)) await automatic.bindCampaign(scope.merchantId, campaign.id, view.policy.id);
       } }));
   }
-  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender,noticeWorker,lifecycle,workspace,
+  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender,noticeWorker,lifecycle,workspace,preparationLimits,
     generationWorker: new GenerationWorker(repo, generations, enabled && env.META_ADS_AGENT_GENERATION_WORKER_ENABLED === "true", clock),
     purchaseBridge: new CheckoutPurchaseBridge(repo, commerce, attribution, input.events, enabled && env.META_ADS_AGENT_PURCHASE_BRIDGE_ENABLED === "true", undefined, input.sessionBinding),
     observation: new ObservationWorker(repo, commerce, connection, provider, attribution, analysis, billing, { enabled: enabled && env.META_ADS_AGENT_OBSERVATION_ENABLED === "true" }, clock, dailyEngine) };
