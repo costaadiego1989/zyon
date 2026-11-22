@@ -68,7 +68,7 @@ export class CampaignLifecycleService {
       if (version !== input.expectedVersion) throw new MetaAdsError('campaign_version_conflict', 409);
       if (preparations.some(job => ['preparing','creative_pending','unknown'].includes(job.status)) ||
         Object.values(state.generations).some(job => job.campaignId === campaignId && ['reserved','running','unknown'].includes(job.status)) ||
-        Object.values(state.executions).some(job => job.campaignId === campaignId && ['reserved','sending','publishing','active_unconfirmed','execution_unknown'].includes(job.status)) ||
+        Object.values(state.executions).some(job => job.campaignId === campaignId && (['reserved','sending','publishing','execution_unknown'].includes(job.status)||job.status==='active_unconfirmed'&&(action==='deleted_draft'||!!job.error))) ||
         Object.values(state.proposals).some(proposal => proposal.campaignId === campaignId && proposal.status === 'approved')) throw new MetaAdsError('campaign_operation_pending', 409);
       if (action === 'deleted_draft' && (campaign.remoteCampaignId || campaign.remoteAdSetId || campaign.remoteAdIds.length || Object.values(state.executions).some(execution => execution.campaignId === campaignId && execution.objects.length))) throw new MetaAdsError('campaign_has_remote_objects', 409);
       if (action === 'archived' && remoteIdentity !== stableDigest({account: campaign.remoteAccountId, campaign: campaign.remoteCampaignId, adSet: campaign.remoteAdSetId, ads: campaign.remoteAdIds})) throw new MetaAdsError('campaign_version_conflict', 409);
