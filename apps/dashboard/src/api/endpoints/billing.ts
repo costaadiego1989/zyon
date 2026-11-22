@@ -27,6 +27,9 @@ export function billingEndpoints(base: string, f: typeof fetch) {
     async listAutomaticBillingPromotions(): Promise<AutomaticBillingPromotion[]> {
       return (await billingJson<{ campaigns: AutomaticBillingPromotion[] }>("/billing/promotions/automatic")).campaigns;
     },
+    bindProspectProposal(token:string):Promise<{next:"manage_subscription"|"select_plan"}> {
+      return billingJson("/billing/prospect-proposal/bind",{method:"POST",jsonBody:{token}});
+    },
     getBillingSubscription(): Promise<BillingSubscription> {
       return billingJson("/billing/subscription");
     },

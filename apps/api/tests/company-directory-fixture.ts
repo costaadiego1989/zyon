@@ -18,6 +18,7 @@ export async function createCompanyDirectoryFixture() {
     await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121170000_prospect_conversation_dispatch/migration.sql",import.meta.url),"utf8"));
     await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121180000_prospect_endpoint_alias/migration.sql",import.meta.url),"utf8"));
     await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121190000_prospect_model_usage/migration.sql",import.meta.url),"utf8"));
+    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121200000_prospect_billing_attribution/migration.sql",import.meta.url),"utf8"));
     await db.pg.query(readFileSync(new URL("../prisma/company-directory-migrations/20261117190100_company_directory/migration.sql",import.meta.url),"utf8"));
     return { ...db, client, async close() { await client.$disconnect(); await db.close(); } };
   } catch (error) { await client.$disconnect(); await db.close(); throw error; }

@@ -4,7 +4,7 @@ import type {
   CompanySearchResult, FreezeCampaignAudience, OutreachAttemptRecord, PlatformSenderBinding,
   PlatformSenderReadiness, ProspectBillingProposal, ProspectCampaign, ProspectCampaignAction,
   ProspectConversation, ProspectConversationHistory, ProspectConversationQuery,
-  ProspectConversion, ProspectDetail, ProspectListQuery, ProspectMessage, ProspectNote,
+  ProspectDetail, ProspectListQuery, ProspectMessage, ProspectNote,
   ProspectOffer, ProspectRecord, ProspectingCommandResult, ProspectingPage, SaveProspectCampaign,
   SaveProspectSegment, SavedProspectSegment, SalesKnowledgeAnswer, SalesKnowledgeFact, ProspectingVersionedCommand,
   SalesKnowledgeQuery, SalesKnowledgeSource, SendProspectMessage, UpdateProspectCommand, ProspectPrivacyPolicy, SuppressProspectCommand, ProspectSuppressionResult,
@@ -111,14 +111,13 @@ export interface SalesKnowledgePort {
   queryPublishedKnowledge(query: SalesKnowledgeQuery, now: Date): Promise<SalesKnowledgeFact[]>;
 }
 export type SalesToolName = "knowledge" | "canonical_offer" | "allowed_link" | "qualify" | "human_handoff";
-export interface SalesLlmRequest { requestId: string; conversationId: string; controlEpoch: number; input: string; facts: SalesKnowledgeFact[]; offer: ProspectOffer; allowedTools: readonly SalesToolName[]; maximumCostCents: number; timeoutMs: number }
-export interface SalesLlmPort { respond(input: SalesLlmRequest): Promise<SalesKnowledgeAnswer> }
-export interface CanonicalBillingOfferPort { current(planKey: string): Promise<ProspectOffer>; allowedUrl(url: string): boolean }
-export interface VerifiedProspectPayment { verified: true; provider: string; providerEventId: string; proposalId: string; merchantId: string; subscriptionId: string; state: "paid" | "refunded"; occurredAt: Date }
+export interface SalesLlmRequest { requestId: string; conversationId: string; controlEpoch: number; input: string; facts: SalesKnowledgeFact[]; offer: ProspectOffer; siteUrl?: string; allowedTools: readonly SalesToolName[]; maximumCostCents: number; timeoutMs: number }
+export type SalesModelAnswer = SalesKnowledgeAnswer & {linkDestination?: "site" | "signup"};
+export interface SalesLlmPort { respond(input: SalesLlmRequest): Promise<SalesModelAnswer> }
+export interface CanonicalBillingOfferPort { current(planKey: string): Promise<ProspectOffer>; allowedUrl(url: string): boolean; publicSite?(): string | null }
 export interface ProspectBillingPort {
   createSignupProposal(prospectId: string, planKey: string, clientRequestId: string, actor: ProspectingActor): Promise<ProspectBillingProposal>;
-  bindAuthenticatedAccount(proposalId: string, token: string, merchantId: string, authenticatedUserId: string): Promise<ProspectBillingProposal>;
-  recordVerifiedConversion(event: VerifiedProspectPayment): Promise<ProspectConversion>;
+  bindAuthenticatedAccount(token: string, merchantId: string, authenticatedUserId: string): Promise<{boundMerchantId:string;next:"manage_subscription"|"select_plan"}>;
 }
 export const PROSPECTING_PORTS = {
   directory: Symbol("CompanyDirectoryPort"), prospects: Symbol("ProspectRepositoryPort"), segments: Symbol("SegmentRepositoryPort"),

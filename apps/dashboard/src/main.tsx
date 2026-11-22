@@ -7,6 +7,7 @@ import {
   SESSION_EXPIRED_EVENT,
   resolveDashboardApiBaseUrl
 } from "./api-client.js";
+import {ProspectProposalBinding,readProspectProposal,clearProspectProposal} from "./auth/ProspectProposalBinding.js";
 import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
 import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
@@ -71,6 +72,7 @@ function App({ api }: AppProps) {
   const [contributionRemediationOpen, setContributionRemediationOpen] = useState(() => window.location.hash === "#marketplace-contributions");
   const [sellerFeeRemediationOpen, setSellerFeeRemediationOpen] = useState(() => window.location.hash === "#marketplace-fees");
   const [hostFeeRemediationOpen, setHostFeeRemediationOpen] = useState(() => window.location.hash === "#marketplace-host-fees");
+  const [proposalToken,setProposalToken]=useState(readProspectProposal);
   const [subscriptionIntent, setSubscriptionIntent] = useState(readSubscriptionIntent);
   const onboardingRedirectedRef = useRef(false);
   function setAuthMode(mode: AuthMode) {
@@ -286,6 +288,14 @@ function App({ api }: AppProps) {
   }
 
   if (checkingSession) return <LoadingSplash />;
+  if (me && proposalToken) return <ProspectProposalBinding token={proposalToken} name={me.name} bind={api.bindProspectProposal} done={next=>{
+    clearProspectProposal();setProposalToken(null);
+    if(next==="manage_subscription"){
+      clearSubscriptionIntent();setSubscriptionIntent(null);setPlanSelectionPending(false);
+      const url=new URL(window.location.href);url.searchParams.delete("plan");url.searchParams.delete("cycle");url.hash="billing-plans";
+      window.history.replaceState(window.history.state,"",url.href);setInitialTab("billing-plans");
+    }
+  }}/>;
 
   if (me && (!me.role || me.role === "OWNER") && !subscriptionRequired && (planSelectionPending || subscriptionIntent)) {
     if (hostFeeRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">

@@ -28,8 +28,10 @@ export class ZyonSalesAgentService {
       }
       const offer=await this.offers.current(input.planKey);
       if(!this.offers.allowedUrl(offer.canonicalUrl))throw Error("invalid_offer_destination");
+      const siteUrl=this.offers.publicSite?.()??undefined;
+      if(siteUrl && !this.offers.allowedUrl(siteUrl))throw Error("invalid_site_destination");
       const requestId="sales."+input.messageId;
-      const result=await this.llm.respond({requestId,conversationId:input.conversationId,controlEpoch:input.expectedEpoch,input:context.text,facts,offer,
+      const result=await this.llm.respond({requestId,conversationId:input.conversationId,controlEpoch:input.expectedEpoch,input:context.text,facts,offer,siteUrl,
         allowedTools:["knowledge","canonical_offer","allowed_link","qualify","human_handoff"],...this.limits});
       if(result.handoff||!result.answer)throw Error(result.reason??"model_unavailable");
       const selected=result.facts.map(proposed=>facts.find(f=>stableDirectoryJson(f)===stableDirectoryJson(proposed)));
@@ -37,9 +39,11 @@ export class ZyonSalesAgentService {
       const approved=selected.filter(f=>f!==undefined);
       if(result.offer && stableDirectoryJson(result.offer)!==stableDirectoryJson(offer))throw Error("offer_conflict");
       const information=approved.length>0 && approved.every(f=>!/(?:https?:|www\.|\bR\$|\bBRL\b|\d\s*%|desconto|em breve|planejad|roadmap|faturamento da sua|decisor da sua)/iu.test(f.value)) && result.answer===approved.map(f=>f.value).join("\n");
-      const authorized=information || result.answer===SALES_QUALIFICATION || result.offer && (result.answer===formatSalesOffer(offer) || result.answer===offer.canonicalUrl);
+      const destination=result.linkDestination;
+      const linkUrl=destination==="signup"?offer.canonicalUrl:destination==="site"?siteUrl:undefined;
+      const authorized=destination?result.offer && linkUrl && result.answer===linkUrl:information || result.answer===SALES_QUALIFICATION || result.offer && result.answer===formatSalesOffer(offer);
       if(!authorized || !isSafeGeneratedMessage(result.answer))throw Error("invalid_generated_answer");
-      const evidence={messageId:input.messageId,offer,facts:facts.map(({id,sourceId,publicationId,publicationVersion})=>({id,sourceId,publicationId,publicationVersion}))};
+      const evidence={messageId:input.messageId,offer,...(destination && linkUrl?{link:{destination,url:linkUrl}}:{}),facts:facts.map(({id,sourceId,publicationId,publicationVersion})=>({id,sourceId,publicationId,publicationVersion}))};
       const msg=await this.conversation.prepareAi(input.conversationId,{clientRequestId:requestId,expectedEpoch:input.expectedEpoch,content:result.answer,evidence});
       return {messageId:msg.id,reason:null};
     }catch(e){

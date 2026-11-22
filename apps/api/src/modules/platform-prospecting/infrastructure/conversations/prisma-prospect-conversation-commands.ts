@@ -15,9 +15,10 @@ import {append,changed,ensureConversation,lockEndpoint,publicMessage,type Tx} fr
 import type {PrismaProspectConversationRepository} from "./prisma-prospect-conversation.repository.js";
 
 import type {ReplyQuote,ConversationCommandStore} from "../../application/conversations/prospect-conversation.service.js";
+type ChatLinks=ReturnType<import("../billing/prisma-prospect-billing.store.js").PrismaProspectBillingStore["chatLinks"]>;
 const resources=(c:ProspectConversation)=>[c.id,c.endpointId,...c.prospectId?[c.prospectId]:[],...c.ambiguousBindings];
 export class PrismaProspectConversationCommands implements ConversationCommandStore{
- constructor(readonly repository:PrismaProspectConversationRepository,private readonly keys:SuppressionKeyRing,private readonly quote:ReplyQuote,private readonly offers?:CanonicalBillingOfferPort){}
+ constructor(readonly repository:PrismaProspectConversationRepository,private readonly keys:SuppressionKeyRing,private readonly quote:ReplyQuote,private readonly offers?:CanonicalBillingOfferPort,private readonly chatLinks?:ChatLinks){}
  private async locked(tx:Tx,id:string){
   const ref=await tx.prospectConversation.findUnique({where:{id},select:{endpointId:true}});if(!ref)throw Error("conversation_not_found");
   await lockEndpoint(tx,ref.endpointId);
@@ -99,6 +100,7 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
   if(!incoming?.content || incoming.conversationId!==c.id || incoming.direction!=="inbound" || incoming.providerId!==c.lastInboundEventId)return false;
   const offer=await this.offers.current(e.offer.planKey);
   if(!this.offers.allowedUrl(offer.canonicalUrl) || stableDirectoryJson(offer)!==stableDirectoryJson(e.offer))return false;
+  if(e.link && (e.link.destination==="signup"?e.link.url!==offer.canonicalUrl:e.link.destination!=="site"||e.link.url!==this.offers.publicSite?.()||!this.offers.allowedUrl(e.link.url)))return false;
   for(const sourceId of [...new Set(e.facts.map(f=>f.sourceId))].sort()){
    await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(hashtext('sales-knowledge'),hashtext(${sourceId}))::text`;
    const active=await tx.salesKnowledgeActivePublication.findUnique({where:{sourceId}});
@@ -160,11 +162,20 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
   const c=await this.locked(tx,id);this.assertOwner(c,cmd.expectedEpoch,operator);
   const now=new Date();await this.eligible(tx,c,now);await this.funding(tx,c.endpointId,c.endpoint.senderBindingId,now);
   if(cmd.evidence && !await this.currentEvidence(tx,c,cmd.evidence))throw Error("sales_evidence_conflict");
+  const evidence=cmd.evidence,link=evidence?.link;
+  let proposal:{id:string;url:string}|undefined;
+  if(link){
+   if(operator || cmd.content!==link.url)throw Error("invalid_link_destination");
+   if(link.destination==="signup"){
+    if(!this.chatLinks||!c.prospectId||c.ambiguousBindings.length)throw Error("proposal_identity_unavailable");
+    proposal=await this.chatLinks.prepare(tx,c.prospectId,evidence!.offer,evidence!.messageId);
+   }
+  }
   const m=await append(tx,id,{senderBindingId:c.endpoint.senderBindingId,senderVersion:c.endpoint.sender.version,clientRequestId:cmd.clientRequestId,controlEpoch:cmd.expectedEpoch,
-   direction:"outbound",authorType:operator?"operator":"ai",authorId:operator,state:"prepared",content:cmd.content});
+   direction:"outbound",authorType:operator?"operator":"ai",authorId:operator,state:"prepared",content:proposal?.url??cmd.content});
   if(operator)await this.manualActivity(tx,c);
-  const ids=[...resources(c),m.id];await tx.prospectOutbox.create({data:{kind:"prospect.chat.dispatch",eventId:"chat."+m.id,payload:{messageId:m.id,conversationId:id,...(cmd.evidence?{evidence:JSON.parse(JSON.stringify(cmd.evidence))}:{})},resourceIds:ids}});
-  if(cmd.evidence)await tx.prospectAuditEvent.create({data:{action:"sales.reply.prepared",resourceType:"conversation",resourceId:c.id,resourceVersion:c.controlEpoch,correlationId:m.id,outcome:"completed",details:{facts:cmd.evidence.facts,offerVersion:cmd.evidence.offer.version,messageId:m.id}}});
+  const ids=[...resources(c),m.id,...(proposal?[proposal.id]:[])];await tx.prospectOutbox.create({data:{kind:"prospect.chat.dispatch",eventId:"chat."+m.id,payload:{messageId:m.id,conversationId:id,...(proposal?{proposalId:proposal.id}:{}),...(cmd.evidence?{evidence:JSON.parse(JSON.stringify(cmd.evidence))}:{})},resourceIds:ids}});
+  if(cmd.evidence)await tx.prospectAuditEvent.create({data:{action:"sales.reply.prepared",resourceType:"conversation",resourceId:c.id,resourceVersion:c.controlEpoch,correlationId:m.id,outcome:"completed",details:{...(proposal?{proposalId:proposal.id}:{}),facts:cmd.evidence.facts,offerVersion:cmd.evidence.offer.version,messageId:m.id}}});
   return {result:publicMessage(m),resourceIds:ids};
  }
  prepareManual(id:string,cmd:SendProspectMessage,actor:ProspectingActor){
@@ -179,7 +190,11 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${cmd.clientRequestId}))::text`;
    const previous=await tx.prospectMessage.findUnique({where:{clientRequestId:cmd.clientRequestId}});
    if(previous){
-    if(previous.authorType!=="ai"||previous.conversationId!==id||previous.controlEpoch!==cmd.expectedEpoch||previous.content!==cmd.content)throw Error("idempotency_conflict");
+    if(previous.authorType!=="ai"||previous.conversationId!==id||previous.controlEpoch!==cmd.expectedEpoch||!previous.content)throw Error("idempotency_conflict");
+    const job=await tx.prospectOutbox.findUnique({where:{eventId:"chat."+previous.id}});
+    const saved=job?.payload as unknown as {evidence?:SalesReplyEvidence;proposalId?:string}|undefined;
+    const intended=saved?.proposalId?saved.evidence?.link?.url:previous.content;
+    if(cmd.content!==intended||stableDirectoryJson(cmd.evidence??null)!==stableDirectoryJson(saved?.evidence??null))throw Error("idempotency_conflict");
     return publicMessage(previous);
    }
    return (await this.prepare(tx,id,cmd,null)).result;
@@ -201,8 +216,10 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
    const now=new Date(),identity=await this.eligible(tx,c,now);
    if(binding.id!==m.senderBindingId||binding.version!==m.senderVersion||c.endpoint.sender.version!==m.senderVersion)throw Error("sender_identity_mismatch");
    const event=await tx.prospectOutbox.findUniqueOrThrow({where:{eventId:"chat."+m.id}});
-   const evidence=(event.payload as unknown as {evidence?:SalesReplyEvidence}).evidence;
-   if(m.authorType==="ai" && (evidence || m.clientRequestId?.startsWith("sales.")) && (!evidence || !await this.currentEvidence(tx,c,evidence))){
+   const {evidence,proposalId}=event.payload as unknown as {evidence?:SalesReplyEvidence;proposalId?:string};
+   const validLink=evidence?.link?.destination==="signup"?c.prospectId && !c.ambiguousBindings.length && proposalId && await this.chatLinks?.current(tx,c.prospectId,evidence.offer,evidence.messageId,proposalId,m.content):
+     !proposalId && (!evidence?.link || m.content===evidence.link.url);
+   if(m.authorType==="ai" && (evidence || m.clientRequestId?.startsWith("sales.")) && (!validLink || !evidence || !await this.currentEvidence(tx,c,evidence))){
      await tx.prospectMessage.update({where:{id:m.id},data:{state:"cancelled_before_submit",errorCode:"sales_evidence_conflict"}});
      await tx.prospectOutbox.update({where:{id:event.id},data:{state:"cancelled"}});
      await this.humanQueue(tx,c,"sales_evidence_conflict");return null;

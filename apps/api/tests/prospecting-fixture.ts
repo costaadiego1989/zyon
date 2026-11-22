@@ -113,7 +113,7 @@ function capturedPort() {
   const calls: unknown[] = [];
   return { calls, async invoke(input: unknown) { calls.push(structuredClone(input)); return { mode: "controlled" as const }; } };
 }
-export async function createProspectingFixture(options: { config?: ProspectingTestConfig; controllers?: Type[]; providers?: Provider[]; port?: number } = {}) {
+export async function createProspectingFixture(options: { config?: ProspectingTestConfig; controllers?: Type[]; providers?: Provider[]; port?: number; rawBody?:boolean } = {}) {
   const config = options.config ?? readProspectingTestConfig();
   // Validate ALL addresses before constructing any client or connecting.
   validateProspectingTestConfig(config);
@@ -152,7 +152,7 @@ export async function createProspectingFixture(options: { config?: ProspectingTe
       { provide: PlatformPermissionGuard, useValue: new PlatformPermissionGuard(new Reflector()) },
       ...options.providers ?? [],
     ] })(FixtureModule);
-    app = await NestFactory.create(FixtureModule, { logger: false }); app.setGlobalPrefix("v1");
+    app = await NestFactory.create(FixtureModule, { logger: false,rawBody:options.rawBody??false }); app.setGlobalPrefix("v1");
     app.enableCors({ origin: /^http:\/\/127\.0\.0\.1:\d+$/, credentials: true });
     await app.listen(options.port ?? 0, "127.0.0.1");
     return { ...database, tag, config, neo4j: graph, redis, app, url: await app.getUrl(), operatorJwt, operators, ports: { meta: capturedPort(), llm: capturedPort(), payment: capturedPort() }, close };

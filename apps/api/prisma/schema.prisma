@@ -6201,7 +6201,24 @@ model SalesKnowledgeActivePublication {
   @@map("sales_knowledge_active_publications")
 }
 
+model ProspectBillingReceipt {
+  provider String
+  eventId String @map("event_id")
+  proposalId String @map("proposal_id")
+  subscriptionId String @map("subscription_id")
+  paymentRef String @map("payment_ref")
+  state String
+  amountCents BigInt @map("amount_cents")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+  proposal ProspectBillingProposal @relation(fields:[proposalId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  @@id([provider,eventId])
+  @@index([provider,subscriptionId,paymentRef],map:"prospect_billing_receipts_payment_idx")
+  @@map("prospect_billing_receipts")
+}
+
 model ProspectBillingProposal {
+  receipts ProspectBillingReceipt[]
+  conversionEligible Boolean @default(false) @map("conversion_eligible")
   id String @id @default(cuid())
   prospectId String @map("prospect_id")
   planKey String @map("plan_key")

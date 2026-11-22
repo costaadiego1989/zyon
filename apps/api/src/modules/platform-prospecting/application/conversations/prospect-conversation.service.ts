@@ -1,7 +1,7 @@
 import type {ProspectOffer,SalesKnowledgeFact,ChangeProspectOwnership,PlatformSenderBinding,ProspectConversation,ProspectMessage,ProspectNote,ProspectRealtimeEvent,SendProspectMessage} from "@zyon/shared-types";
 import type {ConversationRepositoryPort,PlatformSenderPort,ProspectingActor,ProspectSendPacket,ProspectSendResult} from "../../domain/prospecting.ports.js";
 
-export interface SalesReplyEvidence {messageId:string;offer:ProspectOffer;facts:Pick<SalesKnowledgeFact,"sourceId"|"publicationId"|"publicationVersion"|"id">[]}
+export interface SalesReplyEvidence {messageId:string;offer:ProspectOffer;link?:{destination:"site"|"signup";url:string};facts:Pick<SalesKnowledgeFact,"sourceId"|"publicationId"|"publicationVersion"|"id">[]}
 export interface SalesReplyCommand extends SendProspectMessage {evidence?:SalesReplyEvidence}
 export type ReplyQuote=(context:{campaignId:string|null;endpointId:string;now:Date})=>{amountCents:number;currency:"BRL";validUntil:Date}|null;
 export interface ConversationReadStore extends Pick<ConversationRepositoryPort,"list"|"history">{

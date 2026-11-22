@@ -1,4 +1,4 @@
-import { Controller, Headers, HttpCode, Post, RawBodyRequest, Req, UnauthorizedException } from "@nestjs/common";
+import { Controller, Headers, HttpCode, Post, type RawBodyRequest, Req, UnauthorizedException } from "@nestjs/common";
 import type { Request } from "express";
 import {
   HandleStripeWebhookUseCase,

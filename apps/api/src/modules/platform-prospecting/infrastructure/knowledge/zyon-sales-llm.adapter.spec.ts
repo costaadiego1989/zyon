@@ -11,8 +11,8 @@ test("PROS-21 AC1 captured protocol admits only five scoped tools, bounds cost/t
  const cfg={enabled:false,model:"fixture",apiKey:"fixture",timeoutMs:100,maximumCostCents:8,quote:()=>5};
  const blocked=new ZyonSalesLlmAdapter(cfg,budget);
  assert.equal((await blocked.respond(input)).reason,"model_disabled");assert.deepEqual(reservations,[]);
- let tool="knowledge";
- const captured:typeof fetch=async(_url,init)=>{requests.push(JSON.parse(String(init?.body)));return Response.json({model:"fixture",choices:[{message:{tool_calls:[{type:"function",function:{name:tool,arguments:JSON.stringify({factIndexes:[0]})}}]}}]});};
+ let tool="knowledge",args:unknown={factIndexes:[0]};
+ const captured:typeof fetch=async(_url,init)=>{requests.push(JSON.parse(String(init?.body)));return Response.json({model:"fixture",choices:[{message:{tool_calls:[{type:"function",function:{name:tool,arguments:JSON.stringify(args)}}]}}]});};
  const llm=new ZyonSalesLlmAdapter(cfg,budget,captured);
  const good=await llm.respond(input);assert.equal(good.answer,"Chat no painel.");assert.equal(good.callMode,"controlled");assert.deepEqual(good.facts,[fact]);assert.deepEqual(good.sources,[{id:"docs",publicationId:"pub",version:1}]);
  assert.deepEqual(requests[0].tools.map((t:any)=>t.function.name),["knowledge","canonical_offer","allowed_link","qualify","human_handoff"]);
@@ -24,4 +24,10 @@ test("PROS-21 AC1 captured protocol admits only five scoped tools, bounds cost/t
  const slow=new ZyonSalesLlmAdapter(cfg,budget,async(_url,init)=>new Promise((_resolve,reject)=>init!.signal!.addEventListener("abort",()=>reject(Error("timeout")))));
  const unknown=await slow.respond({...input,requestId:"model.slow",timeoutMs:5});assert.equal(unknown.reason,"model_consumption_unknown");assert.deepEqual(settled.at(-1),["model.slow","unknown"]);
  await assert.rejects(slow.respond({...input,requestId:"model.slow"}),/model_attempt_exists/);assert.equal(reservations.length,3);
+ tool="allowed_link";args={destination:"site"};
+ const site=await llm.respond({...input,siteUrl:"https://website.example.test/",requestId:"model.site"});
+ assert.equal(site.linkDestination,"site");assert.equal(site.answer,"https://website.example.test/");
+ args={destination:"signup"};const signup=await llm.respond({...input,requestId:"model.signup"});
+ assert.equal(signup.linkDestination,"signup");assert.equal(signup.answer,offer.canonicalUrl);
+ args={destination:"site",url:"https://unknown.example.test/"};assert.equal((await llm.respond({...input,requestId:"model.bad-link"})).handoff,true);
 });

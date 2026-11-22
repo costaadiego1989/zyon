@@ -1,3 +1,5 @@
+import {SUBSCRIPTION_ATTRIBUTION,type SubscriptionAttribution} from "../domain/ports/subscription-attribution.port.js";
+import {observeStripeSubscriptionPayment} from "./observe-stripe-subscription-payment.js";
 import { savePaymentTransition } from "./services/save-payment-transition.js";
 import { BadRequestException, ServiceUnavailableException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import Stripe from "stripe";
@@ -50,6 +52,7 @@ export class HandleStripeWebhookUseCase {
     @Optional() private readonly chargebackPaymentHold?: ChargebackPaymentHoldUseCase,
     @Inject(PAYMENT_PROVIDER_PORT) private readonly paymentProvider?: PaymentProviderPort,
     @Optional() @Inject(BILLING_ADMIN_NOTICE_PORT) private readonly adminNotices?: BillingAdminNoticePort,
+    @Optional() @Inject(SUBSCRIPTION_ATTRIBUTION) private readonly attribution?:SubscriptionAttribution,
   ) {
     const { secretKey } = readStripeConnection();
     // Stripe is optional: an Asaas-only installation must still boot.
@@ -75,7 +78,11 @@ export class HandleStripeWebhookUseCase {
       throw new StripeSignatureError();
     }
 
-    return this.dispatchEvent(event);
+    const result=await this.dispatchEvent(event);
+    if(this.attribution && result.outcome!=="ignored" && event.livemode===!!readStripeConnection().secretKey?.startsWith("sk_live_")){
+      await observeStripeSubscriptionPayment(this.stripe,event,this.attribution);
+    }
+    return result;
   }
 
   /** Exposed for testing — bypasses signature verification. */
