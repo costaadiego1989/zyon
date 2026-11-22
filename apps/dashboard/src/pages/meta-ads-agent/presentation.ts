@@ -6,6 +6,9 @@ export const date = (value: string | null) => value ? new Date(value).toLocaleDa
 export const metricSourceLabel=(value:string)=>value==='meta_reported'?'Meta':value==='meta_reported+zyon_reconciled'?'Meta e pedidos confirmados na Zyon':'Consulta dos anúncios';
 export function attributionWindowLabel(value:string|null|undefined):string{
   if(!value)return 'Não informado';
+  if(value==='multiple')return 'Regras diferentes nesta campanha';
+  if(value==='na')return 'Não se aplica a estes resultados';
+  value=value.replace(/_(?=\d+d_)/g,'+');
   const parts=value.split(/[+,]/).map(part=>part.trim());
   if(parts.some(part=>!/^\d+d_(click|view)$/.test(part)))return 'Período definido na Meta';
   return parts.map(part=>{const [days,kind]=part.split('d_');return `${Number(days)} ${Number(days)===1?'dia':'dias'} após ${kind==='click'?'clique':'visualização'}`;}).join(' e ');
