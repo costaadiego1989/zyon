@@ -1,3 +1,8 @@
+import {readFileSync} from "node:fs";
+import {JwtService} from "../auth/domain/services/jwt.service.js";
+import {PrismaAuthRepository} from "../auth/infrastructure/prisma-auth.repository.js";
+import {campaignContentHash} from "./domain/campaigns/prospecting-campaign.js";
+import {storedReview} from "./infrastructure/campaigns/prisma-campaign.repository.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createCampaignFixture } from "../../../tests/prospect-campaign-fixture.js";
@@ -17,6 +22,11 @@ import {
   readProspectingTestConfig,
 } from "../../../tests/prospecting-fixture.js";
 import { createProspectingRuntime } from "./infrastructure/prospecting-runtime.js";
+import {ProspectController} from "./presentation/prospect.controller.js";
+import {ProspectCampaignController} from "./presentation/prospect-campaign.controller.js";
+import {CampaignService} from "./application/campaigns/campaign.service.js";
+import {FreezeCampaignAudience} from "./application/campaigns/freeze-campaign-audience.js";
+import {ProspectService} from "./application/crm/prospect.service.js";
 import { CompanyDirectoryController } from "./presentation/company-directory.controller.js";
 import { SearchCompaniesQuery } from "./application/company-directory/search-companies.query.js";
 import { PROSPECTING_PORTS } from "./domain/prospecting.ports.js";
@@ -49,7 +59,8 @@ function environment(databaseUrl: string) {
 async function withRuntime(
   check: (
     ctx: Awaited<ReturnType<typeof createProspectingFixture>>,
-    runtime: ReturnType<typeof createProspectingRuntime>
+    runtime: ReturnType<typeof createProspectingRuntime>,
+    fixture: Awaited<ReturnType<typeof createCampaignFixture>>
   ) => Promise<void>
 ) {
   const f = await createCampaignFixture();
@@ -57,14 +68,17 @@ async function withRuntime(
     const runtime = createProspectingRuntime(environment(f.databaseUrl));
     try {
       const http = await createProspectingFixture({
-        controllers: [CompanyDirectoryController],
+        controllers: [CompanyDirectoryController, ProspectController, ProspectCampaignController],
         providers: [
           { provide: PROSPECTING_PORTS.directory, useValue: runtime.directory },
+          { provide: ProspectService, useValue: runtime.prospects },
+          { provide: CampaignService, useValue: runtime.campaign },
+          { provide: FreezeCampaignAudience, useValue: runtime.audience },
           { provide: SearchCompaniesQuery, useValue: runtime.search },
         ],
       });
       try {
-        await check(http, runtime);
+        await check(http, runtime, f);
       } finally {
         await http.close();
       }
@@ -343,3 +357,42 @@ test("PROS-32 AC1 a chave de proposta deve ser distinta da chave canônica de se
     await runtime.onModuleDestroy();
   }, {message:"config_invalid:PROPOSAL_SECRET"});
 });
+
+test("PROS-01 AC1 sessão válida de lojista é recusada pelo diretório e CRM",async()=>
+  withRuntime(async(http,runtime,f)=>{
+    await f.pg.query(readFileSync(new URL("../../../tests/prospect-billing-fixture.sql",import.meta.url),"utf8"));
+    const repository=new PrismaAuthRepository(runtime.db);
+    const {merchant,user}=await repository.createMerchantWithOwner({merchantId:"scope-merchant",merchantName:"Loja de teste",email:"owner@example.test",passwordHash:"unused-for-token-issuance"});
+    const jwt=new JwtService(randomBytes(48).toString("hex"),900,repository);
+    const principal={merchantId:merchant.id,userId:user.id,email:user.email,role:user.role};
+    const token=await jwt.issue(principal);
+    assert.deepEqual(await jwt.authenticate(token),{...principal,authVersion:0});
+    for(const route of ["companies","prospects"]){
+      const path=http.url+"/v1/platform/prospecting/"+route;
+      assert.equal((await fetch(path,{headers:{Authorization:"Bearer "+http.operators.admin.token}})).status,200);
+      const denied=await fetch(path,{headers:{Authorization:"Bearer "+token}});
+      assert.equal(denied.status,401);const body=await denied.json();assert.equal(body.statusCode,401);assert.equal(body.items,undefined);
+    }
+  }));
+test("PROS-01 AC2 operador sem acesso não entra na consulta nem no comando válido de início",async(t)=>
+  withRuntime(async(http,runtime,f)=>{
+    const regular=http.operators.billing,admin=http.operators.admin;
+    assert.equal((await http.operatorJwt.authenticate(regular.token)).operatorId,regular.id);
+    await f.pg.query("INSERT INTO platform_operators(id) VALUES ($1) ON CONFLICT DO NOTHING",[admin.id]);
+    const offer=await runtime.offers.current("growth");
+    const hash=campaignContentHash({...storedReview(f.campaign),offer});
+    await runtime.db.prospectCampaign.update({where:{id:f.campaign.id},data:{state:"approved",offerSnapshot:JSON.parse(JSON.stringify(offer)),approvedHash:hash,contentHash:hash}});
+    t.mock.method(runtime.health,"forCampaign",async()=>[]);
+    const reads=t.mock.method(runtime.search,"execute");const starts=t.mock.method(runtime.campaign,"action");
+    const db=runtime.db;
+    const state=async()=>({commands:await db.prospectCommand.findMany(),outbox:await db.prospectOutbox.findMany(),attempts:await db.outreachAttempt.findMany(),usage:await db.prospectCampaignDailyUsage.findMany(),campaign:await db.prospectCampaign.findUniqueOrThrow({where:{id:f.campaign.id}})});
+    const before=await state();
+    const list=(token:string)=>fetch(http.url+"/v1/platform/prospecting/companies",{headers:{Authorization:"Bearer "+token}});
+    const start=(token:string)=>fetch(http.url+"/v1/platform/prospecting/campaigns/"+f.campaign.id+"/start",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json","Idempotency-Key":"access-start"},body:JSON.stringify({expectedRevision:f.campaign.revision,clientRequestId:"access-start"})});
+    assert.equal((await list(regular.token)).status,403);assert.equal(reads.mock.callCount(),0);
+    assert.equal((await start(regular.token)).status,403);assert.equal(starts.mock.callCount(),0);
+    assert.deepEqual(await state(),before);
+    assert.equal((await list(admin.token)).status,200);assert.equal(reads.mock.callCount(),1);
+    const accepted=await start(admin.token);assert.equal(accepted.status,202,await accepted.clone().text());assert.equal((await accepted.json()).state,"running");assert.equal(starts.mock.callCount(),1);
+    const after=await state();assert.equal(after.commands.length,before.commands.length+1);assert.equal(after.campaign.state,"running");
+  }));
