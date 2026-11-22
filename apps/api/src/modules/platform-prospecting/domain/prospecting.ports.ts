@@ -6,7 +6,7 @@ import type {
   ProspectContact, ProspectConversation, ProspectConversationHistory, ProspectConversationQuery,
   ProspectConversion, ProspectDetail, ProspectListQuery, ProspectMessage, ProspectNote,
   ProspectOffer, ProspectRecord, ProspectingCommandResult, ProspectingPage, SaveProspectCampaign,
-  SaveProspectSegment, SavedProspectSegment, SalesKnowledgeAnswer, SalesKnowledgeFact,
+  SaveProspectSegment, SavedProspectSegment, SalesKnowledgeAnswer, SalesKnowledgeFact, ProspectingVersionedCommand,
   SalesKnowledgeQuery, SalesKnowledgeSource, SendProspectMessage, UpdateProspectCommand,
 } from "@zyon/shared-types";
 
@@ -63,7 +63,7 @@ export interface SegmentRepositoryPort {
   list(cursor?: string): Promise<ProspectingPage<SavedProspectSegment>>;
   find(id: string): Promise<SavedProspectSegment | null>;
   save(id: string | null, command: SaveProspectSegment, actor: ProspectingActor): Promise<SavedProspectSegment>;
-  remove(id: string, expectedVersion: number, actor: ProspectingActor): Promise<void>;
+  remove(id: string, command: ProspectingVersionedCommand, actor: ProspectingActor): Promise<void>;
 }
 export interface AttemptReservation { attempt: OutreachAttemptRecord; ownerToken: string; campaignId: string | null; recipientId: string | null; senderBindingId: string; senderVersion: number; endpointId: string; normalizedEndpoint: string; content: string; expectedEpoch: number }
 export type ProspectSendResult = { state: "provider_accepted"; providerMessageId: string; acceptedAt: Date } | { state: "not_accepted"; errorCode: string } | { state: "outcome_unknown"; errorCode: string };

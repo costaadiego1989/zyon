@@ -6,7 +6,7 @@ import { stableDirectoryJson } from "../../domain/company-directory/directory-va
 export function validateCommandId(value: unknown): asserts value is string {
   if (typeof value !== "string" || !/^[-A-Za-z0-9_.:]{1,160}$/.test(value)) throw new Error("invalid_command:clientRequestId");
 }
-export async function prospectCommand<T>(prisma: PrismaClient, kind: string, command: { clientRequestId: string }, actor: ProspectingActor, mutate: (tx: Prisma.TransactionClient) => Promise<{ result: T; resourceIds: string[] }>): Promise<T> {
+export async function prospectCommand<T, C extends { clientRequestId: string }>(prisma: PrismaClient, kind: string, command: C, actor: ProspectingActor, mutate: (tx: Prisma.TransactionClient) => Promise<{ result: T; resourceIds: string[] }>): Promise<T> {
   validateCommandId(command.clientRequestId);
   const requestHash = createHash("sha256").update(stableDirectoryJson({ kind, command })).digest("hex");
   return prisma.$transaction(async tx => {
