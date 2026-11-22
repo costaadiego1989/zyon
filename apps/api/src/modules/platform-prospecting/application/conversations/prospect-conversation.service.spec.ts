@@ -42,3 +42,30 @@ test("PROS-17 AC2 conversational timeout holds its real campaign budget, stale w
   await assert.rejects(f.service.dispatch(stale.id),/outside_send_window/);assert.deepEqual(f.captured.map(x=>x.id),[m.id]);
  }finally{await f.close();}
 });
+
+test("PROS-17 AC2 service replies use approved campaign funds after completion or pause, and positive unbound cost exposes a recoverable funding blocker",async()=>{
+ for(const state of ["completed","paused","unbound"]){
+  const f=await createConversationFixture();try{
+   f.control.price=7;
+   if(state!=="unbound"){
+    const automatic=new PrismaCampaignRepository(f.prisma,f.keys,f.quote);
+    const packet=await automatic.reserveAttempt(f.recipient.id,"worker",new Date());assert.ok(packet);
+    await automatic.markSubmitting(packet.attempt.id,"worker",new Date());await automatic.recordResult(packet.attempt.id,"worker",{state:"provider_accepted",providerMessageId:"original",acceptedAt:new Date()});
+    await f.prisma.prospectSequence.update({where:{id:packet.attempt.sequenceId},data:{state:"cancelled",cancelReason:"customer_replied"}});
+    await f.prisma.prospectCampaign.update({where:{id:f.campaign.id},data:{state}});
+   }
+   await f.service.ownership(f.c.id,{clientRequestId:"own",expectedEpoch:0,action:"assume"},f.actor);
+   const cmd={clientRequestId:"service-reply",content:"service",expectedEpoch:1};
+   if(state==="unbound"){
+    await assert.rejects(f.service.prepareManual(f.c.id,cmd,f.actor),/reply_budget_unavailable/);
+    assert.equal(await f.prisma.prospectMessage.count(),0);assert.equal(await f.prisma.prospectOutbox.count(),0);
+    assert.equal(await f.prisma.prospectCommand.count({where:{clientRequestId:cmd.clientRequestId}}),0);
+   }else{
+    const msg=await f.service.prepareManual(f.c.id,cmd,f.actor);await f.service.dispatch(msg.id);
+    const campaign=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:f.campaign.id}});
+    assert.equal(campaign.state,state);assert.equal(campaign.spentCents,32n);assert.equal(campaign.reservedCents,0n);
+    assert.equal(await f.prisma.outreachAttempt.count(),1);assert.equal((await f.prisma.prospectSequence.findFirstOrThrow()).state,"cancelled");assert.deepEqual(f.captured.map(m=>m.text),["service"]);
+   }
+  }finally{await f.close();}
+ }
+});

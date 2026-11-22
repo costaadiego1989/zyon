@@ -40,6 +40,9 @@ test("PROS-27 AC5 empty and oversized manual text reserve nothing; valid gesture
   for(const content of [""," ","a".repeat(4001)])assert.equal((await f.req(f.path+"/messages",{clientRequestId:"invalid",content,expectedEpoch:1})).status,400);
   assert.equal(await f.prisma.prospectMessage.count(),0);assert.deepEqual(f.captured,[]);
   const cmd={content:"one",expectedEpoch:1,clientRequestId:"first"};
+  f.control.price=7;const unfunded=await f.req(f.path+"/messages",cmd);
+  assert.equal(unfunded.status,409);assert.equal((await unfunded.json()).message,"reply_budget_unavailable");assert.equal(await f.prisma.prospectOutbox.count(),0);
+  f.control.price=0;
   const first=await f.req(f.path+"/messages",cmd);assert.equal(first.status,202);const m=await first.json();assert.equal(m.state,"prepared");assert.equal(m.authorId,f.admin.id);
   assert.equal((await (await f.req(f.path+"/messages",cmd)).json()).id,m.id);assert.equal((await f.req(f.path+"/messages",{...cmd,content:"divergent"})).status,409);
   await f.req(f.path+"/messages",{...cmd,clientRequestId:"second",content:"two"});

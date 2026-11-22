@@ -2,7 +2,8 @@ import type {ProspectConversation} from "@prisma/client";
 import type {ChangeProspectOwnership,ContactPermissionStatus,SendProspectMessage} from "@zyon/shared-types";
 import type {PlatformSenderPort,ProspectingActor,ProspectSendPacket,ProspectSendResult} from "../../domain/prospecting.ports.js";
 import {contactPermission,normalizeContactIdentity} from "../../domain/crm/prospect-contact.js";
-import {releasePreSubmission} from "../../infrastructure/campaigns/prisma-campaign.repository.js";
+import {campaignContentHash} from "../../domain/campaigns/prospecting-campaign.js";
+import {storedReview,releasePreSubmission} from "../../infrastructure/campaigns/prisma-campaign.repository.js";
 import {prospectCommand,prospectAudit,validateCommandId} from "../../infrastructure/crm/prospect-command.js";
 import {protectedContactLookups,type SuppressionKeyRing} from "../../infrastructure/crm/prisma-prospect-privacy.repository.js";
 import {authenticatedEndpoint,observedBsuid} from "../../infrastructure/conversations/prospect-endpoint-alias.js";
@@ -35,7 +36,7 @@ export class ProspectConversationService{
   if(await tx.contactSuppression.findFirst({where:{...where,OR:[...protectedContactLookups(identity,this.keys),...ep.aliases.map(a=>({protectedLookup:a.protectedLookup,keyVersion:a.keyVersion}))]}}))throw Error("suppressed");
   const permission=contactPermission({endpointId:ep.id,senderBindingId:ep.senderBindingId,purpose:"zyon_sales"},ep.permissions.map(p=>({...p,status:p.status as ContactPermissionStatus})));
   if(permission==="revoked")throw Error("suppressed");
-  if(!c.lastInboundAt||!c.lastInboundEventId||!c.serviceWindowEndsAt||c.serviceWindowEndsAt<=now||c.lastInboundAt.getTime()+86400000<=now||c.lastInboundAt>now)throw Error("outside_send_window");
+  if(!c.lastInboundAt||!c.lastInboundEventId||!c.serviceWindowEndsAt||c.serviceWindowEndsAt<=now||c.lastInboundAt.getTime()+86400000<=now.getTime()||c.lastInboundAt>now)throw Error("outside_send_window");
   return identity;
  }
  ownership(id:string,cmd:ChangeProspectOwnership,actor:ProspectingActor){
@@ -56,9 +57,23 @@ export class ProspectConversationService{
    return {result:await this.repository.summary(tx,id,actor.operatorId),resourceIds:resources(c)};
   });
  }
+ private async funding(tx:Tx,endpointId:string,senderBindingId:string,senderVersion:number,now:Date){
+  const automatic=await tx.outreachAttempt.findFirst({where:{ordinal:0,sequence:{endpointId,senderBindingId}},include:{recipient:{include:{campaign:true}}}});
+  const campaign=automatic?.recipient?.campaign,campaignId=campaign?.id??null;
+  const quote=this.quote({campaignId,endpointId,now});
+  if(!quote||!Number.isSafeInteger(quote.amountCents)||quote.amountCents<0||quote.currency!=="BRL"||!(quote.validUntil>now))throw Error("cost_unknown");
+  const amount=BigInt(quote.amountCents);
+  if(amount){
+   if(!campaign)throw Error("reply_budget_unavailable");
+   if(!campaign.budgetCents||!["running","paused","completed"].includes(campaign.state)||campaign.approvedRevision!==campaign.revision||
+      campaign.approvedHash!==campaignContentHash(storedReview(campaign))||campaign.senderBindingId!==senderBindingId||
+      campaign.senderVersion!==senderVersion||campaign.spentCents+campaign.reservedCents+amount>campaign.budgetCents)throw Error("budget_conflict");
+  }
+  return {campaignId,amount};
+ }
  private async prepare(tx:Tx,id:string,cmd:SendProspectMessage,operator:string|null){
   const c=await this.locked(tx,id);this.assertOwner(c,cmd.expectedEpoch,operator);
-  await this.eligible(tx,c,new Date());
+  const now=new Date();await this.eligible(tx,c,now);await this.funding(tx,c.endpointId,c.endpoint.senderBindingId,c.endpoint.sender.version,now);
   const m=await append(tx,id,{senderBindingId:c.endpoint.senderBindingId,senderVersion:c.endpoint.sender.version,clientRequestId:cmd.clientRequestId,controlEpoch:cmd.expectedEpoch,
    direction:"outbound",authorType:operator?"operator":"ai",authorId:operator,state:"prepared",content:cmd.content});
   const ids=[...resources(c),m.id];await tx.prospectOutbox.create({data:{kind:"prospect.chat.dispatch",eventId:"chat."+m.id,payload:{messageId:m.id,conversationId:id},resourceIds:ids}});
@@ -93,20 +108,13 @@ export class ProspectConversationService{
    const c=await this.locked(tx,initial.conversationId),m=await tx.prospectMessage.findUniqueOrThrow({where:{id:messageId}});
    if(m.state!=="prepared")return null;
    this.assertOwner(c,m.controlEpoch!,m.authorType==="operator"?m.authorId:null);
+   const originId=origin?.recipient?.campaignId??null;
+   if(originId)await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${originId} FOR UPDATE`;
    const now=new Date(),identity=await this.eligible(tx,c,now);
    if(binding.id!==m.senderBindingId||binding.version!==m.senderVersion||c.endpoint.sender.version!==m.senderVersion)throw Error("sender_identity_mismatch");
-   const automatic=await tx.outreachAttempt.findFirst({where:{ordinal:0,sequence:{endpointId:c.endpointId,senderBindingId:m.senderBindingId}},include:{recipient:true}});
-   const campaignId=automatic?.recipient?.campaignId??null;
-   if(campaignId!==(origin?.recipient?.campaignId??null))throw Error("campaign_state_conflict");
-   if(campaignId)await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${campaignId} FOR UPDATE`;
-   const quote=this.quote({campaignId,endpointId:c.endpointId,now});
-   if(!quote||!Number.isSafeInteger(quote.amountCents)||quote.amountCents<0||quote.currency!=="BRL"||!(quote.validUntil>now))throw Error("cost_unknown");
-   const amount=BigInt(quote.amountCents);
-   if(amount){
-    const campaign=campaignId?await tx.prospectCampaign.findUniqueOrThrow({where:{id:campaignId}}):null;
-    if(!campaign||!campaign.budgetCents||campaign.state!=="running"||campaign.senderBindingId!==binding.id||campaign.senderVersion!==binding.version||campaign.spentCents+campaign.reservedCents+amount>campaign.budgetCents)throw Error("budget_conflict");
-    await tx.prospectCampaign.update({where:{id:campaign.id},data:{reservedCents:{increment:amount}}});
-   }
+   const {campaignId,amount}=await this.funding(tx,c.endpointId,binding.id,binding.version,now);
+   if(campaignId!==originId)throw Error("campaign_state_conflict");
+   if(amount&&campaignId)await tx.prospectCampaign.update({where:{id:campaignId},data:{reservedCents:{increment:amount}}});
    await tx.prospectMessage.update({where:{id:m.id},data:{state:"submitting",submittedAt:now,campaignId,reservedAmount:amount,costState:"reserved"}});
    await tx.prospectOutbox.update({where:{eventId:"chat."+m.id},data:{state:"held"}});
    await changed(tx,c.id,"delivery",m.sequence);
