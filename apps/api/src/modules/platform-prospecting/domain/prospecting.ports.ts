@@ -76,7 +76,7 @@ export interface CampaignRepositoryPort {
   create(command: SaveProspectCampaign, actor: ProspectingActor): Promise<ProspectCampaign>;
   find(id: string): Promise<ProspectCampaign | null>;
   revise(id: string, command: SaveProspectCampaign, actor: ProspectingActor): Promise<ProspectCampaign>;
-  freezeAudience(id: string, command: FreezeCampaignAudience, actor: ProspectingActor): Promise<ProspectCampaign>;
+  freezeAudience(id: string, command: FreezeCampaignAudience, actor: ProspectingActor): Promise<import("@zyon/shared-types").ProspectAudienceJob>;
   approve(id: string, command: ApproveProspectCampaign, actor: ProspectingActor): Promise<ProspectCampaign>;
   changeState(id: string, command: ProspectCampaignAction, actor: ProspectingActor): Promise<ProspectCampaign>;
   recipients(id: string, cursor?: string): Promise<ProspectingPage<CampaignRecipientRecord>>;
