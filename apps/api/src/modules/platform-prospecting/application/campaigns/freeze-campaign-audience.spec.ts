@@ -18,6 +18,7 @@ test("PROS-07 AC3 whole saved-segment results freeze across bounded work, dedupl
    for(let i=0;i<5;i++)await freeze.processNext(1);
    const result=await freeze.poll(accepted.selectionId);
    assert.equal(result?.state,"complete"); assert.equal(result?.companyCount,3); assert.equal(result?.recipientCount,1); assert.equal(result?.missingEndpointCount,1); assert.match(result!.audienceHash!,/^[a-f0-9]{64}$/);
+   assert.deepEqual(result?.eligibilityBlockers,[{reason:"no_opt_in",recipients:1},{reason:"provider_policy_blocked",recipients:1}]);
    assert.equal(await f.prisma.platformProspect.count(),3); assert.equal(await f.prisma.prospectContactBinding.count(),2);
    const recipient=await f.prisma.campaignRecipient.findFirstOrThrow(); assert.equal(recipient.eligibility,"no_opt_in"); assert.deepEqual(recipient.blockers,["no_opt_in","provider_policy_blocked"]);
    assert.equal(await f.prisma.contactPermissionReceipt.count(),0); assert.equal((await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:campaign.id}})).audienceHash,result?.audienceHash);

@@ -15,7 +15,18 @@ type Tx=Prisma.TransactionClient;
 type Job={id:string; campaign_id:string; snapshot_id:string; filters:CompanyFilters; explicit_cnpjs:string[]|null; state:ProspectAudienceJob["state"]; hash:string; cursor_cnpj:string|null; company_count:number; recipient_count:number; missing_endpoint_count:number; error_code:string|null};
 const hash=(input:string)=>createHash("sha256").update(input).digest("hex");
 const project=(j:Job):ProspectAudienceJob=>({selectionId:j.id,campaignId:j.campaign_id,state:j.state,companyCount:j.company_count,recipientCount:j.recipient_count,missingEndpointCount:j.missing_endpoint_count,audienceHash:j.state==="complete"?j.hash:null,errorCode:j.error_code});
-async function readJob(tx:Tx,id:string){const [job]=await tx.$queryRaw<Job[]>`SELECT * FROM prospect_audience_jobs WHERE id=${id}`;return job?project(job):null;}
+async function readJob(tx:Tx,id:string):Promise<ProspectAudienceJob|null>{
+  const [job]=await tx.$queryRaw<Job[]>`SELECT * FROM prospect_audience_jobs WHERE id=${id}`;
+  if(!job)return null;
+  const result=project(job);
+  if(job.state==="complete"){
+    result.eligibilityBlockers=await tx.$queryRaw<{reason:ProspectingBlocker;recipients:number}[]>`SELECT b.reason,count(*)::int AS recipients
+      FROM prospect_campaigns c JOIN campaign_recipients r ON r.campaign_id=c.id
+      CROSS JOIN LATERAL jsonb_array_elements_text(r.blockers) AS b(reason)
+      WHERE c.id=${job.campaign_id} AND c.selection_id=${id} GROUP BY b.reason ORDER BY b.reason`;
+  }
+  return result;
+}
 
 export class PrismaAudienceRepository implements CampaignAudienceStore {
   constructor(private readonly prisma:PrismaClient,private readonly keys:SuppressionKeyRing){}
