@@ -45,3 +45,5 @@
 - Execution T2: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/types.ts. Next: T3.
 
 - Execution T3: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/campaign-name.ts, apps/api/src/modules/meta-ads-agent/domain/campaign-name.spec.ts. Next: T4.
+
+- Execution T4: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/campaign-workspace-query.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign-workspace-query.service.spec.ts. Next: T5.
