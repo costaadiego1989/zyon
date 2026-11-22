@@ -11,6 +11,7 @@ import { CampaignInsights } from "./CampaignInsights.js";
 import { actions, money, useAction } from "./presentation.js";
 import { PageHeader } from '../../components/PageHeader.js';
 import { RefreshCw } from 'lucide-react';
+import {CampaignSalesResults} from './CampaignSalesResults.js';
 import {CampaignWorkspace} from './CampaignWorkspace.js';
 import {CampaignWorkspaceDetail} from './CampaignWorkspaceDetail.js';
 import {CampaignQuickActions} from './CampaignQuickActions.js';
@@ -99,6 +100,7 @@ function MetaAdsAgentView({api,merchantId,apiBaseUrl,assistantClient,reviewTarge
       </div>
       {!stopReview ? <button type="button" className="mga-secondary" disabled={!data.entitled || action.busy || blocked} onClick={() => setStopReview(true)}>Encerrar gerenciamento desta campanha</button> : <div className="mga-notice"><p>Encerrar o gerenciamento não pausa a Meta. A campanha pode continuar consumindo verba. O histórico permanecerá disponível.</p><button type="button" disabled={action.busy} onClick={() => {setWorkingLabel("Encerrando gerenciamento…"); void action.run(async () => {await api.stopManaging(current.id); setStopReview(false); setComposing(false); await load();},"Gerenciamento encerrado. Os anúncios na Meta não foram pausados.");}}>Confirmar encerramento do gerenciamento</button><button type="button" className="mga-secondary" disabled={action.busy} onClick={() => setStopReview(false)}>Manter gerenciamento</button></div>}
     </section>}
+    {current.remoteCampaignId&&<CampaignSalesResults merchantId={merchantId} campaignId={current.id} since={workspaceQuery.since} until={workspaceQuery.until} api={api} metrics={selectedRow.metrics}/>}
     </CampaignWorkspaceDetail>}
     {composing&&!current&&<CampaignComposer overview={data} api={api} onSaved={saved=>{setData(old=>old?{...old,campaigns:[...old.campaigns,saved]}:old);openWorkspace(saved.id);}} onUpdated={load}/>}
     {action.busy && <p role="status">{workingLabel || "Consultando…"}</p>}{action.error && <p className="mga-notice" role="alert">{action.error}</p>}{notice && <p role="status">{notice}</p>}
