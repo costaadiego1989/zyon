@@ -40,3 +40,5 @@
 - Assumptions/files/success and gate logs recorded per task under the owned ignored audit directory. Use task-tools.cjs gate/commit for subsequent atomic tasks. Feature docs stay ignored; tracked STATE is staged with git add -u, never force .specs.
 
 - Execution T25: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspaceDetail.tsx, apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspaceDetail.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T26.
+
+- Execution T26: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/AutomaticPreparationSettings.tsx, apps/dashboard/src/pages/meta-ads-agent/AutomaticPreparationSettings.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T27.
