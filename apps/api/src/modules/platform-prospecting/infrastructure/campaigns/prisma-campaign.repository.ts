@@ -16,6 +16,15 @@ export function projectAttempt(row:OutreachAttempt):OutreachAttemptRecord {
   const iso=(d:Date|null)=>d?.toISOString()??null;
   return {id:row.id,sequenceId:row.sequenceId,ordinal:row.ordinal as 0|1,clientRequestId:row.clientRequestId,state:row.state as OutreachAttemptRecord["state"],controlEpoch:row.controlEpoch,providerMessageId:row.providerMessageId,reservedAmount:{amountCents:Number(row.reservedAmount),currency:row.currency},submittedAt:iso(row.submittedAt),acceptedAt:iso(row.acceptedAt),deliveredAt:iso(row.deliveredAt),readAt:iso(row.readAt),errorCode:row.errorCode};
 }
+export async function releasePreSubmission(tx:Tx,row:OutreachAttempt,campaignId:string,reason:string){
+  if(row.state!=="reserved"||row.costState!=="reserved")return;
+  const day=row.reservationDay??row.createdAt.toISOString().slice(0,10);
+  await tx.prospectCampaign.update({where:{id:campaignId},data:{reservedCents:{decrement:row.reservedAmount}}});
+  await tx.prospectCampaignDailyUsage.update({where:{campaignId_day:{campaignId,day}},data:{reservedRecipients:{decrement:1}}});
+  await tx.outreachAttempt.update({where:{id:row.id},data:{state:"cancelled_before_submit",costState:"released",errorCode:reason,leaseToken:null,leaseExpiresAt:null}});
+  await tx.prospectOutbox.updateMany({where:{eventId:row.id},data:{state:"held",leaseToken:null,leaseExpiresAt:null}});
+  if(row.recipientId)await tx.campaignRecipient.update({where:{id:row.recipientId},data:{state:"pending"}});
+}
 export class PrismaCampaignRepository {
   constructor(private readonly prisma:PrismaClient,private readonly keys:SuppressionKeyRing,private readonly quote:CostQuote){}
   private async lockedContext(tx:Tx,recipientId:string){
@@ -47,25 +56,26 @@ export class PrismaCampaignRepository {
       const leaseExpiresAt=new Date(now.getTime()+60_000);
       const controlEpoch=conversation?.controlEpoch??0;
       const existing=previous?.attempts[0]; let attempt:OutreachAttempt;
-      if(existing){
-        if(existing.state!=="reserved"||existing.recipientId!==recipientId||existing.controlEpoch!==controlEpoch||existing.approvedRevision!==c.revision||existing.senderVersion!==c.senderVersion||existing.leaseExpiresAt&&existing.leaseExpiresAt>now)return null;
-        if(existing.createdAt.toISOString().slice(0,10)!==now.toISOString().slice(0,10))return null;
-        attempt=await tx.outreachAttempt.update({where:{id:existing.id},data:{leaseToken:ownerToken,leaseExpiresAt}});
-      }else{
-        const quote=this.quote({campaignId:c.id,recipientId,template,now});
-        if(!quote||!Number.isSafeInteger(quote.amountCents)||quote.amountCents<=0||quote.currency!=="BRL"||!(quote.validUntil>now))throw new Error("cost_unknown");
-        const amount=BigInt(quote.amountCents),day=now.toISOString().slice(0,10);
-        if(!c.budgetCents||c.spentCents+c.reservedCents+amount>c.budgetCents||!c.dailyRecipientLimit)return null;
-        const usage=await tx.prospectCampaignDailyUsage.findUnique({where:{campaignId_day:{campaignId:c.id,day}}});
-        if((usage?.submittedRecipients??0)+(usage?.reservedRecipients??0)>=c.dailyRecipientLimit)return null;
-        const sequence=previous??await tx.prospectSequence.create({data:scope});
-        attempt=await tx.outreachAttempt.create({data:{sequenceId:sequence.id,recipientId,conversationId:conversation?.id,ordinal:0,clientRequestId:randomUUID(),requestHash:c.approvedHash!,state:"reserved",leaseToken:ownerToken,leaseExpiresAt,controlEpoch,approvedRevision:c.revision,senderVersion:c.senderVersion!,reservedAmount:amount,content:c.message,createdAt:now}});
-        await tx.prospectSequence.update({where:{id:sequence.id},data:{firstAttemptId:attempt.id}});
-        await tx.prospectCampaign.update({where:{id:c.id},data:{reservedCents:{increment:amount}}});
-        await tx.prospectCampaignDailyUsage.upsert({where:{campaignId_day:{campaignId:c.id,day}},create:{campaignId:c.id,day,reservedRecipients:1},update:{reservedRecipients:{increment:1}}});
-        await tx.campaignRecipient.update({where:{id:r.id},data:{state:"reserved",eligibility:"opted_in",blockers:[]}});
-        await tx.prospectOutbox.create({data:{eventId:attempt.id,kind:"prospect.attempt.reserved",payload:{attemptId:attempt.id,endpointId:ep.id},resourceIds:[r.prospectId,ep.id,c.id,r.id,attempt.id,...(conversation?[conversation.id]:[])]}});
-      }
+      const day=now.toISOString().slice(0,10);
+      const recoverable=existing?.state==="cancelled_before_submit" && ["campaign_paused","reservation_expired"].includes(existing.errorCode??"");
+      if(existing && (existing.recipientId!==recipientId || !recoverable && (existing.state!=="reserved" || existing.leaseExpiresAt && existing.leaseExpiresAt>now)))return null;
+      const quote=this.quote({campaignId:c.id,recipientId,template,now});
+      if(!quote||!Number.isSafeInteger(quote.amountCents)||quote.amountCents<=0||quote.currency!=="BRL"||!(quote.validUntil>now))throw new Error("cost_unknown");
+      const amount=BigInt(quote.amountCents);
+      const oldReserved=existing?.state==="reserved"?existing.reservedAmount:0n;
+      if(existing?.state==="reserved")await releasePreSubmission(tx,existing,c.id,"reservation_expired");
+      if(!c.budgetCents||c.spentCents+c.reservedCents-oldReserved+amount>c.budgetCents||!c.dailyRecipientLimit)return null;
+      const usage=await tx.prospectCampaignDailyUsage.findUnique({where:{campaignId_day:{campaignId:c.id,day}}});
+      if((usage?.submittedRecipients??0)+(usage?.reservedRecipients??0)>=c.dailyRecipientLimit)return null;
+      const sequence=previous??await tx.prospectSequence.create({data:scope});
+      const data={recipientId,conversationId:conversation?.id??null,requestHash:c.approvedHash!,state:"reserved",costState:"reserved",errorCode:null,leaseToken:ownerToken,leaseExpiresAt,controlEpoch,approvedRevision:c.revision,senderVersion:c.senderVersion!,reservedAmount:amount,reservationDay:day,content:c.message};
+      attempt=existing?await tx.outreachAttempt.update({where:{id:existing.id},data}):await tx.outreachAttempt.create({data:{...data,sequenceId:sequence.id,ordinal:0,clientRequestId:randomUUID(),createdAt:now}});
+      if(!existing)await tx.prospectSequence.update({where:{id:sequence.id},data:{firstAttemptId:attempt.id}});
+      await tx.prospectCampaign.update({where:{id:c.id},data:{reservedCents:{increment:amount}}});
+      await tx.prospectCampaignDailyUsage.upsert({where:{campaignId_day:{campaignId:c.id,day}},create:{campaignId:c.id,day,reservedRecipients:1},update:{reservedRecipients:{increment:1}}});
+      await tx.campaignRecipient.update({where:{id:r.id},data:{state:"reserved",eligibility:"opted_in",blockers:[]}});
+      const payload={attemptId:attempt.id,endpointId:ep.id},resourceIds=[r.prospectId,ep.id,c.id,r.id,attempt.id,...(conversation?[conversation.id]:[])];
+      await tx.prospectOutbox.upsert({where:{eventId:attempt.id},create:{eventId:attempt.id,kind:"prospect.attempt.reserved",payload,resourceIds},update:{state:"pending",availableAt:now,leaseToken:null,leaseExpiresAt:null,payload,resourceIds}});
       return {attempt:projectAttempt(attempt),ownerToken,campaignId:c.id,recipientId,senderBindingId:ep.senderBindingId,senderVersion:c.senderVersion!,endpointId:ep.id,normalizedEndpoint:identity.value,identity,template,content:c.message,expectedEpoch:controlEpoch};
     });
   }
@@ -75,7 +85,7 @@ export class PrismaCampaignRepository {
       const ctx=await this.lockedContext(tx,initial.recipientId); if(!ctx)return false;
       const {c,conversation,template}=ctx;
       if(initial.controlEpoch!==(conversation?.controlEpoch??0)||initial.approvedRevision!==c.revision||initial.senderVersion!==c.senderVersion||!c.budgetCents||c.spentCents+c.reservedCents>c.budgetCents)return false;
-      const day=initial.createdAt.toISOString().slice(0,10); if(day!==now.toISOString().slice(0,10))return false;
+      const day=initial.reservationDay??initial.createdAt.toISOString().slice(0,10); if(day!==now.toISOString().slice(0,10))return false;
       const usage=await tx.prospectCampaignDailyUsage.findUnique({where:{campaignId_day:{campaignId:c.id,day}}});
       if(!usage||usage.reservedRecipients<1||usage.reservedRecipients+usage.submittedRecipients>(c.dailyRecipientLimit??0))return false;
       const quote=this.quote({campaignId:c.id,recipientId:initial.recipientId,template,now});
@@ -98,7 +108,7 @@ export class PrismaCampaignRepository {
       const updated=await tx.outreachAttempt.update({where:{id:row.id},data:{state:safe.state,providerMessageId:accepted?safe.providerMessageId:null,acceptedAt:accepted?safe.acceptedAt:null,errorCode:accepted?null:safe.errorCode,costState:unknown?"reserved":accepted?"committed":"released"}});
       if(!unknown){
         await tx.prospectCampaign.update({where:{id:ref.recipient.campaignId},data:{reservedCents:{decrement:row.reservedAmount},...(accepted?{spentCents:{increment:row.reservedAmount}}:{})}});
-        await tx.prospectCampaignDailyUsage.update({where:{campaignId_day:{campaignId:ref.recipient.campaignId,day:row.createdAt.toISOString().slice(0,10)}},data:{reservedRecipients:{decrement:1},submittedRecipients:{increment:accepted?1:0}}});
+        await tx.prospectCampaignDailyUsage.update({where:{campaignId_day:{campaignId:ref.recipient.campaignId,day:row.reservationDay??row.createdAt.toISOString().slice(0,10)}},data:{reservedRecipients:{decrement:1},submittedRecipients:{increment:accepted?1:0}}});
       }
       await tx.campaignRecipient.update({where:{id:ref.recipient.id},data:{state:safe.state}});
       await tx.prospectOutbox.updateMany({where:{eventId:row.id},data:{state:unknown?"held":"completed",leaseToken:null,leaseExpiresAt:null}});

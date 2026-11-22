@@ -5,7 +5,7 @@ import type { CanonicalBillingOfferPort, ProspectingActor } from "../../domain/p
 import { campaignContentHash,campaignTransition,validateSendWindow } from "../../domain/campaigns/prospecting-campaign.js";
 import { stableDirectoryJson } from "../../domain/company-directory/directory-values.js";
 import { prospectAudit,prospectCommand } from "../crm/prospect-command.js";
-import { storedReview } from "./prisma-campaign.repository.js";
+import { storedReview,releasePreSubmission } from "./prisma-campaign.repository.js";
 
 type Tx=Prisma.TransactionClient;
 export type CampaignActivation=(campaign:ProspectCampaign)=>Promise<ProspectingBlocker[]>;
@@ -61,6 +61,7 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
  }
  changeState(id:string,cmd:ProspectCampaignAction,actor:ProspectingActor){
   return prospectCommand(this.prisma,"campaign."+cmd.action,{...cmd,id},actor,async tx=>{
+   if(cmd.action==="pause")await tx.$queryRaw`SELECT ep.id FROM prospect_endpoints ep JOIN campaign_recipients r ON ep.id=r.endpoint_id WHERE r.campaign_id=${id} ORDER BY ep.id FOR UPDATE OF ep`;
    const c=await locked(tx,id,cmd.expectedRevision);const blockers:ProspectingBlocker[]=[];
    if(cmd.action!=="pause"){
     await this.current(tx,c);blockers.push(...await this.activation(project(c)));
@@ -68,8 +69,8 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
    }
    const state=campaignTransition(c.state as ProspectCampaign["state"],cmd.action,c.approvedRevision===c.revision && c.approvedHash===campaignContentHash(storedReview(c)),blockers);
    if(state==="paused"){
-    // Invalidate every pre-submission lease. The same logical reservation may be reclaimed on resume.
-    await tx.outreachAttempt.updateMany({where:{recipient:{campaignId:id},state:"reserved"},data:{leaseToken:null,leaseExpiresAt:new Date(0)}});
+    const pending=await tx.outreachAttempt.findMany({where:{recipient:{campaignId:id},state:"reserved"}});
+    for(const attempt of pending)await releasePreSubmission(tx,attempt,id,"campaign_paused");
    }
    const row=await tx.prospectCampaign.update({where:{id},data:{state}});
    return this.result(tx,row,actor,"campaign."+cmd.action);

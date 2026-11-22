@@ -43,7 +43,7 @@ export class PrismaProspectPrivacyRepository implements ProspectPrivacyPort {
     await tx.outreachAttempt.updateMany({ where: { id: { in: pending.map(a => a.id) }, state: { in: ["prepared", "reserved"] } }, data: { state: "cancelled_before_submit", costState: "released", leaseToken: null, leaseExpiresAt: null, errorCode: "suppressed" } });
     for (const attempt of pending) if (attempt.costState === "reserved" && attempt.recipient) {
       await tx.$executeRaw`UPDATE prospect_campaigns SET reserved_cents=GREATEST(0,reserved_cents-${attempt.reservedAmount}) WHERE id=${attempt.recipient.campaignId}`;
-      await tx.$executeRaw`UPDATE prospect_campaign_daily_usage SET reserved_recipients=GREATEST(0,reserved_recipients-1) WHERE campaign_id=${attempt.recipient.campaignId} AND day=${attempt.createdAt.toISOString().slice(0, 10)}`;
+      await tx.$executeRaw`UPDATE prospect_campaign_daily_usage SET reserved_recipients=GREATEST(0,reserved_recipients-1) WHERE campaign_id=${attempt.recipient.campaignId} AND day=${attempt.reservationDay ?? attempt.createdAt.toISOString().slice(0, 10)}`;
     }
     await tx.prospectSequence.updateMany({ where: { endpointId: { in: endpointIds } }, data: { state: "cancelled", cancelledAt: now, cancelReason: "suppressed", followUpDueAt: null } });
     await tx.prospectConversation.updateMany({ where: { endpointId: { in: endpointIds } }, data: { controlEpoch: { increment: 1 }, mode: "human", serviceWindowEndsAt: null } });

@@ -5982,6 +5982,7 @@ model OutreachAttempt {
   controlEpoch Int @default(0) @map("control_epoch")
   approvedRevision Int? @map("approved_revision")
   senderVersion Int @map("sender_version")
+  reservationDay String? @map("reservation_day") @db.VarChar(10)
   reservedAmount BigInt @default(0) @map("reserved_amount")
   currency String @default("BRL")
   costState String @default("reserved") @map("cost_state")
