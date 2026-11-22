@@ -13,11 +13,12 @@ import {PlatformSalesOffers} from "../../../payment/public-platform-sales-offers
 import {quoteBilling} from "../../../payment/infrastructure/billing-offers.js";
 import type {SalesLlmRequest} from "../../domain/prospecting.ports.js";
 import type {SalesKnowledgeAnswer} from "@zyon/shared-types";
-async function fixture(){
+async function fixture(reviewedText?:string){
  const f=await createConversationFixture();
  const offers={value:structuredClone(fixtureOffer),async current(){return structuredClone(this.value);},allowedUrl:(url:string)=>url===fixtureOffer.canonicalUrl};
  const repo=new PrismaSalesKnowledgeRepository(f.prisma);
- const draft=await repo.save("product",knowledgeDraft("agent"),f.actor);
+ const review=knowledgeDraft("agent");if(reviewedText)review.facts[0].value=reviewedText;
+ const draft=await repo.save("product",review,f.actor);
  const fact=draft.draft[0];
  await f.prisma.salesKnowledgePublication.update({where:{id:fact.publicationId},data:{state:"published",projectedHash:draft.contentHash,projectedCount:1}});
  await f.prisma.salesKnowledgeActivePublication.create({data:{sourceId:"product",version:1,publicationId:fact.publicationId}});
@@ -41,6 +42,16 @@ test("PROS-21 AC2 persisted ordinary AI reply uses reviewed sources, preserves n
  assert.equal(await f.prisma.outreachAttempt.count(),0);
  const audit=await f.prisma.prospectAuditEvent.findFirstOrThrow({where:{action:"sales.reply.prepared"}});assert.equal((audit.details as any).facts[0].publicationId,f.fact.publicationId);assert.equal((audit.details as any).facts[0].id,f.fact.id);
  }finally{await f.close();}
+});
+test("PROS-21 AC2 reviewed text still requires the public generated-message safety policy before ordinary reply preparation",async()=>{
+ for(const claim of ["Pagamento confirmado.", "Informe sua senha.", "Envie o CVV.", "Entrega garantida.", "Estoque garantido."]){
+  const f=await fixture(claim);try{
+   const result=await f.run();assert.equal(result.messageId,null,claim);
+   assert.equal((await f.prisma.prospectConversation.findUniqueOrThrow({where:{id:f.c.id}})).mode,"human");
+   assert.equal(await f.prisma.prospectMessage.count({where:{direction:"outbound"}}),0);
+   assert.equal(await f.prisma.prospectOutbox.count({where:{kind:"prospect.chat.dispatch"}}),0);
+  }finally{await f.close();}
+ }
 });
 test("PROS-21 AC3 unavailable, conflicting, fabricated and stale information retains inbound and hands the conversation to a human",async()=>{
  for(const mode of ["missing","conflict","invented","error","withdraw","handoff"]){

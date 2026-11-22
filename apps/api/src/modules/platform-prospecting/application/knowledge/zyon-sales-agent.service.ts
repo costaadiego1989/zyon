@@ -1,3 +1,4 @@
+import {isSafeGeneratedMessage} from "@zyon/conversation-engine";
 import type {SalesKnowledgeQuery} from "@zyon/shared-types";
 import type {CanonicalBillingOfferPort,SalesKnowledgePort,SalesLlmPort} from "../../domain/prospecting.ports.js";
 import type {ProspectConversationService} from "../conversations/prospect-conversation.service.js";
@@ -37,7 +38,7 @@ export class ZyonSalesAgentService {
       if(result.offer && stableDirectoryJson(result.offer)!==stableDirectoryJson(offer))throw Error("offer_conflict");
       const information=approved.length>0 && approved.every(f=>!/(?:https?:|www\.|\bR\$|\bBRL\b|\d\s*%|desconto|em breve|planejad|roadmap|faturamento da sua|decisor da sua)/iu.test(f.value)) && result.answer===approved.map(f=>f.value).join("\n");
       const authorized=information || result.answer===SALES_QUALIFICATION || result.offer && (result.answer===formatSalesOffer(offer) || result.answer===offer.canonicalUrl);
-      if(!authorized)throw Error("invalid_generated_answer");
+      if(!authorized || !isSafeGeneratedMessage(result.answer))throw Error("invalid_generated_answer");
       const evidence={messageId:input.messageId,offer,facts:facts.map(({id,sourceId,publicationId,publicationVersion})=>({id,sourceId,publicationId,publicationVersion}))};
       const msg=await this.conversation.prepareAi(input.conversationId,{clientRequestId:requestId,expectedEpoch:input.expectedEpoch,content:result.answer,evidence});
       return {messageId:msg.id,reason:null};
