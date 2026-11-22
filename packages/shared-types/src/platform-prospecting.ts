@@ -42,7 +42,8 @@ export interface CompanyManifest { id: string; competence: string; hash: string;
 export interface CompanyImportStatus { id: string; snapshotId: string; competence: string; state: CompanySnapshotState; committedCount: number; rejectedCount: number; files: { id: string; resourceId: string; state: string; batchIndex: number; computedHash: string | null; errorCode: string | null; rowOffset?:string;byteOffset?:string;compressedBytes?:string|null;rejectedCount?:number }[]; activeSnapshotId: string | null; errorCode: string | null }
 export interface CompanyImportAccepted { importJobId:string;status:CompanyImportStatus }
 export interface ImportCompanySnapshot extends ProspectingCommand { manifestId: string; competence: string }
-export interface ProspectContact { endpointId: string; channel: "whatsapp" | "email"; normalizedValue: string | null; confirmationState: "unconfirmed" | "confirmed" | "ambiguous"; evidenceRef: string | null; permission: ContactPermissionStatus; timezone: string | null; timezoneSource: string | null }
+export interface ProspectProviderIdentity { kind: "phone" | "email" | "bsuid"; value: string; businessScope: string | null }
+export interface ProspectContact { endpointId: string; channel: "whatsapp" | "email"; normalizedValue: string | null; identity?: ProspectProviderIdentity | null; confirmationState: "unconfirmed" | "confirmed" | "ambiguous"; evidenceRef: string | null; permission: ContactPermissionStatus; timezone: string | null; timezoneSource: string | null }
 export interface ProspectRecord {
   id: string; cnpj: string; sourceSnapshotId: string; stage: ProspectStage; assignedOperatorId: string | null;
   tags: string[]; version: number; createdAt: string; lastBusinessActivityAt: string;

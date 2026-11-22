@@ -5800,6 +5800,8 @@ model ProspectSenderSignupState {
 model ProspectEndpoint {
   id String @id @default(cuid())
   channel String
+  identityKind String @default("phone") @map("identity_kind")
+  businessScope String? @map("business_scope")
   normalizedValue String? @map("normalized_value")
   protectedLookup String @map("protected_lookup")
   keyVersion Int @default(1) @map("key_version")
@@ -6186,6 +6188,7 @@ model ProspectCommand {
   actorOperatorId String @map("actor_operator_id")
   requestHash String @map("request_hash")
   kind String
+  resourceIds String[] @default([]) @map("resource_ids")
   state String @default("pending")
   result Json?
   errorCode String? @map("error_code")
