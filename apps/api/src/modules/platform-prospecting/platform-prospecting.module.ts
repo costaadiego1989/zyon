@@ -1,4 +1,4 @@
-﻿import { PROSPECTING_PORTS } from "./domain/prospecting.ports.js";
+import { PROSPECTING_PORTS } from "./domain/prospecting.ports.js";
 import { CompanyDirectoryController } from "./presentation/company-directory.controller.js";
 import { CompanyImportController } from "./presentation/company-import.controller.js";
 import { ProspectController } from "./presentation/prospect.controller.js";
@@ -13,8 +13,8 @@ import { ProspectSegmentController } from "./presentation/prospect-segment.contr
 import { ProspectSenderController } from "./presentation/prospect-sender.controller.js";
 import {
   ProspectMetricsController,
-  ProspectOperationalStatus,
 } from "./presentation/prospect-metrics.controller.js";
+import { ProspectOperationalStatus } from "./application/crm/prospect-operational-status.js";
 import { ProspectConversionHistoryQuery } from "./application/billing/prospect-conversion-history.query.js";
 import {
   ProspectConversionController,

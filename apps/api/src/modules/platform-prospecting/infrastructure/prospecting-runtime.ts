@@ -50,7 +50,7 @@ import { PlatformMetaAuthorization } from "./campaigns/platform-meta-authorizati
 import { ZyonSalesLlmAdapter } from "./knowledge/zyon-sales-llm.adapter.js";
 import { ProspectDispatchWorker } from "../application/campaigns/prospect-dispatch.worker.js";
 import { ProspectFollowUpWorker } from "../application/campaigns/prospect-follow-up.worker.js";
-import { ProspectOperationalStatus } from "../presentation/prospect-metrics.controller.js";
+import { ProspectOperationalStatus } from "../application/crm/prospect-operational-status.js";
 import { recoverProspectSubmissions } from "./prospecting-recovery.js";
 import { ProspectEffectQueue } from "./prospecting-workers.js";
 import type { SenderObservationStore } from "../application/campaigns/sender-readiness.service.js";
