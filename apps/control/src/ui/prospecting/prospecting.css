@@ -86,3 +86,13 @@ dialog.prospect-lead-drawer {
   dialog.prospect-lead-drawer { border:0; }
   .prospect-lead-drawer > .detail-drawer__content { padding-bottom:max(1.5rem,env(safe-area-inset-bottom)); }
 }
+.prospecting-page > section { display: grid; gap: .65rem; min-width: 0; }
+.prospecting-row > *, .prospecting-actions > * { min-width: 0; max-width: 100%; }
+.prospecting-page .prospecting-check { flex-wrap: nowrap; align-items: flex-start; }
+.prospecting-check input[type=checkbox] { flex-shrink: 0; }
+.prospecting-check span { min-width: 0; }
+@media (max-width: 480px) {
+  .prospecting-row { align-items: flex-start; }
+  .prospecting-row > .prospecting-check { flex-basis: 100%; }
+  .prospecting-page .button { white-space: normal; }
+}

@@ -49,6 +49,10 @@ export async function openBrowserData(mode:"preview"|"disposable"){
    await migrateProspectingData(pool);
    await pool.query(readFileSync(new URL("./prospect-billing-fixture.sql",import.meta.url),"utf8"));
    await seedSearchDirectory({client,pg:pool} as Parameters<typeof seedSearchDirectory>[0]);
+   const longName = "Distribuição e Comércio de Equipamentos Industriais para Manutenção e Reparação do Interior Ltda.";
+   await client.companyEntity.update({ where: { snapshotId_baseCnpj: { snapshotId: "search-old", baseCnpj: "12ABC345" } }, data: {
+     legalName: longName, normalizedLegalName: longName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase()
+   } });
    if(mode==="preview")writeFileSync(receipt,JSON.stringify(identity),{flag:"wx"});
   }else if((await pool.query("SELECT owner FROM browser_runtime_owner")).rows[0]?.owner!==identity.owner)throw Error("preview_ownership_mismatch");
   opened=true;return {pg:pool,prisma,client,driver,redis,namespace:identity.name,close};
