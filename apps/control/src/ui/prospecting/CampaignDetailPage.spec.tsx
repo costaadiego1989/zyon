@@ -37,6 +37,18 @@ test("PROS-UI período e detalhamento da campanha mantêm o escopo sem afetar ou
   await ui.click("Entregas");
   expect(props.navigate).toHaveBeenLastCalledWith({area:"overview",id:"delivered",filters:period});
 });
+
+test("PROS-UI atualizar resultados preserva o período escolhido da campanha", async () => {
+  const metrics = vi.fn(async (query: ProspectMetricsQuery) => ({...campaignMetrics,...query}));
+  const ui = await show(<CampaignDetailPage {...screenProps({campaign: async () => base, recipients: async () => ({items: [], nextCursor: null}), metrics})} id={base.id} />);
+  await ui.fill("Início (UTC)","2026-11-03");
+  await ui.fill("Fim exclusivo (UTC)","2026-11-27");
+  await ui.click("Aplicar período");
+  await ui.click("Atualizar resultados");
+  expect(metrics.mock.calls.at(-1)?.[0]).toEqual({from:"2026-11-03T00:00:00.000Z",to:"2026-11-27T00:00:00.000Z",campaignId:base.id});
+  expect(ui.control("Início (UTC)").value).toBe("2026-11-03");
+  expect(ui.control("Fim exclusivo (UTC)").value).toBe("2026-11-27");
+});
 test("PROS-26 AC3 pausa e retoma por revisão, consulta comando interrompido sem reenviar destinatário", async () => {
   const current = { ...base };
   const pauseOrResume = vi.fn(async (_id, cmd) => {

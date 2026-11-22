@@ -19,7 +19,7 @@ const gaps: Record<string, string> = {
   multiple_currencies: "Valores em moedas distintas",
   unsettled_usage: "Consumo ainda sem liquidação",
 };
-function defaultPeriod() {
+export function defaultPeriod() {
   const end = new Date();
   end.setUTCHours(24, 0, 0, 0);
   return { from: new Date(+end - 30 * 86400000).toISOString(), to: end.toISOString() };
@@ -42,13 +42,13 @@ export function ProspectingOverview(props: Props) {
     <Overview key={JSON.stringify([from, to, campaignId])} {...props} from={from} to={to} campaignId={campaignId} />
   );
 }
-export function CampaignMetrics(props: PageProps & { campaign: Pick<ProspectCampaign, "id" | "name">; refreshToken?: number }) {
-  const [period, setPeriod] = useState(defaultPeriod);
+export function CampaignMetrics(props: PageProps & { campaign: Pick<ProspectCampaign, "id" | "name">; period: Pick<ProspectMetricsQuery, "from" | "to">; onPeriodChange: (period: Pick<ProspectMetricsQuery, "from" | "to">) => void; refreshToken?: number }) {
+  const {period} = props;
   return <Overview {...props} key={JSON.stringify(period)} route={{area: "overview"}}
     from={period.from} to={period.to} campaignId={props.campaign.id} scopeName={props.campaign.name}
     navigate={(next) => {
       if (next.area === "overview" && !next.id && next.filters?.from && next.filters.to)
-        setPeriod({from: next.filters.from, to: next.filters.to});
+        props.onPeriodChange({from: next.filters.from, to: next.filters.to});
       else props.navigate(next);
     }} />;
 }
