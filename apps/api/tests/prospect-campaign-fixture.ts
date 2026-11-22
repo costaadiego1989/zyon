@@ -3,7 +3,7 @@ import { campaignContentHash } from "../src/modules/platform-prospecting/domain/
 import { protectedContactLookups } from "../src/modules/platform-prospecting/infrastructure/crm/prisma-prospect-privacy.repository.js";
 export const fixtureOffer={planKey:"growth",version:"v1",name:"Growth",price:{amountCents:9900,currency:"BRL"},billingCycle:"monthly",features:["synthetic"],canonicalUrl:"https://zyon.test/growth"};
 export const fixtureWindow={timezone:"America/Sao_Paulo",weekdays:[1,2,3,4,5],start:"09:00",end:"18:00"};
-export const fixtureTemplate={id:"template",wabaId:"waba",name:"hello",language:"pt_BR",revision:"hash",category:"MARKETING" as const,status:"APPROVED"};
+export const fixtureTemplate={id:"template",wabaId:"waba",name:"hello",language:"pt_BR",revision:"hash",category:"MARKETING" as const,status:"APPROVED",previewText:"synthetic offer",requiresParameters:false};
 export async function createCampaignFixture(){
  const f=await createProspectCrmFixture(); const keys={currentVersion:1,keys:{1:"a".repeat(64)}};
  try {

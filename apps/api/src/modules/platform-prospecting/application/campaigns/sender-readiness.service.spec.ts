@@ -31,8 +31,8 @@ test("PROS-11 AC3 public readiness persists observed health, timestamp, template
 test("PROS-11 AC4 foreign owner, language, category and stale content fingerprint block the selected template",async()=>{
  const f=await fixture();try{
   const [t]=(await f.svc.readiness()).templates;
-  for(const change of [{wabaId:"foreign"},{language:"en"},{category:"UTILITY" as const},{revision:"stale"}])assert.ok((await f.svc.forSelection("sender",1,{...t,...change})).includes("template_binding_mismatch"));
-  f.obs.text="changed template";assert.ok((await f.svc.forSelection("sender",1,t)).includes("template_binding_mismatch"));
+  for(const change of [{wabaId:"foreign"},{language:"en"},{category:"UTILITY" as const},{revision:"stale"}])assert.ok((await f.svc.forSelection("sender",1,{...t,...change},"approved text")).includes("template_binding_mismatch"));
+  f.obs.text="changed template";assert.ok((await f.svc.forSelection("sender",1,t,"changed template")).includes("template_binding_mismatch"));
  }finally{await f.close();}
 });
 test("PROS-13 AC1 directory-only endpoint preview has no_opt_in and the policy blocker, without creating a permission receipt",async()=>{
@@ -70,4 +70,15 @@ test("PROS-11 AC3 platform sender settings require admin and issuance replays th
   const foreign=await req("/meta/connect",{clientRequestId:"foreign",code:"private-code",state:first.state,wabaId:"12",phoneNumberId:"13",businessId:"foreign",messagingAccountIds:["12"],isOnBizApp:false},admin);
   assert.equal(foreign.status,409);assert.ok(!(await foreign.text()).includes("private-code"));
  }finally{await http.close();await f.close();}
+});
+test("PROS-11 AC4 only an observed parameter-free template with the reviewed body qualifies for this sender",async()=>{
+ const f=await fixture();try{
+  const available=await f.svc.readiness(),t=available.templates[0];
+  assert.equal(t.previewText,"approved text");assert.equal(t.requiresParameters,false);
+  assert.deepEqual(await f.svc.forSelection("sender",1,t,"approved text"),[]);
+  assert.ok((await f.svc.forSelection("sender",1,{...t,previewText:"browser replacement"},"browser replacement")).includes("template_binding_mismatch"));
+  f.obs.text="Hi {{1}}";const dynamic=(await f.svc.readiness()).templates[0];
+  assert.equal(dynamic.requiresParameters,true);assert.equal(dynamic.previewText,"Hi {{1}}");
+  assert.ok((await f.svc.forSelection("sender",1,dynamic,"Hi {{1}}")).includes("template_unavailable"));
+ }finally{await f.close();}
 });

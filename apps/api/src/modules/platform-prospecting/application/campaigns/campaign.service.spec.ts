@@ -35,3 +35,13 @@ test("PROS-12 AC3 changed message, canonical offer or sender version invalidates
   assert.equal(await f.prisma.outreachAttempt.count(),0);
  }finally{await f.close();}
 });
+test("PROS-12 AC2 a static template whose observed body differs from the reviewed message cannot be approved",async()=>{
+ const f=await createCampaignFixture();try{
+  const svc=new CampaignService(new PrismaCampaignCommands(f.prisma,{current:async()=>fixtureOffer,allowedUrl:()=>true},async c=>c.message==="provider template body"?[]:["template_binding_mismatch"]));
+  await f.prisma.prospectCampaign.update({where:{id:f.campaign.id},data:{state:"review_ready",approvedHash:null,approvedRevision:null,approvedAt:null,approvedBy:null}});
+  const review=await svc.find(f.campaign.id);
+  await assert.rejects(svc.approve(review.id,{clientRequestId:"wrong-template-body",expectedRevision:review.revision,audienceHash:review.audienceHash!,contentHash:review.contentHash!},actor),/template_binding_mismatch/);
+  const stored=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:review.id}});assert.equal(stored.state,"review_ready");assert.equal(stored.approvedRevision,null);
+  assert.equal(await f.prisma.prospectCommand.count({where:{clientRequestId:"wrong-template-body"}}),0);
+ }finally{await f.close();}
+});

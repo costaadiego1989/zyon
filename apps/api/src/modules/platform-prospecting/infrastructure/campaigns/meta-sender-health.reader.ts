@@ -7,6 +7,19 @@ type Entity={entity_type:string;id:string;can_send_message:string;errors?:{error
 type Phone={id:string;status:string;platform_type:string;quality_rating:string;whatsapp_business_manager_messaging_limit:string;health_status?:{can_send_message:string;entities:Entity[]}};
 type Template=Omit<ProspectingTemplate,"wabaId"|"revision">&{components:unknown[]};
 const tiers:Record<string,number>={TIER_250:250,TIER_2K:2000,TIER_10K:10000,TIER_100K:100000};
+function staticTemplate(components:unknown[]){
+ const rows=components.filter((v):v is Record<string,unknown>=>v!==null && typeof v==="object" && !Array.isArray(v));
+ const bodies=rows.filter(r=>r.type==="BODY");
+ const previewText=bodies.length===1 && typeof bodies[0].text==="string"?bodies[0].text:null;
+ const fixed=(value:unknown)=>typeof value==="string" && !!value && !value.includes("{{");
+ const parameterFree=rows.length===components.length && fixed(previewText) && rows.every(r=>{
+  if(r.type==="BODY" || r.type==="FOOTER")return fixed(r.text);
+  if(r.type==="HEADER")return r.format==="TEXT" && fixed(r.text);
+  if(r.type!=="BUTTONS" || !Array.isArray(r.buttons))return false;
+  return r.buttons.every(button=>button && fixed(button.text) && (button.type==="QUICK_REPLY" || button.type==="URL" && fixed(button.url) || button.type==="PHONE_NUMBER" && fixed(button.phone_number)));
+ });
+ return {previewText,requiresParameters:!parameterFree};
+}
 export class MetaSenderHealthReader implements SenderHealthReader {
  constructor(private readonly app:{appId:string;appSecret:string},private readonly fetcher:typeof fetch=fetch){}
  private async get<T>(path:string,token:string,query:Record<string,string>):Promise<T>{
@@ -36,12 +49,12 @@ export class MetaSenderHealthReader implements SenderHealthReader {
    for(const t of result.data){
     if(![t.id,t.name,t.language,t.status].every(v=>typeof v==="string"&&v.length>0&&v.length<=512)||!["MARKETING","UTILITY","AUTHENTICATION"].includes(t.category)||!Array.isArray(t.components)||!t.components.length)continue;
     const {id,name,language,category,status}=t;const revision=createHash("sha256").update(stableDirectoryJson({id,name,language,category,wabaId:b.wabaId,components:t.components})).digest("hex");
-    templates.push({id,name,language,category,status,revision,wabaId:b.wabaId});
+    templates.push({id,name,language,category,status,revision,wabaId:b.wabaId,...staticTemplate(t.components)});
    }
    if(!result.paging?.next)break;
    const after=result.paging.cursors?.after;if(!after||after===query.after||page===19){blockers.add("template_unavailable");break;}query.after=after;
   }
-  if(!templates.some(t=>t.status==="APPROVED"&&t.category==="MARKETING"))blockers.add("template_unavailable");
+  if(!templates.some(t=>t.status==="APPROVED"&&t.category==="MARKETING"&&t.requiresParameters===false))blockers.add("template_unavailable");
   return {entities,templates,portfolioLimit:tiers[tier]??null,portfolioTier:known?tier:null,blockers:[...blockers]};
  }
 }

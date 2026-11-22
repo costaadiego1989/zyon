@@ -1,4 +1,4 @@
-import type { ContactPermissionStatus, PlatformSenderBinding, PlatformSenderReadiness, ProspectingBlocker, ProspectingTemplate } from "@zyon/shared-types";
+import type { ContactPermissionStatus, ProspectCampaign, PlatformSenderBinding, PlatformSenderReadiness, ProspectingBlocker, ProspectingTemplate } from "@zyon/shared-types";
 
 export interface PlatformSenderCredential {binding:PlatformSenderBinding;accessToken:string;businessId:string}
 export interface SenderObservationStore {
@@ -24,14 +24,17 @@ export class SenderReadinessService {
   }catch{result={...unknown,binding:credentials.binding};}
   return await this.store.save(credentials.binding,result)?result:unknown;
  }
- async forSelection(senderId:string,version:number,template:ProspectingTemplate|null){
+ forCampaign(c:Pick<ProspectCampaign,"senderBindingId"|"senderVersion"|"template"|"message">){
+  return this.forSelection(c.senderBindingId??"",c.senderVersion??0,c.template,c.message);
+ }
+ async forSelection(senderId:string,version:number,template:ProspectingTemplate|null,reviewedMessage?:string){
   const health=await this.readiness();const blockers=[...health.blockers];
   if(health.binding?.id!==senderId||health.binding.version!==version)blockers.push("sender_identity_mismatch");
   if(!template)blockers.push("template_unavailable");
   else {
    const current=health.templates.find(t=>t.id===template.id);
-   if(!current||current.status!=="APPROVED")blockers.push("template_unavailable");
-   else if(current.wabaId!==template.wabaId||current.name!==template.name||current.language!==template.language||current.category!==template.category||current.revision!==template.revision)blockers.push("template_binding_mismatch");
+   if(!current||current.status!=="APPROVED"||current.requiresParameters!==false||current.category!=="MARKETING")blockers.push("template_unavailable");
+   else if(current.wabaId!==template.wabaId||current.name!==template.name||current.language!==template.language||current.category!==template.category||current.revision!==template.revision||!current.previewText||current.previewText!==reviewedMessage||template.previewText!==current.previewText||template.requiresParameters!==false)blockers.push("template_binding_mismatch");
   }
   return [...new Set(blockers)];
  }

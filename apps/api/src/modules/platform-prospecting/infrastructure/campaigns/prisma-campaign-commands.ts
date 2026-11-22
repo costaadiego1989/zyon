@@ -55,6 +55,11 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
    const hash=campaignContentHash(storedReview(c));
    if(c.state!=="review_ready"||!c.audienceHash||!c.dailyRecipientLimit||!c.budgetCents||c.audienceHash!==cmd.audienceHash||cmd.contentHash!==hash)throw new Error("approval_stale");
    await this.current(tx,c);
+   if(c.template){
+    const blockers=await this.activation(project(c));
+    const mismatch=blockers.find(code=>code==="template_binding_mismatch"||code==="template_unavailable");
+    if(mismatch)throw new Error(mismatch);
+   }
    const row=await tx.prospectCampaign.update({where:{id},data:{state:"approved",approvedRevision:c.revision,approvedHash:hash,contentHash:hash,approvedBy:actor.operatorId,approvedAt:new Date()}});
    return this.result(tx,row,actor,"campaign.approve");
   });
