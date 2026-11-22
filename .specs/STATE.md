@@ -85,3 +85,5 @@
 - Execution T22: gate0, source stable; apps/dashboard/src/api/endpoints/meta-ads-agent.ts, apps/dashboard/src/api/endpoints/meta-ads-agent.spec.ts. Next: T23.
 
 - Execution T23: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspace.tsx, apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspace.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T24.
+
+- Execution T24: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/CampaignQuickActions.tsx, apps/dashboard/src/pages/meta-ads-agent/CampaignQuickActions.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T25.
