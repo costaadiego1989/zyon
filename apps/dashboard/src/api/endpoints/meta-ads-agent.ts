@@ -1,14 +1,24 @@
 import type { MetaAdsActionKind, MetaAdsCampaign, MetaAdsCampaignDraft, MetaAdsCampaignReadiness, MetaAdsCheckout, MetaAdsConnection, MetaAdsExecution, MetaAdsGeneration, MetaAdsMetrics, MetaAdsOverview, MetaAdsProduct, MetaAdsProposal, MetaAdsSubscription } from "@zyon/shared-types";
 import { dashboardJson } from "../http/client.js";
+import type {MetaAdsCampaignLifecycleInput,MetaAdsCampaignSalesPage,MetaAdsCampaignWorkspacePage,MetaAdsCampaignWorkspaceRow,MetaAdsOrderAdOrigin,MetaAdsPreparationLimitsInput,MetaAdsPreparationLimitsView,MetaAdsWorkspaceQuery} from '@zyon/shared-types';
 
 export interface MetaAdsSelection { accountId: string; pageId?: string | null; catalogId?: string | null; datasetId?: string | null; whatsappId?: string | null; }
 export interface MetaAdsProposalInput { kind: MetaAdsActionKind; after?: Record<string, unknown>; reasoning: string; idempotencyKey: string; }
 export function metaAdsAgentEndpoints(base: string, f: typeof fetch = globalThis.fetch) {
   const prefix = "/meta-ads-agent";
-  const get = <T>(path = "") => dashboardJson<T>(base, prefix + path, {method: "GET"}, f);
+  const get = <T>(path = "",signal?:AbortSignal) => dashboardJson<T>(base, prefix + path, {method: "GET",signal}, f);
   const post = <T>(path: string, jsonBody: unknown = {}) => dashboardJson<T>(base, prefix + path, {method: "POST", jsonBody}, f);
   const id = encodeURIComponent;
+  const query=(input:object)=>{const params=new URLSearchParams(Object.entries(input).filter(([,value])=>value!==undefined&&value!==null).map(([key,value])=>[key,String(value)]));return params.size?'?'+params.toString():'';};
   return {
+    workspace:(input:Partial<MetaAdsWorkspaceQuery>={},signal?:AbortSignal)=>get<MetaAdsCampaignWorkspacePage>('/campaign-workspace'+query(input),signal),
+    workspaceDetail:(campaignId:string,input:Pick<MetaAdsWorkspaceQuery,'since'|'until'>,signal?:AbortSignal)=>get<MetaAdsCampaignWorkspaceRow>(`/campaign-workspace/${id(campaignId)}`+query(input),signal),
+    deleteDraft:(campaignId:string,input:MetaAdsCampaignLifecycleInput)=>post<MetaAdsCampaign>(`/campaigns/${id(campaignId)}/delete-draft`,input),
+    archiveCampaign:(campaignId:string,input:MetaAdsCampaignLifecycleInput)=>post<MetaAdsCampaign>(`/campaigns/${id(campaignId)}/archive`,input),
+    preparationLimits:(signal?:AbortSignal)=>get<MetaAdsPreparationLimitsView>('/preparation-limits',signal),
+    savePreparationLimits:(input:MetaAdsPreparationLimitsInput)=>dashboardJson<MetaAdsPreparationLimitsView>(base,prefix+'/preparation-limits',{method:'PUT',jsonBody:input},f),
+    campaignSales:(campaignId:string,input:{since:string;until:string;page?:number},signal?:AbortSignal)=>get<MetaAdsCampaignSalesPage>(`/campaigns/${id(campaignId)}/sales`+query(input),signal),
+    orderAdOrigin:(orderId:string,signal?:AbortSignal)=>get<MetaAdsOrderAdOrigin>(`/orders/${id(orderId)}/ad-origin`,signal),
     overview: () => get<MetaAdsOverview>(),
     checkout: (input: {kind: "subscription" | "extra_images"; idempotencyKey: string; offerVersion: string}) => post<MetaAdsCheckout>("/checkout", input),
     cancel: () => post<MetaAdsSubscription>("/cancel"),

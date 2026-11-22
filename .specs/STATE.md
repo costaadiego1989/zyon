@@ -81,3 +81,5 @@
 - Execution T20: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/campaign-sales-query.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign-sales-query.service.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/commerce-context.adapter.ts. Next: T21.
 
 - Execution T21: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/campaign-sales.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/campaign-sales.controller.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T22.
+
+- Execution T22: gate0, source stable; apps/dashboard/src/api/endpoints/meta-ads-agent.ts, apps/dashboard/src/api/endpoints/meta-ads-agent.spec.ts. Next: T23.
