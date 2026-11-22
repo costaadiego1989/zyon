@@ -28,7 +28,8 @@ export class PrismaProspectConversationRepository{
    const msg=await append(tx,c.id,{direction:"inbound",authorType:"prospect",senderBindingId:event.senderBindingId,content:payload.body,state:"received",providerId:payload.providerId,providerOccurredAt:at});
    const ids=[...new Set([...event.resourceIds,ep.id,c.id,msg.id,...c.prospectId?[c.prospectId]:[],...c.ambiguousBindings])];
    const newer=at&&(!c.lastInboundAt||at>c.lastInboundAt||at.getTime()===c.lastInboundAt.getTime()&&event.eventId>(c.lastInboundEventId??""));
-   const refuse=/^(?:pare|parar|stop|sair|cancelar|n?o tenho interesse|nao tenho interesse|n?o quero(?: receber (?:mais )?mensagens)?|nao quero)[.!\s]*$/iu.test(payload.body.trim());
+   const normalizedReply=payload.body.trim().normalize("NFD").replace(/\p{M}/gu,"");
+   const refuse=/^(?:pare|parar|stop|sair|cancelar|nao tenho interesse|nao quero(?: receber (?:mais )?mensagens)?)(?:(?:\s*[,!.]\s*|\s+)obrigad[oa])?[.!\s]*$/iu.test(normalizedReply);
    const preview=Array.from(payload.body).slice(0,240).join("");
    const updated=await tx.prospectConversation.update({where:{id:c.id},data:{...(newer?{lastInboundAt:at,lastInboundEventId:event.eventId,lastInboundPreview:preview,serviceWindowEndsAt:new Date(at.getTime()+86400000)}:{}),
     ...(refuse?{mode:"human",controlEpoch:{increment:1},serviceWindowEndsAt:null}:{})}});

@@ -14,6 +14,11 @@ import {PROSPECT_META_DISPATCH} from "../../../../shared/integrations/prospect-m
 import {PrismaProspectMetaInbox} from "../../../platform-prospecting/infrastructure/conversations/prisma-prospect-meta-inbox.js";
 import {createCampaignFixture} from "../../../../../tests/prospect-campaign-fixture.js";
 
+import {ProcessProspectInbound} from "../../../platform-prospecting/application/conversations/process-prospect-inbound.service.js";
+import {PrismaProspectConversationRepository} from "../../../platform-prospecting/infrastructure/conversations/prisma-prospect-conversation.repository.js";
+import {PrismaCampaignRepository} from "../../../platform-prospecting/infrastructure/campaigns/prisma-campaign.repository.js";
+import {protectedContactLookups} from "../../../platform-prospecting/infrastructure/crm/prisma-prospect-privacy.repository.js";
+
 const timestamp=String(Math.floor(Date.now()/1000)-60);
 const platform={field:"messages",value:{metadata:{phone_number_id:"phone"},contacts:[{user_id:"Opaque.Abc"}],messages:[{id:"msg-a",from_user_id:"Opaque.Abc",timestamp,type:"text",text:{body:"hello"}}]}};
 const merchant={field:"messages",value:{metadata:{phone_number_id:"shop"},statuses:[{id:"receipt",status:"read"}],messages:[{id:"shop-msg",from:"5511999999999",type:"text",text:{body:"cart"}}]}};
@@ -60,4 +65,73 @@ test("PROS-15 AC4 mixed changes persist both platform and merchant/fiscal routin
   assert.equal((await f.post([platform,merchant])).status,200);assert.equal(await f.prisma.prospectInboxEvent.count(),1);
   assert.deepEqual((await f.pg.query("SELECT kind,value FROM routed ORDER BY kind")).rows,[{kind:"META",value:"shop-msg"},{kind:"delivery",value:"receipt"},{kind:"fiscal",value:"shop"},{kind:"status",value:"receipt"}]);
  }finally{await f.close();}
+});
+
+for (const refusal of ["Não quero!", "não tenho interesse".normalize("NFD"), "Não tenho interesse, obrigado.", "NÃO TENHO INTERESSE, OBRIGADA!"]) {
+ test(`PROS-10/18 verified Portuguese opt-out suppresses phone and BSUID and cancels pending work: ${refusal}`, async () => {
+  const f = await fixture();
+  try {
+   const seconds = Math.floor(Date.now() / 1000);
+   const alias = "Case.OptOut";
+   const worker = new ProcessProspectInbound(new PrismaProspectConversationRepository(f.prisma));
+   async function receive(id:string,body:string,timestamp:string,address:Record<string,string>) {
+    const message = {id,type:"text",text:{body},timestamp,...address};
+    const response = await f.post([{field:"messages",value:{metadata:{phone_number_id:"phone"},messages:[message]}}],"test-platform","meta-platform");
+    assert.equal(response.status,200);
+    const event = await f.prisma.prospectInboxEvent.findFirstOrThrow({where:{eventId:id,senderBindingId:"sender"}});
+    await worker.process(event.id);
+    return event.id;
+   }
+   await receive("interest", "quero saber mais", String(seconds - 10), {
+    from: f.endpoint.normalizedValue!, from_user_id: alias,
+   });
+   const chat = await f.prisma.prospectConversation.findFirstOrThrow();
+   const aiJob = await f.prisma.prospectOutbox.findFirstOrThrow({where:{kind:"prospect.ai.reply",state:"pending"}});
+   const repo = new PrismaCampaignRepository(f.prisma, f.keys, f.quote);
+   const packet = await repo.reserveAttempt(f.recipient.id, "worker", new Date());
+   assert.ok(packet);
+   const sequence = await f.prisma.prospectSequence.update({
+    where:{senderBindingId_endpointId:{senderBindingId:"sender",endpointId:f.endpoint.id}},
+    data:{followUpDueAt:new Date(Date.now()+48*3600000)},
+   });
+   const endpoint = await f.prisma.prospectEndpoint.findUniqueOrThrow({where:{id:f.endpoint.id},include:{aliases:true}});
+   const aliasKey = protectedContactLookups({kind:"bsuid",value:alias,businessScope:"scope"},f.keys)[0];
+   assert.ok(endpoint.aliases.some(row => row.protectedLookup === aliasKey.protectedLookup && row.keyVersion === aliasKey.keyVersion));
+   const eventId = await receive("refusal", refusal, String(seconds - 1), {from_user_id:alias});
+   const select = {protectedLookup:true,keyVersion:true};
+   const keys = [endpoint, ...endpoint.aliases].map(({protectedLookup,keyVersion}) => ({protectedLookup,keyVersion}));
+   for (const key of keys) {
+    assert.deepEqual(await f.prisma.contactSuppression.findFirst({where:{...key,senderScope:"zyon_platform",reason:"opt_out"},select}),key);
+   }
+   assert.equal(await f.prisma.contactPermissionReceipt.count({where:{endpointId:endpoint.id,senderBindingId:"sender",purpose:"zyon_sales",status:"revoked"}}),1);
+   assert.equal((await f.prisma.platformProspect.findUniqueOrThrow({where:{id:f.lead.id}})).stage,"do_not_contact");
+   const closed = await f.prisma.prospectConversation.findUniqueOrThrow({where:{id:chat.id}});
+   assert.equal(closed.lastInboundPreview,refusal);
+   assert.equal(closed.mode,"human");
+   assert.equal(closed.serviceWindowEndsAt,null);
+   assert.deepEqual(await f.prisma.prospectSequence.findUniqueOrThrow({where:{id:sequence.id},select:{state:true,cancelReason:true,followUpDueAt:true}}),{state:"cancelled",cancelReason:"refused",followUpDueAt:null});
+   assert.deepEqual(await f.prisma.outreachAttempt.findUniqueOrThrow({where:{id:packet.attempt.id},select:{state:true,costState:true,submittedAt:true}}),{state:"cancelled_before_submit",costState:"released",submittedAt:null});
+   assert.equal((await f.prisma.prospectOutbox.findUniqueOrThrow({where:{eventId:packet.attempt.id}})).state,"held");
+   assert.deepEqual(await f.prisma.prospectOutbox.findMany({where:{kind:"prospect.ai.reply",resourceIds:{has:chat.id}},select:{id:true,state:true}}),[{id:aiJob.id,state:"cancelled"}]);
+   assert.equal(await f.prisma.prospectMessage.count({where:{conversationId:chat.id,direction:"outbound"}}),0);
+   assert.equal((await f.prisma.prospectInboxEvent.findUniqueOrThrow({where:{id:eventId}})).state,"processed");
+  } finally { await f.close(); }
+ });
+}
+
+test("PROS-10/18 a negated cancellation request keeps consent and the usual reply workflow",async()=>{
+ const f=await fixture();
+ try {
+  const body="Não quero cancelar minha conta";
+  const message={id:"keep-account",type:"text",from:f.endpoint.normalizedValue,timestamp:String(Math.floor(Date.now()/1000)-1),text:{body}};
+  assert.equal((await f.post([{field:"messages",value:{metadata:{phone_number_id:"phone"},messages:[message]}}],"test-platform","meta-platform")).status,200);
+  const event=await f.prisma.prospectInboxEvent.findFirstOrThrow({where:{eventId:message.id,senderBindingId:"sender"}});
+  await new ProcessProspectInbound(new PrismaProspectConversationRepository(f.prisma)).process(event.id);
+  const chat=await f.prisma.prospectConversation.findFirstOrThrow({where:{endpointId:f.endpoint.id}});
+  assert.equal(chat.mode,"ai");
+  assert.equal(chat.lastInboundPreview,body);
+  assert.equal(await f.prisma.contactSuppression.count(),0);
+  assert.equal(await f.prisma.contactPermissionReceipt.count({where:{status:"revoked"}}),0);
+  assert.equal(await f.prisma.prospectOutbox.count({where:{kind:"prospect.ai.reply",state:"pending",resourceIds:{has:chat.id}}}),1);
+ } finally { await f.close(); }
 });
