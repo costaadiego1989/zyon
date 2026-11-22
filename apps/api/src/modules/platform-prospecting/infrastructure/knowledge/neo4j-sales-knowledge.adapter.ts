@@ -31,6 +31,19 @@ export class Neo4jSalesKnowledgeAdapter implements Projector {
 }
 export class SalesPublicationService {
   constructor(private readonly repo:PrismaSalesKnowledgeRepository, private readonly graph:Projector, private readonly clock=()=>new Date()) {}
+  async withdraw(sourceId:string,command:PublicationCommand,actor:ProspectingActor) {
+    return prospectCommand(this.repo.prisma,"knowledge.withdraw",{sourceId,...command},actor,async tx=>{
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('sales-knowledge'),hashtext(${sourceId}))::text`;
+      const active=await tx.salesKnowledgeActivePublication.findUnique({where:{sourceId}});
+      if(!active || active.version!==command.expectedVersion) throw new Error("version_conflict");
+      const row=await tx.salesKnowledgePublication.findUniqueOrThrow({where:{id:active.publicationId}});
+      if(row.contentHash!==command.contentHash || row.state!=="published") throw new Error("version_conflict");
+      await tx.salesKnowledgePublication.update({where:{id:row.id},data:{state:"withdrawn",withdrawnAt:this.clock()}});
+      await tx.salesKnowledgeActivePublication.delete({where:{sourceId}});
+      await prospectAudit(tx,actor,"knowledge.withdraw","knowledge",sourceId,row.version,{publicationId:row.id,sourceRef:row.sourceRef,validFrom:row.validFrom.toISOString(),validUntil:row.validUntil?.toISOString() ?? null});
+      return {result:{id:sourceId,version:row.version,state:"withdrawn" as const,activePublicationId:null},resourceIds:[sourceId,row.id]};
+    });
+  }
   async publish(sourceId:string, command:PublicationCommand, actor:ProspectingActor) {
     let projectionFailed:string | null=null;
     try {
