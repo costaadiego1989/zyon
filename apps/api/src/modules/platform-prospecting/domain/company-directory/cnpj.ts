@@ -1,9 +1,8 @@
 /** Receita Federal's modulo-11 algorithm, character value = ASCII minus 48. */
 export function canonicalCnpj(input: string): string {
   if (typeof input !== "string") throw new Error("invalid_cnpj");
-  const value = input.trim();
-  if (!/^(?:[A-Za-z0-9]{12}\d{2}|[A-Za-z0-9]{2}\.[A-Za-z0-9]{3}\.[A-Za-z0-9]{3}\/[A-Za-z0-9]{4}-\d{2})$/.test(value)) throw new Error("invalid_cnpj");
-  const canonical = value.toUpperCase().replace(/[./-]/g, "");
+  if (!/^(?:[A-Za-z0-9]{12}\d{2}|[A-Za-z0-9]{2}\.[A-Za-z0-9]{3}\.[A-Za-z0-9]{3}\/[A-Za-z0-9]{4}-\d{2})$/.test(input)) throw new Error("invalid_cnpj");
+  const canonical = input.toUpperCase().replace(/[./-]/g, "");
   if (/^(\d)\1{13}$/.test(canonical)) throw new Error("invalid_cnpj");
   const digit = (part: string) => {
     let sum = 0;

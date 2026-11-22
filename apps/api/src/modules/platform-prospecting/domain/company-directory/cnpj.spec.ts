@@ -16,6 +16,6 @@ test("PROS-04 AC2 rejects malformed identifiers and wrong check digits before a 
 });
 
 test("PROS-04 AC2 checks the original ASCII positions before uppercasing or removing the mask", () => {
-  for (const raw of ["00ABß27000345", "00.ABß.27/0003-45", "12.ABÇ.345/01DE-35"]) assert.throws(() => canonicalCnpj(raw), /invalid_cnpj/);
+  for (const raw of ["00ABß27000345", "00.ABß.27/0003-45", "12.ABÇ.345/01DE-35", " 12abc34501de35", "12.abc.345/01de-35\u00a0", "12abc34501de35\n"]) assert.throws(() => canonicalCnpj(raw), /invalid_cnpj/);
   assert.equal(canonicalCnpj("12.abc.345/01de-35"), "12ABC34501DE35");
 });
