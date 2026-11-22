@@ -172,6 +172,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
     const assistant = input.assistant;
     assistant.contexts.register(new MetaAdsAssistantAdapter({ service, conversations: assistant.repo, authorizeActor:async scope=>{await authorizeActor(scope.merchantId,scope.actorId);await assistant.authorizeActor(scope);}, authorizeTool: assistant.authorizeTool,
       enabled: () => env.META_ADS_AGENT_ENABLED === 'true' && env.MERCHANT_ASSISTANT_ENABLED === 'true', clock,
+      workspace:(merchantId,query)=>workspace.list(merchantId,query),preparationLimits:merchantId=>preparationLimits.view(merchantId),campaignSales:(merchantId,campaignId,query)=>sales.sales(merchantId,campaignId,query),
       preparation,launchReview:(merchantId,actorId,campaignId)=>launches.review(merchantId,actorId,campaignId),
       planningContext:async merchantId=>{
         const access=await connection.access(merchantId);if(!access.accountId)throw new MetaAdsError('meta_account_required',409);
