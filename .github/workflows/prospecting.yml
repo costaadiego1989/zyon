@@ -1,0 +1,72 @@
+﻿name: Prospecting regression
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'apps/control/**'
+      - 'apps/dashboard/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/prospecting.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  local-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: prospecting
+          POSTGRES_PASSWORD: local_ci_only
+          POSTGRES_DB: zyon_prospecting
+        ports: ['15438:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 12
+      graph:
+        image: neo4j:5-community
+        env:
+          NEO4J_AUTH: neo4j/local_ci_only
+        ports: ['17690:7687']
+      redis:
+        image: redis:7-alpine
+        ports: ['16389:6379']
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://prospecting:local_ci_only@127.0.0.1:15438/zyon_prospecting
+      PROSPECTING_DIRECTORY_DATABASE_URL: postgresql://prospecting:local_ci_only@127.0.0.1:15438/zyon_prospecting?schema=company_directory
+      PROSPECTING_TEST_DATABASE_URL: postgresql://prospecting:local_ci_only@127.0.0.1:15438/zyon_prospecting
+      PROSPECTING_TEST_NEO4J_URI: bolt://127.0.0.1:17690
+      PROSPECTING_TEST_NEO4J_USER: neo4j
+      PROSPECTING_TEST_NEO4J_PASSWORD: local_ci_only
+      PROSPECTING_TEST_REDIS_URL: redis://127.0.0.1:16389
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.0'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare disposable fixture profile
+        shell: bash
+        run: |
+          umask 077
+          for flag in ENABLED RUN_WORKERS META_SEND_ENABLED LLM_REAL_ENABLED INGESTION_ENABLED PAID_INGESTION_ENABLED; do
+            printf 'PROSPECTING_%s=false\n' "$flag"
+          done > .env.prospecting.local
+      - run: pnpm --filter @zyon/api build
+      - run: pnpm --dir apps/control exec playwright install --with-deps chromium
+      - run: pnpm --filter @zyon/api test:prospecting
+      - run: pnpm --dir apps/control test
+      - run: pnpm --dir apps/dashboard exec vitest run src/auth/ProspectProposalBinding.spec.tsx src/auth/SignupExperience.spec.tsx src/auth/auth-navigation.spec.ts src/auth/subscription-intent.spec.ts src/pages/billing-history.spec.tsx
+      - name: Run each browser story against a fresh database
+        run: |
+          pnpm --dir apps/control e2e:prospecting e2e/prospecting-responsive.spec.ts
+          pnpm --dir apps/control e2e:prospecting e2e/prospecting-lead-drawer.spec.ts
+          pnpm --dir apps/control e2e:prospecting e2e/prospecting.spec.ts

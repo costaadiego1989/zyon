@@ -553,3 +553,8 @@ fiscalTest("FISCAL-64 all discovered fiscal source suites use the real loader an
   const result = await runFiscalTestFiles(discoverFiscalTestFiles());
   assertFiscal.equal(result.exitCode, 0, "fiscal source child must complete without failures");
 });
+// Source integration suites use real, explicitly local PostgreSQL, Neo4j and Redis.
+import { runProspectingRegression } from "./prospecting-test-runner.js";
+fiscalTest("Prospecção executa todas as suítes registradas e os contratos HTTP", {timeout:2_400_000}, async()=>{
+  assertFiscal.equal(await runProspectingRegression(),0);
+});

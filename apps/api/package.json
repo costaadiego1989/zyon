@@ -14,6 +14,7 @@
     "lint": "eslint src",
     "typecheck": "pnpm --filter @zyon/contracts --filter @zyon/shared-types --filter @zyon/commerce-adapters --filter @zyon/conversation-engine --filter @zyon/decision-engine --filter @zyon/negotiation-engine --filter @zyon/rules-engine --filter @zyon/shipping-engine build && tsc -p tsconfig.json --noEmit",
     "test": "pnpm build && pnpm test:compile && pnpm test:compiled",
+    "test:prospecting": "node --loader ./tests/platform-support-loader.mjs ./src/prospecting-test-runner.ts",
     "test:compile": "tsc -p tsconfig.test-runner.json",
     "test:widget-cross-sell-boundaries": "node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/checkout/infrastructure/prisma/prisma-checkout.widget-receipt.spec.ts ./src/modules/payment/infrastructure/prisma-payment.widget-receipt.spec.ts ./src/modules/checkout/infrastructure/prisma/prisma-checkout.coupon-storage.spec.ts ./src/modules/payment/infrastructure/prisma-payment.coupon-storage.spec.ts",
     "test:compiled": "node ./tests/run-compiled-tests.mjs",

@@ -275,6 +275,11 @@ test("PROS-32 AC1 o AppModule injeta atribuição nos dois ingressos financeiros
     const g = readProspectingTestConfig();
     const env: NodeJS.ProcessEnv = {
       ...environment(f.databaseUrl),
+      PROSPECTING_TEST_DATABASE_URL:g.databaseUrl,
+      PROSPECTING_TEST_NEO4J_URI:g.neo4jUri,
+      PROSPECTING_TEST_NEO4J_USER:g.neo4jUser,
+      PROSPECTING_TEST_NEO4J_PASSWORD:g.neo4jPassword,
+      PROSPECTING_TEST_REDIS_URL:g.redisUrl,
       DATABASE_URL: f.databaseUrl,
       REDIS_URL: g.redisUrl,
       BILLING_TRIAL_QUEUE_REQUIRED: "false",
