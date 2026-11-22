@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Bot,
@@ -183,6 +183,20 @@ function ControlShell({
     return ()=>{window.removeEventListener("popstate",sync);window.removeEventListener("hashchange",sync);};
   },[readView]);
   const [navOpen, setNavOpen] = useState(false);
+  const content = useRef<HTMLElement>(null);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+  const menuClose = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (navOpen) menuClose.current?.focus();
+  }, [navOpen]);
+
+  function closeMenu() {
+    if (navOpen) {
+      setNavOpen(false);
+      menuTrigger.current?.focus();
+    }
+  }
+
   const allowedNavigation = navigation.filter(item => canReadNavigationItem(item, operator.role));
   const readyNavigation = allowedNavigation.filter(item => item.source === "ready");
   const pendingNavigation = allowedNavigation.filter(item => item.source === "pending");
@@ -196,20 +210,23 @@ function ControlShell({
       history.pushState({controlView:id},"",location.pathname+location.search);
     }
     setView(id);
-    setNavOpen(false);
+    closeMenu();
   }
 
   return (
     <div className="control-app">
-      <a className="skip-link" href="#control-content">Pular para o conteúdo</a>
-      <aside className={`control-sidebar ${navOpen ? "control-sidebar--open" : ""}`} aria-label="Navegação principal">
+      <a className="skip-link" href="#control-content" onClick={event => {
+        event.preventDefault();
+        content.current?.focus();
+      }}>Pular para o conteúdo</a>
+      <aside id="control-sidebar" onKeyDown={event => { if (event.key === "Escape" && navOpen) closeMenu(); }} className={`control-sidebar ${navOpen ? "control-sidebar--open" : ""}`} aria-label="Navegação principal">
         <div className="control-brand">
           <span className="control-mark" aria-hidden="true">Z</span>
           <span>
             <strong>Zyon</strong>
             <small>Control</small>
           </span>
-          <button className="icon-button control-sidebar__close" type="button" onClick={() => setNavOpen(false)} aria-label="Fechar navegação">
+          <button ref={menuClose} className="icon-button control-sidebar__close" type="button" onClick={closeMenu} aria-label="Fechar navegação">
             <X size={18} />
           </button>
         </div>
@@ -238,11 +255,11 @@ function ControlShell({
           </button>
         </div>
       </aside>
-      {navOpen ? <button type="button" className="nav-backdrop" onClick={() => setNavOpen(false)} aria-label="Fechar navegação" /> : null}
+      {navOpen ? <button type="button" className="nav-backdrop" onClick={closeMenu} aria-label="Fechar navegação" /> : null}
 
       <div className="control-main">
         <header className="control-topbar">
-          <button className="icon-button control-menu" type="button" onClick={() => setNavOpen(true)} aria-label="Abrir navegação" aria-expanded={navOpen}>
+          <button ref={menuTrigger} aria-controls="control-sidebar" className="icon-button control-menu" type="button" onClick={() => setNavOpen(true)} aria-label="Abrir navegação" aria-expanded={navOpen}>
             <Menu size={19} />
           </button>
           <div>
@@ -255,7 +272,7 @@ function ControlShell({
           </div>
         </header>
 
-        <main id="control-content" className="control-content">
+        <main id="control-content" className="control-content" ref={content} tabIndex={-1}>
           {view === "overview" ? <Overview api={api} token={token} onNavigate={selectView} role={operator.role} onSessionExpired={onSessionExpired} /> : null}
           {view === "prospecting" && canProspect ? <ProspectingArea api={api} token={token} operator={operator} onSessionExpired={onSessionExpired}/> : null}
           {view === "feedback" ? (

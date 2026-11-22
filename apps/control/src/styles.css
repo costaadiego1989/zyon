@@ -320,8 +320,8 @@ select:disabled, input:disabled, textarea:disabled { background: var(--surface-m
 
 @media (max-width: 880px) {
   .control-app { display: block; }
-  .control-sidebar { left: 0; width: min(286px, calc(100vw - 52px)); transform: translateX(-105%); box-shadow: var(--shadow); transition: transform 220ms var(--ease-out); }
-  .control-sidebar--open { transform: translateX(0); }
+  .control-sidebar { left: 0; width: min(286px, calc(100vw - 52px)); visibility: hidden; transform: translateX(-105%); box-shadow: var(--shadow); transition: transform 220ms var(--ease-out); }
+  .control-sidebar--open { visibility: visible; transform: translateX(0); }
   .control-sidebar__close, .control-menu { display: inline-grid; }
   .control-sidebar__close { margin-left: auto; }
   .nav-backdrop { position: fixed; z-index: 10; inset: 0; display: block; border: 0; background: oklch(20% 0.018 154 / 0.22); }
