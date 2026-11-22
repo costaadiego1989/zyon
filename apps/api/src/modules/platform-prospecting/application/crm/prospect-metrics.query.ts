@@ -45,10 +45,9 @@ export class ProspectMetricsQueryService {
         ),
         conversions AS (
           SELECT v.* FROM prospect_conversions v WHERE v.occurred_at>=${from} AND v.occurred_at<${to}
-          ${campaign?Prisma.sql`AND ${campaign}=(SELECT CASE WHEN count(DISTINCT r.campaign_id)=1 THEN min(r.campaign_id) END
-            FROM campaign_recipients r JOIN outreach_attempts a ON a.recipient_id=r.id
-            WHERE r.prospect_id=v.prospect_id AND a.delivered_at<=v.occurred_at
-            AND NOT EXISTS (SELECT 1 FROM prospect_contact_bindings b WHERE b.endpoint_id=r.endpoint_id AND b.prospect_id<>r.prospect_id))`:Prisma.empty}
+          ${campaign?Prisma.sql`AND EXISTS (SELECT 1 FROM prospect_outbox o JOIN prospect_messages m ON m.id=o.payload->>'messageId'
+            WHERE o.kind='prospect.chat.dispatch' AND o.event_id='chat.'||m.id AND o.payload->>'proposalId'=v.proposal_id
+            AND m.conversation_id=o.payload->>'conversationId' AND m.campaign_id=${campaign})`:Prisma.empty}
         ),
         net_paid AS (
           SELECT v.* FROM conversions v WHERE v.state='paid' AND NOT EXISTS (
