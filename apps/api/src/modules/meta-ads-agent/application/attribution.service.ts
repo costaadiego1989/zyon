@@ -49,11 +49,14 @@ export class AttributionService {
   }
   private async capture(merchantId: string, campaignId: string, source: AttributionReceipt["source"], input: ConsentInput, identifiers: Pick<AttributionReceipt, "fbc" | "fbp" | "ctwaClid" | "clientUserAgent">): Promise<AttributionReceipt> {
     requireIdentifier(input.sessionId);
+    if(input.idempotencyKey!==undefined)requireIdentifier(input.idempotencyKey);
     if (typeof input.consent !== "boolean" || typeof input.consentVersion !== "string" || !/^[A-Za-z0-9._-]{1,80}$/.test(input.consentVersion)) throw new MetaAdsError("attribution_consent_invalid");
-    const now = this.clock().toISOString(); const receipt: AttributionReceipt = { id: requireIdentifier(this.id()), campaignId, sessionId: input.sessionId, consent: input.consent, consentVersion: input.consentVersion, grantedAt: now, revokedAt: null, source,
-      fbc: input.consent ? identifiers.fbc : null, fbp: input.consent ? identifiers.fbp : null, ctwaClid: input.consent ? identifiers.ctwaClid : null, clientUserAgent: input.consent ? identifiers.clientUserAgent ?? null : null };
+    const consent=input.consent&&!await this.repo.getRecord(merchantId,`attribution-revoked:${input.sessionId}`);
+    const now = this.clock().toISOString(); const receipt: AttributionReceipt = { id: requireIdentifier(this.id()), campaignId, sessionId: input.sessionId, consent, consentVersion: input.consentVersion, grantedAt: now, revokedAt: null, source,
+      fbc: consent ? identifiers.fbc : null, fbp: consent ? identifiers.fbp : null, ctwaClid: consent ? identifiers.ctwaClid : null, clientUserAgent: consent ? identifiers.clientUserAgent ?? null : null };
     const key = `attribution-session:${input.sessionId}`;
-    const first=await this.repo.mutate(merchantId, [key], (_state, records) => {
+    const first=await this.repo.mutate(merchantId, [key,`attribution-revoked:${input.sessionId}`], (_state, records) => {
+      if(records.has(`attribution-revoked:${input.sessionId}`)){receipt.consent=false;receipt.fbc=null;receipt.fbp=null;receipt.ctwaClid=null;receipt.clientUserAgent=null;}
       const existing = records.get(key)?.payload as AttributionReceipt | undefined;
       return existing ? { result: existing } : { result: receipt, records: [{ key, kind: "attribution", payload: receipt, createdAt: now }] };
     });

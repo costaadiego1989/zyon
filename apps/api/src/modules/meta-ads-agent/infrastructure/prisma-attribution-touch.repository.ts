@@ -10,12 +10,14 @@ export class PrismaAttributionTouchRepository implements AttributionTouchReposit
   requireIdentifier(merchantId);requireIdentifier(receipt.campaignId);requireIdentifier(receipt.sessionId);requireIdentifier(idempotencyKey);
   const key=`attribution-touch:${receipt.sessionId}:${idempotencyKey}`,digest=stableDigest({campaignId:receipt.campaignId,sessionId:receipt.sessionId,source:receipt.source});
   const marker=`attribution-touch-session:${receipt.sessionId}`;
-  return this.repo.mutate(merchantId,[key,marker],(state,records)=>{
+  const revoked=`attribution-revoked:${receipt.sessionId}`;
+  return this.repo.mutate(merchantId,[key,marker,revoked],(state,records)=>{
    const existing=records.get(key)?.payload as AttributionTouch|undefined;
    if(existing){if(stableDigest({campaignId:existing.campaignId,sessionId:existing.sessionId,source:existing.source})!==digest)throw new MetaAdsError('attribution_touch_conflict',409);return{result:existing};}
    const sequence=(state.attributionObservationSequence??0)+1;if(!Number.isSafeInteger(sequence))throw new MetaAdsError('attribution_sequence_unavailable',503);
    const now=this.clock().toISOString();
    const touch:AttributionTouch={...receipt,sessionId:receipt.sessionId!,id:`touch_${stableDigest({merchantId,key})}`,merchantId,observedAt:now,observationSequence:sequence,idempotencyKey};
+   if(records.has(revoked)){touch.consent=false;touch.fbc=null;touch.fbp=null;touch.ctwaClid=null;touch.clientUserAgent=null;}
    state.attributionObservationSequence=sequence;return{result:touch,records:[{key,kind:'attribution_touch',payload:touch,createdAt:now},...(records.has(marker)?[]:[{key:marker,kind:'attribution' as const,payload:{sessionId:receipt.sessionId},createdAt:now}])]};
   });
  }
