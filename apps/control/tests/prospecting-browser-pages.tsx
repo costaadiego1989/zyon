@@ -1,3 +1,4 @@
+import {ProspectingOverview} from "../src/ui/prospecting/ProspectingOverview.js";
 import {ProspectingChannelPage} from "../src/ui/prospecting/ProspectingChannelPage.js";
 import {SalesKnowledgePage} from "../src/ui/prospecting/SalesKnowledgePage.js";
 import {ProspectingInbox} from "../src/ui/prospecting/ProspectingInbox.js";
@@ -26,6 +27,7 @@ else{
   if(route.area==="conversations")return <ProspectingInbox {...props} route={route}/>;
   if(route.area==="knowledge")return <SalesKnowledgePage {...props} modelMode={config.modelMode}/>;
   if(route.area==="channel")return <ProspectingChannelPage {...props} mode={config.dispatchMode} controlledSdk={controlledSdk}/>;
+  if(route.area==="overview")return <ProspectingOverview {...props} route={route}/>;
   return null;
  }}/>);
 }

@@ -108,6 +108,10 @@ export interface ProspectConversionHistoryItem {
   state: ProspectConversion["state"] | "account_bound" | "allocation_coverage_unknown";
 }
 export interface ProspectMetricsQuery { campaignId?: string; from: string; to: string }
+export const PROSPECT_METRIC_NAMES=["leads","attempts","accepted","delivered","uniqueReplies","signups","trials","paidSubscriptions","refundedSubscriptions","unknownAllocationEvents"] as const;
+export type ProspectMetricName=typeof PROSPECT_METRIC_NAMES[number];
+export interface ProspectMetricRecordsQuery extends ProspectMetricsQuery {metric:ProspectMetricName; cursor?:string; limit?:number}
+export interface ProspectMetricRecord {id:string;prospectId:string|null;conversationId:string|null;cnpj:string|null;occurredAt:string}
 export interface ProspectMetrics {
   campaignId: string | null; from: string; to: string; updatedAt: string; leads: number; attempts: number;
   accepted: number; delivered: number; uniqueReplies: number; signups: number; trials: number; paidSubscriptions: number; refundedSubscriptions: number; unknownAllocationEvents: number;

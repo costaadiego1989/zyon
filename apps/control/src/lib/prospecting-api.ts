@@ -81,6 +81,7 @@ export class ProspectingApi {
  source(id:string,signal?:AbortSignal){return this.read<T.SalesKnowledgeSource>(`knowledge/${encodeURIComponent(id)}`,{},signal);}
  sender(signal?:AbortSignal){return this.read<T.PlatformSenderReadiness>("sender",{},signal);}
  metrics(query:T.ProspectMetricsQuery,signal?:AbortSignal){return this.read<T.ProspectMetrics>("metrics",query,signal);}
+ metricRecords(query:T.ProspectMetricRecordsQuery,signal?:AbortSignal){return this.read<T.ProspectingPage<T.ProspectMetricRecord>>("metrics/records",query,signal);}
  readiness(signal?:AbortSignal){return this.read<Readiness>("readiness",{},signal);}
  config(signal?:AbortSignal){return this.read<Runtime>("config",{},signal);}
  offers(signal?:AbortSignal){return this.read<{items:T.ProspectOffer[];siteUrl:string|null}>("offers",{},signal);}

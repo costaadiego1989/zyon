@@ -1,11 +1,11 @@
 import {Controller,Get,Inject,Query,UseGuards} from "@nestjs/common";
-import {BILLING_PLANS,type PlatformSenderReadiness} from "@zyon/shared-types";
+import {BILLING_PLANS,type ProspectMetricName,type PlatformSenderReadiness} from "@zyon/shared-types";
 import {PlatformAccessGuard} from "../../platform-control/presentation/platform-access.guard.js";
 import {PlatformPermissionGuard} from "../../platform-control/presentation/platform-permission.guard.js";
 import {RequirePlatformPermissions} from "../../platform-control/presentation/platform-permission.decorator.js";
 import type {PlatformSalesOffers} from "../../payment/public-platform-sales-offers.js";
 import {ProspectMetricsQueryService} from "../application/crm/prospect-metrics.query.js";
-import {prospectingHttpError,requestKeys,requestText} from "./prospecting-http-error.js";
+import {prospectingHttpError,requestKeys,requestText,requestLimit} from "./prospecting-http-error.js";
 
 interface Runtime {moduleEnabled:boolean; workersRunning:boolean; dispatchMode:"disabled"|"controlled"|"live"; modelMode:"disabled"|"controlled"|"live"; ingestionEnabled:boolean}
 interface Source {snapshotId:string|null;competence:string|null;state:string}
@@ -50,6 +50,9 @@ export class ProspectMetricsController {
   @Inject(ProspectOperationalStatus)private readonly status:ProspectOperationalStatus){}
  @Get("metrics") async funnel(@Query() q:Record<string,unknown>){
   try{requestKeys(q,["campaignId","from","to"]);return await this.metrics.execute({campaignId:requestText(q.campaignId,"campaignId"),from:requestText(q.from,"from",40)??"",to:requestText(q.to,"to",40)??""});}catch(e){prospectingHttpError(e);}
+ }
+ @Get("metrics/records") async records(@Query() q:Record<string,unknown>){
+  try{requestKeys(q,["campaignId","from","to","metric","cursor","limit"]);return await this.metrics.records({campaignId:requestText(q.campaignId,"campaignId"),from:requestText(q.from,"from",40)??"",to:requestText(q.to,"to",40)??"",metric:requestText(q.metric,"metric",40) as ProspectMetricName,cursor:requestText(q.cursor,"cursor",2048),limit:requestLimit(q.limit)});}catch(e){prospectingHttpError(e);}
  }
  @Get("readiness") async readiness(@Query() q:Record<string,unknown>){try{requestKeys(q,[]);return await this.status.readiness();}catch(e){prospectingHttpError(e);}}
  @Get("config") config(@Query() q:Record<string,unknown>){try{requestKeys(q,[]);return this.status.config();}catch(e){prospectingHttpError(e);}}

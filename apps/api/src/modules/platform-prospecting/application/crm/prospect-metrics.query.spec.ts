@@ -36,6 +36,14 @@ test("PROS-23 AC1 distinguishes attempts, acceptance, delivery, distinct respons
   try {
     const m=await f.query.execute(f.input);
     assert.deepEqual([m.leads,m.attempts,m.accepted,m.delivered,m.uniqueReplies,m.signups,m.trials,m.paidSubscriptions,m.refundedSubscriptions],[1,3,2,1,1,1,1,0,1]);
+    for(const key of ["leads","attempts","accepted","delivered","uniqueReplies","signups","trials","paidSubscriptions","refundedSubscriptions","unknownAllocationEvents"] as const){
+      const records=await f.query.records({...f.input,metric:key});
+      assert.equal(records.items.length,m[key],key);
+      for(const r of records.items){assert.ok(r.prospectId===f.lead.id||r.conversationId===f.c.id);assert.ok(r.occurredAt>=f.input.from&&r.occurredAt<f.input.to);}
+    }
+    const first=await f.query.records({...f.input,metric:"attempts",limit:1});
+    const second=await f.query.records({...f.input,metric:"attempts",limit:1,cursor:first.nextCursor!});
+    assert.notEqual(first.items[0].id,second.items[0].id);
     assert.deepEqual(m.costs.totals,[]);
     assert.equal(m.costs.coverage,"partial");
     assert.deepEqual(m.costs.commitments.map(x=>[x.source,x.currency,x.state,x.amountCents]).sort(),[

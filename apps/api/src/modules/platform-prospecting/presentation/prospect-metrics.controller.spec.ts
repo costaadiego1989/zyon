@@ -17,7 +17,10 @@ test("PROS-23 AC3 guarded metrics expose cost gaps and preserve the last success
  try{
   const req=(path:string,token=http.operators.admin.token)=>fetch(http.url+"/v1/platform/prospecting/"+path,{headers:{Authorization:"Bearer "+token}});
   const period="metrics?from=2020-01-01T00:00:00Z&to=2099-01-01T00:00:00Z";
-  for(const path of [period,"readiness","config","offers"]){assert.equal((await req(path,"")).status,401);assert.equal((await req(path,http.operators.billing.token)).status,403);}
+  for(const path of [period,period.replace("metrics?","metrics/records?metric=leads&"),"readiness","config","offers"]){assert.equal((await req(path,"")).status,401);assert.equal((await req(path,http.operators.billing.token)).status,403);}
+  const records=await(await req(period.replace("metrics?","metrics/records?metric=leads&"))).json();
+  assert.deepEqual(records.items.map((r:{cnpj:string})=>r.cnpj),[f.lead.cnpj]);
+  assert.equal((await req(period.replace("metrics?","metrics/records?metric=other&"))).status,400);
   const m=await(await req(period)).json();assert.equal(m.leads,1);assert.deepEqual(m.costs.totals,[]);assert.equal(m.costs.coverage,"unknown");assert.deepEqual(m.costs.missing,["final_provider_charges"]);
   assert.equal((await req("metrics?from=x&to=y")).status,400);assert.equal((await req(period+"&campaignId=absent")).status,404);
   for(const path of ["readiness","config","offers"])assert.equal((await req(path+"?token=x")).status,400);
