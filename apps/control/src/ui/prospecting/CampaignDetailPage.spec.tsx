@@ -2,7 +2,41 @@ import { expect, test, vi } from "vitest";
 import { CampaignDetailPage } from "./CampaignDetailPage.js";
 import { ProspectCommandUnresolved } from "../../lib/prospecting-api.js";
 import { exerciseReadFailure, screenProps, show } from "./screen-test.js";
+import type { ProspectMetricsQuery } from "@zyon/shared-types";
 const base = { id: "campaign", name: "Campanha local", state: "running", revision: 4, recipientCount: 2, blockers: [] };
+
+const campaignMetrics = {
+  campaignId: base.id, from: "2026-11-01T00:00:00.000Z", to: "2026-12-01T00:00:00.000Z",
+  updatedAt: "2026-11-22T15:00:00Z", leads: 32, attempts: 21, accepted: 18, delivered: 15,
+  uniqueReplies: 6, signups: 4, trials: 3, paidSubscriptions: 0, refundedSubscriptions: 1,
+  unknownAllocationEvents: 2,
+  responseRate: {numerator: 6, denominator: 15, population: "unique_delivered_endpoints", cohortUpdatedAt: "2026-11-22T14:00:00Z"},
+  costs: {coverage: "partial", totals: [], missing: ["final_provider_charges"], commitments: []},
+};
+
+test("PROS-UI métricas da campanha consultam seu identificador e exibem os valores inclusive zero", async () => {
+  const metrics = vi.fn(async (query: ProspectMetricsQuery) => ({...campaignMetrics, campaignId: query.campaignId}));
+  const ui = await show(<CampaignDetailPage {...screenProps({campaign: async () => base, recipients: async () => ({items: [], nextCursor: null}), metrics})} id={base.id} />);
+  expect(ui.text()).toContain("Métricas da campanha");
+  expect(metrics.mock.calls[0][0]).toMatchObject({campaignId: base.id});
+  for (const [label,total] of Object.entries({"Leads":"32", "Entregas":"15", "Contatos que responderam":"6", "Assinaturas pagas líquidas":"0"}))
+    expect(ui.button(label).parentElement?.querySelector("strong")?.textContent).toBe(total);
+  expect(ui.text()).toContain("40%");
+  expect(ui.text()).toContain("Parcial");
+});
+
+test("PROS-UI período e detalhamento da campanha mantêm o escopo sem afetar outras campanhas", async () => {
+  const metrics = vi.fn(async (query: ProspectMetricsQuery) => ({...campaignMetrics,...query}));
+  const props = screenProps({campaign: async () => base, recipients: async () => ({items: [], nextCursor: null}), metrics});
+  const ui = await show(<CampaignDetailPage {...props} id={base.id} />);
+  await ui.fill("Início (UTC)","2026-11-03");
+  await ui.fill("Fim exclusivo (UTC)","2026-11-27");
+  await ui.click("Aplicar período");
+  const period={from:"2026-11-03T00:00:00.000Z",to:"2026-11-27T00:00:00.000Z",campaignId:base.id};
+  expect(metrics.mock.calls.at(-1)?.[0]).toEqual(period);
+  await ui.click("Entregas");
+  expect(props.navigate).toHaveBeenLastCalledWith({area:"overview",id:"delivered",filters:period});
+});
 test("PROS-26 AC3 pausa e retoma por revisão, consulta comando interrompido sem reenviar destinatário", async () => {
   const current = { ...base };
   const pauseOrResume = vi.fn(async (_id, cmd) => {

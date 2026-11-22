@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { PROSPECT_METRIC_NAMES, type ProspectMetricName, type ProspectMetricsQuery } from "@zyon/shared-types";
+import { PROSPECT_METRIC_NAMES, type ProspectCampaign, type ProspectMetricName, type ProspectMetricsQuery } from "@zyon/shared-types";
 import { Button, dateTime, money, ReadState, useResource, type PageProps } from "./screen-controls.js";
 import { ProspectingState, type ProspectRoute } from "./ProspectingShell.js";
 const labels: Record<ProspectMetricName, string> = {
@@ -42,14 +42,25 @@ export function ProspectingOverview(props: Props) {
     <Overview key={JSON.stringify([from, to, campaignId])} {...props} from={from} to={to} campaignId={campaignId} />
   );
 }
-function Overview({ api, onSessionExpired, navigate, from, to, campaignId }: Props & ProspectMetricsQuery) {
+export function CampaignMetrics(props: PageProps & { campaign: Pick<ProspectCampaign, "id" | "name">; refreshToken?: number }) {
+  const [period, setPeriod] = useState(defaultPeriod);
+  return <Overview {...props} key={JSON.stringify(period)} route={{area: "overview"}}
+    from={period.from} to={period.to} campaignId={props.campaign.id} scopeName={props.campaign.name}
+    navigate={(next) => {
+      if (next.area === "overview" && !next.id && next.filters?.from && next.filters.to)
+        setPeriod({from: next.filters.from, to: next.filters.to});
+      else props.navigate(next);
+    }} />;
+}
+function Overview({ api, onSessionExpired, navigate, from, to, campaignId, scopeName, refreshToken = 0 }: Props & ProspectMetricsQuery & {scopeName?: string; refreshToken?: number}) {
   const [start, setStart] = useState(from.slice(0, 10)),
     [end, setEnd] = useState(to.slice(0, 10)),
     [campaign, setCampaign] = useState(campaignId ?? "");
-  const load = useCallback((s: AbortSignal) => api.metrics({ from, to, campaignId }, s), [api, from, to, campaignId]);
+  const load = useCallback(async (s: AbortSignal) => api.metrics({ from, to, campaignId }, s), [api, from, to, campaignId, refreshToken]);
   const result = useResource(load, onSessionExpired);
   const getCampaigns = useCallback(
     async (s: AbortSignal) => {
+      if (scopeName && campaignId) return [{id: campaignId, name: scopeName}];
       const items = [];
       let after: string | undefined;
       do {
@@ -59,18 +70,19 @@ function Overview({ api, onSessionExpired, navigate, from, to, campaignId }: Pro
       } while (after);
       return items;
     },
-    [api]
+    [api, scopeName, campaignId]
   );
   const options = useResource(getCampaigns, onSessionExpired);
   const m = result.data,
     rate = m?.responseRate;
   return (
-    <section className="prospecting-page">
+    <section className="prospecting-page prospecting-overview">
       <header>
-        <h2>Visão geral</h2>
-        <p>Atividade da prospecção no período selecionado.</p>
+        <h2>{scopeName ? "Métricas da campanha" : "Visão geral"}</h2>
+        <p>{scopeName ? scopeName : "Resultados de todas as campanhas, com entregas, respostas e conversões verificadas."}</p>
       </header>
       <form
+        className="prospecting-filterbar"
         onSubmit={(e) => {
           e.preventDefault();
           navigate({
@@ -92,7 +104,7 @@ function Overview({ api, onSessionExpired, navigate, from, to, campaignId }: Pro
             Fim exclusivo (UTC)
             <input required type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
           </label>
-          <label>
+          {!scopeName && <label>
             Campanha
             <select aria-label="Campanha" value={campaign} onChange={(e) => setCampaign(e.target.value)}>
               <option value="">Todas as campanhas</option>
@@ -102,7 +114,7 @@ function Overview({ api, onSessionExpired, navigate, from, to, campaignId }: Pro
                 </option>
               ))}
             </select>
-          </label>
+          </label>}
         </div>
         <Button type="submit" primary disabled={!start || !end || start >= end}>
           Aplicar período
@@ -124,9 +136,9 @@ function Overview({ api, onSessionExpired, navigate, from, to, campaignId }: Pro
           {!PROSPECT_METRIC_NAMES.some((k) => m[k] > 0) && (
             <ProspectingState state="empty" message="Nenhuma atividade registrada no período." />
           )}
-          <div>
+          <div className="prospecting-metrics">
             {PROSPECT_METRIC_NAMES.map((k) => (
-              <div className="prospecting-row" key={k}>
+              <div className="prospecting-metric" key={k}>
                 <Button
                   onClick={() =>
                     navigate({
@@ -142,6 +154,7 @@ function Overview({ api, onSessionExpired, navigate, from, to, campaignId }: Pro
               </div>
             ))}
           </div>
+          <div className="prospecting-insights">
           {rate && (
             <section>
               <h3>Taxa de resposta</h3>
@@ -181,6 +194,7 @@ function Overview({ api, onSessionExpired, navigate, from, to, campaignId }: Pro
               </div>
             ))}
           </section>
+          </div>
         </>
       )}
     </section>

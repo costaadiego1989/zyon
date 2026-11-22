@@ -4,6 +4,7 @@ import { campaignStates } from "./CampaignComposer.js";
 import { permissions } from "./ProspectDetailPage.js";
 import { blockers, Button, dateTime, ReadState, useAction, useResource, type PageProps } from "./screen-controls.js";
 import { ProspectingState } from "./ProspectingShell.js";
+import { CampaignMetrics } from "./ProspectingOverview.js";
 const states: Record<CampaignRecipientRecord["state"], string> = {
   pending: "Pendente",
   blocked: "Bloqueado",
@@ -59,6 +60,7 @@ function CampaignList({ api, onSessionExpired, navigate }: PageProps) {
 function Results(props: PageProps & { id: string }) {
   const { api, id, onSessionExpired, navigate } = props;
   const [cursor, setCursor] = useState<string>();
+  const [metricsVersion, setMetricsVersion] = useState(0);
   const load = useCallback(
     (s: AbortSignal) => Promise.all([api.campaign(id, s), api.recipients(id, cursor, s)]),
     [api, id, cursor]
@@ -100,11 +102,12 @@ function Results(props: PageProps & { id: string }) {
             {change === "pause" ? "Pausar campanha" : "Retomar campanha"}
           </Button>
         )}
-        <Button onClick={result.reload}>Atualizar resultados</Button>
+        <Button onClick={() => { result.reload(); setMetricsVersion(version => version + 1); }}>Atualizar resultados</Button>
       </div>
       {campaign.blockers.map((b) => (
         <p key={b}>{blockers[b]}</p>
       ))}
+      <CampaignMetrics {...props} campaign={campaign} refreshToken={metricsVersion} />
       <h3>Destinatários</h3>
       {!recipients.items.length && (
         <ProspectingState state="empty" message="Nenhum destinatário congelado nesta campanha." />
