@@ -28,7 +28,7 @@ export interface MetaAdsAssistantProps {
   merchantId:string; apiBaseUrl:string; overview:MetaAdsOverview; api:MetaAdsAgentApi;
   client?:MerchantAssistantApi; pollMs?:number; children?:ReactNode; settings?:ReactNode; billingSettings?:ReactNode;
   onUpdated:()=>void|Promise<void>; onModeChanged?:(mode:'manual'|'automatic'|'unknown')=>void;
-  startRequest?:number;
+  startRequest?:number;setupRequest?:number;
   onOpenCampaign?:(target:CampaignWorkspaceOpenTarget)=>void;
   approvalClient?:CampaignApprovalApi;selectedCampaignId?:string|null;reviewTarget?:CampaignReviewTarget;
 }
@@ -43,7 +43,7 @@ function mergeThread(previous:AssistantThread|null,next:AssistantThread):Assista
 }
 const https=(value:string)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:null;}catch{return null;}};
 export function MetaAdsAssistant(props:MetaAdsAssistantProps){return <MetaAdsAssistantView key={`${props.merchantId}:${props.apiBaseUrl}`} {...props}/>;}
-function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplied,pollMs=2500,children,settings,billingSettings,onUpdated,onModeChanged,startRequest=0,approvalClient,selectedCampaignId,reviewTarget,onOpenCampaign}:MetaAdsAssistantProps) {
+function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplied,pollMs=2500,children,settings,billingSettings,onUpdated,onModeChanged,startRequest=0,approvalClient,selectedCampaignId,reviewTarget,onOpenCampaign,setupRequest=0}:MetaAdsAssistantProps) {
   const feedback=useAction();
   const externalOpen=useRef(onOpenCampaign);externalOpen.current=onOpenCampaign;
   const [limitsVisited,setLimitsVisited]=useState(false);
@@ -162,6 +162,7 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
   }
   function details(turn:AssistantTurn){return <>{turn.artifacts.map(artifact)}{!!turn.references.length&&<details className="mga-chat-references"><summary>Fontes consultadas <span>{turn.references.length}</span></summary><ul>{turn.references.map(reference=><li key={`${reference.id}:${reference.version}`}><button type="button" className="mga-secondary" onClick={()=>void openSource(reference.id)}>Ver fonte: {reference.title.trim()||'Orientação consultada'}</button><small>Revisada em {reference.reviewedAt.split('-').reverse().join('/')} · Versão {reference.version}</small></li>)}</ul></details>}</>;}
   const proposal=overview.proposals.find(p=>p.id===focusedProposal);
+  useEffect(()=>{if(setupRequest>0)openConnection();},[setupRequest]);
   const foreignTarget=!!reviewTarget&&reviewTarget.merchantId!==merchantId;
   const campaignId=foreignTarget?null:focusedCampaign||selectedCampaignId||reviewTarget?.campaignId||thread?.campaign?.campaignId;
   const activeCampaignId=campaignId||selectedCampaignId||thread?.campaign?.campaignId;
