@@ -49,10 +49,10 @@ export class PrismaSalesKnowledgeRepository {
       return { result:source(row,pointer?.publicationId ?? null),resourceIds:[sourceId,id] };
     });
   }
-  async find(sourceId: string) {
-    const row=await this.prisma.salesKnowledgePublication.findFirst({where:{sourceId},orderBy:{version:"desc"}});
+  async find(sourceId: string, client:Prisma.TransactionClient=this.prisma) {
+    const row=await client.salesKnowledgePublication.findFirst({where:{sourceId},orderBy:{version:"desc"}});
     if (!row) return null;
-    const pointer=await this.prisma.salesKnowledgeActivePublication.findUnique({where:{sourceId}});
+    const pointer=await client.salesKnowledgeActivePublication.findUnique({where:{sourceId}});
     return source(row,pointer?.publicationId ?? null);
   }
   async list() {

@@ -1,8 +1,47 @@
 import assert from "node:assert/strict";
+import {PrismaClient} from "@prisma/client";
+import {setTimeout as delay} from "node:timers/promises";
+import {PrismaSalesKnowledgeRepository} from "./prisma-sales-knowledge.repository.js";
 import { test } from "node:test";
 import { createSalesKnowledgeFixture, knowledgeDraft, actor } from "../../../../../tests/prospect-knowledge-fixture.js";
 import { Neo4jSalesKnowledgeAdapter, SalesPublicationService } from "./neo4j-sales-knowledge.adapter.js";
 
+test("PROS-19 AC2 competing independent publication sessions project one immutable version exactly once while the prior publication stays readable",async()=>{
+ const f=await createSalesKnowledgeFixture(),other=new PrismaClient({datasources:{db:{url:f.databaseUrl}}});
+ let release!:()=>void;
+ const held=new Promise<void>(r=>{release=r;});
+ try{
+  const prior=await f.repo.save("product",knowledgeDraft("prior"),actor);
+  await f.service.publish("product",{expectedVersion:1,clientRequestId:"first",contentHash:prior.contentHash},actor);
+  const next=await f.repo.save("product",{...knowledgeDraft("next"),expectedVersion:1},actor);
+  const graph=new Neo4jSalesKnowledgeAdapter(f.driver,f.namespace);
+  let entered=0,signal!:()=>void;
+  const start=new Promise<void>(r=>{signal=r;});
+  const projector={async project(draft:typeof next){entered++;signal();await held;return graph.project(draft);}};
+  const one=new SalesPublicationService(f.repo,projector);
+  const two=new SalesPublicationService(new PrismaSalesKnowledgeRepository(other),projector);
+  const command={expectedVersion:2,clientRequestId:"review-a",contentHash:next.contentHash};
+  const a=one.publish("product",command,actor);await start;
+  const b=two.publish("product",{...command,clientRequestId:"review-b"},actor);
+  const both=Promise.allSettled([a,b]);
+  let waiting=false;
+  try {
+   for(let tries=0;tries<150&&!waiting&&entered<2;tries++){
+    const result=await f.pg.query("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND wait_event='advisory') AS waiting");
+    waiting=result.rows[0].waiting;if(!waiting)await delay(20);
+   }
+   assert.equal((await f.repo.active(new Date()))[0].version,1);
+  }finally{release();}
+  const outcomes=await both;
+  assert.equal(waiting,true,"the independent client was blocked in PostgreSQL");
+  assert.equal(entered,1,"the second request never entered Neo4j projection");
+  assert.deepEqual(outcomes.map(r=>r.status),["fulfilled","rejected"]);
+  assert.equal((await f.repo.active(new Date()))[0].version,2);
+  const session=f.driver.session();
+  try {const result=await session.run("MATCH (p:ZyonSalesPublication {namespace:$ns,id:$id})-[:CONTAINS]->(f:ZyonSalesFact) RETURN count(p) AS n",{ns:f.namespace,id:next.draft[0].publicationId});
+   assert.equal(Number(result.records[0].get("n")),1);}finally{await session.close();}
+ }finally{release();await other.$disconnect();await f.close();}
+});
 test("PROS-19 AC2 verifies actual projection content before CAS and preserves the active graph on failure or superseding draft", async () => {
   const f=await createSalesKnowledgeFixture();
   try {

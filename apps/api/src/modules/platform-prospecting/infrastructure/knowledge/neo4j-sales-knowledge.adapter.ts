@@ -14,7 +14,8 @@ export class Neo4jSalesKnowledgeAdapter implements Projector {
     const id=draft.draft[0].publicationId;
     const session=this.driver.session({defaultAccessMode:neo4j.session.WRITE});
     try {
-      return await session.executeWrite(async tx=>{
+      const tx=session.beginTransaction({timeout:5000});
+      try {
         await tx.run(`MERGE (p:ZyonSalesPublication {namespace:$ns,id:$id})
           WITH p UNWIND $facts AS data MERGE (p)-[:CONTAINS]->(f:ZyonSalesFact {namespace:$ns,id:data.id})
           ON CREATE SET f += data`,{ns:this.namespace,id,facts:draft.draft});
@@ -24,8 +25,9 @@ export class Neo4jSalesKnowledgeAdapter implements Projector {
         if(facts.length!==draft.draft.length) throw new Error("projection_count_mismatch");
         const hash=knowledgeHash(facts);
         if(hash!==draft.contentHash) throw new Error("projection_hash_mismatch");
+        await tx.commit();
         return {count:facts.length,hash};
-      },{timeout:5000});
+      }catch(error){if(tx.isOpen())await tx.rollback();throw error;}
     } finally {await session.close();}
   }
 }
@@ -48,7 +50,9 @@ export class SalesPublicationService {
     let projectionFailed:string | null=null;
     try {
       return await prospectCommand(this.repo.prisma,"knowledge.publish",{sourceId,...command},actor,async tx=>{
-        const draft=await this.repo.find(sourceId);
+        // Serialize graph writers across service instances without blocking ordinary readers or newer drafts.
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('sales-knowledge-projection'),hashtext(${sourceId}))::text`;
+        const draft=await this.repo.find(sourceId,tx);
         if (!draft) throw new Error("knowledge_not_found");
         if (draft.version!==command.expectedVersion || draft.contentHash!==command.contentHash || !["draft","failed"].includes(draft.state)) throw new Error("version_conflict");
         const id=draft.draft[0].publicationId;
