@@ -1,3 +1,4 @@
+import {CampaignComposer} from "../src/ui/prospecting/CampaignComposer.js";
 import {ProspectDetailPage} from "../src/ui/prospecting/ProspectDetailPage.js";
 import {createRoot} from "react-dom/client";
 import {PlatformApi,resolvePlatformApiBaseUrl} from "../src/lib/api.js";
@@ -15,6 +16,7 @@ else{
   const props={...common,navigate};
   if(route.area==="companies")return <CompanySearchPage {...props}/>;
   if(route.area==="leads")return <ProspectDetailPage {...props} route={route}/>;
+  if(route.area==="campaigns"&&route.filters?.view==="edit")return <CampaignComposer {...props} id={route.id}/>;
   return null;
  }}/>);
 }
