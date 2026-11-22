@@ -104,7 +104,7 @@ export class PrismaPlatformCommerceRepository implements PlatformCommerceReposit
     const company = companyRegistration(merchant.storeSettings);
     const registrationEmail = merchant.users?.[0]?.email;
     return {
-      merchant: { id: merchant.id, name: merchant.name, ...(merchant.storeSlug ? { storeSlug: merchant.storeSlug } : {}), ...(merchant.storeCategory ? { storeCategory: merchant.storeCategory } : {}), plan: merchant.plan, createdAt: merchant.createdAt, ...(company ? { company } : {}), ...(registrationEmail ? { registrationEmail } : {}) },
+      merchant: { id: merchant.id, name: merchant.name, ...(merchant.storeSlug ? { storeSlug: merchant.storeSlug } : {}), ...(merchant.storeCategory ? { storeCategory: merchant.storeCategory } : {}), plan: merchant.plan, createdAt: merchant.createdAt, ...(company ? { company } : {}), ...(typeof registrationEmail === "string" && registrationEmail.trim() ? { registrationEmail: registrationEmail.trim() } : {}) },
       period,
       orders: { allTimeCount: allTime._count._all, allTimeTotalMinor: minor(allTime._sum.orderTotal), periodCount: periodRows.length, periodTotalMinor: periodRows.reduce((total, row) => total + minor(row.orderTotal), 0), series },
       billing: {

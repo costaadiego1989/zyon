@@ -3,7 +3,7 @@ import test from "node:test";
 import type { PrismaClient } from "@prisma/client";
 import { PrismaPlatformCommerceRepository } from "./prisma-platform-commerce.repository.js";
 
-function companyRepository(settings: unknown, users: Array<{email:string}> = []) {
+function companyRepository(settings: unknown, users: Array<{email:unknown}> = []) {
   return new PrismaPlatformCommerceRepository({
     merchant:{findUnique:async(input:{where:unknown;select:{users:unknown}})=>{
       assert.deepEqual(input.where,{id:'company_a'});
@@ -24,6 +24,15 @@ test('ADM-02 company profile returns only its registered business fields and sep
   assert.equal(result?.merchant.id,'company_a');
   assert.ok(!JSON.stringify(result,(_key,value)=>typeof value==='bigint'?value.toString():value).includes('DO_NOT_RETURN'));
   assert.ok(!JSON.stringify(result,(_key,value)=>typeof value==='bigint'?value.toString():value).includes('SECRET'));
+});
+test('ADM-02 blank and non-string owner emails are absent while valid owner emails are trimmed',async()=>{
+  for(const email of ['   ','',null,42]) {
+    const result=await companyRepository({company:{email:'contato@empresa.test'}},[{email}]).merchantDetail('company_a',period);
+    assert.equal(Object.hasOwn(result!.merchant,'registrationEmail'),false);
+    assert.equal(result?.merchant.company?.email,'contato@empresa.test');
+  }
+  const result=await companyRepository(null,[{email:' titular@empresa.test  '}]).merchantDetail('company_a',period);
+  assert.equal(result?.merchant.registrationEmail,'titular@empresa.test');
 });
 test('ADM-02 missing or malformed profile fields remain absent',async()=>{
   for(const settings of [null,[],{company:null},{company:{cnpj:42,email:' ',phone:{value:'123'},address:'wrong'}}]) {
