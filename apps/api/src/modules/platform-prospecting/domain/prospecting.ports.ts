@@ -70,7 +70,7 @@ export interface ProspectPrivacyPort {
   policy(): Promise<ProspectPrivacyPolicy>;
   suppress(id: string, command: SuppressProspectCommand, actor: ProspectingActor): Promise<ProspectSuppressionResult>;
 }
-export interface AttemptReservation { attempt: OutreachAttemptRecord; ownerToken: string; campaignId: string | null; recipientId: string | null; senderBindingId: string; senderVersion: number; endpointId: string; normalizedEndpoint: string; content: string; expectedEpoch: number }
+export interface AttemptReservation { attempt: OutreachAttemptRecord; ownerToken: string; campaignId: string | null; recipientId: string | null; senderBindingId: string; senderVersion: number; endpointId: string; normalizedEndpoint: string; identity: import("@zyon/shared-types").ProspectProviderIdentity; template: import("@zyon/shared-types").ProspectingTemplate | null; content: string; expectedEpoch: number }
 export type ProspectSendResult = { state: "provider_accepted"; providerMessageId: string; acceptedAt: Date } | { state: "not_accepted"; errorCode: string } | { state: "outcome_unknown"; errorCode: string };
 export interface CampaignRepositoryPort {
   create(command: SaveProspectCampaign, actor: ProspectingActor): Promise<ProspectCampaign>;
