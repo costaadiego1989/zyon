@@ -17,7 +17,7 @@ test("prospecting shell recovers loading and errors, navigates all eight areas a
   expect(host.querySelector('[role="alert"]')?.textContent).toContain("carregar");
   await act(async()=>host.querySelector("button")!.click());expect(host.querySelector('[role="status"]')?.textContent).toContain("Carregando");
   await act(async()=>finish(config));expect(host.querySelectorAll("nav a")).toHaveLength(8);expect(host.textContent).toContain("Nenhum registro no período.");
-  const leads=[...host.querySelectorAll("nav a")].find(a=>a.textContent==="Leads") as HTMLAnchorElement;
+  const leads=Array.from(host.querySelectorAll("nav a")).find(a=>a.textContent==="Leads") as HTMLAnchorElement;
   leads.focus();expect(document.activeElement).toBe(leads);await act(async()=>leads.click());
   await act(async()=>host.querySelector<HTMLButtonElement>("section article button")!.click());
   expect(host.textContent).toContain("empresa/01");expect(location.hash).toContain("empresa%2F01");

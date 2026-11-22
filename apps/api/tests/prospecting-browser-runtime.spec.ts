@@ -13,7 +13,7 @@ test("local browser runtime authenticates the operator, opens the attributed das
   const context=await browser.newContext({ignoreHTTPSErrors:true});
   const allowed=new Set(Object.values(runtime.origins));
   await context.route("**/*",(route:any)=>allowed.has(new URL(route.request().url()).origin)?route.continue():route.abort());
-  const page=await context.newPage();await page.goto(runtime.origins.control);
+  let page=await context.newPage();await page.goto(runtime.origins.control);
   await page.locator('input[type="email"]').fill(runtime.operator.email);
   await page.locator('input[type="password"]').fill(runtime.operator.password);
   const login=page.waitForResponse((res:any)=>res.url().endsWith("/platform/auth/login"));
@@ -27,7 +27,15 @@ test("local browser runtime authenticates the operator, opens the attributed das
   const history=await(await fetch(runtime.origins.api+"/v1/platform/prospecting/conversations/"+runtime.conversationId,{headers})).json();
   const link=history.messages.find((m:{authorType:string;content:string})=>m.authorType==="ai"&&m.content.includes("proposal=")).content;
   assert.equal(new URL(link).origin,runtime.origins.dashboard);
-  await page.goto(link);await page.getByRole("button",{name:/^entrar/i}).first().click();
+  const realtime=page.waitForEvent("websocket",{predicate:(socket:{url:()=>string})=>socket.url().startsWith("ws://127.0.0.1:3019/socket.io/")})
+   .then((socket:any)=>socket.waitForEvent("framereceived",{predicate:(frame:{payload:unknown})=>String(frame.payload).includes('"success":true'),timeout:15000}));
+  await page.goto(runtime.origins.control+"/tests/prospecting-browser-chat.html?conversationId="+encodeURIComponent(runtime.conversationId));
+  const proposal=page.getByRole("link",{name:"Abrir proposta de cadastro"});await proposal.waitFor();
+  await realtime;
+  assert.equal(await proposal.getAttribute("href"),link);
+  const destination=context.waitForEvent("page");
+  await proposal.focus();await page.keyboard.press("Enter");page=await destination;
+  await page.getByRole("button",{name:/^entrar/i}).first().click();
   await page.locator('input[type="email"]').fill(runtime.buyer.email);
   await page.locator('input[type="password"]').fill(runtime.buyer.password);
   await page.getByRole("button",{name:/^entrar/i}).last().click();

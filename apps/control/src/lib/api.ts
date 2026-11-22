@@ -652,7 +652,7 @@ export class PlatformApi {
   constructor(private readonly baseUrl: string) {}
 
   prospectingClient(token: string) {
-    return new ProspectingApi(<T>(path: string, options?: RequestOptions) => this.request<T>(path, token, options));
+    return new ProspectingApi(<T>(path: string, options?: RequestOptions) => this.request<T>(path, token, options),this.baseUrl,token);
   }
 
   supportClient(token: string) {

@@ -1,3 +1,4 @@
+import {io} from "socket.io-client";
 import type * as T from "@zyon/shared-types";
 import {PlatformApiError} from "./api.js";
 
@@ -16,7 +17,15 @@ export class ProspectCommandRecorded extends Error {
 export class ProspectingApi {
  private readonly uncertain=new Map<string,string>();
  private readonly active=new Set<string>();
- constructor(private readonly request:Transport){}
+ constructor(private readonly request:Transport,private readonly baseUrl:string,private readonly token:string){}
+ watch(conversationId:string,cursor:()=>number,changed:()=>void){
+  const base=this.baseUrl.replace(/\/+$/,"").replace(/\/v1$/,"");
+  const socket=io(base+"/platform-prospecting",{transports:["websocket"],auth:{accessToken:this.token},autoConnect:false});
+  socket.on("authenticated",()=>socket.emit("watch",{conversationId,after:cursor()},(ack:{success:boolean})=>{if(ack?.success)changed();}));
+  socket.on("prospect_changed",(event:T.ProspectRealtimeEvent)=>{if(event.conversationId===conversationId)changed();});
+  socket.connect();
+  return ()=>{socket.removeAllListeners();socket.disconnect();};
+ }
  private read<R>(path:string,query:object,signal?:AbortSignal){
   const params=new URLSearchParams();
   for(const [key,value] of Object.entries(query))if(value!==undefined)params.set(key,typeof value==="object"?JSON.stringify(value):String(value));

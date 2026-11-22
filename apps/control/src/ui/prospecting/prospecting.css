@@ -15,4 +15,25 @@
  .prospecting-mobile-nav label { color: var(--ink-muted); font-size: .8125rem; font-weight: 600; }
  .prospecting-mobile-nav select { width: 100%; min-height: 2.75rem; border: 1px solid var(--line-strong); border-radius: .5rem; padding: .5rem; background: var(--surface); color: var(--ink); font: inherit; }
 }
+.prospecting-chat { display: grid; gap: .875rem; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.prospecting-chat header, .prospecting-chat-tools { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
+.prospecting-chat header { justify-content: space-between; }
+.prospecting-chat h2, .prospecting-chat h3, .prospecting-chat p, .prospecting-chat dl, .prospecting-chat dd, .prospecting-chat ol { margin: 0; }
+.prospecting-chat h2 { font-size: 1.25rem; } .prospecting-chat h3 { font-size: 1rem; }
+.prospecting-chat dl { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit,minmax(min(13rem,100%),1fr)); }
+.prospecting-chat dl dt, .prospecting-chat small, .prospecting-chat time, .prospecting-chat header p, .prospecting-internal > p { font-size: .8125rem; color: var(--ink-muted); }
+.prospecting-chat dd { margin-top: .25rem; }
+.prospecting-transcript { min-height: 6rem; max-height: 24rem; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; background: var(--surface); border-block: 1px solid var(--line); padding: .5rem .75rem; }
+.prospecting-transcript ol { list-style: none; padding: 0; }
+.prospecting-transcript li { padding: .7rem 0; display: grid; gap: .2rem; }
+.prospecting-transcript li + li { border-top: 1px solid var(--line); }
+.prospecting-transcript li div { display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .65rem; }
+.prospecting-transcript li p, .prospecting-internal p { white-space: pre-wrap; }
+.prospecting-transcript a { color: var(--accent); }
+.prospecting-chat form, .prospecting-chat label, .prospecting-internal { display: grid; min-width: 0; gap: .5rem; }
+.prospecting-chat form button { justify-self: start; }
+.prospecting-chat textarea { min-height: 3.75rem; width: 100%; resize: vertical; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: .5rem; padding: .55rem; font: inherit; }
+.prospecting-chat textarea:disabled { background: var(--surface-muted); }
+.prospecting-chat label { color: var(--ink); font-weight: 600; font-size: .875rem; }
+.prospecting-internal { border-top: 1px solid var(--line); padding-top: 1rem; }
 @media (prefers-reduced-motion: reduce) { .prospecting-nav a { transition: none; } }

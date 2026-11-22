@@ -16,7 +16,7 @@ async function site(app,port){
   define:{"import.meta.env.VITE_PLATFORM_API_BASE_URL":JSON.stringify(origins.api+"/v1"),"import.meta.env.VITE_API_BASE_URL":JSON.stringify(origins.dashboard+"/v1"),
     "import.meta.env.VITE_TURNSTILE_SITE_KEY":JSON.stringify(""),"import.meta.env.VITE_FACEBOOK_LOGIN_ENABLED":JSON.stringify("false")},
   server:{host:"127.0.0.1",port,strictPort:true,hmr:false,https:dashboard?tls:undefined,
-   headers:{"Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' "+origins.api+"; frame-src 'self'; form-action 'self'; object-src 'none'"},
+   headers:{"Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' "+origins.api+" ws://127.0.0.1:3019; frame-src 'self'; form-action 'self'; object-src 'none'"},
    proxy:dashboard?{"/v1":{target:origins.api,changeOrigin:true}}:undefined}});
  servers.push(()=>server.close());await server.listen();
 }
