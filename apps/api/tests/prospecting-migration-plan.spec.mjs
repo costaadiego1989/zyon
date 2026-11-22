@@ -6,6 +6,11 @@ test("production prospecting keeps the directory migration disabled with the mod
   assert.equal(await prospectingMigrationPlan({}), null);
   assert.equal(await prospectingMigrationPlan({ PROSPECTING_ENABLED: "false" }), null);
 });
+test("production prospecting normalizes disabled and enabled flags exactly like runtime", async () => {
+  for (const value of ["", " ", " false ", "false"])
+    assert.equal(await prospectingMigrationPlan({ PROSPECTING_ENABLED: value }), null);
+  assert.deepEqual(await prospectingMigrationPlan({PROSPECTING_ENABLED:" true ",DATABASE_URL:base,PROSPECTING_DIRECTORY_DATABASE_URL:base+"?schema=company_directory"}),["migrate","deploy","--config","prisma.company-directory.config.ts"]);
+});
 test("production prospecting deploys its independent history in the same database", async () => {
   assert.deepEqual(await prospectingMigrationPlan({PROSPECTING_ENABLED:"true",DATABASE_URL:base+"?schema=public",PROSPECTING_DIRECTORY_DATABASE_URL:base+"?schema=company_directory"}),["migrate","deploy","--config","prisma.company-directory.config.ts"]);
 });

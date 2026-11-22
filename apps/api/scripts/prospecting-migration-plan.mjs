@@ -1,5 +1,5 @@
 export async function prospectingMigrationPlan(env) {
-  const enabled = env.PROSPECTING_ENABLED;
+  const enabled = env.PROSPECTING_ENABLED?.trim() || undefined;
   if (enabled !== undefined && enabled !== "true" && enabled !== "false")
     throw new Error("config_invalid:PROSPECTING_ENABLED");
   if (enabled !== "true") return null;
