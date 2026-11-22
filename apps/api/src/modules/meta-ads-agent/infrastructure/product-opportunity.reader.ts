@@ -22,7 +22,10 @@ export class ProductOpportunityFactsReader implements ProductOpportunityReader {
    const rows=await this.deps.db.$queryRaw<Row[]>`SELECT o.id,o.order_total::text,o.currency,o.completed_at,o.line_items_json,p.status AS payment_status,p.amount_cents,p.approved_amount_cents,p.amount_breakdown,p.status_history,
     (SELECT COALESCE(SUM(rf.amount_in_cents),0) FROM returns r JOIN return_refunds rf ON rf.return_id=r.id WHERE r.merchant_id=${merchantId} AND (r.order_id=o.id OR r.order_id=o.external_order_id) AND rf.status='COMPLETED') AS refunded_cents
     FROM completed_orders o JOIN LATERAL (SELECT * FROM payment_intents pi WHERE pi.merchant_id=${merchantId} AND pi.session_id=o.session_id AND pi.currency=o.currency AND pi.status IN ('approved','refunded','chargeback_won') ORDER BY pi.updated_at DESC,pi.id DESC LIMIT 1) p ON true
-    WHERE o.merchant_id=${merchantId} AND o.id>${cursor} AND o.completed_at<${end}
+    LEFT JOIN LATERAL (SELECT item->>'occurredAt' AS approved_at FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p.status_history)='array' THEN p.status_history ELSE '[]'::jsonb END) item WHERE item->>'status'='approved' LIMIT 1) h ON true
+    WHERE o.merchant_id=${merchantId} AND o.id>${cursor}
+    AND (CASE WHEN pg_input_is_valid(h.approved_at,'timestamp with time zone') THEN h.approved_at::timestamptz ELSE o.completed_at AT TIME ZONE 'UTC' END)>=${start}
+    AND (CASE WHEN pg_input_is_valid(h.approved_at,'timestamp with time zone') THEN h.approved_at::timestamptz ELSE o.completed_at AT TIME ZONE 'UTC' END)<${end}
     AND EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(o.line_items_json)='array' THEN o.line_items_json ELSE '[]'::jsonb END) item WHERE item->>'variantId'=ANY(${variantIds}::text[])) ORDER BY o.id LIMIT 250`;
    for(const row of rows){
     const approvedAt=row.status_history?.find(e=>e.status==='approved')?.occurredAt,paidAt=approvedAt&&Number.isFinite(Date.parse(approvedAt))?Date.parse(approvedAt):row.completed_at.getTime();
