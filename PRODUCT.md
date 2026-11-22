@@ -25,6 +25,7 @@ Avoid a marketing landing page inside the admin, ornamental metric cards, nested
 - Put the operator's next task and the relevant business state first.
 - Show readable company, location and segment labels while preserving their authoritative identifiers.
 - Keep recipient conversation, internal notes and commercial outcomes understandable in context.
+- Open lead editing in a contextual side dialog over the retained list. Brazilian phone presentation uses a DDD mask without visible +55; canonical provider addresses and opaque identities stay unchanged.
 - Use consistent controls and feedback throughout the existing app; recover uncertain commands before another mutation.
 - Make configuration and eligibility prerequisites visible without implying a real provider interaction from local preview data.
 
