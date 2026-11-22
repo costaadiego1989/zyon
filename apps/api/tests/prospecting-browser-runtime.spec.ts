@@ -1,0 +1,58 @@
+import {test} from "node:test";
+import assert from "node:assert/strict";
+import {createRequire} from "node:module";
+import Stripe from "stripe";
+import {quoteBilling} from "../src/modules/payment/infrastructure/billing-offers.js";
+import {startProspectingBrowserRuntime} from "./prospecting-browser-runtime.js";
+
+test("local browser runtime authenticates the operator, opens the attributed dashboard link and binds the authenticated account", {timeout:180000},async()=>{
+ const runtime=await startProspectingBrowserRuntime("disposable");
+ const {chromium}=createRequire(new URL("../../control/package.json",import.meta.url))("@playwright/test");
+ const browser=await chromium.launch({headless:true});
+ try{
+  const context=await browser.newContext({ignoreHTTPSErrors:true});
+  const allowed=new Set(Object.values(runtime.origins));
+  await context.route("**/*",(route:any)=>allowed.has(new URL(route.request().url()).origin)?route.continue():route.abort());
+  const page=await context.newPage();await page.goto(runtime.origins.control);
+  await page.locator('input[type="email"]').fill(runtime.operator.email);
+  await page.locator('input[type="password"]').fill(runtime.operator.password);
+  const login=page.waitForResponse((res:any)=>res.url().endsWith("/platform/auth/login"));
+  await page.getByRole("button",{name:/entrar/i}).click();
+  const auth=await(await login).json();assert.equal(auth.role,"platform_admin");
+  const headers={Authorization:"Bearer "+auth.access_token};
+  const companies=await(await fetch(runtime.origins.api+"/v1/platform/prospecting/companies",{headers})).json();
+  assert.ok(companies.items.some((r:{cnpj:string})=>r.cnpj==="12ABC34501DE35"));
+  const readiness=await(await fetch(runtime.origins.api+"/v1/platform/prospecting/readiness",{headers})).json();
+  assert.equal(readiness.runtime.dispatchMode,"controlled");assert.equal(readiness.source.value.snapshotId,"search-old");
+  const history=await(await fetch(runtime.origins.api+"/v1/platform/prospecting/conversations/"+runtime.conversationId,{headers})).json();
+  const link=history.messages.find((m:{authorType:string;content:string})=>m.authorType==="ai"&&m.content.includes("proposal=")).content;
+  assert.equal(new URL(link).origin,runtime.origins.dashboard);
+  await page.goto(link);await page.getByRole("button",{name:/^entrar/i}).first().click();
+  await page.locator('input[type="email"]').fill(runtime.buyer.email);
+  await page.locator('input[type="password"]').fill(runtime.buyer.password);
+  await page.getByRole("button",{name:/^entrar/i}).last().click();
+  await page.getByRole("heading",{name:"Vincular proposta à conta"}).waitFor();assert.ok((await page.locator("main").innerText()).includes(runtime.buyer.name));
+  const bound=page.waitForResponse((res:any)=>res.url().includes("/billing/prospect-proposal/bind"));
+  await page.getByRole("button",{name:"Vincular proposta",exact:true}).click();
+  assert.equal((await(await bound).json()).next,"select_plan");
+  await page.getByText("Growth",{exact:true}).first().waitFor();
+  const persisted=await runtime.prisma.prospectBillingProposal.findFirstOrThrow({where:{boundMerchantId:runtime.buyer.id}});
+  assert.equal(persisted.prospectId,runtime.leadId);
+  assert.equal(await runtime.prisma.prospectConversion.count({where:{state:"paid"}}),0);
+  const db=runtime.prisma,amount=quoteBilling("growth").amountCents;
+  const pay=(path:string,event:object,headers:Record<string,string>)=>fetch(runtime.origins.api+"/v1/webhooks/"+path,{method:"POST",headers:{"Content-Type":"application/json",...headers},body:JSON.stringify(event)});
+  await db.merchantBillingSubscription.update({where:{merchantId:runtime.buyer.id},data:{provider:"stripe",planKey:"growth",billingAmountCents:amount,stripeCustomerId:"cus_browser",stripeSubscriptionId:"sub_browser"}});
+  const stripeEvent={type:"invoice.paid",id:"evt_browser_signed",livemode:false,created:Math.floor(Date.now()/1000)+1,data:{object:{id:"in_browser",customer:"cus_browser",status:"paid",billing_reason:"subscription_create",amount_paid:amount,currency:"brl",metadata:{},parent:{subscription_details:{subscription:"sub_browser",metadata:{}}},payments:{data:[{status:"paid",invoice:"in_browser",currency:"brl",payment:{type:"payment_intent",payment_intent:"pi_browser"},amount_paid:amount}]}}}};
+  const stripe=new Stripe("sk_test_browser_local");
+  assert.equal((await pay("stripe",stripeEvent,{"stripe-signature":"invalid"})).status,401);
+  assert.equal((await pay("stripe",stripeEvent,{"stripe-signature":stripe.webhooks.generateTestHeaderString({payload:JSON.stringify(stripeEvent),secret:"whsec_browser_local"})})).status,200);
+  assert.equal(await db.prospectConversion.count({where:{provider:"stripe",state:"paid",providerEventId:stripeEvent.id}}),1);
+  await db.merchantBillingSubscription.update({where:{merchantId:runtime.buyer.id},data:{provider:"asaas",status:"trialing",planKey:"growth",billingAmountCents:amount,asaasCustomerId:"cus_browser_asaas",asaasSubscriptionId:"sub_browser_asaas",lastBillingEventAt:null}});
+  const asaasEvent={id:"evt_local_asaas",event:"PAYMENT_CONFIRMED",dateCreated:new Date().toISOString(),payment:{id:"pay_browser",customer:"cus_browser_asaas",subscription:"sub_browser_asaas",value:amount/100,paymentDate:new Date().toISOString(),dueDate:new Date().toISOString().slice(0,10)}};
+  assert.equal((await pay("asaas/billing",asaasEvent,{"asaas-access-token":"invalid"})).status,401);
+  assert.equal((await pay("asaas/billing",asaasEvent,{"asaas-access-token":"browser-local-captured-asaas"})).status,200);
+  assert.equal(await db.prospectConversion.count({where:{provider:"asaas",state:"paid",providerEventId:asaasEvent.id}}),1);
+  await page.goto(runtime.origins.site);assert.match(await page.locator("h1").innerText(),/Zyon/);
+  await context.close();
+ }finally{await browser.close();await runtime.close();}
+});

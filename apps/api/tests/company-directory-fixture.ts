@@ -9,19 +9,23 @@ export async function createCompanyDirectoryFixture() {
   const client = createDirectoryPrismaClient({ databaseUrl: db.databaseUrl, directoryDatabaseUrl: db.databaseUrl, directoryPoolSize: 2 });
   try {
     await db.pg.query("CREATE TABLE platform_operators(id text PRIMARY KEY)");
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261117190000_platform_prospecting/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121120000_prospect_contact_identity/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121130000_prospect_privacy/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121140000_prospect_audience/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121150000_prospect_reservation_day/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121160000_prospect_inbox_time/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121170000_prospect_conversation_dispatch/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121180000_prospect_endpoint_alias/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121190000_prospect_model_usage/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121200000_prospect_billing_attribution/migration.sql",import.meta.url),"utf8"));
-    await db.pg.query(readFileSync(new URL("../prisma/company-directory-migrations/20261117190100_company_directory/migration.sql",import.meta.url),"utf8"));
+    await migrateProspectingData(db.pg);
     return { ...db, client, async close() { await client.$disconnect(); await db.close(); } };
   } catch (error) { await client.$disconnect(); await db.close(); throw error; }
+}
+
+export async function migrateProspectingData(pg:Awaited<ReturnType<typeof createProspectingLogicalDatabase>>["pg"]) {
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261117190000_platform_prospecting/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261121120000_prospect_contact_identity/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261121130000_prospect_privacy/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261121140000_prospect_audience/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261121150000_prospect_reservation_day/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261121160000_prospect_inbox_time/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261121170000_prospect_conversation_dispatch/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261121180000_prospect_endpoint_alias/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261121190000_prospect_model_usage/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261121200000_prospect_billing_attribution/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/company-directory-migrations/20261117190100_company_directory/migration.sql",import.meta.url),"utf8"));
 }
 export function fixtureManifest(competence = "2026-11", revision = "v1"): CompanyManifest {
   const id = `${competence}-${revision}`;
