@@ -57,3 +57,5 @@
 - Execution T8: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/preparation-limits.service.ts, apps/api/src/modules/meta-ads-agent/application/preparation-limits.service.spec.ts. Next: T9.
 
 - Execution T9: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/preparation-limits.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/preparation-limits.controller.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T10.
+
+- Execution T10: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/product-opportunity.reader.ts, apps/api/src/modules/meta-ads-agent/infrastructure/product-opportunity.reader.spec.ts. Next: T11.
