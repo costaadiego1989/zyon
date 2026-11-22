@@ -81,6 +81,13 @@ RUN cd /repo/apps/api && \
     DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma?schema=public" \
     pnpm exec prisma generate --schema prisma/schema.prisma
 
+# The platform directory has its own generated client and migration namespace.
+# Generate it inside Linux even when real prospecting is disabled at runtime.
+RUN cd /repo/apps/api && \
+    PROSPECTING_DIRECTORY_DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma?schema=company_directory" \
+    pnpm exec prisma generate --config prisma.company-directory.config.ts && \
+    test -f node_modules/.prisma/company-directory/index.js
+
 # Verify generated client exists. Prisma 6 generates inside @prisma/client package
 # (under .pnpm/...), not under a separate .prisma/client directory.
 RUN test -d /repo/apps/api/node_modules/@prisma/client && \
