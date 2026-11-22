@@ -10,7 +10,7 @@ export class PrismaProspectRepository implements ProspectRepositoryPort {
   constructor(readonly prisma: PrismaClient, private readonly directory: DirectoryReadPort) {}
   async add(command: AddProspectsCommand, actor: ProspectingActor): Promise<AddProspectsResult> {
     return prospectCommand(this.prisma, "prospect.add", command, actor, async tx => {
-      if (!command.snapshotId || !Array.isArray(command.cnpjs) || !command.cnpjs.length || command.cnpjs.length > 100 || command.selectionId) throw new Error("invalid_command:selection");
+      if (typeof command.snapshotId !== "string" || !command.snapshotId || command.snapshotId.length > 200 || !Array.isArray(command.cnpjs) || !command.cnpjs.length || command.cnpjs.length > 100 || command.selectionId) throw new Error("invalid_command:selection");
       const cnpjs = [...new Set(command.cnpjs.map(canonicalCnpj))].sort();
       for (const cnpj of cnpjs) if (!await this.directory.find(cnpj, command.snapshotId)) throw new Error("company_not_found");
       const result: AddProspectsResult = { created: 0, existing: 0, prospectIds: [] };
