@@ -183,6 +183,7 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
       if(req.path==='/__test/model'&&req.method==='POST'){if(typeof req.body?.hold!=='boolean'&&!Array.isArray(req.body?.script))return res.status(400).end();if(Array.isArray(req.body?.script))provider.setModelScript(req.body.script);if(typeof req.body?.hold==='boolean')provider.setModelHold(req.body.hold);return res.json({configured:true});}
       if(req.path==='/__test/metrics'&&req.method==='POST'){if(typeof req.body?.unavailable!=='boolean'||req.body.sampleData!==undefined&&typeof req.body.sampleData!=='boolean')return res.status(400).end();provider.metricsUnavailable=req.body.unavailable;provider.sampleMetrics=req.body.sampleData??false;return res.json({configured:true});}
       if(req.path==='/__test/drop-turn-response'&&req.method==='POST'){dropNextTurnResponse=true;return res.json({configured:true});}
+      if(req.path==='/__test/pause-timeout'&&req.method==='POST'){if(typeof req.body?.enabled!=='boolean')return res.status(400).end();provider.pauseTimeout=req.body.enabled;return res.json({configured:true});}
       if(req.path==='/__test/drop-launch-response'&&req.method==='POST'){dropNextLaunchResponse=true;return res.json({configured:true});}
       if(req.path==='/__test/engine'&&req.method==='POST'){if(typeof req.body?.enabled!=='boolean')return res.status(400).end();env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED=String(req.body.enabled);return res.json({configured:true});}
       if(req.path==='/__test/whatsapp'&&req.method==='POST'){
