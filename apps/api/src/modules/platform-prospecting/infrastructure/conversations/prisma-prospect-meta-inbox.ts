@@ -27,9 +27,13 @@ export class PrismaProspectMetaInbox implements ProspectMetaDispatchPort{
   const status=kind==="status"?str(raw.status,40):null;
   if(kind==="status"&&!status)throw Error("invalid_status");
   const eventId=status?JSON.stringify([providerId,status,raw.timestamp??null]):providerId;
-  const phone=str(kind==="inbound"?raw.from:raw.recipient_id,32);
+  const senderPhone=str(kind==="inbound"?raw.from:raw.recipient_id,32);
+  const digits=(s:string)=>s.replace(/^\+/,"");
   const contacts=(change.value.contacts??[]).map(object);
-  const contact=phone?contacts.find(c=>c.wa_id===phone):contacts.length===1&&(change.value.messages?.length??0)===1?contacts[0]:undefined;
+  const contact=senderPhone?contacts.find(c=>typeof c.wa_id==="string"&&digits(c.wa_id)===digits(senderPhone)):contacts.length===1&&(change.value.messages?.length??0)===1?contacts[0]:undefined;
+  const providerPhone=senderPhone??(kind==="inbound"?str(contact?.wa_id,32):null);
+  if(providerPhone&&!/^\+?[1-9]\d{7,14}$/.test(providerPhone))throw Error("invalid_contact:provider_phone");
+  const phone=providerPhone?"+"+digits(providerPhone):null;
   const bsuid=str(kind==="inbound"?raw.from_user_id:raw.recipient_user_id,320)??(kind==="inbound"?str(contact?.user_id,320):null);
   const hash=createHash("sha256").update(stableDirectoryJson({raw,bsuid})).digest("hex");
   const unique={senderBindingId:binding.id,eventKind:kind,eventId};

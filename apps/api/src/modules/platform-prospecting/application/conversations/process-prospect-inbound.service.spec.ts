@@ -92,3 +92,16 @@ test("PROS-16 AC2 trusted status or matching HTTP address links BSUID-only reply
   }finally{await f.close();}
  }
 });
+
+test("PROS-09 AC2 international provider addresses retain their E.164 country in an inbound message and a receipt",async()=>{
+ const f=await fixture();try{
+  for(const digits of ["12025550123","3312345678"]){
+   const msg=await f.put("new-"+digits,"international","1700000000",{from:digits});
+   await f.worker.process(msg);const ep=await f.prisma.prospectEndpoint.findFirstOrThrow({where:{normalizedValue:"+"+digits}});
+   await f.inbox.accept({appId:"app",wabaId:"waba",phoneNumberId:"phone",value:{statuses:[{id:"receipt-"+digits,recipient_id:digits,status:"read",timestamp:"1700000001"}]}});
+   const receipt=await f.prisma.prospectInboxEvent.findFirstOrThrow({where:{eventKind:"status",resourceIds:{has:ep.id}}});
+   assert.equal((receipt.payload as {endpointId:string}).endpointId,ep.id);
+  }
+  assert.equal(await f.prisma.prospectEndpoint.count({where:{normalizedValue:{startsWith:"+551202"}}}),0);
+ }finally{await f.close();}
+});
