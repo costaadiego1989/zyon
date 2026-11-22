@@ -79,7 +79,9 @@ function Overview({ api, onSessionExpired, navigate, from, to, campaignId, scope
     <section className="prospecting-page prospecting-overview">
       <header>
         <h2>{scopeName ? "Métricas da campanha" : "Visão geral"}</h2>
-        <p>{scopeName ? scopeName : "Resultados de todas as campanhas, com entregas, respostas e conversões verificadas."}</p>
+        <p>{scopeName ?? (campaignId
+          ? "Resultados da campanha selecionada, com entregas, respostas e conversões verificadas."
+          : "Resultados de todas as campanhas, com entregas, respostas e conversões verificadas.")}</p>
       </header>
       <form
         className="prospecting-filterbar"

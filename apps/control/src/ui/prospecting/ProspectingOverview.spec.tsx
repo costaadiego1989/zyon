@@ -78,6 +78,9 @@ test("PROS-30 AC2 abrir indicador preserva período/campanha e exibe registros r
   expect(ui.text()).toContain("Reembolsos integrais");
   await ui.click("Voltar ao funil");
   expect(ui.text()).toContain("2 de 6");
+  expect(ui.text()).toContain("Resultados da campanha selecionada");
+  expect(ui.text()).not.toContain("Resultados de todas as campanhas");
+  expect(ui.text()).toContain("UTC · Oficinas");
 });
 
 test("PROS-30 AC1 carregamento, falha e acesso negado suspendem ações do recurso", async () => {
