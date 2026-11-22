@@ -31,17 +31,26 @@ test("PROS-07 AC3 freeze waits for the privacy fence and sees the committed eras
   const c=await f.prisma.prospectCampaign.create({data:{name:"race",message:"test",senderBindingId:"sender",senderVersion:1,sendWindow:{},createdBy:"operator"}});
   const freeze=new FreezeCampaignAudience(new PrismaAudienceRepository(f.prisma,{currentVersion:1,keys:{1:"a".repeat(64)}}));
   const job=await freeze.enqueue(c.id,{snapshotId:"search-old",cnpjs:[lead.cnpj],expectedRevision:1,clientRequestId:"freeze-race"},{operatorId:"operator",correlationId:"freeze-race"});
-  await f.pg.query("BEGIN");
-  await f.pg.query("SELECT id FROM platform_prospects WHERE id=$1 FOR UPDATE",[lead.id]);
-  const work=freeze.processNext(1); let waiting=false;
+  const retention=await f.pg.connect();
+  let waiting=false;
   try{
-   for(let i=0;i<150&&!waiting;i++){
-    const res=await f.pg.query("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND cardinality(pg_blocking_pids(pid))>0 AND query LIKE '%FOR UPDATE%') AS waiting");
-    waiting=res.rows[0].waiting;if(!waiting)await new Promise(resolve=>setTimeout(resolve,10));
-   }
-   await f.pg.query("UPDATE platform_prospects SET pii_discarded_at=now(),stage='do_not_contact' WHERE id=$1",[lead.id]);
-   await f.pg.query("COMMIT");
-  }finally{await f.pg.query("ROLLBACK");await work;}
+   await retention.query("BEGIN");
+   const locked=await retention.query("SELECT pg_backend_pid() AS holder FROM platform_prospects WHERE id=$1 FOR UPDATE",[lead.id]);
+   const work=freeze.processNext(1);
+   try{
+    // Observe fresh activity on a different connection while retention owns the lead.
+    for(let i=0;i<150&&!waiting;i++){
+     const res=await f.pg.query(`SELECT EXISTS (
+       SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND $1=ANY(pg_blocking_pids(pid))
+       AND query LIKE '%FROM platform_prospects%FOR UPDATE%'
+     ) AS waiting`,[locked.rows[0].holder]);
+     waiting=res.rows[0].waiting;
+     if(!waiting)await new Promise(resolve=>setTimeout(resolve,10));
+    }
+    await retention.query("UPDATE platform_prospects SET pii_discarded_at=now(),stage='do_not_contact' WHERE id=$1",[lead.id]);
+    await retention.query("COMMIT");
+   }finally{await retention.query("ROLLBACK");await work;}
+  }finally{retention.release();}
   assert.equal(waiting,true,"freeze took the same row fence as retention");
   assert.equal((await freeze.poll(job.selectionId))?.missingEndpointCount,1);
   assert.equal(await f.prisma.prospectContactBinding.count(),0);assert.equal(await f.prisma.prospectEndpoint.count(),0);
