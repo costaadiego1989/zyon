@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { type OutreachAttempt, type Prisma, type PrismaClient, type ProspectCampaign } from "@prisma/client";
 import type { ContactPermissionStatus, OutreachAttemptRecord, ProspectingTemplate } from "@zyon/shared-types";
 import type { AttemptReservation, ProspectSendResult } from "../../domain/prospecting.ports.js";
+import { publicSender } from "./prisma-sender-binding.repository.js";
+import type {ProspectOffer,ProspectingSendWindow} from "@zyon/shared-types";
 import { campaignContentHash } from "../../domain/campaigns/prospecting-campaign.js";
 import { contactPermission, normalizeContactIdentity } from "../../domain/crm/prospect-contact.js";
 import { protectedContactLookups, type SuppressionKeyRing } from "../crm/prisma-prospect-privacy.repository.js";
@@ -44,7 +46,11 @@ export class PrismaCampaignRepository {
     const versions=await tx.contactSuppression.findMany({where:{senderScope:scopes},distinct:["keyVersion"],select:{keyVersion:true}});
     if(versions.some(v=>!this.keys.keys[v.keyVersion]))throw new Error("suppression_key_version_unavailable");
     if(await tx.contactSuppression.findFirst({where:{senderScope:scopes,OR:protectedContactLookups(identity,this.keys)}}))return null;
-    if(contactPermission({senderBindingId:ep.senderBindingId,endpointId:ep.id,purpose:"zyon_sales"},ep.permissions.map(p=>({...p,status:p.status as ContactPermissionStatus})))!=="opted_in")return null;
+    const permission=contactPermission({senderBindingId:ep.senderBindingId,endpointId:ep.id,purpose:"zyon_sales"},ep.permissions.map(p=>({...p,status:p.status as ContactPermissionStatus})));
+    if(permission!=="opted_in"){
+      await tx.campaignRecipient.updateMany({where:{id:r.id,state:{in:["pending","blocked"]}},data:{eligibility:permission,blockers:["provider_policy_blocked"]}});
+      return null;
+    }
     return {r,c,ep,conversation,identity,template:c.template as unknown as ProspectingTemplate|null};
   }
   reserveAttempt(recipientId:string,ownerToken:string,now:Date):Promise<AttemptReservation|null>{
@@ -59,7 +65,7 @@ export class PrismaCampaignRepository {
       const controlEpoch=conversation?.controlEpoch??0;
       const existing=previous?.attempts[0]; let attempt:OutreachAttempt;
       const day=now.toISOString().slice(0,10);
-      const recoverable=existing?.state==="cancelled_before_submit" && ["campaign_paused","reservation_expired"].includes(existing.errorCode??"");
+      const recoverable=existing?.state==="cancelled_before_submit" && ["campaign_paused","reservation_expired","dispatch_deferred"].includes(existing.errorCode??"");
       if(existing && (existing.recipientId!==recipientId || !recoverable && (existing.state!=="reserved" || existing.leaseExpiresAt && existing.leaseExpiresAt>now)))return null;
       const quote=this.quote({campaignId:c.id,recipientId,template,now});
       if(!quote||!Number.isSafeInteger(quote.amountCents)||quote.amountCents<=0||quote.currency!=="BRL"||!(quote.validUntil>now))throw new Error("cost_unknown");
@@ -81,11 +87,38 @@ export class PrismaCampaignRepository {
       return {attempt:projectAttempt(attempt),ownerToken,campaignId:c.id,recipientId,senderBindingId:ep.senderBindingId,senderVersion:c.senderVersion!,endpointId:ep.id,normalizedEndpoint:identity.value,identity,template,content:c.message,expectedEpoch:controlEpoch};
     });
   }
-  markSubmitting(attemptId:string,ownerToken:string,now:Date){
+  async deferReservation(packet:AttemptReservation){
+    if(!packet.campaignId)return;
+    const campaignId=packet.campaignId;
+    await this.prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(hashtext('prospect.dispatch'),hashtext(${campaignId}))::text`;
+      await tx.$queryRaw`SELECT id FROM prospect_endpoints WHERE id=${packet.endpointId} ORDER BY id FOR UPDATE`;
+      const row=await tx.outreachAttempt.findFirst({where:{id:packet.attempt.id,leaseToken:packet.ownerToken,state:"reserved"}});
+      if(row)await releasePreSubmission(tx,row,campaignId,"dispatch_deferred");
+    });
+  }
+  async dispatchReview(campaignId:string){
+    const c=await this.prisma.prospectCampaign.findUniqueOrThrow({where:{id:campaignId},include:{sender:true}});
+    if(!c.sender||!c.approvedHash)return null;
+    return {binding:publicSender(c.sender),hash:c.approvedHash,offer:c.offerSnapshot as unknown as ProspectOffer|null,
+      campaign:{senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectingTemplate|null,message:c.message}};
+  }
+  markSubmitting(attemptId:string,ownerToken:string,instant:Date|(()=>Date),verifiedHash?:string){
     return this.prisma.$transaction(async tx=>{
       const initial=await tx.outreachAttempt.findUnique({where:{id:attemptId}}); if(!initial?.recipientId)return false;
       const ctx=await this.lockedContext(tx,initial.recipientId); if(!ctx)return false;
       const {c,conversation,template}=ctx;
+      const now=typeof instant==="function"?instant():instant;
+      if(verifiedHash!==undefined){
+        if(c.approvedHash!==verifiedHash||initial.requestHash!==verifiedHash)return false;
+        if(!template&&(!conversation?.serviceWindowEndsAt||conversation.serviceWindowEndsAt<=now))return false;
+        const window=c.sendWindow as unknown as ProspectingSendWindow;
+        const parts=new Intl.DateTimeFormat("en-GB",{timeZone:window.timezone,weekday:"short",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(now);
+        const part=(name:string)=>parts.find(p=>p.type===name)?.value;
+        const weekday=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].indexOf(part("weekday")??"")+1;
+        const time=part("hour")+":"+part("minute");
+        if(!window.weekdays.includes(weekday)||time<window.start||time>=window.end)return false;
+      }
       if(initial.controlEpoch!==(conversation?.controlEpoch??0)||initial.approvedRevision!==c.revision||initial.senderVersion!==c.senderVersion||!c.budgetCents||c.spentCents+c.reservedCents>c.budgetCents)return false;
       const day=initial.reservationDay??initial.createdAt.toISOString().slice(0,10); if(day!==now.toISOString().slice(0,10))return false;
       const usage=await tx.prospectCampaignDailyUsage.findUnique({where:{campaignId_day:{campaignId:c.id,day}}});
