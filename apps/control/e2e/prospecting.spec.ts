@@ -147,4 +147,3 @@ test("PROS-31 AC3 percorre a entrada autenticada do Control e persiste a jornada
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   await page.screenshot({path:info.outputPath("jornada-control.png")});
 });
-

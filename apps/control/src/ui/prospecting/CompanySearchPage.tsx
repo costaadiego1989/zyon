@@ -312,7 +312,7 @@ export function CompanySearchPage(props: PageProps) {
           <header>
             <h3>
               {page.countState === "complete"
-                ? page.count?.toLocaleString("pt-BR") + " empresas"
+                ? page.count?.toLocaleString("pt-BR") + (page.count === 1 ? " empresa" : " empresas")
                 : "Contagem em andamento"}
             </h3>
             <p>Competência {page.competence}</p>
@@ -405,7 +405,9 @@ export function CompanySearchPage(props: PageProps) {
                       " · versão " +
                       saved.version +
                       " · " +
-                      (saved.countState === "complete" ? saved.count + " empresas" : "contagem em andamento")
+                      (saved.countState === "complete"
+                        ? saved.count + (saved.count === 1 ? " empresa" : " empresas")
+                        : "contagem em andamento")
                     );
                   });
                 }}

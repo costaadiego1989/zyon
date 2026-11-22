@@ -50,4 +50,3 @@ try{
   }else throw Error("unknown_fixture_operation");
   process.stdout.write(JSON.stringify(result));
 }finally{await db.$disconnect();}
-

@@ -59,4 +59,3 @@ Abra o Control em `http://127.0.0.1:5179` e entre como operador sintético da fi
 ```
 
 Espere o encerramento dos quatro listeners antes da suíte descartável de navegador. A prévia tem um recibo e um banco reutilizável próprios. Somente o dono da fixture encerra os clientes e remove seus recursos descartáveis. As provas locais cobrem UI, persistência, recuperação e provedores controlados. Uma liberação externa depende de autorização Meta no portfólio real, entrega e resposta em um piloto consentido e confirmação financeira do provedor. O tempo e a capacidade necessários para uma carga nacional completa dependem de medição no ambiente destinado ao trabalho.
-
