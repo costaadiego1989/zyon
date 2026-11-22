@@ -1,3 +1,4 @@
+import {readFileSync} from "node:fs";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createProspectCrmFixture } from "../../../../../tests/prospect-crm-fixture.js";
@@ -86,4 +87,36 @@ test("PROS-10 AC1 privacy erasure rolls back on audit failure and ordinary recei
     await assert.rejects(() => f.prisma.contactPermissionReceipt.update({ where: { id: "receipt" }, data: { status: "opted_in", evidenceRef: "restore" } }));
     await assert.rejects(() => f.prisma.contactPermissionReceipt.delete({ where: { id: "receipt" } }));
   } finally { await f.close(); }
+});
+
+test("PROS-10 AC1 migrates blank historical holds, rejects invalid writes, and erases the expired personal preview",async()=>{
+  const f=await createProspectCrmFixture();
+  try {
+    // Reconstruct the previous migration boundary in this disposable database only.
+    await f.pg.query("ALTER TABLE platform_prospects DROP CONSTRAINT IF EXISTS prospect_retention_hold_meaningful");
+    const data={sourceSnapshotId:"search-old",lastBusinessActivityAt:new Date(now.getTime()-194*day)};
+    await f.prisma.platformProspect.createMany({data:[
+      { ...data,id:"a-valid",cnpj:"11222333000181",retentionHoldReason:"  Contrato vigente  ",retentionAuthorizationRef:"doc-41",lastReplyPreview:"keep" },
+      { ...data,id:"x-old",cnpj:"00000000000191",retentionHoldReason:"  ",retentionAuthorizationRef:"verifier-case",lastReplyPreview:"SYNTHETIC-ONLY" },
+      { ...data,id:"y-old",cnpj:"12ABC34501DE35",retentionHoldReason:"justified",retentionAuthorizationRef:"\t\u00a0\u2003\n",lastReplyPreview:"old" },
+    ]});
+    const sql=readFileSync(new URL("../../../../../prisma/migrations/20261123010000_prospect_retention_hold/migration.sql",import.meta.url),"utf8");
+    await f.pg.query(sql);
+    for(const blank of ["","  ","\r\t\n","\u00a0\u2002","\u3000\ufeff"]){
+      for(const patch of [{retentionHoldReason:blank},{retentionAuthorizationRef:blank}])
+        await assert.rejects(f.prisma.platformProspect.update({where:{id:"a-valid"},data:patch}),/prospect_retention_hold_meaningful/);
+    }
+    const privacy=new PrismaProspectPrivacyRepository(f.prisma,f.directory,keyRing);
+    assert.deepEqual(await new ProspectRetentionWorker(privacy).run(now),{erased:2});
+    for(const id of ["x-old","y-old"]){
+      const row=await f.prisma.platformProspect.findUniqueOrThrow({where:{id}});
+      assert.equal(row.piiDiscardedAt?.toISOString(),now.toISOString());assert.equal(row.lastReplyPreview,null);
+      assert.equal(row.retentionHoldReason,null);assert.equal(row.retentionAuthorizationRef,null);
+    }
+    const keep=await f.prisma.platformProspect.findUniqueOrThrow({where:{id:"a-valid"}});
+    assert.equal(keep.piiDiscardedAt,null);assert.equal(keep.lastReplyPreview,"keep");assert.equal(keep.retentionAuthorizationRef,"doc-41");
+    await f.prisma.platformProspect.create({data:{...data,id:"z-eligible",cnpj:"12345678000195",lastReplyPreview:"expired"}});
+    assert.deepEqual(await privacy.retain(now,1),{erased:1});
+    assert.deepEqual(await new ProspectRetentionWorker(privacy).run(now),{erased:0});
+  }finally{await f.close();}
 });

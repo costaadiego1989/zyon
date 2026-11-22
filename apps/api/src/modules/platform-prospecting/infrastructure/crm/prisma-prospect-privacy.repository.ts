@@ -12,7 +12,7 @@ export function protectedContactLookups(identity: ContactIdentity, ring: Suppres
   const normalized = normalizeContactIdentity(identity);
   return Object.entries(ring.keys).map(([version, key]) => ({ keyVersion: Number(version), protectedLookup: createHmac("sha256", Buffer.from(key, "hex")).update(JSON.stringify([normalized.kind, normalized.businessScope, normalized.value])).digest("hex") }));
 }
-const retentionWhere = (cutoff: Date): Prisma.PlatformProspectWhereInput => ({ convertedAt: null, stage: { not: "converted" }, piiDiscardedAt: null, lastBusinessActivityAt: { lte: cutoff }, OR: [{ retentionHoldReason: null }, { retentionHoldReason: "" }, { retentionAuthorizationRef: null }, { retentionAuthorizationRef: "" }] });
+const retentionWhere = (cutoff: Date): Prisma.PlatformProspectWhereInput => ({ convertedAt: null, stage: { not: "converted" }, piiDiscardedAt: null, lastBusinessActivityAt: { lte: cutoff }, retentionHoldReason: null, retentionAuthorizationRef: null });
 export class PrismaProspectPrivacyRepository implements ProspectPrivacyPort {
   constructor(private readonly prisma: PrismaClient, private readonly directory: DirectoryReadPort, private readonly keys: SuppressionKeyRing) { protectedContactLookups({ kind: "phone", value: "+5511999999999", businessScope: null }, keys); }
   async isSuppressed(identity: ContactIdentity, senderScope = "zyon_platform") {
