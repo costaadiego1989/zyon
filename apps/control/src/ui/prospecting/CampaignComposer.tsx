@@ -238,7 +238,7 @@ function Editor(props: PageProps & { data: Options; reload: () => void }) {
             )}
           </section>
         )}
-        <div className="prospecting-fields">
+        <div className="prospecting-fields prospecting-fields--limits">
           <label>
             Destinatários por dia
             <input
