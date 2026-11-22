@@ -1,12 +1,59 @@
 import {type PrismaClient} from "@prisma/client";
 import type {ProspectConversationQuery} from "@zyon/shared-types";
-import {changed,lockEndpoint,publicConversation,publicMessage,type Tx} from "./conversation-timeline.js";
+import {releasePreSubmission} from "../campaigns/prisma-campaign.repository.js";
+import {append,ensureConversation,changed,lockEndpoint,publicConversation,publicMessage,type Tx} from "./conversation-timeline.js";
 import type {InboundPayload} from "./prisma-prospect-meta-inbox.js";
 
 const earliest=(old:Date|null,at:Date|null)=>old&&at?(old<at?old:at):old??at;
 const latest=(old:Date|null,at:Date|null)=>old&&at?(old>at?old:at):old??at;
 export class PrismaProspectConversationRepository{
  constructor(readonly db:PrismaClient){}
+ async processInbound(inboxId:string){
+  return this.db.$transaction(async tx=>{
+   const initial=await tx.prospectInboxEvent.findUniqueOrThrow({where:{id:inboxId}});
+   if(initial.state==="processed")return "processed";
+   const payload=initial.payload as unknown as InboundPayload;if(initial.eventKind!=="inbound"||!payload.endpointId)throw Error("inbound_endpoint_missing");
+   await lockEndpoint(tx,payload.endpointId);
+   const event=await tx.prospectInboxEvent.findUniqueOrThrow({where:{id:inboxId}});
+   if(event.state==="processed")return "processed";
+   const ep=await tx.prospectEndpoint.findUniqueOrThrow({where:{id:payload.endpointId},include:{aliases:true}});
+   if(!ep.normalizedValue){
+    await tx.prospectInboxEvent.update({where:{id:event.id},data:{state:"processed",payload:{redacted:true},processedAt:new Date()}});return "processed";
+   }
+   const c=await ensureConversation(tx,ep.id),at=event.providerOccurredAt;
+   const msg=await append(tx,c.id,{direction:"inbound",authorType:"prospect",senderBindingId:event.senderBindingId,content:payload.body,state:"received",providerId:payload.providerId,providerOccurredAt:at});
+   const ids=[...new Set([...event.resourceIds,ep.id,c.id,msg.id,...c.prospectId?[c.prospectId]:[],...c.ambiguousBindings])];
+   const newer=at&&(!c.lastInboundAt||at>c.lastInboundAt||at.getTime()===c.lastInboundAt.getTime()&&event.eventId>(c.lastInboundEventId??""));
+   const refuse=/^(?:pare|parar|stop|sair|cancelar|n?o tenho interesse|nao tenho interesse|n?o quero(?: receber (?:mais )?mensagens)?|nao quero)[.!\s]*$/iu.test(payload.body.trim());
+   const preview=Array.from(payload.body).slice(0,240).join("");
+   const updated=await tx.prospectConversation.update({where:{id:c.id},data:{...(newer?{lastInboundAt:at,lastInboundEventId:event.eventId,lastInboundPreview:preview,serviceWindowEndsAt:new Date(at.getTime()+86400000)}:{}),
+    ...(refuse?{mode:"human",controlEpoch:{increment:1},serviceWindowEndsAt:null}:{})}});
+   const pending=await tx.outreachAttempt.findMany({where:{sequence:{endpointId:ep.id},state:"reserved"},include:{recipient:true}});
+   for(const attempt of pending)if(attempt.recipient)await releasePreSubmission(tx,attempt,attempt.recipient.campaignId,refuse?"refused":"customer_replied");
+   await tx.prospectSequence.updateMany({where:{endpointId:ep.id,state:"active"},data:{state:"cancelled",cancelReason:refuse?"refused":"customer_replied",cancelledAt:event.receivedAt,followUpDueAt:null}});
+   if(refuse){
+    for(const k of [ep,...ep.aliases]){
+     const key={senderScope:"zyon_platform",protectedLookup:k.protectedLookup,keyVersion:k.keyVersion};
+     await tx.contactSuppression.upsert({where:{senderScope_protectedLookup_keyVersion:key},create:{...key,reason:"opt_out",occurredAt:event.receivedAt},update:{}});
+    }
+    await tx.contactPermissionReceipt.create({data:{endpointId:ep.id,senderBindingId:event.senderBindingId,purpose:"zyon_sales",status:"revoked",source:"zyon_platform",occurredAt:event.receivedAt}});
+    await tx.prospectMessage.updateMany({where:{conversationId:c.id,clientRequestId:{not:null},state:"prepared"},data:{state:"cancelled_before_submit",errorCode:"suppressed"}});
+   }
+   if(c.prospectId){
+    const lead=await tx.platformProspect.findUniqueOrThrow({where:{id:c.prospectId}});
+    if(!lead.piiDiscardedAt)await tx.platformProspect.update({where:{id:lead.id},data:{lastBusinessActivityAt:latest(lead.lastBusinessActivityAt,event.receivedAt)!,version:{increment:1},
+     ...(!["converted","do_not_contact","lost"].includes(lead.stage)?{stage:refuse?"do_not_contact":"responded"}:{}),
+     ...(newer&&(!lead.lastReplyAt||at>=lead.lastReplyAt)?{lastReplyAt:at,lastReplyPreview:preview}:{})}});
+   }
+   if(newer||refuse)await tx.prospectOutbox.updateMany({where:{kind:"prospect.ai.reply",resourceIds:{has:c.id},state:{in:["pending","leased"]}},data:{state:"cancelled",leaseToken:null,leaseExpiresAt:null}});
+   const suppressed=await tx.contactSuppression.findFirst({where:{senderScope:{in:["zyon_platform",event.senderBindingId]},OR:[ep,...ep.aliases].map(k=>({protectedLookup:k.protectedLookup,keyVersion:k.keyVersion}))}});
+   if(newer&&!refuse&&!suppressed&&updated.mode==="ai"&&updated.serviceWindowEndsAt&&updated.serviceWindowEndsAt>new Date()&&payload.body){
+    await tx.prospectOutbox.create({data:{eventId:"ai."+event.id,kind:"prospect.ai.reply",resourceIds:ids,payload:{conversationId:c.id,messageId:msg.id,controlEpoch:updated.controlEpoch}}});
+   }
+   await tx.prospectInboxEvent.update({where:{id:event.id},data:{state:"processed",processedAt:new Date(),resourceIds:ids}});
+   return "processed";
+  });
+ }
  async processStatus(inboxId:string){
   return this.db.$transaction(async tx=>{
    const event=await tx.prospectInboxEvent.findUniqueOrThrow({where:{id:inboxId}});

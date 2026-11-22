@@ -8,6 +8,7 @@ import { campaignContentHash } from "../../domain/campaigns/prospecting-campaign
 import { contactPermission, normalizeContactIdentity } from "../../domain/crm/prospect-contact.js";
 import { protectedContactLookups, type SuppressionKeyRing } from "../crm/prisma-prospect-privacy.repository.js";
 
+import {authenticatedEndpoint,observedBsuid} from "../conversations/prospect-endpoint-alias.js";
 import {append,changed,ensureConversation,lockEndpoint} from "../conversations/conversation-timeline.js";
 
 type Tx=Prisma.TransactionClient;
@@ -142,6 +143,12 @@ export class PrismaCampaignRepository {
   recordResult(attemptId:string,ownerToken:string,result:ProspectSendResult){
     return this.prisma.$transaction(async tx=>{
       const ref=await tx.outreachAttempt.findUniqueOrThrow({where:{id:attemptId},include:{sequence:true,recipient:true}});
+      if(result.state==="provider_accepted"&&result.confirmedBsuid){
+        const binding=await tx.platformProspectSenderBinding.findUniqueOrThrow({where:{id:ref.sequence.senderBindingId}});
+        if((binding.grantedAssets as {businessId?:string})?.businessId===result.confirmedBsuid.businessScope&&ref.leaseToken===ownerToken){
+          await authenticatedEndpoint(tx,binding.id,this.keys,[observedBsuid(result.confirmedBsuid.value,result.confirmedBsuid.businessScope)],ref.sequence.endpointId);
+        }
+      }
       await tx.$queryRaw`SELECT id FROM prospect_endpoints WHERE id=${ref.sequence.endpointId} ORDER BY id FOR UPDATE`;
       const row=await tx.outreachAttempt.findUniqueOrThrow({where:{id:attemptId}});
       if(row.leaseToken!==ownerToken)throw new Error("lease_conflict");

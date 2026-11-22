@@ -5811,6 +5811,8 @@ model ProspectEndpoint {
   timezoneSource String? @map("timezone_source")
   createdAt DateTime @default(now()) @map("created_at")
   sender PlatformProspectSenderBinding @relation(fields: [senderBindingId], references: [id], onDelete: Restrict)
+  aliases ProspectEndpointAlias[]
+  lastContactActivityAt DateTime @default(now()) @map("last_contact_activity_at")
   bindings ProspectContactBinding[]
   permissions ContactPermissionReceipt[]
   recipients CampaignRecipient[]
@@ -5819,6 +5821,17 @@ model ProspectEndpoint {
   @@unique([senderBindingId, channel, protectedLookup, keyVersion])
   @@index([protectedLookup, keyVersion])
   @@map("prospect_endpoints")
+}
+
+model ProspectEndpointAlias {
+  senderBindingId String @map("sender_binding_id")
+  protectedLookup String @map("protected_lookup")
+  keyVersion Int @map("key_version")
+  endpointId String @map("endpoint_id")
+  endpoint ProspectEndpoint @relation(fields:[endpointId],references:[id],onDelete:Restrict)
+  @@id([senderBindingId,protectedLookup,keyVersion])
+  @@index([endpointId])
+  @@map("prospect_endpoint_aliases")
 }
 
 model ProspectContactBinding {
@@ -6030,6 +6043,7 @@ model ProspectInboxEvent {
   payloadHash String @map("payload_hash")
   payload Json
   resourceIds String[] @default([]) @map("resource_ids")
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
   providerOccurredAt DateTime? @map("provider_occurred_at")
   receivedAt DateTime @default(now()) @map("received_at")
   state String @default("pending")
