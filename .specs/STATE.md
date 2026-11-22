@@ -61,3 +61,5 @@
 - Execution T10: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/product-opportunity.reader.ts, apps/api/src/modules/meta-ads-agent/infrastructure/product-opportunity.reader.spec.ts. Next: T11.
 
 - Execution T11: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/opportunity-model.adapter.ts, apps/api/src/modules/meta-ads-agent/infrastructure/opportunity-model.adapter.spec.ts, apps/api/src/modules/meta-ads-agent/domain/types.ts, apps/api/src/modules/merchant-assistant/domain/model.port.ts, apps/api/src/modules/merchant-assistant/infrastructure/merchant-ai.gateway.ts, apps/api/src/modules/merchant-assistant/infrastructure/runtime.ts. Next: T12.
+
+- Execution T12: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/campaign-opportunity.service.ts, apps/api/src/modules/meta-ads-agent/application/campaign-opportunity.service.spec.ts, apps/api/src/modules/meta-ads-agent/application/campaign.service.ts. Next: T13.

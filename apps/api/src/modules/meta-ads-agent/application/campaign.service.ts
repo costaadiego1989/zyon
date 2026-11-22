@@ -38,7 +38,7 @@ export class CampaignService {
       return copy.id;
     });
   }
-  async create(merchantId: string, input: MetaAdsCampaignDraft, idempotencyKey: string): Promise<MetaAdsCampaign> {
+  async create(merchantId: string, input: MetaAdsCampaignDraft, idempotencyKey: string, preparation?: {admissionId: string; opportunity: NonNullable<MetaAdsCampaign['opportunity']>}): Promise<MetaAdsCampaign> {
     requireIdentifier(idempotencyKey); const draft = normalizeCampaignDraft(input); const plan = await this.commerce.getPlan(merchantId);
     requireEntitlement(plan, await this.repo.read(merchantId), this.clock());
     const products = await this.products(merchantId, draft); const key = `campaign-request:${idempotencyKey}`; const digest = stableDigest(draft);
@@ -49,11 +49,25 @@ export class CampaignService {
         if (request.digest !== digest) throw new MetaAdsError("campaign_request_conflict", 409);
         return { result: state.campaigns[request.id] };
       }
-      if (Object.values(state.campaigns).filter(campaign => campaign.managed).length >= subscription.offer.maxManagedCampaigns) throw new MetaAdsError("campaign_capacity_exceeded", 409);
+      const reservations=Object.values(state.preparationAdmissions??{}).filter(a=>a.state!=='closed'&&!a.campaignId);
+      const occupied=Object.values(state.campaigns).filter(campaign=>campaign.managed).length+reservations.length;
+      const admission=preparation?state.preparationAdmissions?.[preparation.admissionId]:null;
+      if(preparation){
+        if(!admission||admission.state==='closed'||admission.campaignId||state.automation?.activePolicyId!==admission.policyId||state.automation.version!==admission.policyVersion||state.connection.epoch!==admission.connectionEpoch)throw new MetaAdsError('automatic_authority_unavailable',409);
+        if(state.preparationLimits&&(state.preparationLimits.dailyNewProposals===0||state.preparationLimits.maximumPendingProposals===0))throw new MetaAdsError('preparation_disabled',409);
+        if(state.preparationLimits){
+          const pending=Object.values(state.preparationAdmissions??{}).filter(a=>a.state!=='closed'&&(!a.campaignId||state.campaigns[a.campaignId]?.managed&&!['delivered','active_unconfirmed'].includes(state.campaigns[a.campaignId].status))).length;
+          if(pending>Math.min(state.preparationLimits.maximumPendingProposals,subscription.offer.maxManagedCampaigns))throw new MetaAdsError('preparation_pending_limit',409);
+          if(Object.values(state.preparationAdmissions??{}).filter(a=>a.accountLocalDay===admission.accountLocalDay).length>Math.min(state.preparationLimits.dailyNewProposals,subscription.offer.maxManagedCampaigns))throw new MetaAdsError('preparation_daily_limit',409);
+        }
+        if(Object.values(state.campaigns).some(c=>c.managed&&c.draft.destination===draft.destination&&c.draft.priority===draft.priority&&c.draft.country===draft.country&&c.draft.variantIds.some(id=>draft.variantIds.includes(id))))throw new MetaAdsError('opportunity_duplicate',409);
+      }
+      if (occupied+(admission?0:1)>subscription.offer.maxManagedCampaigns) throw new MetaAdsError("campaign_capacity_exceeded", 409);
       const id = requireIdentifier(this.id()); const now = this.clock().toISOString();
       const campaign: MetaAdsCampaign = { id, draft: { ...draft, mediaIds: this.media(state, id, draft, products) }, products, createdByAgent: true, managed: true,
         remoteCampaignId: null, remoteAdSetId: null, remoteAdIds: [], remoteAccountId: null, status: "draft", createdAt: now, updatedAt: now };
       state.campaigns[id] = campaign;
+      if(admission&&preparation){admission.campaignId=id;admission.state='preparing';admission.updatedAt=now;campaign.opportunity=structuredClone(preparation.opportunity);}
       return { result: campaign, records: [{ key, kind: "audit", payload: { id, digest }, createdAt: now }, { key: `campaign-origin:${id}`, kind: "audit", payload: { source: "agent", campaignId: id }, createdAt: now }] };
     });
   }
