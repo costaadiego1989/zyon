@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { prospectingMigrationPlan } from "../scripts/prospecting-migration-plan.mjs";
 const base = "postgresql://fixture:fixture@127.0.0.1:15438/prospecting_test";
 test("production prospecting keeps the directory migration disabled with the module", async () => {
@@ -19,4 +21,13 @@ test("production prospecting refuses another database, server or public migratio
     await assert.rejects(()=>prospectingMigrationPlan({PROSPECTING_ENABLED:"true",DATABASE_URL:base,PROSPECTING_DIRECTORY_DATABASE_URL:url}),/database_mismatch|schema_invalid/);
   await assert.rejects(()=>prospectingMigrationPlan({PROSPECTING_ENABLED:"true",DATABASE_URL:base}),/database_required/);
   await assert.rejects(()=>prospectingMigrationPlan({PROSPECTING_ENABLED:"yes"}),/config_invalid/);
+});
+test("production predeploy executes the directory CLI after public migrations only when enabled", () => {
+  for (const enabled of ["true", "false", "", " false "]) {
+    const child=spawnSync(process.execPath,["--experimental-vm-modules",fileURLToPath(new URL("./prospecting-predeploy-harness.mjs",import.meta.url)),enabled],{encoding:"utf8",windowsHide:true});
+    assert.equal(child.status,0,child.stderr);
+    assert.deepEqual(JSON.parse(child.stdout),enabled==="true"
+      ? [["migrate","deploy"],["migrate","deploy","--config","prisma.company-directory.config.ts"]]
+      : [["migrate","deploy"]]);
+  }
 });
