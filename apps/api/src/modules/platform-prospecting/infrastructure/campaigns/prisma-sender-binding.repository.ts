@@ -38,7 +38,10 @@ export class PrismaSenderBindingRepository implements SenderBindingStore {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('zyon_platform_sender'))::text`;
       const rows=tx.platformProspectSenderBinding;
       const where={scope:"zyon_platform"};
-      const previous=await rows.findFirst({where:{...where,appId:config.appId,wabaId:asset.wabaId,phoneNumberId:asset.phoneNumberId},orderBy:{version:"desc"}});
+      // The provider verified this E.164 number on this portfolio. App, messaging account and node IDs are authorization versions.
+      const matches=await rows.findMany({where:{...where,displayPhoneNumber:asset.whatsappNumber,grantedAssets:{path:["businessId"],equals:config.businessId}},take:2});
+      if(matches.length>1)throw new Error("sender_identity_mismatch");
+      const previous=matches[0];
       const max=await rows.aggregate({where,_max:{version:true}});
       await rows.updateMany({where:{...where,active:true},data:{active:false}});
       const data={...where,active:true,version:(max._max.version??0)+1,authorizationVersion:(previous?.authorizationVersion??0)+1,appId:config.appId,wabaId:asset.wabaId,phoneNumberId:asset.phoneNumberId,displayPhoneNumber:asset.whatsappNumber,

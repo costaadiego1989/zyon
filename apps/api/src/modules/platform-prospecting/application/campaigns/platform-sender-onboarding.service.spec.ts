@@ -72,3 +72,37 @@ test("PROS-11 AC5 state is operator-scoped, expires, cannot be reused and invali
    assert.equal((await f.repo.binding())?.id,"sender");
  } finally {await f.close();}
 });
+test("PROS-11 AC1 rotation to another verified platform app on the same portfolio, messaging account and phone preserves endpoint sequence",async()=>{
+ const f=await fixture();try{
+  const first=await f.service.connect(await f.command("original"),actor);
+  const endpoint=await f.prisma.prospectEndpoint.create({data:{channel:"whatsapp",protectedLookup:"preserved",senderBindingId:first.id}});
+  await f.prisma.prospectSequence.create({data:{senderBindingId:first.id,endpointId:endpoint.id,state:"completed",followUpCount:1}});
+  const rotated={...config,appId:"21",appSecret:"rotated-fixture-secret"};
+  let accountId="15",phoneId="14",businessId="13";
+  const captured:typeof fetch=async input=>{
+   const path=new URL(String(input)).pathname;
+   const response:Record<string,unknown>={
+    "/v27.0/oauth/access_token":{access_token:"rotated-fixture-token"},
+    "/v27.0/debug_token":{data:{app_id:"21",is_valid:true,granular_scopes:["whatsapp_business_messaging","whatsapp_business_management"].map(scope=>({scope,target_ids:[accountId]}))}},
+    ["/v27.0/"+accountId]:{id:accountId,owner_business_info:{id:businessId}},
+    ["/v27.0/"+accountId+"/phone_numbers"]:{data:[{id:phoneId,display_phone_number:"+5511999999999",status:"CONNECTED",platform_type:"CLOUD_API"}]},
+    ["/v27.0/"+accountId+"/subscribed_apps"]:{data:[{whatsapp_business_api_data:{id:"21"}}]}
+   };assert.ok(path in response);return Response.json(response[path]);
+  };
+  const service=new PlatformSenderOnboardingService(rotated,f.repo,new PlatformMetaAuthorization(rotated,captured));
+  const next=await service.connect({...selected,state:(await service.signupState(actor)).state,clientRequestId:"rotated"},actor);
+  assert.equal(next.id,first.id);assert.equal(next.appId,"21");assert.ok(next.version>first.version);
+  assert.equal((await f.prisma.prospectSequence.findUniqueOrThrow({where:{senderBindingId_endpointId:{senderBindingId:next.id,endpointId:endpoint.id}}})).followUpCount,1);
+  accountId="25";phoneId="24";
+  const regrouped={...rotated,phoneNumberId:phoneId};
+  const moved=new PlatformSenderOnboardingService(regrouped,f.repo,new PlatformMetaAuthorization(regrouped,captured));
+  const cmd={...selected,phoneNumberId:phoneId,wabaId:accountId,messagingAccountIds:[accountId],clientRequestId:"moved"};
+  const transferred=await moved.connect({...cmd,state:(await moved.signupState(actor)).state},actor);
+  assert.equal(transferred.id,first.id);assert.equal(transferred.phoneNumberId,"24");assert.equal(transferred.wabaId,"25");assert.ok(transferred.version>next.version);
+  assert.equal((await f.prisma.prospectSequence.findFirstOrThrow({where:{senderBindingId:transferred.id}})).followUpCount,1);
+  businessId="33";
+  const separateConfig={...regrouped,businessId};const separate=new PlatformSenderOnboardingService(separateConfig,f.repo,new PlatformMetaAuthorization(separateConfig,captured));
+  const different=await separate.connect({...cmd,state:(await separate.signupState(actor)).state,businessId,clientRequestId:"other-portfolio"},actor);
+  assert.notEqual(different.id,first.id);assert.equal(await f.prisma.prospectSequence.count({where:{senderBindingId:different.id}}),0);
+ }finally{await f.close();}
+});
