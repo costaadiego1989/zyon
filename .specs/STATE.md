@@ -69,3 +69,5 @@
 - Execution T14: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/last-click-attribution.ts, apps/api/src/modules/meta-ads-agent/domain/last-click-attribution.spec.ts. Next: T15.
 
 - Execution T15: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.ts, apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.spec.ts, apps/api/prisma/migrations/20261122120000_ads_attribution_touches/migration.sql. Next: T16.
+
+- Execution T16: gate0, source stable; apps/api/src/modules/meta-ads-agent/application/attribution.service.ts, apps/api/src/modules/meta-ads-agent/application/attribution.service.spec.ts, apps/api/src/modules/meta-ads-agent/domain/types.ts, apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.ts, apps/api/prisma/migrations/20261122120000_ads_attribution_touches/migration.sql, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts. Next: T17.

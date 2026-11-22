@@ -57,6 +57,7 @@ import {CampaignOpportunityService} from '../application/campaign-opportunity.se
 import {CampaignOpportunityWorker} from './campaign-opportunity.worker.js';
 import {ProductOpportunityFactsReader} from './product-opportunity.reader.js';
 import {OpportunityModelAdapter} from './opportunity-model.adapter.js';
+import {PrismaAttributionTouchRepository} from './prisma-attribution-touch.repository.js';
 import {CatalogImageAdapter} from './catalog-image.adapter.js';
 import {CatalogCreativeService} from '../application/catalog-creative.service.js';
 import {CampaignReadyNoticeWorker} from './campaign-ready-notice.worker.js';
@@ -149,7 +150,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
     const phoneNumber = config?.whatsappNumber ?? config?.phoneNumber;
     return credentials && phoneNumber ? { ...credentials, merchantId, phoneNumber } : null;
   } });
-  attribution = new AttributionService(repo, commerce, connection, conversions, env.META_ADS_ATTRIBUTION_SIGNING_KEY, clock);
+  attribution = new AttributionService(repo, commerce, connection, conversions, env.META_ADS_ATTRIBUTION_SIGNING_KEY, clock,undefined,new PrismaAttributionTouchRepository(input.prisma,clock));
   const service = new MetaAdsAgentService(repo, commerce, billing, connection, campaigns, generations, proposals, executions, provider, env);
   const enabled = env.META_ADS_AGENT_ENABLED === "true";
   if (enabled && env.META_ADS_AGENT_PURCHASE_BRIDGE_ENABLED === "true" && !input.sessionBinding) throw new Error("meta_ads_checkout_binding_missing");

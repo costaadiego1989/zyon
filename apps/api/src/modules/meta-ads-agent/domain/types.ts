@@ -137,6 +137,7 @@ export interface AttributionTouch extends AttributionReceipt {
 }
 export interface AttributionTouchRepository {
   capture(merchantId: string, receipt: AttributionReceipt, idempotencyKey: string): Promise<AttributionTouch>;
+  byId(merchantId: string, id: string): Promise<AttributionTouch | null>;
   eligible(merchantId: string, sessionIds: string[], since: string, until: string): Promise<AttributionTouch[]>;
 }
 export interface MetaAdsRecord<T = unknown> {
