@@ -76,7 +76,7 @@ export class AttributionService {
       if (!source) return { result: null };
       const existing = records.get(targetKey)?.payload as AttributionReceipt | undefined;
       if (existing) {
-        if(this.touches){const binding=records.get(bindingKey)?.payload as {originSessionId?:string}|undefined;if(binding?.originSessionId!==originSessionId&&existing.originSessionId!==originSessionId)throw new MetaAdsError('attribution_binding_conflict',409);return{result:existing,records:binding?[]:[{key:bindingKey,kind:'attribution',payload:{originSessionId},createdAt:this.clock().toISOString()}]};}
+        if(this.touches){const binding=records.get(bindingKey)?.payload as {originSessionId?:string}|undefined;if(binding?binding.originSessionId!==originSessionId:existing.originSessionId&&existing.originSessionId!==originSessionId)throw new MetaAdsError('attribution_binding_conflict',409);return{result:existing,records:binding?[]:[{key:bindingKey,kind:'attribution',payload:{originSessionId},createdAt:this.clock().toISOString()}]};}
         if (existing.campaignId !== source.campaignId || (existing.originSessionId ?? existing.sessionId) !== (source.originSessionId ?? source.sessionId)) throw new MetaAdsError("attribution_binding_conflict", 409);
         return { result: existing };
       }

@@ -75,3 +75,5 @@
 - Execution T17: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/attribution.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/attribution.controller.spec.ts, apps/api/src/modules/meta-ads-agent/application/attribution.service.ts, apps/api/src/modules/meta-ads-agent/infrastructure/prisma-attribution-touch.repository.ts. Next: T18.
 
 - Execution T18: gate0, source stable; apps/storefront/src/lib/meta-ads-attribution.ts, apps/storefront/src/lib/meta-ads-attribution.spec.ts, apps/storefront/src/components/MetaAdsAttribution.tsx. Next: T19.
+
+- Execution T19: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/checkout-purchase.bridge.ts, apps/api/src/modules/meta-ads-agent/infrastructure/checkout-purchase.bridge.spec.ts, apps/api/src/modules/meta-ads-agent/application/attribution.service.ts, apps/api/src/modules/whatsapp-channel/application/use-cases/handle-incoming-message.use-case.ts. Next: T20.

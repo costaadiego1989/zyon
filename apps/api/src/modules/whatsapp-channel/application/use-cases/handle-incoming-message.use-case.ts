@@ -82,7 +82,8 @@ export class HandleIncomingMessageUseCase {
       // Process inline under the durable inbox lease.
       const session = route.whatsappSession;
       if (input.provider === "META_CLOUD" && input.adReferral && session.checkoutSessionId) {
-        await this.events?.publish({ eventType: "whatsapp.ad_referral", merchantId: input.merchantId, payload: { adId: input.adReferral.adId, sessionId: session.checkoutSessionId } });
+        const eventId=input.inboxClaim?.dedupKey??createHash('sha256').update(JSON.stringify([input.merchantId,input.deviceId,input.timestamp,session.checkoutSessionId,input.adReferral.adId])).digest('hex');
+        await this.events?.publish({ eventType: "whatsapp.ad_referral", merchantId: input.merchantId,eventId, payload: { adId: input.adReferral.adId, sessionId: session.checkoutSessionId } });
       }
 
       // ─── Post-sale reply intercept ────────────────────────────────────
