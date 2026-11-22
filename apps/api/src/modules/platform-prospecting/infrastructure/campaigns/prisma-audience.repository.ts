@@ -79,13 +79,25 @@ export class PrismaAudienceRepository implements CampaignAudienceStore {
     },{timeout:120_000});
   }
   private async materializeMember(tx:Tx,job:Job,cnpj:string,senderBindingId:string){
-    const lead=await tx.platformProspect.upsert({where:{cnpj},create:{cnpj,sourceSnapshotId:job.snapshot_id},update:{}});
+    const reference=await tx.platformProspect.upsert({where:{cnpj},create:{cnpj,sourceSnapshotId:job.snapshot_id},update:{}});
+    await tx.$queryRaw`SELECT id FROM platform_prospects WHERE id=${reference.id} FOR UPDATE`;
+    const lead=await tx.platformProspect.findUniqueOrThrow({where:{id:reference.id}});
+    if(lead.piiDiscardedAt || lead.stage==="do_not_contact"){
+      await tx.$executeRaw`UPDATE prospect_audience_members SET prospect_id=${lead.id} WHERE selection_id=${job.id} AND cnpj=${cnpj}`;
+      return {ids:[] as string[],created:0};
+    }
+    const phones=await tx.$queryRaw<{value:string}[]>`SELECT COALESCE(normalized_value,original_value) AS value FROM company_directory.company_public_contacts WHERE snapshot_id=${job.snapshot_id} AND cnpj=${cnpj} AND channel='phone' ORDER BY original_value`;
+    const candidates=phones.flatMap(phone=>{
+      try{return [normalizeContactIdentity({kind:"phone",value:phone.value})];}catch{return [];}
+    });
+    const hashes=candidates.flatMap(i=>protectedContactLookups(i,this.keys).map(k=>k.protectedLookup));
+    // Acquire both bound and shared directory endpoints together in the privacy repository's lock order.
+    await tx.$queryRaw`SELECT ep.id FROM prospect_endpoints ep WHERE ep.sender_binding_id=${senderBindingId}
+      AND (EXISTS(SELECT 1 FROM prospect_contact_bindings b WHERE b.prospect_id=${lead.id} AND b.endpoint_id=ep.id)
+      OR ep.protected_lookup=ANY(${hashes}::text[])) ORDER BY ep.id FOR UPDATE`;
     const existing=await tx.prospectContactBinding.findMany({where:{prospectId:lead.id,endpoint:{senderBindingId,channel:"whatsapp",normalizedValue:{not:null}}},include:{endpoint:true}});
     const endpoints=new Map(existing.map(b=>[b.endpointId,b.endpoint]));
-    if(!lead.piiDiscardedAt && lead.stage!=="do_not_contact"){
-      const phones=await tx.$queryRaw<{value:string}[]>`SELECT COALESCE(normalized_value,original_value) AS value FROM company_directory.company_public_contacts WHERE snapshot_id=${job.snapshot_id} AND cnpj=${cnpj} AND channel='phone' ORDER BY original_value`;
-      for(const phone of phones){
-        let identity; try { identity=normalizeContactIdentity({kind:"phone",value:phone.value}); } catch {continue;}
+    for(const identity of candidates){
         const versions=await tx.contactSuppression.findMany({where:{senderScope:{in:["zyon_platform",senderBindingId]}},distinct:["keyVersion"],select:{keyVersion:true}});
         if(versions.some(v=>!this.keys.keys[v.keyVersion]))throw new Error("suppression_key_version_unavailable");
         const lookups=protectedContactLookups(identity,this.keys);
@@ -97,7 +109,6 @@ export class PrismaAudienceRepository implements CampaignAudienceStore {
         if(!endpoint.normalizedValue)continue;
         await tx.prospectContactBinding.upsert({where:{prospectId_endpointId:{prospectId:lead.id,endpointId:endpoint.id}},create:{prospectId:lead.id,endpointId:endpoint.id},update:{}});
         endpoints.set(endpoint.id,endpoint);
-      }
     }
     const ids=[...endpoints.keys()].sort(); let created=0;
     for(const id of ids){
