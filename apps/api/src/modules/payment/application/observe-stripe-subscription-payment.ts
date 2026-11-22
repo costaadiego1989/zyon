@@ -23,7 +23,11 @@ export async function observeStripeSubscriptionPayment(stripe:Stripe,event:Strip
   if(!customerId||!subscriptionId||invoice.status!=="paid"||invoice.amount_paid<=0||invoice.currency!=="brl"||
     invoice.metadata?.zyon_module||invoice.parent?.subscription_details?.metadata?.zyon_module||
     !["subscription_create","subscription_cycle"].includes(invoice.billing_reason??"")||!await port.tracksCustomer("stripe",customerId))return;
-  const payment=await completePayment(stripe,invoice);if(!payment)return unknown;
+  const payment=await completePayment(stripe,invoice);
+  if(!payment){
+   await port.observe({provider:"stripe",eventId:event.id,state:"allocation_unknown",customerId,subscriptionId,paymentRef:invoice.id,amountCents:invoice.amount_paid,occurredAt});
+   return unknown;
+  }
   await port.observe({provider:"stripe",eventId:event.id,state:"paid",paymentRef:payment.id,customerId,subscriptionId,amountCents:payment.amountCents,occurredAt});
  }else if(event.type==="charge.refunded"){
   const charge=event.data.object,customerId=reference(charge.customer),paymentRef=reference(charge.payment_intent);
@@ -36,7 +40,11 @@ export async function observeStripeSubscriptionPayment(stripe:Stripe,event:Strip
   if(reference(invoice.customer)!==customerId||invoice.currency!==charge.currency||invoice.metadata?.zyon_module||invoice.parent?.subscription_details?.metadata?.zyon_module||
     invoice.status!=="paid"||!["subscription_create","subscription_cycle"].includes(invoice.billing_reason??""))return;
   const subscriptionId=reference(invoice.parent?.subscription_details?.subscription),payment=await completePayment(stripe,invoice);
-  if(!subscriptionId||!payment||payment.id!==paymentRef||payment.amountCents!==charge.amount_refunded)return unknown;
+  if(!subscriptionId)return unknown;
+  if(!payment||payment.id!==paymentRef||payment.amountCents!==charge.amount_refunded){
+   await port.observe({provider:"stripe",eventId:event.id,state:"allocation_unknown",customerId,subscriptionId,paymentRef:invoice.id,amountCents:charge.amount_refunded,occurredAt});
+   return unknown;
+  }
   await port.observe({provider:"stripe",eventId:event.id,state:"refunded",paymentRef,customerId,subscriptionId,amountCents:payment.amountCents,occurredAt});
  }
 }

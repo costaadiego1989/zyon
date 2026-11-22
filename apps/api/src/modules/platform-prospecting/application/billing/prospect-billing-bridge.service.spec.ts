@@ -92,6 +92,28 @@ test("PROS-22 AC3 authenticated Asaas ingress requires canonical reconciliation,
  await f.asaas("PAYMENT_REFUNDED","asaas-refund");assert.equal(await f.prisma.prospectConversion.count({where:{state:"refunded",providerEventId:"asaas-refund"}}),1);
  }finally{await f.close();}
 });
+test("PROS-22 authenticated conversion history pages bound account, signup, trial, paid, refund and independently observed allocation gaps",async()=>{
+ const f=await createProspectBillingFixture();try{
+  assert.equal((await f.history(undefined,"","")).status,401);
+  assert.equal((await f.history(undefined,"",f.supportToken)).status,403);
+  assert.equal((await f.history("missing")).status,404);
+  for(const q of ["?limit=0","?limit=101","?cursor=invalid","?other=1","?limit=2&limit=3"])assert.equal((await f.history(undefined,q)).status,400);
+  const proposal=await(await f.propose()).json();
+  await f.prisma.merchant.update({where:{id:"merchant"},data:{createdAt:new Date()}});
+  assert.equal((await f.bind(new URL(proposal.url).searchParams.get("proposal")!)).status,200);
+  for(const id of ["gap","gap"])assert.equal((await f.stripe("invoice.paid",id,{split:true})).status,200);
+  await f.stripe("invoice.paid","paid-history");await f.stripe("charge.refunded","refund-history");
+  const all=await(await f.history()).json();
+  assert.deepEqual(all.items.map((r:{state:string})=>r.state).sort(),["account_bound","allocation_coverage_unknown","paid","refunded","signup","trial"]);
+  for(const row of all.items){assert.equal(row.merchantId,"merchant");assert.equal(row.planKey,"growth");assert.equal(row.proposalId,proposal.id);assert.deepEqual(Object.keys(row).sort(),["id","merchantId","occurredAt","planKey","proposalId","provider","state"]);}
+  assert.equal(all.nextCursor,null);
+  const ids:string[]=[];let cursor:string|null=null;
+  do{const page=await(await f.history(undefined,"?limit=2"+(cursor?"&cursor="+encodeURIComponent(cursor):""))).json();ids.push(...page.items.map((r:{id:string})=>r.id));cursor=page.nextCursor;
+    if(cursor){const other=await f.prisma.platformProspect.upsert({where:{cnpj:"11222333000181"},create:{cnpj:"11222333000181",sourceSnapshotId:"search-old"},update:{}});assert.equal((await f.history(other.id,"?cursor="+encodeURIComponent(cursor))).status,400);}
+  }while(cursor);
+  assert.deepEqual(ids,all.items.map((r:{id:string})=>r.id));
+ }finally{await f.close();}
+});
 test("PROS-22 AC4 trial, pending, browser declaration and active-account management cannot create paid conversions or duplicate checkout",async()=>{
  const f=await createProspectBillingFixture();try{
  await f.bindProposal();assert.equal(await f.prisma.prospectConversion.count({where:{state:"trial"}}),1);

@@ -102,10 +102,15 @@ export interface SalesKnowledgeQuery { operation: KnowledgeOperation; params: { 
 export interface SalesKnowledgeAnswer { answer: string | null; handoff: boolean; reason: string | null; facts: SalesKnowledgeFact[]; sources: { id: string; publicationId: string; version: number }[]; callMode: "controlled" | "real"; offer: ProspectOffer | null }
 export interface ProspectBillingProposal { id: string; prospectId: string; planKey: string; offerVersion: string; url: string; expiresAt: string; boundMerchantId: string | null; version: number }
 export interface ProspectConversion { id: string; prospectId: string; proposalId: string; merchantId: string; provider: string; providerEventId: string; subscriptionId: string; state: "signup" | "trial" | "paid" | "refunded"; occurredAt: string }
+export interface ProspectConversionHistoryItem {
+  id: string; proposalId: string; merchantId: string; planKey: string; occurredAt: string;
+  provider: "account" | "stripe" | "asaas";
+  state: ProspectConversion["state"] | "account_bound" | "allocation_coverage_unknown";
+}
 export interface ProspectMetricsQuery { campaignId?: string; from: string; to: string }
 export interface ProspectMetrics {
   campaignId: string | null; from: string; to: string; updatedAt: string; leads: number; attempts: number;
-  accepted: number; delivered: number; uniqueReplies: number; signups: number; trials: number; paidSubscriptions: number; refundedSubscriptions: number;
+  accepted: number; delivered: number; uniqueReplies: number; signups: number; trials: number; paidSubscriptions: number; refundedSubscriptions: number; unknownAllocationEvents: number;
   responseRate: { numerator: number; denominator: number; population: string; cohortUpdatedAt: string };
   costs: { totals: ProspectingMoney[]; commitments: { source: "meta" | "model"; currency: string; state: "reserved" | "unknown" | "committed"; amountCents: string; entries: number }[]; coverage: "complete" | "partial" | "unknown"; missing: string[] };
 }

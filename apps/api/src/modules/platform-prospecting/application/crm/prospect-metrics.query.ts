@@ -1,7 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { ProspectMetrics, ProspectMetricsQuery } from "@zyon/shared-types";
 
-type Counts = Pick<ProspectMetrics,"leads"|"attempts"|"accepted"|"delivered"|"uniqueReplies"|"signups"|"trials"|"paidSubscriptions"|"refundedSubscriptions"> & { population: number };
+type Counts = Pick<ProspectMetrics,"leads"|"attempts"|"accepted"|"delivered"|"uniqueReplies"|"signups"|"trials"|"paidSubscriptions"|"refundedSubscriptions"|"unknownAllocationEvents"> & { population: number };
 type Commitment = ProspectMetrics["costs"]["commitments"][number];
 
 function instant(value:string) {
@@ -31,6 +31,10 @@ export class ProspectMetricsQueryService {
         FROM prospect_messages m JOIN prospect_conversations c ON c.id=m.conversation_id
         WHERE m.direction='outbound' AND m.attempt_id IS NULL ${campaign?Prisma.sql`AND m.campaign_id=${campaign}`:Prisma.empty}
       )`;
+      const attributedProposal=(column:Prisma.Sql)=>campaign?Prisma.sql`AND EXISTS (
+        SELECT 1 FROM prospect_outbox o JOIN prospect_messages m ON m.id=o.payload->>'messageId'
+        WHERE o.kind='prospect.chat.dispatch' AND o.event_id='chat.'||m.id AND o.payload->>'proposalId'=${column}
+        AND m.conversation_id=o.payload->>'conversationId' AND m.campaign_id=${campaign})`:Prisma.empty;
       const [counts]=await tx.$queryRaw<Counts[]>`WITH ${outbound},
         cohort AS (
           SELECT endpoint_id,min(coalesce(delivered_at,read_at)) AS first_delivery
@@ -45,9 +49,7 @@ export class ProspectMetricsQueryService {
         ),
         conversions AS (
           SELECT v.* FROM prospect_conversions v WHERE v.occurred_at>=${from} AND v.occurred_at<${to}
-          ${campaign?Prisma.sql`AND EXISTS (SELECT 1 FROM prospect_outbox o JOIN prospect_messages m ON m.id=o.payload->>'messageId'
-            WHERE o.kind='prospect.chat.dispatch' AND o.event_id='chat.'||m.id AND o.payload->>'proposalId'=v.proposal_id
-            AND m.conversation_id=o.payload->>'conversationId' AND m.campaign_id=${campaign})`:Prisma.empty}
+          ${attributedProposal(Prisma.sql`v.proposal_id`)}
         ),
         net_paid AS (
           SELECT v.* FROM conversions v WHERE v.state='paid' AND NOT EXISTS (
@@ -64,7 +66,9 @@ export class ProspectMetricsQueryService {
         (SELECT count(DISTINCT merchant_id)::int FROM conversions WHERE state='signup') AS signups,
         (SELECT count(DISTINCT merchant_id)::int FROM conversions WHERE state='trial') AS trials,
         (SELECT count(*)::int FROM net_paid) AS "paidSubscriptions",
-        (SELECT count(*)::int FROM conversions WHERE state='refunded') AS "refundedSubscriptions"
+        (SELECT count(*)::int FROM conversions WHERE state='refunded') AS "refundedSubscriptions",
+        (SELECT count(*)::int FROM prospect_audit_events a WHERE a.action='billing.allocation_unknown'
+         AND a.occurred_at>=${from} AND a.occurred_at<${to} ${attributedProposal(Prisma.sql`(a.details->>'proposalId')`)}) AS "unknownAllocationEvents"
         FROM outbound`;
       const commitments=await tx.$queryRaw<Commitment[]>`WITH ${outbound}, usage AS (
         SELECT 'meta' AS source,currency,cost_state AS state,reserved_amount AS amount FROM outbound

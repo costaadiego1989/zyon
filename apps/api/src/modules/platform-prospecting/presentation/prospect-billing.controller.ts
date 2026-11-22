@@ -1,4 +1,4 @@
-import {Body,Controller,ForbiddenException,Headers,HttpCode,Inject,NotFoundException,Param,Post,Req,UseGuards} from "@nestjs/common";
+import {Body,Controller,ForbiddenException,Get,Query,Headers,HttpCode,Inject,NotFoundException,Param,Post,Req,UseGuards} from "@nestjs/common";
 import {randomUUID} from "node:crypto";
 import {AuthGuard,currentUser} from "../../auth/presentation/auth.guard.js";
 import {PlatformAccessGuard} from "../../platform-control/presentation/platform-access.guard.js";
@@ -6,7 +6,8 @@ import {PlatformPermissionGuard} from "../../platform-control/presentation/platf
 import {RequirePlatformPermissions} from "../../platform-control/presentation/platform-permission.decorator.js";
 import {currentPlatformPrincipal,type PlatformPrincipalRequest} from "../../platform-control/presentation/platform-principal.js";
 import {PROSPECTING_PORTS,type ProspectBillingPort} from "../domain/prospecting.ports.js";
-import {prospectingHttpError,requestKeys,requestCommand} from "./prospecting-http-error.js";
+import {ProspectConversionHistoryQuery} from "../application/billing/prospect-conversion-history.query.js";
+import {prospectingHttpError,requestKeys,requestCommand,requestLimit,requestText} from "./prospecting-http-error.js";
 
 @Controller("platform/prospecting/prospects")
 @UseGuards(PlatformAccessGuard,PlatformPermissionGuard)
@@ -15,6 +16,16 @@ export class ProspectBillingProposalController{
  constructor(@Inject(PROSPECTING_PORTS.billing) private readonly bridge:ProspectBillingPort){}
  @Post(":id/billing-proposal") async create(@Param("id") id:string,@Body() body:unknown,@Headers("idempotency-key") key:string|undefined,@Req() req:PlatformPrincipalRequest){
   try{const cmd=requestCommand<{planKey:string;clientRequestId:string}>(body,key,["planKey"]);return await this.bridge.createSignupProposal(id,cmd.planKey,cmd.clientRequestId,{operatorId:currentPlatformPrincipal(req).operatorId,correlationId:randomUUID()});}
+  catch(e){prospectingHttpError(e);}
+ }
+}
+@Controller("platform/prospecting/prospects")
+@UseGuards(PlatformAccessGuard,PlatformPermissionGuard)
+@RequirePlatformPermissions("platform:prospecting:read")
+export class ProspectConversionController{
+ constructor(@Inject(ProspectConversionHistoryQuery) private readonly history:ProspectConversionHistoryQuery){}
+ @Get(":id/conversions") async list(@Param("id") id:string,@Query() query:Record<string,unknown>){
+  try{requestKeys(query,["limit","cursor"]);return await this.history.execute(id,requestLimit(query.limit),requestText(query.cursor,"cursor",1024));}
   catch(e){prospectingHttpError(e);}
  }
 }

@@ -8,7 +8,7 @@ type Readiness={runtime:Runtime;updatedAt:string;source:Observation<{snapshotId:
  knowledge:Observation<{activePublications:number}>;channel:Observation<{status:T.PlatformSenderReadiness["status"];blockers:T.ProspectingBlocker[];bindingId:string|null;bindingVersion:number|null;updatedAt:string}>};
 const root="/platform/prospecting/";
 export class ProspectCommandUnresolved extends Error {
- constructor(readonly clientRequestId:string,readonly state:string){super("Resultado do comando pendente de confirmaÃ§Ã£o.");}
+ constructor(readonly clientRequestId:string,readonly state:string){super("Resultado do comando pendente de confirmação.");}
 }
 export class ProspectCommandRecorded extends Error {
  constructor(readonly clientRequestId:string,readonly receipt:unknown){super("Comando registrado. Atualize o recurso para consultar o resultado.");}
@@ -57,6 +57,7 @@ export class ProspectingApi {
  company(id:string,snapshotId?:string,signal?:AbortSignal){return this.read<T.CompanyRecord>(`companies/${encodeURIComponent(id)}`,{snapshotId},signal);}
  prospects(query:T.ProspectListQuery={},signal?:AbortSignal){return this.read<T.ProspectingPage<T.ProspectRecord>>("prospects",query,signal);}
  prospect(id:string,signal?:AbortSignal){return this.read<T.ProspectDetail>(`prospects/${encodeURIComponent(id)}`,{},signal);}
+ conversions(id:string,query:{cursor?:string;limit?:number}={},signal?:AbortSignal){return this.read<T.ProspectingPage<T.ProspectConversionHistoryItem>>(`prospects/${encodeURIComponent(id)}/conversions`,query,signal);}
  segments(cursor?:string,signal?:AbortSignal){return this.read<T.ProspectingPage<T.ProspectSegmentSummary>>("segments",{cursor},signal);}
  segment(id:string,signal?:AbortSignal){return this.read<T.ProspectSegmentSummary>(`segments/${encodeURIComponent(id)}`,{},signal);}
  campaigns(cursor?:string,signal?:AbortSignal){return this.read<T.ProspectingPage<T.ProspectCampaign>>("campaigns",{cursor},signal);}

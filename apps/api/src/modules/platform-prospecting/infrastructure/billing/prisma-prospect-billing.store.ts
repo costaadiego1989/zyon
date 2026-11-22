@@ -1,4 +1,4 @@
-import {randomUUID} from "node:crypto";
+import {createHash,randomUUID} from "node:crypto";
 import type {PrismaClient,Prisma} from "@prisma/client";
 import type {ProspectOffer} from "@zyon/shared-types";
 import type {BillingAccount,ProposalStore,ProspectBillingBridgeService} from "../../application/billing/prospect-billing-bridge.service.js";
@@ -69,7 +69,7 @@ export class PrismaProspectBillingStore implements ProposalStore {
  async apply(f:SubscriptionFinancialFact,account:{merchantId:string;planKey:string}){
   await this.db.$transaction(async tx=>{
    const candidate=await tx.prospectBillingProposal.findFirst({where:{boundMerchantId:account.merchantId,conversionEligible:true}});
-   if(!candidate || !candidate.boundAt || f.state==="paid"&&candidate.planKey!==account.planKey || +f.occurredAt<Math.floor(+candidate.boundAt/1000)*1000)return;
+   if(!candidate || !candidate.boundAt || f.state!=="refunded"&&candidate.planKey!==account.planKey || +f.occurredAt<Math.floor(+candidate.boundAt/1000)*1000)return;
    const bindings=await tx.prospectContactBinding.findMany({where:{prospectId:candidate.prospectId},orderBy:{endpointId:"asc"},select:{endpointId:true}});
    // Lock every affected lead in stable order before endpoint rows, as in privacy/suppression.
    const endpoints=bindings.map(b=>b.endpointId);
@@ -81,6 +81,13 @@ export class PrismaProspectBillingStore implements ProposalStore {
    await this.lead(tx,candidate.prospectId);
    for(const endpoint of endpoints)await lockEndpoint(tx,endpoint);
    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('sales-billing-account'),hashtext(${account.merchantId}))::text`;
+   if(f.state==="allocation_unknown"){
+    const id=createHash("sha256").update(JSON.stringify([f.provider,f.eventId,candidate.id])).digest("hex");
+    await tx.prospectAuditEvent.createMany({data:[{id:"allocation."+id,action:"billing.allocation_unknown",
+     resourceType:"prospect",resourceId:prospect.id,resourceVersion:prospect.version,correlationId:id,
+     outcome:"allocation_coverage_unknown",details:{proposalId:candidate.id,provider:f.provider},occurredAt:f.occurredAt}],skipDuplicates:true});
+    return;
+   }
    const data={provider:f.provider,eventId:f.eventId,proposalId:candidate.id,subscriptionId:f.subscriptionId,paymentRef:f.paymentRef,state:f.state,amountCents:BigInt(f.amountCents),occurredAt:f.occurredAt};
    await tx.prospectBillingReceipt.createMany({data:[data],skipDuplicates:true});
    const receipts=await tx.prospectBillingReceipt.findMany({where:{proposalId:candidate.id,provider:f.provider,subscriptionId:f.subscriptionId,paymentRef:f.paymentRef},orderBy:[{occurredAt:"asc"},{eventId:"asc"}]});

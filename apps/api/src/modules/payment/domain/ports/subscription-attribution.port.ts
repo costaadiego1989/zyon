@@ -1,6 +1,6 @@
 export const SUBSCRIPTION_ATTRIBUTION=Symbol("SubscriptionAttribution");
 export interface SubscriptionFinancialFact {
- provider:"stripe"|"asaas";eventId:string;state:"paid"|"refunded";subscriptionId:string;paymentRef:string;
+ provider:"stripe"|"asaas";eventId:string;state:"paid"|"refunded"|"allocation_unknown";subscriptionId:string;paymentRef:string;
  customerId:string;amountCents:number;occurredAt:Date;
 }
 export interface SubscriptionAttribution {

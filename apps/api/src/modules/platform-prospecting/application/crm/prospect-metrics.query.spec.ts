@@ -52,6 +52,9 @@ test("PROS-23 AC1 campaign attribution follows the recorded proposal message eve
     const recipient=await f.prisma.campaignRecipient.create({data:{campaignId:campaign.id,prospectId:f.lead.id,endpointId:ep.id,sequenceKey:"other",frozenSnapshot:{}}});
     const sequence=await f.prisma.prospectSequence.create({data:{endpointId:ep.id,senderBindingId:"sender"}});
     await f.prisma.outreachAttempt.create({data:{sequenceId:sequence.id,recipientId:recipient.id,ordinal:0,senderVersion:1,requestHash:"historical",clientRequestId:"historical",submittedAt:new Date(0),deliveredAt:new Date(1)}});
+    await f.prisma.prospectAuditEvent.create({data:{action:"billing.allocation_unknown",resourceType:"prospect",resourceId:f.lead.id,resourceVersion:1,correlationId:"fixture-gap",outcome:"allocation_coverage_unknown",details:{proposalId:f.p.id,provider:"stripe"}}});
+    assert.equal((await f.query.execute(f.input)).unknownAllocationEvents,1);
+    assert.equal((await f.query.execute({...f.input,campaignId:campaign.id})).unknownAllocationEvents,0);
     assert.equal((await f.query.execute(f.input)).signups,1);
     assert.equal((await f.query.execute({...f.input,campaignId:campaign.id})).signups,0);
     await f.prisma.prospectOutbox.deleteMany({where:{kind:"prospect.chat.dispatch"}});

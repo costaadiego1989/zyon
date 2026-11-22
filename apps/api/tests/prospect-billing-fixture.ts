@@ -26,7 +26,8 @@ import {SUBSCRIPTION_ATTRIBUTION} from "../src/modules/payment/domain/ports/subs
 import {quoteBilling} from "../src/modules/payment/infrastructure/billing-offers.js";
 import {ProspectBillingBridgeService} from "../src/modules/platform-prospecting/application/billing/prospect-billing-bridge.service.js";
 import {PrismaProspectBillingStore} from "../src/modules/platform-prospecting/infrastructure/billing/prisma-prospect-billing.store.js";
-import {ProspectAccountBindingController,ProspectBillingProposalController} from "../src/modules/platform-prospecting/presentation/prospect-billing.controller.js";
+import {ProspectConversionHistoryQuery} from "../src/modules/platform-prospecting/application/billing/prospect-conversion-history.query.js";
+import {ProspectConversionController,ProspectAccountBindingController,ProspectBillingProposalController} from "../src/modules/platform-prospecting/presentation/prospect-billing.controller.js";
 import {PROSPECTING_PORTS} from "../src/modules/platform-prospecting/domain/prospecting.ports.js";
 
 export async function createProspectBillingFixture(provider="stripe"){
@@ -59,8 +60,8 @@ export async function createProspectBillingFixture(provider="stripe"){
   const verifiedStripe=new HandleStripeWebhookUseCase({recordProcessedProviderEvent:payments.recordProcessedProviderEvent.bind(payments),deleteProcessedProviderEvent:payments.deleteProcessedProviderEvent.bind(payments)} as never,{} as never,undefined,new HandleStripePlatformEventUseCase(billing),undefined,undefined,{
    async retrieveBillingSubscription(subscriptionId:string){const merchantId=subscriptionId.slice(4);return {merchantId,customerId:"cus_"+merchantId,subscriptionId,priceId:"growth",status:"active",cancelAtPeriodEnd:false,billingAmountCents:price};}
   } as never,undefined,undefined,undefined,undefined,service);
-  http=await createProspectingFixture({rawBody:true,controllers:[ProspectBillingProposalController,ProspectAccountBindingController,StripeWebhookController,AsaasBillingWebhookController],providers:[
-   {provide:PROSPECTING_PORTS.billing,useValue:service},{provide:HandleStripeWebhookUseCase,useValue:verifiedStripe},{provide:HandleAsaasBillingWebhookUseCase,useValue:new HandleAsaasBillingWebhookUseCase(billing)},
+  http=await createProspectingFixture({rawBody:true,controllers:[ProspectConversionController,ProspectBillingProposalController,ProspectAccountBindingController,StripeWebhookController,AsaasBillingWebhookController],providers:[
+   {provide:ProspectConversionHistoryQuery,useValue:new ProspectConversionHistoryQuery(f.prisma)},{provide:PROSPECTING_PORTS.billing,useValue:service},{provide:HandleStripeWebhookUseCase,useValue:verifiedStripe},{provide:HandleAsaasBillingWebhookUseCase,useValue:new HandleAsaasBillingWebhookUseCase(billing)},
    {provide:SUBSCRIPTION_ATTRIBUTION,useValue:service},{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:new AuthCookieService()},{provide:AuthGuard,useValue:new AuthGuard(jwt,new AuthCookieService())}]});
   const base=http.url+"/v1",admin=http.operators.admin;await f.pg.query("INSERT INTO platform_operators VALUES ($1)",[admin.id]);
   const post=(path:string,body:unknown,headers:Record<string,string>={})=>fetch(base+path,{method:"POST",headers:{"Content-Type":"application/json",...headers},body:JSON.stringify(body)});
@@ -111,6 +112,7 @@ export async function createProspectBillingFixture(provider="stripe"){
    const result=await agent.respond({conversationId:f.c.id,messageId:inbound.id,expectedEpoch:0,planKey:"growth",query:{operation:"explain_feature",params:{feature:"Chat"}}});
    return {result,conversation,sent};
   };
-  return {...f,chatLink,owner:tokens.owner,staff:tokens.staff,other:tokens["other-owner"],propose,bind,bindProposal,stripe,asaas,async close(){await http!.close();await f.close();restore();}};
+  const history=(id=f.lead.id,query="",token=admin.token)=>fetch(base+"/platform/prospecting/prospects/"+id+"/conversions"+query,{headers:token?{Authorization:"Bearer "+token}:{}});
+  return {...f,history,supportToken:http.operators.support.token,chatLink,owner:tokens.owner,staff:tokens.staff,other:tokens["other-owner"],propose,bind,bindProposal,stripe,asaas,async close(){await http!.close();await f.close();restore();}};
  }catch(e){await http?.close();await f.close();restore();throw e;}
 }
