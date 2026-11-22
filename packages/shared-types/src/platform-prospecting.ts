@@ -57,6 +57,7 @@ export interface AddProspectsResult { created: number; existing: number; prospec
 export interface UpdateProspectCommand extends ProspectingVersionedCommand { stage?: ProspectStage; assignedOperatorId?: string | null; tags?: string[] }
 export interface BindProspectContactCommand extends ProspectingVersionedCommand { endpointId: string; evidenceRef: string }
 export interface SavedProspectSegment { id: string; name: string; filters: CompanyFilters; filterVersion: number; ownerOperatorId: string; version: number; createdAt: string; updatedAt: string }
+export interface ProspectSegmentSummary extends SavedProspectSegment { count: number | null; countState: "complete" | "pending"; snapshotId: string }
 export interface SaveProspectSegment extends ProspectingCommand { name: string; filters: CompanyFilters; filterVersion: number; expectedVersion?: number }
 export interface ProspectingSendWindow { timezone: string; weekdays: number[]; start: string; end: string }
 export interface ProspectCampaignLimits { dailyRecipients: number; budget: ProspectingMoney }
