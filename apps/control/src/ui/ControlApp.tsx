@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Bot,
@@ -36,13 +36,15 @@ import { MerchantDirectory } from "./MerchantDirectory.js";
 import { PlatformMetricsPanel } from "./PlatformMetrics.js";
 import { OrdersPage } from "./OrdersPage.js";
 
-type ViewId = "overview" | "feedback" | "support" | "merchants" | "orders" | "billing" | "ai-usage" | "infrastructure" | "audit";
+import { ProspectingArea } from "./prospecting/ProspectingArea.js";
+
+type ViewId = "prospecting" | "overview" | "feedback" | "support" | "merchants" | "orders" | "billing" | "ai-usage" | "infrastructure" | "audit";
 
 type NavigationItem = {
   id: ViewId;
   label: string;
   icon: LucideIcon;
-  permission?: "feedback" | "support" | "merchants" | "orders" | "billing" | "ai-usage" | "infrastructure" | "audit";
+  permission?: "prospecting" | "feedback" | "support" | "merchants" | "orders" | "billing" | "ai-usage" | "infrastructure" | "audit";
   source?: "ready" | "pending";
 };
 
@@ -50,6 +52,7 @@ const navigation: NavigationItem[] = [
   { id: "overview", label: "Visão geral", icon: Activity, source: "ready" },
   { id: "feedback", label: "Feedback", icon: MessageSquareMore, permission: "feedback", source: "ready" },
   { id: "support", label: "Atendimento técnico", icon: MessageSquareMore, permission: "support", source: "ready" },
+  { id: "prospecting", label: "Prospecção", icon: Building2, permission: "prospecting", source: "ready" },
   { id: "merchants", label: "Empresas", icon: Building2, permission: "merchants", source: "ready" },
   { id: "orders", label: "Pedidos", icon: ShoppingBag, permission: "orders", source: "ready" },
   { id: "billing", label: "Cobrança", icon: ReceiptText, permission: "billing", source: "ready" },
@@ -134,11 +137,11 @@ export function ControlApp() {
     setSession(null);
   }
 
-  function handleSessionExpired() {
+  const handleSessionExpired = useCallback(() => {
     clearPlatformSession();
     setSession(null);
     setSessionMessage("Sua sessão expirou. Entre novamente para continuar.");
-  }
+  }, []);
 
   if (checkingSession) return <SessionSkeleton />;
   if (!session) return <OperatorLogin onSubmit={handleLogin} initialMessage={sessionMessage} />;
@@ -167,7 +170,18 @@ function ControlShell({
   onLogout: () => Promise<void>;
   onSessionExpired: () => void;
 }) {
-  const [view, setView] = useState<ViewId>("overview");
+  const canProspect=operator.role==="platform_admin";
+  const readView=useCallback(():ViewId=>{
+    if(canProspect && /^#prospecting(?:\/|$)/.test(location.hash))return "prospecting";
+    const saved=history.state?.controlView;
+    return navigation.some(item=>item.id===saved && item.id!=="prospecting" && canReadNavigationItem(item,operator.role))?saved:"overview";
+  },[canProspect,operator.role]);
+  const [view,setView]=useState<ViewId>(readView);
+  useEffect(()=>{
+    const sync=()=>setView(readView());
+    window.addEventListener("popstate",sync);window.addEventListener("hashchange",sync);
+    return ()=>{window.removeEventListener("popstate",sync);window.removeEventListener("hashchange",sync);};
+  },[readView]);
   const [navOpen, setNavOpen] = useState(false);
   const allowedNavigation = navigation.filter(item => canReadNavigationItem(item, operator.role));
   const readyNavigation = allowedNavigation.filter(item => item.source === "ready");
@@ -175,6 +189,12 @@ function ControlShell({
   const title = navigation.find(item => item.id === view)?.label ?? "Central operacional";
 
   function selectView(id: ViewId) {
+    if(id==="prospecting" && view!=="prospecting"){
+      history.replaceState({...history.state,controlView:view},"",location.href);
+      history.pushState({controlView:id},"","#prospecting/overview");
+    }else if(view==="prospecting"&&id!==view){
+      history.pushState({controlView:id},"",location.pathname+location.search);
+    }
     setView(id);
     setNavOpen(false);
   }
@@ -237,6 +257,7 @@ function ControlShell({
 
         <main id="control-content" className="control-content">
           {view === "overview" ? <Overview api={api} token={token} onNavigate={selectView} role={operator.role} onSessionExpired={onSessionExpired} /> : null}
+          {view === "prospecting" && canProspect ? <ProspectingArea api={api} token={token} operator={operator} onSessionExpired={onSessionExpired}/> : null}
           {view === "feedback" ? (
             <FeedbackQueue api={api} token={token} operator={operator} onSessionExpired={onSessionExpired} />
           ) : null}
@@ -573,6 +594,7 @@ function canReadAudit(role: PlatformOperatorRole): boolean {
 }
 
 function canReadNavigationItem(item: NavigationItem, role: PlatformOperatorRole): boolean {
+  if (item.permission === "prospecting") return role === "platform_admin";
   if (item.permission === "support") return role === "platform_admin" || role === "support_ops";
   if (item.permission === "feedback") return canReadFeedback(role);
   if (item.permission === "merchants") return canReadMerchantDirectory(role);
