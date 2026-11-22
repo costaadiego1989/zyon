@@ -22,6 +22,7 @@ export class AgenticBrowserProvider {
   setImageHold(value:boolean){this.holdImages=value;if(!value)for(const release of this.imageWaiters.splice(0))release();}
   constructor(readonly clock:()=>Date){}
   reset(){this.minimumDailyBudgetCents=100;this.pageWhatsAppLinked=true;this.catalogCopies=0;this.modelScript=[];this.fundingMode='prepaid';this.blocked=false;this.dueCents=5000;this.whatsappMode='accepted';this.whatsappRequests=[];this.images=0;this.modelCalls=0;this.reviewCalls=0;this.retrievedReferenceIds=[];this.writes=[];this.entities.clear();this.next=1000;this.metricsUnavailable=false;this.sampleMetrics=false;}
+  seedWorkspaceCampaign(c:any,active:boolean){const status=active?'ACTIVE':'PAUSED',base={account_id:'100',campaign_id:c.remoteCampaignId,status,effective_status:status};this.entities.set(c.remoteCampaignId,{...base,id:c.remoteCampaignId,level:'campaign',name:c.draft.name,lifetime_budget:{value:100,unit:'BRL'},daily_budget:{value:0,unit:'BRL'}});this.entities.set(c.remoteAdSetId,{...base,id:c.remoteAdSetId,level:'adset',start_time:c.draft.budget.startsAt,end_time:c.draft.budget.endsAt,targeting:{geo_locations:{countries:['BR']},age_min:18,targeting_automation:{advantage_audience:1}}});this.entities.set(c.remoteAdIds[0],{...base,id:c.remoteAdIds[0],level:'ad',adset_id:c.remoteAdSetId,creative_id:'6000'});}
   private model(body:Json):Response {
     this.modelCalls++;
     const messages=body.messages as Json[];
@@ -34,6 +35,7 @@ export class AgenticBrowserProvider {
     const state=stateMessage?JSON.parse(stateMessage.content.slice(stateMessage.content.indexOf('\n')+1)):{};
     const toolResult=(name:string)=>{const call=messages.slice(userIndex+1).flatMap(m=>m.tool_calls??[]).find(call=>call.function.name===name);const message=messages.findLast(m=>m.role==='tool'&&m.tool_call_id===call?.id);return message?JSON.parse(message.content):{};};
     const completion=(content:unknown,tool?:{name:string;args:Json})=>json({id:randomUUID(),choices:[{finish_reason:tool?'tool_calls':'stop',message:tool?{content:null,tool_calls:[{id:'call-'+randomUUID(),type:'function',function:{name:tool.name,arguments:JSON.stringify(tool.args)}}]}:{content:JSON.stringify(content)}}],usage:{prompt_tokens:100,completion_tokens:40,total_tokens:140}});
+    if(body.tools?.some((t:Json)=>t.function.name==='select_campaign_product'))return completion(null,{name:'select_campaign_product',args:{variantId:'variant-a',headline:'Camisa para o seu dia',primaryText:'Conheça a camisa da loja.',evidenceFields:['stockQuantity']}});
     if(body.tools?.some((t:Json)=>t.function.name==='propose_campaign_changes'))return completion(null,{name:'propose_campaign_changes',args:{recommendations:[]}});
     const scripted=this.modelScript.shift();if(scripted)return 'tool' in scripted?completion(null,scripted.tool):completion({reply:scripted.reply,referenceIds:scripted.referenceIds??refs.map(ref=>ref.id)});
     const reply=(value:string)=>completion({reply:value,referenceIds:refs.map(ref=>ref.id)});

@@ -47,3 +47,5 @@ test('CBX-48 whole-suite propagates a failed child and refuses an empty or escap
  assert.equal(await runSpecSuite(specs,async spec=>{reached.push(spec);return 7;}),7);assert.deepEqual(reached,[specs[0]]);
  await assert.rejects(runSpecSuite([],async()=>0),/agentic_suite_selection_invalid/);await assert.rejects(runSpecSuite(['../production.cy.ts'],async()=>0),/agentic_suite_selection_invalid/);
 });
+
+test('isolated browser ports preserve occupied work and select only fixed loopback pairs',async()=>{const {isolatedPorts}=await import('./run-agentic-cypress.mjs');assert.deepEqual(await isolatedPorts(async p=>p===3019),{apiPort:3049,frontPort:5249});assert.deepEqual(await isolatedPorts(async()=>false),{apiPort:3019,frontPort:5179});await assert.rejects(isolatedPorts(async()=>true),/agentic_test_ports_unavailable/);});

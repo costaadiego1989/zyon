@@ -6,7 +6,8 @@ import {randomBytes,createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 const dashboard=fileURLToPath(new URL('../',import.meta.url)),workspace=path.resolve(dashboard,'../..');
-const apiBase='http://127.0.0.1:3019',front='http://127.0.0.1:5179';
+let apiBase='http://127.0.0.1:3019',front='http://127.0.0.1:5179';
+export async function isolatedPorts(isOpen=open){for(const pair of [[3019,5179],[3049,5249],[3050,5250]])if(!await isOpen(pair[0])&&!await isOpen(pair[1]))return{apiPort:pair[0],frontPort:pair[1]};throw Error('agentic_test_ports_unavailable');}
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const execute=promisify(execFile);
 export function parseArguments(args){
@@ -64,24 +65,24 @@ export async function main(args=process.argv.slice(2)){
   // Bound only this isolated runner's children on shared development machines.
   process.env.NODE_OPTIONS='--max-old-space-size=768';
   process.env.ELECTRON_EXTRA_LAUNCH_ARGS='--js-flags=--max-old-space-size=768';
-  await database();if(await open(3019)||await open(5179))throw Error('agentic_test_port_in_use');
+  await database();const ports=await isolatedPorts();apiBase='http://127.0.0.1:'+ports.apiPort;front='http://127.0.0.1:'+ports.frontPort;
   const sourceBefore=await sourceSnapshot();
   const nonce=randomBytes(32).toString('hex'),artifact=path.join(workspace,'.specs/features/agentic-dashboard-assistant/cypress-results',new Date().toISOString().replaceAll(':','-'));
   await mkdir(artifact,{recursive:true});
   await writeFile(path.join(artifact,'source-start.json'),JSON.stringify({...sourceBefore,selection:options.case??options.spec??'all',controlledTransport:true},null,2));
   const loader='data:text/javascript,'+encodeURIComponent("import {register} from 'node:module';import {pathToFileURL} from 'node:url';register('./tests/ready-prod-loader.mjs',pathToFileURL('./'));");
-  const child=spawn(process.execPath,['--import',loader,'./tests/agentic-assistant-browser-runtime.ts'],{cwd:path.join(workspace,'apps/api'),env:{...process.env,AGENTIC_TEST_NONCE:nonce,AGENTIC_TEST_PORT:'3019',AGENTIC_TEST_CONTEXT:fixtureContext(spec)},windowsHide:true,stdio:['ignore','pipe','pipe']});
+  const child=spawn(process.execPath,['--import',loader,'./tests/agentic-assistant-browser-runtime.ts'],{cwd:path.join(workspace,'apps/api'),env:{...process.env,AGENTIC_TEST_NONCE:nonce,AGENTIC_TEST_PORT:String(ports.apiPort),AGENTIC_TEST_FRONTEND_URL:front,AGENTIC_TEST_CONTEXT:fixtureContext(spec)},windowsHide:true,stdio:['ignore','pipe','pipe']});
   let logs='';child.stdout.on('data',chunk=>{logs=(logs+chunk).slice(-100000);});child.stderr.on('data',chunk=>{logs=(logs+chunk).slice(-100000);});const exited=new Promise(resolve=>child.once('exit',resolve));let vite;
   const headers={'x-agentic-test-nonce':nonce,'content-type':'application/json'};
   try{
     let ready=false;for(let i=0;i<360;i++){try{ready=(await fetch(apiBase+'/__test/health')).ok;}catch{}if(ready||child.exitCode!==null)break;await wait(250);}if(!ready)throw Error('agentic_api_start_failed: '+logs.slice(-6000));
     if(!(await fetch(apiBase+'/__test/facts',{headers})).ok)throw Error('agentic_api_owner_mismatch');
-    const {createServer}=await import('vite');vite=await createServer({configFile:path.join(dashboard,'e2e/agentic-assistant/vite.config.ts'),cacheDir:path.join(artifact,'vite-cache'),define:{__AGENTIC_API__:JSON.stringify(apiBase),__AGENTIC_NONCE__:JSON.stringify(nonce)}});await vite.listen();await vite.warmupRequest('/entry.tsx');
+    const {createServer}=await import('vite');vite=await createServer({configFile:path.join(dashboard,'e2e/agentic-assistant/vite.config.ts'),cacheDir:path.join(artifact,'vite-cache'),server:{host:'127.0.0.1',port:ports.frontPort,strictPort:true},define:{__AGENTIC_API__:JSON.stringify(apiBase),__AGENTIC_NONCE__:JSON.stringify(nonce)}});await vite.listen();await vite.warmupRequest('/entry.tsx');
     process.stdout.write(`Local API and dashboard ready: ${front}\n`);
     if(options.serve){await Promise.race([exited,new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);})]);return;}
     process.stdout.write('Starting Cypress in isolated Edge\n');
     const optionsPath=path.join(artifact,'options.json'),resultPath=path.join(artifact,'results.json');
-    await writeFile(optionsPath,JSON.stringify({project:dashboard,configFile:'cypress.agentic.config.ts',browser:'edge',headless:true,record:false,testingType:'e2e',...(spec?{spec}:{}),env:{agenticNonce:nonce},config:{expose:{agenticCase:options.case??'',agenticApi:apiBase},screenshotsFolder:path.join(artifact,'screenshots'),downloadsFolder:path.join(artifact,'downloads')}}));
+    await writeFile(optionsPath,JSON.stringify({project:dashboard,configFile:'cypress.agentic.config.ts',browser:'edge',headless:true,record:false,testingType:'e2e',...(spec?{spec}:{}),env:{agenticNonce:nonce},config:{baseUrl:front,expose:{agenticCase:options.case??'',agenticApi:apiBase},screenshotsFolder:path.join(artifact,'screenshots'),downloadsFolder:path.join(artifact,'downloads')}}));
     const worker=spawn(process.execPath,[path.join(dashboard,'scripts/run-agentic-cypress-worker.mjs'),optionsPath,resultPath],{cwd:dashboard,env:{...process.env},windowsHide:true,detached:process.platform==='win32',stdio:['ignore','pipe','pipe']});
     worker.stdout.pipe(process.stdout);worker.stderr.pipe(process.stderr);
     const code=await new Promise((resolve,reject)=>{worker.once('error',reject);worker.once('exit',resolve);});await rm(optionsPath);

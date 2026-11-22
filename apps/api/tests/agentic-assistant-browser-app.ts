@@ -1,3 +1,11 @@
+import {CampaignWorkspaceController} from '../src/modules/meta-ads-agent/presentation/campaign-workspace.controller.js';
+import {CampaignWorkspaceQueryService} from '../src/modules/meta-ads-agent/application/campaign-workspace-query.service.js';
+import {CampaignLifecycleController} from '../src/modules/meta-ads-agent/presentation/campaign-lifecycle.controller.js';
+import {CampaignLifecycleService} from '../src/modules/meta-ads-agent/application/campaign-lifecycle.service.js';
+import {PreparationLimitsController} from '../src/modules/meta-ads-agent/presentation/preparation-limits.controller.js';
+import {PreparationLimitsService} from '../src/modules/meta-ads-agent/application/preparation-limits.service.js';
+import {CampaignSalesController} from '../src/modules/meta-ads-agent/presentation/campaign-sales.controller.js';
+import {CampaignSalesQueryService} from '../src/modules/meta-ads-agent/application/campaign-sales-query.service.js';
 import 'reflect-metadata';
 import {randomBytes} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
@@ -45,7 +53,8 @@ import {WhatsAppTemplateSenderAdapter} from '../src/modules/whatsapp-templates/i
 import {getTemplateDefinition} from '../src/modules/whatsapp-templates/domain/catalog/template-catalog.js';
 import {HandleStatusUpdateUseCase} from '../src/modules/whatsapp-channel/application/use-cases/handle-status-update.use-case.js';
 
-const front='http://127.0.0.1:5179';
+const front=process.env.AGENTIC_TEST_FRONTEND_URL??'http://127.0.0.1:5179';
+if(!['http://127.0.0.1:5179','http://127.0.0.1:5249','http://127.0.0.1:5250'].includes(front))throw Error('agentic_test_frontend_invalid');
 export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:number}) {
   // This fixture function uses an immutable loopback URL, never DATABASE_URL or .env.
   const initialInstant=process.env.AGENTIC_TEST_CONTEXT==='cashback'?'2026-11-19T12:00:00Z':'2026-11-16T12:00:00Z';
@@ -76,6 +85,10 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
     `);
     await installCampaignApprovalSchema(db.sql);
     await installCashbackBrowserSchema(db.sql);
+    await db.sql.query(`ALTER TABLE completed_orders ADD COLUMN session_id TEXT,ADD COLUMN external_order_id TEXT,ADD COLUMN order_total NUMERIC,ADD COLUMN currency TEXT,ADD COLUMN line_items_json JSONB;
+      ALTER TABLE payment_intents ADD COLUMN approved_amount_cents INT,ADD COLUMN currency TEXT,ADD COLUMN status_history JSONB,ADD COLUMN updated_at TIMESTAMP;
+      CREATE TABLE returns(id TEXT PRIMARY KEY,merchant_id TEXT,order_id TEXT);
+      CREATE TABLE return_refunds(return_id TEXT,amount_in_cents INT,status TEXT);`);
   }catch(error){await db.close();throw error;}
   const provider=new AgenticBrowserProvider(clock),tenant=new TenantContextService(),memberships=new PrismaMerchantStoreRepository(db.prisma);
   const governance=new AiGovernanceService(db.prisma,tenant),authRepo=new PrismaAuthRepository(db.prisma),jwt=new JwtService(randomBytes(32).toString('base64'),3600,authRepo),cookies=new AuthCookieService('aacp_access_token',false);
@@ -119,7 +132,7 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
   Reflect.defineMetadata('design:paramtypes',[ManageMerchantNotificationInboxUseCase],MerchantNotificationController);
   Reflect.defineMetadata('design:paramtypes',[CashbackService,CashbackQueriesService],CashbackMerchantController);
   @Controller('agentic-test') @UseGuards(AuthGuard) class SessionController{@Get('session') session(@Req() request:Request){const principal=currentTenantPrincipal(request);return{merchantId:principal.tenantId,userId:principal.userId,role:principal.role};}}
-  @Module({controllers:[CashbackMerchantController,MetaAdsAgentController,FundingController,AutomationReportController,MerchantAssistantController,CampaignApprovalController,MerchantNotificationController,SessionController],providers:[AuthGuard,CashbackErrorFilter,{provide:CashbackService,useValue:cashback.service},{provide:CashbackQueriesService,useValue:cashback.queries},MetaAdsHttpErrorFilter,AssistantHttpErrorFilter,{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:cookies},{provide:MetaAdsAgentService,useValue:proxy(()=>meta.service)},{provide:FundingService,useValue:proxy(()=>meta.funding)},{provide:AutomationPolicyService,useValue:proxy(()=>meta.policies)},{provide:DAILY_OBSERVATION_REPOSITORY,useValue:proxy(()=>meta.daily)},{provide:AssistantApiService,useValue:proxy(()=>assistant.api)},{provide:InitialLaunchService,useValue:proxy(()=>meta.launches)},{provide:CampaignPreparationService,useValue:proxy(()=>meta.preparation)},{provide:CampaignNoticeContactService,useValue:proxy(()=>meta.contacts)},{provide:ManageMerchantNotificationInboxUseCase,useValue:inbox}]})class BrowserModule{}
+  @Module({controllers:[CampaignWorkspaceController,CampaignLifecycleController,PreparationLimitsController,CampaignSalesController,CashbackMerchantController,MetaAdsAgentController,FundingController,AutomationReportController,MerchantAssistantController,CampaignApprovalController,MerchantNotificationController,SessionController],providers:[{provide:CampaignWorkspaceQueryService,useValue:proxy(()=>meta.workspace)},{provide:CampaignLifecycleService,useValue:proxy(()=>meta.lifecycle)},{provide:PreparationLimitsService,useValue:proxy(()=>meta.preparationLimits)},{provide:CampaignSalesQueryService,useValue:proxy(()=>meta.sales)},AuthGuard,CashbackErrorFilter,{provide:CashbackService,useValue:cashback.service},{provide:CashbackQueriesService,useValue:cashback.queries},MetaAdsHttpErrorFilter,AssistantHttpErrorFilter,{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:cookies},{provide:MetaAdsAgentService,useValue:proxy(()=>meta.service)},{provide:FundingService,useValue:proxy(()=>meta.funding)},{provide:AutomationPolicyService,useValue:proxy(()=>meta.policies)},{provide:DAILY_OBSERVATION_REPOSITORY,useValue:proxy(()=>meta.daily)},{provide:AssistantApiService,useValue:proxy(()=>assistant.api)},{provide:InitialLaunchService,useValue:proxy(()=>meta.launches)},{provide:CampaignPreparationService,useValue:proxy(()=>meta.preparation)},{provide:CampaignNoticeContactService,useValue:proxy(()=>meta.contacts)},{provide:ManageMerchantNotificationInboxUseCase,useValue:inbox}]})class BrowserModule{}
   const app=await NestFactory.create(BrowserModule,{logger:false,forceCloseConnections:true});app.setGlobalPrefix('v1');app.enableCors({origin:front,credentials:true});app.use(express.json({limit:'64kb'}));
   let closing:Promise<void>|undefined,dropNextTurnResponse=false,dropNextLaunchResponse=false;
   const close=()=>closing??=(async()=>{provider.setImageHold(false);provider.setModelHold(false);await stopWorkers();await app.close();await db.close();})();
@@ -140,8 +153,24 @@ export async function startAgenticBrowserApp({nonce,port}:{nonce:string;port:num
         const store=req.body?.store,role=req.body?.role==='staff'?'staff':req.body?.role==='admin'?'admin':'owner',actor=role+'-a';if(!['store-a','store-b'].includes(store)||!await memberships.findMembership(actor,store))return res.status(403).end();
         const token=await jwt.issue({merchantId:store,userId:actor,email:role+'@example.test',role});res.setHeader('Set-Cookie',cookies.create({access_token:token,expires_in:3600,token_type:'Bearer'}));return res.json({merchantId:store});
       }
+      if(req.path==='/__test/workspace'&&req.method==='POST'){
+        const count=req.body?.count;if(!Number.isSafeInteger(count)||count<1||count>80)return res.status(400).end();
+        const product=(await meta.service.commerce.products('store-a',{variantIds:['variant-a']}))[0];
+        await meta.service.repo.mutate('store-a',[],state=>{const records=[];for(let i=0;i<count;i++){const id='workspace-'+i,remote=i<2;const c={id,createdByAgent:true,managed:true,remoteCampaignId:remote?String(2000+i):null,remoteAdSetId:remote?String(3000+i):null,remoteAdIds:remote?[String(5000+i)]:[],remoteAccountId:remote?'100':null,status:i===0?'delivered':i===1?'remote_paused':'draft',createdAt:new Date(clock().getTime()-i*1000).toISOString(),updatedAt:new Date(clock().getTime()-i*1000).toISOString(),products:[product],draft:{name:'Camisa '+(i+1)+' · Mais vendas · Loja',variantIds:['variant-a'],destination:'store',priority:'paid_sales',country:'BR',mediaIds:[],headline:'Camisa para o seu dia',primaryText:'Conheça a camisa da loja.',budget:{amountCents:10000,currency:'BRL',cadence:'lifetime',startsAt:clock().toISOString(),endsAt:'2026-11-23T12:00:00Z'}}} as const;state.campaigns[id]=structuredClone(c) as never;records.push({key:'campaign-origin:'+id,kind:'audit' as const,payload:{source:'agent',campaignId:id},createdAt:clock().toISOString()});if(remote)provider.seedWorkspaceCampaign(c,i===0);}
+        return{result:null,records};});return res.json({seeded:count,synthetic:true});
+      }
+      if(req.path==='/__test/opportunities'&&req.method==='POST'){await meta.opportunityWorker.drain();return res.json({drained:true});}
+      if(req.path==='/__test/workspace-purchase'&&req.method==='POST'){
+        const sessionId='workspace-checkout';await meta.attribution.captureStore('store-a',{sessionId,token:meta.attribution.trackingToken('store-a','workspace-0'),consent:false,consentVersion:'qa-v1',idempotencyKey:'workspace-first-click'});
+        now=new Date(clock().getTime()+60000);await meta.attribution.captureStore('store-a',{sessionId,token:meta.attribution.trackingToken('store-a','workspace-1'),consent:false,consentVersion:'qa-v1',idempotencyKey:'workspace-last-click'});
+        now=new Date(clock().getTime()+60000);
+        await db.sql.query("INSERT INTO completed_orders(id,merchant_id,session_id,external_order_id,order_total,currency,completed_at,line_items_json) VALUES('workspace-order','store-a',$1,'workspace-order',100,'BRL',$2,$3)",[sessionId,clock(),JSON.stringify([{variantId:'variant-a',quantity:1}])]);
+        await db.sql.query("INSERT INTO payment_intents(id,merchant_id,session_id,status,amount_cents,approved_amount_cents,currency,status_history,updated_at) VALUES('workspace-payment','store-a',$1,'approved',10000,10000,'BRL',$2,$3)",[sessionId,JSON.stringify([{status:'approved',occurredAt:clock().toISOString()}]),clock()]);
+        await db.sql.query("INSERT INTO returns VALUES('workspace-return','store-a','workspace-order');INSERT INTO return_refunds VALUES('workspace-return',2000,'COMPLETED')");
+        const purchase=await meta.attribution.reconcilePurchase('store-a','workspace-order');return res.json({campaignId:purchase?.campaignId,rule:purchase?.attribution?.rule});
+      }
       if(req.path==='/__test/reset'&&req.method==='POST'){
-        provider.setImageHold(false);provider.setModelHold(false);dropNextTurnResponse=false;dropNextLaunchResponse=false;await stopWorkers();await db.sql.query('DELETE FROM meta_ads_campaign_ready_notices; DELETE FROM meta_ads_campaign_preparations; DELETE FROM meta_ads_campaign_notice_contacts; DELETE FROM merchant_notifications; DELETE FROM whatsapp_deliveries; UPDATE agentic_whatsapp_assets SET enabled=TRUE,approved=TRUE; DELETE FROM merchant_assistant_threads; DELETE FROM meta_ads_daily_runs; DELETE FROM meta_ads_agent_records; DELETE FROM meta_ads_agent_stores; DELETE FROM ai_governance_decisions; DELETE FROM merchant_auth_sessions');now=new Date(initialInstant);await cashback.reset();provider.reset();env.META_ADS_IMAGE_API_KEY='synthetic-image-key';env.MERCHANT_ASSISTANT_ENABLED='true';env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED='true';env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED='true';compose();await seed();startWorkers();return res.json({reset:true});
+        provider.setImageHold(false);provider.setModelHold(false);dropNextTurnResponse=false;dropNextLaunchResponse=false;await stopWorkers();await db.sql.query('DELETE FROM meta_ads_campaign_ready_notices; DELETE FROM meta_ads_campaign_preparations; DELETE FROM meta_ads_campaign_notice_contacts; DELETE FROM merchant_notifications; DELETE FROM whatsapp_deliveries; UPDATE agentic_whatsapp_assets SET enabled=TRUE,approved=TRUE; DELETE FROM merchant_assistant_threads; DELETE FROM meta_ads_daily_runs; DELETE FROM meta_ads_agent_records; DELETE FROM meta_ads_agent_stores; DELETE FROM ai_governance_decisions; DELETE FROM merchant_auth_sessions; DELETE FROM return_refunds; DELETE FROM returns; DELETE FROM completed_orders');now=new Date(initialInstant);await cashback.reset();provider.reset();env.META_ADS_IMAGE_API_KEY='synthetic-image-key';env.MERCHANT_ASSISTANT_ENABLED='true';env.META_ADS_AGENT_CAMPAIGN_APPROVAL_ENABLED='true';env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED='true';compose();await seed();startWorkers();return res.json({reset:true});
       }
       if(req.path==='/__test/cashback-assistant'&&req.method==='POST'){if(typeof req.body?.enabled!=='boolean')return res.status(400).end();env.MERCHANT_ASSISTANT_ENABLED=String(req.body.enabled);return res.json({configured:true});}
       if(req.path==='/__test/funding'&&req.method==='POST'){
