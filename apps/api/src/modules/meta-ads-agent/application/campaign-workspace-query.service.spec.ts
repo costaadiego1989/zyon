@@ -17,6 +17,8 @@ test('ACW-03 audience provenance distinguishes planned verified and unavailable 
  await f.repo.mutate('store-a',[],s=>{s.campaigns['campaign-02'].draft.country='12';return{result:null};});
  assert.deepEqual((await f.query.detail('store-a','campaign-02',period)).audience,{source:'unavailable',countries:[],minimumAge:null,maximumAge:null,automatic:null,checkedAt:null});
 });
+
+test('a published campaign without observed audience does not turn its old draft into verified targeting',async t=>{const f=await setup();t.after(()=>f.close());const row=await f.query.detail('store-a','campaign-01',period);assert.equal(row.audience.source,'unavailable');assert.deepEqual(row.audience.countries,[]);assert.equal(row.audience.minimumAge,null);assert.equal(row.audience.automatic,null);});
 test('ACW-08 one query drives matching counts stable order and ten row pagination',async t=>{
  const f=await setup();t.after(()=>f.close());const first=await f.query.list('store-a',{...period});assert.equal(first.items.length,10);assert.equal(first.total,12);assert.equal(first.counts.all,12);assert.equal(first.counts.running,6);assert.equal(first.counts.drafts,6);assert.deepEqual(first.items.map(r=>r.campaign.id),Array.from({length:10},(_,i)=>`campaign-${String(i+1).padStart(2,'0')}`));
  const second=await f.query.list('store-a',{...period,page:2});assert.deepEqual(second.items.map(r=>r.campaign.id),['campaign-11','campaign-12']);assert.equal(second.pages,2);

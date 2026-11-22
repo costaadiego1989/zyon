@@ -12,7 +12,7 @@ import type {CampaignSalesQueryService} from '../application/campaign-sales-quer
 
 interface Dependencies {
   repo: MetaAdsRepository; daily: DailyObservationRepository; commerce: Pick<CommerceContextPort, 'getPlan'>;
-  connection: Pick<ConnectionService, 'access'>; provider: Pick<MetaAdsProviderPort, 'metrics'>; timezone: (access: MetaAccess) => Promise<string>;
+  connection: Pick<ConnectionService, 'access'>; provider: Pick<MetaAdsProviderPort, 'metrics'> & Partial<Pick<MetaAdsProviderPort,'snapshot'>>; timezone: (access: MetaAccess) => Promise<string>;
   attribution: { report(merchantId: string, since: string, until: string, timezone?: string): Promise<Array<Pick<AttributedPurchase, 'campaignId' | 'fact'>>> };
   recommendations: RecommendationPort; billing: Pick<BillingService, 'ensureEligibility'>;
   automatic: Pick<AutomaticCampaignWorker, 'recommendation'>; clock?: Clock;
@@ -31,6 +31,19 @@ export class DailyObservationEngine {
   admitDue(): Promise<void> { if (this.stopping) return Promise.resolve(); return this.admitting ??= this.admit().finally(() => { this.admitting = undefined; }); }
   drain(): Promise<void> { if (this.stopping) return Promise.resolve(); return this.collecting ??= this.collect().finally(() => { this.collecting = undefined; }); }
   async stop(): Promise<void> { this.stopping = true; await Promise.allSettled([this.admitting, this.collecting]); }
+  private async observeAudience(merchantId:string,campaign:MetaAdsCampaign):Promise<void>{
+    const read=this.deps.provider.snapshot?.bind(this.deps.provider);if(!read||!campaign.remoteAdSetId)return;
+    try{
+      const access=await this.deps.connection.access(merchantId);if(access.accountId!==campaign.remoteAccountId)return;
+      const snapshot=await read(access,campaign);if(snapshot.campaignId!==campaign.remoteCampaignId||snapshot.adSetId!==campaign.remoteAdSetId)return;
+      const targeting=snapshot.targeting as {geo_locations?:{countries?:unknown};age_min?:unknown;age_max?:unknown;targeting_automation?:{advantage_audience?:unknown}},countries=targeting.geo_locations?.countries;
+      if(!Array.isArray(countries)||!countries.length||countries.length>50||countries.some(c=>typeof c!=='string'||!(/^[A-Z]{2}$/).test(c)))return;
+      const minimumAge=Number.isSafeInteger(targeting.age_min)&&Number(targeting.age_min)>=13&&Number(targeting.age_min)<=65?Number(targeting.age_min):null;
+      const maximumAge=Number.isSafeInteger(targeting.age_max)&&Number(targeting.age_max)>=13&&Number(targeting.age_max)<=65&&(minimumAge===null||Number(targeting.age_max)>=minimumAge)?Number(targeting.age_max):null;
+      const auto=targeting.targeting_automation?.advantage_audience;
+      await this.deps.repo.mutate(merchantId,[],state=>{const current=state.campaigns[campaign.id];if(state.connection.epoch!==access.connectionEpoch||state.connection.account?.id!==access.accountId||!current?.managed||current.remoteCampaignId!==snapshot.campaignId||current.remoteAdSetId!==snapshot.adSetId)return{result:null};state.audienceSnapshots??={};state.audienceSnapshots[campaign.id]={source:'verified',countries:[...new Set(countries as string[])],minimumAge,maximumAge,automatic:auto===1||auto===true?true:auto===0||auto===false?false:null,checkedAt:this.clock().toISOString()};return{result:null};});
+    }catch{/* Missing audience metadata never discards separately confirmed measurements. */}
+  }
   private async admit(): Promise<void> {
     let after: string | undefined;
     while (!this.stopping) {
@@ -76,6 +89,7 @@ export class DailyObservationEngine {
       if (origin?.source === 'agent' && origin.campaignId === campaign.id) campaigns.push(campaign);
     }
     for (const campaign of campaigns) {
+      await this.observeAudience(merchantId,campaign);
       const entry = progress.campaigns[campaign.id] ??= {};
       try {
         for (const period of ['daily', 'rolling'] as const) {

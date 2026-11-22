@@ -25,7 +25,7 @@ export class CampaignWorkspaceQueryService{
  private audience(campaign:MetaAdsCampaign,state:MetaAdsStoreState):MetaAdsAudienceSummary{
   const snapshot=state.audienceSnapshots?.[campaign.id];
   if(snapshot){return{source:snapshot.source,countries:[...snapshot.countries],minimumAge:snapshot.minimumAge,maximumAge:snapshot.maximumAge,automatic:snapshot.automatic,checkedAt:snapshot.checkedAt};}
-  if(!campaign.createdByAgent||!allowedCountry(campaign.draft.country))return unavailableAudience();
+  if(campaign.remoteCampaignId||!campaign.createdByAgent||!allowedCountry(campaign.draft.country))return unavailableAudience();
   return{source:'planned',countries:[campaign.draft.country],minimumAge:18,maximumAge:null,automatic:true,checkedAt:null};
  }
  private row(campaign:MetaAdsCampaign,state:MetaAdsStoreState,query:MetaAdsWorkspaceQuery,canManage:boolean):MetaAdsCampaignWorkspaceRow{
