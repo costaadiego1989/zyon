@@ -105,9 +105,9 @@ export interface ProspectConversion { id: string; prospectId: string; proposalId
 export interface ProspectMetricsQuery { campaignId?: string; from: string; to: string }
 export interface ProspectMetrics {
   campaignId: string | null; from: string; to: string; updatedAt: string; leads: number; attempts: number;
-  accepted: number; delivered: number; uniqueReplies: number; signups: number; trials: number; paidSubscriptions: number;
+  accepted: number; delivered: number; uniqueReplies: number; signups: number; trials: number; paidSubscriptions: number; refundedSubscriptions: number;
   responseRate: { numerator: number; denominator: number; population: string; cohortUpdatedAt: string };
-  costs: { totals: ProspectingMoney[]; coverage: "complete" | "partial" | "unknown"; missing: string[] };
+  costs: { totals: ProspectingMoney[]; commitments: { source: "meta" | "model"; currency: string; state: "reserved" | "unknown" | "committed"; amountCents: string; entries: number }[]; coverage: "complete" | "partial" | "unknown"; missing: string[] };
 }
 export interface ProspectPrivacyPolicy { retentionDays: 180; preservedSuppressions: number; lastRunAt: string | null; nextRunAt: string | null; backupPolicy: string; sourceSnapshotPolicy: string }
 export interface SuppressProspectCommand extends ProspectingCommand { reason: string; expectedVersion: number }
