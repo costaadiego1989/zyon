@@ -6008,6 +6008,7 @@ model ProspectOutbox {
   eventId String @unique @map("event_id")
   kind String
   payload Json
+  resourceIds String[] @default([]) @map("resource_ids")
   state String @default("pending")
   availableAt DateTime @default(now()) @map("available_at")
   leaseToken String? @map("lease_token")
@@ -6026,6 +6027,7 @@ model ProspectInboxEvent {
   eventKind String @map("event_kind")
   payloadHash String @map("payload_hash")
   payload Json
+  resourceIds String[] @default([]) @map("resource_ids")
   providerOccurredAt DateTime @map("provider_occurred_at")
   receivedAt DateTime @default(now()) @map("received_at")
   state String @default("pending")
@@ -6213,5 +6215,13 @@ model ProspectAuditEvent {
   @@index([resourceType, resourceId, occurredAt])
   @@index([correlationId])
   @@map("prospect_audit_events")
+}
+
+model ProspectRetentionRun {
+  id String @id @default("daily")
+  lastRunAt DateTime @map("last_run_at")
+  nextRunAt DateTime @map("next_run_at")
+  erasedCount Int @default(0) @map("erased_count")
+  @@map("prospect_retention_runs")
 }
 

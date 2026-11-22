@@ -11,6 +11,8 @@ async function crmDatabase() {
   try {
     await db.pg.query("CREATE TABLE platform_operators(id text PRIMARY KEY)");
     await db.pg.query(readFileSync(crmMigration, "utf8"));
+    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121120000_prospect_contact_identity/migration.sql", import.meta.url), "utf8"));
+    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121130000_prospect_privacy/migration.sql", import.meta.url), "utf8"));
     await db.pg.query("INSERT INTO platform_operators VALUES ('operator')");
     return db;
   } catch (error) { await db.close(); throw error; }

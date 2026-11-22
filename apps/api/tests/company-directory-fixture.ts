@@ -11,6 +11,7 @@ export async function createCompanyDirectoryFixture() {
     await db.pg.query("CREATE TABLE platform_operators(id text PRIMARY KEY)");
     await db.pg.query(readFileSync(new URL("../prisma/migrations/20261117190000_platform_prospecting/migration.sql",import.meta.url),"utf8"));
     await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121120000_prospect_contact_identity/migration.sql",import.meta.url),"utf8"));
+    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121130000_prospect_privacy/migration.sql",import.meta.url),"utf8"));
     await db.pg.query(readFileSync(new URL("../prisma/company-directory-migrations/20261117190100_company_directory/migration.sql",import.meta.url),"utf8"));
     return { ...db, client, async close() { await client.$disconnect(); await db.close(); } };
   } catch (error) { await client.$disconnect(); await db.close(); throw error; }

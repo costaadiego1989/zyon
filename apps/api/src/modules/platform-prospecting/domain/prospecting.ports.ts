@@ -7,7 +7,7 @@ import type {
   ProspectConversion, ProspectDetail, ProspectListQuery, ProspectMessage, ProspectNote,
   ProspectOffer, ProspectRecord, ProspectingCommandResult, ProspectingPage, SaveProspectCampaign,
   SaveProspectSegment, SavedProspectSegment, SalesKnowledgeAnswer, SalesKnowledgeFact, ProspectingVersionedCommand,
-  SalesKnowledgeQuery, SalesKnowledgeSource, SendProspectMessage, UpdateProspectCommand,
+  SalesKnowledgeQuery, SalesKnowledgeSource, SendProspectMessage, UpdateProspectCommand, ProspectPrivacyPolicy, SuppressProspectCommand, ProspectSuppressionResult,
 } from "@zyon/shared-types";
 
 export interface ProspectingActor { operatorId: string; correlationId: string }
@@ -65,6 +65,11 @@ export interface SegmentRepositoryPort {
   save(id: string | null, command: SaveProspectSegment, actor: ProspectingActor): Promise<SavedProspectSegment>;
   remove(id: string, command: ProspectingVersionedCommand, actor: ProspectingActor): Promise<void>;
 }
+export interface ProspectPrivacyPort {
+  retain(now: Date, limit: number): Promise<{ erased: number }>;
+  policy(): Promise<ProspectPrivacyPolicy>;
+  suppress(id: string, command: SuppressProspectCommand, actor: ProspectingActor): Promise<ProspectSuppressionResult>;
+}
 export interface AttemptReservation { attempt: OutreachAttemptRecord; ownerToken: string; campaignId: string | null; recipientId: string | null; senderBindingId: string; senderVersion: number; endpointId: string; normalizedEndpoint: string; content: string; expectedEpoch: number }
 export type ProspectSendResult = { state: "provider_accepted"; providerMessageId: string; acceptedAt: Date } | { state: "not_accepted"; errorCode: string } | { state: "outcome_unknown"; errorCode: string };
 export interface CampaignRepositoryPort {
@@ -119,4 +124,5 @@ export const PROSPECTING_PORTS = {
   campaigns: Symbol("CampaignRepositoryPort"), sender: Symbol("PlatformSenderPort"), inbox: Symbol("ProspectInboxPort"),
   conversations: Symbol("ConversationRepositoryPort"), knowledge: Symbol("SalesKnowledgePort"), llm: Symbol("SalesLlmPort"),
   offers: Symbol("CanonicalBillingOfferPort"), billing: Symbol("ProspectBillingPort"),
+  privacy: Symbol("ProspectPrivacyPort"),
 } as const;

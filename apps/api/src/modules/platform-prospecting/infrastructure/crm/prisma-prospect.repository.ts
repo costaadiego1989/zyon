@@ -41,7 +41,8 @@ export class PrismaProspectRepository implements ProspectRepositoryPort {
   async find(id: string): Promise<ProspectDetail | null> {
     const row = await this.prisma.platformProspect.findUnique({ where: { id } }); if (!row) return null;
     const conversation = await this.prisma.prospectConversation.findFirst({ where: { prospectId: id }, select: { id: true } });
-    return { prospect: await this.record(row), company: await this.directory.find(row.cnpj, row.sourceSnapshotId), conversationId: conversation?.id ?? null, retentionHold: row.retentionHoldReason && row.retentionAuthorizationRef ? { reason: row.retentionHoldReason, authorizationRef: row.retentionAuthorizationRef } : null };
+    const company = await this.directory.find(row.cnpj, row.sourceSnapshotId);
+    return { prospect: await this.record(row), company: company && row.piiDiscardedAt ? { ...company, contacts: [] } : company, conversationId: conversation?.id ?? null, retentionHold: row.retentionHoldReason && row.retentionAuthorizationRef ? { reason: row.retentionHoldReason, authorizationRef: row.retentionAuthorizationRef } : null };
   }
   async commandResult(clientRequestId: string, actor: ProspectingActor) {
     const row = await this.prisma.prospectCommand.findUnique({ where: { clientRequestId } });
