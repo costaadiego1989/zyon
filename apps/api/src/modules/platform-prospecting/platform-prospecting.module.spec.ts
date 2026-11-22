@@ -332,3 +332,14 @@ test("PROS-32 AC1 o AppModule injeta atribuição nos dois ingressos financeiros
     await f.close();
   }
 });
+
+test("PROS-32 AC1 a chave de proposta deve ser distinta da chave canônica de sessão do Control", async () => {
+  const config = environment(readProspectingTestConfig().databaseUrl);
+  await assert.rejects(async () => {
+    const runtime = createProspectingRuntime({
+      ...config,
+      PLATFORM_CONTROL_JWT_SECRET: config.PROSPECTING_PROPOSAL_SECRET,
+    });
+    await runtime.onModuleDestroy();
+  }, {message:"config_invalid:PROPOSAL_SECRET"});
+});

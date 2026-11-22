@@ -84,6 +84,7 @@ export function createProspectingRuntime(env: Environment = process.env) {
       config.senderEncryptionKey,
       config.suppressionHmacKey,
       env.JWT_SECRET,
+      env.PLATFORM_CONTROL_JWT_SECRET,
       env.PLATFORM_JWT_SECRET,
     ].includes(secret)
   )
