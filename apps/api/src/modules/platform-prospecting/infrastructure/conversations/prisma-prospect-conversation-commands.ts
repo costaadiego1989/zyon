@@ -84,7 +84,7 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
   return {result:publicMessage(m),resourceIds:ids};
  }
  prepareManual(id:string,cmd:SendProspectMessage,actor:ProspectingActor){
-  
+
   return prospectCommand(this.repository.db,"conversation.message",{...cmd,id},actor,async tx=>{
    const result=await this.prepare(tx,id,cmd,actor.operatorId);await prospectAudit(tx,actor,"conversation.message","conversation",id,cmd.expectedEpoch);return result;
   });

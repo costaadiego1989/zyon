@@ -56,4 +56,3 @@ export function prospectFollowUpAt(input: {
     candidate = transition && Temporal.ZonedDateTime.compare(transition, opening) < 0 ? transition : opening;
   }
 }
-
