@@ -30,6 +30,8 @@ export class PrismaCampaignRepository {
   private async lockedContext(tx:Tx,recipientId:string){
     const ids=await tx.campaignRecipient.findUnique({where:{id:recipientId},select:{endpointId:true,campaignId:true}});
     if(!ids)return null;
+    // A pause closes new reservations before fencing its existing owners; frozen nonparticipants stay unlocked.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(hashtext('prospect.dispatch'), hashtext(${ids.campaignId}))::text`;
     await tx.$queryRaw`SELECT id FROM prospect_endpoints WHERE id=${ids.endpointId} ORDER BY id FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${ids.campaignId} FOR UPDATE`;
     const r=await tx.campaignRecipient.findUniqueOrThrow({where:{id:recipientId},include:{prospect:true,campaign:true,endpoint:{include:{sender:true,permissions:true,conversations:true}}}});

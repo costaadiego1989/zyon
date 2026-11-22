@@ -66,7 +66,11 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
  }
  changeState(id:string,cmd:ProspectCampaignAction,actor:ProspectingActor){
   return prospectCommand(this.prisma,"campaign."+cmd.action,{...cmd,id},actor,async tx=>{
-   if(cmd.action==="pause")await tx.$queryRaw`SELECT ep.id FROM prospect_endpoints ep JOIN campaign_recipients r ON ep.id=r.endpoint_id WHERE r.campaign_id=${id} ORDER BY ep.id FOR UPDATE OF ep`;
+   if(cmd.action==="pause"){
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('prospect.dispatch'),hashtext(${id}))::text`;
+    await tx.$queryRaw`SELECT count(*) FROM (SELECT ep.id FROM prospect_endpoints ep JOIN campaign_recipients r ON ep.id=r.endpoint_id
+      JOIN outreach_attempts a ON a.recipient_id=r.id AND a.state='reserved' WHERE r.campaign_id=${id} ORDER BY ep.id FOR UPDATE OF ep) locked`;
+   }
    const c=await locked(tx,id,cmd.expectedRevision);const blockers:ProspectingBlocker[]=[];
    if(cmd.action!=="pause"){
     await this.current(tx,c);blockers.push(...await this.activation(project(c)));

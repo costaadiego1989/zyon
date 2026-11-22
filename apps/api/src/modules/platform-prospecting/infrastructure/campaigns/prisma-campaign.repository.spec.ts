@@ -63,3 +63,23 @@ test("PROS-14 AC1 expired pre-submit lease crosses midnight and a paused edit re
   assert.deepEqual((await usage()).map(d=>d.reservedRecipients),[0,1]);
  }finally{await f.close();}
 });
+test("PROS-14 AC1 pausing a campaign fences reversible reservations while unrelated frozen endpoint work proceeds independently",async()=>{
+ const f=await createCampaignFixture();const holder=await f.pg.connect();
+ try{
+  const {CampaignService}=await import("../../application/campaigns/campaign.service.js");
+  const {PrismaCampaignCommands}=await import("./prisma-campaign-commands.js");
+  const {fixtureOffer}=await import("../../../../../tests/prospect-campaign-fixture.js");
+  const commands=new CampaignService(new PrismaCampaignCommands(f.prisma,{current:async()=>fixtureOffer,allowedUrl:()=>true},async()=>[]));
+  const repo=new PrismaCampaignRepository(f.prisma,f.keys,f.quote);
+  const reserve=await repo.reserveAttempt(f.recipient.id,"owner",new Date());assert.ok(reserve);
+  const unrelated=await f.prisma.prospectEndpoint.create({data:{channel:"whatsapp",protectedLookup:"unreserved",senderBindingId:"sender"}});
+  await f.prisma.campaignRecipient.create({data:{campaignId:f.campaign.id,prospectId:f.lead.id,endpointId:unrelated.id,sequenceKey:"unreserved",frozenSnapshot:{snapshotId:"search-old",cnpj:f.lead.cnpj}}});
+  await holder.query("BEGIN");await holder.query("SELECT id FROM prospect_endpoints WHERE id=$1 FOR UPDATE",[unrelated.id]);
+  const pause=commands.action(f.campaign.id,{clientRequestId:"pause-owners",expectedRevision:1,action:"pause"},{operatorId:"operator",correlationId:"pause-owners"});
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try{
+   const result=await Promise.race([pause,new Promise<null>(resolve=>{timer=setTimeout(()=>resolve(null),2000);})]);
+   assert.equal(result?.state,"paused");assert.equal(await f.prisma.outreachAttempt.count({where:{state:"cancelled_before_submit"}}),1);
+  }finally{clearTimeout(timer);await holder.query("ROLLBACK");await pause;}
+ }finally{holder.release();await f.close();}
+});
