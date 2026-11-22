@@ -69,3 +69,26 @@ test("PROS-17 AC2 service replies use approved campaign funds after completion o
   }finally{await f.close();}
  }
 });
+
+test("PROS-17 AC1 explicit operator treatment renews inactivity for the confirmed business and endpoint; reads and ambiguous neighbors do not",async()=>{
+ const f=await createConversationFixture();try{
+  const old=new Date("2020-01-01T00:00Z");
+  const neighbor=await f.prisma.platformProspect.create({data:{cnpj:"11222333000181",sourceSnapshotId:"search-old",lastBusinessActivityAt:old}});
+  await f.prisma.prospectContactBinding.create({data:{endpointId:f.endpoint.id,prospectId:neighbor.id,confirmationState:"unconfirmed"}});
+  const reset=async()=>{await f.prisma.platformProspect.update({where:{id:f.lead.id},data:{lastBusinessActivityAt:old}});await f.prisma.prospectEndpoint.update({where:{id:f.endpoint.id},data:{lastContactActivityAt:old}});};
+  const dates=async()=>[(await f.prisma.platformProspect.findUniqueOrThrow({where:{id:f.lead.id}})).lastBusinessActivityAt,(await f.prisma.prospectEndpoint.findUniqueOrThrow({where:{id:f.endpoint.id}})).lastContactActivityAt];
+  for(const act of [
+   ()=>f.service.ownership(f.c.id,{action:"assume",expectedEpoch:0,clientRequestId:"take"},f.actor),
+   ()=>f.service.addNote(f.c.id,{content:"internal",clientRequestId:"add"},f.actor),
+   ()=>f.service.prepareManual(f.c.id,{content:"answer",expectedEpoch:1,clientRequestId:"msg"},f.actor),
+   ()=>f.service.ownership(f.c.id,{action:"release",expectedEpoch:1,clientRequestId:"release"},f.actor)]){
+   await reset();const start=Date.now();await act();for(const date of await dates())assert.ok(date.getTime()>=start);
+  }
+  await reset();await f.service.markRead(f.c.id,{sequence:1,clientRequestId:"read"},f.actor);await f.repo.history(f.c.id,{},f.actor);await f.repo.changes(f.c.id,0,20);
+  assert.deepEqual((await dates()).map(d=>d.toISOString()),[old.toISOString(),old.toISOString()]);
+  assert.equal((await f.prisma.platformProspect.findUniqueOrThrow({where:{id:neighbor.id}})).lastBusinessActivityAt.toISOString(),old.toISOString());
+  await f.prisma.prospectContactBinding.updateMany({where:{endpointId:f.endpoint.id},data:{confirmationState:"unconfirmed"}});
+  await f.service.addNote(f.c.id,{content:"ambiguous endpoint treatment",clientRequestId:"ambiguous"},f.actor);
+  const [lead,ep]=await dates();assert.equal(lead.toISOString(),old.toISOString());assert.ok(ep>old);
+ }finally{await f.close();}
+});

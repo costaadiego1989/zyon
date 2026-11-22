@@ -7,7 +7,7 @@ import {storedReview,releasePreSubmission} from "../../infrastructure/campaigns/
 import {prospectCommand,prospectAudit,validateCommandId} from "../../infrastructure/crm/prospect-command.js";
 import {protectedContactLookups,type SuppressionKeyRing} from "../../infrastructure/crm/prisma-prospect-privacy.repository.js";
 import {authenticatedEndpoint,observedBsuid} from "../../infrastructure/conversations/prospect-endpoint-alias.js";
-import {append,changed,lockEndpoint,publicMessage,type Tx} from "../../infrastructure/conversations/conversation-timeline.js";
+import {append,changed,ensureConversation,lockEndpoint,publicMessage,type Tx} from "../../infrastructure/conversations/conversation-timeline.js";
 import type {PrismaProspectConversationRepository} from "../../infrastructure/conversations/prisma-prospect-conversation.repository.js";
 
 export type ReplyQuote=(context:{campaignId:string|null;endpointId:string;now:Date})=>{amountCents:number;currency:"BRL";validUntil:Date}|null;
@@ -19,7 +19,13 @@ export class ProspectConversationService{
  private async locked(tx:Tx,id:string){
   const ref=await tx.prospectConversation.findUnique({where:{id},select:{endpointId:true}});if(!ref)throw Error("conversation_not_found");
   await lockEndpoint(tx,ref.endpointId);
+  await ensureConversation(tx,ref.endpointId);
   return tx.prospectConversation.findUniqueOrThrow({where:{id},include:{endpoint:{include:{sender:true,permissions:true,aliases:true}},prospect:true}});
+ }
+ private async manualActivity(tx:Tx,c:ProspectConversation){
+  const now=new Date();
+  await tx.prospectEndpoint.updateMany({where:{id:c.endpointId,lastContactActivityAt:{lt:now}},data:{lastContactActivityAt:now}});
+  if(c.prospectId)await tx.platformProspect.updateMany({where:{id:c.prospectId,piiDiscardedAt:null,lastBusinessActivityAt:{lt:now}},data:{lastBusinessActivityAt:now,version:{increment:1}}});
  }
  private assertOwner(c:ProspectConversation,expected:number,operator:string|null){
   epoch(expected);if(c.controlEpoch!==expected)throw Error("epoch_conflict");
@@ -53,7 +59,7 @@ export class ProspectConversationService{
     for(const a of pending)if(a.recipient)await releasePreSubmission(tx,a,a.recipient.campaignId,"human_handoff");
     await tx.prospectSequence.updateMany({where:{endpointId:c.endpointId,state:"active"},data:{state:"cancelled",cancelReason:"human_handoff",cancelledAt:new Date(),followUpDueAt:null}});
    }
-   await changed(tx,id,"ownership",null);await prospectAudit(tx,actor,"conversation."+cmd.action,"conversation",id,next.controlEpoch);
+   await this.manualActivity(tx,c);await changed(tx,id,"ownership",null);await prospectAudit(tx,actor,"conversation."+cmd.action,"conversation",id,next.controlEpoch);
    return {result:await this.repository.summary(tx,id,actor.operatorId),resourceIds:resources(c)};
   });
  }
@@ -76,6 +82,7 @@ export class ProspectConversationService{
   const now=new Date();await this.eligible(tx,c,now);await this.funding(tx,c.endpointId,c.endpoint.senderBindingId,c.endpoint.sender.version,now);
   const m=await append(tx,id,{senderBindingId:c.endpoint.senderBindingId,senderVersion:c.endpoint.sender.version,clientRequestId:cmd.clientRequestId,controlEpoch:cmd.expectedEpoch,
    direction:"outbound",authorType:operator?"operator":"ai",authorId:operator,state:"prepared",content:cmd.content});
+  if(operator)await this.manualActivity(tx,c);
   const ids=[...resources(c),m.id];await tx.prospectOutbox.create({data:{kind:"prospect.chat.dispatch",eventId:"chat."+m.id,payload:{messageId:m.id,conversationId:id},resourceIds:ids}});
   return {result:publicMessage(m),resourceIds:ids};
  }
@@ -149,7 +156,7 @@ export class ProspectConversationService{
   requireContent(cmd.content);return prospectCommand(this.repository.db,"conversation.note",{...cmd,id},actor,async tx=>{
    const c=await this.locked(tx,id);if(!c.endpoint.normalizedValue)throw Error("suppressed");
    const n=await tx.prospectNote.create({data:{conversationId:id,operatorId:actor.operatorId,content:cmd.content,clientRequestId:cmd.clientRequestId}});
-   await changed(tx,id,"note",null);await prospectAudit(tx,actor,"conversation.note","conversation",id,c.controlEpoch);
+   await this.manualActivity(tx,c);await changed(tx,id,"note",null);await prospectAudit(tx,actor,"conversation.note","conversation",id,c.controlEpoch);
    return {result:{id:n.id,conversationId:id,operatorId:n.operatorId,content:n.content,createdAt:n.createdAt.toISOString()},resourceIds:[...resources(c),n.id]};
   });
  }
