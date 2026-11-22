@@ -86,7 +86,15 @@ export class PrismaProspectPrivacyRepository implements ProspectPrivacyPort {
       await tx.prospectCommand.updateMany({ where: { resourceIds: { hasSome: ids } }, data: { result: { redacted: true } } });
       await tx.prospectAuditEvent.updateMany({ where: { resourceId: { in: [...ids, ...commands.map(c => c.clientRequestId)] } }, data: { details: Prisma.DbNull } });
       await tx.prospectOutbox.updateMany({ where: { OR: [{ resourceIds: { hasSome: ids } }, ...ids.map(id => ({ payload: { path: ["attemptId"], equals: id } }))] }, data: { payload: { redacted: true } } });
-      await tx.prospectInboxEvent.updateMany({ where: { resourceIds: { hasSome: ids } }, data: { payload: { redacted: true } } });
+      const related={resourceIds:{hasSome:ids}};
+      const outstanding={eventKind:"status",state:{in:["pending","awaiting_correlation"]}};
+      await tx.prospectInboxEvent.updateMany({where:{...related,NOT:outstanding},data:{payload:{redacted:true},state:"processed"}});
+      // Retain only the minimum callback facts required to settle an uncertain financial effect.
+      for(const receipt of await tx.prospectInboxEvent.findMany({where:{...related,...outstanding}})){
+        const p=receipt.payload as Record<string,unknown>;
+        const field=(key:string)=>typeof p[key]==="string"?p[key] as string:null;
+        await tx.prospectInboxEvent.update({where:{id:receipt.id},data:{payload:{endpointId:field("endpointId"),providerId:field("providerId"),opaque:field("opaque"),status:field("status")}}});
+      }
   }
   async retain(now: Date, limit: number) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("invalid_retention_limit");

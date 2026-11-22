@@ -33,3 +33,23 @@ test("PROS-16 AC1 ordinary reply identities persist independent of the two autom
   await assert.rejects(f.prisma.outreachAttempt.create({data:{sequenceId:seq.id,ordinal:2,clientRequestId:"third",requestHash:"hash",senderVersion:1}}),/outreach_attempts_two_ordinals/);
  }finally{await f.close();}
 });
+
+test("PROS-16 AC1 an authenticated receipt settles a legacy unknown attempt after erasure without restoring its private content",async()=>{
+ const f=await createCampaignFixture();try{
+  const prior=new Date(Date.now()-181*86400000),day=prior.toISOString().slice(0,10);
+  await f.prisma.platformProspect.update({where:{id:f.lead.id},data:{lastBusinessActivityAt:prior}});
+  const seq=await f.prisma.prospectSequence.create({data:{senderBindingId:"sender",endpointId:f.endpoint.id}});
+  const a=await f.prisma.outreachAttempt.create({data:{sequenceId:seq.id,recipientId:f.recipient.id,ordinal:0,senderVersion:1,requestHash:"history",clientRequestId:"legacy",state:"outcome_unknown",costState:"reserved",reservedAmount:25,reservationDay:day,submittedAt:prior,content:"private historical offer"}});
+  await f.prisma.prospectCampaign.update({where:{id:f.campaign.id},data:{reservedCents:25}});await f.prisma.prospectCampaignDailyUsage.create({data:{campaignId:f.campaign.id,day,reservedRecipients:1}});
+  const {PrismaProspectPrivacyRepository}=await import("../crm/prisma-prospect-privacy.repository.js");
+  await new PrismaProspectPrivacyRepository(f.prisma,f.directory,f.keys).retain(new Date(),10);
+  assert.equal((await f.prisma.prospectEndpoint.findUniqueOrThrow({where:{id:f.endpoint.id}})).normalizedValue,null);
+  await new PrismaProspectMetaInbox(f.prisma,f.keys).accept({appId:"app",phoneNumberId:"phone",wabaId:"waba",value:{statuses:[{id:"wa.legacy",status:"read",timestamp:String(Math.floor(Date.now()/1000)-1),biz_opaque_callback_data:a.id}]}});
+  const evt=await f.prisma.prospectInboxEvent.findFirstOrThrow();const repository=new PrismaProspectConversationRepository(f.prisma);
+  await repository.processStatus(evt.id);await repository.processStatus(evt.id);
+  const result=await f.prisma.outreachAttempt.findUniqueOrThrow({where:{id:a.id}});assert.equal(result.state,"read");assert.equal(result.costState,"committed");assert.equal(result.content,null);
+  const money=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:f.campaign.id}});assert.equal(money.reservedCents,0n);assert.equal(money.spentCents,25n);
+  assert.equal((await f.prisma.prospectMessage.findFirstOrThrow()).content,null);assert.deepEqual((await f.prisma.prospectInboxEvent.findUniqueOrThrow({where:{id:evt.id}})).payload,{redacted:true});
+  assert.equal((await f.prisma.prospectEndpoint.findUniqueOrThrow({where:{id:f.endpoint.id}})).normalizedValue,null);
+ }finally{await f.close();}
+});

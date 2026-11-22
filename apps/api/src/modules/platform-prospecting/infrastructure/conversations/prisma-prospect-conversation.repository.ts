@@ -2,6 +2,7 @@ import {Prisma,type PrismaClient} from "@prisma/client";
 import type {ProspectConversationQuery} from "@zyon/shared-types";
 import {releasePreSubmission} from "../campaigns/prisma-campaign.repository.js";
 import {append,ensureConversation,changed,lockEndpoint,publicConversation,publicMessage,type Tx} from "./conversation-timeline.js";
+import {receiptReference} from "./prospect-receipt-reference.js";
 import type {InboundPayload} from "./prisma-prospect-meta-inbox.js";
 
 const earliest=(old:Date|null,at:Date|null)=>old&&at?(old<at?old:at):old??at;
@@ -63,15 +64,22 @@ export class PrismaProspectConversationRepository{
    if(event.state==="processed")return "processed";
    const p=event.payload as unknown as InboundPayload;
    if(event.eventKind!=="status")throw Error("unexpected_event");
-   const match={senderBindingId:event.senderBindingId,direction:"outbound",OR:[{providerId:p.providerId},...(p.opaque?[{id:p.opaque},{attemptId:p.opaque}]:[])]};
-   const candidates=await tx.prospectMessage.findMany({where:match,include:{conversation:true},take:2});
-   if(candidates.length!==1)return "unmatched";
-   const ref=candidates[0],endpointId=ref.conversation.endpointId;
-   if(p.endpointId&&p.endpointId!==endpointId||ref.providerId&&ref.providerId!==p.providerId||p.opaque&&p.opaque!==ref.id&&p.opaque!==ref.attemptId)return "unmatched";
+   const ref=await receiptReference(tx,event.senderBindingId,p.providerId,p.opaque);
+   if(!ref||p.endpointId&&p.endpointId!==ref.endpointId)return "unmatched";
+   const endpointId=ref.endpointId;
    await lockEndpoint(tx,endpointId);
    const current=await tx.prospectInboxEvent.findUniqueOrThrow({where:{id:inboxId}});if(current.state==="processed")return "processed";
-   const msg=await tx.prospectMessage.findUniqueOrThrow({where:{id:ref.id}});
-   if(msg.providerId&&msg.providerId!==p.providerId||!msg.submittedAt)return "unmatched";
+   const endpoint=await tx.prospectEndpoint.findUniqueOrThrow({where:{id:endpointId}});
+   let msg=ref.messageId?await tx.prospectMessage.findUnique({where:{id:ref.messageId}}):await tx.prospectMessage.findFirst({where:{attemptId:ref.attemptId!}});
+   if(!msg&&ref.attemptId){
+    const a=await tx.outreachAttempt.findUniqueOrThrow({where:{id:ref.attemptId}});
+    if(!a.submittedAt||a.providerMessageId&&a.providerMessageId!==p.providerId)return "unmatched";
+    const c=await ensureConversation(tx,endpointId);
+    msg=await append(tx,c.id,{senderBindingId:event.senderBindingId,authorType:"system",direction:"outbound",attemptId:a.id,state:a.state,
+     content:endpoint.normalizedValue?a.content:null,providerId:a.providerMessageId,submittedAt:a.submittedAt,acceptedAt:a.acceptedAt,deliveredAt:a.deliveredAt,readAt:a.readAt,createdAt:a.submittedAt});
+    await tx.outreachAttempt.update({where:{id:a.id},data:{conversationId:c.id}});
+   }
+   if(!msg||msg.providerId&&msg.providerId!==p.providerId||!msg.submittedAt)return "unmatched";
    const at=event.providerOccurredAt;
    if(["sent","read","delivered"].includes(p.status??"")){
     const isRead=p.status==="read",isDelivered=isRead||p.status==="delivered";
@@ -107,7 +115,7 @@ export class PrismaProspectConversationRepository{
     await changed(tx,msg.conversationId,"delivery",msg.sequence);
    }
    const ids=[...new Set([...current.resourceIds,endpointId,msg.id,msg.conversationId,...msg.attemptId?[msg.attemptId]:[]])];
-   await tx.prospectInboxEvent.update({where:{id:inboxId},data:{state:"processed",processedAt:new Date(),resourceIds:ids}});return "processed";
+   await tx.prospectInboxEvent.update({where:{id:inboxId},data:{state:"processed",processedAt:new Date(),resourceIds:ids,...(!endpoint.normalizedValue?{payload:{redacted:true}}:{})}});return "processed";
   });
  }
  async summary(tx:Tx,id:string,operatorId:string){

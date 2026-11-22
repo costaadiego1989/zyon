@@ -3,6 +3,7 @@ import {Prisma,type PrismaClient,type PlatformProspectSenderBinding} from "@pris
 import type {ProspectMetaChange,ProspectMetaDispatchPort} from "../../../../shared/integrations/prospect-meta-dispatch.port.js";
 import {normalizeContactIdentity} from "../../domain/crm/prospect-contact.js";
 import {stableDirectoryJson} from "../../domain/company-directory/directory-values.js";
+import {receiptReference} from "./prospect-receipt-reference.js";
 import {authenticatedEndpoint,observedBsuid} from "./prospect-endpoint-alias.js";
 import {type SuppressionKeyRing} from "../crm/prisma-prospect-privacy.repository.js";
 
@@ -44,18 +45,15 @@ export class PrismaProspectMetaInbox implements ProspectMetaDispatchPort{
   const identities=[...phone?[normalizeContactIdentity({kind:"phone",value:phone})]:[],...bsuid?[observedBsuid(bsuid,scope)]:[]];
   if(kind==="inbound"&&!identities.length)throw Error("inbound_identity_missing");
   const opaque=str(raw.biz_opaque_callback_data,128),contextId=str(object(raw.context).id,512);
-  const refs=kind==="status"?await tx.prospectMessage.findMany({where:{senderBindingId:binding.id,direction:"outbound",submittedAt:{not:null},
-    OR:[{providerId},...(opaque?[{attemptId:opaque},{id:opaque}]:[])]},include:{conversation:true},take:2}):[];
-  if(refs.length>1)throw Error("receipt_identity_conflict");
-  const ref=refs[0];
-  if(ref&&(ref.providerId&&ref.providerId!==providerId||opaque&&opaque!==ref.id&&opaque!==ref.attemptId))throw Error("receipt_identity_conflict");
-  const endpoint=await authenticatedEndpoint(tx,binding.id,this.keys,identities,ref?.conversation.endpointId??null);
-  const ids=[binding.id,...endpoint?[endpoint.id,...endpoint.bindings.map(b=>b.prospectId),...endpoint.conversations.map(c=>c.id)]:[],...ref?[ref.id,ref.conversationId,...ref.attemptId?[ref.attemptId]:[]]:[]];
+  const ref=kind==="status"?await receiptReference(tx,binding.id,providerId,opaque):null;
+  const endpoint=await authenticatedEndpoint(tx,binding.id,this.keys,identities,ref?.endpointId??null);
+  const ids=[binding.id,...endpoint?[endpoint.id,...endpoint.bindings.map(b=>b.prospectId),...endpoint.conversations.map(c=>c.id)]:[],
+   ...[ref?.messageId,ref?.conversationId,ref?.attemptId].filter((id):id is string=>!!id)];
   const stamp=typeof raw.timestamp==="string"&&/^\d{10}$/.test(raw.timestamp)?new Date(Number(raw.timestamp)*1000):null;
   const providerOccurredAt=stamp&&stamp<=receivedAt?stamp:null;
   const body=str(object(raw.text).body,16000)??str(object(raw.button).text,256)??str(object(raw.image).caption,4096)??"";
   const payload:InboundPayload={endpointId:endpoint?.id??null,providerId,body,status,opaque,contextId};
-  const erased=endpoint?.normalizedValue===null;
+  const erased=endpoint?.normalizedValue===null&&kind==="inbound";
   if(endpoint&&!erased&&kind==="inbound")await tx.prospectEndpoint.update({where:{id:endpoint.id},data:{lastContactActivityAt:receivedAt}});
   await tx.prospectInboxEvent.create({data:{...unique,payloadHash:hash,providerOccurredAt,receivedAt,resourceIds:ids,payload:erased?{redacted:true}:{...payload},state:erased?"processed":"pending",processedAt:erased?receivedAt:null}});
  }
