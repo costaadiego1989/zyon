@@ -32,6 +32,8 @@ test("PROS-19 AC3 guarded HTTP publication and withdrawal record origin, author,
     const edit={...knowledgeDraft("future"),sourceId:"handbook",expectedVersion:1};
     assert.equal((await req("","POST",edit)).status,201);
     assert.equal((await (await req("","GET")).json()).items[0].version,2);
+    const activeDuringEdit=await (await req("/handbook","GET")).json();
+    assert.equal(activeDuringEdit.activePublicationVersion,1);assert.equal(activeDuringEdit.activeContentHash,d.contentHash);
     const edited=await f.repo.find("handbook");
     const graph=f.driver.session();
     try {await graph.run("CREATE (:ZyonSalesPublication {namespace:$ns,id:$id})-[:CONTAINS]->(:ZyonSalesFact {namespace:$ns,id:'extra'})",{ns:f.namespace,id:edited!.draft[0].publicationId});}

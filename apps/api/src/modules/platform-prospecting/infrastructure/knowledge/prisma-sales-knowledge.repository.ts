@@ -18,10 +18,10 @@ function field(value: unknown, max: number) {
 export function knowledgeHash(facts: SalesKnowledgeFact[]) {
   return createHash("sha256").update(stableDirectoryJson([...facts].sort((a,b)=>a.id < b.id ? -1 : a.id > b.id ? 1 : 0))).digest("hex");
 }
-function source(row: SalesKnowledgePublication, activePublicationId: string | null): SalesKnowledgeSource {
+function source(row: SalesKnowledgePublication, active: Pick<SalesKnowledgePublication,"id"|"version"|"contentHash"> | null): SalesKnowledgeSource {
   return { id:row.sourceId, title:row.title, sourceRef:row.sourceRef, version:row.version, state:row.state as SalesKnowledgeSource["state"],
     draft:row.draft as unknown as SalesKnowledgeFact[], contentHash:row.contentHash, publishedBy:row.publishedBy,
-    validFrom:row.validFrom.toISOString(), validUntil:row.validUntil?.toISOString() ?? null, updatedAt:row.updatedAt.toISOString(), activePublicationId };
+    validFrom:row.validFrom.toISOString(), validUntil:row.validUntil?.toISOString() ?? null, updatedAt:row.updatedAt.toISOString(), activePublicationId:active?.id??null, activePublicationVersion:active?.version??null, activeContentHash:active?.contentHash??null };
 }
 export class PrismaSalesKnowledgeRepository {
   constructor(readonly prisma: PrismaClient) {}
@@ -46,19 +46,20 @@ export class PrismaSalesKnowledgeRepository {
       const row=await tx.salesKnowledgePublication.create({data:{id,sourceId,version,title,sourceRef,validFrom,validUntil,draft:facts,contentHash:knowledgeHash(facts)}});
       const pointer=await tx.salesKnowledgeActivePublication.findUnique({where:{sourceId}});
       await prospectAudit(tx,actor,"knowledge.draft","knowledge",sourceId,version,{publicationId:id,sourceRef});
-      return { result:source(row,pointer?.publicationId ?? null),resourceIds:[sourceId,id] };
+      return { result:source(row,pointer?await tx.salesKnowledgePublication.findUnique({where:{id:pointer.publicationId}}):null),resourceIds:[sourceId,id] };
     });
   }
   async find(sourceId: string, client:Prisma.TransactionClient=this.prisma) {
     const row=await client.salesKnowledgePublication.findFirst({where:{sourceId},orderBy:{version:"desc"}});
     if (!row) return null;
     const pointer=await client.salesKnowledgeActivePublication.findUnique({where:{sourceId}});
-    return source(row,pointer?.publicationId ?? null);
+    return source(row,pointer?await client.salesKnowledgePublication.findUnique({where:{id:pointer.publicationId}}):null);
   }
   async list() {
     const rows=await this.prisma.salesKnowledgePublication.findMany({distinct:["sourceId"],orderBy:[{sourceId:"asc"},{version:"desc"}]});
     const pointers=await this.prisma.salesKnowledgeActivePublication.findMany();
-    const active=new Map(pointers.map(p=>[p.sourceId,p.publicationId]));
+    const publications=await this.prisma.salesKnowledgePublication.findMany({where:{id:{in:pointers.map(p=>p.publicationId)}},select:{id:true,sourceId:true,version:true,contentHash:true}});
+    const active=new Map(publications.map(p=>[p.sourceId,p]));
     return rows.map(row=>source(row,active.get(row.sourceId) ?? null));
   }
   async active(now: Date, ids?: string[]): Promise<{ sourceId:string; publicationId:string; version:number }[]> {

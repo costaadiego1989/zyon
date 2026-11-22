@@ -1,3 +1,4 @@
+import {SalesKnowledgePage} from "../src/ui/prospecting/SalesKnowledgePage.js";
 import {ProspectingInbox} from "../src/ui/prospecting/ProspectingInbox.js";
 import {CampaignDetailPage} from "../src/ui/prospecting/CampaignDetailPage.js";
 import {CampaignComposer} from "../src/ui/prospecting/CampaignComposer.js";
@@ -14,13 +15,14 @@ else{
  const api=new PlatformApi(resolvePlatformApiBaseUrl(import.meta.env)).prospectingClient(session.token);
  const common={api,operatorId:session.operator.operator_id,onSessionExpired:()=>{location.href="/";}};
  if(!location.hash)location.hash="prospecting/companies";
- createRoot(host).render(<ProspectingShell loadConfig={s=>api.config(s)} onSessionExpired={common.onSessionExpired} renderArea={(route,navigate)=>{
+ createRoot(host).render(<ProspectingShell loadConfig={s=>api.config(s)} onSessionExpired={common.onSessionExpired} renderArea={(route,navigate,config)=>{
   const props={...common,navigate};
   if(route.area==="companies")return <CompanySearchPage {...props}/>;
   if(route.area==="leads")return <ProspectDetailPage {...props} route={route}/>;
   if(route.area==="campaigns"&&route.filters?.view==="edit")return <CampaignComposer {...props} id={route.id}/>;
   if(route.area==="campaigns")return <CampaignDetailPage {...props} id={route.id}/>;
   if(route.area==="conversations")return <ProspectingInbox {...props} route={route}/>;
+  if(route.area==="knowledge")return <SalesKnowledgePage {...props} modelMode={config.modelMode}/>;
   return null;
  }}/>);
 }

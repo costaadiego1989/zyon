@@ -69,7 +69,7 @@ export class SalesPublicationService {
         const row=await tx.salesKnowledgePublication.update({where:{id},data:{state:"published",projectedHash:projection.hash,projectedCount:projection.count,publishedBy:actor.operatorId,publishedAt:now}});
         await tx.salesKnowledgeActivePublication.upsert({where:{sourceId},create:{sourceId,publicationId:id,version:row.version},update:{publicationId:id,version:row.version}});
         await prospectAudit(tx,actor,"knowledge.publish","knowledge",sourceId,row.version,{publicationId:id,sourceRef:row.sourceRef,validFrom:draft.validFrom,validUntil:draft.validUntil});
-        return {result:{...draft,state:"published" as const,publishedBy:actor.operatorId,updatedAt:row.updatedAt.toISOString(),activePublicationId:id},resourceIds:[id,sourceId]};
+        return {result:{...draft,state:"published" as const,publishedBy:actor.operatorId,updatedAt:row.updatedAt.toISOString(),activePublicationId:id,activePublicationVersion:row.version,activeContentHash:row.contentHash},resourceIds:[id,sourceId]};
       });
     } catch(error) {
       if(projectionFailed) await this.repo.prisma.salesKnowledgePublication.updateMany({where:{id:projectionFailed,state:"draft"},data:{state:"failed"}});
