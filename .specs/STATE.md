@@ -41,3 +41,5 @@
 - Specification approved2026-11-22 - user: "Aprovar especificação (recomendado)". Task plan and architecture approved2026-11-22 - user: "Aprovar plano e implementar (recomendado)". Exact approvals in spec.md/tasks.md/design.md. Tasks35atomic in5phases,52proofchecks,3mutations; validate_tasks --execute0errors and2reviewed type-only warnings. Execute with one implementation agent; independent Verifier required after final task. No implementation worker or Verifier dispatched. T1in progress, contracts edited, gate and commit pending.
 
 - Execution T1: gate0, source stable; packages/shared-types/src/meta-ads-agent.ts. Next: T2.
+
+- Execution T2: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/types.ts. Next: T3.

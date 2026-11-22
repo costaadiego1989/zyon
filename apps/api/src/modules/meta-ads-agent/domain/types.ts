@@ -3,6 +3,7 @@ import type {
   MetaAdsConnection, MetaAdsExecution, MetaAdsExecutionStatus, MetaAdsGeneration,
   MetaAdsMedia, MetaAdsMetrics, MetaAdsOffer, MetaAdsProduct,
   MetaAdsProposal, MetaAdsRecommendation, MetaAdsSubscription,
+  MetaAdsPreparationLimits, MetaAdsAudienceSummary, MetaAdsAttributionRule,
 } from "@zyon/shared-types";
 import type { MetaAdsExposureState } from './exposure.js';
 
@@ -70,9 +71,74 @@ export interface MetaAdsStoreState {
   recommendations: Record<string, MetaAdsRecommendation>;
   purchases?: Record<string, AttributedPurchase>;
   purchaseScan?: { since: string; refreshAfter: string | null };
+  preparationLimits?: MetaAdsPreparationLimits;
+  preparationAdmissions?: Record<string, PreparationAdmission>;
+  opportunityEvaluation?: { nextAt: string; policyVersion: number; lastError: string | null };
+  attributionObservationSequence?: number;
+  audienceSnapshots?: Record<string, MetaAdsAudienceSummary>;
 }
 
-export type MetaAdsRecordKind = "billing_event" | "billing_period" | "checkout" | "generation" | "proposal" | "execution" | "usage" | "attribution" | "purchase" | "observation" | "audit" | "cost_benchmark";
+export type MetaAdsRecordKind = "billing_event" | "billing_period" | "checkout" | "generation" | "proposal" | "execution" | "usage" | "attribution" | "attribution_touch" | "purchase" | "observation" | "audit" | "cost_benchmark";
+
+/** Internal authority and leases are not part of a public campaign DTO. */
+export interface PreparationAdmission {
+  id: string;
+  opportunityDigest: string;
+  policyId: string;
+  policyVersion: number;
+  connectionEpoch: number;
+  actorId: string;
+  accountLocalDay: string;
+  campaignId: string | null;
+  state: "reserved" | "preparing" | "review_ready" | "blocked" | "unknown" | "closed";
+  createdAt: string;
+  updatedAt: string;
+  error: string | null;
+}
+
+export interface ProductOpportunityFact {
+  product: MetaAdsProduct;
+  since: string;
+  until: string;
+  paidUnits: number | null;
+  netRevenueCents: number | null;
+  adSpendCents: number | null;
+  adPaidOrders: number | null;
+  historicalCostCents: number | null;
+  costCoverage: "complete" | "partial" | "unavailable";
+}
+export interface ProductOpportunityReader {
+  read(merchantId: string, variantIds: string[], since: string, until: string): Promise<ProductOpportunityFact[]>;
+}
+export interface OpportunityModelPort {
+  plan(input: {
+    merchantId: string;
+    actorId: string;
+    planningKey: string;
+    priority: MetaAdsCampaignDraft["priority"];
+    destination: MetaAdsCampaignDraft["destination"];
+    candidates: ProductOpportunityFact[];
+  }): Promise<{ variantId: string; headline: string; primaryText: string; evidenceFields: string[]; usage: TextModelUsage | null }>;
+}
+
+export interface PurchaseAttributionBinding {
+  rule: MetaAdsAttributionRule;
+  touchId: string | null;
+  observedAt: string | null;
+  frozenAt: string;
+}
+
+export interface AttributionTouch extends AttributionReceipt {
+  merchantId: string;
+  sessionId: string;
+  observedAt: string;
+  observationSequence: number;
+  idempotencyKey: string;
+}
+export interface AttributionTouchRepository {
+  capture(merchantId: string, receipt: AttributionReceipt, idempotencyKey: string): Promise<AttributionTouch>;
+  eligible(merchantId: string, sessionIds: string[], since: string, until: string): Promise<AttributionTouch[]>;
+}
 export interface MetaAdsRecord<T = unknown> {
   key: string;
   kind: MetaAdsRecordKind;
@@ -289,6 +355,7 @@ export interface AttributedPurchase {
   netRevenueCents: number;
   signalStatus: "not_authorized" | "sending" | "sent" | "failed" | "unknown";
   reconciledAt: string;
+  attribution?: PurchaseAttributionBinding;
 }
 export interface PurchaseSignal {
   eventId: string;
