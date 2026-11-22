@@ -1,6 +1,8 @@
-import type {ChangeProspectOwnership,PlatformSenderBinding,ProspectConversation,ProspectMessage,ProspectNote,ProspectRealtimeEvent,SendProspectMessage} from "@zyon/shared-types";
+import type {ProspectOffer,SalesKnowledgeFact,ChangeProspectOwnership,PlatformSenderBinding,ProspectConversation,ProspectMessage,ProspectNote,ProspectRealtimeEvent,SendProspectMessage} from "@zyon/shared-types";
 import type {ConversationRepositoryPort,PlatformSenderPort,ProspectingActor,ProspectSendPacket,ProspectSendResult} from "../../domain/prospecting.ports.js";
 
+export interface SalesReplyEvidence {messageId:string;offer:ProspectOffer;facts:Pick<SalesKnowledgeFact,"sourceId"|"publicationId"|"publicationVersion"|"id">[]}
+export interface SalesReplyCommand extends SendProspectMessage {evidence?:SalesReplyEvidence}
 export type ReplyQuote=(context:{campaignId:string|null;endpointId:string;now:Date})=>{amountCents:number;currency:"BRL";validUntil:Date}|null;
 export interface ConversationReadStore extends Pick<ConversationRepositoryPort,"list"|"history">{
  notes(id:string,cursor:string|undefined,limit:number):Promise<{items:ProspectNote[];nextCursor:string|null}>;
@@ -9,7 +11,7 @@ export interface ConversationReadStore extends Pick<ConversationRepositoryPort,"
 export interface ConversationCommandStore{
  ownership(id:string,cmd:ChangeProspectOwnership,actor:ProspectingActor):Promise<ProspectConversation>;
  prepareManual(id:string,cmd:SendProspectMessage,actor:ProspectingActor):Promise<ProspectMessage>;
- prepareAi(id:string,cmd:SendProspectMessage):Promise<ProspectMessage>;
+ prepareAi(id:string,cmd:SalesReplyCommand):Promise<ProspectMessage>;
  addNote(id:string,cmd:{content:string;clientRequestId:string},actor:ProspectingActor):Promise<ProspectNote>;
  markRead(id:string,cmd:{sequence:number;clientRequestId:string},actor:ProspectingActor):Promise<{readSequence:number}>;
  reply(messageId:string):Promise<ProspectMessage>;
@@ -27,7 +29,7 @@ export class ProspectConversationService{
  prepareManual(id:string,cmd:SendProspectMessage,actor:ProspectingActor){
   content(cmd.content);epoch(cmd.expectedEpoch);return this.commands.prepareManual(id,cmd,actor);
  }
- prepareAi(id:string,cmd:SendProspectMessage){
+ prepareAi(id:string,cmd:SalesReplyCommand){
   content(cmd.content);epoch(cmd.expectedEpoch);return this.commands.prepareAi(id,cmd);
  }
  addNote(id:string,cmd:{content:string;clientRequestId:string},actor:ProspectingActor){

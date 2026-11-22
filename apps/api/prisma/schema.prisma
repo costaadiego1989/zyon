@@ -5892,6 +5892,7 @@ model SavedProspectSegment {
 }
 
 model ProspectCampaign {
+  modelUsage ProspectModelUsage[]
   id String @id @default(cuid())
   name String
   revision Int @default(1)
@@ -6056,6 +6057,7 @@ model ProspectInboxEvent {
 }
 
 model ProspectConversation {
+  modelUsage ProspectModelUsage[]
   id String @id @default(cuid())
   endpointId String @unique @map("endpoint_id")
   prospectId String? @map("prospect_id")
@@ -6128,6 +6130,19 @@ model ProspectMessage {
   @@unique([senderBindingId, providerId])
   @@index([conversationId, createdAt])
   @@map("prospect_messages")
+}
+
+model ProspectModelUsage {
+  requestId String @id @map("request_id")
+  conversationId String @map("conversation_id")
+  campaignId String @map("campaign_id")
+  amountCents BigInt @map("amount_cents")
+  state String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  conversation ProspectConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  campaign ProspectCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  @@index([campaignId, state], map: "prospect_model_usage_campaign_idx")
+  @@map("prospect_model_usage")
 }
 
 model ProspectNote {
