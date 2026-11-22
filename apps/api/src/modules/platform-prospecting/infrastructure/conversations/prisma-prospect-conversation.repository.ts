@@ -8,6 +8,9 @@ const earliest=(old:Date|null,at:Date|null)=>old&&at?(old<at?old:at):old??at;
 const latest=(old:Date|null,at:Date|null)=>old&&at?(old>at?old:at):old??at;
 export class PrismaProspectConversationRepository{
  constructor(readonly db:PrismaClient){}
+ event(id:string){return this.db.prospectInboxEvent.findUniqueOrThrow({where:{id},select:{eventKind:true,state:true}});}
+ due(limit:number){return this.db.prospectInboxEvent.findMany({where:{state:{in:["pending","awaiting_correlation"]},nextAttemptAt:{lte:new Date()}},orderBy:[{nextAttemptAt:"asc"},{id:"asc"}],take:limit,select:{id:true}});}
+ async awaitCorrelation(id:string){await this.db.prospectInboxEvent.updateMany({where:{id,state:{in:["pending","awaiting_correlation"]}},data:{state:"awaiting_correlation",nextAttemptAt:new Date(Date.now()+60_000)}});}
  async processInbound(inboxId:string){
   return this.db.$transaction(async tx=>{
    const initial=await tx.prospectInboxEvent.findUniqueOrThrow({where:{id:inboxId}});
@@ -127,7 +130,7 @@ export class PrismaProspectConversationRepository{
   const c=await this.db.prospectConversation.findUnique({where:{id},select:{revision:true}});if(!c)throw Error("conversation_not_found");
   if(after>c.revision)throw Error("invalid_filter:change_cursor");
   const rows=await this.db.prospectConversationChange.findMany({where:{conversationId:id,revision:{gt:after}},orderBy:{revision:"asc"},take:limit+1});
-  const items=rows.slice(0,limit).map(r=>({id:r.id,conversationId:id,kind:r.kind,cursor:String(r.revision),sequence:r.sequence,occurredAt:r.occurredAt.toISOString()}));
+  const items=rows.slice(0,limit).map(r=>({id:r.id,conversationId:id,kind:r.kind as import("@zyon/shared-types").ProspectRealtimeEvent["kind"],cursor:String(r.revision),sequence:r.sequence,occurredAt:r.occurredAt.toISOString()}));
   return {items,nextCursor:items.at(-1)?.cursor??String(after),hasMore:rows.length>limit};
  }
  async notes(id:string,cursor:string|undefined,limit:number){

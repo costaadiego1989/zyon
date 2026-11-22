@@ -1,12 +1,18 @@
 import { randomUUID } from "node:crypto";
-import type { CanonicalBillingOfferPort, PlatformSenderPort, ProspectSendResult } from "../../domain/prospecting.ports.js";
+import type {PlatformSenderBinding,ProspectCampaign} from "@zyon/shared-types";
+import type { AttemptReservation,CampaignRepositoryPort,CanonicalBillingOfferPort, PlatformSenderPort, ProspectSendResult } from "../../domain/prospecting.ports.js";
 import { stableDirectoryJson } from "../../domain/company-directory/directory-values.js";
-import type { PrismaCampaignRepository } from "../../infrastructure/campaigns/prisma-campaign.repository.js";
+
 import type { SenderReadinessService } from "./sender-readiness.service.js";
 
+export interface DispatchReservations extends Pick<CampaignRepositoryPort,"reserveAttempt"|"recordResult">{
+  deferReservation(packet:AttemptReservation):Promise<void>;
+  dispatchReview(campaignId:string):Promise<{binding:PlatformSenderBinding;hash:string;offer:ProspectCampaign["offer"];campaign:Pick<ProspectCampaign,"senderBindingId"|"senderVersion"|"template"|"message">}|null>;
+  markSubmitting(id:string,owner:string,clock:()=>Date,reviewHash:string):Promise<boolean>;
+}
 export class ProspectDispatchWorker {
   constructor(
-    private readonly repository: Pick<PrismaCampaignRepository,"reserveAttempt"|"deferReservation"|"dispatchReview"|"markSubmitting"|"recordResult">,
+    private readonly repository: DispatchReservations,
     private readonly readiness: SenderReadinessService,
     private readonly offers: CanonicalBillingOfferPort,
     private readonly sender: Pick<PlatformSenderPort,"send">,
