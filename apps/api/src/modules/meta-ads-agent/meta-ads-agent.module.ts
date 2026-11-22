@@ -38,6 +38,8 @@ import { AutomationPolicyService } from './application/automation-policy.service
 import { AutomaticCampaignWorker } from './infrastructure/automatic-campaign.worker.js';
 import { DAILY_OBSERVATION_REPOSITORY } from './domain/daily-observation.port.js';
 import {CampaignApprovalController} from './presentation/campaign-approval.controller.js';
+import {CampaignLifecycleController} from './presentation/campaign-lifecycle.controller.js';
+import {CampaignLifecycleService} from './application/campaign-lifecycle.service.js';
 import {CampaignPreparationService} from './application/campaign-preparation.service.js';
 import {CampaignNoticeContactService} from './application/campaign-notice-contact.service.js';
 import {InitialLaunchService} from './application/initial-launch.service.js';
@@ -50,7 +52,7 @@ import {WHATSAPP_TEMPLATE_SENDER,type WhatsAppTemplateSenderPort} from '../whats
 const runtime = Symbol("MetaAdsRuntime");
 @Module({
   imports: [PersistenceModule, StorageModule, AuthModule, CatalogModule, MerchantModule, PaymentModule, WhatsAppConfigModule, MessagingModule, CheckoutPersistenceModule, MerchantAssistantModule,WhatsAppTemplatesModule],
-  controllers: [MetaAdsAgentController, StripeAddonWebhookController, AttributionController, FundingController, AutomationReportController,CampaignApprovalController],
+  controllers: [MetaAdsAgentController, StripeAddonWebhookController, AttributionController, FundingController, AutomationReportController,CampaignApprovalController,CampaignLifecycleController],
   providers: [
     { provide: META_ADS_SESSION_BINDING, useFactory: (sessions: CheckoutSessionRepository) => new CheckoutSessionBindingAdapter(sessions), inject: [CHECKOUT_SESSION_REPOSITORY] },
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
@@ -64,6 +66,7 @@ const runtime = Symbol("MetaAdsRuntime");
     { provide: DAILY_OBSERVATION_REPOSITORY, useFactory: (value: MetaAdsRuntime) => value.daily, inject: [runtime] },
     { provide: AutomaticCampaignWorker, useFactory: (value: MetaAdsRuntime) => value.automatic, inject: [runtime] },
     {provide:CampaignPreparationService,useFactory:(value:MetaAdsRuntime)=>value.preparation,inject:[runtime]},
+    {provide:CampaignLifecycleService,useFactory:(value:MetaAdsRuntime)=>value.lifecycle,inject:[runtime]},
     {provide:CampaignNoticeContactService,useFactory:(value:MetaAdsRuntime)=>value.contacts,inject:[runtime]},
     {provide:InitialLaunchService,useFactory:(value:MetaAdsRuntime)=>value.launches,inject:[runtime]},
     {provide:CampaignPreparationWorker,useFactory:(value:MetaAdsRuntime)=>value.preparationWorker,inject:[runtime]},

@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import {randomBytes} from 'node:crypto';
-import {Module} from '@nestjs/common';
+import {Module,type Type,type Provider} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
 import type {AddressInfo} from 'node:net';
 import {AuthGuard} from '../../../auth/presentation/auth.guard.js';
@@ -16,7 +16,7 @@ import {MetaAdsError} from '../../domain/types.js';
 import {MetaAdsHttpErrorFilter} from '../meta-ads-agent.controller.js';
 import {CampaignApprovalController} from '../campaign-approval.controller.js';
 
-export async function campaignApprovalHttpFixture(){
+export async function campaignApprovalHttpFixture(extend?:(context:Awaited<ReturnType<typeof campaignLaunchFixture>>&{authorizeActor:(merchantId:string,actorId:string)=>Promise<void>})=>{controllers:Type[];providers:Provider[]}){
   const f=await campaignLaunchFixture();
   try{
     Object.assign(f.service.env,{META_ADS_DASHBOARD_URL:'https://dashboard.example.test'});
@@ -42,7 +42,8 @@ export async function campaignApprovalHttpFixture(){
     for(const [actor,role,merchantId] of [['owner-a','owner','store-a'],['admin-a','admin','store-a'],['staff-a','staff','store-a'],['owner-b','owner','store-b']] as const){tokens[actor]=await jwt.issue({userId:actor,merchantId,email:actor+'@example.test',role});}
     tokens.expired=jwt.sign({userId:'owner-a',merchantId:'store-a',email:'owner-a@example.test',role:'owner'},Math.floor(Date.now()/1000)-7200);
     Reflect.defineMetadata('design:paramtypes',[JwtService,AuthCookieService],AuthGuard);
-    @Module({controllers:[CampaignApprovalController],providers:[{provide:MetaAdsAgentService,useValue:f.service},{provide:InitialLaunchService,useValue:launches},{provide:CampaignPreparationService,useValue:preparation},{provide:CampaignNoticeContactService,useValue:contact},{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:new AuthCookieService('aacp_access_token',false)},AuthGuard,MetaAdsHttpErrorFilter]})class HttpModule{}
+    const extra=extend?.({...f,authorizeActor})??{controllers:[],providers:[]};
+    @Module({controllers:[CampaignApprovalController,...extra.controllers],providers:[{provide:MetaAdsAgentService,useValue:f.service},{provide:InitialLaunchService,useValue:launches},{provide:CampaignPreparationService,useValue:preparation},{provide:CampaignNoticeContactService,useValue:contact},{provide:JwtService,useValue:jwt},{provide:AuthCookieService,useValue:new AuthCookieService('aacp_access_token',false)},AuthGuard,MetaAdsHttpErrorFilter,...extra.providers]})class HttpModule{}
     const app=await NestFactory.create(HttpModule,{logger:false});await app.listen(0,'127.0.0.1');
     // Lifecycle polling is tested by the runtime task. Keep HTTP admission assertions deterministic.
     await launches.onModuleDestroy();

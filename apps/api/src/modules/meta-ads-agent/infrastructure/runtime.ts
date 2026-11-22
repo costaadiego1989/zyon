@@ -50,6 +50,7 @@ import {CampaignNoticeContactService} from '../application/campaign-notice-conta
 import {InitialLaunchService} from '../application/initial-launch.service.js';
 import {CampaignPreparationWorker} from './campaign-preparation.worker.js';
 import {assessBudget,type CampaignBudgetAssessmentPort} from '../application/budget-guidance.js';
+import {CampaignLifecycleService} from '../application/campaign-lifecycle.service.js';
 import {CatalogImageAdapter} from './catalog-image.adapter.js';
 import {CatalogCreativeService} from '../application/catalog-creative.service.js';
 import {CampaignReadyNoticeWorker} from './campaign-ready-notice.worker.js';
@@ -94,6 +95,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
     if(!approvalEnabled())throw new MetaAdsError('campaign_preparation_unavailable',503);
   };
   const funding = new FundingService(repo, billing, connection, new MetaFundingAdapter({ graphVersion: env.META_ADS_GRAPH_API_VERSION ?? '', request, clock }), clock);
+  const lifecycle=new CampaignLifecycleService({repo,commerce,connection,provider,authorizeActor,clock});
   const budgetControl = new MetaBudgetControlAdapter({ request, clock });
   const policies = new AutomationPolicyService({ repo, commerce, connection, campaigns, authorizeActor, enabled: automationEnabled, clock });
   const exposure = new ExposureReservationService({ repo, commerce, enabled: automationEnabled, clock });
@@ -169,7 +171,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
         if (view.mode === 'automatic' && view.policy?.scope.allowNewCampaigns && !view.policy.scope.campaignIds.includes(campaign.id)) await automatic.bindCampaign(scope.merchantId, campaign.id, view.policy.id);
       } }));
   }
-  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender,noticeWorker,
+  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender,noticeWorker,lifecycle,
     generationWorker: new GenerationWorker(repo, generations, enabled && env.META_ADS_AGENT_GENERATION_WORKER_ENABLED === "true", clock),
     purchaseBridge: new CheckoutPurchaseBridge(repo, commerce, attribution, input.events, enabled && env.META_ADS_AGENT_PURCHASE_BRIDGE_ENABLED === "true", undefined, input.sessionBinding),
     observation: new ObservationWorker(repo, commerce, connection, provider, attribution, analysis, billing, { enabled: enabled && env.META_ADS_AGENT_OBSERVATION_ENABLED === "true" }, clock, dailyEngine) };
