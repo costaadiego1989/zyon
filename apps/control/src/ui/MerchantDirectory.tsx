@@ -5,6 +5,7 @@ import {
   PlatformApiError,
   type PlatformMerchant,
 } from "../lib/api.js";
+import { MerchantDetailDrawer } from "./MerchantDetailDrawer.js";
 
 const planLabels: Record<PlatformMerchant["plan"], string> = {
   CHECKOUT_ONLY: "Checkout",
@@ -121,6 +122,7 @@ export function MerchantDirectory({
           {!loading && nextCursor ? <button type="button" className="button button--secondary directory-load-more" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? "Carregando..." : "Carregar mais empresas"}</button> : null}
         </section>
       ) : null}
+      {selectedMerchant && <MerchantDetailDrawer api={api} token={token} merchant={selectedMerchant} onClose={() => setSelectedMerchant(null)} onSessionExpired={onSessionExpired} />}
     </div>
   );
 }
