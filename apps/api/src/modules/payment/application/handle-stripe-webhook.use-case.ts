@@ -60,7 +60,7 @@ export class HandleStripeWebhookUseCase {
     this.stripe = secretKey ? new Stripe(secretKey, { apiVersion: "2026-04-22.dahlia" }) : null;
   }
 
-  async execute(rawBody: Buffer, signature: string | undefined): Promise<HandleStripeWebhookResult> {
+  async execute(rawBody: Buffer, signature: string | undefined): Promise<HandleStripeWebhookResult & {attribution?: "allocation_coverage_unknown"}> {
     const { webhookSecret } = readStripeConnection();
 
     if (!this.stripe || !webhookSecret) {
@@ -80,7 +80,8 @@ export class HandleStripeWebhookUseCase {
 
     const result=await this.dispatchEvent(event);
     if(this.attribution && result.outcome!=="ignored" && event.livemode===!!readStripeConnection().secretKey?.startsWith("sk_live_")){
-      await observeStripeSubscriptionPayment(this.stripe,event,this.attribution);
+      const coverage=await observeStripeSubscriptionPayment(this.stripe,event,this.attribution);
+      if(coverage)return {...result,attribution:coverage};
     }
     return result;
   }

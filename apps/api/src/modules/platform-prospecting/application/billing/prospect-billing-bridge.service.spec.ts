@@ -68,6 +68,20 @@ test("PROS-22 AC3 signed raw Stripe invoice attributes one paid subscription; re
  const billing=await f.prisma.merchantBillingSubscription.findUniqueOrThrow({where:{merchantId:"merchant"}});assert.equal(billing.status,"active");assert.equal(billing.planKey,"growth");assert.equal(billing.billingAmountCents,quoteBilling("growth").amountCents);
  }finally{await f.close();}
 });
+test("PROS-22 AC3 signed split and incomplete invoice allocations remain unattributed after one component is fully refunded",async()=>{
+ const f=await createProspectBillingFixture();try{
+  await f.bindProposal();
+  for(const [id,opt] of [["split",{split:true}],["truncated",{truncated:true}]] as const){
+   const response=await f.stripe("invoice.paid",id,opt);
+   assert.equal(response.status,200);assert.equal((await response.json()).attribution,"allocation_coverage_unknown");
+   assert.equal(await f.prisma.prospectBillingReceipt.count(),0);
+  }
+  const refund=await f.stripe("charge.refunded","partial-invoice-full-charge",{split:true});
+  assert.equal(refund.status,200);assert.equal((await refund.json()).attribution,"allocation_coverage_unknown");
+  assert.equal(await f.prisma.prospectConversion.count({where:{state:{in:["paid","refunded"]}}}),0);
+  assert.equal(await f.prisma.prospectBillingReceipt.count(),0);
+ }finally{await f.close();}
+});
 test("PROS-22 AC3 authenticated Asaas ingress requires canonical reconciliation, with refund adjustment and duplicate recovery",async()=>{
  const f=await createProspectBillingFixture("asaas");try{
  await f.bindProposal();assert.equal((await f.asaas("PAYMENT_CONFIRMED","bad-auth",{token:"no"})).status,401);

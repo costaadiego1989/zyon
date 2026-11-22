@@ -68,11 +68,25 @@ export async function createProspectBillingFixture(provider="stripe"){
   const bind=(token:string,user=tokens.owner,extra={})=>post("/billing/prospect-proposal/bind",{token,...extra},{Authorization:"Bearer "+user});
   const bindProposal=async()=>{const p=await(await propose()).json();const res=await bind(new URL(p.url).searchParams.get("proposal")!);if(res.status!==200)throw Error("bind_fixture_failed");return p;};
   const signature=new Stripe("sk_test_prospect_fixture");
-  const stripe=(type:string,id:string,opt:{foreign?:boolean;signature?:string;partial?:boolean}={})=>{
+  const fixtureSdk=(verifiedStripe as unknown as {stripe:Stripe}).stripe;
+  const splitInvoice=()=>({id:"in_merchant",customer:"cus_merchant",currency:"brl",status:"paid",amount_paid:price,billing_reason:"subscription_create",parent:{subscription_details:{subscription:"sub_merchant"}},payments:{has_more:false,data:[2000,price-2000].map((amount_paid,i)=>({status:"paid",currency:"brl",invoice:"in_merchant",amount_paid,payment:{type:"payment_intent",payment_intent:i?"pi_second":"pi_merchant"}}))}});
+  const singleInvoice=()=>({...splitInvoice(),payments:{has_more:false,data:[{...splitInvoice().payments.data[0],amount_paid:price}]}});
+  fixtureSdk.invoicePayments.list=(async()=>singleInvoice().payments) as typeof fixtureSdk.invoicePayments.list;
+  fixtureSdk.invoices.retrieve=(async()=>singleInvoice()) as unknown as typeof fixtureSdk.invoices.retrieve;
+  const stripe=(type:string,id:string,opt:{foreign?:boolean;signature?:string;partial?:boolean;split?:boolean;truncated?:boolean}={})=>{
    const account=opt.foreign?"other":"merchant",sub="sub_"+account,customer="cus_"+account;
    const obj=type==="charge.refunded"?{id:"ch_"+account,customer,currency:"brl",amount:price,amount_refunded:opt.partial?1:price,refunded:!opt.partial,payment_intent:"pi_"+account,metadata:{}}:
     {id:"in_"+account,customer,status:type==="invoice.paid"?"paid":"open",billing_reason:"subscription_create",amount_paid:type==="invoice.paid"?price:0,currency:"brl",metadata:{merchant_id:"merchant",prospect_id:f.lead.id},
     parent:{subscription_details:{subscription:sub,metadata:{}}},payments:{data:[{status:"paid",invoice:"in_"+account,currency:"brl",payment:{type:"payment_intent",payment_intent:"pi_"+account},amount_paid:price}]}};
+   if(opt.split){
+    if(type==="invoice.paid")Object.assign(obj,splitInvoice());
+    else{
+     Object.assign(obj,{amount:2000,amount_refunded:2000,refunded:true});
+     fixtureSdk.invoicePayments.list=(async()=>({has_more:false,data:[splitInvoice().payments.data[0]]})) as typeof fixtureSdk.invoicePayments.list;
+     fixtureSdk.invoices.retrieve=(async()=>splitInvoice()) as unknown as typeof fixtureSdk.invoices.retrieve;
+    }
+   }
+   if(opt.truncated&&obj.payments)Object.assign(obj.payments,{has_more:true});
    const event={id,type,livemode:false,created:Math.floor(Date.now()/1000)+1,data:{object:obj}};
    return post("/webhooks/stripe",event,{"stripe-signature":opt.signature??signature.webhooks.generateTestHeaderString({payload:JSON.stringify(event),secret:"whsec_prospect_fixture"})});
   };
