@@ -6029,7 +6029,7 @@ model ProspectInboxEvent {
   payloadHash String @map("payload_hash")
   payload Json
   resourceIds String[] @default([]) @map("resource_ids")
-  providerOccurredAt DateTime @map("provider_occurred_at")
+  providerOccurredAt DateTime? @map("provider_occurred_at")
   receivedAt DateTime @default(now()) @map("received_at")
   state String @default("pending")
   processedAt DateTime? @map("processed_at")

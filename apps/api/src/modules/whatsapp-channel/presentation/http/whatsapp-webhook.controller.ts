@@ -8,6 +8,7 @@
 
 import {
   Body,
+  ConflictException,
   BadRequestException,
   Controller,
   Get,
@@ -32,6 +33,8 @@ import { validateTwilioSignature } from "../../domain/services/twilio-signature-
 import { parseTwilioInbound } from "../../domain/services/twilio-inbound.js";
 import { twilioWhatsAppCallbackUrl } from "../../domain/services/public-url.js";
 import { FISCAL_DELIVERY_DISPATCH, type FiscalDeliveryDispatchPort, type MetaDeliveryStatus } from "../../../../shared/integrations/fiscal-delivery-dispatch.port.js";
+
+import {PROSPECT_META_DISPATCH,type ProspectMetaDispatchPort} from "../../../../shared/integrations/prospect-meta-dispatch.port.js";
 
 interface BubbleWhatsMessagePayload {
   id: string;
@@ -80,6 +83,7 @@ interface MetaInboundMessage {
 
 interface MetaWebhookPayload {
   entry?: Array<{
+    id?: string;
     changes?: Array<{
       field?: string;
       value?: {
@@ -102,6 +106,7 @@ export class WhatsAppWebhookController {
     @Optional() private readonly delivery?: WhatsAppDeliveryService,
     @Optional() private readonly metaStatus?: HandleStatusUpdateUseCase,
     @Optional() @Inject(FISCAL_DELIVERY_DISPATCH) private readonly fiscalDelivery?: FiscalDeliveryDispatchPort,
+    @Optional() @Inject(PROSPECT_META_DISPATCH) private readonly prospecting?: ProspectMetaDispatchPort,
   ) {}
 
   @Get("meta")
@@ -109,7 +114,13 @@ export class WhatsAppWebhookController {
     @Query() query: Record<string, string | undefined>,
     @Res() response: Response,
   ): void {
-    const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
+    this.challenge(query,response,process.env.META_WEBHOOK_VERIFY_TOKEN);
+  }
+  @Get("meta-platform")
+  verifyPlatformMeta(@Query() query:Record<string,string|undefined>,@Res() response:Response){
+    this.challenge(query,response,process.env.PROSPECTING_META_WEBHOOK_VERIFY_TOKEN);
+  }
+  private challenge(query:Record<string,string|undefined>,response:Response,verifyToken:string|undefined){
     if (
       query["hub.mode"] !== "subscribe" ||
       !verifyToken ||
@@ -130,8 +141,16 @@ export class WhatsAppWebhookController {
     @Body() payload: MetaWebhookPayload,
     @Req() request: Request,
   ): Promise<{ received: true }> {
+    return this.receiveSignedMeta(signature,payload,request,false);
+  }
+  @Post("meta-platform")
+  @HttpCode(200)
+  receivePlatformMeta(@Headers("x-hub-signature-256") signature:string|undefined,@Body() payload:MetaWebhookPayload,@Req() request:Request){
+    return this.receiveSignedMeta(signature,payload,request,true);
+  }
+  private async receiveSignedMeta(signature:string|undefined,payload:MetaWebhookPayload,request:Request,dedicated:boolean):Promise<{received:true}>{
     const rawBody = (request as Request & { rawBody?: Buffer }).rawBody;
-    if (!this.isValidMetaSignature(signature, rawBody)) {
+    if (!this.isValidMetaSignature(signature, rawBody,dedicated?process.env.PROSPECTING_META_APP_SECRET:process.env.META_APP_SECRET)) {
       throw new UnauthorizedException("invalid_meta_signature");
     }
 
@@ -141,6 +160,16 @@ export class WhatsAppWebhookController {
 
         const phoneNumberId = change.value?.metadata?.phone_number_id;
         if (!phoneNumberId) continue;
+
+        if(this.prospecting){
+          try{
+            if(await this.prospecting.accept({appId:dedicated?process.env.PROSPECTING_META_APP_ID:process.env.META_EMBEDDED_SIGNUP_APP_ID??process.env.META_APP_ID,wabaId:entry.id,phoneNumberId,value:change.value!}))continue;
+          }catch(error){
+            if(error instanceof Error&&error.message==="inbox_replay_conflict")throw new ConflictException(error.message);
+            throw new ServiceUnavailableException("prospect_webhook_pending");
+          }
+        }
+        if(phoneNumberId===process.env.PROSPECTING_META_PHONE_NUMBER_ID||dedicated)throw new ServiceUnavailableException("prospect_webhook_binding_unavailable");
 
         if (change.value?.statuses?.length) {
           if (!this.fiscalDelivery) throw new ServiceUnavailableException("fiscal_delivery_dispatch_unavailable");
@@ -195,8 +224,7 @@ export class WhatsAppWebhookController {
     return { received: true };
   }
 
-  private isValidMetaSignature(signature: string | undefined, rawBody: Buffer | undefined): boolean {
-    const secret = process.env.META_APP_SECRET;
+  private isValidMetaSignature(signature: string | undefined, rawBody: Buffer | undefined,secret:string|undefined): boolean {
     if (!signature || !rawBody || !secret) return false;
 
     const expected = `sha256=${createHmac("sha256", secret).update(rawBody).digest("hex")}`;

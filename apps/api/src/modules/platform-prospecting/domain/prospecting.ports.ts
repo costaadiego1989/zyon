@@ -89,7 +89,7 @@ export interface PlatformSenderPort {
   readiness(): Promise<PlatformSenderReadiness>;
   send(attempt: AttemptReservation, binding: PlatformSenderBinding): Promise<ProspectSendResult>;
 }
-export interface ProspectWebhookEvent { eventId: string; senderBindingId: string; eventKind: "inbound" | "status"; payloadHash: string; providerOccurredAt: Date; receivedAt: Date; payload: Record<string, unknown> }
+export interface ProspectWebhookEvent { eventId: string; senderBindingId: string; eventKind: "inbound" | "status"; payloadHash: string; providerOccurredAt: Date|null; receivedAt: Date; payload: Record<string, unknown> }
 export interface ProspectInboxPort {
   acceptWebhook(event: ProspectWebhookEvent): Promise<{ id: string; replay: boolean }>;
   pending(limit: number): Promise<ProspectWebhookEvent[]>;
