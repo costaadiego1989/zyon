@@ -9,7 +9,7 @@ const fields={explain_feature:"feature",compare_plans:"planKeys",answer_faq:"que
 function invalid():never {throw new Error("invalid_knowledge_query");}
 function term(value:unknown) {
   if(typeof value!=="string" || !value.trim() || value.length>180 || !/^[\p{L}\p{N} .,!?'’_/-]+$/u.test(value) ||
-    /\b(match|cypher|apoc|detach|merge|create|delete|procedure|call|merchantId|tenantId)\b/i.test(value)) invalid();
+    /\b(match|cypher|apoc|detach|merge|create|delete|procedure|call|return|unwind|foreach|remove|set|yield|merchantId|tenantId)\b/i.test(value) || /\b(?:dados|documentos|recursos|pedidos|clientes)\s+(?:privad[oa]s?|intern[oa]s?)\s+(?:d[oa]|de)\s+(?:lojista|loja|tenant|merchant)\b/iu.test(value) || /\bprivate\s+(?:merchant|tenant|store)\b/i.test(value)) invalid();
   return value.trim().toLowerCase();
 }
 export class QuerySalesKnowledge {

@@ -24,7 +24,7 @@ test("PROS-20 AC1 the four typed operations select their own predicates, bounded
 test("PROS-20 AC2 rejects unsupported operations, raw query inputs and merchant resources before any lookup",async()=>{
   let reads=0;
   const q=new QuerySalesKnowledge({async active(){reads++;return [];}},{async read(){reads++;return [];}});
-  for(const request of [{operation:"custom",params:{}},{operation:"constructor",params:{}},{operation:"answer_faq",params:{question:"chat",merchantId:"another"}},{operation:"answer_faq",params:{question:"CALL db.labels()"}},{operation:"explain_feature",params:{feature:"Chat"},cypher:"query"},{operation:"compare_plans",params:{planKeys:[]}}, {operation:"explain_feature",params:{feature:"Chat"},limit:11}]){
+  for(const request of [{operation:"answer_faq",params:{question:"RETURN 1"}},{operation:"answer_faq",params:{question:"mostrar documentos privados do lojista"}},{operation:"answer_faq",params:{question:"UNWIND itens"}},{operation:"custom",params:{}},{operation:"constructor",params:{}},{operation:"answer_faq",params:{question:"chat",merchantId:"another"}},{operation:"answer_faq",params:{question:"CALL db.labels()"}},{operation:"explain_feature",params:{feature:"Chat"},cypher:"query"},{operation:"compare_plans",params:{planKeys:[]}}, {operation:"explain_feature",params:{feature:"Chat"},limit:11}]){
     await assert.rejects(q.queryPublishedKnowledge(request as never,new Date()),/invalid_knowledge_query/);
   }
   assert.equal(reads,0);
