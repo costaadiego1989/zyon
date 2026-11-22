@@ -1,3 +1,4 @@
+import {prospectFollowUpAt} from "../../domain/campaigns/prospect-follow-up.js";
 import { randomUUID } from "node:crypto";
 import { type OutreachAttempt, type Prisma, type PrismaClient, type ProspectCampaign } from "@prisma/client";
 import type { ContactPermissionStatus, OutreachAttemptRecord, ProspectingTemplate } from "@zyon/shared-types";
@@ -13,6 +14,10 @@ import {campaignSelectionBlockers} from "../../application/campaigns/sender-read
 import {append,changed,ensureConversation,lockEndpoint} from "../conversations/conversation-timeline.js";
 
 type Tx=Prisma.TransactionClient;
+function dueFor(deliveredAt:Date,hasReply:boolean,ep:{timezone:string|null;timezoneSource:string|null},window:ProspectingSendWindow){
+ const trusted=["contact_confirmed","operator_confirmed","provider_verified"].includes(ep.timezoneSource??"");
+ return prospectFollowUpAt({deliveredAt,hasReply,trustedTimezone:trusted?ep.timezone:null,window});
+}
 export type CostQuote=(context:{campaignId:string;recipientId:string;template:ProspectingTemplate|null;now:Date})=>{amountCents:number;currency:"BRL";validUntil:Date}|null;
 export function storedReview(c:ProspectCampaign){
   return {message:c.message,offer:c.offerSnapshot,senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template,audienceHash:c.audienceHash,sendWindow:c.sendWindow,
@@ -40,7 +45,7 @@ export class PrismaCampaignRepository {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(hashtext('prospect.dispatch'), hashtext(${ids.campaignId}))::text`;
     await lockEndpoint(tx,ids.endpointId);
     await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${ids.campaignId} FOR UPDATE`;
-    const r=await tx.campaignRecipient.findUniqueOrThrow({where:{id:recipientId},include:{prospect:true,campaign:true,endpoint:{include:{sender:true,permissions:true,conversations:true}}}});
+    const r=await tx.campaignRecipient.findUniqueOrThrow({where:{id:recipientId},include:{prospect:true,campaign:true,endpoint:{include:{sender:true,permissions:true,conversations:true,aliases:true}}}});
     const c=r.campaign,ep=r.endpoint,conversation=ep.conversations[0];
     if(c.state!=="running"||c.approvedRevision!==c.revision||!c.approvedHash||c.approvedHash!==campaignContentHash(storedReview(c))||!c.audienceHash) return null;
     if(!ep.sender.active||ep.sender.scope!=="zyon_platform"||c.senderBindingId!==ep.senderBindingId||c.senderVersion!==ep.sender.version||!ep.normalizedValue||ep.channel!=="whatsapp"||!(["phone","bsuid"].includes(ep.identityKind))) return null;
@@ -49,7 +54,7 @@ export class PrismaCampaignRepository {
     const scopes={in:["zyon_platform",ep.senderBindingId]};
     const versions=await tx.contactSuppression.findMany({where:{senderScope:scopes},distinct:["keyVersion"],select:{keyVersion:true}});
     if(versions.some(v=>!this.keys.keys[v.keyVersion]))throw new Error("suppression_key_version_unavailable");
-    if(await tx.contactSuppression.findFirst({where:{senderScope:scopes,OR:protectedContactLookups(identity,this.keys)}}))return null;
+    if(await tx.contactSuppression.findFirst({where:{senderScope:scopes,OR:[...protectedContactLookups(identity,this.keys),...ep.aliases.map(a=>({keyVersion:a.keyVersion,protectedLookup:a.protectedLookup}))]}}))return null;
     const permission=contactPermission({senderBindingId:ep.senderBindingId,endpointId:ep.id,purpose:"zyon_sales"},ep.permissions.map(p=>({...p,status:p.status as ContactPermissionStatus})));
     if(permission!=="opted_in"){
       await tx.campaignRecipient.updateMany({where:{id:r.id,state:{in:["pending","blocked"]}},data:{eligibility:permission,blockers:["provider_policy_blocked"]}});
@@ -57,17 +62,32 @@ export class PrismaCampaignRepository {
     }
     return {r,c,ep,conversation,identity,template:c.template as unknown as ProspectingTemplate|null};
   }
-  reserveAttempt(recipientId:string,ownerToken:string,now:Date):Promise<AttemptReservation|null>{
+  async followUpCandidates(now:Date,after:string|undefined,limit:number){
+    const rows=await this.prisma.prospectSequence.findMany({where:{state:"active",followUpCount:0,deliveredAt:{not:null},...(after?{id:{gt:after}}:{}),
+      OR:[{followUpDueAt:null},{followUpDueAt:{lte:now}}],attempts:{some:{ordinal:0,recipient:{campaign:{state:"running"}}}}},
+      select:{id:true,attempts:{where:{ordinal:0},select:{recipientId:true}}},orderBy:{id:"asc"},take:limit});
+    return rows.flatMap(s=>s.attempts[0]?.recipientId?[{id:s.id,recipientId:s.attempts[0].recipientId}]:[]);
+  }
+  reserveAttempt(recipientId:string,ownerToken:string,now:Date,ordinal:0|1=0):Promise<AttemptReservation|null>{
     if(!ownerToken || ownerToken.length>200 || !Number.isFinite(now.getTime()))throw new Error("invalid_command:lease");
     return this.prisma.$transaction(async tx=>{
       const context=await this.lockedContext(tx,recipientId); if(!context)return null;
       const {r,c,ep,conversation,identity,template}=context;
       const scope={senderBindingId:ep.senderBindingId,endpointId:ep.id};
-      const previous=await tx.prospectSequence.findUnique({where:{senderBindingId_endpointId:scope},include:{attempts:{where:{ordinal:0}}}});
+      const previous=await tx.prospectSequence.findUnique({where:{senderBindingId_endpointId:scope},include:{attempts:true}});
       if(previous && previous.state!=="active")return null;
       const leaseExpiresAt=new Date(now.getTime()+60_000);
       const controlEpoch=conversation?.controlEpoch??0;
-      const existing=previous?.attempts[0]; let attempt:OutreachAttempt;
+      if(ordinal===1){
+        const initial=previous?.attempts.find(a=>a.ordinal===0);
+        if(!previous || previous.followUpCount || !initial?.deliveredAt || !previous.deliveredAt || initial.recipientId!==r.id || !template || conversation?.lastInboundAt)return null;
+        const window=c.sendWindow as unknown as ProspectingSendWindow;
+        const due=dueFor(previous.deliveredAt,false,ep,window)!;
+        const opening=due>now?due:dueFor(new Date(now.getTime()-48*3600000),false,ep,window)!;
+        await tx.prospectSequence.update({where:{id:previous.id},data:{followUpDueAt:opening}});
+        if(opening>now)return null;
+      }
+      const existing=previous?.attempts.find(a=>a.ordinal===ordinal); let attempt:OutreachAttempt;
       const day=now.toISOString().slice(0,10);
       const recoverable=existing?.state==="cancelled_before_submit" && ["campaign_paused","reservation_expired","dispatch_deferred"].includes(existing.errorCode??"");
       if(existing && (existing.recipientId!==recipientId || !recoverable && (existing.state!=="reserved" || existing.leaseExpiresAt && existing.leaseExpiresAt>now)))return null;
@@ -81,8 +101,8 @@ export class PrismaCampaignRepository {
       if((usage?.submittedRecipients??0)+(usage?.reservedRecipients??0)>=c.dailyRecipientLimit)return null;
       const sequence=previous??await tx.prospectSequence.create({data:scope});
       const data={recipientId,conversationId:conversation?.id??null,requestHash:c.approvedHash!,state:"reserved",costState:"reserved",errorCode:null,leaseToken:ownerToken,leaseExpiresAt,controlEpoch,approvedRevision:c.revision,senderVersion:c.senderVersion!,reservedAmount:amount,reservationDay:day,content:c.message};
-      attempt=existing?await tx.outreachAttempt.update({where:{id:existing.id},data}):await tx.outreachAttempt.create({data:{...data,sequenceId:sequence.id,ordinal:0,clientRequestId:randomUUID(),createdAt:now}});
-      if(!existing)await tx.prospectSequence.update({where:{id:sequence.id},data:{firstAttemptId:attempt.id}});
+      attempt=existing?await tx.outreachAttempt.update({where:{id:existing.id},data}):await tx.outreachAttempt.create({data:{...data,sequenceId:sequence.id,ordinal,clientRequestId:randomUUID(),createdAt:now}});
+      if(!existing&&ordinal===0)await tx.prospectSequence.update({where:{id:sequence.id},data:{firstAttemptId:attempt.id}});
       await tx.prospectCampaign.update({where:{id:c.id},data:{reservedCents:{increment:amount}}});
       await tx.prospectCampaignDailyUsage.upsert({where:{campaignId_day:{campaignId:c.id,day}},create:{campaignId:c.id,day,reservedRecipients:1},update:{reservedRecipients:{increment:1}}});
       await tx.campaignRecipient.update({where:{id:r.id},data:{state:"reserved",eligibility:"opted_in",blockers:[]}});
@@ -130,7 +150,12 @@ export class PrismaCampaignRepository {
         const part=(name:string)=>parts.find(p=>p.type===name)?.value;
         const weekday=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].indexOf(part("weekday")??"")+1;
         const time=part("hour")+":"+part("minute");
-        if(!window.weekdays.includes(weekday)||time<window.start||time>=window.end)return false;
+        if(initial.ordinal===1){
+          const seq=await tx.prospectSequence.findUniqueOrThrow({where:{id:initial.sequenceId}});
+          if(!seq.deliveredAt||seq.followUpCount||conversation?.lastInboundAt||!template)return false;
+          const due=dueFor(seq.deliveredAt,false,ctx.ep,window)!;
+          if(due>now||dueFor(new Date(now.getTime()-48*3600000),false,ctx.ep,window)!>now)return false;
+        } else if(!window.weekdays.includes(weekday)||time<window.start||time>=window.end)return false;
       }
       if(initial.controlEpoch!==(conversation?.controlEpoch??0)||initial.approvedRevision!==c.revision||initial.senderVersion!==c.senderVersion||!c.budgetCents||c.spentCents+c.reservedCents>c.budgetCents)return false;
       const day=initial.reservationDay??initial.createdAt.toISOString().slice(0,10); if(day!==now.toISOString().slice(0,10))return false;
@@ -140,6 +165,7 @@ export class PrismaCampaignRepository {
       if(!quote||quote.currency!=="BRL"||!Number.isSafeInteger(quote.amountCents)||quote.amountCents<=0||!(quote.validUntil>now)||BigInt(quote.amountCents)>initial.reservedAmount)throw new Error("cost_unknown");
       const changed=await tx.outreachAttempt.updateMany({where:{id:attemptId,state:"reserved",leaseToken:ownerToken,leaseExpiresAt:{gt:now},sequence:{state:"active"}},data:{state:"submitting",submittedAt:now}});
       if(changed.count){
+        if(initial.ordinal===1)await tx.prospectSequence.update({where:{id:initial.sequenceId},data:{followUpCount:1,state:"completed",followUpDueAt:null}});
         const chat=await ensureConversation(tx,ctx.ep.id);
         await append(tx,chat.id,{senderBindingId:ctx.ep.senderBindingId,authorType:"system",direction:"outbound",attemptId,state:"submitting",content:initial.content,submittedAt:now});
         await tx.outreachAttempt.update({where:{id:attemptId},data:{conversationId:chat.id}});
