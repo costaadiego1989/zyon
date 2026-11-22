@@ -1,3 +1,4 @@
+import {ProspectingInbox} from "../src/ui/prospecting/ProspectingInbox.js";
 import {CampaignDetailPage} from "../src/ui/prospecting/CampaignDetailPage.js";
 import {CampaignComposer} from "../src/ui/prospecting/CampaignComposer.js";
 import {ProspectDetailPage} from "../src/ui/prospecting/ProspectDetailPage.js";
@@ -19,6 +20,7 @@ else{
   if(route.area==="leads")return <ProspectDetailPage {...props} route={route}/>;
   if(route.area==="campaigns"&&route.filters?.view==="edit")return <CampaignComposer {...props} id={route.id}/>;
   if(route.area==="campaigns")return <CampaignDetailPage {...props} id={route.id}/>;
+  if(route.area==="conversations")return <ProspectingInbox {...props} route={route}/>;
   return null;
  }}/>);
 }
