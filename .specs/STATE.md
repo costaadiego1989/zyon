@@ -48,3 +48,5 @@
 - Execution T28: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/index.tsx, apps/dashboard/src/pages/meta-ads-agent/index.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/CampaignWorkspace.tsx, apps/dashboard/src/pages/meta-ads-agent/MetaAdsAssistant.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T29.
 
 - Execution T29: gate0, source stable; apps/dashboard/src/pages/meta-ads-agent/CampaignSalesResults.tsx, apps/dashboard/src/pages/meta-ads-agent/CampaignSalesResults.spec.tsx, apps/dashboard/src/pages/meta-ads-agent/index.tsx, apps/dashboard/src/pages/meta-ads-agent/campaign-workspace.css. Next: T30.
+
+- Execution T30: gate0, source stable; apps/dashboard/src/pages/orders-shipments/components/AdOriginDetail.tsx, apps/dashboard/src/pages/orders-shipments/components/AdOriginDetail.spec.tsx, apps/dashboard/src/pages/orders-shipments-page.tsx, apps/dashboard/src/pages/orders-shipments/orders-shipments.css, apps/dashboard/src/pages/meta-ads-agent/CampaignSalesResults.tsx, apps/dashboard/src/pages/meta-ads-agent/index.tsx. Next: T31.

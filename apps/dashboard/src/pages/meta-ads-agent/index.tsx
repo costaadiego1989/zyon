@@ -54,6 +54,7 @@ function MetaAdsAgentView({api,merchantId,apiBaseUrl,assistantClient,reviewTarge
   function openWorkspace(id:string){setSelectedRow(null);setLastSelected(id);setSelectedId(id);setComposing(false);const c=data?.campaigns.find(c=>c.id===id);if(c)open(c);}
   function back(){setSelectedId(null);setSelectedRow(null);setComposing(false);setDetailError('');setTimeout(()=>{const article=Array.from(listAnchor.current?.querySelectorAll('article')??[]).find(el=>el.getAttribute('data-campaign-id')===lastSelected);(article?.querySelector('button') as HTMLElement|null)?.focus({preventScroll:true});article?.scrollIntoView?.({block:'nearest'});},0);}
 
+  useEffect(()=>{const params=new URLSearchParams(window.location.search),id=params.get('adCampaign');if(id&&params.get('adStore')===merchantId)openWorkspace(id);},[merchantId]);
   const pending = data?.generations.some(g => ["reserved", "running"].includes(g.status)) || data?.executions.some(e => ["reserved", "sending", "publishing"].includes(e.status));
   useEffect(() => {if (!pending) return; const timer = window.setInterval(() => {void load();}, 5000); return () => window.clearInterval(timer);}, [load, pending]);
   const current = data?.campaigns.find(c => c.id === selectedId)??selectedRow?.campaign;
