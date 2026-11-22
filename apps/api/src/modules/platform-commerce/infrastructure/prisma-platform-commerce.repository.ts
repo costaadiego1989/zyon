@@ -4,6 +4,7 @@ import type {
   PlatformCommerceAudit,
   PlatformCommerceRepository,
   PlatformMerchantDetail,
+  PlatformMerchantCompany,
   PlatformMerchantRank,
   PlatformOrderDetail,
   PlatformOrderQuery,
@@ -13,6 +14,24 @@ import type {
 const SALES_EXCLUDED_STATUSES = ["cancelled", "refunded"];
 const OPEN_RECEIVABLE_STATUSES = ["open", "pending", "due", "overdue"];
 const PRESENTATION_TIME_ZONE = "America/Sao_Paulo";
+
+function companyRegistration(settings: unknown): PlatformMerchantCompany | undefined {
+  const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const source = record(record(settings).company);
+  const company: PlatformMerchantCompany = {};
+  for (const key of ["cnpj", "razaoSocial", "inscricaoEstadual", "email", "phone"] as const) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) company[key] = value.trim();
+  }
+  const address: NonNullable<PlatformMerchantCompany["address"]> = {};
+  const sourceAddress = record(source.address);
+  for (const key of ["street", "number", "complement", "neighborhood", "city", "state", "zip"] as const) {
+    const value = sourceAddress[key];
+    if (typeof value === "string" && value.trim()) address[key] = value.trim();
+  }
+  if (Object.keys(address).length) company.address = address;
+  return Object.keys(company).length ? company : undefined;
+}
 
 @Injectable()
 export class PrismaPlatformCommerceRepository implements PlatformCommerceRepository {
@@ -62,7 +81,11 @@ export class PrismaPlatformCommerceRepository implements PlatformCommerceReposit
   }
 
   async merchantDetail(merchantId: string, period: { from: Date; to: Date }): Promise<PlatformMerchantDetail | undefined> {
-    const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { id: true, name: true, storeSlug: true, storeCategory: true, plan: true, billingAccountMerchantId: true, createdAt: true } });
+    const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: {
+      id: true, name: true, storeSlug: true, storeCategory: true, plan: true, billingAccountMerchantId: true, createdAt: true,
+      storeSettings: true,
+      users: { where: { role: "owner", disabledAt: null }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 1, select: { email: true } },
+    } });
     if (!merchant) return undefined;
     const billingMerchantId = merchant.billingAccountMerchantId ?? merchant.id;
     const salesWhere: Prisma.CompletedOrderWhereInput = { merchantId, status: { notIn: SALES_EXCLUDED_STATUSES } };
@@ -78,8 +101,10 @@ export class PrismaPlatformCommerceRepository implements PlatformCommerceReposit
     ]);
     const recentOrders = await this.summaries(recentRows);
     const series = salesSeries(periodRows);
+    const company = companyRegistration(merchant.storeSettings);
+    const registrationEmail = merchant.users?.[0]?.email;
     return {
-      merchant: { id: merchant.id, name: merchant.name, ...(merchant.storeSlug ? { storeSlug: merchant.storeSlug } : {}), ...(merchant.storeCategory ? { storeCategory: merchant.storeCategory } : {}), plan: merchant.plan, createdAt: merchant.createdAt },
+      merchant: { id: merchant.id, name: merchant.name, ...(merchant.storeSlug ? { storeSlug: merchant.storeSlug } : {}), ...(merchant.storeCategory ? { storeCategory: merchant.storeCategory } : {}), plan: merchant.plan, createdAt: merchant.createdAt, ...(company ? { company } : {}), ...(registrationEmail ? { registrationEmail } : {}) },
       period,
       orders: { allTimeCount: allTime._count._all, allTimeTotalMinor: minor(allTime._sum.orderTotal), periodCount: periodRows.length, periodTotalMinor: periodRows.reduce((total, row) => total + minor(row.orderTotal), 0), series },
       billing: {

@@ -621,7 +621,7 @@ export type PlatformOrderDetail = PlatformOrder & {
 };
 export type PlatformOrdersPage = { items: PlatformOrder[]; nextCursor?: string };
 export type PlatformMerchantDetail = {
-  merchant: { id: string; name: string; storeSlug?: string; storeCategory?: string; plan: string; createdAt: string };
+  merchant: { id: string; name: string; storeSlug?: string; storeCategory?: string; plan: string; createdAt: string; registrationEmail?: string; company?: { cnpj?: string; razaoSocial?: string; inscricaoEstadual?: string; email?: string; phone?: string; address?: { street?: string; number?: string; complement?: string; neighborhood?: string; city?: string; state?: string; zip?: string } } };
   period: { from: string; to: string };
   orders: { allTimeCount: number; allTimeTotalMinor: number; periodCount: number; periodTotalMinor: number; series: Array<{ date: string; orderCount: number; totalMinor: number }> };
   billing: { status?: string; provider?: string; planKey?: string; amountMinor?: number; cycle?: string; currentPeriodEnd?: string; overdueCount: number; openReceivableCount: number; nextDueAt?: string };
