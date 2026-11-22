@@ -43,3 +43,5 @@
 - Execution T1: gate0, source stable; packages/shared-types/src/meta-ads-agent.ts. Next: T2.
 
 - Execution T2: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/types.ts. Next: T3.
+
+- Execution T3: gate0, source stable; apps/api/src/modules/meta-ads-agent/domain/campaign-name.ts, apps/api/src/modules/meta-ads-agent/domain/campaign-name.spec.ts. Next: T4.
