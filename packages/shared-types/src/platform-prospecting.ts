@@ -72,6 +72,7 @@ export interface ProspectCampaign {
 }
 export interface SaveProspectCampaign extends ProspectingCommand { name: string; expectedRevision?: number; message: string; planKey: string; senderBindingId: string; senderVersion: number; limits: ProspectCampaignLimits; sendWindow: ProspectingSendWindow; template?: ProspectingTemplate | null }
 export interface FreezeCampaignAudience extends ProspectingCommand { expectedRevision: number; snapshotId: string; segmentId?: string; segmentVersion?: number; cnpjs?: string[] }
+export interface ProspectAudienceJob { selectionId: string; campaignId: string; state: "pending" | "processing" | "complete" | "failed"; companyCount: number; recipientCount: number; missingEndpointCount: number; audienceHash: string | null; errorCode: string | null }
 export interface ApproveProspectCampaign extends ProspectingCommand { expectedRevision: number; audienceHash: string; contentHash: string }
 export interface ProspectCampaignAction extends ProspectingCommand { expectedRevision: number; action: "start" | "pause" | "resume" }
 export interface CampaignRecipientRecord { id: string; campaignId: string; prospectId: string; endpointId: string; sequenceKey: string; eligibility: ContactPermissionStatus; frozenSnapshot: { snapshotId: string; cnpj: string }; state: OutreachAttemptState | "pending" | "blocked"; blockers: ProspectingBlocker[]; attemptId: string | null }

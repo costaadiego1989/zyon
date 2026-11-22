@@ -1,7 +1,7 @@
 import { Prisma,type PrismaClient } from "../../../../../node_modules/.prisma/company-directory/index.js";
 import type { CompanyFilters,CompanyRecord } from "@zyon/shared-types";
 function literalLike(value:string){return value.replace(/[\\%_]/g,"\\$&");}
-export async function readDirectoryPage(client:PrismaClient,snapshotId:string,filters:CompanyFilters,afterCnpj:string|null,limit:number){
+export function directorySelectionSql(snapshotId:string, filters:CompanyFilters){
   const predicates:Prisma.Sql[]=[Prisma.sql`e.snapshot_id=${snapshotId}`];
   const within=(column:Prisma.Sql,values:string[]|undefined)=>{if(values?.length)predicates.push(Prisma.sql`${column} IN (${Prisma.join(values)})`);};
   within(Prisma.sql`e.main_cnae`,filters.mainCnaes);within(Prisma.sql`e.uf`,filters.ufs);within(Prisma.sql`e.city_code`,filters.cityCodes);within(Prisma.sql`e.normalized_district`,filters.districts);within(Prisma.sql`c.size`,filters.sizes);within(Prisma.sql`c.legal_nature`,filters.legalNatures);within(Prisma.sql`e.status`,filters.statuses);within(Prisma.sql`e.matrix_branch`,filters.matrixBranches);within(Prisma.sql`p.stage`,filters.stages);
@@ -17,6 +17,10 @@ export async function readDirectoryPage(client:PrismaClient,snapshotId:string,fi
   if(filters.hasContact!==undefined)predicates.push(Prisma.sql`EXISTS(SELECT 1 FROM company_directory.company_public_contacts a WHERE a.snapshot_id=e.snapshot_id AND a.cnpj=e.cnpj)=${filters.hasContact}`);
   const where=Prisma.join(predicates," AND ");
   const join=Prisma.sql`FROM company_directory.company_establishments e JOIN company_directory.company_entities c ON c.snapshot_id=e.snapshot_id AND c.base_cnpj=e.base_cnpj LEFT JOIN public.platform_prospects p ON p.cnpj=e.cnpj`;
+  return {join,where};
+}
+export async function readDirectoryPage(client:PrismaClient,snapshotId:string,filters:CompanyFilters,afterCnpj:string|null,limit:number) {
+  const {join,where}=directorySelectionSql(snapshotId,filters);
   return client.$transaction(async tx=>{
     const snapshot=await tx.companySnapshot.findUnique({where:{id:snapshotId}});if(!snapshot||snapshot.state!=="published")throw new Error("snapshot_unavailable");
     const counts=await tx.$queryRaw<{count:bigint}[]>`SELECT count(*) AS count ${join} WHERE ${where}`;

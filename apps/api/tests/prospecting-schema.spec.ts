@@ -13,6 +13,7 @@ async function crmDatabase() {
     await db.pg.query(readFileSync(crmMigration, "utf8"));
     await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121120000_prospect_contact_identity/migration.sql", import.meta.url), "utf8"));
     await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121130000_prospect_privacy/migration.sql", import.meta.url), "utf8"));
+    await db.pg.query(readFileSync(new URL("../prisma/migrations/20261121140000_prospect_audience/migration.sql", import.meta.url), "utf8"));
     await db.pg.query("INSERT INTO platform_operators VALUES ('operator')");
     return db;
   } catch (error) { await db.close(); throw error; }
