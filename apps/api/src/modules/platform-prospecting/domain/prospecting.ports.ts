@@ -111,7 +111,7 @@ export interface SalesKnowledgePort {
   queryPublishedKnowledge(query: SalesKnowledgeQuery, now: Date): Promise<SalesKnowledgeFact[]>;
 }
 export type SalesToolName = "knowledge" | "canonical_offer" | "allowed_link" | "qualify" | "human_handoff";
-export interface SalesLlmRequest { conversationId: string; controlEpoch: number; input: string; facts: SalesKnowledgeFact[]; offer: ProspectOffer; allowedTools: readonly SalesToolName[]; maximumCostCents: number; timeoutMs: number }
+export interface SalesLlmRequest { requestId: string; conversationId: string; controlEpoch: number; input: string; facts: SalesKnowledgeFact[]; offer: ProspectOffer; allowedTools: readonly SalesToolName[]; maximumCostCents: number; timeoutMs: number }
 export interface SalesLlmPort { respond(input: SalesLlmRequest): Promise<SalesKnowledgeAnswer> }
 export interface CanonicalBillingOfferPort { current(planKey: string): Promise<ProspectOffer>; allowedUrl(url: string): boolean }
 export interface VerifiedProspectPayment { verified: true; provider: string; providerEventId: string; proposalId: string; merchantId: string; subscriptionId: string; state: "paid" | "refunded"; occurredAt: Date }

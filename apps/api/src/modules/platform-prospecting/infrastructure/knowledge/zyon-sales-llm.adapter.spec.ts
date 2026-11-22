@@ -1,0 +1,27 @@
+import assert from "node:assert/strict";
+import {test} from "node:test";
+import {ZyonSalesLlmAdapter,SALES_TOOLS} from "./zyon-sales-llm.adapter.js";
+
+test("PROS-21 AC1 captured protocol admits only five scoped tools, bounds cost/time and preserves uncertain consumption",async()=>{
+ const offer={planKey:"growth",name:"Growth",version:"v",price:{currency:"BRL",amountCents:9900},billingCycle:"monthly",features:[],canonicalUrl:"https://example.test/signup"};
+ const fact={id:"chat",subject:"Chat",predicate:"feature",value:"Chat no painel.",sourceId:"docs",publicationId:"pub",publicationVersion:1,validFrom:"2020-01-01",validUntil:null};
+ const input={requestId:"model.1",conversationId:"internal-private",controlEpoch:1,input:"Como funciona o chat?",facts:[fact],offer,allowedTools:SALES_TOOLS,maximumCostCents:8,timeoutMs:100};
+ const reservations:string[]=[],settled:unknown[]=[],requests:Record<string,any>[]=[];
+ const budget={async reserve(id:string){if(reservations.includes(id))throw Error("model_attempt_exists");reservations.push(id);},async settle(id:string,state:string){settled.push([id,state]);}};
+ const cfg={enabled:false,model:"fixture",apiKey:"fixture",timeoutMs:100,maximumCostCents:8,quote:()=>5};
+ const blocked=new ZyonSalesLlmAdapter(cfg,budget);
+ assert.equal((await blocked.respond(input)).reason,"model_disabled");assert.deepEqual(reservations,[]);
+ let tool="knowledge";
+ const captured:typeof fetch=async(_url,init)=>{requests.push(JSON.parse(String(init?.body)));return Response.json({model:"fixture",choices:[{message:{tool_calls:[{type:"function",function:{name:tool,arguments:JSON.stringify({factIndexes:[0]})}}]}}]});};
+ const llm=new ZyonSalesLlmAdapter(cfg,budget,captured);
+ const good=await llm.respond(input);assert.equal(good.answer,"Chat no painel.");assert.equal(good.callMode,"controlled");assert.deepEqual(good.facts,[fact]);assert.deepEqual(good.sources,[{id:"docs",publicationId:"pub",version:1}]);
+ assert.deepEqual(requests[0].tools.map((t:any)=>t.function.name),["knowledge","canonical_offer","allowed_link","qualify","human_handoff"]);
+ assert.equal(JSON.stringify(requests[0]).includes("internal-private"),false);
+ assert.deepEqual(settled,[["model.1","committed"]]);
+ tool="checkout";const bad=await llm.respond({...input,requestId:"model.2"});assert.equal(bad.handoff,true);assert.equal(bad.answer,null);
+ await assert.rejects(llm.respond({...input,maximumCostCents:3}),/budget_conflict/);
+ await assert.rejects(llm.respond({...input,allowedTools:["checkout"] as never}),/invalid_/);
+ const slow=new ZyonSalesLlmAdapter(cfg,budget,async(_url,init)=>new Promise((_resolve,reject)=>init!.signal!.addEventListener("abort",()=>reject(Error("timeout")))));
+ const unknown=await slow.respond({...input,requestId:"model.slow",timeoutMs:5});assert.equal(unknown.reason,"model_consumption_unknown");assert.deepEqual(settled.at(-1),["model.slow","unknown"]);
+ await assert.rejects(slow.respond({...input,requestId:"model.slow"}),/model_attempt_exists/);assert.equal(reservations.length,3);
+});
