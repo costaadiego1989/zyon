@@ -60,7 +60,7 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
    return {result:await this.repository.summary(tx,id,actor.operatorId),resourceIds:resources(c)};
   });
  }
- private async funding(tx:Tx,endpointId:string,senderBindingId:string,senderVersion:number,now:Date){
+ private async funding(tx:Tx,endpointId:string,senderBindingId:string,now:Date){
   const automatic=await tx.outreachAttempt.findFirst({where:{ordinal:0,sequence:{endpointId,senderBindingId}},include:{recipient:{include:{campaign:true}}}});
   const campaign=automatic?.recipient?.campaign,campaignId=campaign?.id??null;
   const quote=this.quote({campaignId,endpointId,now});
@@ -70,13 +70,13 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
    if(!campaign)throw Error("reply_budget_unavailable");
    if(!campaign.budgetCents||!["running","paused","completed"].includes(campaign.state)||campaign.approvedRevision!==campaign.revision||
       campaign.approvedHash!==campaignContentHash(storedReview(campaign))||campaign.senderBindingId!==senderBindingId||
-      campaign.senderVersion!==senderVersion||campaign.spentCents+campaign.reservedCents+amount>campaign.budgetCents)throw Error("budget_conflict");
+      campaign.spentCents+campaign.reservedCents+amount>campaign.budgetCents)throw Error("budget_conflict");
   }
   return {campaignId,amount};
  }
  private async prepare(tx:Tx,id:string,cmd:SendProspectMessage,operator:string|null){
   const c=await this.locked(tx,id);this.assertOwner(c,cmd.expectedEpoch,operator);
-  const now=new Date();await this.eligible(tx,c,now);await this.funding(tx,c.endpointId,c.endpoint.senderBindingId,c.endpoint.sender.version,now);
+  const now=new Date();await this.eligible(tx,c,now);await this.funding(tx,c.endpointId,c.endpoint.senderBindingId,now);
   const m=await append(tx,id,{senderBindingId:c.endpoint.senderBindingId,senderVersion:c.endpoint.sender.version,clientRequestId:cmd.clientRequestId,controlEpoch:cmd.expectedEpoch,
    direction:"outbound",authorType:operator?"operator":"ai",authorId:operator,state:"prepared",content:cmd.content});
   if(operator)await this.manualActivity(tx,c);
@@ -116,7 +116,7 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
    if(originId)await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${originId} FOR UPDATE`;
    const now=new Date(),identity=await this.eligible(tx,c,now);
    if(binding.id!==m.senderBindingId||binding.version!==m.senderVersion||c.endpoint.sender.version!==m.senderVersion)throw Error("sender_identity_mismatch");
-   const {campaignId,amount}=await this.funding(tx,c.endpointId,binding.id,binding.version,now);
+   const {campaignId,amount}=await this.funding(tx,c.endpointId,binding.id,now);
    if(campaignId!==originId)throw Error("campaign_state_conflict");
    if(amount&&campaignId)await tx.prospectCampaign.update({where:{id:campaignId},data:{reservedCents:{increment:amount}}});
    await tx.prospectMessage.update({where:{id:m.id},data:{state:"submitting",submittedAt:now,campaignId,reservedAmount:amount,costState:"reserved"}});

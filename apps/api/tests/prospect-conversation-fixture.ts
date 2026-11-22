@@ -12,6 +12,6 @@ export async function createConversationFixture(){
   const repo=new PrismaProspectConversationRepository(f.prisma);
   const commands=new PrismaProspectConversationCommands(repo,f.keys,()=>({amountCents:control.price,currency:"BRL",validUntil:new Date(Date.now()+60000)}));
   const service=new ProspectConversationService(repo,commands,{readiness:async()=>({binding,status:"ready",blockers:[],templates:[],portfolioLimit:100,portfolioUsed:null,updatedAt:now.toISOString()})},{async send(packet){captured.push({id:packet.attempt.id,text:packet.content});if(control.unknown)throw Error("timeout");return {state:"provider_accepted",providerMessageId:"wa."+packet.attempt.id,acceptedAt:new Date()};}});
-  return {...f,c,repo,service,captured,control,actor:{operatorId:"operator",correlationId:"request"}};
+  return {...f,c,repo,service,binding,captured,control,actor:{operatorId:"operator",correlationId:"request"}};
  }catch(error){await f.close();throw error;}
 }

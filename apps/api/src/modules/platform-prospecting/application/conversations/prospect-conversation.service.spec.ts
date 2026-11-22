@@ -92,3 +92,21 @@ test("PROS-17 AC1 explicit operator treatment renews inactivity for the confirme
   const [lead,ep]=await dates();assert.equal(lead.toISOString(),old.toISOString());assert.ok(ep>old);
  }finally{await f.close();}
 });
+
+test("PROS-17 AC2 retained sender identity funds a new service reply under the current authorization while stale prepared packets stay fenced",async()=>{
+ const f=await createConversationFixture();try{
+  const automatic=new PrismaCampaignRepository(f.prisma,f.keys,f.quote);const p=await automatic.reserveAttempt(f.recipient.id,"worker",new Date());assert.ok(p);
+  await automatic.markSubmitting(p.attempt.id,"worker",new Date());await automatic.recordResult(p.attempt.id,"worker",{state:"provider_accepted",providerMessageId:"original",acceptedAt:new Date()});
+  await f.prisma.prospectCampaign.update({where:{id:f.campaign.id},data:{state:"completed"}});
+  await f.prisma.prospectSequence.update({where:{id:p.attempt.sequenceId},data:{state:"cancelled",cancelReason:"customer_replied"}});
+  f.control.price=7;
+  const stale=await f.service.prepareAi(f.c.id,{clientRequestId:"prev",expectedEpoch:0,content:"old"});
+  await f.prisma.platformProspectSenderBinding.update({where:{id:"sender"},data:{version:2,authorizationVersion:2}});
+  f.binding.version=2;f.binding.authorizationVersion=2;
+  await assert.rejects(f.service.dispatch(stale.id),/sender_identity_mismatch/);
+  const fresh=await f.service.prepareAi(f.c.id,{clientRequestId:"current",expectedEpoch:0,content:"new"});
+  const result=await f.service.dispatch(fresh.id);assert.equal(result.state,"provider_accepted");assert.deepEqual(f.captured.map(m=>m.id),[fresh.id]);
+  const c=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:f.campaign.id}});assert.equal(c.state,"completed");assert.equal(c.senderVersion,1);assert.equal(c.spentCents,32n);assert.equal(c.reservedCents,0n);
+  assert.equal(await f.prisma.outreachAttempt.count(),1);assert.equal((await f.prisma.prospectSequence.findFirstOrThrow()).state,"cancelled");
+ }finally{await f.close();}
+});
