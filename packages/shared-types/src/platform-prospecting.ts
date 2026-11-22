@@ -25,7 +25,7 @@ export interface CompanyFilters {
   cnpj?: string; legalName?: string; tradeName?: string; search?: string;
 }
 export interface CompanySearchQuery { filters: CompanyFilters; snapshotId?: string; cursor?: string; limit?: number }
-export interface CompanyDomainQuery { kind: "cnaes" | "municipios" | "naturezas"; snapshotId?: string; search?: string; afterCode?: string; limit?: number }
+export interface CompanyDomainQuery { kind: "cnaes" | "municipios" | "naturezas"; uf?: string; snapshotId?: string; search?: string; afterCode?: string; limit?: number }
 export interface CompanyDomainResult extends ProspectingPage<{kind:string;code:string;label:string}> { snapshotId:string;competence:string }
 export interface CompanyPublicContact { channel: "phone" | "email"; originalValue: string; normalizedValue: string | null; validationState: ContactValidationState }
 export interface CompanyRecord {

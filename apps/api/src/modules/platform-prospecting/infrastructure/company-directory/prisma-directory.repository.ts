@@ -19,7 +19,12 @@ export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort,
     const validated=validateCompanyDomainQuery(query);const snapshotId=validated.snapshotId??await this.activeSnapshotId();if(!snapshotId)throw new Error("directory_unavailable");
     return this.client.$transaction(async tx=>{
       const snapshot=await tx.companySnapshot.findUnique({where:{id:snapshotId}});if(!snapshot||snapshot.state!=="published")throw new Error("snapshot_unavailable");
-      const result=await tx.sourceDomain.findMany({where:{snapshotId,kind:validated.kind,...(validated.afterCode?{code:{gt:validated.afterCode}}:{}),...(validated.search?{OR:[{code:{startsWith:validated.search}},{label:{contains:validated.search,mode:"insensitive"}}]}:{})},select:{kind:true,code:true,label:true},orderBy:{code:"asc"},take:validated.limit!+1});
+      const result=validated.uf ? await tx.$queryRaw<{kind:string;code:string;label:string}[]>(Prisma.sql`SELECT d.kind,d.code,d.label FROM company_directory.source_domains d
+        WHERE d.snapshot_id=${snapshotId} AND d.kind='municipios'
+        AND EXISTS(SELECT 1 FROM company_directory.company_establishments e WHERE e.snapshot_id=d.snapshot_id AND e.city_code=d.code AND e.uf=${validated.uf})
+        AND d.code > ${validated.afterCode??""}
+        AND (starts_with(d.code,${validated.search??""}) OR strpos(lower(d.label),lower(${validated.search??""}))>0)
+        ORDER BY d.code LIMIT ${validated.limit!+1}`) : await tx.sourceDomain.findMany({where:{snapshotId,kind:validated.kind,...(validated.afterCode?{code:{gt:validated.afterCode}}:{}),...(validated.search?{OR:[{code:{startsWith:validated.search}},{label:{contains:validated.search,mode:"insensitive"}}]}:{})},select:{kind:true,code:true,label:true},orderBy:{code:"asc"},take:validated.limit!+1});
       return {snapshotId,competence:snapshot.competence,items:result.slice(0,validated.limit),nextCursor:result.length>validated.limit!?result[validated.limit!-1].code:null};
     },{isolationLevel:"RepeatableRead"});
   }

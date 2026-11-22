@@ -37,3 +37,23 @@
 .prospecting-chat label { color: var(--ink); font-weight: 600; font-size: .875rem; }
 .prospecting-internal { border-top: 1px solid var(--line); padding-top: 1rem; }
 @media (prefers-reduced-motion: reduce) { .prospecting-nav a { transition: none; } }
+
+.prospecting-page { display: grid; gap: 1.25rem; min-width: 0; overflow-wrap: anywhere; }
+.prospecting-page h2, .prospecting-page h3, .prospecting-page p { margin: 0; }
+.prospecting-page h2 { font-size: 1.4rem; }
+.prospecting-page h3 { font-size: 1.07rem; }
+.prospecting-page header p, .prospecting-page small { color: var(--ink-muted); }
+.prospecting-page header, .prospecting-page form, .prospecting-page details[open], .prospecting-page label { display: grid; gap: .5rem; }
+.prospecting-page summary { cursor: pointer; padding-block: .6rem; color: var(--accent); }
+.prospecting-page label { min-width: 0; font-size: .875rem; font-weight: 600; }
+.prospecting-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(14rem,100%),1fr)); gap: .75rem; }
+.prospecting-page input:not([type=checkbox]), .prospecting-page select, .prospecting-page textarea { width: 100%; min-width: 0; min-height: 2.55rem; border: 1px solid var(--line-strong); padding: .5rem .65rem; border-radius: .45rem; background: var(--surface); color: var(--ink); font: inherit; }
+.prospecting-page input[type=checkbox] { accent-color: var(--accent); width: 1rem; height: 1rem; }
+.prospecting-page form > button { justify-self: start; }
+.prospecting-page .prospecting-actions, .prospecting-page .prospecting-row, .prospecting-page .prospecting-check { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; }
+.prospecting-page .prospecting-actions { align-items: end; }
+.prospecting-row { padding: .75rem 0; border-bottom: 1px solid var(--line); justify-content: space-between; }
+.prospecting-row small { display: block; font-weight: 400; }
+.prospecting-page dl { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(12rem,100%),1fr)); gap: .85rem; margin: 0; }
+.prospecting-page dt { color: var(--ink-muted); font-size: .8125rem; }
+.prospecting-page dd { margin: .2rem 0 0; }

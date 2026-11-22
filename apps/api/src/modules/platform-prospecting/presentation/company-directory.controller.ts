@@ -19,7 +19,7 @@ export class CompanyDirectoryController {
     }catch(error){prospectingHttpError(error);}
   }
   @Get("domains") async domains(@Query() raw:Record<string,unknown>){
-    try{requestKeys(raw,["kind","snapshotId","search","afterCode","limit"]);return await this.directory.domains({kind:requestText(raw.kind,"kind") as CompanyDomainQuery["kind"],snapshotId:requestText(raw.snapshotId,"snapshotId"),search:requestText(raw.search,"search"),afterCode:requestText(raw.afterCode,"afterCode",7),limit:requestLimit(raw.limit)});}catch(error){prospectingHttpError(error);}
+    try{requestKeys(raw,["kind","snapshotId","uf","search","afterCode","limit"]);return await this.directory.domains({kind:requestText(raw.kind,"kind") as CompanyDomainQuery["kind"],uf:requestText(raw.uf,"uf",2),snapshotId:requestText(raw.snapshotId,"snapshotId"),search:requestText(raw.search,"search"),afterCode:requestText(raw.afterCode,"afterCode",7),limit:requestLimit(raw.limit)});}catch(error){prospectingHttpError(error);}
   }
   @Get(":cnpj") async detail(@Param("cnpj") cnpj:string,@Query() raw:Record<string,unknown>){
     try{requestKeys(raw,["snapshotId"]);const company=await this.directory.find(cnpj,requestText(raw.snapshotId,"snapshotId"));if(!company)throw new Error("company_not_found");return company;}catch(error){prospectingHttpError(error);}

@@ -25,5 +25,6 @@ export function validateCompanyFilters(input:unknown):CompanyFilters {
 }
 export function validateCompanyDomainQuery(query:CompanyDomainQuery):CompanyDomainQuery {
   if(!["cnaes","municipios","naturezas"].includes(query.kind)||query.search!==undefined&&(typeof query.search!=="string"||query.search.length>200)||query.afterCode!==undefined&&!/^\d{1,7}$/.test(query.afterCode))throw new Error("invalid_filter:domain");
+  if(query.uf!==undefined && (query.kind!=="municipios"||!ufs.includes(query.uf)))throw new Error("invalid_filter:uf");
   return {...query,limit:companyPageLimit(query.limit)};
 }
