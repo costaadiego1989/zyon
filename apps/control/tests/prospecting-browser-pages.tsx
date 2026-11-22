@@ -1,3 +1,4 @@
+import {ProspectDetailPage} from "../src/ui/prospecting/ProspectDetailPage.js";
 import {createRoot} from "react-dom/client";
 import {PlatformApi,resolvePlatformApiBaseUrl} from "../src/lib/api.js";
 import {readPlatformSession} from "../src/lib/session.js";
@@ -13,6 +14,7 @@ else{
  createRoot(host).render(<ProspectingShell loadConfig={s=>api.config(s)} onSessionExpired={common.onSessionExpired} renderArea={(route,navigate)=>{
   const props={...common,navigate};
   if(route.area==="companies")return <CompanySearchPage {...props}/>;
+  if(route.area==="leads")return <ProspectDetailPage {...props} route={route}/>;
   return null;
  }}/>);
 }
