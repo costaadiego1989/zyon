@@ -8,6 +8,8 @@ import { campaignContentHash } from "../../domain/campaigns/prospecting-campaign
 import { contactPermission, normalizeContactIdentity } from "../../domain/crm/prospect-contact.js";
 import { protectedContactLookups, type SuppressionKeyRing } from "../crm/prisma-prospect-privacy.repository.js";
 
+import {append,changed,ensureConversation,lockEndpoint} from "../conversations/conversation-timeline.js";
+
 type Tx=Prisma.TransactionClient;
 export type CostQuote=(context:{campaignId:string;recipientId:string;template:ProspectingTemplate|null;now:Date})=>{amountCents:number;currency:"BRL";validUntil:Date}|null;
 export function storedReview(c:ProspectCampaign){
@@ -34,7 +36,7 @@ export class PrismaCampaignRepository {
     if(!ids)return null;
     // A pause closes new reservations before fencing its existing owners; frozen nonparticipants stay unlocked.
     await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(hashtext('prospect.dispatch'), hashtext(${ids.campaignId}))::text`;
-    await tx.$queryRaw`SELECT id FROM prospect_endpoints WHERE id=${ids.endpointId} ORDER BY id FOR UPDATE`;
+    await lockEndpoint(tx,ids.endpointId);
     await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${ids.campaignId} FOR UPDATE`;
     const r=await tx.campaignRecipient.findUniqueOrThrow({where:{id:recipientId},include:{prospect:true,campaign:true,endpoint:{include:{sender:true,permissions:true,conversations:true}}}});
     const c=r.campaign,ep=r.endpoint,conversation=ep.conversations[0];
@@ -126,7 +128,14 @@ export class PrismaCampaignRepository {
       const quote=this.quote({campaignId:c.id,recipientId:initial.recipientId,template,now});
       if(!quote||quote.currency!=="BRL"||!Number.isSafeInteger(quote.amountCents)||quote.amountCents<=0||!(quote.validUntil>now)||BigInt(quote.amountCents)>initial.reservedAmount)throw new Error("cost_unknown");
       const changed=await tx.outreachAttempt.updateMany({where:{id:attemptId,state:"reserved",leaseToken:ownerToken,leaseExpiresAt:{gt:now},sequence:{state:"active"}},data:{state:"submitting",submittedAt:now}});
-      if(changed.count)await tx.campaignRecipient.update({where:{id:initial.recipientId},data:{state:"submitting"}});
+      if(changed.count){
+        const chat=await ensureConversation(tx,ctx.ep.id);
+        await append(tx,chat.id,{senderBindingId:ctx.ep.senderBindingId,authorType:"system",direction:"outbound",attemptId,state:"submitting",content:initial.content,submittedAt:now});
+        await tx.outreachAttempt.update({where:{id:attemptId},data:{conversationId:chat.id}});
+        await tx.campaignRecipient.update({where:{id:initial.recipientId},data:{state:"submitting"}});
+        const lead=ctx.r.prospect;
+        await tx.platformProspect.update({where:{id:lead.id},data:{firstAttemptAt:lead.firstAttemptAt??now,lastAttemptAt:now,version:{increment:1}}});
+      }
       return changed.count===1;
     });
   }
@@ -136,7 +145,14 @@ export class PrismaCampaignRepository {
       await tx.$queryRaw`SELECT id FROM prospect_endpoints WHERE id=${ref.sequence.endpointId} ORDER BY id FOR UPDATE`;
       const row=await tx.outreachAttempt.findUniqueOrThrow({where:{id:attemptId}});
       if(row.leaseToken!==ownerToken)throw new Error("lease_conflict");
-      if(["delivered","read","provider_accepted","outcome_unknown","not_accepted"].includes(row.state))return projectAttempt(row);
+      if(["delivered","read","provider_accepted","outcome_unknown","not_accepted"].includes(row.state)){
+        if(result.state==="provider_accepted"&&row.providerMessageId===result.providerMessageId&&(!row.acceptedAt||result.acceptedAt<row.acceptedAt)){
+          const updated=await tx.outreachAttempt.update({where:{id:row.id},data:{acceptedAt:result.acceptedAt}});
+          await tx.prospectMessage.updateMany({where:{attemptId},data:{acceptedAt:result.acceptedAt}});
+          return projectAttempt(updated);
+        }
+        return projectAttempt(row);
+      }
       if(row.state!=="submitting"||!ref.recipient)throw new Error("attempt_state_conflict");
       const safe:ProspectSendResult=result.state==="provider_accepted"&&!result.providerMessageId?.trim()?{state:"outcome_unknown",errorCode:"missing_message_id"}:result;
       const accepted=safe.state==="provider_accepted";const unknown=safe.state==="outcome_unknown";
@@ -147,6 +163,11 @@ export class PrismaCampaignRepository {
       }
       await tx.campaignRecipient.update({where:{id:ref.recipient.id},data:{state:safe.state}});
       await tx.prospectOutbox.updateMany({where:{eventId:row.id},data:{state:unknown?"held":"completed",leaseToken:null,leaseExpiresAt:null}});
+      const message=await tx.prospectMessage.findFirst({where:{attemptId}});
+      if(message){
+        await tx.prospectMessage.update({where:{id:message.id},data:{state:updated.state,providerId:updated.providerMessageId,acceptedAt:updated.acceptedAt}});
+        await changed(tx,message.conversationId,"delivery",message.sequence);
+      }
       return projectAttempt(updated);
     });
   }

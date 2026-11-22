@@ -71,6 +71,7 @@ export interface ProspectPrivacyPort {
   suppress(id: string, command: SuppressProspectCommand, actor: ProspectingActor): Promise<ProspectSuppressionResult>;
 }
 export interface AttemptReservation { attempt: OutreachAttemptRecord; ownerToken: string; campaignId: string | null; recipientId: string | null; senderBindingId: string; senderVersion: number; endpointId: string; normalizedEndpoint: string; identity: import("@zyon/shared-types").ProspectProviderIdentity; template: import("@zyon/shared-types").ProspectingTemplate | null; content: string; expectedEpoch: number }
+export type ProspectSendPacket = Pick<AttemptReservation,"senderBindingId"|"senderVersion"|"identity"|"normalizedEndpoint"|"template"|"content"> & {attempt:{id:string}};
 export type ProspectSendResult = { state: "provider_accepted"; providerMessageId: string; acceptedAt: Date } | { state: "not_accepted"; errorCode: string } | { state: "outcome_unknown"; errorCode: string };
 export interface CampaignRepositoryPort {
   create(command: SaveProspectCampaign, actor: ProspectingActor): Promise<ProspectCampaign>;
@@ -87,7 +88,7 @@ export interface CampaignRepositoryPort {
 export interface PlatformSenderPort {
   binding(): Promise<PlatformSenderBinding | null>;
   readiness(): Promise<PlatformSenderReadiness>;
-  send(attempt: AttemptReservation, binding: PlatformSenderBinding): Promise<ProspectSendResult>;
+  send(attempt: ProspectSendPacket, binding: PlatformSenderBinding): Promise<ProspectSendResult>;
 }
 export interface ProspectWebhookEvent { eventId: string; senderBindingId: string; eventKind: "inbound" | "status"; payloadHash: string; providerOccurredAt: Date|null; receivedAt: Date; payload: Record<string, unknown> }
 export interface ProspectInboxPort {
@@ -100,7 +101,7 @@ export interface ConversationRepositoryPort {
   history(id: string, pagination: { before?: number; after?: number; limit?: number }, actor: ProspectingActor): Promise<ProspectConversationHistory>;
   appendInbound(event: ProspectWebhookEvent): Promise<ProspectMessage>;
   assumeConversation(id: string, command: ChangeProspectOwnership, actor: ProspectingActor): Promise<ProspectConversation>;
-  prepareMessage(id: string, command: SendProspectMessage, actor: ProspectingActor): Promise<OutreachAttemptRecord>;
+  prepareMessage(id: string, command: SendProspectMessage, actor: ProspectingActor): Promise<ProspectMessage>;
   markRead(id: string, sequence: number, actor: ProspectingActor): Promise<number>;
   addNote(id: string, content: string, clientRequestId: string, actor: ProspectingActor): Promise<ProspectNote>;
 }

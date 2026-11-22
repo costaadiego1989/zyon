@@ -39,6 +39,9 @@ export class PrismaProspectPrivacyRepository implements ProspectPrivacyPort {
     // Dispatch/inbound must acquire this same endpoint fence before submission.
     await tx.$queryRaw(Prisma.sql`SELECT id FROM prospect_endpoints WHERE id IN (${Prisma.join(endpointIds)}) ORDER BY id FOR UPDATE`);
     const pending = await tx.outreachAttempt.findMany({ where: { sequence: { endpointId: { in: endpointIds } }, state: { in: ["prepared", "reserved"] } }, include: { recipient: true } });
+    const replies={conversation:{endpointId:{in:endpointIds}},clientRequestId:{not:null}};
+    const cancelledReplies=await tx.prospectMessage.updateMany({where:{...replies,state:"prepared"},data:{state:"cancelled_before_submit",errorCode:"suppressed"}});
+    const inFlightReplies=await tx.prospectMessage.count({where:{...replies,state:{in:["submitting","outcome_unknown"]}}});
     const inFlightAttempts = await tx.outreachAttempt.count({ where: { sequence: { endpointId: { in: endpointIds } }, state: { in: ["submitting", "outcome_unknown"] } } });
     await tx.outreachAttempt.updateMany({ where: { id: { in: pending.map(a => a.id) }, state: { in: ["prepared", "reserved"] } }, data: { state: "cancelled_before_submit", costState: "released", leaseToken: null, leaseExpiresAt: null, errorCode: "suppressed" } });
     for (const attempt of pending) if (attempt.costState === "reserved" && attempt.recipient) {
@@ -53,7 +56,7 @@ export class PrismaProspectPrivacyRepository implements ProspectPrivacyPort {
       const payload = event.payload as Record<string, unknown>; const attempt = typeof payload.attemptId === "string" ? await tx.outreachAttempt.findUnique({ where: { id: payload.attemptId } }) : null;
       await tx.prospectOutbox.update({ where: { id: event.id }, data: { state: attempt && ["submitting", "outcome_unknown", "provider_accepted", "delivered", "read"].includes(attempt.state) ? "held" : "cancelled", leaseToken: null, leaseExpiresAt: null } });
     }
-    return { cancelledAttempts: pending.length, inFlightAttempts };
+    return { cancelledAttempts: pending.length+cancelledReplies.count, inFlightAttempts:inFlightAttempts+inFlightReplies };
   }
   async suppress(id: string, command: SuppressProspectCommand, actor: ProspectingActor): Promise<ProspectSuppressionResult> {
     prospectVersion(command.expectedVersion); prospectText(command.reason, "reason", 200);

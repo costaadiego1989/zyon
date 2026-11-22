@@ -5738,6 +5738,7 @@ model PlatformProspect {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   lastBusinessActivityAt DateTime @default(now()) @map("last_business_activity_at")
+  firstDeliveredAt DateTime? @map("first_delivered_at")
   firstAttemptAt DateTime? @map("first_attempt_at")
   lastAttemptAt DateTime? @map("last_attempt_at")
   lastDeliveredAt DateTime? @map("last_delivered_at")
@@ -6048,6 +6049,8 @@ model ProspectConversation {
   mode String @default("ai")
   assignedOperatorId String? @map("assigned_operator_id")
   controlEpoch Int @default(0) @map("control_epoch")
+  revision Int @default(0)
+  changes ProspectConversationChange[]
   lastSequence Int @default(0) @map("last_sequence")
   lastInboundAt DateTime? @map("last_inbound_at")
   lastInboundEventId String? @map("last_inbound_event_id")
@@ -6067,7 +6070,28 @@ model ProspectConversation {
   @@map("prospect_conversations")
 }
 
+model ProspectConversationChange {
+  id String @id @default(cuid())
+  conversationId String @map("conversation_id")
+  revision Int
+  kind String
+  sequence Int?
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  conversation ProspectConversation @relation(fields:[conversationId],references:[id],onDelete:Restrict)
+  @@unique([conversationId,revision])
+  @@map("prospect_conversation_changes")
+}
+
 model ProspectMessage {
+  clientRequestId String? @unique @map("client_request_id")
+  controlEpoch Int? @map("control_epoch")
+  senderVersion Int? @map("sender_version")
+  campaignId String? @map("campaign_id")
+  reservedAmount BigInt @default(0) @map("reserved_amount")
+  costState String @default("none") @map("cost_state")
+  submittedAt DateTime? @map("submitted_at")
+  acceptedAt DateTime? @map("accepted_at")
+  errorCode String? @map("error_code")
   id String @id @default(cuid())
   conversationId String @map("conversation_id")
   senderBindingId String @map("sender_binding_id")

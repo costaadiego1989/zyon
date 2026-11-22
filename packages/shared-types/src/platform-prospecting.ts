@@ -47,7 +47,7 @@ export interface ProspectContact { endpointId: string; channel: "whatsapp" | "em
 export interface ProspectRecord {
   id: string; cnpj: string; sourceSnapshotId: string; stage: ProspectStage; assignedOperatorId: string | null;
   tags: string[]; version: number; createdAt: string; lastBusinessActivityAt: string;
-  firstAttemptAt: string | null; lastAttemptAt: string | null; lastDeliveredAt: string | null;
+  firstDeliveredAt?: string | null; firstAttemptAt: string | null; lastAttemptAt: string | null; lastDeliveredAt: string | null;
   lastReplyAt: string | null; lastReplyPreview: string | null; suppressed: boolean; contacts: ProspectContact[];
 }
 export interface ProspectDetail { prospect: ProspectRecord; company: CompanyRecord | null; conversationId: string | null; retentionHold: { reason: string; authorizationRef: string } | null }
@@ -87,7 +87,7 @@ export interface ProspectNote { id: string; conversationId: string; operatorId: 
 export interface ProspectConversation {
   id: string; endpointId: string; prospectId: string | null; ambiguousBindings: string[]; mode: ConversationMode;
   assignedOperatorId: string | null; controlEpoch: number; lastSequence: number; readSequence: number;
-  unreadCount: number; lastInboundAt: string | null; lastInboundPreview: string | null; serviceWindowEndsAt: string | null;
+  revision?: number; lastInboundMessageId?:string|null; unreadCount: number; lastInboundAt: string | null; lastInboundPreview: string | null; serviceWindowEndsAt: string | null;
 }
 export interface ProspectConversationHistory { conversation: ProspectConversation; messages: ProspectMessage[]; hasMore: boolean; nextCursor: string | null }
 export interface ProspectConversationQuery { unread?: boolean; assignedOperatorId?: string; campaignId?: string; search?: string; cursor?: string; limit?: number }

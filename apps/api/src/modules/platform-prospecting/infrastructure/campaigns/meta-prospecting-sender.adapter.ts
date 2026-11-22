@@ -1,6 +1,6 @@
 import type {PlatformSenderBinding} from "@zyon/shared-types";
 import type {StrictWhatsAppResult} from "../../../whatsapp-channel/domain/ports/whatsapp-sender.port.js";
-import type {AttemptReservation,ProspectSendResult} from "../../domain/prospecting.ports.js";
+import type {ProspectSendPacket,ProspectSendResult} from "../../domain/prospecting.ports.js";
 import type {SenderObservationStore} from "../../application/campaigns/sender-readiness.service.js";
 import {platformGraph} from "./platform-meta-authorization.js";
 
@@ -23,7 +23,7 @@ export class MetaProspectingSenderAdapter {
  static official(store:Pick<SenderObservationStore,"credential">,config:{enabled:boolean;metaSendEnabled:boolean}){
   return new MetaProspectingSenderAdapter(store,config.enabled&&config.metaSendEnabled?fetch:undefined);
  }
- async send(packet:AttemptReservation,expected:PlatformSenderBinding):Promise<ProspectSendResult>{
+ async send(packet:ProspectSendPacket,expected:PlatformSenderBinding):Promise<ProspectSendResult>{
   if(!this.transport)return rejected("sender_unavailable");
   const credentials=await this.store.credential().catch(()=>null);if(!credentials)return rejected("sender_unavailable");
   const {binding,accessToken,businessId}=credentials;
