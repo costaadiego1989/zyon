@@ -118,7 +118,7 @@ export interface OpportunityModelPort {
     priority: MetaAdsCampaignDraft["priority"];
     destination: MetaAdsCampaignDraft["destination"];
     candidates: ProductOpportunityFact[];
-  }): Promise<{ variantId: string; headline: string; primaryText: string; evidenceFields: string[]; usage: TextModelUsage | null }>;
+  }): Promise<{ variantId: string; headline: string; primaryText: string; evidenceFields: string[]; quality: "observed" | "initial_test"; usage: TextModelUsage | null }>;
 }
 
 export interface PurchaseAttributionBinding {

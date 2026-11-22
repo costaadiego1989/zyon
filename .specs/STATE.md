@@ -59,3 +59,5 @@
 - Execution T9: gate0, source stable; apps/api/src/modules/meta-ads-agent/presentation/preparation-limits.controller.ts, apps/api/src/modules/meta-ads-agent/presentation/preparation-limits.controller.spec.ts, apps/api/src/modules/meta-ads-agent/infrastructure/runtime.ts, apps/api/src/modules/meta-ads-agent/meta-ads-agent.module.ts. Next: T10.
 
 - Execution T10: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/product-opportunity.reader.ts, apps/api/src/modules/meta-ads-agent/infrastructure/product-opportunity.reader.spec.ts. Next: T11.
+
+- Execution T11: gate0, source stable; apps/api/src/modules/meta-ads-agent/infrastructure/opportunity-model.adapter.ts, apps/api/src/modules/meta-ads-agent/infrastructure/opportunity-model.adapter.spec.ts, apps/api/src/modules/meta-ads-agent/domain/types.ts, apps/api/src/modules/merchant-assistant/domain/model.port.ts, apps/api/src/modules/merchant-assistant/infrastructure/merchant-ai.gateway.ts, apps/api/src/modules/merchant-assistant/infrastructure/runtime.ts. Next: T12.

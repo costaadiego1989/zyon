@@ -17,7 +17,7 @@ export interface AssistantModelInput {
   /** Trusted server orchestration, separate from catalog and campaign data. */
   completionRequirement?:string;
   /** Server-only purpose. Never taken from a merchant tool argument. */
-  purpose?:'chat'|'daily_analysis';
+  purpose?:'chat'|'daily_analysis'|'opportunity_planning';
 }
 export interface AssistantModelUsage { provider:string;model:string;inputTokens:number;cachedInputTokens:number|null;outputTokens:number; }
 export interface AssistantModelResult {
