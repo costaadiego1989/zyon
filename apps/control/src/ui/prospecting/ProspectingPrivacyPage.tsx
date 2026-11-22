@@ -1,4 +1,4 @@
-﻿import { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ProspectRecord } from "@zyon/shared-types";
 import { Button, dateTime, ReadState, useAction, useResource, type PageProps } from "./screen-controls.js";
 
@@ -8,7 +8,7 @@ export function ProspectingPrivacyPage(props: PageProps) {
   const [search, setSearch] = useState("");
   const [selected, select] = useState<ProspectRecord>();
   const leads = useResource(useCallback((signal: AbortSignal) =>
-    search ? api.prospects({ search, limit: 10 }, signal) : Promise.resolve({ items: [] }), [api, search]), onSessionExpired);
+    search ? api.prospects({ search, limit: 10 }, signal) : Promise.resolve({ items: [], nextCursor: null }), [api, search]), onSessionExpired);
   const [reason, setReason] = useState("");
   function refresh() {
     select(undefined);
