@@ -123,6 +123,13 @@ export class PrismaProspectConversationRepository{
    return {conversation,messages:(forward?selected:selected.reverse()).map(publicMessage),hasMore:rows.length>limit,nextCursor:rows.length>limit?String(cursor):null};
   },{isolationLevel:"RepeatableRead"});
  }
+ async changes(id:string,after:number,limit:number){
+  const c=await this.db.prospectConversation.findUnique({where:{id},select:{revision:true}});if(!c)throw Error("conversation_not_found");
+  if(after>c.revision)throw Error("invalid_filter:change_cursor");
+  const rows=await this.db.prospectConversationChange.findMany({where:{conversationId:id,revision:{gt:after}},orderBy:{revision:"asc"},take:limit+1});
+  const items=rows.slice(0,limit).map(r=>({id:r.id,conversationId:id,kind:r.kind,cursor:String(r.revision),sequence:r.sequence,occurredAt:r.occurredAt.toISOString()}));
+  return {items,nextCursor:items.at(-1)?.cursor??String(after),hasMore:rows.length>limit};
+ }
  async notes(id:string,cursor:string|undefined,limit:number){
   if(!await this.db.prospectConversation.count({where:{id}}))throw Error("conversation_not_found");
   const rows=await this.db.prospectNote.findMany({where:{conversationId:id,id:cursor?{lt:cursor}:undefined},orderBy:{id:"desc"},take:limit+1,select:{id:true,content:true,conversationId:true,operatorId:true,createdAt:true}});

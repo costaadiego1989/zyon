@@ -26,6 +26,10 @@ export class ProspectConversationController{
   return respond(()=>{requestKeys(q,["before","after","limit"]);if(q.before!==undefined&&q.after!==undefined)throw Error("invalid_filter:pagination");
    return this.service.repository.history(id,{before:sequenceParam(q.before),after:sequenceParam(q.after),limit:pageSize(q.limit)},actor(req));});
  }
+ @Get(":id/changes")
+ changes(@Param("id") id:string,@Query() q:Record<string,unknown>){
+  return respond(()=>{requestKeys(q,["after","limit"]);return this.service.repository.changes(id,sequenceParam(q.after)??0,pageSize(q.limit));});
+ }
  @Get(":id/notes") @RequirePlatformPermissions("platform:prospecting:write")
  notes(@Param("id") id:string,@Query() q:Record<string,unknown>){
   return respond(()=>{requestKeys(q,["cursor","limit"]);return this.service.repository.notes(id,requestText(q.cursor,"cursor"),pageSize(q.limit));});
