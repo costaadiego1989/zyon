@@ -167,7 +167,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
     if (env.META_ADS_AGENT_ENABLED !== 'true' || env.META_ADS_AGENT_OBSERVATION_ENABLED !== 'true') throw new MetaAdsError('meta_ads_daily_analysis_disabled', 503);
     await billing.requireAccess(merchantId); await connection.access(merchantId);
   })) : { configured: () => false, recommend: async () => ({ recommendations: [], usage: null }) };
-  const dailyEngine = new DailyObservationEngine({ repo, daily, commerce, connection, provider, timezone: access => provider.accountTimezone(access), attribution, recommendations: analysis, billing, automatic, clock });
+  const dailyEngine = new DailyObservationEngine({ repo, daily, commerce, connection, provider, timezone: access => provider.accountTimezone(access), attribution, recommendations: analysis, billing, automatic, sales, clock });
   if (input.assistant) {
     const assistant = input.assistant;
     assistant.contexts.register(new MetaAdsAssistantAdapter({ service, conversations: assistant.repo, authorizeActor:async scope=>{await authorizeActor(scope.merchantId,scope.actorId);await assistant.authorizeActor(scope);}, authorizeTool: assistant.authorizeTool,
