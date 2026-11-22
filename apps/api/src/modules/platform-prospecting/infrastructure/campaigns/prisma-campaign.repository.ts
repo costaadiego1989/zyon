@@ -3,12 +3,13 @@ import { type OutreachAttempt, type Prisma, type PrismaClient, type ProspectCamp
 import type { ContactPermissionStatus, OutreachAttemptRecord, ProspectingTemplate } from "@zyon/shared-types";
 import type { AttemptReservation, ProspectSendResult } from "../../domain/prospecting.ports.js";
 import { publicSender } from "./prisma-sender-binding.repository.js";
-import type {ProspectOffer,ProspectingSendWindow} from "@zyon/shared-types";
+import type {PlatformSenderReadiness,ProspectOffer,ProspectingSendWindow} from "@zyon/shared-types";
 import { campaignContentHash } from "../../domain/campaigns/prospecting-campaign.js";
 import { contactPermission, normalizeContactIdentity } from "../../domain/crm/prospect-contact.js";
 import { protectedContactLookups, type SuppressionKeyRing } from "../crm/prisma-prospect-privacy.repository.js";
 
 import {authenticatedEndpoint,observedBsuid} from "../conversations/prospect-endpoint-alias.js";
+import {campaignSelectionBlockers} from "../../application/campaigns/sender-readiness.service.js";
 import {append,changed,ensureConversation,lockEndpoint} from "../conversations/conversation-timeline.js";
 
 type Tx=Prisma.TransactionClient;
@@ -106,11 +107,20 @@ export class PrismaCampaignRepository {
     return {binding:publicSender(c.sender),hash:c.approvedHash,offer:c.offerSnapshot as unknown as ProspectOffer|null,
       campaign:{senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectingTemplate|null,message:c.message}};
   }
-  markSubmitting(attemptId:string,ownerToken:string,instant:Date|(()=>Date),verifiedHash?:string){
+  markSubmitting(attemptId:string,ownerToken:string,instant:Date|(()=>Date),verifiedHash?:string,offerStillCurrent?:()=>Promise<boolean>){
     return this.prisma.$transaction(async tx=>{
       const initial=await tx.outreachAttempt.findUnique({where:{id:attemptId}}); if(!initial?.recipientId)return false;
       const ctx=await this.lockedContext(tx,initial.recipientId); if(!ctx)return false;
       const {c,conversation,template}=ctx;
+      if(verifiedHash!==undefined){
+        // Take the sender read lock after the endpoint fence. Observe the latest committed health
+        // and hold authorization stable until this transaction durably marks the submission.
+        await tx.$queryRaw`SELECT id FROM platform_prospect_sender_bindings WHERE id=${ctx.ep.senderBindingId} FOR SHARE`;
+        const sender=await tx.platformProspectSenderBinding.findUniqueOrThrow({where:{id:ctx.ep.senderBindingId}});
+        const health=sender.health as unknown as PlatformSenderReadiness|null;
+        if(!sender.active||sender.version!==c.senderVersion||!health||!Array.isArray(health.blockers)||
+          campaignSelectionBlockers(health,sender.id,sender.version,template,c.message).length||!offerStillCurrent||!await offerStillCurrent())return false;
+      }
       const now=typeof instant==="function"?instant():instant;
       if(verifiedHash!==undefined){
         if(c.approvedHash!==verifiedHash||initial.requestHash!==verifiedHash)return false;

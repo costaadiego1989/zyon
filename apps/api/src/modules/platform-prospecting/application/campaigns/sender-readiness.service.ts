@@ -11,6 +11,18 @@ export interface HealthObservation {
  entities:{type:string;id:string;status:string;errorCodes:number[]}[];
 }
 export interface SenderHealthReader {read(credential:PlatformSenderCredential):Promise<HealthObservation>}
+export function campaignSelectionBlockers(health:PlatformSenderReadiness,senderId:string,version:number,template:ProspectingTemplate|null,reviewedMessage?:string){
+  const blockers=[...health.blockers];
+  if(health.status!=="ready"&&!blockers.length)blockers.push("sender_unavailable");
+  if(health.binding?.id!==senderId||health.binding.version!==version)blockers.push("sender_identity_mismatch");
+  if(!template)blockers.push("template_unavailable");
+  else {
+   const current=health.templates?.find(t=>t.id===template.id);
+   if(!current||current.status!=="APPROVED"||current.requiresParameters!==false||current.category!=="MARKETING")blockers.push("template_unavailable");
+   else if(current.wabaId!==template.wabaId||current.name!==template.name||current.language!==template.language||current.category!==template.category||current.revision!==template.revision||!current.previewText||current.previewText!==reviewedMessage||template.previewText!==current.previewText||template.requiresParameters!==false)blockers.push("template_binding_mismatch");
+  }
+  return [...new Set(blockers)];
+}
 export class SenderReadinessService {
  constructor(private readonly store:SenderObservationStore,private readonly reader:SenderHealthReader){}
  async readiness():Promise<PlatformSenderReadiness>{
@@ -28,15 +40,7 @@ export class SenderReadinessService {
   return this.forSelection(c.senderBindingId??"",c.senderVersion??0,c.template,c.message);
  }
  async forSelection(senderId:string,version:number,template:ProspectingTemplate|null,reviewedMessage?:string){
-  const health=await this.readiness();const blockers=[...health.blockers];
-  if(health.binding?.id!==senderId||health.binding.version!==version)blockers.push("sender_identity_mismatch");
-  if(!template)blockers.push("template_unavailable");
-  else {
-   const current=health.templates.find(t=>t.id===template.id);
-   if(!current||current.status!=="APPROVED"||current.requiresParameters!==false||current.category!=="MARKETING")blockers.push("template_unavailable");
-   else if(current.wabaId!==template.wabaId||current.name!==template.name||current.language!==template.language||current.category!==template.category||current.revision!==template.revision||!current.previewText||current.previewText!==reviewedMessage||template.previewText!==current.previewText||template.requiresParameters!==false)blockers.push("template_binding_mismatch");
-  }
-  return [...new Set(blockers)];
+  const health=await this.readiness();return campaignSelectionBlockers(health,senderId,version,template,reviewedMessage);
  }
  async preview(senderId:string,endpointId:string){
   const eligibility=await this.store.permission(senderId,endpointId);

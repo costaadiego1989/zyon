@@ -8,7 +8,7 @@ import type { SenderReadinessService } from "./sender-readiness.service.js";
 export interface DispatchReservations extends Pick<CampaignRepositoryPort,"reserveAttempt"|"recordResult">{
   deferReservation(packet:AttemptReservation):Promise<void>;
   dispatchReview(campaignId:string):Promise<{binding:PlatformSenderBinding;hash:string;offer:ProspectCampaign["offer"];campaign:Pick<ProspectCampaign,"senderBindingId"|"senderVersion"|"template"|"message">}|null>;
-  markSubmitting(id:string,owner:string,clock:()=>Date,reviewHash:string):Promise<boolean>;
+  markSubmitting(id:string,owner:string,clock:()=>Date,reviewHash:string,offerStillCurrent:()=>Promise<boolean>):Promise<boolean>;
 }
 export class ProspectDispatchWorker {
   constructor(
@@ -27,9 +27,13 @@ export class ProspectDispatchWorker {
     if(!review?.offer)return defer("offer_unavailable");
     const blockers=await this.readiness.forCampaign(review.campaign);
     if(blockers.length)return defer(blockers[0]);
-    const current=await this.offers.current(review.offer.planKey);
-    if(!this.offers.allowedUrl(current.canonicalUrl)||stableDirectoryJson(current)!==stableDirectoryJson(review.offer))return defer("approval_stale");
-    if(!await this.repository.markSubmitting(packet.attempt.id,token,this.clock,review.hash))return defer("submission_fenced");
+    const approvedOffer=review.offer;
+    const offerStillCurrent=async()=>{
+      const current=await this.offers.current(approvedOffer.planKey);
+      return this.offers.allowedUrl(current.canonicalUrl)&&stableDirectoryJson(current)===stableDirectoryJson(approvedOffer);
+    };
+    if(!await offerStillCurrent())return defer("approval_stale");
+    if(!await this.repository.markSubmitting(packet.attempt.id,token,this.clock,review.hash,offerStillCurrent))return defer("submission_fenced");
     let result:ProspectSendResult;
     try{result=await this.sender.send(packet,review.binding);}
     catch{result={state:"outcome_unknown",errorCode:"provider_acceptance_unknown"};}

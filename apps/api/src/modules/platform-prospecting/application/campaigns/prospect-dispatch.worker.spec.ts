@@ -8,11 +8,11 @@ import {ProspectDispatchWorker} from "./prospect-dispatch.worker.js";
 async function fixture(optedIn=true){
  const f=await createCampaignFixture(optedIn);
  const binding={id:"sender",version:1,appId:"app",wabaId:"waba",phoneNumberId:"phone",displayPhoneNumber:"synthetic",connectedBy:"operator",connectedAt:new Date(0).toISOString(),authorizationVersion:1};
- const store={credential:async()=>({binding,businessId:"business",accessToken:"fixture"}),save:async()=>true,permission:async()=>"opted_in" as const};
- const state={template:fixtureTemplate,offer:fixtureOffer,beforeSubmit:async()=>{},sent:[] as string[],timeout:false};
+ const store={credential:async()=>({binding,businessId:"business",accessToken:"fixture"}),save:async(_:unknown,result:unknown)=>{await f.prisma.platformProspectSenderBinding.update({where:{id:"sender"},data:{health:JSON.parse(JSON.stringify(result))}});return true;},permission:async()=>"opted_in" as const};
+ const state={template:fixtureTemplate,offer:fixtureOffer,beforeSubmit:async()=>{},onOffer:()=>{},sent:[] as string[],timeout:false};
  const ready=new SenderReadinessService(store,{async read(){await state.beforeSubmit();return {entities:[],templates:[state.template],blockers:[],portfolioLimit:100,portfolioTier:"100"};}});
  const repo=new PrismaCampaignRepository(f.prisma,f.keys,()=>({amountCents:25,currency:"BRL",validUntil:new Date("2030-01-01")}));
- const worker=new ProspectDispatchWorker(repo,ready,{current:async()=>state.offer,allowedUrl:()=>true},{async send(packet){state.sent.push(packet.attempt.id);if(state.timeout)throw Error("timeout");return {state:"provider_accepted",providerMessageId:"wamid.fixture",acceptedAt:new Date("2026-11-20T15:00Z")};}},()=>new Date("2026-11-20T15:00Z"));
+ const worker=new ProspectDispatchWorker(repo,ready,{current:async()=>{const offer=state.offer;state.onOffer();return offer;},allowedUrl:()=>true},{async send(packet){state.sent.push(packet.attempt.id);if(state.timeout)throw Error("timeout");return {state:"provider_accepted",providerMessageId:"wamid.fixture",acceptedAt:new Date("2026-11-20T15:00Z")};}},()=>new Date("2026-11-20T15:00Z"));
  return {...f,state,worker};
 }
 test("PROS-13 AC2 no permission blocks external activation and preserves CRM",async()=>{
@@ -49,4 +49,23 @@ test("PROS-14 AC3 concurrent workers keep one uncertain submission and its finan
   assert.deepEqual(f.state.sent,[attempt.id]);assert.equal(attempt.state,"outcome_unknown");assert.equal(attempt.costState,"reserved");
   const c=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:f.campaign.id}});assert.equal(c.reservedCents,25n);assert.equal(c.spentCents,0n);
  }finally{await f.close();}
+});
+
+test("PROS-13 AC5 commercial price and observed sender health are checked again after waiting for an endpoint fence",async()=>{
+ for(const stale of ["offer","health"]){
+  const f=await fixture(),lock=await f.pg.connect();
+  try{
+   let observed!:()=>void;const read=new Promise<void>(r=>{observed=r;});
+   let locked=false;
+   f.state.beforeSubmit=async()=>{await lock.query("BEGIN");locked=true;await lock.query("SELECT id FROM prospect_endpoints WHERE id=$1 FOR UPDATE",[f.endpoint.id]);};
+   f.state.onOffer=observed;
+   const running=f.worker.processRecipient(f.recipient.id);
+   try{
+    await read;
+    if(stale==="offer")f.state.offer={...fixtureOffer,version:"changed-under-lock"};
+    else await f.prisma.platformProspectSenderBinding.update({where:{id:"sender"},data:{health:{status:"blocked",blockers:["quality_restricted"]}}});
+   }finally{if(locked)await lock.query("COMMIT");}
+   await running;assert.deepEqual(f.state.sent,[]);assert.equal((await f.prisma.outreachAttempt.findFirstOrThrow()).submittedAt,null);
+  }finally{lock.release();await f.close();}
+ }
 });
