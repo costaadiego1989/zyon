@@ -1,4 +1,4 @@
-import {type PrismaClient} from "@prisma/client";
+import {Prisma,type PrismaClient} from "@prisma/client";
 import type {ProspectConversationQuery} from "@zyon/shared-types";
 import {releasePreSubmission} from "../campaigns/prisma-campaign.repository.js";
 import {append,ensureConversation,changed,lockEndpoint,publicConversation,publicMessage,type Tx} from "./conversation-timeline.js";
@@ -123,15 +123,24 @@ export class PrismaProspectConversationRepository{
    return {conversation,messages:(forward?selected:selected.reverse()).map(publicMessage),hasMore:rows.length>limit,nextCursor:rows.length>limit?String(cursor):null};
   },{isolationLevel:"RepeatableRead"});
  }
+ async notes(id:string,cursor:string|undefined,limit:number){
+  if(!await this.db.prospectConversation.count({where:{id}}))throw Error("conversation_not_found");
+  const rows=await this.db.prospectNote.findMany({where:{conversationId:id,id:cursor?{lt:cursor}:undefined},orderBy:{id:"desc"},take:limit+1,select:{id:true,content:true,conversationId:true,operatorId:true,createdAt:true}});
+  return {items:rows.slice(0,limit).map(n=>({...n,createdAt:n.createdAt.toISOString()})),nextCursor:rows.length>limit?rows[limit-1].id:null};
+ }
  async list(query:ProspectConversationQuery,actor:{operatorId:string}){
   const limit=query.limit??50;
   return this.db.$transaction(async tx=>{
-   const rows=await tx.prospectConversation.findMany({where:{assignedOperatorId:query.assignedOperatorId,id:query.cursor?{gt:query.cursor}:undefined,
-    ...(query.campaignId?{endpoint:{recipients:{some:{campaignId:query.campaignId}}}}:{}),
-    ...(query.search?{OR:[{prospect:{cnpj:{contains:query.search}}},{lastInboundPreview:{contains:query.search,mode:"insensitive"}}]}:{})},
-    orderBy:{id:"asc"},select:{id:true},...(!query.unread?{take:limit+1}:{})});
-   const result=[];
-   for(const row of rows){const c=await this.summary(tx,row.id,actor.operatorId);if(!query.unread||c.unreadCount>0)result.push(c);if(result.length>limit)break;}
+   const filters:Prisma.Sql[]=[Prisma.sql`TRUE`];
+   if(query.cursor)filters.push(Prisma.sql`c.id>${query.cursor}`);
+   if(query.assignedOperatorId)filters.push(Prisma.sql`c.assigned_operator_id=${query.assignedOperatorId}`);
+   if(query.campaignId)filters.push(Prisma.sql`EXISTS(SELECT 1 FROM campaign_recipients r WHERE r.endpoint_id=c.endpoint_id AND r.campaign_id=${query.campaignId})`);
+   if(query.search)filters.push(Prisma.sql`(strpos(lower(c.last_inbound_preview),lower(${query.search}))>0 OR strpos(p.cnpj,${query.search})>0)`);
+   if(query.unread)filters.push(Prisma.sql`EXISTS(SELECT 1 FROM prospect_messages m WHERE m.conversation_id=c.id AND m.direction='inbound'
+     AND m.sequence>COALESCE((SELECT read_sequence FROM prospect_reads WHERE conversation_id=c.id AND operator_id=${actor.operatorId}),0))`);
+   const rows=await tx.$queryRaw<{id:string}[]>(Prisma.sql`SELECT c.id FROM prospect_conversations c LEFT JOIN platform_prospects p ON p.id=c.prospect_id
+     WHERE ${Prisma.join(filters," AND ")} ORDER BY c.id LIMIT ${limit+1}`);
+   const result=await Promise.all(rows.map(row=>this.summary(tx,row.id,actor.operatorId)));
    return {items:result.slice(0,limit),nextCursor:result.length>limit?result[limit-1].id:null};
   },{isolationLevel:"RepeatableRead"});
  }
