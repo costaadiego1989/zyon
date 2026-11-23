@@ -1,0 +1,200 @@
+{
+  "task": 42,
+  "scope": "Local canonical resolver and text/voice selection only",
+  "headBeforeCommit": "e0e9e9c27432a5f09b4874badf3e40bb3d833a5c",
+  "formalGateCommand": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/service-selection.spec.ts ./tests/service-channel-journey.integration.spec.ts ./tests/service-selection-channel.integration.spec.ts",
+  "formalGate": {
+    "accepted": true,
+    "wholeFiles": 3,
+    "tests": 53,
+    "pass": 53,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "todo": 0,
+    "mode": "Original full gate, three complete files in qualified serial cohorts",
+    "cohorts": [
+      {
+        "kind": "component",
+        "file": "src/modules/catalog/domain/services/service-selection.spec.ts",
+        "receiptSha256": "4930d0b6ce13684f845abccb893b7c8ce036200645a89ba7e496fc97a24eafc7",
+        "rawSha256": "5001e8a00003ca68a03a54e7d3731d004de42d3a493f13a3e31d4013f9e0fd52",
+        "counts": {
+          "tests": 27,
+          "pass": 27,
+          "fail": 0,
+          "skipped": 0,
+          "todo": 0,
+          "cancelled": 0
+        },
+        "code": 0,
+        "pinsExact": true,
+        "runtimeReturned": true
+      },
+      {
+        "kind": "native18",
+        "file": "tests/service-channel-journey.integration.spec.ts",
+        "receiptSha256": "c3f459f112b56c7bf8757d73d159b97c145e1069f5045cd23e356ee8b08619a6",
+        "rawSha256": "b59eeb7da7f8836bc18cf3e890b303f87eb5507006562b1e2bb19b56e73681d2",
+        "counts": {
+          "tests": 18,
+          "pass": 18,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "code": 0,
+        "pinsExact": true,
+        "runtimeReturned": true
+      },
+      {
+        "kind": "native8",
+        "file": "tests/service-selection-channel.integration.spec.ts",
+        "receiptSha256": "524d31ce583c8f489a46d0a248e0a271257b04e332997fb7f49d3ef05c524b94",
+        "rawSha256": "cdb22639a371a4b55685ba548d87bb8bf6c04679e594b00d693d6a21d7589214",
+        "counts": {
+          "tests": 8,
+          "pass": 8,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "code": 0,
+        "pinsExact": true,
+        "runtimeReturned": true
+      }
+    ]
+  },
+  "api": {
+    "receiptSha256": "ed6932240b8067ebeacfe934be4cf2af195aaf9b0e19706361b406fbb2cd8601",
+    "inputSha256": "c8fc552b6a97100240188fb9b43bdfa5a7fdb49e9fb7834719de1f9937d49734",
+    "artifactSha256": "27f8e932069ee209c704d3a626ca52d2b25ad5aae427b7fbc13db5e467d07b0f",
+    "checkedCompilerSources": 2621
+  },
+  "source185Sha256": "c4744028978476143cfada13446801bcb1398f9731ec15deefe4aec96e6b8b7e",
+  "nativeSupplementSha256": "51ce1a052c740e4121d6cc2d5bc8bcba191cbe539d92df5f28ebae57fd83eaed",
+  "source20ManifestSha256": "0e4c5c57dd8950deafd8d1310a0073e5b7917882e337568f42e9c970573f5dcf",
+  "source20": [
+    {
+      "path": "apps/api/src/modules/catalog/domain/services/service-selection.ts",
+      "candidateSha256": "1fb351c82d1e400063572519f4590c5f790009dafa21c082fbc78b0613965731",
+      "stageLfBlob": "6cf990226258167f6e0283de76c26312bcd2bef6"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/domain/services/service-selection.spec.ts",
+      "candidateSha256": "a6c77b1a8d21aadab36cae3f1f6e0a7cd6ef8762a8150ec305f740da02d4ee9d",
+      "stageLfBlob": "d1952d230f464032158ce3d6bdee189aabb31bf4"
+    },
+    {
+      "path": "apps/api/tests/service-channel-journey.integration.spec.ts",
+      "candidateSha256": "076daef7c3e06fe487516e265ee7806700fe8137f401ab5579c45a245758ba93",
+      "stageLfBlob": "90fcaf6525d6bc7c9d2ffece0c9506fcb93017f1"
+    },
+    {
+      "path": "apps/api/tests/service-selection-channel.integration.spec.ts",
+      "candidateSha256": "5d58bdef36985dce6ea3c7821db6c8966108fde32e34a5aa26ca8e404ff2fad5",
+      "stageLfBlob": "f13fd1921a7a416d6fc082c2844febc35a84fcb6"
+    },
+    {
+      "path": "apps/api/tests/service-channel-journey.fixture.ts",
+      "candidateSha256": "efe5c38ccb89f69cb20f716640c77dcdba6a44edf11ad0ef69c4d9c12ed366e9",
+      "stageLfBlob": "e91290fd4ec31125bb72dc091c782ecad5d63b9d"
+    },
+    {
+      "path": "apps/api/tests/storefront-routing-profile-fixture.mjs",
+      "candidateSha256": "dbea4c9f85fb65abaf2b02f0b604db6ceafd0c9e0556e9633283531a2d83ff91",
+      "stageLfBlob": "b81124494c822715b1764cf4cb2492deb69ff440"
+    },
+    {
+      "path": "apps/api/tests/storefront-routing-profile-fixture.spec.mjs",
+      "candidateSha256": "277a73670409367e92d2da414ebdb286e35f65d3463ac0b26e3e63c71179cc9f",
+      "stageLfBlob": "29b14c5a4f69a8dc67e03f9117bad839bbae7a99"
+    },
+    {
+      "path": "apps/api/tests/service-meta-capabilities-http-fixture.mjs",
+      "candidateSha256": "abb7bb4900e3a611bd2a7ede697dee403f3df776eae3a11fba08d93573b34287",
+      "stageLfBlob": "7d5284f322c76cd3da8fb195cada376ecda0ebda"
+    },
+    {
+      "path": "apps/api/tests/service-meta-capabilities-http-fixture.spec.mjs",
+      "candidateSha256": "7164456795f814abc580725e5d8e472e862410f9d85bd797651ceee166166238",
+      "stageLfBlob": "012c12e9a932f82bc6c021a8347c0ee8115e104c"
+    },
+    {
+      "path": "apps/api/tests/service-recovery-template-monitor-fixture.mjs",
+      "candidateSha256": "de439317b2d268fdd25afb3d67a0d6d16897b4cf52db44e86581a1bb84502737",
+      "stageLfBlob": "5be29d41993f4bca045b29470610d66f7d61f4e1"
+    },
+    {
+      "path": "apps/api/tests/service-recovery-template-monitor-fixture.spec.mjs",
+      "candidateSha256": "8d17054896332add60f3eb8e021a6ac62f549c7bb6b15fccc4ac82faf1d8f0e4",
+      "stageLfBlob": "f6c01e7efbef91f177913a11eb5ed2abc9c39c14"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.mjs",
+      "candidateSha256": "3aec899408b4cc3c707f2f1c76da45000456923d52a9833e221127c9d06a4c35",
+      "stageLfBlob": "8018ed2f23d7c2ee8274dd54a5d4b694b10d1743"
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.worker.mjs",
+      "candidateSha256": "1c5a780b2119570707ccc0c2018b1de030dba59af0bd2a7da52fb0f32f119a16",
+      "stageLfBlob": "612e5f7c70e89f8e5052a4eef1c619fe028141db"
+    },
+    {
+      "path": "apps/api/tests/service-booking-await-trace.mjs",
+      "candidateSha256": "d0c2b26b9cb88cdcaa958a7b3a8b64ec9976767a75129f650f34f90994ccf67c",
+      "stageLfBlob": "3abcab8a0b803b8fd2f51165d9aa0fccef346c7b"
+    },
+    {
+      "path": "apps/api/tests/service-booking-await-trace.spec.mjs",
+      "candidateSha256": "b297fc068eca046e66e1c5dbd000f08124fc95d23cc1e1c58235056f904d8148",
+      "stageLfBlob": "c9dcc55b9b0703971ce133abfd41e45483bea6e6"
+    },
+    {
+      "path": "apps/api/tests/service-local-model-failure-fixture.mjs",
+      "candidateSha256": "57b55affb418027000f8a4a1dedcaf43587a26cd1592a399f44dbd2bbeb9babd",
+      "stageLfBlob": "bdd238889ba9251a2632ca42992386a632680b14"
+    },
+    {
+      "path": "apps/api/tests/service-local-model-failure-fixture.spec.mjs",
+      "candidateSha256": "ce8daa1e2bc836078c9ee8742c019a1753c79f18ba3201e4f67fd5a2b55be78e",
+      "stageLfBlob": "ad7cc949d7ee54b14c8066c9b02ccf6e6a473bd7"
+    },
+    {
+      "path": "apps/api/tests/service-native18-http-failures.mjs",
+      "candidateSha256": "97fc5df42b6f500cb223e2ccfa40245aae7707aab4007d73f8152c5c7b35468e",
+      "stageLfBlob": "2b6b9ff502ab2f49f3cc920247c83a9194a4ca78"
+    },
+    {
+      "path": "apps/api/tests/service-native18-http-failures.spec.mjs",
+      "candidateSha256": "0a72c787269f85d7d969006078e6a8a1913266575f6639854301ca095bcdfa09",
+      "stageLfBlob": "766ccea7272fca35e4b6160acc632423d76e8d9c"
+    },
+    {
+      "path": "apps/api/tests/service-native18-second-buyer-http-failures.spec.mjs",
+      "candidateSha256": "45d1067a54892ba63444fa6b811eb5fb42b61a94edc09d14493e8d7535902c7f",
+      "stageLfBlob": "6bbed0fca844928fec53acb95737ada94da72488"
+    }
+  ],
+  "dependencyT41AcceptedByRoot": true,
+  "privateBoundary61": {
+    "receiptSha256": "c8c7dee23449ab9b3c1e763c28d69b74d3cfdcaaeec97eb3fcd462fac72f4b10",
+    "formal53Credit": 0
+  },
+  "metaC60Boundary9Formal53Credit": 0,
+  "traceability": {
+    "AGENDA-04": "In Progress (T28/T40 selection and authenticated preparation complete; T42 local selection/ambiguity full53 complete; T43/T45/T46 channel pickers and final criterion proof pending)",
+    "AGENDA-07": "In Progress (T42 local text/voice ambiguity and canonical channel full53 complete; T46/T93 and final criterion proof pending)"
+  },
+  "qualification": "The actual full Focus WIP context was executed. The conservative HEAD source20 runtime projection was not independently executed and is not clean-checkout proof.",
+  "unrelatedFutureWipStaged": false,
+  "existingTestsAndTimeoutsPreserved": true,
+  "earlierThreeExactTestGrants": "call_cde468a7a930458a835d78c5336d8490; applied once before these gates",
+  "rootOwnAtomicCommitRequired": true,
+  "commitRecordedByRootOutsideThisSelfContainedEvidence": true,
+  "otherTasksCompletedByThisEvidence": false,
+  "finalFeatureVerifier": false,
+  "providerOrProductionClaim": false
+}

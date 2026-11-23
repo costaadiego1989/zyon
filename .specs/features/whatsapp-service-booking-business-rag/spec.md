@@ -302,10 +302,10 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | AGENDA-01 | Professional resources | T4, T18, T20, T21, T76, T106 | In Progress (T18, T20 and T21 complete) |
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
-| AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | In Progress (T28/T40 selection and authenticated preparation complete; remainingchannelpickers/finalproof pending) |
+| AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | In Progress (T28/T40 selection and authenticated preparation complete; T42 local selection/ambiguity full53 complete; T43/T45/T46 channel pickers and final criterion proof pending) |
 | AGENDA-05 | Shared capacity | T23, T26, T34, T35 | Implemented locally (all current canonical/legacy writers share authority; final feature proof pending) |
 | AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 and T24 complete) |
-| AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | Pending |
+| AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | In Progress (T42 local text/voice ambiguity and canonical channel full53 complete; T46/T93 and final criterion proof pending) |
 | AGENDA-08 | Fixed new service timezone and trusted history | T111, T112, T113 | Pending; explicit user decision2026-11-18 |
 | BOOK-01 | Provisional hold | T27 | Implemented (T27; final proof pending) |
 | BOOK-02 | Expiry | T27 | Implemented (T27; final proof pending) |

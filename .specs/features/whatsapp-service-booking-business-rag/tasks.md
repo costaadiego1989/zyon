@@ -1056,12 +1056,13 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-selection.spec.ts + service-channel-journey.integration.spec.ts: homônimos, data relativa/fuso, transcrição ambígua e mudança de assunto.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] service-selection.spec.ts + service-channel-journey.integration.spec.ts + service-selection-channel.integration.spec.ts: homônimos, data relativa/fuso, transcrição ambígua e mudança de assunto.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: service-selection.spec.ts + service-channel-journey.integration.spec.ts: homônimos, data relativa/fuso, transcrição ambígua e mudança de assunto.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T42$" ./src/modules/catalog/domain/services/service-selection.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T42 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: service-selection.spec.ts + service-channel-journey.integration.spec.ts + service-selection-channel.integration.spec.ts: homônimos, data relativa/fuso, transcrição ambígua e mudança de assunto.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/service-selection.spec.ts ./tests/service-channel-journey.integration.spec.ts ./tests/service-selection-channel.integration.spec.ts`. Three complete files under the original resource/network/owned-runtime guards. Actual53/53: component27 + canonical channel18 + ambiguity8; natural0, zero failures/skips/cancelled/todo, exact current ownAPI and owned cleanup. Qualified serial receipts4930d0b6/c3f459f1/524d31ce; final criterion proof remains mandatory.
+**Evidence**: `task-42-evidence.json`; source185c474/native supplement51ce and ownAPI ed693/inputc8fc/artifact27f8/2621. Actual full Focus WIP context was executed; the conservative HEAD source20 runtime projection was not independently executed and is not clean-checkout proof. Private61 and MetaC60boundary9 add no formal53 credit.
 **Commit**: `feat(service-business): t42 resolve service selection from text or voice`
 
 ### T43: Connect storefront tools to canonical scheduling
