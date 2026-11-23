@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import type {CompanyDomainQuery} from "@zyon/shared-types";
+import type {CompanyDomainQuery,CompanySearchQuery} from "@zyon/shared-types";
 import { act } from "react";
 import { CompanySearchPage } from "./CompanySearchPage.js";
 import { PlatformApiError } from "../../lib/api.js";
@@ -35,6 +35,46 @@ test('SEARCH-01 options accumulate and a new search resets the cursor while reta
  expect(lookup.mock.calls.filter(([q])=>q.kind==='municipios').at(-1)?.[0]).toMatchObject({search:'florian',afterCode:undefined,uf:'SC'});
  expect(ui.control('Município').value).toBe('7107');await ui.fill('Município','8105');await ui.click('Aplicar filtros');
  expect(companies.mock.lastCall?.[0].filters).toEqual({ufs:['SC'],cityCodes:['8105']});
+});
+
+function directoryPages(count=53){
+ return vi.fn(async(q:CompanySearchQuery)=>{
+  const total=q.snapshotId==='partial-b'?81:count,offset=q.cursor?Number(q.cursor.split(':')[1]):0,limit=q.limit??50;
+  return {...page(),snapshotId:q.snapshotId??'partial-a',count:total,items:Array.from({length:Math.max(0,Math.min(limit,total-offset))},(_,index)=>({cnpj:String(offset+index+1).padStart(14,'0'),legalName:'Empresa '+(offset+index+1),capitalCents:'10000',uf:'SC',contacts:[]})),nextCursor:offset+limit<total?'offset:'+(offset+limit):null};
+ });
+}
+test('SEARCH-02 pages request20 and display the exact first, middle and last page sizes',async()=>{
+ const companies=directoryPages(),ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>partialSource('partial-a',53),companies,domains})}/>);
+ expect(companies.mock.calls[0][0].limit).toBe(20);expect(ui.host.querySelectorAll('.prospecting-row')).toHaveLength(20);expect(ui.text()).toContain('Página 1 de 3');
+ expect(ui.button('Página anterior').disabled).toBe(true);await ui.click('Próxima página');expect(ui.text()).toContain('Página 2 de 3');expect(ui.host.querySelectorAll('.prospecting-row')).toHaveLength(20);
+ await ui.click('Próxima página');expect(ui.text()).toContain('Página 3 de 3');expect(ui.host.querySelectorAll('.prospecting-row')).toHaveLength(13);expect(ui.button('Próxima página').disabled).toBe(true);
+ expect(companies.mock.calls.every(([q])=>q.limit===20)).toBe(true);
+});
+test('SEARCH-02 pages show one empty page without inventing company results',async()=>{
+ const ui=await show(<CompanySearchPage {...searchProps({companies:directoryPages(0),domains})}/>);
+ expect(ui.text()).toContain('Página 1 de 1');expect(ui.text()).toContain('Nenhuma empresa');expect(ui.host.querySelectorAll('.prospecting-row')).toHaveLength(0);
+ expect(ui.button('Página anterior').disabled).toBe(true);expect(ui.button('Próxima página').disabled).toBe(true);
+});
+test('SEARCH-02 navigation retains filter, snapshot, cursor history and selection',async()=>{
+ const companies=directoryPages(),ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>partialSource('partial-a',53),companies,domains})}/>);
+ await ui.fill('UF','SC');await ui.click('Aplicar filtros');await ui.check('Selecionar 00000000000001');await ui.click('Próxima página');
+ expect(companies.mock.lastCall?.[0]).toMatchObject({snapshotId:'partial-a',filters:{ufs:['SC']},cursor:'offset:20',limit:20});
+ await ui.click('Próxima página');await ui.click('Página anterior');expect(ui.text()).toContain('Página 2 de 3');expect(companies.mock.lastCall?.[0].cursor).toBe('offset:20');
+ await ui.click('Página anterior');expect(ui.text()).toContain('Página 1 de 3');expect(companies.mock.lastCall?.[0].cursor).toBeUndefined();expect(ui.control('Selecionar 00000000000001').checked).toBe(true);
+ await ui.click('Próxima página');await ui.click('Primeira página');expect(ui.text()).toContain('Página 1 de 3');expect(companies.mock.lastCall?.[0]).toMatchObject({snapshotId:'partial-a',filters:{ufs:['SC']},limit:20});
+});
+test('SEARCH-02 reset returns filters and a refreshed partial view to page1',async()=>{
+ const readiness=vi.fn().mockResolvedValueOnce(partialSource('partial-a',53)).mockResolvedValue(partialSource('partial-b',81));
+ const companies=directoryPages(),ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains})}/>);
+ await ui.click('Próxima página');await ui.fill('Pesquisar empresa','pet');await ui.click('Aplicar filtros');expect(ui.text()).toContain('Página 1 de 3');expect(companies.mock.lastCall?.[0]).toMatchObject({filters:{search:'pet'},snapshotId:'partial-a'});expect(companies.mock.lastCall?.[0].cursor).toBeUndefined();
+ await ui.click('Próxima página');await ui.click('Atualizar base');expect(ui.text()).toContain('Página 1 de 5');expect(ui.control('Pesquisar empresa').value).toBe('pet');expect(companies.mock.lastCall?.[0]).toMatchObject({filters:{search:'pet'},snapshotId:'partial-b',limit:20});expect(companies.mock.lastCall?.[0].cursor).toBeUndefined();
+});
+test('SEARCH-02 concise results keep a single subtitle total without competence or apply warning',async()=>{
+ const ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>partialSource('partial-a',53),companies:directoryPages(),domains})}/>);
+ expect(ui.text().match(/53 empresas/g)).toHaveLength(1);expect(ui.host.querySelector('.prospecting-page > header')?.textContent).toContain('53 empresas');
+ expect(ui.text()).not.toContain('Competência');expect(ui.host.querySelector('.prospecting-page h3')).toBeNull();await ui.fill('Pesquisar empresa','pet');expect(ui.text()).not.toContain('Aplique os filtros');
+ const legacy=await show(<CompanySearchPage {...searchProps({companies:async()=>page(),domains})}/>);
+ expect(legacy.host.querySelector('.prospecting-page > header')?.textContent).toContain('271 empresas');expect(legacy.host.querySelector('.prospecting-page h3')).toBeNull();
 });
 test('PRG-03 available partial companies enable search and CRM selection with an honest incomplete state',async()=>{
  const createProspects=vi.fn().mockResolvedValue({created:1,existing:0}),companies=vi.fn(async(q)=>({...page(),snapshotId:q.snapshotId??'partial-a',count:500}));

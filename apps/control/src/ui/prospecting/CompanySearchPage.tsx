@@ -6,6 +6,7 @@ import { Button, ReadState, cents, money, stages, useAction, useResource, type P
 import { ProspectingState } from "./ProspectingShell.js";
 
 const ufs = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
+const companyPageSize = 20;
 function Domain({
   api,
   kind,
@@ -256,7 +257,8 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
   const [selected, setSelected] = useState<{ snapshot: string; ids: string[] }>({ snapshot: "", ids: [] }),
     [name, setName] = useState(""),
     [issue, setIssue] = useState("");
-  const load = useCallback((s: AbortSignal) => api.companies(query, s), [api, query]);
+  const [pagination,setPagination]=useState<{index:number;cursors:(string|undefined)[]}>({index:0,cursors:[undefined]});
+  const load = useCallback((s: AbortSignal) => api.companies({...query,limit:companyPageSize}, s), [api, query]);
   const result = useResource(load, onSessionExpired),
     page = result.data;
   const action = useAction(props, "companies", result.reload);
@@ -271,7 +273,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
   function apply(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     try {
-      setQuery({ filters: filtersFrom(e.currentTarget),...(coverage?.scopeComplete===false?{snapshotId:currentSnapshotId}:{}) });
+      resetPage({ filters: filtersFrom(e.currentTarget),...(coverage?.scopeComplete===false?{snapshotId:currentSnapshotId}:{}) });
       setDirty(false);
       setIssue("");
       setSelected({ snapshot: "", ids: [] });
@@ -279,6 +281,16 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
       setIssue((error as Error).message);
     }
   }
+  function resetPage(next:CompanySearchQuery){
+    setPagination({index:0,cursors:[undefined]});setQuery(next);
+  }
+  function movePage(index:number,cursor:string|undefined){
+    if(!page||dirty||refreshing)return;
+    setPagination(current=>({index,cursors:index>current.index?[...current.cursors.slice(0,index),cursor]:current.cursors}));
+    setQuery({...query,snapshotId:page.snapshotId,cursor});
+  }
+  const totalPages=page?.countState==='complete'&&typeof page.count==='number'&&Number.isFinite(page.count)
+    ?Math.max(1,Math.ceil(page.count/companyPageSize)):undefined;
   const valid = Boolean(page?.items.length) && !dirty && !action.denied,
     ids = selected.snapshot === page?.snapshotId ? selected.ids : [];
   const domainProps = { api, onSessionExpired, snapshotId: page?.snapshotId??(coverage?.scopeComplete===false?currentSnapshotId:undefined) };
@@ -291,7 +303,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
       if(source?.status!=='current'||source.value?.state!=='published'||!source.value.snapshotId)throw new Error('directory_availability_unknown');
       setCoverage(source.value.coverage);setImportSummary(source.value.latestImport);setCurrentSnapshotId(source.value.snapshotId);
       const nextSnapshotId=source.value.snapshotId;
-      setQuery(current=>({filters:current.filters,snapshotId:nextSnapshotId}));setSelected({snapshot:nextSnapshotId,ids:[]});
+      setPagination({index:0,cursors:[undefined]});setQuery(current=>({filters:current.filters,snapshotId:nextSnapshotId}));setSelected({snapshot:nextSnapshotId,ids:[]});
     }catch(error){if(!controller.signal.aborted){if(error instanceof PlatformApiError&&error.status===401)onSessionExpired();setRefreshError('Não foi possível atualizar a base. Tente novamente.');}}
     finally{if(!controller.signal.aborted)setRefreshing(false);}
   }
@@ -300,7 +312,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
     <section className="prospecting-page">
       <header>
         <h2>Buscar empresas</h2>
-        <p>Consulte o cadastro nacional por atividade, localização e perfil da empresa.</p>
+        <p>Consulte o cadastro nacional por atividade, localização e perfil da empresa.{!coverage&&page?.countState==='complete'&&page.count!=null&&<> · {page.count.toLocaleString('pt-BR')} {page.count===1?'empresa encontrada':'empresas encontradas'}.</>}</p>
         {coverage?.kind === "regional_retail" && <p role="status"><strong>Varejo do Sudeste e Sul</strong> · {coverage.companyCount.toLocaleString("pt-BR")} {coverage.scopeComplete?'empresas ativas com telefone':'empresas disponíveis para buscar e selecionar'}.<br />{coverage.scopeComplete?'Cobertura':'Regiões previstas'}: {coverage.ufs.join(", ")}. Dados da Receita Federal; limite da base de 25 GB.</p>}
         {coverage?.scopeComplete===false&&<div className="prospecting-import-progress">
           <p role={importSummary?.state==='failed'?'alert':'status'}><strong>{importSummary?.state==='failed'?'Carga interrompida':importSummary?.state==='published'?'Novos cadastros disponíveis':'Base em carga'}</strong><br />A cobertura ainda é parcial. {importSummary?.state==='failed'?'Os cadastros já liberados continuam disponíveis.':'Novos cadastros são liberados durante a importação.'}</p>
@@ -375,19 +387,10 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
         </Button>
       </form>
       {issue && <p role="alert">{issue}</p>}
-      {dirty && <p role="status">Aplique os filtros para usar a seleção.</p>}
       {!page ? (
         <ReadState {...result} />
       ) : (
         <>
-          <header>
-            <h3>
-              {page.countState === "complete"
-                ? page.count?.toLocaleString("pt-BR") + (page.count === 1 ? " empresa" : " empresas")
-                : "Contagem em andamento"}
-            </h3>
-            <p>Competência {page.competence}</p>
-          </header>
           {!page.items.length ? (
             <ProspectingState state="empty" message="Nenhuma empresa corresponde aos filtros." />
           ) : (
@@ -422,21 +425,23 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
               ))}
             </div>
           )}
-          <div className="prospecting-actions">
-            {query.cursor && (
-              <Button onClick={() => setQuery({ filters: query.filters, snapshotId: page.snapshotId })}>
+          <nav className="prospecting-pagination" aria-label="Paginação de empresas">
+            <span role="status">{`Página ${pagination.index+1}${totalPages===undefined?'':` de ${totalPages.toLocaleString('pt-BR')}`}`}</span>
+            <div className="prospecting-pagination-controls">
+            {pagination.index>0 && (
+              <Button disabled={dirty||refreshing} onClick={() => movePage(0,undefined)}>
                 Primeira página
               </Button>
             )}
-            {page.nextCursor && (
+            <Button disabled={dirty||refreshing||pagination.index===0} onClick={()=>movePage(pagination.index-1,pagination.cursors[pagination.index-1])}>Página anterior</Button>
               <Button
-                disabled={dirty}
-                onClick={() => setQuery({ ...query, snapshotId: page.snapshotId, cursor: page.nextCursor! })}
+                disabled={dirty||refreshing||!page.nextCursor}
+                onClick={() => movePage(pagination.index+1,page.nextCursor!)}
               >
                 Próxima página
               </Button>
-            )}
-          </div>
+            </div>
+          </nav>
           {valid && (
             <>
               <div className="prospecting-actions">

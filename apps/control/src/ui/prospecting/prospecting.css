@@ -56,6 +56,8 @@
 .prospecting-domain > .button { justify-self: start; min-height: 1.75rem; padding: .15rem 0; border-color: transparent; background: transparent; box-shadow: none; color: var(--accent); font-size: .75rem; text-align: left; }
 .prospecting-domain > .button:hover { text-decoration: underline; text-underline-offset: .2rem; }
 .prospecting-company-filters fieldset > p { font-size: .8125rem; color: var(--ink-muted); line-height: 1.5; }
+.prospecting-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; padding-block: .75rem; color: var(--ink-muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
+.prospecting-pagination-controls { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
 @media (max-width: 600px) { .prospecting-company-filters > .prospecting-fields { grid-template-columns: minmax(0,1fr); } }
 .prospecting-page input:not([type=checkbox]):not([type=radio]), .prospecting-page select, .prospecting-page textarea { width: 100%; max-width: 100%; min-width: 0; min-height: 2.375rem; border: 1px solid var(--line-strong); padding: .45rem .65rem; border-radius: .45rem; background: var(--surface); color: var(--ink); font: inherit; font-size: .8125rem; }
 .prospecting-page textarea { min-height: 6rem; resize: vertical; line-height: 1.5; }
