@@ -1,6 +1,6 @@
 import { isAuthenticationTemplateType } from "../../domain/catalog/template-types.js";
 import { TEMPLATE_SUBMISSION_PORT, type TemplateSubmissionPort } from "../../domain/ports/template-submission.port.js";
-import { isApprovedSalesTemplate } from "../../domain/services/recovery-whatsapp-policy.js";
+import { isApprovedSalesTemplate, isApprovedSalesTemplateIdentity } from "../../domain/services/recovery-whatsapp-policy.js";
 import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
 import type {
   WhatsAppTemplateSenderPort,
@@ -32,6 +32,9 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
   async sendTemplate(input: TemplateSendInput): Promise<TemplateSendResult> {
     if (!input.type) return { messageId: "", status: "skipped", reason: "template_type_required" };
     const strictTemplate = true;
+    // Recovery always checks the exact content against Meta below. An expired
+    // polling timestamp must not prevent that authoritative GET from happening.
+    const approvalPolicy = input.type === "cart_recovery" ? isApprovedSalesTemplateIdentity : isApprovedSalesTemplate;
     const credentials = await this.credentials(input.merchantId);
     if (!credentials) return { messageId: "", status: "skipped", reason: "meta_connection_unavailable" };
     const expectedConnection=input.expectedConnection;
@@ -40,7 +43,7 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
     if (strictTemplate) {
       const template = await this.templates?.findByMerchantAndType(input.merchantId, input.type!, "whatsapp").catch(() => null);
       if (!(input.type === "order_quota" ? isApprovedMerchantTemplate(template, input.merchantId, input.type, input.contentSid)
-        : isApprovedSalesTemplate(template, input.merchantId, input.type!, credentials.wabaId) && template.twilioContentSid === input.contentSid)) {
+        : approvalPolicy(template, input.merchantId, input.type!, credentials.wabaId) && template.twilioContentSid === input.contentSid)) {
         return { messageId: "", status: "skipped", reason: "approved_template_unavailable" };
       }
       if (input.type !== "order_quota") {
@@ -48,12 +51,13 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
         if (isAuthenticationTemplateType(input.type) && template?.metaCategory !== "AUTHENTICATION") return { messageId: "", status: "skipped", reason: "authentication_template_required" };
         if (!this.submission || !template?.metaTemplateBody) return { messageId: "", status: "skipped", reason: "template_verification_unavailable" };
         const current = await this.submission.syncStatus(input.merchantId, input.contentSid, { language: template.metaLanguage ?? "pt_BR", body: template.metaTemplateBody, category: template.metaCategory ?? undefined, ...(input.type === "buyer_whatsapp_link_otp" ? { authenticationExpirationMinutes: 5 as const } : {}) }).catch(() => null);
-        if (current?.status !== "approved" || current.contentSid !== input.contentSid) return { messageId: "", status: "skipped", reason: "approved_template_unavailable" };
+        if (current?.status !== "approved" || current.contentSid !== input.contentSid) return { messageId: "", status: "skipped", reason: current?.rejectionReason && /^[a-z_]+$/.test(current.rejectionReason) ? current.rejectionReason : "approved_template_unavailable" };
         const latest = await this.credentials(input.merchantId);
         if (!latest || latest.configId !== credentials.configId || latest.wabaId !== credentials.wabaId || latest.phoneNumberId !== credentials.phoneNumberId) return { messageId: "", status: "skipped", reason: "meta_connection_changed" };
         const latestTemplate = await this.templates?.findByMerchantAndType(input.merchantId, input.type!, "whatsapp").catch(() => null);
-        if (!isApprovedSalesTemplate(latestTemplate, input.merchantId, input.type!, credentials.wabaId)
+        if (!approvalPolicy(latestTemplate, input.merchantId, input.type!, credentials.wabaId)
           || latestTemplate.twilioContentSid !== input.contentSid || latestTemplate.metaRevision !== template.metaRevision
+          || templateDispatchDigest(latestTemplate) !== templateDispatchDigest(template)
           || (input.language || "pt_BR") !== (template.metaLanguage || "pt_BR")) return { messageId: "", status: "skipped", reason: "template_revision_changed" };
         if(input.expectedTemplate&&(latestTemplate.metaRevision!==input.expectedTemplate.revision||templateDispatchDigest(latestTemplate)!==input.expectedTemplate.bodyDigest))return{messageId:'',status:'skipped',reason:'template_revision_changed'};
       }
@@ -99,7 +103,10 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
     }
     if (response.status >= 400 && response.status < 500 && response.status !== 408) {
       // A completed Graph 4xx rejects before Meta creates a message, so email is safe.
-      return { messageId: "", status: "failed", acceptance: "not_accepted", reason: `meta_http_${response.status}` };
+      const payload = await response.json().catch(() => null) as { error?: { code?: unknown; error_subcode?: unknown } } | null;
+      const code = Number.isSafeInteger(payload?.error?.code) ? `_code_${payload!.error!.code}` : "";
+      const subcode = Number.isSafeInteger(payload?.error?.error_subcode) ? `_subcode_${payload!.error!.error_subcode}` : "";
+      return { messageId: "", status: "failed", acceptance: "not_accepted", reason: `meta_http_${response.status}${code}${subcode}` };
     }
     return { messageId: "", status: "uncertain", reason: "provider_acceptance_unknown" };
   }

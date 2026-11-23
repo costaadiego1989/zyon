@@ -138,7 +138,7 @@ describe("Meta Cloud template sender", () => {
     assert.deepEqual(await useCase.execute({
       merchantId: "m1", type: "cart_recovery", toPhone: input.toNumber, fallbackEmail: "buyer@example.test",
       freeformText: "Seu carrinho", variables: { buyerName: "Ana", link: "https://store.test/store/demo?show=checkout&recovery=signed" },
-    }), { channel: "email", status: "sent", messageId: "email-1" });
+    }), { channel: "email", status: "sent", messageId: "email-1", fallbackReason: "meta_http_400" });
     assert.equal(emails, 1);
     assert.equal(h.requests.length, 1);
     assert.equal(JSON.parse(String(h.requests[0]?.init?.body)).template.components[0].parameters[1].text, "https://store.test/store/demo?show=checkout&recovery=signed");

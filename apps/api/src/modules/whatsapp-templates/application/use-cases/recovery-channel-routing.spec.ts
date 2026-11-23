@@ -114,7 +114,7 @@ describe("recovery chooses a connected merchant template or email", () => {
     test(`${label} selects email without WhatsApp dispatch`, async () => {
       process.env.WHATSAPP_PROVIDER = "bubblewhats";
       const h = harness({ connection });
-      assert.deepEqual(await h.uc.execute(input), { channel: "email", status: "sent", messageId: "email-test" });
+      assert.deepEqual(await h.uc.execute(input), { channel: "email", status: "sent", messageId: "email-test", fallbackReason: "meta_connection_unavailable" });
       assert.equal(h.sent.whatsapp.length, 0);
       assert.equal(h.sent.email.length, 1);
       assert.equal(h.sent.bubble, 0);
@@ -164,7 +164,7 @@ describe("recovery chooses a connected merchant template or email", () => {
     const h = harness({ templateResult: {
       status: "failed", messageId: "", acceptance: "not_accepted", reason: "meta_http_400",
     } });
-    assert.deepEqual(await h.uc.execute(input), { channel: "email", status: "sent", messageId: "email-test" });
+    assert.deepEqual(await h.uc.execute(input), { channel: "email", status: "sent", messageId: "email-test", fallbackReason: "meta_http_400" });
     assert.equal(h.sent.whatsapp.length, 1);
     assert.equal(h.sent.email.length, 1);
     assert.equal(h.sent.bubble, 0);
@@ -188,6 +188,7 @@ describe("recovery chooses a connected merchant template or email", () => {
     } });
     assert.deepEqual(await h.uc.execute({ ...input, fallbackEmail: undefined }), {
       channel: "none", status: "skipped", reason: "no_reachable_channel",
+      fallbackReason: "meta_http_400",
     });
     assert.equal(h.sent.whatsapp.length, 1);
     assert.equal(h.sent.email.length, 0);
@@ -213,7 +214,7 @@ describe("recovery chooses a connected merchant template or email", () => {
   test("email timeout or missing acceptance ID stays uncertain on email", async () => {
     for (const options of [{ emailError: true }, { emailResult: { messageId: "" } }]) {
       const h = harness({ connection: null, ...options });
-      assert.deepEqual(await h.uc.execute(input), { channel: "email", status: "uncertain", reason: "provider_acceptance_unknown" });
+      assert.deepEqual(await h.uc.execute(input), { channel: "email", status: "uncertain", reason: "provider_acceptance_unknown", fallbackReason: "meta_connection_unavailable" });
       assert.equal(h.sent.whatsapp.length, 0);
       assert.equal(h.sent.email.length, 1);
     }
@@ -251,6 +252,7 @@ describe("recovery chooses a connected merchant template or email", () => {
     const disconnected = harness({ connection: null });
     assert.deepEqual(await disconnected.uc.execute({ ...input, fallbackEmail: undefined }), {
       channel: "none", status: "skipped", reason: "no_reachable_channel",
+      fallbackReason: "meta_connection_unavailable",
     });
     assert.equal(disconnected.sent.whatsapp.length + disconnected.sent.email.length + disconnected.sent.bubble, 0);
   });

@@ -61,8 +61,13 @@ export function isApprovedRecoveryTemplate(
 }
 
 export function isApprovedSalesTemplate(template: WhatsAppTemplateRecord | null | undefined, merchantId: string, type: string, wabaId: string): template is WhatsAppTemplateRecord & { twilioContentSid: string } {
+  return isApprovedSalesTemplateIdentity(template, merchantId, type, wabaId) && !!template.metaLastCheckedAt
+    && template.metaLastCheckedAt.getTime() <= Date.now() && Date.now() - template.metaLastCheckedAt.getTime() < 15 * 60_000;
+}
+
+/** A stale local approval may reach the sender only to obtain fresh Meta verification. */
+export function isApprovedSalesTemplateIdentity(template: WhatsAppTemplateRecord | null | undefined, merchantId: string, type: string, wabaId: string): template is WhatsAppTemplateRecord & { twilioContentSid: string } {
   return !!template && template.merchantId === merchantId && template.type === type && template.channel === "whatsapp"
     && template.isActive === true && template.metaStatus === "approved" && !!template.twilioContentSid?.trim()
-    && template.metaWabaId === wabaId && !!template.metaLastCheckedAt
-    && template.metaLastCheckedAt.getTime() <= Date.now() && Date.now() - template.metaLastCheckedAt.getTime() < 15 * 60_000;
+    && template.metaWabaId === wabaId;
 }
