@@ -8,6 +8,8 @@ import { ProcessProspectInbound } from "../application/conversations/process-pro
 import { CampaignService } from "../application/campaigns/campaign.service.js";
 import {CampaignDraftService} from "../application/campaigns/campaign-drafts.js";
 import {PrismaCampaignDrafts} from "./campaigns/prisma-campaign-drafts.js";
+import {CampaignDraftAudience} from "../application/campaigns/campaign-draft-audience.js";
+import {PrismaCampaignDraftAudience} from "./campaigns/prisma-campaign-draft-audience.js";
 import { FreezeCampaignAudience } from "../application/campaigns/freeze-campaign-audience.js";
 import { SenderReadinessService } from "../application/campaigns/sender-readiness.service.js";
 import { PlatformSenderOnboardingService } from "../application/campaigns/platform-sender-onboarding.service.js";
@@ -399,6 +401,7 @@ export function createProspectingRuntime(env: Environment = process.env) {
     reservations,
     campaign,
     drafts:new CampaignDraftService(new PrismaCampaignDrafts(db)),
+    draftAudience:new CampaignDraftAudience(new PrismaCampaignDraftAudience(db)),
     audience,
     sources,
     publications,

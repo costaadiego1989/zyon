@@ -30,6 +30,8 @@ import { ProspectConversationService } from "./application/conversations/prospec
 import { CampaignService } from "./application/campaigns/campaign.service.js";
 import {CampaignDraftService} from "./application/campaigns/campaign-drafts.js";
 import {ProspectCampaignDraftController} from "./presentation/prospect-campaign-draft.controller.js";
+import {CampaignDraftAudience} from "./application/campaigns/campaign-draft-audience.js";
+import {ProspectCampaignCompaniesController} from "./presentation/prospect-campaign-companies.controller.js";
 import { FreezeCampaignAudience } from "./application/campaigns/freeze-campaign-audience.js";
 import { SenderReadinessService } from "./application/campaigns/sender-readiness.service.js";
 import { PlatformSenderOnboardingService } from "./application/campaigns/platform-sender-onboarding.service.js";
@@ -100,6 +102,7 @@ export class PlatformProspectingModule {
         ProspectPrivacyController,
         ProspectCampaignController,
         ProspectCampaignDraftController,
+        ProspectCampaignCompaniesController,
         ProspectSenderController,
         ProspectKnowledgeController,
         ProspectConversationController,
@@ -138,6 +141,7 @@ export class PlatformProspectingModule {
         expose(ProspectService, "prospects"),
         expose(CampaignService, "campaign"),
         expose(CampaignDraftService,"drafts"),
+        expose(CampaignDraftAudience,"draftAudience"),
         expose(FreezeCampaignAudience, "audience"),
         expose(SenderReadinessService, "health"),
         expose(PlatformSenderOnboardingService, "onboarding"),

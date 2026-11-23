@@ -11,6 +11,7 @@ import { directorySelectionSql } from "../company-directory/directory-search.sql
 import {resolveDirectoryStorage} from "../company-directory/directory-storage.js";
 import { protectedContactLookups,type SuppressionKeyRing } from "../crm/prisma-prospect-privacy.repository.js";
 import { prospectAudit,prospectCommand } from "../crm/prospect-command.js";
+import {draftAudienceSql} from "./prisma-campaign-draft-audience.js";
 
 type Tx=Prisma.TransactionClient;
 type Job={id:string; campaign_id:string; snapshot_id:string; filters:CompanyFilters; explicit_cnpjs:string[]|null; state:ProspectAudienceJob["state"]; hash:string; cursor_cnpj:string|null; company_count:number; recipient_count:number; missing_endpoint_count:number; error_code:string|null};
@@ -33,17 +34,26 @@ export class PrismaAudienceRepository implements CampaignAudienceStore {
   constructor(private readonly prisma:PrismaClient,private readonly keys:SuppressionKeyRing){}
   poll(id:string){return readJob(this.prisma,id);}
   enqueue(id:string,cmd:FreezeCampaignAudience,actor:ProspectingActor) {
-    return prospectCommand(this.prisma,"campaign.freeze",{...cmd,id},actor,async tx=>{
+    return this.enqueueSelection(id,cmd,actor,false);
+  }
+  enqueueDraft(id:string,cmd:{clientRequestId:string;expectedRevision:number},actor:ProspectingActor){
+    return this.enqueueSelection(id,{...cmd,snapshotId:""},actor,true);
+  }
+  private enqueueSelection(id:string,cmd:FreezeCampaignAudience,actor:ProspectingActor,draft:boolean) {
+    return prospectCommand(this.prisma,draft?"campaign.draft.freeze":"campaign.freeze",{...cmd,id},actor,async tx=>{
+      await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${id} FOR UPDATE`;
       const c=await tx.prospectCampaign.findUnique({where:{id}});
       if(!c)throw new Error("campaign_not_found");
       if(c.revision!==cmd.expectedRevision)throw new Error("version_conflict");
       if(!["draft","review_ready","approved"].includes(c.state)||await tx.outreachAttempt.count({where:{recipient:{campaignId:id}}}))throw new Error("campaign_state_conflict");
       const sender=await tx.platformProspectSenderBinding.findFirst({where:{id:c.senderBindingId??"",active:true,scope:"zyon_platform",version:c.senderVersion??0}});
       if(!sender)throw new Error("sender_identity_mismatch");
-      const storage=await resolveDirectoryStorage(tx,cmd.snapshotId);
+      const snapshotId=draft?c.directorySnapshotId:cmd.snapshotId;
+      if(!snapshotId||draft&&c.setupVersion!==2)throw Error("snapshot_unavailable");
+      const storage=await resolveDirectoryStorage(tx,snapshotId);
       const segment=cmd.segmentId?await tx.savedProspectSegment.findFirst({where:{id:cmd.segmentId,deletedAt:null}}):null;
       if(cmd.segmentId&&(!segment||segment.version!==cmd.segmentVersion||segment.filterVersion!==1))throw new Error("version_conflict");
-      const filters=validateCompanyFilters(segment?.filterJson??{});
+      const filters=validateCompanyFilters(draft?(c.audienceCriteria??{}):(segment?.filterJson??{}));
       const explicit=cmd.cnpjs?[...new Set(cmd.cnpjs.map(canonicalCnpj))].sort():null;
       if(explicit){
         const [{count}]=await tx.$queryRaw<{count:bigint}[]>`SELECT count(*) FROM company_directory.company_establishments WHERE snapshot_id=${storage.storageSnapshotId} AND cnpj IN (${Prisma.join(explicit)}) ${storage.maximumCnpj?Prisma.sql`AND cnpj COLLATE "C"<=${storage.maximumCnpj}`:Prisma.empty}`;
@@ -53,9 +63,9 @@ export class PrismaAudienceRepository implements CampaignAudienceStore {
       const changed=await tx.prospectCampaign.updateMany({where:{id,revision:cmd.expectedRevision,state:c.state},data:{revision:{increment:1},state:"freezing",selectionId,segmentId:cmd.segmentId??null,segmentVersion:segment?.version??null,filterSnapshot:JSON.parse(JSON.stringify(filters)),approvedRevision:null,approvedBy:null,approvedAt:null,approvedHash:null,contentHash:null,audienceHash:null,recipientCount:0}});
       if(!changed.count)throw new Error("version_conflict");
       await tx.campaignRecipient.deleteMany({where:{campaignId:id}});
-      const seed=hash(stableDirectoryJson({snapshotId:cmd.snapshotId,filters,filterVersion:segment?.filterVersion??1,segmentVersion:segment?.version??null}));
+      const seed=hash(stableDirectoryJson({snapshotId,filters,filterVersion:segment?.filterVersion??1,segmentVersion:segment?.version??null,...(draft?{setupVersion:2,revision:c.revision}: {})}));
       await tx.$executeRaw`INSERT INTO prospect_audience_jobs(id,campaign_id,snapshot_id,segment_version,filter_version,filters,explicit_cnpjs,hash)
-        VALUES (${selectionId},${id},${cmd.snapshotId},${segment?.version??null},1,${JSON.stringify(filters)}::jsonb,${explicit}::text[],${seed})`;
+        VALUES (${selectionId},${id},${snapshotId},${segment?.version??null},1,${JSON.stringify(filters)}::jsonb,${explicit}::text[],${seed})`;
       await prospectAudit(tx,actor,"campaign.freeze","campaign",id,c.revision+1);
       return {result:(await readJob(tx,selectionId))!,resourceIds:[id,selectionId]};
     });
@@ -73,9 +83,14 @@ export class PrismaAudienceRepository implements CampaignAudienceStore {
       }
       const storage=await resolveDirectoryStorage(tx,job.snapshot_id);
       if(job.state==="pending"){
+       if(c.setupVersion===2){
+        const {join,where}=await draftAudienceSql(tx,c);
+        await tx.$executeRaw`INSERT INTO prospect_audience_members(selection_id,cnpj) SELECT ${job.id},e.cnpj ${join} WHERE ${where}`;
+       }else{
         const {join,where}=directorySelectionSql(storage.storageSnapshotId,job.filters,storage.maximumCnpj);
         // One MVCC statement fixes every matching CRM/directory member before bounded application work.
         await tx.$executeRaw`INSERT INTO prospect_audience_members(selection_id,cnpj) SELECT ${job.id},e.cnpj ${Prisma.sql(join.strings,...join.values)} WHERE ${Prisma.sql(where.strings,...where.values)} ${job.explicit_cnpjs?Prisma.sql`AND e.cnpj IN (${Prisma.join(job.explicit_cnpjs)})`:Prisma.empty}`;
+       }
       }
       const members=await tx.$queryRaw<{cnpj:string}[]>`SELECT cnpj FROM prospect_audience_members WHERE selection_id=${job.id} AND cnpj>${job.cursor_cnpj??""} ORDER BY cnpj LIMIT ${size+1}`;
       const batch=members.slice(0,size); let digest=job.hash,created=0,missing=0;

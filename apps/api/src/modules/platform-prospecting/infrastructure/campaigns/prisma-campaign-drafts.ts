@@ -38,7 +38,8 @@ export class PrismaCampaignDrafts implements CampaignDraftStore {
   await prospectAudit(tx,actor,"campaign.draft.create","campaign",c.id,c.revision);return {result:await projectDraft(tx,c),resourceIds:[c.id]};});}
  edit(id:string,cmd:EditProspectCampaignDraft,actor:ProspectingActor){return prospectCommand(this.db,"campaign.draft.edit",{...cmd,id},actor,async tx=>{
   const c=await lockDraft(tx,id,cmd.expectedRevision);const data:Prisma.ProspectCampaignUpdateInput={...draftInvalidation,revision:{increment:1}};
-  for(const field of ["name","businessContext","message"] as const)if(cmd[field]!==undefined)data[field]=cmd[field]?.trim()??null;
+  if(cmd.name!==undefined)data.name=cmd.name.trim();
+  for(const field of ["businessContext","message"] as const)if(cmd[field]!==undefined)data[field]=cmd[field]?.trim()??null;
   if(cmd.offerPolicy)data.offerPolicy=cmd.offerPolicy;
   if(cmd.businessContext!==undefined&&cmd.businessContext!==c.businessContext){data.audienceCriteria=Prisma.DbNull;data.planningMode=null;}
   if(cmd.senderBindingId!==undefined||cmd.senderVersion!==undefined){
