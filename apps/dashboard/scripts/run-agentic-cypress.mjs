@@ -1,13 +1,13 @@
 import {spawn,execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {mkdir,writeFile,readFile,realpath,readdir,rm} from 'node:fs/promises';
-import {createConnection} from 'node:net';
+import {createConnection,createServer as createTcpServer} from 'node:net';
 import {randomBytes,createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 const dashboard=fileURLToPath(new URL('../',import.meta.url)),workspace=path.resolve(dashboard,'../..');
 let apiBase='http://127.0.0.1:3019',front='http://127.0.0.1:5179';
-export async function isolatedPorts(isOpen=open){for(const pair of [[3019,5179],[3049,5249],[3050,5250]])if(!await isOpen(pair[0])&&!await isOpen(pair[1]))return{apiPort:pair[0],frontPort:pair[1]};throw Error('agentic_test_ports_unavailable');}
+export async function isolatedPorts(isOpen=isPortOccupied){for(const pair of [[3019,5179],[3049,5249],[3050,5250]])if(!await isOpen(pair[0])&&!await isOpen(pair[1]))return{apiPort:pair[0],frontPort:pair[1]};throw Error('agentic_test_ports_unavailable');}
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const execute=promisify(execFile);
 export function parseArguments(args){
@@ -28,6 +28,7 @@ export async function runSpecSuite(specs,run){
   if(!specs.length||specs.some(spec=>!/^cypress\/e2e\/agentic\/[a-z0-9-]+\.cy\.ts$/.test(spec)))throw Error('agentic_suite_selection_invalid');
   for(const spec of specs){const code=await run(spec);if(code!==0)return Number.isInteger(code)&&code>0?code:1;}return 0;
 }
+export function isPortOccupied(port){return new Promise(resolve=>{const server=createTcpServer();server.once('error',()=>resolve(true));server.listen({host:'127.0.0.1',port,exclusive:true},()=>server.close(()=>resolve(false)));});}
 function open(port){return new Promise(resolve=>{const socket=createConnection({host:'127.0.0.1',port});socket.setTimeout(1000);socket.once('connect',()=>{socket.destroy();resolve(true);});socket.once('error',()=>{socket.destroy();resolve(false);});socket.once('timeout',()=>{socket.destroy();resolve(false);});});}
 export function assertBrowserDatabaseContainer(value){
   if(value?.Name!=='/zyon-cashback-postgres-20261118'||!value.Config?.Env?.includes('POSTGRES_USER=cashback')||!value.Config.Env.includes('POSTGRES_DB=cashback'))throw Error('agentic_database_owner_mismatch');

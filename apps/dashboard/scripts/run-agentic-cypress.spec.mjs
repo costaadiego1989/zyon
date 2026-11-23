@@ -49,3 +49,12 @@ test('CBX-48 whole-suite propagates a failed child and refuses an empty or escap
 });
 
 test('isolated browser ports preserve occupied work and select only fixed loopback pairs',async()=>{const {isolatedPorts}=await import('./run-agentic-cypress.mjs');assert.deepEqual(await isolatedPorts(async p=>p===3019),{apiPort:3049,frontPort:5249});assert.deepEqual(await isolatedPorts(async()=>false),{apiPort:3019,frontPort:5179});await assert.rejects(isolatedPorts(async()=>true),/agentic_test_ports_unavailable/);});
+
+test('isolated browser ports reject an occupied listener without requiring an HTTP response',async()=>{
+  const {createServer}=await import('node:net');const {isolatedPorts,isPortOccupied}=await import('./run-agentic-cypress.mjs');
+  const listener=createServer();await new Promise(resolve=>listener.listen({host:'127.0.0.1',port:0,exclusive:true},resolve));
+  const occupied=listener.address().port;
+  try{assert.equal(await isPortOccupied(occupied),true);assert.deepEqual(await isolatedPorts(port=>isPortOccupied(port===3019?occupied:0)),{apiPort:3049,frontPort:5249});assert.equal(listener.listening,true);}
+  finally{await new Promise(resolve=>listener.close(resolve));}
+  assert.equal(await isPortOccupied(occupied),false);
+});
