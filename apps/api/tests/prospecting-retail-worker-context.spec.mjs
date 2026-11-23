@@ -34,3 +34,14 @@ test('REC-04 standalone directory and operational clients cannot target differen
  for(const key of ['PROSPECTING_DATABASE_URL','PROSPECTING_DIRECTORY_DATABASE_URL'])
   assert.throws(()=>retailWorkerContext({standalone:true,cwd,env:{...env,[key]:url.replace('15439','15438')}}),/standalone_database_config_invalid/);
 });
+test('REC-04 driver query overrides and fragments cannot escape the private SSH destination',()=>{
+ const {Client}=require('pg');
+ const overridden=url+'?host=public.example&port=5432',effective=new Client({connectionString:overridden}).connectionParameters;
+ assert.equal(effective.host,'public.example');assert.equal(effective.port,5432);
+ for(const suffix of ['?host=public.example&port=5432','?host=/var/run/postgresql','?database=other_database','?sslmode=disable','#external']){
+  const bad=url+suffix;
+  assert.throws(()=>retailWorkerContext({standalone:true,cwd,env:{DATABASE_URL:bad,PROSPECTING_DATABASE_URL:bad,PROSPECTING_DIRECTORY_DATABASE_URL:bad}}),/standalone_database_config_invalid/);
+ }
+ const accepted=new Client({connectionString:url}).connectionParameters;
+ assert.equal(accepted.host,'127.0.0.1');assert.equal(accepted.port,15439);assert.equal(accepted.database,'aacp_prod');
+});
