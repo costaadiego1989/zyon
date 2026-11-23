@@ -63,6 +63,23 @@ test('ADM-03 preserves international phones and leading zeros in the document',a
   const{ui}=await open(async()=>({...detail,merchant:{...detail.merchant,company:{...detail.merchant.company,cnpj:'00000000000191',phone:'+12025550123'}}}));
   expect(ui.text()).toContain('00.000.000/0001-91');expect(ui.text()).toContain('+12025550123');
 });
+test('ADM-03 existing sales, AI and billing metrics retain their exact values',async()=>{
+  const{ui}=await open(async()=>({...detail,
+    orders:{allTimeCount:12,allTimeTotalMinor:9876543,periodCount:4,periodTotalMinor:123456,series:[]},
+    ai:{chatTokens:'12345',voiceTokens:'6789',chatKnownCostMicros:'1230000',voiceKnownCostMicros:'4560000',knownCostMicros:'5790000',unpricedEvents:2},
+    billing:{status:'active',amountMinor:44900,cycle:'monthly',overdueCount:0,openReceivableCount:0},
+  }));
+  for(const[label,value,annotation]of[
+    ['Vendas no período','R$ 1.234,56','4 pedido(s)'],['Vendas totais','R$ 98.765,43','12 pedido(s)'],
+    ['Tokens de chat','12.345','capturados no período'],['Tokens de voz','6.789','Realtime Mini'],
+    ['Custo estimado de chat','US$ 1,23','DeepSeek no periodo'],['Custo estimado de voz','US$ 4,56','GPT Realtime Mini'],
+    ['Total estimado de IA','US$ 5,79','2 evento(s) sem preço'],['Cobrança','active','R$ 449,00 / mês'],
+  ]){
+    const term=Array.from(ui.host.querySelectorAll('.detail-facts dt')).find(node=>node.textContent===label)!;
+    expect(term.nextElementSibling?.textContent?.replace(/\s/g,' ')).toBe(value);
+    expect(term.parentElement?.querySelector('small')?.textContent?.replace(/\s/g,' ')).toBe(annotation);
+  }
+});
 test('ADM-03 pending detail shows its loading state before revealing the company profile',async()=>{
   let resolve!:(value:PlatformMerchantDetail)=>void;
   const pending=new Promise<PlatformMerchantDetail>(done=>{resolve=done;});
