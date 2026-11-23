@@ -45,7 +45,7 @@ export class RetailRecoveryStaging {
   }
   bind(manifest) {
     const prior=this.db.prepare("SELECT json FROM metadata WHERE id='manifest'").get();
-    if(prior)assert.equal(prior.json,JSON.stringify(manifest),'recovery_staging_manifest_mismatch');
+    if(prior)assert.deepEqual(JSON.parse(prior.json),manifest,'recovery_staging_manifest_mismatch');
     else this.db.prepare("INSERT INTO metadata VALUES ('manifest',?)").run(JSON.stringify(manifest));
   }
   count(table) { assert.ok(['establishments','entities','domains','files'].includes(table));return Number(this.db.prepare(`SELECT count(*) AS n FROM ${table}`).get().n); }
@@ -180,37 +180,101 @@ export async function reclaimFailedDirectory(pg,{sourceSnapshotId,snapshotId,act
   }catch(error){await pg.query('ROLLBACK');throw error;}
 }
 
-export async function persistRetailDirectory({pg,staging,manifest,guard,progress=async()=>{}}) {
+export async function persistRetailDirectory({pg,staging,manifest,guard,progress=async()=>{},batchSize=500}) {
   assert.equal(staging.count('files'),manifest.resources.length,'recovery_sources_incomplete');
   assert.equal(staging.missingRoots().size,0,'recovery_missing_entities');
+  assert.ok(Number.isSafeInteger(batchSize)&&batchSize>=1&&batchSize<=500,'recovery_batch_size_invalid');
+  let companyCount=Number((await pg.query('SELECT count(*) AS n FROM company_directory.company_establishments WHERE snapshot_id=$1',[manifest.id])).rows[0].n);
   const write=async callback=>{
     await pg.query('BEGIN');
     try{await guard(pg,async()=>{await assertRetailDirectoryBudget(pg,256*1024**2);await callback();await assertRetailDirectoryBudget(pg);});await pg.query('COMMIT');}
     catch(error){await pg.query('ROLLBACK');throw error;}
   };
-  for(const table of ['entities','establishments','domains']) {
-    const key=table==='entities'?'base':table==='establishments'?'cnpj':"kind||':'||code";let after='';
+  for(const table of ['domains','establishments']) {
+    const key=table==='establishments'?'cnpj':"kind||':'||code";let after='';
     for(;;) {
-      const rows=staging.db.prepare(`SELECT ${key} AS key,json FROM ${table} WHERE ${key}>? ORDER BY ${key} LIMIT 500`).all(after);if(!rows.length)break;
+      const rows=staging.db.prepare(`SELECT ${key} AS key,json FROM ${table} WHERE ${key}>? ORDER BY ${key} LIMIT ?`).all(after,batchSize);if(!rows.length)break;
       // Bound every transaction's encoded payload as well as its row count.
-      let bytes=0;const batch=[];for(const row of rows){if(batch.length&&bytes+row.json.length*3>4*1024**2)break;bytes+=row.json.length*3;batch.push(row);}
+      let bytes=0;const batch=[],entities=new Map();for(const row of rows){
+        const value=JSON.parse(row.json),entity=table==='establishments'&&!entities.has(value.baseCnpj)?staging.db.prepare('SELECT json FROM entities WHERE base=?').get(value.baseCnpj):null;
+        const size=row.json.length*6+(entity?.json.length??0)*6+1024;if(batch.length&&bytes+size>4*1024**2)break;
+        bytes+=size;batch.push(row);if(entity)entities.set(value.baseCnpj,JSON.parse(entity.json));
+      }
       const values=batch.map(r=>JSON.parse(r.json));
+      const encodedEntities=JSON.stringify([...entities.values()].map(v=>({...v,normalized:normalized(v.legalName)}))),encodedCompanies=JSON.stringify(values.map(v=>({...v,normalized:normalized(v.tradeName),normalizedDistrict:normalized(v.district)})));
+      const contacts=table==='establishments'?values.flatMap(v=>v.contacts.map(c=>({id:randomUUID(),cnpj:v.cnpj,...c}))):[],secondary=table==='establishments'?values.flatMap(v=>v.secondaryCnaes.map(cnae=>({cnpj:v.cnpj,cnae}))):[];
+      const encodedContacts=JSON.stringify(contacts),encodedSecondary=JSON.stringify(secondary),encodedDomains=JSON.stringify(values);
+      assert.ok((table==='domains'?[encodedDomains]:[encodedEntities,encodedCompanies,encodedContacts,encodedSecondary]).reduce((n,s)=>n+Buffer.byteLength(s),0)<=4*1024**2,'recovery_batch_payload_limit');
       await write(async()=>{
-        if(table==='entities')await pg.query(`INSERT INTO company_directory.company_entities(snapshot_id,base_cnpj,legal_name,normalized_legal_name,legal_nature,size,capital_cents,simples,mei)
-          SELECT $1,x."baseCnpj",x."legalName",x.normalized,x."legalNature",x.size,x."capitalCents"::numeric,x.simples,x.mei FROM jsonb_to_recordset($2::jsonb) AS x("baseCnpj" text,"legalName" text,normalized text,"legalNature" text,size text,"capitalCents" text,simples boolean,mei boolean) ON CONFLICT DO NOTHING`,[manifest.id,JSON.stringify(values.map(v=>({...v,normalized:normalized(v.legalName)})))]);
-        else if(table==='domains')await pg.query(`INSERT INTO company_directory.source_domains(snapshot_id,kind,code,label) SELECT $1,x.kind,x.code,x.label FROM jsonb_to_recordset($2::jsonb) AS x(kind text,code text,label text) ON CONFLICT DO NOTHING`,[manifest.id,JSON.stringify(values)]);
+        if(table==='domains')await pg.query(`INSERT INTO company_directory.source_domains(snapshot_id,kind,code,label) SELECT $1,x.kind,x.code,x.label FROM jsonb_to_recordset($2::jsonb) AS x(kind text,code text,label text) ON CONFLICT DO NOTHING`,[manifest.id,encodedDomains]);
         else {
           for(const value of values)assert.ok(eligibleRetail(value),'recovery_row_outside_scope');
-          await pg.query(`INSERT INTO company_directory.company_establishments(snapshot_id,cnpj,base_cnpj,trade_name,normalized_trade_name,main_cnae,city_code,uf,district,normalized_district,opening_date,status,matrix_branch)
-            SELECT $1,x.cnpj,x."baseCnpj",x."tradeName",x.normalized,x."mainCnae",x."cityCode",x.uf,x.district,x."normalizedDistrict",x."openingDate"::date,x.status,x."matrixBranch" FROM jsonb_to_recordset($2::jsonb) AS x(cnpj text,"baseCnpj" text,"tradeName" text,normalized text,"mainCnae" text,"cityCode" text,uf text,district text,"normalizedDistrict" text,"openingDate" text,status text,"matrixBranch" text) ON CONFLICT DO NOTHING`,[manifest.id,JSON.stringify(values.map(v=>({...v,normalized:normalized(v.tradeName),normalizedDistrict:normalized(v.district)})))]);
-          const contacts=values.flatMap(v=>v.contacts.map(c=>({id:randomUUID(),cnpj:v.cnpj,...c}))),secondary=values.flatMap(v=>v.secondaryCnaes.map(cnae=>({cnpj:v.cnpj,cnae})));
-          if(contacts.length)await pg.query(`INSERT INTO company_directory.company_public_contacts(id,snapshot_id,cnpj,channel,original_value,normalized_value,validation_state) SELECT x.id,$1,x.cnpj,x.channel,x."originalValue",x."normalizedValue",x."validationState" FROM jsonb_to_recordset($2::jsonb) AS x(id text,cnpj text,channel text,"originalValue" text,"normalizedValue" text,"validationState" text) ON CONFLICT DO NOTHING`,[manifest.id,JSON.stringify(contacts)]);
-          if(secondary.length)await pg.query(`INSERT INTO company_directory.establishment_secondary_cnaes(snapshot_id,cnpj,cnae) SELECT $1,x.cnpj,x.cnae FROM jsonb_to_recordset($2::jsonb) AS x(cnpj text,cnae text) ON CONFLICT DO NOTHING`,[manifest.id,JSON.stringify(secondary)]);
+          await pg.query(`INSERT INTO company_directory.company_entities(snapshot_id,base_cnpj,legal_name,normalized_legal_name,legal_nature,size,capital_cents,simples,mei) SELECT $1,x."baseCnpj",x."legalName",x.normalized,x."legalNature",x.size,x."capitalCents"::numeric,x.simples,x.mei FROM jsonb_to_recordset($2::jsonb) AS x("baseCnpj" text,"legalName" text,normalized text,"legalNature" text,size text,"capitalCents" text,simples boolean,mei boolean) ON CONFLICT DO NOTHING`,[manifest.id,encodedEntities]);
+          const inserted=await pg.query(`INSERT INTO company_directory.company_establishments(snapshot_id,cnpj,base_cnpj,trade_name,normalized_trade_name,main_cnae,city_code,uf,district,normalized_district,opening_date,status,matrix_branch)
+            SELECT $1,x.cnpj,x."baseCnpj",x."tradeName",x.normalized,x."mainCnae",x."cityCode",x.uf,x.district,x."normalizedDistrict",x."openingDate"::date,x.status,x."matrixBranch" FROM jsonb_to_recordset($2::jsonb) AS x(cnpj text,"baseCnpj" text,"tradeName" text,normalized text,"mainCnae" text,"cityCode" text,uf text,district text,"normalizedDistrict" text,"openingDate" text,status text,"matrixBranch" text) ON CONFLICT DO NOTHING`,[manifest.id,encodedCompanies]);
+          if(contacts.length)await pg.query(`INSERT INTO company_directory.company_public_contacts(id,snapshot_id,cnpj,channel,original_value,normalized_value,validation_state) SELECT x.id,$1,x.cnpj,x.channel,x."originalValue",x."normalizedValue",x."validationState" FROM jsonb_to_recordset($2::jsonb) AS x(id text,cnpj text,channel text,"originalValue" text,"normalizedValue" text,"validationState" text) ON CONFLICT DO NOTHING`,[manifest.id,encodedContacts]);
+          if(secondary.length)await pg.query(`INSERT INTO company_directory.establishment_secondary_cnaes(snapshot_id,cnpj,cnae) SELECT $1,x.cnpj,x.cnae FROM jsonb_to_recordset($2::jsonb) AS x(cnpj text,cnae text) ON CONFLICT DO NOTHING`,[manifest.id,encodedSecondary]);
+          companyCount+=inserted.rowCount;
         }
       });
-      after=batch.at(-1).key;await progress({phase:'persisting_'+table,lastKey:after});
+      after=batch.at(-1).key;await progress({phase:'persisting_'+table,lastKey:after,companyCount});
     }
   }
+}
+
+const readViewVersion='rfb-cnpj-retail-read-view-v1';
+const readViewId=(manifest,maximumCnpj,companyCount)=>digest({storageSnapshotId:manifest.id,hash:manifest.hash,maximumCnpj,companyCount,version:readViewVersion});
+async function assertOwnedReadView(pg,id,manifest){
+  const view=(await pg.query('SELECT * FROM company_directory.company_snapshots WHERE id=$1',[id])).rows[0],coverage=view?.counts?.coverage,storage=view?.manifest?.progressiveStorage;
+  assert.ok(view&&view.state==='published'&&view.parser_version===readViewVersion&&view.storage_snapshot_id===manifest.id&&view.competence===manifest.competence
+    &&coverage?.scopeComplete===false&&Number.isSafeInteger(coverage.companyCount)&&coverage.companyCount>0
+    &&storage?.snapshotId===manifest.id&&storage.maximumCnpj===view.storage_max_cnpj&&storage.parentManifestHash===manifest.hash,'active_snapshot_conflict');
+  assert.equal(view.id,readViewId(manifest,view.storage_max_cnpj,coverage.companyCount),'active_snapshot_conflict');
+  return view;
+}
+
+/** Immutable logical prefix: company/contact rows stay in their original storage snapshot. */
+export async function publishProgressiveRetailDirectory(pg,staging,manifest,actor,guard,now=new Date()){
+  assertPreparedRetail(staging,manifest);let result=null;
+  await pg.query('BEGIN');
+  try{
+    await guard(pg,async()=>{
+      await assertRetailDirectoryBudget(pg,256*1024**2);
+      await pg.query("SELECT pg_advisory_xact_lock(hashtext('zyon_company_directory_publish'))");
+      const parent=(await pg.query('SELECT * FROM company_directory.company_snapshots WHERE id=$1 FOR UPDATE',[manifest.id])).rows[0];
+      assert.ok(parent&&parent.manifest_hash===manifest.hash&&parent.manifest?.hash===manifest.hash&&!parent.storage_snapshot_id,'recovery_manifest_mismatch');
+      if(parent.state==='published')return;
+      assert.ok(['importing','validating','ready'].includes(parent.state),'recovery_snapshot_not_importing');
+      const available=(await pg.query('SELECT count(*)::int AS n,max(cnpj COLLATE "C") AS maximum FROM company_directory.company_establishments WHERE snapshot_id=$1',[manifest.id])).rows[0];
+      const count=available.n,maximumCnpj=available.maximum,previous=parent.counts?.progressiveView?.companyCount??0;
+      const previousAt=Date.parse(parent.counts?.progressiveView?.updatedAt??'');
+      if(!count||count===staging.count('establishments')||count===previous||(previous&&count<previous*4&&now.getTime()-previousAt<60000))return;
+      const pointer=(await pg.query("SELECT snapshot_id FROM company_directory.active_snapshot WHERE id='national'")).rows[0];
+      if(pointer)await assertOwnedReadView(pg,pointer.snapshot_id,manifest);
+      assert.equal(Number(staging.db.prepare('SELECT count(*) AS n FROM establishments WHERE cnpj<=?').get(maximumCnpj).n),count,'recovery_prefix_incomplete');
+      assert.equal(Number((await pg.query('SELECT count(*) AS n FROM company_directory.source_domains WHERE snapshot_id=$1',[manifest.id])).rows[0].n),staging.count('domains'),'recovery_domains_mismatch');
+      const expectedContacts=Number(staging.db.prepare("SELECT count(DISTINCT json_array(e.cnpj,json_extract(c.value,'$.channel'),json_extract(c.value,'$.originalValue'))) AS n FROM establishments e,json_each(e.json,'$.contacts') c WHERE e.cnpj<=?").get(maximumCnpj).n);
+      assert.equal(Number((await pg.query('SELECT count(*) AS n FROM company_directory.company_public_contacts WHERE snapshot_id=$1 AND cnpj COLLATE "C"<=$2',[manifest.id,maximumCnpj])).rows[0].n),expectedContacts,'recovery_contacts_mismatch');
+      const expectedSecondary=Number(staging.db.prepare("SELECT count(DISTINCT json_array(e.cnpj,s.value)) AS n FROM establishments e,json_each(e.json,'$.secondaryCnaes') s WHERE e.cnpj<=?").get(maximumCnpj).n);
+      assert.equal(Number((await pg.query('SELECT count(*) AS n FROM company_directory.establishment_secondary_cnaes WHERE snapshot_id=$1 AND cnpj COLLATE "C"<=$2',[manifest.id,maximumCnpj])).rows[0].n),expectedSecondary,'recovery_secondary_cnaes_mismatch');
+      const proofs=manifest.resources.map(r=>({id:r.id,...staging.file(r.id)}));
+      const changed=await pg.query(`UPDATE company_directory.company_source_files f SET state=x.state,computed_hash=x.hash,compressed_bytes=x."compressedBytes"::bigint,error_code=NULL,updated_at=now()
+        FROM jsonb_to_recordset($2::jsonb) AS x(id text,state text,hash text,"compressedBytes" text) WHERE f.snapshot_id=$1 AND f.resource_id=x.id`,[manifest.id,JSON.stringify(proofs.map(p=>({...p,compressedBytes:String(p.compressedBytes)})))]);
+      assert.equal(changed.rowCount,manifest.resources.length,'recovery_sources_incomplete');
+      const id=readViewId(manifest,maximumCnpj,count),viewManifest={...manifest,id,hash:id,parserVersion:readViewVersion,progressiveStorage:{snapshotId:manifest.id,maximumCnpj,parentManifestHash:manifest.hash}};
+      const coverage={...RETAIL_SCOPE,companyCount:count,sourceSnapshotId:manifest.scope.sourceSnapshotId,sourceFileCount:manifest.resources.length,scopeComplete:false};
+      await pg.query(`INSERT INTO company_directory.company_snapshots(id,competence,manifest_hash,manifest,state,source_url,parser_version,counts,available_filters,published_at,storage_snapshot_id,storage_max_cnpj)
+        VALUES($1,$2,$1,$3::jsonb,'published',$4,$5,$6::jsonb,ARRAY['cadastral','contact','commercial'],now(),$7,$8) ON CONFLICT DO NOTHING`,[id,manifest.competence,JSON.stringify(viewManifest),manifest.resources[0].url,readViewVersion,JSON.stringify({coverage}),manifest.id,maximumCnpj]);
+      await assertOwnedReadView(pg,id,manifest);
+      await pg.query(`INSERT INTO company_directory.company_source_files(id,snapshot_id,resource_id,family,url,etag,last_modified,encoding,state,computed_hash,compressed_bytes,updated_at)
+        SELECT $1||':'||resource_id,$1,resource_id,family,url,etag,last_modified,encoding,state,computed_hash,compressed_bytes,now() FROM company_directory.company_source_files WHERE snapshot_id=$2 ON CONFLICT DO NOTHING`,[id,manifest.id]);
+      await pg.query("INSERT INTO company_directory.active_snapshot(id,snapshot_id,version,updated_at) VALUES('national',$1,1,now()) ON CONFLICT(id) DO UPDATE SET snapshot_id=excluded.snapshot_id,version=company_directory.active_snapshot.version+1,updated_at=now()",[id]);
+      await pg.query('UPDATE company_directory.company_snapshots SET counts=counts||$2::jsonb,updated_at=now() WHERE id=$1',[manifest.id,JSON.stringify({progressiveView:{snapshotId:id,companyCount:count,maximumCnpj,updatedAt:now.toISOString()}})]);
+      await pg.query("INSERT INTO public.prospect_audit_events(id,actor_operator_id,action,resource_type,resource_id,resource_version,correlation_id,outcome) VALUES($1,$2,'company_import_publish_partial','company_snapshot',$3,1,$4,'partial_available')",[randomUUID(),actor.operatorId,id,actor.correlationId]);
+      await assertRetailDirectoryBudget(pg);result={snapshotId:id,coverage};
+    });
+    await pg.query('COMMIT');return result;
+  }catch(error){await pg.query('ROLLBACK');throw error;}
 }
 
 export async function publishRetailDirectory(pg,staging,manifest,actor) {
@@ -222,7 +286,7 @@ export async function publishRetailDirectory(pg,staging,manifest,actor) {
     assert.equal(target?.manifest?.hash,manifest.hash,'recovery_manifest_mismatch');
     const pointer=(await pg.query('SELECT snapshot_id FROM company_directory.active_snapshot')).rows[0];
     if(target.state==='published'&&pointer?.snapshot_id===manifest.id){await pg.query('COMMIT');return;}
-    assert.ok(!pointer,'active_snapshot_conflict');
+    if(pointer)await assertOwnedReadView(pg,pointer.snapshot_id,manifest);
     assert.equal(staging.count('files'),manifest.resources.length,'recovery_sources_incomplete');
     const count=(await pg.query('SELECT count(*)::int AS n FROM company_directory.company_establishments WHERE snapshot_id=$1',[manifest.id])).rows[0].n;
     assert.ok(count>0&&count===staging.count('establishments'),'recovery_count_mismatch');
@@ -237,7 +301,7 @@ export async function publishRetailDirectory(pg,staging,manifest,actor) {
     for(const resource of manifest.resources){const f=staging.file(resource.id);assert.match(f.hash,/^[a-f0-9]{64}$/);await pg.query('UPDATE company_directory.company_source_files SET state=$3,computed_hash=$4,compressed_bytes=$5 WHERE snapshot_id=$1 AND resource_id=$2',[manifest.id,resource.id,f.state,f.hash,f.compressedBytes]);}
     const coverage={...RETAIL_SCOPE,companyCount:count,directoryBytes:bytes,sourceSnapshotId:manifest.scope.sourceSnapshotId,sourceFileCount:manifest.resources.length,scopeComplete:true};
     await pg.query("UPDATE company_directory.company_snapshots SET state='published',published_at=now(),available_filters=ARRAY['cadastral','contact','commercial'],error_code=NULL,counts=counts||$2::jsonb,updated_at=now() WHERE id=$1",[manifest.id,JSON.stringify({coverage,requested:false,leaseToken:null,leaseUntil:0,progress:{phase:'completed',committedRecords:entities+count+domains,selectedCompanies:count,validatedFiles:manifest.resources.length,requiredFiles:manifest.resources.length,updatedAt:new Date().toISOString()}})]);
-    await pg.query("INSERT INTO company_directory.active_snapshot(id,snapshot_id,version,updated_at) VALUES ('national',$1,1,now())",[manifest.id]);
+    await pg.query("INSERT INTO company_directory.active_snapshot(id,snapshot_id,version,updated_at) VALUES ('national',$1,1,now()) ON CONFLICT(id) DO UPDATE SET snapshot_id=excluded.snapshot_id,version=company_directory.active_snapshot.version+1,updated_at=now()",[manifest.id]);
     await pg.query("INSERT INTO public.prospect_audit_events(id,actor_operator_id,action,resource_type,resource_id,resource_version,correlation_id,outcome) VALUES ($1,$2,'company_import_publish','company_snapshot',$3,1,$4,'regional_retail_published')",[randomUUID(),actor.operatorId,manifest.id,actor.correlationId]);
     await pg.query('COMMIT');return coverage;
   }catch(error){await pg.query('ROLLBACK');throw error;}

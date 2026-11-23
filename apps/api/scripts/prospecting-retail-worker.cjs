@@ -62,8 +62,18 @@ async function main(){
   await progress({phase:'reclaiming_staging'});await flush();
   await recovery.reclaimFailedDirectory(pg,{sourceSnapshotId:sourceManifest.id,snapshotId:manifest.id,actor,staging,manifest});
   let checkpointAt=0;
+  const previousView=(await pg.query('SELECT counts FROM company_directory.company_snapshots WHERE id=$1',[manifest.id])).rows[0].counts?.progressiveView;
+  let nextReadableCompanyCount=previousView?.companyCount?previousView.companyCount*4:1;
+  let lastReadableAt=Date.parse(previousView?.updatedAt??'')||0,lastAvailableCompanyCount=previousView?.companyCount??0;
+  const preparedCompanyCount=staging.count('establishments');
   await recovery.persistRetailDirectory({pg,staging,manifest,guard:guardProspectingImportBatch,progress:async update=>{
    await progress(update);
+   if(update.phase==='persisting_establishments'&&update.companyCount>lastAvailableCompanyCount&&(update.companyCount>=nextReadableCompanyCount||Date.now()-lastReadableAt>=60000)&&update.companyCount<preparedCompanyCount){
+    const view=await recovery.publishProgressiveRetailDirectory(pg,staging,manifest,actor,guardProspectingImportBatch);
+    nextReadableCompanyCount=Math.max(update.companyCount,nextReadableCompanyCount)*4;
+    lastReadableAt=Date.now();
+    if(view){lastAvailableCompanyCount=view.coverage.companyCount;state.availableCompanies=view.coverage.companyCount;state.availableSnapshotId=view.snapshotId;save();}
+   }
    if(Date.now()-checkpointAt>10000){checkpointAt=Date.now();state.committedRecords=Number((await pg.query(`SELECT (SELECT count(*) FROM company_directory.company_entities WHERE snapshot_id=$1)+(SELECT count(*) FROM company_directory.company_establishments WHERE snapshot_id=$1)+(SELECT count(*) FROM company_directory.source_domains WHERE snapshot_id=$1) AS n`,[manifest.id])).rows[0].n);await flush();}
   }});
   await progress({phase:'publishing'});await flush();
