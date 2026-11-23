@@ -53,7 +53,7 @@ export class CnpjArchiveReader implements DirectoryArchivePort {
   constructor(private readonly source: { openResource(url: string): Promise<Response> }, private readonly limits: ArchiveLimits) {
     if (Object.values(limits).some(n => !Number.isSafeInteger(n) || n <= 0) || limits.importMaximumLineBytes > limits.importMaximumMemoryBytes) throw new Error("config_invalid:archive_limits");
   }
-  async prepare(resource: CompanySourceResource): Promise<PreparedDirectoryArchive> {
+  async prepare(resource: CompanySourceResource, selectRecord?: (record:Buffer,family:string)=>boolean): Promise<PreparedDirectoryArchive> {
     const directory = await mkdtemp(join(tmpdir(), "zyon-cnpj-")); const path = join(directory, "resource.zip");
     try {
       const disk = await statfs(directory, { bigint: true });
@@ -72,10 +72,10 @@ export class CnpjArchiveReader implements DirectoryArchivePort {
           hash.update(chunk.value); await file.writeFile(chunk.value);
         }
       } finally { await reader.cancel(); await file.close(); }
-      return { fileHash: hash.digest("hex"), compressedBytes: bytes, rows: () => this.rows(path, resource.family), close: () => removeOwnedArchive(directory) };
+      return { fileHash: hash.digest("hex"), compressedBytes: bytes, rows: () => this.rows(path, resource.family,selectRecord), close: () => removeOwnedArchive(directory) };
     } catch (error) { await removeOwnedArchive(directory); throw error; }
   }
-  private async *rows(path: string, family: string): AsyncGenerator<DirectoryDecodedRow> {
+  private async *rows(path: string, family: string, selectRecord?: (record:Buffer,family:string)=>boolean): AsyncGenerator<DirectoryDecodedRow> {
     let zip: yauzl.ZipFile | undefined; let expanded = 0; let count = 0;
     try {
       zip = await new Promise<yauzl.ZipFile>((resolve, reject) => yauzl.open(path, { lazyEntries: true, autoClose: false, strictFileNames: true, validateEntrySizes: true }, (error, opened) => error ? reject(error) : resolve(opened!)));
@@ -100,13 +100,13 @@ export class CnpjArchiveReader implements DirectoryArchivePort {
             for (let index = 0; index < chunk.length; index++) {
               if (chunk[index] === 34) quoted = !quoted;
               if (index - start + pending.length > this.limits.importMaximumLineBytes) throw new Error("archive_record_limit");
-              if (chunk[index] === 10 && !quoted) { const row = decodeRecord(Buffer.concat([pending, chunk.subarray(start,index)]),family); if (row) yield row; pending = Buffer.alloc(0); start = index + 1; }
+              if (chunk[index] === 10 && !quoted) { const record=Buffer.concat([pending, chunk.subarray(start,index)]);if(!selectRecord||selectRecord(record,family)){const row=decodeRecord(record,family);if(row)yield row;} pending = Buffer.alloc(0); start = index + 1; }
             }
             pending = Buffer.concat([pending,chunk.subarray(start)]);
             if (pending.length > this.limits.importMaximumLineBytes) throw new Error("archive_record_limit");
           }
           if (crc !== entry.crc32 || entryBytes !== entry.uncompressedSize) throw new Error("archive_corrupt:crc_or_size");
-          if (pending.length) { const row = decodeRecord(pending,family); if (row) yield row; }
+          if (pending.length&&(!selectRecord||selectRecord(pending,family))) { const row = decodeRecord(pending,family); if (row) yield row; }
         } finally { stream.destroy(); }
       }
       if (!count) throw new Error("archive_corrupt:empty");

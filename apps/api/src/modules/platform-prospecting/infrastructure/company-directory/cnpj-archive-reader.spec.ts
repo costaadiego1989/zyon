@@ -26,6 +26,15 @@ test("PROS-04 AC3 rejects stored-entry corruption retaining sizes, traversal and
   await assert.rejects(() => rows(fixtureZip(Buffer.from('"01";"' + "x".repeat(10_000) + '"\n'), "data.csv", true), "cnaes", { ...archiveLimits, importMaximumExpandedBytes: 100 }), /archive_expansion_limit/);
   await assert.rejects(() => rows(Buffer.from("not zip"), "cnaes"), /archive_corrupt/);
 });
+test("REC-01 filtered archives still validate bytes and CRC for records excluded before decoding",async()=>{
+  const good=fixtureZip(Buffer.from('"01";"arroz"\n'));
+  const corrupt=Buffer.from(good);corrupt[30+Buffer.byteLength('F.K03200.CSV')+7]^=1;
+  for(const [zip,fails] of [[good,false],[corrupt,true]] as const){
+    const reader=new CnpjArchiveReader({openResource:async()=>new Response(zip)},archiveLimits),archive=await reader.prepare(resource('cnaes'),()=>false);
+    try{const read=async()=>{const output=[];for await(const row of archive.rows())output.push(row);return output;};if(fails)await assert.rejects(read,/archive_corrupt/);else assert.deepEqual(await read(),[]);}
+    finally{await archive.close();}
+  }
+});
 test("PROS-04 AC4 decodes the source CP1252, quotes, empty fields, explicit false and exact money", async () => {
   assert.deepEqual(await rows(fixtureZip(iconv.encode('"0111301";"Cultivo de maçã; arroz"\r\n', "win1252")), "cnaes"), [{kind:"domain",value:{kind:"cnaes",code:"0111301",label:"Cultivo de maçã; arroz"}}]);
   assert.deepEqual(await rows(fixtureZip(Buffer.from('"12ABC345";"S";"";"";"N";"";""\n"00000000";"";"";"";"";"";""')), "simples"), [{kind:"tax",value:{baseCnpj:"12ABC345",simples:true,mei:false}},{kind:"tax",value:{baseCnpj:"00000000",simples:null,mei:null}}]);
