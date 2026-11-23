@@ -107,18 +107,18 @@ test('ACAP-14 native launch refuses existing remote objects instead of activatin
 
 // The live Meta MCP represents new objects as EDITING drafts with values.<field>.new.
 // Relationship numbers can exceed JS precision; the top-level string parents are exact.
-function draftLaunchFixture(change?: (level: string, rows: Record<string, unknown>[]) => void) {
+function draftLaunchFixture(change?: (level: string, rows: Record<string, unknown>[]) => void, activationStatus = 'PUBLISHING') {
   const ids = {campaign: '120250883217370637', adset: '120250883217830637', ad: '120250883218280637'};
   return launchFixture(call => {
     if (call.name === 'ads_create_campaign') return {campaign_id: ids.campaign, status: 'DRAFT', valid_optimization_goals: '["OFFSITE_CONVERSIONS"]'};
     if (call.name === 'ads_create_ad_set') return {ad_set_id: ids.adset, status: 'DRAFT'};
     if (call.name === 'ads_create_ad') return {ad_id: ids.ad, status: 'DRAFT'};
-    if (call.name === 'ads_activate_entity') return {result: {status: 'PUBLISHING'}};
+    if (call.name === 'ads_activate_entity') return {result: {status: activationStatus}};
     if (call.name !== 'ads_get_ad_entities') return undefined;
     if (call.args.object_state !== 'draft') return {ad_entities: '[]'};
     const level = String(call.args.level), name = campaign().draft.name;
     const values = level === 'campaign' ? {name, status: 'ACTIVE', lifetime_budget: 10000, objective: 'OUTCOME_SALES'}
-      : level === 'adset' ? {name, status: 'ACTIVE', campaign_id: Number(ids.campaign), start_time: '2026-11-17T12:00:00.000Z', end_time: '2026-11-24T12:00:00.000Z', destination_type: 'WEBSITE', promoted_object: {pixel_id: 120, custom_event_type: 'PURCHASE'}, targeting: {geo_locations: {countries: ['BR']}, age_min: 18, age_range: [18,65], targeting_automation: {advantage_audience: 1}}}
+      : level === 'adset' ? {name, status: 'ACTIVE', campaign_id: Number(ids.campaign), start_time: '2026-11-17T12:00:00.000Z', end_time: '2026-11-24T12:00:00.000Z', destination_type: 'WEBSITE', optimization_goal: 'OFFSITE_CONVERSIONS', promoted_object: {pixel_id: 120, custom_event_type: 'PURCHASE'}, targeting: {geo_locations: {countries: ['BR']}, age_min: 18, age_range: [18,65], targeting_automation: {advantage_audience: 1}}}
       : {name, status: 'ACTIVE', campaign_id: Number(ids.campaign), adset_id: ids.adset, creative: {creative_id: '400'}};
     const rows: Record<string, unknown>[] = [{ad_object_id: ids[level as keyof typeof ids], ad_object_type: level, parent_ad_object_id: level === 'campaign' ? null : level === 'adset' ? ids.campaign : ids.adset, action: 'add', status: 'EDITING', source: 'mcp_campaign_creation', validation_status: 'VALIDATED', values: Object.fromEntries(Object.entries(values).map(([key,value]) => [key,{new:value}])), active_errors: [], publish_error: null}];
     change?.(level, rows);
@@ -137,6 +137,45 @@ test('ACAP-13 DRAFT publication verifies the actual staged values and exact larg
   assert.equal(activation[0].args.allow_partial_publish, false);
   assert.ok(f.calls.filter(c => c.name === 'ads_get_ad_entities').every(c => c.args.ad_account_id === '100'));
   assert.equal(f.calls.filter(c => c.name === 'ads_create_campaign').length, 1);
+});
+
+test('ACAP-13 DRAFT synchronous ACTIVE publishes the complete reviewed object list only once', async () => {
+  const f = draftLaunchFixture(undefined, 'ACTIVE');
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+  assert.equal(result.status, 'active_unconfirmed');
+  assert.equal(result.objects.length, 4);
+  const calls = f.calls.filter(call => call.name === 'ads_activate_entity');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].args.object_ids, ['120250883217370637','120250883217830637','120250883218280637']);
+});
+
+test('ACAP-14 DRAFT rejects unreviewed audience restrictions and optimization goals', async () => {
+  for (const mode of ['gender','maximum-age','extra-location','automation','goal']) {
+    const f = draftLaunchFixture((level,rows) => {
+      if(level !== 'adset')return;
+      const values = rows[0].values as Record<string,{new:unknown}>;
+      const targeting = values.targeting.new as Record<string,unknown>;
+      if(mode === 'gender')targeting.genders=[1];
+      if(mode === 'maximum-age')targeting.age_range=[18,30];
+      if(mode === 'extra-location')(targeting.geo_locations as Record<string,unknown>).cities=[{key:'123'}];
+      if(mode === 'automation')targeting.targeting_automation={advantage_audience:1,individual_settings:{}};
+      if(mode === 'goal')values.optimization_goal={new:'LINK_CLICKS'};
+    });
+    const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+    assert.equal(result.status, 'failed', mode);
+    assert.equal(result.error, 'proposal_stale', mode);
+    assert.equal(result.objects.length, 4);
+    assert.equal(f.calls.filter(call => call.name === 'ads_activate_entity').length, 0, mode);
+  }
+});
+
+test('ACAP-13 DRAFT accepts only the unchanged Meta audience expansion defaults', async () => {
+  const f = draftLaunchFixture((level,rows) => {
+    if(level === 'adset')(((rows[0].values as Record<string,{new:unknown}>).targeting.new) as Record<string,unknown>).targeting_optimization='expansion_all';
+  });
+  const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+  assert.equal(result.status, 'publishing');
+  assert.equal(f.calls.filter(call => call.name === 'ads_activate_entity').length, 1);
 });
 
 test('ACAP-14 DRAFT publication blocks altered budget dates hierarchy creative and assets before activation', async () => {

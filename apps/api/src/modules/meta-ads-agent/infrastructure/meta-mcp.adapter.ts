@@ -185,7 +185,7 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       return { status: [created, set, ad].some(result => result.status === "DRAFT") ? "remote_draft" : "remote_paused", objects };
     } catch (error) { return this.failure(error, objects); }
   }
-  private async publish(session: MetaMcpSession, access: MetaAccess, objects: Objects, onProgress: (objects: Objects) => Promise<void>): Promise<ProviderExecutionResult> {
+  private async publish(session: MetaMcpSession, access: MetaAccess, objects: Objects, onProgress: (objects: Objects) => Promise<void>, draft = false): Promise<ProviderExecutionResult> {
     let completedWrite = false;
     try {
       const targets = objects.filter(ref => ref.type !== 'creative');
@@ -195,6 +195,7 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
         const status = String((decoded(result.result ?? result) as Json).status);
         if (status === 'PUBLISHING') return { status: 'publishing', objects };
         if (status !== 'ACTIVE') throw new McpFailure('meta_publication_unconfirmed', true);
+        if (draft) return { status: 'active_unconfirmed', objects };
       }
       return { status: 'active_unconfirmed', objects };
     } catch (error) { return completedWrite ? { status: 'execution_unknown', objects, error: error instanceof MetaAdsError ? error.code : 'meta_execution_unknown' } : this.failure(error, objects); }
@@ -228,11 +229,16 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
     const promoted = s.promoted_object as Json | undefined, targeting = s.targeting as Json | undefined;
     const countries = (targeting?.geo_locations as Json | undefined)?.countries;
     const creative = a.creative as Json | undefined;
+    if (!targeting || typeof targeting !== 'object' || Array.isArray(targeting)) return stale();
+    const expectedTargeting = { geo_locations: { countries: [campaign.draft.country] }, age_min: 18, targeting_automation: { advantage_audience: 1 },
+      ...(Object.hasOwn(targeting, 'age_range') ? { age_range: [18,65] } : {}),
+      ...(Object.hasOwn(targeting, 'targeting_optimization') ? { targeting_optimization: 'expansion_all' } : {}) };
     if (Number(budgetValue(c[budget.cadence === 'daily' ? 'daily_budget' : 'lifetime_budget'])) !== budget.amountCents || Number(budgetValue(c[budget.cadence === 'daily' ? 'lifetime_budget' : 'daily_budget'])) !== 0 ||
         c.objective !== (whatsapp ? 'OUTCOME_ENGAGEMENT' : 'OUTCOME_SALES') || !sameDate(s.start_time, budget.startsAt) || !sameDate(s.end_time, budget.endsAt) ||
         Number(budgetValue(s.daily_budget)) !== 0 || Number(budgetValue(s.lifetime_budget)) !== 0 ||
         !duplicateParent(s.campaign_id, campaign.remoteCampaignId!) || !duplicateParent(a.campaign_id, campaign.remoteCampaignId!) || !duplicateParent(a.adset_id, campaign.remoteAdSetId!) ||
         s.destination_type !== (whatsapp ? 'WHATSAPP' : 'WEBSITE') || String(promoted?.[whatsapp ? 'page_id' : 'pixel_id']) !== (whatsapp ? access.pageId : access.datasetId) || !whatsapp && promoted?.custom_event_type !== 'PURCHASE' ||
+        s.optimization_goal !== (whatsapp ? 'CONVERSATIONS' : 'OFFSITE_CONVERSIONS') || stableDigest(targeting) !== stableDigest(expectedTargeting) ||
         !Array.isArray(countries) || countries.length !== 1 || countries[0] !== campaign.draft.country || targeting?.age_min !== 18 || (targeting?.targeting_automation as Json | undefined)?.advantage_audience !== 1 ||
         String(creative?.creative_id) !== objects.find(ref => ref.type === 'creative')?.id) return stale();
   }
@@ -266,7 +272,7 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       const account = await this.account(session, access);
       if (account.has_payment_method !== true) throw new MetaAdsError('meta_funding_required', 409);
       await this.verifyLaunch(session, access, staged, objects, prepared.status === 'remote_draft');
-      return this.publish(session, access, objects, onProgress);
+      return this.publish(session, access, objects, onProgress, prepared.status === 'remote_draft');
     } catch (error) { return this.failure(error, objects); }
   }
   async execute(access: MetaAccess, campaign: MetaAdsCampaign, proposal: MetaAdsProposal, onProgress: (objects: Objects) => Promise<void>): Promise<ProviderExecutionResult> {
