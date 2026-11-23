@@ -2,7 +2,7 @@ import {Prisma,type PrismaClient,type ProspectCampaign} from "@prisma/client";
 import type {ChangeCampaignCompanies,CampaignCompanyPage,CampaignCompanyReference,CompanyFilters} from "@zyon/shared-types";
 import type {ProspectingActor} from "../../domain/prospecting.ports.js";
 import type {CampaignDraftAudienceStore} from "../../application/campaigns/campaign-draft-audience.js";
-import {appendDraftCompanies,draftInvalidation,lockDraft,projectDraft,type DraftTx} from "./prisma-campaign-drafts.js";
+import {appendDraftCompanies,draftInvalidation,lockDraft,projectDraft,sourceCompanies,type DraftTx} from "./prisma-campaign-drafts.js";
 import {prospectAudit,prospectCommand} from "../crm/prospect-command.js";
 import {directorySelectionSql} from "../company-directory/directory-search.sql.js";
 import {resolveDirectoryStorage} from "../company-directory/directory-storage.js";
@@ -17,7 +17,7 @@ export async function draftAudienceSql(tx:DraftTx,c:ProspectCampaign){
  const contextual=criteria?directorySelectionSql(storage.storageSnapshotId,criteria,storage.maximumCnpj).where:null;
  const join=Prisma.sql(base.join.strings,...base.join.values),scope=Prisma.sql(base.where.strings,...base.where.values);
  const manual=Prisma.sql`EXISTS(SELECT 1 FROM prospect_campaign_companies m WHERE m.campaign_id=${c.id} AND m.cnpj=e.cnpj AND m.snapshot_id=${c.directorySnapshotId} AND m.removed_at IS NULL)`;
- const where=Prisma.sql`${scope} AND (${manual} OR ${contextual?Prisma.sql(contextual.strings,...contextual.values):Prisma.sql`false`})`;
+ const where=Prisma.sql`${scope} AND NOT EXISTS(SELECT 1 FROM prospect_campaign_companies excluded WHERE excluded.campaign_id=${c.id} AND excluded.cnpj=e.cnpj AND excluded.removed_at IS NOT NULL) AND (${manual} OR ${contextual?Prisma.sql(contextual.strings,...contextual.values):Prisma.sql`false`})`;
  return {join,where,storage,criteria};
 }
 export class PrismaCampaignDraftAudience implements CampaignDraftAudienceStore {
@@ -25,7 +25,15 @@ export class PrismaCampaignDraftAudience implements CampaignDraftAudienceStore {
  change(id:string,cmd:ChangeCampaignCompanies,actor:ProspectingActor,remove:boolean){return prospectCommand(this.db,remove?"campaign.companies.remove":"campaign.companies.append",{...cmd,id},actor,async tx=>{
   const c=await lockDraft(tx,id,cmd.expectedRevision);if(c.directorySnapshotId&&c.directorySnapshotId!==cmd.snapshotId)throw Error("snapshot_conflict");
   let counts={added:0,existing:0,removed:0};
-  if(remove){counts.removed=(await tx.prospectCampaignCompany.updateMany({where:{campaignId:id,snapshotId:cmd.snapshotId,cnpj:{in:cmd.cnpjs},removedAt:null},data:{removedAt:new Date()}})).count;}
+  if(remove){
+   for(const row of await sourceCompanies(tx,cmd.snapshotId,cmd.cnpjs)){
+    const key={campaignId:id,cnpj:row.cnpj},existing=await tx.prospectCampaignCompany.findUnique({where:{campaignId_cnpj:key}});
+    if(existing?.removedAt)continue;
+    if(existing)await tx.prospectCampaignCompany.update({where:{campaignId_cnpj:key},data:{removedAt:new Date()}});
+    else await tx.prospectCampaignCompany.create({data:{...key,snapshotId:cmd.snapshotId,publicSnapshot:row,addedBy:actor.operatorId,removedAt:new Date()}});
+    counts.removed++;
+   }
+  }
   else counts={...counts,...await appendDraftCompanies(tx,c,cmd.snapshotId,cmd.cnpjs,actor)};
   const updated=await tx.prospectCampaign.update({where:{id},data:{...draftInvalidation,directorySnapshotId:cmd.snapshotId,revision:{increment:1}}});
   await prospectAudit(tx,actor,remove?"campaign.companies.remove":"campaign.companies.append","campaign",id,updated.revision,{...counts,cnpjs:cmd.cnpjs,snapshotId:cmd.snapshotId});

@@ -8,6 +8,8 @@ import {CampaignDraftAudience} from "./campaign-draft-audience.js";
 import {PrismaCampaignDraftAudience} from "../../infrastructure/campaigns/prisma-campaign-draft-audience.js";
 import {PrismaAudienceRepository} from "../../infrastructure/campaigns/prisma-audience.repository.js";
 import {canonicalCnpj} from "../../domain/company-directory/cnpj.js";
+import {createProspectingFixture} from "../../../../../tests/prospecting-fixture.js";
+import {ProspectCampaignCompaniesController} from "../../presentation/prospect-campaign-companies.controller.js";
 const actor={operatorId:"operator",correlationId:"companies"};
 test("CAMP-02 append unique public companies incrementally without sender, preserving provenance, replay and removal history",async()=>{
  const f=await createProspectCrmFixture();try{
@@ -25,6 +27,21 @@ test("CAMP-02 append unique public companies incrementally without sender, prese
   const readded=await audience.append(c.id,{...first,expectedRevision:4,clientRequestId:"readd"},actor);assert.equal(readded.added,1);const persisted=await f.prisma.prospectCampaignCompany.findFirstOrThrow({where:{campaignId:c.id,cnpj:first.cnpjs[0]}});assert.deepEqual(persisted.publicSnapshot,original.publicSnapshot);assert.deepEqual(persisted.addedAt,original.addedAt);
   assert.equal(await f.prisma.prospectConversation.count(),0);assert.equal(await f.prisma.campaignRecipient.count(),0);assert.equal(await f.prisma.contactPermissionReceipt.count(),0);
  }finally{await f.close();}
+});
+test("CAMP-02 union HTTP removal excludes contextual overlap and virtual companies from preview and frozen members; append restores provenance",async()=>{
+ const f=await createProspectCrmFixture();const audience=new CampaignDraftAudience(new PrismaCampaignDraftAudience(f.prisma));const http=await createProspectingFixture({controllers:[ProspectCampaignCompaniesController],providers:[{provide:CampaignDraftAudience,useValue:audience}]});
+ try{
+  await f.pg.query("INSERT INTO platform_operators VALUES ($1)",[http.operators.admin.id]);const drafts=new CampaignDraftService(new PrismaCampaignDrafts(f.prisma));const c=await drafts.create({name:"Exclusions",clientRequestId:"exclude",companies:{snapshotId:"search-old",cnpjs:["00000000000191"]}},actor);
+  await f.prisma.prospectCampaign.update({where:{id:c.id},data:{audienceCriteria:{ufs:["SP"]},senderBindingId:"sender",senderVersion:1}});
+  const url=http.url+"/v1/platform/prospecting/campaign-drafts/"+c.id+"/companies";const req=(path:string,body?:unknown)=>fetch(url+path,{method:body?"POST":"GET",headers:{Authorization:"Bearer "+http.operators.admin.token,"content-type":"application/json"},body:body?JSON.stringify(body):undefined});
+  const before=await (await req("")).json();assert.equal(before.count,2);
+  const response=await req("/remove",{expectedRevision:1,snapshotId:"search-old",cnpjs:["00000000000191","12ABC34501DE35"],clientRequestId:"exclude-both"});assert.equal(response.status,201);const removed=await response.json();assert.equal(removed.removed,2);
+  assert.equal((await (await req("")).json()).count,0);assert.equal(await f.prisma.prospectCampaignCompany.count({where:{campaignId:c.id,removedAt:{not:null}}}),2);
+  const freezer=new PrismaAudienceRepository(f.prisma,{currentVersion:1,keys:{1:"a".repeat(64)}});const job=await freezer.enqueueDraft(c.id,{expectedRevision:2,clientRequestId:"freeze-exclusions"},actor);assert.equal((await freezer.processNext(20))?.companyCount,0);assert.equal((await f.pg.query("SELECT count(*)::int AS n FROM prospect_audience_members WHERE selection_id=$1",[job.selectionId])).rows[0].n,0);
+  const snapshot=await f.prisma.prospectCampaignCompany.findUniqueOrThrow({where:{campaignId_cnpj:{campaignId:c.id,cnpj:"12ABC34501DE35"}}});
+  const restored=await req("",{expectedRevision:3,snapshotId:"search-old",cnpjs:["12ABC34501DE35"],clientRequestId:"restore"});assert.equal(restored.status,201);assert.equal((await restored.json()).added,1);assert.equal((await (await req("")).json()).count,1);
+  const actual=await f.prisma.prospectCampaignCompany.findUniqueOrThrow({where:{campaignId_cnpj:{campaignId:c.id,cnpj:"12ABC34501DE35"}}});assert.equal(actual.removedAt,null);assert.deepEqual(actual.publicSnapshot,snapshot.publicSnapshot);assert.deepEqual(actual.addedAt,snapshot.addedAt);assert.equal(await f.prisma.contactPermissionReceipt.count(),0);
+ }finally{await http.close();await f.close();}
 });
 test("CAMP-02 union preview keeps twenty rows per page without copying virtual companies into campaign members",async()=>{
  const f=await createProspectCrmFixture();try{
