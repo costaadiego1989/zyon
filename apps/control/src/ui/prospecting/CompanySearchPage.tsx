@@ -213,7 +213,7 @@ export function CompanySearchPage(props: PageProps) {
           <Button onClick={availability.reload}>Verificar disponibilidade</Button>
         </div>
       ) : (
-        <ReadState error={availability.error ?? (source ? new Error("directory_availability_unknown") : undefined)} reload={availability.reload} />
+        <ReadState error={availability.error ?? (availability.data ? new Error("directory_availability_unknown") : undefined)} reload={availability.reload} />
       )}
     </section>
   );

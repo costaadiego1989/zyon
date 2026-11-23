@@ -139,6 +139,8 @@ test("DIR-01 pending publication prevents company and domain requests until avai
 
 test("DIR-02 incomplete or stale publication observations cannot enable search",async()=>{
   for(const source of [
+    undefined,
+    null,
     {status:'current',value:{snapshotId:'out',state:'importing'}},
     {status:'current',value:{snapshotId:null,state:'published'}},
     {status:'stale',value:{snapshotId:'out',state:'published'}},
