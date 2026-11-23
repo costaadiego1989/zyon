@@ -313,9 +313,9 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | BOOK-04 | Pay at attendance | T30, T40, T46 | In Progress (T30/T40 atomicpay-at-attendance complete; T46channelintegration pending) |
 | BOOK-05 | Pay online | T29, T35, T40 | Implemented locally (T29/T35/T40 complete with scopedonlineadmission; finalfeatureproof pending) |
 | BOOK-06 | Late payment | T36 | Complete locally at T36; Full422, actual claim/SQL/Redis and original product regressions; final feature verification pending |
-| BOOK-07 | On-site receipt | T4, T37, T41, T80 | In Progress (T37 local integral financial writer/HTTP/SQL complete; T41/T80 UI and final proof pending) |
+| BOOK-07 | On-site receipt | T4, T37, T41, T80 | In Progress (T37/T41 canonical receipt writer and authorized HTTP/SQL complete; T80 UI and final proof pending) |
 | BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34/T35/T36/T37 locally complete; T38/T84 and final proof pending) |
-| BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T33 cancellation/T34 canonical accepted reschedule and T49 trusted intake locally complete; T41/T80 UI and final human-flow proof pending) |
+| BOOK-09 | Change requests | T33, T34, T41, T49, T80 | In Progress (T33/T34 canonical changes and T41 authorized HTTP/SQL complete; buyer human-flow and T80 UI pending) |
 | BOOK-10 | Confirmation and inventory | T35, T38, T39 | Done locally (canonical admission, outbox, formatted confirmation and stock preservation; task-39-evidence.json Full322; real provider and final sameHEAD proof pending) |
 | HUM-01 | Fixed menu entry | T57 | Complete (LOCAL; T57 menu and signed gesture gated; final feature verification pending) |
 | HUM-02 | Handoff intake | T49, T50, T57 | Complete (LOCAL; T49/T50/T57 intake, router and button/text/voice with canonical acknowledgement gated; final feature verification pending) |
@@ -336,14 +336,14 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | RAG-09 | Professional boundary | T71, T72 | Complete locally (T71/T72 scripted composition and professional boundary); provider-quality and final verification pending |
 | RAG-10 | Generic onboarding | T63, T67, T71, T72 | Complete locally (T63/T67/T71/T72, three-business scored fixtures); final verification pending |
 | RAG-11 | Existing forms feed context | T13, T14, T15, T63, T64, T65 | Pending |
-| ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | In Progress (T73 typed client and T74 view-state complete; management route and UI pending) |
+| ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | In Progress (T41 authorized HTTP/SQL reads and established writers complete; T47/T82/T83 management composition and UI pending) |
 | ATEND-02 | Professional administration | T18, T19, T76, T106 | In Progress (T18 and T19 complete) |
 | ATEND-03 | Service categories | T20, T77 | In Progress (T20 complete) |
 | ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21, T23, T24 and T25 complete) |
 | ATEND-05 | One-off times | T22, T25, T78 | In Progress (T22 and T25 complete) |
-| ATEND-06 | Manual appointments | T31, T41, T74, T79 | In Progress (T31 canonical command locally complete; API aggregation and UI pending) |
-| ATEND-07 | Attendance lifecycle | T32, T41, T74, T80 | In Progress (T32 canonical backend locally complete; later management/UI gestures and final proof pending) |
-| ATEND-08 | Management authorization | T6, T11, T19, T25, T41, T47, T52, T59, T73, T75, T83, T87 | In Progress (T19/T25backend, T59 client management primitive and T73 typed transport complete; remaining HTTP/UI pending) |
+| ATEND-06 | Manual appointments | T31, T41, T74, T79 | In Progress (T31/T41 canonical manual HTTP/SQL complete; T79 UI and final proof pending) |
+| ATEND-07 | Attendance lifecycle | T32, T41, T74, T80 | In Progress (T32/T41 explicit lifecycle HTTP/SQL complete; T80 UI gestures and final proof pending) |
+| ATEND-08 | Management authorization | T6, T11, T19, T25, T41, T47, T52, T59, T73, T75, T83, T87 | In Progress (T41 owner/admin read/write HTTP and tenant isolation complete; remaining UI and metrics composition pending) |
 | ATEND-09 | Unavailability blocks | T22, T25, T78 | In Progress (T22 and T25 complete) |
 | ATEND-10 | Explicit outside-hours appointment | T25, T31, T79 | In Progress (T25/T31 locally complete; T79 UI pending) |
 | KPI-01 | Business-specific dashboard | T82, T87, T88, T89, T90, T91 | Pending |
@@ -366,7 +366,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | CAT-05 | Advanced-rules UI follows existing plan entitlement | T107 | Complete LOCAL;70components +3actual browser/nativecleanup, types/lint/build, six Root-reviewed native captures; policy unchanged |
 | HUM-09 | Private support fallback recipient | T99, T101 | Implemented locally (T99/T101 private API and national phone UI complete; final feature verification pending) |
 | HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Implemented locally (T100/T101 durable private alert and truthful UI complete; final feature verification pending) |
-| ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |
+| ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | In Progress (T41 canonical six-state paged read model complete; T102/T103 board and final proof pending) |
 | ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-13 | Fixed timezone UI without a chooser | T113 | Pending; explicit user decision2026-11-18 |
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | In Progress (T61 actual local desktop/mobile drawer captures and Browser gate complete; optional visual approval unanswered, remaining task captures and final screens review pending) |
@@ -467,3 +467,5 @@ None - the product matches the source.
 **Approved**: 2026-11-23 - user: "Corrigir somente teste e fixture (Recomendado)" (call_79852ff77f9c4b1ab0f356ab33e70c4c/0). ONLY T28 .cache/t28-br-new-selection-test-review-20261122/proposed.patch d248d9da applied ONCE to Root+Focus01d4e639->b2b71803; oneUTC->Brasiliaoutputexpectation +8localnewBRfixturehunks. All9cases/148assertions/otheroracles/guards/budgets/prices andsharedUTCseed unchanged, noAPIbehaviorchange. approved-applied.json authoritative; wholeactualrerunpending. QuestionRESOLVED, neverreask/reapply/broaden.
 
 T40 local closure: whole94native/565components andqualifiedoriginal224productsourceSQL; task-40-evidence.json. No externalPSP/Meta/productionclaim.
+
+**Local T41 closure, 2026-11-23:** Actual23 components and split reader10/writers39/manual12 native HTTP/SQL contexts61 GREEN on the same own checked API06; task-41-evidence.json preserves source/receipt bindings. Canonical list/detail retain pagination/counts, six operational states, separate finance, scoped access and factual history. Later UI/channel/activation tasks and final verification remain pending.

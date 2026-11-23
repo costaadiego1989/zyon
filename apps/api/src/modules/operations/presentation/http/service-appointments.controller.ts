@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
@@ -12,11 +12,31 @@ import { RescheduleServiceAppointmentUseCase, type RescheduleCommand, type Resch
 import { RecordAttendanceReceiptUseCase, type AttendanceReceiptCommand } from "../../application/record-attendance-receipt.use-case.js";
 
 import { publicAppointmentView } from "./service-appointment-public-view.js";
+import { ReadServiceAppointments } from "../../application/read-service-appointments.js";
 
 function operator(request: TenantPrincipalRequest): ServiceActor {
   const principal = currentTenantPrincipal(request);
   if (principal.kind !== "human") throw new BadRequestException("human_session_required");
   return { merchantId: principal.tenantId, userId: principal.userId, role: principal.role };
+}
+
+/** Separate read dependency preserves the established writer constructor. */
+@Controller("merchants/:mid/service-appointments")
+@UseGuards(AuthGuard, MerchantOwnershipGuard)
+export class ServiceAppointmentReadsController {
+  constructor(private readonly reader: ReadServiceAppointments) {}
+
+  @Get()
+  @RequireTenantRoles("owner", "admin")
+  list(@Req() request: TenantPrincipalRequest, @Query() query: Record<string, unknown>) {
+    return this.reader.list(operator(request), query).then(publicAppointmentView);
+  }
+
+  @Get(":appointmentId")
+  @RequireTenantRoles("owner", "admin")
+  detail(@Req() request: TenantPrincipalRequest, @Param("appointmentId") appointmentId: string) {
+    return this.reader.detail(operator(request), appointmentId).then(publicAppointmentView);
+  }
 }
 
 @Controller("merchants/:mid/service-appointments")

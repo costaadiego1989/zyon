@@ -1629,3 +1629,5 @@ export type { StorefrontReadUiAction, StorefrontQuestionUiAction, StorefrontPubl
 export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, RealtimeServerVoiceTurns, type RealtimeVoiceCall, type RealtimeServerVoiceEvent } from "./realtime-voice-session.js";
 
 export * from "./shopping-agent-appearance.js";
+export type { ServiceAppointmentAdminState, ServiceAppointmentAdminPayment, ServiceAppointmentAdminItem,
+  ServiceAppointmentAdminList, ServiceAppointmentAdminDetail, ServiceAppointmentAdminListQuery } from "./service-appointment-admin.js";

@@ -1031,18 +1031,20 @@ T107 → T106
 **What**: Controller administrativo de lista/detalhe/manual/transição/cancelar/remarcar/recebimento liga comandos auditados, filtra tenant/profissional/categoria/período e exige modo/permissão esperados; sem regras de agenda no browser.
 **Where**: `apps/api/src/modules/operations/presentation/http/service-appointments.controller.ts`
 **Depends on**: T40
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-01, ATEND-06, ATEND-07, ATEND-08, BOOK-07, BOOK-09
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP/DB service-administration.integration.spec.ts: cada rota happy/invalid/foreign/forbidden/conflict/duplicate e política online/no atendimento; trilha e rollback.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] HTTP/DB service-administration.integration.spec.ts: cada rota happy/invalid/foreign/forbidden/conflict/duplicate e política online/no atendimento; trilha e rollback.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: HTTP/DB service-administration.integration.spec.ts: cada rota happy/invalid/foreign/forbidden/conflict/duplicate e política online/no atendimento; trilha e rollback.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T41$" ./src/modules/operations/presentation/http/service-appointments.controller.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T41 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/operations/application/read-service-appointments.spec.ts ./src/modules/operations/presentation/http/service-appointments.controller.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-administration.integration.spec.ts ./tests/service-manual-appointment-http.integration.spec.ts ./tests/service-attendance-transitions-http.integration.spec.ts ./tests/service-appointment-cancellation-http.integration.spec.ts ./tests/service-appointment-reschedule-http.integration.spec.ts ./tests/service-attendance-receipt-http.integration.spec.ts`. Two complete components (23 contexts) and six whole HTTP/SQL files (61 contexts), no name filters/skips. Original resource/network/owned-runtime guards and budgets remain. Fresh own checked API lint/types/build/admission precedes native tests. Final same-HEAD criterion proofs remain required.
 **Commit**: `feat(service-business): t41 expose authorized appointment operations`
+
+**Actual local gate, 2026-11-23:** Whole components23 + actual reader10/writers39/manual12 HTTP/SQL cohorts61 passed; own API06 lint/types/checked-build/admission and explicit manual oracle approval are bound. task-41-evidence.json binds source and raw receipts. Existing five writers remain canonical. No provider/push/deploy; later UI and final verification remain pending.
 
 ### T42: Resolve service selection from text or voice
 
@@ -2550,7 +2552,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T13, T14, T15, T63, T64, T65.
 
 **C42** - WHEN uma empresa de serviços abre a navegação administrativa THEN the system SHALL oferecer a página "Atendimento", negando sua gestão a empresas de produtos também nas rotas da API. (ATEND-01, AC 1)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ATEND-01$" ./tests/service-administration.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-business-policy-http.integration.spec.mjs ./tests/service-professionals-http.integration.spec.mjs ./tests/service-availability-management-http.integration.spec.mjs ./tests/service-manual-appointment-http.integration.spec.ts ./tests/service-administration.integration.spec.ts` and `pnpm --dir apps/dashboard exec vitest run src/shell/nav-config.business-mode.spec.ts src/shell/DashboardShell.service-routes.spec.tsx src/pages/service-attendance/ServiceAttendancePage.spec.tsx src/pages/service-appointments/ServiceAppointmentsPage.spec.tsx --pool=forks --maxWorkers=1 --minWorkers=1 --no-file-parallelism`
 Tasks: T41, T47, T73, T74, T75, T82, T83.
 
 **C43** - WHEN operador autorizado mantém profissionais THEN the system SHALL permitir cadastrar, editar e desativar profissionais da própria empresa, preservando o histórico de agendamentos. (ATEND-02, AC 2)
@@ -2570,7 +2572,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T22, T25, T78.
 
 **C47** - WHEN operador cria um agendamento manual THEN the system SHALL aplicar a mesma capacidade, política financeira, identidade de cliente e idempotência usadas no fluxo de autoatendimento. (ATEND-06, AC 6)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ATEND-06$" ./tests/service-administration.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-recurring-availability.integration.spec.mjs ./tests/service-availability-exceptions.integration.spec.mjs ./tests/service-availability-management-http.integration.spec.mjs ./tests/service-manual-appointment-http.integration.spec.ts`
 Tasks: T31, T41, T74, T79.
 
 **C48** - WHEN operador inicia, conclui ou registra ausência de um atendimento THEN the system SHALL persistir a transição operacional explícita sem inferir quitação financeira ou comparecimento pelo pagamento. (ATEND-07, AC 7)
@@ -2579,7 +2581,7 @@ Scope: Actual canonical32 backend proof. Later80 UI initiation/completion/absenc
 Tasks: T32, T41, T74, T80.
 
 **C49** - IF um operador tenta gerir profissional, categoria, grade ou agendamento de outra empresa THEN the system SHALL recusar a operação sem expor o registro solicitado. (ATEND-08, AC 8)
-Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^ATEND-08$" ./tests/service-administration.integration.spec.ts`
+Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-business-policy-http.integration.spec.mjs ./tests/service-professionals-http.integration.spec.mjs ./tests/service-availability-management-http.integration.spec.mjs ./tests/service-manual-appointment-http.integration.spec.ts ./tests/service-administration.integration.spec.ts` and `pnpm --dir apps/dashboard exec playwright test --config playwright.service-categories-local.config.ts e2e/service-categories.spec.ts`
 Tasks: T6, T11, T19, T25, T41, T47, T52, T59, T73, T75, T83, T87.
 
 **C50** - WHEN operador bloqueia uma indisponibilidade THEN the system SHALL retirar o intervalo da oferta pública sem cancelar ou sobrepor silenciosamente agendamentos confirmados. (ATEND-09, AC 9)

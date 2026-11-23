@@ -1,0 +1,402 @@
+{
+  "task": 41,
+  "status": "LOCAL_TASK_GATES_GREEN_NOT_FEATURE_FINAL_OR_PRODUCTION",
+  "closedLocalDate": "2026-11-23",
+  "rootParent": "ea555dee4bb38f741ad42a1f0f3e0eff8f63a6db",
+  "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+  "code": [
+    {
+      "path": "apps/api/src/modules/operations/application/read-service-appointments.spec.ts",
+      "sha256": "3c9838da611abc06d8c7a96c3f7d23b783b40d864f66903e59418acd2c298a20",
+      "selection": "TESTED_OWN_FOCUSED_CUT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/read-service-appointments.ts",
+      "sha256": "1fbaaa7b08721aca1fcc2cf7774e022c474195a462213eca5ac18b76e5259650",
+      "selection": "TESTED_OWN_FOCUSED_CUT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/operations/operations.module.ts",
+      "sha256": "946494c777548b5b4a75ed44e8aab017c4eb6f4f9c8904ebc41e6d820447f0c2",
+      "selection": "TESTED_OWN_FOCUSED_CUT",
+      "rootWorkingSame": false
+    },
+    {
+      "path": "apps/api/src/modules/operations/presentation/http/service-appointments.controller.spec.ts",
+      "sha256": "78d0926cff1c35c690ab5eb99984c38718dbfb4edbe661e4eb29036e95854435",
+      "selection": "TESTED_OWN_FOCUSED_CUT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/operations/presentation/http/service-appointments.controller.ts",
+      "sha256": "9d6ee6afe71728a4ac6b0fee9a715144c1824ee6711914af3ae74a8c83f9fa35",
+      "selection": "TESTED_OWN_FOCUSED_CUT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "packages/shared-types/src/index.ts",
+      "sha256": "ab58dda33ed2c9785add8d56e1ba525faed7c6f4738b578183acaa3c67074452",
+      "selection": "TESTED_OWN_FOCUSED_CUT",
+      "rootWorkingSame": false
+    },
+    {
+      "path": "packages/shared-types/src/service-appointment-admin.ts",
+      "sha256": "8c5eb65a280bf92d24f2815f3fe8159526b30205c05d40958814bbf72fec3f8c",
+      "selection": "TESTED_OWN_FOCUSED_CUT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-administration.integration.spec.ts",
+      "sha256": "bc943ee4831b29513620a281b09bed9b3eb4a1104a33ce6b8a100fbc8a86e747",
+      "selection": "TESTED_OWN_FOCUSED_CUT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-operations-http.fixture.ts",
+      "sha256": "21f26735773f5610ae8767c0969b0c129acfb40654ef0f67e756b8249a464d56",
+      "selection": "TEST_ONLY_NATIVE_INPUT_PRECONDITION",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-appointment-cancellation-http.integration.spec.ts",
+      "sha256": "b85699d71f99d1377224f804aa39ea72e4f43bc96ba8483bdea6a2ccfb0d591b",
+      "selection": "TEST_ONLY_NATIVE_INPUT_PRECONDITION",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-appointment-reschedule-http.integration.spec.ts",
+      "sha256": "52a2885091bb075494c414eb9fecc46075a08adce34fcc844d6796062bb9aa9c",
+      "selection": "TEST_ONLY_NATIVE_INPUT_PRECONDITION",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-manual-appointment-http.integration.spec.ts",
+      "sha256": "24f247eab72e94e49f5ce11fc8703cdc39c92960ad20d2941f3e6521bfc471c0",
+      "selection": "TEST_ONLY_NATIVE_INPUT_PRECONDITION",
+      "rootWorkingSame": true
+    }
+  ],
+  "components": {
+    "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t41-components-20261123\\receipt.json",
+    "sha256": "853c2c2ef4c8287e94b785d609ea9b4fe7727b98d7f5843c4d70b1c6a12f5ecf",
+    "passed": 23
+  },
+  "api": {
+    "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t41-owned-approved-api-window06-20261123\\receipt.json",
+    "sha256": "f0017abf3cc4891939253cd81b9426e12183f8920d5319f8ca8034aeea8468b7",
+    "officialBuildRecord": {
+      "version": 1,
+      "buildCommand": "pnpm --dir apps/api build",
+      "buildExitCode": 0,
+      "checked": true,
+      "inputSha256": "d98d49a0d556ed9be2f6ef5a31259eaf435c404ae1b6bd96423fc70dfc6b7401",
+      "artifactSha256": "0dde537cb3cb4f9a08f32338764edae94c0f3b5fa7fe0516b5edf1dabd56f37d",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2600
+      },
+      "recordedAt": "2026-11-23T04:32:12.703Z"
+    }
+  },
+  "native": {
+    "passed": 61,
+    "cohorts": [
+      {
+        "cohort": "reader10",
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t41-owned-reader10-native-window05-20261123\\receipt.json",
+        "sha256": "aaa0ab5bfa69e38c74299bcc2c2987013f853662ae0493dd9f8dc72c32a34220",
+        "passed": 10,
+        "wholeFiles": [
+          {
+            "file": "service-administration.integration.spec.ts",
+            "counts": {
+              "tests": 10,
+              "pass": 10,
+              "fail": 0,
+              "cancelled": 0,
+              "skipped": 0,
+              "todo": 0
+            },
+            "rawSha256": "b68518096bc745887382ab2f2597b4bd6bf0015c9230d80c40795c867f647033"
+          }
+        ]
+      },
+      {
+        "cohort": "writers39",
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t41-owned-native39-window02-20261123\\receipt.json",
+        "sha256": "167841dc906ed04b90794334f570a2d62aea19e6bc778833235bf9ec50a59431",
+        "passed": 39,
+        "wholeFiles": [
+          {
+            "file": "service-attendance-transitions-http.integration.spec.ts",
+            "counts": {
+              "tests": 7,
+              "pass": 7,
+              "fail": 0,
+              "cancelled": 0,
+              "skipped": 0,
+              "todo": 0
+            },
+            "rawSha256": "b2219de5da56eb0d9fd21d81136a53754e0bfb0a1d53ac24ccadbfbde450075f"
+          },
+          {
+            "file": "service-appointment-cancellation-http.integration.spec.ts",
+            "counts": {
+              "tests": 10,
+              "pass": 10,
+              "fail": 0,
+              "cancelled": 0,
+              "skipped": 0,
+              "todo": 0
+            },
+            "rawSha256": "88fbafe291daae13af095d9c6a01a1110d3ad24a0727c94301d5aec5bb8ade44"
+          },
+          {
+            "file": "service-appointment-reschedule-http.integration.spec.ts",
+            "counts": {
+              "tests": 9,
+              "pass": 9,
+              "fail": 0,
+              "cancelled": 0,
+              "skipped": 0,
+              "todo": 0
+            },
+            "rawSha256": "b4814ccb636b5d68012130cfbc521b4cf608f345b589de2ccebf02716595c703"
+          },
+          {
+            "file": "service-attendance-receipt-http.integration.spec.ts",
+            "counts": {
+              "tests": 13,
+              "pass": 13,
+              "fail": 0,
+              "cancelled": 0,
+              "skipped": 0,
+              "todo": 0
+            },
+            "rawSha256": "c2cbf0ae52f71c79b9825d2759652dcc2a6bc6233005f4cbb544acfec3722418"
+          }
+        ]
+      },
+      {
+        "cohort": "manual12",
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t41-owned-manual12-native-window02-20261123\\receipt.json",
+        "sha256": "ab0527e6f3c30e13f2f85adcad3eb70d0e5a6d8bd184c7d5a347035c40e319ba",
+        "passed": 12,
+        "wholeFiles": [
+          {
+            "file": "service-manual-appointment-http.integration.spec.ts",
+            "counts": {
+              "tests": 12,
+              "pass": 12,
+              "fail": 0,
+              "cancelled": 0,
+              "skipped": 0,
+              "todo": 0
+            },
+            "rawSha256": "bb771e611acabfb5577990f5f72e49cdaff4698147cc1c730871d49cd23feed6"
+          }
+        ]
+      }
+    ],
+    "manualOracleApproval": {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\consolidated-test-integrity-review-20261123\\approval.json",
+      "sha256": "e25ecbddcfce2ffafd5ac492c4ea848573469b0ec1d92d7939a7751795b8f28f",
+      "questionItemId": "call_7e90587fa14a4636b8853394a2d80f1a/0",
+      "userAnswer": "Aprovar somente os três patches de testes (recomendado)",
+      "file": "apps/api/tests/service-manual-appointment-http.integration.spec.ts",
+      "approvedCandidateSha256": "b849d17c33b90ce187141f5fcf04f5460a2451e96b0162ea8d4748c5ec819408",
+      "finalBrInputSha256": "24f247eab72e94e49f5ce11fc8703cdc39c92960ad20d2941f3e6521bfc471c0",
+      "applicationPath": "C:\\tmp\\zyon-service-business-20261114\\.cache\\consolidated-test-integrity-review-20261123\\approved-applied.json",
+      "applicationSha256": "fd01abcca05feb7c4b654ae4a84564324b68b3224ee983ae755ecfed4f49eeac"
+    },
+    "threeBrSetupFixtures": {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t111-native-new-br-preconditions-adoption-20261123\\receipt.json",
+      "sha256": "effc32f46c0ab530f4da34d50a0fb3cea791bff39e91ee2aef50cbe89cb98795",
+      "rows": [
+        {
+          "path": "apps/api/tests/service-operations-http.fixture.ts",
+          "RootBaseSha256": "1f34f41a30e44fab387556976c56f686db449e8851a0d9c54b86b69d6d9fa30a",
+          "FocusCurrentSha256": "1f34f41a30e44fab387556976c56f686db449e8851a0d9c54b86b69d6d9fa30a",
+          "candidateSha256": "21f26735773f5610ae8767c0969b0c129acfb40654ef0f67e756b8249a464d56",
+          "forwardPatch": "apps__api__tests__service-operations-http.fixture.ts.patch",
+          "inversePatch": "apps__api__tests__service-operations-http.fixture.ts.inverse.patch",
+          "newZone": "America/Sao_Paulo",
+          "newGridStartMinute": 420,
+          "newGridEndMinute": 540,
+          "absoluteCoverageUnchanged": "10:00Z-12:00Z for the current +2day synthetic dates",
+          "testSuffixByteExact": true,
+          "catalogMetadataUtcUnchanged": true,
+          "negativePayloadsAndHistoryUnchanged": true,
+          "inverseRestoresOriginal": true,
+          "knownPendingOracle": null
+        },
+        {
+          "path": "apps/api/tests/service-appointment-cancellation-http.integration.spec.ts",
+          "RootBaseSha256": "47c477217b1419dbdda4246bea679e1b6aef055cc44c257e4d562fa5c39cb401",
+          "FocusCurrentSha256": "47c477217b1419dbdda4246bea679e1b6aef055cc44c257e4d562fa5c39cb401",
+          "candidateSha256": "b85699d71f99d1377224f804aa39ea72e4f43bc96ba8483bdea6a2ccfb0d591b",
+          "forwardPatch": "apps__api__tests__service-appointment-cancellation-http.integration.spec.ts.patch",
+          "inversePatch": "apps__api__tests__service-appointment-cancellation-http.integration.spec.ts.inverse.patch",
+          "newZone": "America/Sao_Paulo",
+          "newGridStartMinute": 420,
+          "newGridEndMinute": 540,
+          "absoluteCoverageUnchanged": "10:00Z-12:00Z for the current +2day synthetic dates",
+          "testSuffixByteExact": true,
+          "catalogMetadataUtcUnchanged": true,
+          "negativePayloadsAndHistoryUnchanged": true,
+          "inverseRestoresOriginal": true,
+          "knownPendingOracle": null
+        },
+        {
+          "path": "apps/api/tests/service-appointment-reschedule-http.integration.spec.ts",
+          "RootBaseSha256": "984cd30a9a6593e0645208e358842dd50ad7d116cb9f2fbc2e9f2ebaff9dba87",
+          "FocusCurrentSha256": "984cd30a9a6593e0645208e358842dd50ad7d116cb9f2fbc2e9f2ebaff9dba87",
+          "candidateSha256": "52a2885091bb075494c414eb9fecc46075a08adce34fcc844d6796062bb9aa9c",
+          "forwardPatch": "apps__api__tests__service-appointment-reschedule-http.integration.spec.ts.patch",
+          "inversePatch": "apps__api__tests__service-appointment-reschedule-http.integration.spec.ts.inverse.patch",
+          "newZone": "America/Sao_Paulo",
+          "newGridStartMinute": 420,
+          "newGridEndMinute": 540,
+          "absoluteCoverageUnchanged": "10:00Z-12:00Z for the current +2day synthetic dates",
+          "testSuffixByteExact": true,
+          "catalogMetadataUtcUnchanged": true,
+          "negativePayloadsAndHistoryUnchanged": true,
+          "inverseRestoresOriginal": true,
+          "knownPendingOracle": null
+        }
+      ]
+    },
+    "currentReaderFreeze": {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t41-current-reader-freeze-window08-20261123\\source-ready.json",
+      "sha256": "31d8ec827a8c5b19514dc083cb9c451d56856b875959d00b3c0816d6515d7295",
+      "qualifiedFromApiFreeze": "ce463711cc5a3b9e902138ab36645f2410f8358df91a2e8ea3b6f8044f0a8547",
+      "onlyChangedTestSource": "apps/api/tests/service-administration.integration.spec.ts"
+    }
+  },
+  "sourceSelectionCorrection": {
+    "status": "METADATA_ONLY_NO_TEST_EXECUTION_OR_TASK_COMPLETION",
+    "beforeSha256": "d02c3054cb4e9f03973ff51c050f5506a2c2548d941a1dc03697d0cd12f98a85",
+    "afterSha256": "8549c3104417c1fa2ca9556014171b0ee8e0f59849d530ba88e9dc000891b505",
+    "gateBefore": "**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern \"^T41$\" ./src/modules/operations/presentation/http/service-appointments.controller.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T41 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.",
+    "gateAfter": "**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/operations/application/read-service-appointments.spec.ts ./src/modules/operations/presentation/http/service-appointments.controller.spec.ts` + `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-administration.integration.spec.ts ./tests/service-manual-appointment-http.integration.spec.ts ./tests/service-attendance-transitions-http.integration.spec.ts ./tests/service-appointment-cancellation-http.integration.spec.ts ./tests/service-appointment-reschedule-http.integration.spec.ts ./tests/service-attendance-receipt-http.integration.spec.ts`. Two complete components (23 contexts) and six whole HTTP/SQL files (61 contexts), no name filters/skips. Original resource/network/owned-runtime guards and budgets remain. Fresh own checked API lint/types/build/admission precedes native tests. Final same-HEAD criterion proofs remain required.",
+    "proofChanges": [
+      {
+        "cid": "C42",
+        "criterionSha256": "e7dad381a5da8c2e2e0f1a2227ae0781ac7bbd1097314696530923ef3053c185",
+        "oldProof": "Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern \"^ATEND-01$\" ./tests/service-administration.integration.spec.ts`",
+        "newProof": "Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-business-policy-http.integration.spec.mjs ./tests/service-professionals-http.integration.spec.mjs ./tests/service-availability-management-http.integration.spec.mjs ./tests/service-manual-appointment-http.integration.spec.ts ./tests/service-administration.integration.spec.ts` and `pnpm --dir apps/dashboard exec vitest run src/shell/nav-config.business-mode.spec.ts src/shell/DashboardShell.service-routes.spec.tsx src/pages/service-attendance/ServiceAttendancePage.spec.tsx src/pages/service-appointments/ServiceAppointmentsPage.spec.tsx --pool=forks --maxWorkers=1 --minWorkers=1 --no-file-parallelism`"
+      },
+      {
+        "cid": "C47",
+        "criterionSha256": "c2bbadb7ef4d44733ee69c84988da526639d36cbf03cf433549a60d0b562ac84",
+        "oldProof": "Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern \"^ATEND-06$\" ./tests/service-administration.integration.spec.ts`",
+        "newProof": "Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-recurring-availability.integration.spec.mjs ./tests/service-availability-exceptions.integration.spec.mjs ./tests/service-availability-management-http.integration.spec.mjs ./tests/service-manual-appointment-http.integration.spec.ts`"
+      },
+      {
+        "cid": "C49",
+        "criterionSha256": "64dc7d3c3f40caf95b165ac9a1d3a3c2b1c1add21ee5ce30103ed3f17898f3ad",
+        "oldProof": "Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern \"^ATEND-08$\" ./tests/service-administration.integration.spec.ts`",
+        "newProof": "Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-business-policy-http.integration.spec.mjs ./tests/service-professionals-http.integration.spec.mjs ./tests/service-availability-management-http.integration.spec.mjs ./tests/service-manual-appointment-http.integration.spec.ts ./tests/service-administration.integration.spec.ts` and `pnpm --dir apps/dashboard exec playwright test --config playwright.service-categories-local.config.ts e2e/service-categories.spec.ts`"
+      }
+    ]
+  },
+  "preservedRootMixedFiles": {
+    "apps/api/src/modules/operations/operations.module.ts": "02f13c4e9022b13f915cc2b337996f23567552584f07a9e6e89ec361dc72dd58",
+    "packages/shared-types/src/index.ts": "1308ad1b558e32538615ce448531643b17e3054e7aff7eeca7bb2ad8310f06b8"
+  },
+  "limitations": [
+    "Local owned HTTP/SQL only; no external provider action.",
+    "Later management/browser/channel/activation tasks and final same-HEAD verification remain required."
+  ],
+  "commitTextNormalization": {
+    "policy": "Explicit LF for index text blobs, matching existing committed source. No Git config changed. Tested working files remain byte-exact; only line terminators differ. Final same-HEAD proofs remain required.",
+    "files": [
+      {
+        "path": "apps/api/src/modules/operations/application/read-service-appointments.spec.ts",
+        "testedWorkingSha256": "3c9838da611abc06d8c7a96c3f7d23b783b40d864f66903e59418acd2c298a20",
+        "committedCanonicalSha256": "3c9838da611abc06d8c7a96c3f7d23b783b40d864f66903e59418acd2c298a20",
+        "gitBlob": "df9ade5b2a6b6ce15f460723d4634e8bf3b04d70",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/api/src/modules/operations/application/read-service-appointments.ts",
+        "testedWorkingSha256": "1fbaaa7b08721aca1fcc2cf7774e022c474195a462213eca5ac18b76e5259650",
+        "committedCanonicalSha256": "1fbaaa7b08721aca1fcc2cf7774e022c474195a462213eca5ac18b76e5259650",
+        "gitBlob": "fee4a5ecaab0805442e630a9bcb39331628aa167",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/api/src/modules/operations/operations.module.ts",
+        "testedWorkingSha256": "946494c777548b5b4a75ed44e8aab017c4eb6f4f9c8904ebc41e6d820447f0c2",
+        "committedCanonicalSha256": "946494c777548b5b4a75ed44e8aab017c4eb6f4f9c8904ebc41e6d820447f0c2",
+        "gitBlob": "76261aeeaa0a06cebe64fb52597a9c911f6ad99e",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/api/src/modules/operations/presentation/http/service-appointments.controller.spec.ts",
+        "testedWorkingSha256": "78d0926cff1c35c690ab5eb99984c38718dbfb4edbe661e4eb29036e95854435",
+        "committedCanonicalSha256": "78d0926cff1c35c690ab5eb99984c38718dbfb4edbe661e4eb29036e95854435",
+        "gitBlob": "4662bd72e15b6b435e1dc0a7d681aaebf1b5c057",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/api/src/modules/operations/presentation/http/service-appointments.controller.ts",
+        "testedWorkingSha256": "9d6ee6afe71728a4ac6b0fee9a715144c1824ee6711914af3ae74a8c83f9fa35",
+        "committedCanonicalSha256": "9d6ee6afe71728a4ac6b0fee9a715144c1824ee6711914af3ae74a8c83f9fa35",
+        "gitBlob": "43918388861be1b3ff475d09dcbb9f1b49ba9ee5",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "packages/shared-types/src/index.ts",
+        "testedWorkingSha256": "ab58dda33ed2c9785add8d56e1ba525faed7c6f4738b578183acaa3c67074452",
+        "committedCanonicalSha256": "ab58dda33ed2c9785add8d56e1ba525faed7c6f4738b578183acaa3c67074452",
+        "gitBlob": "0dd773d3412af6d0efea0317161214ca94d22fab",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "packages/shared-types/src/service-appointment-admin.ts",
+        "testedWorkingSha256": "8c5eb65a280bf92d24f2815f3fe8159526b30205c05d40958814bbf72fec3f8c",
+        "committedCanonicalSha256": "8c5eb65a280bf92d24f2815f3fe8159526b30205c05d40958814bbf72fec3f8c",
+        "gitBlob": "568c613f5d75c2ff1cf59f5fa26a28108904d811",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/api/tests/service-administration.integration.spec.ts",
+        "testedWorkingSha256": "bc943ee4831b29513620a281b09bed9b3eb4a1104a33ce6b8a100fbc8a86e747",
+        "committedCanonicalSha256": "57ecf08911ce8d13d8b2545714025547ba36697412f9b6f6cb2570c0b9a82784",
+        "gitBlob": "a98f13e81d9ad8ab135ebc3940c2f2b30f1e71d3",
+        "change": "LINE_TERMINATORS_CRLF_TO_LF_ONLY"
+      },
+      {
+        "path": "apps/api/tests/service-operations-http.fixture.ts",
+        "testedWorkingSha256": "21f26735773f5610ae8767c0969b0c129acfb40654ef0f67e756b8249a464d56",
+        "committedCanonicalSha256": "21f26735773f5610ae8767c0969b0c129acfb40654ef0f67e756b8249a464d56",
+        "gitBlob": "5411b1873e5ced5c91ce3ec041e635bb2edde7b0",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/api/tests/service-appointment-cancellation-http.integration.spec.ts",
+        "testedWorkingSha256": "b85699d71f99d1377224f804aa39ea72e4f43bc96ba8483bdea6a2ccfb0d591b",
+        "committedCanonicalSha256": "b85699d71f99d1377224f804aa39ea72e4f43bc96ba8483bdea6a2ccfb0d591b",
+        "gitBlob": "89e2c17a4f42c07e2d6c2622be56cdcd13bd20e9",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/api/tests/service-appointment-reschedule-http.integration.spec.ts",
+        "testedWorkingSha256": "52a2885091bb075494c414eb9fecc46075a08adce34fcc844d6796062bb9aa9c",
+        "committedCanonicalSha256": "52a2885091bb075494c414eb9fecc46075a08adce34fcc844d6796062bb9aa9c",
+        "gitBlob": "6754fb18988a3bca947fda03d7c760fca9c993ea",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/api/tests/service-manual-appointment-http.integration.spec.ts",
+        "testedWorkingSha256": "24f247eab72e94e49f5ce11fc8703cdc39c92960ad20d2941f3e6521bfc471c0",
+        "committedCanonicalSha256": "c88b77a935f96f80b9d2a116d12c06ee8a3f1c9daa162eb45f9c4d0021911f69",
+        "gitBlob": "f640dab1e4051509f312ac94251442c164a0eba7",
+        "change": "LINE_TERMINATORS_CRLF_TO_LF_ONLY"
+      }
+    ]
+  }
+}

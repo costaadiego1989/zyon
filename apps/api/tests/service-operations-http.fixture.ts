@@ -27,10 +27,10 @@ export async function createServiceOperationsHttpFixture(options: { whatsapp?: t
     const product = await prisma.product.create({ data: { merchantId, name: "Public " + suffix, type: "service", isActive: true,
       metadata: { serviceSchedule: { timeZone: "UTC", durationMinutes: 20, slots: [] } }, variants: { create: { sku: "ops-" + suffix,
         isActive: true, price: { create: { basePriceInCents: 5000, currency: "BRL" } } } } }, include: { variants: true } });
-    const created = await f.request(f.path(auth), { publicName: "Public professional " + suffix, timeZone: "UTC", isPublished: true, productIds: [product.id] }, auth);
+    const created = await f.request(f.path(auth), { publicName: "Public professional " + suffix, timeZone: "America/Sao_Paulo", isPublished: true, productIds: [product.id] }, auth);
     assert.equal(created.status, 201, JSON.stringify(created));
-    const grade = await f.request(f.path(auth) + "/" + created.body.id + "/availability", { expectedVersion: created.body.version, timeZone: "UTC",
-      rows: Array.from({ length: 7 }, (_, weekday) => ({ weekday, startMinute: 600, endMinute: 720 })) }, auth, "PUT"); assert.equal(grade.status, 200, JSON.stringify(grade));
+    const grade = await f.request(f.path(auth) + "/" + created.body.id + "/availability", { expectedVersion: created.body.version, timeZone: "America/Sao_Paulo",
+      rows: Array.from({ length: 7 }, (_, weekday) => ({ weekday, startMinute: 420, endMinute: 540 })) }, auth, "PUT"); assert.equal(grade.status, 200, JSON.stringify(grade));
     const professional = await prisma.serviceProfessional.findUniqueOrThrow({ where: { id: created.body.id } });
     const date = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
     const command = { commandId: "manual-" + suffix, productId: product.id, variantId: product.variants[0].id, professionalId: professional.id,

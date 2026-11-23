@@ -10,7 +10,8 @@ import { RescheduleServiceAppointmentUseCase } from "./application/reschedule-se
 import { RecordAttendanceReceiptUseCase } from "./application/record-attendance-receipt.use-case.js";
 import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { ServiceAppointmentHoldCleanupConsumer } from "./application/service-appointment-hold-cleanup.consumer.js";
-import { ServiceAppointmentsController } from "./presentation/http/service-appointments.controller.js";
+import { ServiceAppointmentsController, ServiceAppointmentReadsController } from "./presentation/http/service-appointments.controller.js";
+import { ReadServiceAppointments } from "./application/read-service-appointments.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
@@ -42,11 +43,14 @@ import {
   imports: [IntegrationsModule, CheckoutModule, CommerceModule],
   controllers: [
     ServiceAppointmentsController,
+    ServiceAppointmentReadsController,
     OrdersController,
     CustomersController,
     PaymentsController,
   ],
   providers: [
+    { provide: ReadServiceAppointments, useFactory: (prisma: PrismaClient) =>
+      new ReadServiceAppointments(prisma), inject: [PRISMA_CLIENT] },
     { provide: RecordAttendanceReceiptUseCase, useFactory: (prisma: PrismaClient) =>
       new RecordAttendanceReceiptUseCase(prisma), inject: [PRISMA_CLIENT] },
     { provide: RescheduleServiceAppointmentUseCase, useFactory: (prisma: PrismaClient) =>
