@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MetaAdsExecution, MetaAdsProposal } from "@zyon/shared-types";
 import type { MetaAdsAgentApi } from "../../api/endpoints/meta-ads-agent.js";
 import { DashboardHttpError } from "../../api/http/error.js";
@@ -60,6 +60,10 @@ export function ProposalReview({proposal, execution, entitled, connectionEpoch, 
   const [view, setView] = useState(proposal); const [result, setResult] = useState(execution); const [uncertain, setUncertain] = useState(false); const [acknowledged, setAcknowledged] = useState(false); const action = useAction();
   const reviewVersion = JSON.stringify([proposal.id, proposal.digest, proposal.campaignId, proposal.kind, proposal.connectionEpoch, proposal.before, proposal.after, proposal.reasoning],
     (_key, value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
+  const reviewContext=JSON.stringify([reviewVersion,connectionEpoch,entitled]);
+  const latestContext=useRef({key:reviewContext}),mounted=useRef(true);
+  if(latestContext.current.key!==reviewContext)latestContext.current={key:reviewContext};
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   useEffect(() => {setView(proposal);}, [proposal]);
   useEffect(() => {setAcknowledged(false);}, [reviewVersion, connectionEpoch]);
   useEffect(() => {setResult(execution);}, [execution]);
@@ -74,9 +78,14 @@ export function ProposalReview({proposal, execution, entitled, connectionEpoch, 
     await onUpdated();return next;
   }
   async function approveReviewed(){
+    const context=latestContext.current;
     let approved;
     try{approved=await api.approve(view.id,view.digest);}
-    catch(error){if(publishTogether&&!(error instanceof DashboardHttpError&&error.status>=400&&error.status<500))setUncertain(true);throw error;}
+    catch(error){if(publishTogether&&mounted.current){if(error instanceof DashboardHttpError&&error.status>=400&&error.status<500){setView(v=>({...v,status:'stale'}));setAcknowledged(false);}else setUncertain(true);}throw error;}
+    if(publishTogether&&(!mounted.current||latestContext.current!==context)){
+      if(mounted.current){setView(v=>({...v,status:'stale'}));setAcknowledged(false);}
+      throw new DashboardHttpError(409,'{"code":"proposal_version_changed"}');
+    }
     setView(approved);
     if(publishTogether){
       if(approved.id!==view.id||approved.digest!==view.digest||approved.campaignId!==view.campaignId||approved.kind!=='publish'||approved.connectionEpoch!==connectionEpoch||approved.status!=='approved'){
@@ -95,7 +104,7 @@ export function ProposalReview({proposal, execution, entitled, connectionEpoch, 
     <MetaReferences items={references(view.before.objects,view.after.objects,result?.objects)}/>
     {view.kind === "prepare" && <p>A preparação cria objetos em rascunho ou pausados. A publicação terá sua própria aprovação.</p>}
     {view.kind === "publish" && <p>Publicar pode iniciar os gastos acima, pagos diretamente à Meta. A publicação não garante exibição nem vendas.</p>}
-    {stale && <p role="status">Proposta desatualizada. Solicite uma nova proposta e revise novamente.</p>}
+    {stale && <><p role="status">Proposta desatualizada. Atualize a revisão antes de continuar.</p><button type="button" className="mga-secondary" disabled={action.busy} onClick={()=>void action.run(async()=>{await onUpdated();},'Revisão atualizada. Confira os dados antes de aprovar.')}>Atualizar revisão</button></>}
     {view.status === "pending_review" && !stale && !uncertain && <><label className="mga-ack"><input type="checkbox" checked={acknowledged} disabled={disabled} onChange={e => setAcknowledged(e.target.checked)}/>Conferi o anúncio, o público e o investimento desta alteração.</label><div className="mga-actions"><button type="button" data-action="approve" disabled={!reviewed} onClick={() => void action.run(approveReviewed,result=>result?executionFeedback(result):{type:'success',text:'Aprovação registrada.'})}>{publishTogether?'Aprovar e publicar':view.kind === "publish" ? "Aprovar publicação" : "Aprovar alteração"}</button><button type="button" className="mga-secondary" disabled={disabled} onClick={() => void action.run(async () => {setView(await api.reject(view.id)); await onUpdated();},"Proposta rejeitada. Nenhuma alteração executada.")}>Rejeitar proposta</button></div></>}
     {view.status === "approved" && !result && !view.executionId && !uncertain && <><p>{publishTogether?'A campanha está aprovada. Falta enviá-la à Meta.':`Aprovação registrada em ${date(view.approvedAt)}.`}</p><button type="button" disabled={disabled} onClick={() => void action.run(()=>sendApproved(view.id),executionFeedback)}>{publishTogether?'Publicar campanha':'Executar alteração aprovada'}</button></>}
     {uncertain && !result && <div className="mga-notice"><p role="status">Resultado desconhecido. Atualize o histórico para conferir o envio antes de tentar novamente.</p><button type="button" className="mga-secondary" disabled={action.busy} onClick={() => void action.run(async () => {await onUpdated();},"Histórico atualizado.")}>Atualizar histórico</button></div>}
