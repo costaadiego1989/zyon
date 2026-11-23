@@ -58,8 +58,6 @@ function MetaAdsAgentView({api,merchantId,apiBaseUrl,assistantClient,reviewTarge
 
   useEffect(()=>{const params=new URLSearchParams(window.location.search),id=params.get('adCampaign');if(id&&params.get('adStore')===merchantId)openWorkspace(id);},[merchantId]);
   useEffect(()=>{if(pendingFeedbackCampaign.current&&data?.campaigns.some(c=>c.id===pendingFeedbackCampaign.current&&c.status==='remote_paused')){pendingFeedbackCampaign.current=null;setNotice('');}},[data]);
-  const pending = data?.generations.some(g => ["reserved", "running"].includes(g.status)) || data?.executions.some(e => ["reserved", "sending", "publishing"].includes(e.status));
-  useEffect(() => {if (!pending) return; const timer = window.setInterval(() => {void load();}, 5000); return () => window.clearInterval(timer);}, [load, pending]);
   const current = selectedRow?.campaign??data?.campaigns.find(c => c.id === selectedId);
   useEffect(() => {if (current?.remoteCampaignId && kind === "prepare") setKind("publish");}, [current?.remoteCampaignId, kind]);
   function open(campaign: MetaAdsCampaign,proposalId?:string) {setReviewProposalId(proposalId??null);setSelectedId(campaign.id); setComposing(false); setKind(campaign.remoteCampaignId ? "publish" : "prepare"); setReason(""); setBudget(campaign.draft.budget ? (campaign.draft.budget.amountCents / 100).toFixed(2) : ""); setCountry(campaign.draft.country); setStopReview(false);}
@@ -77,7 +75,7 @@ function MetaAdsAgentView({api,merchantId,apiBaseUrl,assistantClient,reviewTarge
   const settings=<ConnectionPanel connection={data.connection} entitled={data.entitled} api={api} onUpdated={load}/>;
   const billingSettings=<OfferPanel overview={data} api={api} onUpdated={load}/>;
   return <div className="meta-ads-agent dashboard-ui"><div className="mga-page-heading"><PageHeader title="Anúncios com IA" description="Crie campanhas e acompanhe os resultados com ajuda da IA." actions={<button type="button" className="mga-secondary" disabled={loading} onClick={() => void load(true)}><RefreshCw size={15} aria-hidden="true"/>Atualizar dados</button>}/></div>
-    <MetaAdsAssistant merchantId={merchantId} apiBaseUrl={apiBaseUrl} overview={data} api={api} client={assistantClient} onUpdated={load} onModeChanged={setMode} startRequest={startRequest} settings={settings} billingSettings={billingSettings} selectedCampaignId={selectedId} reviewTarget={reviewTarget} setupRequest={setupRequest} onOpenCampaign={target=>openWorkspace(target.campaignId,target.proposalId)}>
+    <MetaAdsAssistant merchantId={merchantId} apiBaseUrl={apiBaseUrl} overview={data} api={api} client={assistantClient} pollMs={15000} onUpdated={load} onModeChanged={setMode} startRequest={startRequest} settings={settings} billingSettings={billingSettings} selectedCampaignId={selectedId} reviewTarget={reviewTarget} setupRequest={setupRequest} onOpenCampaign={target=>openWorkspace(target.campaignId,target.proposalId)}>
     {notice&&<p role="status" className="mga-notice" data-workspace-feedback>{notice}</p>}
     {loading && <p role="status">Atualizando dados…</p>}{loadError && <div className="mga-notice" role="alert"><p>{loadError}</p><button type="button" disabled={loading} onClick={() => void load(true)}>Tentar atualizar novamente</button></div>}
     {!data.entitled && <p className="mga-notice">Seu histórico permanece disponível. Novas gerações e execuções exigem adicional ativo em plano Growth ou Escala. O encerramento não pausa anúncios na Meta.</p>}
