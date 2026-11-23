@@ -13,6 +13,7 @@ const unavailableAudience=():MetaAdsAudienceSummary=>({source:'unavailable',coun
 interface Dependencies{repo:Pick<MetaAdsRepository,'read'> & Partial<Pick<MetaAdsRepository,'mutate'>>;canManage:(merchantId:string)=>Promise<boolean>;clock?:Clock;live?:{requireAccess(merchantId:string):Promise<unknown>;access(merchantId:string):Promise<MetaAccess>;provider:Pick<MetaAdsProviderPort,'snapshot'|'metrics'>;reconcile?(merchantId:string,id:string):Promise<unknown>};}
 const observationLabels:Record<MetaAdsCampaignObservation['phase'],string>={active:'Ativa na Meta',delivering:'Em veiculação',processing:'Meta preparando a entrega',review:'Em análise na Meta',paused:'Pausada na Meta',rejected:'Anúncio precisa de ajuste',unavailable:'Situação não confirmada'};
 const bindings=(c:MetaAdsCampaign)=>[c.remoteAccountId,c.remoteCampaignId,c.remoteAdSetId,[...c.remoteAdIds].sort()];
+const campaignVersion=(c:MetaAdsCampaign)=>stableDigest([bindings(c),c.updatedAt,c.draft,c.status,c.managed,c.lifecycle??null]);
 function observedAudience(snapshot:RemoteSnapshot,checkedAt:string):MetaAdsAudienceSummary{
  const t=snapshot.targeting as {geo_locations?:{countries?:unknown};age_min?:unknown;age_max?:unknown;targeting_automation?:{advantage_audience?:unknown}},countries=t.geo_locations?.countries;
  if(!Array.isArray(countries)||!countries.length||countries.length>50||countries.some(c=>typeof c!=='string'||!allowedCountry(c)))return unavailableAudience();
@@ -23,11 +24,13 @@ function observedAudience(snapshot:RemoteSnapshot,checkedAt:string):MetaAdsAudie
 }
 function phase(snapshot:RemoteSnapshot,metrics:MetaAdsCampaignObservation['metrics']):MetaAdsCampaignObservation['phase']{
  const states=[snapshot.status,snapshot.effectiveStatus,...(snapshot.objectStates??[]).flatMap(s=>[s.status,s.effectiveStatus])];
+ const expected=[{type:'ad_set',id:snapshot.adSetId},...snapshot.adIds.map(id=>({type:'ad',id}))];
+ const complete=snapshot.objectStates?.length===expected.length&&expected.every(item=>snapshot.objectStates!.filter(state=>state.type===item.type&&state.id===item.id).length===1);
  if(states.some(s=>['DISAPPROVED','WITH_ISSUES'].includes(s)))return'rejected';
  if(states.some(s=>['PAUSED','CAMPAIGN_PAUSED','ADSET_PAUSED','ARCHIVED','DELETED'].includes(s)))return'paused';
  if(states.includes('PENDING_REVIEW'))return'review';
  if(states.some(s=>['IN_PROCESS','PREAPPROVED','PENDING_BILLING_INFO'].includes(s)))return'processing';
- if(snapshot.status==='ACTIVE'&&snapshot.effectiveStatus==='ACTIVE'&&snapshot.objectStates?.length&&snapshot.objectStates.every(s=>s.status==='ACTIVE'&&s.effectiveStatus==='ACTIVE'))return !metrics?.stale&&metrics?.impressions&&metrics.impressions>0?'delivering':'active';
+ if(snapshot.status==='ACTIVE'&&snapshot.effectiveStatus==='ACTIVE'&&complete&&snapshot.objectStates!.every(s=>s.status==='ACTIVE'&&s.effectiveStatus==='ACTIVE'))return !metrics?.stale&&metrics?.impressions&&metrics.impressions>0?'delivering':'active';
  return'unavailable';
 }
 export class CampaignWorkspaceQueryService{
@@ -74,7 +77,8 @@ export class CampaignWorkspaceQueryService{
   else if(['remote_paused','remote_draft'].includes(campaign.status)){group='paused';stateLabel='Pausada';}
   else if(campaign.status==='failed'){group='attention';stateLabel='Precisa de atenção';}
   const candidate=state.workspaceObservations?.[campaign.id];
-  const observation=candidate&&candidate.accountId===state.connection.account?.id&&candidate.connectionEpoch===state.connection.epoch&&stableDigest([candidate.accountId,candidate.campaignId,candidate.adSetId,[...candidate.adIds].sort()])===stableDigest(bindings(campaign))&&Date.parse(candidate.checkedAt)>=Date.parse(campaign.updatedAt)?candidate:undefined;
+  const observation=candidate&&candidate.campaignVersion===campaignVersion(campaign)&&candidate.accountId===state.connection.account?.id&&candidate.connectionEpoch===state.connection.epoch&&stableDigest([candidate.accountId,candidate.campaignId,candidate.adSetId,[...candidate.adIds].sort()])===stableDigest(bindings(campaign))&&Date.parse(candidate.checkedAt)>=Date.parse(campaign.updatedAt)?{...candidate}:undefined;
+  if(observation)delete observation.campaignVersion;
   const cached=observation?.since===query.since&&observation.until===query.until?observation.metrics:state.metrics[campaign.id];
   const metrics=cached&&cached.since===query.since&&cached.until===query.until&&(!campaign.remoteAccountId||campaign.remoteAccountId===state.connection.account?.id)?{...structuredClone(cached),confirmedOrdersStatus:cached.confirmedOrdersStatus??(cached.source==='meta_reported'?'unavailable' as const:'available' as const)}:null;
   if(observation&&!archived&&!inFlight){stateLabel=observationLabels[observation.phase];if(['active','delivering','processing','review'].includes(observation.phase))group='running';else if(observation.phase==='paused')group='paused';else group='attention';}
@@ -113,9 +117,8 @@ export class CampaignWorkspaceQueryService{
   const state=await this.deps.repo.read(merchantId),latest=Object.values(state.executions).filter(e=>e.campaignId===campaign.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0];
   if(latest&&['active_unconfirmed','execution_unknown','publishing'].includes(latest.status)&&live.reconcile)await live.reconcile(merchantId,latest.id);
   const before=(await this.deps.repo.read(merchantId)).campaigns[campaign.id];
-  const version=(c:MetaAdsCampaign)=>stableDigest([bindings(c),c.updatedAt,c.draft,c.status,c.managed,c.lifecycle??null]);
   if(!before||stableDigest(bindings(before))!==stableDigest(bindings(campaign)))throw new MetaAdsError('meta_connection_changed',409);
-  const expectedVersion=version(before);
+  const expectedVersion=campaignVersion(before);
   const [snapshotResult,metricsResult]=await Promise.allSettled([live.provider.snapshot({...access},campaign),live.provider.metrics({...access},campaign,query.since,query.until)]);
   if(snapshotResult.status==='rejected'&&metricsResult.status==='rejected')throw new MetaAdsError('campaign_observation_unavailable',503);
   const checkedAt=this.clock().toISOString(),missing:MetaAdsCampaignObservation['missing']=[];
@@ -136,8 +139,8 @@ export class CampaignWorkspaceQueryService{
   const observation:MetaAdsCampaignObservation={accountId:access.accountId!,connectionEpoch:access.connectionEpoch,campaignId:campaign.remoteCampaignId!,adSetId:campaign.remoteAdSetId!,adIds:[...campaign.remoteAdIds],checkedAt,since:query.since,until:query.until,phase:snapshot?phase(snapshot,metrics):'unavailable',audience,metrics,missing};
   return this.deps.repo.mutate!(merchantId,[],current=>{
    const c=current.campaigns[campaign.id];
-   if(!c?.managed||c.lifecycle?.state==='archived'||current.connection.account?.id!==access.accountId||current.connection.epoch!==access.connectionEpoch||version(c)!==expectedVersion)throw new MetaAdsError('meta_connection_changed',409);
-   current.workspaceObservations??={};current.workspaceObservations[c.id]=observation;
+   if(!c?.managed||c.lifecycle?.state==='archived'||current.connection.account?.id!==access.accountId||current.connection.epoch!==access.connectionEpoch||campaignVersion(c)!==expectedVersion)throw new MetaAdsError('meta_connection_changed',409);
+   current.workspaceObservations??={};current.workspaceObservations[c.id]={...observation,campaignVersion:expectedVersion};
    return{result:this.row(c,current,query,true)};
   });
  }

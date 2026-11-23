@@ -5,7 +5,7 @@ import {errorMessage} from './presentation.js';
 
 export function useCampaignObservation({row,api,merchantId,accountId,epoch,entitled,period,revision=0}:{row:MetaAdsCampaignWorkspaceRow;api:MetaAdsAgentApi;merchantId:string;accountId:string|null;epoch:number;entitled:boolean;period?:{since:string;until:string};revision?:number}){
  const c=row.campaign,enabled=!!period&&entitled&&c.createdByAgent&&c.managed&&c.lifecycle?.state!=='archived'&&!!c.remoteCampaignId&&!!c.remoteAdSetId&&c.remoteAdIds.length>0&&typeof api.refreshCampaign==='function';
- const key=JSON.stringify([merchantId,c.id,accountId,epoch,c.remoteCampaignId,c.remoteAdSetId,c.remoteAdIds,period?.since,period?.until,revision]),current=useRef(key);current.current=key;
+ const key=JSON.stringify([merchantId,c.id,accountId,epoch,c.remoteCampaignId,c.remoteAdSetId,c.remoteAdIds,c.updatedAt,c.status,c.draft,c.managed,c.lifecycle,period?.since,period?.until,revision]),current=useRef(key);current.current=key;
  const [result,setResult]=useState<{key:string;row:MetaAdsCampaignWorkspaceRow}|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const request=useRef<AbortController|null>(null),sequence=useRef(0),alive=useRef(true);
  const refresh=useCallback(async()=>{
