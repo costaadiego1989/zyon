@@ -1,12 +1,13 @@
 // Detached, audited maintenance runner for the user's 25 GB regional recovery.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
 const {Client}=require('pg');
-const folder='/tmp/zyon-retail-recovery-20261123';
+const {retailWorkerContext}=require('./prospecting-retail-worker-context.cjs');
+const {folder,apiRoot,mode}=retailWorkerContext({standalone:process.argv.includes('--standalone'),cwd:process.cwd(),env:process.env});
 const descriptor=JSON.parse(fs.readFileSync(path.join(folder,'job.json'),'utf8'));
-const state={phase:'starting',pid:process.pid,jobId:descriptor.jobId,sourceJobId:descriptor.sourceJobId,startedAt:new Date().toISOString(),selectedCompanies:0,committedRecords:0,validatedFiles:0,requiredFiles:23};
+const state={phase:'starting',mode,pid:process.pid,jobId:descriptor.jobId,sourceJobId:descriptor.sourceJobId,startedAt:new Date().toISOString(),selectedCompanies:0,committedRecords:0,validatedFiles:0,requiredFiles:23};
 const save=()=>{fs.writeFileSync(folder+'/status.pending',JSON.stringify({...state,updatedAt:new Date().toISOString()},null,2));fs.renameSync(folder+'/status.pending',folder+'/status.json');};
 async function main(){
- assert.equal(process.cwd(),'/repo/apps/api');
+ assert.equal(process.cwd(),apiRoot);
  for(const key of ['META_SEND_ENABLED','LLM_REAL_ENABLED','PAID_INGESTION_ENABLED','RUN_WORKERS'])assert.equal(process.env['PROSPECTING_'+key],'false');
  assert.equal(process.env.PROSPECTING_ENABLED,'true');assert.equal(process.env.PROSPECTING_INGESTION_ENABLED,'true');
  const at=relative=>import(pathToFileURL(path.join(process.cwd(),relative)).href);
