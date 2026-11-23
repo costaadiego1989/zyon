@@ -17,7 +17,7 @@ test('ADAS-42 private daily queue cannot starve a human turn behind more than on
     }
     f.setNow('2026-11-14T12:00:00Z');
     const worker = new AssistantWorker({ repo: f.conversations, admission: f.admission, contexts: () => ['meta-ads'], accepts: scope => scope.context === 'meta-ads', respond: input => f.service.respond(input), clock: f.clock });
-    await worker.drain(); assert.equal((await f.saved()).status, 'completed'); assert.equal((await f.saved()).reply, 'Qual resultado deseja para sua campanha?'); assert.equal(f.calls(), 1);
+    await worker.drain(); assert.equal((await f.saved()).status, 'completed'); assert.equal((await f.saved()).reply, 'O resultado orienta as escolhas do anúncio. Você quer mais vendas, gastar menos por compra ou ter mais retorno sobre o valor investido?'); assert.equal(f.calls(), 1);
     const remaining = await f.conversations.pending(f.clock(), 100); assert.equal(remaining.length, 21); assert.equal(remaining.every(job => job.scope.actorId === 'service:meta-ads-agent'), true);
   } finally { await f.close(); }
 });
@@ -36,7 +36,7 @@ async function fixture() {
 test('ADAS-10 persisted queue completes with response and settled measured usage', async () => {
   const f = await fixture(); try {
     await f.worker().drain(); const saved = await f.saved();
-    assert.equal(saved.status, 'completed'); assert.equal(saved.reply, 'Qual resultado deseja para sua campanha?');
+    assert.equal(saved.status, 'completed'); assert.equal(saved.reply, 'O resultado orienta as escolhas do anúncio. Você quer mais vendas, gastar menos por compra ou ter mais retorno sobre o valor investido?');
     assert.equal(saved.budgetState, 'settled'); assert.equal(saved.usageCostMicros, 1n);
     assert.equal(saved.leaseToken, null); assert.equal(f.calls(), 1); assert.equal(saved.error, null);
     await f.worker().drain(); assert.equal(f.calls(), 1);
@@ -78,7 +78,7 @@ test('ADAS-50 sent timeout remains unknown and explicit replay cannot dispatch i
     f.provider(async () => { throw Error('timeout with Authorization: synthetic-secret'); });
     await f.worker().drain(); const saved = await f.saved();
     assert.equal(saved.status, 'unknown'); assert.equal(saved.budgetState, 'unknown');
-    const retry = await f.admission.submit(assistantScope, f.thread.id, { message: 'Quero anunciar', expectedRevision: 0, idempotencyKey: 'request-a' });
+    const retry = await f.admission.submit(assistantScope, f.thread.id, { message: f.turn.message, expectedRevision: 0, idempotencyKey: 'request-a' });
     assert.equal(retry.turn.id, f.turn.id); assert.equal(retry.turn.status, 'unknown');
     await f.worker().drain(); assert.equal(f.calls(), 1); assert.ok(!serialized(saved).includes('synthetic-secret'));
   } finally { await f.close(); }
@@ -87,7 +87,7 @@ test('ADAS-14 failure before paid consumption can explicitly requeue the same tu
   const f = await fixture(); try {
     f.provider(async () => new Response('sensitive-rejected-response', { status: 401 }));
     await f.worker().drain(); const failed = await f.saved(); assert.equal(failed.status, 'failed'); assert.equal(failed.budgetState, 'released');
-    const retry = await f.admission.submit(assistantScope, f.thread.id, { message: 'Quero anunciar', expectedRevision: 0, idempotencyKey: 'request-a' });
+    const retry = await f.admission.submit(assistantScope, f.thread.id, { message: f.turn.message, expectedRevision: 0, idempotencyKey: 'request-a' });
     assert.equal(retry.turn.id, f.turn.id); assert.equal(retry.turn.status, 'queued'); assert.equal(retry.turn.budgetState, 'reserved');
     f.provider(async () => new Response(JSON.stringify({ id: 'ok', choices: [{ message: { content: '{"reply":"Qual o objetivo?","referenceIds":[]}' } }], usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 } }), { status: 200 }));
     await f.worker().drain(); assert.equal((await f.saved()).status, 'completed'); assert.equal(f.calls(), 2);
@@ -125,15 +125,30 @@ test('ADAS-14 restart after generation tool reuses paid steps and the same image
     assert.equal(Object.keys(state.credits.reservations).length, 2); assert.equal(f.physicalImages(), 0);
   } finally { await f.close(); }
 });
-test('ADAS-50 invalid but metered model response settles known cost and never rebuys that step', async () => {
+test('ADAS-50 unrecoverable invalid but metered model response settles known cost and never rebuys that step', async () => {
   const f = await fixture(); try {
+    f.adapter.recoveredResponse=()=>null;
     f.provider(async () => new Response(JSON.stringify({ id: 'bad-reply', choices: [{ message: { content: 'invalid-json' } }], usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 } }), { status: 200 }));
     await f.worker().drain(); const saved = await f.saved();
-    assert.equal(saved.status, 'failed'); assert.equal(saved.budgetState, 'settled'); assert.equal(saved.usageCostMicros, 1n);
-    const retry = await f.admission.submit(assistantScope, f.thread.id, { message: 'Quero anunciar', expectedRevision: 0, idempotencyKey: 'request-a' });
-    assert.equal(retry.turn.status, 'failed'); await f.worker().drain(); assert.equal(f.calls(), 1);
+    assert.equal(saved.status, 'failed','invalid metered response must fail initially'); assert.equal(saved.budgetState, 'settled'); assert.equal(saved.usageCostMicros, 1n);
+    const retry = await f.admission.submit(assistantScope, f.thread.id, { message: f.turn.message, expectedRevision: 0, idempotencyKey: 'request-a' });
+    assert.equal(retry.turn.status, 'failed','replaying a consumed invalid response must retain its failed status'); await f.worker().drain(); assert.equal(f.calls(), 1);
     assert.equal(saved.providerRequests[0].status, 'completed');
   } finally { await f.close(); }
+});
+
+test('ADAS-50 canonical guided recovery settles an invalid model response once and replay cannot buy it again',async()=>{
+  const f=await fixture();try{
+    f.provider(async()=>new Response(JSON.stringify({id:'recoverable-reply',choices:[{message:{content:'invalid-json'}}],usage:{prompt_tokens:50,completion_tokens:25,total_tokens:75}}),{status:200}));
+    await f.worker().drain();const saved=await f.saved();
+    assert.equal(saved.status,'completed');assert.equal(saved.budgetState,'settled');assert.equal(saved.usageCostMicros,1n);
+    assert.equal(saved.reply,'Vamos começar pelo destino do anúncio. Você prefere vender pela loja ou receber clientes no WhatsApp?');
+    assert.equal(saved.providerRequests.length,1);assert.equal(saved.providerRequests[0].status,'completed');
+    const retry=await f.admission.submit(assistantScope,f.thread.id,{message:f.turn.message,expectedRevision:0,idempotencyKey:'request-a'});
+    assert.equal(retry.turn.id,saved.id);assert.equal(retry.turn.status,'completed');await f.worker().drain();assert.equal(f.calls(),1);
+    assert.equal((await f.conversations.turns(assistantScope,f.thread.id)).turns.length,1);
+    const state=await f.repo.read('store-a');assert.equal(Object.keys(state.campaigns).length,0);assert.equal(Object.keys(state.generations).length,0);assert.equal(f.physicalImages(),0);
+  }finally{await f.close();}
 });
 
 test('ADAS-51 completed turn persists correlation current sources and measured outcome without provider secrets',async()=>{const f=await fixture();try{f.setNow('2026-11-16T12:00:00Z');const question='Como adiciono fundos na conta de anúncios?';await f.sql.query('UPDATE merchant_assistant_turns SET message=$1 WHERE id=$2',[question,f.turn.id]);const documents=await new AssistantKnowledgeRetriever(undefined,f.clock).retrieve(f.adapter.knowledgeScope,question);assert.ok(documents.length);const source=documents[0].reference;f.provider(async()=>new Response(JSON.stringify({id:'trace-provider-a',debug:{token:'Bearer raw-provider-private-token',card:'4111111111111111'},choices:[{message:{content:JSON.stringify({reply:'A verba de mídia é paga diretamente à Meta.',referenceIds:[source.id]})}}],usage:{prompt_tokens:50,completion_tokens:25,total_tokens:75}}),{status:200}));await f.worker().drain();const saved=await f.saved(),thread=await f.conversations.readThread(assistantScope,f.thread.id);assert.equal(saved.id,f.turn.id);assert.equal(saved.merchantId,'store-a');assert.equal(thread.id,f.thread.id);assert.equal(thread.actorId,'owner-a');assert.equal(thread.context,assistantScope.context);assert.equal(saved.status,'completed');assert.equal(saved.reply,'A verba de mídia é paga diretamente à Meta.');assert.equal(saved.references[0].id,source.id);assert.equal(saved.references[0].version,'2026-11-16.2');assert.equal(saved.providerRequests.length,1);assert.equal(saved.providerRequests[0].kind,'model');assert.equal(saved.providerRequests[0].status,'completed');assert.equal(saved.providerRequests[0].providerRequestId,'trace-provider-a');assert.ok(saved.providerRequests[0].key);assert.equal(saved.budgetState,'settled');assert.equal(saved.usageCostMicros,1n);assert.doesNotMatch(serialized(saved),/synthetic-key|raw-provider-private-token|4111111111111111|Bearer/);}finally{await f.close();}});
