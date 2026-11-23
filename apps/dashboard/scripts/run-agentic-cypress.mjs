@@ -38,12 +38,12 @@ export function assertBrowserDatabaseContainer(value){
 }
 async function database(){
   const container='zyon-cashback-postgres-20261118',name='cashback_agentic_browser_qa_20261119';
-  let inspected;try{inspected=JSON.parse((await execute('docker',['inspect',container],{windowsHide:true})).stdout)[0];}catch{throw Error('agentic_owned_local_postgres_required');}
+  let inspected;try{inspected=JSON.parse((await execute('docker',['inspect',container],{windowsHide:true,timeout:15000})).stdout)[0];}catch(error){throw Error(error.killed?'agentic_local_docker_unavailable':'agentic_owned_local_postgres_required');}
   assertBrowserDatabaseContainer(inspected);
-  if(!inspected.State.Running)await execute('docker',['start',container],{windowsHide:true});
+  if(!inspected.State.Running)await execute('docker',['start',container],{windowsHide:true,timeout:60000});
   let ready=false;for(let i=0;i<60;i++){if(await open(15433)){ready=true;break;}await wait(500);}if(!ready)throw Error('agentic_local_postgres_unavailable');
   const prefix=['exec',container,'psql','-U','cashback','-d','postgres','-v','ON_ERROR_STOP=1'];
-  const exists=(await execute('docker',[...prefix,'-Atc',`SELECT 1 FROM pg_database WHERE datname='${name}'`],{windowsHide:true})).stdout.trim();
+  const exists=(await execute('docker',[...prefix,'-Atc',`SELECT 1 FROM pg_database WHERE datname='${name}'`],{windowsHide:true,timeout:15000})).stdout.trim();
   if(exists!=='1')await execute('docker',[...prefix,'-c',`CREATE DATABASE ${name} OWNER cashback`],{windowsHide:true});
 }
 async function sourceSnapshot(){
@@ -60,6 +60,7 @@ export async function main(args=process.argv.slice(2)){
     const code=await runSpecSuite(specs,spec=>new Promise((resolve,reject)=>{const child=spawn(process.execPath,[fileURLToPath(import.meta.url),'--spec',spec],{cwd:workspace,env:process.env,windowsHide:true,stdio:'inherit'});child.once('error',reject);child.once('close',resolve);}));if(code!==0)process.exitCode=code;return;
   }
   const spec=selectedSpec(options);
+  const browserName=fixtureContext(spec)==='meta-ads'?'electron':'edge';
   if(options.spec){const file=await realpath(path.join(dashboard,options.spec)),root=await realpath(path.join(dashboard,'cypress/e2e/agentic'));if(!file.startsWith(root+path.sep))throw Error('agentic_argument_invalid');}
   const allowed=new Set(['PATH','PATHEXT','SYSTEMROOT','SYSTEMDRIVE','WINDIR','TEMP','TMP','LOCALAPPDATA','APPDATA','USERPROFILE','COMSPEC','NUMBER_OF_PROCESSORS','PROCESSOR_ARCHITECTURE','PROGRAMFILES','PROGRAMFILES(X86)','PROGRAMW6432','HOMEDRIVE','HOMEPATH']);
   for(const name of Object.keys(process.env))if(!allowed.has(name.toUpperCase()))delete process.env[name];
@@ -71,7 +72,7 @@ export async function main(args=process.argv.slice(2)){
   const sourceBefore=await sourceSnapshot();
   const nonce=randomBytes(32).toString('hex'),artifact=path.join(workspace,'.specs/features/agentic-dashboard-assistant/cypress-results',new Date().toISOString().replaceAll(':','-'));
   await mkdir(artifact,{recursive:true});
-  await writeFile(path.join(artifact,'source-start.json'),JSON.stringify({...sourceBefore,selection:options.case??options.spec??options.suite??'all',controlledTransport:true},null,2));
+  await writeFile(path.join(artifact,'source-start.json'),JSON.stringify({...sourceBefore,selection:options.case??options.spec??options.suite??'all',browser:browserName,controlledTransport:true},null,2));
   const loader='data:text/javascript,'+encodeURIComponent("import {register} from 'node:module';import {pathToFileURL} from 'node:url';register('./tests/ready-prod-loader.mjs',pathToFileURL('./'));");
   const child=spawn(process.execPath,['--import',loader,'./tests/agentic-assistant-browser-runtime.ts'],{cwd:path.join(workspace,'apps/api'),env:{...process.env,AGENTIC_TEST_NONCE:nonce,AGENTIC_TEST_PORT:String(ports.apiPort),AGENTIC_TEST_FRONTEND_URL:front,AGENTIC_TEST_CONTEXT:fixtureContext(spec)},windowsHide:true,stdio:['ignore','pipe','pipe']});
   let logs='';child.stdout.on('data',chunk=>{logs=(logs+chunk).slice(-100000);});child.stderr.on('data',chunk=>{logs=(logs+chunk).slice(-100000);});const exited=new Promise(resolve=>child.once('exit',resolve));let vite;
@@ -82,9 +83,9 @@ export async function main(args=process.argv.slice(2)){
     const {createServer}=await import('vite');vite=await createServer({configFile:path.join(dashboard,'e2e/agentic-assistant/vite.config.ts'),cacheDir:path.join(artifact,'vite-cache'),server:{host:'127.0.0.1',port:ports.frontPort,strictPort:true},define:{__AGENTIC_API__:JSON.stringify(apiBase),__AGENTIC_NONCE__:JSON.stringify(nonce)}});await vite.listen();await vite.warmupRequest('/entry.tsx');
     process.stdout.write(`Local API and dashboard ready: ${front}\n`);
     if(options.serve){await Promise.race([exited,new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);})]);return;}
-    process.stdout.write('Starting Cypress in isolated Edge\n');
+    process.stdout.write(`Starting Cypress in isolated ${browserName}\n`);
     const optionsPath=path.join(artifact,'options.json'),resultPath=path.join(artifact,'results.json');
-    await writeFile(optionsPath,JSON.stringify({project:dashboard,configFile:'cypress.agentic.config.ts',browser:'edge',headless:true,record:false,testingType:'e2e',...(spec?{spec}:{}),env:{agenticNonce:nonce},config:{baseUrl:front,expose:{agenticCase:options.case??'',agenticApi:apiBase},screenshotsFolder:path.join(artifact,'screenshots'),downloadsFolder:path.join(artifact,'downloads')}}));
+    await writeFile(optionsPath,JSON.stringify({project:dashboard,configFile:'cypress.agentic.config.ts',browser:browserName,headless:true,record:false,testingType:'e2e',...(spec?{spec}:{}),env:{agenticNonce:nonce},config:{baseUrl:front,expose:{agenticCase:options.case??'',agenticApi:apiBase},screenshotsFolder:path.join(artifact,'screenshots'),downloadsFolder:path.join(artifact,'downloads')}}));
     const workerLogPath=path.join(artifact,'worker.log');await writeFile(workerLogPath,'');
     const worker=spawn(process.execPath,[path.join(dashboard,'scripts/run-agentic-cypress-worker.mjs'),optionsPath,resultPath],{cwd:dashboard,env:{...process.env},windowsHide:true,detached:process.platform==='win32',stdio:['ignore','pipe','pipe']});
     worker.stdout.on('data',chunk=>appendFileSync(workerLogPath,chunk));worker.stderr.on('data',chunk=>appendFileSync(workerLogPath,chunk));
@@ -93,7 +94,7 @@ export async function main(args=process.argv.slice(2)){
     let result;try{result=JSON.parse(await readFile(resultPath,'utf8'));}catch{throw Error(`cypress_no_test_ran: worker exited ${code} without results`);}
     assertSuccessfulRun(result);if(code!==0)throw Error('cypress_failed');
     const sourceAfter=await sourceSnapshot();if(JSON.stringify(sourceBefore)!==JSON.stringify(sourceAfter))throw Error('agentic_source_changed_during_run');
-    await writeFile(path.join(artifact,'source.json'),JSON.stringify({...sourceBefore,selection:options.case??options.spec??options.suite??'all',controlledTransport:true,passed:result.totalPassed,total:result.totalTests},null,2));process.stdout.write(`Cypress: ${result.totalPassed}/${result.totalTests} passed. Evidence: ${artifact}\n`);
+    await writeFile(path.join(artifact,'source.json'),JSON.stringify({...sourceBefore,selection:options.case??options.spec??options.suite??'all',browser:browserName,controlledTransport:true,passed:result.totalPassed,total:result.totalTests},null,2));process.stdout.write(`Cypress: ${result.totalPassed}/${result.totalTests} passed. Evidence: ${artifact}\n`);
   }finally{
     await writeFile(path.join(artifact,'api.log'),logs);
     await vite?.close();try{await fetch(apiBase+'/__test/shutdown',{method:'POST',headers,body:'{}',signal:AbortSignal.timeout(10000)});}catch{}
