@@ -104,6 +104,75 @@ test('ACAP-14 native launch refuses existing remote objects instead of activatin
   const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
   assert.equal(result.status, 'failed'); assert.equal(result.error, 'campaign_already_prepared'); assert.deepEqual(result.objects, []); assert.equal(f.calls.length, 0);
 });
+
+// The live Meta MCP represents new objects as EDITING drafts with values.<field>.new.
+// Relationship numbers can exceed JS precision; the top-level string parents are exact.
+function draftLaunchFixture(change?: (level: string, rows: Record<string, unknown>[]) => void) {
+  const ids = {campaign: '120250883217370637', adset: '120250883217830637', ad: '120250883218280637'};
+  return launchFixture(call => {
+    if (call.name === 'ads_create_campaign') return {campaign_id: ids.campaign, status: 'DRAFT', valid_optimization_goals: '["OFFSITE_CONVERSIONS"]'};
+    if (call.name === 'ads_create_ad_set') return {ad_set_id: ids.adset, status: 'DRAFT'};
+    if (call.name === 'ads_create_ad') return {ad_id: ids.ad, status: 'DRAFT'};
+    if (call.name === 'ads_activate_entity') return {result: {status: 'PUBLISHING'}};
+    if (call.name !== 'ads_get_ad_entities') return undefined;
+    if (call.args.object_state !== 'draft') return {ad_entities: '[]'};
+    const level = String(call.args.level), name = campaign().draft.name;
+    const values = level === 'campaign' ? {name, status: 'ACTIVE', lifetime_budget: 10000, objective: 'OUTCOME_SALES'}
+      : level === 'adset' ? {name, status: 'ACTIVE', campaign_id: Number(ids.campaign), start_time: '2026-11-17T12:00:00.000Z', end_time: '2026-11-24T12:00:00.000Z', destination_type: 'WEBSITE', promoted_object: {pixel_id: 120, custom_event_type: 'PURCHASE'}, targeting: {geo_locations: {countries: ['BR']}, age_min: 18, age_range: [18,65], targeting_automation: {advantage_audience: 1}}}
+      : {name, status: 'ACTIVE', campaign_id: Number(ids.campaign), adset_id: ids.adset, creative: {creative_id: '400'}};
+    const rows: Record<string, unknown>[] = [{ad_object_id: ids[level as keyof typeof ids], ad_object_type: level, parent_ad_object_id: level === 'campaign' ? null : level === 'adset' ? ids.campaign : ids.adset, action: 'add', status: 'EDITING', source: 'mcp_campaign_creation', validation_status: 'VALIDATED', values: Object.fromEntries(Object.entries(values).map(([key,value]) => [key,{new:value}])), active_errors: [], publish_error: null}];
+    change?.(level, rows);
+    return {ad_drafts: JSON.stringify(rows)};
+  });
+}
+
+test('ACAP-13 DRAFT publication verifies the actual staged values and exact large string parents', async () => {
+  const f = draftLaunchFixture(), result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+  assert.equal(result.status, 'publishing');
+  assert.deepEqual(result.objects.map(ref => ref.id), ['120250883217370637','120250883217830637','400','120250883218280637']);
+  const activation = f.calls.filter(c => c.name === 'ads_activate_entity');
+  assert.equal(activation.length, 1);
+  assert.deepEqual(activation[0].args.object_ids, ['120250883217370637','120250883217830637','120250883218280637']);
+  assert.equal(activation[0].args.publish_as_active, true);
+  assert.equal(activation[0].args.allow_partial_publish, false);
+  assert.ok(f.calls.filter(c => c.name === 'ads_get_ad_entities').every(c => c.args.ad_account_id === '100'));
+  assert.equal(f.calls.filter(c => c.name === 'ads_create_campaign').length, 1);
+});
+
+test('ACAP-14 DRAFT publication blocks altered budget dates hierarchy creative and assets before activation', async () => {
+  for (const [level, field, value] of [
+    ['campaign','lifetime_budget',9999],['campaign','daily_budget',100],['campaign','account_id','999'],
+    ['adset','start_time','2026-11-18T12:00:00Z'],['adset','end_time','2026-11-23T12:00:00Z'],
+    ['adset','campaign_id','999'],['adset','promoted_object',{pixel_id:'999',custom_event_type:'PURCHASE'}],
+    ['adset','destination_type','WHATSAPP'],['adset','targeting',{geo_locations:{countries:['US']},age_min:18,targeting_automation:{advantage_audience:1}}],
+    ['ad','adset_id','999'],['ad','creative',{creative_id:'999'}],['ad','status','DELETED'],
+  ] as const) {
+    const f = draftLaunchFixture((current,rows) => {if(current === level)(rows[0].values as Record<string,unknown>)[field] = {new:value};});
+    const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+    assert.equal(result.status, 'failed', `${level}.${field}`);
+    assert.equal(f.calls.filter(c => c.name === 'ads_activate_entity').length, 0, `${level}.${field}`);
+    assert.equal(result.objects.length, 4);
+  }
+});
+
+test('ACAP-14 DRAFT publication refuses missing duplicate wrong-type foreign-parent and invalid drafts', async () => {
+  for (const mode of ['missing','duplicate','wrong-type','parent','errors','validation','publish-error','unwrapped']) {
+    const f = draftLaunchFixture((level,rows) => {
+      if(level !== 'adset')return;
+      if(mode === 'missing')rows.length=0;
+      else if(mode === 'duplicate')rows.push(structuredClone(rows[0]));
+      else if(mode === 'wrong-type')rows[0].ad_object_type='ad';
+      else if(mode === 'parent')rows[0].parent_ad_object_id='120250883217370638';
+      else if(mode === 'errors')rows[0].active_errors=[{code:1}];
+      else if(mode === 'validation')rows[0].validation_status='INVALID';
+      else if(mode === 'publish-error')rows[0].publish_error={status:'FAILED'};
+      else (rows[0].values as Record<string,unknown>).start_time='2026-11-17T12:00:00.000Z';
+    });
+    const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {});
+    assert.equal(result.status, 'failed',mode);
+    assert.equal(f.calls.filter(c => c.name === 'ads_activate_entity').length, 0,mode);
+  }
+});
 test('ACAP-11 native launch requires a human receipt and publication capability before any creation', async () => {
   const f = launchFixture(undefined, ['ads_activate_entity']);
   const result = await f.adapter.execute(f.scoped, f.c, f.p, async () => {}); assert.equal(result.status, 'failed'); assert.equal(result.error, 'meta_capability_unavailable'); assert.equal(f.calls.some(call => call.name.startsWith('ads_create_')), false);
