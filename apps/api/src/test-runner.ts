@@ -341,6 +341,7 @@ import "./modules/notifications/infrastructure/adapters/bubblewhats.adapter.spec
 import "./modules/notifications/application/use-cases/notification-delivery.use-cases.spec.js";
 import "./modules/whatsapp-templates/application/use-cases/send-whatsapp-message.spec.js";
 import "./modules/whatsapp-templates/application/use-cases/recovery-channel-routing.spec.js";
+import "./modules/whatsapp-templates/application/use-cases/recovery-reliability.spec.js";
 import "./modules/auth/application/recovery-template-signup.spec.js";
 import "./modules/cart-recovery/__tests__/recovery-templates.controller.spec.js";
 import "./modules/cart-recovery/application/use-cases/generate-recovery-templates.use-case.spec.js";

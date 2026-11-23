@@ -8,6 +8,7 @@ import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { TRACK_RECOVERY_OUTCOME_USE_CASE, ATTEMPT_CART_RECOVERY_USE_CASE } from "./cart-recovery.tokens.js";
 import { RecoveryScannerJob } from "./infrastructure/jobs/recovery-scanner.job.js";
+import { RecoveryFollowUpJob } from "./infrastructure/jobs/recovery-follow-up.job.js";
 import { CartRecoveryOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
 import { AttemptCartRecoveryUseCase } from "./application/use-cases/attempt-cart-recovery.use-case.js";
 import { TrackRecoveryOutcomeUseCase } from "./application/use-cases/track-recovery-outcome.use-case.js";
@@ -92,6 +93,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
       inject: [PRISMA_CLIENT],
     },
     RecoveryScannerJob,
+    RecoveryFollowUpJob,
     CartRecoveryOnOrderCompletedHandler,
     {
       provide: ATTEMPT_CART_RECOVERY_USE_CASE,

@@ -142,7 +142,8 @@ for (const strategy of strategies) for (const scenario of scenarios) {
 
 test("Prisma persists the actual channel and uncertain status on update", async () => {
   const writes: { update: { channel: string; status: string; sentAt: Date | null } }[] = [];
-  const prisma = { recoveryAttempt: { upsert: async (args: typeof writes[number]) => { writes.push(args); } } } as unknown as PrismaClient;
+  const transaction = { recoveryAttempt: { upsert: async (args: typeof writes[number]) => { writes.push(args); } } };
+  const prisma = { $transaction: async (run: (tx: typeof transaction) => Promise<void>) => run(transaction) } as unknown as PrismaClient;
   const repo = new PrismaRecoveryAttemptRepository(prisma);
   const attempt = new RecoveryAttempt({
     id: "attempt", merchantId: "merchant", sessionId: "session", globalUserId: "buyer",

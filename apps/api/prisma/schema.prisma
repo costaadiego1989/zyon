@@ -2904,11 +2904,40 @@ model RecoveryAttempt {
   recoveredOrderId  String?               @map("recovered_order_id")
   createdAt         DateTime              @default(now()) @map("created_at")
   claim             RecoveryAttemptClaim?
+  lastBuyerActivityAt DateTime?           @map("last_buyer_activity_at")
+  deliveryMetadata  Json?                 @map("delivery_metadata")
+  followUps         RecoveryFollowUp[]
 
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
   @@index([sessionId])
   @@map("recovery_attempts")
+}
+
+/// Two durable reminders for a new accepted cart recovery: +24h and +72h.
+/// A claimed dispatch is never automatically replayed after a crash.
+model RecoveryFollowUp {
+  id                String   @id @default(cuid())
+  merchantId        String   @map("merchant_id")
+  sessionId         String   @map("session_id")
+  attemptId         String   @map("attempt_id")
+  step              Int
+  dueAt             DateTime @map("due_at")
+  expiresAt         DateTime @map("expires_at")
+  status            String   @default("pending")
+  channel           String?
+  providerMessageId String?  @map("provider_message_id")
+  reason            String?
+  fallbackReason    String?  @map("fallback_reason")
+  sentAt            DateTime? @map("sent_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  attempt           RecoveryAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, step])
+  @@index([status, dueAt])
+  @@index([merchantId, sessionId])
+  @@map("recovery_follow_ups")
 }
 
 /// Durable, tenant-scoped arbitration record for recovery dispatch.

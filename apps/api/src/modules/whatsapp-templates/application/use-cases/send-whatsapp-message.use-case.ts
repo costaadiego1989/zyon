@@ -13,7 +13,7 @@ import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../../notifica
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 import type { WhatsAppTemplateType } from "../../domain/catalog/template-types.js";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
-import { connectedMetaCloudRecoveryCredentials, isApprovedSalesTemplate } from "../../domain/services/recovery-whatsapp-policy.js";
+import { connectedMetaCloudRecoveryCredentials, isApprovedSalesTemplate, isApprovedSalesTemplateIdentity } from "../../domain/services/recovery-whatsapp-policy.js";
 import { renderRecoveryEmail } from "../../domain/recovery-email.js";
 
 export type WhatsAppProvider = "email" | "bubblewhats" | "meta";
@@ -42,6 +42,8 @@ export interface SendWhatsAppMessageInput {
   emailSubject?: string;
   /** Pre-rendered text for the email fallback body. */
   freeformText?: string;
+  /** Server-only eligibility guard, re-run immediately before physical dispatch. */
+  assertDispatchAuthorized?: (channel?: "whatsapp" | "email") => Promise<void>;
 }
 
 export interface SendWhatsAppMessageResult {
@@ -49,6 +51,7 @@ export interface SendWhatsAppMessageResult {
   status: "sent" | "skipped" | "failed" | "uncertain";
   messageId?: string;
   reason?: string;
+  fallbackReason?: string;
 }
 
 /** Official Meta templates for sales automation; uncertain acceptance never switches channels. */
@@ -83,14 +86,21 @@ export class SendWhatsAppMessageUseCase {
   }
 
   private async sendSalesMessage(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
+    let fallbackReason = input.toPhone?.trim() ? "whatsapp_sender_unavailable" : "whatsapp_contact_unavailable";
     if (input.toPhone?.trim() && this.templateSender && this.configRepo) {
-      const config = await this.configRepo.findByMerchantId(input.merchantId).catch(() => null);
+      fallbackReason = "meta_connection_unavailable";
+      const config = await this.configRepo.findByMerchantId(input.merchantId).catch(() => {
+        fallbackReason = "whatsapp_connection_lookup_unavailable"; return null;
+      });
       const connection = connectedMetaCloudRecoveryCredentials(config, input.merchantId);
       if (connection) {
+        fallbackReason = "approved_template_unavailable";
         const template = await this.templates
           .findByMerchantAndType(input.merchantId, input.type, "whatsapp")
-          .catch(() => null);
-        if (isApprovedSalesTemplate(template, input.merchantId, input.type, connection.wabaId)
+          .catch(() => { fallbackReason = "whatsapp_template_lookup_unavailable"; return null; });
+        if (template && input.type === "cart_recovery" && !hasRecoveryLinkSlot(template)) fallbackReason = "recovery_template_link_missing";
+        const approvalPolicy = input.type === "cart_recovery" ? isApprovedSalesTemplateIdentity : isApprovedSalesTemplate;
+        if (approvalPolicy(template, input.merchantId, input.type, connection.wabaId)
           && (input.type !== "cart_recovery" || hasRecoveryLinkSlot(template))) {
           try {
             const result = await this.templateSender.sendTemplate({
@@ -101,13 +111,14 @@ export class SendWhatsAppMessageUseCase {
               contentSid: template.twilioContentSid,
               language: template.metaLanguage ?? "pt_BR",
               contentVariables: this.resolveVariables(template, input.variables ?? {}),
+              ...(input.assertDispatchAuthorized ? { assertDispatchAuthorized: () => input.assertDispatchAuthorized!("whatsapp") } : {}),
             });
             if ((result.status === "sent" || result.status === "queued") && result.messageId?.trim()) {
               return { channel: "whatsapp_template", status: "sent", messageId: result.messageId };
             }
             if (result.status === "failed") {
               if (result.acceptance === "not_accepted" && !result.messageId?.trim()) {
-                return this.sendEmail(input);
+                return this.sendFallbackEmail(input, result.reason ?? "provider_rejected");
               }
               return { channel: "whatsapp_template", status: "failed", reason: result.reason ?? "provider_rejected" };
             }
@@ -116,13 +127,19 @@ export class SendWhatsAppMessageUseCase {
             if (result.status !== "skipped" || result.messageId?.trim()) {
               return { channel: "whatsapp_template", status: "uncertain", reason: result.reason ?? "provider_acceptance_unknown" };
             }
+            fallbackReason = result.reason ?? "whatsapp_dispatch_skipped";
           } catch {
             return { channel: "whatsapp_template", status: "uncertain", reason: "provider_acceptance_unknown" };
           }
         }
       }
     }
-    return this.sendEmail(input);
+    return this.sendFallbackEmail(input, fallbackReason);
+  }
+
+  private async sendFallbackEmail(input: SendWhatsAppMessageInput, fallbackReason: string): Promise<SendWhatsAppMessageResult> {
+    const result = await this.sendEmail(input);
+    return input.type === "cart_recovery" ? { ...result, fallbackReason } : result;
   }
 
   private async sendEmail(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
@@ -137,6 +154,8 @@ export class SendWhatsAppMessageUseCase {
       }
     }
     if (input.fallbackEmail && this.email && input.freeformText) {
+      try { await input.assertDispatchAuthorized?.("email"); }
+      catch { return { channel: "none", status: "skipped", reason: "notification_authority_changed" }; }
       const html = input.freeformText.replace(/&/g, "&amp;").replace(/</g, "&lt;")
         .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/\n/g, "<br>");
       let result;

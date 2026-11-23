@@ -88,6 +88,8 @@
     "test:buyer-webauthn": "pnpm build && node dist/buyer-webauthn-test-runner.js",
     "test:whatsapp-onboarding": "pnpm build && node dist/whatsapp-onboarding-test-runner.js",
     "test:whatsapp-session-renewal": "node tests/whatsapp-session-renewal.postgres.cjs",
+    "test:recovery-reliability": "node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/whatsapp-templates/application/use-cases/recovery-reliability.spec.ts ./src/modules/cart-recovery/__tests__/recovery-channel-flow.spec.ts ./src/modules/whatsapp-templates/application/use-cases/recovery-channel-routing.spec.ts ./src/modules/whatsapp-templates/infrastructure/adapters/whatsapp-template-sender.adapter.spec.ts",
+    "test:recovery-follow-ups:db": "node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/cart-recovery/__tests__/recovery-follow-up.db.spec.ts",
     "test:whatsapp-storefront-parity": "node scripts/test-whatsapp-storefront-parity.mjs",
     "test:advanced-product-layout": "pnpm build && node dist/advanced-product-layout-test-runner.js",
     "test:prisma": "pnpm --filter @zyon/shared-types build && pnpm build && node dist/test-runner-prisma.js",

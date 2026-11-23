@@ -18,7 +18,7 @@ function fixture(options: { status?: string; account?: string; changedConnection
 test("rollback checks exact content, language and current account before restoring", async () => {
   const h = fixture();
   await h.service.restore("merchant", "cart_recovery", 1, 2);
-  assert.deepEqual(h.checks, [["merchant", h.version.contentSid, { language: "pt_BR", body: h.version.metaTemplateBody }]]);
+  assert.deepEqual(h.checks, [["merchant", h.version.contentSid, { language: "pt_BR", body: h.version.metaTemplateBody, category: "MARKETING" }]]);
   assert.equal(h.restored.length, 1);
 });
 for (const status of ["rejected", "paused", "disabled", "unknown", "submitted"]) {

@@ -71,8 +71,12 @@ export class PrismaRecoveryTemplateLifecycleRepository implements RecoveryLifecy
   }
 
   async due(now: Date): Promise<RecoveryLifecycleRecord[]> {
+    const connections = await this.prisma.whatsAppChannelConfig.findMany({
+      where: { enabled: true, status: "ACTIVE", provider: "META_CLOUD" }, select: { merchantId: true },
+    });
+    if (connections.length === 0) return [];
     return (this.prisma as any).postSaleMessageTemplate.findMany({
-      where: { type: { in: [...WHATSAPP_TEMPLATE_TYPES] }, channel: "whatsapp", isActive: true, metaNextCheckAt: { lte: now } },
+      where: { merchantId: { in: connections.map(c => c.merchantId) }, type: { in: [...WHATSAPP_TEMPLATE_TYPES] }, channel: "whatsapp", isActive: true, metaNextCheckAt: { lte: now } },
       orderBy: [{ metaNextCheckAt: "asc" }, { id: "asc" }], take: 50,
     });
   }
@@ -124,7 +128,10 @@ export class PrismaRecoveryTemplateLifecycleRepository implements RecoveryLifecy
   }
 
   async seedMerchantPage(afterId?: string): Promise<string | undefined> {
-    const merchants = await (this.prisma as any).merchant.findMany({ where: afterId ? { id: { gt: afterId } } : {}, orderBy: { id: "asc" }, take: 5, select: { id: true } }) as { id: string }[];
+    const merchants = await this.prisma.merchant.findMany({ where: {
+      ...(afterId ? { id: { gt: afterId } } : {}),
+      whatsappChannelConfig: { is: { enabled: true, status: "ACTIVE", provider: "META_CLOUD" } },
+    }, orderBy: { id: "asc" }, take: 5, select: { id: true } });
     for (const merchant of merchants) {
       for (const type of WHATSAPP_TEMPLATE_TYPES) await this.ensure(merchant.id, type);
     }

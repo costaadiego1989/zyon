@@ -23,6 +23,8 @@ export interface AttemptCartRecoveryInput {
   embedToken?: string | null;
   merchantCheckoutReturnUrl?: string | null;
   forcedStrategy?: RecoveryStrategy;
+  lastBuyerActivityAt?: Date;
+  assertDispatchAuthorized?: () => Promise<void>;
 }
 
 export interface Clock {
@@ -103,6 +105,7 @@ export class AttemptCartRecoveryUseCase {
       recoveredAt: null,
       recoveredOrderId: null,
       createdAt: this.clock.now(),
+      lastBuyerActivityAt: input.lastBuyerActivityAt,
     });
 
     if (!await this.repository.createIfAbsent(attempt)) {
@@ -122,6 +125,11 @@ export class AttemptCartRecoveryUseCase {
         result = await this.messageSender.execute({
           merchantId: input.merchantId,
           type: "cart_recovery",
+          correlationId: attemptId,
+          assertDispatchAuthorized: async (channel) => {
+            await input.assertDispatchAuthorized?.();
+            if (channel && !await this.canContact(input, channel)) throw new Error("recovery_contact_consent_changed");
+          },
           toPhone: canUseWhatsApp ? input.buyerPhone : undefined,
           fallbackEmail: canUseEmail ? input.buyerEmail : undefined,
           variables: {
@@ -138,20 +146,25 @@ export class AttemptCartRecoveryUseCase {
       } catch (error) {
         // A thrown transport error may follow provider acceptance. Hold the
         // attempt for reconciliation; never retry or choose another channel here.
-        await this.repository.save(attempt.markUnknown());
-        this.logger.error("recovery: delivery outcome unknown", { sessionId: input.sessionId, error });
+        await this.repository.save(attempt.withDeliveryMetadata({ reason: "provider_acceptance_unknown" }).markUnknown());
+        this.logger.error("recovery: delivery outcome unknown", { sessionId: input.sessionId, reason: "provider_acceptance_unknown" });
         return { created: true, attemptId };
       }
 
       const channel = result.channel === "whatsapp_template" || result.channel === "email"
         ? result.channel : undefined;
+      const recorded = attempt.withDeliveryMetadata({
+        ...(result.messageId ? { providerMessageId: result.messageId } : {}),
+        ...(result.reason ? { reason: result.reason } : {}),
+        ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
+      });
       if (result.status === "sent" && channel && result.messageId?.trim()) {
-        await this.repository.save(attempt.markSent(this.clock.now(), channel));
+        await this.repository.save(recorded.markSent(this.clock.now(), channel));
       } else if (result.status === "uncertain" || result.status === "sent") {
-        await this.repository.save(attempt.markUnknown(channel));
+        await this.repository.save(recorded.markUnknown(channel));
       } else if (result.status === "failed") {
-        await this.repository.save(attempt.markFailed(channel));
-      }
+        await this.repository.save(recorded.markFailed(channel));
+      } else await this.repository.save(recorded);
       // Skips stay pending. No immediate retry, legacy sender or parallel email.
     }
 

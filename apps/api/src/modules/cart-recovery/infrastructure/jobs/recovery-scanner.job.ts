@@ -406,6 +406,12 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       buyerEmail,
       buyerName,
       merchantName,
+      lastBuyerActivityAt: new Date(session.updatedAt),
+      assertDispatchAuthorized: async () => {
+        const latest = await this.sessions.getSession(session.merchantId, session.sessionId);
+        if (!latest || new Date(latest.updatedAt).getTime() !== new Date(session.updatedAt).getTime()
+          || !await this.isStillEligible(latest)) throw new Error("recovery_authority_changed");
+      },
     });
 
     if (!result.created) {
@@ -428,7 +434,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  private async isStillEligible(scanned: CheckoutSession): Promise<boolean> {
+  async isStillEligible(scanned: CheckoutSession): Promise<boolean> {
     const current = await this.sessions.getSession(scanned.merchantId, scanned.sessionId);
     if (!current) return false;
     const items = (current.cart as { items?: unknown[] } | null | undefined)?.items;

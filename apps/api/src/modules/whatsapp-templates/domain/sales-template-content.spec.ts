@@ -24,7 +24,7 @@ function persistenceHarness() {
       return { count: 1 };
     },
     async findMany({ where }: any) {
-      return [...rows.values()].filter(row => (!where.merchantId || row.merchantId === where.merchantId)
+      return [...rows.values()].filter(row => (!where.merchantId || (typeof where.merchantId === "string" ? row.merchantId === where.merchantId : where.merchantId.in.includes(row.merchantId)))
         && (!where.type || (typeof where.type === "string" ? row.type === where.type : where.type.in.includes(row.type)))
         && (!where.channel || row.channel === where.channel)
         && (where.isActive === undefined || row.isActive === where.isActive)
@@ -37,6 +37,7 @@ function persistenceHarness() {
       await work({ postSaleMessageTemplate: table });
     },
     postSaleMessageTemplate: table,
+    whatsAppChannelConfig: { findMany: async () => [...new Set([...rows.values()].map(row => row.merchantId))].map(merchantId => ({ merchantId })) },
   };
   const repository = new PrismaRecoveryTemplateLifecycleRepository(prisma as any);
   return { rows, repository, transactionCount: () => transactions, table };

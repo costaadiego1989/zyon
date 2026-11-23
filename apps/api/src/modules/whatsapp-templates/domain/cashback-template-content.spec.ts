@@ -4,7 +4,7 @@ import { WHATSAPP_TEMPLATE_TYPES } from "./catalog/template-types.js";
 import { prepareSalesWhatsApp, salesDefaults } from "./sales-template-content.js";
 
 test("CASH template factory prepares every legacy and new catalog default",()=>{
-  assert.equal(WHATSAPP_TEMPLATE_TYPES.length,30);
+  assert.equal(WHATSAPP_TEMPLATE_TYPES.length,32);
   for(const type of WHATSAPP_TEMPLATE_TYPES){
     const prepared=prepareSalesWhatsApp(type,salesDefaults(type).whatsapp.body);
     assert.ok(prepared.metaBody.trim(),type);
