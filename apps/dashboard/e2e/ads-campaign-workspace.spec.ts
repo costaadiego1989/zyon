@@ -18,3 +18,20 @@ test('ACW-51 native widths and keyboard keep campaigns review settings and confi
 test('ACW-52 twelve and eighty campaigns show at least three complete comparable rows at 1440 by 1000',async({page})=>{
  await page.setViewportSize({width:1440,height:1000});for(const count of [12,80]){await page.goto('/?count='+count);await expect(page.locator('.ads-workspace article')).toHaveCount(10);const visible=await page.locator('.ads-workspace article').evaluateAll(elements=>elements.filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&r.top>=0&&r.bottom<=innerHeight&&getComputedStyle(el).visibility!=='hidden';}).map(el=>({name:el.querySelector('h3')?.textContent,results:el.querySelectorAll('dd').length,text:el.textContent})));expect(visible.length).toBeGreaterThanOrEqual(3);for(const row of visible.slice(0,3)){expect(row.name).toBeTruthy();expect(row.results).toBe(3);expect(row.text).toContain('R$');expect(row.text).toContain('Brasil');}await page.screenshot({path:`${captures}/density-${count}.running.png`});}
 });
+
+test('ACW-42 follows campaign sales to an older paid order and returns to its exact campaign without opening foreign-store links',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:1000});await page.goto('/?count=12');
+  await page.getByRole('button',{name:'Ver campanha Fones sem fio · Mais vendas · Loja',exact:true}).click();
+  await page.getByRole('button',{name:'Ver pedidos',exact:true}).click();
+  const orders=page.locator('.ads-sales__orders');await expect(orders.locator('tbody tr')).toHaveCount(3);await expect(orders).toContainText('R$ 20,00');
+  await orders.locator('a[href*="adOrder=native-paid-order"]').click();
+  await expect(page.getByRole('dialog')).toBeVisible();const origin=page.locator('[aria-label="Origem da venda"]');
+  await expect(origin).toContainText('Fones sem fio · Mais vendas · Loja');await expect(origin).toContainText('Loja');await expect(origin).toContainText('20/11/2026');await expect(origin).toContainText('21/11/2026');await expect(origin).toContainText('Último anúncio clicado nos 7 dias antes do pagamento');await expect(origin).toContainText('Compra recebida pela Meta');
+  await origin.getByRole('link',{name:'Ver campanha',exact:true}).click();await expect(page.locator('.ads-detail__heading h2')).toHaveText('Fones sem fio · Mais vendas · Loja');await expect(page.locator('.ads-detail__heading h2')).toBeFocused();
+  await page.goto('/?tab=meta-ads-agent&adStore=other-store&adCampaign=native-0#meta-ads-agent');await expect(page.getByRole('heading',{name:'Campanhas da loja',exact:true})).toBeVisible();await expect(page.locator('.ads-detail')).toHaveCount(0);
+  await page.goto('/?tab=shipments&adStore=other-store&adOrder=native-paid-order#shipments');await expect(page.getByRole('heading',{name:'Pedidos e envios',exact:true})).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(0);
+ }
+ expect(errors).toEqual([]);
+});
