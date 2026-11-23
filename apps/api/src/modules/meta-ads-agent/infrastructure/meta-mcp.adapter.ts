@@ -185,7 +185,7 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       return { status: [created, set, ad].some(result => result.status === "DRAFT") ? "remote_draft" : "remote_paused", objects };
     } catch (error) { return this.failure(error, objects); }
   }
-  private async publish(session: MetaMcpSession, access: MetaAccess, objects: Objects, onProgress: (objects: Objects) => Promise<void>): Promise<ProviderExecutionResult> {
+  private async publish(session: MetaMcpSession, access: MetaAccess, objects: Objects, onProgress: (objects: Objects) => Promise<void>, draft = false): Promise<ProviderExecutionResult> {
     let completedWrite = false;
     try {
       const targets = objects.filter(ref => ref.type !== 'creative');
@@ -195,11 +195,55 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
         const status = String((decoded(result.result ?? result) as Json).status);
         if (status === 'PUBLISHING') return { status: 'publishing', objects };
         if (status !== 'ACTIVE') throw new McpFailure('meta_publication_unconfirmed', true);
+        if (draft) return { status: 'active_unconfirmed', objects };
       }
       return { status: 'active_unconfirmed', objects };
     } catch (error) { return completedWrite ? { status: 'execution_unknown', objects, error: error instanceof MetaAdsError ? error.code : 'meta_execution_unknown' } : this.failure(error, objects); }
   }
-  private async verifyLaunch(session: MetaMcpSession, access: MetaAccess, campaign: MetaAdsCampaign, objects: Objects): Promise<void> {
+  private async verifyDraftLaunch(session: MetaMcpSession, access: MetaAccess, campaign: MetaAdsCampaign, objects: Objects): Promise<void> {
+    const stale = () => { throw new MetaAdsError('proposal_stale', 409); };
+    const read = async (level: string, fields: string[], expectedId: string, parent: string | null): Promise<Json> => {
+      const rows = await this.entities(session, access, level, fields, [expectedId], {object_state: 'draft'});
+      if (rows.length !== 1) return stale();
+      const row = rows[0];
+      if (row.ad_object_id !== expectedId || row.ad_object_type !== level || row.parent_ad_object_id !== parent || row.action !== 'add' || row.source !== 'mcp_campaign_creation' || row.status !== 'EDITING' || row.validation_status !== 'VALIDATED' || !Array.isArray(row.active_errors) || row.active_errors.length || row.publish_error != null) return stale();
+      if (!row.values || typeof row.values !== 'object' || Array.isArray(row.values)) return stale();
+      const values: Json = {};
+      for (const [key, entry] of Object.entries(row.values)) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry) || !Object.hasOwn(entry, 'new')) return stale();
+        values[key] = (entry as Json).new;
+      }
+      if (values.account_id !== undefined && String(values.account_id) !== access.accountId || !['ACTIVE','PAUSED'].includes(String(values.status)) || values.name !== campaign.draft.name) return stale();
+      return values;
+    };
+    const c = await read('campaign', ['id','status','daily_budget','lifetime_budget'], campaign.remoteCampaignId!, null);
+    const s = await read('adset', ['id','status','campaign_id','start_time','end_time'], campaign.remoteAdSetId!, campaign.remoteCampaignId!);
+    if (campaign.remoteAdIds.length !== 1) return stale();
+    const a = await read('ad', ['id','status','campaign_id','adset_id','creative_id'], campaign.remoteAdIds[0], campaign.remoteAdSetId!);
+    const budget = campaign.draft.budget!;
+    const sameDate = (value: unknown, expected: string | null) => expected === null ? value == null : typeof value === 'string' && Number.isFinite(Date.parse(value)) && Date.parse(value) === Date.parse(expected);
+    // Meta also emits numeric parent IDs above 2^53. Never round them into IDs:
+    // the exact string parent_ad_object_id chain above establishes both bindings.
+    const duplicateParent = (value: unknown, expected: string) => value === undefined || typeof value === 'number' && !Number.isSafeInteger(value) || (typeof value === 'string' || typeof value === 'number') && String(value) === expected;
+    const whatsapp = campaign.draft.destination === 'whatsapp';
+    const promoted = s.promoted_object as Json | undefined, targeting = s.targeting as Json | undefined;
+    const countries = (targeting?.geo_locations as Json | undefined)?.countries;
+    const creative = a.creative as Json | undefined;
+    if (!targeting || typeof targeting !== 'object' || Array.isArray(targeting)) return stale();
+    const expectedTargeting = { geo_locations: { countries: [campaign.draft.country] }, age_min: 18, targeting_automation: { advantage_audience: 1 },
+      ...(Object.hasOwn(targeting, 'age_range') ? { age_range: [18,65] } : {}),
+      ...(Object.hasOwn(targeting, 'targeting_optimization') ? { targeting_optimization: 'expansion_all' } : {}) };
+    if (Number(budgetValue(c[budget.cadence === 'daily' ? 'daily_budget' : 'lifetime_budget'])) !== budget.amountCents || Number(budgetValue(c[budget.cadence === 'daily' ? 'lifetime_budget' : 'daily_budget'])) !== 0 ||
+        c.objective !== (whatsapp ? 'OUTCOME_ENGAGEMENT' : 'OUTCOME_SALES') || !sameDate(s.start_time, budget.startsAt) || !sameDate(s.end_time, budget.endsAt) ||
+        Number(budgetValue(s.daily_budget)) !== 0 || Number(budgetValue(s.lifetime_budget)) !== 0 ||
+        !duplicateParent(s.campaign_id, campaign.remoteCampaignId!) || !duplicateParent(a.campaign_id, campaign.remoteCampaignId!) || !duplicateParent(a.adset_id, campaign.remoteAdSetId!) ||
+        s.destination_type !== (whatsapp ? 'WHATSAPP' : 'WEBSITE') || String(promoted?.[whatsapp ? 'page_id' : 'pixel_id']) !== (whatsapp ? access.pageId : access.datasetId) || !whatsapp && promoted?.custom_event_type !== 'PURCHASE' ||
+        s.optimization_goal !== (whatsapp ? 'CONVERSATIONS' : 'OFFSITE_CONVERSIONS') || stableDigest(targeting) !== stableDigest(expectedTargeting) ||
+        !Array.isArray(countries) || countries.length !== 1 || countries[0] !== campaign.draft.country || targeting?.age_min !== 18 || (targeting?.targeting_automation as Json | undefined)?.advantage_audience !== 1 ||
+        String(creative?.creative_id) !== objects.find(ref => ref.type === 'creative')?.id) return stale();
+  }
+  private async verifyLaunch(session: MetaMcpSession, access: MetaAccess, campaign: MetaAdsCampaign, objects: Objects, draft = false): Promise<void> {
+    if (draft) return this.verifyDraftLaunch(session, access, campaign, objects);
     const budget = campaign.draft.budget!;
     const campaigns = await this.entities(session, access, 'campaign', ['id', 'account_id', 'status', 'daily_budget', 'lifetime_budget'], [campaign.remoteCampaignId!]);
     const sets = await this.entities(session, access, 'adset', ['id', 'account_id', 'campaign_id', 'status', 'start_time', 'end_time'], [campaign.remoteAdSetId!]);
@@ -227,8 +271,8 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       const staged: MetaAdsCampaign = { ...campaign, remoteCampaignId: objects.find(ref => ref.type === 'campaign')!.id, remoteAdSetId: objects.find(ref => ref.type === 'ad_set')!.id, remoteAdIds: objects.filter(ref => ref.type === 'ad').map(ref => ref.id), remoteAccountId: access.accountId };
       const account = await this.account(session, access);
       if (account.has_payment_method !== true) throw new MetaAdsError('meta_funding_required', 409);
-      await this.verifyLaunch(session, access, staged, objects);
-      return this.publish(session, access, objects, onProgress);
+      await this.verifyLaunch(session, access, staged, objects, prepared.status === 'remote_draft');
+      return this.publish(session, access, objects, onProgress, prepared.status === 'remote_draft');
     } catch (error) { return this.failure(error, objects); }
   }
   async execute(access: MetaAccess, campaign: MetaAdsCampaign, proposal: MetaAdsProposal, onProgress: (objects: Objects) => Promise<void>): Promise<ProviderExecutionResult> {
