@@ -9,14 +9,16 @@ import {NestFactory} from "@nestjs/core";
 import {openBrowserData,localDir} from "./prospecting-browser-data.js";
 import {browserServices} from "./prospecting-browser-services.js";
 import {operator,buyer} from "./prospecting-browser-accounts.js";
-const origins={api:"http://127.0.0.1:3019",control:"http://127.0.0.1:5179",dashboard:"https://127.0.0.1:5180",site:"https://127.0.0.1:5181"};
+const basePort=Number(process.env.PROSPECTING_BROWSER_BASE_PORT??3019);
+if(!Number.isSafeInteger(basePort)||basePort<1024||basePort>60000)throw Error("preview_port_invalid");
+const origins={api:`http://127.0.0.1:${basePort}`,control:`http://127.0.0.1:${basePort+2160}`,dashboard:`https://127.0.0.1:${basePort+2161}`,site:`https://127.0.0.1:${basePort+2162}`};
 const profile=fileURLToPath(new URL("../../../.env.prospecting.local",import.meta.url));
 async function available(port:number){await new Promise<void>((resolve,reject)=>{const s=createServer();s.once("error",reject);s.listen(port,"127.0.0.1",()=>s.close(()=>resolve()));});}
 export async function startProspectingBrowserRuntime(mode:"disposable"|"preview"){
  if(!["disposable","preview"].includes(mode)||process.env.NODE_ENV==="production")throw Error("local_runtime_required");
  process.loadEnvFile(profile);
  for(const flag of ["META_SEND_ENABLED","LLM_REAL_ENABLED","INGESTION_ENABLED","PAID_INGESTION_ENABLED"])if(process.env["PROSPECTING_"+flag]!=="false")throw Error("real_provider_flag_enabled");
- for(const port of [3019,5179,5180,5181])await available(port);
+ for(const port of [basePort,basePort+2160,basePort+2161,basePort+2162])await available(port);
  const fake={PROSPECTING_META_APP_ID:"100001",PROSPECTING_META_APP_SECRET:"local-app",PROSPECTING_META_PHONE_NUMBER_ID:"100004",STRIPE_SECRET_KEY_TEST:"sk_test_browser_local",STRIPE_WEBHOOK_SECRET_TEST:"whsec_browser_local",ASAAS_WEBHOOK_TOKEN:"browser-local-captured-asaas"};
  const prior=Object.fromEntries(Object.keys(fake).map(k=>[k,process.env[k]]));Object.assign(process.env,fake);
  const data=await openBrowserData(mode);
@@ -52,9 +54,9 @@ export async function startProspectingBrowserRuntime(mode:"disposable"|"preview"
    const path=req.url.split("?")[0];
    if(path==="/v1/webhooks/whatsapp/meta-platform"||path==="/v1/platform/operators"||path.startsWith("/v1/platform/prospecting/")||/^\/v1\/(platform\/auth\/(login|me|refresh|logout)|auth\/(login|register|refresh|logout|me)|merchants\/me(?:\/store-settings)?|billing\/(prospect-proposal\/bind|plans|subscription)|webhooks\/(stripe|asaas\/billing))$/.test(path))next();else res.status(404).end();
   });
-  await app.listen(3019,"127.0.0.1");
+  await app.listen(basePort,"127.0.0.1");
   child=fork(fileURLToPath(new URL("../../control/tests/prospecting-local-sites.mjs",import.meta.url)),[],{execArgv:[],windowsHide:true,stdio:["ignore","ignore","inherit","ipc"],
-   env:Object.fromEntries(["PATH","SystemRoot","TEMP","TMP","USERPROFILE","LOCALAPPDATA","APPDATA","ComSpec"].map(k=>[k,process.env[k]]))});
+   env:Object.fromEntries(["PATH","SystemRoot","TEMP","TMP","USERPROFILE","LOCALAPPDATA","APPDATA","ComSpec","PROSPECTING_BROWSER_BASE_PORT"].map(k=>[k,process.env[k]]))});
   await new Promise<void>((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error("vite_start_timeout")),60000);child!.once("message",(m:any)=>{clearTimeout(timeout);m.ready?resolve():reject(Error(m.error));});child!.once("exit",code=>{clearTimeout(timeout);reject(Error("vite_exit_"+code));});child!.once("error",reject);});
   writeFileSync(receiptFile,JSON.stringify({mode,apiPid:process.pid,sitePid:child.pid,origins,database:data.namespace,owner:data.owner,startedAt:new Date().toISOString()},null,2));receipt=true;
   async function step(){

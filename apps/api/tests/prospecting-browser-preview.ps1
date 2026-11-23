@@ -15,7 +15,9 @@ if ($Action -eq 'stop') {
   Write-Output 'Prévia encerrada. Dados locais preservados.'
   exit 0
 }
-foreach ($port in 3019,5179,5180,5181) {
+$taskBasePort = if ($env:PROSPECTING_BROWSER_BASE_PORT) { [int]$env:PROSPECTING_BROWSER_BASE_PORT } else { 3019 }
+if ($taskBasePort -lt 1024 -or $taskBasePort -gt 60000) { throw 'preview_port_invalid' }
+foreach ($port in @($taskBasePort,($taskBasePort+2160),($taskBasePort+2161),($taskBasePort+2162))) {
   if (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue) {throw "Porta ocupada: $port"}
 }
 $node = (Get-Command node.exe).Source

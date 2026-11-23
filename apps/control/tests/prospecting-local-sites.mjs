@@ -6,7 +6,9 @@ import {fileURLToPath} from "node:url";
 import {readFileSync} from "node:fs";
 const certDir=fileURLToPath(new URL("../../../.specs/features/admin-company-prospecting/browser-runtime/",import.meta.url));
 const tls={cert:readFileSync(certDir+"/local.crt"),key:readFileSync(certDir+"/local.key")};
-const origins={api:"http://127.0.0.1:3019",control:"http://127.0.0.1:5179",dashboard:"https://127.0.0.1:5180",site:"https://127.0.0.1:5181"};
+const basePort=Number(process.env.PROSPECTING_BROWSER_BASE_PORT??3019);
+if(!Number.isSafeInteger(basePort)||basePort<1024||basePort>60000)throw Error("preview_port_invalid");
+const origins={api:`http://127.0.0.1:${basePort}`,control:`http://127.0.0.1:${basePort+2160}`,dashboard:`https://127.0.0.1:${basePort+2161}`,site:`https://127.0.0.1:${basePort+2162}`};
 const servers=[];
 async function site(app,port){
  const dashboard=app==="dashboard";
@@ -16,7 +18,7 @@ async function site(app,port){
   define:{"import.meta.env.VITE_PLATFORM_API_BASE_URL":JSON.stringify(origins.api+"/v1"),"import.meta.env.VITE_API_BASE_URL":JSON.stringify(origins.dashboard+"/v1"),
     "import.meta.env.VITE_TURNSTILE_SITE_KEY":JSON.stringify(""),"import.meta.env.VITE_FACEBOOK_LOGIN_ENABLED":JSON.stringify("false")},
   server:{host:"127.0.0.1",port,strictPort:true,hmr:false,https:dashboard?tls:undefined,
-   headers:{"Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' "+origins.api+" ws://127.0.0.1:3019; frame-src 'self'; form-action 'self'; object-src 'none'"},
+   headers:{"Content-Security-Policy":"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' "+origins.api+" ws://127.0.0.1:"+basePort+"; frame-src 'self'; form-action 'self'; object-src 'none'"},
    proxy:dashboard?{"/v1":{target:origins.api,changeOrigin:true}}:undefined}});
  servers.push(()=>server.close());await server.listen();
 }
@@ -24,8 +26,8 @@ async function close(){await Promise.allSettled(servers.map(stop=>stop()));proce
 process.on("message",m=>{if(m==="stop")void close();});
 process.once("disconnect",()=>void close());
 try {
- await site("control",5179);await site("dashboard",5180);
+ await site("control",basePort+2160);await site("dashboard",basePort+2161);
  const publicSite=https(tls,(req,res)=>{if(req.url!=="/"){res.writeHead(404).end();return;}res.setHeader("Content-Type","text/html; charset=utf-8");res.end("<!doctype html><html lang='pt-BR'><title>Zyon local</title><h1>Site da Zyon</h1><p>Destino público simulado no ambiente local.</p></html>");});
- await new Promise((resolve,reject)=>{publicSite.once("error",reject);publicSite.listen(5181,"127.0.0.1",resolve);});servers.push(()=>new Promise(r=>publicSite.close(r)));
+ await new Promise((resolve,reject)=>{publicSite.once("error",reject);publicSite.listen(basePort+2162,"127.0.0.1",resolve);});servers.push(()=>new Promise(r=>publicSite.close(r)));
  process.send?.({ready:true,pid:process.pid});
 }catch(e){process.send?.({error:String(e)});await close();}

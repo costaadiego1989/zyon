@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {mkdirSync,writeFileSync} from 'node:fs';
+import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 const require=createRequire(new URL('../package.json',import.meta.url)),{chromium,expect}=require('@playwright/test');
 const folder=fileURLToPath(new URL('../../../.specs/features/admin-prospecting-import-recovery/',import.meta.url));mkdirSync(folder,{recursive:true});
+const receipt=JSON.parse(readFileSync(new URL('../../../.specs/features/admin-company-prospecting/browser-runtime/listeners.json',import.meta.url),'utf8'));assert.equal(receipt.mode,'preview');
+const origins=receipt.origins;for(const key of ['api','control'])assert.equal(new URL(origins[key]).hostname,'127.0.0.1');
 const browser=await chromium.launch({headless:true}),context=await browser.newContext({viewport:{width:1440,height:1000},timezoneId:'America/Sao_Paulo'});
 let mode='failed',companyCalls=0,domainCalls=0,readyCalls=0;
 const coverage={kind:'regional_retail',ufs:['SP','RJ','MG','ES','PR','SC','RS'],mainCnaes:['4781400'],companyCount:12345,maximumDirectoryBytes:25_000_000_000,scopeComplete:true};
 const readiness=()=>({source:{status:mode==='published'?'current':'unavailable',value:{snapshotId:mode==='published'?'regional':null,state:mode==='published'?'published':'unavailable',competence:'2026-11',coverage:mode==='published'?coverage:undefined,latestImport:{id:'regional',state:mode==='failed'?'failed':mode==='published'?'published':'importing',phase:mode==='failed'?'failed':'validating_sources',committedCount:0,selectedCompanies:mode==='failed'?0:12345,validatedFiles:6,totalFiles:23,errorCode:mode==='failed'?'production_directory_storage_limit':null,updatedAt:'2026-11-23T12:00:00Z'}}}});
 await context.route('**/*',route=>{
- const url=new URL(route.request().url());if(!['http://127.0.0.1:5179','http://127.0.0.1:3019'].includes(url.origin))return route.abort();
+ const url=new URL(route.request().url());if(![origins.control,origins.api].includes(url.origin))return route.abort();
  if(url.pathname==='/v1/platform/prospecting/readiness'){readyCalls++;return route.fulfill({json:readiness()});}
  if(url.pathname==='/v1/platform/prospecting/companies'){assert.equal(mode,'published');companyCalls++;return route.fulfill({json:{snapshotId:'regional',competence:'2026-11',count:1,countState:'complete',filterHash:'regional',nextCursor:null,items:[{cnpj:'11222333000181',legalName:'Varejo de Florianópolis',uf:'SC',capitalCents:'12345',contacts:[]}]}});}
  if(url.pathname==='/v1/platform/prospecting/companies/domains'){assert.equal(mode,'published');domainCalls++;return route.fulfill({json:{snapshotId:'regional',competence:'2026-11',items:url.searchParams.get('kind')==='municipios'?[{kind:'municipios',code:'8105',label:'FLORIANOPOLIS'}]:url.searchParams.get('kind')==='cnaes'?[{kind:'cnaes',code:'4781400',label:'Vestuário'}]:[],nextCursor:null}});}
@@ -17,7 +19,7 @@ await context.route('**/*',route=>{
 });
 const page=await context.newPage(),errors=[],screens=[];page.on('pageerror',e=>errors.push(e.message));
 try{
- await page.goto('http://127.0.0.1:5179/');await page.locator('input[type=email]').fill('operador@prospecting.test');await page.locator('input[type=password]').fill('Local-Operador-2026!');await page.getByRole('button',{name:/entrar/i}).click();
+ await page.goto(origins.control);await page.locator('input[type=email]').fill('operador@prospecting.test');await page.locator('input[type=password]').fill('Local-Operador-2026!');await page.getByRole('button',{name:/entrar/i}).click();
  await page.getByRole('button',{name:'Prospecção',exact:true}).click();await page.getByRole('link',{name:'Buscar empresas',exact:true}).click();
  for(const width of [1440,390,320]){
   await page.setViewportSize({width,height:1000});mode='failed';const before=companyCalls;await page.reload({waitUntil:'domcontentloaded'});
