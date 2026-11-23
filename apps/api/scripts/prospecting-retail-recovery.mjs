@@ -89,19 +89,16 @@ export async function prepareRetailEntities({pg,staging,manifest,sourceFiles,rea
   let after='';
   for(;;) {
     const roots=staging.roots(after);if(!roots.length)break;
-    const {rows}=await pg.query(`SELECT base_cnpj AS "baseCnpj",legal_name AS "legalName",legal_nature AS "legalNature",size,capital_cents::text AS "capitalCents",simples,mei FROM company_directory.company_entities WHERE snapshot_id=$1 AND base_cnpj=ANY($2::varchar[])`,[manifest.scope.sourceSnapshotId,roots]);
+    const {rows}=await pg.query(`SELECT base_cnpj AS "baseCnpj",legal_name AS "legalName",legal_nature AS "legalNature",size,capital_cents::text AS "capitalCents",simples,mei FROM company_directory.company_entities WHERE snapshot_id=ANY($1::text[]) AND base_cnpj=ANY($2::varchar[])`,[[manifest.scope.sourceSnapshotId,manifest.id],roots]);
     staging.db.exec('BEGIN');try{for(const row of rows)staging.entity(row);staging.db.exec('COMMIT');}catch(error){staging.db.exec('ROLLBACK');throw error;}
     after=roots.at(-1);await progress({phase:'reusing_entities',selectedCompanies:staging.count('establishments'),selectedEntities:staging.count('entities')});
   }
-  const missing=staging.missingRoots();
-  for(const resource of manifest.resources.filter(r=>r.family==='empresas')) {
-    if(staging.file(resource.id))continue;
-    const prior=sourceFiles.find(f=>f.resourceId===resource.id);
-    if(prior?.state==='validated'&&/^[a-f0-9]{64}$/.test(prior.computedHash??'')) {
-      staging.putFile(resource.id,{hash:prior.computedHash,compressedBytes:prior.compressedBytes,scanned:Number(prior.rowOffset),state:'inherited',sourceSnapshotId:manifest.scope.sourceSnapshotId});continue;
-    }
+  const resources=manifest.resources.filter(r=>r.family==='empresas');
+  const load=async resource=>{
+    const missing=staging.missingRoots(),expected=staging.file(resource.id);
     await progress({phase:'loading_missing_entities',resourceId:resource.id,missingEntities:missing.size});
     const archive=await reader.prepare(resource);let scanned=0;
+    if(expected?.state==='inherited'&&archive.fileHash!==expected.hash){await archive.close();throw Error('source_changed');}
     staging.db.exec('BEGIN');
     try {
       for await(const row of archive.rows()) {
@@ -111,9 +108,32 @@ export async function prepareRetailEntities({pg,staging,manifest,sourceFiles,rea
       }
       staging.putFile(resource.id,{hash:archive.fileHash,compressedBytes:archive.compressedBytes,scanned,state:'validated'});staging.db.exec('COMMIT');
     }catch(error){staging.db.exec('ROLLBACK');throw error;}finally{await archive.close();}
+  };
+  for(const resource of resources) {
+    if(staging.file(resource.id))continue;
+    const prior=sourceFiles.find(f=>f.resourceId===resource.id);
+    if(prior?.state==='validated'&&/^[a-f0-9]{64}$/.test(prior.computedHash??''))
+      staging.putFile(resource.id,{hash:prior.computedHash,compressedBytes:prior.compressedBytes,scanned:Number(prior.rowOffset),state:'inherited',sourceSnapshotId:manifest.scope.sourceSnapshotId});
+    else await load(resource);
   }
+  // A restarted container can lose SQLite after source reclamation. Rebuild
+  // missing roots from the original validated archives instead of trusting
+  // inherited proofs as evidence that their entity rows still exist locally.
+  for(const resource of resources){if(!staging.missingRoots().size)break;if(staging.file(resource.id)?.state==='inherited')await load(resource);}
   assert.equal(staging.missingRoots().size,0,'recovery_missing_entities');
   assert.equal(staging.count('files'),manifest.resources.length,'recovery_sources_incomplete');
+}
+
+export async function markInterruptedRetailImport(pg,{snapshotId,processAlive,now=new Date()}) {
+  if(processAlive!==false)return false;
+  await pg.query('BEGIN');
+  try{
+    const s=(await pg.query('SELECT state,parser_version,counts FROM company_directory.company_snapshots WHERE id=$1 FOR UPDATE',[snapshotId])).rows[0],p=s?.counts?.progress,observed=Date.parse(p?.updatedAt??''),lease=Number(s?.counts?.leaseUntil??0);
+    if(!s||s.parser_version!=='rfb-cnpj-retail-recovery-v1'||!['discovered','importing','validating','ready'].includes(s.state)||s.counts.maintenanceRunner!==true||!Number.isFinite(lease)||lease>now.getTime()||!Number.isFinite(observed)||observed>now.getTime()-600000){await pg.query('COMMIT');return false;}
+    await pg.query("UPDATE company_directory.company_snapshots SET state='failed',error_code='import_worker_unavailable',counts=counts||$2::jsonb,updated_at=now() WHERE id=$1",[snapshotId,JSON.stringify({leaseToken:null,leaseUntil:0,requested:false,progress:{...p,phase:'failed',updatedAt:now.toISOString()}})]);
+    await pg.query("INSERT INTO public.prospect_audit_events(id,actor_operator_id,action,resource_type,resource_id,resource_version,correlation_id,outcome) VALUES ($1,NULL,'company_import_worker_interrupted','company_snapshot',$2,1,$3,'failed')",[randomUUID(),snapshotId,randomUUID()]);
+    await pg.query('COMMIT');return true;
+  }catch(error){await pg.query('ROLLBACK');throw error;}
 }
 
 export async function assertRetailDirectoryBudget(pg,reserveBytes=0) {

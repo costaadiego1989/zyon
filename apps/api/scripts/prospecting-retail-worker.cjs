@@ -15,7 +15,7 @@ async function main(){
  const {createDirectoryPrismaClient}=await at('dist/modules/platform-prospecting/infrastructure/company-directory/directory-prisma-client.js');
  const {PrismaDirectoryRepository}=await at('dist/modules/platform-prospecting/infrastructure/company-directory/prisma-directory.repository.js');
  const {CnpjArchiveReader}=await at('dist/modules/platform-prospecting/infrastructure/company-directory/cnpj-archive-reader.js');
- const pg=new Client({connectionString:process.env.DATABASE_URL}),heartbeat=new Client({connectionString:process.env.DATABASE_URL});
+ const pg=new Client({connectionString:process.env.DATABASE_URL,application_name:'zyon-retail-'+descriptor.jobId.slice(0,16)}),heartbeat=new Client({connectionString:process.env.DATABASE_URL});
  await pg.connect();await heartbeat.connect();
  assert.equal((await pg.query('SELECT current_database() AS name')).rows[0].name,'aacp_prod');
  assert.equal((await pg.query("SELECT pg_try_advisory_lock(hashtext('official-cnpj-production-worker'),hashtext(current_database())) AS locked")).rows[0].locked,true,'official_import_worker_busy');

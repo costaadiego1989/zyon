@@ -15,7 +15,7 @@ function sourceValue(raw:Source){
   value.coverage={kind:"regional_retail",ufs:c.ufs,mainCnaes:c.mainCnaes,companyCount:number(c.companyCount),maximumDirectoryBytes:number(c.maximumDirectoryBytes),scopeComplete:c.scopeComplete===true};
  if(typeof p.id==="string"&&["discovered","importing","validating","ready","published","failed"].includes(String(p.state))&&typeof p.updatedAt==="string"&&Number.isFinite(Date.parse(p.updatedAt))){
   const phases=["starting","downloading","validating_sources","source_validated","reusing_entities","loading_missing_entities","prepared","reclaiming_staging","persisting_entities","persisting_establishments","persisting_domains","publishing","completed","failed"];
-  const errors=["production_directory_storage_limit","retail_directory_25gb_limit","production_storage_measurement_unavailable","source_unavailable","source_changed","archive_disk_limit","archive_corrupt","recovery_missing_entities","import_superseded","operator_stopped"];
+  const errors=["production_directory_storage_limit","retail_directory_25gb_limit","production_storage_measurement_unavailable","source_unavailable","source_changed","archive_disk_limit","archive_corrupt","recovery_missing_entities","import_superseded","import_worker_unavailable","operator_stopped"];
   value.latestImport={id:p.id,state:String(p.state),phase:phases.includes(String(p.phase))?String(p.phase):null,committedCount:number(p.committedCount),selectedCompanies:number(p.selectedCompanies),validatedFiles:number(p.validatedFiles),totalFiles:number(p.totalFiles),errorCode:p.errorCode==null?null:errors.includes(String(p.errorCode))?String(p.errorCode):"import_failed",updatedAt:p.updatedAt};
  }
  return value;

@@ -4,6 +4,8 @@ import {RETAIL_SCOPE,eligibleRetail,retailRecordFilter,retailRecoveryManifest,Re
 const company={cnpj:'11222333000181',baseCnpj:'11222333',uf:'SP',status:'02',mainCnae:'4781400',secondaryCnaes:[],contacts:[{channel:'phone',originalValue:'11999999999',normalizedValue:null,validationState:'unknown'}]};
 test('REC-01 selection includes seven states and the named retail sectors while excluding invalid or unrelated records',()=>{
   assert.deepEqual(RETAIL_SCOPE.ufs,['SP','RJ','MG','ES','PR','SC','RS']);
+  assert.deepEqual(RETAIL_SCOPE.mainCnaes,['4781400','4782201','4782202','4783101','4783102','4789001','4772500','4789004']);
+  assert.equal(eligibleRetail({...company,uf:'ES',mainCnae:'4789004',contacts:[{channel:'phone',originalValue:'2733334444'}]}),true);
   for(const uf of RETAIL_SCOPE.ufs)for(const mainCnae of RETAIL_SCOPE.mainCnaes)assert.equal(eligibleRetail({...company,uf,mainCnae}),true);
   for(const patch of [{uf:'BA'},{uf:'DF'},{status:'08'},{status:'03'},{mainCnae:'1412601'},{mainCnae:'6201501'},{contacts:[]},{contacts:[{channel:'email',originalValue:'x@example.test'}]},{contacts:[{channel:'phone',originalValue:'00000000000'}]},{contacts:[{channel:'phone',originalValue:'1199999'}]},{baseCnpj:'00000000'},{cnpj:'invalid'}])assert.equal(eligibleRetail({...company,...patch}),false);
   assert.equal(eligibleRetail({...company,contacts:[{channel:'phone',originalValue:'4833334444'}]}),true);
@@ -43,6 +45,10 @@ test('REC-01 early CSV selection respects quoted semicolons and escaped quotes w
   assert.equal(retailRecordFilter(encode(),'estabelecimentos'),true);
   columns[19]='BA';assert.equal(retailRecordFilter(encode(),'estabelecimentos'),false);
   columns[19]='SP';columns[11]='6201501';assert.equal(retailRecordFilter(encode(),'estabelecimentos'),false);
+  for(const cnae of ['4781400','4782201','4782202','4783101','4783102','4789001','4772500','4789004']){
+    columns[11]=cnae;columns[19]='ES';assert.equal(retailRecordFilter(encode(),'estabelecimentos'),true,cnae);
+    columns[19]='BA';assert.equal(retailRecordFilter(encode(),'estabelecimentos'),false,cnae);
+  }
   assert.equal(retailRecordFilter(Buffer.from('"11222333";"Official"'),'empresas',new Set(['11222333'])),true);
   assert.equal(retailRecordFilter(Buffer.from('"11222333";"Official"'),'empresas',new Set(['00000000'])),false);
   assert.equal(retailRecordFilter(Buffer.from('broken-layout'),'empresas',new Set()),true);

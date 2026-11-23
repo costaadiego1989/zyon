@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {createCompanyDirectoryFixture,fixtureManifest} from './company-directory-fixture.js';
 import {PrismaDirectoryRepository} from '../src/modules/platform-prospecting/infrastructure/company-directory/prisma-directory.repository.js';
-import {RETAIL_SCOPE,RetailRecoveryStaging,retailRecoveryManifest,reclaimFailedDirectory,persistRetailDirectory,publishRetailDirectory} from '../scripts/prospecting-retail-recovery.mjs';
+import {RETAIL_SCOPE,RetailRecoveryStaging,retailRecoveryManifest,reclaimFailedDirectory,persistRetailDirectory,publishRetailDirectory,prepareRetailEntities,markInterruptedRetailImport} from '../scripts/prospecting-retail-recovery.mjs';
 const entity={baseCnpj:'11222333',legalName:'Loja Açúcar',legalNature:'2062',size:'01',capitalCents:'12345',simples:null,mei:null};
 const company={cnpj:'11222333000181',baseCnpj:'11222333',tradeName:'Moda Sul',mainCnae:'4781400',secondaryCnaes:['4782201'],cityCode:'8105',uf:'SC',district:'Centro',openingDate:'2020-01-01',status:'02',matrixBranch:'matrix',contacts:[{channel:'phone',originalValue:'48999999999',normalizedValue:null,validationState:'unknown'},{channel:'email',originalValue:'contato@example.test',normalizedValue:null,validationState:'unknown'}]};
 async function setup(){
@@ -59,4 +59,36 @@ test('REC-01 incomplete persistence never publishes an active snapshot',async()=
  const f=await setup();
  try{await assert.rejects(()=>publishRetailDirectory(f.connection,f.staging,f.manifest,f.actor),/recovery_count_mismatch/);assert.equal(await f.repo.activeSnapshotId(),null);assert.equal(await f.client.companyEntity.count(),1);}
  finally{await f.finish();}
+});
+test('REC-04 restart after reclaimed source and lost temporary staging reconstructs inherited roots and reuses target entities',async()=>{
+ const f=await setup(),restart=new RetailRecoveryStaging(':memory:');
+ try{
+  await reclaimFailedDirectory(f.connection,{sourceSnapshotId:f.source.id,snapshotId:f.manifest.id,actor:f.actor,staging:f.staging,manifest:f.manifest});
+  const persisted={...entity,baseCnpj:'00000000',legalName:'Pet ES'},second={...company,cnpj:'00000000000191',baseCnpj:'00000000',uf:'ES',mainCnae:'4789004'};
+  await f.client.companyEntity.create({data:{snapshotId:f.manifest.id,...persisted,normalizedLegalName:'PET ES'}});
+  restart.bind(f.manifest);for(const c of [company,second])restart.db.prepare('INSERT INTO establishments VALUES (?,?,?)').run(c.cnpj,c.baseCnpj,JSON.stringify(c));
+  restart.db.prepare('INSERT INTO domains VALUES (?,?,?)').run('cnaes','4781400',JSON.stringify({kind:'cnaes',code:'4781400',label:'Vestuário'}));
+  for(const r of f.manifest.resources.filter(r=>r.family!=='empresas'))restart.putFile(r.id,{hash:'a'.repeat(64),compressedBytes:100,state:'validated',scanned:2});
+  const opened:string[]=[],sourceFiles=f.manifest.resources.filter(r=>r.family==='empresas').map(r=>({resourceId:r.id,state:'validated',computedHash:'a'.repeat(64),compressedBytes:'100',rowOffset:'2'}));
+  const reader={async prepare(r:{id:string}){opened.push(r.id);return {fileHash:'a'.repeat(64),compressedBytes:100,async *rows(){yield {kind:'entity',value:entity};},async close(){}};}};
+  await prepareRetailEntities({pg:f.connection,staging:restart,manifest:f.manifest,sourceFiles,reader});
+  assert.equal(restart.missingRoots().size,0);assert.equal(restart.count('entities'),2);assert.equal(opened.length,1);assert.equal(restart.file(opened[0]).state,'validated');
+  assert.equal(await f.client.companyEntity.count({where:{snapshotId:f.source.id}}),0);assert.equal(await f.client.companyEntity.count({where:{snapshotId:f.manifest.id}}),1);assert.equal(await f.repo.activeSnapshotId(),null);
+  await persistRetailDirectory({pg:f.connection,staging:restart,manifest:f.manifest,guard:async(_pg:unknown,write:()=>Promise<unknown>)=>({result:await write()})});
+  const coverage=await publishRetailDirectory(f.connection,restart,f.manifest,f.actor);assert.equal(coverage.companyCount,2);assert.equal((await f.repo.find(second.cnpj))?.legalName,'Pet ES');
+  assert.equal((await f.repo.getImport(f.source.id))?.errorCode,'import_superseded');
+ }finally{restart.close();await f.finish();}
+});
+test('REC-04 a missing worker becomes an audited failure only after its heartbeat and lease expire',async()=>{
+ const f=await setup(),now=new Date('2026-11-23T16:00:00Z');
+ try{
+  await f.client.companySnapshot.update({where:{id:f.manifest.id},data:{state:'importing',counts:{maintenanceRunner:true,leaseToken:'owned-worker',leaseUntil:now.getTime()+1000,progress:{phase:'downloading',updatedAt:'2026-11-23T15:40:00Z'}}}});
+  assert.equal(await markInterruptedRetailImport(f.connection,{snapshotId:f.manifest.id,processAlive:false,now}),false);
+  await f.client.companySnapshot.update({where:{id:f.manifest.id},data:{counts:{maintenanceRunner:true,leaseToken:'owned-worker',leaseUntil:now.getTime()-1,progress:{phase:'downloading',updatedAt:'2026-11-23T15:40:00Z'}}}});
+  assert.equal(await markInterruptedRetailImport(f.connection,{snapshotId:f.manifest.id,processAlive:true,now}),false);
+  assert.equal(await markInterruptedRetailImport(f.connection,{snapshotId:f.manifest.id,processAlive:false,now}),true);
+  assert.equal((await f.repo.getImport(f.manifest.id))?.errorCode,'import_worker_unavailable');assert.equal((await f.repo.getImport(f.manifest.id))?.state,'failed');
+  assert.equal(await markInterruptedRetailImport(f.connection,{snapshotId:f.manifest.id,processAlive:false,now}),false);
+  assert.equal((await f.connection.query("SELECT id FROM prospect_audit_events WHERE action='company_import_worker_interrupted'")).rowCount,1);assert.equal(await f.client.companyEntity.count(),1);assert.equal(await f.repo.activeSnapshotId(),null);
+ }finally{await f.finish();}
 });
