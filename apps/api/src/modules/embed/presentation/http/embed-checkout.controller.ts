@@ -63,6 +63,8 @@ import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-lim
 import { ReopenEmbedCheckoutUseCase } from "../../application/reopen-embed-checkout.use-case.js";
 import { ConfirmServiceAppointmentUseCase } from "../../../checkout/application/confirm-service-appointment.use-case.js";
 import { embedAppointmentConfirmationScope } from "../../domain/embed-appointment-confirmation-scope.js";
+import { ServiceBookingService } from "../../../checkout/application/service-booking.service.js";
+import { serviceBookingScopeFromVerifiedBuyer } from "../../../checkout/presentation/http/service-booking.controller.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -138,6 +140,7 @@ export class EmbedCheckoutController {
     @Inject(CancelPaymentIntentUseCase) private readonly cancelPaymentIntent?: CancelPaymentIntentUseCase,
     @Optional() private readonly aiMetering?: AiMeteringService,
     @Optional() private readonly confirmServiceAppointment?: ConfirmServiceAppointmentUseCase,
+    @Inject(ServiceBookingService) private readonly serviceBooking?: ServiceBookingService,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
@@ -214,6 +217,9 @@ export class EmbedCheckoutController {
       throw new UnauthorizedException("embed_buyer_authentication_unavailable");
     }
     const trustedBuyer = await this.resolveBuyer?.resolve(embed.merchantId, body.buyer_access_token);
+    const bookingCapability = this.serviceBooking && trustedBuyer && embed.storefrontCartRef
+      ? await this.serviceBooking.continuationCapability(embed.merchantId, embed.storefrontCartRef,
+        () => serviceBookingScopeFromVerifiedBuyer(embed, request.headers ?? {}, trustedBuyer, body.buyer_access_token)) : undefined;
     let trustedPhoneBuyer: { globalUserId: string; phone: string; fullName?: string; email?: string } | undefined;
     if (embed.whatsappCheckoutSessionId) {
       await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
@@ -236,7 +242,8 @@ export class EmbedCheckoutController {
       merchant_id: embed.merchantId,
       session_id: sessionId,
       cart: recovered?.cart ?? (embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart),
-    }, { serverChannel: "storefront", storefrontCartRef: recovered ? (recovered.cart as { cart_ref?: string }).cart_ref : embed.storefrontCartRef, trustedBuyer, trustedPhoneBuyer, requireBuyerProof: true, refreshCart: !!recovered });
+    }, { serverChannel: "storefront", storefrontCartRef: recovered ? (recovered.cart as { cart_ref?: string }).cart_ref : embed.storefrontCartRef, trustedBuyer, trustedPhoneBuyer, requireBuyerProof: true, refreshCart: !!recovered,
+      ...(bookingCapability ? { bookingCapability } : {}) });
     const chatState = await this.reconcileChat?.readState(embed.merchantId, result.session_id);
     // start scope advertises capability only; reading history still requires chat scope.
     return { ...result, ...(chatState?.protocol === "durable_v2" ? { chat_protocol: "durable_v2" as const } : {}) };

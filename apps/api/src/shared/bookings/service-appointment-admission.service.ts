@@ -7,11 +7,13 @@ import { fulfillmentPaymentEligible } from "../persistence/order-fulfillment.js"
 import { lockServiceProfessional } from "./service-professional-lock.js";
 import { assertProfessionalLease, type ProfessionalLeaseOwner } from "./professional-service-lease.js";
 import { professionalSlotId, professionalHoldRequests, type ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
-import { captureAppointmentLease, noAppointmentLease, assertLeaseCaptureUnusedWithin } from "./appointment-lease-proof.js";
+import { captureAppointmentLease, noAppointmentLease, assertLeaseCaptureUnusedWithin, type OwnedAppointmentLease } from "./appointment-lease-proof.js";
 import type { ActiveSlotLeaseProof, RedisServiceSlots } from "./redis-service-slots.js";
 import { readManualServicePaymentWithin, assertManualServiceLeaseWithin } from "./manual-service-payment-continuation.js";
 import { hasUnclassifiedServiceReservations } from "./service-legacy-readiness.js";
 import { admitWhatsAppEffectInTransaction } from "../whatsapp/whatsapp-automation-context.js";
+import { preserveVerifiedProfessionalAvailability, type ProfessionalAvailabilityContinuation } from "../../modules/catalog/application/professional-availability-continuation.js";
+import { FIXED_SERVICE_TIME_ZONE } from "../../modules/catalog/domain/services/fixed-service-time-zone.js";
 
 export interface ServiceAppointmentAdmissionInput {
   merchantId: string;
@@ -46,6 +48,13 @@ interface AdmissionContext {
   capturedLeaseStore?: () => Pick<RedisServiceSlots, "assertCapturedActive">;
   /** Internal unit-test seam. HTTP/channel callers use the canonical default. */
   readAvailability?: typeof getProfessionalAvailability;
+}
+
+async function assertContinuedLease(input: ServiceAppointmentAdmissionInput, capture: OwnedAppointmentLease, context: AdmissionContext) {
+  const store = context.capturedLeaseStore?.() ?? context.leaseOwner?.store();
+  if (!store || !("assertCapturedActive" in store) || typeof store.assertCapturedActive !== "function")
+    throw new ConflictException("service_hold_original_proof_required");
+  await store.assertCapturedActive(input.merchantId, capture);
 }
 
 function normalizedCustomer(value: ServiceAppointmentAdmissionInput["customer"]): ServiceAppointmentAdmissionInput["customer"] {
@@ -97,7 +106,7 @@ function requestFingerprint(input: ServiceAppointmentAdmissionInput): string {
 }
 
 async function assertApprovedOrderUnit(tx: Prisma.TransactionClient, input: ServiceAppointmentAdmissionInput,
-  slot: { timeZone: string; durationMinutes: number }, manual?: Awaited<ReturnType<typeof readManualServicePaymentWithin>>) {
+  manual?: Awaited<ReturnType<typeof readManualServicePaymentWithin>>) {
   if (input.confirmation.kind !== "approved_order_unit") return;
   const order = await tx.completedOrder.findFirst({ where: { id: input.confirmation.orderId, merchantId: input.merchantId } });
   if (!order || order.currency !== input.currency || ["cancelled", "refunded", "returned", "failed"].includes(order.status))
@@ -123,10 +132,11 @@ async function assertApprovedOrderUnit(tx: Prisma.TransactionClient, input: Serv
     || !schedule || typeof schedule !== "object" || Array.isArray(schedule)
     || schedule.professionalId !== input.professionalId || schedule.professionalVersion !== input.professionalVersion
     || schedule.policyVersion !== input.policyVersion || schedule.date !== input.date
-    || schedule.timeZone !== slot.timeZone || schedule.durationMinutes !== slot.durationMinutes
+    || typeof schedule.timeZone !== "string" || !Number.isSafeInteger(schedule.durationMinutes)
+    || Number(schedule.durationMinutes) < 5 || Number(schedule.durationMinutes) > 480
     || schedule.startsAt !== new Date(input.startsAt).toISOString()
     || schedule.endsAt !== new Date(input.endsAt).toISOString()) throw new ConflictException("service_payment_unit_mismatch");
-  return payment;
+  return { payment, slot: { timeZone: schedule.timeZone, durationMinutes: Number(schedule.durationMinutes) } };
 }
 
 /** The caller owns this transaction and commits/rolls back admission, its audit
@@ -192,10 +202,46 @@ export async function admitServiceAppointment(
     throw new ConflictException("service_offer_changed");
   let now = context.clock ? context.clock() : new Date();
   if (!Number.isFinite(now.getTime())) throw new BadRequestException("service_appointment_invalid_clock");
-  const availability = await (context.readAvailability ?? getProfessionalAvailability)(tx, {
-    merchantId: input.merchantId, productId: input.productId, variantId: input.variantId, professionalId: input.professionalId,
-    fromDate: input.date, toDate: input.date, now, expectedVersion: input.professionalVersion,
-  });
+  // Frozen paid units and private same-ID manual continuations may carry a
+  // historical civil date. Verify the existing evidence BEFORE using it as a
+  // presentation context; raw admission fields never choose a timezone.
+  const approvedReference = await assertApprovedOrderUnit(tx, input, manual);
+  let continuation: ProfessionalAvailabilityContinuation | undefined;
+  let continuedLease: OwnedAppointmentLease | undefined, verifiedHeldProof: ActiveSlotLeaseProof | undefined;
+  if (manual) {
+    if (manual.selection.timeZone !== FIXED_SERVICE_TIME_ZONE) {
+      await assertManualServiceLeaseWithin(tx, manual.appointment, manual.selection, manual.proof.captureAuditId, { store: context.capturedLeaseStore });
+      continuation = preserveVerifiedProfessionalAvailability(input.merchantId, manual.selection);
+    }
+  } else if (approvedReference) {
+    continuation = preserveVerifiedProfessionalAvailability(input.merchantId, { ...input, ...approvedReference.slot });
+  } else if (context.leaseOwner?.ownerId && (context.acquiredLeaseProof || business.policy.holdEnabled && input.confirmation.kind !== "pending")) {
+    const held = context.leaseSelections?.find(s => s.productId === input.productId && s.variantId === input.variantId
+      && s.professionalId === input.professionalId && s.professionalVersion === input.professionalVersion && s.policyVersion === input.policyVersion
+      && s.date === input.date && s.startsAt === input.startsAt && s.endsAt === input.endsAt
+      && s.priceInCents === input.priceInCents && s.currency === input.currency);
+    if (!held && context.acquiredLeaseProof) throw new ConflictException("service_hold_selection_mismatch");
+    if (held && held.timeZone !== FIXED_SERVICE_TIME_ZONE) {
+      verifiedHeldProof = context.acquiredLeaseProof ?? await assertProfessionalLease(input.merchantId, context.leaseSelections!, business.policy, context.leaseOwner);
+      const capture = captureAppointmentLease(input.merchantId, context.leaseOwner.ownerId, verifiedHeldProof, professionalHoldRequests([held])[0]);
+      if (Date.parse(capture.expiresAt) <= now.getTime()) throw new ConflictException("checkout_service_hold_expired");
+      await assertContinuedLease(input, capture, context); continuedLease = capture;
+      continuation = preserveVerifiedProfessionalAvailability(input.merchantId, held);
+    }
+  }
+  let availability: Awaited<ReturnType<typeof getProfessionalAvailability>>;
+  try {
+    availability = await (context.readAvailability ?? getProfessionalAvailability)(tx, {
+      merchantId: input.merchantId, productId: input.productId, variantId: input.variantId, professionalId: input.professionalId,
+      fromDate: input.date, toDate: input.date, now, expectedVersion: input.professionalVersion,
+    }, { continuation });
+  } catch (error) {
+    // A frozen approved unit failing the private historical-context check is
+    // still a financial unit mismatch. Keep manual and every other error exact.
+    if (approvedReference && !manual && error instanceof ConflictException && error.message === "service_timezone_continuation_conflict")
+      throw new ConflictException("service_payment_unit_mismatch");
+    throw error;
+  }
   if (availability.status === "stale" || availability.professionalVersion !== input.professionalVersion)
     throw new ConflictException("service_selection_stale");
   const startsAt = new Date(input.startsAt), endsAt = new Date(input.endsAt);
@@ -218,15 +264,18 @@ export async function admitServiceAppointment(
     if (!leaseSelections.some(candidate => candidate.slotId === own.slotId && professionalSlotId(input.merchantId, candidate) === own.slotId))
       throw new ConflictException("service_hold_selection_mismatch");
     if (!context.leaseOwner?.ownerId) throw new ConflictException("service_hold_required");
-    const proof = input.confirmation.kind === "pending" ? context.acquiredLeaseProof
-      : await assertProfessionalLease(input.merchantId, leaseSelections, business.policy, context.leaseOwner);
+    const proof = verifiedHeldProof ?? (input.confirmation.kind === "pending" ? context.acquiredLeaseProof
+      : await assertProfessionalLease(input.merchantId, leaseSelections, business.policy, context.leaseOwner));
     privateLease = captureAppointmentLease(input.merchantId, context.leaseOwner.ownerId, proof, leaseTarget);
     await assertLeaseCaptureUnusedWithin(tx, input.merchantId, privateLease);
   }
-  const approved = await assertApprovedOrderUnit(tx, input, slot, manual);
+  if (approvedReference && (approvedReference.slot.timeZone !== slot.timeZone || approvedReference.slot.durationMinutes !== slot.durationMinutes))
+    throw new ConflictException("service_payment_unit_mismatch");
+  const approved = approvedReference?.payment;
   now = context.clock ? context.clock() : new Date();
   if (!Number.isFinite(now.getTime())) throw new BadRequestException("service_appointment_invalid_clock");
   if (startsAt <= now) throw new ConflictException("service_slot_unavailable");
+  if (continuedLease) await assertContinuedLease(input, continuedLease, context);
   if (manual && approved && input.confirmation.kind === "approved_order_unit") {
     const a = manual.appointment, version = a.version + 1;
     const changed = await tx.serviceAppointment.updateMany({ where: { id: a.id, merchantId: input.merchantId,

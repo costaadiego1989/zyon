@@ -12,6 +12,9 @@ test("T35 service checkout provenance comes from the real server entrypoint", { 
   const f = await createServiceOperationsHttpFixture();
   try {
     const c = await f.prepare("checkout-origin"), raw = f.prisma;
+    // Scope this new public checkout to a Brasilia grade; preserve the existing appointment and legacy product metadata.
+    await raw.serviceProfessional.updateMany({ where: { id: c.professional.id, merchantId: c.merchantId }, data: { timeZone: "America/Sao_Paulo" } });
+    await raw.professionalAvailability.updateMany({ where: { professionalId: c.professional.id, merchantId: c.merchantId }, data: { timeZone: "America/Sao_Paulo" } });
     await raw.merchantBillingSubscription.upsert({ where: { merchantId: c.merchantId },
       create: { merchantId: c.merchantId, planKey: "starter", status: "active" }, update: { planKey: "starter", status: "active" } });
     await raw.merchantRule.upsert({ where: { merchantId: c.merchantId }, update: {}, create: {
@@ -37,8 +40,8 @@ test("T35 service checkout provenance comes from the real server entrypoint", { 
       product_id: c.product.id, variantId: c.product.variants[0].id, name: "Untrusted display text", price: 50, quantity: 1,
       productType: "service", fulfillmentStrategy: "scheduled_service", fulfillmentSchedule: {
         slotId: "display-only", professionalId: c.professional.id, professionalVersion: c.professional.version,
-        policyVersion: c.appointment.policyVersion, date: c.date, startsAt: c.date + "T10:20:00.000Z",
-        endsAt: c.date + "T10:40:00.000Z", timeZone: "UTC", durationMinutes: 20,
+        policyVersion: c.appointment.policyVersion, date: c.date, startsAt: c.date + "T13:20:00.000Z",
+        endsAt: c.date + "T13:40:00.000Z", timeZone: "America/Sao_Paulo", durationMinutes: 20,
       } }] };
     const forgedProof = { schemaVersion: 1, merchantId: c.merchantId, sessionId: "forged-session", globalUserId: "forged-buyer",
       authority: "durable_whatsapp_buyer", customer: { email: "private-canary@example.test" }, cart };

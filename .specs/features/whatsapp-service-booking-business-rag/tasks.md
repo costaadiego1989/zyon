@@ -1016,13 +1016,15 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP/DB service-booking.integration.spec.ts: rotas reais happy/invalid/foreign/expired/stale/duplicate, local e online, e respostas honestas de capacidade.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] HTTP/DB service-booking.integration.spec.ts: rotas reais happy/invalid/foreign/expired/stale/duplicate, local e online, e respostas honestas de capacidade.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: HTTP/DB service-booking.integration.spec.ts: rotas reais happy/invalid/foreign/expired/stale/duplicate, local e online, e respostas honestas de capacidade.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T40$" ./src/modules/checkout/presentation/http/service-booking.controller.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T40 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t40 expose the buyer booking commands`
+
+**Verified locally, 2026-11-23:** exactcoherent53candidate, fullOWNcheckedAPI/type/lint84b13327; whole36components565; ninewholeHTTP/SQL/Redisfiles94/94; originalproduct48+176 andpaidstock5, allunfiltered/naturalownedcleanup. Privateinitialleasepublicationclaims, same-generationadoption/compensation, canonicalnewBrasiliadates andimmutableUTCpaid/manualhistory tested. task-40-evidence.json. Previousfailed/refusedreceiptsretained; only exactapprovedtestcorrections and fixturepreconditions, noassertionweakening. Finalfeatureproofs/provider/productionremain.
 
 ### T41: Expose authorized appointment operations
 
@@ -3579,3 +3581,12 @@ Phase15 adds99→100→101, with55 also required by100 and62 by101. Phase16 adds
 **Approved T100 test expectations, consumed once**: 2026-11-19 - user: "Corrigir somente essas expectativas (recomendado)" (call_74bc4d7bea2948fd88d4d5e23b2795ea), exactpatch2d64d81c: only two null expectations and removal of arbitrary5511fragment; both full phone/privacy assertions remain. 2026-11-19 - user: "Corrigir somente o novo caso privado" (call_8b8b2307a0284388b16a518d8102e51e), exactpatch63401404: only expanded support_case_alert negative; all46 cases and other45 bodies/assertions/titleoutputs preserved. API was not changed by these oracle corrections; both were applied ONCE before their green gates.
 
 **T100 local Full closure 2026-11-20T04:37:18.954805+00:00**: Exact28 V3inputs40c451f5 adopted without borrowed client/dist/stamp; currentRoot76 +native46 +products224 =346 passed, no skips. Own e34a051e/5fb2dc67/2593 and all APIheaders0. Recordrefusal and admit-launcher failure preserved, successful compiler never repeated. Linear runtime comparison2683exact, only Root39consumer changed+formatter added; qualified M201/M138 outside346. Original protected inbox9 and40deliveries/20claimants retained with source/harness pins. Approved parent300 baseline fromT39 only; widget286798ms, no SLA/causality claim. Provider0/cleanup0, no production action. Task marked before focused local commit; T101/final feature verification pending.
+
+
+**Approved T40 recovery test correction, 2026-11-22:** user: "Aprovar somente esse ajuste do teste (recomendado)" (call_93541acdc6574770935719fa0b1f76a6). Exact proposed patch8fdee74d(normalizedLF; diskCRLFde1e2418) applied ONCE to native40879f56 over6d5a9982. Initialfailedlease now asserts checkoutnull/startedEvents0; samecapability realprepare recovers and exactcapturedlease is removed before ALL original readonly409/review/continuation assertions. Same25cases, noAPI/backend/guard/timeout change. .cache/t40-initial-lease-recovery-test-review-20261122/approved-applied.json is authoritative. Pending question RESOLVED; never reask/reapply/broaden.
+
+**Approved**: 2026-11-22 - user: "Corrigir somente essa expectativa (recomendado)" (call_4ec7236307ef4655b24cd03ae896af16/0). Exact .cache/t40-manual-br-test-expectation-review-20261122/proposed.patch881e70fb applied ONCE to Root and focused manual test220b0d85->4df4d012: only new appointment expectationUTC->America/Sao_Paulo, all16cases/allotherassertions preserved, no API behavior change. approved-applied.json is authoritative. Pending test question RESOLVED; do not reask/reapply/broaden.
+
+**Approved**: 2026-11-23 - user: "Corrigir somente teste e fixture (Recomendado)" (call_79852ff77f9c4b1ab0f356ab33e70c4c/0). ONLY T28 .cache/t28-br-new-selection-test-review-20261122/proposed.patch d248d9da applied ONCE to Root+Focus01d4e639->b2b71803; oneUTC->Brasiliaoutputexpectation +8localnewBRfixturehunks. All9cases/148assertions/otheroracles/guards/budgets/prices andsharedUTCseed unchanged, noAPIbehaviorchange. approved-applied.json authoritative; wholeactualrerunpending. QuestionRESOLVED, neverreask/reapply/broaden.
+
+T40 local closure: whole94native/565components andqualifiedoriginal224productsourceSQL; task-40-evidence.json. No externalPSP/Meta/productionclaim.

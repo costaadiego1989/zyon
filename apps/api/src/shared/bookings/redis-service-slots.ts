@@ -5,12 +5,21 @@ import { parseAppointmentLease, type OwnedAppointmentLease } from "./appointment
 
 export interface SlotRequest { resourceId: string; slotId: string; startsAt: string; endsAt: string }
 export interface SlotHold { expiresAt: string; slots: SlotRequest[] }
-type StoredHold = { owner: string; generation?: string; originFingerprint?: string; fingerprint: string; expiresAt: number; slots: SlotRequest[] };
+type StoredHold = { owner: string; generation?: string; originFingerprint?: string; fingerprint: string; expiresAt: number; slots: SlotRequest[]; publicationClaim?: string };
+/** Private initial-publication context, never mapped from a public DTO. */
+type PublicationContext = { readonly publicationClaim: string };
+const validPublicationClaim = (claim: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(claim);
 /** Internal result only. Public acquire/get responses never include this proof. */
 export interface ActiveSlotLeaseProof { merchantId: string; ownerHash: string; generation?: string;
   fingerprint: string; selectionFingerprint: string; expiresAt: string; slots: SlotRequest[] }
 // The capability survives trusted in-process composition, never JSON/HTTP.
 const originalProof = Symbol("original-service-slot-acquisition");
+// Only acquire() can attach this per-invocation receipt. Returning an existing
+// generation carries its original proof, but never grants rollback ownership.
+const newlyCreatedProof = Symbol("new-service-slot-generation");
+export function newlyCreatedSlotLeaseProof(hold: SlotHold | undefined): ActiveSlotLeaseProof | undefined {
+  return hold ? (hold as SlotHold & { [newlyCreatedProof]?: ActiveSlotLeaseProof })[newlyCreatedProof] : undefined;
+}
 export function withOriginalSlotLeaseProof(hold: SlotHold, proof: ActiveSlotLeaseProof): SlotHold {
   const slots = Object.freeze(proof.slots.map(slot => Object.freeze({ ...slot })));
   const snapshot = Object.freeze({ ...proof, slots }) as unknown as ActiveSlotLeaseProof;
@@ -43,6 +52,15 @@ if previous then
       if not lease then return 'unavailable' end
       local indexed = cjson.decode(lease)
       if indexed.fingerprint ~= held.fingerprint or indexed.generation ~= held.generation then return 'unavailable' end
+    end
+    -- Only an initial publisher may adopt a previously claimed generation.
+    -- Legacy unclaimed holds and ordinary callers return their exact old value.
+    if held.publicationClaim and wanted.publicationClaim then
+      held.publicationClaim = wanted.publicationClaim
+      local adopted = cjson.encode(held)
+      for i = 2, #KEYS do redis.call('HSET', KEYS[i], held.owner, adopted) end
+      redis.call('SET', KEYS[1], adopted, 'KEEPTTL')
+      return adopted
     end
     return previous
   end
@@ -152,6 +170,15 @@ local function own(raw)
   return held.owner == wanted.ownerHash and held.generation == wanted.generation
     and (held.originFingerprint or held.fingerprint) == wanted.fingerprint
 end
+-- A timed-out SQL callback may resume after a new publisher adopted the same
+-- generation. Check its exact invocation claim atomically before any mutation.
+if ARGV[6] then
+  if own(parent) and cjson.decode(parent).publicationClaim ~= ARGV[6] then return 'publication_adopted' end
+  for i = 2, #KEYS do
+    local raw = redis.call('HGET', KEYS[i], wanted.ownerHash)
+    if own(raw) and cjson.decode(raw).publicationClaim ~= ARGV[6] then return 'publication_adopted' end
+  end
+end
 local function consistent(raw)
   if not own(raw) then return true end
   return cjson.decode(raw).fingerprint == expected
@@ -200,18 +227,23 @@ export class RedisServiceSlots {
       throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
     }
   }
-  async acquire(merchantId: string, sessionId: string, slots: SlotRequest[], ttlMs = 10 * 60_000): Promise<SlotHold> {
+  async acquire(merchantId: string, sessionId: string, slots: SlotRequest[], ttlMs = 10 * 60_000, publication?: PublicationContext): Promise<SlotHold> {
+    if (publication && !validPublicationClaim(publication.publicationClaim)) throw new ConflictException("service_hold_publication_claim_invalid");
     const keys = this.keys(merchantId, sessionId, slots);
-    const wanted = { owner: digest(sessionId), generation: randomUUID(), originFingerprint: slotFingerprint(slots), fingerprint: slotFingerprint(slots), slots: slots.map(s => ({ ...s, startMs: Date.parse(s.startsAt), endMs: Date.parse(s.endsAt) })) };
+    const wanted = { owner: digest(sessionId), generation: randomUUID(), originFingerprint: slotFingerprint(slots), fingerprint: slotFingerprint(slots), slots: slots.map(s => ({ ...s, startMs: Date.parse(s.startsAt), endMs: Date.parse(s.endsAt) })),
+      ...(publication ? { publicationClaim: publication.publicationClaim } : {}) };
     const result = await this.command(() => this.redis.eval(ACQUIRE, keys.length, ...keys, JSON.stringify(wanted), ttlMs)) as string;
     if (result === "unavailable") throw new ConflictException("service_slot_unavailable");
     if (result === "changed") throw new ConflictException("checkout_service_slot_changed");
     const held = JSON.parse(result) as StoredHold;
-    return withOriginalSlotLeaseProof({ expiresAt: new Date(held.expiresAt).toISOString(), slots }, {
+    const hold = withOriginalSlotLeaseProof({ expiresAt: new Date(held.expiresAt).toISOString(), slots }, {
       merchantId, ownerHash: held.owner, generation: held.generation, fingerprint: held.originFingerprint ?? held.fingerprint,
       selectionFingerprint: held.fingerprint, expiresAt: new Date(held.expiresAt).toISOString(),
       slots: held.slots.map(({ resourceId, slotId, startsAt, endsAt }) => ({ resourceId, slotId, startsAt, endsAt })),
     });
+    if (held.generation === wanted.generation)
+      Object.defineProperty(hold, newlyCreatedProof, { value: originalSlotLeaseProof(hold), enumerable: false });
+    return hold;
   }
   async assertActive(merchantId: string, sessionId: string, slots: SlotRequest[]): Promise<ActiveSlotLeaseProof> {
     const keys = this.keys(merchantId, sessionId, slots);
@@ -280,7 +312,8 @@ export class RedisServiceSlots {
     await this.command(() => this.redis.eval(RELEASE, keys.length, ...keys, held.fingerprint, digest(sessionId)));
   }
   /** Safe after SQL commit and safe to replay after a lost Redis response. */
-  async releaseCaptured(merchantId: string, capture: OwnedAppointmentLease): Promise<{ released: boolean }> {
+  async releaseCaptured(merchantId: string, capture: OwnedAppointmentLease, publication?: PublicationContext): Promise<{ released: boolean }> {
+    if (publication && !validPublicationClaim(publication.publicationClaim)) throw new ConflictException("service_hold_publication_claim_invalid");
     if (capture.merchantId !== merchantId || !/^[a-f0-9]{64}$/.test(capture.ownerHash)
       || !Array.isArray(capture.resources) || !capture.resources.includes(capture.target.resourceId))
       throw new ConflictException("service_hold_cleanup_foreign_proof");
@@ -297,7 +330,8 @@ export class RedisServiceSlots {
       && slot.startsAt === capture.target.startsAt && slot.endsAt === capture.target.endsAt));
     const updated = { ...held, fingerprint: slotFingerprint(remaining), slots: remaining };
     const result = await this.command(() => this.redis.eval(RELEASE_CAPTURED, keys.length, ...keys,
-      JSON.stringify(capture), JSON.stringify(resources), JSON.stringify(remaining), held.fingerprint, JSON.stringify(updated)));
+      JSON.stringify(capture), JSON.stringify(resources), JSON.stringify(remaining), held.fingerprint, JSON.stringify(updated),
+      ...(publication ? [publication.publicationClaim] : [])));
     if (result === "changed") throw new ConflictException("service_hold_cleanup_changed");
     return { released: result === "released" };
   }

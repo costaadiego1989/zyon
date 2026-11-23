@@ -1,11 +1,13 @@
 import { ConflictException, ServiceUnavailableException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { readProfessionalServiceLink } from "../domain/services/professional-service-link.js";
-import { resolveProfessionalAvailability, validateAvailabilityWindow, type ProfessionalAvailabilityQuery } from "../domain/services/professional-availability.js";
+import { resolveNewProfessionalAvailability, resolveProfessionalAvailability, validateAvailabilityWindow, type ProfessionalAvailabilityQuery } from "../domain/services/professional-availability.js";
+import { continuationAvailabilityTimeZone, type ProfessionalAvailabilityContinuation } from "./professional-availability-continuation.js";
 
 export interface ProfessionalAvailabilityReadInput extends ProfessionalAvailabilityQuery { merchantId: string; productId: string; variantId: string; professionalId: string }
 /** Private command context, never mapped from public availability input. */
-interface OwnAppointmentContext { excludeAppointment?: { appointmentId: string; expectedVersion: number } }
+interface OwnAppointmentContext { excludeAppointment?: { appointmentId: string; expectedVersion: number };
+  continuation?: ProfessionalAvailabilityContinuation }
 
 /** Shared by HTTP, storefront, WhatsApp and final admission. Callers retain
  * their transaction and server clock. Database errors remain errors. */
@@ -22,7 +24,11 @@ export async function getProfessionalAvailability(tx: Prisma.TransactionClient, 
   }
   const link = await readProfessionalServiceLink(tx, input);
   const policy = await tx.serviceBusinessPolicy.findUnique({ where: { merchantId: input.merchantId }, select: { version: true, configuredAt: true } });
-  if (input.expectedVersion !== undefined && input.expectedVersion !== link.professionalVersion) return resolveProfessionalAvailability({ ...link, policyVersion: policy?.configuredAt ? policy.version : null, recurring: [], exceptions: [], appointments: [] }, input);
+  const policyVersion = policy?.configuredAt ? policy.version : null;
+  const preservedTimeZone = continuationAvailabilityTimeZone(context.continuation, input, { ...link, policyVersion });
+  const resolve = (source: Parameters<typeof resolveProfessionalAvailability>[0]) => preservedTimeZone === undefined
+    ? resolveNewProfessionalAvailability(source, input) : resolveProfessionalAvailability({ ...source, timeZone: preservedTimeZone }, input);
+  if (input.expectedVersion !== undefined && input.expectedVersion !== link.professionalVersion) return resolve({ ...link, policyVersion, recurring: [], exceptions: [], appointments: [] });
   // Pad UTC boundaries for all supported IANA offsets; actual date selection
   // and duration run once in the canonical resolver.
   const lower = new Date(Date.parse(input.fromDate + "T00:00:00Z") - 86_400_000), upper = new Date(Date.parse(input.toDate + "T00:00:00Z") + 2 * 86_400_000);
@@ -32,5 +38,5 @@ export async function getProfessionalAvailability(tx: Prisma.TransactionClient, 
     tx.serviceAppointment.findMany({ where: { merchantId: input.merchantId, professionalId: input.professionalId, operationalStatus: { in: ["scheduled", "in_service", "completed", "no_show"] }, startsAt: { lt: upper }, endsAt: { gt: lower }, ...(exclusion ? { NOT: { id: exclusion.appointmentId } } : {}) }, select: { startsAt: true, endsAt: true }, take: 10001 }),
   ]);
   if (recurring.length > 100 || exceptions.length > 5000 || appointments.length > 10000) throw new ServiceUnavailableException("availability_source_limit");
-  return resolveProfessionalAvailability({ ...link, policyVersion: policy?.configuredAt ? policy.version : null, recurring, exceptions, appointments }, input);
+  return resolve({ ...link, policyVersion, recurring, exceptions, appointments });
 }

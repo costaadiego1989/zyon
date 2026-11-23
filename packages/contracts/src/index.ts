@@ -14,6 +14,7 @@ export const ProblemDetailsSchema = z.object({
   code: z.string().min(1),
   detail: z.string().optional(),
   retry_after_seconds: z.number().int().positive().optional(),
+  next_action: z.literal("review_checkout").optional(),
   fields: ProblemDetailsFieldErrorsSchema.optional(),
   chat_request: z.object({
     message_id: z.string().regex(/^[a-zA-Z0-9_-]{16,128}$/),

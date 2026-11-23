@@ -4,11 +4,19 @@ import type { Cart, CartItem, FulfillmentSchedule } from "@zyon/shared-types";
 import { readProfessionalCheckout } from "./read-professional-checkout.js";
 import type { ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
 import { admitWhatsAppEffectInTransaction } from "../whatsapp/whatsapp-automation-context.js";
+import type { SelectedServiceSlot } from "../../modules/catalog/domain/services/service-schedule.js";
 
 export function professionalScheduleSnapshot(selected: ProfessionalCheckoutSelection): FulfillmentSchedule {
   return { slotId: selected.slotId, professionalId: selected.professionalId, professionalVersion: selected.professionalVersion,
     policyVersion: selected.policyVersion, date: selected.date, startsAt: selected.startsAt, endsAt: selected.endsAt,
     timeZone: selected.timeZone, durationMinutes: selected.durationMinutes };
+}
+
+/** Presentation for the existing storefront cart, from the canonical instant. */
+export function professionalStorefrontSlot(selected: ProfessionalCheckoutSelection): SelectedServiceSlot {
+  const startTime = new Intl.DateTimeFormat("en-GB", { timeZone: selected.timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .format(new Date(selected.startsAt));
+  return { ...professionalScheduleSnapshot(selected), date: selected.date, startTime };
 }
 
 /** Reconstruct the quote while its canonical merchant/professional locks remain

@@ -11,6 +11,7 @@ import { professionalSlotId, professionalHoldRequests, type ProfessionalCheckout
 import { originalSlotLeaseProof, serviceSlotStore, type RedisServiceSlots } from "../../../shared/bookings/redis-service-slots.js";
 import { readProfessionalServiceLink } from "../../catalog/domain/services/professional-service-link.js";
 import { professionalLocalDate } from "../../catalog/domain/services/professional-availability.js";
+import { FIXED_SERVICE_TIME_ZONE } from "../../catalog/domain/services/fixed-service-time-zone.js";
 import { parseServiceInstant } from "../../catalog/domain/services/professional-availability-input.js";
 import { assertExpectedVersion } from "../../catalog/domain/services/service-professional-input.js";
 import { getProfessionalAvailability } from "../../catalog/application/get-professional-availability.js";
@@ -85,7 +86,7 @@ async function quoteWithin(tx: Prisma.TransactionClient, actor: ServiceActor, in
   const business = resolveServiceBusinessPolicy({ ...merchant, hasLegacyServiceData: false, policy });
   if (!business.capabilities.serviceBooking || !business.policy) throw new ConflictException("service_booking_" + business.bookingBlockReason);
   const policies = await readCancellationPoliciesWithin(tx, actor.merchantId), startsAt = new Date(input.destination.startsAt);
-  const endsAt = new Date(startsAt.getTime() + facts.durationMinutes * 60_000), date = professionalLocalDate(startsAt, facts.timeZone), now = clock(context);
+  const endsAt = new Date(startsAt.getTime() + facts.durationMinutes * 60_000), date = professionalLocalDate(startsAt, FIXED_SERVICE_TIME_ZONE), now = clock(context);
   const available = await getProfessionalAvailability(tx, { merchantId: actor.merchantId, productId: a.productId, variantId: a.variantId,
     professionalId: facts.professionalId, fromDate: date, toDate: date, expectedVersion: facts.professionalVersion, now },
     { excludeAppointment: { appointmentId: a.id, expectedVersion: a.version } });
@@ -93,7 +94,7 @@ async function quoteWithin(tx: Prisma.TransactionClient, actor: ServiceActor, in
     throw new ConflictException("service_slot_unavailable");
   const quote: RescheduleQuote = { merchantId: actor.merchantId, appointmentId: a.id, version: a.version, productId: a.productId, variantId: a.variantId,
     professionalId: facts.professionalId, professionalVersion: facts.professionalVersion, policyVersion: business.policyVersion!, policyHash: policies.hash,
-    startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), timeZone: facts.timeZone, durationMinutes: facts.durationMinutes,
+    startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), timeZone: available.timeZone, durationMinutes: facts.durationMinutes,
     priceInCents: facts.priceInCents, currency: facts.currency, paymentMode: business.policy.paymentMode, holdEnabled: business.policy.holdEnabled, holdMinutes: business.policy.holdMinutes };
   const balances = await tx.appointmentPayment.findMany({ where: { merchantId: actor.merchantId, appointmentId: a.id }, take: 101 });
   if (balances.length > 100) throw new ServiceUnavailableException("service_financial_facts_limit");

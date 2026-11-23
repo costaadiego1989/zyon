@@ -1,7 +1,10 @@
 import { admitWhatsAppEffectInTransaction, currentWhatsAppExecution } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
-import { serviceCheckoutProvenance, type ServiceCheckoutCreationIdentity } from "../../../../shared/bookings/service-checkout-provenance.js";
+import { revalidateNativeServiceBookingAdmission } from "../../../../shared/bookings/native-service-booking-authority.js";
+import { serviceCheckoutProvenance, assertServiceCheckoutCreationCapability, serviceBookingParentFingerprint, type ServiceCheckoutCreationIdentity } from "../../../../shared/bookings/service-checkout-provenance.js";
 import { hasPreparedCheckoutPayment } from "../checkout-payment-scope.js";
-import { hasProfessionalServiceSelection } from "../../../../shared/bookings/service-checkout-selection.js";
+import { hasProfessionalServiceSelection, professionalHoldRequests } from "../../../../shared/bookings/service-checkout-selection.js";
+import { serviceSlotStore, newlyCreatedSlotLeaseProof, type RedisServiceSlots } from "../../../../shared/bookings/redis-service-slots.js";
+import { captureAppointmentLease } from "../../../../shared/bookings/appointment-lease-proof.js";
 import { readProfessionalCheckout } from "../../../../shared/bookings/read-professional-checkout.js";
 import { resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
 import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
@@ -9,6 +12,7 @@ import { createDigitalOrderFulfillment } from "../../../../shared/persistence/di
 import { initializeOrderFulfillment } from "../../../../shared/persistence/order-fulfillment.js";
 import { toCheckoutSession, toCheckoutShippingJson } from "./checkout-session.mapper.js";
 import { isDeepStrictEqual } from "node:util";
+import { randomUUID } from "node:crypto";
 import { parseCheckoutCouponOrderAuthority, type CheckoutCouponOrderAuthority } from "../../domain/services/checkout-coupon-binding.js";
 import { ConflictException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
@@ -92,11 +96,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     private readonly prisma: PrismaClient | Prisma.TransactionClient,
     private readonly inTransaction = false,
     private readonly orderQuota?: OrderQuotaService,
+    private readonly initialLeaseStore: () => Pick<RedisServiceSlots, "acquire" | "releaseCaptured"> = serviceSlotStore,
   ) {}
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     if (this.inTransaction) return work(this);
-    return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota)));
+    return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota, this.initialLeaseStore)));
   }
 
   async verifyEmailOtpAndRecognize(scope: CheckoutEmailOtpVerificationScope, command: CheckoutEmailOtpVerificationCommand,
@@ -541,9 +546,63 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     assertNoCheckoutCouponBindingInput(session.cart);
     session = structuredClone(session);
     const provenance = serviceCheckoutProvenance(session, creationIdentity);
+    const bookingCapability = creationIdentity?.bookingCapability ? structuredClone(creationIdentity.bookingCapability) : undefined;
+    if (bookingCapability && !bookingCapability.cartFingerprint) throw new ConflictException("service_booking_capability_invalid");
+    const admitBooking = async (tx: Prisma.TransactionClient, current: CheckoutSession) => {
+      if (!bookingCapability || !hasProfessionalServiceSelection(current) || current.cart.cart_ref !== bookingCapability.storefrontCartRef)
+        throw new ConflictException("service_booking_capability_invalid");
+      if (current.globalUserId !== bookingCapability.globalUserId) throw new ConflictException("checkout_buyer_session_binding_mismatch");
+      const facts = await readProfessionalCheckout(tx, current);
+      let source: Awaited<ReturnType<typeof tx.storefrontCart.findUnique>> | undefined = undefined;
+      if (bookingCapability.storefrontCartRef) {
+        await lockStorefrontCart(tx, current.merchantId, bookingCapability.storefrontCartRef);
+        source = await tx.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId: current.merchantId,
+          sessionId: bookingCapability.storefrontCartRef } } });
+        if (!source || !Array.isArray(source.items) || serviceBookingParentFingerprint(source as unknown as import("../../../storefront/domain/ports/storefront-cart.port.js").StorefrontCartCommercialSnapshot) !== bookingCapability.parentCartFingerprint)
+          throw new ConflictException("service_booking_parent_changed");
+      }
+      const now = await executionClock(tx);
+      assertServiceCheckoutCreationCapability(current, bookingCapability, now);
+      if (source && source.expiresAt <= now) throw new ConflictException("checkout_cart_expired");
+      return { ...facts, now };
+    };
+    // Only the creator reaches this callback, while merchant, professional,
+    // session-anchor and parent-cart locks remain held. Existing winners never
+    // acquire or renew a lease here.
+    const publishBooking = async <T>(tx: Prisma.TransactionClient, publish: (now: Date) => Promise<T>): Promise<T> => {
+      const admitted = await admitBooking(tx, session);
+      if (!admitted.policy.holdEnabled) return publish(admitted.now);
+      const { holdMinutes } = admitted.policy;
+      if (holdMinutes === null) throw new ConflictException("service_booking_policy_invalid");
+      const store = this.initialLeaseStore(), publication = { publicationClaim: randomUUID() };
+      const hold = await store.acquire(session.merchantId, session.sessionId,
+        professionalHoldRequests(admitted.selections), holdMinutes * 60_000, publication);
+      const created = newlyCreatedSlotLeaseProof(hold);
+      try {
+        // Redis may have waited: re-admit the genuine turn, current parent and
+        // fresh DB clock before any checkout publication.
+        await revalidateNativeServiceBookingAdmission(tx, bookingCapability);
+        const fresh = await admitBooking(tx, session);
+        return await publish(fresh.now);
+      } catch (error) {
+        // SQL may already have rolled back before this callback resumes. A
+        // private new-generation receipt AND atomic publication-claim CAS must
+        // still authorize cleanup; a later publisher may own the same generation.
+        // Lost Redis ACKs yield no receipt; outer commit failures never enter here.
+        const cleanupErrors: unknown[] = [];
+        if (created) for (const target of created.slots) {
+          try { await store.releaseCaptured(session.merchantId,
+            captureAppointmentLease(session.merchantId, session.sessionId, created, target), publication); }
+          catch (cleanupError) { cleanupErrors.push(cleanupError); }
+        }
+        if (cleanupErrors.length) throw new AggregateError([error, ...cleanupErrors], "service_initial_hold_compensation_failed");
+        throw error;
+      }
+    };
     if (strategyExecutionEnabled(session.merchantId) || incentiveExecutionEnabled(session.merchantId)) {
       const create = async (tx: Prisma.TransactionClient) => {
       await admitWhatsAppEffectInTransaction(tx, session.merchantId);
+      await revalidateNativeServiceBookingAdmission(tx, bookingCapability);
         // The store lock orders activation, creation, enrollment and stopping.
         // Timestamp AFTER taking it, so concurrent starts cannot backdate the
         // first eligible session or enroll a buyer from a later session.
@@ -551,27 +610,39 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
         const previous = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: {
           merchantId: session.merchantId, sessionId: session.sessionId } } });
-        if (previous) return { session: toCheckoutSession(previous), created: false };
-        if (hasProfessionalServiceSelection(session)) await readProfessionalCheckout(tx, session);
-        const now = await executionClock(tx);
-        const row = await tx.checkoutSession.create({ data: { ...toCheckoutSessionCreate(session), ...provenance, createdAt: now, updatedAt: now } as any });
-        await enrollCreatedStrategySession(tx, row, now);
-        const incentive = await applyEligibleIncentive(tx, row);
-        return { session: toCheckoutSession(incentive), created: true };
+        if (previous) {
+          if (bookingCapability) await admitBooking(tx, toCheckoutSession(previous));
+          return { session: toCheckoutSession(previous), created: false };
+        }
+        if (hasProfessionalServiceSelection(session) && !bookingCapability) await readProfessionalCheckout(tx, session);
+        const publish = async (now: Date) => {
+          const row = await tx.checkoutSession.create({ data: { ...toCheckoutSessionCreate(session), ...provenance, createdAt: now, updatedAt: now } as any });
+          await enrollCreatedStrategySession(tx, row, now);
+          const incentive = await applyEligibleIncentive(tx, row);
+          return { session: toCheckoutSession(incentive), created: true };
+        };
+        return bookingCapability ? publishBooking(tx, publish) : publish(await executionClock(tx));
       };
       return this.inTransaction ? create(this.prisma) : (this.prisma as PrismaClient).$transaction(create);
     }
     const create = async (tx: Prisma.TransactionClient) => {
       await admitWhatsAppEffectInTransaction(tx, session.merchantId);
-      if (hasProfessionalServiceSelection(session)) await lockExecutionMerchant(tx, session.merchantId);
+      await revalidateNativeServiceBookingAdmission(tx, bookingCapability);
+      if (hasProfessionalServiceSelection(session) || bookingCapability) await lockExecutionMerchant(tx, session.merchantId);
       await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
       const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
       const previous = await tx.checkoutSession.findUnique({ where });
-      if (previous) return { session: toCheckoutSession(previous), created: false };
-      if (hasProfessionalServiceSelection(session)) await readProfessionalCheckout(tx, session);
-      const row = await tx.checkoutSession.upsert({ where,
-        create: { ...toCheckoutSessionCreate(session), ...provenance } as any, update: {} });
-      return { session: toCheckoutSession(row), created: row.conversationId === session.conversationId };
+      if (previous) {
+        if (bookingCapability) await admitBooking(tx, toCheckoutSession(previous));
+        return { session: toCheckoutSession(previous), created: false };
+      }
+      if (hasProfessionalServiceSelection(session) && !bookingCapability) await readProfessionalCheckout(tx, session);
+      const publish = async () => {
+        const row = await tx.checkoutSession.upsert({ where,
+          create: { ...toCheckoutSessionCreate(session), ...provenance } as any, update: {} });
+        return { session: toCheckoutSession(row), created: row.conversationId === session.conversationId };
+      };
+      return bookingCapability ? publishBooking(tx, publish) : publish();
     };
     try {
       return await (this.inTransaction ? create(this.prisma) : (this.prisma as PrismaClient).$transaction(create));
@@ -579,6 +650,15 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       // An emulated Prisma upsert can lose a concurrent insert; reread its winner.
       // A failed outer transaction must be handled by its owner, not queried again.
       if (this.inTransaction || (error as { code?: string })?.code !== "P2002") throw error;
+      if (bookingCapability) return (this.prisma as PrismaClient).$transaction(async tx => {
+        await revalidateNativeServiceBookingAdmission(tx, bookingCapability);
+        await lockExecutionMerchant(tx, session.merchantId);
+        await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
+        const winner = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } } });
+        if (!winner) throw error;
+        const current = toCheckoutSession(winner); await admitBooking(tx, current);
+        return { session: current, created: false };
+      });
       const existing = await this.getSession(session.merchantId, session.sessionId);
       if (!existing) throw error;
       return { session: existing, created: false };

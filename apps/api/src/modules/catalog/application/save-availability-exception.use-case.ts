@@ -6,6 +6,7 @@ import { assertServiceAdministration, type ServiceActor } from "../../../shared/
 import { lockServiceProfessional } from "../../../shared/bookings/service-professional-lock.js";
 import { lockCatalogMerchant } from "../../../shared/persistence/catalog-stock-ledger.js";
 import type { DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
+import { assertNewServiceTimeZone, defaultNewServiceTimeZone } from "../domain/services/fixed-service-time-zone.js";
 
 export interface AvailabilityExceptionInput {
   id?: string;
@@ -30,9 +31,11 @@ export function validateAvailabilityException(raw: unknown) {
   return { ...input, startsAt, endsAt };
 }
 
-export async function saveAvailabilityException(tx: Prisma.TransactionClient, actor: ServiceActor, professionalId: string, expectedVersion: number, raw: AvailabilityExceptionInput) {
+type NewAvailabilityExceptionInput = Omit<AvailabilityExceptionInput, "timeZone"> & { timeZone?: string };
+
+export async function saveAvailabilityException(tx: Prisma.TransactionClient, actor: ServiceActor, professionalId: string, expectedVersion: number, raw: NewAvailabilityExceptionInput) {
   assertExpectedVersion(expectedVersion);
-  const input = validateAvailabilityException(raw);
+  const input = validateAvailabilityException(defaultNewServiceTimeZone(raw));
   await lockCatalogMerchant(tx, actor.merchantId);
   await assertServiceAdministration(tx, actor);
   await lockServiceProfessional(tx, actor.merchantId, professionalId);
@@ -42,7 +45,9 @@ export async function saveAvailabilityException(tx: Prisma.TransactionClient, ac
   if (professional.version !== expectedVersion) throw new ConflictException("service_professional_stale");
   const before = input.id ? await tx.availabilityException.findFirst({ where: { id: input.id, merchantId: actor.merchantId, professionalId } }) : null;
   if (input.id && !before) throw new NotFoundException("availability_exception_not_found");
-  if (!(before && input.isActive === false) && professional.timeZone !== input.timeZone) throw new BadRequestException("availability_timezone_mismatch");
+  // New intervals carry absolute instants and may use a historical professional
+  // without a recurring grade. Only proven withdrawal reuses its stored zone.
+  if (!(before && input.isActive === false)) assertNewServiceTimeZone(input.timeZone);
   if (input.isActive !== false) {
     const occupied = await tx.serviceAppointment.findFirst({ where: { merchantId: actor.merchantId, professionalId,
       operationalStatus: { in: ["scheduled", "in_service", "completed", "no_show"] }, startsAt: { lt: input.endsAt }, endsAt: { gt: input.startsAt } }, select: { id: true } });
@@ -64,7 +69,7 @@ export async function saveAvailabilityException(tx: Prisma.TransactionClient, ac
 export class SaveAvailabilityExceptionUseCase {
   constructor(private readonly prisma: PrismaClient, private readonly events?: DomainEventBus) {}
 
-  async execute(actor: ServiceActor, professionalId: string, expectedVersion: number, raw: AvailabilityExceptionInput) {
+  async execute(actor: ServiceActor, professionalId: string, expectedVersion: number, raw: NewAvailabilityExceptionInput) {
     const result = await this.prisma.$transaction(tx => saveAvailabilityException(tx, actor, professionalId, expectedVersion, raw));
     await this.events?.publish({ eventType: "service.availability.changed", merchantId: actor.merchantId, schemaVersion: 1, payload: { professionalId, version: result.version } });
     return result;

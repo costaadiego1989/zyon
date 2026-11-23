@@ -13,10 +13,12 @@ import type { TrustedCheckoutBuyer, TrustedWhatsAppCheckoutBuyer } from "./trust
 import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 import { requiresPhysicalDelivery } from "../../domain/services/cart-fulfillment.js";
 import { QuoteShippingUseCase } from "../../../shipping/application/use-cases/quote-shipping.use-case.js";
+import type { ServiceCheckoutBookingCapability } from "../../../../shared/bookings/service-checkout-provenance.js";
 
 interface BootstrapResult {
   session: CheckoutSession;
   suggestedProductsRequest?: { merchant_id: string; session_id: string; cart: any };
+  readonlyBookingReplay?: true;
 }
 
 @Injectable()
@@ -35,7 +37,7 @@ export class CheckoutBootstrapService {
   ) {}
 
   async bootstrap(input: StartCheckoutRequest, globalUserId: string, cartValidated = false,
-    identity?: { serverChannel?: "storefront" | "whatsapp"; trustedBuyer?: TrustedCheckoutBuyer; trustedWhatsAppBuyer?: TrustedWhatsAppCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean; trustedPhoneBuyer?: { globalUserId: string; phone: string } },
+    identity?: { serverChannel?: "storefront" | "whatsapp"; trustedBuyer?: TrustedCheckoutBuyer; trustedWhatsAppBuyer?: TrustedWhatsAppCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean; trustedPhoneBuyer?: { globalUserId: string; phone: string }; bookingCapability?: ServiceCheckoutBookingCapability },
   ): Promise<BootstrapResult> {
     let enrichedInput = input;
 
@@ -98,8 +100,13 @@ export class CheckoutBootstrapService {
 
     let session: CheckoutSession;
     let preparedCreatedBuyer = false;
+    let readonlyBookingReplay = !!existingSession && !!identity?.bookingCapability;
     if (existingSession) {
       session = CheckoutSessionEntity.rehydrate(existingSession).snapshot();
+      if (identity?.bookingCapability) {
+        if (!this.sessions.createSessionIfAbsent) throw new ServiceUnavailableException("checkout_session_binding_unavailable");
+        session = (await this.sessions.createSessionIfAbsent(session, identity)).session;
+      }
     } else {
       session = CheckoutSessionEntity.create({
         merchantId: input.merchant_id,
@@ -126,6 +133,7 @@ export class CheckoutBootstrapService {
       if (this.sessions.createSessionIfAbsent) {
         const result = await this.sessions.createSessionIfAbsent(session, identity);
         session = result.session;
+        if (identity?.bookingCapability && !result.created) readonlyBookingReplay = true;
         preparedCreatedBuyer = result.created && !!identity?.trustedBuyer && !!this.customerService;
         if (result.created) await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
       } else {
@@ -162,6 +170,11 @@ export class CheckoutBootstrapService {
       throw new UnauthorizedException("checkout_buyer_proof_required");
     }
 
+    // The guarded repository reread owns the current winner and full source.
+    // A private booking continuation may prepare a lease below Start, but must
+    // not rewrite this winner, its profile, experiment or started event.
+    if (readonlyBookingReplay) return { session, readonlyBookingReplay: true };
+
     // A normal same-capability remount can follow a definitive coupon release
     // and explicit reapply on the authenticated source cart. Presence only
     // selects the dedicated path; its transaction still owns proof and CAS.
@@ -182,7 +195,7 @@ export class CheckoutBootstrapService {
 
     this.logger.warn('[CHECKOUT-DBG] session saved', { sessionId, customer: { cpf: !!session.customer?.cpf, name: !!session.customer?.fullName, asaasId: !!session.customer?.asaasCustomerId } });
 
-    if (identity?.trustedBuyer && this.customerService && !preparedCreatedBuyer) {
+    if (identity?.trustedBuyer && this.customerService && !preparedCreatedBuyer && !readonlyBookingReplay) {
       // Authenticate the canonical winner before recognizing any private PII.
       // Refresh above must retain its persisted CAS expectation, not this new profile.
       session = await this.customerService.prepareTrustedBuyerForCheckout(session, identity.trustedBuyer);

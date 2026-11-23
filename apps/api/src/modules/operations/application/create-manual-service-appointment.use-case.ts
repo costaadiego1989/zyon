@@ -8,6 +8,7 @@ import { lockServiceProfessional } from "../../../shared/bookings/service-profes
 import { admitWhatsAppEffectInTransaction } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 import { readProfessionalServiceLink } from "../../catalog/domain/services/professional-service-link.js";
 import { professionalLocalDate } from "../../catalog/domain/services/professional-availability.js";
+import { FIXED_SERVICE_TIME_ZONE } from "../../catalog/domain/services/fixed-service-time-zone.js";
 import { parseServiceInstant } from "../../catalog/domain/services/professional-availability-input.js";
 import { assertExpectedVersion } from "../../catalog/domain/services/service-professional-input.js";
 import { saveAvailabilityException } from "../../catalog/application/save-availability-exception.use-case.js";
@@ -143,13 +144,13 @@ export async function createManualServiceAppointmentWithin(tx: Prisma.Transactio
   let exceptionId: string | null = null;
   if (input.explicitOneOff !== undefined) {
     const saved = await saveAvailabilityException(tx, actor, facts.professionalId, input.expectedProfessionalVersion, {
-      kind: "one_off", startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), timeZone: facts.timeZone,
+      kind: "one_off", startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), timeZone: FIXED_SERVICE_TIME_ZONE,
       ...(input.explicitOneOff.reason !== undefined ? { reason: input.explicitOneOff.reason } : {}),
     });
     exceptionId = saved.exception.id;
     facts = { ...facts, professionalVersion: saved.version };
   }
-  const date = professionalLocalDate(startsAt, facts.timeZone);
+  const date = professionalLocalDate(startsAt, FIXED_SERVICE_TIME_ZONE);
   // Preparation is not the final decision clock: an actual lease read may wait.
   const available = await getProfessionalAvailability(tx, { merchantId: actor.merchantId, productId: facts.productId,
     variantId: facts.variantId, professionalId: facts.professionalId, fromDate: date, toDate: date,

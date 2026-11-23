@@ -11,6 +11,8 @@ import { findAppointmentLeaseWithin } from "./appointment-lease-proof.js";
 import { serviceSlotStore, type RedisServiceSlots } from "./redis-service-slots.js";
 import { readProfessionalCheckoutSelections, professionalHoldRequests, type ProfessionalCheckoutSelection } from "./service-checkout-selection.js";
 import { assertPaymentAmount, orderTotalCents, type PaymentAmountBreakdown } from "../../modules/payment/domain/payment-amount.js";
+import { preserveVerifiedProfessionalAvailability } from "../../modules/catalog/application/professional-availability-continuation.js";
+import { FIXED_SERVICE_TIME_ZONE } from "../../modules/catalog/domain/services/fixed-service-time-zone.js";
 
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const id = (v: unknown): v is string => typeof v === "string" && !!v && v.trim() === v && v.length <= 191;
@@ -129,7 +131,8 @@ export async function prepareManualServicePaymentWithin(tx: Prisma.TransactionCl
   const facts = await readProfessionalServiceLink(tx, { merchantId: actor.merchantId, productId: a.productId, variantId: a.variantId, professionalId: a.professionalId });
   const policy = await tx.serviceBusinessPolicy.findUnique({ where: { merchantId: actor.merchantId } });
   if (!selected || !matchesAppointment(a, selected) || facts.professionalVersion !== selected.professionalVersion || facts.durationMinutes !== selected.durationMinutes
-    || facts.timeZone !== selected.timeZone || facts.priceInCents !== selected.priceInCents || facts.currency !== selected.currency
+    || selected.timeZone !== FIXED_SERVICE_TIME_ZONE && facts.timeZone !== selected.timeZone
+    || facts.priceInCents !== selected.priceInCents || facts.currency !== selected.currency
     || !policy?.configuredAt || !policy.admissionsEnabled || policy.paymentMode !== "online" || policy.version !== selected.policyVersion)
     throw new ConflictException("service_manual_payment_snapshot_changed");
   const breakdown = intent.amountBreakdown as PaymentAmountBreakdown | null;
@@ -138,9 +141,14 @@ export async function prepareManualServicePaymentWithin(tx: Prisma.TransactionCl
     throw new ConflictException("service_manual_payment_amount_mismatch");
   const preflightAt = context.clock ? context.clock() : new Date();
   if (!(preflightAt instanceof Date) || !Number.isFinite(preflightAt.getTime())) throw new BadRequestException("service_manual_payment_invalid_clock");
+  if (selected.timeZone !== FIXED_SERVICE_TIME_ZONE) {
+    const originalBinding = await findAppointmentLeaseWithin(tx, a);
+    await assertManualServiceLeaseWithin(tx, a, selected, originalBinding?.auditId ?? null, context);
+  }
   const available = await getProfessionalAvailability(tx, { merchantId: actor.merchantId, productId: a.productId, variantId: a.variantId,
     professionalId: a.professionalId, fromDate: selected.date, toDate: selected.date, expectedVersion: selected.professionalVersion, now: preflightAt },
-  { excludeAppointment: { appointmentId: a.id, expectedVersion: a.version } });
+  { excludeAppointment: { appointmentId: a.id, expectedVersion: a.version },
+    continuation: preserveVerifiedProfessionalAvailability(actor.merchantId, selected) });
   if (available.status !== "ready" || !available.slots.some(slot => slot.startsAt === selected.startsAt && slot.endsAt === selected.endsAt))
     throw new ConflictException("service_slot_unavailable");
   const binding = await findAppointmentLeaseWithin(tx, a);

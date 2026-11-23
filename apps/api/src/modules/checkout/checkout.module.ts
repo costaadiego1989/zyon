@@ -1,5 +1,9 @@
 import { forwardRef, Module } from "@nestjs/common";
+
 import { ConfirmServiceAppointmentUseCase } from "./application/confirm-service-appointment.use-case.js";
+import { ServiceBookingService } from "./application/service-booking.service.js";
+import { ServiceSlotHoldsService } from "../../shared/bookings/service-slot-holds.service.js";
+import { ServiceSlotHoldsModule } from "../../shared/bookings/service-slot-holds.module.js";
 
 import type { PrismaClient } from "@prisma/client";
 import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
@@ -107,6 +111,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
 
 @Module({
   imports: [
+    ServiceSlotHoldsModule,
     CouponsExecutionModule,
     CommerceModule,
     AgentRulesModule,
@@ -126,6 +131,8 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
   ],
   controllers: [CheckoutController],
   providers: [
+
+    { provide: ServiceBookingService, useFactory: (prisma: PrismaClient, start: StartCheckoutUseCase, holds: ServiceSlotHoldsService, authority: CheckoutCartAuthorityService) => new ServiceBookingService(prisma, start, holds, undefined, authority), inject: [PRISMA_CLIENT, StartCheckoutUseCase, ServiceSlotHoldsService, CheckoutCartAuthorityService] },
     { provide: ConfirmServiceAppointmentUseCase, useFactory: (prisma: PrismaClient) => new ConfirmServiceAppointmentUseCase(prisma), inject: [PRISMA_CLIENT] },
     { provide: STOREFRONT_CROSS_SELL_CART, useFactory: (prisma: PrismaClient) => new PrismaStorefrontCrossSellCartAdapter(prisma), inject: [PRISMA_CLIENT] },
     ListBuyerAddressesUseCase,
@@ -239,6 +246,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
     PaymentApprovedHandler
   ],
   exports: [
+    ServiceBookingService,
     ConfirmServiceAppointmentUseCase,
     CheckoutCartAuthorityService,
     CheckoutBenefitsService,

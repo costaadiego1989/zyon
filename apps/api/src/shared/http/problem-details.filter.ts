@@ -76,6 +76,8 @@ export function toProblemDetails(
       ...(fields ? { fields } : {}),
       ...(status === 429 && Number.isSafeInteger(response.retry_after_seconds ?? response.retryAfterSeconds) && Number(response.retry_after_seconds ?? response.retryAfterSeconds) > 0 ? { retry_after_seconds: Number(response.retry_after_seconds ?? response.retryAfterSeconds) } : {}),
       ...(chatRequest ? { chat_request: chatRequest } : {}),
+      ...(status === 409 && code === "service_hold_required" && response.next_action === "review_checkout"
+        ? { next_action: "review_checkout" as const } : {}),
       correlation_id: correlationId,
     };
   }

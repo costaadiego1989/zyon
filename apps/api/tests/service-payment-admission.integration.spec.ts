@@ -28,6 +28,9 @@ test("T29 journal", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
     await bootstrapServiceSchema(db);
     raw = new PrismaClient({ datasources: { db: { url: db.prismaUrl } } });
     const prisma = raw, now = new Date(); await seedServiceBookingFixture(prisma, now);
+    // Scope these new journal selections to a Brasilia grade; leave the shared historical UTC seed unchanged.
+    await prisma.serviceProfessional.updateMany({ where: { id: "booking-professional", merchantId: "booking-services" }, data: { timeZone: "America/Sao_Paulo" } });
+    await prisma.professionalAvailability.updateMany({ where: { professionalId: "booking-professional", merchantId: "booking-services" }, data: { timeZone: "America/Sao_Paulo" } });
     await prisma.serviceBusinessPolicy.update({ where: { merchantId: "booking-services" }, data: { paymentMode: "online" } });
     let storeCalls = 0, creates = 0, recovers = 0, createUncertain = false;
     const noStore = () => { storeCalls++; throw new Error("synthetic_redis_offline"); };
@@ -46,7 +49,7 @@ test("T29 journal", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
         sku: "booking-short", product_id: "booking-short", variantId: "booking-short-variant", name: "Synthetic service", quantity: 1,
         price: 50, productType: "service", fulfillmentStrategy: "scheduled_service", fulfillmentSchedule: {
           professionalId: "booking-professional", professionalVersion: 1, policyVersion: 1, date, slotId: "server-display-id",
-          startsAt: date + "T10:00:00.000Z", endsAt: date + "T10:20:00.000Z", timeZone: "UTC", durationMinutes: 20 } }] };
+          startsAt: date + "T13:00:00.000Z", endsAt: date + "T13:20:00.000Z", timeZone: "America/Sao_Paulo", durationMinutes: 20 } }] };
       await prisma.checkoutSession.create({ data: { merchantId: "booking-services", sessionId, globalUserId: "synthetic-buyer",
         conversationId: sessionId, cart: JSON.parse(JSON.stringify(cart)), createdAt: now, updatedAt: now, customer: { fullName: "Synthetic buyer", phone: "+5521999990000" } } });
       const intent = PaymentIntentEntity.create({ merchantId: "booking-services", sessionId, idempotencyKey: sessionId,

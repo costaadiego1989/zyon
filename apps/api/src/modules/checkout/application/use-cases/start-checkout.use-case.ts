@@ -40,6 +40,7 @@ import { selectWeightedVariant } from "../../../../shared/experiments/weighted-v
 import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../../shared/bookings/service-slot-holds.service.js";
 import { hasProfessionalServiceSelection } from "../../../../shared/bookings/service-checkout-selection.js";
 import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
+import type { ServiceCheckoutBookingCapability } from "../../../../shared/bookings/service-checkout-provenance.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -64,6 +65,7 @@ export class StartCheckoutUseCase {
   ) { }
 
   async execute(input: StartCheckoutRequest, trustedContext?: { serverChannel?: "storefront" | "whatsapp"; storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean;
+    bookingCapability?: ServiceCheckoutBookingCapability;
     trustedWhatsAppBuyer?: TrustedWhatsAppCheckoutBuyer;
     trustedPhoneBuyer?: { globalUserId: string; phone: string; fullName?: string; email?: string } }): Promise<StartCheckoutResponse> {
     if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
@@ -116,18 +118,23 @@ export class StartCheckoutUseCase {
     const { agent, buyerIntent } = await this.buyerContext.load(input.merchant_id, globalUserId);
 
     // Phase 3: Checkout Bootstrap
-    let { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true, {
+    let { session, readonlyBookingReplay } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true, {
       serverChannel: trustedContext?.serverChannel,
       trustedBuyer: trustedContext?.trustedBuyer,
       trustedWhatsAppBuyer: trustedContext?.trustedWhatsAppBuyer,
       trustedPhoneBuyer: trustedContext?.trustedPhoneBuyer,
       requireBuyerProof: trustedContext?.requireBuyerProof,
       refreshCart: trustedContext?.refreshCart,
+      ...(trustedContext?.bookingCapability ? { bookingCapability: trustedContext.bookingCapability } : {}),
     });
-    session = await this.assignExperimentVariant(input.merchant_id, session);
+    if (!readonlyBookingReplay) session = await this.assignExperimentVariant(input.merchant_id, session);
     if (sessionSlotRequests(session).length && !this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
     const professionalCheckout = hasProfessionalServiceSelection(session);
-    const serviceCheckout = professionalCheckout ? await this.serviceSlots!.prepareProfessionalCheckout(session) : undefined;
+    const serviceCheckout = professionalCheckout ? trustedContext?.bookingCapability
+      ? readonlyBookingReplay
+        ? await this.serviceSlots!.prepareProfessionalCheckout(session, trustedContext.bookingCapability, { readonlyWinner: true })
+        : await this.serviceSlots!.prepareProfessionalCheckout(session, trustedContext.bookingCapability)
+      : await this.serviceSlots!.prepareProfessionalCheckout(session) : undefined;
     const serviceSlotHold = professionalCheckout ? serviceCheckout?.hold : await this.serviceSlots?.acquire(session);
 
     // Phase 4: Suggested Products

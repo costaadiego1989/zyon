@@ -5,13 +5,21 @@ import { resolveServiceBusinessPolicy } from "../../modules/merchant/domain/serv
 import { lockServiceProfessional } from "./service-professional-lock.js";
 import { hasUnclassifiedServiceReservations } from "./service-legacy-readiness.js";
 import { readProfessionalCheckoutSelections, type ProfessionalSelectionCart } from "./service-checkout-selection.js";
+import { isDeepStrictEqual } from "node:util";
+import { FIXED_SERVICE_TIME_ZONE } from "../../modules/catalog/domain/services/fixed-service-time-zone.js";
+import { preserveVerifiedProfessionalAvailability } from "../../modules/catalog/application/professional-availability-continuation.js";
+import { captureAppointmentLease } from "./appointment-lease-proof.js";
+import { professionalHoldRequests } from "./service-checkout-selection.js";
+import { serviceSlotStore, type RedisServiceSlots } from "./redis-service-slots.js";
+import { stripStoredCheckoutCouponBinding } from "../../modules/checkout/domain/services/checkout-coupon-storage.js";
 
 /** Caller owns the transaction and supplies an authenticated persisted cart.
  * All catalog/calendar mutations share merchant -> sorted professional locks. */
 export async function readProfessionalCheckout(
   tx: Prisma.TransactionClient,
-  session: ProfessionalSelectionCart,
+  session: ProfessionalSelectionCart & { sessionId?: string },
   clock: () => Date = () => new Date(),
+  context: { store?: () => Pick<RedisServiceSlots, "assertActive"> } = {},
 ) {
   const selections = readProfessionalCheckoutSelections(session);
   if (!selections.length || selections.length !== session.cart.items.length)
@@ -29,8 +37,26 @@ export async function readProfessionalCheckout(
   const business = resolveServiceBusinessPolicy({ ...merchant, hasLegacyServiceData: false, policy: row });
   if (!business.capabilities.serviceBooking || !business.policy || business.policyVersion === null)
     throw new ConflictException("service_booking_" + business.bookingBlockReason);
+  const policy = business.policy;
   const now = clock();
   if (!Number.isFinite(now.getTime())) throw new ConflictException("service_checkout_invalid_clock");
+  // A saved cart alone cannot preserve an old civil-date contract. Require
+  // its exact SQL session and current original Redis generation, read-only.
+  const historic = selections.filter(selected => selected.timeZone !== FIXED_SERVICE_TIME_ZONE);
+  let verifiedHistoric = false;
+  const verifyHistoric = async () => {
+    if (verifiedHistoric) return;
+    if (!policy.holdEnabled || !session.sessionId) throw new ConflictException("service_timezone_selection_required");
+    const persisted = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } } });
+    if (!persisted || !isDeepStrictEqual(stripStoredCheckoutCouponBinding(persisted.cart), JSON.parse(JSON.stringify(stripStoredCheckoutCouponBinding(session.cart)))))
+      throw new ConflictException("checkout_service_slot_changed");
+    const proof = await (context.store ?? serviceSlotStore)().assertActive(session.merchantId, session.sessionId, professionalHoldRequests(selections));
+    for (const selected of historic) {
+      const capture = captureAppointmentLease(session.merchantId, session.sessionId, proof, professionalHoldRequests([selected])[0]);
+      if (Date.parse(capture.expiresAt) <= now.getTime()) throw new ConflictException("checkout_service_hold_expired");
+    }
+    verifiedHistoric = true;
+  };
   for (const selected of selections) {
     if (selected.policyVersion !== business.policyVersion) throw new ConflictException("service_policy_changed");
     const variant = await tx.productVariant.findFirst({ where: { id: selected.variantId, productId: selected.productId,
@@ -38,9 +64,11 @@ export async function readProfessionalCheckout(
       select: { price: { select: { basePriceInCents: true, currency: true } } } });
     if (!variant?.price || variant.price.basePriceInCents !== selected.priceInCents || variant.price.currency !== selected.currency)
       throw new ConflictException("service_offer_changed");
+    if (historic.includes(selected)) await verifyHistoric();
     const availability = await getProfessionalAvailability(tx, { merchantId: session.merchantId,
       productId: selected.productId, variantId: selected.variantId, professionalId: selected.professionalId,
-      fromDate: selected.date, toDate: selected.date, expectedVersion: selected.professionalVersion, now });
+      fromDate: selected.date, toDate: selected.date, expectedVersion: selected.professionalVersion, now },
+      historic.includes(selected) ? { continuation: preserveVerifiedProfessionalAvailability(session.merchantId, selected) } : {});
     if (availability.status === "stale" || availability.professionalVersion !== selected.professionalVersion)
       throw new ConflictException("service_selection_stale");
     if (availability.policyVersion !== selected.policyVersion) throw new ConflictException("service_policy_changed");

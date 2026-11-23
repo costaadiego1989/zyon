@@ -11,6 +11,12 @@ import { acquireProfessionalLease, assertProfessionalLease } from "./professiona
 import { admitWhatsAppEffectInTransaction } from "../whatsapp/whatsapp-automation-context.js";
 import { paymentCartFingerprint } from "../../modules/checkout/domain/services/payment-cart-fingerprint.js";
 import { slotFingerprint, RedisServiceSlots, serviceSlotStore, type SlotHold, type SlotRequest } from "./redis-service-slots.js";
+import { assertServiceCheckoutCreationCapability, serviceBookingParentFingerprint, type ServiceCheckoutBookingCapability } from "./service-checkout-provenance.js";
+import { executionClock } from "../../modules/revenue-manager/infrastructure/strategy-execution-ledger.js";
+import { lockStorefrontCart } from "../persistence/storefront-cart-lock.js";
+import type { StorefrontCartCommercialSnapshot } from "../../modules/storefront/domain/ports/storefront-cart.port.js";
+
+import { revalidateNativeServiceBookingAdmission } from "./native-service-booking-authority.js";
 
 export function sessionSlotRequests(session: CheckoutSession): SlotRequest[] {
   if (hasProfessionalServiceSelection(session)) return professionalHoldRequests(readProfessionalCheckoutSelections(session));
@@ -39,7 +45,7 @@ export class ServiceSlotHoldsService {
   }
   private async professionalSelection(tx: Prisma.TransactionClient, session: CheckoutSession) {
     await this.storedProfessionalCheckout(tx, session);
-    return readProfessionalCheckout(tx, session);
+    return readProfessionalCheckout(tx, session, undefined, { store: () => this.store() });
   }
   async isCommittedCheckout(session: CheckoutSession): Promise<boolean> {
     if (!hasProfessionalServiceSelection(session)) return false;
@@ -92,8 +98,10 @@ export class ServiceSlotHoldsService {
       return this.store().acquire(session.merchantId, session.sessionId, slots);
     }, { timeout: 15000 });
   }
-  async prepareProfessionalCheckout(session: CheckoutSession) {
+  async prepareProfessionalCheckout(session: CheckoutSession, requestCapability?: ServiceCheckoutBookingCapability, options: { readonlyWinner?: boolean } = {}) {
+    const capability = requestCapability ? structuredClone(requestCapability) : undefined;
     return this.prisma.$transaction(async tx => {
+      await revalidateNativeServiceBookingAdmission(tx, capability);
       await admitWhatsAppEffectInTransaction(tx, session.merchantId);
       if (await this.committedServiceCheckout(tx, session)) return undefined;
       const current = await this.professionalSelection(tx, session);
@@ -107,7 +115,29 @@ export class ServiceSlotHoldsService {
         if (!product || !professional) throw new ConflictException("service_offer_changed");
         return { ...selection, productName: product.name, professionalName: professional.publicName };
       });
-      const hold = await acquireProfessionalLease(session.merchantId, current.selections, current.policy,
+      if (capability) {
+        let source: Awaited<ReturnType<typeof tx.storefrontCart.findUnique>> | undefined = undefined;
+        if (capability.storefrontCartRef) {
+          await lockStorefrontCart(tx, session.merchantId, capability.storefrontCartRef);
+          source = await tx.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: capability.storefrontCartRef } } });
+          if (!source || !Array.isArray(source.items) || serviceBookingParentFingerprint(source as unknown as StorefrontCartCommercialSnapshot) !== capability.parentCartFingerprint)
+            throw new ConflictException("service_booking_parent_changed");
+        }
+        const now = await executionClock(tx);
+        assertServiceCheckoutCreationCapability(session, capability, now);
+        if (source && source.expiresAt <= now) throw new ConflictException("checkout_cart_expired");
+      }
+      let hold: SlotHold | undefined;
+      if (capability && options.readonlyWinner && capability.leaseIntent !== "review_checkout") {
+        if (current.policy.holdEnabled) {
+          hold = await this.store().get(session.merchantId, session.sessionId);
+          const now = await executionClock(tx);
+          assertServiceCheckoutCreationCapability(session, capability, now);
+          if (!hold || Date.parse(hold.expiresAt) <= now.getTime()
+            || slotFingerprint(hold.slots) !== slotFingerprint(professionalHoldRequests(current.selections)))
+            throw new ConflictException({ code: "service_hold_required", message: "service_hold_required", next_action: "review_checkout" });
+        }
+      } else hold = await acquireProfessionalLease(session.merchantId, current.selections, current.policy,
         { ownerId: session.sessionId, store: () => this.store() });
       return { paymentMode: current.policy.paymentMode, policyVersion: current.policyVersion,
         requiresHold: current.policy.holdEnabled, selections, ...(hold ? { hold } : {}) };

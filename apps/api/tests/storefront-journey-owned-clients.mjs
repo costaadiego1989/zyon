@@ -45,7 +45,26 @@ export async function disconnectCapturedJourneyRedis(client, socket, proof, time
 /** Actual DI instances only, data descriptors rather than arbitrary getters.
  * This is harness cleanup, not proof that runtime shutdown needs no help. */
 export function createOwnedJourneyClientTracker(app, redisPort) {
-  const clients = new Map(), streams = new Map(), proof = createConstructionRedisSocketProof(redisPort);
+  const clients = new Map(), streams = new Map(), generations = new Map(), proof = createConstructionRedisSocketProof(redisPort);
+  function generationFor(client, socket) {
+    const previous = generations.get(client);
+    if (previous?.socket === socket) return previous;
+    if (previous) assert.ok(previous.socket.closed === true && previous.socket.destroyed === true && previous.socket.connecting === false,
+      "journey_owned_redis_previous_socket_not_closed");
+    return { socket, owner: Object.freeze({}), previousOwner: previous?.owner };
+  }
+  function rememberGeneration(client, socket, generation) {
+    const current = generations.get(client);
+    if (client.status !== "ready" || socketFor(client) !== socket || socket.closed || socket.destroyed || socket.connecting
+      || current !== generation && current?.owner !== generation.previousOwner)
+      throw Error("journey_owned_redis_socket_changed_during_capture:" + JSON.stringify(journeyRedisDiagnostic(clients.get(client), client, socket)));
+    generations.set(client, generation); streams.set(client, socket);
+  }
+  const capturedGeneration = Object.freeze({ assertCaptured(client, socket) {
+    const generation = generations.get(client);
+    assert.ok(generation && generation.socket === socket, "construction_redis_socket_identity_required");
+    proof.assertCaptured(generation.owner, socket);
+  } });
   async function capture({ ping = true, warmLazy = false } = {}) {
     const queues = new Set(), workers = new Set(), blocking = new Set(), blockingSockets = new Set();
     function recordConnection(connection, name, isBlocking = false) {
@@ -71,22 +90,19 @@ export function createOwnedJourneyClientTracker(app, redisPort) {
         const socket = socketFor(client);
         if (!(socket instanceof Socket) || socket.closed || socket.destroyed || socket.connecting)
           throw Error("journey_owned_redis_capture_not_live:" + JSON.stringify(journeyRedisDiagnostic(owner, client, socket)));
-        if (streams.has(client)) proof.assertCaptured(client, socket); else entries.push({ owner: client, socket });
+        if (streams.get(client) === socket) capturedGeneration.assertCaptured(client, socket);
+        else { const generation = generationFor(client, socket); entries.push({ owner: generation.owner, socket, client, generation }); }
       }
       try { await proof.captureAll(entries); }
       catch (cause) {
-        const changed = entries.filter(({ owner, socket }) => owner.status !== "ready" || socketFor(owner) !== socket || socket.closed || socket.destroyed || socket.connecting);
+        const changed = entries.filter(({ client, socket }) => client.status !== "ready" || socketFor(client) !== socket || socket.closed || socket.destroyed || socket.connecting);
         throw Error("journey_owned_redis_capture_failed:" + JSON.stringify({ totalClients: clients.size, queues: queues.size, workers: workers.size, changedCount: changed.length,
           cause: { name: cause?.name, code: typeof cause?.code === "string" ? cause.code.slice(0, 60) : null,
             check: /^construction_[a-z_]+$/.test(cause?.message ?? "") ? cause.message : null, killed: cause?.killed === true,
             signal: ["SIGTERM", "SIGKILL"].includes(cause?.signal) ? cause.signal : null },
-          clients: (changed.length ? changed : entries).slice(0, 5).map(({ owner, socket }) => ({ ...journeyRedisDiagnostic(clients.get(owner), owner, socket), socketGenerationChanged: socketFor(owner) !== socket })) }));
+          clients: (changed.length ? changed : entries).slice(0, 5).map(({ client, socket }) => ({ ...journeyRedisDiagnostic(clients.get(client), client, socket), socketGenerationChanged: socketFor(client) !== socket })) }));
       }
-      for (const { owner, socket } of entries) {
-        if (owner.status !== "ready" || socketFor(owner) !== socket || socket.closed || socket.destroyed || socket.connecting)
-          throw Error("journey_owned_redis_socket_changed_during_capture:" + JSON.stringify(journeyRedisDiagnostic(clients.get(owner), owner, socket)));
-        streams.set(owner, socket);
-      }
+      for (const { client, socket, generation } of entries) rememberGeneration(client, socket, generation);
     }
     // Ready peers with an available tuple can be captured synchronously before
     // waits. Defer the Windows native TCP query until ALL clients are ready:
@@ -96,7 +112,7 @@ export function createOwnedJourneyClientTracker(app, redisPort) {
         const socket = socketFor(client);
         if (client.status === "ready" && socket?.remoteAddress && socket?.remotePort) {
           assert.equal(client.options.host, "127.0.0.1"); assert.equal(client.options.port, redisPort);
-          try { proof.capture(client, socket); }
+          try { const generation = generationFor(client, socket); proof.capture(generation.owner, socket); rememberGeneration(client, socket, generation); }
           catch (error) {
             // Diagnostic context cannot grant socket authority or replace the guard failure.
             try {
@@ -111,7 +127,6 @@ export function createOwnedJourneyClientTracker(app, redisPort) {
             } catch {/* Retain the same original guard failure if observation is unavailable. */}
             throw error;
           }
-          streams.set(client, socket);
         }
       }
     }
@@ -150,10 +165,10 @@ export function createOwnedJourneyClientTracker(app, redisPort) {
         if (!socket || socket.closed) {
           assert.equal(client.status, "end", "journey_owned_redis_ended_without_open_socket_required"); continue;
         }
-        proof.assertCaptured(client, socket);
+        capturedGeneration.assertCaptured(client, socket);
         // The real module hook already attempted shutdown. A pending QUIT on
         // an orphaned client must not receive another queued QUIT from us.
-        const closed = await disconnectCapturedJourneyRedis(client, socket, proof);
+        const closed = await disconnectCapturedJourneyRedis(client, socket, capturedGeneration);
         if (closed.manualDisconnect) manualDisconnects++;
       } catch (error) {
         errors.push(Error("journey_owned_redis_cleanup_failed:" + JSON.stringify({ ...journeyRedisDiagnostic(clients.get(client), client, socketFor(client) ?? streams.get(client)),

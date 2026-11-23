@@ -14,6 +14,8 @@ import {createPublicSupportModelFixture} from './service-public-support-model-fi
 import {validateServedModelScript} from './service-served-model-script.mjs';
 import {createPublicStorefrontModelFixture} from './service-public-storefront-model-fixture.mjs';
 import {observeCanonicalLiveReader} from './business-rag-canonical-live-observer.mjs';
+import {validateBuyerBookingFixtureRequest} from './service-test-runtime.mjs';
+
 
 const [databaseUrl,databaseRunId,redisUrl,redisRunId,...extra]=process.argv.slice(2);
 const stage=(name,details={})=>process.send?.({type:'stage',stage:name,...details});
@@ -32,11 +34,14 @@ const cleanupResources=stage=>{
   process.stderr.write('service_cleanup_resources:'+JSON.stringify({stage,resourceTypes:process.getActiveResourcesInfo(),handles,timers})+'\n');
 };
 stage('worker_started');
-assert.ok(extra.length<=1);let localWhatsApp;let localSupportQueryModel=false,localStorefrontQueryModel=false,localModelScript,localBusinessRagObservation=false;
+assert.ok(extra.length<=1);let localWhatsApp;let localSupportQueryModel=false,localStorefrontQueryModel=false,localModelScript,localBusinessRagObservation=false,localBuyerBooking=false;
 if(extra.length){
   assert.ok(extra[0].length<=8192);const parsed=JSON.parse(extra[0]);
   assert.ok(parsed&&typeof parsed==='object'&&!Array.isArray(parsed));
-  const{supportQueryModel,storefrontQueryModel,modelScript,businessRagObservation,...whatsappOptions}=parsed;
+  const{supportQueryModel,storefrontQueryModel,modelScript,businessRagObservation,buyerBooking,...whatsappOptions}=parsed;
+  assert.ok(buyerBooking===undefined||buyerBooking===true,'local_buyer_booking_flag_invalid');
+  localBuyerBooking=buyerBooking===true;
+  assert.ok(!localBuyerBooking||!supportQueryModel&&!storefrontQueryModel&&!modelScript&&!businessRagObservation&&Object.keys(whatsappOptions).length===0,'local_buyer_booking_fixture_exclusive');
   assert.ok(businessRagObservation===undefined||businessRagObservation===true);
   assert.ok(!businessRagObservation||supportQueryModel&&!storefrontQueryModel&&Object.keys(whatsappOptions).length===0);
   localBusinessRagObservation=businessRagObservation===true;
@@ -50,7 +55,7 @@ if(extra.length){
   if(Object.keys(whatsappOptions).length){
     assert.match(whatsappOptions.metaSecret,/^[a-f0-9]{64}$/);
     const{metaSecret,...providerOptions}=whatsappOptions;localWhatsApp={metaSecret,...validateLocalWhatsAppOptions(providerOptions)};
-  }else assert.ok(localSupportQueryModel||localStorefrontQueryModel,'local_provider_fixture_required');
+  }else assert.ok(localSupportQueryModel||localStorefrontQueryModel||localBuyerBooking,'local_provider_fixture_required');
 }
 assertConstructionOnlyAmbient(process.env);assertServiceArtifacts();stage('artifacts_checked');
 const database=assertNativePrismaUrl(databaseUrl);assertSyntheticRedisIdentity(redisUrl,redisRunId,redisRunId);
@@ -160,11 +165,33 @@ try{
   const address=app.getHttpServer().address();assert.equal(address.address,'127.0.0.1');
   if(localWhatsApp?.operatorStatusCallbacks)process.env.API_PUBLIC_URL=`http://127.0.0.1:${address.port}`;
   assert.equal(trap.evidence().providerCalls,0);
+  // Private IPC capability, never included in ready/evidence/stdout/stderr.
+  // Parent uses its verified owned HTTP origin; the worker trap stays intact.
+  if(localBuyerBooking)process.send({type:'local_buyer_booking_credential',runId:databaseRunId,credential:process.env.INTERNAL_SERVICE_TOKEN});
   process.send({type:'ready',apiOrigin:`http://127.0.0.1:${address.port}`,evidence:{canonicalAppModule:true,
     repositoryOverrides:false,authOverrides:false,providerCalls:0,
     ...(localBusinessRagObservation?{localBusinessRagObservation:true}:{}),localProviderOverrides:fixtureOverrideNames,
     ...(localWhatsApp?.operatorStatusCallbacks?{localOperatorStatusCallbacks:true}:{}),...(modelFixture?{localModelOverrides:modelOverrideNames}:{}),embeddingRuntime:{allowRemoteModels:transformersEnvironment.allowRemoteModels}}});
   process.on('message',async message=>{
+    if(message?.type==='local_buyer_booking_request'){
+      if(!localBuyerBooking)return;
+      try{
+        const control=validateBuyerBookingFixtureRequest(message,databaseRunId);assert.equal(closed,false);
+        const{EmbedTokenService}=await import('../dist/modules/embed/domain/embed-token.service.js');
+        const tokens=app.get(EmbedTokenService,{strict:false}),claims=tokens.verify(control.input.token),input=control.input;
+        assert.ok(claims.merchantId===input.merchantId&&claims.storefrontCartRef===input.cartRef&&claims.allowedOrigin===input.origin
+          &&claims.nonce!=='dev_bypass'&&claims.scopes?.includes('checkout:start')&&claims.expiresAtUnix-claims.issuedAtUnix===60,'buyer_booking_fixture_original_capability_required');
+        const expiresAtUnix=Math.floor(Date.now()/1000)+input.seconds;
+        assert.ok(expiresAtUnix<claims.expiresAtUnix&&expiresAtUnix>claims.issuedAtUnix,'buyer_booking_fixture_only_reduce_expiry');
+        const shortened={...claims,expiresAtUnix},{expiresAtUnix:_old,...oldClaims}=claims,{expiresAtUnix:_new,...newClaims}=shortened;
+        assert.deepEqual(newClaims,oldClaims);
+        const token=tokens.sign(shortened);assert.deepEqual(tokens.verify(token),shortened);
+        process.send({type:'local_buyer_booking_result',runId:databaseRunId,requestId:control.requestId,result:{token,expiresAtUnix,fixtureShortTTL:true}});
+      }catch{
+        if(process.connected)process.send({type:'local_buyer_booking_result',runId:databaseRunId,requestId:message.requestId,error:'buyer_booking_fixture_control_failed'});
+      }
+      return;
+    }
     if(message?.type==='local_model_release'){
       assert.ok(localModelScript&&message.runId===databaseRunId&&Object.keys(message).every(key=>['type','runId','step'].includes(key)));
       modelFixture.releaseModelStep(message.step);return;

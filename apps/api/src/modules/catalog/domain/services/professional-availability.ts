@@ -1,6 +1,7 @@
 import { BadRequestException, ServiceUnavailableException } from "@nestjs/common";
 import { assertServiceTimeZone } from "./service-professional-input.js";
 import { serviceStartInstant } from "./service-schedule.js";
+import { FIXED_SERVICE_TIME_ZONE } from "./fixed-service-time-zone.js";
 
 export interface AvailabilityInterval { startsAt: Date; endsAt: Date }
 export interface ProfessionalAvailabilitySource {
@@ -84,6 +85,13 @@ function firstEndingAfter(ranges: Range[], point: number): Range | undefined {
   return ranges[low];
 }
 type Origin = Range & { anchor: number };
+
+/** New selections use Brasilia's civil date window. Each historical recurring
+ * row still owns its original IANA conversion inside the generic resolver. */
+export function resolveNewProfessionalAvailability(source: ProfessionalAvailabilitySource, input: ProfessionalAvailabilityQuery) {
+  assertServiceTimeZone(source.timeZone);
+  return resolveProfessionalAvailability({ ...source, timeZone: FIXED_SERVICE_TIME_ZONE }, input);
+}
 
 export function resolveProfessionalAvailability(source: ProfessionalAvailabilitySource, input: ProfessionalAvailabilityQuery) {
   const window = validateAvailabilityWindow(input);

@@ -16,12 +16,15 @@ test("T28", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
   try {
     raw = new PrismaClient({ datasources: { db: { url: runtime.db.prismaUrl } } });
     const prisma = raw, now = new Date(); await seedServiceBookingFixture(prisma, now);
+    // NEW selections use a local BR calendar; the shared UTC history fixture stays unchanged.
+    await prisma.serviceProfessional.update({ where: { id: "booking-professional" }, data: { timeZone: "America/Sao_Paulo" } });
+    await prisma.professionalAvailability.updateMany({ where: { merchantId: "booking-services", professionalId: "booking-professional" }, data: { timeZone: "America/Sao_Paulo" } });
     const date = (day: number) => new Date(now.getTime() + day * 86_400_000).toISOString().slice(0, 10);
     const cart = (day: number): CheckoutSession["cart"] => ({ currency: "BRL", total: 50, source: "checkout", items: [{
       sku: "booking-short", product_id: "booking-short", variantId: "booking-short-variant", name: "Untrusted display name",
       productType: "service", fulfillmentStrategy: "scheduled_service", quantity: 1, price: 50,
       fulfillmentSchedule: { slotId: "untrusted-display-id", professionalId: "booking-professional", professionalVersion: 1,
-        policyVersion: 1, date: date(day), startsAt: date(day) + "T10:00:00.000Z", endsAt: date(day) + "T10:20:00.000Z", timeZone: "UTC", durationMinutes: 20 } }] });
+        policyVersion: 1, date: date(day), startsAt: date(day) + "T13:00:00.000Z", endsAt: date(day) + "T13:20:00.000Z", timeZone: "America/Sao_Paulo", durationMinutes: 20 } }] });
     const start = async (sessionId: string, selected: CheckoutSession["cart"], merchantId = "booking-services") => {
       const response = await fetch(runtime.apiOrigin + "/checkout/start-checkout", { method: "POST", redirect: "error",
         signal: AbortSignal.timeout(15_000), headers: { "content-type": "application/json" },
@@ -80,11 +83,11 @@ test("T28", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
       const variant = await offer(auth, "ACTUAL-SCHEDULED-BOUNDARY", true);
       assert.deepEqual(variant.product.metadata, { serviceSchedule: { timeZone: "UTC", durationMinutes: 20, slots: [] } });
       const path = "/merchants/" + merchantId + "/service-professionals";
-      const created = await request(path, { publicName: "Synthetic actual checkout professional", timeZone: "UTC",
+      const created = await request(path, { publicName: "Synthetic actual checkout professional", timeZone: "America/Sao_Paulo",
         publicProfile: { description: "Public synthetic profile" }, isPublished: true, productIds: [variant.productId] }, auth.access_token);
       assert.equal(created.status, 201, JSON.stringify(created));
       const recurring = await request(path + "/" + created.body.id + "/availability", {
-        expectedVersion: created.body.version, timeZone: "UTC",
+        expectedVersion: created.body.version, timeZone: "America/Sao_Paulo",
         rows: Array.from({ length: 7 }, (_, weekday) => ({ weekday, startMinute: 600, endMinute: 720 })),
       }, auth.access_token, "PUT");
       assert.equal(recurring.status, 200, JSON.stringify(recurring));
@@ -93,7 +96,7 @@ test("T28", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
       const cart: CheckoutSession["cart"] = { currency: "BRL", total: 50, items: [{ sku: variant.sku,
         product_id: variant.productId, variantId: variant.id, productType: "service", fulfillmentStrategy: "scheduled_service",
         name: "Untrusted presentation", price: 50, quantity: 1, fulfillmentSchedule: { slotId: "untrusted-display-id", date,
-          startsAt: date + "T10:00:00.000Z", endsAt: date + "T10:20:00.000Z", timeZone: "UTC", durationMinutes: 20,
+          startsAt: date + "T13:00:00.000Z", endsAt: date + "T13:20:00.000Z", timeZone: "America/Sao_Paulo", durationMinutes: 20,
           professionalId: professional.id, professionalVersion: professional.version, policyVersion: policy.body.version } }] };
       const result = await start("actual-scheduled-boundary", cart, merchantId);
       assert.equal(result.status, 201, JSON.stringify(result));
@@ -105,7 +108,7 @@ test("T28", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
       assert.equal(selected.policyVersion, policy.body.version); assert.equal(selected.date, date);
       assert.equal(selected.startsAt, cart.items[0]!.fulfillmentSchedule!.startsAt);
       assert.equal(selected.endsAt, cart.items[0]!.fulfillmentSchedule!.endsAt);
-      assert.equal(selected.timeZone, "UTC"); assert.equal(selected.durationMinutes, 20); assert.equal(selected.priceInCents, 5000);
+      assert.equal(selected.timeZone, "America/Sao_Paulo"); assert.equal(selected.durationMinutes, 20); assert.equal(selected.priceInCents, 5000);
       const saved = await prisma.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: { merchantId, sessionId: "actual-scheduled-boundary" } } });
       const persisted = JSON.parse(JSON.stringify(saved.cart));
       assert.equal(persisted.items[0].name, variant.product.name); assert.equal(persisted.items[0].price, 50);
@@ -311,10 +314,10 @@ test("T28", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
       await prisma.productVariant.create({ data: { id: "race-variant", productId: "race-service", sku: "RACE-SERVICE",
         price: { create: { basePriceInCents: 5000, currency: "BRL" } } } });
       await prisma.serviceProfessional.create({ data: { id: "race-professional", merchantId: raceMerchant, publicName: "Synthetic race professional",
-        timeZone: "UTC", isActive: true, isPublished: true } });
+        timeZone: "America/Sao_Paulo", isActive: true, isPublished: true } });
       await prisma.professionalService.create({ data: { merchantId: raceMerchant, professionalId: "race-professional", productId: "race-service" } });
       await prisma.professionalAvailability.createMany({ data: Array.from({ length: 7 }, (_, weekday) => ({
-        merchantId: raceMerchant, professionalId: "race-professional", weekday, startMinute: 600, endMinute: 720, timeZone: "UTC" })) });
+        merchantId: raceMerchant, professionalId: "race-professional", weekday, startMinute: 600, endMinute: 720, timeZone: "America/Sao_Paulo" })) });
       const raceCart = cart(4);
       Object.assign(raceCart.items[0], { product_id: "race-service", variantId: "race-variant", sku: "RACE-SERVICE" });
       Reflect.set(raceCart.items[0].fulfillmentSchedule!, "professionalId", "race-professional");
@@ -369,7 +372,7 @@ test("T28", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
       await prisma.product.update({ where: { id: history.productId }, data: { isActive: false,
         metadata: { serviceSchedule: { timeZone: "America/Sao_Paulo", durationMinutes: 30, slots: [] } } } });
       await prisma.serviceProfessional.update({ where: { id: history.professionalId }, data: {
-        isActive: false, isPublished: false, timeZone: "America/Sao_Paulo", version: { increment: 1 } } });
+        isActive: false, isPublished: false, timeZone: "UTC", version: { increment: 1 } } });
       await prisma.serviceBusinessPolicy.update({ where: { merchantId: history.merchantId }, data: { admissionsEnabled: false, version: { increment: 1 } } });
       const response = await embedRequest(history.token, history.origin,
         "/embed/service-slot-hold?session_id=" + encodeURIComponent(history.sessionId), undefined, "GET");

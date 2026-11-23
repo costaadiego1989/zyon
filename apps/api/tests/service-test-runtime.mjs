@@ -14,6 +14,92 @@ import {createHmac,randomBytes} from 'node:crypto';
 import {validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
 import {validateServedModelScript} from './service-served-model-script.mjs';
 
+
+const bookingControlInvalid=condition=>assert.ok(condition,'buyer_booking_fixture_control_invalid');
+const bookingRecord=value=>!!value&&typeof value==='object'&&!Array.isArray(value);
+const bookingKeys=(value,keys)=>bookingRecord(value)&&Object.keys(value).every(key=>keys.includes(key));
+const bookingId=value=>typeof value==='string'&&value.length>0&&value.length<=191&&value.trim()===value&&!/[\x00-\x1f\x7f]/.test(value);
+export function validateBuyerBookingFixtureRequest(message,runId){
+  bookingControlInvalid(bookingKeys(message,['type','runId','requestId','operation','input'])&&message.type==='local_buyer_booking_request'
+    &&message.runId===runId&&/^[a-f0-9]{32}$/.test(message.requestId??'')&&message.operation==='shorten');
+  const value=message.input;
+  bookingControlInvalid(bookingKeys(value,['token','seconds','merchantId','cartRef','origin'])&&typeof value.token==='string'&&value.token.length>0&&value.token.length<=8192
+    &&Number.isInteger(value.seconds)&&value.seconds>=1&&value.seconds<=5&&bookingId(value.merchantId)&&bookingId(value.cartRef)&&typeof value.origin==='string');
+  let origin;try{origin=new URL(value.origin).origin;}catch{bookingControlInvalid(false);}
+  bookingControlInvalid(origin===value.origin);return structuredClone(message);
+}
+/** Named local fixture only. The ephemeral credential stays in this closure,
+ * never the runtime facade, evidence, ready message, log or exception payload. */
+export function createBuyerBookingFixtureChannel({enabled=false,runId,apiOrigin,send,fetchOwned=globalThis.fetch}){
+  if(!enabled)return undefined;
+  bookingControlInvalid(typeof runId==='string'&&/^[a-f0-9-]{36}$/.test(runId)&&typeof apiOrigin==='function'&&typeof send==='function'&&typeof fetchOwned==='function');
+  let credential,closed=false;const issued=new Map(),pending=new Map(),requests=new Set();
+  const alive=()=>assert.ok(!closed,'buyer_booking_fixture_closed');
+  const readToken=value=>{bookingControlInvalid(typeof value==='string'&&value.length<=8192&&value.split('.').length===2);try{return JSON.parse(Buffer.from(value.split('.')[0],'base64url').toString('utf8'));}catch{bookingControlInvalid(false);}};
+  const facade=Object.freeze({
+    async issue(raw){
+      alive();assert.ok(credential,'buyer_booking_fixture_credential_unavailable');
+      bookingControlInvalid(bookingKeys(raw,['merchantId','body'])&&bookingId(raw.merchantId)&&bookingKeys(raw.body,['cart_ref','conversation_token','allowed_origin','scopes','ttl_seconds'])
+        &&bookingId(raw.body.cart_ref)&&typeof raw.body.conversation_token==='string'&&raw.body.conversation_token.length>0&&raw.body.conversation_token.length<=8192&&typeof raw.body.allowed_origin==='string'
+        &&Array.isArray(raw.body.scopes)&&raw.body.scopes.length>0&&raw.body.scopes.length<=3&&new Set(raw.body.scopes).size===raw.body.scopes.length
+        &&raw.body.scopes.every(scope=>['checkout:start','checkout:track','appointments:confirm'].includes(scope))
+
+
+        &&(raw.body.ttl_seconds===undefined||Number.isInteger(raw.body.ttl_seconds)&&raw.body.ttl_seconds>=60&&raw.body.ttl_seconds<=900));
+      let issuerOrigin;try{issuerOrigin=new URL(raw.body.allowed_origin).origin;}catch{bookingControlInvalid(false);}
+      bookingControlInvalid(issuerOrigin===raw.body.allowed_origin);
+      assert.ok(issued.size<64,'buyer_booking_fixture_issue_bound');const input=structuredClone(raw);
+      let target;try{target=new URL(apiOrigin());}catch{throw Error('buyer_booking_fixture_owned_http_required');}
+      assert.ok(target.protocol==='http:'&&target.hostname==='127.0.0.1'&&Number(target.port)>1024&&!target.username&&!target.password&&target.pathname==='/'&&!target.search&&!target.hash,'buyer_booking_fixture_owned_http_required');
+      const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),15_000);requests.add(abort);
+      try{
+        const response=await fetchOwned(target.origin+'/embed-sessions',{method:'POST',redirect:'error',signal:abort.signal,
+          headers:{'content-type':'application/json','x-internal-service-token':credential,'x-merchant-id':input.merchantId,'idempotency-key':randomBytes(16).toString('hex')},body:JSON.stringify(input.body)});
+        const body=await response.json();alive();
+        if(response.status===201){const claims=readToken(body.embed_session_token);bookingControlInvalid(claims.merchantId===input.merchantId
+          &&claims.storefrontCartRef===input.body.cart_ref&&claims.allowedOrigin===input.body.allowed_origin&&typeof claims.nonce==='string');
+          issued.set(body.embed_session_token,{merchantId:input.merchantId,cartRef:input.body.cart_ref,origin:input.body.allowed_origin,claims});}
+        return{status:response.status,body};
+      }catch(error){if(closed)throw Error('buyer_booking_fixture_closed');if(error?.message?.startsWith('buyer_booking_fixture_'))throw error;throw Error('buyer_booking_fixture_http_failed');}
+      finally{clearTimeout(timer);requests.delete(abort);}
+    },
+    async shorten(raw){
+      alive();const original=issued.get(raw?.token);
+      assert.ok(original&&raw.merchantId===original.merchantId&&raw.cartRef===original.cartRef&&raw.origin===original.origin
+        &&original.claims.expiresAtUnix-original.claims.issuedAtUnix===60,'buyer_booking_fixture_original_capability_required');
+      const requestId=randomBytes(16).toString('hex'),message=validateBuyerBookingFixtureRequest({type:'local_buyer_booking_request',runId,requestId,operation:'shorten',input:raw},runId);
+      assert.ok(pending.size<16,'buyer_booking_fixture_pending_bound');
+      return new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>{pending.delete(requestId);reject(Error('buyer_booking_fixture_control_timeout'));},15_000);
+        pending.set(requestId,{resolve,reject,timer,claims:original.claims});
+        try{assert.ok(send(message)!==false,'buyer_booking_fixture_worker_unavailable');}
+        catch{clearTimeout(timer);pending.delete(requestId);reject(Error('buyer_booking_fixture_worker_unavailable'));}
+      });
+    },
+  });
+  return Object.freeze({public:facade,
+    accept(message){
+      bookingControlInvalid(bookingRecord(message)&&message.runId===runId);
+      if(closed)return false;
+      if(message.type==='local_buyer_booking_credential'){
+        bookingControlInvalid(bookingKeys(message,['type','runId','credential'])&&typeof message.credential==='string'&&/^[a-f0-9]{96}$/.test(message.credential));
+        assert.ok(!credential,'buyer_booking_fixture_credential_duplicate');credential=message.credential;return true;
+      }
+      bookingControlInvalid(bookingKeys(message,['type','runId','requestId','result','error'])&&message.type==='local_buyer_booking_result'&&/^[a-f0-9]{32}$/.test(message.requestId??''));
+      const entry=pending.get(message.requestId);assert.ok(entry,'buyer_booking_fixture_reply_unknown');clearTimeout(entry.timer);pending.delete(message.requestId);
+      if(message.error){entry.reject(Error('buyer_booking_fixture_control_failed'));return true;}
+      try{
+        const result=message.result;bookingControlInvalid(bookingKeys(result,['token','expiresAtUnix','fixtureShortTTL'])&&result.fixtureShortTTL===true);
+        const claims=readToken(result.token),{expiresAtUnix:oldExpiry,...original}=entry.claims,{expiresAtUnix:newExpiry,...shortened}=claims;
+        bookingControlInvalid(Number.isSafeInteger(newExpiry)&&newExpiry<oldExpiry&&newExpiry>Math.floor(Date.now()/1000)&&newExpiry===result.expiresAtUnix);
+        bookingControlInvalid(JSON.stringify(original)===JSON.stringify(shortened));entry.resolve(structuredClone(result));return true;
+      }catch(error){entry.reject(Error('buyer_booking_fixture_control_invalid'));throw error;}
+    },
+    close(){if(closed)return;closed=true;credential=undefined;issued.clear();for(const controller of requests)controller.abort();requests.clear();
+      for(const entry of pending.values()){clearTimeout(entry.timer);entry.reject(Error('buyer_booking_fixture_closed'));}pending.clear();},
+  });
+}
+
 export const serviceTestEnvironment=source=>constructionOnlyEnvironment(source);
 export function assertServiceCaseSummary(value){
   assert.ok(Number.isSafeInteger(value.executed)&&value.executed>0,'service_nonzero_tests_required');
@@ -21,12 +107,15 @@ export function assertServiceCaseSummary(value){
   return Object.freeze({...value});
 }
 export async function createServiceTestRuntime(options){
-  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile','supportQueryModel','storefrontQueryModel','modelScript','observeBusinessRag'].includes(k))
+  assert.ok(options&&options.local===true&&Object.keys(options).every(k=>['local','graph','whatsapp','postgresProfile','supportQueryModel','storefrontQueryModel','modelScript','observeBusinessRag','buyerBooking'].includes(k))
     &&(options.graph===undefined||typeof options.graph==='boolean')
     &&(options.supportQueryModel===undefined||options.supportQueryModel===true)
     &&(options.storefrontQueryModel===undefined||options.storefrontQueryModel===true)
     &&!(options.supportQueryModel&&options.storefrontQueryModel)
     &&(options.postgresProfile===undefined||options.postgresProfile==='pgvector16'),'service_local_options_required');
+  assert.ok(options.buyerBooking===undefined||options.buyerBooking===true,'local_buyer_booking_flag_invalid');
+  const buyerBooking=options.buyerBooking===true;
+  assert.ok(!buyerBooking||!options.graph&&!options.whatsapp&&!options.supportQueryModel&&!options.storefrontQueryModel&&!options.modelScript&&!options.observeBusinessRag,'local_buyer_booking_fixture_exclusive');
   const whatsapp=options.whatsapp===undefined?undefined:validateLocalWhatsAppOptions(options.whatsapp);
   const supportQueryModel=options.supportQueryModel===true;
   const storefrontQueryModel=options.storefrontQueryModel===true;
@@ -36,11 +125,11 @@ export async function createServiceTestRuntime(options){
   const modelScript=options.modelScript===undefined?undefined:validateServedModelScript(options.modelScript);
   assert.ok(!modelScript||supportQueryModel||storefrontQueryModel,'local_model_script_requires_model_fixture');
   const fixtureSecret=whatsapp?randomBytes(32).toString('hex'):undefined,localEvents=[],localModelEvents=[],localStorefrontModelEvents=[],businessReadEvents=[];
-  const fixtureArgument=whatsapp||supportQueryModel||storefrontQueryModel?JSON.stringify({...(observeBusinessRag?{businessRagObservation:true}:{}),...(modelScript?{modelScript}:{}),...(whatsapp?{...whatsapp,metaSecret:fixtureSecret}:{}),...(supportQueryModel?{supportQueryModel:true}:{}),...(storefrontQueryModel?{storefrontQueryModel:true}:{})}):undefined;
+  const fixtureArgument=whatsapp||supportQueryModel||storefrontQueryModel||buyerBooking?JSON.stringify({...(buyerBooking?{buyerBooking:true}:{}),...(observeBusinessRag?{businessRagObservation:true}:{}),...(modelScript?{modelScript}:{}),...(whatsapp?{...whatsapp,metaSecret:fixtureSecret}:{}),...(supportQueryModel?{supportQueryModel:true}:{}),...(storefrontQueryModel?{storefrontQueryModel:true}:{})}):undefined;
   assert.ok(fixtureArgument===undefined||fixtureArgument.length<=8192,'local_whatsapp_fixture_size_invalid');
   const build=assertServiceArtifacts(),apiRoot=fileURLToPath(new URL('../',import.meta.url));
   let vectorEvidence;
-  let db,redis,graph,worker,workerExited,closed=false,appEvidence,cleanup,lastStage='unspawned',cleanupDiagnostics=[];
+  let db,redis,graph,worker,workerExited,closed=false,appEvidence,cleanup,lastStage='unspawned',cleanupDiagnostics=[],buyerBookingChannel,ownedApiOrigin;
   let readyResolve,readyReject,preflightResolve,preflightReject,closeResolve,closeReject;
   const ready=new Promise((resolve,reject)=>{readyResolve=resolve;readyReject=reject;});
   const preflight=new Promise((resolve,reject)=>{preflightResolve=resolve;preflightReject=reject;});
@@ -49,7 +138,7 @@ export async function createServiceTestRuntime(options){
   // A setup failure may occur before the close acknowledgement is awaited.
   appClosed.catch(()=>{});
   async function close(){
-    if(closed)return;closed=true;const errors=[];
+    if(closed)return;closed=true;buyerBookingChannel?.close();const errors=[];
     try{if(worker&&appEvidence){
       if(worker.exitCode===null&&worker.connected)worker.send({type:'close'});
       const final=await deadline(appClosed,35_000,'service_close_ack_timeout');assert.equal(final.appClosed,true);assert.equal(final.providerCalls,0);
@@ -60,7 +149,11 @@ export async function createServiceTestRuntime(options){
     catch(e){errors.push(e);}
     try{await terminateOwnedNativeWorker(worker);}catch(e){errors.push(e);}
     for(const owned of [graph,redis,db])if(owned){try{await owned.dispose();if(owned.bridgeStatus)assert.deepEqual(owned.bridgeStatus(),{listening:false,sockets:0,children:0});}catch(e){errors.push(e);}}
-    if(errors.length)throw new AggregateError(errors,`service_runtime_cleanup_failed:${lastStage}:${errors.map(error=>String(error.message).slice(0,1800)).join('|')}:${JSON.stringify(cleanupDiagnostics)}`);
+    if(errors.length){
+      console.error('service_runtime_cleanup_failure',JSON.stringify({stage:lastStage,causes:errors.map(error=>({name:error.name,
+        codes:[...String(error.message).matchAll(/\b(?:service|owned|native|construction)_[a-z0-9_]+\b/g)].map(match=>match[0]).slice(0,8)}))}));
+      throw new AggregateError(errors,`service_runtime_cleanup_failed:${lastStage}:${errors.map(error=>String(error.message).slice(0,1800)).join('|')}:${JSON.stringify(cleanupDiagnostics)}`);
+    }
     cleanup={appClosed:true,remainingContainers:0,remainingBridgeSockets:0};
   }
   try{
@@ -85,9 +178,13 @@ export async function createServiceTestRuntime(options){
         console.info('service_cleanup_resources',JSON.stringify(value));
       }
     });
-    worker.on('error',error=>{preflightReject(error);readyReject(error);closeReject(error);});
+    buyerBookingChannel=createBuyerBookingFixtureChannel({enabled:buyerBooking,runId:db.runId,apiOrigin:()=>ownedApiOrigin,send:message=>worker.send(message)});
+    worker.on('error',error=>{buyerBookingChannel?.close();preflightReject(error);readyReject(error);closeReject(error);});
     worker.on('message',message=>{
-      if(message?.type==='local_whatsapp_event'){
+      if(message?.type==='local_buyer_booking_credential'||message?.type==='local_buyer_booking_result'){
+        assert.ok(buyerBookingChannel,'local_buyer_booking_fixture_disabled');buyerBookingChannel.accept(message);
+      }
+      else if(message?.type==='local_whatsapp_event'){
         assert.ok(whatsapp&&message.event?.sequence===localEvents.length+1&&['sendText','sendMedia','voiceInterpret'].includes(message.event.kind),'local_whatsapp_event_invalid');
         assert.ok(localEvents.length<2000,'local_whatsapp_event_limit');localEvents.push(message.event);
       }
@@ -119,7 +216,7 @@ export async function createServiceTestRuntime(options){
       else if(message?.type==='failure'){const error=new Error(message.code??'service_worker_failed');preflightReject(error);readyReject(error);closeReject(error);}
     });
     workerExited=new Promise(resolve=>worker.once('close',(code,signal)=>resolve({code,signal})));
-    worker.on('exit',(code,signal)=>{if(!appEvidence){
+    worker.on('exit',(code,signal)=>{buyerBookingChannel?.close();if(!appEvidence){
       console.error('service_worker_before_ready_diagnostic',JSON.stringify({pid:worker.pid,code,signal,lastStage}));
       const error=new Error(`service_worker_exit_before_ready:${code}:${stderr.slice(-4000)}`);
       preflightReject(error);readyReject(error);}if(code!==0)closeReject(new Error(`service_worker_exit:${code}`));});
@@ -127,8 +224,10 @@ export async function createServiceTestRuntime(options){
     try{({info,timings}=await awaitServiceStartup(preflight,ready));}
     catch(error){if(['service_preflight_timeout','service_app_ready_timeout'].includes(error.message))throw new Error(`${error.message}:${lastStage}:${stageFailure}`);throw error;}
     const origin=new URL(info.apiOrigin);assert.equal(origin.hostname,'127.0.0.1');assert.equal(origin.protocol,'http:');
+    ownedApiOrigin=origin.origin;
     assert.ok(Number(origin.port)>1024);appEvidence=Object.freeze({...info.evidence,checkedBuild:build,startupTimings:timings,...(vectorEvidence?{postgresVector:vectorEvidence}:{})});
     return Object.freeze({db,redis,graph,apiOrigin:info.apiOrigin,evidence:()=>whatsapp?Object.freeze({...appEvidence,localProviderEvents:localEvents.length}):appEvidence,cleanupEvidence:()=>cleanup,close,
+      ...(buyerBookingChannel?{buyerBooking:buyerBookingChannel.public}:{}),
       ...(modelScript?{modelScript:Object.freeze({release(step){assert.ok(Number.isSafeInteger(step)&&modelScript[step-1]?.hold===true);assert.equal(closed,false);worker.send({type:'local_model_release',runId:db.runId,step});}})}:{}),
       ...(observeBusinessRag?{businessRagObservation:Object.freeze({events:()=>structuredClone(businessReadEvents)})}:{}),
       ...(supportQueryModel?{supportQueryModel:Object.freeze({events:()=>structuredClone(localModelEvents),

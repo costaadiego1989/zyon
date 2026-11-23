@@ -1,0 +1,527 @@
+{
+  "task": 40,
+  "status": "LOCAL_TASK_GATES_GREEN_NOT_FEATURE_FINAL_OR_PRODUCTION",
+  "closedLocalDate": "2026-11-23",
+  "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+  "rootParent": "35d2fc0f069476ea97726851c13cbe02199fec22",
+  "code": [
+    {
+      "path": "apps/api/src/modules/checkout/application/service-booking.service.ts",
+      "sha256": "985235c5c6e5cb4d8f42899581cfc8d701dc865c43e58041c5a48f753bdf8a09",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/checkout/presentation/http/service-booking.controller.ts",
+      "sha256": "48ad0163f3855c46609d4142555e68c90210a5d11aea98c9f164d54b96466abf",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/services/checkout-bootstrap.service.ts",
+      "sha256": "2d2ac7ca6f254b1a6a04b18f1e88653c7b57743ec96f731f87a0b64e037dc198",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/use-cases/start-checkout.use-case.ts",
+      "sha256": "ccb219cf90cc4b8ba0a7bb07a5dd9a7cd70a9cd6d46564e7ac5d2d5d732005f4",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts",
+      "sha256": "9dea424634798961b58fd1660d3c99cc9910236306702b6dedc5777ee20a6755",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+      "sha256": "abef8856bebadfa8dfb0342dd1a47fe7446baf25c915e92135665da3e035be60",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-checkout-cart.ts",
+      "sha256": "35709b5d73134f4e6fa8a70afacf3eabe6e2d57f018e91444385913634ed6ffd",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-checkout-provenance.ts",
+      "sha256": "9c764d76ade100a688c44182306e8e2283d589f212b09c4b8947125231d3f71a",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-slot-holds.service.ts",
+      "sha256": "8478347fb34cfb3a82f7951a1c1ea02edae96b4780b113e1e8f7e0e32b564ebb",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/redis-service-slots.ts",
+      "sha256": "f4626c0d783c1623289d92e56f06bca07800d5598a864a18e4e5ad907a0a50b0",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/http/problem-details.filter.ts",
+      "sha256": "36f57fa6a2120052019ae636f9d7cbb2926a0047a42bab9692c8cbbbb27517a1",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "baca27b6b9f686b64da33ee4169e1cdfc56a4d9dd7047c5b35ed622c814cf1db",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/native-service-booking-authority.ts",
+      "sha256": "532a7d64b875e13f23993ecd4c32269775943eec87a6f831ee36c1833500bea5",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-booking-active-payment.ts",
+      "sha256": "7139c3583b54be02f68bf7dddf5e1c06bdaddcbfc33cb5713609a9a5009a4529",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/confirm-service-appointment.use-case.ts",
+      "sha256": "d88fc4c2a9dcf5604eac6961ad36c5595e8d6139cd090311ed79754cbe10676f",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/catalog/domain/services/fixed-service-time-zone.ts",
+      "sha256": "f6569d8624f555819d02ca9bb410c0fea91453da0e4d57087270f1c9df422614",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/professional-availability-continuation.ts",
+      "sha256": "d519a17d28702018d62598c5dc36464e34c73d843683770366799e54ca47ca3a",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/catalog/domain/services/professional-availability.ts",
+      "sha256": "8701b910fcf921c4b2dfb5a1d7d2506132822c223c51afba4d52770f427b2761",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/get-professional-availability.ts",
+      "sha256": "542ec21ac2e4f52affbb3d184302feb84aedbc9b506857aa7d91a6e7d411861d",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/read-professional-checkout.ts",
+      "sha256": "5f02664231ca468fd68ef6e5b6b41f273570f95643b8251c30c66b92e5f12bf2",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-appointment-admission.service.ts",
+      "sha256": "3fb3933801116d96a0e2d37f7a41d6998ee1ca65abf4009fd284287822aa0b11",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/manual-service-payment-continuation.ts",
+      "sha256": "212d201ff5eb2849d84bc49656990e98739ec08fffc9e8177bb3ac96d694a332",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/create-manual-service-appointment.use-case.ts",
+      "sha256": "3eed59530858b9b7e40cd2f18165e93b7c2786def29e710e6135c4b0669c8a9c",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/reschedule-service-appointment.use-case.ts",
+      "sha256": "a3e116c8ab94904f8ceccc6300065038c69cde0f1e94ccad9bf05a8c67d61e8a",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/config/cors-config.ts",
+      "sha256": "f1e82a18f6c7197c788d45aa2577a1857cec3f43eb9c5e47d67348c660562ceb",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/service-booking.service.spec.ts",
+      "sha256": "06ab63c848c171f3df984708fb216bca7bd4f979aaef3cca8498f2c70ccdd754",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/checkout/presentation/http/service-booking.controller.spec.ts",
+      "sha256": "af5d3cafb5f982798d49aa307b3f2168ceb66c69eefe9b12fa85e7ceac89e7ce",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-checkout-capability.spec.ts",
+      "sha256": "391240c4cfeb2e548671a56a4681f135eaef0ee0d1a880368baab83f71342348",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-booking-active-payment.spec.ts",
+      "sha256": "044b9a2b55ae30d073c0c70fde2fb318180260aa7180264e89635db714ccede6",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-initial-lease-acquisition.spec.ts",
+      "sha256": "931dbc0f7bb36e249df515672507183fa2daca883dc7b0beaceb2bb3c56b703c",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/checkout/infrastructure/prisma/prisma-checkout.initial-lease.spec.ts",
+      "sha256": "5379911d9314bbe33689f2b2375bbeb86b92728214e0e2b269f04c3d5b5d55b3",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-publication-claim.spec.ts",
+      "sha256": "c72ed987e10b3712b06f60a295fc99a01b786640d037166fe6d920fc9c6bef80",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/shared/http/service-booking-problem.spec.ts",
+      "sha256": "4976f5c2fe241c0a2561e319fb1822864102a2b40449f4e00b81d0720cda281d",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/initial-lease-memory.fixture.ts",
+      "sha256": "c79c5419810c956ef853f39ce6ba070da8b071e58dd5618be77292fedba87f18",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/publication-claim-memory.fixture.ts",
+      "sha256": "21b20088ceed9add8bfe161d14fa8dbe33881d46f3487e41757d359c603946fc",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-buyer-booking-fixture.contract.spec.mjs",
+      "sha256": "c35c87a2d81930941756dbf387118346070d586cf281f05505ee9f1a8304fa82",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-buyer-booking-http.integration.spec.ts",
+      "sha256": "40879f5611a2b0726db19553950a4c0ae41f543e19911232d36906f92d027a1a",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/catalog/domain/services/professional-availability.fixed-time-zone.spec.ts",
+      "sha256": "38879189c7368ad43623a3513c3983dfc931ff1a853df43eccaba22746c0f681",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/professional-availability-continuation.spec.ts",
+      "sha256": "46b544802eaa2d130aa04344d1157e919ef6542a317e6518414e654282bd329c",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-booking-time-zone-compatibility.integration.spec.ts",
+      "sha256": "9d3147e6a6a293e0dcb0909a837621116732e0b53708ba3550c18eaf1d90c6ca",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/storefront-journey-owned-clients.mjs",
+      "sha256": "9146a092920f3ed01c50df9b5c5df6a32c28adc3d6636f624d423c9adf32c63a",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/storefront-journey-owned-clients.generations.contract.mjs",
+      "sha256": "41751500bcbdd250cc2ecea958b73486f6efa2e5185174b1ec6053cca315bc2d",
+      "selection": "WHOLE_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/checkout/checkout.module.ts",
+      "sha256": "d1fee97974a2911034589739d84722f2d00e4f81295278a25e572a33f2684c50",
+      "selection": "FOCUSED_CACHE_CANDIDATE_NOT_ROOT_WHOLE",
+      "rootWorkingSame": false
+    },
+    {
+      "path": "apps/api/src/modules/embed/embed.module.ts",
+      "sha256": "0ea0b70b019a152b59e807a19ea20088d0339d445e95766c8ad987f81098d44a",
+      "selection": "FOCUSED_CACHE_CANDIDATE_NOT_ROOT_WHOLE",
+      "rootWorkingSame": false
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.mjs",
+      "sha256": "a4c282136d0429aa86b6b8eb8a479d8c0b7ea5bce0a7628a69b69e96662b31a2",
+      "selection": "FOCUSED_CACHE_CANDIDATE_NOT_ROOT_WHOLE",
+      "rootWorkingSame": false
+    },
+    {
+      "path": "apps/api/tests/service-test-runtime.worker.mjs",
+      "sha256": "31928033b8ba69562993b123e38d0ff03e7a24816721659d4e4278321d20ceca",
+      "selection": "FOCUSED_CACHE_CANDIDATE_NOT_ROOT_WHOLE",
+      "rootWorkingSame": false
+    },
+    {
+      "path": "apps/api/src/shared/bookings/service-paid-unit-classification.regression.spec.ts",
+      "sha256": "4a66539009a40caa9f4fba5faca91ddb27bb64313636d68d67b23a945f2e548c",
+      "selection": "NEW_TESTS_FIRST_CURRENT_ROOT",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/save-availability-exception.use-case.ts",
+      "sha256": "1484922a29905ccd8d99b7d133e1a3863a9fc075819f1fcc7d1c0c8a2fc1b173",
+      "selection": "REVIEWED_COUPLED_DEPENDENCY_OR_EXACT_USER_APPROVED_TEST_ONLY",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/save-availability-exception.manual-br-legacy.spec.ts",
+      "sha256": "9634b730a596625d798943bb2c8ff59146ce4cdb6f3a315618a604da6c446431",
+      "selection": "REVIEWED_COUPLED_DEPENDENCY_OR_EXACT_USER_APPROVED_TEST_ONLY",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/src/modules/operations/application/create-manual-service-appointment.use-case.spec.ts",
+      "sha256": "4df4d01232f1a253e3d5a98cf9262e737a22c5d4beb1f92f7d3e0ed5a4a616dd",
+      "selection": "REVIEWED_COUPLED_DEPENDENCY_OR_EXACT_USER_APPROVED_TEST_ONLY",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-checkout.integration.spec.ts",
+      "sha256": "b2b718039f83de8b319c079fcd2b1ec1219ee7b807a6ae7ebf76610a78676106",
+      "selection": "WHOLE_EXISTING_TEST_FIXTURE_CORRECTION",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-checkout-origin.integration.spec.ts",
+      "sha256": "7344c63a6251ffbea168e8caddf0b17244f45f2464319141d98173a25d3948da",
+      "selection": "WHOLE_EXISTING_TEST_FIXTURE_CORRECTION",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/api/tests/service-payment-admission.integration.spec.ts",
+      "sha256": "d59a10c12a6bf3804510f0c131c6563ff299eabd479410a001be08625547a4c2",
+      "selection": "WHOLE_EXISTING_TEST_FIXTURE_CORRECTION",
+      "rootWorkingSame": true
+    }
+  ],
+  "api": {
+    "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-approved-api-window06-20261122\\receipt.json",
+    "sha256": "84b13327b00ea573257e3d264cc56f61a404c963b95dfabc47f1d7bdcafeabd1",
+    "record": {
+      "checked": true,
+      "inputSha256": "4f100345a72fb68474bd0756ab90698a61cc9ce0c6b9416b3778d0096f8f0232",
+      "artifactSha256": "9cf6d1fd77e6caf29ecc81ae9e3f90e0f0f8a7ad203e15312abe7edb49e6ae93",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2599
+      }
+    },
+    "approvedProfile": "API-only3072MiBoldgen/3840freshcommit/concurrency1",
+    "qualifiedLint": "ExactproductiveAPI50lint05, sameinputs; fullstandardowncheckedbuild/types/admission06"
+  },
+  "components": {
+    "wholeFiles": 36,
+    "tests": 565,
+    "pass": 565,
+    "skip": 0,
+    "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-whole36-components-20261122\\receipt.json",
+    "sha256": "c2241529a80565c16cf65afbafecb8aff95507923af8a376138bc91b75915914",
+    "qualification": "Only API/tests fixture preconditions changed after this run, no productive/src/component changes."
+  },
+  "native": {
+    "wholeFiles": 9,
+    "tests": 94,
+    "pass": 94,
+    "skip": 0,
+    "rows": [
+      {
+        "file": "service-buyer-booking-http.integration.spec.ts",
+        "counts": {
+          "tests": 25,
+          "pass": 25,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-native25-20261122\\receipt.json",
+        "receiptSha256": "a59984b2cc8729243d5ce673297af30ab071fdb0d9ab7a67ba165e760a471b02",
+        "rawSha256": "d3327b8e56230d040b83f9ab9ba48e9753c489db0629dbdec045186eb95d2542",
+        "wholeFile": true
+      },
+      {
+        "file": "service-booking.integration.spec.ts",
+        "counts": {
+          "tests": 17,
+          "pass": 17,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-original-five-native-20261122\\receipt.json",
+        "receiptSha256": "6b0a0f9b337e84910982f1293820da1df7159f2c1e201bbbedf08819afbe35fd",
+        "rawSha256": "8ccfeaedae073c163132b3a7356b4bfdaab2181e6c0bcacb62bb8e0efd05327a",
+        "wholeFile": true
+      },
+      {
+        "file": "service-checkout.integration.spec.ts",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-t28-approved-native9-20261123\\receipt.json",
+        "receiptSha256": "f337b3aef1a24e26fc6b31ebd5c729afdc0c5781d23847fda71a62579305b15a",
+        "rawSha256": "3a661ee587e0b509d29448afc51e7e62ec58e9d532eb3c7c496e5699e389c6fa",
+        "wholeFile": true
+      },
+      {
+        "file": "service-checkout-origin.integration.spec.ts",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-remaining-three-native-20261123\\receipt.json",
+        "receiptSha256": "86cb8164c676a231f6cf762bc98d4991f1732ddc77a581a34650ac94eeff51cd",
+        "rawSha256": "2ac5edac9bf7086e0be9d5a2cd8c369b9f86b23a029b513df4c4931158b0b2dc",
+        "wholeFile": true
+      },
+      {
+        "file": "service-payment-admission.integration.spec.ts",
+        "counts": {
+          "tests": 10,
+          "pass": 10,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-remaining-three-native-20261123\\receipt.json",
+        "receiptSha256": "86cb8164c676a231f6cf762bc98d4991f1732ddc77a581a34650ac94eeff51cd",
+        "rawSha256": "cd69610a816e92f7c9945c6a08241eba7439d5fc2d4e8fc8d2117a58fb86f2b9",
+        "wholeFile": true
+      },
+      {
+        "file": "service-test-runtime.spec.mjs",
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-runtime-history-native-20261123\\receipt.json",
+        "receiptSha256": "6cb713372a62b78eee2db093db09a20e4cb02752f29c3bd27616229ff34b872f",
+        "rawSha256": "3e86e4b0d1e433eddce22e89b0644852eee55521c15aaddd1bc8b223be6c0c75",
+        "wholeFile": true
+      },
+      {
+        "file": "service-booking-time-zone-compatibility.integration.spec.ts",
+        "counts": {
+          "tests": 7,
+          "pass": 7,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-history-complete-fixture-native-20261123\\receipt.json",
+        "receiptSha256": "89bad898cc97e1c6b060b9bb6e3730787dbcff6dc26b0bbaeadb8e446689821d",
+        "rawSha256": "11885ecc95131abf4dc9c66c0a240c423c08e9fa525c5fcdc0301d503d586112",
+        "wholeFile": true
+      },
+      {
+        "file": "service-manual-payment-continuation.integration.spec.ts",
+        "counts": {
+          "tests": 9,
+          "pass": 9,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-history-complete-fixture-native-20261123\\receipt.json",
+        "receiptSha256": "89bad898cc97e1c6b060b9bb6e3730787dbcff6dc26b0bbaeadb8e446689821d",
+        "rawSha256": "e7702308c42e4ed652b1866898fb37907eefeece805e8c40619a0a80614f7451",
+        "wholeFile": true
+      },
+      {
+        "file": "product-stock-regression.integration.spec.ts",
+        "counts": {
+          "tests": 5,
+          "pass": 5,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "receipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-stock-native-20261122\\receipt.json",
+        "receiptSha256": "6cd5f9800b204e7289d530a389a441f5245eb639b672bf701ace594728d98fe7",
+        "rawSha256": "58e65e0196c31ac3b9ac0b01022cdec2d972891677af2ee1879f5689532b3cf4",
+        "wholeFile": true
+      }
+    ],
+    "prefixReceiptsQualification": "Prior failed/refused later groups retained; only actuallyGREEN wholefile prefixes reused on identicalownedAPI4f100345/9cf6d1fd. All corrected files got actual whole reruns."
+  },
+  "products": {
+    "tests": 224,
+    "normal": 48,
+    "widget": 176,
+    "providerCalls": 0,
+    "cleanupErrors": 0,
+    "receipt": ".cache\\t40-focused-product-native-results-20261122.json",
+    "sha256": "d170f358851050470888d9a3a54166c5c67e942031db012bd40deb23d9871e4a",
+    "scope": "OriginalwholeSource/SQLcorpora, ownPrisma; no changed productcode after proofs. Additional actualstock5 above proves paidstock/service conservation."
+  },
+  "approvedTestCorrections": [
+    "call_93541acdc6574770935719fa0b1f76a6: onlyinitialpublicationfailure recovery expectednoSQLcheckout",
+    "call_4ec7236307ef4655b24cd03ae896af16: onlyoldmanualnewUTCexpectation->Brasilia",
+    "call_79852ff77f9c4b1ab0f356ab33e70c4c: exactT28test/fixture9cases148assertions"
+  ],
+  "fixtureOnlyRepairs": [
+    "Origin/payment newBR preconditions preserve110assertions/sharedUTCseed",
+    "History: two requiredpaymentPKs, valid64hexstaticadmissionfingerprint, independentPrismasnapshot preservingDecimal; noassertionchanges"
+  ],
+  "guarantees": [
+    "Buyer/tenant/version/expiry/capacity/idempotency/rollback/ownedRedispublicationclaims preserved",
+    "TrustedhistoricalUTCpaidunits/date/identity/money preserved, unsupportedbodyflagsdenied",
+    "No publicbuyer/payment grants fromprovenance, noimplicitPSP",
+    "Naturalownedcleanup, zeronative skipped/cancelled/todo"
+  ],
+  "externalSends": 0,
+  "liveProviderOrProductionAcceptance": false,
+  "featureFinalVerification": false,
+  "fixtureEofFormatting": {
+    "path": "apps/api/tests/initial-lease-memory.fixture.ts",
+    "change": "One empty line afterclosingbrace removed, no token/data/assertion/API change"
+  }
+}

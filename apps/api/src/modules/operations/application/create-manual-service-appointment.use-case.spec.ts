@@ -145,7 +145,7 @@ test("T31", async t => {
     assert.equal(result.appointment.availabilityExceptionId, f.state.exceptions[0].id);
     assert.equal(result.appointment.startsAt.toISOString(), "2030-01-02T14:00:00.000Z");
     assert.equal(result.appointment.endsAt.toISOString(), "2030-01-02T14:30:00.000Z");
-    assert.equal(result.appointment.timeZone, "UTC"); assert.equal(result.appointment.priceInCents, 5000);
+    assert.equal(result.appointment.timeZone, "America/Sao_Paulo"); assert.equal(result.appointment.priceInCents, 5000);
     assert.equal(result.appointment.currency, "BRL"); assert.equal(result.appointment.operationalStatus, "scheduled");
     assert.deepEqual(result.appointment.customerSnapshot, { name: "Synthetic buyer", email: "buyer@example.test" });
     assert.equal(f.state.payments[0].amountCents, 5000); assert.equal(f.state.payments[0].status, "pending");

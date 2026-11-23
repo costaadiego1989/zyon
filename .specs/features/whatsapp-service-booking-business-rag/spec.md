@@ -302,16 +302,16 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | AGENDA-01 | Professional resources | T4, T18, T20, T21, T76, T106 | In Progress (T18, T20 and T21 complete) |
 | AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
 | AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
-| AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | Pending |
+| AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | In Progress (T28/T40 selection and authenticated preparation complete; remainingchannelpickers/finalproof pending) |
 | AGENDA-05 | Shared capacity | T23, T26, T34, T35 | Implemented locally (all current canonical/legacy writers share authority; final feature proof pending) |
 | AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 and T24 complete) |
 | AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | Pending |
 | AGENDA-08 | Fixed new service timezone and trusted history | T111, T112, T113 | Pending; explicit user decision2026-11-18 |
 | BOOK-01 | Provisional hold | T27 | Implemented (T27; final proof pending) |
 | BOOK-02 | Expiry | T27 | Implemented (T27; final proof pending) |
-| BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | In Progress (T26 and T27 complete) |
-| BOOK-04 | Pay at attendance | T30, T40, T46 | In Progress (T30 complete) |
-| BOOK-05 | Pay online | T29, T35, T40 | In Progress (T29/T35 locally complete; T40 UI and final proof pending) |
+| BOOK-03 | No provisional hold | T26, T27, T28, T29, T40 | Implemented locally (T26/T27/T28/T29/T40 complete; finalfeatureproof pending) |
+| BOOK-04 | Pay at attendance | T30, T40, T46 | In Progress (T30/T40 atomicpay-at-attendance complete; T46channelintegration pending) |
+| BOOK-05 | Pay online | T29, T35, T40 | Implemented locally (T29/T35/T40 complete with scopedonlineadmission; finalfeatureproof pending) |
 | BOOK-06 | Late payment | T36 | Complete locally at T36; Full422, actual claim/SQL/Redis and original product regressions; final feature verification pending |
 | BOOK-07 | On-site receipt | T4, T37, T41, T80 | In Progress (T37 local integral financial writer/HTTP/SQL complete; T41/T80 UI and final proof pending) |
 | BOOK-08 | Idempotency | T26, T30, T31, T32, T33, T34, T35, T36, T37, T38, T84 | In Progress (T26/T30/T31/T32/T33/T34/T35/T36/T37 locally complete; T38/T84 and final proof pending) |
@@ -372,8 +372,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | In Progress (T61 actual local desktop/mobile drawer captures and Browser gate complete; optional visual approval unanswered, remaining task captures and final screens review pending) |
 | QA-03 | Persisted state proof | T2, T5, T26, T108, T92, T95 | In Progress (T26 complete) |
 | QA-04 | RAG evaluation | T72, T94, T95 | In Progress (T72 critical evaluation locally complete; T94/T95 final activation gates pending) |
-| EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | In Progress (T18 and T22 complete) |
-| EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | In Progress (T30 complete) |
+| EDGE-01 | Foreign tenant identity | T6, T18, T22, T40 | Implemented locally (T6/T18/T22/T40 isolation complete; finalfeatureproof pending) |
+| EDGE-02 | Changed policy | T11, T28, T30, T40, T81 | In Progress (T11/T28/T30/T40 guardedpolicy/version complete; T81settingsUI pending) |
 | EDGE-03 | Optional media failure | T38, T39 | Pending |
 | EDGE-04 | In-flight AI response | T48, T51, T56 | Complete locally (T48/T51/T56 and actual AI dispatch/request/commit fences); final integrated verification pending |
 | EDGE-05 | Retrieved-content injection | T70, T71 | Pending |
@@ -458,3 +458,12 @@ None - the product matches the source.
 **T100 local Full closure 2026-11-20T04:37:18.954805+00:00**: Exact28 V3inputs40c451f5 adopted without borrowed client/dist/stamp; currentRoot76 +native46 +products224 =346 passed, no skips. Own e34a051e/5fb2dc67/2593 and all APIheaders0. Recordrefusal and admit-launcher failure preserved, successful compiler never repeated. Linear runtime comparison2683exact, only Root39consumer changed+formatter added; qualified M201/M138 outside346. Original protected inbox9 and40deliveries/20claimants retained with source/harness pins. Approved parent300 baseline fromT39 only; widget286798ms, no SLA/causality claim. Provider0/cleanup0, no production action. Task marked before focused local commit; T101/final feature verification pending.
 
 **Approved**: 2026-11-22 - user: "Aprovar o visual" (call_c1aa9b077799400381e2bac348903236/0). T101 national DDD+number without DDI; [desktop](captures/t101-approved-national-desktop.png) and [mobile](captures/t101-approved-national-mobile.png). Actual current running siblings retain native1440x1000/390x844 and are byte-identical to these approved frames. Local task gates are recorded in task-101-evidence.json; no external sends or production acceptance.
+
+
+**Approved T40 recovery test correction, 2026-11-22:** user: "Aprovar somente esse ajuste do teste (recomendado)" (call_93541acdc6574770935719fa0b1f76a6). Exact proposed patch8fdee74d(normalizedLF; diskCRLFde1e2418) applied ONCE to native40879f56 over6d5a9982. Initialfailedlease now asserts checkoutnull/startedEvents0; samecapability realprepare recovers and exactcapturedlease is removed before ALL original readonly409/review/continuation assertions. Same25cases, noAPI/backend/guard/timeout change. .cache/t40-initial-lease-recovery-test-review-20261122/approved-applied.json is authoritative. Pending question RESOLVED; never reask/reapply/broaden.
+
+**Approved**: 2026-11-22 - user: "Corrigir somente essa expectativa (recomendado)" (call_4ec7236307ef4655b24cd03ae896af16/0). Exact .cache/t40-manual-br-test-expectation-review-20261122/proposed.patch881e70fb applied ONCE to Root and focused manual test220b0d85->4df4d012: only new appointment expectationUTC->America/Sao_Paulo, all16cases/allotherassertions preserved, no API behavior change. approved-applied.json is authoritative. Pending test question RESOLVED; do not reask/reapply/broaden.
+
+**Approved**: 2026-11-23 - user: "Corrigir somente teste e fixture (Recomendado)" (call_79852ff77f9c4b1ab0f356ab33e70c4c/0). ONLY T28 .cache/t28-br-new-selection-test-review-20261122/proposed.patch d248d9da applied ONCE to Root+Focus01d4e639->b2b71803; oneUTC->Brasiliaoutputexpectation +8localnewBRfixturehunks. All9cases/148assertions/otheroracles/guards/budgets/prices andsharedUTCseed unchanged, noAPIbehaviorchange. approved-applied.json authoritative; wholeactualrerunpending. QuestionRESOLVED, neverreask/reapply/broaden.
+
+T40 local closure: whole94native/565components andqualifiedoriginal224productsourceSQL; task-40-evidence.json. No externalPSP/Meta/productionclaim.

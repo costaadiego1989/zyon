@@ -12,6 +12,7 @@ import { ensureAtAttendancePayment } from "../../../shared/bookings/service-at-a
 import { serviceSlotStore } from "../../../shared/bookings/redis-service-slots.js";
 import type { ProfessionalLeaseStore } from "../../../shared/bookings/professional-service-lease.js";
 import { admitWhatsAppEffectInTransaction } from "../../../shared/whatsapp/whatsapp-automation-context.js";
+import { assertNoActiveServiceCheckoutPayment } from "../../../shared/bookings/service-booking-active-payment.js";
 
 /** The channel resolves this identity; never deserialize it from buyer input. */
 export interface ServiceCheckoutBuyer { merchantId: string; sessionId: string; globalUserId: string; origin: "whatsapp" | "storefront" }
@@ -80,6 +81,9 @@ async function confirmWithin(tx: Prisma.TransactionClient, principal: Principal,
   let now!: Date;
   const current = await readProfessionalCheckout(tx, session, () => { now = decisionClock(context, capability); return now; });
   if (current.policy.paymentMode !== "at_attendance") throw new ConflictException("service_online_payment_required");
+  // Held merchant/session locks serialize with normal payment admission. Never
+  // create a second local obligation beside an already admitted online intent.
+  await assertNoActiveServiceCheckoutPayment(tx, buyer.merchantId, buyer.sessionId);
   const appointments: AppointmentWithPayments[] = [];
   for (const [index, selected] of current.selections.entries()) {
     const idempotencyKey = index === 0 ? input.commandId : createHash("sha256").update(JSON.stringify(["checkout-appointment-v1", buyer.merchantId,

@@ -36,6 +36,7 @@ export function resolveCorsConfig(env: NodeJS.ProcessEnv = process.env): CorsCon
     "Content-Type",
     "Authorization",
     "X-Buyer-Authorization",
+    "X-Buyer-Access-Token",
     "X-AI-User-Token",
     "Idempotency-Key",
     "If-Match",
