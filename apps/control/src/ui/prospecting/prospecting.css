@@ -39,6 +39,8 @@
 @media (prefers-reduced-motion: reduce) { .prospecting-nav a { transition: none; } }
 
 .prospecting-page { display: grid; gap: 1rem; min-width: 0; overflow-wrap: anywhere; }
+.prospecting-import-progress { display: grid; gap: .5rem; margin-block: .5rem; max-inline-size: 70ch; }
+.prospecting-import-progress .prospecting-actions { margin: 0; }
 .prospecting-page h2, .prospecting-page h3, .prospecting-page p { margin: 0; }
 .prospecting-page h2 { font-size: 1.4rem; }
 .prospecting-page h3 { font-size: 1.07rem; }

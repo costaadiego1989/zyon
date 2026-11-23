@@ -15,7 +15,8 @@ export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort,
   async activeSnapshotId():Promise<string|null>{return (await this.client.companyDirectoryActiveSnapshot.findUnique({where:{id:"national"}}))?.snapshotId??null;}
   async sourceObservation(){
     const snapshotId=await this.activeSnapshotId();
-    const [active,latest]=await Promise.all([snapshotId?this.client.companySnapshot.findUnique({where:{id:snapshotId}}):null,this.client.companySnapshot.findFirst({where:{storageSnapshotId:null},orderBy:{createdAt:"desc"},include:{files:true}})]);
+    const [active,lastRoot]=await Promise.all([snapshotId?this.client.companySnapshot.findUnique({where:{id:snapshotId}}):null,this.client.companySnapshot.findFirst({where:{storageSnapshotId:null},orderBy:{createdAt:"desc"},include:{files:true}})]);
+    const latest=active?.storageSnapshotId?await this.client.companySnapshot.findUnique({where:{id:active.storageSnapshotId},include:{files:true}}):lastRoot;
     const counts=latest?.counts as Record<string,unknown>|undefined,progress=counts?.progress as Record<string,unknown>|undefined;
     return {snapshotId,state:active?.state??"unavailable",competence:active?.competence??null,coverage:(active?.counts as Record<string,unknown>|undefined)?.coverage,
       latestImport:latest?{id:latest.id,state:latest.state,phase:progress?.phase??null,committedCount:progress?.committedRecords??latest.files.reduce((n,f)=>n+Number(f.committedCount),0),selectedCompanies:progress?.selectedCompanies??0,validatedFiles:progress?.validatedFiles??latest.files.filter(f=>f.state==="validated"||f.state==="inherited").length,totalFiles:latest.files.length,errorCode:latest.errorCode,updatedAt:typeof progress?.updatedAt==="string"?progress.updatedAt:latest.updatedAt.toISOString()}:null};

@@ -70,3 +70,9 @@ test('PRG-01 audiences keep the original explicit and filtered prefix after stor
   assert.equal(await f.prisma.contactPermissionReceipt.count(),0);
  }finally{await f.close();}
 });
+test('PRG-03 source observation follows the active view parent rather than an unrelated newer import',async()=>{
+ const f=await setup();try{
+  await f.client.companySnapshot.create({data:{id:'unrelated-newer',competence:'2026-11',manifestHash:'unrelated-newer',manifest:{},state:'importing',sourceUrl:'https://official.invalid',parserVersion:'other',createdAt:new Date('2030-01-01T00:00:00Z')}});
+  const source=await f.repo.sourceObservation();assert.equal(source.snapshotId,f.view);assert.equal(source.latestImport?.id,f.storage);assert.equal(source.latestImport?.state,'importing');
+ }finally{await f.close();}
+});

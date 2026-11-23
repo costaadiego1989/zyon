@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import type {CompanyDomainQuery} from "@zyon/shared-types";
 import { act } from "react";
 import { CompanySearchPage } from "./CompanySearchPage.js";
 import { PlatformApiError } from "../../lib/api.js";
@@ -23,6 +24,36 @@ const regionalCoverage={kind:"regional_retail",ufs:["SP","RJ","MG","ES","PR","SC
 function searchProps(methods: Parameters<typeof screenProps>[0]) {
   return screenProps({ readiness: async () => published, ...methods });
 }
+const partialSource=(id='partial-a',count=500)=>({source:{status:'current',value:{snapshotId:id,state:'published',competence:'2026-11',coverage:{...regionalCoverage,companyCount:count,scopeComplete:false},latestImport:{id:'parent',state:'importing',phase:'persisting_establishments',committedCount:count*2,selectedCompanies:1000000,validatedFiles:23,totalFiles:23,errorCode:null,updatedAt:'2026-11-23T19:00:00Z'}},observedAt:'2026-11-23T19:00:00Z'}});
+test('PRG-03 available partial companies enable search and CRM selection with an honest incomplete state',async()=>{
+ const createProspects=vi.fn().mockResolvedValue({created:1,existing:0}),companies=vi.fn(async(q)=>({...page(),snapshotId:q.snapshotId??'partial-a',count:500}));
+ const ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>partialSource(),companies,domains,addProspects:createProspects})}/>);
+ expect(ui.text()).toContain('Base em carga');expect(ui.text()).toContain('500 empresas disponíveis');expect(ui.text()).toContain('A cobertura ainda é parcial');
+ expect(companies.mock.calls[0][0].snapshotId).toBe('partial-a');
+ await ui.check('Selecionar '+first);expect(ui.button('Adicionar ao CRM').disabled).toBe(false);
+ await ui.click('Adicionar ao CRM');expect(createProspects.mock.calls[0][0]).toMatchObject({snapshotId:'partial-a',cnpjs:[first]});
+});
+test('PRG-03 refresh preserves filters and cannot replace a selected partial view',async()=>{
+ let finish!:(value:unknown)=>void;
+ const readiness=vi.fn().mockResolvedValueOnce(partialSource()).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;})).mockRejectedValue(new Error('temporary'));
+ const companies=vi.fn(async(q)=>({...page(),snapshotId:q.snapshotId??'partial-a',count:q.snapshotId==='partial-b'?2000:500,items:page().items.map(c=>({...c,uf:'SC'}))}));
+ const lookup=async(q:CompanyDomainQuery)=>({items:q.kind==='municipios'?[{kind:'municipios',code:'8105',label:'FLORIANOPOLIS'}]:q.kind==='cnaes'?[{kind:'cnaes',code:'4781400',label:'Vestuário'}]:[],nextCursor:null});
+ const ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains:lookup})}/>);
+ await ui.fill('Pesquisar empresa','moda');await ui.fill('UF','SC');await ui.fill('Município','8105');await ui.fill('CNAE principal','4781400');await ui.click('Aplicar filtros');await ui.check('Selecionar '+first);
+ expect(ui.button('Atualizar base').disabled).toBe(true);await ui.click('Atualizar base');expect(readiness).toHaveBeenCalledTimes(1);
+ await ui.check('Selecionar '+first);await ui.click('Atualizar base');expect(ui.control('Pesquisar empresa').value).toBe('moda');expect(ui.control('UF').value).toBe('SC');
+ await act(async()=>finish(partialSource('partial-b',2000)));
+ expect(companies.mock.lastCall?.[0]).toMatchObject({snapshotId:'partial-b',filters:{search:'moda',ufs:['SC'],cityCodes:['8105'],mainCnaes:['4781400']}});
+ expect(ui.control('Município').value).toBe('8105');expect(ui.control('CNAE principal').value).toBe('4781400');
+ expect(ui.control('Pesquisar empresa').value).toBe('moda');expect(ui.control('UF').value).toBe('SC');expect(ui.text()).toContain('2.000 empresas disponíveis');
+ await ui.click('Atualizar base');expect(ui.text()).toContain('Não foi possível atualizar a base');expect(ui.control('UF').value).toBe('SC');expect(ui.text()).toContain('Oficina '+first);
+});
+test('PRG-03 available companies remain selectable after their parent load is interrupted',async()=>{
+ const source=partialSource();source.source.value.latestImport.state='failed';
+ const ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>source,companies:async()=>({...page(),snapshotId:'partial-a'}),domains})}/>);
+ expect(ui.text()).toContain('Carga interrompida');expect(ui.text()).toContain('Os cadastros já liberados continuam disponíveis');
+ await ui.check('Selecionar '+first);expect(ui.button('Adicionar ao CRM').disabled).toBe(false);
+});
 test("REC-03 storage failures show an interruption and retry actual readiness before mounting company search",async()=>{
   const job={id:'regional',state:'failed',phase:'failed',committedCount:57018146,selectedCompanies:0,validatedFiles:6,totalFiles:24,errorCode:'production_directory_storage_limit',updatedAt:'2026-11-23T05:57:06.812Z'};
   const readiness=vi.fn().mockResolvedValueOnce({source:{...preparing.source,value:{...preparing.source.value,latestImport:job}}}).mockResolvedValue(published);
