@@ -6,6 +6,24 @@ import {ProspectMetricsQueryService} from "../application/crm/prospect-metrics.q
 import {ProspectOperationalStatus, ProspectMetricsController} from "./prospect-metrics.controller.js";
 import {PlatformSalesOffers} from "../../payment/public-platform-sales-offers.js";
 
+test("REC-03 protected readiness exposes safe failed progress and regional coverage while removing private metadata",async()=>{
+ const f=await createConversationFixture();
+ let published=false;
+ const source=async()=>({snapshotId:published?"regional":null,competence:published?"2026-11":null,state:published?"published":"unavailable",secret:"SECRET",
+  coverage:published?{kind:"regional_retail",ufs:["SP","RJ","MG","ES","PR","SC","RS"],mainCnaes:["4781400"],companyCount:1234,maximumDirectoryBytes:25_000_000_000,scopeComplete:true,secret:"SECRET"}:undefined,
+  latestImport:{id:"regional",state:published?"published":"failed",phase:published?"completed":"failed",committedCount:57018146,selectedCompanies:1234,validatedFiles:6,totalFiles:23,errorCode:published?null:"production_directory_storage_limit",updatedAt:"2026-11-23T05:57:06.812Z",leaseToken:"SECRET"}});
+ const status=new ProspectOperationalStatus({source,knowledge:async()=>({activePublications:0}),channel:async()=>({status:"unknown",blockers:[],binding:null,updatedAt:new Date().toISOString()}),runtime:()=>({moduleEnabled:true,workersRunning:false,dispatchMode:"disabled",modelMode:"disabled",ingestionEnabled:true})},new PlatformSalesOffers("https://dashboard.example.test","https://site.example.test"));
+ const http=await createProspectingFixture({controllers:[ProspectMetricsController],providers:[{provide:ProspectOperationalStatus,useValue:status},{provide:ProspectMetricsQueryService,useValue:new ProspectMetricsQueryService(f.prisma)}]});
+ try{
+  const read=()=>fetch(http.url+"/v1/platform/prospecting/readiness",{headers:{Authorization:"Bearer "+http.operators.admin.token}});
+  const failed=await(await read()).json();assert.equal(failed.source.status,"unavailable");assert.equal(failed.source.value.snapshotId,null);
+  assert.deepEqual(failed.source.value.latestImport,{id:"regional",state:"failed",phase:"failed",committedCount:57018146,selectedCompanies:1234,validatedFiles:6,totalFiles:23,errorCode:"production_directory_storage_limit",updatedAt:"2026-11-23T05:57:06.812Z"});
+  assert.equal(JSON.stringify(failed).includes("SECRET"),false);
+  published=true;const ready=await(await read()).json();assert.equal(ready.source.status,"current");assert.equal(ready.source.value.snapshotId,"regional");
+  assert.deepEqual(ready.source.value.coverage,{kind:"regional_retail",ufs:["SP","RJ","MG","ES","PR","SC","RS"],mainCnaes:["4781400"],companyCount:1234,maximumDirectoryBytes:25_000_000_000,scopeComplete:true});assert.equal(JSON.stringify(ready).includes("SECRET"),false);
+ }finally{await http.close();await f.close();}
+});
+
 test("PROS-23 AC3 guarded metrics expose cost gaps and preserve the last successful source observation",async()=>{
  const f=await createConversationFixture();
  let fail=false;

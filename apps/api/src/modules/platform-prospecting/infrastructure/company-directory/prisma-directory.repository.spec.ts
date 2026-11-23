@@ -4,6 +4,23 @@ import { createCompanyDirectoryFixture, fixtureManifest } from "../../../../../t
 import { PrismaDirectoryRepository } from "./prisma-directory.repository.js";
 import type { DirectoryBatch } from "../../domain/prospecting.ports.js";
 
+test("REC-02 REC-03 persisted import failures expose actual progress and superseded imports cannot resume",async()=>{
+ const f=await createCompanyDirectoryFixture(),repo=new PrismaDirectoryRepository(f.client);
+ try{
+  const manifest=fixtureManifest(),status=await repo.saveManifest(manifest);
+  await f.client.companySourceFile.update({where:{id:status.files[0].id},data:{committedCount:57018146,state:"validated"}});
+  await f.client.companySnapshot.update({where:{id:status.id},data:{state:"failed",errorCode:"production_directory_storage_limit"}});
+  const observation=await repo.sourceObservation();assert.equal(observation.snapshotId,null);assert.equal(observation.state,"unavailable");
+  assert.deepEqual(observation.latestImport,{id:status.id,state:"failed",phase:null,committedCount:57018146,selectedCompanies:0,validatedFiles:1,totalFiles:24,errorCode:"production_directory_storage_limit",updatedAt:observation.latestImport!.updatedAt});
+  assert.ok(Number.isFinite(Date.parse(observation.latestImport!.updatedAt)));
+  await f.client.companySnapshot.update({where:{id:status.id},data:{counts:{supersededBy:"regional"}}});
+  await assert.rejects(()=>repo.claimImport(status.id,"worker",new Date()),/import_superseded/);
+  await assert.rejects(()=>repo.enqueueImport({snapshotId:status.id,clientRequestId:"superseded-resume",requestHash:"test",action:"resume"},{operatorId:"operator",correlationId:"corr"}),/import_superseded/);
+  assert.equal((await f.client.companySnapshot.findUniqueOrThrow({where:{id:status.id}})).state,"failed");
+  assert.equal((await f.pg.query("SELECT 1 FROM prospect_commands WHERE client_request_id='superseded-resume'")).rowCount,0);
+ }finally{await f.close();}
+});
+
 test("PROS-05 AC1 commits real Prisma batches once, rejects divergent replay and rolls back incomplete records", async () => {
   const fixture = await createCompanyDirectoryFixture(); const repo = new PrismaDirectoryRepository(fixture.client);
   try {

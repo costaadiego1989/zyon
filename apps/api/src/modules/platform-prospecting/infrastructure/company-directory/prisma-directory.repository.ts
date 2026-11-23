@@ -12,6 +12,13 @@ import { readDirectoryPage } from "./directory-search.sql.js";
 export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort,DirectoryImportManagementPort {
   constructor(readonly client: PrismaClient,private readonly cursorHmacKey?:string) {}
   async activeSnapshotId():Promise<string|null>{return (await this.client.companyDirectoryActiveSnapshot.findUnique({where:{id:"national"}}))?.snapshotId??null;}
+  async sourceObservation(){
+    const snapshotId=await this.activeSnapshotId();
+    const [active,latest]=await Promise.all([snapshotId?this.client.companySnapshot.findUnique({where:{id:snapshotId}}):null,this.client.companySnapshot.findFirst({orderBy:{createdAt:"desc"},include:{files:true}})]);
+    const counts=latest?.counts as Record<string,unknown>|undefined,progress=counts?.progress as Record<string,unknown>|undefined;
+    return {snapshotId,state:active?.state??"unavailable",competence:active?.competence??null,coverage:(active?.counts as Record<string,unknown>|undefined)?.coverage,
+      latestImport:latest?{id:latest.id,state:latest.state,phase:progress?.phase??null,committedCount:progress?.committedRecords??latest.files.reduce((n,f)=>n+Number(f.committedCount),0),selectedCompanies:progress?.selectedCompanies??0,validatedFiles:progress?.validatedFiles??latest.files.filter(f=>f.state==="validated"||f.state==="inherited").length,totalFiles:latest.files.length,errorCode:latest.errorCode,updatedAt:typeof progress?.updatedAt==="string"?progress.updatedAt:latest.updatedAt.toISOString()}:null};
+  }
   search(query:CompanySearchQuery){return new SearchCompaniesQuery(this,this.cursorHmacKey??"").execute(query);}
   readPage(snapshotId:string,filters:CompanyFilters,afterCnpj:string|null,limit:number){return readDirectoryPage(this.client,snapshotId,validateCompanyFilters(filters),afterCnpj,limit);}
   async find(cnpj:string,snapshotId?:string){const id=snapshotId??await this.activeSnapshotId();if(!id)throw new Error("directory_unavailable");return (await this.readPage(id,{cnpj:canonicalCnpj(cnpj)},null,1)).items[0]??null;}
@@ -84,6 +91,7 @@ export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort,
     return this.client.$transaction(async tx=>{
       await tx.$queryRaw`SELECT id FROM company_directory.company_snapshots WHERE id=${id} FOR UPDATE`;
       const snapshot=await tx.companySnapshot.findUniqueOrThrow({where:{id}});const counts=snapshot.counts as Record<string,unknown>;
+      if(counts.supersededBy)throw new Error("import_superseded");
       if(counts.leaseToken&&Number(counts.leaseUntil)>now.getTime())throw new Error("import_busy");
       if(snapshot.state==="published")throw new Error("snapshot_not_writable");
       const active=await tx.companyDirectoryActiveSnapshot.findUnique({where:{id:"national"}});
@@ -155,6 +163,7 @@ export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort,
       const snapshot=await tx.companySnapshot.findUnique({where:{id:input.snapshotId}});if(!snapshot)throw new Error("import_not_found");
       const counts=snapshot.counts as Record<string,unknown>;
       if(input.action==="resume"&&!["failed","discovered"].includes(snapshot.state))throw new Error("import_not_resumable");
+      if(counts.supersededBy)throw new Error("import_superseded");
       if(snapshot.state!=="published"){
         if(counts.leaseToken&&Number(counts.leaseUntil)>Date.now())throw new Error("import_busy");
         await tx.companySnapshot.update({where:{id:input.snapshotId},data:{state:"discovered",errorCode:null,counts:{...counts,requested:true,leaseToken:null,leaseUntil:0} as Prisma.InputJsonValue}});

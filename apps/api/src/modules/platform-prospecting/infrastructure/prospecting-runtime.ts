@@ -321,13 +321,7 @@ export function createProspectingRuntime(env: Environment = process.env) {
       }),
       channel: () => health.readiness(),
       async source() {
-        const snapshotId = await directory.activeSnapshotId(),
-          s = snapshotId ? await directory.getImport(snapshotId) : null;
-        return {
-          snapshotId,
-          state: s?.state ?? "unavailable",
-          competence: s?.competence ?? null,
-        };
+        return directory.sourceObservation();
       },
       async knowledge() {
         await readDriver.verifyConnectivity();
