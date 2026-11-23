@@ -7,8 +7,6 @@ import {
   type PlatformBillingSubscriptionProvider,
   type PlatformBillingSubscriptionsPage,
   type PlatformBillingSubscriptionStatus,
-  type PlatformBillingReceivable,
-  type PlatformBillingReceivablesPage,
 } from "../lib/api.js";
 import "./BillingSubscriptions.css";
 
@@ -47,23 +45,16 @@ export function BillingSubscriptions({ api, token, onSessionExpired }: BillingSu
   const [status, setStatus] = useState<PlatformBillingSubscriptionStatus | "">("");
   const [provider, setProvider] = useState<PlatformBillingSubscriptionProvider | "">("");
   const [page, setPage] = useState<PlatformBillingSubscriptionsPage | null>(null);
-  const [receivablePage, setReceivablePage] = useState<PlatformBillingReceivablesPage | null>(null);
   const [loading, setLoading] = useState(true);
-  const [receivablesLoading, setReceivablesLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [loadingMoreReceivables, setLoadingMoreReceivables] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [receivablesError, setReceivablesError] = useState<string | null>(null);
   const [requestVersion, setRequestVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setReceivablesLoading(true);
     setError(null);
-    setReceivablesError(null);
     setPage(null);
-    setReceivablePage(null);
 
     void api.listBillingSubscriptions(token, {
       ...(status ? { status } : {}),
@@ -83,22 +74,6 @@ export function BillingSubscriptions({ api, token, onSessionExpired }: BillingSu
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
-      });
-
-    void api.listBillingReceivables(token, { limit: 50 })
-      .then(snapshot => {
-        if (!cancelled) setReceivablePage(snapshot);
-      })
-      .catch(caught => {
-        if (cancelled) return;
-        if (caught instanceof PlatformApiError && caught.status === 401) {
-          onSessionExpired();
-          return;
-        }
-        setReceivablesError(receivablesErrorMessage(caught));
-      })
-      .finally(() => {
-        if (!cancelled) setReceivablesLoading(false);
       });
 
     return () => { cancelled = true; };
@@ -136,42 +111,13 @@ export function BillingSubscriptions({ api, token, onSessionExpired }: BillingSu
     }
   }
 
-  async function loadMoreReceivables() {
-    if (!receivablePage?.next_cursor || loadingMoreReceivables) return;
-    setLoadingMoreReceivables(true);
-    setReceivablesError(null);
-    try {
-      const nextPage = await api.listBillingReceivables(token, {
-        cursor: receivablePage.next_cursor,
-        limit: 50,
-      });
-      setReceivablePage(current => {
-        if (!current) return current;
-        const knownIds = new Set(current.items.map(item => item.id));
-        return {
-          ...current,
-          items: [...current.items, ...nextPage.items.filter(item => !knownIds.has(item.id))],
-          next_cursor: nextPage.next_cursor,
-        };
-      });
-    } catch (caught) {
-      if (caught instanceof PlatformApiError && caught.status === 401) {
-        onSessionExpired();
-        return;
-      }
-      setReceivablesError(receivablesErrorMessage(caught));
-    } finally {
-      setLoadingMoreReceivables(false);
-    }
-  }
-
   return (
     <div className="page-flow billing-subscriptions">
       <section className="page-intro page-intro--split">
         <div>
           <p className="eyebrow">Fonte operacional parcial</p>
           <h2>Assinaturas locais</h2>
-          <p>Estados locais de assinatura e o diário financeiro disponível por fonte.</p>
+          <p>Estados locais de assinatura por empresa e provedor.</p>
         </div>
         <button type="button" className="button button--secondary" onClick={() => setRequestVersion(value => value + 1)} disabled={loading}>
           <RefreshCw size={16} aria-hidden="true" />Atualizar
@@ -182,7 +128,7 @@ export function BillingSubscriptions({ api, token, onSessionExpired }: BillingSu
         <div className="billing-disclosure__icon"><CircleAlert size={19} aria-hidden="true" /></div>
         <div>
           <h3 id="billing-disclosure-heading">Estados de assinatura não definem dívida</h3>
-          <p>“Em atraso” e “não paga” são estados locais. Os recebíveis abaixo usam eventos autenticados dos provedores e indicam a própria cobertura antes de qualquer total.</p>
+          <p>“Em atraso” e “não paga” são estados locais.</p>
         </div>
       </section>
 
@@ -206,29 +152,13 @@ export function BillingSubscriptions({ api, token, onSessionExpired }: BillingSu
 
       {error ? <BillingError message={error} onRetry={() => setRequestVersion(value => value + 1)} /> : null}
       {!error && loading ? <BillingSkeleton /> : null}
-      {!error && !loading && page ? <BillingSnapshot page={page} receivablePage={receivablePage} receivablesLoading={receivablesLoading} receivablesError={receivablesError} onRetryReceivables={() => setRequestVersion(value => value + 1)} onLoadMoreReceivables={() => void loadMoreReceivables()} loadingMoreReceivables={loadingMoreReceivables} onLoadMore={() => void loadMore()} loadingMore={loadingMore} /> : null}
+      {!error && !loading && page ? <BillingSnapshot page={page} onLoadMore={() => void loadMore()} loadingMore={loadingMore} /> : null}
     </div>
   );
 }
 
-function BillingSnapshot({
-  page,
-  receivablePage,
-  receivablesLoading,
-  receivablesError,
-  onRetryReceivables,
-  onLoadMoreReceivables,
-  loadingMoreReceivables,
-  onLoadMore,
-  loadingMore,
-}: {
+function BillingSnapshot({ page, onLoadMore, loadingMore }: {
   page: PlatformBillingSubscriptionsPage;
-  receivablePage: PlatformBillingReceivablesPage | null;
-  receivablesLoading: boolean;
-  receivablesError: string | null;
-  onRetryReceivables: () => void;
-  onLoadMoreReceivables: () => void;
-  loadingMoreReceivables: boolean;
   onLoadMore: () => void;
   loadingMore: boolean;
 }) {
@@ -276,15 +206,6 @@ function BillingSnapshot({
         </dl>
       </section>
 
-      <ReceivableLedger
-        page={receivablePage}
-        loading={receivablesLoading}
-        error={receivablesError}
-        onRetry={onRetryReceivables}
-        onLoadMore={onLoadMoreReceivables}
-        loadingMore={loadingMoreReceivables}
-      />
-
       <section className="billing-records" aria-labelledby="billing-records-heading">
         <div className="section-heading">
           <div>
@@ -308,121 +229,6 @@ function SourceState({ status }: { status: "partial" | "unavailable" }) {
 function Fact({ label, value, note }: { label: string; value: number; note?: string }) {
   return <div><dt>{label}</dt><dd>{formatNumber(value)}</dd>{note ? <small>{note}</small> : null}</div>;
 }
-
-function ReceivableLedger({
-  page,
-  loading,
-  error,
-  onRetry,
-  onLoadMore,
-  loadingMore,
-}: {
-  page: PlatformBillingReceivablesPage | null;
-  loading: boolean;
-  error: string | null;
-  onRetry: () => void;
-  onLoadMore: () => void;
-  loadingMore: boolean;
-}) {
-  if (loading) {
-    return <section className="billing-records" aria-busy="true" aria-label="Carregando recebíveis"><div className="billing-skeleton">{Array.from({ length: 3 }, (_, index) => <span key={index} />)}</div></section>;
-  }
-  if (error) {
-    return <section className="billing-records"><BillingError message={error} onRetry={onRetry} /></section>;
-  }
-  if (!page) return null;
-
-  const observedSince = page.coverage.observed_since ? formatDateTime(page.coverage.observed_since) : "Ainda sem eventos";
-  return (
-    <section className="billing-records" aria-labelledby="receivables-heading">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Diário financeiro parcial</p>
-          <h2 id="receivables-heading">Recebíveis observados</h2>
-        </div>
-        <span className="quiet-note">Cobertura desde {observedSince}</span>
-      </div>
-
-      <ul className="coverage-list">
-        <CoverageRow label="Cobranças de assinatura Asaas" source={page.sources.asaas_subscription_charges} />
-        <CoverageRow label="Cobranças de assinatura Stripe" source={page.sources.stripe_subscription_charges} />
-        <CoverageRow label="Cobranças de assinatura Mercado Pago" source={page.sources.mercadopago_subscription_charges} />
-        <CoverageRow label="Conciliação financeira" source={page.sources.reconciliation} />
-      </ul>
-
-      {!page.coverage.financial_metrics_available ? (
-        <div className="billing-empty">
-          <ReceiptText size={25} aria-hidden="true" />
-          <h3>Aguardando o primeiro evento financeiro</h3>
-          <p>Não há eventos de cobrança capturados desde a implantação desta fonte. Os valores não são mostrados como zero.</p>
-        </div>
-      ) : (
-        <>
-          <dl className="billing-facts billing-facts--financial">
-            <FinancialFact label="Saldo em aberto" value={page.summary.open_balance_cents} note={countLabel(page.summary.open_count, "cobrança")} />
-            <FinancialFact label="Saldo vencido" value={page.summary.overdue_balance_cents} note={countLabel(page.summary.overdue_merchant_count, "empresa em atraso", "empresas em atraso")} />
-            <FinancialFact label="Vence hoje" value={page.summary.due_today_balance_cents} note={countLabel(page.summary.due_today_count, "cobrança")} />
-            <FinancialFact label="Próximos 7 dias" value={page.summary.due_next_7_days_balance_cents} note={countLabel(page.summary.due_next_7_days_count, "cobrança")} />
-            <FinancialFact label="Confirmado desde a captura" value={page.summary.confirmed_payment_amount_cents_since_capture} note={countLabel(page.summary.confirmed_payment_count_since_capture, "pagamento")} />
-            <FinancialFact label="Próximo vencimento" value={null} displayValue={formatDate(page.summary.next_due_at)} note="Data de calendário do provedor" />
-          </dl>
-          <p className="quiet-note">Atraso é calculado por vencimento em calendário do provedor e saldo positivo conhecido. Créditos, liquidação e estornos parciais ainda exigem conciliação.</p>
-          {page.items.length === 0 ? <EmptyReceivables /> : <ReceivableList items={page.items} />}
-          {page.next_cursor ? <button type="button" className="button button--secondary billing-load-more" onClick={onLoadMore} disabled={loadingMore}>{loadingMore ? "Carregando..." : "Carregar mais recebíveis"}</button> : null}
-        </>
-      )}
-    </section>
-  );
-}
-
-function CoverageRow({ label, source }: { label: string; source: { status: "partial" | "unavailable"; description: string } }) {
-  return <li className="coverage-row">
-    <span className={`billing-source-icon billing-source-icon--${source.status}`} aria-hidden="true"><ReceiptText size={15} /></span>
-    <span><strong>{label}</strong><small>{source.description}</small></span>
-    <SourceState status={source.status} />
-  </li>;
-}
-
-function FinancialFact({ label, value, note, displayValue }: { label: string; value: string | null; note: string; displayValue?: string }) {
-  return <div><dt>{label}</dt><dd>{displayValue ?? (value === null ? "Sem dados" : formatBrlCents(value))}</dd><small>{note}</small></div>;
-}
-
-function ReceivableList({ items }: { items: PlatformBillingReceivable[] }) {
-  return (
-    <div className="billing-table-wrap">
-      <table className="billing-table">
-        <thead><tr><th scope="col">Empresa</th><th scope="col">Situação financeira</th><th scope="col">Valor</th><th scope="col">Vencimento</th><th scope="col">Último evento</th></tr></thead>
-        <tbody>{items.map(item => <ReceivableRow key={item.id} item={item} />)}</tbody>
-      </table>
-    </div>
-  );
-}
-
-function ReceivableRow({ item }: { item: PlatformBillingReceivable }) {
-  const status = item.is_overdue_as_of ? "overdue" : item.provider_status;
-  const label = item.is_overdue_as_of ? "Vencida" : receivableStatusLabels[item.provider_status];
-  return (
-    <tr>
-      <th scope="row"><strong>{item.merchant_name}</strong><small>{providerLabels[item.provider]} - {item.provider_payment_id}</small></th>
-      <td><span className={`billing-status billing-status--${status}`}><span aria-hidden="true" />{label}</span></td>
-      <td><strong>{item.amount_cents === null ? "Não informado" : formatBrlCents(String(item.amount_cents))}</strong><small>{item.currency}</small></td>
-      <td><strong>{formatDate(item.due_at)}</strong><small>{item.paid_at ? `Pago em ${formatDate(item.paid_at)}` : "Data do provedor"}</small></td>
-      <td><time dateTime={item.last_provider_event_at}>{formatDateTime(item.last_provider_event_at)}</time></td>
-    </tr>
-  );
-}
-
-function EmptyReceivables() {
-  return <div className="billing-empty"><ReceiptText size={25} aria-hidden="true" /><h3>Nenhum recebível para estes filtros</h3><p>Os eventos já capturados não possuem cobranças nesta situação.</p></div>;
-}
-
-const receivableStatusLabels = {
-  open: "Em aberto",
-  overdue: "Vencida",
-  paid: "Confirmada",
-  cancelled: "Cancelada",
-  refunded: "Estornada",
-} as const;
 
 function SubscriptionList({ items }: { items: PlatformBillingSubscription[] }) {
   return (
@@ -492,33 +298,9 @@ function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-function formatBrlCents(value: string): string {
-  try {
-    const cents = BigInt(value);
-    const negative = cents < 0n;
-    const absolute = negative ? -cents : cents;
-    const whole = absolute / 100n;
-    const decimals = String(absolute % 100n).padStart(2, "0");
-    return `${negative ? "-" : ""}R$ ${whole.toLocaleString("pt-BR")},${decimals}`;
-  } catch {
-    return "Não informado";
-  }
-}
-
-function countLabel(value: number | null, noun: string, pluralNoun = `${noun}s`): string {
-  if (value === null) return "Sem dados";
-  const plural = value === 1 ? noun : pluralNoun;
-  return `${formatNumber(value)} ${plural}`;
-}
-
 function billingErrorMessage(error: unknown): string {
   if (error instanceof PlatformApiError && error.status === 403) return "Seu papel não tem permissão para consultar estados locais de assinatura.";
   if (error instanceof PlatformApiError && error.status >= 500) return "A fonte de assinaturas não respondeu. Tente novamente em instantes.";
   return "Verifique a conexão com a API e tente novamente.";
 }
 
-function receivablesErrorMessage(error: unknown): string {
-  if (error instanceof PlatformApiError && error.status === 403) return "Seu papel não tem permissão para consultar recebíveis.";
-  if (error instanceof PlatformApiError && error.status >= 500) return "A fonte de recebíveis não respondeu. Tente novamente em instantes.";
-  return "Verifique a conexão com a API e tente novamente.";
-}
