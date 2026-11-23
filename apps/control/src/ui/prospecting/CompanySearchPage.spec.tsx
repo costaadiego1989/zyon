@@ -55,6 +55,18 @@ test('SEARCH-02 pages show one empty page without inventing company results',asy
  expect(ui.text()).toContain('Página 1 de 1');expect(ui.text()).toContain('Nenhuma empresa');expect(ui.host.querySelectorAll('.prospecting-row')).toHaveLength(0);
  expect(ui.button('Página anterior').disabled).toBe(true);expect(ui.button('Próxima página').disabled).toBe(true);
 });
+test('SEARCH-02 pages reload the first page when a filtered count shrinks below the current cursor',async()=>{
+ const directory=directoryPages();let shrunk=false;
+ const companies=vi.fn(async(q:CompanySearchQuery)=>{
+  const response=await directory(q);
+  if(q.cursor){shrunk=true;return {...response,count:1,items:[],nextCursor:null};}
+  return shrunk?{...response,count:1,items:response.items.slice(0,1),nextCursor:null}:response;
+ });
+ const ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>partialSource('partial-a',53),companies,domains})}/>);
+ await ui.fill('Estágio no CRM','new');await ui.click('Aplicar filtros');await ui.click('Próxima página');
+ expect(ui.text()).toContain('Página 1 de 1');expect(ui.text()).not.toContain('Página 2 de 1');expect(ui.host.querySelectorAll('.prospecting-row')).toHaveLength(1);expect(ui.text()).toContain('Empresa 1');
+ expect(companies.mock.lastCall?.[0]).toMatchObject({snapshotId:'partial-a',filters:{stages:['new']},limit:20});expect(companies.mock.lastCall?.[0].cursor).toBeUndefined();expect(ui.button('Próxima página').disabled).toBe(true);
+});
 test('SEARCH-02 navigation retains filter, snapshot, cursor history and selection',async()=>{
  const companies=directoryPages(),ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>partialSource('partial-a',53),companies,domains})}/>);
  await ui.fill('UF','SC');await ui.click('Aplicar filtros');await ui.check('Selecionar 00000000000001');await ui.click('Próxima página');

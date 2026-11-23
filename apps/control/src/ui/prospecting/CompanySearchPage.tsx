@@ -291,6 +291,13 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
   }
   const totalPages=page?.countState==='complete'&&typeof page.count==='number'&&Number.isFinite(page.count)
     ?Math.max(1,Math.ceil(page.count/companyPageSize)):undefined;
+  useEffect(()=>{
+    if(page&&totalPages!==undefined&&pagination.index>=totalPages){
+      setPagination({index:0,cursors:[undefined]});
+      setQuery(current=>({...current,snapshotId:page.snapshotId,cursor:undefined}));
+    }
+  },[page,totalPages,pagination.index]);
+  const pageNumber=Math.min(pagination.index+1,totalPages??pagination.index+1);
   const valid = Boolean(page?.items.length) && !dirty && !action.denied,
     ids = selected.snapshot === page?.snapshotId ? selected.ids : [];
   const domainProps = { api, onSessionExpired, snapshotId: page?.snapshotId??(coverage?.scopeComplete===false?currentSnapshotId:undefined) };
@@ -426,7 +433,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
             </div>
           )}
           <nav className="prospecting-pagination" aria-label="Paginação de empresas">
-            <span role="status">{`Página ${pagination.index+1}${totalPages===undefined?'':` de ${totalPages.toLocaleString('pt-BR')}`}`}</span>
+            <span role="status">{`Página ${pageNumber}${totalPages===undefined?'':` de ${totalPages.toLocaleString('pt-BR')}`}`}</span>
             <div className="prospecting-pagination-controls">
             {pagination.index>0 && (
               <Button disabled={dirty||refreshing} onClick={() => movePage(0,undefined)}>
