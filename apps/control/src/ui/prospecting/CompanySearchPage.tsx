@@ -197,6 +197,28 @@ function filtersFrom(form: HTMLFormElement): CompanyFilters {
   return result;
 }
 export function CompanySearchPage(props: PageProps) {
+  const load = useCallback((signal: AbortSignal) => props.api.readiness(signal), [props.api]);
+  const availability = useResource(load, props.onSessionExpired);
+  const source = availability.data?.source;
+  if (source?.status === "current" && source.value?.snapshotId && source.value.state === "published")
+    return <PublishedCompanySearchPage {...props} />;
+  const preparing = source?.status === "unavailable" && source.value?.snapshotId === null && source.value.state === "unavailable";
+  return (
+    <section className="prospecting-page">
+      <header><h2>Buscar empresas</h2><p>Consulte o cadastro nacional por atividade, localização e perfil da empresa.</p></header>
+      {preparing ? (
+        <div className="prospecting-state">
+          <h3>Base nacional em preparação</h3>
+          <p role="status">A busca será liberada quando a importação e a validação dos arquivos do CNPJ forem concluídas.</p>
+          <Button onClick={availability.reload}>Verificar disponibilidade</Button>
+        </div>
+      ) : (
+        <ReadState error={availability.error ?? (source ? new Error("directory_availability_unknown") : undefined)} reload={availability.reload} />
+      )}
+    </section>
+  );
+}
+function PublishedCompanySearchPage(props: PageProps) {
   const { api, onSessionExpired, navigate } = props;
   const [query, setQuery] = useState<CompanySearchQuery>({ filters: {} }),
     [uf, setUf] = useState(""),

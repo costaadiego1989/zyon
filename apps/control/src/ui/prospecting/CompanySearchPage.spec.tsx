@@ -17,6 +17,11 @@ function page(cnpj = first, nextCursor: string | null = null) {
   };
 }
 const domains = async () => ({ items: [], nextCursor: null });
+const published = { source: { status: "current", value: { snapshotId: "out", state: "published", competence: "2026-10" }, observedAt: "2026-11-22T12:00:00Z" } };
+const preparing = { source: { status: "unavailable", value: { snapshotId: null, state: "unavailable", competence: null }, observedAt: null } };
+function searchProps(methods: Parameters<typeof screenProps>[0]) {
+  return screenProps({ readiness: async () => published, ...methods });
+}
 test("PROS-24 AC1 filtros e paginação conservam a seleção do snapshot e centavos exatos", async () => {
   const companies = vi
     .fn()
@@ -25,7 +30,7 @@ test("PROS-24 AC1 filtros e paginação conservam a seleção do snapshot e cent
     .mockResolvedValueOnce(page(second))
     .mockResolvedValue(page(second));
   const addProspects = vi.fn().mockResolvedValue({ created: 1, existing: 1, prospectIds: ["p1", "p2"] });
-  const ui = await show(<CompanySearchPage {...screenProps({ companies, domains, addProspects })} />);
+  const ui = await show(<CompanySearchPage {...searchProps({ companies, domains, addProspects })} />);
   await ui.fill("Capital mínimo (R$)", "9007199254740993,17");
   await ui.fill("UF", "SP");
   await ui.click("Aplicar filtros");
@@ -45,7 +50,7 @@ test("PROS-24 AC2 salvar segmento usa filtros aplicados e mostra o resultado con
     .fn()
     .mockResolvedValue({ name: "Segmento oficial", count: 23, version: 4, countState: "complete" });
   const ui = await show(
-    <CompanySearchPage {...screenProps({ companies: async () => page(), domains, createSegment })} />
+    <CompanySearchPage {...searchProps({ companies: async () => page(), domains, createSegment })} />
   );
   await ui.fill("CNPJ", "12ABC34501DE35");
   await ui.click("Aplicar filtros");
@@ -64,7 +69,7 @@ test("PROS-24 AC3 carregamento, vazio, erro e acesso negado invalidam ações pe
     .mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
     .mockRejectedValueOnce(new Error())
     .mockRejectedValueOnce(new PlatformApiError(403));
-  const ui = await show(<CompanySearchPage {...screenProps({ companies, domains })} />);
+  const ui = await show(<CompanySearchPage {...searchProps({ companies, domains })} />);
   await ui.check("Selecionar " + first);
   await ui.fill("Pesquisar empresa", "Outra");
   await ui.click("Aplicar filtros");
@@ -88,7 +93,7 @@ test("PROS-24 AC1 opções oficiais de município distinguem UF e preservam o c�
     nextCursor: null,
   }));
   const companies = vi.fn().mockResolvedValue(page());
-  const ui = await show(<CompanySearchPage {...screenProps({ companies, domains: lookup })} />);
+  const ui = await show(<CompanySearchPage {...searchProps({ companies, domains: lookup })} />);
   expect(ui.control("Município").disabled).toBe(true);
   await ui.fill("UF", "RJ");
   expect(ui.text()).toContain("Santa Cruz · 6001 · RJ");
@@ -102,7 +107,7 @@ test("PROS-24 AC1 opções oficiais de município distinguem UF e preservam o c�
 
 test("PROS-24 AC1 incluir dois valores da mesma dimensão conserva OR no pedido ao servidor", async () => {
   const companies = vi.fn().mockResolvedValue(page());
-  const ui = await show(<CompanySearchPage {...screenProps({ companies, domains })} />);
+  const ui = await show(<CompanySearchPage {...searchProps({ companies, domains })} />);
   await ui.fill("UF", "RJ");
   await ui.fill("Filtro com múltiplos valores", "ufs");
   await ui.click("Manter valor");
@@ -116,4 +121,51 @@ test("PROS-24 AC1 incluir dois valores da mesma dimensão conserva OR no pedido 
   await ui.click("Remover UF · RJ");
   await ui.click("Aplicar filtros");
   expect(companies.mock.lastCall?.[0].filters.ufs).toEqual(["SP"]);
+});
+
+
+test("DIR-01 pending publication prevents company and domain requests until availability is confirmed", async()=>{
+  const readiness=vi.fn().mockResolvedValueOnce(preparing).mockResolvedValue(published);
+  const companies=vi.fn().mockResolvedValue(page()), lookup=vi.fn(async(q)=>({items:q.kind==='cnaes'?[{kind:'cnaes',code:'4711301',label:'Atividade oficial'}]:[],nextCursor:null}));
+  const ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains:lookup})}/>);
+  expect(ui.text()).toContain('Base nacional em preparação');expect(ui.text()).toContain('importação e a validação');
+  expect(ui.host.querySelector('[role=alert]')).toBeNull();expect(ui.host.querySelector('form')).toBeNull();
+  expect(companies).not.toHaveBeenCalled();expect(lookup).not.toHaveBeenCalled();
+  await ui.click('Verificar disponibilidade');
+  expect(readiness).toHaveBeenCalledTimes(2);expect(companies).toHaveBeenCalledTimes(1);
+  expect(ui.host.querySelector('select[name="mainCnaes"] option[value="4711301"]')?.textContent).toBe('Atividade oficial · 4711301');
+  expect(ui.text()).toContain('Oficina '+first);expect(ui.text()).not.toContain('Base nacional em preparação');
+});
+
+test("DIR-02 incomplete or stale publication observations cannot enable search",async()=>{
+  for(const source of [
+    {status:'current',value:{snapshotId:'out',state:'importing'}},
+    {status:'current',value:{snapshotId:null,state:'published'}},
+    {status:'stale',value:{snapshotId:'out',state:'published'}},
+    {status:'stale',value:{snapshotId:null,state:'unavailable'}},
+    {status:'unavailable',value:null},
+  ]){
+    const readiness=vi.fn().mockResolvedValueOnce({source}).mockResolvedValue(published);
+    const companies=vi.fn().mockResolvedValue(page()),lookup=vi.fn(domains);
+    const ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains:lookup})}/>);
+    expect(ui.host.querySelector('[role=alert]')).not.toBeNull();expect(ui.text()).not.toContain('Base nacional em preparação');
+    expect(companies).not.toHaveBeenCalled();expect(lookup).not.toHaveBeenCalled();
+    await ui.click('Tentar novamente');expect(readiness).toHaveBeenCalledTimes(2);expect(ui.text()).toContain('Oficina '+first);
+  }
+});
+
+test("DIR-03 pending readiness hides directory controls and real failures retain retry and session handling",async()=>{
+  let resolve!:(value:unknown)=>void;
+  const companies=vi.fn().mockResolvedValue(page()),lookup=vi.fn(domains);
+  const props=searchProps({readiness:()=>new Promise(done=>{resolve=done;}),companies,domains:lookup});
+  const pending=await show(<CompanySearchPage {...props}/>);expect(pending.text()).toContain('Carregando');expect(companies).not.toHaveBeenCalled();expect(lookup).not.toHaveBeenCalled();
+  await act(async()=>resolve(preparing));expect(pending.text()).toContain('Base nacional em preparação');
+  for(const status of [500,403,401]){
+    const readiness=vi.fn().mockRejectedValueOnce(new PlatformApiError(status)).mockResolvedValue(published);
+    const own=searchProps({readiness,companies,domains:lookup});const ui=await show(<CompanySearchPage {...own}/>);
+    expect(ui.text()).not.toContain('Base nacional em preparação');expect(ui.host.querySelector('[role=alert]')).not.toBeNull();
+    expect(own.onSessionExpired).toHaveBeenCalledTimes(status===401?1:0);
+    if(status===500){expect(ui.text()).toContain('Não foi possível');await ui.click('Tentar novamente');expect(ui.text()).toContain('Oficina '+first);}
+    else expect(ui.text()).toContain('permissão');
+  }
 });
