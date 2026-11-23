@@ -20,6 +20,8 @@ const storefrontIntentOutputShape = z.strictObject({
   shoppingPhase: z.enum(["clarify", "search"]).nullable().optional(),
   // Semantic routing only. Canonical service mode and scoped ports grant access.
   serviceRequest: businessRequestKindSchema.nullable().optional(),
+  // Semantic scheduling hint only; private transport binding still owns access.
+  serviceAction: z.enum(["browse", "select"]).nullable().optional(),
 });
 export type StorefrontSemanticIntent = z.infer<typeof storefrontIntentOutputShape>;
 export const storefrontIntentOutputSchema = storefrontIntentOutputShape.refine(isConsistentStorefrontIntent);
@@ -28,7 +30,7 @@ export const storefrontIntentJsonSchema = {
   ...generated,
   // Strict structured-output providers require every field, with null for a
   // non-shopping turn. Runtime parsing still accepts historical V2 envelopes.
-  required: [...new Set([...(generated.required ?? []), "shoppingPhase", "serviceRequest"])],
+  required: [...new Set([...(generated.required ?? []), "shoppingPhase", "serviceRequest", "serviceAction"])],
   properties: { ...generated.properties,
     schemaVersion: { type: "integer", enum: [2] } },
 };
@@ -37,6 +39,8 @@ export const storefrontIntentUsageSchema = z.object({
   totalTokens: z.number().int().min(0).max(200_000_000),
 });
 export function isConsistentStorefrontIntent(value: StorefrontSemanticIntent): boolean {
+  if (value.serviceAction != null && (value.domain !== "STORE_COMMERCE" || value.intent !== "COMPLEX_QUESTION"
+    || !value.requiresTool || value.needsProductDiscovery || value.shoppingPhase != null || value.serviceRequest === "professional_decision")) return false;
   if (value.shoppingPhase != null && (value.domain !== "STORE_COMMERCE" || !value.needsProductDiscovery
     || !value.requiresTool || (value.intent !== "PRODUCT_SEARCH" && value.intent !== "RECOMMEND_PERSONALIZED"))) return false;
   if ((value.domain === "OUT_OF_SCOPE" || value.domain === "UNCLEAR")

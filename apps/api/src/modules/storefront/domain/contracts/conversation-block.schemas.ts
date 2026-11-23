@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { serviceBookingResultSchema } from "./service-booking-tool.schemas.js";
 import { commercialNoticesSchema } from "./commercial-notice.schemas.js";
 import { shoppingSearchPlanSchema } from "./shopping-search-plan.schemas.js";
 
@@ -37,6 +38,7 @@ const block = <T extends string, S extends z.ZodRawShape>(type: T, data: S) =>
 
 /** Exhaustive display contracts: no catch-all block or untyped data payload. */
 export const conversationBlockSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("service_booking"), data: serviceBookingResultSchema }),
   z.strictObject({ type: z.literal("product_card"), data: product }),
   block("product_carousel", { products: list(product), nextCursor: text.optional(), merchantId: id.optional(), query: text.optional(), categoryId: id.optional(), criteria: shoppingSearchPlanSchema.optional() }),
   block("comparison_table", { products: list(z.strictObject({ id, name: text, price: money,

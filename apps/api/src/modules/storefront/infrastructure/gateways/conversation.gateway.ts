@@ -1,6 +1,6 @@
 import { WebSocketGateway, WebSocketServer, SubscribeMessage, OnGatewayConnection, OnGatewayDisconnect, ConnectedSocket, MessageBody } from "@nestjs/websockets";
 import type { Server, Socket } from "socket.io";
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { RealtimeCapabilityService, isRealtimeId, realtimeRoom } from "../../../../shared/auth/realtime-capability.js";
 import { resolveCorsConfig } from "../../../../shared/config/cors-config.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
@@ -8,7 +8,11 @@ import { GetConversationHistoryUseCase } from "../../application/use-cases/get-c
 import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
 import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
 
+import { StorefrontServiceBookingBridge } from "../../application/services/storefront-service-booking.bridge.js";
+import type { StorefrontServiceBookingFactory } from "../../domain/ports/service-booking-tools.port.js";
+
 interface Connection {
+  serviceBooking?: StorefrontServiceBookingFactory;
   token: string;
   timer: ReturnType<typeof setTimeout>;
   processing: boolean;
@@ -27,6 +31,7 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
     @Inject(GetConversationHistoryUseCase) private readonly getConversationHistoryUseCase: GetConversationHistoryUseCase,
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
     private readonly conversationRateLimiter: StorefrontConversationRateLimitService,
+    @Optional() private readonly serviceBookingBridge?: StorefrontServiceBookingBridge,
   ) {}
 
   handleConnection(socket: Socket) {
@@ -37,7 +42,12 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
       timer.unref();
       const buyerToken = socket.handshake.auth?.buyerToken;
       const userId = buyerToken ? new AiUserIdentityService().resolve({ merchantId: claims.merchantId, buyerToken }).userId : claims.aiUserId;
-      this.connections.set(socket, { token, timer, processing: false, userId });
+      this.connections.set(socket, { token, timer, processing: false, userId,
+        serviceBooking: this.serviceBookingBridge?.capture({ conversationId: claims.resourceId, headers: {
+          authorization: "Bearer " + token, origin: socket.handshake.headers.origin,
+          "x-buyer-authorization": typeof buyerToken === "string" ? "Bearer " + buyerToken : undefined,
+          "x-aacp-embed-token": typeof socket.handshake.auth?.embedSessionToken === "string" ? socket.handshake.auth.embedSessionToken : undefined,
+        } }), });
     } catch {
       socket.emit("error", { message: "unauthorized" });
       socket.disconnect(true);
@@ -114,7 +124,7 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
         merchant_id: claims.merchantId, conversation_id: claims.resourceId,
         user_message: data.text.trim(), cart_id: claims.resourceId,
         history: history.messages.map((message) => ({ role: message.role, content: message.content })),
-      });
+      }, undefined, undefined, connection.serviceBooking);
       this.server.to(room).emit("agent_response", {
         conversationId: claims.resourceId, role: "assistant", text: result.message,
         blocks: result.blocks, cartId: result.cart_id,

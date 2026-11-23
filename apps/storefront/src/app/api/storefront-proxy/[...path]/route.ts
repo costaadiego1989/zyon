@@ -97,6 +97,8 @@ async function proxy(request: Request, context: RouteContext): Promise<NextRespo
   const buyerAuthorization = request.headers.get("x-buyer-authorization");
   if (contentType) headers.set("Content-Type", contentType);
   if (buyerAuthorization) headers.set("X-Buyer-Authorization", buyerAuthorization);
+  const embedToken = request.headers.get("x-aacp-embed-token");
+  if (embedToken) headers.set("X-AACP-Embed-Token", embedToken);
 
   try {
     const response = await fetch(`${apiBase}/storefront/${targetPath}${requestUrl.search}`, {

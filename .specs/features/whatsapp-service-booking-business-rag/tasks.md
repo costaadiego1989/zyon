@@ -1075,12 +1075,13 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + HTTP/DB tool-dispatch: serviços e produtos, payload inválido/foreign, nenhum slot/promessa vindo de embedding.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit + HTTP/DB tool-dispatch: serviços e produtos, payload inválido/foreign, nenhum slot/promessa vindo de embedding.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Unit + HTTP/DB tool-dispatch: serviços e produtos, payload inválido/foreign, nenhum slot/promessa vindo de embedding.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T43$" ./src/modules/storefront/infrastructure/tool-handlers/service-booking.handlers.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T43 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/storefront/infrastructure/tool-handlers/service-booking.handlers.spec.ts ./src/modules/storefront/application/services/storefront-service-booking-wiring.contract.spec.ts ./src/modules/storefront/domain/tools/service-booking-tools.spec.ts ./src/modules/storefront/application/services/storefront-service-booking.bridge.spec.ts ./src/modules/storefront/infrastructure/agents/service-booking-routing.spec.ts ./src/modules/storefront/infrastructure/agents/service-booking-agent.spec.ts ./src/modules/storefront/infrastructure/adapters/storefront-service-booking.adapter.spec.ts ./tests/storefront-service-tools-http.integration.spec.ts`. Eight complete files in qualified serial cohorts; 63 actual contexts, all preserved original network, memory, worker and timeout guards. Final checks by criterion remain required.
+**Evidence**: `task-43-evidence.json`; seven whole component files56 + whole authenticated HTTP/SQL dispatch7 =63/63, zero skips/failures/cancellations/todo, current own API c8fc/27f8. Original affected whole contract suites also pass140/140 (receipt f46a39d8), separately from formal63. Actual Focus WIP context executed; three conservative HEAD projections were not independently executed. Final same-HEAD feature proofs remain mandatory.
 **Commit**: `feat(service-business): t43 connect storefront tools to canonical scheduling`
 
 ### T44: Render native date and slot controls

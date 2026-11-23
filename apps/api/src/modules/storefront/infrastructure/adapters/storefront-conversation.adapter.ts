@@ -51,6 +51,8 @@ import { STOREFRONT_TELEMETRY_PORT, type StorefrontTelemetryPort } from "../../d
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { StorefrontObserver, observeStorefrontHandlers, recordStorefrontDecision } from "../observability/storefront-observation.js";
 
+import type { StorefrontServiceBookingFactory, ServiceBookingHandlers } from "../../domain/ports/service-booking-tools.port.js";
+
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 /** Optional infrastructure transport; absence keeps production behavior intact.
  * A supplied factory must cover both channels and may fail closed in a harness. */
@@ -178,13 +180,14 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     return withAiMetering({ merchantId: input.merchantId, source: "storefront_nudge" },
       () => this.observer.turn(() => this.copyService.generateNudge(input)));
   }
-  async reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext, captureKnowledge?: StorefrontKnowledgeCapture): Promise<StorefrontConversationOutput> {
+  async reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext, captureKnowledge?: StorefrontKnowledgeCapture, serviceBooking?: StorefrontServiceBookingFactory): Promise<StorefrontConversationOutput> {
     return withAiMetering({ merchantId: input.merchantId, conversationId: input.sessionId, source: "storefront" },
-      () => this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext, captureKnowledge)) : this.replyTurn(input, deferredContext, captureKnowledge));
+      () => this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext, captureKnowledge, serviceBooking)) : this.replyTurn(input, deferredContext, captureKnowledge, serviceBooking));
   }
-  private async replyTurn(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext, captureKnowledge?: StorefrontKnowledgeCapture): Promise<StorefrontConversationOutput> {
+  private async replyTurn(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext, captureKnowledge?: StorefrontKnowledgeCapture, serviceBooking?: StorefrontServiceBookingFactory): Promise<StorefrontConversationOutput> {
     // The decision and every later shortcut/RAG/port must use the same input.
     input = structuredClone(input);
+    let serviceTools: ServiceBookingHandlers | undefined;
     const helpNavigation = !input.attachmentContext && !input.uiAction ? knowledgeHelpNavigation(input.userMessage) : undefined;
     if (helpNavigation) input.userMessage = helpNavigation;
     const ctx: ToolRequestContext = {
@@ -201,8 +204,13 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     };
     const deviceMeta = input.deviceType ? { device: input.deviceType } : undefined;
     let handlers: StoreToolHandlers | undefined;
-    const getHandlers = () => handlers ??= observeStorefrontHandlers(
-      composeStoreToolHandlers(this.handlerDeps, ctx), input.cartId || input.sessionId);
+    const getHandlers = () => {
+      if (handlers) return handlers;
+      const composed = composeStoreToolHandlers(this.handlerDeps, ctx, serviceTools);
+      handlers = { ...observeStorefrontHandlers(composed, input.cartId || input.sessionId),
+        ...(composed.serviceBooking ? { serviceBooking: composed.serviceBooking } : {}) };
+      return handlers;
+    };
     const readCartBlock = async (cartId: string) => {
       try {
         const args = { cartId };
@@ -254,6 +262,9 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     if (!prepared.allowed) {
       return { message: prepared.result.message, blocks: [], suggestedNext: [], cartId: input.cartId || input.sessionId };
     }
+    // A denied opaque turn must not resolve the private booking binding.
+    try { serviceTools = await serviceBooking?.({ merchantId: input.merchantId, conversationId: input.sessionId,
+      cartRef: input.cartId || input.sessionId }); } catch { /* Keep generic RAG/product replies available; no booking grant. */ }
     // Only the opaque prepared turn authorizes deferred attachment/provider IO.
     // Never accept browser-supplied classifications or prepare a second time.
     const deferred = deferredContext ? storefrontDeferredContextSchema.parse(await deferredContext()) : undefined;
@@ -263,6 +274,16 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         enabled: input.oneBuyClick.enabled, shippingPreference: input.oneBuyClick.shippingPreference,
         paymentPreference: input.oneBuyClick.paymentPreference,
       } : undefined;
+    }
+    // This opaque turn and the private verified transport binding are both required.
+    // Educational business answers keep their governed RAG path below.
+    if (serviceTools && (prepared.serviceAction === "browse" || prepared.serviceAction === "select")) {
+      const result = await prepared.run({
+        ...(deferred ? { attachmentContext: input.attachmentContext, oneBuyClick: input.oneBuyClick } : {}),
+      });
+      this.emitToolFunnelEvents(input, result.toolsUsed, deviceMeta).catch(() => {});
+      return { message: result.message, blocks: result.blocks,
+        cartId: input.cartId || input.sessionId, suggestedNext: ["Menu principal"] };
     }
     const business = typeof this.queryKnowledge?.openBusinessAnswer === "function"
       ? await this.queryKnowledge.openBusinessAnswer({ merchantId: input.merchantId, fallbackPurpose: "existing_company_context" })

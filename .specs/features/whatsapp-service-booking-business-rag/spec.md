@@ -300,9 +300,9 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | ONB-05 | About field in company data | T13, T14, T15, T16 | Implemented locally |
 | ONB-06 | Service-name list in company data, services only | T96, T97, T63, T72 | Complete locally (T96/T97/T63/T72); final feature proof pending |
 | AGENDA-01 | Professional resources | T4, T18, T20, T21, T76, T106 | In Progress (T18, T20 and T21 complete) |
-| AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
-| AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete) |
-| AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | In Progress (T28/T40 selection and authenticated preparation complete; T42 local selection/ambiguity full53 complete; T43/T45/T46 channel pickers and final criterion proof pending) |
+| AGENDA-02 | Dates | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete); T43 canonical tools complete locally63, remaining tasks/final proof pending |
+| AGENDA-03 | Slots | T23, T24, T43, T44, T45 | In Progress (T23 and T24 complete); T43 canonical tools complete locally63, remaining tasks/final proof pending |
+| AGENDA-04 | Selection summary | T28, T40, T42, T43, T45, T46 | In Progress (T28/T40 selection and authenticated preparation complete; T42 local selection/ambiguity full53 complete; T43/T45/T46 channel pickers and final criterion proof pending); T43 canonical tools complete locally63, remaining tasks/final proof pending |
 | AGENDA-05 | Shared capacity | T23, T26, T34, T35 | Implemented locally (all current canonical/legacy writers share authority; final feature proof pending) |
 | AGENDA-06 | Empty/error states | T23, T24, T44 | In Progress (T23 and T24 complete) |
 | AGENDA-07 | Text/voice ambiguity | T42, T46, T93 | In Progress (T42 local text/voice ambiguity and canonical channel full53 complete; T46/T93 and final criterion proof pending) |
@@ -353,7 +353,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | KPI-05 | Consistent filters | T85, T87, T88, T91 | Pending |
 | KPI-06 | Explicit attendance evidence | T32, T85, T86, T89 | In Progress (T32 canonical operational evidence locally complete; metrics consumers/panel pending) |
 | KPI-07 | Unknown and empty metrics | T86, T87, T88, T89, T91 | Pending |
-| REG-01 | Separate business journeys in both channels | T7, T9, T17, T28, T43, T45, T46, T47, T62, T82, T83, T90, T91, T93 | In Progress (T17 complete) |
+| REG-01 | Separate business journeys in both channels | T7, T9, T17, T28, T43, T45, T46, T47, T62, T82, T83, T90, T91, T93 | In Progress (T17 complete); T43 canonical tools complete locally63, remaining tasks/final proof pending |
 | REG-02 | Approved product interactions | T3, T17, T28, T29, T46, T57, T90, T93 | In Progress (T17 complete) |
 | REG-03 | Physical commerce financial and stock integrity | T2, T29, T35, T38, T92, T93 | In Progress (T35 stock/financial/product preservation locally proved; T38/T92/T93 and final proof pending) |
 | REG-04 | Compatible migration and safe activation | T1, T3, T5, T7, T8, T12, T17, T36, T47, T84, T94 | In Progress (T17/T36 locally complete; writer migration, activation and final checks pending) |

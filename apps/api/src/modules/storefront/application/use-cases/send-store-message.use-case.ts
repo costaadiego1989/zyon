@@ -36,6 +36,8 @@ function optionalBuyerPhone(stored: string | null): string | undefined {
   }
 }
 
+import type { StorefrontServiceBookingFactory } from "../../domain/ports/service-booking-tools.port.js";
+
 export interface SendStoreMessageInput {
   ui_action?: import("../../domain/types/storefront-ui-action.js").StorefrontUiAction;
   trusted_buyer_context?: { globalUserId: string; name?: string; phone?: string; email?: string };
@@ -73,11 +75,11 @@ export class SendStoreMessageUseCase {
     @Optional() private readonly knowledgeAudit?: KnowledgeResponseAuditService,
   ) {}
 
-  async execute(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext, messageFormat?: "whatsapp"): Promise<SendStoreMessageOutput> {
-    return this.observation.turn(() => this.executeTurn(input, deferredContext, messageFormat));
+  async execute(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext, messageFormat?: "whatsapp", serviceBooking?: StorefrontServiceBookingFactory): Promise<SendStoreMessageOutput> {
+    return this.observation.turn(() => this.executeTurn(input, deferredContext, messageFormat, serviceBooking));
   }
 
-  private async executeTurn(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext, messageFormat?: "whatsapp"): Promise<SendStoreMessageOutput> {
+  private async executeTurn(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext, messageFormat?: "whatsapp", serviceBooking?: StorefrontServiceBookingFactory): Promise<SendStoreMessageOutput> {
     const parsedInput = await this.validate("input", () => sendStoreMessageInputSchema.safeParse(input), "invalid_input");
     if (!parsedInput.success) throw new BadRequestException("invalid_storefront_input");
     input = parsedInput.data;
@@ -241,7 +243,7 @@ export class SendStoreMessageUseCase {
     let admission: BusinessAnswerAdmission | undefined;
     let servicePublicAnswer = false;
     const generated = await this.conversation.reply(context.data, deferredContext,
-      (value, serverContext) => { admission = structuredClone(value); servicePublicAnswer = serverContext === "services"; });
+      (value, serverContext) => { admission = structuredClone(value); servicePublicAnswer = serverContext === "services"; }, serviceBooking);
     const scope = { merchantId: input.merchant_id, cartId: input.cart_id ?? input.conversation_id };
     const result = await this.observation.operation("validation", "output", async () => {
       const parsedOutput = storefrontConversationOutputSchema.safeParse(generated);

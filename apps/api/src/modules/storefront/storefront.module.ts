@@ -80,6 +80,13 @@ import { STOREFRONT_SHIPPING_REFERENCE } from "./domain/ports/storefront-shippin
 import { QuoteStorefrontShippingReferenceService } from "./application/services/quote-storefront-shipping-reference.service.js";
 import { PrismaStorefrontShippingReferenceReader } from "./infrastructure/repositories/prisma-storefront-shipping-reference.reader.js";
 import { QuoteShippingUseCase } from "../shipping/application/use-cases/quote-shipping.use-case.js";
+import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
+import { ResolveEmbedBuyerService } from "../embed/application/resolve-embed-buyer.service.js";
+import { BuyerJwtService } from "../buyer-account/domain/services/buyer-jwt.service.js";
+import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../buyer-account/domain/ports/buyer-account-repository.port.js";
+import { ServiceBookingService } from "../checkout/application/service-booking.service.js";
+import { StorefrontServiceBookingBridge } from "./application/services/storefront-service-booking.bridge.js";
+
 @Module({
   imports: [
     PersistenceModule,
@@ -100,6 +107,13 @@ import { QuoteShippingUseCase } from "../shipping/application/use-cases/quote-sh
   ],
   controllers: [StorefrontController, StorefrontCrossSellController, StorefrontRealtimeVoiceController, StorefrontProductContentController, StorefrontProductSubmissionController, StorefrontConsentController],
   providers: [
+    { provide: StorefrontServiceBookingBridge,
+      // Reuse the already imported buyer repository/JWT and Checkout exports.
+      // Canonical verifier classes need no new module edge or issuance route.
+      useFactory: (prisma: PrismaClient, conversations: RealtimeCapabilityService, jwt: BuyerJwtService, buyers: BuyerAccountRepository, booking: ServiceBookingService) =>
+        new StorefrontServiceBookingBridge({ prisma, conversations, embeds: new EmbedTokenService(),
+          resolveBuyer: new ResolveEmbedBuyerService(jwt, buyers), booking }),
+      inject: [PRISMA_CLIENT, RealtimeCapabilityService, BuyerJwtService, BUYER_ACCOUNT_REPOSITORY, ServiceBookingService] },
     { provide: STOREFRONT_SHIPPING_REFERENCE,
       useFactory: (prisma: PrismaClient, shipping: QuoteShippingUseCase) => new QuoteStorefrontShippingReferenceService(new PrismaStorefrontShippingReferenceReader(prisma), shipping),
       inject: [PRISMA_CLIENT, QuoteShippingUseCase] },

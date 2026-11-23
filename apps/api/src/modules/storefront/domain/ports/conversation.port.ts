@@ -1,6 +1,8 @@
 import type { ConversationBlock } from "../types/conversation-block.js";
 import type { BusinessAnswerAdmission } from "../../../knowledge-base/application/services/knowledge-response-audit.service.js";
 
+import type { StorefrontServiceBookingFactory } from "./service-booking-tools.port.js";
+
 export interface MerchantPolicy {
   maxDiscountPercent?: number;
   allowFreeShipping?: boolean;
@@ -80,6 +82,6 @@ export type StorefrontKnowledgeCapture = (admission: BusinessAnswerAdmission, se
 export interface StorefrontConversationPort {
   /** Server channel only, after a confirmed add; not a model tool or write grant. */
   postCartSuggestions?(scope: { merchantId: string; cartId: string; addedVariantId: string }): Promise<Extract<ConversationBlock, { type: "cross_sell" }> | undefined>;
-  reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext, captureKnowledge?: StorefrontKnowledgeCapture): Promise<StorefrontConversationOutput>;
+  reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext, captureKnowledge?: StorefrontKnowledgeCapture, serviceBooking?: StorefrontServiceBookingFactory): Promise<StorefrontConversationOutput>;
   generateNudge(input: NudgeCopyInput): Promise<string>;
 }

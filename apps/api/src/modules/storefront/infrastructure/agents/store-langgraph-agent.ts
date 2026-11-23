@@ -92,6 +92,10 @@ export interface StorefrontAgentDeps {
   systemPrompt?: string;
 }
 
+import { serviceBookingDefinitions, createServiceBookingTools } from "../../domain/tools/service-booking-tools.js";
+import { operationalServiceTurn, serviceOperationalTools, isServiceBookingTool, presentServiceBookingResult } from "./service-booking-routing.js";
+import type { ToolResult } from "../../domain/tools/types.js";
+
 export interface StorefrontAgentInput {
   messageFormat?: "whatsapp";
   sessionId: string;
@@ -143,7 +147,7 @@ export interface StorefrontAgentResult {
 
 export type StorefrontPreparedTurn =
   | { allowed: false; result: StorefrontAgentResult }
-  | { allowed: true; serviceRequest?: BusinessRequestKind | null;
+  | { allowed: true; serviceRequest?: BusinessRequestKind | null; serviceAction?: "browse" | "select" | null;
     run: (context?: { knowledgeContext?: string; groundedBusinessContext?: boolean; attachmentContext?: string;
     oneBuyClick?: OneBuyClickConversationContext }, serviceRead?: StorefrontServiceRead) => Promise<StorefrontAgentResult> };
 
@@ -293,7 +297,7 @@ export class StorefrontLangGraphAgent {
       throw new Error("agent_budget_exhausted");
     }
     let consumed = false;
-    return { allowed: true, serviceRequest: semantic.classification.serviceRequest, run: async (context, serviceRead) => {
+    return { allowed: true, serviceRequest: semantic.classification.serviceRequest, serviceAction: semantic.classification.serviceAction, run: async (context, serviceRead) => {
       if (consumed) throw new Error("storefront_prepared_turn_consumed");
       consumed = true;
       const lateContext = context === undefined ? {} : storefrontPreparedContextSchema.parse(context);
@@ -313,10 +317,12 @@ export class StorefrontLangGraphAgent {
       : classifyIntent(input.userMessage);
     const modelTier = getModelForIntent(intentResult.intent);
     const modelUsed = modelTier === "fast" ? this.fastModel : this.strongModel;
-    const requiredReadToolName = serviceRead && semantic.classification.serviceRequest === "live_facts" ? CURRENT_SERVICE_FACTS_TOOL.name : this.structuredRouting
+    const serviceBinding = (input.toolHandlers ?? this.defaultToolHandlers).serviceBooking;
+    const serviceBookingTurn = this.structuredRouting && operationalServiceTurn(semantic.classification, serviceBinding);
+    const requiredReadToolName = serviceBookingTurn ? undefined : serviceRead && semantic.classification.serviceRequest === "live_facts" ? CURRENT_SERVICE_FACTS_TOOL.name : this.structuredRouting
       ? intentResult.intent === "COMPARE_PRODUCTS" ? "compare_products" : intentResult.intent === "ORDER_STATUS" ? "track_order" : undefined
       : undefined;
-    const requiresCanonicalRead = this.structuredRouting && (semantic.classification.requiresTool || requiredReadToolName !== undefined)
+    const requiresCanonicalRead = !serviceBookingTurn && this.structuredRouting && (semantic.classification.requiresTool || requiredReadToolName !== undefined)
       && !(input.groundedBusinessContext && semantic.classification.domain === "STORE_SUPPORT" && !requiredReadToolName);
 
     input.callbacks?.onIntentClassified?.(intentResult);
@@ -328,9 +334,19 @@ export class StorefrontLangGraphAgent {
     let totalPromptTokens = semantic.usage.promptTokens;
     let totalCompletionTokens = semantic.usage.completionTokens;
     let totalTokens = semantic.usage.totalTokens;
+    const finishServiceBooking = (result: ToolResult): StorefrontAgentResult => {
+      const presented = presentServiceBookingResult(result);
+      input.callbacks?.onToken?.(presented.message);
+      return { message: presented.message, blocks: presented.data ? [{ type: "service_booking", data: presented.data }] : [],
+        toolsUsed, cartId: input.cartId,
+        usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+        routing: { source: semantic.source, domain: semantic.classification.domain, needsProductDiscovery: false,
+          intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
+        safetyValidation: { safe: result.ok && presented.data !== undefined } };
+    };
     const blocks: ConversationBlock[] = [];
     const requestHandlers = input.toolHandlers ?? this.defaultToolHandlers;
-    const quantityCommand = input.attachmentContext ? undefined : explicitCartQuantityCommand(input.userMessage);
+    const quantityCommand = serviceBookingTurn || input.attachmentContext ? undefined : explicitCartQuantityCommand(input.userMessage);
     let quantitySelection: CartQuantitySelection | undefined;
     if (quantityCommand) {
       const refuse = (message: string): StorefrontAgentResult => {
@@ -359,7 +375,7 @@ export class StorefrontLangGraphAgent {
     }
     let discoveryQuestion: SalesDiscoveryQuestion | undefined;
     const history = salesDiscoveryHistory(input.history, input.userMessage);
-    if (this.structuredRouting && !quantitySelection && !input.attachmentContext
+    if (!serviceBookingTurn && this.structuredRouting && !quantitySelection && !input.attachmentContext
       && semantic.classification.domain === "STORE_COMMERCE" && isCatalogBrowsingRequest(input.userMessage)) {
       let message = "Não consegui carregar o catálogo agora. Tente novamente em instantes.";
       let blocks: ConversationBlock[] = [];
@@ -387,7 +403,7 @@ export class StorefrontLangGraphAgent {
           intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
         safetyValidation: { safe: confirmed, ...(confirmed ? {} : { reason: "catalog_read_unconfirmed" }) } };
     }
-    const genericStep = this.structuredRouting && !quantitySelection && !input.attachmentContext
+    const genericStep = !serviceBookingTurn && this.structuredRouting && !quantitySelection && !input.attachmentContext
       && semantic.classification.domain === "STORE_COMMERCE" && !salesProductFamily(salesRecommendationContext(input.userMessage, history))
       ? unspecifiedShoppingStep(input.userMessage, history) : undefined;
     if (genericStep) {
@@ -422,7 +438,7 @@ export class StorefrontLangGraphAgent {
     const contextualDiscovery = this.structuredRouting && !quantitySelection && !input.attachmentContext
       && semantic.classification.domain === "STORE_COMMERCE" && intentResult.intent === "COMPLEX_QUESTION"
       && !semantic.classification.requiresTool && explicitlyContinuesCareDiscovery(input.userMessage, history);
-    const productDiscovery = !quantitySelection && (semantic.classification.needsProductDiscovery === true || contextualDiscovery);
+    const productDiscovery = !serviceBookingTurn && !quantitySelection && (semantic.classification.needsProductDiscovery === true || contextualDiscovery);
     const structuredSearchRequired = this.structuredRouting && productDiscovery;
     const discoveryRounds = countSalesDiscoveryRounds(history.slice(-10));
     const canDiscover = productDiscovery && allowsSalesDiscovery(input.userMessage, input.attachmentContext)
@@ -491,15 +507,15 @@ export class StorefrontLangGraphAgent {
     }
     const profileReady = !needsDiscovery && hasCareProfile(salesRecommendationContext(input.userMessage, history));
     const canAsk = canDiscover && !profileReady;
-    const tools = buildStoreTools().map(tool => !structuredSearchRequired || tool.name !== "search_products" ? tool : {
+    const tools = [...buildStoreTools(), ...serviceBookingDefinitions(serviceBookingTurn ? serviceBinding : undefined)].map(tool => !structuredSearchRequired || tool.name !== "search_products" ? tool : {
       ...tool, parameters: { ...tool.parameters, required: [...new Set([...(tool.parameters.required ?? []), "criteria"])] },
     });
     const availableTools = input.groundedBusinessContext ? tools.filter(tool => tool.name !== "get_faq" && tool.name !== "get_store_policies") : tools;
-    if (serviceRead) availableTools.push(CURRENT_SERVICE_FACTS_TOOL);
+    if (serviceRead && !serviceBookingTurn) availableTools.push(CURRENT_SERVICE_FACTS_TOOL);
     const unscopedTurnTools = needsDiscovery ? [ASK_PRODUCT_PREFERENCES]
       : canAsk ? [...availableTools, ASK_PRODUCT_PREFERENCES] : availableTools;
     const productIntent = this.structuredRouting && (intentResult.intent === "PRODUCT_SEARCH" || intentResult.intent === "RECOMMEND_PERSONALIZED");
-    const turnTools = requiredReadToolName ? unscopedTurnTools.filter(tool => tool.name === requiredReadToolName)
+    const turnTools = serviceBookingTurn ? serviceOperationalTools(unscopedTurnTools) : requiredReadToolName ? unscopedTurnTools.filter(tool => tool.name === requiredReadToolName)
       : productIntent ? unscopedTurnTools.filter(tool => !POST_SALE_ORDER_TOOLS.has(tool.name)) : unscopedTurnTools;
     const announcedToolNames = new Set(turnTools.map(tool => tool.name));
 
@@ -520,12 +536,12 @@ export class StorefrontLangGraphAgent {
         } : value;
       },
     });
-    const commerceTools = searchPolicy.wrap(cartPolicy.wrap(buildExecutableStoreTools({
+    const commerceTools = searchPolicy.wrap(cartPolicy.wrap([...buildExecutableStoreTools({
       merchantId: input.merchantId, sessionId: input.sessionId,
       handlers: turnHandlers,
-    })));
+    }), ...createServiceBookingTools(serviceBookingTurn ? serviceBinding : undefined)]));
     const executableTools: ExecutableTool[] = needsDiscovery ? [] : commerceTools.filter(tool => announcedToolNames.has(tool.name));
-    if (serviceRead && announcedToolNames.has(CURRENT_SERVICE_FACTS_TOOL.name)) executableTools.push({ name: CURRENT_SERVICE_FACTS_TOOL.name,
+    if (serviceRead && !serviceBookingTurn && announcedToolNames.has(CURRENT_SERVICE_FACTS_TOOL.name)) executableTools.push({ name: CURRENT_SERVICE_FACTS_TOOL.name,
       execute: async args => {
         const parsed = businessLiveRequestSchema.safeParse(args);
         const result = await serviceRead(parsed.success ? parsed.data : args);
@@ -570,6 +586,7 @@ export class StorefrontLangGraphAgent {
         ? "\n\nLIMITE DA DESCOBERTA ATINGIDO: já houve 3 rodadas de perguntas. Não faça uma quarta pergunta de perfil. Consulte agora o catálogo usando todas as respostas do histórico e preserve as restrições. Apresente até 3 resultados relevantes; se não encontrar, explique a limitação sem inventar adequação."
         : "";
     const systemContent = JSON.stringify({ ...JSON.parse(baseSystemContent), attachmentPolicy, discoveryPolicy,
+      ...(serviceBookingTurn ? { serviceBookingPolicy: "Use apenas leituras e propostas canônicas de serviço. Nunca prepare, confirme, cobre ou declare o atendimento confirmado; a interface cuida dos gestos autenticados separados. Dados de um tool de serviço encerram a resposta sem narração adicional." } : {}),
       ...(quantitySelection ? { cartQuantityAdmission: { selection: quantitySelection,
         rules: "Leitura canônica de uma única linha; a mensagem atual já informou essa quantidade exata. Esta leitura não alterou o carrinho e não concede autorização de compra ou cobrança. Para executar somente a alteração solicitada, use update_cart_item com esse vínculo; não reconfirme a quantidade nem substitua por outra. O writer revalidará tudo. Não afirme alteração sem retorno confirmado da ferramenta." } } : {}) });
     const currentUserMessage = input.attachmentContext
@@ -734,6 +751,7 @@ export class StorefrontLangGraphAgent {
             if (execTool) {
               const toolResult = await this.executeObservedTool(execTool, tc.args);
               toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
+              if (serviceBookingTurn && isServiceBookingTool(tc.name)) { input.callbacks?.onToolResult?.(tc.name, toolResult); return finishServiceBooking(toolResult); }
               input.callbacks?.onToolResult?.(tc.name, toolResult);
 
               if (tc.name === CURRENT_SERVICE_FACTS_TOOL.name && serviceRead) {
@@ -803,6 +821,7 @@ export class StorefrontLangGraphAgent {
               if (execTool) {
                 const toolResult = await this.executeObservedTool(execTool, tc.args);
                 toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
+              if (serviceBookingTurn && isServiceBookingTool(tc.name)) { input.callbacks?.onToolResult?.(tc.name, toolResult); return finishServiceBooking(toolResult); }
                 if (cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureCanonicalOrder(tc.name)) break;
               }
             }
@@ -888,6 +907,7 @@ export class StorefrontLangGraphAgent {
                 if (execTool) {
                   const toolResult = await this.executeObservedTool(execTool, tc.args);
                   toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
+              if (serviceBookingTurn && isServiceBookingTool(tc.name)) { input.callbacks?.onToolResult?.(tc.name, toolResult); return finishServiceBooking(toolResult); }
                   fbMessages.push({ role: "tool", content: JSON.stringify(toolResult.ok ? toolResult.data : { error: toolResult.error }), name: tc.name, tool_call_id: tc.id });
                   if (discoveryQuestion || cartPolicy.mutationOutcome || captureCanonicalSearch(tc.name) || captureCanonicalOrder(tc.name)) break;
                 }
@@ -930,6 +950,7 @@ export class StorefrontLangGraphAgent {
       finalContent = "Não consegui carregar essa informação agora. Tente novamente ou escolha uma opção no menu para continuar.";
     if (structuredSearchRequired && !canonicalSearchComplete && toolsUsed.includes("search_products") && !discoveryQuestion)
       finalContent = SHOPPING_SEARCH_PLAN_UNCONFIRMED;
+    if (serviceBookingTurn) return finishServiceBooking({ ok: false, error: "service_booking_unconfirmed" });
     const built = buildConversationBlocks({ toolResults: cartPolicy.sanitizeResults(toolResults), userMessage: input.userMessage, finalContent, merchantId: input.merchantId,
       searchPurpose: productDiscovery ? "discovery" : "lookup",
       presentationMode: this.structuredRouting ? "structured" : "legacy" });

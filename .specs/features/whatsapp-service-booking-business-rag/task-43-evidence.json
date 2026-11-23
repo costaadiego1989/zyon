@@ -1,0 +1,144 @@
+{
+  "task": 43,
+  "localOnly": true,
+  "apiInput": "c8fc552b6a97100240188fb9b43bdfa5a7fdb49e9fb7834719de1f9937d49734",
+  "artifact": "27f8e932069ee209c704d3a626ca52d2b25ad5aae427b7fbc13db5e467d07b0f",
+  "tests": 63,
+  "failed": 0,
+  "skipped": 0,
+  "receipts": [
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t43-t44-t47-current-own-api-components39-20261123\\receipt.json",
+      "sha256": "2253bd245e9f1f361255701fe6bf7872dcc87d432c1e63e70acccbff7e5bbc9b",
+      "wholeFileResults": [
+        {
+          "file": "src/modules/storefront/infrastructure/tool-handlers/service-booking.handlers.spec.ts",
+          "counts": {
+            "tests": 14,
+            "pass": 14,
+            "fail": 0,
+            "skipped": 0,
+            "todo": 0,
+            "cancelled": 0
+          },
+          "rawSha256": "26711293266799fc9c6f6e1f29dfd7c91c6481d1cbcb23423ffb05bee1118cfd"
+        },
+        {
+          "file": "src/modules/storefront/application/services/storefront-service-booking-wiring.contract.spec.ts",
+          "counts": {
+            "tests": 3,
+            "pass": 3,
+            "fail": 0,
+            "skipped": 0,
+            "todo": 0,
+            "cancelled": 0
+          },
+          "rawSha256": "128d1784d38063a537555c958268695c5a5dee60bf1e125d932c3ea6ec77b76f"
+        }
+      ]
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t43-current-own-api-core39-20261123\\receipt.json",
+      "sha256": "f9019fbaaba41b491e156f9fd5071c22edee77682aaf364f19f91859084c7235",
+      "wholeFileResults": [
+        {
+          "file": "src/modules/storefront/domain/tools/service-booking-tools.spec.ts",
+          "counts": {
+            "tests": 7,
+            "pass": 7,
+            "fail": 0,
+            "skipped": 0,
+            "todo": 0,
+            "cancelled": 0
+          },
+          "rawSha256": "d3ed832a021be0246306bf6ce8b9c0d445dc022b8e5482cdf0f4b30e7d59658d"
+        },
+        {
+          "file": "src/modules/storefront/application/services/storefront-service-booking.bridge.spec.ts",
+          "counts": {
+            "tests": 11,
+            "pass": 11,
+            "fail": 0,
+            "skipped": 0,
+            "todo": 0,
+            "cancelled": 0
+          },
+          "rawSha256": "886957b293cbcf04ba71e3e6dea81d70d2ef0847778a06f7ef5311c2d092033e"
+        },
+        {
+          "file": "src/modules/storefront/infrastructure/agents/service-booking-routing.spec.ts",
+          "counts": {
+            "tests": 9,
+            "pass": 9,
+            "fail": 0,
+            "skipped": 0,
+            "todo": 0,
+            "cancelled": 0
+          },
+          "rawSha256": "ac37e048d599f0d74b230c44f0541545484acb5c74852f517c9a8bcc4920eefa"
+        },
+        {
+          "file": "src/modules/storefront/infrastructure/agents/service-booking-agent.spec.ts",
+          "counts": {
+            "tests": 6,
+            "pass": 6,
+            "fail": 0,
+            "skipped": 0,
+            "todo": 0,
+            "cancelled": 0
+          },
+          "rawSha256": "80502b38a9b6f76cd5547a5d4bf800f6e23c303815dab7104d7feb33e24088f8"
+        },
+        {
+          "file": "src/modules/storefront/infrastructure/adapters/storefront-service-booking.adapter.spec.ts",
+          "counts": {
+            "tests": 6,
+            "pass": 6,
+            "fail": 0,
+            "skipped": 0,
+            "todo": 0,
+            "cancelled": 0
+          },
+          "rawSha256": "b3bd2f0efb271ae6d42cc73c45edee48ff260a82d442f6c224310bf502108df4"
+        }
+      ]
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t43-current-api-owned-native7-window02-20261123\\receipt.json",
+      "sha256": "c7711314229dd73035adf839e51a0e6ea13f22d22a1088409ebdf7bfdd6601f6",
+      "wholeFileResults": [
+        {
+          "file": "storefront-service-tools-http.integration.spec.ts",
+          "counts": {
+            "tests": 7,
+            "pass": 7,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          "rawSha256": "098840aaa16e4d93a7c4b0581c1d1d3159eccfbf8ac1126c7cb84479a8d21218"
+        }
+      ]
+    }
+  ],
+  "sourcePlanSha256": "1e849f7eaf51e0826d7d7dbb0c994a3cb4979ce92b9f44573cb7ef2f9bac5b01",
+  "projectionNotSeparatelyExecuted": [
+    "apps/api/src/modules/storefront/infrastructure/adapters/storefront-conversation.adapter.ts",
+    "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+    "apps/api/src/modules/storefront/storefront.module.ts"
+  ],
+  "qualification": "Actual full current Focus WIP context executed. Final whole feature same-HEAD proofs and independent verification remain required; no standalone clean checkout/provider/production claim.",
+  "stagedFormattingOnlyProjection": {
+    "path": "apps/api/src/modules/storefront/infrastructure/gateways/conversation.gateway.ts",
+    "change": "Remove one trailing ASCII space from the staged changed line; runtime behavior is identical. Root/Focus tested working files preserved for current artifact admission."
+  },
+  "affectedOriginalContracts": {
+    "wholeFiles": 2,
+    "tests": 140,
+    "failed": 0,
+    "skipped": 0,
+    "receiptSha256": "f46a39d8f33f772f101b3942598d72c11cc5fc3a55353f0542310b11c206532f",
+    "separateFromFormal63": true
+  }
+}

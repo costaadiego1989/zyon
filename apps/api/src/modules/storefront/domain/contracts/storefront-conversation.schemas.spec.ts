@@ -39,6 +39,7 @@ test("schema: cross-sell carries the existing recommendation rule reference with
 });
 const blocks = [
   card,
+  { type: "service_booking", data: { kind: "authentication_required", action: "authenticate" } },
   { type: "product_carousel", data: { products: [product], merchantId: "merchant", nextCursor: "next" } },
   { type: "comparison_table", data: { products: [{ id: "book", name: "Livro", price: 1500, attributes: {}, stock: 1 }], attributes: [] } },
   { type: "cart_summary", data: { cartId: "conversation", items: [{ variantId: "variant", productName: "Livro", quantity: 1, price: 15, subtotal: 15 }], itemCount: 1, subtotal: 15, total: 15 } },

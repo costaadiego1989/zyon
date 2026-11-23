@@ -21,7 +21,11 @@ export interface ExecutableTool {
   execute: (args: Record<string, unknown>) => Promise<ToolResult>;
 }
 
+import type { ServiceBookingHandlers } from "../ports/service-booking-tools.port.js";
+
 export interface StoreToolHandlers {
+  /** Private per-call service binding; never a DTO/model flag. */
+  readonly serviceBooking?: ServiceBookingHandlers;
   /** Server-issued turn capability, never a model/public argument. */
   readonly shoppingReadMode?: "lookup_only";
   /** Internal read admission; never exposed to the model as a tool. */

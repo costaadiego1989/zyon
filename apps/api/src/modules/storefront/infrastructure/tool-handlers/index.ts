@@ -26,6 +26,8 @@ import { createOrderHandlers, type OrderHandlerDeps } from "./order.handlers.js"
 import { createSupportHandlers, type SupportHandlerDeps } from "./support.handlers.js";
 import { createShoppingRecommendationReader } from "./shopping-recommendation.handler.js";
 
+import type { ServiceBookingHandlers } from "../../domain/ports/service-booking-tools.port.js";
+
 export interface AllHandlerDeps {
   productRepo: ProductRepositoryPort;
   stockRepo: StockRepositoryPort;
@@ -48,7 +50,7 @@ export interface AllHandlerDeps {
   shippingReference?: StorefrontShippingReferencePort;
 }
 
-export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestContext): StoreToolHandlers {
+export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestContext, serviceBooking?: ServiceBookingHandlers): StoreToolHandlers {
   const productDeps: ProductHandlerDeps = {
     cartRepo: deps.cartRepo,
     loadCrossSellConfig: deps.loadCrossSellConfig,
@@ -108,5 +110,6 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
     ...createWishlistHandlers(wishlistDeps, ctx),
     ...createOrderHandlers(orderDeps, ctx),
     ...createSupportHandlers(supportDeps, ctx),
+    ...(serviceBooking ? { serviceBooking } : {}),
   };
 }

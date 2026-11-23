@@ -48,6 +48,8 @@ import { StorefrontConversationRateLimitService } from "../../application/servic
 
 import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort } from "../../../checkout/domain/ports/cross-sell-recommender.port.js";
 
+import { StorefrontServiceBookingBridge } from "../../application/services/storefront-service-booking.bridge.js";
+
 export interface StartConversationRequest {
   merchant_id: string;
   initial_message?: string;
@@ -99,6 +101,7 @@ export class StorefrontController {
     @Optional() @Inject(STOREFRONT_CROSS_SELL_CART) private readonly crossSellCart?: StorefrontCrossSellCartPort,
     @Optional() private readonly aiMetering?: AiMeteringService,
     @Optional() private readonly tenantContext?: TenantContextService,
+    @Optional() private readonly serviceBookingBridge?: StorefrontServiceBookingBridge,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -273,7 +276,7 @@ export class StorefrontController {
     return tenantContext.run({ merchantId: claims.merchantId, userId, role: "buyer",
       ...(globalUserId ? { buyerGlobalUserId: globalUserId } : {}), ...(correlationId ? { correlationId } : {}) },
       () => withAiMetering({ merchantId: claims.merchantId, conversationId: claims.resourceId, source: "storefront", costCenter: admittedVoice ? "voice" : "text", ...voiceContext },
-        () => deferredContext ? this.sendStoreMessage.execute(input, deferredContext) : this.sendStoreMessage.execute(input)));
+        () => deferredContext ? this.sendStoreMessage.execute(input, deferredContext, undefined, this.serviceBookingBridge?.capture({ headers: request.headers, conversationId: claims.resourceId })) : this.sendStoreMessage.execute(input, undefined, undefined, this.serviceBookingBridge?.capture({ headers: request.headers, conversationId: claims.resourceId }))));
   }
 
   @Get("conversations/:conversationId/one-buy-click")

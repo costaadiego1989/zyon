@@ -292,7 +292,10 @@ export interface CategoryCarouselBlock {
   data: { categories: Array<{ id: string; name: string; slug?: string; productCount: number }> };
 }
 
+import type { ServiceBookingResult } from "../contracts/service-booking-tool.schemas.js";
+
 export type ConversationBlock =
+  | { type: "service_booking"; data: ServiceBookingResult }
   | { type: "cart_add_result"; data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string } }
   | ProductCardBlock
   | ProductCarouselBlock
