@@ -386,7 +386,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
                       type="checkbox"
                       aria-label={"Selecionar " + c.cnpj}
                       checked={ids.includes(c.cnpj)}
-                      disabled={!valid || action.disabled || (ids.length >= 100 && !ids.includes(c.cnpj))}
+                      disabled={refreshing || !valid || action.disabled || (ids.length >= 100 && !ids.includes(c.cnpj))}
                       onChange={(e) =>
                         setSelected({
                           snapshot: page.snapshotId,

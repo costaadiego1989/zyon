@@ -28,9 +28,9 @@ export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort,
     const validated=validateCompanyDomainQuery(query);const snapshotId=validated.snapshotId??await this.activeSnapshotId();if(!snapshotId)throw new Error("directory_unavailable");
     return this.client.$transaction(async tx=>{
       const storage=await resolveDirectoryStorage(tx,snapshotId),{snapshot}=storage;
-      const result=validated.uf ? await tx.$queryRaw<{kind:string;code:string;label:string}[]>(Prisma.sql`SELECT d.kind,d.code,d.label FROM company_directory.source_domains d
+      const result=validated.uf||(validated.kind==='municipios'&&storage.maximumCnpj) ? await tx.$queryRaw<{kind:string;code:string;label:string}[]>(Prisma.sql`SELECT d.kind,d.code,d.label FROM company_directory.source_domains d
         WHERE d.snapshot_id=${storage.storageSnapshotId} AND d.kind='municipios'
-        AND EXISTS(SELECT 1 FROM company_directory.company_establishments e WHERE e.snapshot_id=d.snapshot_id AND e.city_code=d.code AND e.uf=${validated.uf} ${storage.maximumCnpj?Prisma.sql`AND e.cnpj COLLATE "C"<=${storage.maximumCnpj}`:Prisma.empty})
+        AND EXISTS(SELECT 1 FROM company_directory.company_establishments e WHERE e.snapshot_id=d.snapshot_id AND e.city_code=d.code ${validated.uf?Prisma.sql`AND e.uf=${validated.uf}`:Prisma.empty} ${storage.maximumCnpj?Prisma.sql`AND e.cnpj COLLATE "C"<=${storage.maximumCnpj}`:Prisma.empty})
         AND d.code > ${validated.afterCode??""}
         AND (starts_with(d.code,${validated.search??""}) OR strpos(lower(d.label),lower(${validated.search??""}))>0)
         ORDER BY d.code LIMIT ${validated.limit!+1}`) : await tx.sourceDomain.findMany({where:{snapshotId:storage.storageSnapshotId,kind:validated.kind,...(validated.afterCode?{code:{gt:validated.afterCode}}:{}),...(validated.search?{OR:[{code:{startsWith:validated.search}},{label:{contains:validated.search,mode:"insensitive"}}]}:{})},select:{kind:true,code:true,label:true},orderBy:{code:"asc"},take:validated.limit!+1});

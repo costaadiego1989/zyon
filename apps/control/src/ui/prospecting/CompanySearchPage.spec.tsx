@@ -48,6 +48,19 @@ test('PRG-03 refresh preserves filters and cannot replace a selected partial vie
  expect(ui.control('Pesquisar empresa').value).toBe('moda');expect(ui.control('UF').value).toBe('SC');expect(ui.text()).toContain('2.000 empresas disponíveis');
  await ui.click('Atualizar base');expect(ui.text()).toContain('Não foi possível atualizar a base');expect(ui.control('UF').value).toBe('SC');expect(ui.text()).toContain('Oficina '+first);
 });
+test('PRG-03 refresh blocks new selection until the updated view is ready',async()=>{
+ let finish!:(value:unknown)=>void;
+ const readiness=vi.fn().mockResolvedValueOnce(partialSource()).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+ const companies=async(q:{snapshotId?:string})=>({...page(),snapshotId:q.snapshotId??'partial-a'}),addProspects=vi.fn().mockResolvedValue({created:1,existing:0});
+ const ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains,addProspects})}/>);
+ await ui.click('Atualizar base');expect(ui.control('Selecionar '+first).disabled).toBe(true);
+ await ui.check('Selecionar '+first);expect(ui.control('Selecionar '+first).checked).toBe(false);expect(ui.button('Adicionar ao CRM').disabled).toBe(true);
+ await act(async()=>finish(partialSource('partial-b',2000)));
+ expect(ui.text()).toContain('2.000 empresas disponíveis');expect(ui.control('Selecionar '+first).disabled).toBe(false);
+ await ui.check('Selecionar '+first);expect(ui.button('Atualizar base').disabled).toBe(true);await ui.click('Adicionar ao CRM');
+ expect(addProspects.mock.calls[0][0]).toMatchObject({snapshotId:'partial-b',cnpjs:[first]});
+});
+
 test('PRG-03 available companies remain selectable after their parent load is interrupted',async()=>{
  const source=partialSource();source.source.value.latestImport.state='failed';
  const ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>source,companies:async()=>({...page(),snapshotId:'partial-a'}),domains})}/>);

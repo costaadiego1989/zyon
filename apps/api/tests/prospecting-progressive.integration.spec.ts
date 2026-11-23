@@ -28,6 +28,8 @@ test('PRG-01 reads retain logical identity and frozen prefix for search, details
   assert.equal(await f.repo.find(f.ordered[1].cnpj,f.view),null);
   const domains=await f.repo.domains({snapshotId:f.view,kind:'municipios',uf:f.ordered[0].uf,limit:30});
   assert.equal(domains.snapshotId,f.view);assert.ok(domains.items.some(d=>d.code===f.ordered[0].cityCode));
+  const allVisibleCities=await f.repo.domains({snapshotId:f.view,kind:'municipios',limit:30});
+  assert.equal(allVisibleCities.snapshotId,f.view);assert.deepEqual(allVisibleCities.items.map(d=>d.code),[f.ordered[0].cityCode]);
   assert.deepEqual((await f.repo.domains({snapshotId:f.view,kind:'municipios',uf:'RJ',limit:30})).items,[]);
   await f.client.companyDirectoryActiveSnapshot.update({where:{id:'national'},data:{snapshotId:f.storage}});
   await f.client.companySnapshot.update({where:{id:f.storage},data:{state:'published'}});
