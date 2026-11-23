@@ -208,10 +208,15 @@ export async function publishRetailDirectory(pg,staging,manifest,actor) {
     assert.ok(count>0&&count===staging.count('establishments'),'recovery_count_mismatch');
     const domains=(await pg.query('SELECT count(*)::int AS n FROM company_directory.source_domains WHERE snapshot_id=$1',[manifest.id])).rows[0].n;
     assert.equal(domains,staging.count('domains'),'recovery_domains_mismatch');
+    const entities=(await pg.query('SELECT count(*)::int AS n FROM company_directory.company_entities WHERE snapshot_id=$1',[manifest.id])).rows[0].n;
+    assert.equal(entities,staging.count('entities'),'recovery_entities_mismatch');
+    const expectedContacts=Number(staging.db.prepare("SELECT count(DISTINCT json_array(e.cnpj,json_extract(c.value,'$.channel'),json_extract(c.value,'$.originalValue'))) AS n FROM establishments e,json_each(e.json,'$.contacts') c").get().n);
+    const contacts=(await pg.query('SELECT count(*)::int AS n FROM company_directory.company_public_contacts WHERE snapshot_id=$1',[manifest.id])).rows[0].n;
+    assert.equal(contacts,expectedContacts,'recovery_contacts_mismatch');
     const bytes=await assertRetailDirectoryBudget(pg);
     for(const resource of manifest.resources){const f=staging.file(resource.id);assert.match(f.hash,/^[a-f0-9]{64}$/);await pg.query('UPDATE company_directory.company_source_files SET state=$3,computed_hash=$4,compressed_bytes=$5 WHERE snapshot_id=$1 AND resource_id=$2',[manifest.id,resource.id,f.state,f.hash,f.compressedBytes]);}
     const coverage={...RETAIL_SCOPE,companyCount:count,directoryBytes:bytes,sourceSnapshotId:manifest.scope.sourceSnapshotId,sourceFileCount:manifest.resources.length,scopeComplete:true};
-    await pg.query("UPDATE company_directory.company_snapshots SET state='published',published_at=now(),available_filters=ARRAY['cadastral','contact','commercial'],error_code=NULL,counts=counts||$2::jsonb,updated_at=now() WHERE id=$1",[manifest.id,JSON.stringify({coverage,requested:false,leaseToken:null,leaseUntil:0,progress:{phase:'completed',selectedCompanies:count,validatedFiles:manifest.resources.length,requiredFiles:manifest.resources.length,updatedAt:new Date().toISOString()}})]);
+    await pg.query("UPDATE company_directory.company_snapshots SET state='published',published_at=now(),available_filters=ARRAY['cadastral','contact','commercial'],error_code=NULL,counts=counts||$2::jsonb,updated_at=now() WHERE id=$1",[manifest.id,JSON.stringify({coverage,requested:false,leaseToken:null,leaseUntil:0,progress:{phase:'completed',committedRecords:entities+count+domains,selectedCompanies:count,validatedFiles:manifest.resources.length,requiredFiles:manifest.resources.length,updatedAt:new Date().toISOString()}})]);
     await pg.query("INSERT INTO company_directory.active_snapshot(id,snapshot_id,version,updated_at) VALUES ('national',$1,1,now())",[manifest.id]);
     await pg.query("INSERT INTO public.prospect_audit_events(id,actor_operator_id,action,resource_type,resource_id,resource_version,correlation_id,outcome) VALUES ($1,$2,'company_import_publish','company_snapshot',$3,1,$4,'regional_retail_published')",[randomUUID(),actor.operatorId,manifest.id,actor.correlationId]);
     await pg.query('COMMIT');return coverage;

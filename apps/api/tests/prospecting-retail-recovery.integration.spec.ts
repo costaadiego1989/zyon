@@ -32,6 +32,7 @@ test('REC-01 REC-02 real replacement retains official values and regional proven
   const coverage=await publishRetailDirectory(f.connection,f.staging,f.manifest,f.actor);
   assert.deepEqual(coverage.ufs,RETAIL_SCOPE.ufs);assert.equal(coverage.companyCount,1);assert.equal(coverage.maximumDirectoryBytes,25_000_000_000);assert.equal(coverage.scopeComplete,true);
   assert.equal(await f.repo.activeSnapshotId(),f.manifest.id);
+  assert.equal((await f.repo.getImport(f.manifest.id))?.committedCount,3);
   const actual=await f.repo.find(company.cnpj);assert.equal(actual?.legalName,entity.legalName);assert.equal(actual?.capitalCents,entity.capitalCents);assert.equal(actual?.uf,'SC');assert.equal(actual?.simples,null);
   assert.deepEqual(actual?.secondaryCnaes,company.secondaryCnaes);assert.deepEqual(actual?.contacts,[company.contacts[1],company.contacts[0]]);
   assert.equal(await f.client.companyPublicContact.count(),2);assert.equal(await f.client.establishmentSecondaryCnae.count(),1);
