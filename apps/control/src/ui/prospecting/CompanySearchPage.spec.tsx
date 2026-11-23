@@ -171,3 +171,13 @@ test("DIR-03 pending readiness hides directory controls and real failures retain
     else expect(ui.text()).toContain('permissão');
   }
 });
+test("DIR-03 empty or malformed readiness responses are retryable without starting directory requests",async()=>{
+  for(const payload of [null,undefined,false,0,"",[],"invalid"]){
+    const readiness=vi.fn().mockResolvedValueOnce(payload).mockResolvedValue(published);
+    const companies=vi.fn().mockResolvedValue(page()),lookup=vi.fn(domains);
+    const ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains:lookup})}/>);
+    expect(ui.host.querySelector('[role=alert]')?.textContent).toBe('Não foi possível carregar os dados.');
+    expect(ui.text()).not.toContain('Base nacional em preparação');expect(companies).not.toHaveBeenCalled();expect(lookup).not.toHaveBeenCalled();
+    await ui.click('Tentar novamente');expect(readiness).toHaveBeenCalledTimes(2);expect(ui.text()).toContain('Oficina '+first);
+  }
+});

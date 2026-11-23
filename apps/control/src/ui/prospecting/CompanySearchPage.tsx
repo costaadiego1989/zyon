@@ -197,7 +197,12 @@ function filtersFrom(form: HTMLFormElement): CompanyFilters {
   return result;
 }
 export function CompanySearchPage(props: PageProps) {
-  const load = useCallback((signal: AbortSignal) => props.api.readiness(signal), [props.api]);
+  const load = useCallback(async (signal: AbortSignal) => {
+    const readiness = await props.api.readiness(signal);
+    if (!readiness || typeof readiness !== "object" || Array.isArray(readiness))
+      throw new Error("directory_availability_unknown");
+    return readiness;
+  }, [props.api]);
   const availability = useResource(load, props.onSessionExpired);
   const source = availability.data?.source;
   if (source?.status === "current" && source.value?.snapshotId && source.value.state === "published")
