@@ -110,11 +110,11 @@ export interface SalesKnowledgePort {
   find(id: string): Promise<SalesKnowledgeSource | null>;
   queryPublishedKnowledge(query: SalesKnowledgeQuery, now: Date): Promise<SalesKnowledgeFact[]>;
 }
-export type SalesToolName = "knowledge" | "canonical_offer" | "allowed_link" | "qualify" | "human_handoff";
-export interface SalesLlmRequest { requestId: string; conversationId: string; controlEpoch: number; input: string; facts: SalesKnowledgeFact[]; offer: ProspectOffer; siteUrl?: string; allowedTools: readonly SalesToolName[]; maximumCostCents: number; timeoutMs: number }
-export type SalesModelAnswer = SalesKnowledgeAnswer & {linkDestination?: "site" | "signup"};
+export type SalesToolName = "knowledge" | "canonical_offer" | "canonical_catalog" | "allowed_link" | "qualify" | "human_handoff";
+export interface SalesLlmRequest { requestId: string; conversationId: string; controlEpoch: number; input: string; facts: SalesKnowledgeFact[]; offer: ProspectOffer | null; catalog?:ProspectOffer[];offerPolicy?:import("@zyon/shared-types").ProspectOfferPolicy;businessContext?:string|null;companyContext?:Record<string,string|null>;siteUrl?: string; allowedTools: readonly SalesToolName[]; maximumCostCents: number; timeoutMs: number }
+export type SalesModelAnswer = SalesKnowledgeAnswer & {linkDestination?: "site" | "signup";catalog?:ProspectOffer[]};
 export interface SalesLlmPort { respond(input: SalesLlmRequest): Promise<SalesModelAnswer> }
-export interface CanonicalBillingOfferPort { current(planKey: string): Promise<ProspectOffer>; allowedUrl(url: string): boolean; publicSite?(): string | null }
+export interface CanonicalBillingOfferPort { current(planKey: string): Promise<ProspectOffer>; catalog?():Promise<ProspectOffer[]>; allowedUrl(url: string): boolean; publicSite?(): string | null }
 export interface ProspectBillingPort {
   createSignupProposal(prospectId: string, planKey: string, clientRequestId: string, actor: ProspectingActor): Promise<ProspectBillingProposal>;
   bindAuthenticatedAccount(token: string, merchantId: string, authenticatedUserId: string): Promise<{boundMerchantId:string;next:"manage_subscription"|"select_plan"}>;

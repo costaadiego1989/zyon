@@ -8,6 +8,7 @@ import type {ProspectingActor,ProspectSendPacket,ProspectSendResult} from "../..
 import {contactPermission,normalizeContactIdentity} from "../../domain/crm/prospect-contact.js";
 import {campaignContentHash} from "../../domain/campaigns/prospecting-campaign.js";
 import {storedReview,releasePreSubmission} from "../campaigns/prisma-campaign.repository.js";
+import {sourceCompanies} from "../campaigns/prisma-campaign-drafts.js";
 import {prospectCommand,prospectAudit,validateCommandId} from "../crm/prospect-command.js";
 import {protectedContactLookups,type SuppressionKeyRing} from "../crm/prisma-prospect-privacy.repository.js";
 import {authenticatedEndpoint,observedBsuid} from "./prospect-endpoint-alias.js";
@@ -91,6 +92,17 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
    const prepared=await tx.prospectMessage.findUnique({where:{clientRequestId:"sales."+m.id}});
    if(prepared)return {text:"",prepared:prepared.id};
    const now=new Date();await this.eligible(tx,c,now);await this.funding(tx,c.endpointId,c.endpoint.senderBindingId,now);
+   const origin=await tx.outreachAttempt.findFirst({where:{ordinal:0,sequence:{endpointId:c.endpointId,senderBindingId:c.endpoint.senderBindingId}},include:{recipient:{include:{campaign:true}}}});
+   const campaign=origin?.recipient?.campaign;
+   if(campaign?.setupVersion===2){
+    const hash=campaignContentHash(storedReview(campaign));if(campaign.approvedRevision!==campaign.revision||campaign.approvedHash!==hash)throw Error("approval_stale");
+    const policy=campaign.offerPolicy as unknown as import("@zyon/shared-types").ProspectOfferPolicy;
+    if(!policy||!['catalog','fixed'].includes(policy.mode))throw Error("offer_unavailable");
+    const snapshot=origin!.recipient!.frozenSnapshot as {snapshotId?:string;cnpj?:string};
+    if(!snapshot.snapshotId||!snapshot.cnpj||snapshot.cnpj!==c.prospect?.cnpj)throw Error("sales_context_unavailable");
+    const company=(await sourceCompanies(tx,snapshot.snapshotId,[snapshot.cnpj]))[0];
+    return {text:m.content!,prepared:null,offerPolicy:policy,businessContext:campaign.businessContext?.slice(0,4000)??null,companyContext:{cnpj:company.cnpj,legalName:company.legalName.slice(0,240),tradeName:company.tradeName?.slice(0,240)??null,mainCnae:company.mainCnae,uf:company.uf,cityCode:company.cityCode},campaignReview:{id:campaign.id,revision:campaign.revision,hash}};
+   }
    return {text:m.content!,prepared:null};
   });
  }
@@ -98,9 +110,16 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
   if(!this.offers || !e.facts.length)return false;
   const incoming=await tx.prospectMessage.findUnique({where:{id:e.messageId}});
   if(!incoming?.content || incoming.conversationId!==c.id || incoming.direction!=="inbound" || incoming.providerId!==c.lastInboundEventId)return false;
-  const offer=await this.offers.current(e.offer.planKey);
-  if(!this.offers.allowedUrl(offer.canonicalUrl) || stableDirectoryJson(offer)!==stableDirectoryJson(e.offer))return false;
-  if(e.link && (e.link.destination==="signup"?e.link.url!==offer.canonicalUrl:e.link.destination!=="site"||e.link.url!==this.offers.publicSite?.()||!this.offers.allowedUrl(e.link.url)))return false;
+  const offer=e.offer?await this.offers.current(e.offer.planKey):null;
+  if(offer&&(!this.offers.allowedUrl(offer.canonicalUrl)||stableDirectoryJson(offer)!==stableDirectoryJson(e.offer)))return false;
+  if(e.catalog){const catalog=await this.offers.catalog?.();if(!catalog||stableDirectoryJson(catalog)!==stableDirectoryJson(e.catalog)||e.offer&&!catalog.some(o=>stableDirectoryJson(o)===stableDirectoryJson(e.offer))||!e.campaignReview)return false;}
+  else if(!offer)return false;
+  if(e.campaignReview){
+   const campaign=await tx.prospectCampaign.findUnique({where:{id:e.campaignReview.id}});
+   if(!campaign||campaign.setupVersion!==2||campaign.revision!==e.campaignReview.revision||campaign.approvedRevision!==campaign.revision||campaign.approvedHash!==e.campaignReview.hash||campaignContentHash(storedReview(campaign))!==e.campaignReview.hash)return false;
+   const origin=await tx.outreachAttempt.findFirst({where:{ordinal:0,recipient:{campaignId:campaign.id},sequence:{endpointId:c.endpointId,senderBindingId:campaign.senderBindingId??""}}});if(!origin)return false;
+  }
+  if(e.link && (e.link.destination==="signup"?!offer||e.link.url!==offer.canonicalUrl:e.link.destination!=="site"||e.link.url!==this.offers.publicSite?.()||!this.offers.allowedUrl(e.link.url)))return false;
   for(const sourceId of [...new Set(e.facts.map(f=>f.sourceId))].sort()){
    await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(hashtext('sales-knowledge'),hashtext(${sourceId}))::text`;
    const active=await tx.salesKnowledgeActivePublication.findUnique({where:{sourceId}});
@@ -167,15 +186,15 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
   if(link){
    if(operator || cmd.content!==link.url)throw Error("invalid_link_destination");
    if(link.destination==="signup"){
-    if(!this.chatLinks||!c.prospectId||c.ambiguousBindings.length)throw Error("proposal_identity_unavailable");
-    proposal=await this.chatLinks.prepare(tx,c.prospectId,evidence!.offer,evidence!.messageId);
+    if(!this.chatLinks||!c.prospectId||c.ambiguousBindings.length||!evidence?.offer)throw Error("proposal_identity_unavailable");
+    proposal=await this.chatLinks.prepare(tx,c.prospectId,evidence.offer,evidence.messageId);
    }
   }
   const m=await append(tx,id,{senderBindingId:c.endpoint.senderBindingId,senderVersion:c.endpoint.sender.version,clientRequestId:cmd.clientRequestId,controlEpoch:cmd.expectedEpoch,
    direction:"outbound",authorType:operator?"operator":"ai",authorId:operator,state:"prepared",content:proposal?.url??cmd.content});
   if(operator)await this.manualActivity(tx,c);
   const ids=[...resources(c),m.id,...(proposal?[proposal.id]:[])];await tx.prospectOutbox.create({data:{kind:"prospect.chat.dispatch",eventId:"chat."+m.id,payload:{messageId:m.id,conversationId:id,...(proposal?{proposalId:proposal.id}:{}),...(cmd.evidence?{evidence:JSON.parse(JSON.stringify(cmd.evidence))}:{})},resourceIds:ids}});
-  if(cmd.evidence)await tx.prospectAuditEvent.create({data:{action:"sales.reply.prepared",resourceType:"conversation",resourceId:c.id,resourceVersion:c.controlEpoch,correlationId:m.id,outcome:"completed",details:{...(proposal?{proposalId:proposal.id}:{}),facts:cmd.evidence.facts,offerVersion:cmd.evidence.offer.version,messageId:m.id}}});
+  if(cmd.evidence)await tx.prospectAuditEvent.create({data:{action:"sales.reply.prepared",resourceType:"conversation",resourceId:c.id,resourceVersion:c.controlEpoch,correlationId:m.id,outcome:"completed",details:{...(proposal?{proposalId:proposal.id}:{}),facts:cmd.evidence.facts,offerVersion:cmd.evidence.offer?.version??null,messageId:m.id}}});
   return {result:publicMessage(m),resourceIds:ids};
  }
  prepareManual(id:string,cmd:SendProspectMessage,actor:ProspectingActor){
@@ -217,7 +236,7 @@ export class PrismaProspectConversationCommands implements ConversationCommandSt
    if(binding.id!==m.senderBindingId||binding.version!==m.senderVersion||c.endpoint.sender.version!==m.senderVersion)throw Error("sender_identity_mismatch");
    const event=await tx.prospectOutbox.findUniqueOrThrow({where:{eventId:"chat."+m.id}});
    const {evidence,proposalId}=event.payload as unknown as {evidence?:SalesReplyEvidence;proposalId?:string};
-   const validLink=evidence?.link?.destination==="signup"?c.prospectId && !c.ambiguousBindings.length && proposalId && await this.chatLinks?.current(tx,c.prospectId,evidence.offer,evidence.messageId,proposalId,m.content):
+   const validLink=evidence?.link?.destination==="signup"?evidence.offer && c.prospectId && !c.ambiguousBindings.length && proposalId && await this.chatLinks?.current(tx,c.prospectId,evidence.offer,evidence.messageId,proposalId,m.content):
      !proposalId && (!evidence?.link || m.content===evidence.link.url);
    if(m.authorType==="ai" && (evidence || m.clientRequestId?.startsWith("sales.")) && (!validLink || !evidence || !await this.currentEvidence(tx,c,evidence))){
      await tx.prospectMessage.update({where:{id:m.id},data:{state:"cancelled_before_submit",errorCode:"sales_evidence_conflict"}});

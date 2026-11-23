@@ -14,6 +14,7 @@ export class PlatformSalesOffers {
   }
   private url(plan:string){return this.origin+"/?mode=signup&plan="+encodeURIComponent(plan);}
   publicSite(){return this.site;}
+  catalog(){return Promise.all(Object.keys(BILLING_PLANS).map(key=>this.current(key)));}
   allowedUrl(url:string){return url===this.site || Object.keys(BILLING_PLANS).some(plan=>this.url(plan)===url);}
   async current(planKey:string):Promise<ProspectOffer>{
     if(!Object.hasOwn(BILLING_PLANS,planKey))throw Error("invalid_plan");

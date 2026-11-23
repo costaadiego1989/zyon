@@ -87,18 +87,19 @@ export class ProspectEffectQueue {
                 },
                 select: {
                   recipient: {
-                    select: { campaign: { select: { offerSnapshot: true } } },
+                    select: { campaign: { select: { offerSnapshot: true,setupVersion:true,offerPolicy:true } } },
                   },
                 },
               });
               const offer = campaign?.recipient?.campaign.offerSnapshot as {
                 planKey?: string;
               } | null;
-              const mentioned = Object.keys(BILLING_PLANS).find((key) =>
-                context.text.toLowerCase().includes(key)
-              );
-              const planKey = mentioned ?? offer?.planKey;
-              if (!planKey)
+              const policy=campaign?.recipient?.campaign.offerPolicy as {mode?:string}|null;
+              const catalogMode=campaign?.recipient?.campaign.setupVersion===2&&policy?.mode==="catalog";
+              const words=context.text.toLowerCase().split(/[^\p{L}\p{N}_-]+/u);
+              const mentioned=Object.keys(BILLING_PLANS).filter(key=>words.includes(key));
+              const planKey=catalogMode?undefined:mentioned.length===1?mentioned[0]:offer?.planKey;
+              if (!planKey&&!catalogMode)
                 await this.commands.handoff(input, "offer_unavailable");
               else {
                 const question = context.text.trim().slice(0, 180);
@@ -110,7 +111,7 @@ export class ProspectEffectQueue {
                   : /plano|preço|contratar|assinar/i.test(question)
                   ? {
                       operation: "compare_plans" as const,
-                      params: { planKeys: [planKey] },
+                      params: { planKeys: planKey?[planKey]:Object.keys(BILLING_PLANS) },
                     }
                   : /como|recurso|funciona/i.test(question)
                   ? {
