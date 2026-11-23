@@ -20,7 +20,7 @@ function dueFor(deliveredAt:Date,hasReply:boolean,ep:{timezone:string|null;timez
 }
 export type CostQuote=(context:{campaignId:string;recipientId:string;template:ProspectingTemplate|null;now:Date})=>{amountCents:number;currency:"BRL";validUntil:Date}|null;
 export function storedReview(c:ProspectCampaign){
-  return {message:c.message,offer:c.offerSnapshot,senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template,audienceHash:c.audienceHash,sendWindow:c.sendWindow,
+  return {message:c.message,offer:c.offerSnapshot,senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template,audienceHash:c.audienceHash,sendWindow:c.sendWindow,...(c.setupVersion===2?{setupVersion:2,businessContext:c.businessContext,offerPolicy:c.offerPolicy}:{}),
     limits:c.dailyRecipientLimit&&c.budgetCents?{dailyRecipients:c.dailyRecipientLimit,budget:{amountCents:Number(c.budgetCents),currency:c.currency}}:null};
 }
 export function projectAttempt(row:OutreachAttempt):OutreachAttemptRecord {
@@ -47,7 +47,7 @@ export class PrismaCampaignRepository {
     await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${ids.campaignId} FOR UPDATE`;
     const r=await tx.campaignRecipient.findUniqueOrThrow({where:{id:recipientId},include:{prospect:true,campaign:true,endpoint:{include:{sender:true,permissions:true,conversations:true,aliases:true}}}});
     const c=r.campaign,ep=r.endpoint,conversation=ep.conversations[0];
-    if(c.state!=="running"||c.approvedRevision!==c.revision||!c.approvedHash||c.approvedHash!==campaignContentHash(storedReview(c))||!c.audienceHash) return null;
+    if(!c.message||!c.sendWindow||c.state!=="running"||c.approvedRevision!==c.revision||!c.approvedHash||c.approvedHash!==campaignContentHash(storedReview(c))||!c.audienceHash) return null;
     if(!ep.sender.active||ep.sender.scope!=="zyon_platform"||c.senderBindingId!==ep.senderBindingId||c.senderVersion!==ep.sender.version||!ep.normalizedValue||ep.channel!=="whatsapp"||!(["phone","bsuid"].includes(ep.identityKind))) return null;
     if(["converted","do_not_contact","lost"].includes(r.prospect.stage)||r.prospect.piiDiscardedAt||conversation?.mode==="human")return null;
     const identity=normalizeContactIdentity({kind:ep.identityKind==="bsuid"?"bsuid":"phone",value:ep.normalizedValue,businessScope:ep.businessScope});
@@ -108,7 +108,7 @@ export class PrismaCampaignRepository {
       await tx.campaignRecipient.update({where:{id:r.id},data:{state:"reserved",eligibility:"opted_in",blockers:[]}});
       const payload={attemptId:attempt.id,endpointId:ep.id},resourceIds=[r.prospectId,ep.id,c.id,r.id,attempt.id,...(conversation?[conversation.id]:[])];
       await tx.prospectOutbox.upsert({where:{eventId:attempt.id},create:{eventId:attempt.id,kind:"prospect.attempt.reserved",payload,resourceIds},update:{state:"pending",availableAt:now,leaseToken:null,leaseExpiresAt:null,payload,resourceIds}});
-      return {attempt:projectAttempt(attempt),ownerToken,campaignId:c.id,recipientId,senderBindingId:ep.senderBindingId,senderVersion:c.senderVersion!,endpointId:ep.id,normalizedEndpoint:identity.value,identity,template,content:c.message,expectedEpoch:controlEpoch};
+      return {attempt:projectAttempt(attempt),ownerToken,campaignId:c.id,recipientId,senderBindingId:ep.senderBindingId,senderVersion:c.senderVersion!,endpointId:ep.id,normalizedEndpoint:identity.value,identity,template,content:c.message!,expectedEpoch:controlEpoch};
     });
   }
   async deferReservation(packet:AttemptReservation){
@@ -125,7 +125,7 @@ export class PrismaCampaignRepository {
     const c=await this.prisma.prospectCampaign.findUniqueOrThrow({where:{id:campaignId},include:{sender:true}});
     if(!c.sender||!c.approvedHash)return null;
     return {binding:publicSender(c.sender),hash:c.approvedHash,offer:c.offerSnapshot as unknown as ProspectOffer|null,
-      campaign:{senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectingTemplate|null,message:c.message}};
+      campaign:{senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectingTemplate|null,message:c.message!}};
   }
   markSubmitting(attemptId:string,ownerToken:string,instant:Date|(()=>Date),verifiedHash?:string,offerStillCurrent?:()=>Promise<boolean>){
     return this.prisma.$transaction(async tx=>{

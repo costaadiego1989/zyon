@@ -73,6 +73,21 @@ export interface ProspectCampaign {
   recipientCount: number; reservedCents: number; spentCents: number; createdAt: string; updatedAt: string;
 }
 export interface SaveProspectCampaign extends ProspectingCommand { name: string; expectedRevision?: number; message: string; planKey: string; senderBindingId: string; senderVersion: number; limits: ProspectCampaignLimits; sendWindow: ProspectingSendWindow; template?: ProspectingTemplate | null }
+/** V2 setup is a research draft; absent execution prerequisites remain null. */
+export type ProspectOfferPolicy = { mode: "catalog" } | { mode: "fixed"; planKey: string };
+export interface CreateProspectCampaignDraft extends ProspectingCommand { name: string; businessContext?: string; companies?: { snapshotId: string; cnpjs: string[] } }
+export interface EditProspectCampaignDraft extends ProspectingCommand { expectedRevision: number; name?: string; businessContext?: string | null; offerPolicy?: ProspectOfferPolicy; message?: string | null; senderBindingId?: string | null; senderVersion?: number | null; template?: ProspectingTemplate | null; limits?: ProspectCampaignLimits | null; sendWindow?: ProspectingSendWindow | null }
+export interface ProspectCampaignDraft extends Omit<ProspectCampaign,"message"|"sendWindow"> { setupVersion: 2; businessContext: string | null; offerPolicy: ProspectOfferPolicy; message: string | null; sendWindow: ProspectingSendWindow | null; directorySnapshotId: string | null; audienceCriteria: CompanyFilters | null; planningMode: "rules" | "model" | null; manualCompanyCount: number }
+export interface ChangeCampaignCompanies extends ProspectingCommand { expectedRevision: number; snapshotId: string; cnpjs: string[] }
+export interface CampaignCompanyReference { cnpj: string; snapshotId: string; competence: string; legalName: string; tradeName: string | null; mainCnae: string | null; cityCode: string | null; uf: string | null; addedAt: string }
+export interface CampaignCompanyChangeResult { campaign: ProspectCampaignDraft; added: number; existing: number; removed: number }
+export interface CampaignCompanyPage extends ProspectingPage<CampaignCompanyReference> { snapshotId: string | null; count: number; manualCount: number; criteria: CompanyFilters | null }
+export interface PrepareCampaignContext extends ProspectingCommand { expectedRevision: number; snapshotId: string }
+export interface CampaignPlanningJob { id: string; campaignId: string; expectedRevision: number; mode: "rules" | "model" | null; state: "pending" | "processing" | "completed" | "blocked" | "failed" | "outcome_unknown"; criteria: CompanyFilters | null; errorCode: string | null; reservedCents: number; spentCents: number }
+export type PlatformProspectTemplateState = "draft" | "submitting" | "submission_unknown" | "PENDING" | "APPROVED" | "REJECTED" | "PAUSED" | "DISABLED";
+export interface PlatformProspectTemplateDraft { id: string; purpose: "zyon_sales"; name: string; language: string; body: string; revision: number; contentHash: string; bindingId: string | null; bindingVersion: number | null; wabaId: string | null; providerId: string | null; providerRevision: string | null; state: PlatformProspectTemplateState; reason: string | null; submittedAt: string | null; observedAt: string | null }
+export interface CreatePlatformProspectTemplate extends ProspectingCommand { name: string; language: string; body: string }
+export interface SubmitPlatformProspectTemplate extends ProspectingCommand { expectedRevision: number }
 export interface FreezeCampaignAudience extends ProspectingCommand { expectedRevision: number; snapshotId: string; segmentId?: string; segmentVersion?: number; cnpjs?: string[] }
 export interface ProspectAudienceJob { eligibilityBlockers?: {reason:ProspectingBlocker;recipients:number}[]; selectionId: string; campaignId: string; state: "pending" | "processing" | "complete" | "failed"; companyCount: number; recipientCount: number; missingEndpointCount: number; audienceHash: string | null; errorCode: string | null }
 export interface ApproveProspectCampaign extends ProspectingCommand { expectedRevision: number; audienceHash: string; contentHash: string }

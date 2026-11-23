@@ -5921,6 +5921,14 @@ model SavedProspectSegment {
 }
 
 model ProspectCampaign {
+  setupVersion Int @default(1) @map("setup_version")
+  businessContext String? @map("business_context") @db.Text
+  offerPolicy Json? @map("offer_policy")
+  directorySnapshotId String? @map("directory_snapshot_id")
+  audienceCriteria Json? @map("audience_criteria")
+  planningMode String? @map("planning_mode")
+  draftCompanies ProspectCampaignCompany[]
+  planningJobs ProspectCampaignPlanningJob[]
   modelUsage ProspectModelUsage[]
   id String @id @default(cuid())
   name String
@@ -5932,7 +5940,7 @@ model ProspectCampaign {
   segmentId String? @map("segment_id")
   segmentVersion Int? @map("segment_version")
   filterSnapshot Json? @map("filter_snapshot")
-  message String @db.Text
+  message String? @db.Text
   offerSnapshot Json? @map("offer_snapshot")
   senderBindingId String? @map("sender_binding_id")
   senderVersion Int? @map("sender_version")
@@ -5940,7 +5948,7 @@ model ProspectCampaign {
   dailyRecipientLimit Int? @map("daily_recipient_limit")
   budgetCents BigInt? @map("budget_cents")
   currency String @default("BRL")
-  sendWindow Json @map("send_window")
+  sendWindow Json? @map("send_window")
   approvedRevision Int? @map("approved_revision")
   approvedHash String? @map("approved_hash")
   approvedBy String? @map("approved_by")
@@ -5959,6 +5967,66 @@ model ProspectCampaign {
   dailyUsage ProspectCampaignDailyUsage[]
   @@index([state, updatedAt])
   @@map("prospect_campaigns")
+}
+
+model ProspectCampaignCompany {
+  campaignId String @map("campaign_id")
+  cnpj String @db.VarChar(14)
+  snapshotId String @map("snapshot_id")
+  publicSnapshot Json @map("public_snapshot")
+  addedBy String @map("added_by")
+  addedAt DateTime @default(now()) @map("added_at")
+  removedAt DateTime? @map("removed_at")
+  campaign ProspectCampaign @relation(fields:[campaignId],references:[id],onDelete:Restrict)
+  @@id([campaignId,cnpj])
+  @@index([campaignId,removedAt,cnpj])
+  @@map("prospect_campaign_companies")
+}
+
+model ProspectCampaignPlanningJob {
+  id String @id
+  campaignId String @map("campaign_id")
+  expectedRevision Int @map("expected_revision")
+  contextHash String @map("context_hash")
+  snapshotId String @map("snapshot_id")
+  mode String?
+  state String @default("pending")
+  criteria Json?
+  errorCode String? @map("error_code")
+  leaseToken String? @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  reservedCents BigInt @default(0) @map("reserved_cents")
+  spentCents BigInt @default(0) @map("spent_cents")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  campaign ProspectCampaign @relation(fields:[campaignId],references:[id],onDelete:Restrict)
+  @@index([state,leaseExpiresAt])
+  @@map("prospect_campaign_planning_jobs")
+}
+
+model PlatformProspectTemplate {
+  id String @id @default(cuid())
+  purpose String @default("zyon_sales")
+  name String
+  language String
+  body String @db.Text
+  revision Int @default(1)
+  contentHash String @map("content_hash")
+  bindingId String? @map("binding_id")
+  bindingVersion Int? @map("binding_version")
+  wabaId String? @map("waba_id")
+  providerId String? @map("provider_id")
+  providerRevision String? @map("provider_revision")
+  state String @default("draft")
+  reason String?
+  submissionId String? @unique @map("submission_id")
+  submittedAt DateTime? @map("submitted_at")
+  observedAt DateTime? @map("observed_at")
+  createdBy String @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  @@index([purpose,bindingId,state])
+  @@map("platform_prospect_templates")
 }
 
 model ProspectCampaignDailyUsage {

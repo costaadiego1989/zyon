@@ -11,7 +11,7 @@ export interface HealthObservation {
  entities:{type:string;id:string;status:string;errorCodes:number[]}[];
 }
 export interface SenderHealthReader {read(credential:PlatformSenderCredential):Promise<HealthObservation>}
-export function campaignSelectionBlockers(health:PlatformSenderReadiness,senderId:string,version:number,template:ProspectingTemplate|null,reviewedMessage?:string){
+export function campaignSelectionBlockers(health:PlatformSenderReadiness,senderId:string,version:number,template:ProspectingTemplate|null,reviewedMessage?:string|null){
   const blockers=[...health.blockers];
   if(health.status!=="ready"&&!blockers.length)blockers.push("sender_unavailable");
   if(health.binding?.id!==senderId||health.binding.version!==version)blockers.push("sender_identity_mismatch");

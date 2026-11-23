@@ -15,10 +15,10 @@ export function validateSendWindow(window: ProspectingSendWindow) {
   try {new Intl.DateTimeFormat("en",{timeZone:window.timezone});} catch {throw new Error("invalid_command:sendWindow");}
   return {...window,weekdays:[...window.weekdays].sort((a,b)=>a-b)};
 }
-interface ReviewContent { message: string; offer:unknown; senderBindingId:string|null; senderVersion:number|null; template:unknown; audienceHash:string|null; sendWindow:unknown; limits:unknown }
+interface ReviewContent { message: string | null; offer:unknown; senderBindingId:string|null; senderVersion:number|null; template:unknown; audienceHash:string|null; sendWindow:unknown; limits:unknown; setupVersion?: number; businessContext?:string|null; offerPolicy?:unknown }
 export function campaignContentHash(fields:ReviewContent) {
   const {message,offer,senderBindingId,senderVersion,template,audienceHash,sendWindow,limits}=fields;
-  return createHash("sha256").update(stableDirectoryJson({message,offer,senderBindingId,senderVersion,template,audienceHash,sendWindow,limits})).digest("hex");
+  return createHash("sha256").update(stableDirectoryJson({message,offer,senderBindingId,senderVersion,template,audienceHash,sendWindow,limits,...(fields.setupVersion===2?{setupVersion:2,businessContext:fields.businessContext??null,offerPolicy:fields.offerPolicy??null}:{})})).digest("hex");
 }
 export function campaignTransition(current:CampaignState, action:ProspectCampaignAction["action"], approvalCurrent:boolean, blockers:ProspectingBlocker[]):CampaignState {
   if(action==="pause"&&current==="running") return "paused";

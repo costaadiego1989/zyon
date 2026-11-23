@@ -11,8 +11,9 @@ type Tx=Prisma.TransactionClient;
 export type CampaignActivation=(campaign:ProspectCampaign)=>Promise<ProspectingBlocker[]>;
 const json=(v:unknown)=>JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 function project(c:CampaignRow):ProspectCampaign{
+ if(c.setupVersion===2)throw Error("campaign_draft_use_v2");
  const review=storedReview(c);
- return {id:c.id,name:c.name,revision:c.revision,state:c.state as ProspectCampaign["state"],audienceHash:c.audienceHash,contentHash:campaignContentHash(review),selectionId:c.selectionId,message:c.message,offer:c.offerSnapshot as unknown as ProspectCampaign["offer"],senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectingTemplate|null,limits:review.limits,sendWindow:c.sendWindow as unknown as ProspectCampaign["sendWindow"],approvedRevision:c.approvedRevision,approvedBy:c.approvedBy,approvedAt:c.approvedAt?.toISOString()??null,blockers:c.blockers as ProspectingBlocker[],recipientCount:c.recipientCount,reservedCents:Number(c.reservedCents),spentCents:Number(c.spentCents),createdAt:c.createdAt.toISOString(),updatedAt:c.updatedAt.toISOString()};
+ return {id:c.id,name:c.name,revision:c.revision,state:c.state as ProspectCampaign["state"],audienceHash:c.audienceHash,contentHash:campaignContentHash(review),selectionId:c.selectionId,message:c.message!,offer:c.offerSnapshot as unknown as ProspectCampaign["offer"],senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectingTemplate|null,limits:review.limits,sendWindow:c.sendWindow as unknown as ProspectCampaign["sendWindow"],approvedRevision:c.approvedRevision,approvedBy:c.approvedBy,approvedAt:c.approvedAt?.toISOString()??null,blockers:c.blockers as ProspectingBlocker[],recipientCount:c.recipientCount,reservedCents:Number(c.reservedCents),spentCents:Number(c.spentCents),createdAt:c.createdAt.toISOString(),updatedAt:c.updatedAt.toISOString()};
 }
 async function locked(tx:Tx,id:string,revision:number){
  await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${id} FOR UPDATE`;
