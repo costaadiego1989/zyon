@@ -2,10 +2,11 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
 const {Client}=require('pg');
 const {retailWorkerContext}=require('./prospecting-retail-worker-context.cjs');
+const {writeWorkerStatus}=require('./prospecting-retail-status-file.cjs');
 const {folder,apiRoot,mode}=retailWorkerContext({standalone:process.argv.includes('--standalone'),cwd:process.cwd(),env:process.env});
 const descriptor=JSON.parse(fs.readFileSync(path.join(folder,'job.json'),'utf8'));
 const state={phase:'starting',mode,pid:process.pid,jobId:descriptor.jobId,sourceJobId:descriptor.sourceJobId,startedAt:new Date().toISOString(),selectedCompanies:0,committedRecords:0,validatedFiles:0,requiredFiles:23};
-const save=()=>{fs.writeFileSync(folder+'/status.pending',JSON.stringify({...state,updatedAt:new Date().toISOString()},null,2));fs.renameSync(folder+'/status.pending',folder+'/status.json');};
+const save=()=>writeWorkerStatus(folder,{...state,updatedAt:new Date().toISOString()});
 async function main(){
  assert.equal(process.cwd(),apiRoot);
  for(const key of ['META_SEND_ENABLED','LLM_REAL_ENABLED','PAID_INGESTION_ENABLED','RUN_WORKERS'])assert.equal(process.env['PROSPECTING_'+key],'false');
