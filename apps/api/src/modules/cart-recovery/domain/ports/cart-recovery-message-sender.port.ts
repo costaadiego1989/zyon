@@ -8,10 +8,13 @@ export interface CartRecoveryMessageSender {
     freeformText?: string;
     fallbackEmail?: string;
     emailSubject?: string;
+    correlationId?: string;
+    assertDispatchAuthorized?: (channel?: "whatsapp" | "email") => Promise<void>;
   }): Promise<{
     channel: "whatsapp_template" | "email" | "bubblewhats" | "none";
     status: "sent" | "skipped" | "failed" | "uncertain";
     reason?: string;
     messageId?: string;
+    fallbackReason?: string;
   }>;
 }
