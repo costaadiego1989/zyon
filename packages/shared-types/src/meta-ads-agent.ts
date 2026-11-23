@@ -122,6 +122,8 @@ export interface MetaAdsCampaign {
   status: "draft" | MetaAdsExecutionStatus;
   createdAt: string;
   updatedAt: string;
+  lifecycle?: MetaAdsCampaignLifecycle;
+  opportunity?: MetaAdsOpportunitySummary;
 }
 
 export interface MetaAdsMedia {
@@ -206,6 +208,9 @@ export interface MetaAdsMetrics {
   costCoverage: "complete" | "partial" | "unavailable";
   stale: boolean;
   notes: string[];
+  confirmedOrdersStatus?: "available" | "unavailable";
+  requestedAttributionWindow?: string | null;
+  effectiveAttributionWindow?: string | null;
 }
 
 export interface MetaAdsRecommendation {
@@ -312,4 +317,123 @@ export interface MetaAdsCampaignPreparationInput {
 export interface MetaAdsApproveLaunchInput {
   digest: string;
   idempotencyKey: string;
+}
+
+export interface MetaAdsCampaignLifecycle {
+  state: "current" | "deleted_draft" | "archived";
+  version: number;
+  changedAt: string;
+}
+
+export interface MetaAdsOpportunitySummary {
+  reason: string;
+  evidence: Array<{ field: string; value: string | number; observedAt: string | null }>;
+  quality: "observed" | "initial_test";
+}
+
+/** Planned settings are never presented as observed audience demographics. */
+export interface MetaAdsAudienceSummary {
+  source: "planned" | "verified" | "unavailable";
+  countries: string[];
+  minimumAge: number | null;
+  maximumAge: number | null;
+  automatic: boolean | null;
+  checkedAt: string | null;
+}
+
+export type MetaAdsCampaignFilter = "all" | "approval" | "running" | "paused" | "drafts" | "attention" | "archived";
+export interface MetaAdsWorkspaceQuery {
+  filter: MetaAdsCampaignFilter;
+  search: string;
+  page: number;
+  since: string;
+  until: string;
+}
+export interface MetaAdsCampaignWorkspaceRow {
+  campaign: MetaAdsCampaign;
+  group: Exclude<MetaAdsCampaignFilter, "all" | "approval">;
+  stateLabel: string;
+  pendingProposalId: string | null;
+  audience: MetaAdsAudienceSummary;
+  metrics: MetaAdsMetrics | null;
+  actions: { pause: boolean; deleteDraft: boolean; archive: boolean; verifyRemote: boolean };
+}
+export interface MetaAdsCampaignWorkspacePage {
+  items: MetaAdsCampaignWorkspaceRow[];
+  total: number;
+  page: number;
+  pageSize: 10;
+  pages: number;
+  counts: Record<MetaAdsCampaignFilter, number>;
+  query: MetaAdsWorkspaceQuery;
+  asOf: string;
+}
+export interface MetaAdsCampaignLifecycleInput {
+  expectedVersion: number;
+  idempotencyKey: string;
+}
+
+export interface MetaAdsPreparationLimits {
+  dailyNewProposals: number;
+  maximumPendingProposals: number;
+  version: number;
+  updatedAt: string | null;
+}
+export interface MetaAdsPreparationLimitsInput {
+  dailyNewProposals: number;
+  maximumPendingProposals: number;
+  expectedVersion: number;
+}
+export interface MetaAdsPreparationLimitsView {
+  limits: MetaAdsPreparationLimits;
+  effectiveDailyLimit: number;
+  effectivePendingLimit: number;
+  planCampaignCapacity: number;
+  usedToday: number;
+  pending: number;
+  availableToday: number;
+  availablePendingSlots: number;
+  localDay: string | null;
+  blockedReason: string | null;
+}
+
+export type MetaAdsAttributionRule = "legacy" | "last_click_7d_v2";
+export type MetaAdsPurchaseSignalStatus = "not_authorized" | "pending" | "accepted" | "failed" | "unknown";
+export interface MetaAdsOrderAdOrigin {
+  orderId: string;
+  status: "identified" | "unidentified" | "unavailable" | "unpaid";
+  rule: MetaAdsAttributionRule;
+  campaignId: string | null;
+  campaignName: string | null;
+  source: MetaAdsDestination | null;
+  observedAt: string | null;
+  paidAt: string | null;
+  frozenAt: string | null;
+  signalStatus: MetaAdsPurchaseSignalStatus;
+}
+export interface MetaAdsAttributedOrder {
+  orderId: string;
+  paidAt: string;
+  currency: string;
+  paidCents: number;
+  refundedCents: number;
+  netRevenueCents: number;
+  origin: MetaAdsOrderAdOrigin;
+}
+export interface MetaAdsCampaignSalesPage {
+  campaignId: string;
+  since: string;
+  until: string;
+  timezone: string | null;
+  currency: string | null;
+  status: "available" | "unavailable";
+  paidOrders: number | null;
+  confirmedRevenueCents: number | null;
+  refundedCents: number | null;
+  orders: MetaAdsAttributedOrder[];
+  page: number;
+  pageSize: 10;
+  pages: number;
+  updatedAt: string;
+  signalCounts: Record<MetaAdsPurchaseSignalStatus, number> | null;
 }

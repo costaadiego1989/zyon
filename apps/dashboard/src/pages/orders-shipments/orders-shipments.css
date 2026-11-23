@@ -31,3 +31,10 @@
 .order-fulfillments__attention { color: var(--color-warning); }
 .orders-views { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
 .order-kanban-card__types { display: flex; flex-wrap: wrap; gap: 8px; font: 11px/1.6 var(--font-sans); color: var(--color-text-secondary); }
+
+.order-ad-origin p,.order-ad-origin small { font-size:13px;line-height:1.7;color:var(--color-text-secondary); }
+.order-ad-origin__facts { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:16px 0; }
+.order-ad-origin dt { color:var(--color-text-secondary);font-size:12px; }
+.order-ad-origin dd { margin:5px 0 0;font-size:13px;line-height:1.6; }
+.order-ad-origin a { color:var(--color-brand); }
+@media(max-width:600px){.order-ad-origin__facts{grid-template-columns:minmax(0,1fr);}}

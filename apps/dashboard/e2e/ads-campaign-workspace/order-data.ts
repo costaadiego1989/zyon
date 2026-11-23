@@ -1,0 +1,10 @@
+import type {MetaAdsAttributedOrder,MetaAdsCampaign,MetaAdsOrderAdOrigin} from '@zyon/shared-types';
+import type {TenantOrder} from '../../src/api/types.js';
+
+export const nativeOrderId='native-paid-order';
+export function nativeOrigin(campaign:MetaAdsCampaign):MetaAdsOrderAdOrigin{return{orderId:nativeOrderId,status:'identified',rule:'last_click_7d_v2',campaignId:campaign.id,campaignName:campaign.draft.name,source:'store',observedAt:'2026-11-20T12:00:00.000Z',paidAt:'2026-11-21T12:00:00.000Z',frozenAt:'2026-11-21T12:00:00.000Z',signalStatus:'accepted'};}
+export function nativeSalesOrders(campaign:MetaAdsCampaign,revenue:number):MetaAdsAttributedOrder[]{const remaining=(revenue-8000)/2;return [10000,remaining,remaining].map((paidCents,index)=>{const orderId=index?'native-secondary-'+index:nativeOrderId,refundedCents=index?0:2000;return{orderId,paidAt:'2026-11-21T12:00:00.000Z',currency:'BRL',paidCents,refundedCents,netRevenueCents:paidCents-refundedCents,origin:{...nativeOrigin(campaign),orderId}};});}
+function order(id:string,total=10000):TenantOrder{return{id,session_id:'native-session-'+id,external_order_id:id,status:'approved',total,currency:'BRL',tracking_code:null,customer:{full_name:'Comprador de demonstração',email:'buyer@example.test'},cart:{items:[]},completed_at:'2026-11-21T12:00:00.000Z',cancelled_at:null,cancellation_reason:null,payment_method:'pix',payment_provider:'qa_fixture',paid_at:'2026-11-21T12:00:00.000Z'};}
+// The linked order is deliberately beyond the first server page. These are read-only contracts.
+const firstPage=[...Array.from({length:98},(_,index)=>order('native-recent-'+index)),order('native-secondary-1',3450),order('native-secondary-2',3450)],linked=order(nativeOrderId);
+export const nativeOrderApi={getOrders:async(_limit:number,cursor?:string)=>({data:cursor?[linked]:firstPage,next_cursor:cursor?null:'native-second-page'}),getOrderDetail:async(id:string)=>({...([linked,...firstPage].find(value=>value.id===id)??order(id)),timeline:[]}),getDigitalOrderAccess:async()=>({products:[],deliveries:[]})};

@@ -47,3 +47,21 @@ test('CBX-48 whole-suite propagates a failed child and refuses an empty or escap
  assert.equal(await runSpecSuite(specs,async spec=>{reached.push(spec);return 7;}),7);assert.deepEqual(reached,[specs[0]]);
  await assert.rejects(runSpecSuite([],async()=>0),/agentic_suite_selection_invalid/);await assert.rejects(runSpecSuite(['../production.cy.ts'],async()=>0),/agentic_suite_selection_invalid/);
 });
+
+test('isolated browser ports preserve occupied work and select only fixed loopback pairs',async()=>{const {isolatedPorts}=await import('./run-agentic-cypress.mjs');assert.deepEqual(await isolatedPorts(async p=>p===3019),{apiPort:3049,frontPort:5249});assert.deepEqual(await isolatedPorts(async()=>false),{apiPort:3019,frontPort:5179});await assert.rejects(isolatedPorts(async()=>true),/agentic_test_ports_unavailable/);});
+
+test('isolated browser ports reject an occupied listener without requiring an HTTP response',async()=>{
+  const {createServer}=await import('node:net');const {isolatedPorts,isPortOccupied}=await import('./run-agentic-cypress.mjs');
+  const listener=createServer();await new Promise(resolve=>listener.listen({host:'127.0.0.1',port:0,exclusive:true},resolve));
+  const occupied=listener.address().port;
+  try{assert.equal(await isPortOccupied(occupied),true);assert.deepEqual(await isolatedPorts(port=>isPortOccupied(port===3019?occupied:0)),{apiPort:3049,frontPort:5249});assert.equal(listener.listening,true);}
+  finally{await new Promise(resolve=>listener.close(resolve));}
+  assert.equal(await isPortOccupied(occupied),false);
+});
+
+test('Ads suite batches all seven approved browser specifications and rejects mixed scopes',()=>{
+  assert.deepEqual(parseArguments(['--suite','ads']),{suite:'ads'});
+  assert.deepEqual(selectedSpec({suite:'ads'}).split(','),['runtime','funding-and-help','campaign','campaign-approval','automation','report-and-recovery','campaign-workspace'].map(name=>`cypress/e2e/agentic/${name}.cy.ts`));
+  assert.equal(fixtureContext(selectedSpec({suite:'ads'})),'meta-ads');
+  for(const args of [['--suite','cashback'],['--suite','ads','--case','ADAS-54'],['--suite','ads','--spec','cypress/e2e/agentic/runtime.cy.ts'],['--suite','ads','--serve']])assert.throws(()=>parseArguments(args),/agentic_argument_invalid/);
+});

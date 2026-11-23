@@ -9,7 +9,7 @@ export function buildMetrics(input: { campaignId: string; remote: ProviderMetric
   const coverage = !orders.length || !costCount ? "unavailable" : costCount === orders.length ? "complete" : "partial";
   const spend = remote.spendCents;
   return { campaignId: input.campaignId, since: remote.since, until: remote.until, updatedAt: input.updatedAt, timezone: remote.timezone,
-    currency: remote.currency, attributionWindow: remote.attributionWindow, source: "meta_reported+zyon_reconciled", spendCents: spend,
+    currency: remote.currency, attributionWindow: remote.attributionWindow, requestedAttributionWindow:remote.requestedAttributionWindow??null,effectiveAttributionWindow:remote.effectiveAttributionWindow??null,source: "meta_reported+zyon_reconciled", spendCents: spend,
     attributedRevenueCents: remote.attributedRevenueCents, confirmedRevenueCents: revenue, paidOrders: orders.length, conversations: remote.conversations,
     attributedPurchases: remote.attributedPurchases, impressions: remote.impressions??null, reach: remote.reach??null, linkClicks: remote.linkClicks??null,
     costPerPurchaseCents: matchingCurrency && orders.length && spend !== null ? Math.round(spend / orders.length) : null,

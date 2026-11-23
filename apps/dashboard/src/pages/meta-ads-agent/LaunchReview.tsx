@@ -6,7 +6,7 @@ import {showToast} from '../../components/Toast.js';
 import {ChevronLeft,ChevronRight} from 'lucide-react';
 import './launch-review.css';
 
-interface Props {
+interface Props {showHeading?:boolean;
   merchantId:string;value:MetaAdsCampaignLaunchReview|null;api:Pick<CampaignApprovalApi,'review'|'approveLaunch'>;
   timezone?:string;loading?:boolean;error?:string;onRetry?:()=>void;entitled?:boolean;
   onUpdated:(value:MetaAdsCampaignLaunchReview)=>void|Promise<void>;onReconcile?:(executionId:string)=>Promise<unknown>;
@@ -18,7 +18,7 @@ export function LaunchReview(props:Props){
   if(!props.value)return <p className="mga-empty">A campanha ainda está sendo preparada. A revisão aparecerá aqui.</p>;
   return <ReadyReview key={`${props.merchantId}:${props.value.proposal.id}:${props.value.proposal.digest}:${props.value.proposal.connectionEpoch}`} {...props} value={props.value}/>;
 }
-function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true,onSetup,onCorrectBudget}:Props&{value:MetaAdsCampaignLaunchReview}){
+function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true,onSetup,onCorrectBudget,showHeading=true}:Props&{value:MetaAdsCampaignLaunchReview}){
   const [result,setResult]=useState<MetaAdsCampaignLaunchReview|null>(null),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[error,setError]=useState('');
   const [previews,setPreviews]=useState<Record<string,'loaded'|'failed'>>({}),[imageAttempt,setImageAttempt]=useState(0);
   const [slide,setSlide]=useState(0);
@@ -60,7 +60,7 @@ function ReadyReview({value,api,onUpdated,onReconcile,timezone,entitled=true,onS
     finally{lock.current=false;if(alive.current)setBusy(false);}
   }
   return <section className="mga-launch" aria-label={`Revisão: ${draft.name}`}>
-    <header className="mga-section-heading"><div><h2>{draft.name}</h2><p>{approved?'Aprovação registrada':current.canApprove?'Pronta para sua aprovação':'Revisão pendente'}</p></div></header>
+    <header className="mga-section-heading"><div>{showHeading&&<h2>{draft.name}</h2>}<p>{approved?'Aprovação registrada':current.canApprove?'Pronta para sua aprovação':'Revisão pendente'}</p></div></header>
     <div className="mga-launch-layout"><div className="mga-launch-creative">
       <div className="mga-launch-carousel" role="region" aria-roledescription="carrossel" aria-label="Prévia dos criativos" tabIndex={media.length>1?0:undefined} onKeyDown={event=>{if(event.key==='ArrowRight'){event.preventDefault();setSlide(index=>Math.min(media.length-1,index+1));}else if(event.key==='ArrowLeft'){event.preventDefault();setSlide(index=>Math.max(0,index-1));}}}>
         <ol className="mga-launch-previews" aria-label={media.length>1?'Ordem do carrossel':'Criativo'}>{media.map((image,index)=><li key={image.id} hidden={index!==slide}><img key={`${image.id}:${imageAttempt}`} src={image.url} alt={`Criativo ${index+1}: ${campaign.products.find(p=>p.variantId===image.variantId)?.name??'produto selecionado'}`} onLoad={()=>setPreviews(previous=>({...previous,[image.id]:'loaded'}))} onError={()=>setPreviews(previous=>({...previous,[image.id]:'failed'}))}/></li>)}</ol>
