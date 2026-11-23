@@ -56,7 +56,7 @@ function Snapshot({value}: {value: JsonObject}) {
     {Array.isArray(value.products)&&<ul className="mga-change-products">{value.products.map((v,i)=>{const p=object(v);return <li key={i}>{String(p.name)} · {money(Number(p.priceCents),String(p.currency??'BRL'))}</li>;})}</ul>}
   </div>;
 }
-export function ProposalReview({proposal, execution, entitled, connectionEpoch, api, onUpdated}: {proposal: MetaAdsProposal; execution?: MetaAdsExecution; entitled: boolean; connectionEpoch: number; api: MetaAdsAgentApi; onUpdated: () => void | Promise<void>}) {
+export function ProposalReview({proposal, execution, entitled, connectionEpoch, api, onUpdated, publishOnApproval=false}: {proposal: MetaAdsProposal; execution?: MetaAdsExecution; entitled: boolean; connectionEpoch: number; api: MetaAdsAgentApi; onUpdated: () => void | Promise<void>; publishOnApproval?: boolean}) {
   const [view, setView] = useState(proposal); const [result, setResult] = useState(execution); const [uncertain, setUncertain] = useState(false); const [acknowledged, setAcknowledged] = useState(false); const action = useAction();
   const reviewVersion = JSON.stringify([proposal.id, proposal.digest, proposal.campaignId, proposal.kind, proposal.connectionEpoch, proposal.before, proposal.after, proposal.reasoning],
     (_key, value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
@@ -66,6 +66,26 @@ export function ProposalReview({proposal, execution, entitled, connectionEpoch, 
   const stale = view.status === "stale" || view.connectionEpoch !== connectionEpoch;
   const disabled = !entitled || action.busy || stale;
   const reviewed = acknowledged && !disabled;
+  const publishTogether=publishOnApproval&&view.kind==='publish';
+  async function sendApproved(id:string){
+    let next;
+    try{next=await api.execute(id);setResult(next);}
+    catch(error){if(error instanceof DashboardHttpError&&error.status>=400&&error.status<500){setView(v=>({...v,status:'stale'}));await onUpdated();}else setUncertain(true);throw error;}
+    await onUpdated();return next;
+  }
+  async function approveReviewed(){
+    let approved;
+    try{approved=await api.approve(view.id,view.digest);}
+    catch(error){if(publishTogether&&!(error instanceof DashboardHttpError&&error.status>=400&&error.status<500))setUncertain(true);throw error;}
+    setView(approved);
+    if(publishTogether){
+      if(approved.id!==view.id||approved.digest!==view.digest||approved.campaignId!==view.campaignId||approved.kind!=='publish'||approved.connectionEpoch!==connectionEpoch||approved.status!=='approved'){
+        setView(v=>({...v,status:'stale'}));throw new DashboardHttpError(409,'{"code":"proposal_version_changed"}');
+      }
+      return sendApproved(approved.id);
+    }
+    await onUpdated();return undefined;
+  }
   const affected=references(view.before.objects,view.after.objects);
   const scope=Object.keys(types).filter(type=>type!=='creative').flatMap(type=>{const count=affected.filter(item=>item.type===type).length;return count?[`${count} ${count===1?types[type][0].toLocaleLowerCase('pt-BR'):types[type][1]}`]:[];}).join(' · ');
   const proposed=view.kind==='publish'&&view.after.targeting===undefined&&view.after.country===undefined?{...view.after,targeting:view.before.targeting}:view.after;
@@ -76,8 +96,8 @@ export function ProposalReview({proposal, execution, entitled, connectionEpoch, 
     {view.kind === "prepare" && <p>A preparação cria objetos em rascunho ou pausados. A publicação terá sua própria aprovação.</p>}
     {view.kind === "publish" && <p>Publicar pode iniciar os gastos acima, pagos diretamente à Meta. A publicação não garante exibição nem vendas.</p>}
     {stale && <p role="status">Proposta desatualizada. Solicite uma nova proposta e revise novamente.</p>}
-    {view.status === "pending_review" && !stale && <><label className="mga-ack"><input type="checkbox" checked={acknowledged} disabled={disabled} onChange={e => setAcknowledged(e.target.checked)}/>Conferi o anúncio, o público e o investimento desta alteração.</label><div className="mga-actions"><button type="button" data-action="approve" disabled={!reviewed} onClick={() => void action.run(async () => {setView(await api.approve(view.id, view.digest)); await onUpdated();},"Aprovação registrada.")}>{view.kind === "publish" ? "Aprovar publicação" : "Aprovar alteração"}</button><button type="button" className="mga-secondary" disabled={disabled} onClick={() => void action.run(async () => {setView(await api.reject(view.id)); await onUpdated();},"Proposta rejeitada. Nenhuma alteração executada.")}>Rejeitar proposta</button></div></>}
-    {view.status === "approved" && !result && !view.executionId && !uncertain && <><p>Aprovação registrada em {date(view.approvedAt)}.</p><button type="button" disabled={disabled} onClick={() => void action.run(async () => {let result;try {result=await api.execute(view.id);setResult(result);} catch (e) {if (e instanceof DashboardHttpError && e.status >= 400 && e.status < 500) {setView(v => ({...v,status:"stale"})); await onUpdated();} else setUncertain(true); throw e;} await onUpdated();return result;},executionFeedback)}>Executar alteração aprovada</button></>}
+    {view.status === "pending_review" && !stale && !uncertain && <><label className="mga-ack"><input type="checkbox" checked={acknowledged} disabled={disabled} onChange={e => setAcknowledged(e.target.checked)}/>Conferi o anúncio, o público e o investimento desta alteração.</label><div className="mga-actions"><button type="button" data-action="approve" disabled={!reviewed} onClick={() => void action.run(approveReviewed,result=>result?executionFeedback(result):{type:'success',text:'Aprovação registrada.'})}>{publishTogether?'Aprovar e publicar':view.kind === "publish" ? "Aprovar publicação" : "Aprovar alteração"}</button><button type="button" className="mga-secondary" disabled={disabled} onClick={() => void action.run(async () => {setView(await api.reject(view.id)); await onUpdated();},"Proposta rejeitada. Nenhuma alteração executada.")}>Rejeitar proposta</button></div></>}
+    {view.status === "approved" && !result && !view.executionId && !uncertain && <><p>{publishTogether?'A campanha está aprovada. Falta enviá-la à Meta.':`Aprovação registrada em ${date(view.approvedAt)}.`}</p><button type="button" disabled={disabled} onClick={() => void action.run(()=>sendApproved(view.id),executionFeedback)}>{publishTogether?'Publicar campanha':'Executar alteração aprovada'}</button></>}
     {uncertain && !result && <div className="mga-notice"><p role="status">Resultado desconhecido. Atualize o histórico para conferir o envio antes de tentar novamente.</p><button type="button" className="mga-secondary" disabled={action.busy} onClick={() => void action.run(async () => {await onUpdated();},"Histórico atualizado.")}>Atualizar histórico</button></div>}
     {view.status === "rejected" && <p role="status">Proposta rejeitada. Nenhuma alteração executada.</p>}
     {result && <div className="mga-notice"><p role="status">{view.kind === "prepare" && result.status === "remote_paused" ? "Preparada, sem veiculação" : executionStates[result.status]}</p>{result.error && <p>A operação requer revisão do resultado antes de uma nova proposta.</p>}
