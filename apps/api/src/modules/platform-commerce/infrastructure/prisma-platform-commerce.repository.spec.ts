@@ -5,8 +5,9 @@ import { PrismaPlatformCommerceRepository } from "./prisma-platform-commerce.rep
 
 function companyRepository(settings: unknown, users: Array<{email:unknown}> = []) {
   return new PrismaPlatformCommerceRepository({
-    merchant:{findUnique:async(input:{where:unknown;select:{users:unknown}})=>{
+    merchant:{findUnique:async(input:{where:unknown;select:{users:unknown;storeSettings?:unknown}})=>{
       assert.deepEqual(input.where,{id:'company_a'});
+      assert.equal(input.select.storeSettings,true);
       assert.deepEqual(input.select.users,{where:{role:'owner',disabledAt:null},orderBy:[{createdAt:'asc'},{id:'asc'}],take:1,select:{email:true}});
       return{id:'company_a',name:'Empresa A',plan:'BOTH',createdAt:new Date('2026-11-01'),storeSettings:settings,users};
     }},
@@ -41,6 +42,14 @@ test('ADM-02 missing or malformed profile fields remain absent',async()=>{
     assert.equal(result?.merchant.registrationEmail,undefined);
     assert.equal(result?.merchant.name,'Empresa A');
   }
+});
+test('ADM-02 company and owner addresses are independent when only one is available',async()=>{
+  const businessOnly=await companyRepository({company:{email:'contato@empresa.test'}}).merchantDetail('company_a',period);
+  assert.equal(businessOnly?.merchant.company?.email,'contato@empresa.test');
+  assert.equal(Object.hasOwn(businessOnly!.merchant,'registrationEmail'),false);
+  const ownerOnly=await companyRepository(null,[{email:'titular@empresa.test'}]).merchantDetail('company_a',period);
+  assert.equal(ownerOnly?.merchant.company,undefined);
+  assert.equal(ownerOnly?.merchant.registrationEmail,'titular@empresa.test');
 });
 
 test("PrismaPlatformCommerceRepository keeps store operations local and reads billing from the account", async () => {
