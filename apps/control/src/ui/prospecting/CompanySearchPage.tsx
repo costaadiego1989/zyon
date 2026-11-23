@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import type { CompanyDirectoryCoverage, CompanyDirectoryImportSummary, CompanyDomainQuery, CompanyFilters, CompanySearchQuery } from "@zyon/shared-types";
+import type { CompanyDirectoryCoverage, CompanyDirectoryImportSummary, CompanyDomainQuery, CompanyDomainResult, CompanyFilters, CompanySearchQuery } from "@zyon/shared-types";
 import { PlatformApiError } from "../../lib/api.js";
 import { Search } from "lucide-react";
 import { Button, ReadState, cents, money, stages, useAction, useResource, type PageProps } from "./screen-controls.js";
@@ -33,19 +33,19 @@ function Domain({
     [api, kind, uf, search, snapshotId, after]
   );
   const result = useResource(load, onSessionExpired);
-  const choices = result.data?.items ?? [];
+  const identity=JSON.stringify([kind,uf,snapshotId,search]);
+  const [optionPages,setOptionPages]=useState<{identity:string;items:CompanyDomainResult['items']}>({identity:'',items:[]});
+  useEffect(()=>setAfter(undefined),[uf,snapshotId]);
+  useEffect(()=>{
+    if(!result.data)return;
+    const incoming=result.data.items;
+    setOptionPages(previous=>({identity,items:[...new Map([
+      ...(after&&previous.identity===identity?previous.items:[]),...incoming,
+    ].map(item=>[item.code,item])).values()]}));
+  },[result.data,identity,after]);
+  const choices = optionPages.identity===identity?optionPages.items:result.data?.items??[];
   return (
-    <div>
-      <label>
-        Buscar {label.toLowerCase()}
-        <input
-          value={search}
-          onChange={(e) => {
-            setAfter(undefined);
-            setSearch(e.target.value);
-          }}
-        />
-      </label>
+    <div className="prospecting-domain">
       <label>
         {label}
         <select
@@ -67,6 +67,19 @@ function Domain({
             </option>
           ))}
         </select>
+      </label>
+      <label className="prospecting-domain-search">
+        Buscar {label.toLowerCase()}
+        <input
+          type="search"
+          aria-label={"Buscar " + label.toLowerCase()}
+          placeholder="Nome ou código"
+          value={search}
+          onChange={(e) => {
+            setAfter(undefined);
+            setSearch(e.target.value);
+          }}
+        />
       </label>
       {result.error ? (
         <ReadState {...result} />
@@ -295,7 +308,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
           {refreshError&&<p role="alert">{refreshError}</p>}
         </div>}
       </header>
-      <form onSubmit={apply} onChange={invalidateSelection}>
+      <form className="prospecting-company-filters" onSubmit={apply} onChange={invalidateSelection}>
         <div className="prospecting-fields">
           <Field name="search" label="Pesquisar empresa" />
           <label>

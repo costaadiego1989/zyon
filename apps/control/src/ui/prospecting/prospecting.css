@@ -49,6 +49,14 @@
 .prospecting-page summary { cursor: pointer; padding-block: .6rem; color: var(--accent); }
 .prospecting-page label { min-width: 0; font-size: .875rem; font-weight: 600; }
 .prospecting-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(11.5rem,100%),1fr)); gap: .75rem 1rem; align-items: start; }
+.prospecting-company-filters > .prospecting-fields { grid-template-columns: minmax(0,1fr) minmax(10rem,14rem); align-items: end; }
+.prospecting-company-filters details > .prospecting-fields { grid-template-columns: repeat(auto-fit,minmax(min(14rem,100%),1fr)); gap: 1.25rem 1rem; }
+.prospecting-domain { display: grid; align-content: start; gap: .5rem; min-width: 0; }
+.prospecting-domain .prospecting-domain-search { font-size: .75rem; color: var(--ink-muted); gap: .3rem; }
+.prospecting-domain > .button { justify-self: start; min-height: 1.75rem; padding: .15rem 0; border-color: transparent; background: transparent; box-shadow: none; color: var(--accent); font-size: .75rem; text-align: left; }
+.prospecting-domain > .button:hover { text-decoration: underline; text-underline-offset: .2rem; }
+.prospecting-company-filters fieldset > p { font-size: .8125rem; color: var(--ink-muted); line-height: 1.5; }
+@media (max-width: 600px) { .prospecting-company-filters > .prospecting-fields { grid-template-columns: minmax(0,1fr); } }
 .prospecting-page input:not([type=checkbox]):not([type=radio]), .prospecting-page select, .prospecting-page textarea { width: 100%; max-width: 100%; min-width: 0; min-height: 2.375rem; border: 1px solid var(--line-strong); padding: .45rem .65rem; border-radius: .45rem; background: var(--surface); color: var(--ink); font: inherit; font-size: .8125rem; }
 .prospecting-page textarea { min-height: 6rem; resize: vertical; line-height: 1.5; }
 .prospecting-page input:is([type=date],[type=time]) { color-scheme: light; }

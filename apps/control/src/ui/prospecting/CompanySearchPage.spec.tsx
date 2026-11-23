@@ -25,6 +25,17 @@ function searchProps(methods: Parameters<typeof screenProps>[0]) {
   return screenProps({ readiness: async () => published, ...methods });
 }
 const partialSource=(id='partial-a',count=500)=>({source:{status:'current',value:{snapshotId:id,state:'published',competence:'2026-11',coverage:{...regionalCoverage,companyCount:count,scopeComplete:false},latestImport:{id:'parent',state:'importing',phase:'persisting_establishments',committedCount:count*2,selectedCompanies:1000000,validatedFiles:23,totalFiles:23,errorCode:null,updatedAt:'2026-11-23T19:00:00Z'}},observedAt:'2026-11-23T19:00:00Z'}});
+
+test('SEARCH-01 options accumulate and a new search resets the cursor while retaining the chosen code',async()=>{
+ const lookup=vi.fn(async(q:CompanyDomainQuery)=>({items:q.kind!=='municipios'?[]:q.afterCode||q.search?[{kind:'municipios',code:'8105',label:'FLORIANOPOLIS'}]:[{kind:'municipios',code:'7107',label:'SAO PAULO'}],nextCursor:q.kind==='municipios'&&!q.afterCode&&!q.search?'7107':null}));
+ const companies=vi.fn().mockResolvedValue(page()),ui=await show(<CompanySearchPage {...searchProps({companies,domains:lookup})}/>);
+ await ui.fill('UF','SC');await ui.click('Mais opções de município');
+ expect(Array.from(ui.control('Município').querySelectorAll('option')).map(o=>o.value)).toEqual(['','7107','8105']);
+ await ui.fill('Município','7107');await ui.fill('Buscar município','florian');
+ expect(lookup.mock.calls.filter(([q])=>q.kind==='municipios').at(-1)?.[0]).toMatchObject({search:'florian',afterCode:undefined,uf:'SC'});
+ expect(ui.control('Município').value).toBe('7107');await ui.fill('Município','8105');await ui.click('Aplicar filtros');
+ expect(companies.mock.lastCall?.[0].filters).toEqual({ufs:['SC'],cityCodes:['8105']});
+});
 test('PRG-03 available partial companies enable search and CRM selection with an honest incomplete state',async()=>{
  const createProspects=vi.fn().mockResolvedValue({created:1,existing:0}),companies=vi.fn(async(q)=>({...page(),snapshotId:q.snapshotId??'partial-a',count:500}));
  const ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>partialSource(),companies,domains,addProspects:createProspects})}/>);
