@@ -7,7 +7,7 @@ export interface ConversationMessage {id:string;ticketId:string;senderType:"buye
   clientMessageId?:string;origin?:"text"|"button"|"voice"|"media";delivery?:{status:ConversationDeliveryStatus;revision:number}}
 export interface ConversationPage {data:ConversationSummary[];has_more:boolean;next_cursor:string|null}
 export interface ConversationDetail {ticket:Omit<ConversationSummary,"binding">;binding:(ConversationBinding&{configId:string;whatsappSessionId:string})|null;
-  channel:{id:string;provider:string;status:string;enabled:boolean}|null;messages:ConversationMessage[];has_more:boolean;next_cursor:string|null}
+  channel:{id:string;provider:string;status:string;enabled:boolean}|null;staffAlert?:{status:ConversationDeliveryStatus|"unavailable";revision:number};messages:ConversationMessage[];has_more:boolean;next_cursor:string|null}
 export interface ConversationApi {
   getWhatsAppConversationContext():Promise<ConversationContext>;
   getWhatsAppConversations(query?:{limit?:number;cursor?:string;status?:ConversationStatus}):Promise<ConversationPage>;

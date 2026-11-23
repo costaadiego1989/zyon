@@ -8,8 +8,23 @@ import type {
 } from "../types.js";
 import type { TicketMessage } from "../../hooks/useSupportSocket.js";
 
+export interface SupportNotificationSettings {
+  channel: "whatsapp";
+  fallbackPhone: string | null;
+  version: number;
+  updatedAt: string | null;
+}
+
 export function supportEndpoints(base: string, f: typeof fetch) {
   return {
+    getSupportNotificationSettings(): Promise<SupportNotificationSettings> {
+      return dashboardJson(base, "/support/notification-settings", { method: "GET" }, f);
+    },
+
+    putSupportNotificationSettings(fallbackPhone: string | null): Promise<SupportNotificationSettings> {
+      return dashboardJson(base, "/support/notification-settings", { method: "PUT", jsonBody: { fallbackPhone } }, f);
+    },
+
     getSupportSettings(): Promise<SupportSettings> {
       return dashboardJson(base, "/support/settings", { method: "GET" }, f);
     },

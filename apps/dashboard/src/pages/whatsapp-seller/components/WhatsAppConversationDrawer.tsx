@@ -4,7 +4,7 @@ import { Modal } from "../../../components/Modal.js";
 import { Button } from "../../../components/Button.js";
 import { SupportChatDrawer } from "../../support-settings/components/SupportChatDrawer.js";
 import { conversationActions, conversationDeliveryLabel } from "../conversation-actions.js";
-import type { ConversationContext } from "../conversation-types.js";
+import type { ConversationContext, ConversationDetail } from "../conversation-types.js";
 import type { ConversationNavigation } from "../useConversationNavigation.js";
 import type { useWhatsAppConversations } from "../useWhatsAppConversations.js";
 import type { SupportTicketStatus } from "@zyon/shared-types";
@@ -14,6 +14,10 @@ type DashboardApi = ReturnType<typeof import("../../../api-client.js").createDas
 interface Props { context: ConversationContext | null; api: DashboardApi; vm: ReturnType<typeof useWhatsAppConversations>; ticketId?: string; onClose?: () => void; registerNavigationGuard?: ConversationNavigation["register"] }
 const noop = () => {};
 const noMessages = () => () => {};
+const staffAlertLabels: Record<NonNullable<ConversationDetail["staffAlert"]>["status"], string> = {
+  queued: "Alerta à equipe aguardando envio", accepted: "Alerta à equipe aceito pelo canal", unavailable: "Alerta à equipe indisponível",
+  failed: "Falha no alerta à equipe", unknown: "Envio do alerta à equipe sem confirmação", delivered: "Alerta à equipe entregue", read: "Alerta à equipe lido",
+};
 
 export function WhatsAppConversationDrawer({ context, api, vm, ticketId, onClose, registerNavigationGuard }: Props) {
   const detail = vm.detail;
@@ -41,5 +45,6 @@ export function WhatsAppConversationDrawer({ context, api, vm, ticketId, onClose
     onSend={noop} onJoin={noop} onLeave={noop} onNewMessage={noMessages}
     whatsapp={{ registerNavigationGuard, messages: detail.messages.map(message => ({ ...message, deliveryLabel: message.delivery ? conversationDeliveryLabel(message.delivery.status) : undefined })),
       loading: vm.detailLoading, error: vm.detailError, canSend: actions.send, onSend: vm.send,
-      reload: () => void vm.open(detail.ticket.id), hasMore: detail.has_more, loadMore: vm.loadMoreMessages, modeLabel, sendHint }} />;
+      reload: () => void vm.open(detail.ticket.id), hasMore: detail.has_more, loadMore: vm.loadMoreMessages, modeLabel, sendHint,
+      staffAlertLabel: detail.staffAlert ? staffAlertLabels[detail.staffAlert.status] : undefined }} />;
 }

@@ -1,0 +1,29 @@
+{
+  "status": "USER_APPROVED_VISUAL_ONLY",
+  "userAnswer": "Aprovar o visual",
+  "questionItemId": "call_c1aa9b077799400381e2bac348903236/0",
+  "recordedAtUtc": "2026-11-23T01:19:43.859097+00:00",
+  "scope": "National DDD+number fallback phone form and its visual presentation. Does not freeze unrelated navigation/header changes from separately approved tasks.",
+  "captures": [
+    {
+      "path": "captures/t101-approved-national-desktop.png",
+      "source": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t101-browser-gates\\2026-11-22T00-42-04.969Z\\new7-captures\\t101-settings-services-configured.running.png",
+      "sha256": "03a5e34c67024a1ebefe26490def6798ea7a176bdd11f4b17f2afa64b7d04a80",
+      "nativeViewport": [
+        1440,
+        1000
+      ]
+    },
+    {
+      "path": "captures/t101-approved-national-mobile.png",
+      "source": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t101-browser-gates\\2026-11-22T00-42-04.969Z\\new7-captures\\t101-settings-products-configured.running.png",
+      "sha256": "6ac2086caa830bb5eb15657c06c73e9579c24d519fc080a9ff61027207ae2524",
+      "nativeViewport": [
+        390,
+        844
+      ]
+    }
+  ],
+  "sourceRevisionIsHistoricalUnchangedT101": true,
+  "currentNativeBrowserOrProductionClaim": false
+}

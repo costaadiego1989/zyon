@@ -58,7 +58,12 @@ export default async function setup(options={}){
     if(errors.length)throw new AggregateError(errors,'service_browser_cleanup_failed');
   };
   try{
-    if(options.whatsappConversations===true){
+    if(options.supportNotifications===true){
+      const notifications=await import('./service-support-notification-fixture.mjs');
+      conversationFixtures=await notifications.prepareSupportNotificationFixtures();
+      installConversationFixture=notifications.installSupportNotificationFixture;
+      runtime=conversationFixtures.runtime;
+    }else if(options.whatsappConversations===true){
       const conversations=await import('./service-whatsapp-conversations-fixture.mjs');
       conversationFixtures=await conversations.prepareWhatsAppConversationFixtures(options.whatsappConversationsApp===true?{appMount:true}:{});
       installConversationFixture=conversations.installWhatsAppConversationFixture;
@@ -112,7 +117,7 @@ export default async function setup(options={}){
     server=await createServer({root:dashboard,configFile:resolve(dashboard,'vite.config.ts'),envFile:false,
       clearScreen:false,logLevel:'error',plugins:[plugin],
       define:{'import.meta.env.VITE_API_BASE_URL':JSON.stringify(origin)},
-      ...(conversationFixtures?{optimizeDeps:{entries:options.whatsappConversationsApp===true?['index.html']:['e2e/fixtures/whatsapp-conversation.tsx']}}:{}),
+      ...(conversationFixtures?{optimizeDeps:{entries:options.whatsappConversationsApp===true||options.supportNotifications===true?['index.html']:['e2e/fixtures/whatsapp-conversation.tsx']}}:{}),
       server:{host:'127.0.0.1',port:5187,strictPort:true,
         proxy:{'/v1':{target:runtime.apiOrigin,changeOrigin:false},
           ...(conversationFixtures?{'/socket.io':{target:runtime.apiOrigin,changeOrigin:false,ws:true}}:{})}}});

@@ -1,0 +1,252 @@
+{
+  "task": 101,
+  "status": "LOCAL_TASK_GATES_GREEN_NOT_FEATURE_FINAL_OR_PRODUCTION",
+  "closedLocalDate": "2026-11-23",
+  "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+  "baseHead": "5e2ed47e136689473fe046040e590673ebd9767c",
+  "scope": "Private national DDD+phone support configuration and truthful staff alert state in existing settings/Conversations, both business modes.",
+  "sourceCode": [
+    {
+      "path": "apps/dashboard/src/api/endpoints/support.ts",
+      "sha256": "595a4c29ca4d3074356160300d419a59af4e2e06b976b8177bfd0c27e00bfa8c",
+      "bytes": 3637,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/src/pages/support-settings/support-notification-settings.tsx",
+      "sha256": "954160b72f2521a7671a06fefcad9ee7ebaf742a0c0deb9b89a9fbc14192d08a",
+      "bytes": 6100,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/src/pages/support-settings/support-settings-page.tsx",
+      "sha256": "9114b7ef2946662b8af764845a26d58707093dff3f4c2a8b2e545f956536fc8f",
+      "bytes": 2071,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/conversation-types.ts",
+      "sha256": "caa76618a11159c2c3f6480b74bac055a6016dc81db1d3d08d00fab20951033d",
+      "bytes": 1998,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.tsx",
+      "sha256": "2d48cfa016d5e11b179f5d182c22a4683f9348653ef2f58a0ca0edf2b02fff4d",
+      "bytes": 4637,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/src/pages/support-settings/components/CanonicalSupportChat.tsx",
+      "sha256": "30cfcf182122c2a521dd30d4e601ba09a94f8bbcb9c34beb560454cf36e10270",
+      "bytes": 9648,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/src/pages/support-settings/support-notification-settings.spec.tsx",
+      "sha256": "542770bf4ace21e627cc7fda781c3f14c19fd57a6e596e62e9d757029058f08d",
+      "bytes": 12433,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/src/pages/whatsapp-seller/components/WhatsAppConversationDrawer.staff-alert.spec.tsx",
+      "sha256": "84af668357cad1b543eb8733c247b0b2dd8c573e270dc252e05fb17ea85bdb45",
+      "bytes": 6796,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/e2e/service-support-notification-fixture.mjs",
+      "sha256": "04c5612760aea05f1147d235424c4bf2eb910205d7347834024edf7da431bc4d",
+      "bytes": 13949,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/e2e/service-support-notification-setup.mjs",
+      "sha256": "0fcbabc6f4fdd2f6a371caaa8033cb3621fcee64f97720b91dfb42e8d7ce32c4",
+      "bytes": 143,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/e2e/support-notification-settings.spec.ts",
+      "sha256": "83d4e923a34e6d66e787494d81754da01712e84df3c072732724b16630624f69",
+      "bytes": 11369,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/playwright.service-support-notification-local.config.ts",
+      "sha256": "eb5e4a91cce9e7fa014f88717465b4db116f17669b63577c6318c7ce76af9e9e",
+      "bytes": 438,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/e2e/service-local-setup.mjs",
+      "sha256": "0df387f8cb462fac955e57ff2fe2258917a1a80f56c9f4b3028b0da5f64b8fe7",
+      "bytes": 11212,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": false
+    },
+    {
+      "path": "apps/dashboard/src/pages/support-settings/support-notification-phone.ts",
+      "sha256": "c885bb78f7f3038c351e5e3e876db35d1cc85e3c6285f7765355d77d75b2ead5",
+      "bytes": 1079,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    },
+    {
+      "path": "apps/dashboard/src/pages/support-settings/support-notification-settings.css",
+      "sha256": "b21e9bbee0dda0d7c0f86c8a67a55d6915af83b6fde0c318c5b2046f09175e9c",
+      "bytes": 3682,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "rootWorkingSame": true
+    }
+  ],
+  "ui": {
+    "wholeFiles": 22,
+    "tests": 173,
+    "pass": 173,
+    "skip": 0
+  },
+  "browser": {
+    "tests": 11,
+    "new7ReceiptQualified": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t101-focused-browser-gates\\2026-11-23T02-40-48.191Z\\receipt.json",
+    "new7Hash": "44d9670f23059e540b888758c732d7cdc60a8a5c147e85621d607dabb5ac3407",
+    "old4FreshReceipt": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t101-focused-old4-retry-gates\\2026-11-23T03-19-26.700Z\\receipt.json",
+    "old4Hash": "d2eeaa78a05431e19ecd31e8a40d9aa885cb4f31e0a04476c18a1cf4efa9a4e8",
+    "allOriginalAssertionsAndBudgetsPreserved": true,
+    "actualAuthenticatedApiAndPersistence": true,
+    "ownedCleanup": true,
+    "sameOwnApi": {
+      "checked": true,
+      "inputSha256": "4f100345a72fb68474bd0756ab90698a61cc9ce0c6b9416b3778d0096f8f0232",
+      "artifactSha256": "9cf6d1fd77e6caf29ecc81ae9e3f90e0f0f8a7ad203e15312abe7edb49e6ae93",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2599
+      }
+    }
+  },
+  "proofs": [
+    {
+      "kind": "api",
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t40-focused-approved-api-window06-20261122\\receipt.json",
+      "sha256": "84b13327b00ea573257e3d264cc56f61a404c963b95dfabc47f1d7bdcafeabd1"
+    },
+    {
+      "kind": "ui173",
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t101-focused-ui-gate\\2026-11-23T02-35-09.742Z\\receipt.json",
+      "sha256": "df276e6557bebaa391ef8ff6550d2f6d4a1e01a5989c28997576ca18e50e7750"
+    },
+    {
+      "kind": "headers",
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t101-focused-dashboard-headers\\2026-11-23T02-37-31.813Z\\receipt.json",
+      "sha256": "fdeaf6863583f626b9e31d5f4912546ab83379aae032549413df1bee4a64186c"
+    },
+    {
+      "kind": "new7",
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t101-focused-browser-gates\\2026-11-23T02-40-48.191Z\\receipt.json",
+      "sha256": "44d9670f23059e540b888758c732d7cdc60a8a5c147e85621d607dabb5ac3407"
+    },
+    {
+      "kind": "old4",
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t101-focused-old4-retry-gates\\2026-11-23T03-19-26.700Z\\receipt.json",
+      "sha256": "d2eeaa78a05431e19ecd31e8a40d9aa885cb4f31e0a04476c18a1cf4efa9a4e8"
+    }
+  ],
+  "captures": [
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t101-settings-services-configured.running.png",
+      "sha256": "03a5e34c67024a1ebefe26490def6798ea7a176bdd11f4b17f2afa64b7d04a80",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t101-settings-services-cleared.running.png",
+      "sha256": "9548611797c3e808cfc758f302ef9cbab617d41f9d48ff7e6ef47ef132ac666b",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t101-settings-products-configured.running.png",
+      "sha256": "6ac2086caa830bb5eb15657c06c73e9579c24d519fc080a9ff61027207ae2524",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t101-settings-products-cleared.running.png",
+      "sha256": "29ea5d8db594fb822a5e07c0f72739c1dcf46785b9bde4aa2cb7dfd6e5d4c804",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t101-staff-alert-mobile-unknown.running.png",
+      "sha256": "4e0c92567bf5ad7438c77b1f713df48fb336cbec78ac551a3a00f6ae4678e5c4",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t101-staff-alert-desktop-accepted.running.png",
+      "sha256": "7ff7cd26ae1b30ebfa18ebef1334257c2818828418abce0fcda70901b2466717",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t101-staff-alert-desktop-unavailable.running.png",
+      "sha256": "5386efb3c121ff6cb3ebad7ad1a0ca00118570a9d306ae491fd65984ad893e0e",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t101-settings-validation-error.running.png",
+      "sha256": "2fd6778eab81cc2cacdafc39141258bb64ce0187836e4788f39cbc8f0fde5f9f",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/t101-approved-national-desktop.png",
+      "sha256": "03a5e34c67024a1ebefe26490def6798ea7a176bdd11f4b17f2afa64b7d04a80",
+      "userApproved": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/t101-approved-national-desktop.running.png",
+      "sha256": "03a5e34c67024a1ebefe26490def6798ea7a176bdd11f4b17f2afa64b7d04a80",
+      "actualCurrentCapture": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/t101-approved-national-mobile.png",
+      "sha256": "6ac2086caa830bb5eb15657c06c73e9579c24d519fc080a9ff61027207ae2524",
+      "userApproved": true
+    },
+    {
+      "path": ".specs/features/whatsapp-service-booking-business-rag/captures/t101-approved-national-mobile.running.png",
+      "sha256": "6ac2086caa830bb5eb15657c06c73e9579c24d519fc080a9ff61027207ae2524",
+      "actualCurrentCapture": true
+    }
+  ],
+  "visualApproval": {
+    "callId": "call_c1aa9b077799400381e2bac348903236",
+    "userAnswer": "Aprovar o visual",
+    "approvedDate": "2026-11-22",
+    "currentDesktopAndMobileByteIdenticalToApproved": true
+  },
+  "firstFailuresRetained": [
+    "Own UI cold import5000ms timeout (172/173), unchanged whole retry173green",
+    "Own old4 firstStaff login click10000ms timeout BEFOREPOST (3/4), unchanged whole4 retry4green"
+  ],
+  "providers": {
+    "externalSends": 0,
+    "liveProviderOrProductionAcceptance": false
+  },
+  "remaining": "Other feature tasks, sameHEAD finalproofs, fresh Verifier/screens/mutations and walk remain."
+}

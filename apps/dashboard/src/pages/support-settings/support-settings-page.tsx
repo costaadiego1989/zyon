@@ -11,6 +11,7 @@ import { createDashboardApi } from "../../api-client.js";
 import { SupportFaqTab } from "./tabs/SupportFaqTab.js";
 import { SupportTicketsTab } from "./tabs/SupportTicketsTab.js";
 import { useSupportSocket } from "../../hooks/useSupportSocket.js";
+import { SupportNotificationSettings } from "./support-notification-settings.js";
 
 type Tab = "faq" | "tickets";
 
@@ -35,6 +36,8 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
   return (
     <div className="page-container support-page">
       <PageHeader title="Atendimento" description="Acompanhe os chamados dos compradores e prepare as respostas da sua equipe." />
+
+      <SupportNotificationSettings api={api} me={props.me} />
 
       <TabBar tabs={TABS} activeTab={activeTab} onTabChange={(k) => setActiveTab(k as Tab)} />
 

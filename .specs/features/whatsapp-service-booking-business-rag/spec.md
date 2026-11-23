@@ -255,7 +255,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 **Acceptance Criteria:**
 
 1. WHEN a feature Ã© validada THEN the system SHALL produzir uma matriz que relacione cada critÃ©rio ao comando e Ã  evidÃªncia de seu resultado no mesmo HEAD. [QA-01]
-2. WHEN o fluxo visual Ã© demonstrado THEN the system SHALL fornecer prints das telas e conversas correspondentes, marcando separadamente prÃ©vias locais e capturas reais. [QA-02]
+2. WHEN o fluxo visual Ã© demonstrado THEN the system SHALL fornecer prints das telas e conversas correspondentes, marcando separadamente prÃ©vias locais e capturas reais. [QA-02] Sources: captures/t101-approved-national-desktop.png, captures/t101-approved-national-mobile.png.
 3. WHEN os testes financeiros e de concorrÃªncia sÃ£o executados THEN the system SHALL comprovar unicidade de reserva, estado financeiro verdadeiro e isolamento de tenant, sem depender apenas da mensagem da IA. [QA-03]
 4. WHEN o RAG Ã© avaliado THEN the system SHALL medir respostas apoiadas por fonte, tratamento de ausÃªncia/contradiÃ§Ã£o e uso correto de ferramentas em trÃªs ramos, exigindo aprovaÃ§Ã£o de todos os casos crÃ­ticos antes da ativaÃ§Ã£o. [QA-04]
 
@@ -364,8 +364,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | CAT-03 | Catalog boolean toggles | T105 | Pending |
 | CAT-04 | Professional links in service editor | T106, T76 | Pending |
 | CAT-05 | Advanced-rules UI follows existing plan entitlement | T107 | Complete LOCAL;70components +3actual browser/nativecleanup, types/lint/build, six Root-reviewed native captures; policy unchanged |
-| HUM-09 | Private support fallback recipient | T99, T101 | In Progress (T99 private API/schema/persistence complete locally; T101 UI pending) |
-| HUM-10 | Durable staff WhatsApp case alert | T100, T101 | In Progress (T100 durable private alert complete locally with Full346; T101 UI and final verification pending) |
+| HUM-09 | Private support fallback recipient | T99, T101 | Implemented locally (T99/T101 private API and national phone UI complete; final feature verification pending) |
+| HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Implemented locally (T100/T101 durable private alert and truthful UI complete; final feature verification pending) |
 | ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-13 | Fixed timezone UI without a chooser | T113 | Pending; explicit user decision2026-11-18 |
@@ -394,6 +394,10 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | External dependency failure | BOOK-06, HUM-05/07, RAG-03; no duplicate provider action on uncertain result. |
 | State transition integrity | BOOK-02/04/05/07, HUM-03/06; booking, finance and attendance have distinct states. |
 
+## Differences from the source
+
+None - the product matches the source.
+
 ## Sources
 
 - Pedido e respostas do usuÃ¡rio em 2026-11-14; transcriÃ§Ã£o de decisÃµes em context.md.
@@ -401,9 +405,11 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 - Suporte existente: `apps/api/src/modules/support/application/support-handoff.service.ts`, `send-ticket-message.use-case.ts`; navegaÃ§Ã£o em `whatsapp-channel/domain/ui/buyer-hub.ts`.
 - RAG atual: `apps/api/src/modules/graph-rag/application/graph-projection.service.ts`, `graph-retrieval.service.ts` e `domain/graph-query.ts`.
 - Signup atual inspecionado no workspace principal: `apps/dashboard/src/lib/signup-options.ts` e `apps/api/src/modules/auth/application/register-merchant.use-case.ts`; reconciliaÃ§Ã£o com a revisÃ£o publicada serÃ¡ uma verificaÃ§Ã£o do design.
-- NÃ£o foram fornecidas novas capturas vinculantes para esta feature. As telas novas serÃ£o julgadas pelos resultados exigidos e pela identidade visual existente; as prÃ©vias das correÃ§Ãµes de UI sÃ£o evidÃªncia separada.
 - [CFM: uso de IA como apoio e decisÃ£o profissional humana](https://portal.cfm.org.br/noticias/regras-sobre-uso-da-ia-na-medicina-entram-em-vigor-no-dia-26-de-agosto), consultado em 2026-11-14.
 - [WHO: limitaÃ§Ãµes e governanÃ§a de modelos generativos em saÃºde](https://www.who.int/news/item/18-01-2024-who-releases-ai-ethics-and-governance-guidance-for-large-multi-modal-models), consultado em 2026-11-14.
+- `t101-approved-national-desktop.png` ? **binding**, QA-02, T101 national DDD desktop: ![T101 national DDD desktop](captures/t101-approved-national-desktop.png)
+- `t101-approved-national-mobile.png` ? **binding**, QA-02, T101 national DDD mobile: ![T101 national DDD mobile](captures/t101-approved-national-mobile.png)
+
 
 ## Success Criteria
 
@@ -450,3 +456,5 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 **Approved T100 test expectations, consumed once**: 2026-11-19 - user: "Corrigir somente essas expectativas (recomendado)" (call_74bc4d7bea2948fd88d4d5e23b2795ea), exactpatch2d64d81c: only two null expectations and removal of arbitrary5511fragment; both full phone/privacy assertions remain. 2026-11-19 - user: "Corrigir somente o novo caso privado" (call_8b8b2307a0284388b16a518d8102e51e), exactpatch63401404: only expanded support_case_alert negative; all46 cases and other45 bodies/assertions/titleoutputs preserved. API was not changed by these oracle corrections; both were applied ONCE before their green gates.
 
 **T100 local Full closure 2026-11-20T04:37:18.954805+00:00**: Exact28 V3inputs40c451f5 adopted without borrowed client/dist/stamp; currentRoot76 +native46 +products224 =346 passed, no skips. Own e34a051e/5fb2dc67/2593 and all APIheaders0. Recordrefusal and admit-launcher failure preserved, successful compiler never repeated. Linear runtime comparison2683exact, only Root39consumer changed+formatter added; qualified M201/M138 outside346. Original protected inbox9 and40deliveries/20claimants retained with source/harness pins. Approved parent300 baseline fromT39 only; widget286798ms, no SLA/causality claim. Provider0/cleanup0, no production action. Task marked before focused local commit; T101/final feature verification pending.
+
+**Approved**: 2026-11-22 - user: "Aprovar o visual" (call_c1aa9b077799400381e2bac348903236/0). T101 national DDD+number without DDI; [desktop](captures/t101-approved-national-desktop.png) and [mobile](captures/t101-approved-national-mobile.png). Actual current running siblings retain native1440x1000/390x844 and are byte-identical to these approved frames. Local task gates are recorded in task-101-evidence.json; no external sends or production acceptance.

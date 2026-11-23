@@ -1,0 +1,40 @@
+.support-notification-settings { display: grid; gap: 20px; min-width: 0; }
+.support-notification-settings .ui-section-header { margin: 0; }
+.support-notification-status { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-secondary); font: 500 12px/1.5 var(--font-sans); white-space: nowrap; }
+.support-notification-status[data-configured="true"] { color: var(--color-text); }
+.support-notification-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); align-items: start; gap: 32px; padding-top: 28px; border-top: 1px solid var(--color-border); }
+.support-notification-context { min-width: 0; color: var(--color-text-secondary); }
+.support-notification-context > svg { color: var(--color-text-muted); margin-bottom: 10px; }
+.support-notification-context h3 { margin: 0 0 8px; color: var(--color-text); font: 600 14px/1.5 var(--font-sans); }
+.support-notification-context p { margin: 0; font: 400 13px/1.7 var(--font-sans); max-width: 65ch; }
+.support-notification-form { display: grid; gap: 20px; min-width: 0; max-width: 660px; }
+.support-notification-form .form-field { margin: 0; max-width: 460px; }
+.support-notification-form .form-field > label { font-weight: 500; }
+.support-notification-form .form-field input { min-height: 44px; padding: 10px 12px; font: 400 14px/1.5 var(--font-sans); font-variant-numeric: tabular-nums; }
+.support-notification-form input::placeholder { color: var(--color-text-secondary); opacity: 1; }
+.support-notification-form > [role="status"] { margin: 0; color: var(--color-text-secondary); font: 13px/1.6 var(--font-sans); }
+.support-notification-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.support-notification-feedback { display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--surface-1); }
+.support-notification-feedback p { margin: 0; color: var(--color-text); font: 13px/1.6 var(--font-sans); }
+.support-notification-feedback .zyn-btn { justify-self: start; }
+.support-notification-disclosure { border-top: 1px solid var(--color-border); }
+.support-notification-disclosure > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; padding: 12px 0; list-style: none; cursor: pointer; color: var(--color-text); font: 500 13px/1.5 var(--font-sans); }
+.support-notification-disclosure > summary::-webkit-details-marker { display: none; }
+.support-notification-disclosure > summary::marker { content: ""; }
+.support-notification-disclosure > summary > svg { flex-shrink: 0; color: var(--color-text-secondary); transition: transform 160ms ease-out; }
+.support-notification-disclosure[open] > summary > svg { transform: rotate(180deg); }
+.support-notification-disclosure > p { max-width: 65ch; margin: 0 0 14px; color: var(--color-text-secondary); font: 13px/1.7 var(--font-sans); }
+.support-notification-disclosure > summary:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+@media (max-width: 760px) {
+  .support-notification-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; padding-top: 20px; }
+  .support-notification-context > svg { display: none; }
+  .support-notification-context h3 { margin-bottom: 4px; }
+  .support-notification-form .form-field { max-width: none; }
+}
+@media (max-width: 560px) {
+  .support-notification-actions > .zyn-btn { width: 100%; }
+  .support-notification-status { white-space: normal; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .support-notification-disclosure > summary > svg { transition: none; }
+}

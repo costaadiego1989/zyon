@@ -17,6 +17,7 @@ export interface CanonicalSupportChatState {
   loadMore: () => Promise<void>;
   modeLabel: string;
   sendHint: string;
+  staffAlertLabel?: string;
   registerNavigationGuard?: (guard: ((proceed: () => void) => boolean) | null) => void;
 }
 interface Props {
@@ -127,6 +128,7 @@ export function CanonicalSupportChat(props: Props) {
         {props.statusOptions.length > 0 && <div className="support-chat__actions" aria-label="Ações do atendimento">{props.statusOptions.map(option =>
           <Button key={option.value} variant={option.value === "in_progress" ? "primary" : "outline"} size="sm" disabled={busy || view.loading || Boolean(view.error)} onClick={() => updateStatus(option.value)}>{option.label}</Button>)}</div>}
       </div>
+      {view.staffAlertLabel && <p className="support-chat__delivery" role="status" aria-live="polite">{view.staffAlertLabel}</p>}
       <div className="support-chat__history-heading" aria-hidden="true"><span>Histórico da conversa</span><span>WhatsApp</span></div>
       {view.error && <div className="panel-error" role="alert"><p>{view.error}</p><Button variant="outline" onClick={view.reload}>Recarregar histórico</Button></div>}
       {view.loading && <p role="status">Carregando histórico da conversa…</p>}

@@ -2231,6 +2231,8 @@ T107 → T106
 
 ### T101: Configure support alerts in the existing settings UI
 
+**Settled mid-build, 2026-11-21:** user: "nao recisa do ddi se baseia no layout do cashback e anuncios com ia e o novo estilo visual padrao do projeto" (call_975fea8c0c324845ac502b037785b911). Revise this form using the current Cashback/AI Ads visual language and a national DDD+number input; normalize Brazil only at the API boundary. Preserve the existing private API and behavioral oracles. Add assertions for the newly requested presentation and normalization. Whole previous browser 11/11 passed locally (receipt ff7f2a18, handoff 1094b2d5); those captures were not visually approved. Revalidate affected UI and capture revised desktop/mobile states before closure.
+
 **What**: Add private fallback phone save/clear controls to the existing support settings flow for both business modes, and show truthful alert availability/result in Conversations without publishing the phone to buyers or the RAG.
 **Where**: `apps/dashboard/src/pages/support-settings/support-notification-settings.tsx`
 **Depends on**: T99, T100, T62
@@ -2239,13 +2241,16 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Actual save/clear/reload gestures persist the private recipient, preserve FAQ edits, obey role/tenant and display validation/forbidden/network states honestly.
-- [ ] Conversations shows queued/accepted/unavailable/failed/unknown without equating acceptance with delivery; no repeated alert per incoming message.
-- [ ] Unfiltered old/new components, dashboard build/typecheck and local desktop/mobile browser gestures/screenshots pass; mark complete before an atomic local commit.
+- [x] Actual save/clear/reload gestures persist the private recipient, preserve FAQ edits, obey role/tenant and display validation/forbidden/network states honestly.
+- [x] Conversations shows queued/accepted/unavailable/failed/unknown without equating acceptance with delivery; no repeated alert per incoming message.
+- [x] Unfiltered old/new components, dashboard build/typecheck and local desktop/mobile browser gestures/screenshots pass; mark complete before an atomic local commit.
 
 **Tests**: New `src/pages/support-settings/support-notification-settings.spec.tsx` and `e2e/support-notification-settings.spec.ts`; old FAQ/settings/Conversations tests unchanged. Actual local authenticated API/persistence; no external sends.
-**Gate**: Browser/UI build: `pnpm --dir apps/dashboard exec vitest run src/pages/support-settings/support-notification-settings.spec.tsx` plus old FAQ/settings/Conversations files recorded before execution; dashboard typecheck/local build; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/support-notification-settings.spec.ts`.
+**Gate**: Browser/UI build: `pnpm --dir apps/dashboard exec vitest run src/pages/support-settings/support-notification-settings.spec.tsx` plus old FAQ/settings/Conversations files recorded before execution; dashboard typecheck/local build; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-support-notification-local.config.ts e2e/support-notification-settings.spec.ts`.
 **Commit**: `feat(service-business): t101 configure human support alerts`
+
+
+**Verified locally, 2026-11-23:** exact focused UI15; whole22/173 green df276e65, own dashboard types/build fdeaf686, actual new7 f5332e85 plus unchanged old4 retry d2eeaa78 on same OWN checkedAPI50 84b13327. All11 gestures/role/tenant/persistence/feedback cases passed with natural cleanup. Current1440x1000/390x844 phoneframes byte-identical to user-approved03a5e34c/6ac2086c (call_c1aa9b077799400381e2bac348903236, user: "Aprovar o visual"). Original failures retained, no test/guard/timeout weakening. task-101-evidence.json; finalfeature/prodverification remains.
 
 ### Phase 16: Appointments daily board
 
