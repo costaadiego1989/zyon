@@ -50,8 +50,7 @@ export class CampaignLifecycleService {
       if (access.merchantId !== merchantId || access.accountId !== before.remoteAccountId) throw new MetaAdsError('meta_asset_forbidden', 403);
       const remote = await this.deps.provider.snapshot(access, before);
       if (remote.campaignId !== before.remoteCampaignId) throw new MetaAdsError('campaign_remote_state_unavailable', 409);
-      const end = remote.schedule?.endsAt ? Date.parse(remote.schedule.endsAt) : NaN;
-      const ended = Number.isFinite(end) && end <= this.clock().getTime();
+      const ended = ['ARCHIVED','DELETED'].includes(remote.effectiveStatus);
       if (!ended && !['PAUSED','CAMPAIGN_PAUSED'].includes(remote.effectiveStatus)) {
         throw new MetaAdsError(remote.effectiveStatus === 'ACTIVE' ? 'campaign_pause_required' : 'campaign_remote_state_unavailable', 409);
       }

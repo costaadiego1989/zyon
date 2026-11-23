@@ -37,6 +37,7 @@ export class CampaignWorkspaceQueryService{
   const sameAccount=!!state.connection.account&&(!campaign.remoteAccountId||campaign.remoteAccountId===state.connection.account.id);
   const end=campaign.draft.budget?.endsAt,validEnd=!end||Number.isFinite(Date.parse(end))&&Date.parse(end)>now;
   const ended=!!end&&Number.isFinite(Date.parse(end))&&Date.parse(end)<=now;
+  const endedActive=ended&&!!campaign.remoteCampaignId&&['delivered','active_unconfirmed'].includes(campaign.status);
   const latest=Object.values(state.proposals).filter(p=>p.campaignId===campaign.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id))[0];
   const pending=owned&&sameAccount&&validEnd&&!uncertain&&!inFlight&&latest?.status==='pending_review'&&latest.connectionEpoch===state.connection.epoch&&!latest.executionId&&!executions.some(e=>e.proposalId===latest.id)?latest.id:null;
   let group:MetaAdsCampaignWorkspaceRow['group']='drafts',stateLabel='Rascunho';
@@ -44,6 +45,7 @@ export class CampaignWorkspaceQueryService{
   else if(!owned)stateLabel='Somente análise';
   else if(uncertain){group='attention';stateLabel='Aguardando confirmação';}
   else if(inFlight)stateLabel='Alteração em andamento';
+  else if(endedActive){group='attention';stateLabel='Período encerrado · confirme a pausa';}
   else if(ended&&campaign.remoteCampaignId){group='paused';stateLabel='Período encerrado';}
   else if(campaign.status==='delivered'){group='running';stateLabel='Em veiculação';}
   else if(campaign.status==='active_unconfirmed'){group='running';stateLabel='Publicada · entrega não confirmada';}
@@ -53,7 +55,7 @@ export class CampaignWorkspaceQueryService{
   const metrics=cached&&cached.since===query.since&&cached.until===query.until&&(!campaign.remoteAccountId||campaign.remoteAccountId===state.connection.account?.id)?{...structuredClone(cached),confirmedOrdersStatus:cached.confirmedOrdersStatus??(cached.source==='meta_reported'?'unavailable' as const:'available' as const)}:null;
   const mutable=canManage&&owned&&!inFlight&&!uncertain;
   const remoteMutable=mutable&&sameAccount&&!!campaign.remoteCampaignId;
-  return{campaign:structuredClone(campaign),group,stateLabel,pendingProposalId:pending,audience:this.audience(campaign,state),metrics,actions:{pause:remoteMutable&&group==='running',deleteDraft:mutable&&!campaign.remoteCampaignId,archive:remoteMutable&&group==='paused',verifyRemote:canManage&&owned&&sameAccount&&!!campaign.remoteCampaignId&&uncertain}};
+  return{campaign:structuredClone(campaign),group,stateLabel,pendingProposalId:pending,audience:this.audience(campaign,state),metrics,actions:{pause:remoteMutable&&(group==='running'||endedActive),deleteDraft:mutable&&!campaign.remoteCampaignId,archive:remoteMutable&&group==='paused',verifyRemote:canManage&&owned&&sameAccount&&!!campaign.remoteCampaignId&&(uncertain||endedActive)}};
  }
  async list(merchantId:string,input:Record<string,unknown>={}):Promise<MetaAdsCampaignWorkspacePage>{
   requireIdentifier(merchantId);const state=await this.deps.repo.read(merchantId),query=this.query(input,state),canManage=await this.deps.canManage(merchantId);
