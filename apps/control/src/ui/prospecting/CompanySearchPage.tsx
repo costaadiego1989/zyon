@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import type { CompanyDomainQuery, CompanyFilters, CompanySearchQuery } from "@zyon/shared-types";
+import type { CompanyDirectoryCoverage, CompanyDomainQuery, CompanyFilters, CompanySearchQuery } from "@zyon/shared-types";
 import { Search } from "lucide-react";
 import { Button, ReadState, cents, money, stages, useAction, useResource, type PageProps } from "./screen-controls.js";
 import { ProspectingState } from "./ProspectingShell.js";
@@ -82,17 +82,19 @@ function Field({
   label,
   choices,
   type = "text",
+  disabled = false,
 }: {
   name: string;
   label: string;
   choices?: Record<string, string>;
   type?: string;
+  disabled?: boolean;
 }) {
   return (
     <label>
       {label}
       {choices ? (
-        <select aria-label={label} name={name}>
+        <select aria-label={label} name={name} disabled={disabled}>
           <option value="">Todos</option>
           {Object.entries(choices).map(([key, text]) => (
             <option key={key} value={key}>
@@ -101,7 +103,7 @@ function Field({
           ))}
         </select>
       ) : (
-        <input name={name} type={type} />
+        <input name={name} type={type} disabled={disabled} />
       )}
     </label>
   );
@@ -206,15 +208,19 @@ export function CompanySearchPage(props: PageProps) {
   const availability = useResource(load, props.onSessionExpired);
   const source = availability.data?.source;
   if (source?.status === "current" && source.value?.snapshotId && source.value.state === "published")
-    return <PublishedCompanySearchPage {...props} />;
+    return <PublishedCompanySearchPage {...props} coverage={source.value.coverage} />;
   const preparing = source?.status === "unavailable" && source.value?.snapshotId === null && source.value.state === "unavailable";
+  const job = preparing ? source.value?.latestImport : undefined;
+  const storageFailed = job?.state === "failed" && ["production_directory_storage_limit", "retail_directory_25gb_limit"].includes(job.errorCode ?? "");
+  const importing = job && ["discovered", "importing", "validating", "ready"].includes(job.state);
   return (
     <section className="prospecting-page">
       <header><h2>Buscar empresas</h2><p>Consulte o cadastro nacional por atividade, localização e perfil da empresa.</p></header>
       {preparing ? (
         <div className="prospecting-state">
-          <h3>Base nacional em preparação</h3>
-          <p role="status">A busca será liberada quando a importação e a validação dos arquivos do CNPJ forem concluídas.</p>
+          <h3>{storageFailed ? "Importação interrompida por armazenamento" : job?.state === "failed" ? "Importação interrompida" : importing ? "Importando base de empresas" : "Base nacional em preparação"}</h3>
+          <p role={job?.state === "failed" ? "alert" : "status"}>{storageFailed ? "A carga atingiu o limite de armazenamento. A base ainda não foi publicada." : job?.state === "failed" ? "A carga não foi concluída. A busca será liberada após a recuperação e a validação dos arquivos oficiais." : "A busca será liberada quando a importação e a validação dos arquivos do CNPJ forem concluídas."}</p>
+          {job && <p>{job.validatedFiles} de {job.totalFiles} arquivos validados{job.selectedCompanies > 0 ? " · " + job.selectedCompanies.toLocaleString("pt-BR") + " empresas selecionadas" : ""}.<br />Atualizado em {new Date(job.updatedAt).toLocaleString("pt-BR")}.</p>}
           <Button onClick={availability.reload}>Verificar disponibilidade</Button>
         </div>
       ) : (
@@ -223,7 +229,7 @@ export function CompanySearchPage(props: PageProps) {
     </section>
   );
 }
-function PublishedCompanySearchPage(props: PageProps) {
+function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirectoryCoverage}) {
   const { api, onSessionExpired, navigate } = props;
   const [query, setQuery] = useState<CompanySearchQuery>({ filters: {} }),
     [uf, setUf] = useState(""),
@@ -264,6 +270,7 @@ function PublishedCompanySearchPage(props: PageProps) {
       <header>
         <h2>Buscar empresas</h2>
         <p>Consulte o cadastro nacional por atividade, localização e perfil da empresa.</p>
+        {props.coverage?.kind === "regional_retail" && <p role="status"><strong>Varejo do Sudeste e Sul</strong> · {props.coverage.companyCount.toLocaleString("pt-BR")} empresas ativas com telefone.<br />Cobertura: {props.coverage.ufs.join(", ")}. Dados da Receita Federal; limite da base de 25 GB.</p>}
       </header>
       <form onSubmit={apply} onChange={invalidateSelection}>
         <div className="prospecting-fields">
@@ -271,8 +278,8 @@ function PublishedCompanySearchPage(props: PageProps) {
           <label>
             UF
             <select aria-label="UF" value={uf} name="ufs" onChange={(e) => setUf(e.target.value)}>
-              <option value="">Todo o Brasil</option>
-              {ufs.map((v) => (
+              <option value="">{props.coverage ? "Todas as UFs da base" : "Todo o Brasil"}</option>
+              {(props.coverage?.ufs ?? ufs).map((v) => (
                 <option key={v}>{v}</option>
               ))}
             </select>
@@ -318,12 +325,13 @@ function PublishedCompanySearchPage(props: PageProps) {
             <Field name="matrixBranches" label="Estabelecimento" choices={{ matrix: "Matriz", branch: "Filial" }} />
             <Field name="openedFrom" label="Abertura a partir de" type="date" />
             <Field name="openedTo" label="Abertura até" type="date" />
-            <Field name="simples" label="Simples Nacional" choices={binary} />
-            <Field name="mei" label="MEI" choices={binary} />
+            <Field name="simples" label="Simples Nacional" choices={binary} disabled={!!props.coverage} />
+            <Field name="mei" label="MEI" choices={binary} disabled={!!props.coverage} />
             <Field name="hasContact" label="Contato cadastral disponível" choices={binary} />
             <Field name="stages" label="Estágio no CRM" choices={stages} />
           </div>
           <AdditionalFilterValues changed={invalidateSelection} />
+          {props.coverage && <p>Simples Nacional e MEI ainda não estão disponíveis nesta base.</p>}
         </details>
         <Button type="submit" primary>
           <Search size={16} />

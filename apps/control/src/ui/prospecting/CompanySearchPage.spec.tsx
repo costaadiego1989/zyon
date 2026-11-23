@@ -19,9 +19,36 @@ function page(cnpj = first, nextCursor: string | null = null) {
 const domains = async () => ({ items: [], nextCursor: null });
 const published = { source: { status: "current", value: { snapshotId: "out", state: "published", competence: "2026-10" }, observedAt: "2026-11-22T12:00:00Z" } };
 const preparing = { source: { status: "unavailable", value: { snapshotId: null, state: "unavailable", competence: null }, observedAt: null } };
+const regionalCoverage={kind:"regional_retail",ufs:["SP","RJ","MG","ES","PR","SC","RS"],mainCnaes:["4781400","4772500"],companyCount:12345,maximumDirectoryBytes:25_000_000_000,scopeComplete:true};
 function searchProps(methods: Parameters<typeof screenProps>[0]) {
   return screenProps({ readiness: async () => published, ...methods });
 }
+test("REC-03 storage failures show an interruption and retry actual readiness before mounting company search",async()=>{
+  const job={id:'regional',state:'failed',phase:'failed',committedCount:57018146,selectedCompanies:0,validatedFiles:6,totalFiles:24,errorCode:'production_directory_storage_limit',updatedAt:'2026-11-23T05:57:06.812Z'};
+  const readiness=vi.fn().mockResolvedValueOnce({source:{...preparing.source,value:{...preparing.source.value,latestImport:job}}}).mockResolvedValue(published);
+  const companies=vi.fn().mockResolvedValue(page()),lookup=vi.fn(domains);
+  const ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains:lookup})}/>);
+  expect(ui.text()).toContain('Importação interrompida por armazenamento');expect(ui.host.querySelector('[role=alert]')?.textContent).toContain('A base ainda não foi publicada');
+  expect(ui.text()).toContain('6 de 24 arquivos validados');expect(ui.text()).not.toContain('Base nacional em preparação');expect(companies).not.toHaveBeenCalled();expect(lookup).not.toHaveBeenCalled();
+  await ui.click('Verificar disponibilidade');expect(ui.text()).toContain('Oficina '+first);expect(companies).toHaveBeenCalledTimes(1);
+});
+test("REC-03 real import progress shows staged selection and remains unavailable until publication",async()=>{
+  const job={id:'regional',state:'importing',phase:'validating_sources',committedCount:0,selectedCompanies:54321,validatedFiles:3,totalFiles:23,errorCode:null,updatedAt:'2026-11-23T12:00:00Z'};
+  const readiness=vi.fn().mockResolvedValue({source:{...preparing.source,value:{...preparing.source.value,latestImport:job}}}),companies=vi.fn(),lookup=vi.fn();
+  const ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains:lookup})}/>);
+  expect(ui.text()).toContain('Importando base de empresas');expect(ui.text()).toContain('3 de 23 arquivos validados');expect(ui.text()).toContain('54.321 empresas selecionadas');expect(ui.host.querySelector('[role=alert]')).toBeNull();
+  await ui.click('Verificar disponibilidade');expect(readiness).toHaveBeenCalledTimes(2);expect(companies).not.toHaveBeenCalled();expect(lookup).not.toHaveBeenCalled();
+});
+test("REC-03 published regional coverage includes Floripa in SC and preserves city and retail filters",async()=>{
+  const readiness=async()=>({source:{...published.source,value:{...published.source.value,coverage:regionalCoverage}}}),companies=vi.fn().mockResolvedValue(page());
+  const lookup=async(q:{kind:string})=>({items:q.kind==='municipios'?[{kind:'municipios',code:'8105',label:'FLORIANOPOLIS'}]:q.kind==='cnaes'?[{kind:'cnaes',code:'4781400',label:'Vestuário'}]:[],nextCursor:null});
+  const ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains:lookup})}/>);
+  expect(ui.text()).toContain('Varejo do Sudeste e Sul');expect(ui.text()).toContain('12.345 empresas ativas com telefone');expect(ui.text()).toContain('limite da base de 25 GB');
+  expect(Array.from(ui.control('UF').querySelectorAll('option')).map(o=>o.value)).toEqual(['',...regionalCoverage.ufs]);
+  expect(ui.control('Simples Nacional').disabled).toBe(true);expect(ui.control('MEI').disabled).toBe(true);
+  await ui.fill('UF','SC');await ui.fill('Município','8105');await ui.fill('CNAE principal','4781400');await ui.click('Aplicar filtros');
+  expect(companies.mock.lastCall?.[0].filters).toEqual({ufs:['SC'],cityCodes:['8105'],mainCnaes:['4781400']});
+});
 test("PROS-24 AC1 filtros e paginação conservam a seleção do snapshot e centavos exatos", async () => {
   const companies = vi
     .fn()

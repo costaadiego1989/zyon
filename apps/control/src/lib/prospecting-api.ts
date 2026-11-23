@@ -5,7 +5,7 @@ import {PlatformApiError} from "./api.js";
 type Transport=<R>(path:string,options?:RequestInit & {headers?:Record<string,string>})=>Promise<R>;
 type Runtime={moduleEnabled:boolean;workersRunning:boolean;dispatchMode:"disabled"|"controlled"|"live";modelMode:"disabled"|"controlled"|"live";ingestionEnabled:boolean;reservationDayTimezone:"UTC"};
 type Observation<V>={status:"current"|"stale"|"unavailable";observedAt:string|null;value:V|null};
-type Readiness={runtime:Runtime;updatedAt:string;source:Observation<{snapshotId:string|null;competence:string|null;state:string}>;
+type Readiness={runtime:Runtime;updatedAt:string;source:Observation<{snapshotId:string|null;competence:string|null;state:string;coverage?:T.CompanyDirectoryCoverage;latestImport?:T.CompanyDirectoryImportSummary}>;
  knowledge:Observation<{activePublications:number}>;channel:Observation<{status:T.PlatformSenderReadiness["status"];blockers:T.ProspectingBlocker[];bindingId:string|null;bindingVersion:number|null;updatedAt:string}>};
 const root="/platform/prospecting/";
 export class ProspectCommandUnresolved extends Error {
