@@ -1,4 +1,5 @@
 import {spawn,execFile} from 'node:child_process';
+import {appendFileSync} from 'node:fs';
 import {promisify} from 'node:util';
 import {mkdir,writeFile,readFile,realpath,readdir,rm} from 'node:fs/promises';
 import {createConnection,createServer as createTcpServer} from 'node:net';
@@ -64,8 +65,8 @@ export async function main(args=process.argv.slice(2)){
   for(const name of Object.keys(process.env))if(!allowed.has(name.toUpperCase()))delete process.env[name];
   process.env.NODE_ENV='test';process.env.CYPRESS_VERIFY_TIMEOUT='120000';
   // Bound only this isolated runner's children on shared development machines.
-  process.env.NODE_OPTIONS='--max-old-space-size=768';
-  process.env.ELECTRON_EXTRA_LAUNCH_ARGS='--js-flags=--max-old-space-size=768';
+  process.env.NODE_OPTIONS='--max-old-space-size=512';
+  process.env.ELECTRON_EXTRA_LAUNCH_ARGS='--js-flags=--max-old-space-size=512';
   await database();const ports=await isolatedPorts();apiBase='http://127.0.0.1:'+ports.apiPort;front='http://127.0.0.1:'+ports.frontPort;
   const sourceBefore=await sourceSnapshot();
   const nonce=randomBytes(32).toString('hex'),artifact=path.join(workspace,'.specs/features/agentic-dashboard-assistant/cypress-results',new Date().toISOString().replaceAll(':','-'));
@@ -84,7 +85,9 @@ export async function main(args=process.argv.slice(2)){
     process.stdout.write('Starting Cypress in isolated Edge\n');
     const optionsPath=path.join(artifact,'options.json'),resultPath=path.join(artifact,'results.json');
     await writeFile(optionsPath,JSON.stringify({project:dashboard,configFile:'cypress.agentic.config.ts',browser:'edge',headless:true,record:false,testingType:'e2e',...(spec?{spec}:{}),env:{agenticNonce:nonce},config:{baseUrl:front,expose:{agenticCase:options.case??'',agenticApi:apiBase},screenshotsFolder:path.join(artifact,'screenshots'),downloadsFolder:path.join(artifact,'downloads')}}));
+    const workerLogPath=path.join(artifact,'worker.log');await writeFile(workerLogPath,'');
     const worker=spawn(process.execPath,[path.join(dashboard,'scripts/run-agentic-cypress-worker.mjs'),optionsPath,resultPath],{cwd:dashboard,env:{...process.env},windowsHide:true,detached:process.platform==='win32',stdio:['ignore','pipe','pipe']});
+    worker.stdout.on('data',chunk=>appendFileSync(workerLogPath,chunk));worker.stderr.on('data',chunk=>appendFileSync(workerLogPath,chunk));
     worker.stdout.pipe(process.stdout);worker.stderr.pipe(process.stderr);
     const code=await new Promise((resolve,reject)=>{worker.once('error',reject);worker.once('exit',resolve);});await rm(optionsPath);
     let result;try{result=JSON.parse(await readFile(resultPath,'utf8'));}catch{throw Error(`cypress_no_test_ran: worker exited ${code} without results`);}
