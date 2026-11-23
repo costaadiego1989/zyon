@@ -366,7 +366,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | CAT-05 | Advanced-rules UI follows existing plan entitlement | T107 | Complete LOCAL;70components +3actual browser/nativecleanup, types/lint/build, six Root-reviewed native captures; policy unchanged |
 | HUM-09 | Private support fallback recipient | T99, T101 | Implemented locally (T99/T101 private API and national phone UI complete; final feature verification pending) |
 | HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Implemented locally (T100/T101 durable private alert and truthful UI complete; final feature verification pending) |
-| ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | In Progress (T41 canonical six-state paged read model complete; T102/T103 board and final proof pending) |
+| ATEND-11 | Canonical appointments Kanban/list | T41, T74, T102, T103 | In Progress (T41 authorized canonical reads and T102 coherent view model/query/SDK/hook complete locally; T103 actual board/list gestures, build and final proof pending) |
 | ATEND-12 | Service-only appointments navigation | T82, T83, T103 | Pending; explicitly requested2026-11-16 |
 | ATEND-13 | Fixed timezone UI without a chooser | T113 | Pending; explicit user decision2026-11-18 |
 | QA-02 | Screenshots | T3, T16, T39, T44, T61, T75, T89, T93, T95 | In Progress (T61 actual local desktop/mobile drawer captures and Browser gate complete; optional visual approval unanswered, remaining task captures and final screens review pending) |

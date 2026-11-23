@@ -50,6 +50,7 @@ import { postSaleEndpoints } from "./endpoints/post-sale.js";
 import { knowledgeEndpoints } from "./endpoints/knowledge.js";
 import { financeEndpoints } from "./endpoints/finance.js";
 import { serviceAttendanceEndpoints } from "./endpoints/service-attendance.js";
+import { serviceAppointmentEndpoints } from "./endpoints/service-appointments.js";
 
 export * from "./http/index.js";
 export * from "./types.js";
@@ -58,6 +59,7 @@ export * from "./endpoints/product-content.js";
 export * from "./endpoints/marketplace-v2.js";
 export * from "./endpoints/finance.js";
 export * from "./endpoints/service-attendance.js";
+export * from "./endpoints/service-appointments.js";
 export {
   mapWebhookEndpoint,
   mapWebhookDelivery,
@@ -118,6 +120,7 @@ export function createDashboardApi(options: {
     ...knowledgeEndpoints(base, f),
     ...financeEndpoints(base, f),
     ...serviceAttendanceEndpoints(base, f),
+    ...serviceAppointmentEndpoints(base, f),
     ...otherEndpoints(base, f),
   };
 }

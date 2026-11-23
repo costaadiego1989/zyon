@@ -1,0 +1,307 @@
+{
+  "task": 102,
+  "status": "LOCAL_TASK_GATES_GREEN_READY_FOR_ROOT_MARK_AND_COMMIT",
+  "rootParent": "f8712c763088dc19fb6dd09b426388dd182f8c63",
+  "taskMarkedBeforeAtomicCommit": true,
+  "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+  "code": [
+    {
+      "path": "apps/dashboard/src/pages/service-appointments/appointment-board.ts",
+      "sha256": "e29c6cb8020e867d46509778f60e9e0ee8e6d06c6937bb0ada37621d93ba8025",
+      "bytes": 7106,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\pages\\service-appointments\\appointment-board.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "e29c6cb8020e867d46509778f60e9e0ee8e6d06c6937bb0ada37621d93ba8025",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/pages/service-appointments/appointment-board.spec.ts",
+      "sha256": "9bd3de4f6d5199d66c1f7c5048a01c5cc1bf126290440422c2754c096173c2c7",
+      "bytes": 6819,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\pages\\service-appointments\\appointment-board.spec.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "9bd3de4f6d5199d66c1f7c5048a01c5cc1bf126290440422c2754c096173c2c7",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/pages/service-appointments/appointment-query-state.ts",
+      "sha256": "bed518e30cae874ce06fae651cfe6a20e3d96a376a0823fb497af877f7b799c1",
+      "bytes": 4793,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\pages\\service-appointments\\appointment-query-state.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "bed518e30cae874ce06fae651cfe6a20e3d96a376a0823fb497af877f7b799c1",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/pages/service-appointments/appointment-query-state.spec.ts",
+      "sha256": "496ec718266551d1ad65fe35f6f289bd8481c56a1c3205f906138e9309161d5a",
+      "bytes": 7155,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\pages\\service-appointments\\appointment-query-state.spec.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "496ec718266551d1ad65fe35f6f289bd8481c56a1c3205f906138e9309161d5a",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/pages/service-appointments/appointment-read-snapshot.ts",
+      "sha256": "376af2fb02e4fa39e3901a221d1865850a6448a58a3359e22961e4be51cc1108",
+      "bytes": 5977,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\pages\\service-appointments\\appointment-read-snapshot.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "376af2fb02e4fa39e3901a221d1865850a6448a58a3359e22961e4be51cc1108",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/pages/service-appointments/appointment-read-snapshot.spec.ts",
+      "sha256": "11d92e56a3b1d268db9878a73eb8733d02d80ad3d766c5abf7260d02b62fcd8f",
+      "bytes": 5530,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\pages\\service-appointments\\appointment-read-snapshot.spec.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "11d92e56a3b1d268db9878a73eb8733d02d80ad3d766c5abf7260d02b62fcd8f",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/pages/service-appointments/useServiceAppointments.ts",
+      "sha256": "c1880deca5bddc014555bd2f323e383ecbb9d097551d5993a9ca5774bdb1ceac",
+      "bytes": 5689,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\pages\\service-appointments\\useServiceAppointments.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "c1880deca5bddc014555bd2f323e383ecbb9d097551d5993a9ca5774bdb1ceac",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/pages/service-appointments/useServiceAppointments.spec.ts",
+      "sha256": "3624501f79a9adee75648a18e22e91dd36c5eb4d6bd5e24e10dd66b977008ce4",
+      "bytes": 9979,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\pages\\service-appointments\\useServiceAppointments.spec.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "3624501f79a9adee75648a18e22e91dd36c5eb4d6bd5e24e10dd66b977008ce4",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/api/endpoints/service-appointments.ts",
+      "sha256": "6e93992880ee36e455764fb8a6b03851d7ade9f82cbd2718d365c932acd8b8ac",
+      "bytes": 3523,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\api\\endpoints\\service-appointments.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "6e93992880ee36e455764fb8a6b03851d7ade9f82cbd2718d365c932acd8b8ac",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/api/endpoints/service-appointments.spec.ts",
+      "sha256": "bb75ddd3b5d253036b3af88eca7dd7d507b88873969850af4126d0c9a47bb0f8",
+      "bytes": 4322,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\api\\endpoints\\service-appointments.spec.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "bb75ddd3b5d253036b3af88eca7dd7d507b88873969850af4126d0c9a47bb0f8",
+      "rootWorkingSame": true,
+      "workingCopyAction": "STAGE_ONLY_THIS_FROZEN_TASK_FILE"
+    },
+    {
+      "path": "apps/dashboard/src/api/index.ts",
+      "sha256": "4fe9231fabfc6f0ad9392da809fa52fdacc687076cacd3993abe8e06ef5fc7b9",
+      "bytes": 5726,
+      "verifiedWorkspace": "C:\\tmp\\zyon-t40-focused-20261122",
+      "candidate": "C:\\tmp\\zyon-service-business-20261114\\.cache\\attendance-kanban-finish-20261123\\t102-atomic-closure\\index-candidates\\apps\\dashboard\\src\\api\\index.ts",
+      "selection": "EXACT_TESTED_FOCUS_T102_11",
+      "rootWorkingSha256": "048a6814ccfc76e20dd90909e58a9bf9ddd5c597e7975184385207806bde9917",
+      "rootWorkingSame": false,
+      "workingCopyAction": "NEVER_OVERWRITE_ROOT_WORKING_API_INDEX_STAGE_FROZEN_BLOB_ONLY"
+    }
+  ],
+  "formalGate": {
+    "level": "Quick UI",
+    "requires": [
+      "whole new and old Orders/service hook UI regressions",
+      "full normal dashboard typecheck"
+    ],
+    "taskBuildRequired": false,
+    "formalTaskBlockSha256": "d6af81b9f27eae2537ea16a01264a1d5da7a2d4f34c9c5b80edff349ea735916",
+    "overbroadCachePlanNotAuthoritative": true
+  },
+  "sourceFreeze": {
+    "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t102-whole13-ui-20261123\\freeze.json",
+    "sha256": "ce2e48f559e7751491a91ddf19cf590aa24cb41dfca541f90c2a5e7a286616c9",
+    "all19SourceAndRegressionPinsStillExact": true
+  },
+  "ui": {
+    "receipt": {
+      "source": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t102-whole13-ui-20261123\\receipt.json",
+      "sha256": "2df23fa0ffd3cb766cd89b18b1d6b4981117a81b1c1daff9a730c78a61556e99",
+      "archived": "receipts/ui179-receipt.json"
+    },
+    "rawSha256": "7a0d35144add1aa5f49fcc6d9423e1c89d7db2f6beea4501d5c957051d2e486d",
+    "wholeFiles": [
+      "src/api/endpoints/service-appointments.spec.ts",
+      "src/pages/service-appointments/appointment-read-snapshot.spec.ts",
+      "src/pages/service-appointments/useServiceAppointments.spec.ts",
+      "src/pages/service-appointments/appointment-board.spec.ts",
+      "src/pages/service-appointments/appointment-query-state.spec.ts",
+      "src/pages/service-attendance/useServiceAttendancePage.spec.ts",
+      "src/api/endpoints/service-attendance.spec.ts",
+      "src/api/http/client.spec.ts",
+      "src/api/http/session-fetch.spec.ts",
+      "src/api/endpoints/catalog.spec.ts",
+      "src/pages/orders-shipments/order-item-money.spec.ts",
+      "src/pages/orders-shipments-page.spec.ts",
+      "src/api/endpoints/order.spec.ts"
+    ],
+    "counts": {
+      "tests": 179,
+      "pass": 179,
+      "fail": 0,
+      "skipped": 0,
+      "todo": 0,
+      "cancelled": 0
+    },
+    "naturalExitCode": 0,
+    "originalOptions": [
+      "--pool=forks",
+      "--maxWorkers=1",
+      "--minWorkers=1",
+      "--no-file-parallelism"
+    ],
+    "guardCommitMiB": 1024
+  },
+  "dashboardTypecheck": {
+    "receipt": {
+      "source": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t102-focused-dashboard-headers-20261123\\2026-11-23T14-29-58.122Z\\receipt.json",
+      "sha256": "2117a374f4c8fd9bab05b567e792f141a004eeba54279ff7816c1e8dec9bd75b",
+      "archived": "receipts/headers-aggregate-receipt.json"
+    },
+    "aggregateReceiptStatus": "failed",
+    "qualifiedChildLabel": "dashboard-types",
+    "naturalExitCode": 0,
+    "rawSha256": "4b45ae361b4e85a38a69356d25976a0df457c1da65aa7b332acea85311d86b38",
+    "args": [
+      "C:\\Users\\Admin\\AppData\\Local\\pnpm\\.tools\\pnpm\\9.15.0\\node_modules\\pnpm\\bin\\pnpm.cjs",
+      "--dir",
+      "apps/dashboard",
+      "typecheck"
+    ],
+    "guardCommitMiB": 5168
+  },
+  "extraBuild": {
+    "notFormalTask102Gate": true,
+    "originalInterruptedExitCode": 1073807364,
+    "rawSha256": "dfe7404e2e4ea588057d40b8cdadb9403ae757964c8e8083228343ce75aca4e0",
+    "refusedReceipt": {
+      "source": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t102-focused-dashboard-build-window02-20261123\\2026-11-23T14-37-54.625Z\\receipt.json",
+      "sha256": "77b55768be8ed14f9ccb0c9c123f78703c83672000096ea7dd66a83946c36d34",
+      "archived": "receipts/build-only-refused-receipt.json"
+    },
+    "mustRemainRecorded": true
+  },
+  "dependencyState": {
+    "t41": "COMPLETE_IN_VALIDATED_ROOT_PARENT",
+    "t74": "COMPLETE_IN_VALIDATED_ROOT_PARENT",
+    "futureParentAndTask41EvidenceRequired": true
+  },
+  "protectedRootMixedFiles": {
+    "apps/dashboard/src/api/index.ts": "048a6814ccfc76e20dd90909e58a9bf9ddd5c597e7975184385207806bde9917"
+  },
+  "limitations": [
+    "Projection/query/SDK/React-hook evidence only; actual appointment API belongs to T41.",
+    "T103 list/Kanban UI gestures, feature/phase builds, browser and final same-HEAD verification remain required.",
+    "No task closure until Root validates future HEAD has completed T41/T74 and binds their actual evidence.",
+    "No new build is required by formal Task102; the additional failed/refused build history is retained without a false aggregate GREEN."
+  ],
+  "metadata": [
+    ".specs/features/whatsapp-service-booking-business-rag/tasks.md .specs/features/whatsapp-service-booking-business-rag/spec.md .specs/features/whatsapp-service-booking-business-rag/task-102-evidence.json"
+  ],
+  "dependency41Evidence": {
+    "parent": "f8712c763088dc19fb6dd09b426388dd182f8c63",
+    "path": ".specs/features/whatsapp-service-booking-business-rag/task-41-evidence.json",
+    "status": "LOCAL_TASK_GATES_GREEN_NOT_FEATURE_FINAL_OR_PRODUCTION",
+    "sha256": "db8237ce6b31dc063c29a610606af10dafdb0f0da9bffc10004742d18763f135"
+  },
+  "commitTextNormalization": {
+    "policy": "Explicit LF in index matching committed repository, no Git config or tested Focus input change.",
+    "files": [
+      {
+        "path": "apps/dashboard/src/pages/service-appointments/appointment-board.ts",
+        "testedWorkingSha256": "e29c6cb8020e867d46509778f60e9e0ee8e6d06c6937bb0ada37621d93ba8025",
+        "committedCanonicalSha256": "e29c6cb8020e867d46509778f60e9e0ee8e6d06c6937bb0ada37621d93ba8025",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/pages/service-appointments/appointment-board.spec.ts",
+        "testedWorkingSha256": "9bd3de4f6d5199d66c1f7c5048a01c5cc1bf126290440422c2754c096173c2c7",
+        "committedCanonicalSha256": "9bd3de4f6d5199d66c1f7c5048a01c5cc1bf126290440422c2754c096173c2c7",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/pages/service-appointments/appointment-query-state.ts",
+        "testedWorkingSha256": "bed518e30cae874ce06fae651cfe6a20e3d96a376a0823fb497af877f7b799c1",
+        "committedCanonicalSha256": "bed518e30cae874ce06fae651cfe6a20e3d96a376a0823fb497af877f7b799c1",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/pages/service-appointments/appointment-query-state.spec.ts",
+        "testedWorkingSha256": "496ec718266551d1ad65fe35f6f289bd8481c56a1c3205f906138e9309161d5a",
+        "committedCanonicalSha256": "496ec718266551d1ad65fe35f6f289bd8481c56a1c3205f906138e9309161d5a",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/pages/service-appointments/appointment-read-snapshot.ts",
+        "testedWorkingSha256": "376af2fb02e4fa39e3901a221d1865850a6448a58a3359e22961e4be51cc1108",
+        "committedCanonicalSha256": "376af2fb02e4fa39e3901a221d1865850a6448a58a3359e22961e4be51cc1108",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/pages/service-appointments/appointment-read-snapshot.spec.ts",
+        "testedWorkingSha256": "11d92e56a3b1d268db9878a73eb8733d02d80ad3d766c5abf7260d02b62fcd8f",
+        "committedCanonicalSha256": "11d92e56a3b1d268db9878a73eb8733d02d80ad3d766c5abf7260d02b62fcd8f",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/pages/service-appointments/useServiceAppointments.ts",
+        "testedWorkingSha256": "c1880deca5bddc014555bd2f323e383ecbb9d097551d5993a9ca5774bdb1ceac",
+        "committedCanonicalSha256": "c1880deca5bddc014555bd2f323e383ecbb9d097551d5993a9ca5774bdb1ceac",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/pages/service-appointments/useServiceAppointments.spec.ts",
+        "testedWorkingSha256": "3624501f79a9adee75648a18e22e91dd36c5eb4d6bd5e24e10dd66b977008ce4",
+        "committedCanonicalSha256": "3624501f79a9adee75648a18e22e91dd36c5eb4d6bd5e24e10dd66b977008ce4",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/api/endpoints/service-appointments.ts",
+        "testedWorkingSha256": "6e93992880ee36e455764fb8a6b03851d7ade9f82cbd2718d365c932acd8b8ac",
+        "committedCanonicalSha256": "6e93992880ee36e455764fb8a6b03851d7ade9f82cbd2718d365c932acd8b8ac",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/api/endpoints/service-appointments.spec.ts",
+        "testedWorkingSha256": "bb75ddd3b5d253036b3af88eca7dd7d507b88873969850af4126d0c9a47bb0f8",
+        "committedCanonicalSha256": "bb75ddd3b5d253036b3af88eca7dd7d507b88873969850af4126d0c9a47bb0f8",
+        "change": "IDENTICAL_BYTES"
+      },
+      {
+        "path": "apps/dashboard/src/api/index.ts",
+        "testedWorkingSha256": "4fe9231fabfc6f0ad9392da809fa52fdacc687076cacd3993abe8e06ef5fc7b9",
+        "committedCanonicalSha256": "4fe9231fabfc6f0ad9392da809fa52fdacc687076cacd3993abe8e06ef5fc7b9",
+        "change": "IDENTICAL_BYTES"
+      }
+    ]
+  }
+}

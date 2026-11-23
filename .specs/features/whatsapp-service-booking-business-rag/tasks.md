@@ -2268,13 +2268,15 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Both views represent the exact same canonical appointment IDs and totals under the same filters. Order-only history cannot produce a card; multiple appointments per order remain distinct.
-- [ ] Six statuses and payment badges remain independent; stale requests/actions cannot overwrite current state. Failed/conflicting commands retain original appointment/version/finance.
-- [ ] Unfiltered new view-model/hook and existing Orders-board regressions pass with dashboard typecheck; mark complete before one atomic local commit.
+- [x] Both views represent the exact same canonical appointment IDs and totals under the same filters. Order-only history cannot produce a card; multiple appointments per order remain distinct.
+- [x] Six statuses and payment badges remain independent; stale requests/actions cannot overwrite current state. Failed/conflicting commands retain original appointment/version/finance.
+- [x] Unfiltered new view-model/hook and existing Orders-board regressions pass with dashboard typecheck; mark complete before one atomic local commit.
 
 **Tests**: New `src/pages/service-appointments/appointment-board.spec.ts` root T102 and related hook tests, covering more rows than one page, status/payment combinations, timezone boundaries, races and failed actions. Existing fulfillment-board tests unchanged.
 **Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/pages/service-appointments/appointment-board.spec.ts` plus old fulfillment-board and service-hook files recorded before execution; dashboard typecheck.
 **Commit**: `feat(service-business): t102 model canonical appointments board`
+
+**Actual local gate, 2026-11-23:** Exact focused T102 eleven-file cut; whole13 UI179 passed without filters/skips and full normal dashboard typecheck exited0. task-102-evidence.json binds all source and raw receipts. The extra interrupted build1073807364 and later build-only refusal remain preserved; neither is the formal Quick UI/typecheck task gate. T103 UI/build/browser and final same-HEAD feature proofs remain required. No provider/push/deploy.
 
 ### T103: Present the service-only appointments Kanban and list
 
@@ -2696,7 +2698,7 @@ Proof: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --
 Tasks: T100, T101.
 
 **C77** - WHEN the operator opens Agendamentos THEN the system SHALL show coherent canonical appointment Kanban/list views with six operational statuses, separate finance, filters and versioned actions. (ATEND-11, AC 1)
-Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-appointments-board.spec.ts --grep "ATEND-11$"`
+Proof: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-appointment-journeys.config.ts` and `pnpm --dir apps/dashboard exec vitest run src/pages/service-appointments/ServiceAppointmentsPage.spec.tsx src/pages/service-appointments/ServiceAppointmentsPage.service-filter.spec.tsx src/pages/service-appointments/AppointmentViews.spec.tsx src/pages/service-appointments/appointment-board.spec.ts src/pages/service-appointments/useServiceAppointments.spec.ts src/pages/service-appointments/service-appointments-filters.spec.ts src/api/endpoints/service-appointments.spec.ts src/api/endpoints/service-appointment-actions.spec.ts src/api/endpoints/service-appointment-operations.spec.ts --pool=forks --maxWorkers=1 --minWorkers=1 --no-file-parallelism` and `pnpm --dir apps/dashboard exec playwright test --config playwright.service-appointments-board.config.ts e2e/service-appointments-board.spec.ts`
 Tasks: T41, T74, T102, T103.
 
 **C78** - WHEN a service business opens navigation THEN the system SHALL use Agendamentos as its primary Orders replacement, preserve separate Atendimento and historical orders, and deny the service route to product businesses. (ATEND-12, AC 2)
