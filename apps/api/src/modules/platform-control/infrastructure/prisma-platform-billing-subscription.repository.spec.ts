@@ -34,6 +34,9 @@ test('ADM-01 a canceled cursor remains valid in the cancelled population',async(
   assert.deepEqual(page.items.map(row=>[row.merchantId,row.status]),[['cancel_b','cancelled']]);
   assert.equal(page.nextCursor,undefined);
 });
+test('ADM-01 an active cursor is rejected from the cancelled population',async()=>{
+  await assert.rejects(()=>subscriptions().list({limit:1,cursor:'live',status:'cancelled',asOf:new Date('2026-11-22')}),/platform_billing_invalid_cursor/);
+});
 
 test("persists a non-financial audit record for global subscription reads", async () => {
   const events: unknown[] = [];
