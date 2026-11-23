@@ -24,6 +24,7 @@ test('APU-02 budget and creative changes keep exact commercial content visible b
  await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
  const text=screen.container.textContent!;for(const value of ['10,00','20,00','por dia','23/11/2026','24/11/2026','Bluetooth no seu PC','Confira os requisitos antes de comprar.','Adaptador UB500','69,90','Brasil'])expect(text).toContain(value);
  expect(screen.container.querySelector('img')?.getAttribute('src')).toBe('https://images.example.test/ub500.png');expect((screen.container.querySelector('[data-action="approve"]') as HTMLButtonElement).disabled).toBe(true);
+ const [before,after]=screen.container.querySelectorAll('.mga-comparison > section');expect(before.textContent).toContain('10,00');expect(before.textContent).toContain('por dia');expect(after.textContent).toContain('20,00');expect(after.textContent).toContain('por dia');expect(after.textContent).not.toContain('No total do período');
 });
 
 test('APU-03 unrecognized provider fields and states never become English UI labels',async()=>{
@@ -41,6 +42,43 @@ test('APU-04 Meta reference disclosure opens and closes without approving or exe
  await import('react').then(({act})=>act(async()=>summary.click()));expect(details.open).toBe(true);expect(details.textContent).toContain('999');
  await import('react').then(({act})=>act(async()=>summary.click()));expect(details.open).toBe(false);
  expect(api.approve).not.toHaveBeenCalled();expect(api.execute).not.toHaveBeenCalled();
+});
+
+test('APU-05 daily and lifetime cadence are verified in their own comparison columns',async()=>{
+ screen=ui();const p=proposal();p.before={budget:{daily_budget:'1000'}};p.after={budget:{amountCents:2000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-23T19:50:00Z',endsAt:'2026-11-24T19:50:00Z'}};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const [before,after]=screen.container.querySelectorAll('.mga-comparison > section');
+ expect(before.textContent).toContain('10,00');expect(before.textContent).toContain('por dia');expect(before.textContent).not.toContain('No total do período');
+ expect(after.textContent).toContain('20,00');expect(after.textContent).toContain('No total do período');expect(after.textContent).not.toContain('por dia');expect(after.textContent).toContain('23/11/2026');expect(after.textContent).toContain('24/11/2026');
+});
+
+test('APU-06 audience summaries retain gender and region without inventing unchanged restrictions',async()=>{
+ screen=ui();for(const kind of ['publish','audience'] as const){const p=proposal();p.kind=kind;const targeting={age_min:26,age_max:54,genders:[2],geo_locations:{countries:['BR'],regions:[{key:'3844',name:'São Paulo'}]}};
+ p.before={status:'PAUSED',targeting};p.after=kind==='publish'?{status:'ACTIVE'}:{targeting:{...targeting,geo_locations:{countries:['PT']}}};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const [before,after]=screen.container.querySelectorAll('.mga-comparison > section');
+ expect(before.textContent).toContain('Brasil');expect(before.textContent).toContain('De 26 a 54 anos');expect(before.textContent).toContain('Mulheres');expect(before.textContent).toContain('São Paulo');
+ expect(after.textContent).toContain('Mulheres');expect(after.textContent).toContain(kind==='publish'?'Brasil':'Portugal');
+ if(kind==='publish')expect(after.textContent).toContain('São Paulo');else expect(after.textContent).not.toContain('São Paulo');}
+});
+
+test('APU-07 one Meta creative with three media is never called one image',async()=>{
+ screen=ui();const p=proposal();p.kind='prepare';p.after={objects:[{type:'campaign',id:'200'},{type:'ad_set',id:'300'},{type:'creative',id:'400'},{type:'ad',id:'500'}],media:[1,2,3].map(n=>({url:`https://images.example.test/${n}.png`}))};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ expect(screen.container.querySelectorAll('img')).toHaveLength(3);expect(screen.container.querySelector('[data-proposal-scope]')?.textContent).not.toContain('1 imagem');expect(screen.container.textContent).not.toContain('1 imagem do anúncio');
+ expect(screen.container.querySelector('[data-meta-references]')?.textContent).toContain('Material do anúncio');expect(screen.container.querySelector('[data-meta-references]')?.textContent).toContain('400');
+});
+
+test('APU-08 remote zero daily plus lifetime budget stays total in its own column',async()=>{
+ screen=ui();const p=proposal();p.before={budget:{daily_budget:'0',lifetime_budget:'1000'}};p.after={budget:{amountCents:2000,currency:'BRL',cadence:'daily'}};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const [before,after]=screen.container.querySelectorAll('.mga-comparison > section');expect(before.textContent).toContain('10,00');expect(before.textContent).toContain('No total do período');expect(before.textContent).not.toContain('por dia');expect(after.textContent).toContain('20,00');expect(after.textContent).toContain('por dia');expect(after.textContent).not.toContain('No total do período');
+});
+
+test('APU-09 a receipt without new objects retains one closed list of the known Meta references',async()=>{
+ screen=ui();const p={...proposal(),status:'approved' as const};const execution={id:'exec1',proposalId:p.id,campaignId:p.campaignId,status:'execution_unknown' as const,objects:[],error:'timeout',updatedAt:'2026-11-23T20:00:00Z'};
+ await screen.render(<ProposalReview proposal={p} execution={execution} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const references=screen.container.querySelectorAll('details[data-meta-references]');expect(references).toHaveLength(1);expect((references[0] as HTMLDetailsElement).open).toBe(false);expect(references[0].textContent).toContain('999');expect(screen.container.textContent).not.toContain('Executar alteração aprovada');
 });
 
 test("ADAS-72 an equivalent refresh preserves the reviewed acknowledgement and approves the exact version", async () => {

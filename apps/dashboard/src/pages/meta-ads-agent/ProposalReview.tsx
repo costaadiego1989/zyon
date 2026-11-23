@@ -8,7 +8,7 @@ type JsonObject = Record<string, unknown>;
 const object = (v: unknown): JsonObject => v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {};
 const states:Record<string,string>={ACTIVE:'Ativo',PAUSED:'Pausado',ARCHIVED:'Arquivado',DELETED:'Excluído',not_created:'Ainda não criada',UNKNOWN:'Não confirmado',IN_PROCESS:'Em processamento',PENDING_REVIEW:'Em análise',CAMPAIGN_PAUSED:'Campanha pausada',ADSET_PAUSED:'Conjunto pausado'};
 const platforms:Record<string,string>={facebook:'Facebook',instagram:'Instagram',whatsapp:'WhatsApp',threads:'Threads',messenger:'Messenger',audience_network:'Aplicativos parceiros'};
-const types:Record<string,[string,string]>={campaign:['Campanha','campanhas'],ad_set:['Conjunto de anúncios','conjuntos de anúncios'],creative:['Imagem do anúncio','imagens do anúncio'],ad:['Anúncio','anúncios']};
+const types:Record<string,[string,string]>={campaign:['Campanha','campanhas'],ad_set:['Conjunto de anúncios','conjuntos de anúncios'],creative:['Material do anúncio','materiais do anúncio'],ad:['Anúncio','anúncios']};
 function references(...values:unknown[]):Array<{type:string;id:string|null}>{
  const result=new Map<string,{type:string;id:string|null}>();
  for(const value of values)for(const entry of Array.isArray(value)?value:[]){const ref=object(entry),type=typeof entry==='string'?entry:String(ref.type??'');if(!Object.hasOwn(types,type))continue;const id=typeof ref.id==='string'?ref.id:null;result.set(`${type}:${id??''}`,{type,id});}
@@ -25,8 +25,15 @@ function Audience({value,country}:{value:unknown;country:unknown}){
  const countries=(Array.isArray(geo.countries)?geo.countries:[country]).map(countryName).filter((name):name is string=>!!name);
  const minimum=targeting.age_min??range[0],maximum=targeting.age_max??range[1];
  const age=typeof minimum==='number'?typeof maximum==='number'&&maximum<65?`De ${minimum} a ${maximum} anos`:`A partir de ${minimum} anos`:null;
+ const genders=Array.isArray(targeting.genders)?targeting.genders:[],gender=genders.length===1&&genders[0]===1?'Homens':genders.length===1&&genders[0]===2?'Mulheres':genders.length===2&&genders.includes(1)&&genders.includes(2)?'Homens e mulheres':genders.length?'Seleção de gênero definida na Meta':null;
+ const locations=[['regions','região selecionada','regiões selecionadas'],['cities','cidade selecionada','cidades selecionadas'],['zips','CEP selecionado','CEPs selecionados'],['custom_locations','área selecionada','áreas selecionadas']].flatMap(([key,singular,plural])=>{
+  const selected=Array.isArray(geo[key])?geo[key] as unknown[]:[];if(!selected.length)return[];
+  const named=selected.map(item=>object(item).name).filter((name):name is string=>typeof name==='string'&&!!name.trim());
+  return[named.length===selected.length&&named.length<=3?new Intl.ListFormat('pt-BR',{type:'conjunction'}).format(named):`${selected.length} ${selected.length===1?singular:plural} na Meta`];
+ });
+ const extra=['flexible_spec','interests','behaviors','custom_audiences','excluded_custom_audiences','excluded_geo_locations'].some(key=>Array.isArray(targeting[key])?(targeting[key] as unknown[]).length>0:Object.keys(object(targeting[key])).length>0);
  const names=(Array.isArray(targeting.effective_publisher_platforms)?targeting.effective_publisher_platforms:[]).flatMap(key=>typeof key==='string'&&Object.hasOwn(platforms,key)?[platforms[key]]:[]);
- return <>{[...countries,age].filter(Boolean).join(' · ')||'Público não informado'}{!!names.length&&<small>{new Intl.ListFormat('pt-BR',{style:'long',type:'conjunction'}).format([...new Set(names)])}</small>}</>;
+ return <>{[...countries,...locations,age,gender].filter(Boolean).join(' · ')||'Público não informado'}{extra&&<small>Outros filtros de público configurados na Meta.</small>}{!!names.length&&<small>{new Intl.ListFormat('pt-BR',{style:'long',type:'conjunction'}).format([...new Set(names)])}</small>}</>;
 }
 function Snapshot({value}: {value: JsonObject}) {
   const draft=object(value.draft);value={...draft,...value};
@@ -60,12 +67,12 @@ export function ProposalReview({proposal, execution, entitled, connectionEpoch, 
   const disabled = !entitled || action.busy || stale;
   const reviewed = acknowledged && !disabled;
   const affected=references(view.before.objects,view.after.objects);
-  const scope=Object.keys(types).flatMap(type=>{const count=affected.filter(item=>item.type===type).length;return count?[`${count} ${count===1?types[type][0].toLocaleLowerCase('pt-BR'):types[type][1]}`]:[];}).join(' · ');
+  const scope=Object.keys(types).filter(type=>type!=='creative').flatMap(type=>{const count=affected.filter(item=>item.type===type).length;return count?[`${count} ${count===1?types[type][0].toLocaleLowerCase('pt-BR'):types[type][1]}`]:[];}).join(' · ');
   const proposed=view.kind==='publish'&&view.after.targeting===undefined&&view.after.country===undefined?{...view.after,targeting:view.before.targeting}:view.after;
   return <article className="mga-proposal" aria-labelledby={`proposal-${view.id}`}><header><div><h3 id={`proposal-${view.id}`}>{actions[view.kind]}</h3><p>{view.reasoning}</p></div><small>Criada em {date(view.createdAt)}</small></header>
     {!!scope&&<p className="mga-proposal-scope" data-proposal-scope>{scope}</p>}
     <div className="mga-comparison"><section><h4>Antes</h4><Snapshot value={view.before}/></section><section><h4>Proposto</h4><Snapshot value={proposed}/></section></div>
-    {!result&&<MetaReferences items={affected}/>}
+    <MetaReferences items={references(view.before.objects,view.after.objects,result?.objects)}/>
     {view.kind === "prepare" && <p>A preparação cria objetos em rascunho ou pausados. A publicação terá sua própria aprovação.</p>}
     {view.kind === "publish" && <p>Publicar pode iniciar os gastos acima, pagos diretamente à Meta. A publicação não garante exibição nem vendas.</p>}
     {stale && <p role="status">Proposta desatualizada. Solicite uma nova proposta e revise novamente.</p>}
@@ -73,7 +80,7 @@ export function ProposalReview({proposal, execution, entitled, connectionEpoch, 
     {view.status === "approved" && !result && !view.executionId && !uncertain && <><p>Aprovação registrada em {date(view.approvedAt)}.</p><button type="button" disabled={disabled} onClick={() => void action.run(async () => {let result;try {result=await api.execute(view.id);setResult(result);} catch (e) {if (e instanceof DashboardHttpError && e.status >= 400 && e.status < 500) {setView(v => ({...v,status:"stale"})); await onUpdated();} else setUncertain(true); throw e;} await onUpdated();return result;},executionFeedback)}>Executar alteração aprovada</button></>}
     {uncertain && !result && <div className="mga-notice"><p role="status">Resultado desconhecido. Atualize o histórico para conferir o envio antes de tentar novamente.</p><button type="button" className="mga-secondary" disabled={action.busy} onClick={() => void action.run(async () => {await onUpdated();},"Histórico atualizado.")}>Atualizar histórico</button></div>}
     {view.status === "rejected" && <p role="status">Proposta rejeitada. Nenhuma alteração executada.</p>}
-    {result && <div className="mga-notice"><p role="status">{view.kind === "prepare" && result.status === "remote_paused" ? "Preparada, sem veiculação" : executionStates[result.status]}</p><MetaReferences items={references(result.objects)}/>{result.error && <p>A operação requer revisão do resultado antes de uma nova proposta.</p>}
+    {result && <div className="mga-notice"><p role="status">{view.kind === "prepare" && result.status === "remote_paused" ? "Preparada, sem veiculação" : executionStates[result.status]}</p>{result.error && <p>A operação requer revisão do resultado antes de uma nova proposta.</p>}
       {["sending", "execution_unknown", "publishing", "active_unconfirmed", "remote_draft"].includes(result.status) && <button type="button" className="mga-secondary" disabled={action.busy} onClick={() => void action.run(async () => {const next=await api.reconcile(result.id);setResult(next);await onUpdated();return next;},executionFeedback)}>Consultar estado na Meta</button>}
     </div>}
     {action.busy && <p role="status">Confirmando operação…</p>}{action.error && <p role="alert">{action.error}</p>}
