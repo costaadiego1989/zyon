@@ -112,6 +112,10 @@ export class CampaignWorkspaceQueryService{
   const live=this.deps.live!;
   const state=await this.deps.repo.read(merchantId),latest=Object.values(state.executions).filter(e=>e.campaignId===campaign.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0];
   if(latest&&['active_unconfirmed','execution_unknown','publishing'].includes(latest.status)&&live.reconcile)await live.reconcile(merchantId,latest.id);
+  const before=(await this.deps.repo.read(merchantId)).campaigns[campaign.id];
+  const version=(c:MetaAdsCampaign)=>stableDigest([bindings(c),c.updatedAt,c.draft,c.status,c.managed,c.lifecycle??null]);
+  if(!before||stableDigest(bindings(before))!==stableDigest(bindings(campaign)))throw new MetaAdsError('meta_connection_changed',409);
+  const expectedVersion=version(before);
   const [snapshotResult,metricsResult]=await Promise.allSettled([live.provider.snapshot({...access},campaign),live.provider.metrics({...access},campaign,query.since,query.until)]);
   if(snapshotResult.status==='rejected'&&metricsResult.status==='rejected')throw new MetaAdsError('campaign_observation_unavailable',503);
   const checkedAt=this.clock().toISOString(),missing:MetaAdsCampaignObservation['missing']=[];
@@ -132,7 +136,7 @@ export class CampaignWorkspaceQueryService{
   const observation:MetaAdsCampaignObservation={accountId:access.accountId!,connectionEpoch:access.connectionEpoch,campaignId:campaign.remoteCampaignId!,adSetId:campaign.remoteAdSetId!,adIds:[...campaign.remoteAdIds],checkedAt,since:query.since,until:query.until,phase:snapshot?phase(snapshot,metrics):'unavailable',audience,metrics,missing};
   return this.deps.repo.mutate!(merchantId,[],current=>{
    const c=current.campaigns[campaign.id];
-   if(!c?.managed||c.lifecycle?.state==='archived'||current.connection.account?.id!==access.accountId||current.connection.epoch!==access.connectionEpoch||stableDigest(bindings(c))!==stableDigest(bindings(campaign)))throw new MetaAdsError('meta_connection_changed',409);
+   if(!c?.managed||c.lifecycle?.state==='archived'||current.connection.account?.id!==access.accountId||current.connection.epoch!==access.connectionEpoch||version(c)!==expectedVersion)throw new MetaAdsError('meta_connection_changed',409);
    current.workspaceObservations??={};current.workspaceObservations[c.id]=observation;
    return{result:this.row(c,current,query,true)};
   });
