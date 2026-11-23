@@ -26,7 +26,7 @@ export interface CampaignWorkspaceOpenTarget {campaignId:string;proposalId?:stri
 
 export interface MetaAdsAssistantProps {
   merchantId:string; apiBaseUrl:string; overview:MetaAdsOverview; api:MetaAdsAgentApi;
-  client?:MerchantAssistantApi; pollMs?:number; children?:ReactNode; settings?:ReactNode; billingSettings?:ReactNode;
+  client?:MerchantAssistantApi; pollMs?:number; children?:ReactNode; settings?:ReactNode; billingSettings?:ReactNode; workspaceActions?:ReactNode;
   onUpdated:()=>void|Promise<void>; onModeChanged?:(mode:'manual'|'automatic'|'unknown')=>void;
   startRequest?:number;setupRequest?:number;
   onOpenCampaign?:(target:CampaignWorkspaceOpenTarget)=>void;
@@ -43,7 +43,7 @@ function mergeThread(previous:AssistantThread|null,next:AssistantThread):Assista
 }
 const https=(value:string)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?url.href:null;}catch{return null;}};
 export function MetaAdsAssistant(props:MetaAdsAssistantProps){return <MetaAdsAssistantView key={`${props.merchantId}:${props.apiBaseUrl}`} {...props}/>;}
-function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplied,pollMs=2500,children,settings,billingSettings,onUpdated,onModeChanged,startRequest=0,approvalClient,selectedCampaignId,reviewTarget,onOpenCampaign,setupRequest=0}:MetaAdsAssistantProps) {
+function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplied,pollMs=2500,children,settings,billingSettings,workspaceActions,onUpdated,onModeChanged,startRequest=0,approvalClient,selectedCampaignId,reviewTarget,onOpenCampaign,setupRequest=0}:MetaAdsAssistantProps) {
   const feedback=useAction();
   const externalOpen=useRef(onOpenCampaign);externalOpen.current=onOpenCampaign;
   const [limitsVisited,setLimitsVisited]=useState(false);
@@ -172,7 +172,7 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
   const launchId=(reviewTarget&&reviewTarget.campaignId===activeCampaignId?reviewTarget.proposalId:undefined)||(proposal?.kind==='launch'&&proposal.campaignId===activeCampaignId?proposal.id:undefined);
   return <div className="mga-agentic-shell" ref={workspace}><div className="mga-agentic-content">
     <div className="mga-account-context"><span className="mga-account-name" title={account?`Conta ${account.id}`:undefined}>{account?.name??'Selecione sua conta Meta'}</span><MetaConnectionBadge status={overview.connection.status}/></div>
-    <div className="mga-workspace-tabs"><TabBar tabs={[{key:'campaigns',label:'Campanhas',panelId:`${panelId}-campaigns`},{key:'metrics',label:'Métricas',panelId:`${panelId}-metrics`},{key:'settings',label:'Configurações',panelId:`${panelId}-settings`}]} activeTab={view} onTabChange={key=>setView(key as typeof view)} label="Seções de anúncios"/></div>
+    <div className="mga-workspace-toolbar"><div className="mga-workspace-tabs"><TabBar tabs={[{key:'campaigns',label:'Campanhas',panelId:`${panelId}-campaigns`},{key:'metrics',label:'Métricas',panelId:`${panelId}-metrics`},{key:'settings',label:'Configurações',panelId:`${panelId}-settings`}]} activeTab={view} onTabChange={key=>setView(key as typeof view)} label="Seções de anúncios"/></div>{view==='campaigns'&&workspaceActions?<div className="mga-workspace-toolbar-actions">{workspaceActions}</div>:null}</div>
     {funding?.status==='blocked'&&view!=='settings'&&<div className="mga-notice" role="alert">Publicação bloqueada por uma pendência financeira. <button type="button" className="mga-secondary" onClick={()=>navigateOutside(fundingHeading.current)}>Ver pagamentos atuais</button></div>}
     <div role="tabpanel" id={`${panelId}-campaigns`} aria-labelledby={`${panelId}-campaigns-tab`} data-assistant-panel="campaigns" hidden={view!=='campaigns'}>{children}
       {foreignTarget?<p role="alert">Esta revisão pertence a outra loja. Selecione a loja correta.</p>:!onOpenCampaign&&activeCampaignId&&(!initialCampaign?.remoteCampaignId||launchId||latestLaunch)?<div ref={reviewAnchor} tabIndex={-1} data-campaign-review><CampaignPreparationPanel merchantId={merchantId} campaignId={activeCampaignId} proposalId={launchId} hasLaunch={!!latestLaunch} refreshRevision={preparationRevision} onReviewPendingChange={setReviewPending} api={approval} entitled={overview.entitled} selectedImageCount={initialCampaign?.draft.mediaIds.length??0} pollMs={pollMs} timezone={reports.find(r=>r.accountId===account?.id)?.timezone} onUpdated={refresh} onReconcile={id=>api.reconcile(id)} campaign={initialCampaign} media={overview.media} connection={overview.connection} onSetup={openConnection} onCorrectBudget={()=>{setExpanded(true);void send(`Quero corrigir o orçamento da campanha ${initialCampaign?.draft.name??'selecionada'}. Me ajude a ajustar o valor ou os dias, sem aumentar nada por conta própria.`).catch(()=>{});}}/></div>:null}

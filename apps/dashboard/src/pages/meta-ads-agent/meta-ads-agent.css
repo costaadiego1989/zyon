@@ -149,6 +149,11 @@
 .mga-settings .mga-inline-details p { font-size: 12px; }
 .meta-ads-agent [hidden] { display: none !important; }
 .mga-workspace-tabs { min-width: 0; }
+.mga-workspace-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; scroll-margin-top:90px; }
+.mga-workspace-toolbar .tab-bar { margin-bottom:0; }
+.mga-workspace-toolbar-actions { flex:none; }
+.mga-workspace-toolbar .ads-detail__back { display:inline-flex; align-items:center; gap:8px; margin:0; }
+@media(max-width:600px) { .mga-workspace-toolbar { gap:12px; flex-wrap:wrap; } .mga-workspace-tabs { flex:1 1 100%; } .mga-workspace-toolbar-actions { margin-left:auto; } .mga-workspace-toolbar .ads-detail__back { min-width:44px; } .meta-ads-agent .mga-workspace-tabs .tab-bar__tab { font-size:12px; padding-inline:4px; } }
 .meta-ads-agent .mga-account-context { margin: 0 0 12px; font-size: 12px; }
 .meta-ads-agent .mga-media-notice { font-size: 12px; margin: 16px 0 24px; color: var(--color-text-secondary); }
 .mga-agentic-content > [tabindex="-1"], .mga-agentic-content [tabindex="-1"] { scroll-margin-top: 90px; }

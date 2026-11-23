@@ -45,6 +45,7 @@ export function errorMessage(error: unknown): string {
     insufficient_image_credits: "Saldo de imagens insuficiente. Revise o consumo ou compre extras.",
     meta_connection_changed: "A conexão mudou. Conecte e revise os ativos novamente.",
     meta_permission_missing: "Falta uma permissão na Meta. Revise sua conexão.",
+    campaign_observation_unavailable:"Não foi possível buscar os dados da Meta. Tente atualizar os resultados.",
     meta_asset_forbidden:"Este item não está disponível nesta conta. Confira a Página e atualize as opções.",
     meta_whatsapp_not_linked:"Vincule o WhatsApp à Página na Meta. Depois atualize os números e salve a conexão.",
     meta_whatsapp_access_denied:"A Meta não liberou a consulta do WhatsApp desta Página. Confira seu acesso.",
