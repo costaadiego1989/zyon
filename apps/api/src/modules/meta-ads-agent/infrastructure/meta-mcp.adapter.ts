@@ -190,7 +190,7 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
     try {
       const targets = objects.filter(ref => ref.type !== 'creative');
       for (const ref of targets) {
-        const result = await session.call('ads_activate_entity', { ad_account_id: access.accountId, entity_id: ref.id, entity_type: ref.type, object_ids: targets.map(o => o.id), publish_as_active: true, allow_partial_publish: false }, true);
+        const result = await session.call('ads_activate_entity', { ad_account_id: access.accountId, entity_id: ref.id, entity_type: ref.type, ...(draft ? { object_ids: targets.map(o => o.id), publish_as_active: true, allow_partial_publish: false } : {}) }, true);
         completedWrite = true; await onProgress([...objects]);
         const status = String((decoded(result.result ?? result) as Json).status);
         if (status === 'PUBLISHING') return { status: 'publishing', objects };

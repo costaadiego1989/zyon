@@ -8,6 +8,79 @@ import { ui } from "./test-helpers.js";
 let screen: ReturnType<typeof ui>;
 afterEach(async () => screen?.close());
 
+test('APU-01 publication review shows a short Portuguese summary instead of raw Meta configuration',async()=>{
+ screen=ui();const p=proposal();p.before={status:'PAUSED',budget:{lifetime_budget:'1000'},objects:[{type:'campaign',id:'120250883547060637'},{type:'ad_set',id:'120250883547880637'},{type:'ad',id:'120250883551670637'}],targeting:{age_min:18,age_max:65,age_range:[18,65],geo_locations:{countries:['BR'],location_types:['home','recent']},effective_publisher_platforms:['facebook','instagram','whatsapp','threads'],page_types:Array(60).fill('instagramstream'),targeting_automation:{advantage_audience:1},targeting_optimization:'expansion_all',provider_new_field:'private_enum'},objectStates:[{type:'ad',id:'120250883551670637',status:'ACTIVE',effectiveStatus:'CAMPAIGN_PAUSED'}]};
+ p.after={status:'ACTIVE',budget:{amountCents:1000,currency:'BRL',cadence:'lifetime'},objects:p.before.objects};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const text=screen.container.textContent!;expect(text).toContain('Antes');expect(text).toContain('Proposto');expect(text).toContain('Pausado');expect(text).toContain('Ativo');expect(text).toContain('Brasil');expect(text).toContain('A partir de 18 anos');expect(text).toContain('Facebook, Instagram, WhatsApp e Threads');
+ for(const raw of ['age max','age range','page types','instagramstream','expansion_all','provider_new_field','private_enum','ad_set'])expect(text).not.toContain(raw);
+ const references=screen.container.querySelector('details[data-meta-references]') as HTMLDetailsElement;expect(references.open).toBe(false);expect(references.textContent).toContain('120250883547060637');
+ expect(screen.container.querySelector('[data-proposal-scope]')?.textContent).toContain('1 campanha');expect(screen.container.querySelector('[data-proposal-scope]')?.textContent).toContain('1 conjunto de anúncios');expect(screen.container.querySelector('[data-proposal-scope]')?.textContent).toContain('1 anúncio');
+ expect(screen.container.querySelector('header')?.textContent).not.toContain(p.campaignId);expect((screen.container.querySelector('[data-action="approve"]') as HTMLButtonElement).disabled).toBe(true);
+});
+
+test('APU-02 budget and creative changes keep exact commercial content visible before approval',async()=>{
+ screen=ui();const p={...proposal(),kind:'creative' as const,before:{status:'PAUSED',budget:{daily_budget:'1000'}},after:{budget:{amountCents:2000,currency:'BRL',cadence:'daily',startsAt:'2026-11-23T19:50:00Z',endsAt:'2026-11-24T19:50:00Z'},headline:'Bluetooth no seu PC',primaryText:'Confira os requisitos antes de comprar.',media:[{url:'https://images.example.test/ub500.png'}],products:[{name:'Adaptador UB500',sku:'ATHOM-UB500',priceCents:6990,currency:'BRL'}],country:'BR'}};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const text=screen.container.textContent!;for(const value of ['10,00','20,00','por dia','23/11/2026','24/11/2026','Bluetooth no seu PC','Confira os requisitos antes de comprar.','Adaptador UB500','69,90','Brasil'])expect(text).toContain(value);
+ expect(screen.container.querySelector('img')?.getAttribute('src')).toBe('https://images.example.test/ub500.png');expect((screen.container.querySelector('[data-action="approve"]') as HTMLButtonElement).disabled).toBe(true);
+ const [before,after]=Array.from(screen.container.querySelectorAll('.mga-comparison > section'));expect(before.textContent).toContain('10,00');expect(before.textContent).toContain('por dia');expect(after.textContent).toContain('20,00');expect(after.textContent).toContain('por dia');expect(after.textContent).not.toContain('No total do período');
+});
+
+test('APU-03 unrecognized provider fields and states never become English UI labels',async()=>{
+ screen=ui();const p=proposal();p.before={status:'FUTURE_REMOTE_STATE',unknown_provider_key:{unknown_enum:'SOME_INTERNAL_FLAG'}};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ for(const raw of ['FUTURE_REMOTE_STATE','unknown_provider_key','unknown enum','SOME_INTERNAL_FLAG'])expect(screen.container.textContent).not.toContain(raw);
+ expect(screen.container.textContent).toContain('Não informado');
+});
+
+test('APU-04 Meta reference disclosure opens and closes without approving or executing',async()=>{
+ screen=ui();const api={approve:vi.fn(),execute:vi.fn()};
+ await screen.render(<ProposalReview proposal={proposal()} entitled connectionEpoch={1} api={api as unknown as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const details=screen.container.querySelector('details[data-meta-references]') as HTMLDetailsElement;
+ const summary=details.querySelector('summary')!;expect(details.open).toBe(false);
+ await import('react').then(({act})=>act(async()=>summary.click()));expect(details.open).toBe(true);expect(details.textContent).toContain('999');
+ await import('react').then(({act})=>act(async()=>summary.click()));expect(details.open).toBe(false);
+ expect(api.approve).not.toHaveBeenCalled();expect(api.execute).not.toHaveBeenCalled();
+});
+
+test('APU-05 daily and lifetime cadence are verified in their own comparison columns',async()=>{
+ screen=ui();const p=proposal();p.before={budget:{daily_budget:'1000'}};p.after={budget:{amountCents:2000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-23T19:50:00Z',endsAt:'2026-11-24T19:50:00Z'}};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const [before,after]=Array.from(screen.container.querySelectorAll('.mga-comparison > section'));
+ expect(before.textContent).toContain('10,00');expect(before.textContent).toContain('por dia');expect(before.textContent).not.toContain('No total do período');
+ expect(after.textContent).toContain('20,00');expect(after.textContent).toContain('No total do período');expect(after.textContent).not.toContain('por dia');expect(after.textContent).toContain('23/11/2026');expect(after.textContent).toContain('24/11/2026');
+});
+
+test('APU-06 audience summaries retain gender and region without inventing unchanged restrictions',async()=>{
+ screen=ui();for(const kind of ['publish','audience'] as const){const p=proposal();p.kind=kind;const targeting={age_min:26,age_max:54,genders:[2],geo_locations:{countries:['BR'],regions:[{key:'3844',name:'São Paulo'}]}};
+ p.before={status:'PAUSED',targeting};p.after=kind==='publish'?{status:'ACTIVE'}:{targeting:{...targeting,geo_locations:{countries:['PT']}}};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const [before,after]=Array.from(screen.container.querySelectorAll('.mga-comparison > section'));
+ expect(before.textContent).toContain('Brasil');expect(before.textContent).toContain('De 26 a 54 anos');expect(before.textContent).toContain('Mulheres');expect(before.textContent).toContain('São Paulo');
+ expect(after.textContent).toContain('Mulheres');expect(after.textContent).toContain(kind==='publish'?'Brasil':'Portugal');
+ if(kind==='publish')expect(after.textContent).toContain('São Paulo');else expect(after.textContent).not.toContain('São Paulo');}
+});
+
+test('APU-07 one Meta creative with three media is never called one image',async()=>{
+ screen=ui();const p=proposal();p.kind='prepare';p.after={objects:[{type:'campaign',id:'200'},{type:'ad_set',id:'300'},{type:'creative',id:'400'},{type:'ad',id:'500'}],media:[1,2,3].map(n=>({url:`https://images.example.test/${n}.png`}))};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ expect(screen.container.querySelectorAll('img')).toHaveLength(3);expect(screen.container.querySelector('[data-proposal-scope]')?.textContent).not.toContain('1 imagem');expect(screen.container.textContent).not.toContain('1 imagem do anúncio');
+ expect(screen.container.querySelector('[data-meta-references]')?.textContent).toContain('Material do anúncio');expect(screen.container.querySelector('[data-meta-references]')?.textContent).toContain('400');
+});
+
+test('APU-08 remote zero daily plus lifetime budget stays total in its own column',async()=>{
+ screen=ui();const p=proposal();p.before={budget:{daily_budget:'0',lifetime_budget:'1000'}};p.after={budget:{amountCents:2000,currency:'BRL',cadence:'daily'}};
+ await screen.render(<ProposalReview proposal={p} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const [before,after]=Array.from(screen.container.querySelectorAll('.mga-comparison > section'));expect(before.textContent).toContain('10,00');expect(before.textContent).toContain('No total do período');expect(before.textContent).not.toContain('por dia');expect(after.textContent).toContain('20,00');expect(after.textContent).toContain('por dia');expect(after.textContent).not.toContain('No total do período');
+});
+
+test('APU-09 a receipt without new objects retains one closed list of the known Meta references',async()=>{
+ screen=ui();const p={...proposal(),status:'approved' as const};const execution={id:'exec1',proposalId:p.id,campaignId:p.campaignId,status:'execution_unknown' as const,objects:[],error:'timeout',updatedAt:'2026-11-23T20:00:00Z'};
+ await screen.render(<ProposalReview proposal={p} execution={execution} entitled connectionEpoch={1} api={{} as MetaAdsAgentApi} onUpdated={vi.fn()}/>);
+ const references=screen.container.querySelectorAll('details[data-meta-references]');expect(references).toHaveLength(1);expect((references[0] as HTMLDetailsElement).open).toBe(false);expect(references[0].textContent).toContain('999');expect(screen.container.textContent).not.toContain('Executar alteração aprovada');
+});
+
 test("ADAS-72 an equivalent refresh preserves the reviewed acknowledgement and approves the exact version", async () => {
   screen = ui(); const p = proposal(); const approve = vi.fn().mockResolvedValue({...p, status:"approved"});
   const props = {entitled:true, connectionEpoch:1, api:{approve} as unknown as MetaAdsAgentApi, onUpdated:vi.fn()};

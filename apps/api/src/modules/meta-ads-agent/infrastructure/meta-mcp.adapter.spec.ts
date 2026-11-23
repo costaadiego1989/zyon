@@ -354,7 +354,28 @@ test("MCP pause updates only PAUSED and verifies by reading without reactivation
 test("MCP publication reports an asynchronous handoff without claiming delivery", async () => {
   const f = fixture(); const result = await f.adapter.execute(access(), campaign(), proposal("publish"), async () => {});
   assert.equal(result.status, "publishing"); assert.equal(f.calls.filter(c => c.name === "ads_activate_entity").length, 1);
-  assert.deepEqual(f.calls.find(c => c.name === "ads_activate_entity")!.args.object_ids, ["200", "300", "500"]);
+  const activation=f.calls.find(c => c.name === 'ads_activate_entity')!.args;
+  assert.equal(activation.entity_id,'200');assert.equal(activation.entity_type,'campaign');
+  assert.equal(Object.hasOwn(activation,'object_ids'),false);assert.equal(Object.hasOwn(activation,'publish_as_active'),false);
+});
+
+test('ARP-01 published paused entities activate individually without draft-only parameters or unrelated edits',async()=>{
+  const f=fixture(call=>{
+    if(call.name!=='ads_activate_entity')return undefined;
+    if(['object_ids','publish_as_active','allow_partial_publish','ignore_validation_errors'].some(key=>Object.hasOwn(call.args,key)))return{error_category:'VALIDATION',error:'draft_parameters_on_live_entity'};
+    return{result:{status:'ACTIVE'}};
+  });
+  const result=await f.adapter.execute(access(),campaign(),proposal('publish'),async()=>{});
+  assert.equal(result.status,'active_unconfirmed');assert.equal(result.error,undefined);
+  const writes=f.calls.filter(c=>/create|activate|update/.test(c.name));assert.equal(writes.length,3);
+  assert.deepEqual(writes.map(c=>[c.name,c.args.ad_account_id,c.args.entity_type,c.args.entity_id]),[['ads_activate_entity','100','campaign','200'],['ads_activate_entity','100','ad_set','300'],['ads_activate_entity','100','ad','500']]);
+  for(const call of writes)for(const key of ['object_ids','publish_as_active','allow_partial_publish','ignore_validation_errors'])assert.equal(Object.hasOwn(call.args,key),false,key);
+});
+test('ARP-01 partial live activation with a lost child response stops before any later object or retry',async()=>{
+  const f=fixture(call=>call.name==='ads_activate_entity'?call.args.entity_type==='ad_set'?Promise.reject(new Error('lost response')):{result:{status:'ACTIVE'}}:undefined);
+  const result=await f.adapter.execute(access(),campaign(),proposal('publish'),async()=>{});
+  assert.equal(result.status,'execution_unknown');assert.deepEqual(result.objects,[{type:'campaign',id:'200'},{type:'ad_set',id:'300'},{type:'ad',id:'500'}]);
+  assert.deepEqual(f.calls.filter(c=>c.name==='ads_activate_entity').map(c=>c.args.entity_id),['200','300']);
 });
 test("MCP rejects foreign accounts, invalid conversation ids and writes to existing campaigns", async () => {
   const f = fixture(); await assert.rejects(f.adapter.discover({ ...access(), accountId: "other-account" }), { code: "meta_asset_forbidden", status: 403 });

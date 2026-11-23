@@ -12,6 +12,25 @@ import {ToastContainer} from '../../components/Toast.js';
 let screen: ReturnType<typeof ui>;
 afterEach(async () => screen?.close());
 const apiFor = (data: MetaAdsOverview) => {const api=Object.assign(workspaceApi(data),{overview: vi.fn().mockResolvedValue(data), products: vi.fn().mockResolvedValue([product]), existing: vi.fn().mockResolvedValue([{id: "999", name: "Campanha existente", status: "ACTIVE"}]),existingMetrics:vi.fn(async(id:string,since:string,until:string)=>({campaignId:`existing-${id}`,since,until,updatedAt:'2026-11-18T12:00:00Z',timezone:'America/Sao_Paulo',currency:'BRL',source:'meta_reported',attributionWindow:'7d_click',spendCents:10000,attributedRevenueCents:40000,attributedPurchases:4,paidOrders:0,confirmedRevenueCents:null,conversations:5,costPerPurchaseCents:null,roas:4,contributionCents:null,costCoverage:'unavailable',stale:false,notes:[],reach:900,impressions:1200,linkClicks:40}))});api.workspaceDetail.mockImplementation(async(id:string)=>{const current=await Promise.resolve(api.overview.mock.results.at(-1)?.value??data).catch(()=>data);return workspaceApi(current).workspaceDetail(id);});return api;};
+test('ARP-03 optional editing is closed by default and can be opened without sending any change',async()=>{screen=ui();const data=overview();data.campaigns=[{...campaign(),remoteCampaignId:'200',status:'remote_paused'}];const api={...apiFor(data),propose:vi.fn(),execute:vi.fn()};await screen.render(<MetaAdsAgentPage merchantId="store" apiBaseUrl="https://api.example.test" api={api as never} assistantClient={assistantClient() as never}/>);await screen.click('Abrir campanha Coleção Aurora');const options=screen.container.querySelector('[data-campaign-edit-options]') as HTMLDetailsElement;expect(options.open).toBe(false);expect(options.querySelector('summary')?.textContent).toBe('Outras alterações');expect(screen.container.textContent).not.toContain('Solicitar alteração');expect(screen.container.textContent).toContain('Revisar publicação');await act(async()=>options.querySelector('summary')!.click());expect(options.open).toBe(true);expect(options.textContent).toContain('Altere a verba, o público ou o anúncio.');expect(api.propose).not.toHaveBeenCalled();expect(api.execute).not.toHaveBeenCalled();await act(async()=>options.querySelector('summary')!.click());expect(options.open).toBe(false);});
+test('ADP-01 pending publication uses one refresh every 15 seconds and stops after confirmation',async()=>{
+ vi.useFakeTimers();screen=ui();const data=overview();data.campaigns=[{...campaign(),status:'publishing'}];
+ data.executions=[{id:'exec1',campaignId:'campaign1',proposalId:'proposal1',status:'publishing',objects:[],error:null,updatedAt:'2026-11-23T19:43:37Z'}];
+ const api=apiFor(data);api.overview.mockImplementation(async()=>structuredClone(data));
+ try{
+  await screen.render(<MetaAdsAgentPage merchantId="store" apiBaseUrl="https://api.example.test" api={api as never} assistantClient={assistantClient() as never}/>);
+  expect(api.overview).toHaveBeenCalledTimes(1);expect(api.workspace).toHaveBeenCalledTimes(1);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(14999);});
+  expect(api.overview).toHaveBeenCalledTimes(1);expect(api.workspace).toHaveBeenCalledTimes(1);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(1);});
+  expect(api.overview).toHaveBeenCalledTimes(2);expect(api.workspace).toHaveBeenCalledTimes(2);
+  data.executions[0].status='remote_paused';data.campaigns[0].status='remote_paused';
+  await act(async()=>{await vi.advanceTimersByTimeAsync(15000);});
+  expect(api.overview).toHaveBeenCalledTimes(3);expect(api.workspace).toHaveBeenCalledTimes(3);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(60000);});
+  expect(api.overview).toHaveBeenCalledTimes(3);expect(api.workspace).toHaveBeenCalledTimes(3);
+ }finally{vi.useRealTimers();}
+});
 test('AGW-08 existing campaign results appear in their list without changing or opening the ad',async()=>{
  screen=ui();const data=overview(),api=apiFor(data);await screen.render(<MetaAdsAgentPage merchantId="store" apiBaseUrl="https://api.example.test" api={api as unknown as MetaAdsAgentApi} assistantClient={assistantClient() as unknown as MerchantAssistantApi}/>);
  await screen.click('Analisar campanhas existentes');const list=Array.from(screen.container.querySelectorAll('.mga-campaign-list')).find(el=>el.textContent?.includes('Campanha existente'))!;
