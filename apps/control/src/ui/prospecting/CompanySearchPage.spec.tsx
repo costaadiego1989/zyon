@@ -83,7 +83,7 @@ test('SEARCH-03 saved search is optional above results and multiple domain value
  expect(companies.mock.lastCall?.[0].filters).toEqual({mainCnaes:['4782201','4781400']});
  await ui.click('Salvar busca');expect(document.activeElement).toBe(ui.control('Nome da busca'));
  expect(ui.host.querySelector('#save-company-search')!.compareDocumentPosition(ui.host.querySelector('.prospecting-rows')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
- await ui.click('Cancelar');expect(ui.host.querySelector('#save-company-search')).toBeNull();
+ await ui.click('Cancelar');expect(ui.host.querySelector('#save-company-search')).toBeNull();expect(document.activeElement).toBe(ui.button('Salvar busca'));
  await ui.fill('Pesquisar empresa','pet');expect(ui.button('Salvar busca').disabled).toBe(true);
 });
 test('SEARCH-02 pages request20 and display the exact first, middle and last page sizes',async()=>{
@@ -240,6 +240,7 @@ test("PROS-24 AC2 salvar segmento usa filtros aplicados e mostra o resultado con
   expect(ui.text()).toContain("Segmento oficial");
   expect(ui.text()).toContain("23 empresas");
   expect(ui.text()).toContain("versão 4");
+  expect(document.activeElement).toBe(ui.button('Salvar busca'));
 });
 test("PROS-24 AC3 carregamento, vazio, erro e acesso negado invalidam ações pendentes", async () => {
   let finish!: (value: unknown) => void;

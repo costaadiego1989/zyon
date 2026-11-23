@@ -294,6 +294,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
     [issue, setIssue] = useState("");
   const [savingSearch, setSavingSearch] = useState(false);
   const searchName = useRef<HTMLInputElement>(null);
+  const saveSearchTrigger = useRef<HTMLButtonElement>(null), restoreSaveSearchFocus = useRef(false);
   useEffect(() => { if (savingSearch) searchName.current?.focus(); }, [savingSearch]);
   const [pagination,setPagination]=useState<{index:number;cursors:(string|undefined)[]}>({index:0,cursors:[undefined]});
   const load = useCallback((s: AbortSignal) => api.companies({...query,limit:companyPageSize}, s), [api, query]);
@@ -308,6 +309,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
     setDirty(true);
     setSelected({ snapshot: "", ids: [] });
     setSavingSearch(false);
+    restoreSaveSearchFocus.current = false;
   }
   function apply(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -339,6 +341,13 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
   const pageNumber=Math.min(pagination.index+1,totalPages??pagination.index+1);
   const valid = Boolean(page?.items.length) && !dirty && !action.denied,
     ids = selected.snapshot === page?.snapshotId ? selected.ids : [];
+  useEffect(() => {
+    if (!savingSearch && valid && !action.disabled && restoreSaveSearchFocus.current) {
+      restoreSaveSearchFocus.current = false;
+      saveSearchTrigger.current?.focus();
+    }
+  }, [savingSearch, valid, action.disabled]);
+  function closeSavedSearch() { restoreSaveSearchFocus.current = true; setSavingSearch(false); }
   const domainProps = { api, onSessionExpired, changed: invalidateSelection, snapshotId: page?.snapshotId??(coverage?.scopeComplete===false?currentSnapshotId:undefined) };
   async function refreshAvailability(){
     if(ids.length||refreshing)return;
@@ -429,14 +438,14 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
         </details>
         <div className="prospecting-filter-actions">
           <Button type="submit" primary><Search size={16} />Aplicar filtros</Button>
-          <button type="button" className="button button--secondary" aria-expanded={savingSearch} aria-controls="save-company-search" disabled={!valid || refreshing || action.disabled} onClick={() => setSavingSearch(value => !value)}>Salvar busca</button>
+          <button ref={saveSearchTrigger} type="button" className="button button--secondary" aria-expanded={savingSearch} aria-controls="save-company-search" disabled={!valid || refreshing || action.disabled} onClick={() => setSavingSearch(value => !value)}>Salvar busca</button>
         </div>
       </form>
       {savingSearch && valid && <form id="save-company-search" className="prospecting-save-search" onSubmit={(event) => {
         event.preventDefault();
         void action.run(async (id) => {
           const saved = await api.createSegment({name: name.trim(), filters: query.filters, filterVersion: 1, clientRequestId: id});
-          setSavingSearch(false); setName("");
+          closeSavedSearch(); setName("");
           return saved.name + " · versão " + saved.version + " · " + (saved.countState === "complete" ? saved.count + (saved.count === 1 ? " empresa" : " empresas") : "contagem em andamento");
         });
       }}>
@@ -444,7 +453,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
         <div className="prospecting-actions">
           <label>Nome da busca<input ref={searchName} required maxLength={160} placeholder="Ex.: lojas de roupas em São Paulo" value={name} onChange={event => setName(event.target.value)} /></label>
           <Button type="submit" disabled={action.disabled || !name.trim()}>Salvar</Button>
-          <Button onClick={() => setSavingSearch(false)}>Cancelar</Button>
+          <Button onClick={closeSavedSearch}>Cancelar</Button>
         </div>
       </form>}
       {issue && <p role="alert">{issue}</p>}
