@@ -13,16 +13,16 @@ const execute=promisify(execFile);
 export function parseArguments(args){
   const parsed={};for(let i=0;i<args.length;i++){
     const name=args[i];if(name==='--serve'&&!parsed.serve){parsed.serve=true;continue;}
-    if(!['--case','--spec'].includes(name)||parsed[name.slice(2)]!==undefined||!args[i+1])throw Error('agentic_argument_invalid');parsed[name.slice(2)]=args[++i];
+    if(!['--case','--spec','--suite'].includes(name)||parsed[name.slice(2)]!==undefined||!args[i+1])throw Error('agentic_argument_invalid');parsed[name.slice(2)]=args[++i];
   }
-  if(parsed.case&&!/^(?:ADAS-(54|55|56|57|58|66|70)|ACAP-27)$/.test(parsed.case)||parsed.spec&&(!/^cypress\/e2e\/agentic\/[a-z0-9-]+\.cy\.ts$/.test(parsed.spec))||parsed.serve&&(parsed.case||parsed.spec))throw Error('agentic_argument_invalid');return parsed;
+  if(parsed.case&&!/^(?:ADAS-(54|55|56|57|58|66|70)|ACAP-27)$/.test(parsed.case)||parsed.spec&&(!/^cypress\/e2e\/agentic\/[a-z0-9-]+\.cy\.ts$/.test(parsed.spec))||parsed.suite&&parsed.suite!=='ads'||[parsed.case,parsed.spec,parsed.suite,parsed.serve].filter(Boolean).length>1)throw Error('agentic_argument_invalid');return parsed;
 }
 export function assertSuccessfulRun(result){
   if(result.failures||result.totalFailed||result.totalSkipped||result.totalPending||result.runs?.some(run=>run.error))throw Error('cypress_failed');
   if(!result.totalTests)throw Error('cypress_no_test_ran');
   if(result.totalPassed!==result.totalTests||!result.runs?.some(run=>run.tests?.some(test=>test.state==='passed')))throw Error('cypress_failed');
 }
-export function selectedSpec(options){const cases={'ADAS-54':'runtime','ADAS-55':'funding-and-help','ADAS-56':'campaign','ADAS-57':'automation','ADAS-58':'report-and-recovery','ADAS-66':'runtime','ADAS-70':'report-and-recovery','ACAP-27':'campaign-approval'};return options.spec??(options.case?`cypress/e2e/agentic/${cases[options.case]}.cy.ts`:undefined);}
+export function selectedSpec(options){const cases={'ADAS-54':'runtime','ADAS-55':'funding-and-help','ADAS-56':'campaign','ADAS-57':'automation','ADAS-58':'report-and-recovery','ADAS-66':'runtime','ADAS-70':'report-and-recovery','ACAP-27':'campaign-approval'};return options.suite==='ads'?['runtime','funding-and-help','campaign','campaign-approval','automation','report-and-recovery','campaign-workspace'].map(name=>`cypress/e2e/agentic/${name}.cy.ts`).join(','):(options.spec??(options.case?`cypress/e2e/agentic/${cases[options.case]}.cy.ts`:undefined));}
 export function fixtureContext(spec){return spec==='cypress/e2e/agentic/cashback.cy.ts'?'cashback':'meta-ads';}
 export async function runSpecSuite(specs,run){
   if(!specs.length||specs.some(spec=>!/^cypress\/e2e\/agentic\/[a-z0-9-]+\.cy\.ts$/.test(spec)))throw Error('agentic_suite_selection_invalid');
@@ -54,8 +54,8 @@ async function sourceSnapshot(){
 
 export async function main(args=process.argv.slice(2)){
   const options=parseArguments(args);
-  if(!Object.keys(options).length){
-    const specs=(await readdir(path.join(dashboard,'cypress/e2e/agentic'))).filter(file=>/^[a-z0-9-]+\.cy\.ts$/.test(file)).sort().map(file=>'cypress/e2e/agentic/'+file);
+  if(!Object.keys(options).length||options.suite){
+    const specs=options.suite?selectedSpec(options).split(','):(await readdir(path.join(dashboard,'cypress/e2e/agentic'))).filter(file=>/^[a-z0-9-]+\.cy\.ts$/.test(file)).sort().map(file=>'cypress/e2e/agentic/'+file);
     const code=await runSpecSuite(specs,spec=>new Promise((resolve,reject)=>{const child=spawn(process.execPath,[fileURLToPath(import.meta.url),'--spec',spec],{cwd:workspace,env:process.env,windowsHide:true,stdio:'inherit'});child.once('error',reject);child.once('close',resolve);}));if(code!==0)process.exitCode=code;return;
   }
   const spec=selectedSpec(options);
@@ -70,7 +70,7 @@ export async function main(args=process.argv.slice(2)){
   const sourceBefore=await sourceSnapshot();
   const nonce=randomBytes(32).toString('hex'),artifact=path.join(workspace,'.specs/features/agentic-dashboard-assistant/cypress-results',new Date().toISOString().replaceAll(':','-'));
   await mkdir(artifact,{recursive:true});
-  await writeFile(path.join(artifact,'source-start.json'),JSON.stringify({...sourceBefore,selection:options.case??options.spec??'all',controlledTransport:true},null,2));
+  await writeFile(path.join(artifact,'source-start.json'),JSON.stringify({...sourceBefore,selection:options.case??options.spec??options.suite??'all',controlledTransport:true},null,2));
   const loader='data:text/javascript,'+encodeURIComponent("import {register} from 'node:module';import {pathToFileURL} from 'node:url';register('./tests/ready-prod-loader.mjs',pathToFileURL('./'));");
   const child=spawn(process.execPath,['--import',loader,'./tests/agentic-assistant-browser-runtime.ts'],{cwd:path.join(workspace,'apps/api'),env:{...process.env,AGENTIC_TEST_NONCE:nonce,AGENTIC_TEST_PORT:String(ports.apiPort),AGENTIC_TEST_FRONTEND_URL:front,AGENTIC_TEST_CONTEXT:fixtureContext(spec)},windowsHide:true,stdio:['ignore','pipe','pipe']});
   let logs='';child.stdout.on('data',chunk=>{logs=(logs+chunk).slice(-100000);});child.stderr.on('data',chunk=>{logs=(logs+chunk).slice(-100000);});const exited=new Promise(resolve=>child.once('exit',resolve));let vite;
@@ -90,7 +90,7 @@ export async function main(args=process.argv.slice(2)){
     let result;try{result=JSON.parse(await readFile(resultPath,'utf8'));}catch{throw Error(`cypress_no_test_ran: worker exited ${code} without results`);}
     assertSuccessfulRun(result);if(code!==0)throw Error('cypress_failed');
     const sourceAfter=await sourceSnapshot();if(JSON.stringify(sourceBefore)!==JSON.stringify(sourceAfter))throw Error('agentic_source_changed_during_run');
-    await writeFile(path.join(artifact,'source.json'),JSON.stringify({...sourceBefore,selection:options.case??options.spec??'all',controlledTransport:true,passed:result.totalPassed,total:result.totalTests},null,2));process.stdout.write(`Cypress: ${result.totalPassed}/${result.totalTests} passed. Evidence: ${artifact}\n`);
+    await writeFile(path.join(artifact,'source.json'),JSON.stringify({...sourceBefore,selection:options.case??options.spec??options.suite??'all',controlledTransport:true,passed:result.totalPassed,total:result.totalTests},null,2));process.stdout.write(`Cypress: ${result.totalPassed}/${result.totalTests} passed. Evidence: ${artifact}\n`);
   }finally{
     await writeFile(path.join(artifact,'api.log'),logs);
     await vite?.close();try{await fetch(apiBase+'/__test/shutdown',{method:'POST',headers,body:'{}',signal:AbortSignal.timeout(10000)});}catch{}

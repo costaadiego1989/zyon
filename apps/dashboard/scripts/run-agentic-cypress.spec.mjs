@@ -58,3 +58,10 @@ test('isolated browser ports reject an occupied listener without requiring an HT
   finally{await new Promise(resolve=>listener.close(resolve));}
   assert.equal(await isPortOccupied(occupied),false);
 });
+
+test('Ads suite batches all seven approved browser specifications and rejects mixed scopes',()=>{
+  assert.deepEqual(parseArguments(['--suite','ads']),{suite:'ads'});
+  assert.deepEqual(selectedSpec({suite:'ads'}).split(','),['runtime','funding-and-help','campaign','campaign-approval','automation','report-and-recovery','campaign-workspace'].map(name=>`cypress/e2e/agentic/${name}.cy.ts`));
+  assert.equal(fixtureContext(selectedSpec({suite:'ads'})),'meta-ads');
+  for(const args of [['--suite','cashback'],['--suite','ads','--case','ADAS-54'],['--suite','ads','--spec','cypress/e2e/agentic/runtime.cy.ts'],['--suite','ads','--serve']])assert.throws(()=>parseArguments(args),/agentic_argument_invalid/);
+});

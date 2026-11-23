@@ -1,5 +1,5 @@
 import {api,closeChat,control,eventuallyFacts,openChat} from './agentic.js';
-export const command=(path:string,body:Cypress.RequestBody={})=>cy.request({url:api()+'/v1/meta-ads-agent'+path,method:'POST',headers:{origin:'http://127.0.0.1:5179'},body});
+export const command=(path:string,body:Cypress.RequestBody={})=>cy.request({url:api()+'/v1/meta-ads-agent'+path,method:'POST',headers:{origin:String(Cypress.config('baseUrl'))},body});
 /** Prerequisite data through real signed canonical APIs. Campaign gestures are proved separately. */
 export function preparedCampaign(){
   const draft={name:'Camisa para relatório',variantIds:['variant-a'],destination:'store',priority:'paid_sales',country:'BR',budget:{amountCents:10000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-16T12:00:00.000Z',endsAt:'2026-11-23T12:00:00.000Z'},headline:'Camisas para o seu dia',primaryText:'Conheça as camisas da loja.',mediaIds:[] as string[]};
