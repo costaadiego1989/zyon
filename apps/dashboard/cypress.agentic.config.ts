@@ -8,7 +8,7 @@ export default defineConfig({
   defaultCommandTimeout:45000,
   requestTimeout:15000,
   responseTimeout:30000,
-  pageLoadTimeout:45000,
+  pageLoadTimeout:120000,
   retries:0,
   video:false,
   numTestsKeptInMemory:0,

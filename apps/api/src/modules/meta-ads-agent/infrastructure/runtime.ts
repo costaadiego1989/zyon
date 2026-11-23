@@ -50,6 +50,15 @@ import {CampaignNoticeContactService} from '../application/campaign-notice-conta
 import {InitialLaunchService} from '../application/initial-launch.service.js';
 import {CampaignPreparationWorker} from './campaign-preparation.worker.js';
 import {assessBudget,type CampaignBudgetAssessmentPort} from '../application/budget-guidance.js';
+import {CampaignLifecycleService} from '../application/campaign-lifecycle.service.js';
+import {CampaignWorkspaceQueryService} from '../application/campaign-workspace-query.service.js';
+import {PreparationLimitsService} from '../application/preparation-limits.service.js';
+import {CampaignOpportunityService} from '../application/campaign-opportunity.service.js';
+import {CampaignOpportunityWorker} from './campaign-opportunity.worker.js';
+import {ProductOpportunityFactsReader} from './product-opportunity.reader.js';
+import {OpportunityModelAdapter} from './opportunity-model.adapter.js';
+import {PrismaAttributionTouchRepository} from './prisma-attribution-touch.repository.js';
+import {CampaignSalesQueryService} from '../application/campaign-sales-query.service.js';
 import {CatalogImageAdapter} from './catalog-image.adapter.js';
 import {CatalogCreativeService} from '../application/catalog-creative.service.js';
 import {CampaignReadyNoticeWorker} from './campaign-ready-notice.worker.js';
@@ -94,6 +103,20 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
     if(!approvalEnabled())throw new MetaAdsError('campaign_preparation_unavailable',503);
   };
   const funding = new FundingService(repo, billing, connection, new MetaFundingAdapter({ graphVersion: env.META_ADS_GRAPH_API_VERSION ?? '', request, clock }), clock);
+  const lifecycle=new CampaignLifecycleService({repo,commerce,connection,provider,authorizeActor,clock});
+  const workspace=new CampaignWorkspaceQueryService({repo,canManage:async()=>true,clock});
+  const sales=new CampaignSalesQueryService({repo,commerce,clock,timezone:async(merchantId,campaign)=>{
+    const state=await repo.read(merchantId),known=campaign?state.metrics[campaign.id]:null;
+    if(known?.timezone)return known.timezone;
+    const access=await connection.access(merchantId);if(campaign?.remoteAccountId&&campaign.remoteAccountId!==access.accountId)throw new MetaAdsError('meta_timezone_unavailable',409);
+    return provider.accountTimezone(access);
+  }});
+  const preparationLimits=new PreparationLimitsService({repo,commerce,authorizeActor,clock,localDay:async merchantId=>{
+    const access=await connection.access(merchantId),timezone=await provider.accountTimezone(access),current=await connection.access(merchantId);
+    if(access.accountId!==current.accountId||access.connectionEpoch!==current.connectionEpoch)throw new MetaAdsError('meta_timezone_unavailable',409);
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(clock());
+    return ['year','month','day'].map(type=>parts.find(part=>part.type===type)!.value).join('-');
+  }});
   const budgetControl = new MetaBudgetControlAdapter({ request, clock });
   const policies = new AutomationPolicyService({ repo, commerce, connection, campaigns, authorizeActor, enabled: automationEnabled, clock });
   const exposure = new ExposureReservationService({ repo, commerce, enabled: automationEnabled, clock });
@@ -105,7 +128,15 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   const contacts=new CampaignNoticeContactService({db:input.prisma,authorizeActor,clock,senderNumber:async merchantId=>{
     const config=await input.whatsapp.findByMerchantId(merchantId);return config?.merchantId===merchantId?config.whatsappNumber??config.phoneNumber??null:null;
   }});
-  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,enabled:approvalEnabled,clock,budgetAssessment,catalogCreatives});
+  const opportunityEnabled=()=>automationEnabled()&&approvalEnabled()&&env.MERCHANT_ASSISTANT_ENABLED==='true'&&!!input.assistant;
+  const opportunityModel=input.assistant?new OpportunityModelAdapter(input.assistant.createOpportunityPlanning(async merchantId=>{
+    if(!opportunityEnabled())throw new MetaAdsError('automatic_mode_unavailable',503);
+    const view=await policies.view(merchantId);if(view.mode!=='automatic'||!view.policy?.scope.allowNewCampaigns)throw new MetaAdsError('automatic_authority_unavailable',409);
+    await authorizeActor(merchantId,view.policy.acceptedBy);await authorizePreparation(merchantId,view.policy.acceptedBy);
+  })): {plan:async():Promise<never>=>{throw new MetaAdsError('opportunity_model_unavailable',503);}};
+  const opportunities=new CampaignOpportunityService({repo,commerce,policies,limits:preparationLimits,campaigns,preparation,facts:new ProductOpportunityFactsReader({db:input.prisma,commerce,repo}),model:opportunityModel,authorizeActor:authorizePreparation,connection,enabled:opportunityEnabled,clock});
+  const opportunityWorker=new CampaignOpportunityWorker({repo,opportunities,enabled:opportunityEnabled,clock});
+  preparationWorker=new CampaignPreparationWorker({repo,commerce,campaigns,connection,generations,proposals,preparations,notices,authorizeActor:authorizePreparation,authorizeCampaign:(m,a,c)=>opportunities.authorizeCampaign(m,a,c),enabled:approvalEnabled,clock,budgetAssessment,catalogCreatives});
   const noticeSender=input.templates&&input.templateSender?new CampaignReadyNoticeSender({db:input.prisma,notices,configs:input.whatsapp,templates:input.templates,templateSender:input.templateSender,launches,authorizeActor,
       storeName:async merchantId=>(await commerce.getProfile(merchantId)).name,dashboardUrl:env.META_ADS_CAMPAIGN_REVIEW_URL??env.META_ADS_DASHBOARD_URL??'',clock,enabled:()=>approvalEnabled()&&env.META_ADS_AGENT_CAMPAIGN_NOTICES_ENABLED==='true'}):null;
   const noticeWorker=new CampaignReadyNoticeWorker({repo,launches,notices,sender:{send:async lease=>{
@@ -126,7 +157,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
     const phoneNumber = config?.whatsappNumber ?? config?.phoneNumber;
     return credentials && phoneNumber ? { ...credentials, merchantId, phoneNumber } : null;
   } });
-  attribution = new AttributionService(repo, commerce, connection, conversions, env.META_ADS_ATTRIBUTION_SIGNING_KEY, clock);
+  attribution = new AttributionService(repo, commerce, connection, conversions, env.META_ADS_ATTRIBUTION_SIGNING_KEY, clock,undefined,new PrismaAttributionTouchRepository(input.prisma,clock));
   const service = new MetaAdsAgentService(repo, commerce, billing, connection, campaigns, generations, proposals, executions, provider, env);
   const enabled = env.META_ADS_AGENT_ENABLED === "true";
   if (enabled && env.META_ADS_AGENT_PURCHASE_BRIDGE_ENABLED === "true" && !input.sessionBinding) throw new Error("meta_ads_checkout_binding_missing");
@@ -136,11 +167,12 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
     if (env.META_ADS_AGENT_ENABLED !== 'true' || env.META_ADS_AGENT_OBSERVATION_ENABLED !== 'true') throw new MetaAdsError('meta_ads_daily_analysis_disabled', 503);
     await billing.requireAccess(merchantId); await connection.access(merchantId);
   })) : { configured: () => false, recommend: async () => ({ recommendations: [], usage: null }) };
-  const dailyEngine = new DailyObservationEngine({ repo, daily, commerce, connection, provider, timezone: access => provider.accountTimezone(access), attribution, recommendations: analysis, billing, automatic, clock });
+  const dailyEngine = new DailyObservationEngine({ repo, daily, commerce, connection, provider, timezone: access => provider.accountTimezone(access), attribution, recommendations: analysis, billing, automatic, sales, clock });
   if (input.assistant) {
     const assistant = input.assistant;
     assistant.contexts.register(new MetaAdsAssistantAdapter({ service, conversations: assistant.repo, authorizeActor:async scope=>{await authorizeActor(scope.merchantId,scope.actorId);await assistant.authorizeActor(scope);}, authorizeTool: assistant.authorizeTool,
       enabled: () => env.META_ADS_AGENT_ENABLED === 'true' && env.MERCHANT_ASSISTANT_ENABLED === 'true', clock,
+      workspace:(merchantId,query)=>workspace.list(merchantId,query),preparationLimits:merchantId=>preparationLimits.view(merchantId),campaignSales:(merchantId,campaignId,query)=>sales.sales(merchantId,campaignId,query),
       preparation,launchReview:(merchantId,actorId,campaignId)=>launches.review(merchantId,actorId,campaignId),
       planningContext:async merchantId=>{
         const access=await connection.access(merchantId);if(!access.accountId)throw new MetaAdsError('meta_account_required',409);
@@ -169,7 +201,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
         if (view.mode === 'automatic' && view.policy?.scope.allowNewCampaigns && !view.policy.scope.campaignIds.includes(campaign.id)) await automatic.bindCampaign(scope.merchantId, campaign.id, view.policy.id);
       } }));
   }
-  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender,noticeWorker,
+  return { service, attribution, funding, policies, exposure, authority, automatic, daily, dailyEngine, analysis,preparation,preparations,notices,launches,contacts,preparationWorker,noticeSender,noticeWorker,lifecycle,workspace,preparationLimits,opportunities,opportunityWorker,sales,
     generationWorker: new GenerationWorker(repo, generations, enabled && env.META_ADS_AGENT_GENERATION_WORKER_ENABLED === "true", clock),
     purchaseBridge: new CheckoutPurchaseBridge(repo, commerce, attribution, input.events, enabled && env.META_ADS_AGENT_PURCHASE_BRIDGE_ENABLED === "true", undefined, input.sessionBinding),
     observation: new ObservationWorker(repo, commerce, connection, provider, attribution, analysis, billing, { enabled: enabled && env.META_ADS_AGENT_OBSERVATION_ENABLED === "true" }, clock, dailyEngine) };

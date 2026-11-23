@@ -79,10 +79,10 @@ export function createMerchantAssistantRuntime(deps: Dependencies) {
   } });
   const api = new AssistantApiService({ repo, context: scope => contexts.resolve(scope), admission, knowledge, enabled,
     dashboardUrl: deps.env.META_ADS_DASHBOARD_URL || deps.env.DASHBOARD_URL || '', wake: () => { queueMicrotask(() => { void worker.drain(); }); } });
-  const createDailyAnalysis = (authorizeStore: (merchantId: string) => Promise<void>) => {
+  const createInternalAnalysis = (authorizeStore: (merchantId: string) => Promise<void>, purpose: 'daily_analysis'|'opportunity_planning') => {
     const authorize = async (scope: AssistantScope) => {
       validateAssistantScope(scope);
-      if (scope.actorId !== 'service:meta-ads-agent' || !/^meta-ads-daily:[a-f0-9]{64}$/.test(scope.context)) throw new AssistantError('assistant_forbidden', 403);
+      if (scope.actorId !== 'service:meta-ads-agent' || !(purpose==='daily_analysis'?/^meta-ads-daily:[a-f0-9]{64}$/:/^meta-ads-opportunity:[a-f0-9]{64}$/).test(scope.context)) throw new AssistantError('assistant_forbidden', 403);
       await authorizeStore(scope.merchantId);
     };
     const asService = async <T>(scope: AssistantScope, work: () => Promise<T>): Promise<T> => {
@@ -91,9 +91,11 @@ export function createMerchantAssistantRuntime(deps: Dependencies) {
     const dailyAdmission = new TurnAdmissionService(repo, authorize,
       () => ({ turnMicros: budget(deps.env.MERCHANT_ASSISTANT_TURN_BUDGET_MICROS, 50000n), monthlyMicros: budget(deps.env.MERCHANT_ASSISTANT_MONTHLY_BUDGET_MICROS, 2000000n) }), clock);
     const model = new MerchantAiGateway({ repo, admission: dailyAdmission, config: () => merchantAssistantModelConfiguration(deps.env), clock, rates, transport: deps.transport,
-      authorizeModel: async (scope, resource) => { await asService(scope, () => deps.governance.authorize({ merchantId: scope.merchantId, source: 'meta_ads_daily_analysis' }, 'model', resource)); } });
+      authorizeModel: async (scope, resource) => { await asService(scope, () => deps.governance.authorize({ merchantId: scope.merchantId, source: purpose==='daily_analysis'?'meta_ads_daily_analysis':'meta_ads_opportunity_planning' }, 'model', resource)); } });
     return { repo, admission: dailyAdmission, model, authorize, asService, clock };
   };
-  return { repo, contexts, knowledge, admission, gateway, worker, api, authorizeActor, authorizeTool, asActor, createDailyAnalysis };
+  const createDailyAnalysis=(authorizeStore:(merchantId:string)=>Promise<void>)=>createInternalAnalysis(authorizeStore,'daily_analysis');
+  const createOpportunityPlanning=(authorizeStore:(merchantId:string)=>Promise<void>)=>createInternalAnalysis(authorizeStore,'opportunity_planning');
+  return { repo, contexts, knowledge, admission, gateway, worker, api, authorizeActor, authorizeTool, asActor, createDailyAnalysis,createOpportunityPlanning };
 }
 export type MerchantAssistantRuntime = ReturnType<typeof createMerchantAssistantRuntime>;

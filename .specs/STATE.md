@@ -9,3 +9,10 @@
 - Source batch memory is bounded by conservative decoded payload estimates and durable row-offset/hash resume; this is not measured RSS or national-load evidence. Official live probe verified CNAE domains/metadata only,0 company records. Production runtime has actual Prisma/Neo4j, private own-Zyon sender, canonical billing ingress, durable workers and recovery; no in-memory CRM fallback.
 - Default module/worker/Meta/model/ingestion/paid flags remain off. No push, deployment, remote DB change, actual customer message, real Meta grant, paid model call or actual charge is authorized/proven. The original dirty AACP application workspace and its global STATE are preserved; copy only owned feature artifacts/pointer there.
 - Historical ZIP C:/Users/Admin/AppData/Local/Temp/zyon-cnpj-eSZcjm/resource.zip remains after automatic approval review rejected both scoped cleanup attempts with reason blocked by policy. Do not retry through another tool. Final disclosure is required; see cleanup-policy-block.md.
+
+## Ads workspace integrated release - 2026-11-23
+
+- User explicitly authorized: "suba para homolog e prod mas temos novas atualiza??es entao incorpore antes de subir".
+- Integrate the settled production source 602e98accb18b19a670dc900bbc1ac5cdf4d23b5, including f578d2af WhatsApp recovery, with verified Ads workspace source 6bfa95d083c6535f2d6f0b1d19b985e30e4f178d. Preserve all upstream application files and unrelated worktrees.
+- Feature evidence remains in C:/tmp/zyon-ads-workspace-20261122/.specs/features/ads-campaign-workspace; 65 proofs pass, 3 mutations killed, independent findings closed. Release integration and live validation are recorded separately under the integrated release audit.
+- Deployment authorization covers homologation then production. Every new ad still requires exact administrative approval; no actual advertisement activation, budget change or customer notification is authorized by this release. Never seed production.

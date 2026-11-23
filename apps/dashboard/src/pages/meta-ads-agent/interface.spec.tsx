@@ -38,8 +38,8 @@ test('ADAS-61 manual automation starts compact and keeps the real policy-plannin
 });
 test('ADAS-59 campaign workspace precedes secondary setup and its chat entry focuses without submitting',async()=>{
   screen=ui();const client={dispose:vi.fn(),thread:vi.fn().mockResolvedValue({id:'t',context:{id:'meta-ads',label:'Anúncios com IA',capabilities:[]},revision:0,campaign:null,turns:[],nextCursor:null,updatedAt:'2026-11-16'}),funding:vi.fn().mockResolvedValue({snapshot:null,status:'unknown',message:'Consulta indisponível',nextSteps:[],error:null}),automation:vi.fn().mockResolvedValue({mode:'manual',policy:null,version:0,committedCents:0,availableCents:null}),reports:vi.fn().mockResolvedValue({reports:[]}),submit:vi.fn()};
-  await screen.render(<MetaAdsAgentPage merchantId="store" apiBaseUrl="https://api.example.test" api={{overview:vi.fn().mockResolvedValue(overview())} as unknown as MetaAdsAgentApi} assistantClient={client as unknown as MerchantAssistantApi}/>);
-  const campaigns=screen.container.querySelector('[aria-labelledby="mga-campaigns-title"]')!,settings=screen.container.querySelector('.mga-settings-nav')!;
+  await screen.render(<MetaAdsAgentPage merchantId="store" apiBaseUrl="https://api.example.test" api={{overview:vi.fn().mockResolvedValue(overview()),workspace:vi.fn(async(query:any)=>({items:[],total:0,page:1,pages:1,pageSize:10,query,counts:{all:0,approval:0,running:0,paused:0,drafts:0,attention:0,archived:0},asOf:'2026-11-22T12:00:00Z'}))} as unknown as MetaAdsAgentApi} assistantClient={client as unknown as MerchantAssistantApi}/>);
+  const campaigns=screen.container.querySelector('.ads-workspace')!,settings=screen.container.querySelector('.mga-settings-nav')!;
   expect(campaigns.compareDocumentPosition(settings)&Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   await screen.click('Criar com a IA');expect(document.activeElement).toBe(screen.container.querySelector('[aria-label="Mensagem para a IA"]'));expect(client.submit).not.toHaveBeenCalled();
 });

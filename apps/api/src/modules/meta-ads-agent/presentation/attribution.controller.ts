@@ -31,7 +31,7 @@ export class AttributionController {
   }
   @Post("attribution") @Header("Cache-Control", "no-store")
   async capture(@Req() request: Request, @Param("conversationId") conversationId: string, @Body() body: unknown) {
-    const claims = this.access(request, conversationId); const input = bodyFields<{ token: string; consent: boolean; consentVersion: string; fbc?: string; fbp?: string }>(body, ["token", "consent", "consentVersion", "fbc", "fbp"]);
+    const claims = this.access(request, conversationId); const input = bodyFields<{ token: string; consent: boolean; consentVersion: string; fbc?: string; fbp?: string; idempotencyKey?:string }>(body, ["token", "consent", "consentVersion", "fbc", "fbp", "idempotencyKey"]);
     const receipt = await this.attribution.captureStore(claims.merchantId, { ...input, sessionId: conversationId, clientUserAgent: request.headers?.["user-agent"] ?? null });
     return { receiptId: receipt.id, campaignId: receipt.campaignId };
   }

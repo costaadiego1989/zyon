@@ -26,19 +26,30 @@ export class PrismaMetaAdsRepository implements MetaAdsRepository {
   }
 
   async mutate<T>(merchantId: string, readKeys: string[], change: (state: MetaAdsStoreState, existing: ReadonlyMap<string, MetaAdsRecord>) => MetaAdsMutation<T>): Promise<T> {
+    return this.transaction(merchantId, readKeys, change);
+  }
+
+  async mutateCampaignLifecycle<T>(merchantId: string, campaignId: string, readKeys: string[], change: (state: MetaAdsStoreState, existing: ReadonlyMap<string, MetaAdsRecord>, preparations: Array<{id: string; status: string}>) => MetaAdsMutation<T> & {invalidatePreparations?: boolean}): Promise<T> {
+    requireIdentifier(campaignId);
+    return this.transaction(merchantId, readKeys, change, campaignId);
+  }
+
+  private async transaction<T>(merchantId: string, readKeys: string[], change: (state: MetaAdsStoreState, existing: ReadonlyMap<string, MetaAdsRecord>, preparations: Array<{id: string; status: string}>) => MetaAdsMutation<T> & {invalidatePreparations?: boolean}, campaignId?: string): Promise<T> {
     requireIdentifier(merchantId);
     return this.prisma.$transaction(async tx => {
       // The insert also serializes the first concurrent mutations of a new store.
       await tx.$executeRaw`INSERT INTO meta_ads_agent_stores(merchant_id,state,updated_at) VALUES(${merchantId},${JSON.stringify(initialStore(merchantId))}::jsonb,now()) ON CONFLICT(merchant_id) DO NOTHING`;
       const [row] = await tx.$queryRaw<Array<{ state: unknown }>>`SELECT state FROM meta_ads_agent_stores WHERE merchant_id=${merchantId} FOR UPDATE`;
       const state = stateOf(row?.state, merchantId);
+      const preparations = campaignId ? await tx.$queryRaw<Array<{id: string; status: string}>>`SELECT id,status FROM meta_ads_campaign_preparations WHERE merchant_id=${merchantId} AND campaign_id=${campaignId} ORDER BY id FOR UPDATE` : [];
       const rows = readKeys.length ? await tx.metaAdsAgentRecord.findMany({ where: { merchantId, key: { in: readKeys } } }) : [];
       // Synchronous callback only: network effects must happen after this commit.
-      const mutation = change(state, new Map(rows.map(record => [record.key, recordOf(record)])));
+      const mutation = change(state, new Map(rows.map(record => [record.key, recordOf(record)])), preparations);
       if (!mutation || typeof (mutation as unknown as Promise<unknown>).then === "function") throw new MetaAdsError("async_mutation_forbidden", 500);
       stateOf(state, merchantId);
       stableDigest(state);
       await tx.metaAdsAgentStore.update({ where: { merchantId }, data: { state: state as unknown as Prisma.InputJsonValue, version: { increment: 1 } } });
+      if (campaignId && mutation.invalidatePreparations) await tx.metaAdsCampaignPreparation.updateMany({where: {merchantId, campaignId, status: {in: ['queued','blocked','review_ready']}}, data: {status: 'superseded', fence: {increment: 1}, leaseToken: null, leaseUntil: null}});
       for (const record of mutation.records ?? []) {
         if (!record.key || record.key.length > 512 || /[\x00-\x1f]/.test(record.key)) throw new MetaAdsError("invalid_record_key");
         stableDigest(record.payload);

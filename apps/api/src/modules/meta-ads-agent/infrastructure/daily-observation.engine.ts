@@ -8,13 +8,15 @@ import type { ConnectionService } from '../application/connection.service.js';
 import type { BillingService } from '../application/billing.service.js';
 import type { AutomaticCampaignWorker, AutomaticOutcome } from './automatic-campaign.worker.js';
 import { recommendationEvidence, validSuggestion } from './recommendation.adapter.js';
+import type {CampaignSalesQueryService} from '../application/campaign-sales-query.service.js';
 
 interface Dependencies {
   repo: MetaAdsRepository; daily: DailyObservationRepository; commerce: Pick<CommerceContextPort, 'getPlan'>;
-  connection: Pick<ConnectionService, 'access'>; provider: Pick<MetaAdsProviderPort, 'metrics'>; timezone: (access: MetaAccess) => Promise<string>;
+  connection: Pick<ConnectionService, 'access'>; provider: Pick<MetaAdsProviderPort, 'metrics'> & Partial<Pick<MetaAdsProviderPort,'snapshot'>>; timezone: (access: MetaAccess) => Promise<string>;
   attribution: { report(merchantId: string, since: string, until: string, timezone?: string): Promise<Array<Pick<AttributedPurchase, 'campaignId' | 'fact'>>> };
   recommendations: RecommendationPort; billing: Pick<BillingService, 'ensureEligibility'>;
   automatic: Pick<AutomaticCampaignWorker, 'recommendation'>; clock?: Clock;
+  sales?:Pick<CampaignSalesQueryService,'sales'>;
 }
 interface Progress {
   campaigns: Record<string, { daily?: MetaAdsMetrics; rolling?: MetaAdsMetrics; error?: string }>;
@@ -29,6 +31,19 @@ export class DailyObservationEngine {
   admitDue(): Promise<void> { if (this.stopping) return Promise.resolve(); return this.admitting ??= this.admit().finally(() => { this.admitting = undefined; }); }
   drain(): Promise<void> { if (this.stopping) return Promise.resolve(); return this.collecting ??= this.collect().finally(() => { this.collecting = undefined; }); }
   async stop(): Promise<void> { this.stopping = true; await Promise.allSettled([this.admitting, this.collecting]); }
+  private async observeAudience(merchantId:string,campaign:MetaAdsCampaign):Promise<void>{
+    const read=this.deps.provider.snapshot?.bind(this.deps.provider);if(!read||!campaign.remoteAdSetId)return;
+    try{
+      const access=await this.deps.connection.access(merchantId);if(access.accountId!==campaign.remoteAccountId)return;
+      const snapshot=await read(access,campaign);if(snapshot.campaignId!==campaign.remoteCampaignId||snapshot.adSetId!==campaign.remoteAdSetId)return;
+      const targeting=snapshot.targeting as {geo_locations?:{countries?:unknown};age_min?:unknown;age_max?:unknown;targeting_automation?:{advantage_audience?:unknown}},countries=targeting.geo_locations?.countries;
+      if(!Array.isArray(countries)||!countries.length||countries.length>50||countries.some(c=>typeof c!=='string'||!(/^[A-Z]{2}$/).test(c)))return;
+      const minimumAge=Number.isSafeInteger(targeting.age_min)&&Number(targeting.age_min)>=13&&Number(targeting.age_min)<=65?Number(targeting.age_min):null;
+      const maximumAge=Number.isSafeInteger(targeting.age_max)&&Number(targeting.age_max)>=13&&Number(targeting.age_max)<=65&&(minimumAge===null||Number(targeting.age_max)>=minimumAge)?Number(targeting.age_max):null;
+      const auto=targeting.targeting_automation?.advantage_audience;
+      await this.deps.repo.mutate(merchantId,[],state=>{const current=state.campaigns[campaign.id];if(state.connection.epoch!==access.connectionEpoch||state.connection.account?.id!==access.accountId||!current?.managed||current.remoteCampaignId!==snapshot.campaignId||current.remoteAdSetId!==snapshot.adSetId)return{result:null};state.audienceSnapshots??={};state.audienceSnapshots[campaign.id]={source:'verified',countries:[...new Set(countries as string[])],minimumAge,maximumAge,automatic:auto===1||auto===true?true:auto===0||auto===false?false:null,checkedAt:this.clock().toISOString()};return{result:null};});
+    }catch{/* Missing audience metadata never discards separately confirmed measurements. */}
+  }
   private async admit(): Promise<void> {
     let after: string | undefined;
     while (!this.stopping) {
@@ -74,18 +89,37 @@ export class DailyObservationEngine {
       if (origin?.source === 'agent' && origin.campaignId === campaign.id) campaigns.push(campaign);
     }
     for (const campaign of campaigns) {
+      await this.observeAudience(merchantId,campaign);
       const entry = progress.campaigns[campaign.id] ??= {};
       try {
         for (const period of ['daily', 'rolling'] as const) {
-          if (entry[period]) continue;
+          if (entry[period]&&entry[period]!.confirmedOrdersStatus!=='unavailable') continue;
           await this.deps.daily.heartbeat(lease);
           const access = await this.deps.connection.access(merchantId);
           if (access.accountId !== lease.accountId) throw new MetaAdsError('meta_connection_changed', 409);
           const since = period === 'daily' ? lease.since : lease.analysisSince, until = lease.until;
-          const remote = await this.deps.provider.metrics(access, campaign, since, until);
-          if (remote.timezone !== lease.timezone) throw new MetaAdsError('meta_timezone_unavailable', 409);
-          const purchases = await this.deps.attribution.report(merchantId, since, until, lease.timezone);
-          const metrics = buildMetrics({ campaignId: campaign.id, remote, orders: purchases.filter(p => p.campaignId === campaign.id).map(p => p.fact), updatedAt: this.clock().toISOString() });
+          let metrics=entry[period];
+          if(!metrics){
+            const remote = await this.deps.provider.metrics(access, campaign, since, until);
+            if (remote.timezone !== lease.timezone) throw new MetaAdsError('meta_timezone_unavailable', 409);
+            const purchases = await this.deps.attribution.report(merchantId, since, until, lease.timezone);
+            metrics = buildMetrics({ campaignId: campaign.id, remote, orders: purchases.filter(p => p.campaignId === campaign.id).map(p => p.fact), updatedAt: this.clock().toISOString() });
+          }
+          if(this.deps.sales){
+            let canonical;try{canonical=await this.deps.sales.sales(merchantId,campaign.id,{since,until,page:1});}catch{/* A failed sales read does not discard confirmed Meta measurements. */}
+            const available=canonical?.status==='available'&&canonical.currency===metrics.currency;
+            const samePaidCohort=available&&canonical!.paidOrders===metrics.paidOrders&&canonical!.confirmedRevenueCents===metrics.confirmedRevenueCents;
+            metrics.confirmedOrdersStatus=available?'available':'unavailable';
+            metrics.confirmedRevenueCents=available?canonical!.confirmedRevenueCents:null;
+            metrics.paidOrders=available?canonical!.paidOrders!:0;
+            metrics.source=available?'meta_reported+zyon_reconciled':'meta_reported';
+            metrics.costPerPurchaseCents=available&&metrics.paidOrders>0&&metrics.spendCents!==null?Math.round(metrics.spendCents/metrics.paidOrders):null;
+            // Refunds and a changed paid cohort invalidate the old contribution estimate.
+            if(!samePaidCohort){metrics.contributionCents=null;metrics.costCoverage='unavailable';}
+            metrics.notes=metrics.notes.filter(n=>n!=='confirmed_orders_unavailable');
+            if(!available)metrics.notes.push('confirmed_orders_unavailable');
+            metrics.updatedAt=this.clock().toISOString();
+          }
           await this.deps.repo.mutate(merchantId, [], current => {
             if (current.connection.epoch !== access.connectionEpoch || current.connection.account?.id !== lease.accountId) throw new MetaAdsError('meta_connection_changed', 409);
             if (period === 'rolling') current.metrics[campaign.id] = metrics;
@@ -98,7 +132,7 @@ export class DailyObservationEngine {
         await this.deps.repo.mutate(merchantId, [], current => { const previous = current.metrics[campaign.id]; if (previous) { previous.stale = true; if (!previous.notes.includes('meta_metrics_unavailable')) previous.notes.push('meta_metrics_unavailable'); } return { result: null }; });
       }
     }
-    const complete = campaigns.every(c => progress.campaigns[c.id]?.daily && progress.campaigns[c.id]?.rolling);
+    const complete = campaigns.every(c => progress.campaigns[c.id]?.daily && progress.campaigns[c.id]?.rolling&&progress.campaigns[c.id].daily!.confirmedOrdersStatus!=='unavailable'&&progress.campaigns[c.id].rolling!.confirmedOrdersStatus!=='unavailable');
     const available = campaigns.flatMap(campaign => { const metrics = progress.campaigns[campaign.id]?.rolling; return metrics && assessData(campaign.draft.priority, metrics).status === 'available' ? [{ campaign, metrics }] : []; });
     if (complete && lease.analysisStatus === 'sending' && !this.deps.recommendations.durable) lease = await this.deps.daily.checkpoint(lease, { analysisStatus: 'unknown' });
     if (complete && ['pending', 'sending'].includes(lease.analysisStatus)) {
@@ -149,7 +183,7 @@ export class DailyObservationEngine {
       const entry = progress.campaigns[campaign.id], metrics = entry?.daily ?? null, rolling = entry?.rolling;
       const assessment = rolling ? assessData(campaign.draft.priority, rolling) : { status: 'awaiting_data' as const, missing: ['rolling_metrics'] };
       const recommendations = progress.recommendations.filter(r => r.campaignId === campaign.id);
-      return { campaignId: campaign.id, metrics, status: !metrics || !rolling ? 'unavailable' : assessment.status, missing: assessment.missing, recommendations,
+      return { campaignId: campaign.id, metrics, status: !metrics || !rolling||metrics.confirmedOrdersStatus==='unavailable'||rolling.confirmedOrdersStatus==='unavailable' ? 'unavailable' : assessment.status, missing: assessment.missing, recommendations,
         actions: recommendations.flatMap(r => progress.actions[r.id] ? [progress.actions[r.id]] : []) };
     });
     const actionsPending = Object.values(progress.actions).some(action => action.status === 'generation_pending');

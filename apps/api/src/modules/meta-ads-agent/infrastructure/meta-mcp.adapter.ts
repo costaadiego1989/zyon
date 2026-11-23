@@ -297,7 +297,7 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
   }
   async metrics(access: MetaAccess, campaign: MetaAdsCampaign, since: string, until: string): Promise<ProviderMetricSnapshot> {
     const session = this.session(access, "assess_and_optimize_performance", true); await session.start(); const account = await this.account(session, access);
-    const fields = ["id", "amount_spent", "offsite_conversion_fb_pixel_purchase", "offsite_conversion_fb_pixel_purchase_values", "actions:onsite_conversion.messaging_conversation_started_7d", "impressions", "reach", "link_click"];
+    const fields = ["id", "amount_spent", "offsite_conversion_fb_pixel_purchase", "offsite_conversion_fb_pixel_purchase_values", "actions:onsite_conversion.messaging_conversation_started_7d", "impressions", "reach", "link_click", "attribution_setting"];
     const context = await session.call("ads_get_field_context", { field_names: fields });
     const available = fields.filter(name => list(context.fields).some(field => field.name === name && Array.isArray(field.levels) && field.levels.includes('campaign')));
     if (!available.includes('id')) throw new MetaAdsError("meta_metrics_unavailable", 503);
@@ -307,7 +307,9 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
     const metadata = await this.entities(session, access, "account", ['id', 'timezone_name'], [id(access.accountId)]);
     const selected = metadata.find(r => String(r.id ?? r.account_id ?? '').replace(/^act_/, '') === access.accountId);
     const currency = String(account.currency);
-    return { campaignId: campaign.id, currency, since, until, timezone: typeof selected?.timezone_name === 'string' ? selected.timezone_name : 'unknown', attributionWindow: "7d_click+1d_view",
+    const settings=['1d_click','7d_click','28d_click','1d_view_1d_click','1d_view_7d_click','7d_view_7d_click','1d_view_28d_click','7d_view_28d_click','28d_view_28d_click','1d_click_1d_ev','1d_view_1d_click_1d_ev','7d_click_1d_ev','1d_view_7d_click_1d_ev','1d_passback','7d_passback','28d_passback','custom','1d_sequenced','7d_sequenced','28d_sequenced','skan','incrementality','multiple','na'];
+    const effectiveAttributionWindow=available.includes('attribution_setting')&&typeof row.attribution_setting==='string'&&settings.includes(row.attribution_setting)?row.attribution_setting:null;
+    return { campaignId: campaign.id, currency, since, until, timezone: typeof selected?.timezone_name === 'string' ? selected.timezone_name : 'unknown', attributionWindow: "7d_click+1d_view",requestedAttributionWindow:'7d_click+1d_view',effectiveAttributionWindow,
       spendCents: available.includes('amount_spent') ? metaCurrencyCents(row.amount_spent, currency) : null,
       attributedRevenueCents: available.includes('offsite_conversion_fb_pixel_purchase_values') ? metaCurrencyCents(row.offsite_conversion_fb_pixel_purchase_values, currency) : null,
       attributedPurchases: available.includes('offsite_conversion_fb_pixel_purchase') ? count(row.offsite_conversion_fb_pixel_purchase) : null,

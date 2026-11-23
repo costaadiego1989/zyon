@@ -1,6 +1,7 @@
 import type { DomainEvent, DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
 import type { MetaAdsRepository, CommerceContextPort, Clock, AttributionSessionBindingPort } from "../domain/types.js";
 import type { AttributionService } from "../application/attribution.service.js";
+import {stableDigest} from '../domain/offer.js';
 
 export class CheckoutPurchaseBridge {
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -29,7 +30,8 @@ export class CheckoutPurchaseBridge {
     if (event.eventType !== "whatsapp.ad_referral" || !payload || typeof payload.adId !== "string" || typeof payload.sessionId !== "string") return;
     const state = await this.repo.read(event.merchantId);
     if (!Object.values(state.campaigns).some(campaign => campaign.createdByAgent && campaign.remoteAdIds.includes(payload.adId as string))) return;
-    await this.attribution.captureWhatsapp(event.merchantId, { adId: payload.adId, sessionId: payload.sessionId, consent: false, consentVersion: "whatsapp-no-ad-consent-v1" });
+    const idempotencyKey=stableDigest({merchantId:event.merchantId,eventId:event.eventId??null,...(!event.eventId?{sessionId:payload.sessionId,adId:payload.adId}:{})});
+    await this.attribution.captureWhatsapp(event.merchantId, { adId: payload.adId, sessionId: payload.sessionId, consent: false, consentVersion: "whatsapp-no-ad-consent-v1",idempotencyKey });
   }
   drain(): Promise<void> { if (this.stopping) return Promise.resolve(); return this.active ??= this.scan().catch(() => undefined).finally(() => { this.active = undefined; }); }
   private async bind(merchantId: string, sessionId: string) { const origin = await this.binding?.parent(merchantId, sessionId); if (origin) await this.attribution.bindSession(merchantId, origin, sessionId); }

@@ -90,6 +90,9 @@ export class CommerceContextAdapter implements CommerceContextPort {
         AND pi.currency=o.currency AND pi.status IN ('approved','refunded','chargeback_won') ORDER BY pi.updated_at DESC,pi.id DESC LIMIT 1) p ON true
       WHERE o.merchant_id=${merchantId} AND (o.id=${orderId} OR o.external_order_id=${orderId}) ORDER BY (o.id=${orderId}) DESC,o.completed_at ASC LIMIT 1`;
     if (!row) return null;
+    return this.fact(merchantId,row);
+  }
+  private fact(merchantId:string,row:PurchaseRow):PaidOrderFact {
     const paid = Boolean(row.payment_status); const amount = Math.round(Number(row.order_total) * 100);
     if (!Number.isSafeInteger(amount) || amount < 0) throw new MetaAdsError("purchase_amount_unreconciled", 409);
     if (paid) {
@@ -111,8 +114,16 @@ export class CommerceContextAdapter implements CommerceContextPort {
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start || end.getTime() - start.getTime() > 366 * 86400000) throw new MetaAdsError("metrics_period_invalid");
     const result: PaidOrderFact[] = []; let cursor = "";
     while (true) {
-      const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`SELECT id FROM completed_orders WHERE merchant_id=${merchantId} AND completed_at>=${start} AND completed_at<${end} AND id>${cursor} ORDER BY id ASC LIMIT 250`;
-      for (const row of rows) { const fact = await this.paidOrder(merchantId, row.id); if (fact?.paid) result.push(fact); }
+      const rows = await this.prisma.$queryRaw<PurchaseRow[]>`SELECT o.id,o.merchant_id,o.session_id,o.order_total::text,o.currency,o.completed_at,
+        p.status AS payment_status,p.amount_cents,p.approved_amount_cents,p.amount_breakdown,p.status_history,
+        (SELECT COALESCE(SUM(rf.amount_in_cents),0) FROM returns r JOIN return_refunds rf ON rf.return_id=r.id WHERE r.merchant_id=${merchantId} AND (r.order_id=o.id OR r.order_id=o.external_order_id) AND rf.status='COMPLETED') AS refunded_cents
+        FROM completed_orders o JOIN LATERAL (SELECT * FROM payment_intents pi WHERE pi.merchant_id=${merchantId} AND pi.session_id=o.session_id AND pi.currency=o.currency AND pi.status IN ('approved','refunded','chargeback_won') ORDER BY pi.updated_at DESC,pi.id DESC LIMIT 1) p ON true
+        LEFT JOIN LATERAL (SELECT item->>'occurredAt' AS approved_at FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p.status_history)='array' THEN p.status_history ELSE '[]'::jsonb END) item WHERE item->>'status'='approved' LIMIT 1) h ON true
+        WHERE o.merchant_id=${merchantId} AND o.id>${cursor}
+        AND (CASE WHEN pg_input_is_valid(h.approved_at,'timestamp with time zone') THEN h.approved_at::timestamptz ELSE o.completed_at AT TIME ZONE 'UTC' END)>=${start}
+        AND (CASE WHEN pg_input_is_valid(h.approved_at,'timestamp with time zone') THEN h.approved_at::timestamptz ELSE o.completed_at AT TIME ZONE 'UTC' END)<${end}
+        ORDER BY o.id ASC LIMIT 250`;
+      for (const row of rows) { const fact=this.fact(merchantId,row);if(fact.paid)result.push(fact); }
       if (rows.length < 250) return result;
       cursor = rows[rows.length - 1].id;
     }
