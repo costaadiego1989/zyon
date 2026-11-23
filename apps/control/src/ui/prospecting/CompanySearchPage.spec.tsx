@@ -146,6 +146,8 @@ test("DIR-02 incomplete or stale publication observations cannot enable search",
     {status:'stale',value:{snapshotId:'out',state:'published'}},
     {status:'stale',value:{snapshotId:null,state:'unavailable'}},
     {status:'unavailable',value:null},
+    {status:'unavailable',value:{snapshotId:'retained-but-unverified',state:'unavailable'}},
+    {status:'unavailable',value:{snapshotId:'',state:'unavailable'}},
   ]){
     const readiness=vi.fn().mockResolvedValueOnce({source}).mockResolvedValue(published);
     const companies=vi.fn().mockResolvedValue(page()),lookup=vi.fn(domains);
