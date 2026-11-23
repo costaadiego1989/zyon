@@ -1,4 +1,5 @@
 .billing-subscriptions { min-width: 0; }
+.billing-subscriptions > section { min-width: 0; }
 .billing-disclosure { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 13px; padding: 15px 0; border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line); }
 .billing-disclosure__icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 8px; background: var(--warning-soft); color: var(--warning); }
 .billing-disclosure h3 { margin: 0; font-size: 13px; }
