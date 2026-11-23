@@ -22,6 +22,10 @@ model CompanySnapshot {
   rejectedCount Int @default(0) @map("rejected_count")
   errorCode String? @map("error_code")
   publishedAt DateTime? @map("published_at")
+  storageSnapshotId String? @map("storage_snapshot_id")
+  storageMaxCnpj String? @db.VarChar(14) @map("storage_max_cnpj")
+  storageSnapshot CompanySnapshot? @relation("ProgressiveStorage", fields: [storageSnapshotId], references: [id], onDelete: Restrict)
+  readViews CompanySnapshot[] @relation("ProgressiveStorage")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   files CompanySourceFile[]

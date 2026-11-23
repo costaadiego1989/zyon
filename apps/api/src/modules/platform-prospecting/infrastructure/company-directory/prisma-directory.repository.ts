@@ -8,13 +8,15 @@ import { normalizeDirectoryText, stableDirectoryJson } from "../../domain/compan
 import { validateCompanyFilters,validateCompanyDomainQuery } from "../../domain/company-directory/company-filters.js";
 import { SearchCompaniesQuery } from "../../application/company-directory/search-companies.query.js";
 import { readDirectoryPage } from "./directory-search.sql.js";
+import {resolveDirectoryStorage} from "./directory-storage.js";
 
 export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort,DirectoryImportManagementPort {
   constructor(readonly client: PrismaClient,private readonly cursorHmacKey?:string) {}
   async activeSnapshotId():Promise<string|null>{return (await this.client.companyDirectoryActiveSnapshot.findUnique({where:{id:"national"}}))?.snapshotId??null;}
   async sourceObservation(){
     const snapshotId=await this.activeSnapshotId();
-    const [active,latest]=await Promise.all([snapshotId?this.client.companySnapshot.findUnique({where:{id:snapshotId}}):null,this.client.companySnapshot.findFirst({orderBy:{createdAt:"desc"},include:{files:true}})]);
+    const [active,lastRoot]=await Promise.all([snapshotId?this.client.companySnapshot.findUnique({where:{id:snapshotId}}):null,this.client.companySnapshot.findFirst({where:{storageSnapshotId:null},orderBy:{createdAt:"desc"},include:{files:true}})]);
+    const latest=active?.storageSnapshotId?await this.client.companySnapshot.findUnique({where:{id:active.storageSnapshotId},include:{files:true}}):lastRoot;
     const counts=latest?.counts as Record<string,unknown>|undefined,progress=counts?.progress as Record<string,unknown>|undefined;
     return {snapshotId,state:active?.state??"unavailable",competence:active?.competence??null,coverage:(active?.counts as Record<string,unknown>|undefined)?.coverage,
       latestImport:latest?{id:latest.id,state:latest.state,phase:progress?.phase??null,committedCount:progress?.committedRecords??latest.files.reduce((n,f)=>n+Number(f.committedCount),0),selectedCompanies:progress?.selectedCompanies??0,validatedFiles:progress?.validatedFiles??latest.files.filter(f=>f.state==="validated"||f.state==="inherited").length,totalFiles:latest.files.length,errorCode:latest.errorCode,updatedAt:typeof progress?.updatedAt==="string"?progress.updatedAt:latest.updatedAt.toISOString()}:null};
@@ -25,13 +27,13 @@ export class PrismaDirectoryRepository implements DirectoryImportRepositoryPort,
   async domains(query:CompanyDomainQuery):Promise<CompanyDomainResult>{
     const validated=validateCompanyDomainQuery(query);const snapshotId=validated.snapshotId??await this.activeSnapshotId();if(!snapshotId)throw new Error("directory_unavailable");
     return this.client.$transaction(async tx=>{
-      const snapshot=await tx.companySnapshot.findUnique({where:{id:snapshotId}});if(!snapshot||snapshot.state!=="published")throw new Error("snapshot_unavailable");
-      const result=validated.uf ? await tx.$queryRaw<{kind:string;code:string;label:string}[]>(Prisma.sql`SELECT d.kind,d.code,d.label FROM company_directory.source_domains d
-        WHERE d.snapshot_id=${snapshotId} AND d.kind='municipios'
-        AND EXISTS(SELECT 1 FROM company_directory.company_establishments e WHERE e.snapshot_id=d.snapshot_id AND e.city_code=d.code AND e.uf=${validated.uf})
+      const storage=await resolveDirectoryStorage(tx,snapshotId),{snapshot}=storage;
+      const result=validated.uf||(validated.kind==='municipios'&&storage.maximumCnpj) ? await tx.$queryRaw<{kind:string;code:string;label:string}[]>(Prisma.sql`SELECT d.kind,d.code,d.label FROM company_directory.source_domains d
+        WHERE d.snapshot_id=${storage.storageSnapshotId} AND d.kind='municipios'
+        AND EXISTS(SELECT 1 FROM company_directory.company_establishments e WHERE e.snapshot_id=d.snapshot_id AND e.city_code=d.code ${validated.uf?Prisma.sql`AND e.uf=${validated.uf}`:Prisma.empty} ${storage.maximumCnpj?Prisma.sql`AND e.cnpj COLLATE "C"<=${storage.maximumCnpj}`:Prisma.empty})
         AND d.code > ${validated.afterCode??""}
         AND (starts_with(d.code,${validated.search??""}) OR strpos(lower(d.label),lower(${validated.search??""}))>0)
-        ORDER BY d.code LIMIT ${validated.limit!+1}`) : await tx.sourceDomain.findMany({where:{snapshotId,kind:validated.kind,...(validated.afterCode?{code:{gt:validated.afterCode}}:{}),...(validated.search?{OR:[{code:{startsWith:validated.search}},{label:{contains:validated.search,mode:"insensitive"}}]}:{})},select:{kind:true,code:true,label:true},orderBy:{code:"asc"},take:validated.limit!+1});
+        ORDER BY d.code LIMIT ${validated.limit!+1}`) : await tx.sourceDomain.findMany({where:{snapshotId:storage.storageSnapshotId,kind:validated.kind,...(validated.afterCode?{code:{gt:validated.afterCode}}:{}),...(validated.search?{OR:[{code:{startsWith:validated.search}},{label:{contains:validated.search,mode:"insensitive"}}]}:{})},select:{kind:true,code:true,label:true},orderBy:{code:"asc"},take:validated.limit!+1});
       return {snapshotId,competence:snapshot.competence,items:result.slice(0,validated.limit),nextCursor:result.length>validated.limit!?result[validated.limit!-1].code:null};
     },{isolationLevel:"RepeatableRead"});
   }

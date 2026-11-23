@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import type { CompanyDirectoryCoverage, CompanyDomainQuery, CompanyFilters, CompanySearchQuery } from "@zyon/shared-types";
+import type { CompanyDirectoryCoverage, CompanyDirectoryImportSummary, CompanyDomainQuery, CompanyFilters, CompanySearchQuery } from "@zyon/shared-types";
+import { PlatformApiError } from "../../lib/api.js";
 import { Search } from "lucide-react";
 import { Button, ReadState, cents, money, stages, useAction, useResource, type PageProps } from "./screen-controls.js";
 import { ProspectingState } from "./ProspectingShell.js";
@@ -208,7 +209,7 @@ export function CompanySearchPage(props: PageProps) {
   const availability = useResource(load, props.onSessionExpired);
   const source = availability.data?.source;
   if (source?.status === "current" && source.value?.snapshotId && source.value.state === "published")
-    return <PublishedCompanySearchPage {...props} coverage={source.value.coverage} />;
+    return <PublishedCompanySearchPage {...props} coverage={source.value.coverage} sourceSnapshotId={source.value.snapshotId} importSummary={source.value.latestImport} />;
   const preparing = source?.status === "unavailable" && source.value?.snapshotId === null && source.value.state === "unavailable";
   const job = preparing ? source.value?.latestImport : undefined;
   const storageFailed = job?.state === "failed" && ["production_directory_storage_limit", "retail_directory_25gb_limit"].includes(job.errorCode ?? "");
@@ -219,7 +220,7 @@ export function CompanySearchPage(props: PageProps) {
       {preparing ? (
         <div className="prospecting-state">
           <h3>{storageFailed ? "Importação interrompida por armazenamento" : job?.state === "failed" ? "Importação interrompida" : importing ? "Importando base de empresas" : "Base nacional em preparação"}</h3>
-          <p role={job?.state === "failed" ? "alert" : "status"}>{storageFailed ? "A carga atingiu o limite de armazenamento. A base ainda não foi publicada." : job?.state === "failed" ? "A carga não foi concluída. A busca será liberada após a recuperação e a validação dos arquivos oficiais." : "A busca será liberada quando a importação e a validação dos arquivos do CNPJ forem concluídas."}</p>
+          <p role={job?.state === "failed" ? "alert" : "status"}>{storageFailed ? "A carga atingiu o limite de armazenamento. A base ainda não foi publicada." : job?.state === "failed" ? "A carga não foi concluída. A busca será liberada após a recuperação e a validação dos arquivos oficiais." : "A importação e a validação dos arquivos oficiais preparam a base. A busca será liberada com o primeiro lote completo de empresas. Os demais cadastros serão disponibilizados durante a carga."}</p>
           {job && <p>{job.validatedFiles} de {job.totalFiles} arquivos validados{job.selectedCompanies > 0 ? " · " + job.selectedCompanies.toLocaleString("pt-BR") + " empresas selecionadas" : ""}.<br />Atualizado em {new Date(job.updatedAt).toLocaleString("pt-BR")}.</p>}
           <Button onClick={availability.reload}>Verificar disponibilidade</Button>
         </div>
@@ -229,9 +230,13 @@ export function CompanySearchPage(props: PageProps) {
     </section>
   );
 }
-function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirectoryCoverage}) {
+function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirectoryCoverage;sourceSnapshotId?:string;importSummary?:CompanyDirectoryImportSummary}) {
   const { api, onSessionExpired, navigate } = props;
-  const [query, setQuery] = useState<CompanySearchQuery>({ filters: {} }),
+  const [coverage,setCoverage]=useState(props.coverage),[importSummary,setImportSummary]=useState(props.importSummary),[currentSnapshotId,setCurrentSnapshotId]=useState(props.sourceSnapshotId);
+  const [refreshing,setRefreshing]=useState(false),[refreshError,setRefreshError]=useState('');
+  const refreshController=useRef<AbortController | undefined>(undefined);
+  useEffect(()=>()=>refreshController.current?.abort(),[]);
+  const [query, setQuery] = useState<CompanySearchQuery>({ filters: {},...(props.coverage?.scopeComplete===false?{snapshotId:props.sourceSnapshotId}:{}) }),
     [uf, setUf] = useState(""),
     [dirty, setDirty] = useState(false),
     [advanced, setAdvanced] = useState(false);
@@ -253,7 +258,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
   function apply(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     try {
-      setQuery({ filters: filtersFrom(e.currentTarget) });
+      setQuery({ filters: filtersFrom(e.currentTarget),...(coverage?.scopeComplete===false?{snapshotId:currentSnapshotId}:{}) });
       setDirty(false);
       setIssue("");
       setSelected({ snapshot: "", ids: [] });
@@ -263,14 +268,32 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
   }
   const valid = Boolean(page?.items.length) && !dirty && !action.denied,
     ids = selected.snapshot === page?.snapshotId ? selected.ids : [];
-  const domainProps = { api, onSessionExpired, snapshotId: page?.snapshotId };
+  const domainProps = { api, onSessionExpired, snapshotId: page?.snapshotId??(coverage?.scopeComplete===false?currentSnapshotId:undefined) };
+  async function refreshAvailability(){
+    if(ids.length||refreshing)return;
+    const controller=new AbortController();refreshController.current=controller;setRefreshing(true);setRefreshError('');
+    try{
+      const readiness=await api.readiness(controller.signal),source=readiness?.source;
+      if(controller.signal.aborted)return;
+      if(source?.status!=='current'||source.value?.state!=='published'||!source.value.snapshotId)throw new Error('directory_availability_unknown');
+      setCoverage(source.value.coverage);setImportSummary(source.value.latestImport);setCurrentSnapshotId(source.value.snapshotId);
+      const nextSnapshotId=source.value.snapshotId;
+      setQuery(current=>({filters:current.filters,snapshotId:nextSnapshotId}));setSelected({snapshot:nextSnapshotId,ids:[]});
+    }catch(error){if(!controller.signal.aborted){if(error instanceof PlatformApiError&&error.status===401)onSessionExpired();setRefreshError('Não foi possível atualizar a base. Tente novamente.');}}
+    finally{if(!controller.signal.aborted)setRefreshing(false);}
+  }
   const binary = { true: "Sim", false: "Não" };
   return (
     <section className="prospecting-page">
       <header>
         <h2>Buscar empresas</h2>
         <p>Consulte o cadastro nacional por atividade, localização e perfil da empresa.</p>
-        {props.coverage?.kind === "regional_retail" && <p role="status"><strong>Varejo do Sudeste e Sul</strong> · {props.coverage.companyCount.toLocaleString("pt-BR")} empresas ativas com telefone.<br />Cobertura: {props.coverage.ufs.join(", ")}. Dados da Receita Federal; limite da base de 25 GB.</p>}
+        {coverage?.kind === "regional_retail" && <p role="status"><strong>Varejo do Sudeste e Sul</strong> · {coverage.companyCount.toLocaleString("pt-BR")} {coverage.scopeComplete?'empresas ativas com telefone':'empresas disponíveis para buscar e selecionar'}.<br />{coverage.scopeComplete?'Cobertura':'Regiões previstas'}: {coverage.ufs.join(", ")}. Dados da Receita Federal; limite da base de 25 GB.</p>}
+        {coverage?.scopeComplete===false&&<div className="prospecting-import-progress">
+          <p role={importSummary?.state==='failed'?'alert':'status'}><strong>{importSummary?.state==='failed'?'Carga interrompida':importSummary?.state==='published'?'Novos cadastros disponíveis':'Base em carga'}</strong><br />A cobertura ainda é parcial. {importSummary?.state==='failed'?'Os cadastros já liberados continuam disponíveis.':'Novos cadastros são liberados durante a importação.'}</p>
+          <div className="prospecting-actions"><Button disabled={refreshing||ids.length>0} onClick={()=>void refreshAvailability()}>{refreshing?'Atualizando base…':'Atualizar base'}</Button>{ids.length>0&&<span>Desmarque a seleção para atualizar a base.</span>}</div>
+          {refreshError&&<p role="alert">{refreshError}</p>}
+        </div>}
       </header>
       <form onSubmit={apply} onChange={invalidateSelection}>
         <div className="prospecting-fields">
@@ -278,8 +301,8 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
           <label>
             UF
             <select aria-label="UF" value={uf} name="ufs" onChange={(e) => setUf(e.target.value)}>
-              <option value="">{props.coverage ? "Todas as UFs da base" : "Todo o Brasil"}</option>
-              {(props.coverage?.ufs ?? ufs).map((v) => (
+              <option value="">{coverage ? "Todas as UFs da base" : "Todo o Brasil"}</option>
+              {(coverage?.ufs ?? ufs).map((v) => (
                 <option key={v}>{v}</option>
               ))}
             </select>
@@ -325,13 +348,13 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
             <Field name="matrixBranches" label="Estabelecimento" choices={{ matrix: "Matriz", branch: "Filial" }} />
             <Field name="openedFrom" label="Abertura a partir de" type="date" />
             <Field name="openedTo" label="Abertura até" type="date" />
-            <Field name="simples" label="Simples Nacional" choices={binary} disabled={!!props.coverage} />
-            <Field name="mei" label="MEI" choices={binary} disabled={!!props.coverage} />
+            <Field name="simples" label="Simples Nacional" choices={binary} disabled={!!coverage} />
+            <Field name="mei" label="MEI" choices={binary} disabled={!!coverage} />
             <Field name="hasContact" label="Contato cadastral disponível" choices={binary} />
             <Field name="stages" label="Estágio no CRM" choices={stages} />
           </div>
           <AdditionalFilterValues changed={invalidateSelection} />
-          {props.coverage && <p>Simples Nacional e MEI ainda não estão disponíveis nesta base.</p>}
+          {coverage && <p>Simples Nacional e MEI ainda não estão disponíveis nesta base.</p>}
         </details>
         <Button type="submit" primary>
           <Search size={16} />
@@ -363,7 +386,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
                       type="checkbox"
                       aria-label={"Selecionar " + c.cnpj}
                       checked={ids.includes(c.cnpj)}
-                      disabled={!valid || action.disabled || (ids.length >= 100 && !ids.includes(c.cnpj))}
+                      disabled={refreshing || !valid || action.disabled || (ids.length >= 100 && !ids.includes(c.cnpj))}
                       onChange={(e) =>
                         setSelected({
                           snapshot: page.snapshotId,

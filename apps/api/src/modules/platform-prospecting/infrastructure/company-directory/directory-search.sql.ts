@@ -1,8 +1,10 @@
 import { Prisma,type PrismaClient } from "../../../../../node_modules/.prisma/company-directory/index.js";
 import type { CompanyFilters,CompanyRecord } from "@zyon/shared-types";
+import {resolveDirectoryStorage} from "./directory-storage.js";
 function literalLike(value:string){return value.replace(/[\\%_]/g,"\\$&");}
-export function directorySelectionSql(snapshotId:string, filters:CompanyFilters){
+export function directorySelectionSql(snapshotId:string, filters:CompanyFilters,maximumCnpj:string|null=null){
   const predicates:Prisma.Sql[]=[Prisma.sql`e.snapshot_id=${snapshotId}`];
+  if(maximumCnpj)predicates.push(Prisma.sql`e.cnpj COLLATE "C"<=${maximumCnpj}`);
   const within=(column:Prisma.Sql,values:string[]|undefined)=>{if(values?.length)predicates.push(Prisma.sql`${column} IN (${Prisma.join(values)})`);};
   within(Prisma.sql`e.main_cnae`,filters.mainCnaes);within(Prisma.sql`e.uf`,filters.ufs);within(Prisma.sql`e.city_code`,filters.cityCodes);within(Prisma.sql`e.normalized_district`,filters.districts);within(Prisma.sql`c.size`,filters.sizes);within(Prisma.sql`c.legal_nature`,filters.legalNatures);within(Prisma.sql`e.status`,filters.statuses);within(Prisma.sql`e.matrix_branch`,filters.matrixBranches);within(Prisma.sql`p.stage`,filters.stages);
   if(filters.secondaryCnaes?.length)predicates.push(Prisma.sql`EXISTS(SELECT 1 FROM company_directory.establishment_secondary_cnaes s WHERE s.snapshot_id=e.snapshot_id AND s.cnpj=e.cnpj AND s.cnae IN (${Prisma.join(filters.secondaryCnaes)}))`);
@@ -20,9 +22,9 @@ export function directorySelectionSql(snapshotId:string, filters:CompanyFilters)
   return {join,where};
 }
 export async function readDirectoryPage(client:PrismaClient,snapshotId:string,filters:CompanyFilters,afterCnpj:string|null,limit:number) {
-  const {join,where}=directorySelectionSql(snapshotId,filters);
   return client.$transaction(async tx=>{
-    const snapshot=await tx.companySnapshot.findUnique({where:{id:snapshotId}});if(!snapshot||snapshot.state!=="published")throw new Error("snapshot_unavailable");
+    const storage=await resolveDirectoryStorage(tx,snapshotId),{snapshot}=storage;
+    const {join,where}=directorySelectionSql(storage.storageSnapshotId,filters,storage.maximumCnpj);
     const counts=await tx.$queryRaw<{count:bigint}[]>`SELECT count(*) AS count ${join} WHERE ${where}`;
     const rows=await tx.$queryRaw<Omit<CompanyRecord,"snapshotId"|"competence">[]>`SELECT e.cnpj,e.base_cnpj AS "baseCnpj",c.legal_name AS "legalName",e.trade_name AS "tradeName",c.legal_nature AS "legalNature",c.size,c.capital_cents::text AS "capitalCents",e.main_cnae AS "mainCnae",e.city_code AS "cityCode",e.uf,e.district,to_char(e.opening_date,'YYYY-MM-DD') AS "openingDate",e.status,e.matrix_branch AS "matrixBranch",c.simples,c.mei,p.id AS "prospectId",p.stage,
       COALESCE((SELECT jsonb_agg(s.cnae ORDER BY s.cnae) FROM company_directory.establishment_secondary_cnaes s WHERE s.snapshot_id=e.snapshot_id AND s.cnpj=e.cnpj),'[]'::jsonb) AS "secondaryCnaes",

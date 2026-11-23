@@ -1,12 +1,14 @@
 // Detached, audited maintenance runner for the user's 25 GB regional recovery.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
 const {Client}=require('pg');
-const folder='/tmp/zyon-retail-recovery-20261123';
+const {retailWorkerContext}=require('./prospecting-retail-worker-context.cjs');
+const {writeWorkerStatus}=require('./prospecting-retail-status-file.cjs');
+const {folder,apiRoot,mode}=retailWorkerContext({standalone:process.argv.includes('--standalone'),cwd:process.cwd(),env:process.env});
 const descriptor=JSON.parse(fs.readFileSync(path.join(folder,'job.json'),'utf8'));
-const state={phase:'starting',pid:process.pid,jobId:descriptor.jobId,sourceJobId:descriptor.sourceJobId,startedAt:new Date().toISOString(),selectedCompanies:0,committedRecords:0,validatedFiles:0,requiredFiles:23};
-const save=()=>{fs.writeFileSync(folder+'/status.pending',JSON.stringify({...state,updatedAt:new Date().toISOString()},null,2));fs.renameSync(folder+'/status.pending',folder+'/status.json');};
+const state={phase:'starting',mode,pid:process.pid,jobId:descriptor.jobId,sourceJobId:descriptor.sourceJobId,startedAt:new Date().toISOString(),selectedCompanies:0,committedRecords:0,validatedFiles:0,requiredFiles:23};
+const save=()=>writeWorkerStatus(folder,{...state,updatedAt:new Date().toISOString()});
 async function main(){
- assert.equal(process.cwd(),'/repo/apps/api');
+ assert.equal(process.cwd(),apiRoot);
  for(const key of ['META_SEND_ENABLED','LLM_REAL_ENABLED','PAID_INGESTION_ENABLED','RUN_WORKERS'])assert.equal(process.env['PROSPECTING_'+key],'false');
  assert.equal(process.env.PROSPECTING_ENABLED,'true');assert.equal(process.env.PROSPECTING_INGESTION_ENABLED,'true');
  const at=relative=>import(pathToFileURL(path.join(process.cwd(),relative)).href);
@@ -61,8 +63,18 @@ async function main(){
   await progress({phase:'reclaiming_staging'});await flush();
   await recovery.reclaimFailedDirectory(pg,{sourceSnapshotId:sourceManifest.id,snapshotId:manifest.id,actor,staging,manifest});
   let checkpointAt=0;
+  const previousView=(await pg.query('SELECT counts FROM company_directory.company_snapshots WHERE id=$1',[manifest.id])).rows[0].counts?.progressiveView;
+  let nextReadableCompanyCount=previousView?.companyCount?previousView.companyCount*4:1;
+  let lastReadableAt=Date.parse(previousView?.updatedAt??'')||0,lastAvailableCompanyCount=previousView?.companyCount??0;
+  const preparedCompanyCount=staging.count('establishments');
   await recovery.persistRetailDirectory({pg,staging,manifest,guard:guardProspectingImportBatch,progress:async update=>{
    await progress(update);
+   if(update.phase==='persisting_establishments'&&update.companyCount>lastAvailableCompanyCount&&(update.companyCount>=nextReadableCompanyCount||Date.now()-lastReadableAt>=60000)&&update.companyCount<preparedCompanyCount){
+    const view=await recovery.publishProgressiveRetailDirectory(pg,staging,manifest,actor,guardProspectingImportBatch);
+    nextReadableCompanyCount=Math.max(update.companyCount,nextReadableCompanyCount)*4;
+    lastReadableAt=Date.now();
+    if(view){lastAvailableCompanyCount=view.coverage.companyCount;state.availableCompanies=view.coverage.companyCount;state.availableSnapshotId=view.snapshotId;save();}
+   }
    if(Date.now()-checkpointAt>10000){checkpointAt=Date.now();state.committedRecords=Number((await pg.query(`SELECT (SELECT count(*) FROM company_directory.company_entities WHERE snapshot_id=$1)+(SELECT count(*) FROM company_directory.company_establishments WHERE snapshot_id=$1)+(SELECT count(*) FROM company_directory.source_domains WHERE snapshot_id=$1) AS n`,[manifest.id])).rows[0].n);await flush();}
   }});
   await progress({phase:'publishing'});await flush();
