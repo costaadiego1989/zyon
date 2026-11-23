@@ -6,6 +6,8 @@ import { ProspectMetricsQueryService } from "../application/crm/prospect-metrics
 import { ProspectConversationService } from "../application/conversations/prospect-conversation.service.js";
 import { ProcessProspectInbound } from "../application/conversations/process-prospect-inbound.service.js";
 import { CampaignService } from "../application/campaigns/campaign.service.js";
+import {CampaignDraftService} from "../application/campaigns/campaign-drafts.js";
+import {PrismaCampaignDrafts} from "./campaigns/prisma-campaign-drafts.js";
 import { FreezeCampaignAudience } from "../application/campaigns/freeze-campaign-audience.js";
 import { SenderReadinessService } from "../application/campaigns/sender-readiness.service.js";
 import { PlatformSenderOnboardingService } from "../application/campaigns/platform-sender-onboarding.service.js";
@@ -396,6 +398,7 @@ export function createProspectingRuntime(env: Environment = process.env) {
     },
     reservations,
     campaign,
+    drafts:new CampaignDraftService(new PrismaCampaignDrafts(db)),
     audience,
     sources,
     publications,

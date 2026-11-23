@@ -98,7 +98,7 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
   });
  }
  async find(id:string){const c=await this.prisma.prospectCampaign.findUnique({where:{id}});return c?project(c):null;}
- async list(cursor?:string){const rows=await this.prisma.prospectCampaign.findMany({where:cursor?{id:{gt:cursor}}:{},orderBy:{id:"asc"},take:51});return {items:rows.slice(0,50).map(project),nextCursor:rows.length>50?rows[49].id:null};}
+ async list(cursor?:string){const rows=await this.prisma.prospectCampaign.findMany({where:{setupVersion:1,...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:"asc"},take:51});return {items:rows.slice(0,50).map(project),nextCursor:rows.length>50?rows[49].id:null};}
  async recipients(id:string,cursor?:string){
   if(!await this.prisma.prospectCampaign.findUnique({where:{id},select:{id:true}}))throw new Error("campaign_not_found");
   const rows=await this.prisma.campaignRecipient.findMany({where:{campaignId:id,...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:"asc"},take:51,include:{attempts:{orderBy:{ordinal:"desc"},take:1,select:{id:true,state:true,sequence:{select:{followUpDueAt:true,state:true,followUpCount:true}}}}}});
