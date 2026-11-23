@@ -13,6 +13,9 @@ import {PrismaCampaignDraftAudience} from "./campaigns/prisma-campaign-draft-aud
 import {CampaignPlanner} from "../application/campaigns/campaign-planner.js";
 import {PrismaCampaignPlanner} from "./campaigns/prisma-campaign-planner.js";
 import {CampaignPlanningModelAdapter} from "./campaigns/campaign-planning-model.adapter.js";
+import {PlatformTemplateService} from "../application/campaigns/platform-template.service.js";
+import {PrismaPlatformTemplateStore} from "./campaigns/prisma-platform-template.store.js";
+import {MetaPlatformTemplateAdapter} from "./campaigns/meta-platform-template.adapter.js";
 import { FreezeCampaignAudience } from "../application/campaigns/freeze-campaign-audience.js";
 import { SenderReadinessService } from "../application/campaigns/sender-readiness.service.js";
 import { PlatformSenderOnboardingService } from "../application/campaigns/platform-sender-onboarding.service.js";
@@ -411,6 +414,7 @@ export function createProspectingRuntime(env: Environment = process.env) {
     drafts:new CampaignDraftService(new PrismaCampaignDrafts(db)),
     draftAudience:new CampaignDraftAudience(new PrismaCampaignDraftAudience(db)),
     planner,
+    templates:new PlatformTemplateService(new PrismaPlatformTemplateStore(db),observations,new MetaPlatformTemplateAdapter(),health),
     audience,
     sources,
     publications,
