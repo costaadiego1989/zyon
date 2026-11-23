@@ -1,8 +1,9 @@
 import type {ReactNode} from 'react';
-import {ArrowLeft,ArrowRight,ChevronRight,Search} from 'lucide-react';
+import {ChevronRight,Search} from 'lucide-react';
 import type {MetaAdsAudienceSummary,MetaAdsCampaignFilter,MetaAdsCampaignWorkspacePage,MetaAdsCampaignWorkspaceRow,MetaAdsWorkspaceQuery} from '@zyon/shared-types';
 import {TabBar} from '../../components/TabBar.js';
 import {PeriodFilter} from '../../components/PeriodFilter.js';
+import {Pagination} from '../../components/Pagination.js';
 import {money} from './presentation.js';
 import './campaign-workspace.css';
 export interface CampaignWorkspaceProps {page:MetaAdsCampaignWorkspacePage|null;query:MetaAdsWorkspaceQuery;loading?:boolean;error?:string;selectedId?:string|null;onQuery(query:MetaAdsWorkspaceQuery):void;onOpen(row:MetaAdsCampaignWorkspaceRow):void;onRetry():void;onCreate():void;actions?:(row:MetaAdsCampaignWorkspaceRow)=>ReactNode;observedPeriod?:Pick<MetaAdsWorkspaceQuery,'since'|'until'>|null}
@@ -39,6 +40,6 @@ export function CampaignWorkspace({page,query,loading=false,error='',selectedId,
    <div className="ads-workspace__budget"><span>Investimento</span><strong>{b?`${money(b.amountCents,b.currency)} ${b.cadence==='daily'?'por dia':'no total'}`:'Verba não definida'}</strong>{b?<small>{displayDate(b.startsAt)}{b.endsAt?` a ${displayDate(b.endsAt)}`:''}</small>:null}</div>
    <Results row={row} query={query}/><div className="ads-workspace__actions"><button type="button" className="zyn-btn zyn-btn--sm" aria-label={`Ver campanha ${c.draft.name}`} onClick={()=>onOpen(row)}><span>Abrir campanha<span className="sr-only"> {c.draft.name}</span></span><ChevronRight size={16} aria-hidden="true"/></button>{actions?.(row)}</div>
   </article></li>;})}</ul>:null}
-  {page&&page.total>0?<div className="ads-workspace__pagination"><span>{(page.page-1)*10+1}–{Math.min(page.page*10,page.total)} de {page.total} campanhas</span><div><button type="button" className="ui-icon-button" aria-label="Página anterior" disabled={loading||page.page<=1} onClick={()=>change({page:page.page-1})}><ArrowLeft size={18}/></button><span>{page.page} de {page.pages}</span><button type="button" className="ui-icon-button" aria-label="Próxima página" disabled={loading||page.page>=page.pages} onClick={()=>change({page:page.page+1})}><ArrowRight size={18}/></button></div></div>:null}
+  {page&&page.total>0?<Pagination page={page.page} pageSize={page.pageSize} total={page.total} disabled={loading} onChange={next=>change({page:next})}/>:null}
  </section>;
 }
