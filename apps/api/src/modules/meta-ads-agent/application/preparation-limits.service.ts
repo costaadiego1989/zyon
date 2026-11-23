@@ -1,11 +1,10 @@
-import type {MetaAdsPreparationLimits,MetaAdsPreparationLimitsInput,MetaAdsPreparationLimitsView} from '@zyon/shared-types';
+import type {MetaAdsPreparationLimitsInput,MetaAdsPreparationLimitsView} from '@zyon/shared-types';
 import {MetaAdsError,type Clock,type CommerceContextPort,type MetaAdsRepository,type MetaAdsStoreState,type PreparationAdmission} from '../domain/types.js';
 import {requireEntitlement,requireIdentifier,stableDigest} from '../domain/offer.js';
+import {defaultPreparationLimits as defaults,preparationQueue} from './preparation-queue.js';
 
 interface Dependencies {repo:MetaAdsRepository;commerce:Pick<CommerceContextPort,'getPlan'>;authorizeActor(merchantId:string,actorId:string):Promise<void>;localDay(merchantId:string):Promise<string>;clock?:Clock}
 export type OpportunityAdmissionInput=Pick<PreparationAdmission,'opportunityDigest'|'policyId'|'policyVersion'|'connectionEpoch'|'actorId'>;
-const defaults=():MetaAdsPreparationLimits=>({dailyNewProposals:1,maximumPendingProposals:3,version:0,updatedAt:null});
-const pending=(state:MetaAdsStoreState)=>Object.values(state.preparationAdmissions??{}).filter(a=>a.state!=='closed'&&(!a.campaignId||!state.campaigns[a.campaignId]?.lifecycle&& !['delivered','active_unconfirmed'].includes(state.campaigns[a.campaignId]?.status)));
 
 export class PreparationLimitsService {
  private readonly clock:Clock;
@@ -14,11 +13,11 @@ export class PreparationLimitsService {
  private projection(state:MetaAdsStoreState,day:string|null,plan:string):MetaAdsPreparationLimitsView{
   const limits=state.preparationLimits??defaults();let capacity=0,reason:string|null=null;
   try{capacity=requireEntitlement(plan,state,this.clock()).offer.maxManagedCampaigns;}catch{reason='addon_not_entitled';}
-  const admissions=Object.values(state.preparationAdmissions??{}),usedToday=admissions.filter(a=>a.accountLocalDay===day).length,queue=pending(state);
+  const admissions=Object.values(state.preparationAdmissions??{}),usedToday=admissions.filter(a=>a.accountLocalDay===day).length,queue=preparationQueue(state);
   const effectiveDailyLimit=Math.min(limits.dailyNewProposals,capacity),effectivePendingLimit=Math.min(limits.maximumPendingProposals,capacity);
-  const occupied=Object.values(state.campaigns).filter(c=>c.managed).length+queue.filter(a=>!a.campaignId).length;
-  if(!reason)reason=!day?'meta_timezone_unavailable':!effectiveDailyLimit||!effectivePendingLimit?'preparation_disabled':occupied>=capacity?'campaign_capacity_exceeded':queue.length>=effectivePendingLimit?'preparation_pending_limit':usedToday>=effectiveDailyLimit?'preparation_daily_limit':null;
-  return{limits:structuredClone(limits),effectiveDailyLimit,effectivePendingLimit,planCampaignCapacity:capacity,usedToday,pending:queue.length,availableToday:Math.max(0,effectiveDailyLimit-usedToday),availablePendingSlots:Math.max(0,Math.min(effectivePendingLimit-queue.length,capacity-occupied)),localDay:day,blockedReason:reason};
+  const occupied=Object.values(state.campaigns).filter(c=>c.managed).length+queue.unboundReservations;
+  if(!reason)reason=!day?'meta_timezone_unavailable':!effectiveDailyLimit||!effectivePendingLimit?'preparation_disabled':occupied>=capacity?'campaign_capacity_exceeded':queue.pending>=effectivePendingLimit?'preparation_pending_limit':usedToday>=effectiveDailyLimit?'preparation_daily_limit':null;
+  return{limits:structuredClone(limits),effectiveDailyLimit,effectivePendingLimit,planCampaignCapacity:capacity,usedToday,pending:queue.pending,availableToday:Math.max(0,effectiveDailyLimit-usedToday),availablePendingSlots:Math.max(0,Math.min(effectivePendingLimit-queue.pending,capacity-occupied)),localDay:day,blockedReason:reason};
  }
  async view(merchantId:string):Promise<MetaAdsPreparationLimitsView>{requireIdentifier(merchantId);const [state,day,plan]=await Promise.all([this.deps.repo.read(merchantId),this.day(merchantId),this.deps.commerce.getPlan(merchantId)]);return this.projection(state,day,plan);}
  async update(merchantId:string,actorId:string,input:MetaAdsPreparationLimitsInput):Promise<MetaAdsPreparationLimitsView>{

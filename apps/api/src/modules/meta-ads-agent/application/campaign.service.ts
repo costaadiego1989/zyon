@@ -3,6 +3,7 @@ import type { MetaAdsCampaign, MetaAdsCampaignDraft, MetaAdsCampaignReadiness, M
 import { MetaAdsError, type MetaAdsRepository, type MetaAdsProviderPort, type CommerceContextPort, type MetaAdsStoreState, type MetaAdsRecord, type Clock, type IdFactory } from "../domain/types.js";
 import { requireEntitlement, requireIdentifier, stableDigest } from "../domain/offer.js";
 import type { ConnectionService } from "./connection.service.js";
+import {defaultPreparationLimits,preparationQueue} from './preparation-queue.js';
 
 import { normalizeCampaignDraft, assertCommercialTerms } from "../domain/campaign-draft.js";
 export { normalizeCampaignDraft, assertCommercialTerms } from "../domain/campaign-draft.js";
@@ -49,17 +50,15 @@ export class CampaignService {
         if (request.digest !== digest) throw new MetaAdsError("campaign_request_conflict", 409);
         return { result: state.campaigns[request.id] };
       }
-      const reservations=Object.values(state.preparationAdmissions??{}).filter(a=>a.state!=='closed'&&!a.campaignId);
-      const occupied=Object.values(state.campaigns).filter(campaign=>campaign.managed).length+reservations.length;
+      const queue=preparationQueue(state);
+      const occupied=Object.values(state.campaigns).filter(campaign=>campaign.managed).length+queue.unboundReservations;
       const admission=preparation?state.preparationAdmissions?.[preparation.admissionId]:null;
       if(preparation){
         if(!admission||admission.state==='closed'||admission.campaignId||state.automation?.activePolicyId!==admission.policyId||state.automation.version!==admission.policyVersion||state.connection.epoch!==admission.connectionEpoch)throw new MetaAdsError('automatic_authority_unavailable',409);
-        if(state.preparationLimits&&(state.preparationLimits.dailyNewProposals===0||state.preparationLimits.maximumPendingProposals===0))throw new MetaAdsError('preparation_disabled',409);
-        if(state.preparationLimits){
-          const pending=Object.values(state.preparationAdmissions??{}).filter(a=>a.state!=='closed'&&(!a.campaignId||state.campaigns[a.campaignId]?.managed&&!['delivered','active_unconfirmed'].includes(state.campaigns[a.campaignId].status))).length;
-          if(pending>Math.min(state.preparationLimits.maximumPendingProposals,subscription.offer.maxManagedCampaigns))throw new MetaAdsError('preparation_pending_limit',409);
-          if(Object.values(state.preparationAdmissions??{}).filter(a=>a.accountLocalDay===admission.accountLocalDay).length>Math.min(state.preparationLimits.dailyNewProposals,subscription.offer.maxManagedCampaigns))throw new MetaAdsError('preparation_daily_limit',409);
-        }
+        const limits=state.preparationLimits??defaultPreparationLimits();
+        if(limits.dailyNewProposals===0||limits.maximumPendingProposals===0)throw new MetaAdsError('preparation_disabled',409);
+        if(queue.pending>Math.min(limits.maximumPendingProposals,subscription.offer.maxManagedCampaigns))throw new MetaAdsError('preparation_pending_limit',409);
+        if(Object.values(state.preparationAdmissions??{}).filter(a=>a.accountLocalDay===admission.accountLocalDay).length>Math.min(limits.dailyNewProposals,subscription.offer.maxManagedCampaigns))throw new MetaAdsError('preparation_daily_limit',409);
         if(Object.values(state.campaigns).some(c=>c.managed&&c.draft.destination===draft.destination&&c.draft.priority===draft.priority&&c.draft.country===draft.country&&c.draft.variantIds.some(id=>draft.variantIds.includes(id))))throw new MetaAdsError('opportunity_duplicate',409);
       }
       if (occupied+(admission?0:1)>subscription.offer.maxManagedCampaigns) throw new MetaAdsError("campaign_capacity_exceeded", 409);
