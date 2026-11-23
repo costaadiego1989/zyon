@@ -10,6 +10,9 @@ import {CampaignDraftService} from "../application/campaigns/campaign-drafts.js"
 import {PrismaCampaignDrafts} from "./campaigns/prisma-campaign-drafts.js";
 import {CampaignDraftAudience} from "../application/campaigns/campaign-draft-audience.js";
 import {PrismaCampaignDraftAudience} from "./campaigns/prisma-campaign-draft-audience.js";
+import {CampaignPlanner} from "../application/campaigns/campaign-planner.js";
+import {PrismaCampaignPlanner} from "./campaigns/prisma-campaign-planner.js";
+import {CampaignPlanningModelAdapter} from "./campaigns/campaign-planning-model.adapter.js";
 import { FreezeCampaignAudience } from "../application/campaigns/freeze-campaign-audience.js";
 import { SenderReadinessService } from "../application/campaigns/sender-readiness.service.js";
 import { PlatformSenderOnboardingService } from "../application/campaigns/platform-sender-onboarding.service.js";
@@ -299,6 +302,10 @@ export function createProspectingRuntime(env: Environment = process.env) {
       timeoutMs: config.llmTimeoutMs,
     }
   );
+  const planner=new CampaignPlanner(new PrismaCampaignPlanner(db,new CampaignPlanningModelAdapter({enabled:config.llmRealEnabled,apiKey:modelKey,model,timeoutMs:config.llmTimeoutMs,maximumCostCents:config.llmMaximumCostCents??0,quote:({bodyBytes,maximumOutputTokens})=>{
+    const input=amount("LLM_INPUT_MICROCENTS_PER_TOKEN"),output=amount("LLM_OUTPUT_MICROCENTS_PER_TOKEN");
+    return input&&output?Math.ceil((bodyBytes*input+maximumOutputTokens*output)/1000000):null;
+  }})));
   const inbox = new PrismaProspectMetaInbox(db, keys),
     inbound = new ProcessProspectInbound(history);
   const queue = new ProspectEffectQueue(
@@ -361,6 +368,7 @@ export function createProspectingRuntime(env: Environment = process.env) {
         importing = undefined;
       });
     await isolated("audience", () => audience.processNext(100));
+    await isolated("planning",()=>planner.processNext());
     await isolated("recovery", () => recoverProspectSubmissions(db, reservations, commands));
     await isolated("inbound", () => inbound.processNext(25));
     await isolated("sales", () =>
@@ -402,6 +410,7 @@ export function createProspectingRuntime(env: Environment = process.env) {
     campaign,
     drafts:new CampaignDraftService(new PrismaCampaignDrafts(db)),
     draftAudience:new CampaignDraftAudience(new PrismaCampaignDraftAudience(db)),
+    planner,
     audience,
     sources,
     publications,
