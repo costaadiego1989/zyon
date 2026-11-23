@@ -28,7 +28,28 @@ test('ADM-03 company click opens its side dialog with registration, contacts and
   const dialog=ui.host.querySelector('dialog[open]');expect(dialog).not.toBeNull();
   expect(api.getMerchantDetail.mock.calls[0]).toEqual(['fixture','company_a']);
   for(const value of ['Aurora Comércio Ltda','00.ABC.345/0001-35','contato@aurora.test','titular@aurora.test','(11) 99876-5432','Rua Um','São Paulo','ISENTO','Vendas no período'])expect(dialog?.textContent).toContain(value);
+  for(const [label,email] of [['Email de contato','contato@aurora.test'],['Email do cadastro','titular@aurora.test']]){
+    const term=Array.from(dialog!.querySelectorAll('.merchant-profile-facts dt')).find(node=>node.textContent===label)!;
+    const value=term.nextElementSibling!;
+    expect(value.textContent).toBe(email);expect(value.querySelector('a')?.textContent).toBe(email);
+    expect(value.querySelector('a')?.getAttribute('href')).toBe('mailto:'+email);
+  }
   await act(async()=>ui.host.querySelector<HTMLButtonElement>('[aria-label="Fechar detalhes"]')!.click());expect(ui.host.querySelector('dialog')).toBeNull();
+});
+test('ADM-03 contact and registration labels retain their own link when only one address exists',async()=>{
+  for(const missing of ['contact','owner']){
+    const expectedContact=missing==='contact'?undefined:'contato@aurora.test';
+    const expectedOwner=missing==='owner'?undefined:'titular@aurora.test';
+    const {ui}=await open(async()=>({...detail,merchant:{...detail.merchant,registrationEmail:expectedOwner,company:{...detail.merchant.company,email:expectedContact}}}));
+    for(const [label,email] of [['Email de contato',expectedContact],['Email do cadastro',expectedOwner]]){
+      const term=Array.from(ui.host.querySelectorAll('.merchant-profile-facts dt')).find(node=>node.textContent===label)!;
+      const value=term.nextElementSibling!;
+      expect(value.textContent).toBe(email??'Não informado');
+      if(email){expect(value.querySelector('a')?.textContent).toBe(email);expect(value.querySelector('a')?.getAttribute('href')).toBe('mailto:'+email);}
+      else expect(value.querySelector('a')).toBeNull();
+    }
+    await act(async()=>ui.host.querySelector<HTMLButtonElement>('[aria-label="Fechar detalhes"]')!.click());
+  }
 });
 test('ADM-03 absent registration fields are identified instead of invented',async()=>{
   const{ui}=await open(async()=>({...detail,merchant:{id:'company_a',name:merchant.name,plan:'BOTH',createdAt:merchant.created_at}}));
