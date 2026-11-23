@@ -26,14 +26,25 @@ function searchProps(methods: Parameters<typeof screenProps>[0]) {
 }
 const partialSource=(id='partial-a',count=500)=>({source:{status:'current',value:{snapshotId:id,state:'published',competence:'2026-11',coverage:{...regionalCoverage,companyCount:count,scopeComplete:false},latestImport:{id:'parent',state:'importing',phase:'persisting_establishments',committedCount:count*2,selectedCompanies:1000000,validatedFiles:23,totalFiles:23,errorCode:null,updatedAt:'2026-11-23T19:00:00Z'}},observedAt:'2026-11-23T19:00:00Z'}});
 
+async function pickDomain(ui: Awaited<ReturnType<typeof show>>, label: string, code: string) {
+ await act(async()=>ui.control(label).click());
+ const find=()=>Array.from(document.querySelectorAll<HTMLElement>('[role=option]')).find(option=>option.querySelector('small')?.textContent?.split(' · ')[0]===code);
+ if(!find())await ui.fill(label,code);
+ expect(find(),label+' option '+code).toBeDefined();
+ await act(async()=>find()!.click());
+}
+async function domainMore() {
+ const button=document.querySelector<HTMLButtonElement>('.prospecting-domain-more');expect(button).not.toBeNull();
+ await act(async()=>button!.click());
+}
 test('SEARCH-01 options accumulate and a new search resets the cursor while retaining the chosen code',async()=>{
  const lookup=vi.fn(async(q:CompanyDomainQuery)=>({items:q.kind!=='municipios'?[]:q.afterCode||q.search?[{kind:'municipios',code:'8105',label:'FLORIANOPOLIS'}]:[{kind:'municipios',code:'7107',label:'SAO PAULO'}],nextCursor:q.kind==='municipios'&&!q.afterCode&&!q.search?'7107':null}));
  const companies=vi.fn().mockResolvedValue(page()),ui=await show(<CompanySearchPage {...searchProps({companies,domains:lookup})}/>);
- await ui.fill('UF','SC');await ui.click('Mais opções de município');
- expect(Array.from(ui.control('Município').querySelectorAll('option')).map(o=>o.value)).toEqual(['','7107','8105']);
- await ui.fill('Município','7107');await ui.fill('Buscar município','florian');
+ await ui.fill('UF','SC');await act(async()=>ui.control('Município').click());await domainMore();
+ expect(Array.from(document.querySelectorAll('[role=option] small')).map(o=>o.textContent?.split(' · ')[0])).toEqual(['7107','8105']);
+ await pickDomain(ui,'Município','7107');await ui.fill('Município','florian');
  expect(lookup.mock.calls.filter(([q])=>q.kind==='municipios').at(-1)?.[0]).toMatchObject({search:'florian',afterCode:undefined,uf:'SC'});
- expect(ui.control('Município').value).toBe('7107');await ui.fill('Município','8105');await ui.click('Aplicar filtros');
+ expect(new FormData(ui.host.querySelector('form')!).get('cityCodes')).toBe('7107');await pickDomain(ui,'Município','8105');await ui.click('Aplicar filtros');
  expect(companies.mock.lastCall?.[0].filters).toEqual({ufs:['SC'],cityCodes:['8105']});
 });
 
@@ -43,6 +54,38 @@ function directoryPages(count=53){
   return {...page(),snapshotId:q.snapshotId??'partial-a',count:total,items:Array.from({length:Math.max(0,Math.min(limit,total-offset))},(_,index)=>({cnpj:String(offset+index+1).padStart(14,'0'),legalName:'Empresa '+(offset+index+1),capitalCents:'10000',uf:'SC',contacts:[]})),nextCursor:offset+limit<total?'offset:'+(offset+limit):null};
  });
 }
+
+test('SEARCH-03 single searchable filters preserve selection while browsing and commit only official codes',async()=>{
+ const companies=vi.fn().mockResolvedValue(page(first,'next'));
+ const lookup=async(q:CompanyDomainQuery)=>({items:q.kind==='cnaes'?[{kind:'cnaes',code:'4781400',label:'Vestuário'}]:[],nextCursor:null});
+ const ui=await show(<CompanySearchPage {...searchProps({companies,domains:lookup})}/>);
+ expect(ui.host.querySelectorAll('[role=combobox]')).toHaveLength(3);
+ expect(ui.text()).not.toContain('Buscar cnae principal');expect(ui.text()).not.toContain('Mais opções de');
+ await ui.check('Selecionar '+first);await ui.fill('CNAE principal','vest');
+ expect(ui.control('Selecionar '+first).checked).toBe(true);
+ expect(new FormData(ui.host.querySelector('form')!).get('mainCnaes')).toBe('');
+ await act(async()=>ui.control('CNAE principal').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+ expect(document.querySelector('[role=listbox]')).toBeNull();expect(ui.control('Selecionar '+first).checked).toBe(true);
+ await ui.fill('CNAE principal','vest');
+ await act(async()=>ui.control('CNAE principal').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})));
+ expect(ui.control('CNAE principal').value).toBe('Vestuário · 4781400');expect(ui.control('Selecionar '+first).checked).toBe(false);
+ await ui.click('Aplicar filtros');expect(companies.mock.lastCall?.[0].filters).toEqual({mainCnaes:['4781400']});
+});
+
+test('SEARCH-03 saved search is optional above results and multiple domain values preserve OR',async()=>{
+ const companies=vi.fn().mockResolvedValue(page());
+ const lookup=async(q:CompanyDomainQuery)=>({items:q.kind==='cnaes'?[{kind:'cnaes',code:'4781400',label:'Vestuário'},{kind:'cnaes',code:'4782201',label:'Calçados'}]:[],nextCursor:null});
+ const ui=await show(<CompanySearchPage {...searchProps({companies,domains:lookup})}/>);
+ expect(ui.text()).not.toContain('Nome do segmento');expect(ui.host.querySelector('#save-company-search')).toBeNull();
+ await pickDomain(ui,'CNAE principal','4781400');await ui.fill('Filtro com múltiplos valores','mainCnaes');await ui.click('Manter valor');
+ expect(ui.text()).toContain('Remover CNAE principal · Vestuário');
+ await pickDomain(ui,'CNAE principal','4782201');await ui.click('Aplicar filtros');
+ expect(companies.mock.lastCall?.[0].filters).toEqual({mainCnaes:['4782201','4781400']});
+ await ui.click('Salvar busca');expect(document.activeElement).toBe(ui.control('Nome da busca'));
+ expect(ui.host.querySelector('#save-company-search')!.compareDocumentPosition(ui.host.querySelector('.prospecting-rows')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ await ui.click('Cancelar');expect(ui.host.querySelector('#save-company-search')).toBeNull();
+ await ui.fill('Pesquisar empresa','pet');expect(ui.button('Salvar busca').disabled).toBe(true);
+});
 test('SEARCH-02 pages request20 and display the exact first, middle and last page sizes',async()=>{
  const companies=directoryPages(),ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>partialSource('partial-a',53),companies,domains})}/>);
  expect(companies.mock.calls[0][0].limit).toBe(20);expect(ui.host.querySelectorAll('.prospecting-row')).toHaveLength(20);expect(ui.text()).toContain('Página 1 de 3');
@@ -102,12 +145,12 @@ test('PRG-03 refresh preserves filters and cannot replace a selected partial vie
  const companies=vi.fn(async(q)=>({...page(),snapshotId:q.snapshotId??'partial-a',count:q.snapshotId==='partial-b'?2000:500,items:page().items.map(c=>({...c,uf:'SC'}))}));
  const lookup=async(q:CompanyDomainQuery)=>({items:q.kind==='municipios'?[{kind:'municipios',code:'8105',label:'FLORIANOPOLIS'}]:q.kind==='cnaes'?[{kind:'cnaes',code:'4781400',label:'Vestuário'}]:[],nextCursor:null});
  const ui=await show(<CompanySearchPage {...searchProps({readiness,companies,domains:lookup})}/>);
- await ui.fill('Pesquisar empresa','moda');await ui.fill('UF','SC');await ui.fill('Município','8105');await ui.fill('CNAE principal','4781400');await ui.click('Aplicar filtros');await ui.check('Selecionar '+first);
+ await ui.fill('Pesquisar empresa','moda');await ui.fill('UF','SC');await pickDomain(ui,'Município','8105');await pickDomain(ui,'CNAE principal','4781400');await ui.click('Aplicar filtros');await ui.check('Selecionar '+first);
  expect(ui.button('Atualizar base').disabled).toBe(true);await ui.click('Atualizar base');expect(readiness).toHaveBeenCalledTimes(1);
  await ui.check('Selecionar '+first);await ui.click('Atualizar base');expect(ui.control('Pesquisar empresa').value).toBe('moda');expect(ui.control('UF').value).toBe('SC');
  await act(async()=>finish(partialSource('partial-b',2000)));
  expect(companies.mock.lastCall?.[0]).toMatchObject({snapshotId:'partial-b',filters:{search:'moda',ufs:['SC'],cityCodes:['8105'],mainCnaes:['4781400']}});
- expect(ui.control('Município').value).toBe('8105');expect(ui.control('CNAE principal').value).toBe('4781400');
+ expect(ui.control('Município').value).toContain('8105');expect(ui.control('CNAE principal').value).toContain('4781400');
  expect(ui.control('Pesquisar empresa').value).toBe('moda');expect(ui.control('UF').value).toBe('SC');expect(ui.text()).toContain('2.000 empresas disponíveis');
  await ui.click('Atualizar base');expect(ui.text()).toContain('Não foi possível atualizar a base');expect(ui.control('UF').value).toBe('SC');expect(ui.text()).toContain('Oficina '+first);
 });
@@ -153,7 +196,7 @@ test("REC-03 published regional coverage includes Floripa in SC and preserves ci
   expect(ui.text()).toContain('Varejo do Sudeste e Sul');expect(ui.text()).toContain('12.345 empresas ativas com telefone');expect(ui.text()).toContain('limite da base de 25 GB');
   expect(Array.from(ui.control('UF').querySelectorAll('option')).map(o=>o.value)).toEqual(['',...regionalCoverage.ufs]);
   expect(ui.control('Simples Nacional').disabled).toBe(true);expect(ui.control('MEI').disabled).toBe(true);
-  await ui.fill('UF','SC');await ui.fill('Município','8105');await ui.fill('CNAE principal','4781400');await ui.click('Aplicar filtros');
+  await ui.fill('UF','SC');await pickDomain(ui,'Município','8105');await pickDomain(ui,'CNAE principal','4781400');await ui.click('Aplicar filtros');
   expect(companies.mock.lastCall?.[0].filters).toEqual({ufs:['SC'],cityCodes:['8105'],mainCnaes:['4781400']});
 });
 test("PROS-24 AC1 filtros e paginação conservam a seleção do snapshot e centavos exatos", async () => {
@@ -188,8 +231,11 @@ test("PROS-24 AC2 salvar segmento usa filtros aplicados e mostra o resultado con
   );
   await ui.fill("CNPJ", "12ABC34501DE35");
   await ui.click("Aplicar filtros");
-  await ui.fill("Nome do segmento", "Oficinas");
-  await ui.click("Salvar segmento");
+  expect(ui.host.querySelector('#save-company-search')).toBeNull();
+  await ui.click("Salvar busca");
+  expect(ui.text()).toContain("Guarde estes filtros para escolher o mesmo público ao criar uma campanha.");
+  await ui.fill("Nome da busca", "Oficinas");
+  await ui.click("Salvar");
   expect(createSegment.mock.calls[0][0]).toMatchObject({ name: "Oficinas", filters: { cnpj: second } });
   expect(ui.text()).toContain("Segmento oficial");
   expect(ui.text()).toContain("23 empresas");
@@ -230,11 +276,11 @@ test("PROS-24 AC1 opções oficiais de município distinguem UF e preservam o c�
   const ui = await show(<CompanySearchPage {...searchProps({ companies, domains: lookup })} />);
   expect(ui.control("Município").disabled).toBe(true);
   await ui.fill("UF", "RJ");
-  expect(ui.text()).toContain("Santa Cruz · 6001 · RJ");
-  await ui.fill("Município", "6001");
+  await pickDomain(ui,"Município", "6001");
+  expect(ui.control("Município").value).toBe("Santa Cruz · 6001");
   await ui.fill("UF", "SP");
-  expect(ui.text()).not.toContain("6001");
-  await ui.fill("Município", "7107");
+  expect(ui.control("Município").value).toBe("");
+  await pickDomain(ui,"Município", "7107");
   await ui.click("Aplicar filtros");
   expect(companies.mock.lastCall?.[0].filters).toEqual({ ufs: ["SP"], cityCodes: ["7107"] });
 });
@@ -267,7 +313,8 @@ test("DIR-01 pending publication prevents company and domain requests until avai
   expect(companies).not.toHaveBeenCalled();expect(lookup).not.toHaveBeenCalled();
   await ui.click('Verificar disponibilidade');
   expect(readiness).toHaveBeenCalledTimes(2);expect(companies).toHaveBeenCalledTimes(1);
-  expect(ui.host.querySelector('select[name="mainCnaes"] option[value="4711301"]')?.textContent).toBe('Atividade oficial · 4711301');
+  await pickDomain(ui,'CNAE principal','4711301');
+  expect(ui.control('CNAE principal').value).toBe('Atividade oficial · 4711301');
   expect(ui.text()).toContain('Oficina '+first);expect(ui.text()).not.toContain('Base nacional em preparação');
 });
 

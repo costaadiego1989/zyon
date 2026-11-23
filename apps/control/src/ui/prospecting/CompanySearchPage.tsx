@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import type { CompanyDirectoryCoverage, CompanyDirectoryImportSummary, CompanyDomainQuery, CompanyDomainResult, CompanyFilters, CompanySearchQuery } from "@zyon/shared-types";
 import { PlatformApiError } from "../../lib/api.js";
-import { Search } from "lucide-react";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 import { Button, ReadState, cents, money, stages, useAction, useResource, type PageProps } from "./screen-controls.js";
 import { ProspectingState } from "./ProspectingShell.js";
 
@@ -15,16 +16,21 @@ function Domain({
   uf,
   snapshotId,
   onSessionExpired,
+  changed,
 }: Pick<PageProps, "api" | "onSessionExpired"> & {
   kind: CompanyDomainQuery["kind"];
   label: string;
   name: string;
   uf?: string;
   snapshotId?: string;
+  changed: () => void;
 }) {
   const [search, setSearch] = useState(""),
     [after, setAfter] = useState<string>(),
     [chosen, setChosen] = useState<{ code: string; label: string } | null>(null);
+  const [open, setOpen] = useState(false), [active, setActive] = useState(0);
+  const id = useId(), input = useRef<HTMLInputElement>(null), root = useRef<HTMLDivElement>(null), menu = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<CSSProperties>({});
   const load = useCallback(
     (s: AbortSignal) =>
       api.domains(
@@ -45,50 +51,79 @@ function Domain({
     ].map(item=>[item.code,item])).values()]}));
   },[result.data,identity,after]);
   const choices = optionPages.identity===identity?optionPages.items:result.data?.items??[];
+  const options = [{ code: "", label: "Todos" }, ...choices];
+  const highlighted = Math.min(active, options.length - 1);
+  function close() { setOpen(false); setSearch(""); setAfter(undefined); }
+  function choose(value: {code: string; label: string}) {
+    setChosen(value.code ? value : null);
+    close();
+    changed();
+    input.current?.focus();
+  }
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const rect = input.current!.getBoundingClientRect(), below = innerHeight - rect.bottom - 12;
+      const above = rect.top - 12, flip = below < 220 && above > below;
+      setPosition({left: Math.max(8, Math.min(rect.left, innerWidth - rect.width - 8)), width: Math.min(rect.width, innerWidth - 16),
+        ...(flip ? {bottom: innerHeight - rect.top + 6} : {top: rect.bottom + 6}), maxHeight: Math.max(100, Math.min(340, flip ? above : below))});
+    }
+    function outside(event: PointerEvent) {
+      if (!root.current?.contains(event.target as Node) && !menu.current?.contains(event.target as Node)) close();
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    document.addEventListener("pointerdown", outside);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); document.removeEventListener("pointerdown", outside); };
+  }, [open]);
+  useEffect(() => { setActive(search ? 1 : 0); }, [search]);
+  useEffect(() => {
+    if (open) document.getElementById(id + "-option-" + highlighted)?.scrollIntoView?.({block: "nearest"});
+  }, [open, highlighted, id]);
   return (
-    <div className="prospecting-domain">
-      <label>
-        {label}
-        <select
-          aria-label={label}
-          name={name}
-          value={chosen?.code ?? ""}
-          onChange={(e) => setChosen(choices.find((o) => o.code === e.target.value) ?? null)}
-        >
-          <option value="">Todos</option>
-          {chosen && !choices.some((o) => o.code === chosen.code) && (
-            <option value={chosen.code}>
-              {chosen.label} · {chosen.code}
-            </option>
-          )}
-          {choices.map((o) => (
-            <option key={o.code} value={o.code}>
-              {o.label} · {o.code}
-              {uf ? " · " + uf : ""}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="prospecting-domain-search">
-        Buscar {label.toLowerCase()}
+    <div className="prospecting-domain" ref={root}>
+      <label htmlFor={id}>{label}</label>
+      <input type="hidden" name={name} value={chosen?.code ?? ""} data-label={chosen?.label} />
+      <div className="prospecting-domain-control">
         <input
-          type="search"
-          aria-label={"Buscar " + label.toLowerCase()}
-          placeholder="Nome ou código"
-          value={search}
+          id={id} ref={input} role="combobox" autoComplete="off"
+          aria-expanded={open} aria-controls={open ? id + "-options" : undefined} aria-autocomplete="list"
+          aria-activedescendant={open ? id + "-option-" + highlighted : undefined}
+          placeholder={open ? "Digite nome ou código…" : "Todos"}
+          value={open ? search : chosen ? chosen.label + " · " + chosen.code : ""}
+          onClick={() => setOpen(true)}
+          onBlur={(event) => { if (!menu.current?.contains(event.relatedTarget as Node)) close(); }}
           onChange={(e) => {
+            e.stopPropagation();
             setAfter(undefined);
             setSearch(e.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault(); setOpen(true);
+              if (open && event.key === "ArrowDown" && highlighted === options.length - 1 && result.data?.nextCursor) {
+                setAfter(result.data.nextCursor); setActive(options.length);
+              } else setActive(index => open ? Math.max(0, Math.min(options.length - 1, index + (event.key === "ArrowDown" ? 1 : -1))) : 0);
+            } else if (event.key === "Enter" && open) { event.preventDefault(); if (!search || choices.length) choose(options[highlighted]); }
+            else if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); close(); }
+            else if (event.key === "Tab") close();
           }}
         />
-      </label>
-      {result.error ? (
-        <ReadState {...result} />
-      ) : (
-        result.data?.nextCursor && (
-          <Button onClick={() => setAfter(result.data!.nextCursor!)}>Mais opções de {label.toLowerCase()}</Button>
-        )
-      )}
+        {chosen ? <button type="button" className="prospecting-domain-clear" aria-label={"Limpar " + label.toLowerCase()} onClick={() => choose({code: "", label: "Todos"})}><X size={15} /></button> : <ChevronDown size={16} aria-hidden="true" />}
+      </div>
+      {open && createPortal(<div ref={menu} className="prospecting-domain-menu" style={position}>
+        <ul id={id + "-options"} role="listbox" aria-label={"Opções de " + label.toLowerCase()}>
+          {options.map((option, index) => <li key={option.code} id={id + "-option-" + index} role="option" aria-selected={(chosen?.code ?? "") === option.code}
+            className={highlighted === index ? "is-highlighted" : undefined} onMouseDown={event => event.preventDefault()} onClick={() => choose(option)}>
+            <span><span>{option.label}</span>{option.code && <small>{option.code}{uf ? " · " + uf : ""}</small>}</span>
+            {(chosen?.code ?? "") === option.code && <Check size={16} aria-hidden="true" />}
+          </li>)}
+        </ul>
+        {result.error ? <ReadState {...result} /> : !result.data ? <p role="status">Buscando opções…</p> : !choices.length ? <p role="status">Nenhuma opção encontrada.</p> : null}
+        {result.data?.nextCursor && <button type="button" className="prospecting-domain-more" onMouseDown={event => event.preventDefault()} onClick={() => setAfter(result.data!.nextCursor!)}>Carregar mais opções</button>}
+      </div>, document.body)}
     </div>
   );
 }
@@ -143,7 +178,7 @@ function AdditionalFilterValues({ changed }: { changed: () => void }) {
   const [notice, setNotice] = useState("");
   function add() {
     const field = group.current?.form?.querySelector<HTMLInputElement | HTMLSelectElement>(
-      '[name="' + dimension + '"]:not([type=hidden])'
+      '[name="' + dimension + '"]'
     );
     const value = field?.value.trim();
     if (!value) {
@@ -154,7 +189,7 @@ function AdditionalFilterValues({ changed }: { changed: () => void }) {
       setNotice("Valor já incluído.");
       return;
     }
-    const label = field instanceof HTMLSelectElement ? field.selectedOptions[0].textContent ?? value : value;
+    const label = field instanceof HTMLSelectElement ? field.selectedOptions[0].textContent ?? value : field?.dataset.label ?? value;
     setPinned([...pinned, { dimension, value, label }]);
     setNotice("");
     changed();
@@ -257,6 +292,9 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
   const [selected, setSelected] = useState<{ snapshot: string; ids: string[] }>({ snapshot: "", ids: [] }),
     [name, setName] = useState(""),
     [issue, setIssue] = useState("");
+  const [savingSearch, setSavingSearch] = useState(false);
+  const searchName = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (savingSearch) searchName.current?.focus(); }, [savingSearch]);
   const [pagination,setPagination]=useState<{index:number;cursors:(string|undefined)[]}>({index:0,cursors:[undefined]});
   const load = useCallback((s: AbortSignal) => api.companies({...query,limit:companyPageSize}, s), [api, query]);
   const result = useResource(load, onSessionExpired),
@@ -269,6 +307,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
   function invalidateSelection() {
     setDirty(true);
     setSelected({ snapshot: "", ids: [] });
+    setSavingSearch(false);
   }
   function apply(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -300,7 +339,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
   const pageNumber=Math.min(pagination.index+1,totalPages??pagination.index+1);
   const valid = Boolean(page?.items.length) && !dirty && !action.denied,
     ids = selected.snapshot === page?.snapshotId ? selected.ids : [];
-  const domainProps = { api, onSessionExpired, snapshotId: page?.snapshotId??(coverage?.scopeComplete===false?currentSnapshotId:undefined) };
+  const domainProps = { api, onSessionExpired, changed: invalidateSelection, snapshotId: page?.snapshotId??(coverage?.scopeComplete===false?currentSnapshotId:undefined) };
   async function refreshAvailability(){
     if(ids.length||refreshing)return;
     const controller=new AbortController();refreshController.current=controller;setRefreshing(true);setRefreshError('');
@@ -388,11 +427,26 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
           <AdditionalFilterValues changed={invalidateSelection} />
           {coverage && <p>Simples Nacional e MEI ainda não estão disponíveis nesta base.</p>}
         </details>
-        <Button type="submit" primary>
-          <Search size={16} />
-          Aplicar filtros
-        </Button>
+        <div className="prospecting-filter-actions">
+          <Button type="submit" primary><Search size={16} />Aplicar filtros</Button>
+          <button type="button" className="button button--secondary" aria-expanded={savingSearch} aria-controls="save-company-search" disabled={!valid || refreshing || action.disabled} onClick={() => setSavingSearch(value => !value)}>Salvar busca</button>
+        </div>
       </form>
+      {savingSearch && valid && <form id="save-company-search" className="prospecting-save-search" onSubmit={(event) => {
+        event.preventDefault();
+        void action.run(async (id) => {
+          const saved = await api.createSegment({name: name.trim(), filters: query.filters, filterVersion: 1, clientRequestId: id});
+          setSavingSearch(false); setName("");
+          return saved.name + " · versão " + saved.version + " · " + (saved.countState === "complete" ? saved.count + (saved.count === 1 ? " empresa" : " empresas") : "contagem em andamento");
+        });
+      }}>
+        <p>Guarde estes filtros para escolher o mesmo público ao criar uma campanha.</p>
+        <div className="prospecting-actions">
+          <label>Nome da busca<input ref={searchName} required maxLength={160} placeholder="Ex.: lojas de roupas em São Paulo" value={name} onChange={event => setName(event.target.value)} /></label>
+          <Button type="submit" disabled={action.disabled || !name.trim()}>Salvar</Button>
+          <Button onClick={() => setSavingSearch(false)}>Cancelar</Button>
+        </div>
+      </form>}
       {issue && <p role="alert">{issue}</p>}
       {!page ? (
         <ReadState {...result} />
@@ -472,37 +526,6 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
                 </Button>
                 <Button onClick={() => navigate({ area: "leads" })}>Ver leads</Button>
               </div>
-              <form
-                className="prospecting-actions"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void action.run(async (id) => {
-                    const saved = await api.createSegment({
-                      name: name.trim(),
-                      filters: query.filters,
-                      filterVersion: 1,
-                      clientRequestId: id,
-                    });
-                    return (
-                      saved.name +
-                      " · versão " +
-                      saved.version +
-                      " · " +
-                      (saved.countState === "complete"
-                        ? saved.count + (saved.count === 1 ? " empresa" : " empresas")
-                        : "contagem em andamento")
-                    );
-                  });
-                }}
-              >
-                <label>
-                  Nome do segmento
-                  <input required maxLength={160} value={name} onChange={(e) => setName(e.target.value)} />
-                </label>
-                <Button type="submit" disabled={action.disabled || !name.trim()}>
-                  Salvar segmento
-                </Button>
-              </form>
             </>
           )}
         </>

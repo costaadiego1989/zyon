@@ -52,9 +52,27 @@
 .prospecting-company-filters > .prospecting-fields { grid-template-columns: minmax(0,1fr) minmax(10rem,14rem); align-items: end; }
 .prospecting-company-filters details > .prospecting-fields { grid-template-columns: repeat(auto-fit,minmax(min(14rem,100%),1fr)); gap: 1.25rem 1rem; }
 .prospecting-domain { display: grid; align-content: start; gap: .5rem; min-width: 0; }
-.prospecting-domain .prospecting-domain-search { font-size: .75rem; color: var(--ink-muted); gap: .3rem; }
-.prospecting-domain > .button { justify-self: start; min-height: 1.75rem; padding: .15rem 0; border-color: transparent; background: transparent; box-shadow: none; color: var(--accent); font-size: .75rem; text-align: left; }
-.prospecting-domain > .button:hover { text-decoration: underline; text-underline-offset: .2rem; }
+.prospecting-domain-control { position: relative; min-width: 0; }
+.prospecting-page .prospecting-domain-control input { padding-inline-end: 2.3rem; text-overflow: ellipsis; }
+.prospecting-domain-control > svg, .prospecting-domain-clear { position: absolute; right: .6rem; top: 50%; transform: translateY(-50%); color: var(--ink-muted); }
+.prospecting-domain-control > svg { pointer-events: none; }
+.prospecting-domain-clear { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; padding: 0; border: 0; border-radius: .25rem; background: transparent; }
+.prospecting-domain-clear:hover { background: var(--surface-muted); color: var(--ink); }
+.prospecting-domain-menu { position: fixed; z-index: 30; display: flex; flex-direction: column; min-width: 0; overflow: hidden; padding: .25rem; border: 1px solid var(--line-strong); border-radius: .5rem; background: var(--surface); color: var(--ink); font-size: .8125rem; }
+.prospecting-domain-menu ul { overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 0; list-style: none; min-height: 0; }
+.prospecting-domain-menu li { display: flex; justify-content: space-between; align-items: center; gap: .65rem; min-height: 2.5rem; padding: .55rem .65rem; border-radius: .25rem; cursor: pointer; }
+.prospecting-domain-menu li > span { display: grid; gap: .2rem; min-width: 0; overflow-wrap: anywhere; }
+.prospecting-domain-menu li small { color: var(--ink-muted); font-size: .75rem; }
+.prospecting-domain-menu li > svg { flex-shrink: 0; color: var(--accent); }
+.prospecting-domain-menu li:hover, .prospecting-domain-menu li.is-highlighted { background: var(--surface-muted); }
+.prospecting-domain-menu li[aria-selected=true] { color: var(--accent); }
+.prospecting-domain-menu > p, .prospecting-domain-menu .prospecting-state { padding: .65rem; margin: 0; font-size: .8125rem; color: var(--ink-muted); }
+.prospecting-domain-more { flex-shrink: 0; min-height: 2.5rem; padding: .5rem; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--accent); font-size: .8125rem; text-align: left; }
+.prospecting-domain-more:hover { background: var(--surface-muted); }
+.prospecting-domain-menu :focus-visible, .prospecting-domain-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.prospecting-filter-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding-top: .25rem; }
+.prospecting-page form.prospecting-save-search { padding: .9rem 1rem; border-block: 1px solid var(--line); background: var(--surface-muted); gap: .75rem; }
+.prospecting-save-search > p { max-width: 65ch; color: var(--ink-muted); font-size: .8125rem; line-height: 1.5; }
 .prospecting-company-filters fieldset > p { font-size: .8125rem; color: var(--ink-muted); line-height: 1.5; }
 .prospecting-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; padding-block: .75rem; color: var(--ink-muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
 .prospecting-pagination-controls { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
