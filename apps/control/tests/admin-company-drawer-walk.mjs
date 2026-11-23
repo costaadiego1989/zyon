@@ -7,7 +7,8 @@ const {chromium,expect}=require('@playwright/test');
 const folder=fileURLToPath(new URL('../../../.specs/features/admin-company-details-billing-fix/',import.meta.url));
 mkdirSync(folder,{recursive:true});
 const merchant={id:'drawer_fixture',name:'Mercado Aurora de São Paulo',store_slug:'aurora',plan:'BOTH',member_count:1,created_at:'2026-11-01T12:00:00Z',updated_at:'2026-11-20T12:00:00Z'};
-const detail={merchant:{id:merchant.id,name:merchant.name,plan:'BOTH',createdAt:merchant.created_at,registrationEmail:'titular@aurora.test',company:{cnpj:'00ABC345000135',razaoSocial:'Aurora Comércio Ltda',inscricaoEstadual:'ISENTO',email:'contato@aurora.test',phone:'+5511998765432',address:{street:'Rua Um',number:'10',city:'São Paulo',state:'SP',zip:'01001000'}}},period:{from:'2026-11-01',to:'2026-12-01'},orders:{allTimeCount:0,allTimeTotalMinor:0,periodCount:0,periodTotalMinor:0,series:[]},billing:{overdueCount:0,openReceivableCount:0},ai:{chatTokens:'0',voiceTokens:'0',chatKnownCostMicros:'0',voiceKnownCostMicros:'0',knownCostMicros:'0',unpricedEvents:0},recentOrders:[]};
+const businessEmail='a'.repeat(60)+'@'+'b'.repeat(60)+'.test';
+const detail={merchant:{id:merchant.id,name:merchant.name,plan:'BOTH',createdAt:merchant.created_at,registrationEmail:'titular@aurora.test',company:{cnpj:'00ABC345000135',razaoSocial:'Aurora Comércio Ltda',inscricaoEstadual:'ISENTO',email:businessEmail,phone:'+5511998765432',address:{street:'Rua Um',number:'10',city:'São Paulo',state:'SP',zip:'01001000'}}},period:{from:'2026-11-01',to:'2026-12-01'},orders:{allTimeCount:0,allTimeTotalMinor:0,periodCount:0,periodTotalMinor:0,series:[]},billing:{overdueCount:0,openReceivableCount:0},ai:{chatTokens:'0',voiceTokens:'0',chatKnownCostMicros:'0',voiceKnownCostMicros:'0',knownCostMicros:'0',unpricedEvents:0},recentOrders:[]};
 const browser=await chromium.launch({headless:true});
 const context=await browser.newContext({viewport:{width:1440,height:1000}});
 await context.route('**/*',route=>{
@@ -30,12 +31,13 @@ try{
   await trigger.click();const dialog=page.locator('dialog.merchant-detail-drawer:modal');await expect(dialog).toBeVisible();
   await expect(dialog.getByText('00.ABC.345/0001-35',{exact:true})).toBeVisible();await expect(dialog.getByText('(11) 99876-5432',{exact:true})).toBeVisible();
   const close=dialog.getByRole('button',{name:'Fechar detalhes',exact:true});await expect(close).toBeFocused();
-  await page.keyboard.press('Tab');await expect(dialog.getByRole('link',{name:'contato@aurora.test',exact:true})).toBeFocused();
+  await page.keyboard.press('Tab');await expect(dialog.getByRole('link',{name:businessEmail,exact:true})).toBeFocused();
   await page.keyboard.press('Tab');await expect(dialog.getByRole('link',{name:'titular@aurora.test',exact:true})).toBeFocused();
   await page.keyboard.press('Tab');await expect(close).toBeFocused();
   await page.keyboard.press('Shift+Tab');await expect(dialog.getByRole('link',{name:'titular@aurora.test',exact:true})).toBeFocused();
-  const measured=await dialog.evaluate(node=>{const b=node.getBoundingClientRect();return{left:b.left,right:b.right,width:b.width,height:b.height,viewport:innerWidth,documentWidth:document.documentElement.scrollWidth};});
+  const measured=await dialog.evaluate(node=>{const b=node.getBoundingClientRect(),content=node.querySelector('.detail-drawer__content');return{dialogClientWidth:node.clientWidth,dialogScrollWidth:node.scrollWidth,contentClientWidth:content.clientWidth,contentScrollWidth:content.scrollWidth,left:b.left,right:b.right,width:b.width,height:b.height,viewport:innerWidth,documentWidth:document.documentElement.scrollWidth};});
   assert.equal(Math.round(measured.right),width);assert.equal(Math.round(measured.width),Math.min(width,560));assert.equal(Math.round(measured.height),1000);assert.equal(measured.documentWidth,width);
+  assert.ok(measured.dialogScrollWidth<=measured.dialogClientWidth,'horizontal overflow inside dialog at '+width);assert.ok(measured.contentScrollWidth<=measured.contentClientWidth,'horizontal overflow inside drawer content at '+width);
   const metrics=await dialog.locator('.detail-facts').evaluate(node=>({height:node.clientHeight,contentHeight:node.scrollHeight}));
   assert.ok(metrics.height>=metrics.contentHeight-1,'company metrics are clipped inside their container');
   await page.screenshot({path:folder+'company-drawer-'+width+'.png'});screens.push({width,...measured});
