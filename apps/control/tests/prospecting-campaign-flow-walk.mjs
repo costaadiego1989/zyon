@@ -22,7 +22,18 @@ async function checkLayout(area,width){
  const measurement=await page.evaluate(()=>({viewport:innerWidth,documentWidth:document.documentElement.scrollWidth,fields:[...document.querySelectorAll('.prospecting-page input:not([type=checkbox]),.prospecting-page select')].filter(n=>n.getClientRects().length).map(n=>{const r=n.getBoundingClientRect(),p=n.parentElement.getBoundingClientRect();return {height:r.height,width:r.width,parent:p.width};})}));
  assert.ok(measurement.documentWidth<=width+1,`${area} overflow at${width}`);
  for(const f of measurement.fields){assert.ok(f.width<=f.parent+1,'field exceeds label');assert.ok(f.height>=(width<=760?44:38),'small control');if(width>760)assert.ok(f.height<=42,'oversized desktop control');}
- await page.screenshot({path:captureFolder+area+'-'+width+'.running.png',fullPage:true});screens.push({area,width,...measurement});
+ const dialogs=page.locator('dialog[open]'),hasDialog=await dialogs.count()>0;
+ if(hasDialog){const box=await dialogs.boundingBox();assert.ok(box.x>=0&&box.y>=0&&box.x+box.width<=width+1&&box.y+box.height<=1001,'modal remains inside viewport');const labels=await dialogs.locator('select').evaluateAll(nodes=>nodes.map(n=>{const s=getComputedStyle(n),c=document.createElement('canvas').getContext('2d');c.font=s.font;return {text:c.measureText(n.selectedOptions[0].text).width,padding:parseFloat(s.paddingLeft)+parseFloat(s.paddingRight),width:n.getBoundingClientRect().width};}));for(const label of labels)assert.ok(label.text+label.padding+20<=label.width+1,'selected price label fits');}
+ await page.screenshot({path:captureFolder+area+'-'+width+'.running.png',fullPage:!hasDialog});screens.push({area,width,...measurement});
+}
+async function chooseCampaign(id){
+ const control=page.getByLabel('Campanha existente',{exact:true});
+ for(let pages=0;pages<100;pages++){
+  await expect(control).toBeVisible();
+  if(await control.locator('option').evaluateAll((nodes,value)=>nodes.some(n=>n.value===value),id)){await control.selectOption(id);return;}
+  const more=page.getByRole('button',{name:'Outras campanhas',exact:true});await expect(more).toBeVisible();await more.click();
+ }
+ throw Error('created campaign missing from paginated choices');
 }
 try{
  // Cold Vite compilation is a harness startup gate, separate from operator gesture timeouts.
@@ -37,7 +48,7 @@ try{
   await page.goto(origins.control+'/#prospecting/campaigns?view=edit');
   // Use the list gesture so the route comes from the application itself.
   await page.goto(origins.control+'/#prospecting/campaigns');await page.getByRole('button',{name:'Criar campanha',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Criar campanha',exact:true})).toBeVisible();await checkLayout('campaign-create',width);
+  await expect(page.getByRole('heading',{name:'Criar campanha',exact:true})).toBeVisible();await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'Criar campanha',exact:true})).toBeFocused();await page.getByRole('button',{name:'Criar campanha',exact:true}).press('Enter');await checkLayout('campaign-create',width);
   const name=run+' '+width;await page.getByLabel('Nome da campanha',{exact:true}).fill(name);await page.getByLabel('Contexto das empresas',{exact:true}).fill('lojas de roupas em SP');
   const created=page.waitForResponse(r=>new URL(r.url()).pathname==='/v1/platform/prospecting/campaign-drafts'&&r.request().method()==='POST');await page.getByRole('dialog',{name:'Criar campanha',exact:true}).getByRole('button',{name:'Criar campanha',exact:true}).click();
   const response=await created;assert.equal(response.status(),201);const draft=await response.json();campaignIds.push(draft.id);
@@ -52,7 +63,7 @@ try{
   await page.unroute('**/v1/platform/prospecting/sender');await page.reload();await page.getByRole('tab',{name:'Mensagem',exact:true}).click();await expect(selectedMessage.getByRole('button',{name:'Enviar '+templateName+' à Meta',exact:true})).toBeEnabled();
   await selectedMessage.getByRole('button',{name:'Enviar '+templateName+' à Meta',exact:true}).click();await expect(selectedMessage).toContainText('Em análise pela Meta');providerStates.push('PENDING');await selectedMessage.getByRole('button',{name:'Atualizar estado de '+templateName+' na Meta',exact:true}).click();await expect(selectedMessage).toContainText('Aprovado pela Meta');providerStates.push('APPROVED');await page.getByRole('button',{name:'Trocar mensagem',exact:true}).click();const messages=page.getByRole('region',{name:'Mensagens disponíveis',exact:true});await messages.focus();await page.keyboard.press('End');assert.ok(await messages.evaluate(n=>n.scrollHeight<=n.clientHeight||n.scrollTop>0));await message.locator('header').scrollIntoViewIfNeeded();await page.getByRole('button',{name:'Concluir escolha',exact:true}).click();await page.getByRole('button',{name:'Preparar mensagem',exact:true}).focus();await checkLayout('campaign-message',width);
   // Current browser selection is transferred through the real HTTP append contract.
-  await page.goto(origins.control+'/#prospecting/companies');await page.getByLabel('Selecionar 00000000000191',{exact:true}).check();await page.getByRole('button',{name:'Adicionar à campanha',exact:true}).click();await expect(page.getByLabel('Campanha existente',{exact:true})).toBeFocused();await page.getByLabel('Campanha existente',{exact:true}).selectOption(draft.id);await page.getByRole('button',{name:'Adicionar à campanha escolhida',exact:true}).click();await expect(page.getByText('1 adicionada(s) e 0 já existente(s) nesta campanha.',{exact:true})).toBeVisible();await expect(page.getByLabel('Selecionar 00000000000191',{exact:true})).toBeChecked();
+  await page.goto(origins.control+'/#prospecting/companies');await page.getByLabel('Selecionar 00000000000191',{exact:true}).check();await page.getByRole('button',{name:'Adicionar à campanha',exact:true}).click();await expect(page.getByLabel('Campanha existente',{exact:true})).toBeFocused();await chooseCampaign(draft.id);await page.getByRole('button',{name:'Adicionar à campanha escolhida',exact:true}).click();await expect(page.getByText('1 adicionada(s) e 0 já existente(s) nesta campanha.',{exact:true})).toBeVisible();await expect(page.getByLabel('Selecionar 00000000000191',{exact:true})).toBeChecked();
   assert.equal((await pg.query('SELECT count(*)::int AS count FROM prospect_campaign_companies WHERE campaign_id=$1 AND removed_at IS NULL',[draft.id])).rows[0].count,1);
   await page.getByRole('button',{name:'Fechar seleção de campanha',exact:true}).click();await expect(page.getByRole('button',{name:'Adicionar à campanha',exact:true})).toBeFocused();await checkLayout('campaign-search-transfer',width);
   await page.goto(origins.control+'/#prospecting/campaigns/'+draft.id+'?view=edit');await expect(page.getByRole('heading',{name,exact:true})).toBeVisible();

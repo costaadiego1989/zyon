@@ -310,3 +310,7 @@ dialog.prospect-lead-drawer {
   .prospecting-row > .prospecting-check { flex-basis: 100%; }
   .prospecting-page .button { white-space: normal; }
 }
+@media (max-width: 360px) {
+ .prospecting-modal { width: 100%; padding: .75rem; }
+ .prospecting-modal select { padding-inline: .5rem; }
+}

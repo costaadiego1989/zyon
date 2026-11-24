@@ -52,7 +52,7 @@ export function CampaignWorkspace(props:Props){
   <header className="campaign-heading"><div><h2>{current?.name??"Criar campanha"}</h2><p>{current?`${current.state==='approved'?'Revisão da campanha aprovada':campaignStates[current.state]} · Revisão ${current.revision}`:"Comece pelo nome e pelo contexto das empresas que você quer alcançar."}</p></div>{current&&<Button onClick={()=>navigate({area:"campaigns"})}>Todas as campanhas</Button>}</header>
   {notice&&<p role="status">{notice}</p>}{action.feedback}
   </>}
-  {!current?<><ProspectingModal title="Criar campanha" description="Defina o público. Mensagem e limites de envio ficam para a próxima etapa." busy={action.disabled} onClose={()=>navigate({area:"campaigns"})}>
+  {!current?<><ProspectingModal title="Criar campanha" description="Defina o público. Mensagem e limites de envio ficam para a próxima etapa." busy={action.disabled} returnFocusId="prospecting-create-campaign" onClose={()=>navigate({area:"campaigns"})}>
   <form className="campaign-create" onSubmit={event=>{
    event.preventDefault();void action.run(async key=>{
     const c=await api.createDraft({name:name.trim(),...(context.trim()?{businessContext:context.trim()}:{}),clientRequestId:key});

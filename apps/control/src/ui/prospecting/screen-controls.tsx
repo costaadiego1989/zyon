@@ -95,6 +95,7 @@ export function Button({
   primary?: boolean;
   type?: "button" | "submit";
   className?: string;
+  id?: string;
   "aria-label"?: string;
   title?: string;
 }) {

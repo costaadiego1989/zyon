@@ -32,7 +32,7 @@ function CampaignList({ api, onSessionExpired, navigate }: PageProps) {
         <p>Acompanhe o envio e revise os públicos preparados.</p>
       </header>
       <div>
-        <Button primary onClick={() => navigate({ area: "campaigns", filters: { view: "edit" } })}>
+        <Button id="prospecting-create-campaign" primary onClick={() => navigate({ area: "campaigns", filters: { view: "edit" } })}>
           Criar campanha
         </Button>
       </div>

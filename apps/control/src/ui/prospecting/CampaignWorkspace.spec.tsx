@@ -1,8 +1,9 @@
 import {expect,test,vi} from "vitest";
-import {act} from "react";
+import {act,useState} from "react";
 import {PlatformApiError} from "../../lib/api.js";
 import {ProspectCommandUnresolved} from "../../lib/prospecting-api.js";
 import {CampaignWorkspace} from "./CampaignWorkspace.js";
+import {CampaignDetailPage} from "./CampaignDetailPage.js";
 import {screenProps,show} from "./screen-test.js";
 const draft={id:"draft",name:"Lojas SP",setupVersion:2,revision:1,state:"draft",businessContext:"lojas de roupas em SP",offerPolicy:{mode:"catalog"},message:null,offer:null,senderBindingId:null,senderVersion:null,template:null,limits:null,sendWindow:null,directorySnapshotId:null,audienceCriteria:null,planningMode:null,manualCompanyCount:0,recipientCount:0,selectionId:null,blockers:[],audienceHash:null,contentHash:"hash"};
 const source={status:"current",value:{snapshotId:"published-source",state:"published"}};
@@ -56,6 +57,15 @@ test("UI AC1 composes a message in its own modal with one editable body and rest
  await ui.fill('Texto da mensagem','Texto ainda não salvo');await ui.click('Cancelar mensagem');
  expect(ui.host.querySelector('dialog')).toBeNull();expect(document.activeElement).toBe(ui.button('Preparar mensagem'));expect(createTemplate).not.toHaveBeenCalled();
  await ui.click('Preparar mensagem');expect(ui.control('Texto da mensagem').value).toBe('Texto ainda não salvo');
+});
+
+test("UI AC1 returns keyboard focus to the create launcher after cancelling across the campaign route",async()=>{
+ const props=screenProps(common);
+ function Flow(){const [creating,setCreating]=useState(false);return creating?<CampaignWorkspace {...props} navigate={()=>setCreating(false)}/>:<CampaignDetailPage {...props} navigate={()=>setCreating(true)}/>;}
+ const ui=await show(<Flow/>);const oldLauncher=ui.button('Criar campanha');oldLauncher.focus();
+ await ui.click('Criar campanha');expect(ui.host.querySelector('dialog')?.open).toBe(true);
+ await ui.click('Cancelar');expect(ui.host.querySelector('dialog')).toBeNull();expect(oldLauncher.isConnected).toBe(false);
+ expect(document.activeElement).toBe(ui.button('Criar campanha'));
 });
 
 test("UI AC1 shows one selected message preview and concise actions while preserving template identity",async()=>{
