@@ -6,6 +6,7 @@ import type { ProspectingActor } from "../../domain/prospecting.ports.js";
 export interface PlatformSignupConfig {
   appId: string; configId: string; businessId: string; phoneNumberId: string;
   encryptionKey: string; appSecret: string; registrationPin?: string;
+  wabaId?: string; systemUserId?: string; systemUserAccessToken?: string;
 }
 export interface SenderBindingStore {
   binding(): Promise<PlatformSenderBinding | null>;

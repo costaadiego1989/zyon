@@ -32,6 +32,24 @@ export class PlatformMetaAuthorization implements WhatsAppSignupAuthorization {
     }
     throw new Error("sender_authorization_unavailable");
   }
+  async authorizeSystemUser():Promise<MetaCloudAuthorizedAssets>{
+    const {appId,appSecret,businessId,phoneNumberId,wabaId,systemUserId,systemUserAccessToken:token}=this.config;
+    if(!token||!appSecret||![appId,businessId,phoneNumberId,wabaId,systemUserId].every(id=>typeof id==="string"&&/^\d+$/.test(id)))throw Error("sender_unavailable");
+    const {data}=await this.request<{data:{is_valid:boolean;app_id:string;type:string;user_id:string;scopes?:string[];expires_at?:number;data_access_expires_at?:number;granular_scopes?:{scope:string;target_ids?:string[]}[]}}>("debug_token",appId+"|"+appSecret,{input_token:token});
+    const scopes=["business_management","whatsapp_business_management","whatsapp_business_messaging"];
+    const expired=(value:unknown)=>value!==undefined&&value!==0&&(typeof value!=="number"||!Number.isFinite(value)||value*1000<=Date.now());
+    if(!data?.is_valid||data.app_id!==appId||data.type!=="SYSTEM_USER"||data.user_id!==systemUserId||expired(data.expires_at)||expired(data.data_access_expires_at)||!scopes.every(s=>data.scopes?.includes(s))||data.granular_scopes?.some(s=>scopes.includes(s.scope)&&Array.isArray(s.target_ids)&&s.target_ids.length>0&&!s.target_ids.includes(wabaId!)))throw Error("sender_identity_mismatch");
+    const user=await this.request<{id:string;business?:{id:string}}>("me",token,{fields:"id,business"});
+    if(user.id!==systemUserId||user.business?.id!==businessId)throw Error("sender_identity_mismatch");
+    if(!await this.find(businessId+"/owned_apps",token,"id",row=>row.id===appId))throw Error("sender_identity_mismatch");
+    const account=await this.request<GraphData>(wabaId!,token,{fields:"id,owner_business_info"});
+    if(account.id!==wabaId||account.owner_business_info?.id!==businessId)throw Error("sender_identity_mismatch");
+    const phone=await this.find(wabaId+"/phone_numbers",token,"id,status,display_phone_number,platform_type",row=>row.id===phoneNumberId);
+    const display=phone?.display_phone_number&&whatsappE164(phone.display_phone_number);
+    if(!display)throw Error("sender_identity_mismatch");
+    if(phone?.status!=="CONNECTED"||phone.platform_type!=="CLOUD_API")throw Error("sender_registration_required");
+    return {wabaId:wabaId!,phoneNumberId,whatsappNumber:display,accessToken:token,phoneRegistered:true,tokenExpiresAt:data.expires_at?new Date(data.expires_at*1000):undefined};
+  }
   async authorize(input:{code:string;wabaId:string;phoneNumberId:string;businessId?:string}):Promise<MetaCloudAuthorizedAssets>{
     const {appId,appSecret}=this.config;
     const businessId=this.config.businessId||input.businessId,phoneNumberId=this.config.phoneNumberId||input.phoneNumberId;
