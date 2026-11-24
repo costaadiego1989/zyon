@@ -1978,20 +1978,22 @@ T107 → T106
 
 ### T84: Prepare a resumable historical appointment backfill
 
+**Status**: Complete - local task gate passed; scoped evidence in task-84-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Ferramenta dry-run por padrão inventaria reservas anteriores, requer mapeamento explícito de profissional, reexecutável sem duplicar; habilitação só com todos escritores migrados. Testes usam somente runtime próprio local.
 **Where**: `apps/api/scripts/service-appointment-backfill.mjs`
 **Depends on**: T83, T113
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: REG-04, BOOK-08
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-migration.integration.spec.mjs: unresolved resource, partial/retry, dados antigos intactos, idempotência e backfill sem autorizar produção.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] service-migration.integration.spec.mjs: unresolved resource, partial/retry, dados antigos intactos, idempotência e backfill sem autorizar produção.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
-**Tests**: service-migration.integration.spec.mjs: unresolved resource, partial/retry, dados antigos intactos, idempotência e backfill sem autorizar produção.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T84$" ./tests/service-migration.integration.spec.mjs` Teste raiz T84 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Tests**: New service-appointment-backfill.integration.spec.mjs plus unchanged original T5 service-migration.integration.spec.mjs: unresolved resource, partial/retry, dados antigos intactos, idempotência e backfill sem autorizar produção.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./tests/service-appointment-backfill.integration.spec.mjs ./tests/service-migration.integration.spec.mjs` Teste raiz T84 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t84 prepare a resumable historical appointment backfill`
 
 ### T85: Read appointment and receipt facts for metrics
