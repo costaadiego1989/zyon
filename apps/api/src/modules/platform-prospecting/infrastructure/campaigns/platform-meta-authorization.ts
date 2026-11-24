@@ -39,8 +39,8 @@ export class PlatformMetaAuthorization implements WhatsAppSignupAuthorization {
     const scopes=["business_management","whatsapp_business_management","whatsapp_business_messaging"];
     const expired=(value:unknown)=>value!==undefined&&value!==0&&(typeof value!=="number"||!Number.isFinite(value)||value*1000<=Date.now());
     if(!data?.is_valid||data.app_id!==appId||data.type!=="SYSTEM_USER"||data.user_id!==systemUserId||expired(data.expires_at)||expired(data.data_access_expires_at)||!scopes.every(s=>data.scopes?.includes(s))||data.granular_scopes?.some(s=>scopes.includes(s.scope)&&Array.isArray(s.target_ids)&&s.target_ids.length>0&&!s.target_ids.includes(wabaId!)))throw Error("sender_identity_mismatch");
-    const user=await this.request<{id:string;business?:{id:string}}>("me",token,{fields:"id,business"});
-    if(user.id!==systemUserId||user.business?.id!==businessId)throw Error("sender_identity_mismatch");
+    const user=await this.request<{id:string}>("me",token,{fields:"id"});
+    if(user.id!==systemUserId)throw Error("sender_identity_mismatch");
     if(!await this.find(businessId+"/owned_apps",token,"id",row=>row.id===appId))throw Error("sender_identity_mismatch");
     const account=await this.request<GraphData>(wabaId!,token,{fields:"id,owner_business_info"});
     if(account.id!==wabaId||account.owner_business_info?.id!==businessId)throw Error("sender_identity_mismatch");
