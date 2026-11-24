@@ -88,6 +88,12 @@ export function ControlApp() {
   const [sessionMessage, setSessionMessage] = useState<string | null>(null);
   const [verificationError, setVerificationError] = useState(false);
   const [verificationAttempt, setVerificationAttempt] = useState(0);
+  const [reconnecting, setReconnecting] = useState(false);
+  const renewSession = useCallback(async (token: string) => {
+    const replacement = await api.refreshSession(token);
+    setSessionMessage(null);
+    return replacement;
+  }, [api]);
 
   useEffect(() => {
     const sync = () => setSession(readPlatformSession());
@@ -97,10 +103,10 @@ export function ControlApp() {
 
   useEffect(() => {
     if (!session) return;
-    return maintainPlatformSession(session.token, token => api.refreshSession(token), () => {
+    return maintainPlatformSession(session.token, renewSession, () => {
       setSessionMessage("Conexão temporariamente indisponível. Sua sessão foi preservada.");
     });
-  }, [api, session?.token]);
+  }, [renewSession, session?.token]);
 
   useEffect(() => {
     if (!session) {
@@ -167,6 +173,20 @@ export function ControlApp() {
     setSessionMessage("Sua sessão expirou. Entre novamente para continuar.");
   }, []);
 
+  async function retrySession() {
+    const current = readPlatformSession();
+    if (!current || reconnecting) return;
+    setReconnecting(true);
+    try { await renewSession(current.token); }
+    catch (error) {
+      if (error instanceof PlatformApiError && error.status === 401) {
+        clearPlatformSession();
+        setSession(null);
+        setSessionMessage("A sessão não está mais válida. Entre novamente.");
+      } else setSessionMessage("Conexão temporariamente indisponível. Sua sessão foi preservada.");
+    } finally { setReconnecting(false); }
+  }
+
   if (checkingSession) return <SessionSkeleton />;
   if (!session) return <OperatorLogin onSubmit={handleLogin} initialMessage={sessionMessage} />;
   if (verificationError) return <main className="operator-login"><section className="login-panel">
@@ -182,6 +202,7 @@ export function ControlApp() {
       operator={session.operator}
       onLogout={handleLogout}
       onSessionExpired={handleSessionExpired}
+      sessionNotice={sessionMessage ? {message: sessionMessage, retry: () => void retrySession(), busy: reconnecting} : undefined}
     />
   );
 }
@@ -192,12 +213,14 @@ function ControlShell({
   operator,
   onLogout,
   onSessionExpired,
+  sessionNotice,
 }: {
   api: PlatformApi;
   token: string;
   operator: PlatformOperator;
   onLogout: () => Promise<void>;
   onSessionExpired: () => void;
+  sessionNotice?: {message: string; retry: () => void; busy: boolean};
 }) {
   const canProspect=operator.role==="platform_admin";
   const readView=useCallback(():ViewId=>{
@@ -302,6 +325,7 @@ function ControlShell({
         </header>
 
         <main id="control-content" className="control-content" ref={content} tabIndex={-1}>
+          {sessionNotice && <div className="session-connection-notice" role="status"><p>{sessionNotice.message}</p><button className="button button--secondary" type="button" disabled={sessionNotice.busy} onClick={sessionNotice.retry}>{sessionNotice.busy ? "Reconectando…" : "Tentar reconectar"}</button></div>}
           {view === "overview" ? <Overview api={api} token={token} onNavigate={selectView} role={operator.role} onSessionExpired={onSessionExpired} /> : null}
           {view === "prospecting" && canProspect ? <ProspectingArea api={api} token={token} operator={operator} onSessionExpired={onSessionExpired}/> : null}
           {view === "feedback" ? (

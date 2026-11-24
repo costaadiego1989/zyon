@@ -20,7 +20,33 @@ const config = {
 } as const;
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
   history.replaceState(null, "", "/");
+});
+it("SESSION AC2 exposes background renewal retry without replacing the operator workspace", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-24T17:00:00Z"));
+  session();
+  const jwt = (seconds: number) => "e30." + btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + seconds })) + ".local";
+  const token = jwt(61), replacement = jwt(900);
+  writePlatformSession({ token, operator: admin });
+  const renew = vi.spyOn(PlatformApi.prototype, "refreshSession").mockRejectedValueOnce(new PlatformApiError(503))
+    .mockRejectedValueOnce(new PlatformApiError(503)).mockImplementation(async () => {
+      writePlatformSession({ token: replacement, operator: admin }); return replacement;
+    });
+  const ui = await show(<ControlApp />);
+  const workspace = ui.host.querySelector(".control-app");
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(readPlatformSession()).toEqual({ token, operator: admin });
+  expect(ui.text()).toContain("Conexão temporariamente indisponível. Sua sessão foi preservada.");
+  expect(ui.host.querySelector('input[type="password"]')).toBeNull();
+  expect(ui.host.querySelector(".control-app")).toBe(workspace);
+  await ui.click("Tentar reconectar");
+  expect(readPlatformSession()?.token).toBe(token); expect(ui.text()).toContain("Sua sessão foi preservada");
+  await ui.click("Tentar reconectar");
+  expect(readPlatformSession()).toEqual({ token: replacement, operator: admin });
+  expect(ui.text()).not.toContain("Sua sessão foi preservada");
+  expect(ui.host.querySelector(".control-app")).toBe(workspace);
+  expect(renew.mock.calls.map(call => call[0])).toEqual([token, token, token]);
 });
 function session(user = admin) {
   writePlatformSession({ token: "local-session", operator: user });
