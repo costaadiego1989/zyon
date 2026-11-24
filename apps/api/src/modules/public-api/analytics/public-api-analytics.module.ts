@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ProductAnalyticsGuard } from '../../checkout/application/service-overview-routing.js';
 import { IntegrationsModule } from '../../integrations/integrations.module.js';
 import { StoreAnalyticsModule } from '../../store-analytics/store-analytics.module.js';
 import { AnalyticsV1Controller } from './presentation/http/analytics-v1.controller.js';
@@ -6,5 +7,6 @@ import { AnalyticsV1Controller } from './presentation/http/analytics-v1.controll
 @Module({
   imports: [IntegrationsModule, StoreAnalyticsModule],
   controllers: [AnalyticsV1Controller],
+  providers: [ProductAnalyticsGuard],
 })
 export class PublicApiAnalyticsModule {}

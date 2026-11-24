@@ -37,6 +37,7 @@ import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { StaffReadable } from "../../../auth/presentation/staff-readable.decorator.js";
 import { StaffReadableGuard } from "../../../auth/presentation/staff-readable.guard.js";
+import { ProductAnalyticsGuard } from "../../application/service-overview-routing.js";
 
 @NonProductionRoute()
 @Controller("checkout")
@@ -119,7 +120,7 @@ export class CheckoutController {
 
   @Get("dashboard/overview/:merchantId")
   @ProductionRoute()
-  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, ProductAnalyticsGuard)
   overview(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: StorePeriod,
@@ -129,7 +130,7 @@ export class CheckoutController {
 
   @Get("dashboard/store-overview/:merchantId")
   @ProductionRoute()
-  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, ProductAnalyticsGuard)
   storeOverview(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: StorePeriod,
@@ -140,7 +141,7 @@ export class CheckoutController {
 
   @Get("dashboard/overview/timeseries/:merchantId")
   @ProductionRoute()
-  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, ProductAnalyticsGuard)
   timeseries(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: StorePeriod,
@@ -166,7 +167,7 @@ export class CheckoutController {
   @Get("funnel/:merchantId")
   @ProductionRoute()
   @StaffReadable()
-  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard, ProductAnalyticsGuard)
   funnel(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: string,
@@ -190,7 +191,7 @@ export class CheckoutController {
   @Get("funnel/:merchantId/sessions")
   @ProductionRoute()
   @StaffReadable()
-  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard, ProductAnalyticsGuard)
   funnelSessions(@Param("merchantId") merchantId: string) {
     if (!this.getFunnelSessions) throw new Error("funnel_sessions_not_configured");
     return this.getFunnelSessions.execute(merchantId);

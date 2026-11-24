@@ -9,6 +9,7 @@ import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capa
 import { NonProductionRoute, ProductionDisabledRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
+import { ProductAnalyticsGuard } from "../../../checkout/application/service-overview-routing.js";
 import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
 import { StartStoreConversationUseCase } from "../../application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
@@ -385,7 +386,7 @@ export class StorefrontController {
 
   @Get("funnel/:merchantId")
   @ProductionRoute()
-  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, ProductAnalyticsGuard)
   async getFunnel(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: string,
@@ -408,7 +409,7 @@ export class StorefrontController {
 
   @Get("funnel/:merchantId/sessions")
   @ProductionRoute()
-  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, ProductAnalyticsGuard)
   async getFunnelSessions(@Param("merchantId") merchantId: string) {
     return this.getStorefrontLiveSessions.execute(merchantId);
   }

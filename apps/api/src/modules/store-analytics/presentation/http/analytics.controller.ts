@@ -8,8 +8,9 @@ import { GetProductAnalyticsUseCase } from "../../application/use-cases/get-prod
 import { GetOfferRoiUseCase } from "../../application/use-cases/get-offer-roi.use-case.js";
 import { GetPaymentMetricsUseCase } from "../../application/use-cases/get-payment-metrics.use-case.js";
 import { GetCustomerMetricsUseCase } from "../../application/use-cases/get-customer-metrics.use-case.js";
+import { ProductAnalyticsGuard } from "../../../checkout/application/service-overview-routing.js";
 
-@UseGuards(AuthGuard, RequirePlanGuard)
+@UseGuards(AuthGuard, RequirePlanGuard, ProductAnalyticsGuard)
 @Controller("merchants")
 export class AnalyticsController {
   constructor(

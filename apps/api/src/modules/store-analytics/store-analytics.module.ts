@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { ProductAnalyticsGuard } from "../checkout/application/service-overview-routing.js";
 import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import {
@@ -20,6 +21,7 @@ import { GA4MeasurementService } from "./infrastructure/ga4-measurement.service.
   imports: [PersistenceModule],
   controllers: [AnalyticsController],
   providers: [
+    ProductAnalyticsGuard,
     {
       provide: ANALYTICS_REPOSITORY_PORT,
       useFactory: (prisma: PrismaClient) => new PrismaAnalyticsRepository(prisma),

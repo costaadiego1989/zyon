@@ -2118,17 +2118,19 @@ T107 → T106
 
 ### T91: Keep legacy analytics explicitly scoped to their business basis
 
+**Status**: Complete - local task gate passed; scoped evidence in task-91-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Adapter dos leitores overview/timeseries/analytics seleciona read model correto pela modalidade, sem misturar coorte/fluxo ou timezone servidor; produtos usam repositórios anteriores.
 **Where**: `apps/api/src/modules/checkout/application/service-overview-routing.ts`
 **Depends on**: T90
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: KPI-01, KPI-05, KPI-07, REG-01
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + service-metrics.integration.spec.ts: duas superfícies públicas de métricas, total/detail/series coerentes e baseline produto idêntico.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit + service-metrics.integration.spec.ts: duas superfícies públicas de métricas, total/detail/series coerentes e baseline produto idêntico.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Unit + service-metrics.integration.spec.ts: duas superfícies públicas de métricas, total/detail/series coerentes e baseline produto idêntico.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T91$" ./src/modules/checkout/application/service-overview-routing.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T91 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.

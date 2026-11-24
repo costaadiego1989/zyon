@@ -19,6 +19,7 @@ import {
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
 import { TenantCredentialGuard } from '../../../../integrations/presentation/http/tenant-credential.guard.js';
 import { TenantAccessGuard } from '../../../../integrations/presentation/http/tenant-access.guard.js';
+import { ProductAnalyticsGuard } from '../../../../checkout/application/service-overview-routing.js';
 import { RequireTenantAccess } from '../../../../integrations/presentation/http/tenant-access.decorator.js';
 
 import { GetDashboardMetricsUseCase, DashboardPeriod } from '../../../../store-analytics/application/use-cases/get-dashboard-metrics.use-case.js';
@@ -42,7 +43,7 @@ import {
 @ApiCookieAuth('console_session')
 @Controller('analytics')
 @UseInterceptors(ResponseEnvelopeInterceptor)
-@UseGuards(TenantCredentialGuard, TenantAccessGuard)
+@UseGuards(TenantCredentialGuard, TenantAccessGuard, ProductAnalyticsGuard)
 export class AnalyticsV1Controller {
   constructor(
     private readonly getDashboardMetrics: GetDashboardMetricsUseCase,

@@ -1,5 +1,6 @@
 import { meteredAiFetch } from "../../shared/ai-metering.js";
 import { Module } from "@nestjs/common";
+import { ProductAnalyticsGuard } from "../checkout/application/service-overview-routing.js";
 import { BILLING_PLAN_ACCESS } from "../payment/domain/ports/billing-plan-access.port.js";
 import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
 import {
@@ -108,6 +109,7 @@ import { StorefrontServiceBookingBridge } from "./application/services/storefron
   ],
   controllers: [StorefrontController, StorefrontCrossSellController, StorefrontRealtimeVoiceController, StorefrontProductContentController, StorefrontProductSubmissionController, StorefrontConsentController],
   providers: [
+    ProductAnalyticsGuard,
     { provide: StorefrontServiceBookingBridge,
       // Reuse the already imported buyer repository/JWT and Checkout exports.
       // Canonical verifier classes need no new module edge or issuance route.
