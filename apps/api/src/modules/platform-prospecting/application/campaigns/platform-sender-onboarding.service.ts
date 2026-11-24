@@ -15,7 +15,7 @@ export interface SenderBindingStore {
 const hash = (state: string) => createHash("sha256").update(state).digest("hex");
 export class PlatformSenderOnboardingService {
   constructor(private readonly config: PlatformSignupConfig, private readonly store: SenderBindingStore, private readonly authorization: WhatsAppSignupAuthorization) {
-    if (![config.appId, config.configId, config.businessId, config.phoneNumberId].every(id => /^\d+$/.test(id)) || !config.appSecret || !/^[a-f0-9]{64}$/i.test(config.encryptionKey)) throw new Error("sender_unavailable");
+    if (![config.appId, config.configId].every(id => /^\d+$/.test(id)) || [config.businessId,config.phoneNumberId].some(id => id !== "" && !/^\d+$/.test(id)) || !config.appSecret || !/^[a-f0-9]{64}$/i.test(config.encryptionKey)) throw new Error("sender_unavailable");
   }
   async signupState(actor: ProspectingActor, clientRequestId:string=randomUUID()): Promise<PlatformSenderSignupState> {
     const sign=(nonce:string)=>nonce+"."+createHmac("sha256",this.config.encryptionKey).update(actor.operatorId+"|"+nonce).digest("base64url");
@@ -26,9 +26,10 @@ export class PlatformSenderOnboardingService {
     return {state:sign(receipt.nonce),expiresAt:receipt.expiresAt,appId:this.config.appId,configId:this.config.configId,signupVersion:"v5",extras:{version:"v5",features:[{name:"whatsapp_business_app_onboarding",enabled:false}]}};
   }
   connect(command: ConnectPlatformSender, actor: ProspectingActor) {
-    return this.store.connect(command, actor, this.config, async () => {
+    const selectedConfig={...this.config,businessId:this.config.businessId||command.businessId,phoneNumberId:this.config.phoneNumberId||command.phoneNumberId};
+    return this.store.connect(command, actor, selectedConfig, async () => {
       if (typeof command.state !== "string" || command.state.length > 128) throw new Error("signup_state_invalid");
-      if (!command.code || typeof command.code !== "string" || command.code.length > 4096 || this.config.businessId !== command.businessId || this.config.phoneNumberId !== command.phoneNumberId || command.isOnBizApp !== false || !/^\d+$/.test(command.wabaId) || !Array.isArray(command.messagingAccountIds) || !command.messagingAccountIds.includes(command.wabaId)) throw new Error("sender_identity_mismatch");
+      if (!command.code || typeof command.code !== "string" || command.code.length > 4096 || ![command.businessId,command.phoneNumberId,command.wabaId].every(id=>typeof id === "string" && /^\d+$/.test(id)) || selectedConfig.businessId !== command.businessId || selectedConfig.phoneNumberId !== command.phoneNumberId || command.isOnBizApp !== false || !Array.isArray(command.messagingAccountIds) || !command.messagingAccountIds.includes(command.wabaId)) throw new Error("sender_identity_mismatch");
       const asset = await this.authorization.authorize(command);
       if (asset.phoneNumberId !== command.phoneNumberId || asset.wabaId !== command.wabaId) throw new Error("sender_identity_mismatch");
       if (!await this.authorization.isSubscribed(asset)) await this.authorization.subscribe(asset);

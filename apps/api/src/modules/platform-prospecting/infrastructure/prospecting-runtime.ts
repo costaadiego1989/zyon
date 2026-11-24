@@ -210,8 +210,6 @@ export function createProspectingRuntime(env: Environment = process.env) {
     [
       signup.appId,
       signup.configId,
-      signup.businessId,
-      signup.phoneNumberId,
     ].every((id) => /^\d+$/.test(id)) &&
     !!signup.appSecret;
   const onboarding = canConnect

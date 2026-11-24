@@ -32,9 +32,10 @@ export class PlatformMetaAuthorization implements WhatsAppSignupAuthorization {
     }
     throw new Error("sender_authorization_unavailable");
   }
-  async authorize(input:{code:string;wabaId:string;phoneNumberId:string}):Promise<MetaCloudAuthorizedAssets>{
-    const {appId,appSecret,businessId,phoneNumberId}=this.config;
-    if(!/^\d+$/.test(input.wabaId)||input.phoneNumberId!==phoneNumberId)throw new Error("sender_identity_mismatch");
+  async authorize(input:{code:string;wabaId:string;phoneNumberId:string;businessId?:string}):Promise<MetaCloudAuthorizedAssets>{
+    const {appId,appSecret}=this.config;
+    const businessId=this.config.businessId||input.businessId,phoneNumberId=this.config.phoneNumberId||input.phoneNumberId;
+    if(![input.wabaId,businessId,phoneNumberId].every(id=>typeof id === "string" && /^\d+$/.test(id))||input.phoneNumberId!==phoneNumberId||input.businessId!==undefined&&input.businessId!==businessId)throw new Error("sender_identity_mismatch");
     const grant=await this.request<GraphData>("oauth/access_token",undefined,{client_id:appId,client_secret:appSecret,code:input.code});
     const token=grant.access_token; if(!token)throw new Error("sender_authorization_unavailable");
     const {data}=await this.request<{data:{is_valid:boolean;app_id:string;granular_scopes?:{scope:string;target_ids?:string[]}[]}}>("debug_token",appId+"|"+appSecret,{input_token:token});
