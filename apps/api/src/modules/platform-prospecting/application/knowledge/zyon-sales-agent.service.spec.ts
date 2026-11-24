@@ -127,6 +127,24 @@ test("CAMP-05 catalog interest qualifies from current generic reviewed facts wit
   assert.equal((await f.conversation.dispatch(result.messageId!)).state,"provider_accepted");assert.deepEqual(f.capture,[SALES_QUALIFICATION]);const audit=await f.prisma.prospectAuditEvent.findFirstOrThrow({where:{action:"sales.reply.prepared"}});assert.equal((audit.details as any).offerVersion,null);
  }finally{await f.close();}
 });
+
+test("CTA QUERO VER continues the campaign conversation using reviewed Zyon context without treating arbitrary text as interest",async()=>{
+ for(const text of ["QUERO VER","Quero ver!","quero ver dados confidenciais"]){
+  const f=await catalogFixture();try{
+   await f.prisma.prospectMessage.update({where:{id:f.inbound.id},data:{content:text}});
+   const questions:string[]=[],requests:SalesLlmRequest[]=[];
+   const agent=new ZyonSalesAgentService(f.commands,f.conversation,{async queryPublishedKnowledge(q){questions.push(q.params.question??"");return q.params.question==="zyon"?[f.fact]:[];}},f.offers,{async respond(i){requests.push(i);return {...f.good,answer:SALES_QUALIFICATION,offer:null,facts:[]};}},{maximumCostCents:10,timeoutMs:100});
+   const result=await agent.respond({conversationId:f.c.id,messageId:f.inbound.id,expectedEpoch:0,query:{operation:"answer_faq",params:{question:text}}});
+   if(text==="quero ver dados confidenciais"){
+    assert.equal(result.messageId,null);assert.equal(result.reason,"knowledge_unavailable");assert.deepEqual(questions,[text]);assert.equal(requests.length,0);assert.deepEqual(f.capture,[]);
+   }else{
+    assert.ok(result.messageId);assert.equal(result.reason,null);assert.deepEqual(questions,[text,"zyon"]);
+    assert.equal(requests[0].input,text);assert.match(requests[0].businessContext!,/lojas de roupas/);assert.equal(requests[0].companyContext?.cnpj,f.lead.cnpj);assert.equal(requests[0].offer,null);
+    assert.equal((await f.conversation.dispatch(result.messageId)).state,"provider_accepted");assert.deepEqual(f.capture,[SALES_QUALIFICATION]);
+   }
+  }finally{await f.close();}
+ }
+});
 test("CAMP-05 catalog selections must match current canonical plan/price/link and changed context or unpublished facts cancels replies",async()=>{
  for(const mode of ["canonical","forged","stale_context","stale_catalog","missing_knowledge"]){const f=await catalogFixture();try{
   const offer=await f.offers.current("growth");const requests:SalesLlmRequest[]=[];

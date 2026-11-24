@@ -20,7 +20,7 @@ export class ZyonSalesAgentService {
       if(context.prepared)return {messageId:context.prepared,reason:null};
       const catalogMode=context.offerPolicy?.mode==="catalog";
       let facts=await this.knowledge.queryPublishedKnowledge(input.query,new Date());
-      if(!facts.length&&catalogMode&&/^(?:sim|quero conhecer|quero saber mais|ol[aá]|oi|quais (?:s[aã]o )?os planos dispon[ií]veis)[.!?\s]*$/iu.test(context.text.trim()))facts=await this.knowledge.queryPublishedKnowledge({operation:"answer_faq",params:{question:"zyon"},limit:10},new Date());
+      if(!facts.length&&catalogMode&&/^(?:sim|quero ver|quero conhecer|quero saber mais|ol[aá]|oi|quais (?:s[aã]o )?os planos dispon[ií]veis)[.!?\s]*$/iu.test(context.text.trim()))facts=await this.knowledge.queryPublishedKnowledge({operation:"answer_faq",params:{question:"zyon"},limit:10},new Date());
       if(!facts.length)throw Error("knowledge_unavailable");
       const values=new Map<string,string>();
       for(const f of facts){
