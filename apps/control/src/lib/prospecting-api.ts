@@ -71,6 +71,16 @@ export class ProspectingApi {
  segment(id:string,signal?:AbortSignal){return this.read<T.ProspectSegmentSummary>(`segments/${encodeURIComponent(id)}`,{},signal);}
  campaigns(cursor?:string,signal?:AbortSignal){return this.read<T.ProspectingPage<T.ProspectCampaign>>("campaigns",{cursor},signal);}
  campaign(id:string,signal?:AbortSignal){return this.read<T.ProspectCampaign>(`campaigns/${encodeURIComponent(id)}`,{},signal);}
+ drafts(cursor?:string,signal?:AbortSignal){return this.read<T.ProspectingPage<T.ProspectCampaignDraft>>("campaign-drafts",{cursor},signal);}
+ draft(id:string,signal?:AbortSignal){return this.read<T.ProspectCampaignDraft>(`campaign-drafts/${encodeURIComponent(id)}`,{},signal);}
+ createDraft(body:T.CreateProspectCampaignDraft,signal?:AbortSignal){return this.write<T.ProspectCampaignDraft>("campaign-drafts",body,"POST",signal);}
+ editDraft(id:string,body:T.EditProspectCampaignDraft,signal?:AbortSignal){return this.write<T.ProspectCampaignDraft>(`campaign-drafts/${encodeURIComponent(id)}`,body,"PATCH",signal);}
+ campaignCompanies(id:string,cursor?:string,signal?:AbortSignal){return this.read<T.CampaignCompanyPage>(`campaign-drafts/${encodeURIComponent(id)}/companies`,{cursor},signal);}
+ addCampaignCompanies(id:string,body:T.ChangeCampaignCompanies,signal?:AbortSignal){return this.write<T.CampaignCompanyChangeResult>(`campaign-drafts/${encodeURIComponent(id)}/companies`,body,"POST",signal);}
+ removeCampaignCompanies(id:string,body:T.ChangeCampaignCompanies,signal?:AbortSignal){return this.write<T.CampaignCompanyChangeResult>(`campaign-drafts/${encodeURIComponent(id)}/companies/remove`,body,"POST",signal);}
+ prepareContext(id:string,body:T.PrepareCampaignContext,signal?:AbortSignal){return this.write<T.CampaignPlanningJob>(`campaign-drafts/${encodeURIComponent(id)}/context-preparations`,body,"POST",signal);}
+ contextPreparation(id:string,job:string,signal?:AbortSignal){return this.read<T.CampaignPlanningJob>(`campaign-drafts/${encodeURIComponent(id)}/context-preparations/${encodeURIComponent(job)}`,{},signal);}
+ prepareCampaign(id:string,body:T.ProspectingCommand & {expectedRevision:number;templateRegistryId?:string},signal?:AbortSignal){return this.write<T.ProspectAudienceJob>(`campaign-drafts/${encodeURIComponent(id)}/prepare`,body,"POST",signal);}
  recipients(id:string,cursor?:string,signal?:AbortSignal){return this.read<T.ProspectingPage<T.CampaignRecipientRecord>>(`campaigns/${encodeURIComponent(id)}/recipients`,{cursor},signal);}
  selection(id:string,selection:string,signal?:AbortSignal){return this.read<T.ProspectAudienceJob>(`campaigns/${encodeURIComponent(id)}/selections/${encodeURIComponent(selection)}`,{},signal);}
  conversations(query:T.ProspectConversationQuery={},signal?:AbortSignal){return this.read<T.ProspectingPage<T.ProspectConversation>>("conversations",query,signal);}

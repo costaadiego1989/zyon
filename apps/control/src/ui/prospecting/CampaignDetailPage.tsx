@@ -33,7 +33,7 @@ function CampaignList({ api, onSessionExpired, navigate }: PageProps) {
       </header>
       <div>
         <Button primary onClick={() => navigate({ area: "campaigns", filters: { view: "edit" } })}>
-          Preparar campanha
+          Criar campanha
         </Button>
       </div>
       {!list.data ? (
@@ -43,7 +43,7 @@ function CampaignList({ api, onSessionExpired, navigate }: PageProps) {
           {!list.data.items.length && <ProspectingState state="empty" message="Nenhuma campanha criada." />}
           {list.data.items.map((c) => (
             <div key={c.id} className="prospecting-row">
-              <Button onClick={() => navigate({ area: "campaigns", id: c.id })}>{c.name}</Button>
+              <Button onClick={() => navigate({ area: "campaigns", id: c.id,...(c.setupVersion===2?{filters:{view:"edit"}}:{}) })}>{c.name}</Button>
               <span>{campaignStates[c.state]}</span>
               <span>{c.recipientCount} destinatários</span>
             </div>

@@ -10,7 +10,7 @@ import { ProspectingChannelPage } from "./ProspectingChannelPage.js";
 import { SalesKnowledgePage } from "./SalesKnowledgePage.js";
 import { ProspectingInbox } from "./ProspectingInbox.js";
 import { CampaignDetailPage } from "./CampaignDetailPage.js";
-import { CampaignComposer } from "./CampaignComposer.js";
+import { CampaignWorkspace } from "./CampaignWorkspace.js";
 import { ProspectDetailPage } from "./ProspectDetailPage.js";
 import { CompanySearchPage } from "./CompanySearchPage.js";
 import { ProspectingPrivacyPage } from "./ProspectingPrivacyPage.js";
@@ -99,7 +99,7 @@ export function ProspectingArea({
             );
           case "campaigns":
             return route.filters?.view === "edit" ? (
-              <CampaignComposer {...props} id={route.id} />
+              <CampaignWorkspace {...props} id={route.id} />
             ) : (
               <CampaignDetailPage {...props} id={route.id} />
             );

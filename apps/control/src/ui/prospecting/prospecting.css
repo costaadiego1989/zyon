@@ -147,6 +147,23 @@ dialog.prospect-lead-drawer {
   .prospect-lead-drawer > .detail-drawer__content { padding-bottom:max(1.5rem,env(safe-area-inset-bottom)); }
 }
 .prospecting-page > section { display: grid; gap: .65rem; min-width: 0; }
+.campaign-workspace .campaign-create { width: min(100%, 42rem); gap: 1rem; }
+.campaign-workspace .campaign-create > p, .campaign-workspace .campaign-context > p,
+.campaign-workspace .campaign-step > p { max-width: 70ch; line-height: 1.55; }
+.campaign-workspace .campaign-context { padding-block: .25rem 1.25rem; }
+.campaign-workspace .campaign-context .prospecting-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); align-items: start; }
+.campaign-workspace .campaign-step { padding-block: 1.25rem; border-top: 1px solid var(--line); }
+.campaign-workspace .campaign-step h3 { font-size: 1rem; margin: 0; }
+.campaign-workspace .campaign-step > .button { justify-self: start; }
+.campaign-message-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.campaign-workspace .campaign-step > .button + .button { margin-top: .25rem; }
+@media (max-width: 760px) {
+ .campaign-workspace .campaign-context .prospecting-fields { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+ .campaign-workspace .prospecting-fields--limits { grid-template-columns: minmax(0, 1fr); }
+ .campaign-workspace .prospecting-fields--limits > label:last-child { grid-column: auto; }
+}
 .prospecting-row > *, .prospecting-actions > * { min-width: 0; max-width: 100%; }
 .prospecting-page .prospecting-check { flex-wrap: nowrap; align-items: flex-start; }
 .prospecting-check input[type=checkbox] { flex-shrink: 0; }
