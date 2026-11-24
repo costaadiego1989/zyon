@@ -88,6 +88,7 @@ const CatalogPage = lazy(() => import("../pages/catalog-page.js").then(m => ({ d
 const ReviewsPage = lazy(() => import("../pages/reviews/ReviewsPage.js").then(m => ({ default: m.ReviewsPage })));
 const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").then(m => ({ default: m.ProductDetailPage })));
 const ServiceAttendancePage = lazy(() => import("../pages/service-attendance/ServiceAttendancePage.js").then(m => ({ default: m.ServiceAttendancePage })));
+const ServiceAppointmentsPage = lazy(() => import("../pages/service-appointments/ServiceAppointmentsPage.js").then(m => ({ default: m.ServiceAppointmentsPage })));
 const CategoriesPage = lazy(() => import("../pages/categories/index.js"));
 const StoreSettingsPage = lazy(() => import("../pages/store-settings/index.js").then(m => ({ default: m.StoreSettingsPage })));
 const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(m => ({ default: m.AgentConfigPage })));
@@ -718,6 +719,9 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "service-attendance" ? canManageServiceAttendance(me)
               ? <RouteGuard me={me} require="service-attendance"><ServiceAttendancePage key={serviceScope} me={me} /></RouteGuard>
               : <div><PageHeader title="Atendimento" /><EmptyState icon={CalendarDays} title="Atendimento indisponível para esta conta" description="A gestão de atendimento exige uma empresa de serviços e permissão de administração." /></div> : null}
+            {tab === "service-appointments" ? canManageServiceAttendance(me)
+              ? <RouteGuard me={me} require="service-appointments"><ServiceAppointmentsPage key={serviceScope} me={me} /></RouteGuard>
+              : <div><PageHeader title="Agendamentos" /><EmptyState icon={CalendarDays} title="Agendamentos indisponíveis para esta conta" description="Esta área exige uma empresa de serviços e permissão de administração." /></div> : null}
             {tab === "reviews" ? (
               <RouteGuard me={me} require="reviews">
                 <PremiumFeatureGate

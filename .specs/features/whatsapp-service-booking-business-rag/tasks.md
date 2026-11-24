@@ -2341,6 +2341,8 @@ T107 → T106
 
 ### T103: Present the service-only appointments Kanban and list
 
+**Status**: Complete - local task gate passed; scoped evidence in task-103-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Add Agendamentos with Kanban/list, detail/actions and filters, using the canonical view model. Replace only the service-business primary Orders menu entry, preserve separate Atendimento management and authorized historical Orders access, and enforce mode/role/plan across menu/direct URL/mobile/merchant switches.
 **Where**: `apps/dashboard/src/pages/service-appointments-page.tsx`
 **Depends on**: T102, T80, T83
@@ -2349,12 +2351,12 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Actual browser list/Kanban/filter/detail/action gestures share IDs/counts and canonical versioned commands; conflicts retain prior data. Keyboard/mobile alternatives work without drag.
-- [ ] Services see Agendamentos and separate Atendimento; products keep existing Orders and cannot open the service route. Plan/role restrictions, reload/back/direct URL/command palette/merchant switching hold; stored Orders history is unchanged.
-- [ ] Old/new component regressions, dashboard build/typecheck and local authenticated browser gates pass; share genuine desktop/mobile screenshots and mark complete before an atomic local commit.
+- [x] Actual browser list/Kanban/filter/detail/action gestures share IDs/counts and canonical versioned commands; conflicts retain prior data. Keyboard/mobile alternatives work without drag.
+- [x] Services see Agendamentos and separate Atendimento; products keep existing Orders and cannot open the service route. Plan/role restrictions, reload/back/direct URL/command palette/merchant switching hold; stored Orders history is unchanged.
+- [x] Old/new component regressions, dashboard build/typecheck and local authenticated browser gates pass; share genuine desktop/mobile screenshots and mark complete before an atomic local commit.
 
 **Tests**: New `src/pages/service-appointments-page.spec.tsx`, `e2e/service-appointments-board.spec.ts` root ATEND-11 and `e2e/service-appointments-navigation.spec.ts` root ATEND-12, plus unchanged Orders/shell regressions. Real local API/SQL synthetic appointments and order-only historical sentinel; no PSP/provider.
-**Gate**: Browser/UI build: unfiltered new page/view-model and existing Orders/shell/service-management files recorded before execution; dashboard typecheck/local build; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-appointments-board.spec.ts e2e/service-appointments-navigation.spec.ts`.
+**Gate**: Browser/UI build: unfiltered new page/view-model and existing Orders/shell/service-management files recorded before execution; dashboard typecheck/local build; `pnpm --dir apps/dashboard exec playwright test --config playwright.service-appointments-board.config.ts e2e/service-appointments-board.spec.ts e2e/service-appointments-navigation.spec.ts`.
 **Commit**: `feat(service-business): t103 present service appointments kanban`
 
 ### Phase 17: Catalog interaction refinements

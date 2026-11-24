@@ -181,8 +181,28 @@ export async function prepareAppointmentJourneyFixtures(runtime){
     })());
     return routesStaffCases.get(caseKey);
   };
+  // Only the board module calls this existing-register/service base constructor.
+  // It creates no appointments; board cases add exactly their seven real admissions.
+  const boardBase=async(caseKey,navigation=false)=>{
+    assert.equal(typeof caseKey,'string');assert.match(caseKey,/^[a-f0-9]{64}$/);assert.equal(typeof navigation,'boolean');
+    const auth=await register('services','board-'+caseKey.slice(0,12),'scale');
+    Object.assign(auth,await service(auth,'quadro local','at_attendance'));
+    await request('/merchants/me/store-settings','PUT',{policies:{returns:savedPolicies.policies.returns}},auth);
+    let childStoreId,childStoreName;
+    if(navigation){
+      const child=await request('/merchants/me/stores','POST',{name:'Loja de produtos local'},auth);
+      const childAuth=await request(`/merchants/me/stores/${child.id}/activate`,'POST',{},auth);
+      assert.equal(childAuth.merchant_id,child.id);assert.equal(childAuth.user_id,auth.user_id);
+      await declare(childAuth,'scale');
+      await runtime.db.sql(`UPDATE merchants SET business_mode='products',business_mode_selected_at=now(),business_mode_needs_review=false WHERE id=${sql(child.id)};`);
+      const rawProfile=await request('/merchants/me','GET',undefined,childAuth);assert.equal((rawProfile.data??rawProfile).businessMode,'products');
+      childStoreId=child.id;childStoreName=child.name;
+    }
+    const value={...auth,appointments:{},fixtureId:randomUUID(),runId:runtime.db.runId,baseDate,toDate,operationsDate:day(baseDate,2),manualDate:day(baseDate,3),...(navigation?{childStoreId,childStoreName}:{})};
+    fixtures.set(value.fixtureId,value);return value;
+  };
   console.log('service_appointment_journey_seed_inventory',JSON.stringify({registrations:6,canonicalAppointmentAdmissions:32,totalHttp:inventory.length,actualStatuses:inventory.map(row=>row.status),noQuotaReset:true}));
-  return{scenarios,fixtures,inventory,manualLocal,operationsLocal,routesLocal,routesStaff};
+  return{scenarios,fixtures,inventory,manualLocal,operationsLocal,routesLocal,routesStaff,boardBase};
 }
 
 /** Private opt-in test-server reads; never installed in AppModule/production. */
@@ -195,9 +215,10 @@ export function installAppointmentJourneyFixture(vite,runtime,prepared){
       let fixture=scenario?prepared.scenarios.get(scenario[1]):prepared.fixtures.get(snapshot[1]);
       if(scenario&&request.headers['x-service-local-journey-purpose']!==undefined){
         const purpose=request.headers['x-service-local-journey-purpose'];
-        assert.ok(['manual-local','operations-local','routes-local','routes-staff'].includes(purpose));
+        assert.ok(['manual-local','operations-local','routes-local','routes-staff','board-local','board-navigation-local'].includes(purpose));
         assert.equal(scenario[1],purpose==='routes-staff'?'staff':'local');
-        const factory=purpose==='manual-local'?prepared.manualLocal:purpose==='operations-local'?prepared.operationsLocal:purpose==='routes-local'?prepared.routesLocal:prepared.routesStaff;
+        const factory=purpose==='manual-local'?prepared.manualLocal:purpose==='operations-local'?prepared.operationsLocal:purpose==='routes-local'?prepared.routesLocal:purpose==='routes-staff'?prepared.routesStaff:purpose==='board-local'?prepared.boardLocal:prepared.boardNavigationLocal;
+        assert.equal(typeof factory,'function','owned_journey_purpose_not_installed');
         fixture=await factory(request.headers['x-service-local-journey-case']);
       }
       if(!fixture){response.statusCode=404;response.end('unknown_owned_fixture');return;}

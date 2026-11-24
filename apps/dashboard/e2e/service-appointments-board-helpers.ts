@@ -1,0 +1,15 @@
+import {expect,type APIRequestContext,type Page} from '@playwright/test';
+import {snapshot,type JourneyFixture} from './service-appointment-journey-helpers.js';
+export interface BoardFacts {runId:string;fixtureId:string;date:string;boardIds:Record<string,string>;secondaryAppointmentId:string;secondaryProductId:string;secondaryProfessionalId:string;orderId:string;externalOrderId:string}
+export const states=['pending','scheduled','in_service','completed','no_show','cancelled'] as const;
+export const labels=['Pendente','Agendado','Em atendimento','Concluído','Não compareceu','Cancelado'] as const;
+const headers=()=>({'x-service-local-run-id':process.env.SERVICE_LOCAL_RUN_ID??''});
+export async function boardFacts(request:APIRequestContext,seed:JourneyFixture):Promise<BoardFacts>{const response=await request.get('/__service/appointment-board/'+seed.fixtureId,{headers:headers()});expect(response.status()).toBe(200);const value=await response.json();expect(value.runId).toBe(seed.runId);expect(value.fixtureId).toBe(seed.fixtureId);return value;}
+export async function historicalBoardFacts(request:APIRequestContext,seed:JourneyFixture):Promise<Pick<BoardFacts,'runId'|'fixtureId'|'date'|'orderId'|'externalOrderId'>>{const response=await request.get('/__service/appointment-board/'+seed.fixtureId,{headers:headers()});expect(response.status()).toBe(200);const value=await response.json();expect(value.runId).toBe(seed.runId);expect(value.fixtureId).toBe(seed.fixtureId);return value;}
+export interface NavigationBoardFacts extends Pick<BoardFacts,'runId'|'fixtureId'|'date'|'orderId'|'externalOrderId'> {navigationAppointmentId:string}
+export async function navigationBoardFacts(request:APIRequestContext,seed:JourneyFixture):Promise<NavigationBoardFacts>{const response=await request.get('/__service/appointment-board/'+seed.fixtureId,{headers:headers()});expect(response.status()).toBe(200);const value=await response.json();expect(value.runId).toBe(seed.runId);expect(value.fixtureId).toBe(seed.fixtureId);expect(typeof value.navigationAppointmentId).toBe('string');expect(value.navigationAppointmentId).toBe(seed.appointments.scheduled);return value;}
+export async function orderFacts(request:APIRequestContext,seed:JourneyFixture){const response=await request.get('/__service/appointment-board/'+seed.fixtureId+'/orders',{headers:headers()});expect(response.status()).toBe(200);const value=await response.json();expect(value.runId).toBe(seed.runId);return value;}
+export async function boardSnapshot(request:APIRequestContext,seed:JourneyFixture){return{...await snapshot(request,seed),history:await orderFacts(request,seed)};}
+export const boardHash=(facts:Pick<BoardFacts,'date'>)=>`#service-appointments?fromDate=${facts.date}&toDate=${facts.date}`;
+export async function screenIds(page:Page){return(await page.locator('[data-appointment-id]').evaluateAll(rows=>rows.map(row=>(row as HTMLElement).dataset.appointmentId!))).sort();}
+export function expectedCounts(rows:Array<{status:string}>){return Object.fromEntries(states.map(status=>[status,rows.filter(row=>row.status===status).length]));}

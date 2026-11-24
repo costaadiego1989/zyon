@@ -14,8 +14,10 @@ export async function fixture(request:APIRequestContext,name:string):Promise<Jou
   const routesFile=basename(info.file)==='service-appointments-routes.spec.ts';
   const routesLocal=routesFile&&name==='local'&&info.title==='T83 real Back/refresh and authorized store activation fence the previous merchant service surface';
   const routesStaff=routesFile&&name==='staff'&&info.title==='T83 actual Staff profile403 never becomes a forged management profile or private booking read';
-  // T103 pagination keeps its original32; only these two non-pagination cases opt in.
-  const purpose=manualLocal?'manual-local':operationsLocal?'operations-local':routesLocal?'routes-local':routesStaff?'routes-staff':undefined;
+  const boardLocal=name==='local'&&basename(info.file)==='service-appointments-board.spec.ts'&&["ATEND-11 six persisted states and separate finance share exact canonical IDs/counts in Kanban and list", "ATEND-11 period/professional/service/category/status gestures use the same server selector after refresh", "ATEND-11 mobile keyboard detail and a real stale command preserve prior version/finance until explicit reload"].includes(info.title);
+  const boardNavigationLocal=name==='local'&&basename(info.file)==='service-appointments-navigation.spec.ts';
+  // Both pagination cases keep the original32; board/non-pagination owners are private per case.
+  const purpose=manualLocal?'manual-local':operationsLocal?'operations-local':routesLocal?'routes-local':routesStaff?'routes-staff':boardLocal?'board-local':boardNavigationLocal?'board-navigation-local':undefined;
   const caseHeaders:Record<string,string>=purpose?{'x-service-local-journey-purpose':purpose,'x-service-local-journey-case':createHash('sha256').update(info.testId).digest('hex')}:{};
   const reply=await request.get('/__service/appointment-journeys/'+name,{headers:{...fixtureHeaders(),...caseHeaders}});expect(reply.status()).toBe(200);const value=await reply.json();expect(value.runId).toBe(owned.runId);return value;
 }
