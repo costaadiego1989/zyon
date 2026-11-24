@@ -1,5 +1,6 @@
 import {
   Activity,
+  CalendarDays,
   Landmark,
   AlertTriangle,
   Bot,
@@ -67,6 +68,8 @@ export type TabKey =
   | "catalog"
   | "reviews"
   | "product-detail"
+  | "service-attendance"
+  | "service-appointments"
   | "categories"
   | "store-settings"
   | "custom-domain"
@@ -148,9 +151,11 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "overview", label: "Visão Geral", section: "daily", icon: Activity, keywords: ["dashboard", "home", "resumo", "métricas"] },
   { key: "finance", label: "Financeiro", section: "daily", icon: Landmark, requiredPlan: STORE, keywords: ["financeiro", "finance", "transações", "receita", "reembolsos", "relatórios"] },
   { key: "shipments", label: "Pedidos e envios", section: "daily", icon: PackageSearch, requiredPlan: STORE, badgeKey: "orders", keywords: ["pedidos", "orders", "envios", "shipments", "entregas"] },
+  { key: "service-appointments", label: "Agendamentos", section: "daily", icon: CalendarDays, keywords: ["agenda", "agendamentos", "serviços", "consultas", "kanban"] },
+  { key: "service-attendance", label: "Atendimento", section: "daily", icon: CalendarDays, keywords: ["profissionais", "serviços", "horários", "disponibilidade"] },
   { key: "customers", label: "Clientes", section: "daily", icon: UsersRound, requiredPlan: STORE, keywords: ["clientes", "customers", "compradores"] },
   { key: "cart-recovery", label: "Recuperação de carrinho", section: "daily", icon: ShoppingCart, requiredPlan: STORE, badgeKey: "cart-recovery", keywords: ["carrinho", "cart", "recovery", "abandonado", "recuperação"] },
-  { key: "support", label: "Atendimento", section: "daily", icon: MessageSquare, badgeKey: "messages", keywords: ["suporte", "support", "atendimento", "chamados", "tickets", "mensagens"] },
+  { key: "support", label: "Suporte", section: "daily", icon: MessageSquare, badgeKey: "messages", keywords: ["suporte", "support", "atendimento", "chamados", "tickets", "mensagens"] },
 
   // ─── VENDAS ─── otimização de conversão
   { key: "funnel", label: "Funil de conversão", section: "sales", icon: BarChart3, requiredPlan: STORE, keywords: ["funil", "funnel", "conversão", "conversion"] },
@@ -216,4 +221,12 @@ export function visibleItemsForPlan(items: NavItem[], plan: MerchantPlan): NavIt
     const allowed = Array.isArray(item.requiredPlan) ? item.requiredPlan : [item.requiredPlan];
     return allowed.includes(effectivePlan);
   });
+}
+
+/** Mode changes the business surface. Role and plan filters remain independent. */
+export function navigationForBusiness(items: NavItem[], profile: import("../lib/auth/permissions.js").SupportPermissionProfile | null | undefined): NavItem[] {
+  const services = profile?.businessMode === "services" && profile.businessModeSelectionState === "selected";
+  const manage = services && Boolean(profile.id?.trim() && profile.user_id?.trim()) && (profile.role === "OWNER" || profile.role === "ADMIN");
+  return items.filter(item => item.key === "service-attendance" || item.key === "service-appointments" ? manage : !(services && item.key === "shipments"))
+    .map(item => services && item.key === "catalog" ? { ...item, label: "Serviços" } : item);
 }

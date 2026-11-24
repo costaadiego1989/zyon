@@ -1878,20 +1878,22 @@ T107 → T106
 
 ### T82: Separate Atendimento from the existing Suporte navigation
 
+**Status**: Complete - local task gate passed; scoped evidence in task-82-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Nova chave service-attendance apenas services, support rotulada Suporte preservando FAQ/chamados; foco de catálogo Serviços; plano/modo/role independentes e histórico preservado. Add service-only Agendamentos as the primary Orders replacement while retaining separate Atendimento management and an authorized historical Orders path. Product Orders navigation remains unchanged; T103 owns the actual new board route.
 **Where**: `apps/dashboard/src/shell/nav-config.ts`
 **Depends on**: T81
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-01, HUM-08, KPI-01, REG-01
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] nav-config.business-mode.spec.ts: produtos/serviços, planos/roles, sem menu de agenda em produto e suporte/conversas acessíveis.
-- [ ] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] nav-config.business-mode.spec.ts: produtos/serviços, planos/roles, sem menu de agenda em produto e suporte/conversas acessíveis.
+- [x] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: nav-config.business-mode.spec.ts: produtos/serviços, planos/roles, sem menu de agenda em produto e suporte/conversas acessíveis.
-**Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/shell/nav-config.spec.ts -t "^T82$"` Teste raiz T82 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/shell/nav-config.business-mode.spec.ts`. Whole original files, no name filters/skips; original resources, workers, timeouts, cleanup, all adopted affected regressions and final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t82 separate atendimento from the existing suporte navigation`
 
 ### T83: Guard and mount the service route in the shell
