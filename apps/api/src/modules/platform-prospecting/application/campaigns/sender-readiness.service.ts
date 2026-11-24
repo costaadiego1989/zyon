@@ -1,6 +1,6 @@
 import type { ContactPermissionStatus, ProspectCampaign, PlatformSenderBinding, PlatformSenderReadiness, ProspectingBlocker, ProspectingTemplate } from "@zyon/shared-types";
 
-export interface PlatformSenderCredential {binding:PlatformSenderBinding;accessToken:string;businessId:string}
+export interface PlatformSenderCredential {binding:PlatformSenderBinding;accessToken:string;businessId:string;authorizationMethod?:"system_user";systemUserId?:string}
 export interface SenderObservationStore {
  credential():Promise<PlatformSenderCredential|null>;
  save(binding:PlatformSenderBinding,result:PlatformSenderReadiness):Promise<boolean>;

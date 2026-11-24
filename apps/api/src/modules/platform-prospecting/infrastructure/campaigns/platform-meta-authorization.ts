@@ -10,7 +10,7 @@ interface GraphData {
 }
 interface Phone {id:string;status?:string;platform_type?:string;display_phone_number?:string;whatsapp_business_api_data?:{id:string}}
 export class PlatformMetaAuthorization implements WhatsAppSignupAuthorization {
-  constructor(private readonly config: PlatformSignupConfig, private readonly fetcher:typeof fetch=fetch) {}
+  constructor(private readonly config: Pick<PlatformSignupConfig,"appId"|"appSecret"|"businessId"|"phoneNumberId"|"wabaId"|"systemUserId"|"systemUserAccessToken">, private readonly fetcher:typeof fetch=fetch) {}
   private async request<T>(path:string, token?:string, query:Record<string,string>={}, post?:Record<string,string>):Promise<T> {
     const url=new URL(path,platformGraph);
     for(const [name,value] of Object.entries(query)) url.searchParams.set(name,value);

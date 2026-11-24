@@ -8,9 +8,11 @@ export class PrismaSenderObservationStore implements SenderObservationStore {
  constructor(private readonly prisma:PrismaClient,private readonly key:string){if(!/^[a-f0-9]{64}$/i.test(key))throw new Error("sender_unavailable");}
  async credential(){
   const row=await this.prisma.platformProspectSenderBinding.findFirst({where:{active:true,scope:"zyon_platform"}});if(!row)return null;
-  const grants=row.grantedAssets as {businessId?:string;expiresAt?:string|null}|null;
+  const grants=row.grantedAssets as {businessId?:string;expiresAt?:string|null;authorizationMethod?:string;systemUserId?:string}|null;
   if(!grants||typeof grants.businessId!=="string"||!/^\d+$/.test(grants.businessId)||![row.appId,row.wabaId,row.phoneNumberId].every(id=>/^\d+$/.test(id))||grants.expiresAt!=null&&!(Date.parse(grants.expiresAt)>Date.now()))return null;
-  return {binding:publicSender(row),businessId:grants.businessId,accessToken:decryptPii(row.encryptedCredentials,{AACP_PII_ENC_KEY:this.key})};
+  const own=grants.authorizationMethod==="system_user";
+  if(grants.authorizationMethod!==undefined&&!own||own&&(typeof grants.systemUserId!=="string"||!/^\d+$/.test(grants.systemUserId)))return null;
+  return {binding:publicSender(row),businessId:grants.businessId,accessToken:decryptPii(row.encryptedCredentials,{AACP_PII_ENC_KEY:this.key}),...(own?{authorizationMethod:"system_user" as const,systemUserId:grants.systemUserId}:{})};
  }
  async save(binding:PlatformSenderBinding,result:PlatformSenderReadiness){
   const observed=new Date(result.updatedAt);

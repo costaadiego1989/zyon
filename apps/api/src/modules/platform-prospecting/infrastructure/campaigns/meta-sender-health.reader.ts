@@ -2,7 +2,7 @@ import {createHash} from "node:crypto";
 import type {ProspectingBlocker,ProspectingTemplate} from "@zyon/shared-types";
 import type {HealthObservation,PlatformSenderCredential,SenderHealthReader} from "../../application/campaigns/sender-readiness.service.js";
 import {stableDirectoryJson} from "../../domain/company-directory/directory-values.js";
-import {platformGraph} from "./platform-meta-authorization.js";
+import {platformGraph,PlatformMetaAuthorization} from "./platform-meta-authorization.js";
 type Entity={entity_type:string;id:string;can_send_message:string;errors?:{error_code:number}[]};
 type Phone={id:string;status:string;platform_type:string;quality_rating:string;whatsapp_business_manager_messaging_limit:string;health_status?:{can_send_message:string;entities:Entity[]}};
 type Template=Omit<ProspectingTemplate,"wabaId"|"revision">&{components:unknown[]};
@@ -27,12 +27,17 @@ export class MetaSenderHealthReader implements SenderHealthReader {
   const response=await this.fetcher(url,{headers:{Authorization:"Bearer "+token},redirect:"error",signal:AbortSignal.timeout(5000)});
   if(!response.ok)throw new Error("sender_unavailable");return await response.json() as T;
  }
- async read({binding:b,businessId,accessToken}:PlatformSenderCredential):Promise<HealthObservation>{
+ async read(credential:PlatformSenderCredential):Promise<HealthObservation>{
+  const {binding:b,businessId,accessToken}=credential;
   const blockers=new Set<ProspectingBlocker>();
   if(b.appId!==this.app.appId||!this.app.appSecret)throw new Error("sender_identity_mismatch");
-  const debug=await this.get<{data:{is_valid:boolean;app_id:string;granular_scopes?:{scope:string;target_ids?:string[]}[]}}>("debug_token",this.app.appId+"|"+this.app.appSecret,{input_token:accessToken});
-  if(debug.data?.app_id!==b.appId)blockers.add("sender_identity_mismatch");
-  if(debug.data?.is_valid!==true||!["whatsapp_business_management","whatsapp_business_messaging"].every(s=>debug.data?.granular_scopes?.some(g=>g.scope===s&&g.target_ids?.includes(b.wabaId))))blockers.add("permission_unavailable");
+  if(credential.authorizationMethod==="system_user"){
+   await new PlatformMetaAuthorization({...this.app,businessId,phoneNumberId:b.phoneNumberId,wabaId:b.wabaId,systemUserId:credential.systemUserId,systemUserAccessToken:accessToken},this.fetcher).authorizeSystemUser();
+  }else{
+   const debug=await this.get<{data:{is_valid:boolean;app_id:string;granular_scopes?:{scope:string;target_ids?:string[]}[]}}>("debug_token",this.app.appId+"|"+this.app.appSecret,{input_token:accessToken});
+   if(debug.data?.app_id!==b.appId)blockers.add("sender_identity_mismatch");
+   if(debug.data?.is_valid!==true||!["whatsapp_business_management","whatsapp_business_messaging"].every(s=>debug.data?.granular_scopes?.some(g=>g.scope===s&&g.target_ids?.includes(b.wabaId))))blockers.add("permission_unavailable");
+  }
   const phone=await this.get<Phone>(b.phoneNumberId,accessToken,{fields:"id,status,platform_type,quality_rating,health_status,whatsapp_business_manager_messaging_limit"});
   const observed=phone.health_status?.entities??[];
   const expected:Record<string,string>={PHONE_NUMBER:b.phoneNumberId,WABA:b.wabaId,BUSINESS:businessId,APP:b.appId};

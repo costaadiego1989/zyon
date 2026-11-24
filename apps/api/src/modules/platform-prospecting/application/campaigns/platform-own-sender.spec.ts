@@ -5,6 +5,9 @@ import {PlatformSenderOnboardingService} from "./platform-sender-onboarding.serv
 import {PrismaSenderBindingRepository} from "../../infrastructure/campaigns/prisma-sender-binding.repository.js";
 import {createProspectCrmFixture} from "../../../../../tests/prospect-crm-fixture.js";
 import {decryptPii} from "../../../../shared/crypto/pii-cipher.service.js";
+import {PrismaSenderObservationStore} from "../../infrastructure/campaigns/prisma-sender-observation.store.js";
+import {MetaSenderHealthReader} from "../../infrastructure/campaigns/meta-sender-health.reader.js";
+import {SenderReadinessService} from "./sender-readiness.service.js";
 
 const ownConfig={appId:"11",configId:"12",businessId:"13",phoneNumberId:"14",wabaId:"15",systemUserId:"16",systemUserAccessToken:"own-dedicated-test-token",appSecret:"own-fixture-secret",encryptionKey:"a".repeat(64)};
 function provider(){
@@ -113,4 +116,20 @@ test("OWN-SENDER AC7 actual runtime selects its dedicated own-business grant whi
  const f=await createProspectCrmFixture(),p=provider();const {readProspectingTestConfig}=await import("../../../../../tests/prospecting-fixture.js"),{createProspectingRuntime}=await import("../../infrastructure/prospecting-runtime.js");const c=readProspectingTestConfig();const fetchMock=mock.method(globalThis,"fetch",p.fetcher);
  const runtime=createProspectingRuntime({PROSPECTING_ENABLED:"true",PROSPECTING_RUN_WORKERS:"false",PROSPECTING_DATABASE_URL:f.databaseUrl,PROSPECTING_DIRECTORY_DATABASE_URL:f.databaseUrl,PROSPECTING_NEO4J_READ_URI:c.neo4jUri,PROSPECTING_NEO4J_INGEST_URI:c.neo4jUri,PROSPECTING_NEO4J_READ_USER:c.neo4jUser,PROSPECTING_NEO4J_INGEST_USER:c.neo4jUser,PROSPECTING_NEO4J_READ_PASSWORD:c.neo4jPassword,PROSPECTING_NEO4J_INGEST_PASSWORD:c.neo4jPassword,PROSPECTING_SUPPRESSION_HMAC_KEY:"b".repeat(64),PROSPECTING_CURSOR_HMAC_KEY:"c".repeat(64),PROSPECTING_SENDER_ENCRYPTION_KEY:ownConfig.encryptionKey,PROSPECTING_PROPOSAL_SECRET:"own-sender-proposal-secret-valid-long-value",PROSPECTING_PROPOSAL_TTL_SECONDS:"600",PROSPECTING_DASHBOARD_ORIGIN:"https://app.example.test",PROSPECTING_META_APP_ID:"11",PROSPECTING_META_CONFIG_ID:"12",PROSPECTING_META_APP_SECRET:ownConfig.appSecret,PROSPECTING_META_BUSINESS_ID:"13",PROSPECTING_META_PHONE_NUMBER_ID:"14",PROSPECTING_META_WABA_ID:"15",PROSPECTING_META_SYSTEM_USER_ID:"16",PROSPECTING_META_SYSTEM_USER_ACCESS_TOKEN:ownConfig.systemUserAccessToken});
  try{const preview=await runtime.onboarding.signupState(actor,"runtime-own");assert.equal(preview.authorizationMethod,"system_user");assert.equal(preview.existingSender?.phoneNumberId,"14");assert.equal(runtime.status.config().dispatchMode,"disabled");assert.equal(runtime.status.config().ingestionEnabled,false);assert.equal(p.calls.every(x=>x.method==="GET"),true);}finally{fetchMock.mock.restore();await runtime.onModuleDestroy();await f.close();}
+});
+
+test("OWN-SENDER AC3 persisted system-user health rechecks the live scoped identity and never exposes the separate credential",async()=>{
+ const f=await ownFixture();try{
+  const s=await f.service.signupState(actor);const binding=await f.service.connect({clientRequestId:"health-own",state:s.state,authorizationMethod:"system_user"},actor);
+  f.bodies["14"]={id:"14",status:"CONNECTED",platform_type:"CLOUD_API",quality_rating:"GREEN",whatsapp_business_manager_messaging_limit:"TIER_250",health_status:{can_send_message:"AVAILABLE",entities:Object.entries({PHONE_NUMBER:"14",WABA:"15",BUSINESS:"13",APP:"11"}).map(([entity_type,id])=>({entity_type,id,can_send_message:"AVAILABLE"}))}};
+  f.bodies["15/message_templates"]={data:[{id:"own-template",name:"own_template",language:"pt_BR",category:"MARKETING",status:"APPROVED",components:[{type:"BODY",text:"Synthetic reviewed message."}]}]};
+  const svc=new SenderReadinessService(new PrismaSenderObservationStore(f.prisma,ownConfig.encryptionKey),new MetaSenderHealthReader(ownConfig,f.fetcher));
+  const healthy=await svc.readiness();assert.equal(healthy.status,"ready");assert.equal(healthy.binding?.id,binding.id);assert.equal(healthy.portfolioLimit,250);
+  for(const fault of [(d:any)=>d.user_id="99",(d:any)=>d.is_valid=false,(d:any)=>d.type="USER",(d:any)=>d.scopes=["whatsapp_business_management"]]){
+   const saved=structuredClone(f.bodies.debug_token.data);fault(f.bodies.debug_token.data);const bad=await svc.readiness();assert.notEqual(bad.status,"ready");assert.equal(bad.binding?.id,binding.id);assert.equal(JSON.stringify(bad).includes(ownConfig.systemUserAccessToken),false);f.bodies.debug_token.data=saved;
+  }
+  const row=await f.prisma.platformProspectSenderBinding.findUniqueOrThrow({where:{id:binding.id}});assert.equal(JSON.stringify([healthy,row.health]).includes(ownConfig.systemUserAccessToken),false);
+  await f.prisma.platformProspectSenderBinding.update({where:{id:binding.id},data:{grantedAssets:{businessId:"13"}}});
+  const embedded=await svc.readiness();assert.equal(embedded.status,"blocked");assert.ok(embedded.blockers.includes("permission_unavailable"));
+ }finally{await f.close();}
 });
