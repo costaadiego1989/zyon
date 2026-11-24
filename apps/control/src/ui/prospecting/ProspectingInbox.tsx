@@ -66,7 +66,7 @@ export function ProspectingInbox({
     navigate({ area: "conversations", filters: Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) });
   }
   return (
-    <section className="prospecting-page">
+    <section className="prospecting-page prospecting-inbox">
       <header>
         <h2>Conversas</h2>
         <p>Últimas respostas recebidas e fila de atendimento.</p>
@@ -137,6 +137,8 @@ export function ProspectingInbox({
           </Button>
         </div>
       </form>
+      <div className={"prospecting-inbox-layout"+(route.id&&!list.error?" is-open":"")}>
+      <div className="prospecting-inbox-queue">
       {choices.error ? <ReadState {...choices} /> : null}
       {!list.data ? (
         <ReadState {...list} />
@@ -147,7 +149,7 @@ export function ProspectingInbox({
           )}
           <div>
             {list.data.items.map((c) => (
-              <div key={c.id} className="prospecting-row">
+              <div key={c.id} className={"prospecting-row"+(c.id===route.id?" is-selected":"")}>
                 <div>
                   <strong>{c.lastInboundPreview ?? "Sem resposta recebida"}</strong>
                   <small>
@@ -173,8 +175,9 @@ export function ProspectingInbox({
           </div>
         </>
       )}
+      </div>
       {route.id && !list.error && (
-        <>
+        <div className="prospecting-inbox-thread">
           <div>
             <Button onClick={() => navigate({ ...route, id: undefined })}>Fechar conversa</Button>
           </div>
@@ -184,8 +187,9 @@ export function ProspectingInbox({
             operatorId={operatorId}
             onSessionExpired={onSessionExpired}
           />
-        </>
+        </div>
       )}
+      </div>
     </section>
   );
 }

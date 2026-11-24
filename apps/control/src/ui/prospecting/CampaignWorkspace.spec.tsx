@@ -16,8 +16,59 @@ test("MAX-PRICE AC5 selects the priced registry entry even when its body matches
  const ui=await show(<CampaignWorkspace {...screenProps({...common,draft:async()=>selected,templates:async()=>[priced],editDraft})} id={draft.id}/>);
  expect(ui.button("Usar price_variant nesta campanha").disabled).toBe(false);await ui.click("Usar price_variant nesta campanha");
  expect(editDraft.mock.calls[0][1]).toEqual({expectedRevision:1,message,template:null,templateRegistryId:"priced",clientRequestId:expect.any(String)});
- expect(ui.text()).toContain("Max Price: até R$ 0,1 por entrega");expect(ui.text()).toContain("Em análise pela Meta");expect(ui.button("Preparar revisão da campanha").disabled).toBe(true);
+ expect(ui.text()).toContain("Max Price: até R$ 0,10 por entrega");expect(ui.text()).toContain("Em análise pela Meta");expect(ui.button("Preparar revisão da campanha").disabled).toBe(true);
  expect(ui.control("Orçamento total (R$)").value).toBe("");
+});
+
+test("UI AC1 switches campaign work areas with keyboard support and preserves unsaved values",async()=>{
+ const editDraft=vi.fn(),createTemplate=vi.fn();
+ const ui=await show(<CampaignWorkspace {...screenProps({...common,editDraft,createTemplate})} id={draft.id}/>);
+ const tabs=Array.from(ui.host.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+ const panels=Array.from(ui.host.querySelectorAll<HTMLDivElement>('[role="tabpanel"]'));
+ expect(tabs.map(t=>t.textContent)).toEqual(["Empresas","Mensagem","Envio"]);expect(panels.map(p=>p.hidden)).toEqual([false,true,true]);
+ await ui.click("Envio");await ui.fill("Orçamento total (R$)","120,00");await ui.fill("Destinatários por dia","100");
+ await ui.click("Mensagem");await ui.click("Preparar mensagem");await ui.fill("Preço da mensagem","max_price");await ui.fill("Teto por entrega (R$)","0,12");
+ await ui.click("Cancelar mensagem");await ui.click("Empresas");await ui.click("Mensagem");await ui.click("Preparar mensagem");expect(ui.control("Teto por entrega (R$)").value).toBe("0,12");await ui.click("Cancelar mensagem");
+ await act(async()=>{tabs[1].focus();tabs[1].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));});
+ expect(document.activeElement).toBe(tabs[2]);expect(tabs[2].getAttribute('aria-selected')).toBe('true');expect(panels.map(p=>p.hidden)).toEqual([true,true,false]);
+ expect(ui.control("Orçamento total (R$)").value).toBe("120,00");expect(ui.control("Destinatários por dia").value).toBe("100");
+ expect(editDraft).not.toHaveBeenCalled();expect(createTemplate).not.toHaveBeenCalled();
+});
+
+test("UI AC1 creates campaigns in a focused modal over the list and cancellation does not create a campaign",async()=>{
+ const createDraft=vi.fn(),props=screenProps({...common,createDraft,campaigns:async()=>({items:[{...draft,name:'Campanha existente'}],nextCursor:null})});
+ const ui=await show(<CampaignWorkspace {...props}/>);
+ const modal=ui.host.querySelector('dialog')!;
+ expect(modal.open).toBe(true);expect(modal.getAttribute('aria-labelledby')).toBeTruthy();
+ expect(modal.contains(ui.control('Nome da campanha'))).toBe(true);expect(modal.contains(ui.control('Contexto das empresas'))).toBe(true);
+ expect(ui.text()).toContain('Campanha existente');expect(document.documentElement.style.overflow).toBe('hidden');
+ await ui.fill('Nome da campanha','Varejo SP');await ui.fill('Contexto das empresas','lojas de roupas em SP');await ui.click('Cancelar');
+ expect(props.navigate).toHaveBeenCalledWith({area:'campaigns'});expect(createDraft).not.toHaveBeenCalled();
+});
+
+test("UI AC1 composes a message in its own modal with one editable body and restores the opener on cancellation",async()=>{
+ const createTemplate=vi.fn();
+ const ui=await show(<CampaignWorkspace {...screenProps({...common,createTemplate})} id={draft.id}/>);
+ await ui.click('Mensagem');ui.button('Preparar mensagem').focus();await ui.click('Preparar mensagem');
+ const modal=ui.host.querySelector('dialog')!;expect(modal.open).toBe(true);
+ expect(modal.querySelectorAll('textarea')).toHaveLength(1);expect(modal.querySelector('.campaign-message-body')).toBeNull();
+ await ui.fill('Preço da mensagem','max_price');expect(modal.contains(ui.control('Teto por entrega (R$)'))).toBe(true);expect(ui.control('Teto por entrega (R$)').value).toBe('');
+ await ui.fill('Texto da mensagem','Texto ainda não salvo');await ui.click('Cancelar mensagem');
+ expect(ui.host.querySelector('dialog')).toBeNull();expect(document.activeElement).toBe(ui.button('Preparar mensagem'));expect(createTemplate).not.toHaveBeenCalled();
+ await ui.click('Preparar mensagem');expect(ui.control('Texto da mensagem').value).toBe('Texto ainda não salvo');
+});
+
+test("UI AC1 shows one selected message preview and concise actions while preserving template identity",async()=>{
+ const selected={...draft,message:"Uma mensagem selecionada",templateRegistryId:"chosen"};
+ const template={id:"chosen",name:"zyon_varejo_pt_br_1234567890",body:selected.message,state:"PENDING",language:"pt_BR",revision:1};
+ const ui=await show(<CampaignWorkspace {...screenProps({...common,draft:async()=>selected,templates:async()=>[template]})} id={draft.id}/>);
+ await ui.click('Mensagem');
+ expect(ui.host.querySelector('.prospecting-template-list')?.hasAttribute('hidden')).toBe(true);
+ expect(ui.host.querySelectorAll('.campaign-selected-message .campaign-message-body')).toHaveLength(1);
+ expect(ui.host.querySelector('.campaign-selected-message .campaign-message-body')?.textContent).toBe(selected.message);
+ expect(ui.button('Atualizar estado de '+template.name+' na Meta').textContent).toBe('Atualizar estado');
+ await ui.click('Trocar mensagem');expect(ui.host.querySelector('.prospecting-template-list')?.hasAttribute('hidden')).toBe(false);
+ await ui.click('Concluir escolha');expect(ui.host.querySelector('.prospecting-template-list')?.hasAttribute('hidden')).toBe(true);
 });
 test("CAMP-07 message selection persists its exact body and draft status cannot enable reviewed execution",async()=>{
  const template={id:"local-template",name:"zyon_intro",body:"Olá, podemos conversar sobre sua loja?",language:"pt_BR",state:"draft"};

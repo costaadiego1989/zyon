@@ -388,13 +388,23 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
               ))}
             </select>
           </label>
+          <Domain {...domainProps} kind="cnaes" name="mainCnaes" label="CNAE principal" />
         </div>
         <details open={advanced} onToggle={(e) => setAdvanced(e.currentTarget.open)}>
           <summary>Filtros detalhados</summary>
-          <div className="prospecting-fields">
+          <div className="prospecting-advanced-groups">
+           <fieldset className="prospecting-filter-group"><legend>Dados da empresa</legend><div className="prospecting-fields">
             <Field name="cnpj" label="CNPJ" />
             <Field name="legalName" label="Razão social" />
             <Field name="tradeName" label="Nome fantasia" />
+            <Domain {...domainProps} kind="naturezas" name="legalNatures" label="Natureza jurídica" />
+            <Field name="sizes" label="Porte" choices={{"00":"Não informado","01":"Microempresa","03":"Empresa de pequeno porte","05":"Demais"}} />
+            <Field name="statuses" label="Situação cadastral" choices={{"01":"Nula","02":"Ativa","03":"Suspensa","04":"Inapta","08":"Baixada"}} />
+            <Field name="matrixBranches" label="Estabelecimento" choices={{matrix:"Matriz",branch:"Filial"}} />
+            <Field name="capitalMinCents" label="Capital mínimo (R$)" />
+            <Field name="capitalMaxCents" label="Capital máximo (R$)" />
+           </div></fieldset>
+           <fieldset className="prospecting-filter-group"><legend>Localização e abertura</legend><div className="prospecting-fields">
             {uf ? (
               <Domain {...domainProps} kind="municipios" key={uf} name="cityCodes" label="Município" uf={uf} />
             ) : (
@@ -405,37 +415,19 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
                 </select>
               </label>
             )}
-            <Domain {...domainProps} kind="cnaes" name="mainCnaes" label="CNAE principal" />
-            <Domain {...domainProps} kind="cnaes" name="secondaryCnaes" label="CNAE secundário" />
             <Field name="districts" label="Bairro" />
-            <Domain {...domainProps} kind="naturezas" name="legalNatures" label="Natureza jurídica" />
-            <Field
-              name="sizes"
-              label="Porte"
-              choices={{
-                "00": "Não informado",
-                "01": "Microempresa",
-                "03": "Empresa de pequeno porte",
-                "05": "Demais",
-              }}
-            />
-            <Field name="capitalMinCents" label="Capital mínimo (R$)" />
-            <Field name="capitalMaxCents" label="Capital máximo (R$)" />
-            <Field
-              name="statuses"
-              label="Situação cadastral"
-              choices={{ "01": "Nula", "02": "Ativa", "03": "Suspensa", "04": "Inapta", "08": "Baixada" }}
-            />
-            <Field name="matrixBranches" label="Estabelecimento" choices={{ matrix: "Matriz", branch: "Filial" }} />
             <Field name="openedFrom" label="Abertura a partir de" type="date" />
             <Field name="openedTo" label="Abertura até" type="date" />
+           </div></fieldset>
+           <fieldset className="prospecting-filter-group"><legend>Atividade e relacionamento</legend><div className="prospecting-fields">
+            <Domain {...domainProps} kind="cnaes" name="secondaryCnaes" label="CNAE secundário" />
             <Field name="simples" label="Simples Nacional" choices={binary} disabled={!!coverage} />
             <Field name="mei" label="MEI" choices={binary} disabled={!!coverage} />
             <Field name="hasContact" label="Contato cadastral disponível" choices={binary} />
             <Field name="stages" label="Estágio no CRM" choices={stages} />
+           </div>{coverage&&<p>Simples Nacional e MEI ainda não estão disponíveis nesta base.</p>}</fieldset>
           </div>
-          <AdditionalFilterValues changed={invalidateSelection} />
-          {coverage && <p>Simples Nacional e MEI ainda não estão disponíveis nesta base.</p>}
+          <details className="prospecting-combine-filters"><summary>Combinar valores no mesmo filtro</summary><AdditionalFilterValues changed={invalidateSelection} /></details>
         </details>
         <div className="prospecting-filter-actions">
           <Button type="submit" primary><Search size={16} />Aplicar filtros</Button>
@@ -465,7 +457,8 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
           {!page.items.length ? (
             <ProspectingState state="empty" message="Nenhuma empresa corresponde aos filtros." />
           ) : (
-            <div className="prospecting-rows">
+            <div className="prospecting-rows prospecting-company-results">
+              <div className="prospecting-company-columns" aria-hidden="true"><span>Empresa</span><span>Capital social</span></div>
               {page.items.map((c) => (
                 <div key={c.cnpj} className="prospecting-row">
                   <label className="prospecting-check">
@@ -488,7 +481,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
                       </small>
                     </span>
                   </label>
-                  <span>Capital social · {c.capitalCents != null ? money(c.capitalCents) : "Não informado"}</span>
+                  <span className="prospecting-company-capital"><span className="prospecting-sr-only">Capital social · </span>{c.capitalCents != null ? money(c.capitalCents) : "Não informado"}</span>
                   {c.prospectId && (
                     <Button onClick={() => navigate({ area: "leads", id: c.prospectId! })}>Abrir lead</Button>
                   )}
@@ -514,7 +507,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
             </div>
           </nav>
           {valid && (
-            <>
+            <div className="prospecting-selection-panel" hidden={!ids.length}>
               <div className="prospecting-actions">
                 <span>{ids.length} selecionada(s) de até 100 por inclusão</span>
                 <Button
@@ -537,7 +530,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
                 <Button onClick={() => navigate({ area: "leads" })}>Ver leads</Button>
               </div>
               <CampaignCompanyTransfer {...props} snapshotId={page.snapshotId} cnpjs={ids} disabled={action.disabled||dirty||refreshing}/>
-            </>
+            </div>
           )}
         </>
       )}

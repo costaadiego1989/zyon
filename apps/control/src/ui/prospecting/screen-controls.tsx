@@ -86,17 +86,23 @@ export function Button({
   disabled = false,
   primary = false,
   type = "button",
+  className = "",
+  ...attributes
 }: {
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   primary?: boolean;
   type?: "button" | "submit";
+  className?: string;
+  "aria-label"?: string;
+  title?: string;
 }) {
   return (
     <button
+      {...attributes}
       type={type}
-      className={primary ? "button button--primary" : "button button--secondary"}
+      className={(primary ? "button button--primary" : "button button--secondary") + (className ? " " + className : "")}
       onClick={onClick}
       disabled={disabled}
     >

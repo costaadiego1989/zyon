@@ -1,10 +1,12 @@
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useId,useLayoutEffect,useRef,useState} from "react";
+import {MessageSquare,RefreshCw,Send,Users} from "lucide-react";
 import type {CampaignPlanningJob,PlatformSenderReadiness,ProspectCampaignDraft,ProspectingSendWindow} from "@zyon/shared-types";
-import {prospectingMaxPriceInput} from "@zyon/shared-types";
 import {PlatformApiError} from "../../lib/api.js";
 import {CampaignComposer,campaignStates} from "./CampaignComposer.js";
-import {Button,ReadState,cents,blockers,useAction,useResource,type PageProps} from "./screen-controls.js";
-import {TemplateManager} from "./TemplateManager.js";
+import {Button,ReadState,cents,money,blockers,useAction,useResource,type PageProps} from "./screen-controls.js";
+import {TemplateManager,maxPriceLabel} from "./TemplateManager.js";
+import {CampaignDetailPage} from "./CampaignDetailPage.js";
+import {ProspectingModal} from "./ProspectingModal.js";
 
 export const planningReasons:Record<string,string>={
  context_scope_unsupported:"Refine o contexto com uma atividade e um estado disponíveis. Exemplo: lojas de roupas em SP.",
@@ -21,6 +23,8 @@ export function CampaignWorkspace(props:Props){
  const {api,id,navigate,onSessionExpired}=props;
  const [saved,setSaved]=useState<ProspectCampaignDraft|null>(null),[name,setName]=useState(""),[context,setContext]=useState("");
  const [notice,setNotice]=useState(""),[planning,setPlanning]=useState<CampaignPlanningJob|null>(null);
+ const previousId=useRef(id);
+ useLayoutEffect(()=>{if(!id&&previousId.current){setSaved(null);setName("");setContext("");setNotice("");setPlanning(null);}previousId.current=id;},[id]);
  const load=useCallback(async(s:AbortSignal)=>{
   if(!id)return {draft:null,legacy:false};
   try{return {draft:await api.draft(id,s),legacy:false};}
@@ -44,9 +48,12 @@ export function CampaignWorkspace(props:Props){
  if(id&&remote.data?.legacy)return <CampaignComposer {...props}/>;
  if(id&&!current)return <ReadState {...remote}/>;
  return <section className="prospecting-page campaign-workspace">
-  <header><h2>{current?.name??"Criar campanha"}</h2><p>{current?`${current.state==='approved'?'Revisão da campanha aprovada':campaignStates[current.state]} · Revisão ${current.revision}`:"Comece pelo nome e pelo contexto das empresas que você quer alcançar."}</p></header>
+  {current&&<>
+  <header className="campaign-heading"><div><h2>{current?.name??"Criar campanha"}</h2><p>{current?`${current.state==='approved'?'Revisão da campanha aprovada':campaignStates[current.state]} · Revisão ${current.revision}`:"Comece pelo nome e pelo contexto das empresas que você quer alcançar."}</p></div>{current&&<Button onClick={()=>navigate({area:"campaigns"})}>Todas as campanhas</Button>}</header>
   {notice&&<p role="status">{notice}</p>}{action.feedback}
-  {!current?<form className="campaign-create" onSubmit={event=>{
+  </>}
+  {!current?<><ProspectingModal title="Criar campanha" description="Defina o público. Mensagem e limites de envio ficam para a próxima etapa." busy={action.disabled} onClose={()=>navigate({area:"campaigns"})}>
+  <form className="campaign-create" onSubmit={event=>{
    event.preventDefault();void action.run(async key=>{
     const c=await api.createDraft({name:name.trim(),...(context.trim()?{businessContext:context.trim()}:{}),clientRequestId:key});
     setSaved(c);setNotice("Campanha criada e salva. Preparando a pesquisa de empresas.");
@@ -65,9 +72,10 @@ export function CampaignWorkspace(props:Props){
   }}>
    <label>Nome da campanha<input autoFocus required maxLength={120} value={name} onChange={event=>setName(event.target.value)}/></label>
    <label>Contexto das empresas<textarea aria-label="Contexto das empresas" maxLength={4000} rows={3} placeholder="Ex.: lojas de roupas em SP" value={context} onChange={event=>setContext(event.target.value)}/></label>
-   <p>Você pode adicionar empresas e configurar mensagem e envio depois. A pesquisa por atividade e estado pode ser preparada sem conectar o WhatsApp.</p>
-   <Button primary type="submit" disabled={!name.trim()||action.disabled}>Criar campanha</Button>
-  </form>:<DraftWorkspace key={current.id} {...props} campaign={current} update={update} refresh={refresh} planning={planning} planned={setPlanning}/>}
+   <p>Informe o tipo de negócio e a região. Ex.: lojas de roupas em SP. A campanha será salva sem iniciar envios.</p>
+   {action.feedback}
+   <div className="prospecting-modal-actions"><Button onClick={()=>navigate({area:"campaigns"})} disabled={action.disabled}>Cancelar</Button><Button primary type="submit" disabled={!name.trim()||action.disabled}>Criar campanha</Button></div>
+  </form></ProspectingModal><CampaignDetailPage {...props}/></>:<DraftWorkspace key={current.id} {...props} campaign={current} update={update} refresh={refresh} planning={planning} planned={setPlanning}/>}
  </section>;
 }
 type DraftProps=PageProps & {campaign:ProspectCampaignDraft;update:(c:ProspectCampaignDraft)=>void;refresh:()=>void;planning:CampaignPlanningJob|null;planned:(j:CampaignPlanningJob)=>void};
@@ -76,6 +84,7 @@ function DraftWorkspace(props:DraftProps){
  const {api,campaign:c,update,refresh,navigate}=props;
  const [name,setName]=useState(c.name),[context,setContext]=useState(c.businessContext??"");
  const [dirty,setDirty]=useState(false),[sendDirty,setSendDirty]=useState(false);
+ const [area,setArea]=useState(0),workId=useId(),tabs=useRef<(HTMLButtonElement|null)[]>([]);
  const channel=useResource(useCallback((s:AbortSignal)=>api.sender(s),[api]),props.onSessionExpired);
  const refreshWorkspace=useCallback(()=>{refresh();channel.reload();},[refresh,channel.reload]);
  const action=useAction(props,"draft."+c.id,refreshWorkspace);
@@ -85,17 +94,37 @@ function DraftWorkspace(props:DraftProps){
   <form className="campaign-context" onSubmit={event=>{event.preventDefault();void action.run(async key=>{update(await api.editDraft(c.id,{expectedRevision:c.revision,name:name.trim(),businessContext:context.trim()||null,clientRequestId:key}));setDirty(false);return "Contexto salvo. Prepare as empresas novamente quando o público mudar.";});}}>
    <div className="prospecting-fields"><label>Nome da campanha<input required maxLength={120} disabled={!editable} value={name} onChange={event=>{setName(event.target.value);setDirty(true);}}/></label><label>Contexto das empresas<textarea aria-label="Contexto das empresas" rows={3} maxLength={4000} disabled={!editable} value={context} onChange={event=>{setContext(event.target.value);setDirty(true);}}/></label></div>
    <p>Ofertas: catálogo vigente da Zyon. A IA usa o contexto da campanha e os planos atuais para conversar.</p>
-   {editable&&<Button type="submit" disabled={!dirty||!name.trim()||action.disabled}>Salvar contexto</Button>}{action.feedback}
+   {editable&&dirty&&<Button type="submit" disabled={!name.trim()||action.disabled}>Salvar contexto</Button>}{action.feedback}
   </form>
   {dirty&&<p role="status">Salve o contexto antes de preparar empresas ou revisar o envio.</p>}
-  <Companies {...props} refresh={refreshWorkspace} disabled={!editable||dirty||action.disabled}/>
-  <CampaignMessage {...props} channel={channel} disabled={!editable||dirty||action.disabled}/>
-  <SendSetup {...props} refresh={refreshWorkspace} channel={channel} disabled={!editable||dirty||action.disabled} dirty={sendDirty} onDirty={setSendDirty}/>
-  <section className="campaign-step"><h3>Atividade</h3><p>{c.recipientCount} destinatários preparados. Uma tentativa, aceitação pela Meta e entrega são estados diferentes.</p><Button onClick={()=>navigate({area:"campaigns",id:c.id})}>Ver destinatários e resultados</Button><Button onClick={refreshWorkspace}>Atualizar campanha</Button></section>
+  <div className="campaign-workbench">
+   <div className="campaign-workbench-main">
+    <div className="campaign-work-tabs" role="tablist" aria-label="Configuração da campanha" onKeyDown={event=>{
+     let next=area;if(event.key==='ArrowRight')next=(area+1)%3;else if(event.key==='ArrowLeft')next=(area+2)%3;else if(event.key==='Home')next=0;else if(event.key==='End')next=2;else return;
+     event.preventDefault();setArea(next);tabs.current[next]?.focus();
+    }}>
+     {[{label:"Empresas",icon:Users},{label:"Mensagem",icon:MessageSquare},{label:"Envio",icon:Send}].map(({label,icon:Icon},index)=><button key={label} ref={node=>{tabs.current[index]=node;}} type="button" role="tab" id={workId+'-tab-'+index} aria-selected={area===index} aria-controls={workId+'-panel-'+index} tabIndex={area===index?0:-1} onClick={()=>setArea(index)}><Icon size={16} aria-hidden="true"/>{label}</button>)}
+    </div>
+    <div className="campaign-work-panel" role="tabpanel" id={workId+'-panel-0'} aria-labelledby={workId+'-tab-0'} hidden={area!==0}><Companies {...props} refresh={refreshWorkspace} disabled={!editable||dirty||action.disabled}/></div>
+    <div className="campaign-work-panel" role="tabpanel" id={workId+'-panel-1'} aria-labelledby={workId+'-tab-1'} hidden={area!==1}><CampaignMessage {...props} channel={channel} disabled={!editable||dirty||action.disabled}/></div>
+    <div className="campaign-work-panel" role="tabpanel" id={workId+'-panel-2'} aria-labelledby={workId+'-tab-2'} hidden={area!==2}><SendSetup {...props} refresh={refreshWorkspace} channel={channel} disabled={!editable||dirty||action.disabled} dirty={sendDirty} onDirty={setSendDirty}/></div>
+   </div>
+   <aside className="campaign-summary" aria-label="Resumo da campanha"><h3>Resumo da campanha</h3><dl>
+    <div><dt>Público</dt><dd>{c.audienceCriteria?'Pesquisa preparada':c.manualCompanyCount?`${c.manualCompanyCount} empresa(s) adicionada(s)`:'Ainda não definido'}</dd></div>
+    <div><dt>Mensagem inicial</dt><dd>{c.message?'Selecionada':'Pendente'}</dd></div>
+    <div><dt>Destinatários por dia</dt><dd>{c.limits?.dailyRecipients.toLocaleString('pt-BR')??'Definir'}</dd></div>
+    <div><dt>Orçamento total</dt><dd>{c.limits?money(c.limits.budget.amountCents):'Definir'}</dd></div>
+    <div><dt>Remetente</dt><dd>{channel.data?.binding?.displayPhoneNumber??'Verificar canal'}</dd></div>
+   </dl><p>A campanha só envia após revisão e aprovação.</p><Button onClick={()=>{setArea(2);tabs.current[2]?.focus();}}>Revisar envio</Button><Button className="campaign-refresh" onClick={refreshWorkspace}><RefreshCw size={14} aria-hidden="true"/>Atualizar campanha</Button></aside>
+  </div>
+  <footer className="campaign-activity"><p>{c.recipientCount} destinatários preparados. Acompanhe entregas e respostas.</p><Button onClick={()=>navigate({area:"campaigns",id:c.id})}>Ver destinatários e resultados</Button></footer>
  </>;
 }
 function CampaignMessage(props:DraftProps & {disabled:boolean;channel:ChannelResource}){
- return <section className="campaign-step"><h3>Mensagem inicial</h3><p className="campaign-message-body">{props.campaign.message??"Selecione uma mensagem abaixo. Você pode preparar o rascunho antes de conectar o número."}</p><TemplateManager {...props} embedded bindingAvailable={!!props.channel.data?.binding} bindingState={!props.channel.data?(props.channel.error?'unavailable':'loading'):props.channel.data.binding?'connected':'absent'} refreshChannel={props.channel.reload} scope={props.campaign.id} selectedBody={props.campaign.message} selectedTemplateId={props.campaign.templateRegistryId} locked={props.disabled} choose={async(draft,key)=>{props.update(await props.api.editDraft(props.campaign.id,{expectedRevision:props.campaign.revision,message:draft.body,template:null,...(draft.maxPrice||props.campaign.templateRegistryId?{templateRegistryId:draft.id}:{}),clientRequestId:key}));}}/></section>;
+ return <section className="campaign-step"><h3>Mensagem inicial</h3>
+  {!props.campaign.message&&<p>Selecione ou prepare a mensagem que será enviada às empresas.</p>}
+  <TemplateManager {...props} embedded bindingAvailable={!!props.channel.data?.binding} bindingState={!props.channel.data?(props.channel.error?'unavailable':'loading'):props.channel.data.binding?'connected':'absent'} refreshChannel={props.channel.reload} scope={props.campaign.id} selectedBody={props.campaign.message} selectedTemplateId={props.campaign.templateRegistryId} locked={props.disabled} choose={async(draft,key)=>{props.update(await props.api.editDraft(props.campaign.id,{expectedRevision:props.campaign.revision,message:draft.body,template:null,...(draft.maxPrice||props.campaign.templateRegistryId?{templateRegistryId:draft.id}:{}),clientRequestId:key}));}}/>
+ </section>;
 }
 function Companies(props:DraftProps & {disabled:boolean}){
  const {api,campaign:c,onSessionExpired,navigate,disabled,update,planning,planned}=props;
@@ -103,7 +132,7 @@ function Companies(props:DraftProps & {disabled:boolean}){
  const load=useCallback((s:AbortSignal)=>api.campaignCompanies(c.id,cursor,s),[api,c.id,c.revision,cursor]);
  const companies=useResource(load,onSessionExpired);
  const action=useAction(props,"campaign-companies."+c.id,()=>{companies.reload();props.refresh();});
- return <section className="campaign-step"><h3>Empresas</h3>
+ return <section className="campaign-step"><div className="campaign-section-heading"><h3>Empresas</h3><Button className="campaign-refresh" onClick={()=>{companies.reload();props.refresh();}}><RefreshCw size={14} aria-hidden="true"/>Atualizar empresas</Button></div>
   <p>Prepare pelo contexto ou adicione empresas pela busca. A seleção usa uma base fixa e não concede opt-in aos contatos.</p>
   <div className="prospecting-actions"><Button disabled={disabled||action.disabled||!c.businessContext} onClick={()=>void action.run(async key=>{
    const source=(await api.readiness()).source;if(source.status!=="current"||!source.value?.snapshotId||source.value.state!=="published")throw new PlatformApiError(503,"source_unavailable");
@@ -114,8 +143,8 @@ function Companies(props:DraftProps & {disabled:boolean}){
   {action.feedback}
   {!companies.data?<ReadState {...companies}/>:<><p>{companies.data.count.toLocaleString('pt-BR')} empresas · {companies.data.manualCount} adicionadas manualmente</p>
    {!companies.data.count&&<p>O público ainda está vazio. Informe atividade e região ou escolha empresas na busca.</p>}
-   {!!companies.data.items.length&&<div className="campaign-company-list" role="region" aria-label="Empresas da campanha" tabIndex={0}>{companies.data.items.map(company=><div key={company.cnpj} className="prospecting-row"><div><strong>{company.legalName}</strong><small>{company.cnpj} · {company.uf??"UF não informada"}</small></div><Button disabled={disabled||action.disabled} onClick={()=>void action.run(async key=>{const result=await api.removeCampaignCompanies(c.id,{expectedRevision:c.revision,snapshotId:company.snapshotId,cnpjs:[company.cnpj],clientRequestId:key});update(result.campaign);companies.reload();return "Empresa removida deste público.";})}>Remover {company.cnpj}</Button></div>)}</div>}
-   <div className="prospecting-actions">{cursor&&<Button onClick={()=>setCursor(undefined)}>Primeira página de empresas</Button>}{companies.data.nextCursor&&<Button onClick={()=>setCursor(companies.data!.nextCursor!)}>Próximas empresas</Button>}<Button onClick={()=>{companies.reload();props.refresh();}}>Atualizar empresas</Button></div>
+   {!!companies.data.items.length&&<div className="campaign-company-list" role="region" aria-label="Empresas da campanha" tabIndex={0}>{companies.data.items.map(company=><div key={company.cnpj} className="prospecting-row"><div><strong>{company.legalName}</strong><small>{company.cnpj} · {company.uf??"UF não informada"}</small></div><Button aria-label={"Remover "+company.cnpj} className="campaign-company-remove" disabled={disabled||action.disabled} onClick={()=>void action.run(async key=>{const result=await api.removeCampaignCompanies(c.id,{expectedRevision:c.revision,snapshotId:company.snapshotId,cnpjs:[company.cnpj],clientRequestId:key});update(result.campaign);companies.reload();return "Empresa removida deste público.";})}>Remover</Button></div>)}</div>}
+   {(cursor||companies.data.nextCursor)&&<div className="prospecting-actions">{cursor&&<Button onClick={()=>setCursor(undefined)}>Primeira página de empresas</Button>}{companies.data.nextCursor&&<Button onClick={()=>setCursor(companies.data!.nextCursor!)}>Próximas empresas</Button>}</div>}
   </>}
  </section>;
 }
@@ -138,7 +167,7 @@ function SendSetup(props:DraftProps & {disabled:boolean;dirty:boolean;onDirty:(v
  const bindingCurrent=!!sender.data?.binding&&c.senderBindingId===sender.data.binding.id&&c.senderVersion===sender.data.binding.version;
  const canPrepare=!disabled&&!dirty&&!!c.directorySnapshotId&&!!c.limits&&!!c.sendWindow&&bindingCurrent&&compatibleMessage&&ready;
  return <section className="campaign-step"><h3>Envio e revisão</h3>
-  {selectedMessage.data&&<p className="campaign-price-summary">{selectedMessage.data.maxPrice?"Max Price: até R$ "+prospectingMaxPriceInput(selectedMessage.data.maxPrice)+" por entrega. O orçamento total abaixo é um limite separado.":"Mensagem com tarifa padrão da Meta. O orçamento total limita o gasto da campanha."}</p>}
+  {selectedMessage.data&&<p className="campaign-price-summary">{selectedMessage.data.maxPrice?"Max Price: até "+maxPriceLabel(selectedMessage.data.maxPrice)+" por entrega. O orçamento total abaixo é um limite separado.":"Mensagem com tarifa padrão da Meta. O orçamento total limita o gasto da campanha."}</p>}
   <form onChange={()=>onDirty(true)} onSubmit={event=>{event.preventDefault();if(!valid)return;void action.run(async key=>{let b=sender.data?.binding;if(!sender.data){try{b=(await api.sender()).binding;}catch{/* Limits remain saveable while the channel is unavailable. */}}update(await api.editDraft(c.id,{expectedRevision:c.revision,limits:{dailyRecipients:Number(daily),budget:{amountCents:amount,currency:"BRL"}},sendWindow:window,...(b?{senderBindingId:b.id,senderVersion:b.version}:{}),clientRequestId:key}));onDirty(false);sender.reload();return "Limites e janela salvos. Revise a mensagem e o público antes de aprovar.";});}}>
    <div className="prospecting-fields prospecting-fields--limits"><label>Destinatários por dia<input type="number" required min={1} max={2147483647} value={daily} onChange={event=>setDaily(event.target.value)} disabled={disabled}/></label><label>Orçamento total (R$)<input required inputMode="decimal" value={budget} onChange={event=>setBudget(event.target.value)} disabled={disabled}/></label><label>Início da janela<input type="time" value={window.start} onChange={event=>setWindow({...window,start:event.target.value})} disabled={disabled}/></label><label>Fim da janela<input type="time" value={window.end} onChange={event=>setWindow({...window,end:event.target.value})} disabled={disabled}/></label><label>Fuso de referência<input value={window.timezone} onChange={event=>setWindow({...window,timezone:event.target.value})} disabled={disabled}/></label></div>
    <fieldset disabled={disabled}><legend>Dias de envio</legend><div className="prospecting-actions">{['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map((label,index)=><label className="prospecting-check" key={label}><input type="checkbox" checked={window.weekdays.includes(index+1)} onChange={event=>setWindow({...window,weekdays:event.target.checked?[...window.weekdays,index+1]:window.weekdays.filter(d=>d!==index+1)})}/>{label}</label>)}</div></fieldset>

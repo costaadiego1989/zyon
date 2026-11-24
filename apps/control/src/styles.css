@@ -294,6 +294,8 @@ select:disabled, input:disabled, textarea:disabled { background: var(--surface-m
 .login-form .field { gap: 7px; }
 .login-form .field > span { font-size: 12px; }
 .login-form input { min-height: 43px; }
+.operator-login { display: grid; align-items: center; min-height: 100dvh; padding-block: 2rem; }
+.operator-login h1 { margin: 0; font-size: 1.5rem; line-height: 1.25; letter-spacing: -.025em; }
 
 .session-skeleton { display: flex; min-height: 100vh; align-items: center; justify-content: center; gap: 13px; background: var(--canvas); }
 .skeleton-mark, .skeleton-line { display: block; border-radius: 5px; background: var(--surface-strong); }

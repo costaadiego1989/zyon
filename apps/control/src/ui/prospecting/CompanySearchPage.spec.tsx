@@ -21,6 +21,18 @@ const domains = async () => ({ items: [], nextCursor: null });
 const published = { source: { status: "current", value: { snapshotId: "out", state: "published", competence: "2026-10" }, observedAt: "2026-11-22T12:00:00Z" } };
 const preparing = { source: { status: "unavailable", value: { snapshotId: null, state: "unavailable", competence: null }, observedAt: null } };
 
+test('UI AC2 groups company criteria and keeps twenty rows with an exact page label',async()=>{
+ const companies=vi.fn(directoryPages());
+ const ui=await show(<CompanySearchPage {...searchProps({readiness:async()=>partialSource('partial-a',53),companies,domains})}/>);
+ expect(ui.host.querySelectorAll('.prospecting-company-results > .prospecting-row')).toHaveLength(20);
+ expect(ui.text()).toContain('Página 1 de 3');expect(companies.mock.lastCall?.[0].limit).toBe(20);
+ expect(Array.from(ui.host.querySelectorAll('.prospecting-filter-group > legend')).map(n=>n.textContent)).toEqual(['Dados da empresa','Localização e abertura','Atividade e relacionamento']);
+ expect(ui.control('CNAE principal').closest('.prospecting-company-filters > .prospecting-fields')).not.toBeNull();
+ expect(ui.host.querySelector('.prospecting-selection-panel')?.hasAttribute('hidden')).toBe(true);
+ await ui.check('Selecionar 00000000000001');expect(ui.host.querySelector('.prospecting-selection-panel')?.hasAttribute('hidden')).toBe(false);
+ await ui.click('Próxima página');expect(ui.text()).toContain('Página 2 de 3');expect(ui.host.querySelectorAll('.prospecting-company-results > .prospecting-row')).toHaveLength(20);
+});
+
 test("CAMP-07 search appends retained selected identity to a compatible draft and reports actual deduplication counts",async()=>{
  const campaign={id:"campaign",name:"Roupas SP",revision:7,state:"draft",directorySnapshotId:"out"};
  const addCampaignCompanies=vi.fn().mockResolvedValue({campaign:{...campaign,revision:8},added:0,existing:1,removed:0});

@@ -54,7 +54,16 @@ export async function openBrowserData(mode:"preview"|"disposable"){
      legalName: longName, normalizedLegalName: longName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase()
    } });
    if(mode==="preview")writeFileSync(receipt,JSON.stringify(identity),{flag:"wx"});
-  }else if((await pool.query("SELECT owner FROM browser_runtime_owner")).rows[0]?.owner!==identity.owner)throw Error("preview_ownership_mismatch");
+  }else {
+   if((await pool.query("SELECT owner FROM browser_runtime_owner")).rows[0]?.owner!==identity.owner)throw Error("preview_ownership_mismatch");
+   for(const [table,column,migration]of [
+    ["platform_prospect_templates","max_price","20261124170000_prospect_max_price"],
+    ["prospect_campaigns","template_registry_id","20261124171000_prospect_campaign_template_ref"],
+    ["outreach_attempts","provider_cost_micros","20261124172000_prospect_delivery_cost"],
+   ])if(!(await pool.query("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name=$2",[table,column])).rowCount){
+    await pool.query(readFileSync(new URL("../prisma/migrations/"+migration+"/migration.sql",import.meta.url),"utf8"));
+   }
+  }
   await pool.query("CREATE TABLE IF NOT EXISTS browser_provider_requests(id bigserial PRIMARY KEY,effect_id text NOT NULL)");
   opened=true;return {pg:pool,prisma,client,driver,redis,namespace:identity.name,owner:identity.owner,close};
  }catch(e){await close();throw e;}

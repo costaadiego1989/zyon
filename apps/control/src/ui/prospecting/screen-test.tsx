@@ -5,7 +5,11 @@ import { PlatformApiError } from "../../lib/api.js";
 import type { ProspectingApi } from "../../lib/prospecting-api.js";
 
 export function screenProps(methods: Partial<Record<keyof ProspectingApi, unknown>>) {
-  return { api: {templates:async()=>[],...methods} as ProspectingApi, operatorId: "operator-test", onSessionExpired: vi.fn(), navigate: vi.fn() };
+  return { api: {templates:async()=>[],campaigns:async()=>({items:[],nextCursor:null}),...methods} as ProspectingApi, operatorId: "operator-test", onSessionExpired: vi.fn(), navigate: vi.fn() };
+}
+if(!HTMLDialogElement.prototype.showModal){
+ Object.defineProperty(HTMLDialogElement.prototype,"showModal",{configurable:true,value(){this.setAttribute("open","");}});
+ Object.defineProperty(HTMLDialogElement.prototype,"close",{configurable:true,value(){this.removeAttribute("open");}});
 }
 export async function show(node: ReactNode) {
   const host = document.createElement("div");
@@ -31,7 +35,7 @@ export async function show(node: ReactNode) {
     });
   }
   function button(name: string) {
-    const el = Array.from(host.querySelectorAll("button")).find((x) => x.textContent?.trim() === name);
+    const el = Array.from(host.querySelectorAll("button")).find((x) => x.textContent?.trim() === name || x.getAttribute("aria-label") === name);
     if (!el) throw Error("Missing button " + name + " / " + host.textContent);
     return el;
   }
