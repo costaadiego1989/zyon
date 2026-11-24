@@ -28,7 +28,7 @@ test("CAMP-07 creates from name/context without loading sender offers segments o
  expect(prepareContext.mock.calls[0]).toEqual([draft.id,{expectedRevision:1,snapshotId:"published-source",clientRequestId:(createDraft.mock.calls[0][0] as {clientRequestId:string}).clientRequestId+":context"}]);
  expect(props.navigate).toHaveBeenCalledWith({area:"campaigns",id:draft.id,filters:{view:"edit"}});
  expect(ui.text()).toContain("Campanha salva. Empresas preparadas");expect(ui.text()).toContain("catálogo vigente");expect(ui.text()).toContain("sem chamada de IA");
- expect(ui.text()).toContain("Conecte ou confira o número próprio");expect(ui.button("Preparar revisão da campanha").disabled).toBe(true);expect(ui.text()).not.toContain("Iniciar campanha");expect(createDraft).toHaveBeenCalledTimes(1);
+ expect(ui.text()).toContain("Não foi possível conferir o número da Zyon");expect(ui.text()).not.toContain("Conecte o número próprio da Zyon para enviar");expect(ui.button("Preparar revisão da campanha").disabled).toBe(true);expect(ui.text()).not.toContain("Iniciar campanha");expect(createDraft).toHaveBeenCalledTimes(1);
 });
 test("CAMP-07 confirms creation and saved identity before a failed contextual preparation and never offers duplicate creation",async()=>{
  let finish!:(value:unknown)=>void;
@@ -57,4 +57,27 @@ test("CAMP-07 unknown creation outcome is recovered with the original command an
  const command=vi.fn(async clientRequestId=>({clientRequestId,state:"completed",result:draft}));const props=screenProps({...common,createDraft,command});const ui=await show(<CampaignWorkspace {...props}/>);
  await ui.fill("Nome da campanha","Pesquisa");await ui.click("Criar campanha");expect(ui.button("Criar campanha").disabled).toBe(true);await ui.click("Consultar resultado do comando");
  expect(command).toHaveBeenCalledWith(key);expect(createDraft).toHaveBeenCalledTimes(1);expect(props.navigate).toHaveBeenCalledWith({area:"campaigns"});
+});
+test("CAMP-07 saving limits observes the own sender even when its initial read is still pending",async()=>{
+ const binding={id:"own",version:4,displayPhoneNumber:"local"};
+ const sender=vi.fn().mockImplementationOnce(()=>new Promise(()=>{})).mockResolvedValue({binding,status:"ready",templates:[],blockers:[]});
+ const editDraft=vi.fn(async(_id,body)=>({...draft,revision:2,senderBindingId:body.senderBindingId,senderVersion:body.senderVersion,limits:body.limits,sendWindow:body.sendWindow}));
+ const ui=await show(<CampaignWorkspace {...screenProps({...common,sender,editDraft})} id={draft.id}/>);
+ expect(ui.text()).toContain("Consultando o número da Zyon");expect(ui.text()).not.toContain("Conecte o número próprio da Zyon para enviar");
+ await ui.fill("Destinatários por dia","2");await ui.fill("Orçamento total (R$)","10,00");await ui.click("Salvar configuração de envio");
+ expect(editDraft.mock.calls[0][1]).toMatchObject({expectedRevision:1,senderBindingId:"own",senderVersion:4,limits:{dailyRecipients:2,budget:{amountCents:1000,currency:"BRL"}}});expect(ui.text()).toContain("Limites e janela salvos");
+});
+test("CAMP-07 refreshing messages recovers the shared sender after an unavailable observation without remounting",async()=>{
+ const template={id:"local",name:"intro",body:"Texto da campanha",state:"draft",language:"pt_BR"};
+ const sender=vi.fn().mockRejectedValueOnce(new PlatformApiError(503)).mockResolvedValue({binding:{id:"own",version:1},status:"ready",templates:[],blockers:[]});
+ const ui=await show(<CampaignWorkspace {...screenProps({...common,sender,templates:async()=>[template]})} id={draft.id}/>);
+ expect(ui.button("Enviar intro à Meta").disabled).toBe(true);await ui.click("Atualizar mensagens");expect(ui.button("Enviar intro à Meta").disabled).toBe(false);expect(sender).toHaveBeenCalledTimes(2);
+});
+test("CAMP-07 Meta synchronization refreshes shared template health before reviewed preparation becomes available",async()=>{
+ const template={id:"local",name:"intro",body:"Texto da campanha",state:"PENDING",language:"pt_BR",revision:1};let approved=false;
+ const binding={id:"own",version:1,wabaId:"waba",displayPhoneNumber:"local"};
+ const configured={...draft,message:template.body,directorySnapshotId:"published-source",senderBindingId:"own",senderVersion:1,limits:{dailyRecipients:1,budget:{amountCents:500,currency:"BRL"}},sendWindow:{timezone:"America/Sao_Paulo",weekdays:[1],start:"09:00",end:"18:00"}};
+ const sender=vi.fn(async()=>({binding,status:"ready",templates:approved?[{id:"meta",wabaId:"waba",previewText:template.body,status:"APPROVED",category:"MARKETING",requiresParameters:false}]:[],blockers:[]}));
+ const props=screenProps({...common,draft:async()=>configured,sender,templates:async()=>[{...template,state:approved?"APPROVED":"PENDING"}],syncTemplate:async()=>{approved=true;return {...template,state:"APPROVED"};},config:async()=>({workersRunning:true,dispatchMode:"controlled",modelMode:"controlled"}),readiness:async()=>({...readiness,channel:{status:"current",value:{status:"ready"}},knowledge:{status:"current",value:{activePublications:1}}})});
+ const ui=await show(<CampaignWorkspace {...props} id={draft.id}/>);expect(ui.button("Preparar revisão da campanha").disabled).toBe(true);await ui.click("Atualizar estado de intro na Meta");expect(ui.button("Preparar revisão da campanha").disabled).toBe(false);expect(sender).toHaveBeenCalledTimes(2);
 });

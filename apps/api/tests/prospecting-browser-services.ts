@@ -56,8 +56,32 @@ import {Neo4jSalesKnowledgeReader} from "../src/modules/platform-prospecting/inf
 import {PrismaProspectBillingStore} from "../src/modules/platform-prospecting/infrastructure/billing/prisma-prospect-billing.store.js";
 import {PublicSubscriptionFacts} from "../src/modules/payment/public-subscription-facts.js";
 import {PlatformSalesOffers} from "../src/modules/payment/public-platform-sales-offers.js";
+import {CampaignDraftService} from "../src/modules/platform-prospecting/application/campaigns/campaign-drafts.js";
+import {CampaignDraftAudience} from "../src/modules/platform-prospecting/application/campaigns/campaign-draft-audience.js";
+import {CampaignPlanner} from "../src/modules/platform-prospecting/application/campaigns/campaign-planner.js";
+import {CampaignPreparation,CampaignExecutionIdentity} from "../src/modules/platform-prospecting/application/campaigns/campaign-preparation.js";
+import {PlatformTemplateService} from "../src/modules/platform-prospecting/application/campaigns/platform-template.service.js";
+import {PrismaCampaignDrafts} from "../src/modules/platform-prospecting/infrastructure/campaigns/prisma-campaign-drafts.js";
+import {PrismaCampaignDraftAudience} from "../src/modules/platform-prospecting/infrastructure/campaigns/prisma-campaign-draft-audience.js";
+import {PrismaCampaignPlanner} from "../src/modules/platform-prospecting/infrastructure/campaigns/prisma-campaign-planner.js";
+import {PrismaCampaignPreparation} from "../src/modules/platform-prospecting/infrastructure/campaigns/prisma-campaign-preparation.js";
+import {PrismaPlatformTemplateStore} from "../src/modules/platform-prospecting/infrastructure/campaigns/prisma-platform-template.store.js";
+import {ProspectCampaignDraftController} from "../src/modules/platform-prospecting/presentation/prospect-campaign-draft.controller.js";
+import {ProspectCampaignCompaniesController} from "../src/modules/platform-prospecting/presentation/prospect-campaign-companies.controller.js";
+import {ProspectCampaignPlannerController} from "../src/modules/platform-prospecting/presentation/prospect-campaign-planner.controller.js";
+import {ProspectPlatformTemplateController} from "../src/modules/platform-prospecting/presentation/prospect-platform-template.controller.js";
 export async function browserServices(data:Awaited<ReturnType<typeof openBrowserData>>,origins:{dashboard:string;site:string}){
  const {prisma,client,driver,namespace}=data;
+ if(process.env.PROSPECTING_CAMPAIGN_FLOW_PREVIEW==="true"){
+  await client.companyEstablishment.updateMany({where:{snapshotId:"search-old",uf:"SP"},data:{mainCnae:"4781400"}});
+  await client.sourceDomain.upsert({where:{snapshotId_kind_code:{snapshotId:"search-old",kind:"cnaes",code:"4781400"}},create:{snapshotId:"search-old",kind:"cnaes",code:"4781400",label:"Comércio varejista de artigos do vestuário e acessórios"},update:{}});
+  await client.companyEntity.upsert({where:{snapshotId_baseCnpj:{snapshotId:'search-old',baseCnpj:'56000000'}},create:{snapshotId:'search-old',baseCnpj:'56000000',legalName:'Rede de lojas de vestuário do ambiente local',normalizedLegalName:'REDE DE LOJAS DE VESTUARIO DO AMBIENTE LOCAL'},update:{}});
+  const digit=(raw:string,weights:number[])=>{const remainder=[...raw].reduce((sum,value,index)=>sum+Number(value)*weights[index],0)%11;return remainder<2?'0':String(11-remainder);};
+  for(let index=1;index<=23;index++){
+   const raw='56000000'+String(index).padStart(4,'0'),first=raw+digit(raw,[5,4,3,2,9,8,7,6,5,4,3,2]),cnpj=first+digit(first,[6,5,4,3,2,9,8,7,6,5,4,3,2]);
+   await client.companyEstablishment.upsert({where:{snapshotId_cnpj:{snapshotId:'search-old',cnpj}},create:{snapshotId:'search-old',cnpj,baseCnpj:'56000000',tradeName:'Loja local '+index,uf:'SP',cityCode:'7107',mainCnae:'4781400',status:'02',matrixBranch:'branch'},update:{}});
+  }
+ }
  const actor={operatorId:operator.id,correlationId:"local-preview"};
  const keys={currentVersion:1,keys:{1:"c".repeat(64)}},encryption="d".repeat(64),cursor="e".repeat(64);
  const directory=new PrismaDirectoryRepository(client,cursor);
@@ -76,7 +100,13 @@ export async function browserServices(data:Awaited<ReturnType<typeof openBrowser
   await onboard.connect({clientRequestId:"seed-local-connect",state:state.state,code:"local-sdk-authorization",businessId:"100003",phoneNumberId:"100004",wabaId:"100005",messagingAccountIds:["100005"],isOnBizApp:false},actor);
  }
  const binding=(await bindings.binding())!;
- const health=new SenderReadinessService(new PrismaSenderObservationStore(prisma,encryption),{async read(){return {templates:[{...fixtureTemplate,wabaId:binding.wabaId,previewText:"Olá! Esta é uma demonstração da Zyon."}],portfolioLimit:null,portfolioTier:null,entities:[],blockers:[]};}});
+ const templateStore=new PrismaPlatformTemplateStore(prisma);
+ const observations=new PrismaSenderObservationStore(prisma,encryption);
+ const health=new SenderReadinessService(observations,{async read(){const registered=(await templateStore.list()).filter(d=>d.state==='APPROVED'&&d.providerId&&d.providerRevision).map(d=>({id:d.providerId!,wabaId:binding.wabaId,name:d.name,language:d.language,revision:d.providerRevision!,category:'MARKETING' as const,status:'APPROVED',previewText:d.body,requiresParameters:false}));return {templates:[{...fixtureTemplate,wabaId:binding.wabaId,previewText:"Olá! Esta é uma demonstração da Zyon."},...registered],portfolioLimit:null,portfolioTier:null,entities:[],blockers:[]};}});
+ const templates=new PlatformTemplateService(templateStore,observations,{
+  async submit(d){if(d.name.includes('unknown'))throw Error('controlled_outcome_unknown');return {state:'PENDING',providerId:'controlled.'+d.id,providerRevision:null,reason:null};},
+  async sync(d){return {state:d.name.includes('reject')?'REJECTED':d.state==='submission_unknown'?'PENDING':'APPROVED',providerId:'controlled.'+d.id,providerRevision:d.name.includes('mismatch')?null:d.contentHash,reason:d.name.includes('mismatch')?'template_content_mismatch':d.name.includes('reject')?'Controlled provider rejection':null};}
+ },health);
  const sources=new PrismaSalesKnowledgeRepository(prisma),publications=new SalesPublicationService(sources,new Neo4jSalesKnowledgeAdapter(driver,namespace));
  if(!await sources.find("local-product")){
   const draft=await sources.save("local-product",{...knowledgeDraft("Chat"),title:"Guia comercial local da Zyon",facts:[{id:"chat",subject:"Chat",predicate:"feature",value:"A Zyon reúne as conversas da loja no painel."},{id:"site-growth",subject:"Como funciona o site do Growth?",predicate:"feature",value:"O site apresenta a Zyon."}]},actor);
@@ -91,7 +121,8 @@ export async function browserServices(data:Awaited<ReturnType<typeof openBrowser
  }};
  const conversation=new ProspectConversationService(history,commands,health,capture);
  const reservations=new PrismaCampaignRepository(prisma,keys,()=>({amountCents:1,currency:"BRL",validUntil:new Date(Date.now()+60000)}));
- const initial=new ProspectDispatchWorker(reservations,health,offers,capture);
+ const identity=new CampaignExecutionIdentity(offers,async()=>({knowledge:await sources.active(new Date()),mode:'controlled',quote:1}));
+ const initial=new ProspectDispatchWorker(reservations,health,offers,capture,()=>new Date(),identity.current.bind(identity));
  const eligible=await prisma.platformProspect.findUnique({where:{cnpj:"11222333000181"}});
  if(eligible && !await prisma.contactPermissionReceipt.findFirst({where:{evidenceRef:"browser-synthetic-explicit-consent"}})){
   const identity={kind:"phone" as const,value:"+15550100009",businessScope:null};
@@ -124,14 +155,18 @@ export async function browserServices(data:Awaited<ReturnType<typeof openBrowser
  };
  if(!await prisma.prospectMessage.findFirst({where:{clientRequestId:{startsWith:"sales."},conversation:{endpointId:endpoint.id}}}))await incoming("Quero o link para contratar o Growth.","local.seed.inbound");
  const thread=await prisma.prospectConversation.findUniqueOrThrow({where:{endpointId:endpoint.id}});
- const audience=new FreezeCampaignAudience(new PrismaAudienceRepository(prisma,keys));
+ const audienceStore=new PrismaAudienceRepository(prisma,keys);
+ const audience=new FreezeCampaignAudience(audienceStore);
+ const planner=new CampaignPlanner(new PrismaCampaignPlanner(prisma,{enabled:false,quote:()=>null,interpret:async()=>{throw Error('real_model_disabled');}}));
+ const preparation=new CampaignPreparation(new PrismaCampaignPreparation(prisma,templates,identity,audienceStore));
  const runtime=()=>({moduleEnabled:true,workersRunning:true,dispatchMode:"controlled" as const,modelMode:"controlled" as const,ingestionEnabled:false});
  const status=new ProspectOperationalStatus({runtime,channel:()=>health.readiness(),
   async source(){const id=await directory.activeSnapshotId(),s=id?await directory.getImport(id):null;return {snapshotId:id,competence:s?.competence??null,state:s?.state??"unavailable"};},
   async knowledge(){await driver.verifyConnectivity();return {activePublications:(await sources.active(new Date())).length};}},offers);
  const entries:[any,any][]=[[PROSPECT_META_DISPATCH,inbox],[WHATSAPP_CONFIG_REPOSITORY,{findByMetaPhoneNumberId:async()=>null}],[AcceptBubbleWhatsWebhookUseCase,{}],[PROSPECTING_PORTS.directory,directory],[SearchCompaniesQuery,new SearchCompaniesQuery(directory,cursor)],[CompanyImportService,new CompanyImportService(directory,{async competences(){return ["2026-11"];},async discover(c){return fixtureManifest(c);}},{ingestionEnabled:false})],
   [ProspectService,new ProspectService(crm)],[PROSPECTING_PORTS.segments,new PrismaSegmentRepository(prisma)],[PROSPECTING_PORTS.privacy,new PrismaProspectPrivacyRepository(prisma,directory,keys)],
-  [CampaignService,new CampaignService(new PrismaCampaignCommands(prisma,offers,c=>health.forCampaign(c)))],[FreezeCampaignAudience,audience],[SenderReadinessService,health],[PlatformSenderOnboardingService,onboard],
+  [CampaignService,new CampaignService(new PrismaCampaignCommands(prisma,offers,c=>health.forCampaign(c),identity.current.bind(identity)))],[FreezeCampaignAudience,audience],[SenderReadinessService,health],[PlatformSenderOnboardingService,onboard],
+  [CampaignDraftService,new CampaignDraftService(new PrismaCampaignDrafts(prisma))],[CampaignDraftAudience,new CampaignDraftAudience(new PrismaCampaignDraftAudience(prisma))],[CampaignPlanner,planner],[CampaignPreparation,preparation],[PlatformTemplateService,templates],
   [KNOWLEDGE_ADMIN,{sources,publications,query}],[ProspectConversationService,conversation],[PROSPECTING_PORTS.billing,bridge],[ProspectConversionHistoryQuery,new ProspectConversionHistoryQuery(prisma)],[ProspectMetricsQueryService,new ProspectMetricsQueryService(prisma)],[ProspectOperationalStatus,status]];
- return {inbound,effects,initial,conversationId:thread.id,leadId:lead.id,incoming,audience,conversation,controllers:[...accounts.controllers,WhatsAppWebhookController,CompanyDirectoryController,CompanyImportController,ProspectSegmentController,ProspectController,ProspectPrivacyController,ProspectCampaignController,ProspectSenderController,ProspectKnowledgeController,ProspectConversationController,ProspectMetricsController,ProspectBillingProposalController,ProspectAccountBindingController,ProspectConversionController],providers:[...accounts.providers,...entries.map(([provide,useValue])=>({provide,useValue})),ProspectConversationGateway]};
+ return {inbound,effects,initial,planner,conversationId:thread.id,leadId:lead.id,incoming,audience,conversation,controllers:[...accounts.controllers,WhatsAppWebhookController,CompanyDirectoryController,CompanyImportController,ProspectSegmentController,ProspectController,ProspectPrivacyController,ProspectCampaignController,ProspectCampaignDraftController,ProspectCampaignCompaniesController,ProspectCampaignPlannerController,ProspectPlatformTemplateController,ProspectSenderController,ProspectKnowledgeController,ProspectConversationController,ProspectMetricsController,ProspectBillingProposalController,ProspectAccountBindingController,ProspectConversionController],providers:[...accounts.providers,...entries.map(([provide,useValue])=>({provide,useValue})),ProspectConversationGateway]};
 }

@@ -6,6 +6,10 @@ import { createDirectoryPrismaClient } from "../src/modules/platform-prospecting
 
 const crmMigration = new URL("../prisma/migrations/20261117190000_platform_prospecting/migration.sql", import.meta.url);
 const directoryMigration = new URL("../prisma/company-directory-migrations/20261117190100_company_directory/migration.sql", import.meta.url);
+async function migrateCurrentDirectory(pg:Awaited<ReturnType<typeof createProspectingLogicalDatabase>>["pg"]){
+  await pg.query(readFileSync(directoryMigration,"utf8"));
+  await pg.query(readFileSync(new URL("../prisma/company-directory-migrations/20261123193000_directory_progressive_read_views/migration.sql",import.meta.url),"utf8"));
+}
 async function crmDatabase() {
   const db = await createProspectingDatabase();
   try {
@@ -78,7 +82,7 @@ test("PROS-05 AC1 directory migration preserves snapshot identities and exact CN
   const db = await createProspectingLogicalDatabase();
   const client = createDirectoryPrismaClient({ databaseUrl: db.databaseUrl, directoryDatabaseUrl: db.databaseUrl, directoryPoolSize: 2 });
   try {
-    await db.pg.query(readFileSync(directoryMigration, "utf8"));
+    await migrateCurrentDirectory(db.pg);
     for (const id of ["old", "new"]) {
       await client.companySnapshot.create({ data: { id, competence: id === "old" ? "2026-10" : "2026-11", manifestHash: id, manifest: {}, sourceUrl: "https://arquivos.receitafederal.gov.br/", parserVersion: "1" } });
       await client.companyEntity.create({ data: { snapshotId: id, baseCnpj: "00ABC123", legalName: "Empresa", normalizedLegalName: "EMPRESA", capitalCents: "900719925474099312345", simples: null, mei: false } });
@@ -103,7 +107,7 @@ test("PROS-06 AC1 directory migration supports indexed snapshot/CNAE/location pr
   const client = createDirectoryPrismaClient({ databaseUrl: db.databaseUrl, directoryDatabaseUrl: db.databaseUrl, directoryPoolSize: 2 });
   try {
     await db.pg.query("CREATE TABLE public.merchants(id text PRIMARY KEY,name text); INSERT INTO public.merchants VALUES ('real-preserved','Merchant preserved')");
-    await db.pg.query(readFileSync(directoryMigration, "utf8"));
+    await migrateCurrentDirectory(db.pg);
     await client.companySnapshot.create({ data: { id: "snapshot", competence: "2026-11", manifestHash: "manifest", manifest: {}, sourceUrl: "https://arquivos.receitafederal.gov.br/", parserVersion: "1" } });
     await client.companyEntity.create({ data: { snapshotId: "snapshot", baseCnpj: "00123456", legalName: "Empresa", normalizedLegalName: "EMPRESA" } });
     await client.companyEstablishment.createMany({ data: [

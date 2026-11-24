@@ -167,7 +167,12 @@ dialog.prospect-lead-drawer {
 .prospecting-template header strong { overflow-wrap: anywhere; }
 .prospecting-template header p { color: var(--ink-muted); font-size: .8125rem; margin-top: .3rem; }
 .prospecting-template > p { max-width: 70ch; }
+.template-manager .button { overflow-wrap: anywhere; }
 .campaign-workspace .template-manager { padding-block: .5rem 0; border-top: 0; }
+.campaign-company-list { max-height: 20rem; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.prospecting-template-list { max-height: 24rem; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+@media(max-width:760px) { .campaign-company-list { max-height: 18rem; } }
+@media(max-width:760px) { .prospecting-template-list { max-height: 22rem; } }
 .campaign-workspace .campaign-step > .button + .button { margin-top: .25rem; }
 @media (max-width: 760px) {
  .campaign-workspace .campaign-context .prospecting-fields { grid-template-columns: minmax(0, 1fr); }

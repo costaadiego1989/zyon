@@ -181,7 +181,7 @@ export function ProspectingChannelPage(
           </section>
         </>
       )}
-      <TemplateManager {...props} bindingAvailable={!!binding}/>
+      <TemplateManager {...props} bindingAvailable={!!binding} bindingState={!value?(channel.error?'unavailable':'loading'):binding?'connected':'absent'} refreshChannel={channel.reload}/>
     </section>
   );
 }

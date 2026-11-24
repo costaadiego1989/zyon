@@ -14,7 +14,7 @@ test("PROS-02 AC3 fixture rejects every remote dependency before opening any con
 test("PROS-02 AC3 fixture proves real local persistence, Nest JWT guards and captured external ports", async () => {
   const fixture = await createProspectingFixture();
   try {
-    assert.equal((await fixture.pg.query("SELECT current_database() AS name")).rows[0].name, "zyon_prospecting");
+    assert.equal((await fixture.pg.query("SELECT current_database() AS name")).rows[0].name, new URL(readProspectingTestConfig().databaseUrl).pathname.slice(1));
     await fixture.pg.query("CREATE TABLE fixture_business_state (id text PRIMARY KEY, value text NOT NULL)");
     await fixture.pg.query("INSERT INTO fixture_business_state VALUES ($1,$2)", ["proof", "persisted"]);
     const connection = await fixture.pg.connect();

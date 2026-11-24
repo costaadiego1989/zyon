@@ -60,6 +60,7 @@ export async function startProspectingBrowserRuntime(mode:"disposable"|"preview"
   await new Promise<void>((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error("vite_start_timeout")),60000);child!.once("message",(m:any)=>{clearTimeout(timeout);m.ready?resolve():reject(Error(m.error));});child!.once("exit",code=>{clearTimeout(timeout);reject(Error("vite_exit_"+code));});child!.once("error",reject);});
   writeFileSync(receiptFile,JSON.stringify({mode,apiPid:process.pid,sitePid:child.pid,origins,database:data.namespace,owner:data.owner,startedAt:new Date().toISOString()},null,2));receipt=true;
   async function step(){
+   await s.planner.processNext();
    await s.audience.processNext();
    await s.inbound.processNext();
    await s.effects.replies("prospect.ai.reply",true);
