@@ -3,7 +3,7 @@ import type {ProspectingBlocker,ProspectingTemplate} from "@zyon/shared-types";
 import type {HealthObservation,PlatformSenderCredential,SenderHealthReader} from "../../application/campaigns/sender-readiness.service.js";
 import {stableDirectoryJson} from "../../domain/company-directory/directory-values.js";
 import {platformGraph,PlatformMetaAuthorization} from "./platform-meta-authorization.js";
-type Entity={entity_type:string;id:string;can_send_message:string;errors?:{error_code:number}[]};
+type Entity={entity_type:string;id:string;can_send_message:string;can_receive_call_sip?:string;additional_info?:string[];errors?:{error_code:number}[]};
 type Phone={id:string;status:string;platform_type:string;quality_rating:string;whatsapp_business_manager_messaging_limit:string;health_status?:{can_send_message:string;entities:Entity[]}};
 type Template=Omit<ProspectingTemplate,"wabaId"|"revision">&{components:unknown[]};
 const tiers:Record<string,number>={TIER_250:250,TIER_2K:2000,TIER_10K:10000,TIER_100K:100000};
@@ -43,9 +43,15 @@ export class MetaSenderHealthReader implements SenderHealthReader {
   const expected:Record<string,string>={PHONE_NUMBER:b.phoneNumberId,WABA:b.wabaId,BUSINESS:businessId,APP:b.appId};
   if(phone.id!==b.phoneNumberId||Object.entries(expected).some(([type,id])=>!observed.some(e=>e.entity_type===type&&e.id===id)))blockers.add("sender_identity_mismatch");
   if(phone.status!=="CONNECTED"||phone.platform_type!=="CLOUD_API")blockers.add("sender_unavailable");
-  if(phone.health_status?.can_send_message!=="AVAILABLE"||observed.some(e=>e.can_send_message!=="AVAILABLE")||!["GREEN","YELLOW"].includes(phone.quality_rating))blockers.add("quality_restricted");
+  const tier=phone.whatsapp_business_manager_messaging_limit;
+  // Meta documents pending display-name approval as a finite messaging limit, not a messaging block.
+  const pendingNameOnly=phone.health_status?.can_send_message==="LIMITED"&&Object.hasOwn(tiers,tier)&&observed.every(e=>{
+   if(e.entity_type==="PHONE_NUMBER")return e.can_send_message==="LIMITED"&&e.additional_info?.length===1&&e.additional_info[0]==="Your display name has not been approved yet. Your message limit will increase after the display name is approved."&&(e.errors??[]).every(err=>err.error_code===138024&&e.can_receive_call_sip==="BLOCKED");
+   return e.can_send_message==="AVAILABLE"&&(e.errors??[]).every(err=>e.entity_type==="APP"&&err.error_code===138025&&e.can_receive_call_sip==="BLOCKED");
+  });
+  if(!pendingNameOnly&&(phone.health_status?.can_send_message!=="AVAILABLE"||observed.some(e=>e.can_send_message!=="AVAILABLE"))||!["GREEN","YELLOW"].includes(phone.quality_rating))blockers.add("quality_restricted");
   const entities=observed.filter(e=>expected[e.entity_type]===e.id).map(e=>({type:e.entity_type,id:e.id,status:["AVAILABLE","LIMITED","BLOCKED"].includes(e.can_send_message)?e.can_send_message:"UNKNOWN",errorCodes:(e.errors??[]).map(err=>err.error_code).filter(Number.isSafeInteger).slice(0,10)}));
-  const tier=phone.whatsapp_business_manager_messaging_limit;const known=Object.hasOwn(tiers,tier)||tier==="TIER_UNLIMITED";
+  const known=Object.hasOwn(tiers,tier)||tier==="TIER_UNLIMITED";
   if(!known)blockers.add("portfolio_limit");
   const templates:ProspectingTemplate[]=[];const query:Record<string,string>={fields:"id,name,status,language,category,components",limit:"100"};
   for(let page=0;page<20;page++){
