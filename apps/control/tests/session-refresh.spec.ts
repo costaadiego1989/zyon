@@ -82,6 +82,27 @@ it("SESSION AC2 logout fences a pending rotation and revokes the latest credenti
   expect(observed.at(-1)).toEqual({ path: "https://api.example.test/v1/platform/auth/logout", token: "Bearer expired" });
 });
 
+it("SESSION AC2 logout fences renewal while the revoke HTTP request is still pending", async () => {
+  writePlatformSession({ token: "expired", operator });
+  let completeRefresh!: (response: Response) => void;
+  let completeLogout!: (response: Response) => void;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async url => new Promise<Response>(resolve => {
+    if (String(url).endsWith("/refresh")) completeRefresh = resolve;
+    else if (String(url).endsWith("/logout")) completeLogout = resolve;
+    else throw Error("unexpected request");
+  }));
+  const api = new PlatformApi("https://api.example.test");
+  const renewal = api.refreshSession("expired");
+  const rejected = expect(renewal).rejects.toThrow("platform_session_changed");
+  const logout = api.logout("expired");
+  completeRefresh(ok(auth("late-replacement"), 201));
+  await rejected;
+  expect(readPlatformSession()).toEqual({ token: "expired", operator });
+  completeLogout(new Response(null, { status: 204 }));
+  await logout; clearPlatformSession();
+  expect(readPlatformSession()).toBeNull();
+});
+
 it("SESSION AC2 does not treat forbidden resource access as token expiry", async () => {
   writePlatformSession({ token: "valid", operator });
   const transport = vi.spyOn(globalThis, "fetch").mockResolvedValue(ok({ code: "forbidden" }, 403));
