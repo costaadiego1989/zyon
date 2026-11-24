@@ -3,6 +3,7 @@ import type { SalesKnowledgeFact, SalesKnowledgeSource } from "@zyon/shared-type
 import type { ProspectingActor } from "../../domain/prospecting.ports.js";
 import { prospectAudit, prospectCommand } from "../crm/prospect-command.js";
 import { knowledgeHash, PrismaSalesKnowledgeRepository } from "./prisma-sales-knowledge.repository.js";
+import { initializeSalesKnowledgeSchema } from "./neo4j-sales-knowledge.schema.js";
 
 export const SALES_NAMESPACE = "zyon-platform-sales";
 export interface PublicationCommand { clientRequestId:string; expectedVersion:number; contentHash:string }
@@ -11,6 +12,7 @@ interface Projector { project(draft:SalesKnowledgeSource):Promise<Projection> }
 export class Neo4jSalesKnowledgeAdapter implements Projector {
   constructor(private readonly driver:Driver, private readonly namespace=SALES_NAMESPACE) {}
   async project(draft:SalesKnowledgeSource) {
+    await initializeSalesKnowledgeSchema(this.driver);
     const id=draft.draft[0].publicationId;
     const session=this.driver.session({defaultAccessMode:neo4j.session.WRITE});
     try {
