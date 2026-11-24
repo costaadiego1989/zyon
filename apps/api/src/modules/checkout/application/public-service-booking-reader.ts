@@ -1,5 +1,7 @@
 import { ConflictException, ForbiddenException, NotFoundException, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { isDeepStrictEqual } from "node:util";
+import { revalidateNativePublicServiceReadScope, type NativePublicServiceReadScope } from "../../../shared/bookings/native-public-service-read-scope.js";
 import { lockServiceProfessional } from "../../../shared/bookings/service-professional-lock.js";
 import { hasUnclassifiedServiceReservations } from "../../../shared/bookings/service-legacy-readiness.js";
 import { serviceSlotStore, type RedisServiceSlots } from "../../../shared/bookings/redis-service-slots.js";
@@ -13,11 +15,14 @@ import { executionClock } from "../../revenue-manager/infrastructure/strategy-ex
 
 /** Private transport authority derived only from a verified embed or conversation
  * capability. Anonymous browsing carries no buyer, cart, session or write grant. */
-export interface PublicServiceReadScope {
+export interface StorefrontPublicServiceReadScope {
+  readonly transport?: undefined;
   readonly merchantId: string;
   readonly allowedOrigin: string;
   readonly expiresAtUnix: number;
 }
+export type PublicServiceReadScope = StorefrontPublicServiceReadScope | NativePublicServiceReadScope;
+
 type Offer = { productId: string; variantId: string };
 type ProfessionalChoice = Offer & { professionalId: string };
 type Tx = Prisma.TransactionClient;
@@ -31,6 +36,7 @@ export class PublicServiceBookingReader {
   private async authorize(tx: Tx, scope: PublicServiceReadScope) {
     if (!scope || typeof scope.merchantId !== "string" || !scope.merchantId || !Number.isSafeInteger(scope.expiresAtUnix))
       throw new ForbiddenException("service_booking_capability_invalid");
+    if (scope.transport !== undefined) return revalidateNativePublicServiceReadScope(tx, scope);
     try {
       const origin = new URL(scope.allowedOrigin);
       if (!["http:", "https:"].includes(origin.protocol) || origin.origin !== scope.allowedOrigin)
@@ -56,7 +62,8 @@ export class PublicServiceBookingReader {
   }
   private async read<T>(scope: PublicServiceReadScope, professionalId: string | undefined,
     work: (tx: Tx, bound: PublicServiceReadScope, business: Awaited<ReturnType<PublicServiceBookingReader["merchant"]>>) => Promise<T>) {
-    const bound = Object.freeze({ merchantId: scope.merchantId, allowedOrigin: scope.allowedOrigin, expiresAtUnix: scope.expiresAtUnix });
+    const bound: PublicServiceReadScope = scope.transport === "whatsapp" ? scope
+      : Object.freeze({ merchantId: scope.merchantId, allowedOrigin: scope.allowedOrigin, expiresAtUnix: scope.expiresAtUnix });
     return this.prisma.$transaction(async tx => {
       await this.authorize(tx, bound);
       const business = await this.merchant(tx, bound);
@@ -118,6 +125,28 @@ export class PublicServiceBookingReader {
           priceInCents: result.facts.priceInCents, currency: result.facts.currency };
         return { ...value, slotId: professionalSlotId(bound.merchantId, value) };
       }) };
+    });
+  }
+  /** Read-only review of an exact current public slot. A later Continue must
+   * independently resolve private authority and revalidate the canonical offer. */
+  async preview(scope: PublicServiceReadScope, input: { selection: ProfessionalCheckoutSelection }) {
+    const choice = structuredClone(input.selection);
+    return this.read(scope, choice.professionalId, async (tx, bound, business) => {
+      const result = await this.availability(tx, bound, { ...choice, fromDate: choice.date, toDate: choice.date }, business);
+      const slot = result.slots.find(value => value.startsAt === choice.startsAt && value.endsAt === choice.endsAt);
+      if (!slot) throw new ConflictException("service_slot_unavailable");
+      const value = { productId: result.facts.productId, variantId: result.facts.variantId, professionalId: result.facts.professionalId,
+        professionalVersion: result.facts.professionalVersion, policyVersion: business.version, date: slot.date, startsAt: slot.startsAt,
+        endsAt: slot.endsAt, timeZone: slot.timeZone, durationMinutes: slot.durationMinutes, priceInCents: result.facts.priceInCents, currency: result.facts.currency };
+      const selection = { ...value, slotId: professionalSlotId(bound.merchantId, value) };
+      if (!isDeepStrictEqual(selection, choice)) throw new ConflictException("service_selection_stale");
+      const [product, professional] = await Promise.all([
+        tx.product.findFirst({ where: { id: choice.productId, merchantId: bound.merchantId }, select: { name: true } }),
+        tx.serviceProfessional.findFirst({ where: { id: choice.professionalId, merchantId: bound.merchantId }, select: { publicName: true } }),
+      ]);
+      if (!product || !professional) throw new NotFoundException("professional_service_not_found");
+      return { selection, service: { name: product.name }, professional: { name: professional.publicName },
+        policy: { version: business.version, ...business.policy } };
     });
   }
 }

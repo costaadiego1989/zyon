@@ -200,7 +200,7 @@ export class HandleMetaConversationUseCase {
         const checked = checkServiceControlFreshness({ action, state, turn: matchingTurn, now: new Date() });
         if (!checked.ok) {
           const snapshot = state.view?.serviceBooking;
-          view = checked.reason === "button_required" && snapshot?.model.step === "review"
+          view = checked.reason === "button_required" && (snapshot?.model.step === "review" || snapshot?.model.step === "prepared")
             ? buildServiceBookingControls({ ...snapshot, model: { ...snapshot.model, notice: "button_required" } })
             : buildServiceBookingControls(snapshot ? { ...snapshot,
               model: { step: "status", reason: checked.reason === "expired" ? "expired" : "stale" } } : undefined);

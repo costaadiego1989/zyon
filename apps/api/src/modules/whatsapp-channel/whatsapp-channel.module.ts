@@ -46,7 +46,8 @@ import { WHATSAPP_SESSION_REPOSITORY, type WhatsAppSessionRepository } from "./d
 import { WHATSAPP_POST_SALE_CONTEXT_PORT } from "./domain/ports/whatsapp-post-sale-context.port.js";
 import { WhatsAppPostSaleContextAdapter } from "./infrastructure/adapters/whatsapp-post-sale-context.adapter.js";
 import { PrismaWhatsAppSessionRepository } from "./infrastructure/repositories/prisma-whatsapp-session.repository.js";
-import { PersistenceModule } from "../../shared/persistence/persistence.module.js";
+import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
 import { PostSaleModule } from "../post-sale/post-sale.module.js";
 import { WhatsAppConfigModule } from "./whatsapp-config.module.js";
 import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
@@ -90,6 +91,12 @@ export class MultiProviderSenderAdapter {
   }
 }
 
+import { WhatsAppServiceBookingAuthority } from "./application/services/whatsapp-service-booking-authority.js";
+import { WhatsAppServiceBookingService } from "./application/services/whatsapp-service-booking.service.js";
+import { WhatsAppTurnContext } from "./domain/services/whatsapp-turn-context.js";
+import { ServiceBookingService } from "../checkout/application/service-booking.service.js";
+import { ServiceSlotHoldsService } from "../../shared/bookings/service-slot-holds.service.js";
+
 @Module({
   imports: [WhatsAppHandoffModule, forwardRef(() => SupportModule), forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, AgentRuleReaderModule, forwardRef(() => PostSaleModule)],
   controllers: [WhatsAppWebhookController, WhatsAppConfigController, WhatsAppDeliveryController, WhatsAppPresentationController],
@@ -106,6 +113,14 @@ export class MultiProviderSenderAdapter {
     HandleIncomingMessageUseCase,
     HandleMetaConversationUseCase,
     WhatsAppCheckoutIdentityService,
+    { provide: WhatsAppServiceBookingAuthority,
+      useFactory: (prisma: PrismaClient, turns: WhatsAppTurnContext, identity: WhatsAppCheckoutIdentityService, holds: ServiceSlotHoldsService) =>
+        new WhatsAppServiceBookingAuthority(prisma, turns, identity, holds),
+      inject: [PRISMA_CLIENT, WhatsAppTurnContext, WhatsAppCheckoutIdentityService, ServiceSlotHoldsService] },
+    { provide: WhatsAppServiceBookingService,
+      useFactory: (prisma: PrismaClient, authority: WhatsAppServiceBookingAuthority, booking: ServiceBookingService, holds: ServiceSlotHoldsService) =>
+        new WhatsAppServiceBookingService(prisma, authority, booking, holds),
+      inject: [PRISMA_CLIENT, WhatsAppServiceBookingAuthority, ServiceBookingService, ServiceSlotHoldsService] },
     WhatsAppBuyerHubService,
     WhatsAppHubAddressesService,
     WhatsAppPostCartOfferService,

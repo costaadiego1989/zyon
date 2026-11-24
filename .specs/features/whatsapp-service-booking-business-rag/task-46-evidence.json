@@ -1,0 +1,250 @@
+{
+  "task": 46,
+  "status": "TASK_GATE_PASSED_QUALIFIED_LOCAL",
+  "preparedAtUtc": "2026-11-24T22:21:19.312657+00:00",
+  "references": [
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\public-service-ownership-stageplans-20261124\\current-25-api15-final-gates-admitted-20261124\\plans\\T46-stage-plan.json",
+      "sha256": "b7026ddb2af37ad49bc8bdb37c35ce4abf6262acd3f64751dcc68e6a42829f04"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\public-service-ownership-stageplans-20261124\\gate-admission-api15-final-fixed-authorities.json",
+      "sha256": "eb197bc55c8f8b4354fa64a67829b6428149d8745c443c9bb16b51888688cf7f"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-metrics-20261121\\.cache\\t95-final-c59-metadata-projector-20261124-v4\\source-ready.json",
+      "sha256": "e20bc182039060e342998b2f0889e2c3db090e911c843df66ac3107442fcbdf8"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t94-c60-coherent-owned-api-window15-20261123\\receipt.json",
+      "sha256": "e9055c12a19cd5839aba84b652267a317e97c6e499d682f4c7390eed88cf8520"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t94-c60-coherent-owned-api-window15-20261123\\source-ready.json",
+      "sha256": "b5f646844d259052afadc9253137599a4b2dfb251f63aa1573652ea5830f5723"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\storefront-current-types-build-window20-20261123\\receipt.json",
+      "sha256": "e976e57c8dcb681b99b85f63626fe2cb83d6aa70bc89b9d1f2ef67b76bf242ca"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\c59-api15-next20-current-browser-recipes-20261124\\binding-api15-fresh-next20-current.json",
+      "sha256": "a58577e61c0f5aeba979b78bf4b494b110eca401e408b4d08f1197b5c815f961"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\native-api15-approved-public-whole38-window01-20261124\\receipt.json",
+      "sha256": "5f6d75f803584143b1c61bc989e997fdbaad82719b6634698afb87fcd11e4ec9"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-storefront12-owned-api-window27-20261123\\receipt.json",
+      "sha256": "4b1b85cf36276c67628e66a5fe3be3f63e638ae8e49500c9187788d8ff1a5d1b"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-storefront12-owned-api-window29-20261123\\receipt.json",
+      "sha256": "024d2f39cf91d35aac3887919ef8d489d90370d21ef2fe0955a172ce2d7378f8"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\native-public3-specific-user-approval-20261124\\approval.json",
+      "sha256": "94173af12249d10bf514a2837a7adbf685ae5ca665ab9456245bccb8ec2655fe"
+    },
+    {
+      "path": "C:/tmp/zyon-service-business-20261114/.cache/native-public3-specific-approved-actual-adoption-20261124/receipt.json",
+      "sha256": "51094edd5935fa0534cec801f9344b11f65c8578cc84fdb11e64cf9303a83dc8"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\service-mode-initial-presentation-20261124-v3\\candidate-window01\\receipt.json",
+      "sha256": "277b19c0e5c29d9d0759504f1df7110b71c593771e57a9633d63dc063a930fec"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\public-service-current-backend70-wa13-fixture-20261124\\receipt.json",
+      "sha256": "4b4b06545347e98d4f49e81e9130eeaae0186ff207a7fb226a12e521be6bbfd0"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\public-service-browse-ui-whole17-20261124\\receipt.json",
+      "sha256": "1815c9a758a427564239a2ecaebd187c0cc2b80ef4a797dd7f91b35a2c58cb2e"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\public-service-browse-transports-whole42-20261124\\receipt.json",
+      "sha256": "5d4fe1ccbc88eb8a8e40920cd069394a106c5eb0d2bf7cff22863df09028a03b"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-metrics-20261121\\.cache\\task-gate-closures-current-20261124\\T46-gate-evidence.json",
+      "sha256": "5e1613465d8feb7118c1866df025e618f0ead41c602a151fb85497f30bcedf04"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t45-t47-relative-import-closure-20261124-v2\\T46-stage-plan.json",
+      "sha256": "9aa07768fc26f3988d16923c45664dc66f0336df60041d2aa1c8399fdff51817"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t94-c60-coherent-owned-api-window12-20261123\\receipt.json",
+      "sha256": "4c0ded7f28af548da80ac1bf16fccbf3f7a84b286077506c780923950c4afd13"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t46-current-pure21-20261124\\receipt.json",
+      "sha256": "a9646e414ecf102f57ede2a3c4466a7def55a8b62feaa665d740abd9c93e51e7"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t47-current-api07-whole36-window01-20261124\\receipt.json",
+      "sha256": "16ee0332fac2ec019af58129752b5f4c31721ca83eed37acf414a829836fd601"
+    },
+    {
+      "path": "C:\\tmp\\zyon-service-business-20261114\\.cache\\t46-current-pure21-20261124\\pure21.log",
+      "sha256": "602f75d61b1de0870a8201f54ca117a6336eaeb091e89b0dbc5d6bf02c539ad2"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t47-current-api07-whole36-window01-20261124\\04-service-channel-journey.integration.spec.ts.log",
+      "sha256": "3418507407cf3442393253dacb06c120e225d3d68ed2c5ee36b10a486eb21371"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-whatsapp4-owned-api-window16-20261123\\receipt.json",
+      "sha256": "30dd46e88152a911a1e8fceccdf1c5fa1fcbab21af90ae3e2748245ac5d7e572"
+    },
+    {
+      "path": "C:/tmp/zyon-t40-focused-20261122/.cache/widget-current-types-build-window08-20261123/receipt.json",
+      "sha256": "6eda67af352da3d1a3ae210520d85f47ef2b7b6acc53469d1b16b3acfb109507",
+      "sourcePlan": {
+        "path": "C:\\tmp\\zyon-service-metrics-20261121\\.cache\\api13-public-source-build-chain-20261124\\stage-api13-window01\\widget-source-plan.json",
+        "sha256": "373cf0f81d2e0a117928d4d560be91ad31e338e808355a73ba31804aa8ac163d"
+      },
+      "sourcePinCount": 105,
+      "artifactCount": 129
+    },
+    {
+      "path": "C:/tmp/zyon-t40-focused-20261122/.cache/dashboard-current-types-build-window10-20261123/receipt.json",
+      "sha256": "df6bcbc1d3f4aea7cac7afe620db0fb94ce06d5c949d9614a37f3a9dc757770f",
+      "sourcePlan": {
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\dashboard-current-types-build-window10-20261123\\source-plan.json",
+        "sha256": "c34c1d9a9095b19c3f8a7e498fef8041ffcbb9be6aa70907d01e84d5959b79ac"
+      },
+      "sourcePinCount": 1032,
+      "artifactCount": 164
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-storefront12-owned-api-window28-20261123\\receipt.json",
+      "sha256": "3e0fd96d09862cf7a9cf905e0723c589f1d7f61b5f244e53f86a1234c620d90c"
+    }
+  ],
+  "gateExecutions": [
+    {
+      "file": "tests/service-channel-journey.integration.spec.ts",
+      "wholeFile": true,
+      "counts": {
+        "tests": 18,
+        "pass": 18,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "receiptScope": "Genuine historical API07 whole file, qualified by unchanged task business path; not relabeled a fresh API12 execution"
+    },
+    {
+      "file": "service-conversational-booking-http.integration.spec.mjs",
+      "wholeFile": true,
+      "pass": 10,
+      "receipt": {
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\native-api15-approved-public-whole38-window01-20261124\\receipt.json",
+        "sha256": "5f6d75f803584143b1c61bc989e997fdbaad82719b6634698afb87fcd11e4ec9"
+      }
+    },
+    {
+      "file": "service-channel-public-browse.integration.spec.ts",
+      "wholeFile": true,
+      "pass": 3,
+      "receipt": {
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\native-api15-approved-public-whole38-window01-20261124\\receipt.json",
+        "sha256": "5f6d75f803584143b1c61bc989e997fdbaad82719b6634698afb87fcd11e4ec9"
+      }
+    },
+    {
+      "file": "service-channel-journey.integration.spec.ts",
+      "wholeFile": true,
+      "pass": 18,
+      "receipt": {
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\native-api15-approved-public-whole38-window01-20261124\\receipt.json",
+        "sha256": "5f6d75f803584143b1c61bc989e997fdbaad82719b6634698afb87fcd11e4ec9"
+      }
+    },
+    {
+      "file": "storefront-service-tools-http.integration.spec.ts",
+      "wholeFile": true,
+      "pass": 7,
+      "receipt": {
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\native-api15-approved-public-whole38-window01-20261124\\receipt.json",
+        "sha256": "5f6d75f803584143b1c61bc989e997fdbaad82719b6634698afb87fcd11e4ec9"
+      }
+    },
+    {
+      "scope": "current storefront desktop original whole6",
+      "pass": 6,
+      "receipt": {
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-storefront12-owned-api-window27-20261123\\receipt.json",
+        "sha256": "4b1b85cf36276c67628e66a5fe3be3f63e638ae8e49500c9187788d8ff1a5d1b"
+      }
+    },
+    {
+      "scope": "current storefront mobile original whole6",
+      "pass": 6,
+      "receipt": {
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-storefront12-owned-api-window29-20261123\\receipt.json",
+        "sha256": "024d2f39cf91d35aac3887919ef8d489d90370d21ef2fe0955a172ce2d7378f8"
+      }
+    },
+    {
+      "scope": "unchanged WhatsApp original whole4 retained with API14 provenance",
+      "pass": 4,
+      "receipt": {
+        "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-whatsapp4-owned-api-window16-20261123\\receipt.json",
+        "sha256": "30dd46e88152a911a1e8fceccdf1c5fa1fcbab21af90ae3e2748245ac5d7e572"
+      }
+    }
+  ],
+  "scopeQualification": [
+    "Current T46 services/authority and both real factory construction files passed freshly as pure21 a964.",
+    "Existing actual HTTP/SQL18 and tool dispatch7 are retained as matching scoped business-path evidence; current checked API12 is separately proven. No claim of a new whole36 execution on API12.",
+    "T46 native service/control/handler sources are byte-exact to the measured composed implementation. The projected checkout adapter omits only separate future CPF/delivery commerce hunks; no isolated projection test run is claimed.",
+    "Literal task dependencies remain required at HEAD before Root engine closure.",
+    "Mobile28 is retained only as a failed global600s attempt with four passed bodies/two unrun and cleanup unproven at that deadline. Only a genuine new original whole mobile29 GREEN can supply the current mobile gate.",
+    "Current API15 four-stage checked return, fresh Next20 and original storefront whole12 plus one fresh wholeNative38 are distinct genuine local gates. Old failed38/desktop attempts and superseded unrun continuation recipes remain historical.",
+    "WA16 retains its original API14 local provenance and unchanged WA source scope; native18 is additionally rerun under current API15. Controlled transports are not provider delivery.",
+    "Public129/UI17/SDK9/continuity33 retain unchanged scoped provenance; C59 getter/initial-mode behavior is proved by its new original whole23+83 cohort, without restamping old broad source inventories.",
+    "Seven T93 mixed stage projections remain narrow; runtime is composed with T94 release prerequisites, never claimed isolated.",
+    "Root alone verifies actual HEAD dependencies, stages expected-before blobs, marks tasks through the task engine and creates atomic commits. This preparer changes no task/dependency state, HEAD/index or shared metadata."
+  ],
+  "actualCheckedAPI15": {
+    "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t94-c60-coherent-owned-api-window15-20261123\\receipt.json",
+    "sha256": "e9055c12a19cd5839aba84b652267a317e97c6e499d682f4c7390eed88cf8520"
+  },
+  "currentApiTuple": {
+    "checked": true,
+    "inputSha256": "81b486953266e5db6970193e450fb0b0d32f89b6279b9c7e6ca1b67935f108c4",
+    "artifactSha256": "9aeb88b57fcef2d11704ef4762f5338e135a2897e0766445dcaed3594d58871e",
+    "compilerCoverage": {
+      "checked": true,
+      "sourceCount": 2630
+    }
+  },
+  "freshNext20": {
+    "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\storefront-current-types-build-window20-20261123\\receipt.json",
+    "sha256": "e976e57c8dcb681b99b85f63626fe2cb83d6aa70bc89b9d1f2ef67b76bf242ca"
+  },
+  "currentNativeWhole38": {
+    "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\native-api15-approved-public-whole38-window01-20261124\\receipt.json",
+    "sha256": "5f6d75f803584143b1c61bc989e997fdbaad82719b6634698afb87fcd11e4ec9"
+  },
+  "currentStorefrontWhole12": [
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-storefront12-owned-api-window27-20261123\\receipt.json",
+      "sha256": "4b1b85cf36276c67628e66a5fe3be3f63e638ae8e49500c9187788d8ff1a5d1b"
+    },
+    {
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-storefront12-owned-api-window29-20261123\\receipt.json",
+      "sha256": "024d2f39cf91d35aac3887919ef8d489d90370d21ef2fe0955a172ce2d7378f8"
+    }
+  ],
+  "isolatedProjectedSourceExecutionClaimed": false,
+  "taskMarkedByAuthor": false,
+  "indexOrSharedSourceWritten": false,
+  "compilerOrSutExecutedByAuthor": false,
+  "finalFeatureProofsAndIndependentVerifierRemainRequired": true
+}

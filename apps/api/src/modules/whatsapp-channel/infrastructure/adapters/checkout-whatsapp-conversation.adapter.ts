@@ -42,6 +42,8 @@ import type { TrustedWhatsAppCheckoutBuyer } from "../../../checkout/application
 import { WhatsAppPostCartOfferService } from "../../application/services/whatsapp-post-cart-offer.service.js";
 import { WhatsAppBuyerHubService } from "../../application/services/whatsapp-buyer-hub.service.js";
 
+import { WhatsAppServiceBookingService } from "../../application/services/whatsapp-service-booking.service.js";
+
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
   constructor(
@@ -66,7 +68,17 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     @Optional() private readonly checkoutShipping?: CheckoutShippingService,
     @Optional() private readonly postCartOffers?: WhatsAppPostCartOfferService,
     @Optional() private readonly buyerHub?: WhatsAppBuyerHubService,
+    @Optional() private readonly serviceBooking?: WhatsAppServiceBookingService,
   ) {}
+
+  async respondServiceBooking(input: Parameters<NonNullable<WhatsAppConversationPort["respondServiceBooking"]>>[0]): Promise<WhatsAppStructuredResponse> {
+    if (!this.serviceBooking || !this.storeConfig) throw new Error("whatsapp_service_dispatcher_unavailable");
+    const config = await this.storeConfig.executeForMerchant(input.merchantId);
+    const response = await this.serviceBooking.respond(input, (state, session) => this.checkoutUi({ session_id: session.sessionId,
+      experience: buildExperienceFromSession(session, { merchantName: config.name, serviceFee: this.experienceConfig?.platformFeeBrl }),
+      missing_fields: missingFieldsForStage(session, deriveChatStage(session)) }, state, config.name, input.message, input.merchantId));
+    if (!response) throw new Error("whatsapp_service_authority_required"); return { ...response, merchantName: config.name };
+  }
 
   async respond(input: { merchantId: string; checkoutSessionId: string; message: string }) {
     const session = await this.sessions.getSession(input.merchantId, input.checkoutSessionId);
@@ -100,7 +112,11 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     attachmentContext?: string;
     messageId?: string;
   }): Promise<WhatsAppStructuredResponse> {
-    const turn = await this.respondStoreTurn(input);
+    const serviceInput = input.verifiedSender ? { merchantId: input.merchantId, state: input.state, verifiedSender: input.verifiedSender, message: input.message, action: input.action } : undefined;
+    const entry = serviceInput ? await this.serviceBooking?.entry(serviceInput) : undefined;
+    const rawTurn = entry ?? await this.respondStoreTurn(input);
+    const checkout = serviceInput ? await this.serviceBooking?.decorateCheckout(serviceInput, rawTurn) : undefined;
+    const turn = this.serviceBooking ? await this.serviceBooking.decorateMenu(input.merchantId, checkout ?? rawTurn) : checkout ?? rawTurn;
     const response = this.postCartOffers ? await this.postCartOffers.decorate(input.merchantId, turn, { buyerName: input.buyer.fullName }) : turn;
     const cartBlock = response.blocks.find(block => block.type === "cart_summary");
     const stored = await this.prisma?.storefrontCart?.findUnique({
@@ -393,13 +409,19 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       : action ? { tool: action.tool, args: action.args }
       : pendingQuestion ? { tool: "create_question", args: { productId: pendingQuestion.productId, question: input.message } } : undefined;
     if (pendingQuestion) { state.pendingProductQuestion = undefined; state.expectsFreeInput = false; }
-    const response = await this.store.execute({
+    const sharedInput: Parameters<SendStoreMessageUseCase["execute"]>[0] = {
       merchant_id: input.merchantId, conversation_id: state.conversationId, cart_id: state.conversationId,
       user_message: input.message, global_user_id: shopper.globalUserId,
       trusted_buyer_context: { globalUserId: shopper.globalUserId, name: shopper.fullName, phone: shopper.phone, email: shopper.email },
       history: withMetaProductReferences(state), ui_action: canonicalAction,
       attachment_context: input.attachmentContext,
-    }, undefined, "whatsapp");
+    };
+    const nativeBinding = !canonicalAction && input.verifiedSender && this.serviceBooking && await this.serviceBooking.isServices(input.merchantId)
+      ? this.serviceBooking.storeBinding({ merchantId: input.merchantId, state, verifiedSender: input.verifiedSender }) : undefined;
+    const response = nativeBinding ? await this.store.execute(sharedInput, undefined, "whatsapp", nativeBinding.factory)
+      : await this.store.execute(sharedInput, undefined, "whatsapp");
+    const nativeView = nativeBinding ? await nativeBinding.present(response) : undefined;
+    if (nativeView) return { ...nativeView, merchantName: config.name };
     // A natural-language search with one result should expose its purchase
     // controls immediately. Read through the shared tools without recording a
     // second buyer turn or deriving a variant from the agent's prose.

@@ -1130,20 +1130,25 @@ T107 → T106
 
 ### T46: Route WhatsApp service actions without replacing commerce
 
-**What**: Dispatcher de serviço valida token/estado/profissional/policyVersion e ações de texto/voz; produto permanece no adapter aprovado, sem campo obrigatório novo no carrinho.
+**Status**: Complete - local task gate passed; scoped evidence in task-46-evidence.json. Final feature proofs and independent verification remain required.
+
+**What**: Service dispatch separates anonymous published discovery/read-only review from real buyer-authorized reservation/confirmation/payment writes. Retain trusted merchant/channel state, professional/policy versions, text/voice ambiguity and the approved product adapter/cart contract.
 **Where**: `apps/api/src/modules/whatsapp-channel/application/services/whatsapp-service-booking.service.ts`
 **Depends on**: T45
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: AGENDA-04, AGENDA-07, BOOK-04, REG-01, REG-02
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-channel-journey.integration.spec.ts: dois tenants/ambos modos, texto/voz, checkout lateral e atualização segura de menu.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] service-channel-journey.integration.spec.ts: dois tenants/ambos modos, texto/voz, checkout lateral e atualização segura de menu.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: service-channel-journey.integration.spec.ts: dois tenants/ambos modos, texto/voz, checkout lateral e atualização segura de menu.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T46$" ./src/modules/whatsapp-channel/application/services/whatsapp-service-booking.service.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T46 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+
+**Current refinement scope (2026-11-24):** Public service/professional/date/slot discovery and read-only review must succeed before buyer identification; only the explicit booking/reservation/confirmation/payment write requests real identity or missing required data. Preserve all tenant, publication, stale/conflict, write-authentication, financial and product assertions. Earlier completed auth-before-browse gates remain historical evidence and do not prove this revised behavior. Run the affected existing whole files and record actual counts without filters, skipped cases or relaxed resources.
+
 **Commit**: `feat(service-business): t46 route whatsapp service actions without replacing commerce`
 
 ### T47: Wire the scheduling adapters into the existing application

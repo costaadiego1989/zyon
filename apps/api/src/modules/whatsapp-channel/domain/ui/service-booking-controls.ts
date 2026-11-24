@@ -6,6 +6,8 @@ import { serviceBookingResultSchema, canonicalServiceSelectionSchema } from "../
 import type { VerifiedWhatsAppTurn } from "../services/whatsapp-turn-context.js";
 import type { MetaUiChoice, MetaUiMessage, MetaUiPresentation, MetaUiView, StoreUiAction, WhatsAppConversationState } from "./meta-ui.types.js";
 
+import { nativeServicePreparedSummarySchema, nativeServiceConfirmedSchema } from "./native-service-prepared-summary.js";
+
 const id = z.string().min(1).max(191).refine(value => value.trim() === value && !/[\x00-\x1f\x7f]/.test(value));
 const version = z.number().int().positive().max(2_147_483_647);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => { const parsed = new Date(value + "T12:00:00Z"); return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value; });
@@ -15,6 +17,8 @@ const bindingSchema = z.strictObject({ merchantId: id, configId: id, whatsappSes
   // A UI freshness limit supplied by the existing server authority, never a token.
   validUntil: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) });
 const modelSchema = z.discriminatedUnion("step", [
+  z.strictObject({ step: z.literal("prepared"), offer: offerSchema, source: nativeServicePreparedSummarySchema, notice: z.literal("button_required").optional() }),
+  nativeServiceConfirmedSchema,
   z.strictObject({ step: z.literal("services"), offers: z.array(offerSchema).max(100), hasMore: z.boolean() }),
   z.strictObject({ step: z.literal("professionals"), offer: offerSchema, source: serviceBookingResultSchema }),
   z.strictObject({ step: z.literal("dates"), offer: offerSchema, professional: personSchema, source: serviceBookingResultSchema }),
@@ -35,6 +39,7 @@ export const nativeServiceBookingActionSchema = z.discriminatedUnion("operation"
   z.strictObject({ ...common, operation: z.literal("continue"), selection: canonicalServiceSelectionSchema.strict() }),
   z.strictObject({ ...common, operation: z.literal("back"), target: z.enum(["services", "professionals", "dates", "slots"]) }),
   z.strictObject({ ...common, operation: z.literal("page"), page: z.number().int().min(0).max(1000) }),
+  z.strictObject({ ...common, operation: z.literal("confirm") }),
   z.strictObject({ ...common, operation: z.literal("refine") }),
 ]);
 export type NativeServiceBookingAction = z.infer<typeof nativeServiceBookingActionSchema>;
@@ -54,6 +59,9 @@ function coherent(state: NativeServiceBookingControls): boolean {
   const { model, binding } = state;
   if (model.step === "services") return new Set(model.offers.map(value => JSON.stringify(offerIdentity(value)))).size === model.offers.length;
   if (model.step === "status") return true;
+  if (model.step === "confirmed") return new Set(model.appointments.map(value => value.id)).size === model.appointments.length;
+  if (model.step === "prepared") return model.source.selections.every(value => professionalSlotId(binding.merchantId, value) === value.slotId
+    && value.policyVersion === model.source.policy_version) && (!model.source.requires_hold || model.source.service_slot_hold !== null);
   const source = model.source;
   if (Object.hasOwn(source, "error") || source.kind !== ({ professionals: "professionals", dates: "dates", slots: "slots", review: "selection" } as const)[model.step]) return false;
   if (model.step === "professionals" && source.kind === "professionals") return source.professionals.every(value => value.name.trim().length > 0)
@@ -92,11 +100,28 @@ export function buildServiceBookingControls(raw: unknown, now = new Date()): Met
   const state = safeState(raw); if (!state) return statusView("stale");
   if (!Number.isFinite(now.getTime()) || state.binding.validUntil <= now.getTime()) return statusView("expired", state);
   const { model } = state; if (model.step === "status") return statusView(model.reason, state);
-  const currentSelections = model.step === "slots" && model.source.kind === "slots" ? model.source.selections
+  const currentSelections = model.step === "prepared" ? model.source.selections : model.step === "slots" && model.source.kind === "slots" ? model.source.selections
     : model.step === "review" && model.source.kind === "selection" ? [model.source.selection] : [];
   if (currentSelections.some(selection => Date.parse(selection.startsAt) <= now.getTime())) return statusView("stale", state);
   const view: MetaUiView = { stage: "store", title: "Agendamento", body: "", media: [], blocks: [{ type: "service_booking_controls", data: {} }], quickReplies: [], choices: [], serviceBooking: state };
   const back = (label: string, target: "services" | "professionals" | "dates" | "slots") => view.choices.push(control(label, { kind: "service_booking", operation: "back", target }));
+  if (model.step === "prepared") {
+    const source = model.source;
+    if (source.payment_mode !== "at_attendance") return statusView("stale", state);
+    if (source.requires_hold && source.service_slot_hold && Date.parse(source.service_slot_hold.expiresAt) <= now.getTime()) return statusView("expired", state);
+    view.body = "🗓️ *Confirme o agendamento*\n\n" + source.selections.map(value => `*${value.productName}*\n👤 ${value.professionalName}\n📅 ${dateLabel(value.date)} às ${hour(value)}\n🕒 ${zoneLabel(value.timeZone)} · ${value.durationMinutes} min\n💰 *${amount(value)}*`).join("\n\n")
+      + "\n\n💳 *Pagamento no atendimento*\nA confirmação abaixo registra o agendamento e o valor pendente; nenhum pagamento antecipado será gerado."
+      + (source.requires_hold && source.service_slot_hold ? "\n\n⏳ Reserva temporária até " + new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).format(new Date(source.service_slot_hold.expiresAt)) + " (Brasília)."
+        : "\n\n_A vaga será validada no momento da confirmação._");
+    view.choices.push(control("Confirmar agendamento", { kind: "service_booking", operation: "confirm" }));
+    if (model.notice === "button_required") view.body += "\n\n👆 Para confirmar, toque em *Confirmar agendamento* no menu abaixo.";
+    view.choices.push(...navigation()); return view;
+  }
+  if (model.step === "confirmed") {
+    const states: Record<string, string> = { pending: "Pendente", scheduled: "Agendado", in_service: "Em atendimento", completed: "Concluído", no_show: "Ausência registrada", cancelled: "Cancelado" };
+    view.body = "🗓️ *Agendamento registrado*\n\n" + model.appointments.map(value => `*${value.serviceName}*\n👤 ${value.professionalName}\n📅 ${new Intl.DateTimeFormat("pt-BR", { timeZone: value.timeZone, dateStyle: "short", timeStyle: "short" }).format(new Date(value.startsAt))}\n💰 *${new Intl.NumberFormat("pt-BR", { style: "currency", currency: value.currency }).format(value.priceInCents / 100)}*\n📋 ${states[value.operationalStatus]}\n💳 ${value.paymentStatus === "pending" ? "Pagamento pendente no atendimento" : "Consulte a situação do recebimento com a equipe"}`).join("\n\n");
+    back("Ver serviços", "services"); view.choices.push(...navigation()); return view;
+  }
   const incomplete = () => view.choices.push(control("Refinar a busca", { kind: "service_booking", operation: "refine" }));
   if (model.step === "services") {
     view.body = model.offers.length ? "🗓️ *Escolha um serviço*\n\nVeja as opções e escolha o atendimento que procura." : model.hasMore ? "🗓️ *Lista de serviços incompleta*\n\nRefine a busca para consultar as opções atuais." : "🗓️ *Serviços*\n\nNão há serviços publicados nesta lista. A equipe pode ajudar com outras informações.";
@@ -157,7 +182,7 @@ export function currentServiceControlDraft(value: unknown, state: WhatsAppConver
 export function presentServiceBookingControls(view: MetaUiView, revision: string, requestedPage = 0,
   options: { native?: boolean; navigationOnly?: boolean; now?: Date; formatSpeech?: (value: string) => string } = {}): MetaUiPresentation {
   const now = options.now ?? new Date(), current = view.serviceBooking ? buildServiceBookingControls(view.serviceBooking, now) : view;
-  const fixed = current.choices.filter(choice => choice.action.kind !== "service_booking" || ["back", "refine", "continue"].includes(choice.action.operation));
+  const fixed = current.choices.filter(choice => choice.action.kind !== "service_booking" || ["back", "refine", "continue", "confirm"].includes(choice.action.operation));
   const entries = current.choices.filter(choice => !fixed.includes(choice));
   const pageSize = Math.max(1, Math.min(PAGE_SIZE, 8 - fixed.length));
   const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
@@ -212,6 +237,6 @@ export function checkServiceControlFreshness(input: { action: unknown; state: Wh
   if (Object.values(input.state.selections ?? {}).filter(matches).length !== 1) return { ok: false, reason: "not_current" };
   const expected = presentServiceBookingControls(input.state.view!, input.state.revision, input.state.page, { now: input.now });
   if (Object.values(expected.selections).filter(matches).length !== 1) return { ok: false, reason: "not_current" };
-  if (parsed.data.operation === "continue" && turn.origin !== "button") return { ok: false, reason: "button_required" };
+  if ((parsed.data.operation === "continue" || parsed.data.operation === "confirm") && turn.origin !== "button") return { ok: false, reason: "button_required" };
   return { ok: true, action: parsed.data, requiresRevalidation: true, authorizesConfirmation: false, authorizesPayment: false };
 }
