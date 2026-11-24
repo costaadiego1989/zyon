@@ -2018,17 +2018,19 @@ T107 → T106
 
 ### T86: Calculate occupancy and financial metric definitions
 
+**Status**: Complete - local task gate passed; scoped evidence in task-86-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: União de intervalos por profissional, clipping, bloqueios, denominador sem duplicação; valores agendado/recebível/recebido e bases temporais explícitas; nulo/erro não zero.
 **Where**: `apps/api/src/modules/operations/domain/service-metrics.ts`
 **Depends on**: T85
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: KPI-02, KPI-03, KPI-04, KPI-06, KPI-07
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-metrics.spec.ts com valores exatos e property/edge: overlap, duração, midnight/DST, 0 denom, ausência/paid e partial.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] service-metrics.spec.ts com valores exatos e property/edge: overlap, duração, midnight/DST, 0 denom, ausência/paid e partial.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: service-metrics.spec.ts com valores exatos e property/edge: overlap, duração, midnight/DST, 0 denom, ausência/paid e partial.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T86$" ./src/modules/operations/domain/service-metrics.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T86 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
