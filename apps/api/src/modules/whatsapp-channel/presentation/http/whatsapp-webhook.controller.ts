@@ -70,6 +70,7 @@ interface MetaInboundMessage {
   referral?: { source_id?: string; source_type?: string };
   id?: string;
   from?: string;
+  from_user_id?: string;
   timestamp?: string;
   type?: string;
   text?: { body?: string };
@@ -88,7 +89,7 @@ interface MetaWebhookPayload {
       field?: string;
       value?: {
         metadata?: { phone_number_id?: string };
-        contacts?: Array<{ profile?: { name?: string } }>;
+        contacts?: Array<{wa_id?:string;user_id?:string; profile?: { name?: string } }>;
         messages?: MetaInboundMessage[];
         statuses?: Array<MetaDeliveryStatus & { timestamp?: string; biz_opaque_callback_data?: string; errors?: Array<{ code?: number }> }>;
       };
@@ -161,29 +162,32 @@ export class WhatsAppWebhookController {
         const phoneNumberId = change.value?.metadata?.phone_number_id;
         if (!phoneNumberId) continue;
 
+        let value=change.value,sharedRemainder=false;
         if(this.prospecting){
           try{
-            if(await this.prospecting.accept({appId:dedicated?process.env.PROSPECTING_META_APP_ID:process.env.META_EMBEDDED_SIGNUP_APP_ID??process.env.META_APP_ID,wabaId:entry.id,phoneNumberId,value:change.value!}))continue;
+            const handled=await this.prospecting.accept({appId:dedicated?process.env.PROSPECTING_META_APP_ID:process.env.META_EMBEDDED_SIGNUP_APP_ID??process.env.META_APP_ID,wabaId:entry.id,phoneNumberId,value:change.value!});
+            if(handled===true)continue;
+            if(handled){sharedRemainder=true;value={...change.value,messages:change.value?.messages?.filter(m=>handled.remainingValue.messages?.includes(m)),statuses:change.value?.statuses?.filter(s=>handled.remainingValue.statuses?.includes(s))};}
           }catch(error){
             if(error instanceof Error&&error.message==="inbox_replay_conflict")throw new ConflictException(error.message);
             throw new ServiceUnavailableException("prospect_webhook_pending");
           }
         }
-        if(phoneNumberId===process.env.PROSPECTING_META_PHONE_NUMBER_ID||dedicated)throw new ServiceUnavailableException("prospect_webhook_binding_unavailable");
+        if(dedicated||phoneNumberId===process.env.PROSPECTING_META_PHONE_NUMBER_ID&&!sharedRemainder&&!process.env.PROSPECTING_META_SYSTEM_USER_ACCESS_TOKEN)throw new ServiceUnavailableException("prospect_webhook_binding_unavailable");
 
-        if (change.value?.statuses?.length) {
+        if (value?.statuses?.length) {
           if (!this.fiscalDelivery) throw new ServiceUnavailableException("fiscal_delivery_dispatch_unavailable");
-          try { await this.fiscalDelivery.fromMeta(phoneNumberId, change.value.statuses); }
+          try { await this.fiscalDelivery.fromMeta(phoneNumberId, value.statuses); }
           catch { throw new ServiceUnavailableException("fiscal_delivery_callback_pending"); }
         }
 
         const config = await this.configRepo.findByMetaPhoneNumberId(phoneNumberId);
         if (!config || config.provider !== "META_CLOUD") continue;
-        for (const status of change.value?.statuses ?? []) {
+        for (const status of value?.statuses ?? []) {
           if (!this.delivery) throw new ServiceUnavailableException("whatsapp_delivery_not_configured");
           await this.delivery.reconcileMeta(config.merchantId, config.id, status);
         }
-        for (const status of change.value?.statuses ?? []) {
+        for (const status of value?.statuses ?? []) {
           if (!status.id || !status.status) continue;
           if (!this.metaStatus) throw new ServiceUnavailableException("whatsapp_receipt_store_unavailable");
           await this.metaStatus.receiveMetaReceipt({ merchantId: config.merchantId, configId: config.id, messageId: status.id,
@@ -192,14 +196,15 @@ export class WhatsAppWebhookController {
         }
         if (!config.enabled) continue;
 
-        const senderName = change.value?.contacts?.[0]?.profile?.name;
-        for (const message of change.value?.messages ?? []) {
+        for (const message of value?.messages ?? []) {
           if (!message.id || !message.from) continue;
 
           const body = this.metaMessageBody(message);
           if (!body) {
             continue;
           }
+          const contacts=value?.contacts??[];
+          const senderName=(contacts.find(c=>c.wa_id&&c.wa_id.replace(/^\+/,"")===message.from!.replace(/^\+/,"")||c.user_id&&c.user_id===message.from_user_id)??(contacts.length===1?contacts[0]:undefined))?.profile?.name;
 
           await this.acceptBubbleWhats.messageForAuthenticatedConfig(config, "META", message.id, {
             fromNumber: message.from.startsWith("+") ? message.from : `+${message.from}`,

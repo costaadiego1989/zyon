@@ -6,5 +6,5 @@ export interface ProspectMetaChange {
   value:{contacts?:unknown[];messages?:unknown[];statuses?:unknown[]};
 }
 export interface ProspectMetaDispatchPort {
-  accept(change:ProspectMetaChange):Promise<boolean>;
+  accept(change:ProspectMetaChange):Promise<boolean|{remainingValue:ProspectMetaChange["value"]}>;
 }

@@ -5,7 +5,7 @@ import {normalizeContactIdentity} from "../../domain/crm/prospect-contact.js";
 import {stableDirectoryJson} from "../../domain/company-directory/directory-values.js";
 import {receiptReference} from "./prospect-receipt-reference.js";
 import {authenticatedEndpoint,observedBsuid} from "./prospect-endpoint-alias.js";
-import {type SuppressionKeyRing} from "../crm/prisma-prospect-privacy.repository.js";
+import {protectedContactLookups,type SuppressionKeyRing} from "../crm/prisma-prospect-privacy.repository.js";
 
 const object=(value:unknown):Record<string,unknown>=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
 const str=(v:unknown,max:number)=>typeof v==="string"&&v.length>0&&v.length<=max?v:null;
@@ -18,10 +18,34 @@ export class PrismaProspectMetaInbox implements ProspectMetaDispatchPort{
    if(!binding)return false;
    if(!binding.active||binding.appId!==change.appId||binding.wabaId!==change.wabaId)throw Error("sender_identity_mismatch");
    const receivedAt=new Date();
-   for(const item of change.value.messages??[])await this.persist(tx,binding,"inbound",object(item),change,receivedAt);
-   for(const item of change.value.statuses??[])await this.persist(tx,binding,"status",object(item),change,receivedAt);
-   return true;
+   const shared=object(binding.grantedAssets).routingMode==="shared";
+   const remainingMessages:unknown[]=[],remainingStatuses:unknown[]=[];
+   for(const item of change.value.messages??[]){
+    if(shared&&!await this.knownProspect(tx,binding,object(item),change)){remainingMessages.push(item);continue;}
+    await this.persist(tx,binding,"inbound",object(item),change,receivedAt);
+   }
+   for(const item of change.value.statuses??[]){
+    const raw=object(item);
+    if(shared&&!await receiptReference(tx,binding.id,str(raw.id,512)??"",str(raw.biz_opaque_callback_data,128))){remainingStatuses.push(item);continue;}
+    await this.persist(tx,binding,"status",raw,change,receivedAt);
+   }
+   return shared?{remainingValue:{...change.value,messages:remainingMessages,statuses:remainingStatuses}}:true;
   });
+ }
+ private async knownProspect(tx:Prisma.TransactionClient,binding:PlatformProspectSenderBinding,raw:Record<string,unknown>,change:ProspectMetaChange){
+  const phone=str(raw.from,32),digits=(v:string)=>v.replace(/^\+/,"");
+  const contacts=(change.value.contacts??[]).map(object),contact=phone?contacts.find(c=>typeof c.wa_id==="string"&&digits(c.wa_id)===digits(phone)):contacts.length===1&&(change.value.messages?.length??0)===1?contacts[0]:undefined;
+  const providerPhone=phone??str(contact?.wa_id,32),bsuid=str(raw.from_user_id,320)??str(contact?.user_id,320),scope=str(object(binding.grantedAssets).businessId,200);
+  const identities=[...providerPhone&&/^\+?[1-9]\d{7,14}$/.test(providerPhone)?[normalizeContactIdentity({kind:"phone",value:"+"+digits(providerPhone)})]:[],...bsuid?[observedBsuid(bsuid,scope)]:[]];
+  const lookup=identities.flatMap(i=>protectedContactLookups(i,this.keys));if(!lookup.length)return false;
+  const ids=new Set<string>();
+  for(const ep of await tx.prospectEndpoint.findMany({where:{senderBindingId:binding.id,channel:"whatsapp",OR:lookup},select:{id:true}}))ids.add(ep.id);
+  for(const alias of await tx.prospectEndpointAlias.findMany({where:{senderBindingId:binding.id,OR:lookup},select:{endpointId:true}}))ids.add(alias.endpointId);
+  if(ids.size>1)throw Error("receipt_identity_conflict");const endpointId=[...ids][0];if(!endpointId)return false;
+  const contextId=str(object(raw.context).id,512);
+  if(contextId){const ref=await receiptReference(tx,binding.id,contextId,null);if(!ref)return false;if(ref.endpointId!==endpointId)throw Error("receipt_identity_conflict");return true;}
+  if(await tx.prospectMessage.findFirst({where:{senderBindingId:binding.id,direction:"outbound",submittedAt:{not:null},conversation:{endpointId}},select:{id:true}}))return true;
+  return !!await tx.outreachAttempt.findFirst({where:{sequence:{senderBindingId:binding.id,endpointId},submittedAt:{not:null},state:{in:["submitting","outcome_unknown","provider_accepted","delivered","read"]}},select:{id:true}});
  }
  private async persist(tx:Prisma.TransactionClient,binding:PlatformProspectSenderBinding,kind:"inbound"|"status",raw:Record<string,unknown>,change:ProspectMetaChange,receivedAt:Date){
   const providerId=str(raw.id,512);if(!providerId)throw Error("invalid_provider_id");
