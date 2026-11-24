@@ -22,6 +22,10 @@ describe("catalog isolation and stock conservation (PostgreSQL)", { skip: !clien
     const { PrismaClient } = createRequire(import.meta.url)(clientPath!);
     prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } }, transactionOptions: { maxWait: 30000, timeout: 10000 } });
     await prisma.$connect();
+    await prisma.merchant.createMany({ data: [
+      { id: merchantId, name: "Catalog stock fixture" },
+      { id: foreignMerchantId, name: "Foreign catalog stock fixture" },
+    ] });
     repository = new PrismaStockRepository(prisma);
     mediaService = new CatalogVariantService(prisma, {
       isConfigured: () => true,
@@ -32,6 +36,9 @@ describe("catalog isolation and stock conservation (PostgreSQL)", { skip: !clien
     if (!prisma) return;
     await prisma.stockReservation.deleteMany({ where: { variant: { productId: { in: products } } } });
     await prisma.product.deleteMany({ where: { id: { in: products } } });
+    await prisma.inventoryItem.deleteMany({ where: { merchantId: { in: [merchantId, foreignMerchantId] } } });
+    await prisma.inventoryLocation.deleteMany({ where: { merchantId: { in: [merchantId, foreignMerchantId] } } });
+    await prisma.merchant.deleteMany({ where: { id: { in: [merchantId, foreignMerchantId] } } });
     await prisma.$disconnect();
   });
 

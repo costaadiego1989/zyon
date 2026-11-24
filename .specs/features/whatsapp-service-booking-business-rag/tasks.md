@@ -2138,20 +2138,22 @@ T107 → T106
 
 ### T92: Run physical stock regressions in owned storage
 
+**Status**: Complete - local task gate passed; scoped evidence in task-92-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Harness executa concorrência/rollback/replay reais de inventory/stock/orders em DB próprio, sem skip/env remoto; serviço e produto em tenants distintos mesma revisão; assert movimento/outbox/estoque/totais.
 **Where**: `apps/api/tests/product-stock-regression.integration.spec.ts`
 **Depends on**: T91
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: REG-03, QA-03
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Node integration named REG-03 e QA-03: estoque debitado uma vez no produto, nunca no serviço, tenant/warehouse e guard financeiro preservados.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Node integration named REG-03 e QA-03: estoque debitado uma vez no produto, nunca no serviço, tenant/warehouse e guard financeiro preservados.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Node integration named REG-03 e QA-03: estoque debitado uma vez no produto, nunca no serviço, tenant/warehouse e guard financeiro preservados.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T92$" ./tests/product-stock-regression.integration.spec.ts` Teste raiz T92 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Full: existing protected owned T92 pinplan runner executes all five complete files: `tests/product-stock-regression.integration.spec.ts`, `src/modules/catalog/infrastructure/repositories/prisma-stock.repository.integration.spec.ts`, `src/modules/inventory/__tests__/inventory-sale.integration.spec.ts`, `tests/stock-reservation-migration.integration.test.mjs`, `tests/inventory-sale-migration.integration.test.mjs`. Preserve original parent/suite-owned storage, PG128, pool24, the100-request concurrency oracle, all assertions and budgets. No case filters/skips. Qualify5+12+15+1+1=34 by genuine whole-file receipts, explicitly aggregated after file-complete resumption; never claim one34-case execution. Current own checked API and final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t92 run physical stock regressions in owned storage`
 
 ### T93: Record the two-channel buyer acceptance journey
