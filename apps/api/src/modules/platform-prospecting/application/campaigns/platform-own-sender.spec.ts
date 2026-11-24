@@ -134,3 +134,20 @@ test("OWN-SENDER AC3 persisted system-user health rechecks the live scoped ident
   const embedded=await svc.readiness();assert.equal(embedded.status,"blocked");assert.ok(embedded.blockers.includes("permission_unavailable"));
  }finally{await f.close();}
 });
+
+test("OWN-SENDER AC1 accepts explicitly scoped business and messaging grants for their corresponding owned assets",async()=>{
+ const p=provider();p.bodies.debug_token.data.granular_scopes=[{scope:"business_management",target_ids:["13"]},{scope:"whatsapp_business_management",target_ids:["15"]},{scope:"whatsapp_business_messaging",target_ids:["15"]}];
+ assert.equal((await p.auth().authorizeSystemUser()).whatsappNumber,"+5521971191446");
+ p.bodies.debug_token.data.granular_scopes[0].target_ids=["99"];await assert.rejects(p.auth().authorizeSystemUser(),/sender_identity_mismatch/);
+});
+
+test("OWN-SENDER AC2 an own-number confirmation is bound to the identity displayed before a server configuration rotation",async()=>{
+ const f=await ownFixture();try{
+  const original=await f.service.signupState(actor);
+  const changed={...ownConfig,phoneNumberId:"17"};f.bodies["15/phone_numbers"].data[0]={id:"17",display_phone_number:"+55 21 97119-0000",status:"CONNECTED",platform_type:"CLOUD_API"};
+  const rotated=new PlatformSenderOnboardingService(changed,f.store,new PlatformMetaAuthorization(changed,f.fetcher));
+  await assert.rejects(rotated.connect({authorizationMethod:"system_user",state:original.state,clientRequestId:"wrong-preview"},actor),/signup_state_invalid/);assert.equal((await f.store.binding())?.id,"sender");
+  const preview=await rotated.signupState(actor);assert.equal(preview.existingSender?.phoneNumberId,"17");
+  const next=await rotated.connect({authorizationMethod:"system_user",state:preview.state,clientRequestId:"fresh-preview"},actor);assert.equal(next.phoneNumberId,"17");assert.equal(next.displayPhoneNumber,"+5521971190000");
+ }finally{await f.close();}
+});

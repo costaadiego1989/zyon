@@ -4,6 +4,7 @@ import type { PlatformSenderBinding, ConnectPlatformSenderCommand } from "@zyon/
 import type { MetaCloudAuthorizedAssets } from "../../../whatsapp-channel/domain/ports/whatsapp-signup-authorization.port.js";
 import { encryptPii } from "../../../../shared/crypto/pii-cipher.service.js";
 import type { PlatformSignupConfig, SenderBindingStore } from "../../application/campaigns/platform-sender-onboarding.service.js";
+import {platformSignupStatePurpose} from "../../application/campaigns/platform-sender-onboarding.service.js";
 import type { ProspectingActor } from "../../domain/prospecting.ports.js";
 import { stableDirectoryJson } from "../../domain/company-directory/directory-values.js";
 import { prospectAudit, prospectCommand, validateCommandId } from "../crm/prospect-command.js";
@@ -41,7 +42,7 @@ export class PrismaSenderBindingRepository implements SenderBindingStore {
         throw Error(row.errorCode??"sender_authorization_pending");
       }
       if(typeof command.state!=="string"||command.state.length>128)throw Error("signup_state_invalid");
-      const stateHash=createHash("sha256").update((own?"system_user|":"")+command.state).digest("hex");
+      const stateHash=createHash("sha256").update(platformSignupStatePurpose(config,own)+command.state).digest("hex");
       const used=await tx.prospectSenderSignupState.updateMany({where:{stateHash,operatorId:actor.operatorId,consumedAt:null,expiresAt:{gt:new Date()}},data:{consumedAt:new Date()}});
       if(!used.count)throw Error("signup_state_invalid");
       await tx.prospectCommand.create({data:{clientRequestId,kind,actorOperatorId:actor.operatorId,requestHash,state:"pending"}});

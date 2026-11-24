@@ -14,6 +14,7 @@ export interface SenderBindingStore {
   connect(command: ConnectPlatformSenderCommand, actor: ProspectingActor, config: PlatformSignupConfig, authorize: () => Promise<MetaCloudAuthorizedAssets>): Promise<PlatformSenderBinding>;
 }
 const hash = (state: string) => createHash("sha256").update(state).digest("hex");
+export const platformSignupStatePurpose=(config:PlatformSignupConfig,own:boolean)=>own?["system_user",config.appId,config.businessId,config.wabaId,config.phoneNumberId,config.systemUserId,""].join("|"):"";
 export class PlatformSenderOnboardingService {
   constructor(private readonly config: PlatformSignupConfig, private readonly store: SenderBindingStore, private readonly authorization: WhatsAppSignupAuthorization & {authorizeSystemUser?:()=>Promise<MetaCloudAuthorizedAssets>}) {
     if (![config.appId, config.configId].every(id => /^\d+$/.test(id)) || [config.businessId,config.phoneNumberId].some(id => id !== "" && !/^\d+$/.test(id)) || !config.appSecret || !/^[a-f0-9]{64}$/i.test(config.encryptionKey)) throw new Error("sender_unavailable");
@@ -21,7 +22,7 @@ export class PlatformSenderOnboardingService {
   async signupState(actor: ProspectingActor, clientRequestId:string=randomUUID()): Promise<PlatformSenderSignupState> {
     const own=!!this.config.systemUserAccessToken;
     const asset=own?await this.ownAuthorization():null;
-    const prefix=own?"system_user|":"";
+    const prefix=platformSignupStatePurpose(this.config,own);
     const sign=(nonce:string)=>nonce+"."+createHmac("sha256",this.config.encryptionKey).update(actor.operatorId+"|"+prefix+nonce).digest("base64url");
     const receipt=await this.store.issueState(actor,clientRequestId,()=>{
       const nonce=randomBytes(32).toString("base64url");
