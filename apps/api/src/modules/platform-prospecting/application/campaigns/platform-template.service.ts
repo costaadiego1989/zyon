@@ -3,6 +3,7 @@ import type {CreatePlatformProspectTemplate,PlatformProspectTemplateDraft,Platfo
 import type {ProspectingActor} from "../../domain/prospecting.ports.js";
 import type {PlatformSenderCredential,SenderObservationStore} from "./sender-readiness.service.js";
 import {prospectText,prospectVersion} from "../crm/prospect.service.js";
+import {validateProspectingMaxPrice} from "@zyon/shared-types";
 export interface TemplateObservation {state:PlatformProspectTemplateDraft["state"];providerId:string|null;providerRevision:string|null;reason:string|null}
 export interface PlatformTemplateGateway {submit(d:PlatformProspectTemplateDraft,c:PlatformSenderCredential):Promise<TemplateObservation>;sync(d:PlatformProspectTemplateDraft,c:PlatformSenderCredential):Promise<TemplateObservation|null>}
 export interface PlatformTemplateStore {
@@ -16,7 +17,8 @@ export class PlatformTemplateService {
  constructor(private readonly store:PlatformTemplateStore,private readonly credentials:Pick<SenderObservationStore,"credential">,private readonly gateway:PlatformTemplateGateway,private readonly health:{readiness():Promise<PlatformSenderReadiness>}){}
  async create(c:CreatePlatformProspectTemplate,a:ProspectingActor){
   prospectText(c.body,"body",1024);if(c.body.includes("{{")||!/^[_a-z][_a-z0-9]{1,99}$/.test(c.name)||!/^[a-z]{2}(?:_[A-Z]{2})?$/.test(c.language))throw Error("invalid_command:template");
-  const hash=createHash("sha256").update(JSON.stringify({purpose:"zyon_sales",language:c.language,body:c.body})).digest("hex");return this.store.create(c,hash,a);
+  const maxPrice=validateProspectingMaxPrice(c.maxPrice);
+  const hash=createHash("sha256").update(JSON.stringify({purpose:"zyon_sales",language:c.language,body:c.body,...(maxPrice?{maxPrice}:{})})).digest("hex");return this.store.create({...c,maxPrice},hash,a);
  }
  list(){return this.store.list();}
  find(id:string){return this.store.find(id);}

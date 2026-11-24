@@ -1626,3 +1626,4 @@ export * from "./meta-ads-agent.js";
 export * from "./platform-support.js";
 export * from "./merchant-assistant.js";
 export * from "./platform-prospecting.js";
+export * from "./platform-prospecting-pricing.js";

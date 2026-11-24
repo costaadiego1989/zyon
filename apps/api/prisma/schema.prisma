@@ -6010,6 +6010,7 @@ model PlatformProspectTemplate {
   name String
   language String
   body String @db.Text
+  maxPrice Json? @map("max_price")
   revision Int @default(1)
   contentHash String @map("content_hash")
   bindingId String? @map("binding_id")

@@ -13,7 +13,7 @@ export class ProspectPlatformTemplateController {
  constructor(@Inject(PlatformTemplateService)private readonly templates:PlatformTemplateService){}
  @Get() list(){return draftRespond(()=>this.templates.list());}
  @Get(":id") find(@Param("id")id:string){return draftRespond(()=>this.templates.find(id));}
- @Post() create(@Body()b:unknown,@Headers("idempotency-key")k:string|undefined,@Req()req:PlatformPrincipalRequest){return draftRespond(()=>this.templates.create(requestCommand<CreatePlatformProspectTemplate>(b,k,["name","language","body"]),draftActor(req)));}
+ @Post() create(@Body()b:unknown,@Headers("idempotency-key")k:string|undefined,@Req()req:PlatformPrincipalRequest){return draftRespond(()=>this.templates.create(requestCommand<CreatePlatformProspectTemplate>(b,k,["name","language","body","maxPrice"]),draftActor(req)));}
  @Post(":id/submit") submit(@Param("id")id:string,@Body()b:unknown,@Headers("idempotency-key")k:string|undefined,@Req()req:PlatformPrincipalRequest){return draftRespond(()=>this.templates.submit(id,requestCommand<SubmitPlatformProspectTemplate>(b,k,["expectedRevision"]),draftActor(req)));}
  @Post(":id/sync") sync(@Param("id")id:string,@Body()b:unknown,@Headers("idempotency-key")k:string|undefined,@Req()req:PlatformPrincipalRequest){return draftRespond(()=>this.templates.sync(id,requestCommand<SubmitPlatformProspectTemplate>(b,k,["expectedRevision"]),draftActor(req)));}
 }
