@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlatformSenderSignupState } from "@zyon/shared-types";
 import { blockers, Button, dateTime, ReadState, useAction, useResource, type PageProps } from "./screen-controls.js";
 import { platformSignup, type SignupSdk, type SignupAssets } from "./platform-signup.js";
+import {TemplateManager} from "./TemplateManager.js";
 export function ProspectingChannelPage(
   props: PageProps & { mode: "controlled" | "live" | "disabled"; controlledSdk?: SignupSdk }
 ) {
@@ -180,6 +181,7 @@ export function ProspectingChannelPage(
           </section>
         </>
       )}
+      <TemplateManager {...props} bindingAvailable={!!binding}/>
     </section>
   );
 }

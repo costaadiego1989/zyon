@@ -1,5 +1,7 @@
 import { platformSignup } from "./platform-signup.js";
 import { expect, test, vi } from "vitest";
+import {act} from "react";
+import {PlatformApiError} from "../../lib/api.js";
 import { ProspectingChannelPage } from "./ProspectingChannelPage.js";
 import { exerciseReadFailure, screenProps, show } from "./screen-test.js";
 const binding = {
@@ -26,6 +28,40 @@ const state = {
   extras: { version: "v5", features: [{ name: "whatsapp_business_app_onboarding", enabled: false }] },
   expiresAt: new Date(Date.now() + 300000).toISOString(),
 };
+
+const localTemplate={id:"registered",purpose:"zyon_sales",name:"zyon_sales",language:"pt_BR",body:"Olá! Podemos conversar sobre sua loja? Se não quiser receber mensagens, avise por aqui.",revision:1,state:"draft",providerId:null,providerRevision:null,bindingId:null,bindingVersion:null,wabaId:null,reason:null,observedAt:null};
+test("CAMP-04 platform message permission denial blocks new drafts while channel remains readable",async()=>{
+ const createTemplate=vi.fn();const ui=await show(<ProspectingChannelPage {...screenProps({sender:async()=>sender,templates:async()=>{throw new PlatformApiError(403);},createTemplate})} mode="disabled"/>);
+ expect(ui.text()).toContain(binding.displayPhoneNumber);expect(ui.text()).toContain("permissão");expect(ui.button("Preparar mensagem").disabled).toBe(true);await ui.click("Preparar mensagem");expect(createTemplate).not.toHaveBeenCalled();
+});
+test("CAMP-04 status provider approval with a content mismatch never labels the local preview as the approved body",async()=>{
+ const template={...localTemplate,state:"APPROVED",reason:"template_content_mismatch",providerRevision:null};
+ const ui=await show(<ProspectingChannelPage {...screenProps({sender:async()=>sender,templates:async()=>[template]})} mode="controlled"/>);
+ const primary=ui.host.querySelector('.prospecting-template header p')!;expect(primary.textContent).toContain("Conteúdo diferente do aprovado na Meta");expect(primary.textContent).not.toContain("Aprovado pela Meta");
+ expect(ui.text()).toContain("Estado do template na Meta: Aprovado pela Meta");expect(ui.text()).toContain("O texto salvo abaixo não está aprovado para envio");expect(ui.text()).toContain(localTemplate.body);
+});
+test("CAMP-04 platform message draft and complete body remain visible without sender and never imply Meta approval",async()=>{
+ let templates:unknown[]=[];
+ const createTemplate=vi.fn(async body=>{const saved={...localTemplate,body:body.body,name:body.name};templates=[saved];return saved;});
+ const submitTemplate=vi.fn();const ui=await show(<ProspectingChannelPage {...screenProps({sender:async()=>({...sender,binding:null,templates:[]}),templates:async()=>templates,createTemplate,submitTemplate})} mode="disabled"/>);
+ await ui.click("Preparar mensagem");expect(document.activeElement).toBe(ui.control("Nome da mensagem"));await ui.fill("Nome da mensagem","zyon_sales");await ui.fill("Texto da mensagem",localTemplate.body);await ui.click("Salvar rascunho da mensagem");
+ expect(createTemplate.mock.calls[0][0]).toMatchObject({name:"zyon_sales",language:"pt_BR",body:localTemplate.body});expect(ui.text()).toContain(localTemplate.body);expect(ui.text()).toContain("Rascunho · Não enviado à Meta");expect(ui.text()).not.toContain("Aprovado pela Meta");expect(ui.button("Enviar zyon_sales à Meta").disabled).toBe(true);expect(submitTemplate).not.toHaveBeenCalled();
+ expect(document.activeElement).toBe(ui.button("Preparar mensagem"));await ui.click("Preparar mensagem");await act(async()=>ui.control("Texto da mensagem").dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));expect(document.activeElement).toBe(ui.button("Preparar mensagem"));
+});
+test("CAMP-04 status submit and sync show actual pending rejected and approved observations with provider reason",async()=>{
+ let template={...localTemplate,reason:null as string|null};
+ const submitTemplate=vi.fn<(id:string,body:{expectedRevision:number})=>Promise<unknown>>().mockImplementation(async()=>{template={...template,revision:2,state:"PENDING"};return template;});
+ const syncTemplate=vi.fn().mockImplementationOnce(async()=>{template={...template,revision:3,state:"REJECTED",reason:"Mensagem rejeitada pelo provedor"};return template;}).mockImplementationOnce(async()=>{template={...template,revision:4,state:"APPROVED",reason:null};return template;});
+ const ui=await show(<ProspectingChannelPage {...screenProps({sender:async()=>sender,templates:async()=>[template],submitTemplate,syncTemplate})} mode="controlled"/>);
+ await ui.click("Enviar zyon_sales à Meta");expect(submitTemplate.mock.calls[0][1]).toMatchObject({expectedRevision:1});expect(ui.text()).toContain("Em análise pela Meta");expect(ui.text()).not.toContain("Aprovado pela Meta");
+ await ui.click("Atualizar estado de zyon_sales na Meta");expect(syncTemplate.mock.calls[0][1]).toMatchObject({expectedRevision:2});expect(ui.text()).toContain("Rejeitado pela Meta");expect(ui.text()).toContain("Mensagem rejeitada pelo provedor");expect(ui.text()).toContain(localTemplate.body);
+ await ui.click("Atualizar estado de zyon_sales na Meta");expect(ui.text()).toContain("Aprovado pela Meta");expect(submitTemplate).toHaveBeenCalledTimes(1);expect(ui.text()).toContain("Ambiente controlado");
+});
+test("CAMP-04 status uncertain submission offers reconciliation and cannot submit a duplicate",async()=>{
+ const template={...localTemplate,state:"submission_unknown",bindingId:"binding",reason:"create_outcome_unknown"};const submitTemplate=vi.fn(),syncTemplate=vi.fn(async()=>({...template,state:"PENDING",revision:2}));
+ const ui=await show(<ProspectingChannelPage {...screenProps({sender:async()=>sender,templates:async()=>[template],submitTemplate,syncTemplate})} mode="controlled"/>);
+ expect(ui.text()).toContain("Resultado do envio à Meta desconhecido");expect(ui.text()).not.toContain("Enviar zyon_sales à Meta");await ui.click("Confirmar resultado de zyon_sales");expect(syncTemplate).toHaveBeenCalledTimes(1);expect(submitTemplate).not.toHaveBeenCalled();expect(ui.text()).toContain("Em análise pela Meta");
+});
 test("PROS-29 AC1 configuração mostra observação e templates do número próprio", async () => {
   const ui = await show(<ProspectingChannelPage {...screenProps({ sender: async () => sender })} mode="disabled" />);
   expect(ui.text()).toContain(binding.displayPhoneNumber);

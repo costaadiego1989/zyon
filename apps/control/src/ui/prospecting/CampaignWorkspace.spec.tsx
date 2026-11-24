@@ -8,6 +8,14 @@ const draft={id:"draft",name:"Lojas SP",setupVersion:2,revision:1,state:"draft",
 const source={status:"current",value:{snapshotId:"published-source",state:"published"}};
 const readiness={source,knowledge:{status:"current",value:{activePublications:0}},channel:{status:"unavailable",value:null}};
 const common={draft:async()=>draft,campaignCompanies:async()=>({items:[],nextCursor:null,count:0,manualCount:0,snapshotId:null}),sender:async()=>({binding:null,status:"unknown",templates:[],blockers:["sender_unavailable"]}),config:async()=>({workersRunning:false,dispatchMode:"disabled",modelMode:"disabled"}),readiness:async()=>readiness};
+test("CAMP-07 message selection persists its exact body and draft status cannot enable reviewed execution",async()=>{
+ const template={id:"local-template",name:"zyon_intro",body:"Olá, podemos conversar sobre sua loja?",language:"pt_BR",state:"draft"};
+ const configured={...draft,directorySnapshotId:"published-source",senderBindingId:"sender",senderVersion:1,limits:{dailyRecipients:1,budget:{amountCents:500,currency:"BRL"}},sendWindow:{timezone:"America/Sao_Paulo",weekdays:[1],start:"09:00",end:"18:00"}};
+ const editDraft=vi.fn(async(_id,body)=>({...configured,revision:2,message:body.message}));
+ const ui=await show(<CampaignWorkspace {...screenProps({...common,draft:async()=>configured,templates:async()=>[template],editDraft,sender:async()=>({binding:{id:"sender",version:1,wabaId:"waba"},status:"ready",templates:[],blockers:[]}),config:async()=>({workersRunning:true,dispatchMode:"controlled",modelMode:"controlled"}),readiness:async()=>({...readiness,knowledge:{status:"current",value:{activePublications:1}}})})} id={draft.id}/>);
+ await ui.click("Usar zyon_intro nesta campanha");expect(editDraft.mock.calls[0]).toEqual([draft.id,{expectedRevision:1,message:template.body,template:null,clientRequestId:expect.any(String)}]);
+ expect(ui.text()).toContain(template.body);expect(ui.text()).toContain("Texto selecionado nesta campanha");expect(ui.text()).toContain("Não enviado à Meta");expect(ui.button("Preparar revisão da campanha").disabled).toBe(true);
+});
 test("CAMP-07 creates from name/context without loading sender offers segments or templates and immediately researches its published source",async()=>{
  const createDraft=vi.fn<(body:{clientRequestId:string})=>Promise<typeof draft>>().mockResolvedValue(draft),sender=vi.fn(async()=>{throw new PlatformApiError(503);}),offers=vi.fn(),segments=vi.fn();
  const prepared={...draft,revision:2,directorySnapshotId:"published-source",audienceCriteria:{ufs:["SP"],mainCnaes:["4781400"]},planningMode:"rules"};

@@ -90,6 +90,10 @@ export class ProspectingApi {
  knowledge(signal?:AbortSignal){return this.read<{items:T.SalesKnowledgeSource[]}>("knowledge",{},signal);}
  source(id:string,signal?:AbortSignal){return this.read<T.SalesKnowledgeSource>(`knowledge/${encodeURIComponent(id)}`,{},signal);}
  sender(signal?:AbortSignal){return this.read<T.PlatformSenderReadiness>("sender",{},signal);}
+ templates(signal?:AbortSignal){return this.read<T.PlatformProspectTemplateDraft[]>("sender/templates",{},signal);}
+ createTemplate(body:T.CreatePlatformProspectTemplate,signal?:AbortSignal){return this.write<T.PlatformProspectTemplateDraft>("sender/templates",body,"POST",signal);}
+ submitTemplate(id:string,body:T.SubmitPlatformProspectTemplate,signal?:AbortSignal){return this.write<T.PlatformProspectTemplateDraft>(`sender/templates/${encodeURIComponent(id)}/submit`,body,"POST",signal);}
+ syncTemplate(id:string,body:T.SubmitPlatformProspectTemplate,signal?:AbortSignal){return this.write<T.PlatformProspectTemplateDraft>(`sender/templates/${encodeURIComponent(id)}/sync`,body,"POST",signal);}
  metrics(query:T.ProspectMetricsQuery,signal?:AbortSignal){return this.read<T.ProspectMetrics>("metrics",query,signal);}
  metricRecords(query:T.ProspectMetricRecordsQuery,signal?:AbortSignal){return this.read<T.ProspectingPage<T.ProspectMetricRecord>>("metrics/records",query,signal);}
  readiness(signal?:AbortSignal){return this.read<Readiness>("readiness",{},signal);}

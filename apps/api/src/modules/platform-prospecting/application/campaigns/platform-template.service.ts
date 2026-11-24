@@ -36,10 +36,10 @@ export class PlatformTemplateService {
   const c=await this.credential(d),result=await this.gateway.sync(d,c);
   return this.store.observe(id,cmd,c.binding,result??{state:"submission_unknown",providerId:d.providerId,providerRevision:null,reason:"template_not_found"},a);
  }
- async compatible(bindingId:string,version:number,registryId?:string):Promise<ProspectingTemplate|null>{
+ async compatible(bindingId:string,version:number,registryId?:string,body?:string|null):Promise<ProspectingTemplate|null>{
   const h=await this.health.readiness();if(h.binding?.id!==bindingId||h.binding.version!==version)return null;
   for(const d of await this.store.list()){
-   if(registryId&&d.id!==registryId||d.state!=="APPROVED"||d.bindingId!==bindingId||d.bindingVersion!==version||d.wabaId!==h.binding.wabaId)continue;
+   if(registryId&&d.id!==registryId||body&&d.body!==body||d.state!=="APPROVED"||d.bindingId!==bindingId||d.bindingVersion!==version||d.wabaId!==h.binding.wabaId)continue;
    const t=h.templates.find(t=>t.id===d.providerId&&t.wabaId===d.wabaId&&t.revision===d.providerRevision&&t.name===d.name&&t.language===d.language&&t.status==="APPROVED"&&t.category==="MARKETING"&&t.requiresParameters===false&&t.previewText===d.body);
    if(t)return t;
   }return null;

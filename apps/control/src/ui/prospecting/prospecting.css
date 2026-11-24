@@ -160,6 +160,14 @@ dialog.prospect-lead-drawer {
 .campaign-transfer h3 { font-size: 1rem; margin: 0; }
 .campaign-transfer-trigger { justify-self: start; }
 .campaign-transfer > p, .campaign-transfer > form { max-width: 70ch; }
+.template-manager { display: grid; gap: .85rem; }
+.template-manager > .button { justify-self: start; }
+.template-manager > form, .template-manager > p { max-width: 70ch; }
+.prospecting-template { display: grid; gap: .65rem; padding-block: 1rem; border-top: 1px solid var(--line); min-width: 0; }
+.prospecting-template header strong { overflow-wrap: anywhere; }
+.prospecting-template header p { color: var(--ink-muted); font-size: .8125rem; margin-top: .3rem; }
+.prospecting-template > p { max-width: 70ch; }
+.campaign-workspace .template-manager { padding-block: .5rem 0; border-top: 0; }
 .campaign-workspace .campaign-step > .button + .button { margin-top: .25rem; }
 @media (max-width: 760px) {
  .campaign-workspace .campaign-context .prospecting-fields { grid-template-columns: minmax(0, 1fr); }

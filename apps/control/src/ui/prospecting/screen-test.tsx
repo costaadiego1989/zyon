@@ -5,7 +5,7 @@ import { PlatformApiError } from "../../lib/api.js";
 import type { ProspectingApi } from "../../lib/prospecting-api.js";
 
 export function screenProps(methods: Partial<Record<keyof ProspectingApi, unknown>>) {
-  return { api: methods as ProspectingApi, operatorId: "operator-test", onSessionExpired: vi.fn(), navigate: vi.fn() };
+  return { api: {templates:async()=>[],...methods} as ProspectingApi, operatorId: "operator-test", onSessionExpired: vi.fn(), navigate: vi.fn() };
 }
 export async function show(node: ReactNode) {
   const host = document.createElement("div");

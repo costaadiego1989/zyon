@@ -19,7 +19,7 @@ export class PrismaCampaignPreparation implements CampaignPreparationStore {
    validateLimits(c.dailyRecipientLimit&&c.budgetCents?{dailyRecipients:c.dailyRecipientLimit,budget:{amountCents:Number(c.budgetCents),currency:c.currency}}:null);
    validateSendWindow(c.sendWindow as any);
    if(!c.senderBindingId||!c.senderVersion)throw Error("sender_unavailable");
-   const template=await this.templates.compatible(c.senderBindingId,c.senderVersion,cmd.templateRegistryId);
+   const template=await this.templates.compatible(c.senderBindingId,c.senderVersion,cmd.templateRegistryId,c.message);
    if(!template?.previewText)throw Error("template_unavailable");
    if(c.message&&c.message!==template.previewText)throw Error("template_binding_mismatch");
    const offerSnapshot=await this.identity.snapshot(c.offerPolicy as unknown as ProspectOfferPolicy);

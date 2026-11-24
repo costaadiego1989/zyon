@@ -7,6 +7,13 @@ import {MetaPlatformTemplateAdapter} from "../../infrastructure/campaigns/meta-p
 import {publicSender} from "../../infrastructure/campaigns/prisma-sender-binding.repository.js";
 const actor={operatorId:"operator",correlationId:"templates"};
 const draft={name:"zyon_introducao",language:"pt_BR",body:"Olá! Somos a Zyon, uma plataforma de comércio. Você tem interesse em conhecer a Zyon?",clientRequestId:"draft-message"};
+test("CAMP-04 status compatibility preserves the campaign-selected body after reload instead of choosing the first approved message",async()=>{
+ const messages=["first body","campaign selected body"].map((body,index)=>({id:"registry-"+index,name:"zyon_"+index,body,state:"APPROVED",bindingId:"sender",bindingVersion:1,wabaId:"own",providerId:"provider-"+index,providerRevision:"revision-"+index,language:"pt_BR"}));
+ const templates=messages.map(d=>({id:d.providerId,name:d.name,previewText:d.body,wabaId:"own",revision:d.providerRevision,status:"APPROVED",category:"MARKETING",requiresParameters:false,language:"pt_BR"}));
+ const service=new PlatformTemplateService({list:async()=>messages} as any,{} as any,{} as any,{readiness:async()=>({binding:{id:"sender",version:1,wabaId:"own"},templates} as any)});
+ assert.deepEqual(await service.compatible("sender",1,undefined,"campaign selected body"),templates[1]);assert.equal(await service.compatible("sender",1,undefined,"not registered"),null);
+ assert.equal(await service.compatible("sender",1,"registry-0","campaign selected body"),null);
+});
 test("CAMP-04 platform draft preserves full preview without binding and submission uses only own active platform authorization",async()=>{
  const f=await createProspectCrmFixture();try{
   let credential:any=null;const calls:{url:string;body:any;authorization:string|null}[]=[];
