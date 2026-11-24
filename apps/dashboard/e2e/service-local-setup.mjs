@@ -78,6 +78,8 @@ export default async function setup(options={}){
     const categoryFixtures=options.categories===true?await prepareCategoryFixtures(runtime):undefined;
     const catalogProfessionalFixtures=options.catalogProfessionals===true?await prepareCatalogProfessionalFixtures(runtime):undefined;
     const availabilityFixtures=options.availability===true?await prepareAvailabilityFixtures(runtime):undefined;
+    const appointmentJourneyModule=options.appointmentJourneys===true?await import('./service-appointment-journey-fixture.mjs'):undefined;
+    const appointmentJourneyFixtures=appointmentJourneyModule?await appointmentJourneyModule.prepareAppointmentJourneyFixtures(runtime):undefined;
     process.env.VITE_API_BASE_URL=origin;
     process.env.SERVICE_LOCAL_ORIGIN=origin;
     process.env.SERVICE_LOCAL_RUN_ID=runtime.db.runId;
@@ -92,6 +94,7 @@ export default async function setup(options={}){
       if(categoryFixtures)installCategoryFixture(vite,runtime,categoryFixtures);
       if(catalogProfessionalFixtures)installCatalogProfessionalFixture(vite,runtime,catalogProfessionalFixtures);
       if(availabilityFixtures)installAvailabilityFixture(vite,runtime,availabilityFixtures);
+      if(appointmentJourneyFixtures)appointmentJourneyModule.installAppointmentJourneyFixture(vite,runtime,appointmentJourneyFixtures);
       vite.middlewares.use((request,response,next)=>{
         if(request.url==='/__service/signup-oauth'&&request.method==='POST'){
           // Owned synthetic pending-OAuth state. No OAuth provider is contacted.

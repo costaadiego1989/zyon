@@ -51,6 +51,8 @@ import { knowledgeEndpoints } from "./endpoints/knowledge.js";
 import { financeEndpoints } from "./endpoints/finance.js";
 import { serviceAttendanceEndpoints } from "./endpoints/service-attendance.js";
 import { serviceAppointmentEndpoints } from "./endpoints/service-appointments.js";
+import { serviceAppointmentOperationEndpoints } from "./endpoints/service-appointment-operations.js";
+import { serviceManualCustomerEndpoints } from "./endpoints/service-manual-customers.js";
 
 export * from "./http/index.js";
 export * from "./types.js";
@@ -60,6 +62,8 @@ export * from "./endpoints/marketplace-v2.js";
 export * from "./endpoints/finance.js";
 export * from "./endpoints/service-attendance.js";
 export * from "./endpoints/service-appointments.js";
+export * from "./endpoints/service-appointment-operations.js";
+export * from "./endpoints/service-manual-customers.js";
 export {
   mapWebhookEndpoint,
   mapWebhookDelivery,
@@ -121,6 +125,8 @@ export function createDashboardApi(options: {
     ...financeEndpoints(base, f),
     ...serviceAttendanceEndpoints(base, f),
     ...serviceAppointmentEndpoints(base, f),
+    ...serviceAppointmentOperationEndpoints(base, f),
+    ...serviceManualCustomerEndpoints(base, f),
     ...otherEndpoints(base, f),
   };
 }

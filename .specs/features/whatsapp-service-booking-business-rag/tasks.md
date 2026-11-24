@@ -1816,20 +1816,22 @@ T107 → T106
 
 ### T79: Create a manual booking with explicit one-off time
 
+**Status**: Complete - local task gate passed; scoped evidence in task-79-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Cliente/serviço/profissional/data/slot e opção avulso explícita, resumo/política; submit idempotente; não marcar online pago/confirmado sem prova.
 **Where**: `apps/dashboard/src/pages/service-attendance/components/ManualAppointmentDrawer.tsx`
 **Depends on**: T78, T41
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-06, ATEND-10
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] ManualAppointmentDrawer.spec.tsx + browser double submit, fora da grade, conflito, pagamento local/online e rollback.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] ManualAppointmentDrawer.spec.tsx + browser double submit, fora da grade, conflito, pagamento local/online e rollback.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: ManualAppointmentDrawer.spec.tsx + browser double submit, fora da grade, conflito, pagamento local/online e rollback.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/ManualAppointmentDrawer.spec.tsx -t "^T79$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T79$"` Teste raiz T79 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/ManualAppointmentDrawer.spec.tsx` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-appointment-journeys.config.ts e2e/service-manual-booking.spec.ts`. Whole original files, no name filters/skips; original resources, workers, timeouts, cleanup, all adopted affected regressions and final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t79 create a manual booking with explicit one-off time`
 
 ### T80: Operate an appointment and its separate finances
