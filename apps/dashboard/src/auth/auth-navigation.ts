@@ -19,3 +19,12 @@ export function authUrlForMode(href: string, mode: AuthMode): string {
   return url.href;
 }
 
+
+/** Retire only the public login marker after the server confirms the session. */
+export function authUrlAfterLogin(href: string): string {
+  const url = new URL(href);
+  const mode = url.searchParams.get("mode");
+  if (mode !== "signin" && mode !== "login") return href;
+  url.searchParams.delete("mode");
+  return url.href;
+}

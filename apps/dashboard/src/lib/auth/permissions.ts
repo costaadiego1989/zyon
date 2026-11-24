@@ -52,6 +52,8 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   support: ["OWNER", "ADMIN", "STAFF"],
   funnel: ["OWNER", "ADMIN", "STAFF"],
   shipments: ["OWNER", "ADMIN", "STAFF"],
+  "service-attendance": ["OWNER", "ADMIN"],
+  "service-appointments": ["OWNER", "ADMIN"],
   customers: ["OWNER", "ADMIN", "STAFF"],
   marketplace: ["OWNER", "ADMIN", "STAFF"],
   "marketplace-payments": ["OWNER", "ADMIN"],

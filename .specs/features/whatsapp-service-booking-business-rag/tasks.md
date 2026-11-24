@@ -1898,20 +1898,22 @@ T107 → T106
 
 ### T83: Guard and mount the service route in the shell
 
+**Status**: Complete - local task gate passed; scoped evidence in task-83-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Lazy render com guarda explícita, hash direto/reload/back/aba; produto não abre Atendimento por URL; rota antiga de suporte e WhatsApp continuam. Preserve the same mode/role/plan guard for the new appointments route mounted by T103; no mode guessed from product counts or segment labels.
 **Where**: `apps/dashboard/src/shell/DashboardShell.tsx`
 **Depends on**: T82
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-01, ATEND-08, REG-01
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] DashboardShell.service-attendance.spec.tsx + browser rotas diretas/refresh/back/capability denied e navegação anterior.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] DashboardShell.service-attendance.spec.tsx + browser rotas diretas/refresh/back/capability denied e navegação anterior.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: DashboardShell.service-attendance.spec.tsx + browser rotas diretas/refresh/back/capability denied e navegação anterior.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/shell/DashboardShell.spec.tsx -t "^T83$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T83$"` Teste raiz T83 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/shell/DashboardShell.service-attendance.spec.tsx src/shell/DashboardShell.service-routes.spec.tsx` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-appointment-journeys.config.ts e2e/service-appointments-routes.spec.ts`. Whole original files, no name filters/skips; original resources, workers, timeouts, cleanup, all adopted affected regressions and final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t83 guard and mount the service route in the shell`
 
 ### T111: Fix timezone on new professional availability records

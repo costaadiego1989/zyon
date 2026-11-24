@@ -2,9 +2,9 @@ import { mapInboxNotification } from "../components/notification-inbox.js";
 import "../components/dashboard-ui.css";
 import "./dashboard-responsive.css";
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { LogOut, ExternalLink, ChevronDown, Search, X } from "lucide-react";
+import { LogOut, ExternalLink, ChevronDown, Search, X, CalendarDays } from "lucide-react";
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
-import { NAV_ITEMS, NAV_SECTIONS, visibleItemsForPlan, type TabKey } from "./nav-config.js";
+import { NAV_ITEMS, NAV_SECTIONS, visibleItemsForPlan, navigationForBusiness, type TabKey } from "./nav-config.js";
 import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
 import { dashboardFetch } from "../api/http/client.js";
 import { ToastContainer } from "../components/Toast.js";
@@ -20,9 +20,11 @@ import { useNavCounts } from "./useNavCounts.js";
 import { ImportProgressProvider } from "../components/spreadsheet-import/ImportProgressProvider.js";
 import { ImportProgressBanner } from "../components/spreadsheet-import/ImportProgressBanner.js";
 import { useCatalogApi } from "../hooks/api/useCatalogApi.js";
-import { filterNavByRole } from "../lib/auth/permissions.js";
+import { filterNavByRole, canManageServiceAttendance } from "../lib/auth/permissions.js";
 import { RestrictedAccessModal } from "../components/RestrictedAccessModal.js";
 import { RouteGuard } from "../components/RouteGuard.js";
+import { EmptyState } from "../components/EmptyState.js";
+import { PageHeader } from "../components/PageHeader.js";
 import { AccessModalProvider } from "../lib/auth/access-modal-context.js";
 import { MerchantStoreSwitcher } from "./MerchantStoreSwitcher.js";
 import { SUBSCRIPTION_RECOVERY_TABS } from "./subscription-route-policy.js";
@@ -85,6 +87,7 @@ const AuditLogPage = lazy(() => import("../pages/audit-log-page.js").then(m => (
 const CatalogPage = lazy(() => import("../pages/catalog-page.js").then(m => ({ default: m.CatalogPage })));
 const ReviewsPage = lazy(() => import("../pages/reviews/ReviewsPage.js").then(m => ({ default: m.ReviewsPage })));
 const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").then(m => ({ default: m.ProductDetailPage })));
+const ServiceAttendancePage = lazy(() => import("../pages/service-attendance/ServiceAttendancePage.js").then(m => ({ default: m.ServiceAttendancePage })));
 const CategoriesPage = lazy(() => import("../pages/categories/index.js"));
 const StoreSettingsPage = lazy(() => import("../pages/store-settings/index.js").then(m => ({ default: m.StoreSettingsPage })));
 const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(m => ({ default: m.AgentConfigPage })));
@@ -144,6 +147,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   };
   const [requestedTab, setTab] = useState<TabKey>(resolveInitialTab);
   const tab = requestedTab;
+  const serviceScope = JSON.stringify([me.id, me.user_id, me.role, me.businessMode, me.businessModeSelectionState]);
   const [editingProductId, setEditingProductId] = useState<string | null>(() => new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("productId"));
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const appliedOnboardingTabRef = React.useRef(false);
@@ -252,6 +256,19 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     else commit();
   }, [conversationNavigation]);
 
+  const followServiceLink = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+    const href = anchor?.getAttribute("href");
+    if (!anchor || !href?.startsWith("#") || anchor.hasAttribute("download") || anchor.target && anchor.target !== "_self") return;
+    const next = href.slice(1).split("?")[0];
+    if (next !== "service-attendance" && next !== "service-appointments") return;
+    event.preventDefault();
+    const commit = () => { setTab(next); window.location.hash = href; };
+    if (conversationNavigation) conversationNavigation.request(href, commit);
+    else commit();
+  }, [conversationNavigation]);
+
   const toggleSectionCollapse = useCallback((sectionId: string) => {
     setCollapsedSections((prev) => {
       const next = new Set(prev);
@@ -315,6 +332,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const visibleNavItems = useMemo(
     () => {
       let items = hideOnboarding ? NAV_ITEMS.filter((item) => item.key !== "onboarding") : NAV_ITEMS;
+      items = navigationForBusiness(items, me);
       items = visibleItemsForPlan(items, me.plan ?? "BOTH");
       items = filterNavByRole(items, me.role);
 
@@ -329,7 +347,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
       }
       return items;
     },
-    [hideOnboarding, me.plan, me.role, searchQuery, subscriptionRequired]
+    [hideOnboarding, me.id, me.user_id, me.businessMode, me.businessModeSelectionState, me.plan, me.role, searchQuery, subscriptionRequired]
   );
 
   const visibleSectionIds = useMemo(
@@ -617,7 +635,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {!subscriptionRequired && <MerchantStoreSwitcher currentStoreId={me.id} currentStoreName={me.name || me.id} />}
           </div>
         </div>
-        <section className={"console-content" + (tab === "overview" ? "" : " dashboard-ui")} data-dashboard-page={tab} style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
+        <section className={"console-content" + (tab === "overview" ? "" : " dashboard-ui")} data-dashboard-page={tab} onClick={followServiceLink} style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
           {!subscriptionRequired && reviewStrategyId && <StrategyReviewModal key={me.id + reviewStrategyId} hypothesisId={reviewStrategyId} merchantId={me.id} onClose={() => setReviewStrategyId(null)} />}
           {subscriptionRequired ? <>
             <aside className="free-trial-notice" role="status">
@@ -697,6 +715,9 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 />
               </RouteGuard>
             ) : null}
+            {tab === "service-attendance" ? canManageServiceAttendance(me)
+              ? <RouteGuard me={me} require="service-attendance"><ServiceAttendancePage key={serviceScope} me={me} /></RouteGuard>
+              : <div><PageHeader title="Atendimento" /><EmptyState icon={CalendarDays} title="Atendimento indisponível para esta conta" description="A gestão de atendimento exige uma empresa de serviços e permissão de administração." /></div> : null}
             {tab === "reviews" ? (
               <RouteGuard me={me} require="reviews">
                 <PremiumFeatureGate

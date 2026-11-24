@@ -11,8 +11,11 @@ export async function fixture(request:APIRequestContext,name:string):Promise<Jou
   const manifest=await request.get('/__service/manifest');expect(manifest.status()).toBe(200);const owned=await manifest.json();expect(owned.kind).toBe('local-owned');expect(owned.origin).toBe(origin);expect(owned.runId).toBe(process.env.SERVICE_LOCAL_RUN_ID);
   const info=test.info(),manualLocal=name==='local'&&basename(info.file)==='service-manual-booking.spec.ts';
   const operationsLocal=name==='local'&&basename(info.file)==='service-appointment-operations.spec.ts';
-  // Each opted-in case prepares a newly registered tenant; API quotas stay unchanged.
-  const purpose=manualLocal?'manual-local':operationsLocal?'operations-local':undefined;
+  const routesFile=basename(info.file)==='service-appointments-routes.spec.ts';
+  const routesLocal=routesFile&&name==='local'&&info.title==='T83 real Back/refresh and authorized store activation fence the previous merchant service surface';
+  const routesStaff=routesFile&&name==='staff'&&info.title==='T83 actual Staff profile403 never becomes a forged management profile or private booking read';
+  // T103 pagination keeps its original32; only these two non-pagination cases opt in.
+  const purpose=manualLocal?'manual-local':operationsLocal?'operations-local':routesLocal?'routes-local':routesStaff?'routes-staff':undefined;
   const caseHeaders:Record<string,string>=purpose?{'x-service-local-journey-purpose':purpose,'x-service-local-journey-case':createHash('sha256').update(info.testId).digest('hex')}:{};
   const reply=await request.get('/__service/appointment-journeys/'+name,{headers:{...fixtureHeaders(),...caseHeaders}});expect(reply.status()).toBe(200);const value=await reply.json();expect(value.runId).toBe(owned.runId);return value;
 }

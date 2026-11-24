@@ -130,8 +130,59 @@ export async function prepareAppointmentJourneyFixtures(runtime){
     })());
     return operationsCases.get(caseKey);
   };
+  // Route capability checks need independent authenticated tenants, not T103's32.
+  const routesLocalCases=new Map(),routesStaffCases=new Map();
+  const routesLocal=caseKey=>{
+    assert.equal(typeof caseKey,'string');assert.match(caseKey,/^[a-f0-9]{64}$/);
+    if(!routesLocalCases.has(caseKey))routesLocalCases.set(caseKey,(async()=>{
+      const began=inventory.length,auth=await register('services','routes-local-'+caseKey.slice(0,12),'scale');
+      Object.assign(auth,await service(auth,'rotas locais','at_attendance'));
+      await request('/merchants/me/store-settings','PUT',{policies:{returns:savedPolicies.policies.returns}},auth);
+      const manualDate=day(baseDate,3),commandId=randomUUID();
+      const admitted=await request(`/merchants/${auth.merchant_id}/service-appointments/manual`,'POST',{commandId,
+        productId:auth.productId,variantId:auth.variantId,professionalId:auth.professionalId,
+        expectedProfessionalVersion:auth.professionalVersion,expectedPolicyVersion:auth.policyVersion,
+        startsAt:manualDate+'T11:00:00.000Z',customer:{kind:'contact',name:'Cliente real da rota local',email:'rotas@example.test'}},auth,201);
+      const scheduled=admitted.appointment;assert.equal(admitted.replayed,false);assert.equal(typeof scheduled.id,'string');assert.ok(scheduled.id);
+      assert.equal(scheduled.merchantId,auth.merchant_id);assert.equal(scheduled.professionalId,auth.professionalId);
+      assert.equal(scheduled.productId,auth.productId);assert.equal(scheduled.variantId,auth.variantId);assert.equal(scheduled.operationalStatus,'scheduled');
+      assert.equal(Date.parse(scheduled.startsAt),Date.parse(manualDate+'T11:00:00.000Z'));
+      const finance=JSON.parse(await runtime.db.sql(`SELECT json_build_object('payments',coalesce((SELECT json_agg(json_build_object('merchantId',merchant_id,'appointmentId',appointment_id,'mode',mode,'status',status,'amountCents',amount_cents,'currency',currency,'paymentIntentId',payment_intent_id,'provider',provider,'providerPaymentId',provider_payment_id,'providerEvidence',provider_evidence,'receivedAt',received_at)) FROM appointment_payments WHERE merchant_id=${sql(auth.merchant_id)} AND appointment_id=${sql(scheduled.id)}),'[]'::json));`));
+      assert.equal(Array.isArray(finance.payments),true);assert.equal(finance.payments.length,1);
+      const payment=finance.payments[0];assert.equal(payment.merchantId,auth.merchant_id);assert.equal(payment.appointmentId,scheduled.id);
+      assert.equal(payment.mode,'at_attendance');assert.equal(payment.status,'pending');assert.equal(payment.amountCents,5000);assert.equal(payment.currency,'BRL');
+      assert.deepEqual([payment.paymentIntentId,payment.provider,payment.providerPaymentId,payment.providerEvidence,payment.receivedAt],[null,null,null,null,null]);
+      const child=await request('/merchants/me/stores','POST',{name:'Loja de produtos local'},auth);
+      const childAuth=await request(`/merchants/me/stores/${child.id}/activate`,'POST',{},auth);
+      assert.equal(childAuth.merchant_id,child.id);assert.equal(childAuth.user_id,auth.user_id);
+      await declare(childAuth,'scale');
+      await runtime.db.sql(`UPDATE merchants SET business_mode='products',business_mode_selected_at=now(),business_mode_needs_review=false WHERE id=${sql(child.id)};`);
+      const rawProfile=await request('/merchants/me','GET',undefined,childAuth);assert.equal((rawProfile.data??rawProfile).businessMode,'products');
+      const value={...auth,appointments:{scheduled:scheduled.id},fixtureId:randomUUID(),runId:runtime.db.runId,baseDate,toDate,operationsDate:day(baseDate,2),manualDate:day(baseDate,3),childStoreId:child.id,childStoreName:child.name};
+      fixtures.set(value.fixtureId,value);
+      console.log('service_appointment_journey_case_precondition',JSON.stringify({purpose:'routes-local',freshMerchant:true,canonicalAppointmentAdmissions:1,realChildActivation:true,totalHttp:inventory.length-began,actualStatuses:inventory.slice(began).map(row=>row.status),noQuotaReset:true}));
+      return value;
+    })());
+    return routesLocalCases.get(caseKey);
+  };
+  const routesStaff=caseKey=>{
+    assert.equal(typeof caseKey,'string');assert.match(caseKey,/^[a-f0-9]{64}$/);
+    if(!routesStaffCases.has(caseKey))routesStaffCases.set(caseKey,(async()=>{
+      const began=inventory.length,owner=await register('services','routes-owner-'+caseKey.slice(0,12),'scale'),staff=await register('services','routes-staff-'+caseKey.slice(0,12));
+      const staffUserId=staff.user_id;
+      await runtime.db.sql(`UPDATE merchant_users SET merchant_id=${sql(owner.merchant_id)},role='staff' WHERE id=${sql(staff.user_id)};UPDATE merchant_team_members SET merchant_id=${sql(owner.merchant_id)},role='STAFF' WHERE user_id=${sql(staff.user_id)};`);
+      Object.assign(staff,await request('/auth/login','POST',{email:staff.email,password:staff.password}),{role:'STAFF'});
+      assert.equal(staff.merchant_id,owner.merchant_id);assert.equal(staff.user_id,staffUserId);
+      const denial=await request('/merchants/me','GET',undefined,staff,403);assert.equal(denial.code,'staff_operation_not_permitted');
+      const value={...staff,appointments:{},fixtureId:randomUUID(),runId:runtime.db.runId,baseDate,toDate,operationsDate:day(baseDate,2),manualDate:day(baseDate,3)};
+      fixtures.set(value.fixtureId,value);
+      console.log('service_appointment_journey_case_precondition',JSON.stringify({purpose:'routes-staff',freshMerchant:true,canonicalAppointmentAdmissions:0,realStaffLoginAndProfile403:true,totalHttp:inventory.length-began,actualStatuses:inventory.slice(began).map(row=>row.status),noQuotaReset:true}));
+      return value;
+    })());
+    return routesStaffCases.get(caseKey);
+  };
   console.log('service_appointment_journey_seed_inventory',JSON.stringify({registrations:6,canonicalAppointmentAdmissions:32,totalHttp:inventory.length,actualStatuses:inventory.map(row=>row.status),noQuotaReset:true}));
-  return{scenarios,fixtures,inventory,manualLocal,operationsLocal};
+  return{scenarios,fixtures,inventory,manualLocal,operationsLocal,routesLocal,routesStaff};
 }
 
 /** Private opt-in test-server reads; never installed in AppModule/production. */
@@ -144,8 +195,10 @@ export function installAppointmentJourneyFixture(vite,runtime,prepared){
       let fixture=scenario?prepared.scenarios.get(scenario[1]):prepared.fixtures.get(snapshot[1]);
       if(scenario&&request.headers['x-service-local-journey-purpose']!==undefined){
         const purpose=request.headers['x-service-local-journey-purpose'];
-        assert.ok(purpose==='manual-local'||purpose==='operations-local');assert.equal(scenario[1],'local');
-        fixture=await (purpose==='manual-local'?prepared.manualLocal:prepared.operationsLocal)(request.headers['x-service-local-journey-case']);
+        assert.ok(['manual-local','operations-local','routes-local','routes-staff'].includes(purpose));
+        assert.equal(scenario[1],purpose==='routes-staff'?'staff':'local');
+        const factory=purpose==='manual-local'?prepared.manualLocal:purpose==='operations-local'?prepared.operationsLocal:purpose==='routes-local'?prepared.routesLocal:prepared.routesStaff;
+        fixture=await factory(request.headers['x-service-local-journey-case']);
       }
       if(!fixture){response.statusCode=404;response.end('unknown_owned_fixture');return;}
       response.setHeader('content-type','application/json');response.setHeader('cache-control','no-store');

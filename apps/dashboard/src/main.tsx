@@ -11,7 +11,7 @@ import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
 import type { SignupWizardProps } from "./auth/SignupWizard.js";
 import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
-import { authModeFromUrl, authUrlForMode } from "./auth/auth-navigation.js";
+import { authModeFromUrl, authUrlForMode, authUrlAfterLogin } from "./auth/auth-navigation.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
 import { WhatsAppStaffWorkspace } from "./pages/whatsapp-seller/WhatsAppStaffWorkspace.js";
 import { resolveStaffConversationContext } from "./pages/whatsapp-seller/conversation-bootstrap.js";
@@ -115,6 +115,8 @@ export function App({ api }: AppProps) {
         setSubscriptionRequired(false);
         return;
       }
+      const authenticatedUrl = authUrlAfterLogin(window.location.href);
+      if (authenticatedUrl !== window.location.href) window.history.replaceState(window.history.state, "", authenticatedUrl);
       setMe(profile);
       setAuthHint(null);
       try {
