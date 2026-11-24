@@ -1,4 +1,5 @@
 import {createServer} from 'vite';
+import assert from 'node:assert/strict';
 import {installCompanyFixture} from './service-company-fixture.mjs';
 import {installCompanyServicesFixture} from './service-company-services-fixture.mjs';
 import {installCatalogBusinessModeFixture} from './service-catalog-fixture.mjs';
@@ -19,6 +20,8 @@ const origin=assertLocalServiceOrigin('http://127.0.0.1:5187');
 const html=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fixture WhatsApp local</title><style>body{margin:0;font:16px/1.6 system-ui;background:#edf1ef;color:#162b22}main{max-width:620px;margin:40px auto;padding:28px;background:white;border-radius:12px}strong{display:block;font-size:13px;color:#385545}h1{font-size:24px}button{padding:12px 18px;background:#167848;color:white;border:0;border-radius:7px;font:inherit;cursor:pointer}p{max-width:60ch}output{display:block;margin-top:24px}@media(max-width:640px){main{margin:16px;padding:24px}}</style><main><strong>Fixture local de teste · Sem conexão com a Meta</strong><h1>WhatsApp</h1><p>Este ambiente prepara os testes de produtos e agendamentos com a API e o banco locais. As jornadas serão adicionadas nas tarefas seguintes.</p><button id="check">Verificar API local</button><output id="result" aria-live="polite">Aguardando verificação.</output></main><script>document.getElementById('check').onclick=async()=>{const target=document.getElementById('result');try{const response=await fetch('/v1/ready');const data=await response.json();if(!response.ok||data.status!=='ready')throw Error();target.textContent='API local pronta. Banco conectado.';}catch{target.textContent='API local indisponível.';}};</script></html>`;
 
 export default async function setup(options={}){
+  assert.ok(options.serviceReleaseFixture===undefined||['matching','missing'].includes(options.serviceReleaseFixture),'dashboard_release_fixture_invalid');
+  assert.ok(options.serviceReleaseFixture===undefined||(options.supportNotifications!==true&&options.whatsappConversations!==true),'dashboard_release_fixture_combination_invalid');
   const previousEnvironment=process.env;
   process.env=serviceBrowserEnvironment(previousEnvironment);
   let runtime,server,conversationFixtures,installConversationFixture;
@@ -69,7 +72,7 @@ export default async function setup(options={}){
       conversationFixtures=await conversations.prepareWhatsAppConversationFixtures(options.whatsappConversationsApp===true?{appMount:true}:{});
       installConversationFixture=conversations.installWhatsAppConversationFixture;
       runtime=conversationFixtures.runtime;
-    }else runtime=await createServiceTestRuntime({local:true});
+    }else runtime=await createServiceTestRuntime({local:true,...(options.serviceReleaseFixture===undefined?{}:{serviceReleaseFixture:options.serviceReleaseFixture})});
     console.log('Local service runtime startup:',JSON.stringify(runtime.evidence().startupTimings));
     assertLocalServiceOrigin(runtime.apiOrigin);
     const entitlementFixtures=options.catalogEntitlements===true?await prepareCatalogEntitlementFixtures(runtime):undefined;
