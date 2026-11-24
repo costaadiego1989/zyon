@@ -1918,6 +1918,8 @@ T107 → T106
 
 ### T111: Fix timezone on new professional availability records
 
+**Status**: Complete - local task gate passed; scoped evidence in task-111-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: enforce a shared fixed-zone policy at actual new professional, grade and one-off/block writers after existing auth/tenant/version checks. Preserve exact historic rows, ordinary historic deactivation and existing appointments. Do not globally coerce old profile fields or process.env.TZ.
 **Where**: `apps/api/src/modules/catalog/application/save-professional-availability.use-case.ts`
 **Depends on**: T83, T47
@@ -1926,9 +1928,9 @@ T107 → T106
 
 **Done when**:
 
-- [ ] The What outcome is demonstrated with fixed new zones and exact historical/in-flight preservation; authorization, version, financial and product guards stay intact.
-- [ ] Whole named tests cover the specified cases and real gestures where applicable, with no skipped/deleted cases or weakened historical/security/payment/stock assertions.
-- [ ] Gate Full passes with actual counts; mark before one focused local commit, no push/deploy.
+- [x] The What outcome is demonstrated with fixed new zones and exact historical/in-flight preservation; authorization, version, financial and product guards stay intact.
+- [x] Whole named tests cover the specified cases and real gestures where applicable, with no skipped/deleted cases or weakened historical/security/payment/stock assertions.
+- [x] Gate Full passes with actual counts; mark before one focused local commit, no push/deploy.
 
 **Tests**: fixed-service-time-zone.spec.ts plus fixed-service-time-zone-http.integration.spec.ts. Real owner/admin requests with omitted/Sao_Paulo/new unsupported zone, valid Staff403 and foreign denial, current CAS409, no rewrite of historical Manaus/UTC intervals or confirmed appointments, precise UTC calculations. No body flag grants historic-authority bypass.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/fixed-service-time-zone.spec.ts ./tests/fixed-service-time-zone-http.integration.spec.ts` plus current own checked API and affected preservation from Gate Check Commands. Whole files, original budgets.

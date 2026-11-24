@@ -5,6 +5,7 @@ import { assertExpectedVersion, validateProfessionalInput, type ServiceProfessio
 import { assertServiceAdministration, type ServiceActor } from "../../../../shared/bookings/service-business-access.js";
 import { lockServiceProfessional } from "../../../../shared/bookings/service-professional-lock.js";
 import { lockCatalogMerchant } from "../../../../shared/persistence/catalog-stock-ledger.js";
+import { assertNewServiceTimeZone, defaultNewServiceTimeZone } from "../../domain/services/fixed-service-time-zone.js";
 
 const include = { services: { where: { isActive: true }, select: { id: true, productId: true, version: true } } } as const;
 
@@ -19,12 +20,13 @@ export class PrismaServiceProfessionalRepository {
     return { items: rows.slice(0, limit), nextCursor: rows.length > limit ? rows[limit - 1]!.id : null };
   }
 
-  async create(actor: ServiceActor, raw: ServiceProfessionalInput) {
-    const input = validateProfessionalInput(raw);
+  async create(actor: ServiceActor, raw: Omit<ServiceProfessionalInput, "timeZone"> & { timeZone?: string }) {
+    const input = validateProfessionalInput(defaultNewServiceTimeZone(raw));
     return this.prisma.$transaction(async tx => {
       await lockCatalogMerchant(tx, actor.merchantId);
       await assertServiceAdministration(tx, actor);
       await this.assertOffers(tx, actor.merchantId, input.productIds ?? []);
+      assertNewServiceTimeZone(input.timeZone);
       const data = {
         merchantId: actor.merchantId, publicName: input.publicName, publicProfile: input.publicProfile as Prisma.InputJsonValue,
         timeZone: input.timeZone, isActive: input.isActive ?? true, isPublished: input.isActive === false ? false : input.isPublished ?? false,
