@@ -1,4 +1,7 @@
 import { Module } from "@nestjs/common";
+import { ServiceMetricsController } from "./presentation/http/service-metrics.controller.js";
+import { ReadServiceMetricsUseCase } from "./application/read-service-metrics.use-case.js";
+import { PrismaServiceMetricsRepository } from "./infrastructure/prisma-service-metrics.repository.js";
 import { OrderFulfillmentUseCase } from "./application/order-fulfillment.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
@@ -42,6 +45,7 @@ import {
 @Module({
   imports: [IntegrationsModule, CheckoutModule, CommerceModule],
   controllers: [
+    ServiceMetricsController,
     ServiceAppointmentsController,
     ServiceAppointmentReadsController,
     OrdersController,
@@ -49,6 +53,9 @@ import {
     PaymentsController,
   ],
   providers: [
+    { provide: ReadServiceMetricsUseCase, useFactory: (prisma: PrismaClient) =>
+      new ReadServiceMetricsUseCase(prisma, new PrismaServiceMetricsRepository(prisma)),
+      inject: [PRISMA_CLIENT] },
     { provide: ReadServiceAppointments, useFactory: (prisma: PrismaClient) =>
       new ReadServiceAppointments(prisma), inject: [PRISMA_CLIENT] },
     { provide: RecordAttendanceReceiptUseCase, useFactory: (prisma: PrismaClient) =>

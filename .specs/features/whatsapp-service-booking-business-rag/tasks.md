@@ -2038,17 +2038,19 @@ T107 → T106
 
 ### T87: Expose coherent filtered service metrics
 
+**Status**: Complete - local task gate passed; scoped evidence in task-87-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: DTO de modalidade/fuso/moeda/asOf/período/filtros/bases/dataStatus, totais e detalhes coerentes; auth/tenant/mode no servidor.
 **Where**: `apps/api/src/modules/operations/presentation/http/service-metrics.controller.ts`
 **Depends on**: T86
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: KPI-01, KPI-05, KPI-07, ATEND-08
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] HTTP/DB service-metrics.integration.spec.ts: filtros combinados, range inválido, foreign/forbidden/products e partial/unavailable.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] HTTP/DB service-metrics.integration.spec.ts: filtros combinados, range inválido, foreign/forbidden/products e partial/unavailable.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: HTTP/DB service-metrics.integration.spec.ts: filtros combinados, range inválido, foreign/forbidden/products e partial/unavailable.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T87$" ./src/modules/operations/presentation/http/service-metrics.controller.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T87 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.

@@ -1631,3 +1631,5 @@ export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, 
 export * from "./shopping-agent-appearance.js";
 export type { ServiceAppointmentAdminState, ServiceAppointmentAdminPayment, ServiceAppointmentAdminItem,
   ServiceAppointmentAdminList, ServiceAppointmentAdminDetail, ServiceAppointmentAdminListQuery } from "./service-appointment-admin.js";
+export type { ServiceMetricsDataStatus, ServiceMetricsAppointmentState, ServiceMetricsMoney,
+  ServiceMetricsSummary, ServiceMetricsResponse } from "./service-metrics.js";
