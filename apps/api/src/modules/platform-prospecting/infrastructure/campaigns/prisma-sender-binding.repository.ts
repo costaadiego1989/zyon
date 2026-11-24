@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient, type PlatformProspectSenderBinding } from "@prisma/client";
-import type { PlatformSenderBinding, ConnectPlatformSender } from "@zyon/shared-types";
+import type { PlatformSenderBinding, ConnectPlatformSenderCommand } from "@zyon/shared-types";
 import type { MetaCloudAuthorizedAssets } from "../../../whatsapp-channel/domain/ports/whatsapp-signup-authorization.port.js";
 import { encryptPii } from "../../../../shared/crypto/pii-cipher.service.js";
 import type { PlatformSignupConfig, SenderBindingStore } from "../../application/campaigns/platform-sender-onboarding.service.js";
@@ -28,9 +28,9 @@ export class PrismaSenderBindingRepository implements SenderBindingStore {
       return {result:{nonce,expiresAt},resourceIds:[id]};
     });
   }
-  async connect(command:ConnectPlatformSender,actor:ProspectingActor,config:PlatformSignupConfig,authorize:()=>Promise<MetaCloudAuthorizedAssets>) {
+  async connect(command:ConnectPlatformSenderCommand,actor:ProspectingActor,config:PlatformSignupConfig,authorize:()=>Promise<MetaCloudAuthorizedAssets>) {
     validateCommandId(command.clientRequestId);
-    const kind="platform_sender_connect",clientRequestId=command.clientRequestId;
+    const own="authorizationMethod" in command,kind=own?"platform_sender_system_user_connect":"platform_sender_connect",clientRequestId=command.clientRequestId;
     const requestHash=createHash("sha256").update(stableDirectoryJson({kind,command})).digest("hex");
     const previous=await this.prisma.$transaction(async tx=>{
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${clientRequestId}))::text`;
@@ -41,7 +41,7 @@ export class PrismaSenderBindingRepository implements SenderBindingStore {
         throw Error(row.errorCode??"sender_authorization_pending");
       }
       if(typeof command.state!=="string"||command.state.length>128)throw Error("signup_state_invalid");
-      const stateHash=createHash("sha256").update(command.state).digest("hex");
+      const stateHash=createHash("sha256").update((own?"system_user|":"")+command.state).digest("hex");
       const used=await tx.prospectSenderSignupState.updateMany({where:{stateHash,operatorId:actor.operatorId,consumedAt:null,expiresAt:{gt:new Date()}},data:{consumedAt:new Date()}});
       if(!used.count)throw Error("signup_state_invalid");
       await tx.prospectCommand.create({data:{clientRequestId,kind,actorOperatorId:actor.operatorId,requestHash,state:"pending"}});
@@ -61,7 +61,7 @@ export class PrismaSenderBindingRepository implements SenderBindingStore {
       const max=await rows.aggregate({where,_max:{version:true}});
       await rows.updateMany({where:{...where,active:true},data:{active:false}});
       const data={...where,active:true,version:(max._max.version??0)+1,authorizationVersion:(previous?.authorizationVersion??0)+1,appId:config.appId,wabaId:asset.wabaId,phoneNumberId:asset.phoneNumberId,displayPhoneNumber:asset.whatsappNumber,
-        grantedAssets:{configId:config.configId,businessId:config.businessId,scopes:["whatsapp_business_management","whatsapp_business_messaging"],expiresAt:asset.tokenExpiresAt?.toISOString()??null},
+        grantedAssets:{configId:config.configId,businessId:config.businessId,scopes:["whatsapp_business_management","whatsapp_business_messaging"],expiresAt:asset.tokenExpiresAt?.toISOString()??null,...(own?{authorizationMethod:"system_user",systemUserId:config.systemUserId!,routingMode:"shared"}:{})},
         connectedBy:actor.operatorId,connectedAt:new Date(),encryptedCredentials:encryptPii(asset.accessToken,{AACP_PII_ENC_KEY:this.encryptionKey}),health:Prisma.DbNull,healthUpdatedAt:null};
       const saved=previous?await rows.update({where:{id:previous.id},data}):await rows.create({data});
       await prospectAudit(tx,actor,"sender_connected","sender",saved.id,saved.version);

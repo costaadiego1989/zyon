@@ -1,6 +1,6 @@
 import {randomUUID} from "node:crypto";
 import {Body,Controller,Get,Headers,Inject,Post,Req,UseGuards} from "@nestjs/common";
-import type {ConnectPlatformSender,ProspectingCommand} from "@zyon/shared-types";
+import type {ConnectPlatformSenderCommand,ProspectingCommand} from "@zyon/shared-types";
 import {PlatformAccessGuard} from "../../platform-control/presentation/platform-access.guard.js";
 import {PlatformPermissionGuard} from "../../platform-control/presentation/platform-permission.guard.js";
 import {RequirePlatformPermissions} from "../../platform-control/presentation/platform-permission.decorator.js";
@@ -17,6 +17,6 @@ export class ProspectSenderController{
   try{const cmd=requestCommand<ProspectingCommand>(b,key,[]);return await this.onboarding.signupState(actor(req),cmd.clientRequestId);}catch(e){prospectingHttpError(e);}
  }
  @Post("meta/connect") async connect(@Body() b:unknown,@Headers("idempotency-key") key:string|undefined,@Req() req:PlatformPrincipalRequest){
-  try{return await this.onboarding.connect(requestCommand<ConnectPlatformSender>(b,key,["code","state","wabaId","phoneNumberId","businessId","messagingAccountIds","isOnBizApp"]),actor(req));}catch(e){prospectingHttpError(e);}
+  try{return await this.onboarding.connect(requestCommand<ConnectPlatformSenderCommand>(b,key,["code","state","wabaId","phoneNumberId","businessId","messagingAccountIds","isOnBizApp","authorizationMethod"]),actor(req));}catch(e){prospectingHttpError(e);}
  }
 }

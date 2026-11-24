@@ -123,7 +123,7 @@ export class ProspectingApi {
  saveKnowledge(body:T.SaveSalesKnowledge & {sourceId:string},signal?:AbortSignal){return this.write<T.SalesKnowledgeSource>("knowledge",body,"POST",signal);}
  publishOrWithdraw(id:string,body:T.PublishSalesKnowledge,signal?:AbortSignal){return this.write<T.SalesKnowledgeSource>(`knowledge/${encodeURIComponent(id)}/publish-or-withdraw`,body,"POST",signal);}
  signupState(body:T.ProspectingCommand,signal?:AbortSignal){return this.write<T.PlatformSenderSignupState>("sender/signup-state",body,"POST",signal);}
- connect(body:T.ConnectPlatformSender,signal?:AbortSignal){return this.write<T.PlatformSenderBinding>("sender/meta/connect",body,"POST",signal);}
+ connect(body:T.ConnectPlatformSenderCommand,signal?:AbortSignal){return this.write<T.PlatformSenderBinding>("sender/meta/connect",body,"POST",signal);}
  startImport(body:T.ImportCompanySnapshot,signal?:AbortSignal){return this.write<T.CompanyImportAccepted>("imports",body,"POST",signal);}
  resumeImport(id:string,body:T.ProspectingCommand,signal?:AbortSignal){return this.write<T.CompanyImportAccepted>(`imports/${encodeURIComponent(id)}/resume`,body,"POST",signal);}
  suppress(id:string,body:T.SuppressProspectCommand,signal?:AbortSignal){return this.write<T.ProspectSuppressionResult>(`prospects/${encodeURIComponent(id)}/suppress`,body,"POST",signal);}
