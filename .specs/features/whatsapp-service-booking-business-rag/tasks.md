@@ -1094,13 +1094,16 @@ T107 → T106
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Unit + capturas da aplicação local: service-channel-journey.integration.spec.ts, native action IDs e paginação com muitas datas/slots.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Unit + capturas da aplicação local: service-channel-journey.integration.spec.ts, native action IDs e paginação com muitas datas/slots.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Unit + capturas da aplicação local: service-channel-journey.integration.spec.ts, native action IDs e paginação com muitas datas/slots.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T44$" ./src/modules/whatsapp-channel/domain/ui/service-booking-controls.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T44 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
 **Commit**: `feat(service-business): t44 render native date and slot controls`
+
+**Execution evidence (2026-11-24)**: task-44-evidence.json records root T44 19/19, existing handler 10/10, retained complete signed HTTP/SQL integration 18/18 and six actual dates/slots/review captures. HTTP18 is composed integration on historical API07 with unchanged direct sources, not an isolated staged-cut run. Capture scope is visual controls and two service bodies only; whole WA13 remains RED and is not claimed as acceptance. Current API12 build is independently recorded. T46 prepared/confirmed residuals remain outside this atomic cut.
+
 
 ### T45: Render the storefront service picker
 

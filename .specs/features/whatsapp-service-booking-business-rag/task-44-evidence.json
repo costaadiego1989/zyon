@@ -1,0 +1,230 @@
+{
+  "status": "QUALIFIED_SCOPED_LITERAL_T44_GATE_FOR_ROOT_ATOMIC_CLOSURE_NOT_WA4_ACCEPTANCE",
+  "utc": "2026-11-24T14:40:49.095181+00:00",
+  "task": "T44",
+  "readyForRootEvidenceAndAtomicCommit": true,
+  "taskMarkChanged": false,
+  "literalTask": {
+    "path": "C:/tmp/zyon-service-business-20261114/.specs/features/whatsapp-service-booking-business-rag/tasks.md",
+    "sha256": "2a06d72a680955d64aa1065f8d0ee9aabbd263e58739690956e8bceba47ea7a0",
+    "startLine": 1090,
+    "gateLine": 1105,
+    "bindingRequirements": [
+      "Whole rootT44 unit19 (18subcases plusroot) no skips",
+      "Named whole signed HTTP/SQL service-channel-journey.integration.spec.ts18 no skips",
+      "Real local application dates/slots/review captures"
+    ],
+    "wholeWA4GreenRequiredByLiteralGate": false,
+    "isolatedHEADPlusT44NativeExecutionRequiredByLiteralGate": false
+  },
+  "sourceCut": {
+    "plan": {
+      "path": "C:/tmp/zyon-service-business-20261114/.cache/t44-close-ready-api07-20261124/t44-stage-plan.json",
+      "sha256": "56ada29897099822e762c6ef7979a2bc558efe7d7655cc60aaf8ca3339758cb8"
+    },
+    "count": 8,
+    "allCandidateAndCurrentWorkingHashesVerified": true,
+    "twoProjections": [
+      {
+        "path": "apps/api/src/modules/whatsapp-channel/domain/ui/service-booking-controls.ts",
+        "workingSha256": "c0866abc6f6eee5b9106aaf9a298c54e26fb26ccbd9226295a08d0f954bb0fc3",
+        "candidateSha256": "dd77f242b3402fa12de251d91a6ba935a1d6d0f62f667e9209ce888fc5df19be"
+      },
+      {
+        "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/handle-meta-conversation.use-case.ts",
+        "workingSha256": "266e722ea02fd5af9d0cc48ca1dbd670d971ec9184847680485eac10e38adc4a",
+        "candidateSha256": "afd4b9d1279fb22091092570b27fa0afc1bf74eac78e5341911e48350c7b7eaa"
+      }
+    ],
+    "scopeQualification": "The measured working tree is composed with T46. dd77/afd4 are not byte-identical to that whole tree; old19+10 specs remain byte-exact and none exercises removed prepared/confirmed branches. HTTP18 and browser service bodies are explicitly shared composed integration, never an isolated8-file native run. No claim of independent isolated-cut typecheck."
+  },
+  "pureReceipts": [
+    {
+      "scope": "controls19",
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t43-t44-t47-current-own-api-components39-20261123\\receipt.json",
+      "sha256": "2253bd245e9f1f361255701fe6bf7872dcc87d432c1e63e70acccbff7e5bbc9b",
+      "rawSha256": "b36f23968c1ed55c3ec6d00792c4539176ee637c3a4d524e29739cb6fed46140",
+      "counts": {
+        "tests": 19,
+        "pass": 19,
+        "fail": 0,
+        "skipped": 0,
+        "todo": 0,
+        "cancelled": 0
+      },
+      "naturalCode": 0,
+      "signal": null
+    },
+    {
+      "scope": "handler10_authority29",
+      "path": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\t44-t46-current-own-api-remaining46-20261123\\receipt.json",
+      "sha256": "da6fb0c85623bb44929428a1a6c57521742c1a6205fe49036d4c68c76677acd9",
+      "rawSha256": "19f161e75a2561e21c7293852307b7172408869668d59f75d941c23ce5061872",
+      "counts": {
+        "tests": 10,
+        "pass": 10,
+        "fail": 0,
+        "skipped": 0,
+        "todo": 0,
+        "cancelled": 0
+      },
+      "naturalCode": 0,
+      "signal": null
+    }
+  ],
+  "wholeHttp18": {
+    "receiptPath": "C:/tmp/zyon-t40-focused-20261122/.cache/t47-current-api07-whole36-window01-20261124/receipt.json",
+    "receiptSha256": "16ee0332fac2ec019af58129752b5f4c31721ca83eed37acf414a829836fd601",
+    "rawSha256": "3418507407cf3442393253dacb06c120e225d3d68ed2c5ee36b10a486eb21371",
+    "counts": {
+      "tests": 18,
+      "pass": 18,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "naturalCode": 0,
+    "signal": null,
+    "pinsExact": true,
+    "runtimeReturned": true,
+    "ownApiAtExecution": {
+      "checked": true,
+      "inputSha256": "0af14d0c7f4dc9c450c6ba8a9bdbb9aeeccffebe8502caa0aa82e273a1129428",
+      "artifactSha256": "0cbb8bf24634c6e15b04cfb0602d78c28a96aec0373b0b00acc21418e16964b2",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2628
+      }
+    },
+    "retainedScope": "Same direct T44/T46 source, named spec/fixture hashes verified; historical ownAPI07 integration remains historical, not restamped API12."
+  },
+  "captureRun": {
+    "receiptPath": "C:/tmp/zyon-t40-focused-20261122/.cache/buyer-whatsapp4-owned-api-window13-20261123/receipt.json",
+    "receiptSha256": "adb968e999543b9ae06eaada47b5500249e84cdda1b8bd145b4a782d9668f320",
+    "reportPath": "C:\\tmp\\zyon-t40-focused-20261122\\.cache\\buyer-whatsapp4-owned-api-window13-20261123\\playwright.json",
+    "reportSha256": "3e253f9f6d86591eb7f49861e4b32cd474ad21092bf91889f96d89e6ec0a8c35",
+    "wholeRunStatus": "RED_RETAINED_NOT_ACCEPTED_AS_WA4",
+    "wholeCode": 1,
+    "signal": null,
+    "serviceCases": [
+      {
+        "title": "guest contact, actual offer/professional/date/slot controls, explicit prepare and confirm persist one unpaid appointment",
+        "project": "desktop",
+        "status": "expected",
+        "results": [
+          "passed"
+        ]
+      },
+      {
+        "title": "guest contact, actual offer/professional/date/slot controls, explicit prepare and confirm persist one unpaid appointment",
+        "project": "mobile",
+        "status": "expected",
+        "results": [
+          "passed"
+        ]
+      }
+    ],
+    "globalCleanupErrorPreserved": true,
+    "productFailuresPreserved": true,
+    "captureScopeOnly": "Six real screenshots and2originalservice body results establish local native control presentation before Continue. Global failed cleanup is not relabeled GREEN; fullHTTP18 separately supplies a natural completed native integration."
+  },
+  "captures": [
+    {
+      "state": "dates",
+      "view": "desktop",
+      "path": "C:/tmp/zyon-t40-focused-20261122/.specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t44-real-signed-whatsapp-dates-gesture-1440-desktop.running.png",
+      "sha256": "c76b6b739249dca9839a4207780d4d08f34a0b526b2543f7882cd21acb0e286c",
+      "width": 1440,
+      "height": 1000,
+      "freshInActualWA13Child": true,
+      "visuallyReviewed": true,
+      "scope": "REAL_LOCAL_CAPTURE_ONLY_NOT_WHOLE_WA4_GREEN"
+    },
+    {
+      "state": "slots",
+      "view": "desktop",
+      "path": "C:/tmp/zyon-t40-focused-20261122/.specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t44-real-signed-whatsapp-slots-gesture-1440-desktop.running.png",
+      "sha256": "30ba829e71c4dc4e66a9afe257bef953c99ef991c9e0b99fd642f41e8bfc27da",
+      "width": 1440,
+      "height": 1000,
+      "freshInActualWA13Child": true,
+      "visuallyReviewed": true,
+      "scope": "REAL_LOCAL_CAPTURE_ONLY_NOT_WHOLE_WA4_GREEN"
+    },
+    {
+      "state": "review",
+      "view": "desktop",
+      "path": "C:/tmp/zyon-t40-focused-20261122/.specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t44-real-signed-whatsapp-review-gesture-1440-desktop.running.png",
+      "sha256": "d46c954698f4cf5331d2b2ac6f9492ac0807d46c9c2ed6d65f51f9a3fdfe3ac9",
+      "width": 1440,
+      "height": 1000,
+      "freshInActualWA13Child": true,
+      "visuallyReviewed": true,
+      "scope": "REAL_LOCAL_CAPTURE_ONLY_NOT_WHOLE_WA4_GREEN"
+    },
+    {
+      "state": "dates",
+      "view": "mobile",
+      "path": "C:/tmp/zyon-t40-focused-20261122/.specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t44-real-signed-whatsapp-dates-gesture-390-mobile.running.png",
+      "sha256": "03f254d92e4baeb65cd6e5e48ab2edf9d99b60445cbf0f7e48ae5bbadb462102",
+      "width": 390,
+      "height": 844,
+      "freshInActualWA13Child": true,
+      "visuallyReviewed": true,
+      "scope": "REAL_LOCAL_CAPTURE_ONLY_NOT_WHOLE_WA4_GREEN"
+    },
+    {
+      "state": "slots",
+      "view": "mobile",
+      "path": "C:/tmp/zyon-t40-focused-20261122/.specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t44-real-signed-whatsapp-slots-gesture-390-mobile.running.png",
+      "sha256": "66aa1ada1a709fe7d11ea74cb02ab5d4aa85998eea90ad2d9174865db9032d2c",
+      "width": 390,
+      "height": 844,
+      "freshInActualWA13Child": true,
+      "visuallyReviewed": true,
+      "scope": "REAL_LOCAL_CAPTURE_ONLY_NOT_WHOLE_WA4_GREEN"
+    },
+    {
+      "state": "review",
+      "view": "mobile",
+      "path": "C:/tmp/zyon-t40-focused-20261122/.specs/features/whatsapp-service-booking-business-rag/captures/artifacts/t44-real-signed-whatsapp-review-gesture-390-mobile.running.png",
+      "sha256": "ce61e07f3b06536b5d5c139d098d67f978cac3c2804452e7a013ef5439c9d4d6",
+      "width": 390,
+      "height": 844,
+      "freshInActualWA13Child": true,
+      "visuallyReviewed": true,
+      "scope": "REAL_LOCAL_CAPTURE_ONLY_NOT_WHOLE_WA4_GREEN"
+    }
+  ],
+  "currentApi12": {
+    "receiptPath": "C:/tmp/zyon-t40-focused-20261122/.cache/t94-c60-coherent-owned-api-window12-20261123/receipt.json",
+    "receiptSha256": "4c0ded7f28af548da80ac1bf16fccbf3f7a84b286077506c780923950c4afd13",
+    "status": "FOCUSED_OWN_LINT_TYPES_CHECKED_BUILD_ADMISSION_GREEN_NOT_NATIVE",
+    "tuple": {
+      "checked": true,
+      "inputSha256": "2d32a9df10eecd5ba33ca9c6715680e4947c8b8d38be0a26225e8101efb0599c",
+      "artifactSha256": "d652137438dc68b600451ff39cac0b5e34251817de947fe444af9abae9311b4e",
+      "compilerCoverage": {
+        "checked": true,
+        "sourceCount": 2628
+      }
+    },
+    "notRerunHTTP18": true
+  },
+  "supersededCacheRecommendation": {
+    "path": "C:/tmp/zyon-service-business-20261114/.cache/t45-service-picker-coherent-owned-cut-20261124/T44-minimum-honest-closure.json",
+    "sha256": "0dab59a6bf3905c1831e9aae69602820a3a60caa83ed5c1c79d575aa3eae7656",
+    "nonBindingStatement": "Await actual wholeWA4 pass",
+    "resolution": "That cache recommendation adds coverage beyond the literalT44 gate. Do not make unrelated product-selector approval a newT44 blocker. WA4 remains required in its own approved buyer/T93 gates."
+  },
+  "remainingForRoot": [
+    "Record honest scoped task44 evidence/visual provenance, preserve allREDreceipts, then mark/commit8ownedpaths atomically if normal index/dependency checks pass.",
+    "Preserve futureT46 residual hunks; do not swallow prepared/confirm implementation intoT44.",
+    "WholeWA4, productpreservation and final sameHEAD proofs remain open in their actual owning tasks."
+  ],
+  "newT44OnlyBrowserFileOrFilteredWA4Needed": false,
+  "additionalSUTRequiredForThisLiteralScopedQualification": false,
+  "sourceOrOracleChangesProposed": false,
+  "auditActions": "Read-only source/hash/rawreceipt and localPNG visual review; no newtest/import/compiler/browser/SUT/Git mutation."
+}

@@ -1,6 +1,9 @@
 import type { ConversationBlock } from "../../../storefront/domain/types/conversation-block.js";
 
+import type { NativeServiceBookingAction, NativeServiceBookingControls } from "./service-booking-controls.js";
+
 export type StoreUiAction =
+  | NativeServiceBookingAction
   | { kind: "message"; message: string }
   | { kind: "tool"; tool: string; args: Record<string, unknown> }
   | { kind: "variant"; productId: string; variantId: string }
@@ -21,6 +24,8 @@ export type MetaUiMessage =
   | { type: "interactive"; interactive: Record<string, unknown> };
 
 export interface MetaUiView {
+  /** Server read/presentation state, never booking authority. */
+  serviceBooking?: NativeServiceBookingControls;
   stage?: "store" | "checkout";
   title: string;
   body: string;
@@ -44,6 +49,8 @@ export interface MetaUiPresentation {
 }
 
 export interface WhatsAppConversationState {
+  /** Filled only by the authenticated service dispatcher. */
+  serviceBooking?: NativeServiceBookingControls;
   agentTone?: import("@zyon/shared-types").AgentTone;
   version: 1;
   conversationId: string;

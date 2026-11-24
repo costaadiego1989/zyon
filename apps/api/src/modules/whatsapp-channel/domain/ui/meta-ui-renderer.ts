@@ -12,6 +12,8 @@ import { compactMetaPresentation, metaCatalogCopy, metaAnimationsFirst, metaAnim
 import { metaProductCard, metaProductRating, presentMetaCatalogCards } from "./meta-catalog-cards.js";
 import { BUYER_HUB_COMMANDS } from "./buyer-hub.js";
 
+import { buildServiceBookingControls, isServiceBookingView, presentServiceBookingControls } from "./service-booking-controls.js";
+
 const object = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const items = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
 const value = (input: unknown): string => typeof input === "string" ? input : input == null ? "" : String(input);
@@ -98,6 +100,7 @@ export function formatMetaSpeech(text: string): string {
 
 /** Channel presentation only: all commercial values and actions come from the store. */
 export function buildMetaUiView(response: WhatsAppStructuredResponse, options: { selectionOnly?: boolean; cartEditing?: boolean } = {}): MetaUiView {
+  if (response.blocks.some(block => block.type === "service_booking_controls")) return buildServiceBookingControls(response.state.serviceBooking);
   const view: MetaUiView = { stage: response.state.stage, title: response.merchantName || "Sua loja", body: response.agentMessage, choices: [], media: [], blocks: response.blocks, quickReplies: response.quickReplies };
   const cartJustAdded = response.blocks.some(block => block.type === "cart_add_result" && object(block.data).status === "succeeded");
   const narratedOffer = response.state.postCartOffer?.status === "pending"
@@ -514,6 +517,8 @@ const catalogProductChoice = (choice: MetaUiChoice): boolean => choice.action.ki
   (choice.action.tool === "get_product_details" || choice.action.tool === "search_products" && !!choice.action.args.cursor);
 
 export function presentMetaUi(view: MetaUiView, revision: string, requestedPage = 0, options: { native?: boolean; includeMedia?: boolean; canGoBack?: boolean; navigationOnly?: boolean } = {}): MetaUiPresentation {
+  if (isServiceBookingView(view)) return presentServiceBookingControls(view, revision, requestedPage, { native: options.native,
+    navigationOnly: options.navigationOnly, formatSpeech: formatMetaSpeech });
   const offerChoices = view.offerPresentation && view.productContext?.offerId ? view.choices.filter(c => c.action.kind === "tool"
     && ["accept_cross_sell_offer", "cross_sell_offer_details", "decline_cross_sell_offer"].includes(c.action.tool)
     && c.action.args.offerId === view.productContext!.offerId) : [];

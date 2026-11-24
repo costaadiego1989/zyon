@@ -1,6 +1,8 @@
 import type { StoreUiAction, WhatsAppConversationState } from "./meta-ui.types.js";
 import { metaProductContext } from "./meta-product-navigation.js";
 
+import { currentServiceControlDraft } from "./service-booking-controls.js";
+
 /** Resolve built-in store shortcuts; custom questions keep the shared agent. */
 export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversationState): StoreUiAction | undefined {
   const key = label.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -57,6 +59,7 @@ export function resolveMetaStoreTextAction(message: string, state: WhatsAppConve
     !state.view.blocks.some(block => block.type === "product_card") &&
     state.view.blocks.some(block => ["product_carousel", "marketplace_products", "wishlist", "cross_sell"].includes(block.type))) return { kind: "catalog_options" };
   const sameLabel = state.view?.choices.filter(c => c.label.trim().toLocaleLowerCase("pt-BR") === message.trim().toLocaleLowerCase("pt-BR")) ?? [];
-  if (sameLabel.length === 1) return sameLabel[0].action;
+  if (sameLabel.length === 1) return sameLabel[0].action.kind === "service_booking"
+    ? currentServiceControlDraft(sameLabel[0].action, state) : sameLabel[0].action;
   return metaStoreQuickReplyAction(message, state);
 }

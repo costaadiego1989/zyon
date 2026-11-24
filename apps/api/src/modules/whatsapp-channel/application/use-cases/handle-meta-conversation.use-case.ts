@@ -22,6 +22,9 @@ import type { MetaInboundMediaResult } from "../../infrastructure/adapters/meta-
 import { WhatsAppAiDispatchFence } from "../services/whatsapp-ai-dispatch-fence.js";
 import { currentWhatsAppExecution } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 
+import { buildServiceBookingControls, isServiceBookingView, checkServiceControlFreshness } from "../../domain/ui/service-booking-controls.js";
+import { WhatsAppTurnContext } from "../../domain/services/whatsapp-turn-context.js";
+
 export interface PreparedWhatsAppMedia { attempted: true; result?: MetaInboundMediaResult }
 
 interface SavedTurn { purpose?: "human_handoff"; handoff?: WhatsAppHumanNotice; phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
@@ -62,6 +65,7 @@ export class HandleMetaConversationUseCase {
     @Optional() private readonly catalogOrders?: MetaCatalogOrderAdapter,
     @Optional() private readonly humanIntake?: WhatsAppHumanIntakeService,
     @Optional() private readonly aiFence?: WhatsAppAiDispatchFence,
+    @Optional() private readonly turnContext?: WhatsAppTurnContext,
   ) {}
 
   async prepareAudioForHandoff(input: IncomingMessageInput, route: RouteResult): Promise<PreparedWhatsAppMedia | undefined> {
@@ -149,7 +153,7 @@ export class HandleMetaConversationUseCase {
         if (!action) {
           const previous = await this.inbox.findPriorSelection?.(claim, route.whatsappSession.id, input.interactiveId);
           if (previous) action = recoverMetaPaymentChoice(previous, state);
-          if (previous && isMetaReadNavigation(previous.action)) {
+          if (previous && !isServiceBookingView(previous.view) && !isServiceBookingView(previous.previousView) && isMetaReadNavigation(previous.action)) {
             action = previous.action;
             // Previously sent catalog controls now open the same current hub.
             if (action.kind === "catalog_options" || action.kind === "menu" && isMetaCatalogView(previous.view)) action = { kind: "message", message: "/atalhos" };
@@ -171,7 +175,7 @@ export class HandleMetaConversationUseCase {
       const mainMenu=state.view?.blocks.some(block=>block.type==="buyer_hub_actions"&&block.data.scope==="main_menu");
       const currentMapping=input.interactiveId?state.selections?.[input.interactiveId]===action
         :!state.expectsFreeInput&&numeric>=1&&state.numericSelections?.[numeric-1]===action;
-      if(mainMenu&&currentMapping&&!invalidSelection&&action?.kind==="message"&&action.message==="Falar com atendente") {
+      if((mainMenu||isServiceBookingView(state.view))&&currentMapping&&!invalidSelection&&action?.kind==="message"&&action.message==="Falar com atendente") {
         const selectedNotice=await this.humanIntake?.requestSelectedHumanAction();
         if(selectedNotice){await this.sendHandoffNotice(input,route,selectedNotice);return;}
       }
@@ -187,7 +191,34 @@ export class HandleMetaConversationUseCase {
       }
       let includeMedia = true;
       let navigationOnly = false;
-      if (invalidSelection) { view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Esse menu foi atualizado. Use as opções abaixo ou escreva o que você quer fazer." }; includeMedia = false; }
+      if (invalidSelection) { if (isServiceBookingView(view)) view = buildServiceBookingControls(undefined); else view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Esse menu foi atualizado. Use as opções abaixo ou escreva o que você quer fazer." }; includeMedia = false; }
+      else if (action?.kind === "service_booking") {
+        const currentTurn = this.turnContext?.current();
+        const matchingTurn = verifiedSender && currentTurn && currentTurn.inboxId === verifiedSender.inboxId
+          && currentTurn.leaseToken === verifiedSender.leaseToken && currentTurn.scope.merchantId === input.merchantId
+          && currentTurn.scope.whatsappSessionId === route.whatsappSession.id ? currentTurn : undefined;
+        const checked = checkServiceControlFreshness({ action, state, turn: matchingTurn, now: new Date() });
+        if (!checked.ok) {
+          const snapshot = state.view?.serviceBooking;
+          view = checked.reason === "button_required" && snapshot?.model.step === "review"
+            ? buildServiceBookingControls({ ...snapshot, model: { ...snapshot.model, notice: "button_required" } })
+            : buildServiceBookingControls(snapshot ? { ...snapshot,
+              model: { step: "status", reason: checked.reason === "expired" ? "expired" : "stale" } } : undefined);
+          state = { ...state, page: 0 };
+        } else if (checked.action.operation === "page") {
+          state = { ...state, page: checked.action.page }; navigationOnly = true;
+        } else if (this.conversation.respondServiceBooking && verifiedSender) {
+          const response = await this.conversation.respondServiceBooking({ verifiedSender, merchantId: input.merchantId,
+            buyer: route.buyerData, message, messageId: claim.id, state, action: checked.action });
+          state = { ...response.state, page: 0 }; view = buildMetaUiView(response);
+        } else {
+          // A pending dispatcher must never forward a service choice to the
+          // legacy product/cart/payment agent or claim an unavailable slot.
+          view = buildServiceBookingControls(state.view?.serviceBooking ? { ...state.view.serviceBooking,
+            model: { step: "status", reason: "read_failed" } } : undefined);
+          state = { ...state, page: 0 };
+        }
+      }
       else if (action?.kind === "page" && view) {
         state = { ...state, page: action.page };
         // A current menu page only changes the controls. Archived navigation
@@ -198,6 +229,12 @@ export class HandleMetaConversationUseCase {
         const response = await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
           message: "Editar itens do carrinho", state, action: { kind: "tool", tool: "get_cart", args: {} } });
         state = { ...response.state, page: 0 }; view = buildMetaUiView(response, { cartEditing: true });
+      }
+      else if (action?.kind === "back" && isServiceBookingView(state.previousViews.at(-1))) {
+        // Archived service data is not a fresh schedule. Dedicated current
+        // service Back controls ask the canonical dispatcher to reread instead.
+        view = buildServiceBookingControls(undefined);
+        state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
       }
       else if (action?.kind === "back" && state.previousViews.length) {
         view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
@@ -265,7 +302,8 @@ export class HandleMetaConversationUseCase {
           action: action?.kind === "tool" ? action : undefined });
         state = response.state;
         if (view) state = { ...state, previousViews: [...state.previousViews, view].slice(-6) };
-        view = withMetaProductNavigation(buildMetaUiView(response), view, state); state.page = 0;
+        const nextView = buildMetaUiView(response);
+        view = isServiceBookingView(nextView) ? nextView : withMetaProductNavigation(nextView, view, state); state.page = 0;
       }
       const confirmed=this.humanIntake?.takeNotice();
       if(confirmed){await this.sendHandoffNotice(input,route,confirmed);return;}
@@ -273,7 +311,7 @@ export class HandleMetaConversationUseCase {
       // Returning to an archived welcome restores its text and controls. Its
       // original clip belongs to the first greeting, not every Back selection.
       if ((recoveredView || action?.kind === "back") && view.blocks.some(block => block.type === "welcome_animation")) includeMedia = false;
-      if (!responseProducer) view = withMetaCartNavigation(view, state.cartHasItems);
+      if (!responseProducer && !isServiceBookingView(view)) view = withMetaCartNavigation(view, state.cartHasItems);
       view = { ...view, stage: view.stage ?? state.stage };
       const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0, includeMedia, navigationOnly });
       state = { ...state, revision, view, page: presentation.page, selections: presentation.selections, numericSelections: presentation.numericSelections };
