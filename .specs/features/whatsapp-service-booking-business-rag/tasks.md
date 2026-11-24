@@ -1153,20 +1153,24 @@ T107 → T106
 
 ### T47: Wire the scheduling adapters into the existing application
 
+**Status**: Complete - local task gate passed; scoped evidence in task-47-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Um componente Nest registra providers/controllers/adapters já implementados, guardas e outbox; imports sem ciclos; nova admissão depende de capability e migração dos escritores.
-**Where**: `apps/api/src/modules/catalog/service-scheduling.module.ts`
+**Where**: `apps/api/src/modules/checkout/checkout.module.ts`, `apps/api/src/modules/embed/embed.module.ts`, `apps/api/src/modules/storefront/storefront.module.ts`, `apps/api/src/modules/whatsapp-channel/whatsapp-channel.module.ts`
 **Depends on**: T46
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-01, ATEND-08, REG-01, REG-04
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Construction + real HTTP startup/DB: nenhuma conexão externa implícita, produtos funcionam com agenda desabilitada, service route/permissions.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Construction + real HTTP startup/DB: nenhuma conexão externa implícita, produtos funcionam com agenda desabilitada, service route/permissions.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Construction + real HTTP startup/DB: nenhuma conexão externa implícita, produtos funcionam com agenda desabilitada, service route/permissions.
-**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T47$" ./src/modules/catalog/service-scheduling.module.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T47 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/storefront/application/services/storefront-service-booking-wiring.contract.spec.ts ./src/modules/whatsapp-channel/application/services/whatsapp-service-booking-wiring.spec.ts ./tests/service-buyer-booking-fixture-options.spec.mjs ./tests/service-channel-journey.integration.spec.ts ./tests/storefront-service-tools-http.integration.spec.ts`. Five complete files, no name filter: current composed-module construction 3+3, private-option boundary 5, actual signed WhatsApp/AppModule HTTP/SQL journey 18 and public storefront discovery plus authenticated buyer-write HTTP/SQL dispatch; prior 36 contexts are historical and revised whole-file counts are authoritative, zero skips. Own checked build/current-source admission and existing product regressions remain required. These paths replace the nonexistent catalog/service-scheduling.module.spec.ts; no new wrapper module or fake proof is added.
+**Current refinement scope (2026-11-24):** Compose a public read scope for published service discovery separately from the unchanged buyer-write and admin authorities. Requalify only affected whole HTTP/wiring files after source changes; retain byte-exact unaffected scopes with explicit provenance, without relabeling the historical whole36 as a current anonymous-read proof.
+
 **Commit**: `feat(service-business): t47 wire the scheduling adapters into the existing application`
 
 ### T48: Persist the channel handoff binding
