@@ -16,7 +16,7 @@ import {PROSPECT_META_DISPATCH} from "../../../../shared/integrations/prospect-m
 
 async function fixture(){
  const f=await createCampaignFixture();
- const env={META_APP_SECRET:"shared-fixture-secret",META_APP_ID:"app",META_EMBEDDED_SIGNUP_APP_ID:"app",PROSPECTING_META_PHONE_NUMBER_ID:"phone",PROSPECTING_META_SYSTEM_USER_ACCESS_TOKEN:"shared-fixture-env-only"};
+ const env={META_APP_SECRET:"shared-fixture-secret",META_APP_ID:"app",META_EMBEDDED_SIGNUP_APP_ID:"app",PROSPECTING_META_APP_ID:"app",PROSPECTING_META_APP_SECRET:"shared-fixture-secret",PROSPECTING_META_PHONE_NUMBER_ID:"phone",PROSPECTING_META_SYSTEM_USER_ACCESS_TOKEN:"shared-fixture-env-only"};
  const saved=Object.fromEntries(Object.keys(env).map(k=>[k,process.env[k]]));Object.assign(process.env,env);
  let app:Awaited<ReturnType<typeof NestFactory.create>>|undefined;
  try{
@@ -35,7 +35,7 @@ async function fixture(){
    {provide:FISCAL_DELIVERY_DISPATCH,useValue:{fromMeta:(_:string,statuses:{id:string}[])=>Promise.all(statuses.map(s=>record("fiscal",s.id)))}}
   ]}) class FixtureModule{}
   app=await NestFactory.create(FixtureModule,{rawBody:true,logger:false});await app.listen(0,"127.0.0.1");const base=await app.getUrl();
-  const post=(value:Record<string,unknown>,secret=env.META_APP_SECRET,wabaId="waba")=>{const raw=JSON.stringify({entry:[{id:wabaId,changes:[{field:"messages",value:{metadata:{phone_number_id:"phone"},...value}}]}]});return fetch(base+"/webhooks/whatsapp/meta",{method:"POST",headers:{"content-type":"application/json","x-hub-signature-256":"sha256="+createHmac("sha256",secret).update(raw).digest("hex")},body:raw});};
+  const post=(value:Record<string,unknown>,secret=env.META_APP_SECRET,wabaId="waba",path="meta")=>{const raw=JSON.stringify({entry:[{id:wabaId,changes:[{field:"messages",value:{metadata:{phone_number_id:"phone"},...value}}]}]});return fetch(base+"/webhooks/whatsapp/"+path,{method:"POST",headers:{"content-type":"application/json","x-hub-signature-256":"sha256="+createHmac("sha256",secret).update(raw).digest("hex")},body:raw});};
   return {...f,inbox,post,conversation,async close(){await app!.close();for(const [k,v]of Object.entries(saved)){if(v===undefined)delete process.env[k];else process.env[k]=v;}await f.close();}};
  }catch(error){await app?.close();for(const[k,v]of Object.entries(saved)){if(v===undefined)delete process.env[k];else process.env[k]=v;}await f.close();throw error;}
 }
@@ -84,5 +84,30 @@ test("OWN-SENDER AC4 deactivating the shared platform binding hands buyer messag
   assert.equal((await f.post({messages:[message("after-platform-deactivation","5511999999999")]})).status,200);
   assert.equal(await f.prisma.prospectInboxEvent.count(),0);
   assert.deepEqual((await f.pg.query("SELECT kind,provider_id FROM merchant_routed")).rows,[{kind:"META",provider_id:"after-platform-deactivation"}]);
+ }finally{await f.close();}
+});
+
+test("OWN-SENDER AC5 exclusive bindings consume complete batches and preserve identical and divergent replay protection",async()=>{
+ const f=await fixture();try{
+  await f.prisma.platformProspectSenderBinding.update({where:{id:"sender"},data:{grantedAssets:{businessId:"scope"}}});
+  const value={messages:[message("exclusive-reply","5511988888888")]};
+  assert.equal((await f.post(value)).status,200);assert.equal((await f.post(value)).status,200);
+  assert.equal((await f.post(value,undefined,"waba","meta-platform")).status,200);
+  assert.equal(await f.prisma.prospectInboxEvent.count(),1);assert.equal(await f.prisma.prospectEndpoint.count(),2);
+  assert.equal((await f.post({messages:[{...value.messages[0],text:{body:"divergent exclusive replay"}}]})).status,409);
+  assert.equal(await f.prisma.prospectInboxEvent.count(),1);assert.equal((await f.pg.query("SELECT * FROM merchant_routed")).rowCount,0);
+ }finally{await f.close();}
+});
+
+test("OWN-SENDER AC4 the dedicated callback acknowledges shared prospect events and forwards only the merchant remainder",async()=>{
+ const f=await fixture();try{
+  const send=(value:Record<string,unknown>)=>f.post(value,undefined,"waba","meta-platform");
+  assert.equal((await send({messages:[message("dedicated-prospect-only","5511999999999")]})).status,200);
+  assert.equal(await f.prisma.prospectInboxEvent.count(),1);assert.equal((await f.pg.query("SELECT * FROM merchant_routed")).rowCount,0);
+  assert.equal((await send({messages:[message("dedicated-prospect-mixed","5511999999999"),message("dedicated-buyer","5511988888888")],statuses:[{id:"wamid.prospect.out",status:"read",recipient_id:"5511999999999",timestamp:"1700000000"},{id:"wamid.store.out",status:"read",recipient_id:"5511988888888",timestamp:"1700000000"}]})).status,200);
+  assert.equal(await f.prisma.prospectInboxEvent.count(),3);
+  assert.deepEqual((await f.pg.query("SELECT kind,provider_id FROM merchant_routed ORDER BY kind")).rows,[{kind:"META",provider_id:"dedicated-buyer"},{kind:"delivery",provider_id:"wamid.store.out"},{kind:"fiscal",provider_id:"wamid.store.out"},{kind:"status",provider_id:"wamid.store.out"}]);
+  await f.prisma.platformProspectSenderBinding.update({where:{id:"sender"},data:{phoneNumberId:"not-this-phone"}});
+  assert.equal((await send({messages:[message("unbound-dedicated","5511988888888")]})).status,503);assert.equal(await f.prisma.prospectInboxEvent.count(),3);
  }finally{await f.close();}
 });

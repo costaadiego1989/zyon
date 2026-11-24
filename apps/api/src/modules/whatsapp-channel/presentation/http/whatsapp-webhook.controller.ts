@@ -173,7 +173,7 @@ export class WhatsAppWebhookController {
             throw new ServiceUnavailableException("prospect_webhook_pending");
           }
         }
-        if(dedicated||phoneNumberId===process.env.PROSPECTING_META_PHONE_NUMBER_ID&&!sharedRemainder&&!process.env.PROSPECTING_META_SYSTEM_USER_ACCESS_TOKEN)throw new ServiceUnavailableException("prospect_webhook_binding_unavailable");
+        if(!sharedRemainder&&(dedicated||phoneNumberId===process.env.PROSPECTING_META_PHONE_NUMBER_ID&&!process.env.PROSPECTING_META_SYSTEM_USER_ACCESS_TOKEN))throw new ServiceUnavailableException("prospect_webhook_binding_unavailable");
 
         if (value?.statuses?.length) {
           if (!this.fiscalDelivery) throw new ServiceUnavailableException("fiscal_delivery_dispatch_unavailable");
