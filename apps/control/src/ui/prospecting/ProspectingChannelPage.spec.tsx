@@ -180,3 +180,30 @@ test("PROS-29 AC3 carregamento, falha e acesso negado suspendem ações do recur
     "Conectar número Zyon"
   );
 });
+
+test("OWN-SENDER AC6 verifies the displayed own number and confirms without preparing or opening customer signup",async()=>{
+ const ownState={...state,authorizationMethod:"system_user",existingSender:{businessId:"100003",wabaId:"100005",phoneNumberId:"100004",displayPhoneNumber:"+5521971191446"}};
+ const sdk={prepare:vi.fn(),open:vi.fn()},connect=vi.fn<(body:Record<string,unknown>)=>Promise<typeof binding>>().mockResolvedValue({...binding,displayPhoneNumber:ownState.existingSender.displayPhoneNumber});
+ const ui=await show(<ProspectingChannelPage {...screenProps({sender:async()=>({...sender,binding:null}),signupState:async()=>ownState,connect})} mode="controlled" controlledSdk={sdk}/>);
+ await ui.click("Conectar número Zyon");expect(ui.text()).toContain(ownState.existingSender.displayPhoneNumber);expect(ui.text()).toContain("Número a conectar");expect(connect).not.toHaveBeenCalled();
+ expect(sdk.prepare).not.toHaveBeenCalled();expect(sdk.open).not.toHaveBeenCalled();expect(ui.text()).not.toContain("Abrir autorização");
+ await ui.click("Confirmar vínculo");expect(connect).toHaveBeenCalledTimes(1);expect(connect.mock.calls[0][0]).toMatchObject({authorizationMethod:"system_user",state:state.state});
+ expect(Object.keys(connect.mock.calls[0][0]).sort()).toEqual(["authorizationMethod","clientRequestId","state"]);
+ expect(ui.text()).toContain("Vínculo confirmado");expect(ui.text()).not.toContain("Número a conectar");expect(sdk.open).not.toHaveBeenCalled();
+});
+
+test("OWN-SENDER AC6 failed own confirmation clears the preview and allows a new authorized attempt",async()=>{
+ const sdk={prepare:vi.fn(),open:vi.fn()},connect=vi.fn().mockRejectedValue(new PlatformApiError(409));
+ const ownState={...state,authorizationMethod:"system_user",existingSender:{businessId:"100003",wabaId:"100005",phoneNumberId:"100004",displayPhoneNumber:"+5521971191446"}};
+ const ui=await show(<ProspectingChannelPage {...screenProps({sender:async()=>({...sender,binding:null}),signupState:async()=>ownState,connect})} mode="controlled" controlledSdk={sdk}/>);
+ await ui.click("Conectar número Zyon");await ui.click("Confirmar vínculo");expect(connect).toHaveBeenCalledTimes(1);expect(ui.text()).not.toContain("Número a conectar");expect(ui.button("Conectar número Zyon").disabled).toBe(false);expect(sdk.prepare).not.toHaveBeenCalled();
+});
+
+test("OWN-SENDER AC6 expired own-number preview cannot confirm a binding",async()=>{
+ vi.useFakeTimers({toFake:["setTimeout","clearTimeout"]});try{
+  const sdk={prepare:vi.fn(),open:vi.fn()},connect=vi.fn();
+  const ownState={...state,expiresAt:new Date(Date.now()+1000).toISOString(),authorizationMethod:"system_user",existingSender:{businessId:"100003",wabaId:"100005",phoneNumberId:"100004",displayPhoneNumber:"+5521971191446"}};
+  const ui=await show(<ProspectingChannelPage {...screenProps({sender:async()=>({...sender,binding:null}),signupState:async()=>ownState,connect})} mode="controlled" controlledSdk={sdk}/>);
+  await ui.click("Conectar número Zyon");expect(ui.text()).toContain("Número a conectar");await act(async()=>{vi.advanceTimersByTime(2000);});expect(ui.text()).not.toContain("Confirmar vínculo");expect(ui.text()).toContain("A autorização expirou");expect(connect).not.toHaveBeenCalled();
+ }finally{vi.useRealTimers();}
+});

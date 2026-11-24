@@ -50,7 +50,8 @@ export function ProspectingChannelPage(
     }
   }
   const value = channel.data,
-    binding = value?.binding;
+    binding = value?.binding,
+    ownSender = state?.authorizationMethod === "system_user" ? state.existingSender : null;
   return (
     <section className="prospecting-page">
       <header>
@@ -109,7 +110,9 @@ export function ProspectingChannelPage(
                   void action.run(async (key) => {
                     setNotice("");
                     const next = await api.signupState({ clientRequestId: key });
-                    await sdk!.prepare(next);
+                    if(next.authorizationMethod === "system_user"){
+                      if(!next.existingSender?.displayPhoneNumber)throw Error("Não foi possível identificar o número. Atualize o canal e tente novamente.");
+                    }else await sdk!.prepare(next);
                     if (!lifetime.current?.signal.aborted) setState(next);
                     return "Autorização preparada.";
                   })
@@ -118,12 +121,27 @@ export function ProspectingChannelPage(
                 Conectar número Zyon
               </Button>
             )}
-            {state && !assets && (
+            {state && !assets && state.authorizationMethod !== "system_user" && (
               <Button primary disabled={waiting || action.disabled} onClick={open}>
                 Abrir autorização
               </Button>
             )}
           </div>
+          {ownSender && state && (
+            <form className="prospecting-actions" aria-label="Confirmar número da prospecção" onSubmit={(e)=>{
+              e.preventDefault();
+              void action.run(async(key)=>{
+                try{
+                  const confirmed=await api.connect({authorizationMethod:"system_user",state:state.state,clientRequestId:key});
+                  channel.reload();return "Vínculo confirmado · "+confirmed.displayPhoneNumber;
+                }finally{setState(null);setAssets(null);}
+              });
+            }}>
+              <div><strong>Número a conectar</strong><p>{ownSender.displayPhoneNumber}</p><p>Confirme o uso deste número na prospecção.</p></div>
+              <Button type="submit" primary disabled={action.disabled}>Confirmar vínculo</Button>
+              <Button onClick={()=>setState(null)} disabled={action.disabled}>Cancelar</Button>
+            </form>
+          )}
           {assets && state && (
             <form
               className="prospecting-actions"
