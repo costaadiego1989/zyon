@@ -34,6 +34,9 @@ test("CAMP-06 prepare durably connects the union and registered template to cata
   assert.equal(await f.prisma.prospectCommand.count({where:{kind:"campaign.prepare"}}),1);
   while((await audience.poll(job.selectionId))?.state!=="complete")await audience.processNext(1);
   const ready=await drafts.find(c.id);assert.equal(ready.state,"review_ready");assert.equal(ready.offer,null);assert.equal(ready.message,fixtureTemplate.previewText);assert.equal(ready.recipientCount,1);
+  const frozen=await f.prisma.campaignRecipient.findMany({where:{campaignId:c.id},select:{id:true,frozenSnapshot:true}});
+  await assert.rejects(audience.enqueue(c.id,{expectedRevision:ready.revision,snapshotId:"search-old",cnpjs:["11222333000181"],clientRequestId:"legacy-cannot-replace-v2-union"},actor),/invalid_command:use_campaign_draft_preparation/);
+  assert.deepEqual(await drafts.find(c.id),ready);assert.deepEqual(await f.prisma.campaignRecipient.findMany({where:{campaignId:c.id},select:{id:true,frozenSnapshot:true}}),frozen);
   const commands=new PrismaCampaignCommands(f.prisma,offers,async()=>[],identity.current.bind(identity));
   const approval={expectedRevision:ready.revision,audienceHash:ready.audienceHash!,contentHash:ready.contentHash!,clientRequestId:"approve-v2"};
   knowledge="withdrawn";await assert.rejects(commands.approve(c.id,approval,actor),/approval_stale/);knowledge="publication-1";

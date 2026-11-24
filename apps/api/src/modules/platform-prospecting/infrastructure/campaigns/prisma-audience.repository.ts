@@ -44,6 +44,7 @@ export class PrismaAudienceRepository implements CampaignAudienceStore {
       await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${id} FOR UPDATE`;
       const c=await tx.prospectCampaign.findUnique({where:{id}});
       if(!c)throw new Error("campaign_not_found");
+      if(!draft&&c.setupVersion===2)throw Error("invalid_command:use_campaign_draft_preparation");
       if(c.revision!==cmd.expectedRevision)throw new Error("version_conflict");
       if(!["draft","review_ready","approved"].includes(c.state)||await tx.outreachAttempt.count({where:{recipient:{campaignId:id}}}))throw new Error("campaign_state_conflict");
       const sender=await tx.platformProspectSenderBinding.findFirst({where:{id:c.senderBindingId??"",active:true,scope:"zyon_platform",version:c.senderVersion??0}});

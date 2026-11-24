@@ -58,6 +58,7 @@ try{
   await page.getByLabel('Destinatários por dia',{exact:true}).fill('2');await page.getByLabel('Orçamento total (R$)',{exact:true}).fill('10,00');await page.getByRole('button',{name:'Salvar configuração de envio',exact:true}).click();await expect(page.getByRole('button',{name:'Preparar revisão da campanha',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Preparar revisão da campanha',exact:true}).click();await expect(page.getByRole('button',{name:'Aprovar revisão da campanha',exact:true})).toBeEnabled();await page.getByRole('button',{name:'Aprovar revisão da campanha',exact:true}).click();await expect(page.getByText(/Revisão da campanha aprovada · Revisão/)).toBeVisible();await page.getByRole('button',{name:'Iniciar campanha',exact:true}).click();await expect(page.getByText('Envio impedido pela política do provedor',{exact:true})).toBeVisible();
   stored=(await pg.query('SELECT state,approved_revision,revision FROM prospect_campaigns WHERE id=$1',[draft.id])).rows[0];assert.equal(stored.state,'approved');assert.equal(stored.approved_revision,stored.revision);assert.equal((await pg.query('SELECT count(*)::int AS count FROM outreach_attempts a JOIN campaign_recipients r ON r.id=a.recipient_id WHERE r.campaign_id=$1',[draft.id])).rows[0].count,0);
+  const legacy=await page.request.post(origins.api+'/v1/platform/prospecting/campaigns/'+draft.id+'/freeze',{headers,data:{expectedRevision:stored.revision,snapshotId:'search-old',cnpjs:['11222333000181'],clientRequestId:run+':legacy-'+width}});assert.equal(legacy.status(),400);assert.equal((await legacy.json()).message,'invalid_command:use_campaign_draft_preparation');assert.deepEqual((await pg.query('SELECT state,approved_revision,revision FROM prospect_campaigns WHERE id=$1',[draft.id])).rows[0],stored);
   assert.equal((await page.request.get(origins.api+'/v1/platform/prospecting/campaign-drafts/'+draft.id,{headers})).status(),200);
  }
  for(const variant of ['reject','unknown','mismatch']){
@@ -73,7 +74,7 @@ try{
  }
  await checkLayout('campaign-provider-states',320);
  assert.equal((await pg.query('SELECT count(*)::int AS count FROM browser_provider_requests')).rows[0].count,baseline);assert.deepEqual(errors,[]);
- const receipt={status:'passed',source:'actual local Control gestures, Nest HTTP and PostgreSQL; provider template observations are controlled fixtures',at:new Date().toISOString(),viewports:[1440,1280,1024,390,320],screens,campaignIds,providerStates,pageErrors:errors,externalRealCalls:0,launchesBlockedByNoOptIn:true,origins};
+ const receipt={status:'passed',source:'actual local Control gestures, Nest HTTP and PostgreSQL; provider template observations are controlled fixtures',at:new Date().toISOString(),viewports:[1440,1280,1024,390,320],screens,campaignIds,providerStates,pageErrors:errors,externalRealCalls:0,launchesBlockedByNoOptIn:true,legacyFreezeCannotBypassV2Preparation:true,origins};
  writeFileSync(campaignFolder+'browser-walk.json',JSON.stringify(receipt,null,2)+'\n');console.log(JSON.stringify({status:receipt.status,screens:screens.length,campaigns:campaignIds.length,viewports:receipt.viewports,externalRealCalls:0}));
 }catch(error){await page.screenshot({path:captureFolder+'walk-failure.png',fullPage:true}).catch(()=>{});throw error;}
 finally{await context.close();await browser.close();await pg.end();}
