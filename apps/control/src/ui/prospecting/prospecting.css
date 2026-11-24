@@ -156,6 +156,10 @@ dialog.prospect-lead-drawer {
 .campaign-workspace .campaign-step h3 { font-size: 1rem; margin: 0; }
 .campaign-workspace .campaign-step > .button { justify-self: start; }
 .campaign-message-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.prospecting-page .campaign-transfer { display: grid; gap: .85rem; padding-block: 1rem; border-block: 1px solid var(--line); }
+.campaign-transfer h3 { font-size: 1rem; margin: 0; }
+.campaign-transfer-trigger { justify-self: start; }
+.campaign-transfer > p, .campaign-transfer > form { max-width: 70ch; }
 .campaign-workspace .campaign-step > .button + .button { margin-top: .25rem; }
 @media (max-width: 760px) {
  .campaign-workspace .campaign-context .prospecting-fields { grid-template-columns: minmax(0, 1fr); }

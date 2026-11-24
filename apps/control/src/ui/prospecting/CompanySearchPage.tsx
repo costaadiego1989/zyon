@@ -5,6 +5,7 @@ import { PlatformApiError } from "../../lib/api.js";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { Button, ReadState, cents, money, stages, useAction, useResource, type PageProps } from "./screen-controls.js";
 import { ProspectingState } from "./ProspectingShell.js";
+import {CampaignCompanyTransfer} from "./CampaignCompanyTransfer.js";
 
 const ufs = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
 const companyPageSize = 20;
@@ -535,6 +536,7 @@ function PublishedCompanySearchPage(props: PageProps & {coverage?:CompanyDirecto
                 </Button>
                 <Button onClick={() => navigate({ area: "leads" })}>Ver leads</Button>
               </div>
+              <CampaignCompanyTransfer {...props} snapshotId={page.snapshotId} cnpjs={ids} disabled={action.disabled||dirty||refreshing}/>
             </>
           )}
         </>

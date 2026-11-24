@@ -20,6 +20,37 @@ function page(cnpj = first, nextCursor: string | null = null) {
 const domains = async () => ({ items: [], nextCursor: null });
 const published = { source: { status: "current", value: { snapshotId: "out", state: "published", competence: "2026-10" }, observedAt: "2026-11-22T12:00:00Z" } };
 const preparing = { source: { status: "unavailable", value: { snapshotId: null, state: "unavailable", competence: null }, observedAt: null } };
+
+test("CAMP-07 search appends retained selected identity to a compatible draft and reports actual deduplication counts",async()=>{
+ const campaign={id:"campaign",name:"Roupas SP",revision:7,state:"draft",directorySnapshotId:"out"};
+ const addCampaignCompanies=vi.fn().mockResolvedValue({campaign:{...campaign,revision:8},added:0,existing:1,removed:0});
+ const props=searchProps({companies:async()=>page(),domains,drafts:async()=>({items:[campaign,{...campaign,id:"other",name:"Outra base",directorySnapshotId:"different"}],nextCursor:null}),addCampaignCompanies});
+ const ui=await show(<CompanySearchPage {...props}/>);expect(ui.button("Adicionar à campanha").disabled).toBe(true);
+ await ui.check("Selecionar "+first);await ui.click("Adicionar à campanha");expect(document.activeElement).toBe(ui.control("Campanha existente"));expect(ui.text()).not.toContain("Outra base");
+ await ui.fill("Campanha existente",campaign.id);await ui.click("Adicionar à campanha escolhida");
+ expect(addCampaignCompanies.mock.calls[0]).toEqual([campaign.id,{expectedRevision:7,snapshotId:"out",cnpjs:[first],clientRequestId:expect.any(String)}]);
+ expect(ui.text()).toContain("0 adicionada(s) e 1 já existente(s)");expect(ui.control("Selecionar "+first).checked).toBe(true);
+ await ui.click("Adicionar à campanha escolhida");expect(addCampaignCompanies.mock.calls[1][1].expectedRevision).toBe(8);
+ await ui.click("Fechar seleção de campanha");expect(document.activeElement).toBe(ui.button("Adicionar à campanha"));
+});
+test("CAMP-07 search creates a campaign with selected immutable companies and preserves selection on version conflict",async()=>{
+ const campaign={id:"campaign",name:"Roupas SP",revision:7,state:"draft",directorySnapshotId:"out"};
+ const addCampaignCompanies=vi.fn().mockRejectedValue(new PlatformApiError(409,undefined,"version_conflict"));
+ const createDraft=vi.fn().mockResolvedValue({...campaign,id:"new",manualCompanyCount:1});
+ const props=searchProps({companies:async()=>page(),domains,drafts:async()=>({items:[campaign],nextCursor:null}),addCampaignCompanies,createDraft});
+ const ui=await show(<CompanySearchPage {...props}/>);await ui.check("Selecionar "+first);await ui.click("Adicionar à campanha");await ui.fill("Campanha existente",campaign.id);await ui.click("Adicionar à campanha escolhida");
+ expect(ui.text()).toContain("A revisão mudou");expect(ui.control("Selecionar "+first).checked).toBe(true);expect(addCampaignCompanies).toHaveBeenCalledTimes(1);
+ await ui.fill("Nome da nova campanha","Minha campanha");await ui.click("Criar com empresas selecionadas");
+ expect(createDraft.mock.calls[0][0]).toEqual({name:"Minha campanha",companies:{snapshotId:"out",cnpjs:[first]},clientRequestId:expect.any(String)});
+ expect(ui.text()).toContain("Campanha criada com 1 empresa(s)");expect(ui.button("Criar com empresas selecionadas").disabled).toBe(true);
+ await ui.click("Abrir campanha");expect(props.navigate).toHaveBeenCalledWith({area:"campaigns",id:"new",filters:{view:"edit"}});
+});
+test("CAMP-07 search campaign disclosure closes by Escape and retains the selected source",async()=>{
+ const ui=await show(<CompanySearchPage {...searchProps({companies:async()=>page(),domains,drafts:async()=>({items:[],nextCursor:null})})}/>);
+ await ui.check("Selecionar "+first);await ui.click("Adicionar à campanha");
+ await act(async()=>ui.control("Campanha existente").dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+ expect(ui.host.querySelector('.campaign-transfer')).toBeNull();expect(document.activeElement).toBe(ui.button("Adicionar à campanha"));expect(ui.control("Selecionar "+first).checked).toBe(true);
+});
 const regionalCoverage={kind:"regional_retail",ufs:["SP","RJ","MG","ES","PR","SC","RS"],mainCnaes:["4781400","4772500"],companyCount:12345,maximumDirectoryBytes:25_000_000_000,scopeComplete:true};
 function searchProps(methods: Parameters<typeof screenProps>[0]) {
   return screenProps({ readiness: async () => published, ...methods });
