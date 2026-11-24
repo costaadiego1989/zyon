@@ -11,6 +11,8 @@ import { TopProducts } from "./components/TopProducts.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { AISuggestionsPanel } from "./sections/AISuggestionsPanel.js";
+import { ServiceOverviewPanel } from "./components/ServiceOverviewPanel.js";
+import { catalogBusinessMode } from "../product-detail/utils/catalog-business-mode.js";
 import {
   TrendingUp,
   DollarSign,
@@ -26,8 +28,9 @@ import {
 export type OverviewPageProps = {
   apiBaseUrl: string;
   defaultMerchantId: string;
-  me: MerchantProfile;
+  me: MerchantProfile | null;
 };
+type CommerceOverviewPageProps = Omit<OverviewPageProps, "me"> & { me: MerchantProfile };
 
 function buildActivityItems(vm: ReturnType<typeof useOverviewPage>): ActivityItem[] {
   const items: ActivityItem[] = [];
@@ -173,6 +176,22 @@ export function calcTrend(current: number, previous: number | null | undefined):
 }
 
 export function OverviewPage(props: OverviewPageProps) {
+  const me = props.me;
+  if (!me || typeof me.id !== "string" || !me.id.trim() || typeof me.user_id !== "string" || !me.user_id.trim()) {
+    return <div className="page-container overview-page"><EmptyState title="Visão geral indisponível"
+      description="Confira sua sessão para consultar os indicadores da sua empresa." /></div>;
+  }
+  const mode = catalogBusinessMode(me);
+  if (mode === null) return <div className="page-container overview-page"><EmptyState title="Confirme a modalidade da empresa"
+    description="Os indicadores serão apresentados depois que a modalidade comercial estiver confirmada." /></div>;
+  // Select a separate child before either business hook mounts. Product plans
+  // keep the existing capabilities/period behavior inside the commerce child.
+  const scope = JSON.stringify([me.id, me.user_id, me.role]);
+  if (mode === "services") return <div className="page-container overview-page"><ServiceOverviewPanel key={scope} me={me} /></div>;
+  return <CommerceOverviewPage key={scope} {...props} me={me} />;
+}
+
+function CommerceOverviewPage(props: CommerceOverviewPageProps) {
   const vm = useOverviewPage({ me: props.me });
   const activityItems = buildActivityItems(vm);
 

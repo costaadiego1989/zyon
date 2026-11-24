@@ -2098,20 +2098,22 @@ T107 → T106
 
 ### T90: Select the approved overview by business mode
 
+**Status**: Complete - local task gate passed; scoped evidence in task-90-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Branch canônico services monta painel novo; products mantém layout, cálculos e requests anteriores; modo desconhecido não mostra números inventados.
 **Where**: `apps/dashboard/src/pages/overview/OverviewPage.tsx`
 **Depends on**: T89
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: KPI-01, REG-01, REG-02
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] OverviewPage.business-mode.spec.tsx + métricas regressão existentes e browser antes/depois da empresa produto.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] OverviewPage.business-mode.spec.tsx + métricas regressão existentes e browser antes/depois da empresa produto.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: OverviewPage.business-mode.spec.tsx + métricas regressão existentes e browser antes/depois da empresa produto.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/overview/OverviewPage.spec.tsx -t "^T90$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T90$"` Teste raiz T90 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/overview/OverviewPage.business-mode.spec.tsx -t "^T90$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-overview-local.config.ts e2e/service-overview-journeys.spec.ts`. Whole original browser files, no browser name filters/skips; valid existing unit root selectors retained; original resources, workers, timeouts, cleanup, all adopted affected regressions and final criterion checks remain mandatory. Both desktop/mobile projects run all four original overview scenarios (eight cases), preserving service SQL-known finance and original product behavior.
 **Commit**: `feat(service-business): t90 select the approved overview by business mode`
 
 ### T91: Keep legacy analytics explicitly scoped to their business basis
