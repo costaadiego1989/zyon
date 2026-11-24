@@ -1,3 +1,4 @@
+import { parsePostAddCartResponse } from '../post-cart-suggestions';
 /**
  * STOREFRONT API CLIENT
  *
@@ -19,6 +20,7 @@
  */
 
 import { conversationFetch, rememberConversationAccess } from "../conversation-access";
+import { currentStorefrontCheckoutToken } from "../checkout-session-access";
 import { cloneStorefrontReadUiAction, rememberStorefrontReadUiActionCapability, storefrontReadUiActionRequest } from "../storefront-read-ui-action";
 import type { StorefrontReadUiAction } from "@zyon/shared-types";
 import { readCartLineSelection, type CartLineSelection } from "../cart-line-selection";
@@ -165,6 +167,7 @@ export const checkoutApi = {
     const uiActionSnapshot = hasUiAction ? cloneStorefrontReadUiAction(options.uiAction) : undefined;
     const merchantId = options?.merchantId;
     const buyerAuthorization = options?.token ? `Bearer ${options.token}` : undefined;
+    const embedToken = merchantId && buyerAuthorization ? currentStorefrontCheckoutToken({ merchantId, cartRef: checkoutId }) : undefined;
     // Freeze the actual JSON semantics before renewal can yield to UI changes.
     // Only capability selection belongs after preflight, never buyer/intent data.
     const bodySnapshot = JSON.parse(JSON.stringify({
@@ -175,7 +178,7 @@ export const checkoutApi = {
     }));
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, () => ({
       method: "POST",
-      headers: buyerAuthorization ? { "X-Buyer-Authorization": buyerAuthorization } : undefined,
+      headers: buyerAuthorization ? { "X-Buyer-Authorization": buyerAuthorization, ...(embedToken ? { "X-AACP-Embed-Token": embedToken } : {}) } : undefined,
       body: JSON.stringify({
         ...bodySnapshot,
         ...(hasUiAction ? storefrontReadUiActionRequest(checkoutId, merchantId, uiActionSnapshot) : undefined),
@@ -251,6 +254,12 @@ export const crossSellApi = {
   },
 };
 export const cartApi = {
+  async getPostAddSuggestions(cartId: string, merchantId: string, acceptedVariantId: string, signal?: AbortSignal) {
+    if (!/^[A-Za-z0-9_-]{1,191}$/.test(acceptedVariantId)) throw new Error("post_add_variant_invalid");
+    const result = await safeFetch(`${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}?merchantId=${encodeURIComponent(merchantId)}&post_add_variant_id=${encodeURIComponent(acceptedVariantId)}`,
+      { cache: "no-store", signal }, cartId);
+    return parsePostAddCartResponse(result, { merchantId, cartId, conversationId: cartId }, acceptedVariantId);
+  },
   async requestBudget(cartId: string, merchantId: string, data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }): Promise<{ id: string; status: string }> {
     return safeFetch(`${API_BASE}/storefront/budget-requests`, {
       method: "POST",

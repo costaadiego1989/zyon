@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizedLoopbackRequestOrigin } from "../../../../lib/normalized-loopback-request-origin";
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
@@ -7,7 +8,7 @@ function isIdentifier(value: string | undefined): value is string {
 }
 
 function publicRequestOrigin(request: Request): string | null {
-  const internalOrigin = new URL(request.url).origin;
+  const internalOrigin = normalizedLoopbackRequestOrigin(request);
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
   const browserOrigin = request.headers.get("origin");

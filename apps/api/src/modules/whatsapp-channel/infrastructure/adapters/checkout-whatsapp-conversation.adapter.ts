@@ -14,6 +14,7 @@ import { withMetaProductReferences } from "../../domain/ui/meta-product-context.
 import { deriveChatStage, missingFieldsForStage, isShippingQuickReplyQuestion } from "../../../checkout/domain/services/customer-extraction.service.js";
 import { checkoutCollectionCopy } from "../../../checkout/domain/services/checkout-collection-copy.js";
 import { pendingCustomerCorrection } from "../../../checkout/domain/services/customer-correction-prompts.js";
+import { customerCorrection } from "../../../checkout/domain/services/customer-correction.js";
 import { containsSharedCpf } from "../../domain/ui/meta-sensitive-input.js";
 import { META_FIELD_LABELS, META_FIELD_FLOW_NAMES } from "../../domain/ui/meta-flow.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
@@ -142,10 +143,11 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     if (hub?.kind === "route") input = { ...input, message: hub.message, action: hub.action, buyer: hub.buyer ?? input.buyer, state: hub.state ?? input.state };
     let state: WhatsAppConversationState = { ...input.state, agentTone: config.agentTone };
     const identitySession = state.checkoutSessionId ? await this.sessions.getSession(input.merchantId, state.checkoutSessionId) : undefined;
-    if (!input.action && containsSharedCpf(input.message) && (!identitySession || missingFieldsForStage(identitySession, deriveChatStage(identitySession))[0] !== "telefone")) {
+    const bareRequestedPhone = identitySession && missingFieldsForStage(identitySession, deriveChatStage(identitySession))[0] === "telefone" && /^\d{11}$/.test(input.message.trim());
+    if (!input.action && containsSharedCpf(input.message) && !bareRequestedPhone) {
       const message = "🛡️ *Seus dados*\n\nNão é necessário enviar seu CPF nesta etapa. Vamos continuar com seu pedido.";
       if (identitySession) return this.checkoutUi({ message, experience: buildExperienceFromSession(identitySession, { merchantName: config.name }),
-        ...(pendingCustomerCorrection(identitySession) === "cpf" ? { missing_fields: ["CPF"] } : {}) }, state, config.name, "Documento não solicitado", input.merchantId);
+        ...(pendingCustomerCorrection(identitySession) === "cpf" ? { missing_fields: ["CPF"] } : {}) }, state, config.name, "Documento não solicitado", input.merchantId, true);
       return { agentMessage: message, merchantName: config.name, quickReplies: [], blocks: [], state };
     }
     const verifiedBuyer = identitySession?.merchantId === input.merchantId && identitySession.customer?.email_verified === true && identitySession.customer.email?.trim() &&
@@ -240,7 +242,11 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       input.message.trim() === checkoutShippingLabel(option) || input.message.trim() === `Escolho o frete ${option.carrier} ${option.method}`) ||
       /^(?:escolho o frete |entrega ·|(?:quero (?:o |a )?(?:frete|entrega) )?mais (?:barat[oa]|r[aá]pid[oa]))/i.test(input.message.trim()));
     const shippingQuestion = nextRequestedField === "frete" && (isShippingQuickReplyQuestion(input.message) || /(?:frete (?:gr[aá]tis|gratuito)|(?:op[cç][oõ]es|prazo|valor|pre[cç]o|transportadora).*(?:frete|entrega)|(?:frete|entrega).*(?:op[cç][oõ]es|prazo|valor|pre[cç]o|transportadora))/i.test(input.message));
-    const checkoutInput = !isHumanSupportDiscussion(input.message) && (state.pendingCoupon || awaitingField || shippingAnswer || shippingQuestion || /^(calcular novamente|verificar pagamento|reenviar c[oó]digo|alterar email|pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito))$/i.test(input.message.trim()));
+    // Only an explicit existing delivery correction stays in this checkout.
+    // Original identity/privacy checks above and correction writer guards remain.
+    const correction = identitySession && !input.action && !input.attachmentContext ? customerCorrection(identitySession, input.message) : null;
+    const deliveryCorrection = !!correction && ["zip", "number", "complement"].includes(correction.field);
+    const checkoutInput = !isHumanSupportDiscussion(input.message) && (state.pendingCoupon || awaitingField || shippingAnswer || shippingQuestion || deliveryCorrection || /^(calcular novamente|verificar pagamento|reenviar c[oó]digo|alterar email|pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito))$/i.test(input.message.trim()));
     if (state.stage === "checkout" && (browsing || !checkoutAction && !checkoutInput)) {
       state.stage = "store"; state.pendingCoupon = undefined; state.pendingCheckoutEdit = undefined; state.expectsFreeInput = false;
     }
@@ -543,7 +549,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     } : undefined };
   }
 
-  private async checkoutUi(response: any, state: WhatsAppConversationState, merchantName: string, userMessage: string, merchantId: string): Promise<WhatsAppStructuredResponse> {
+  private async checkoutUi(response: any, state: WhatsAppConversationState, merchantName: string, userMessage: string, merchantId: string, sensitiveInputBlocked = false): Promise<WhatsAppStructuredResponse> {
     const exp = response.experience;
     let message = response.message || exp?.agent?.greeting || exp?.copy?.message || "Vamos continuar sua compra.";
     const blocks: WhatsAppStructuredResponse["blocks"] = [];
@@ -621,7 +627,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const approved = state.payment?.status === "approved";
     const nextField = approved ? undefined : response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
     // Ask the next field explicitly. Starting a checkout must not stop at its greeting.
-    const collectionCopy = session && pendingCustomerCorrection(session) ? undefined : checkoutCollectionCopy(nextField, session ?? undefined, state.agentTone);
+    const collectionCopy = sensitiveInputBlocked || session && pendingCustomerCorrection(session) ? undefined : checkoutCollectionCopy(nextField, session ?? undefined, state.agentTone);
     if (collectionCopy) message = collectionCopy;
     if (nextField === "código de verificação" && session?.customer?.otp_code && !/inválido|expirou|não foi possível|não consegui/i.test(message)) {
       const email = session.customer.email?.replace(/(^.).*(@.*$)/, "$1***$2") || "seu email";

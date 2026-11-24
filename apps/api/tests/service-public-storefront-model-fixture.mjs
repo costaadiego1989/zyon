@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {createProductReadWireMessage} from './service-product-read-model-fixture.mjs';
 import {MODULE_METADATA} from '@nestjs/common/constants.js';
 import {createServedModelScript} from './service-served-model-script.mjs';
 
@@ -39,13 +40,16 @@ export function createPublicStorefrontModelFixture(runId,onEvent,modelScript){
       responseFormat:body.response_format?.type,toolNames:(body.tools??[]).map(tool=>tool.function.name)},{synthetic:true,...step}));
     if(selected.toolCall)assert.ok((body.tools??[]).some(tool=>tool.function.name==='get_current_service_facts'),'real_fixed_tool_must_be_announced');
     if(selected.humanToolCall)assert.ok((body.tools??[]).some(tool=>tool.function.name==='escalate_to_human'),'real_human_tool_must_be_announced');
-    const message=selected.humanToolCall?{role:'assistant',content:null,tool_calls:[{id:'synthetic-human-request',type:'function',
+    if(selected.serviceToolCall)assert.ok((body.tools??[]).some(tool=>tool.function.name===selected.serviceToolCall.name),'real_service_tool_must_be_announced');
+    const message=selected.productReadToolCall?createProductReadWireMessage(selected.productReadToolCall,body):selected.serviceToolCall?{role:'assistant',content:selected.serviceToolCall.narration??null,tool_calls:[{id:'synthetic-service-read',type:'function',
+      function:{name:selected.serviceToolCall.name,arguments:JSON.stringify(selected.serviceToolCall.args)}}]}
+      :selected.humanToolCall?{role:'assistant',content:null,tool_calls:[{id:'synthetic-human-request',type:'function',
       function:{name:'escalate_to_human',arguments:JSON.stringify(selected.humanToolCall)}}]}
       :selected.toolCall?{role:'assistant',content:null,tool_calls:[{id:'synthetic-live-read',type:'function',
       function:{name:'get_current_service_facts',arguments:JSON.stringify(selected.toolCall)}}]}
       :{role:'assistant',content:typeof selected.response==='string'?selected.response:JSON.stringify(selected.response)};
     return new Response(JSON.stringify({id:'synthetic-storefront-'+providerCalls,model:body.model,
-      choices:[{index:0,finish_reason:selected.toolCall||selected.humanToolCall?'tool_calls':'stop',message}],
+      choices:[{index:0,finish_reason:selected.toolCall||selected.humanToolCall||selected.serviceToolCall||selected.productReadToolCall?'tool_calls':'stop',message}],
       usage:{prompt_tokens:3,completion_tokens:2,total_tokens:5}}),{status:200,headers:{'content-type':'application/json'}});
    }
    if(prompt.id==='storefront.intent'){

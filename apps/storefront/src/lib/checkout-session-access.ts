@@ -36,6 +36,10 @@ function stored(key: string): string | undefined {
 
 /** Always validate continuity on the existing server route. A browser token is
  * only a proof to submit, never permission to select/transfer a checkout. */
+export function currentStorefrontCheckoutToken(input: Scope): string | undefined {
+  try { const { key } = context(input); return slots.get(key)?.token ?? stored(key); } catch { return undefined; }
+}
+
 export async function requestStorefrontCheckoutToken(input: Request): Promise<string> {
   try {
     const { key, origin } = context(input);

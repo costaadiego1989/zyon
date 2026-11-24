@@ -321,7 +321,24 @@ export default function ConversationShell({
   const crossSell = useStorefrontCrossSell({ merchantId, conversationId, cart }, [
     ...messages.flatMap(message => (message.blocks ?? []).filter(block => block.type === "cross_sell" && Array.isArray(block.data?.products))
       .map(block => block.data.products)), crossSellPending?.products, productCrossSell?.data.products,
-  ], snapshot => updateFromBlocks([{ type: "cart_summary", data: snapshot }]));
+  ], snapshot => updateFromBlocks([{ type: "cart_summary", data: snapshot }]), block => {
+    // This is the same authenticated server recommendation block, never an add.
+    if (checkoutOpen || showBuyerAuth) return;
+    // A completed financial detail must not keep the verified next offer hidden.
+    // Preserve its protected history marker; this only uses the existing close.
+    if (crossSellDetail && navigation.view.productId === crossSellDetail.productId) {
+      detailScopeRef.current = { ...detailScopeRef.current, productId: undefined };
+      setRichProduct(null);
+    }
+    if (block.data.displayMode === "inline" || block.data.displayMode === "banner") {
+      appendAgentMessage({ text: block.data.trigger, blocks: [block] });
+      return;
+    }
+    const next = block.data as NonNullable<typeof crossSellPending>;
+    // Prevent the accepted older placement's close callback erasing this one.
+    crossSellPlacementRef.current = { ...crossSellPlacementRef.current, pending: next };
+    vm.setCrossSellPending(next);
+  });
   const preparedCrossSell = crossSellPending ? { ...crossSellPending, products: crossSell.present(crossSellPending.products) } : null;
   const preparedProductCrossSell = productCrossSell ? { ...productCrossSell,
     data: { ...productCrossSell.data, products: crossSell.present(productCrossSell.data.products) } } : null;

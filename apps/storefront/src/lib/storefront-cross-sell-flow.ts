@@ -13,6 +13,7 @@ export interface CrossSellBuyerTransport {
   accept(scope: CrossSellBuyerScope, expectedQuote: CrossSellQuote): Promise<unknown>;
   getCart(scope: CrossSellBuyerScope): Promise<unknown>;
   applyCart(cart: Record<string, unknown>): void;
+  afterAccepted?(scope: CrossSellBuyerScope, expectedQuote: CrossSellQuote, cart: Record<string, unknown>, readOwnerCurrent?: () => boolean): void | Promise<void>;
 }
 type Offer = { quote?: CrossSellQuote; preparation?: Promise<void>; attempted: boolean;
   status: NonNullable<CrossSellDisplayProduct["acceptanceStatus"]>; error?: string };
@@ -138,7 +139,7 @@ export class StorefrontCrossSellBuyerFlow {
     });
   }
 
-  async accept(product: CrossSellDisplayProduct, guard: () => boolean = () => true): Promise<boolean> {
+  async accept(product: CrossSellDisplayProduct, guard: () => boolean = () => true, readOwnerCurrent?: () => boolean): Promise<boolean> {
     const offer = this.offers.get(key(product));
     if (!this.isCurrent() || !guard() || !offer?.quote || offer.attempted || product.couponCode || product.readOnlyCandidate) return false;
     let expected: CrossSellQuote;
@@ -158,7 +159,23 @@ export class StorefrontCrossSellBuyerFlow {
       const cart = matchingCart(await this.transport.getCart(this.scope), expected);
       if (!this.isCurrent() || !guard()) return false;
       this.transport.applyCart(cart);
-      offer.status = "accepted"; this.notify(); return true;
+      offer.status = "accepted"; this.notify();
+      // The acknowledged commit and matching applied cart remain successful.
+      // Follow-up reading is optional, detached and never delays/retries accept.
+      if (this.transport.afterAccepted) {
+        try {
+          // Read ownership was captured before the write. A changed owner does
+          // not undo its acknowledged result or bless a replacement session.
+          if (readOwnerCurrent && !readOwnerCurrent()) return true;
+          const scope = { ...this.scope }, quote = structuredClone(expected), snapshot = structuredClone(cart);
+          const reading = readOwnerCurrent
+            ? this.transport.afterAccepted(scope, quote, snapshot, readOwnerCurrent)
+            : this.transport.afterAccepted(scope, quote, snapshot);
+          void Promise.resolve(reading).catch(() => {});
+        }
+        catch { /* A synchronous read setup failure cannot undo this acceptance. */ }
+      }
+      return true;
     } catch (error) {
       const status = record(error) ? error.status : undefined;
       offer.status = [401, 403, 409, 422].includes(status as number) ? "rejected" : "unknown";

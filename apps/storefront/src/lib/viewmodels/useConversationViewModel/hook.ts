@@ -529,6 +529,7 @@ export function useConversationViewModel(
     productCrossSell: stateMerchantId === merchantId ? productCrossSell : null,
     preparedCheckout: stateMerchantId === merchantId ? preparedCheckout : null,
     dismissCrossSell,
+    setCrossSellPending,
     dismissProductCrossSell,
     clearPreparedCheckout,
     selectChannel,

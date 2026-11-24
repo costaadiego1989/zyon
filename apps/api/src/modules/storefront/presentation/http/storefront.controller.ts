@@ -1,4 +1,6 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from '../../domain/ports/conversation.port.js';
+import { readPostAddCartSuggestions } from '../../application/services/read-post-add-cart-suggestions.js';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Header, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, ServiceUnavailableException, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
 import { storefrontCartQuantityUpdateSchema } from "../../domain/contracts/storefront-cart-line-selector.schemas.js";
 import type { StorefrontCartLineSelector } from "../../domain/ports/storefront-cart.port.js";
@@ -30,7 +32,7 @@ import { GetStorefrontLiveSessionsUseCase } from "../../application/use-cases/ge
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { STOREFRONT_CROSS_SELL_CART, type StorefrontCrossSellCartPort } from "../../domain/ports/storefront-cross-sell-cart.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
-import { applyProductPromoPricing, getProductPromoBadge } from "../../application/services/storefront-cart-promo.pricing.js";
+import { applyProductPromoPricing, getProductPromoBadge, setProductPromoBadge, type ProductPromoMeta } from "../../application/services/storefront-cart-promo.pricing.js";
 import { ListPublicStorefrontProductsUseCase } from "../../../catalog/application/use-cases/list-public-storefront-products.use-case.js";
 import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
@@ -103,6 +105,7 @@ export class StorefrontController {
     @Optional() private readonly aiMetering?: AiMeteringService,
     @Optional() private readonly tenantContext?: TenantContextService,
     @Optional() private readonly serviceBookingBridge?: StorefrontServiceBookingBridge,
+    @Optional() @Inject(STOREFRONT_CONVERSATION_PORT) private readonly cartFollowupConversation?: StorefrontConversationPort,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -110,6 +113,15 @@ export class StorefrontController {
       return reevaluateCartRules({ prisma: this.prisma, merchantRepo: this.merchantRepo, cartRepo: this.cartRepo, productPromotionRepo: this.productPromotionRepo, crossSellCart: this.crossSellCart }, merchantId, cartId, cart);
     }
     return { cart, promoMeta: await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart), nextNudge: null, activeRules: [] };
+  }
+
+  private async readPostAddCart(merchantId: string, cartId: string) {
+    if (!this.crossSellCart) throw new ServiceUnavailableException("post_add_suggestions_unavailable");
+    const cart = await this.crossSellCart.project({ merchantId, cartId });
+    const promoMeta: ProductPromoMeta = new Map();
+    for (const item of cart.items) if (item.pricingOriginalUnitPriceCents !== undefined)
+      setProductPromoBadge(promoMeta, cart.items, item, { originalPriceCents: item.pricingOriginalUnitPriceCents });
+    return { cart, promoMeta, nextNudge: null, activeRules: [] };
   }
 
   @Get("index")
@@ -415,16 +427,28 @@ export class StorefrontController {
   }
 
   @Get("cart/:cartId")
+  @Header("Cache-Control", "no-store")
   async getCart(
     @Param("cartId") cartId: string,
     @Query("merchantId") merchantId: string,
     @Req() request: { headers?: { authorization?: string; origin?: string } },
+    @Query("post_add_variant_id") postAddVariantId?: unknown,
   ) {
     if (!merchantId) throw new NotFoundException("merchantId query param required");
     this.conversationAccess(request, cartId, merchantId);
-    const base = await this.cartRepo.getOrCreate(merchantId, cartId);
-    const { cart, promoMeta, nextNudge, activeRules } = await this.priceCart(merchantId, cartId, base);
-    return {
+    if (postAddVariantId !== undefined) {
+      if (typeof postAddVariantId !== "string" || !/^[A-Za-z0-9_-]{1,191}$/.test(postAddVariantId)) throw new BadRequestException("post_add_variant_invalid");
+      if (!this.prisma || !this.crossSellCart || !this.cartFollowupConversation?.postCartSuggestions) throw new ServiceUnavailableException("post_add_suggestions_unavailable");
+      // A follow-up cannot create a cart or borrow a variant from another cart.
+      const existing = await this.prisma.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: cartId } }, select: { merchantId: true, sessionId: true, items: true } });
+      if (!existing || existing.merchantId !== merchantId || existing.sessionId !== cartId || !Array.isArray(existing.items)
+        || !existing.items.some(item => item !== null && typeof item === "object" && !Array.isArray(item) && item.variantId === postAddVariantId
+          && typeof item.quantity === "number" && Number.isInteger(item.quantity) && item.quantity > 0)) throw new NotFoundException("post_add_variant_not_in_cart");
+    }
+    const { cart, promoMeta, nextNudge, activeRules } = postAddVariantId === undefined
+      ? await this.priceCart(merchantId, cartId, await this.cartRepo.getOrCreate(merchantId, cartId))
+      : await this.readPostAddCart(merchantId, cartId);
+    const output = {
       cartId: cart.sessionId,
       items: cart.items.map((i) => {
         const badge = getProductPromoBadge(promoMeta, i);
@@ -452,6 +476,14 @@ export class StorefrontController {
       nextNudge,
       activeRules,
     };
+    if (postAddVariantId === undefined) return output; // Existing body is exact.
+    try {
+      const suggestions = await readPostAddCartSuggestions({ merchantId, cartId, variantId: postAddVariantId as string, cart }, this.cartFollowupConversation);
+      return suggestions ? { ...output, postCartSuggestions: suggestions } : output;
+    } catch (error) {
+      if ((error as Error)?.message === "post_add_context_invalid") throw new NotFoundException("post_add_variant_not_in_cart");
+      throw error;
+    }
   }
 
   @Get("cart/:cartId/pre-checkout-suggestions")

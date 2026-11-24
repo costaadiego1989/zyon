@@ -90,6 +90,7 @@ export interface ConversationViewModelActions {
   setPolicyModal: (value: { title: string; content: string } | null) => void;
   setCartDrawerForceOpen: (value: boolean) => void;
   dismissCrossSell: () => void;
+  setCrossSellPending: (value: CrossSellInterstitialData | null) => void;
   dismissProductCrossSell: () => void;
   clearPreparedCheckout: () => void;
 }

@@ -1,16 +1,36 @@
 import assert from 'node:assert/strict';
+import {validateProductReadToolCall} from './service-product-read-model-fixture.mjs';
 
 // Private synthetic transport input, not a route or productive model API.
-const phases=new Set(['business.answer-plan','support.answer','storefront.intent','storefront.sales','storefront.reply-review']);
+const phases=new Set(['business.answer-plan','support.answer','storefront.intent','storefront.sales','storefront.reply-review','storefront.shopping-plan']);
+const serviceNames=new Set(['get_service_professionals','get_service_dates','get_service_slots','resolve_service_selection']);
 export function validateServedModelScript(value){
   assert.ok(Array.isArray(value)&&value.length>0&&value.length<=16,'local_model_script_size');
   const steps=structuredClone(value);
   for(const step of steps){
     assert.ok(step&&typeof step==='object'&&!Array.isArray(step));
-    assert.ok(Object.keys(step).every(key=>['phase','response','toolCall','humanToolCall','hold'].includes(key)));
+    assert.ok(Object.keys(step).every(key=>['phase','response','toolCall','humanToolCall','serviceToolCall','productReadToolCall','hold'].includes(key)));
     assert.ok(phases.has(step.phase));assert.ok(step.hold===undefined||typeof step.hold==='boolean');
-    assert.equal(['response','toolCall','humanToolCall'].filter(key=>Object.hasOwn(step,key)).length,1);
-    if(Object.hasOwn(step,'toolCall')||Object.hasOwn(step,'humanToolCall'))assert.equal(step.phase,'storefront.sales');
+    assert.equal(['response','toolCall','humanToolCall','serviceToolCall','productReadToolCall'].filter(key=>Object.hasOwn(step,key)).length,1);
+    if(Object.hasOwn(step,'toolCall')||Object.hasOwn(step,'humanToolCall')||Object.hasOwn(step,'serviceToolCall')||Object.hasOwn(step,'productReadToolCall'))assert.equal(step.phase,'storefront.sales');
+    if(Object.hasOwn(step,'productReadToolCall'))validateProductReadToolCall(step.productReadToolCall);
+    if(step.phase==='storefront.shopping-plan'){
+      // Private transport envelope only. The ORIGINAL productive planner Zod
+      // schema still validates every field/constraint before the real read.
+      const wire=step.response;
+      assert.ok(wire&&typeof wire==='object'&&!Array.isArray(wire),'local_shopping_plan_wire');
+      assert.deepEqual(Object.keys(wire).sort(),['plan','schemaVersion']);assert.equal(wire.schemaVersion,1);
+      assert.ok(wire.plan&&typeof wire.plan==='object'&&!Array.isArray(wire.plan));
+      assert.deepEqual(Object.keys(wire.plan).sort(),['version','query','discountOnly','recovery','minPriceCents','maxPriceCents','minRating',
+        'minPriceExclusive','maxPriceExclusive','minRatingExclusive','attributes','attributeAnyOf','sortBy','delivery','unsupportedCriteria'].sort());
+      assert.equal(wire.plan.version,1);
+    }
+    if(Object.hasOwn(step,'serviceToolCall')){
+      const call=step.serviceToolCall;
+      assert.ok(call&&typeof call==='object'&&!Array.isArray(call)&&Object.keys(call).every(key=>['name','args','narration'].includes(key)));
+      assert.ok(serviceNames.has(call.name)&&call.args&&typeof call.args==='object'&&!Array.isArray(call.args));
+      assert.ok(call.narration===undefined||typeof call.narration==='string'&&call.narration.length<=600);
+    }
     if(Object.hasOwn(step,'humanToolCall')){
       const call=step.humanToolCall;
       assert.ok(call&&typeof call==='object'&&!Array.isArray(call));

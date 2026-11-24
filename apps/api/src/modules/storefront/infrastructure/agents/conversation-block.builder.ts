@@ -85,7 +85,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
       data: {
         id: p.id,
         name: p.name,
-        description: p.description,
+        description: p.description ?? undefined,
         ruleNotices: p.ruleNotices,
         price,
         priceFormatted: formatPrice(price),
@@ -123,7 +123,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           products: searchData.products.map((p: any) => ({
             id: p.id,
             name: p.name,
-            description: p.description,
+            description: p.description ?? undefined,
             ruleNotices: p.ruleNotices,
             price: p.price,
             priceFormatted: formatPrice(p.price),
@@ -165,7 +165,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         data: {
           id: p.id,
           name: p.name,
-          description: p.description,
+          description: p.description ?? undefined,
           ruleNotices: p.ruleNotices,
           price,
           priceFormatted: formatPrice(price),

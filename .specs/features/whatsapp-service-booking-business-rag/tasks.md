@@ -2158,20 +2158,22 @@ T107 → T106
 
 ### T93: Record the two-channel buyer acceptance journey
 
+**Status**: Complete - local task gate passed; scoped evidence in task-93-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: E2E por gestos em storefront e fixture local WhatsApp com mesma API/DB: produto aprovado e serviço com políticas; prints de UI/erros e manifesto distingue local/preview/provider real. Testes derivados da spec, não screenshots que aprovam a si mesmos.
 **Where**: `apps/dashboard/e2e/service-product-coexistence.spec.ts`
 **Depends on**: T92
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: QA-02, REG-01, REG-02, REG-03, AGENDA-07
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Playwright named REG-02 e QA-02, anexos visuais 390/1440 e persistência; provider real permanece gate separado de ativação.
-- [ ] Gate Build passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Playwright named REG-02 e QA-02, anexos visuais 390/1440 e persistência; provider real permanece gate separado de ativação.
+- [x] Gate Build passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Playwright named REG-02 e QA-02, anexos visuais 390/1440 e persistência; provider real permanece gate separado de ativação.
-**Gate**: Build: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T93$"` + contract/unit correspondente e Build. Teste raiz T93 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Build: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-buyer-whatsapp.config.ts e2e/service-buyer-whatsapp.spec.ts` (whole4) + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-buyer-storefront.config.ts e2e/service-buyer-storefront.spec.ts` (whole6desktop plus6mobile) + corresponding existing contract/unit and Build. Preserve all C60 criteria, every original case/assertion,390/1440 captures, original resources/deadlines/workers/network and owned cleanup. No name filters/skips; retain explicit aggregate provenance for separate whole-project receipts. Local controlled model/email/Meta transport is not provider delivery. Final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t93 record the two-channel buyer acceptance journey`
 
 ### T94: Guard activation and safe disablement
