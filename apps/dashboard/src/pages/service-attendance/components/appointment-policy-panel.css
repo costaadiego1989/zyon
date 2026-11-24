@@ -1,0 +1,27 @@
+.appointment-policy { padding: 24px; min-width: 0; }
+.appointment-policy form { display: grid; gap: 24px; }
+.appointment-policy-summary { display: flex; flex-wrap: wrap; gap: 24px 48px; margin: 0 0 24px; padding-bottom: 24px; border-bottom: 1px solid var(--color-border); }
+.appointment-policy-summary dt { color: var(--color-text-secondary); font-size: 12px; margin-bottom: 6px; }
+.appointment-policy-summary dd { margin: 0; font-size: 13px; line-height: 1.6; }
+.appointment-policy-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; max-width: 760px; }
+.appointment-policy-row > div { min-width: 0; }
+.appointment-policy-row label { display: inline-flex; align-items: center; min-height: 32px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.appointment-policy-row p, .appointment-policy-note, .appointment-policy-message { color: var(--color-text-secondary); font-size: 13px; line-height: 1.7; max-width: 70ch; }
+.appointment-policy-row p { margin: 2px 0 0; }
+.appointment-policy-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; max-width: 760px; }
+.appointment-policy-fields .form-field { min-width: 0; margin: 0; }
+.appointment-policy-fields input, .appointment-policy-fields select { min-height: 44px; }
+.appointment-policy-note, .appointment-policy-message { margin: 0; }
+.appointment-policy > .appointment-policy-message { margin-bottom: 24px; }
+.appointment-policy-error { margin: 0; color: var(--color-error); font-size: 13px; line-height: 1.6; }
+.appointment-policy-actions { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 20px; border-top: 1px solid var(--color-border); }
+.appointment-policy [role="switch"]:focus-visible { outline: 2px solid var(--color-brand) !important; outline-offset: 4px; }
+@media (max-width: 640px) {
+  .appointment-policy { padding: 20px; }
+  .appointment-policy-fields { grid-template-columns: minmax(0, 1fr); }
+  .appointment-policy-summary { gap: 16px 24px; }
+  .appointment-policy-actions > .zyn-btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .appointment-policy [role="switch"], .appointment-policy [role="switch"] > span { transition: none !important; }
+}

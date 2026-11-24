@@ -80,7 +80,9 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
           scope.client.listProfessionals({}, { signal: controller.signal }), scope.client.listCategories({ signal: controller.signal }), scope.client.getPolicy({ signal: controller.signal }),
         ]).then(([professionals, categories, policy]) => ({ professionals, categories, policy }));
       if (!isCurrent(scope) || sequence !== readSequence.current) return false;
-      setLoad({ context: scope, status: data.professionals.items.length || data.categories.length ? "ready" : "empty", data });
+      setLoad(previous => ({ context: scope, status: data.professionals.items.length || data.categories.length ? "ready" : "empty",
+        data: previous.context === scope && previous.data && previous.data.policy.version > data.policy.version
+          ? { ...data, policy: previous.data.policy } : data }));
       if (reconcile && commandIssue.current?.context === scope) {
         commandIssue.current = null;
         setCommand({ context: scope, status: "idle" });
@@ -185,6 +187,18 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
     }
   }
 
+  async function updatePolicy(input: ServiceBusinessPolicyUpdate, options?: ServiceMutationOptions) {
+    return runCommand(async client => {
+      const value = await client.updatePolicy(input, options);
+      if (value.status === "configured" && isCurrent(context)) {
+        setLoad(previous => isCurrent(context) && previous.context === context && previous.data
+          && value.version >= previous.data.policy.version
+          ? { ...previous, data: { ...previous.data, policy: value } } : previous);
+      }
+      return value;
+    });
+  }
+
   const loadState: LoadState = !context ? { context: null, status: "forbidden", data: null }
     : load.context === context ? load : { context, status: "loading", data: null };
   const command: CommandState = commandState.context === context ? commandState : { context, status: "idle" };
@@ -198,7 +212,7 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
       createProfessional: (input: ServiceProfessionalInput, options?: ServiceMutationOptions) => runCommand(client => client.createProfessional(input, options)),
       updateProfessional: (id: string, input: Partial<ServiceProfessionalInput> & { expectedVersion: number }, options?: ServiceMutationOptions) => runCommand(client => client.updateProfessional(id, input, options)),
       deactivateProfessional: (id: string, version: number, options?: ServiceMutationOptions) => runCommand(client => client.deactivateProfessional(id, version, options)),
-      updatePolicy: (input: ServiceBusinessPolicyUpdate, options?: ServiceMutationOptions) => runCommand(client => client.updatePolicy(input, options)),
+      updatePolicy,
       assignServiceCategory: (productId: string, categoryId: string) => runCommand(async () => {
         const merchantId = me!.id;
         const product = await api.getProduct(merchantId, productId);

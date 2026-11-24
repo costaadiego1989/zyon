@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 
 const sql=value=>"'"+String(value).replaceAll("'","''")+"'";
@@ -53,7 +54,30 @@ export async function prepareAttendanceFixtures(runtime){
       professionalId:professional.id,professionalName:professional.publicName,professionalVersion:exception.version,categoryId:category.id,categoryName:category.name,foreignMerchantId:products.merchant_id};
     scenarios.set(scenario,fixture);fixtures.set(fixtureId,fixture);
   }
-  return{scenarios,fixtures};
+  // Policy cases opt in to a real isolated tenant; original named scenarios stay stable.
+  const policyCases=new Map();
+  const policyCaseOwner=caseKey=>{
+    assert.equal(typeof caseKey,'string');assert.match(caseKey,/^[a-f0-9]{64}$/);
+    if(!policyCases.has(caseKey))policyCases.set(caseKey,(async()=>{
+      const auth=await register('services','policy-'+caseKey.slice(0,12));
+      const category=await request(`/merchants/${auth.merchant_id}/categories`,'POST',{name:'Atendimento local T75',slug:'atendimento-local-t75'},auth);
+      const product=await request(`/merchants/${auth.merchant_id}/products`,'POST',{name:'Consulta local T75',type:'service',categoryId:category.id,
+        metadata:{serviceType:'presencial',serviceSchedule:{timeZone:'America/Sao_Paulo',durationMinutes:60,slots:[]}},variants:[{sku:'t75-'+randomUUID(),basePriceInCents:5000}]},auth);
+      const professional=await request(`/merchants/${auth.merchant_id}/service-professionals`,'POST',{publicName:'Ana · Atendimento local',publicProfile:{description:'Profissional sintética de teste'},timeZone:'America/Sao_Paulo',isPublished:true,productIds:[product.id]},auth);
+      const recurring=await request(`/merchants/${auth.merchant_id}/service-professionals/${professional.id}/availability`,'PUT',{expectedVersion:professional.version,timeZone:'America/Sao_Paulo',rows:[{weekday:1,startMinute:480,endMinute:720}]},auth);
+      const exception=await request(`/merchants/${auth.merchant_id}/service-professionals/${professional.id}/availability-exceptions`,'POST',{expectedVersion:recurring.version,kind:'block',startsAt:'2027-01-04T12:00:00.000Z',endsAt:'2027-01-04T13:00:00.000Z',timeZone:'America/Sao_Paulo',reason:'Indisponibilidade sintética T75'},auth);
+      await request('/merchants/me/service-business-policy','PUT',{expectedVersion:0,holdEnabled:false,holdMinutes:null,paymentMode:'at_attendance',admissionsEnabled:false},auth);
+      const raw=await request('/merchants/me','GET',undefined,auth),profile=raw.data??raw;
+      if(profile.id!==auth.merchant_id||profile.businessMode!=='services'||profile.businessModeSelectionState!=='selected'||String(profile.role).toUpperCase()!=='OWNER')throw Error('synthetic_policy_case_profile_required');
+      const fixtureId=randomUUID(),value={fixtureId,email:auth.email,password:auth.password,access_token:auth.access_token,merchant_id:auth.merchant_id,mode:auth.mode,role:'OWNER',
+        professionalId:professional.id,professionalName:professional.publicName,professionalVersion:exception.version,categoryId:category.id,categoryName:category.name,foreignMerchantId:products.merchant_id};
+      fixtures.set(fixtureId,value);
+      console.log('service_policy_case_precondition',JSON.stringify({purpose:'policy-local',freshMerchant:true,canonicalPaymentMode:'at_attendance',holdEnabled:false,admissionsEnabled:false,noQuotaReset:true}));
+      return value;
+    })());
+    return policyCases.get(caseKey);
+  };
+  return{scenarios,fixtures,policyCaseOwner};
 }
 
 export function installAttendanceFixture(vite,runtime,prepared){
@@ -62,7 +86,13 @@ export function installAttendanceFixture(vite,runtime,prepared){
     const snapshot=/^\/__service\/attendance\/([a-f0-9-]{36})\/snapshot$/.exec(request.url??'');
     if(!((seed&&request.method==='POST')||(snapshot&&request.method==='GET')))return next();
     void(async()=>{
-      if(seed){const fixture=prepared.scenarios.get(seed[1]);if(!fixture){response.statusCode=404;response.end('unknown_owned_fixture');return;}response.setHeader('content-type','application/json');response.end(JSON.stringify(fixture));return;}
+      if(seed){let fixture=prepared.scenarios.get(seed[1]);
+        if(request.headers['x-service-local-attendance-purpose']!==undefined){
+          assert.equal(request.headers.host,'127.0.0.1:5187');assert.equal(request.headers['x-service-local-run-id'],runtime.db.runId);
+          assert.equal(request.headers['x-service-local-attendance-purpose'],'policy-local');assert.equal(seed[1],'services-owner');
+          fixture=await prepared.policyCaseOwner(request.headers['x-service-local-attendance-case']);
+        }
+        if(!fixture){response.statusCode=404;response.end('unknown_owned_fixture');return;}response.setHeader('content-type','application/json');response.end(JSON.stringify(fixture));return;}
       const fixture=prepared.fixtures.get(snapshot[1]);if(!fixture){response.statusCode=404;response.end('unknown_owned_fixture');return;}
       const merchant=sql(fixture.merchant_id);
       const value=await runtime.db.sql(`SELECT json_build_object(

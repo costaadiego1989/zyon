@@ -1856,20 +1856,24 @@ T107 → T106
 
 ### T81: Configure merchant-owned hold and payment policy
 
+**Status**: Complete - local task gate passed; scoped evidence in task-81-evidence.json. Final feature proofs and independent verification remain required.
+
+**Settled mid-build, 2026-11-21:** user: "agendar sem cobrar e registrar valor para pagar no atendimento" and "Sim, começar desligado" (call_3496d7a8dc2c4819bfa1ab35a5c5a4db). Present an explicit online-collection toggle: off maps to canonical `at_attendance`, confirms without checkout/online charge and records the balance payable at attendance; on uses existing online checkout. Initialize new service-business drafts off, preserving configured businesses. This explicit new default supersedes only the previous no-default payment-draft instruction; hold choices and server admission remain explicit. Test actual toggle/save/reload and preserved configured values, both channels' no-online-charge path, version conflicts and product isolation. No new payment enum, free-service behavior or duplicate ledger.
+
 **What**: Controle explícito hold ligado/desligado/duração e online/no atendimento com versão e validação; sem default oculto, aviso sobre novas seleções/políticas existentes.
 **Where**: `apps/dashboard/src/pages/service-attendance/components/AppointmentPolicyPanel.tsx`
 **Depends on**: T80
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ONB-03, EDGE-02
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] AppointmentPolicyPanel.spec.tsx + browser quatro combinações, falha de versão e persistência após reload.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] AppointmentPolicyPanel.spec.tsx + browser quatro combinações, falha de versão e persistência após reload.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: AppointmentPolicyPanel.spec.tsx + browser quatro combinações, falha de versão e persistência após reload.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/AppointmentPolicyPanel.spec.tsx -t "^T81$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T81$"` Teste raiz T81 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/AppointmentPolicyPanel.spec.tsx` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-policy-local.config.ts e2e/service-appointment-policy.spec.ts`. Whole original files, no name filters/skips; original resources, workers, timeouts, cleanup, all adopted affected regressions and final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t81 configure merchant-owned hold and payment policy`
 
 ### T82: Separate Atendimento from the existing Suporte navigation
