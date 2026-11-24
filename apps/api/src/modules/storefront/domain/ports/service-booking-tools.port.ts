@@ -1,12 +1,13 @@
 import type { ServiceBookingService } from "../../../checkout/application/service-booking.service.js";
 import type { ServiceBookingResult } from "../contracts/service-booking-tool.schemas.js";
 
-/** Same canonical T40 methods with scope captured by the authenticated bridge.
+/** Public reads plus optional buyer-authorized selection, captured by the verified bridge.
  * No model-visible method receives a merchant, buyer, checkout or credential. */
 export type ScopedServiceBookingReader = {
-  [Method in "professionals" | "dates" | "slots" | "select"]:
+  [Method in "professionals" | "dates" | "slots"]:
     (input: Parameters<ServiceBookingService[Method]>[1]) => ReturnType<ServiceBookingService[Method]>;
-} & { offerName(input: { productId: string; variantId: string }): Promise<string> };
+} & { select?: (input: Parameters<ServiceBookingService["select"]>[1]) => ReturnType<ServiceBookingService["select"]>;
+  offerName(input: { productId: string; variantId: string }): Promise<string> };
 export interface ServiceBookingHandlers {
   getServiceProfessionals(input: unknown): Promise<ServiceBookingResult>;
   getServiceDates(input: unknown): Promise<ServiceBookingResult>;

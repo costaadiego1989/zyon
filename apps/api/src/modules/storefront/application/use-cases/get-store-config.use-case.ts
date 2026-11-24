@@ -8,6 +8,8 @@ export interface StoreConfigOutput {
   publishedPolicies?: Record<string, string>;
   policiesAvailable?: boolean;
   budgetModeEnabled: boolean;
+  /** Canonical public presentation hint; never booking or checkout authority. */
+  businessMode?: "products" | "services";
   merchantId: string;
   name: string;
   logo?: string;
@@ -67,6 +69,7 @@ export class GetStoreConfigUseCase {
 
   private async present(config: StorefrontConfigSnapshot): Promise<StoreConfigOutput> {
     const row = config.merchant;
+    const businessMode = row.businessMode === "products" || row.businessMode === "services" ? row.businessMode : undefined;
     const theme = decodePersistedTheme(row.theme);
     const identity = config.agentRule?.identity as { agentName?: string; greeting?: string; tone?: string } | null;
     const checkoutSettings = config.agentRule?.checkoutSettings as
@@ -83,7 +86,9 @@ export class GetStoreConfigUseCase {
       ? configuredReplies
       : Array.isArray(legacyReplies) && legacyReplies.length
         ? legacyReplies
-        : ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
+        : businessMode === "services"
+          ? ["Quais serviços vocês oferecem?", "Quais profissionais e horários estão disponíveis?", "Meus Dados", "Falar com Humano"]
+          : ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
 
     const storedSettings = (row.storeSettings as Record<string, unknown>) ?? undefined;
     let publicSettings = storedSettings;
@@ -98,6 +103,7 @@ export class GetStoreConfigUseCase {
       publishedPolicies: config.publishedPolicies ?? {},
       policiesAvailable: config.policiesAvailable,
       budgetModeEnabled: row.budgetModeEnabled === true,
+      ...(businessMode ? { businessMode } : {}),
       merchantId: row.id,
       name: row.name,
       logo: theme?.logoUrl ?? undefined,

@@ -6,6 +6,7 @@ import type { EmbedTokenClaims } from "../../../embed/domain/embed-token.service
 import { embedCheckoutSessionId } from "../../../embed/domain/embed-checkout-session.js";
 import { ResolveEmbedBuyerService } from "../../../embed/application/resolve-embed-buyer.service.js";
 import { ServiceBookingService, type ServiceBookingScope } from "../../application/service-booking.service.js";
+import { PublicServiceBookingReader, type PublicServiceReadScope } from "../../application/public-service-booking-reader.js";
 import type { TrustedCheckoutBuyer } from "../../application/services/trusted-checkout-buyer.js";
 
 const identifier = z.string().min(1).max(191).refine(value => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value));
@@ -47,10 +48,42 @@ export function serviceBookingScopeFromVerifiedBuyer(claims: EmbedTokenClaims, h
     expiresAtUnix, buyer: structuredClone(buyer) });
 }
 
+/** The embed guard has verified the signed capability and its origin. */
+export function publicServiceReadScopeFromVerifiedEmbed(claims: EmbedTokenClaims, headers: NonNullable<BookingRequest["headers"]>): PublicServiceReadScope {
+  if (!claims.scopes?.includes("checkout:start") || claims.nonce === "dev_bypass" || !claims.allowedOrigin
+    || claims.cartRef !== undefined || claims.whatsappCheckoutSessionId !== undefined)
+    throw new ForbiddenException("service_booking_capability_invalid");
+  const supplied = readTrustedStorefrontOrigin(headers) ?? first(headers.origin ?? headers.Origin ?? headers.referer ?? headers.Referer);
+  let origin: string;
+  try { origin = new URL(supplied ?? "").origin; } catch { throw new ForbiddenException("service_booking_capability_invalid"); }
+  if (origin !== claims.allowedOrigin) throw new ForbiddenException("service_booking_capability_invalid");
+  if (!Number.isSafeInteger(claims.expiresAtUnix) || claims.expiresAtUnix <= Math.floor(Date.now() / 1000))
+    throw new UnauthorizedException("embed_session_token_expired");
+  return Object.freeze({ merchantId: claims.merchantId, allowedOrigin: origin, expiresAtUnix: claims.expiresAtUnix });
+}
+
 @UseGuards(EmbedAuthGuard)
 @Controller("embed/service-booking")
 export class ServiceBookingController {
-  constructor(private readonly booking: ServiceBookingService, private readonly resolveBuyer: ResolveEmbedBuyerService) {}
+  constructor(private readonly booking: ServiceBookingService, private readonly resolveBuyer: ResolveEmbedBuyerService,
+    private readonly publicBooking: PublicServiceBookingReader) {}
+
+  private async readAccess(request: BookingRequest): Promise<{ kind: "public"; scope: PublicServiceReadScope } | { kind: "private"; scope: ServiceBookingScope }> {
+    const headers = request.headers ?? {}, claims = request.embedClaims;
+    if (!claims) throw new ForbiddenException("service_booking_capability_invalid");
+    const scope = publicServiceReadScopeFromVerifiedEmbed(claims, headers);
+    // An explicitly supplied credential must never silently become a guest.
+    const token = headers["x-buyer-access-token"] ?? headers["X-Buyer-Access-Token"];
+    if (token !== undefined) {
+      const buyer = await this.resolveBuyer.resolve(claims.merchantId, token);
+      if (!buyer || typeof token !== "string") throw new UnauthorizedException("embed_buyer_token_invalid");
+      // Only the already upgraded buyer-bound capability may preserve its
+      // original private own-hold continuation. Read-only access has no owner.
+      if (claims.scopes?.includes("appointments:confirm")) return { kind: "private",
+        scope: serviceBookingScopeFromVerifiedBuyer(claims, headers, buyer, token) };
+    }
+    return { kind: "public", scope };
+  }
 
   private async scope(request: BookingRequest): Promise<ServiceBookingScope> {
     const claims = request.embedClaims, headers = request.headers ?? {};
@@ -61,6 +94,7 @@ export class ServiceBookingController {
     let origin: string;
     try { origin = new URL(supplied ?? "").origin; } catch { throw new ForbiddenException("service_booking_capability_invalid"); }
     if (origin !== claims.allowedOrigin) throw new ForbiddenException("service_booking_capability_invalid");
+    if (!claims.scopes.includes("appointments:confirm")) throw new ForbiddenException("service_booking_write_scope_required");
     const token = headers["x-buyer-access-token"] ?? headers["X-Buyer-Access-Token"];
     const buyer = await this.resolveBuyer.resolve(claims.merchantId, token);
     if (!buyer || typeof token !== "string") throw new UnauthorizedException("embed_buyer_token_invalid");
@@ -72,21 +106,24 @@ export class ServiceBookingController {
   @RequireEmbedScope("checkout:start")
   async professionals(@Req() request: BookingRequest, @Query() query: unknown) {
     const input = parse(z.object(offer).strict(), query);
-    return this.booking.professionals(await this.scope(request), input);
+    const access = await this.readAccess(request);
+    return access.kind === "private" ? this.booking.professionals(access.scope, input) : this.publicBooking.professionals(access.scope, input);
   }
   @Get("dates")
   @Header("Cache-Control", "no-store")
   @RequireEmbedScope("checkout:start")
   async dates(@Req() request: BookingRequest, @Query() query: unknown) {
     const input = parse(z.object({ ...professional, fromDate: date, toDate: date }).strict(), query);
-    return this.booking.dates(await this.scope(request), input);
+    const access = await this.readAccess(request);
+    return access.kind === "private" ? this.booking.dates(access.scope, input) : this.publicBooking.dates(access.scope, input);
   }
   @Get("slots")
   @Header("Cache-Control", "no-store")
   @RequireEmbedScope("checkout:start")
   async slots(@Req() request: BookingRequest, @Query() query: unknown) {
     const input = parse(z.object({ ...professional, date }).strict(), query);
-    return this.booking.slots(await this.scope(request), input);
+    const access = await this.readAccess(request);
+    return access.kind === "private" ? this.booking.slots(access.scope, input) : this.publicBooking.slots(access.scope, input);
   }
   @Post("select")
   @Header("Cache-Control", "no-store")

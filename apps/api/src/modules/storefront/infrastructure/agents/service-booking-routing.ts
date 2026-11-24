@@ -22,7 +22,7 @@ export function presentServiceBookingResult(result: ToolResult): { message: stri
   const parsed = result.ok ? serviceBookingResultSchema.safeParse(result.data) : undefined;
   if (!parsed?.success) return { message: "Ainda não consegui confirmar os horários. Tente consultar as opções novamente." };
   const data = parsed.data;
-  if (data.kind === "authentication_required") return { message: "Entre na sua conta para consultar os horários e continuar o agendamento.", data };
+  if (data.kind === "authentication_required") return { message: "Entre na sua conta para continuar o agendamento.", data };
   if (data.kind === "professionals") return { message: "Escolha o profissional que deseja consultar.", data };
   if (data.kind === "dates") return { message: "Escolha uma das datas disponíveis.", data };
   if (data.kind === "slots") return { message: "Veja os horários disponíveis. Sua escolha será conferida antes da confirmação.", data };

@@ -47,7 +47,7 @@ async function proxy(request: Request, context: RouteContext): Promise<NextRespo
     "X-Internal-Service-Token": serviceToken,
     "X-Trusted-Storefront-Origin": origin,
   });
-  for (const name of ["content-type", "idempotency-key", "x-buyer-authorization"]) {
+  for (const name of ["content-type", "idempotency-key", "x-buyer-authorization", "x-buyer-access-token"]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }

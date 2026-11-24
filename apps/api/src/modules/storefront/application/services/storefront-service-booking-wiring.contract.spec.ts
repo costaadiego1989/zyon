@@ -9,6 +9,7 @@ import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capa
 import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
 import { BUYER_ACCOUNT_REPOSITORY } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { ServiceBookingService } from "../../../checkout/application/service-booking.service.js";
+import { PublicServiceBookingReader } from "../../../checkout/application/public-service-booking-reader.js";
 import { StorefrontModule } from "../../storefront.module.js";
 import { StorefrontServiceBookingBridge } from "./storefront-service-booking.bridge.js";
 
@@ -24,7 +25,7 @@ test("T43 existing-provider construction", async t => {
     assert.deepEqual(imports.map(value => value.name), ["PersistenceModule", "CatalogModule", "CheckoutModule", "ShippingModule", "CouponsModule",
       "MerchantModule", "BuyerAccountRepositoryModule", "SupportModule", "MarketplaceModule", "CrossSellModule", "AgentRuleReaderModule",
       "KnowledgeBaseModule", "StoriesModule", "BuyerAccountModule", "CampaignConsentModule"]);
-    assert.deepEqual(productionProvider().inject, [PRISMA_CLIENT, RealtimeCapabilityService, BuyerJwtService, BUYER_ACCOUNT_REPOSITORY, ServiceBookingService]);
+    assert.deepEqual(productionProvider().inject, [PRISMA_CLIENT, RealtimeCapabilityService, BuyerJwtService, BUYER_ACCOUNT_REPOSITORY, ServiceBookingService, PublicServiceBookingReader]);
   });
   await t.test("real Nest constructs the actual production factory with existing canonical verifiers and no repository IO", async () => {
     let reads = 0;
@@ -38,7 +39,7 @@ test("T43 existing-provider construction", async t => {
     class ExistingBindingsTestModule {}
     Module({ providers: [{ provide: PRISMA_CLIENT, useValue: Object.freeze({}) }, { provide: RealtimeCapabilityService, useValue: conversations },
       { provide: BuyerJwtService, useValue: jwt }, { provide: BUYER_ACCOUNT_REPOSITORY, useValue: buyers },
-      { provide: ServiceBookingService, useValue: booking }, productionProvider()] })(ExistingBindingsTestModule);
+      { provide: ServiceBookingService, useValue: booking }, { provide: PublicServiceBookingReader, useValue: booking }, productionProvider()] })(ExistingBindingsTestModule);
     const context = await NestFactory.createApplicationContext(ExistingBindingsTestModule, { logger: false });
     try {
       const bridge = context.get<StorefrontServiceBookingBridge>(StorefrontServiceBookingBridge);

@@ -88,6 +88,11 @@ export function createServiceBookingHandlers(merchantId: string, getReader: () =
         current: snapshot(matching.slice(0, 100), matching.length <= 100, finished) });
       if (resolution.kind !== "resolved") return projected({ kind: "selection_resolution", context, resolution });
       const selected = parseCanonicalServiceResult(canonicalServiceSelectionSchema, resolution.selection);
+      // Public selection remains a local choice. Only an upgraded buyer-bound
+      // reader may obtain the private review and parent-cart fingerprint.
+      if (!reader.select) return projected({ kind: "slots", context: { ...context,
+        professional: { id: person.professionalId, version: person.professionalVersion, name: person.professionalName } },
+        selections: [selected], has_more: false });
       const review = parseCanonicalServiceResult(canonicalServiceReviewSchema, await reader.select({ selection: selected }));
       // The canonical select must revalidate the identical current tuple. Its
       // private parent fingerprint never enters the model result.

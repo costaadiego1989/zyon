@@ -345,6 +345,7 @@ export default async function StorePage({
           <CartProvider merchantId={config?.merchantId}>
             <ConversationShell
               storeName={name}
+              businessMode={config?.businessMode}
               logo={logo}
               returnOrderId={order}
               agentName={config?.agentName}

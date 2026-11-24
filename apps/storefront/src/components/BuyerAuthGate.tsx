@@ -7,6 +7,7 @@ import BuyerLoginForm from "./BuyerLoginForm";
 import { getValidBuyer } from "@/lib/buyer-auth";
 
 type Props = {
+  purpose?: "service-booking";
   merchantId?: string;
   merchantName?: string;
   onComplete: (globalUserId: string) => void | Promise<void>;
@@ -45,7 +46,7 @@ function ArrowLeftIcon() {
   );
 }
 
-export default function BuyerAuthGate({ merchantId, merchantName, onComplete, onCancel }: Props) {
+export default function BuyerAuthGate({ merchantId, merchantName, purpose, onComplete, onCancel }: Props) {
   const [mode, setMode] = useState<Mode>("choose");
   const [registrationOtp, setRegistrationOtp] = useState<RegistrationOtp | null>(null);
 
@@ -130,7 +131,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
                 lineHeight: 1.3,
               }}
             >
-              Para finalizar sua compra, confirme sua identidade
+              {purpose === "service-booking" ? "Vamos confirmar seus dados para reservar este horário" : "Para finalizar sua compra, confirme sua identidade"}
             </h2>
 
             <p

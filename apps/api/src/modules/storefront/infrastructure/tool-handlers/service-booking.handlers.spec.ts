@@ -26,7 +26,7 @@ function fixture() {
 const hints = () => ({ ...offer, professionalName: "Dra. Joana", date: { kind: "relative", value: "tomorrow" }, time: { kind: "exact", value: "10:00" } });
 
 test("T43", async t => {
-  await t.test("missing verified buyer or existing embed authority returns an authentication UI action without a read", async () => {
+  await t.test("missing verified conversation authority returns an authentication UI action without a read", async () => {
     const handlers = createServiceBookingHandlers("merchant", async () => undefined, () => now);
     assert.deepEqual(await handlers.getServiceProfessionals(offer), { kind: "authentication_required", action: "authenticate" });
   });
@@ -103,4 +103,19 @@ test("T43", async t => {
       assert.equal(JSON.stringify(value).includes('"confirmed":true'), false);
     }
   });
+  await t.test("public readers resolve a chosen slot as local navigation without private select or a parent fingerprint", async () => {
+    const calls: string[] = [];
+    const publicReader = {
+      offerName: async () => "Consultation",
+      professionals: async () => { calls.push("professionals"); return { professionals: [{ id: "professional", name: "Dra. Joana", version: 3, timeZone: "America/Sao_Paulo", profile: {} }], has_more: false }; },
+      dates: async () => { calls.push("dates"); return { dates: [selected.date], professional_version: 3, policy_version: 2, time_zone: "America/Sao_Paulo" }; },
+      slots: async () => { calls.push("slots"); return { selections: [selected] }; },
+    };
+    const handlers = createServiceBookingHandlers("merchant", async () => publicReader as never, () => now);
+    const result = await handlers.resolveServiceSelection(hints());
+    assert.deepEqual(result, { kind: "slots", context: { ...offer, serviceName: "Consultation", professional: { id: "professional", version: 3, name: "Dra. Joana" } }, selections: [selected], has_more: false });
+    assert.deepEqual(calls, ["professionals", "dates", "slots"]);
+    assert.equal(/parent_cart_fingerprint|buyer|checkout|payment|confirmed/.test(JSON.stringify(result)), false);
+  });
+
 });

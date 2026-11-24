@@ -1,4 +1,5 @@
 import { CheckoutApiError } from "./checkout-api-error";
+import type { ServiceBookingReadAccess, ServiceBookingAccess } from "./service-booking";
 import { commercialNoticesSchema, normalCheckoutCrossSellHttpQuoteSchema, normalCheckoutCrossSellQuoteSchema, normalCheckoutCrossSellHttpAcceptanceSchema,
   normalCheckoutCrossSellHttpAcceptanceResponseSchema, type NormalCheckoutCrossSellHttpAcceptanceResponse,
   type NormalCheckoutCrossSellQuote, type NormalCheckoutCrossSellTargetSelection,
@@ -326,6 +327,19 @@ export class CheckoutSession {
 
   get currentSessionId(): string | null {
     return this.sessionId;
+  }
+
+  /** Availability uses the existing scoped embed proof without buyer credentials. */
+  get serviceBookingReadAccess(): ServiceBookingReadAccess | null {
+    return this.token && this.merchantId ? { merchantId: this.merchantId, embedToken: this.token,
+      apiBaseUrl: this.baseUrl, embedApiBaseUrl: this.embedBaseUrl } : null;
+  }
+
+  /** Private UI transport data; never included in model blocks or request JSON. */
+  get serviceBookingAccess(): ServiceBookingAccess | null {
+    return this.buyerAccessToken && this.globalUserId ? { merchantId: this.merchantId, embedToken: this.token,
+      buyerAccessToken: this.buyerAccessToken, globalUserId: this.globalUserId,
+      apiBaseUrl: this.baseUrl, embedApiBaseUrl: this.embedBaseUrl } : null;
   }
 
   get apiBaseUrl(): string {

@@ -21,7 +21,7 @@ test("T40", async t => {
     policyVersion: 2, date: "2035-02-05", startsAt: "2035-02-05T13:00:00.000Z", endsAt: "2035-02-05T13:20:00.000Z",
     timeZone: "America/Sao_Paulo", durationMinutes: 20, priceInCents: 5000, currency: "BRL", slotId: "a".repeat(64) };
   const principal = buyerTokens.sign({ globalUserId: buyer.globalUserId, email: buyer.email });
-  const state: { scopes: unknown[]; prepared: unknown[] } = { scopes: [], prepared: [] };
+  const state: { scopes: unknown[]; prepared: unknown[]; reads: unknown[] } = { scopes: [], prepared: [], reads: [] };
   const summary = { selection: choice, service: { name: "Consultation" }, professional: { name: "Public professional" },
     parent_cart_fingerprint: "b".repeat(64), policy: { version: 2, paymentMode: "at_attendance", holdEnabled: false, holdMinutes: null } };
   const service = {
@@ -31,12 +31,17 @@ test("T40", async t => {
     select: async (scope: unknown) => { state.scopes.push(scope); return structuredClone(summary); },
     prepare: async (scope: unknown, input: unknown) => { state.scopes.push(scope); state.prepared.push(structuredClone(input)); return { session_id: embedCheckoutSessionId(claims()), cart_fingerprint: "c".repeat(64), selections: [choice], confirmed: false, payment_mode: "at_attendance", requires_hold: false, service_slot_hold: null }; },
   };
-  const controller = new ServiceBookingController(service as never, resolver);
+  const publicService = {
+    professionals: async (scope: unknown) => { state.reads.push(scope); return { professionals: [{ id: "professional", name: "Public professional", version: 3, timeZone: "America/Sao_Paulo", profile: {} }], has_more: false }; },
+    dates: async (scope: unknown) => { state.reads.push(scope); return { dates: [choice.date], professional_version: 3, policy_version: 2, time_zone: "America/Sao_Paulo" }; },
+    slots: async (scope: unknown) => { state.reads.push(scope); return { selections: [choice] }; },
+  };
+  const controller = new ServiceBookingController(service as never, resolver, publicService as never);
   const guard = new EmbedAuthGuard(embedTokens, new Reflector());
   function claims(patch: Partial<EmbedTokenClaims> = {}): EmbedTokenClaims {
     const now = Math.floor(Date.now() / 1000);
     return { typ: "aacp_embed_v1", merchantId: "merchant", nonce: "signed-capability", issuedAtUnix: now,
-      expiresAtUnix: now + 600, allowedOrigin: origin, scopes: ["checkout:start"], storefrontCartRef: "conversation_cart", ...patch };
+      expiresAtUnix: now + 600, allowedOrigin: origin, scopes: ["checkout:start", "appointments:confirm"], storefrontCartRef: "conversation_cart", ...patch };
   }
   function request(patch: Partial<EmbedTokenClaims> = {}, headers: Record<string, string | undefined> = {}) {
     const value = { headers: { "x-aacp-embed-token": embedTokens.sign(claims(patch)), "x-buyer-access-token": principal, origin, ...headers } };
@@ -81,7 +86,7 @@ test("T40", async t => {
   await t.test("unsigned expiry and absent origin binding cannot authorize a new operation", async () => {
     const expired = request({ expiresAtUnix: Math.floor(Date.now() / 1000) - 1 });
     assert.throws(() => admit(expired, "prepare"), /embed_session_token_expired/);
-    const unbound = request({ allowedOrigin: undefined }); admit(unbound, "prepare");
+    const unbound = request({ allowedOrigin: undefined, scopes: ["checkout:start"] }); admit(unbound, "prepare");
     await assert.rejects(() => controller.prepare(unbound as never, prepareBody), /service_booking_capability_invalid/);
     assert.equal(state.prepared.length, 0);
   });
@@ -131,4 +136,55 @@ test("T40", async t => {
     assert.equal((state.scopes.at(-1) as Record<string, unknown>).expiresAtUnix, expiration);
     assert.ok(expiration < claims().expiresAtUnix);
   });
+  await t.test("anonymous signed embed capability browses professionals dates and slots without a buyer or writer context", async () => {
+    const initialScopes = state.scopes.length, beforeWrites = structuredClone(state.prepared), beforeReads = state.reads.length;
+    const patch = { scopes: ["checkout:start"] as EmbedTokenClaims["scopes"] };
+    const requestWithoutBuyer = () => request(patch, { "x-buyer-access-token": undefined });
+    const roster = requestWithoutBuyer(); admit(roster, "professionals");
+    assert.deepEqual(await controller.professionals(roster as never, { productId: "product", variantId: "variant" }), {
+      professionals: [{ id: "professional", name: "Public professional", version: 3, timeZone: "America/Sao_Paulo", profile: {} }], has_more: false });
+    const dates = requestWithoutBuyer(); admit(dates, "dates");
+    assert.deepEqual(await controller.dates(dates as never, { productId: "product", variantId: "variant", professionalId: "professional", fromDate: choice.date, toDate: choice.date }), {
+      dates: [choice.date], professional_version: 3, policy_version: 2, time_zone: "America/Sao_Paulo" });
+    const slots = requestWithoutBuyer(); admit(slots, "slots");
+    assert.deepEqual(await controller.slots(slots as never, { productId: "product", variantId: "variant", professionalId: "professional", date: choice.date }), { selections: [choice] });
+    assert.equal(state.reads.length, beforeReads + 3); assert.equal(state.scopes.length, initialScopes); assert.deepEqual(state.prepared, beforeWrites);
+    for (const scope of state.reads.slice(beforeReads)) assert.deepEqual(scope, {
+      merchantId: "merchant", allowedOrigin: origin, expiresAtUnix: claims().expiresAtUnix });
+  });
+  await t.test("explicitly invalid buyer headers on public GETs return 401 without a guest fallback", async () => {
+    const beforeReads = state.reads.length;
+    for (const method of ["professionals", "dates", "slots"] as const) {
+      const req = request({ scopes: ["checkout:start"] }, { "x-buyer-access-token": "invalid" }); admit(req, method);
+      const query = method === "professionals" ? { productId: "product", variantId: "variant" } : method === "dates"
+        ? { productId: "product", variantId: "variant", professionalId: "professional", fromDate: choice.date, toDate: choice.date }
+        : { productId: "product", variantId: "variant", professionalId: "professional", date: choice.date };
+      await assert.rejects(() => controller[method](req as never, query), (error: any) => error.getStatus() === 401);
+    }
+    assert.equal(state.reads.length, beforeReads);
+  });
+  await t.test("readonly embed plus valid buyer cannot select or prepare before a real issuer upgrade", async () => {
+    const beforeScopes = state.scopes.length, beforeWrites = structuredClone(state.prepared);
+    for (const method of ["select", "prepare"] as const) {
+      const req = request({ scopes: ["checkout:start"] }); admit(req, method);
+      await assert.rejects(() => controller[method](req as never, method === "select" ? selectBody : prepareBody),
+        (error: any) => error.getStatus() === 403 && error.message === "service_booking_write_scope_required");
+    }
+    assert.equal(state.scopes.length, beforeScopes); assert.deepEqual(state.prepared, beforeWrites);
+  });
+
+  await t.test("upgraded verified buyer keeps the original private read scope for its own hold continuation", async () => {
+    const beforePublicReads = state.reads.length, beforeScopes = state.scopes.length;
+    const req = request(); admit(req, "slots");
+    assert.deepEqual(await controller.slots(req as never, { productId: "product", variantId: "variant", professionalId: "professional", date: choice.date }), { selections: [choice] });
+    assert.equal(state.reads.length, beforePublicReads); assert.equal(state.scopes.length, beforeScopes + 1);
+    const scope = state.scopes.at(-1) as any;
+    assert.equal(scope.sessionId, embedCheckoutSessionId(claims())); assert.equal(scope.cartRef, "conversation_cart");
+    assert.equal(scope.buyer.globalUserId, buyer.globalUserId); assert.equal(scope.allowedOrigin, origin);
+    const readonly = request({ scopes: ["checkout:start"] }); admit(readonly, "slots");
+    assert.deepEqual(await controller.slots(readonly as never, { productId: "product", variantId: "variant", professionalId: "professional", date: choice.date }), { selections: [choice] });
+    assert.equal(state.scopes.length, beforeScopes + 1); assert.equal(state.reads.length, beforePublicReads + 1);
+    assert.deepEqual(Object.keys(state.reads.at(-1) as any).sort(), ["allowedOrigin", "expiresAtUnix", "merchantId"]);
+  });
+
 });

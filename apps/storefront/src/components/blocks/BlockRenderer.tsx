@@ -20,6 +20,7 @@ import MarketplaceProductsBlock from "./MarketplaceProductsBlock";
 import CrossSellBlock from "./CrossSellBlock";
 import CouponListBlock from "./CouponListBlock";
 import ProductContentBlock from "./ProductContentBlock";
+import ServiceBookingBlock, { type StorefrontServiceBookingBinding } from "./ServiceBookingBlock";
 
 export default function BlockRenderer({
   block,
@@ -27,6 +28,7 @@ export default function BlockRenderer({
   merchantSlug,
   crossSell,
   onOpenCrossSell,
+  serviceBooking,
 }: {
   block: ConversationBlock;
   onQuickReply?: (option: string, uiAction?: StorefrontReadUiAction) => void;
@@ -34,8 +36,11 @@ export default function BlockRenderer({
   crossSell?: { present: (products: readonly CrossSellDisplayProduct[]) => CrossSellDisplayProduct[];
     accept: (product: CrossSellDisplayProduct) => Promise<boolean> };
   onOpenCrossSell?: (product: CrossSellDisplayProduct) => void;
+  serviceBooking?: StorefrontServiceBookingBinding;
 }) {
   switch (block.type) {
+    case "service_booking":
+      return <ServiceBookingBlock data={block.data} binding={serviceBooking} onRefresh={() => onQuickReply?.("Quero consultar os serviços e os horários disponíveis")} />;
     case "product_card":
       return <ProductCardBlock block={block} merchantSlug={merchantSlug} onQuickReply={onQuickReply} />;
     case "product_carousel":

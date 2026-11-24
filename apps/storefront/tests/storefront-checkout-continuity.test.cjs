@@ -138,3 +138,22 @@ for (const invalid of [{ merchantId: '', cartRef: 'cart' }, { ...scope, cartRef:
 test('server rendering cannot use or create shared credential state', async () => {
   const f = runtime({ ssr: true }); await assert.rejects(f.requestStorefrontCheckoutToken(scope), unavailable); assert.equal(f.calls.length, 0);
 });
+
+test('guest issue pending at login is followed by one real buyer upgrade using the exact previous receipt', async () => {
+  const barrier = deferred(), options = { buyer: null, fetch: (_call, calls) => calls.length === 1 ? barrier.promise : response('synthetic-writer-proof') };
+  const f = runtime(options), guest = f.requestStorefrontCheckoutToken(scope);
+  options.buyer = { token: 'synthetic-real-buyer', globalUserId: 'buyer-a' };
+  const writer = f.requestStorefrontCheckoutToken(scope); assert.equal(f.calls.length, 1);
+  barrier.resolve(response('synthetic-read-proof')); assert.equal(await guest, 'synthetic-read-proof'); assert.equal(await writer, 'synthetic-writer-proof');
+  assert.equal(f.calls.length, 2); assert.equal(f.calls[0].body.buyer_access_token, undefined);
+  assert.equal(f.calls[1].body.previous_embed_token, 'synthetic-read-proof'); assert.equal(f.calls[1].body.buyer_access_token, 'synthetic-real-buyer');
+  assert.equal(f.calls[1].body.cart_ref, scope.cartRef); assert.equal(f.calls[1].body.merchant_id, scope.merchantId);
+});
+test('a different buyer never inherits the pending writer receipt and a denied upgrade never falls back to fresh issuance', async () => {
+  const barrier = deferred(), options = { buyer: { token: 'buyer-a-proof', globalUserId: 'buyer-a' }, fetch: (_call, calls) => calls.length === 1 ? barrier.promise : Response.json({}, { status: 403 }) };
+  const f = runtime(options), first = f.requestStorefrontCheckoutToken(scope);
+  options.buyer = { token: 'buyer-b-proof', globalUserId: 'buyer-b' }; const second = f.requestStorefrontCheckoutToken(scope);
+  barrier.resolve(response('buyer-a-scoped-proof')); assert.equal(await first, 'buyer-a-scoped-proof'); await assert.rejects(second, unavailable);
+  assert.equal(f.calls.length, 2); assert.equal(f.calls[1].body.previous_embed_token, 'buyer-a-scoped-proof'); assert.equal(f.calls[1].body.buyer_access_token, 'buyer-b-proof');
+  assert.equal([...f.storage.values()][0].includes('buyer-a-scoped-proof'), true);
+});

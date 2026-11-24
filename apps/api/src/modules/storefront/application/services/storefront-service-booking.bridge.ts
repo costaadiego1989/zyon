@@ -3,8 +3,9 @@ import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capa
 import { EmbedTokenService } from "../../../embed/domain/embed-token.service.js";
 import { ResolveEmbedBuyerService } from "../../../embed/application/resolve-embed-buyer.service.js";
 import { readTrustedStorefrontOrigin } from "../../../embed/presentation/http/embed-auth.guard.js";
-import { serviceBookingScopeFromVerifiedBuyer } from "../../../checkout/presentation/http/service-booking.controller.js";
+import { publicServiceReadScopeFromVerifiedEmbed, serviceBookingScopeFromVerifiedBuyer } from "../../../checkout/presentation/http/service-booking.controller.js";
 import type { ServiceBookingScope, ServiceBookingService } from "../../../checkout/application/service-booking.service.js";
+import type { PublicServiceBookingReader, PublicServiceReadScope } from "../../../checkout/application/public-service-booking-reader.js";
 import type { StorefrontServiceBookingFactory, ScopedServiceBookingReader } from "../../domain/ports/service-booking-tools.port.js";
 import { createServiceBookingHandlers } from "../../infrastructure/tool-handlers/service-booking.handlers.js";
 
@@ -15,11 +16,12 @@ interface Dependencies {
   embeds: EmbedTokenService;
   resolveBuyer: ResolveEmbedBuyerService;
   booking: ServiceBookingService;
+  publicBooking: PublicServiceBookingReader;
 }
 const first = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
 const bearer = (value: string | undefined) => value?.startsWith("Bearer ") ? value.slice(7).trim() : undefined;
-/** No issuer or new credential exists here. This bridge verifies the actual
- * existing credentials again, and keeps all authority outside serialized input. */
+/** Verified public conversation access permits discovery. Buyer authority and
+ * the upgraded embed grant remain mandatory for the private selection path. */
 export class StorefrontServiceBookingBridge {
   constructor(private readonly deps: Dependencies, private readonly clock = () => new Date()) {}
 
@@ -39,14 +41,38 @@ export class StorefrontServiceBookingBridge {
         businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true } });
       if (merchant?.businessMode !== "services" || !merchant.businessModeSelectedAt || merchant.businessModeNeedsReview) return undefined;
 
-      const scope = async (): Promise<ServiceBookingScope | undefined> => {
+      const readScope = async (): Promise<PublicServiceReadScope | undefined> => {
+        try {
+          const current = conversation();
+          if (current.resourceId !== conversationId || current.merchantId !== claims.merchantId || !origin || current.origin !== origin) return;
+          let expiresAtUnix = current.expiresAt;
+          const embedToken = headers["x-aacp-embed-token"] ?? headers["x-embed-session-token"];
+          if (embedToken !== undefined) {
+            const embed = this.deps.embeds.verify(embedToken);
+            if (embed.merchantId !== current.merchantId || embed.storefrontCartRef !== current.resourceId) return;
+            const scoped = publicServiceReadScopeFromVerifiedEmbed(embed, headers);
+            expiresAtUnix = Math.min(expiresAtUnix, scoped.expiresAtUnix);
+          }
+          // Supplying a forged/deleted buyer must never silently fall through
+          // to guest access. No buyer is required when that header is absent.
+          if (headers["x-buyer-authorization"] !== undefined) {
+            const buyerToken = bearer(headers["x-buyer-authorization"]);
+            const buyer = await this.deps.resolveBuyer.resolve(current.merchantId, buyerToken);
+            if (!buyer || !buyerToken) return;
+            const jwt = JSON.parse(Buffer.from(buyerToken.split(".")[1]!, "base64url").toString("utf8")) as { exp: number };
+            expiresAtUnix = Math.min(expiresAtUnix, jwt.exp);
+          }
+          return Object.freeze({ merchantId: current.merchantId, allowedOrigin: origin, expiresAtUnix });
+        } catch { return undefined; }
+      };
+      const writeScope = async (): Promise<ServiceBookingScope | undefined> => {
         try {
           const current = conversation();
           if (current.resourceId !== conversationId || current.merchantId !== claims.merchantId || !origin) return;
           const embedToken = headers["x-aacp-embed-token"] ?? headers["x-embed-session-token"], buyerToken = bearer(headers["x-buyer-authorization"]);
           if (!embedToken || !buyerToken) return;
           const embed = this.deps.embeds.verify(embedToken);
-          if (embed.merchantId !== current.merchantId || embed.storefrontCartRef !== current.resourceId) return;
+          if (embed.merchantId !== current.merchantId || embed.storefrontCartRef !== current.resourceId || !embed.scopes?.includes("appointments:confirm")) return;
           const buyer = await this.deps.resolveBuyer.resolve(current.merchantId, buyerToken);
           if (!buyer) return;
           const verified = serviceBookingScopeFromVerifiedBuyer(embed, headers, buyer, buyerToken);
@@ -55,16 +81,24 @@ export class StorefrontServiceBookingBridge {
         } catch { return undefined; }
       };
       const reader = async (): Promise<ScopedServiceBookingReader | undefined> => {
-        if (!await scope()) return;
-        const run = async <T>(work: (current: ServiceBookingScope) => Promise<T>) => {
-          const current = await scope(); if (!current) throw new Error("service_booking_authority_required");
+        if (!await readScope()) return;
+        const run = async <T>(work: (current: PublicServiceReadScope) => Promise<T>) => {
+          const current = await readScope(); if (!current) throw new Error("service_booking_authority_required");
+          return work(current);
+        };
+        const selection = await writeScope();
+        const runPrivate = async <T>(work: (current: ServiceBookingScope) => Promise<T>) => {
+          const current = await writeScope(); if (!current) throw new Error("service_booking_authority_required");
           return work(current);
         };
         return {
-          professionals: input => run(current => this.deps.booking.professionals(current, input)),
-          dates: input => run(current => this.deps.booking.dates(current, input)),
-          slots: input => run(current => this.deps.booking.slots(current, input)),
-          select: input => run(current => this.deps.booking.select(current, input)),
+          professionals: input => selection ? runPrivate(current => this.deps.booking.professionals(current, input))
+            : run(current => this.deps.publicBooking.professionals(current, input)),
+          dates: input => selection ? runPrivate(current => this.deps.booking.dates(current, input))
+            : run(current => this.deps.publicBooking.dates(current, input)),
+          slots: input => selection ? runPrivate(current => this.deps.booking.slots(current, input))
+            : run(current => this.deps.publicBooking.slots(current, input)),
+          ...(selection ? { select: (input: Parameters<ServiceBookingService["select"]>[1]) => runPrivate(current => this.deps.booking.select(current, input)) } : {}),
           offerName: input => run(async current => {
             const product = await this.deps.prisma.product.findFirst({ where: { id: input.productId, merchantId: current.merchantId, type: "service",
               isActive: true, deletedAt: null, variants: { some: { id: input.variantId, isActive: true } } }, select: { name: true } });

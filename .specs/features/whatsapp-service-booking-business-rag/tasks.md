@@ -1107,20 +1107,25 @@ T107 → T106
 
 ### T45: Render the storefront service picker
 
-**What**: Componente data/horário/profissional consome autoridade API, não calcula vaga; mostra pending/empty/error/conflict e resumo; não aparece em produto.
+**Status**: Complete - local task gate passed; scoped evidence in task-45-evidence.json. Final feature proofs and independent verification remain required.
+
+**What**: The storefront service picker opens and browses published professionals/dates/slots and canonical review without login or OTP. Prompt real identification/missing registration data only for the explicit booking/reservation/confirmation write; server availability, pending/empty/error/conflict states and product exclusion remain.
 **Where**: `apps/widget_v2/src/components/checkout/ServiceBookingPicker.tsx`
 **Depends on**: T44
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: AGENDA-02, AGENDA-03, AGENDA-04, REG-01
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] Browser local 390/1440, teclado e foco; spec de componente conforme runner existente reconciliado em T1 e e2e service-local.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] Browser local 390/1440, teclado e foco; spec de componente conforme runner existente reconciliado em T1 e e2e service-local.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: Browser local 390/1440, teclado e foco; spec de componente conforme runner existente reconciliado em T1 e e2e service-local.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T45$"` + contract/unit correspondente e Build. Teste raiz T45 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser/UI Build: `pnpm --dir apps/dashboard exec vitest run ../widget_v2/tests/service-booking-picker.spec.tsx ../widget_v2/tests/service-booking-auth-expiry.spec.tsx --pool=forks --maxWorkers=1 --minWorkers=1 --no-file-parallelism` (whole7+4), whole transport `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ../widget_v2/tests/service-booking.spec.ts` (whole7), affected widget/storefront typecheck and Build, then `pnpm --dir apps/dashboard exec playwright test --config playwright.service-buyer-storefront.config.ts e2e/service-buyer-storefront.spec.ts` (whole6 scenarios on desktop1440/mobile390,12 cases). Existing product checkout/continuity and affected original whole cohorts remain required. Actual owned Next/API/SQL/buyer auth, original memory/network/timeouts/workers and cleanup guards; no name filters/skips, synthetic model/email transport is not provider delivery. Keep binding review/confirmed captures and final checks by criterion. No task mark before the full gate.
+
+**Current refinement scope (2026-11-24):** Public service/professional/date/slot discovery and read-only review must succeed before buyer identification; only the explicit booking/reservation/confirmation/payment write requests real identity or missing required data. Preserve all tenant, publication, stale/conflict, write-authentication, financial and product assertions. Earlier completed auth-before-browse gates remain historical evidence and do not prove this revised behavior. Run the affected existing whole files and record actual counts without filters, skipped cases or relaxed resources.
+
 **Commit**: `feat(service-business): t45 render the storefront service picker`
 
 ### T46: Route WhatsApp service actions without replacing commerce

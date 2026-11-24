@@ -287,6 +287,7 @@ export interface ProductContentConversationBlock {
 }
 
 export type ConversationBlock =
+  | { type: "service_booking"; data: Record<string, unknown> }
   | ProductCardBlock
   | ProductCarouselBlock
   | ComparisonTableBlock

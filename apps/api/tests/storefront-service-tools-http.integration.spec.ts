@@ -29,12 +29,23 @@ test("T43 actual storefront HTTP and SQL tool dispatch", { timeout: SERVICE_LOCA
       assert.equal(data.authorizesConfirmation, false); assert.equal(data.authorizesPayment, false); assert.equal(data.action, "review_service_booking");
       safe(response.body); await unchanged(before);
     });
-    await t.test("missing buyer and forged embed proof ask for authentication without promoting message identity", async () => {
+    await t.test("anonymous buyer reads only public roster while forged embed proof still cannot gain authority", async () => {
       const before = await f.snapshot();
-      for (const changes of [{ "x-buyer-authorization": undefined }, { "x-aacp-embed-token": "forged" }]) {
-        const response = await f.send("Consulte os profissionais", changes), data = result(response);
-        assert.equal(data.kind, "authentication_required"); assert.equal(data.action, "authenticate"); safe(response.body); await unchanged(before);
-      }
+      const providerPhases = () => f.runtime.storefrontQueryModel.events().filter((event: any) => event.kind === "providerFetch").map((event: any) => event.input.phase);
+      const guestCalls = providerPhases().length;
+      const guest = await f.send("Consulte os profissionais", { "x-buyer-authorization": undefined }), roster = result(guest);
+      assert.equal(roster.kind, "professionals"); assert.equal(roster.professionals.length, 1);
+      assert.equal(roster.professionals[0].id, f.ids.professional); assert.equal(roster.professionals[0].name, "Profissional Ana");
+      assert.deepEqual(Object.keys(roster.professionals[0]).sort(), ["id", "name", "profile", "timeZone", "version"].sort());
+      assert.equal(roster.professionals[0].profile.description, "Public biography");
+      assert.doesNotMatch(JSON.stringify(roster), /"(?:buyer|customer|email|cpf|phone|sessionId|session_id|cartRef|cart_ref|authorization)"/i);
+      assert.deepEqual(providerPhases().slice(guestCalls), ["storefront.intent", "storefront.sales"]);
+      safe(guest.body); await unchanged(before);
+      const forgedCalls = providerPhases().length;
+      const response = await f.send("Consulte os profissionais", { "x-aacp-embed-token": "forged" }), data = result(response);
+      assert.equal(data.kind, "authentication_required"); assert.equal(data.action, "authenticate");
+      assert.deepEqual(providerPhases().slice(forgedCalls), ["storefront.intent", "storefront.sales"]);
+      safe(response.body); await unchanged(before);
     });
     await t.test("foreign offer and caller tenant argument do not expose private facts or produce a selection", async () => {
       const before = await f.snapshot();

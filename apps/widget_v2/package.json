@@ -14,6 +14,7 @@
     "./styles/neumorphism.css": "./src/styles/neumorphism.css",
     "./design-system/neumorphism": "./src/design-system/neumorphism.ts",
     "./styles/base.css": "./src/styles/base.css",
+    "./styles/service-booking.css": "./src/components/checkout/ServiceBookingPicker.css",
     "./styles/checkout.css": "./src/styles/checkout.css",
     "./styles/animations.css": "./src/styles/animations.css",
     "./styles/pulse-skin.css": "./src/styles/pulse-skin.css",

@@ -62,22 +62,49 @@ export function saveConversationState(merchantId: string, stateKey: (mid: string
 const DEFAULT_QUICK_REPLIES = ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
 export const ATTACHMENT_WELCOME_NOTICE = "Também entendo imagens e listas de compras. Envie uma foto para encontrar produtos semelhantes ou uma lista para eu ajudar a montar seu pedido.";
 
+export function getStorefrontWelcomeDefaults(businessMode?: "products" | "services") {
+  const services = businessMode === "services";
+  return {
+    quickReplies: services
+      ? ["Quais serviços vocês oferecem?", "Quais profissionais e horários estão disponíveis?", "Meus Dados", "Falar com Humano"]
+      : DEFAULT_QUICK_REPLIES,
+    roleLabel: services ? "Assistente de atendimento da" : "Gerente de vendas da",
+    introDescription: services
+      ? "Conheça nossos serviços, escolha um profissional e consulte datas e horários. Quando decidir agendar, eu ajudo você a continuar."
+      : "Eu cuido da sua compra do início ao fim. Acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.",
+    channelPrompt: services ? "Como você prefere conversar?" : "Como você prefere comprar?",
+    chatGreeting: services
+      ? "Posso ajudar você a conhecer os serviços, escolher um profissional e consultar datas e horários. Por onde quer começar?"
+      : "A partir de agora serei sua assistente de vendas e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra. Vamos começar!",
+    attachmentNotice: services
+      ? "Se preferir, envie uma imagem ou uma lista para acompanhar sua mensagem."
+      : ATTACHMENT_WELCOME_NOTICE,
+    attachmentPrompt: services
+      ? "Considere este anexo ao responder sobre os serviços desta empresa. Se faltar contexto, pergunte o que desejo consultar."
+      : "Analise este anexo, encontre produtos iguais ou semelhantes disponíveis e me pergunte antes de adicionar qualquer item ao carrinho.",
+  };
+}
+
 export function buildWelcomeMessage(params: {
   agent: string;
   storeName: string;
+  businessMode?: "products" | "services";
   agentGreeting?: string;
   quickReplies?: string[];
   expGreetingMessage?: string;
   expSuggestedNext?: string[];
 }): Message {
-  const { agent, storeName, agentGreeting, quickReplies, expGreetingMessage, expSuggestedNext } = params;
-  const persuasiveFallback = `Oi! Sou ${agent}, sua vendedora pessoal aqui na ${storeName}. 💚 Me conta o que você procura — eu encontro o produto ideal, garanto o melhor preço com cupons, calculo o frete e fecho seu pedido em segundos, tudo por aqui. Bora começar?`;
+  const { agent, storeName, businessMode, agentGreeting, quickReplies, expGreetingMessage, expSuggestedNext } = params;
+  const defaults = getStorefrontWelcomeDefaults(businessMode);
+  const persuasiveFallback = businessMode === "services"
+    ? `Olá! Sou ${agent}, assistente da ${storeName}. ${defaults.chatGreeting}`
+    : `Oi! Sou ${agent}, sua vendedora pessoal aqui na ${storeName}. 💚 Me conta o que você procura — eu encontro o produto ideal, garanto o melhor preço com cupons, calculo o frete e fecho seu pedido em segundos, tudo por aqui. Bora começar?`;
   const greeting = expGreetingMessage || agentGreeting || persuasiveFallback;
-  const replies = expSuggestedNext ?? quickReplies ?? DEFAULT_QUICK_REPLIES;
+  const replies = expSuggestedNext ?? quickReplies ?? defaults.quickReplies;
   return {
     id: "welcome",
     role: "agent",
-    text: `${greeting}\n\n${ATTACHMENT_WELCOME_NOTICE}`,
+    text: `${greeting}\n\n${defaults.attachmentNotice}`,
     blocks: [{ type: "quick_replies", data: { options: replies } }],
   };
 }

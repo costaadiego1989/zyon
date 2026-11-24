@@ -15,7 +15,7 @@ import type { CheckoutProductDetailRequest } from "@zyon/widget-v2";
 import type { CheckoutProductDetailPurchase } from "@/lib/checkout-product-detail";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
-import { ATTACHMENT_WELCOME_NOTICE } from "@/lib/services/conversation.service";
+import { getStorefrontWelcomeDefaults } from "@/lib/services/conversation.service";
 import { validateCurrentBuyerConversation } from "@/lib/services/resume-buyer-conversation.service";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import BlockRenderer from "./blocks/BlockRenderer";
@@ -231,6 +231,7 @@ function StoreSocialLinks({ social }: { social?: StoreSocialSettings }) {
 
 export default function ConversationShell({
   storeName,
+  businessMode,
   logo,
   returnOrderId,
   agentName,
@@ -252,6 +253,7 @@ export default function ConversationShell({
   initialSearch = "",
 }: {
   storeName: string;
+  businessMode?: "products" | "services";
   logo?: string;
   returnOrderId?: string;
   agentName?: string;
@@ -278,8 +280,10 @@ export default function ConversationShell({
 }) {
   const { config: widgetConfig } = useWidgetConfig();
   const budgetModeEnabled = widgetConfig?.budgetModeEnabled ?? initialBudgetMode;
+  const welcomeDefaults = getStorefrontWelcomeDefaults(businessMode);
   const vm = useConversationViewModel({
     storeName,
+    businessMode,
     merchantId,
     merchantSlug,
     agentName,
@@ -454,7 +458,24 @@ export default function ConversationShell({
   const [oneBuyClick, setOneBuyClick] = useState<OneBuyClickState | null>(null);
   const [oneBuyClickPending, setOneBuyClickPending] = useState(false);
   const [quickPurchasePreferencesOpen, setQuickPurchasePreferencesOpen] = useState(false);
-  const [buyerAuthIntent, setBuyerAuthIntent] = useState<"checkout" | "enable_quick_purchase" | null>(null);
+  const [buyerAuthIntent, setBuyerAuthIntent] = useState<"checkout" | "enable_quick_purchase" | "service_booking" | null>(null);
+  const serviceAuthenticationCancel = useRef<(() => void) | null>(null);
+  useEffect(() => () => { serviceAuthenticationCancel.current?.(); serviceAuthenticationCancel.current = null; }, [merchantId, conversationId]);
+  const [serviceCheckout, setServiceCheckout] = useState<{ merchantId: string; embedToken: string; globalUserId: string; cartRef: string } | null>(null);
+  useEffect(() => { if (!checkoutOpen) setServiceCheckout(null); }, [checkoutOpen]);
+  useEffect(() => {
+    const checkBuyer = () => { if (serviceCheckout && getValidBuyer()?.globalUserId !== serviceCheckout.globalUserId) { setServiceCheckout(null); setCheckoutOpen(false); } };
+    window.addEventListener("storage", checkBuyer);
+    return () => window.removeEventListener("storage", checkBuyer);
+  }, [serviceCheckout, setCheckoutOpen]);
+  const serviceBooking = merchantId && conversationId ? {
+    merchantId, cartRef: conversationId,
+    onAuthenticate: (onCancel?: () => void) => { serviceAuthenticationCancel.current?.(); serviceAuthenticationCancel.current = onCancel ?? null; setBuyerAuthIntent("service_booking"); setShowBuyerAuth(true); },
+    onCheckout: (input: { embedToken: string; globalUserId: string; cartRef: string }) => {
+      if (getValidBuyer()?.globalUserId !== input.globalUserId || input.cartRef !== conversationId) return;
+      setServiceCheckout({ ...input, merchantId }); setCheckoutOpen(true);
+    },
+  } : undefined;
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
@@ -799,7 +820,7 @@ export default function ConversationShell({
     if (isLoading || readingAttachment) return;
     const attachment = pendingAttachment;
     const text = input.trim() || (attachment
-      ? "Analise este anexo, encontre produtos iguais ou semelhantes disponíveis e me pergunte antes de adicionar qualquer item ao carrinho."
+      ? welcomeDefaults.attachmentPrompt
       : "");
     if (!text) return;
     const selectedVariantId = oneBuyClickEnabled.current
@@ -812,7 +833,7 @@ export default function ConversationShell({
     scrollToBottom();
     setTimeout(() => inputRef.current?.focus(), 100);
   };
-  const chatQuickReplies = [
+  const chatQuickReplies = businessMode === "services" ? welcomeDefaults.quickReplies : [
     "Ver Produtos",
     "Encontrar Produto",
     "Categorias",
@@ -978,16 +999,16 @@ export default function ConversationShell({
             </div>
 
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "10px", lineHeight: 1.45, letterSpacing: "2px", textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: "6px" }}>
-              Gerente de vendas da {storeName}
+              {welcomeDefaults.roleLabel} {storeName}
             </div>
             <div style={{ fontSize: "27px", fontWeight: 700, letterSpacing: "-0.5px", marginBottom: "10px" }}>
               Oi, eu sou a {agent}.
             </div>
             <div style={{ fontSize: "13.5px", lineHeight: 1.55, color: "var(--aacp-muted)", maxWidth: "100%", marginBottom: "22px" }}>
-              Eu cuido da sua compra do início ao fim. Acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
+              {welcomeDefaults.introDescription}
             </div>
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: "11px" }}>
-              {voiceCheckoutEnabled ? "Comece pelo chat. Para falar, use o microfone ao lado da mensagem." : "Como você prefere comprar?"}
+              {voiceCheckoutEnabled ? "Comece pelo chat. Para falar, use o microfone ao lado da mensagem." : welcomeDefaults.channelPrompt}
             </div>
             <div style={{ display: "flex", gap: "10px", width: "100%" }}>
               <button data-neu="choice" type="button" onClick={() => { realtimeVoice.stop(); selectChannel("chat"); }} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "var(--aacp-radius, 16px)", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
@@ -1010,8 +1031,8 @@ export default function ConversationShell({
                 <div style={{ marginTop: "4px", maxWidth: "100%", width: "100%" }}>
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--aacp-fg)", lineHeight: 1.3, letterSpacing: "-0.3px", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>Olá! Sou {agent} 👋</div>
                   <div style={{ fontSize: "13px", color: "var(--aacp-muted)", marginTop: "8px", lineHeight: 1.5, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)", whiteSpace: "pre-line" }}>
-                    {agentGreeting || "A partir de agora serei sua assistente de vendas e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra. Vamos começar!"}
-                    {"\n\n"}{ATTACHMENT_WELCOME_NOTICE}
+                    {agentGreeting || welcomeDefaults.chatGreeting}
+                    {"\n\n"}{welcomeDefaults.attachmentNotice}
                   </div>
                   <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", marginTop: "14px" }}>
                     Selecione uma opção abaixo ou digite algo
@@ -1056,10 +1077,10 @@ export default function ConversationShell({
                           config={{ ALLOWED_TAGS: ["strong", "em", "br"] }}
                         />
                       )}
-                      {!pendingAgentBlocks.has(m.id) && <BlockRenderer block={cardBlock} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} crossSell={crossSell} onOpenCrossSell={product => openCrossSellDetail(product, "inline")} />}
+                      {!pendingAgentBlocks.has(m.id) && <BlockRenderer block={cardBlock} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} crossSell={crossSell} onOpenCrossSell={product => openCrossSellDetail(product, "inline")} serviceBooking={serviceBooking} />}
                       {!pendingAgentBlocks.has(m.id) && otherBlocks.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} crossSell={crossSell} onOpenCrossSell={product => openCrossSellDetail(product, "inline")} />
+                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} crossSell={crossSell} onOpenCrossSell={product => openCrossSellDetail(product, "inline")} serviceBooking={serviceBooking} />
                         </div>
                       ))}
                     </div>
@@ -1077,7 +1098,7 @@ export default function ConversationShell({
                       {m.text && <SafeStoreHtml material="message" style={{ boxShadow: "var(--aacp-neu-message)", padding: "12px 16px", borderRadius: "18px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} html={renderMarkdownText(m.text)} config={{ ALLOWED_TAGS: ["strong", "em", "br"] }} />}
                       {!pendingAgentBlocks.has(m.id) && m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} crossSell={crossSell} onOpenCrossSell={product => openCrossSellDetail(product, "inline")} />
+                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} crossSell={crossSell} onOpenCrossSell={product => openCrossSellDetail(product, "inline")} serviceBooking={serviceBooking} />
                         </div>
                       ))}
                     </div>
@@ -1245,6 +1266,7 @@ export default function ConversationShell({
       {/* Buyer Auth Gate */}
       {showBuyerAuth && !budgetModeEnabled && (
         <BuyerAuthGate
+          purpose={buyerAuthIntent === "service_booking" ? "service-booking" : undefined}
           merchantId={merchantId}
           merchantName={storeName}
           onComplete={async (globalUserId) => {
@@ -1275,17 +1297,27 @@ export default function ConversationShell({
               }
               return;
             }
+            if (intent === "service_booking") {
+              serviceAuthenticationCancel.current = null;
+              window.dispatchEvent(new StorageEvent("storage", { key: "zyon_buyer_token" }));
+              return;
+            }
             setCheckoutUserId(globalUserId);
             setCheckoutCartRef(cart.cartId ?? undefined);
             setCheckoutPreferences(undefined);
             setCheckoutOpen(true);
           }}
-          onCancel={() => { setShowBuyerAuth(false); setBuyerAuthIntent(null); }}
+          onCancel={() => { if (buyerAuthIntent === "service_booking") { serviceAuthenticationCancel.current?.(); serviceAuthenticationCancel.current = null; } setShowBuyerAuth(false); setBuyerAuthIntent(null); }}
         />
       )}
       {/* Inline Checkout Panel — replaces redirect to widget app */}
       {checkoutOpen && merchantId && !budgetModeEnabled && (
-        navigation.view.recovery && merchantSlug ? <RecoveryCheckoutPanel
+        serviceCheckout ? serviceCheckout.merchantId === merchantId && serviceCheckout.cartRef === conversationId && getValidBuyer()?.globalUserId === serviceCheckout.globalUserId ? <CheckoutPanel
+          merchantId={merchantId} globalUserId={serviceCheckout.globalUserId} cartRef={serviceCheckout.cartRef}
+          initialEmbedToken={serviceCheckout.embedToken} theme={theme}
+          onClose={() => { setServiceCheckout(null); setCheckoutOpen(false); }}
+          suspended={Boolean(checkoutDetail)} onOpenProductDetail={openCheckoutProductDetail}
+        /> : null : navigation.view.recovery && merchantSlug ? <RecoveryCheckoutPanel
           token={navigation.view.recovery} slug={merchantSlug} merchantId={merchantId} storeName={storeName}
           theme={theme} onClose={() => setCheckoutOpen(false)}
           suspended={Boolean(checkoutDetail)} onOpenProductDetail={openCheckoutProductDetail}

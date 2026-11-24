@@ -22,6 +22,7 @@ export type Mode = "intro" | "chat";
 
 export interface ConversationViewModelProps {
   storeName: string;
+  businessMode?: "products" | "services";
   merchantId?: string;
   merchantSlug?: string;
   agentName?: string;

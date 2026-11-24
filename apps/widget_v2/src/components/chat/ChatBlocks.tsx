@@ -14,6 +14,7 @@ import { translateShippingLabel } from "./helpers";
 import { buyerServiceFeeCopy, checkoutLocale } from "@/lib/checkout-totals";
 import { standaloneCrossSellCardKey, standaloneCrossSellSelection, standaloneCrossSellPrice, type StandaloneCrossSellProduct } from "@/lib/cross-sell-standalone";
 import { canonicalCommercialNotice, type NormalCheckoutCrossSellQuote } from "@zyon/contracts";
+import { CheckoutServiceBookingBlock } from "../checkout/CheckoutServiceBookingBlock";
 
 function BuyerServiceFeeNotice() {
   const serviceFee = useCheckoutStore((s) => s.cart.serviceFee);
@@ -1673,6 +1674,8 @@ function CryptoChainSelectBlock({ data }: { data?: Record<string, unknown> }) {
 
 export function BlockRenderer({ block }: { block: ChatBlock }) {
   switch (block.type) {
+    case "service_booking":
+      return <CheckoutServiceBookingBlock data={block.data} />;
     case "checkout_price_review":
       return <CheckoutPriceReviewBlock fingerprint={block.data?.fingerprint} />;
     case "text":

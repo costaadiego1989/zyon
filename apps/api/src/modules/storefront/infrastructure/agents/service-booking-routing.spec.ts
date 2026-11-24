@@ -49,7 +49,7 @@ test("T43 operational routing boundary", async t => {
   await t.test("typed authentication result produces a concrete UI action without model narration", () => {
     const result = presentServiceBookingResult({ ok: true, data: { kind: "authentication_required", action: "authenticate" } });
     assert.equal(result.data?.kind, "authentication_required"); assert.equal((result.data as any).action, "authenticate");
-    assert.equal(result.message, "Entre na sua conta para consultar os horários e continuar o agendamento.");
+    assert.equal(result.message, "Entre na sua conta para continuar o agendamento.");
   });
   await t.test("failed or unknown tool output produces no actionable or confirmed booking block", () => {
     const result = presentServiceBookingResult({ ok: false, error: "service_booking_unconfirmed" });

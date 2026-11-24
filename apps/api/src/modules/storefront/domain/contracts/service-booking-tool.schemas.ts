@@ -34,7 +34,7 @@ export const canonicalServiceReviewSchema = z.object({ selection: canonicalServi
 const choice = canonicalServiceSelectionSchema.extend({ merchantId: id, productName: text, professionalName: text });
 const person = z.object({ merchantId: id, ...professional, professionalName: text, professionalVersion: version });
 const safe = { requiresRevalidation: z.literal(true), authorizesPayment: z.literal(false), authorizesConfirmation: z.literal(false) };
-// Navigation only, derived after authenticated canonical reads. Never command authority.
+// Navigation only, derived from published canonical reads. Never command authority.
 export const serviceBookingPublicContextSchema = z.strictObject({ ...offer, serviceName: text,
   professional: z.strictObject({ id, version, name: text.optional() }).optional() });
 const context = serviceBookingPublicContextSchema.optional();

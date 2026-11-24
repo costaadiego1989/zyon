@@ -3,7 +3,7 @@ import { getValidBuyer } from "./buyer-auth";
 
 type Scope = { merchantId: string; cartRef: string };
 type Request = Scope & { previousToken?: string };
-type Slot = { token?: string; pending?: { previous?: string; promise: Promise<string> } };
+type Slot = { token?: string; pending?: { previous?: string; buyerScope: string; promise: Promise<string> } };
 
 // Explicit browser-tab credential resources, never server/session authority.
 const slots = new Map<string, Slot>();
@@ -39,6 +39,8 @@ function stored(key: string): string | undefined {
 export async function requestStorefrontCheckoutToken(input: Request): Promise<string> {
   try {
     const { key, origin } = context(input);
+    const buyer = getValidBuyer();
+    const buyerScope = JSON.stringify([buyer?.globalUserId ?? null, buyer?.token ?? null]);
     if (input.previousToken !== undefined && !token(input.previousToken)) return unavailable();
     let slot = slots.get(key);
     if (!slot) { slot = { token: stored(key) }; slots.set(key, slot); }
@@ -46,7 +48,15 @@ export async function requestStorefrontCheckoutToken(input: Request): Promise<st
     const previous = input.previousToken ?? slot.token;
     if (slot.pending) {
       if (slot.pending.previous !== previous) return unavailable();
-      return await slot.pending.promise;
+      if (slot.pending.buyerScope === buyerScope) return await slot.pending.promise;
+      // The login transition may wait for an anonymous issue, but must ask the
+      // real issuer to upgrade that SAME receipt with the current buyer proof.
+      // A failed issue is not retried and no previous token is ever discarded.
+      const prior = slot.pending;
+      await prior.promise;
+      if (slots.get(key) !== slot) return unavailable();
+      if (slot.pending === prior) slot.pending = undefined;
+      return await requestStorefrontCheckoutToken(input);
     }
     if (previous && !slot.token) { slot.token = previous; persist(key, previous); }
     const resource = slot;
@@ -54,7 +64,7 @@ export async function requestStorefrontCheckoutToken(input: Request): Promise<st
       const response = await conversationFetch(input.cartRef, "/api/checkout-token", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ merchant_id: input.merchantId, cart_ref: input.cartRef, allowed_origin: origin,
-          ...(previous ? { previous_embed_token: previous } : {}), buyer_access_token: getValidBuyer()?.token }),
+          ...(previous ? { previous_embed_token: previous } : {}), buyer_access_token: buyer?.token }),
       });
       if (!response.ok) return unavailable();
       const data: unknown = await response.json();
@@ -65,7 +75,7 @@ export async function requestStorefrontCheckoutToken(input: Request): Promise<st
       persist(key, resource.token);
       return resource.token;
     })();
-    resource.pending = { previous, promise: pending };
+    resource.pending = { previous, buyerScope, promise: pending };
     try { return await pending; } finally { if (resource.pending?.promise === pending) resource.pending = undefined; }
   } catch { return unavailable(); }
 }

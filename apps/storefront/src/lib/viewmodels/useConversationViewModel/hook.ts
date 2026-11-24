@@ -59,7 +59,7 @@ export const CONVERSATION_STATE_KEY = (merchantId: string) => `zyon_conversation
 export function useConversationViewModel(
   props: ConversationViewModelProps,
 ): ConversationViewModelState & ConversationViewModelActions {
-  const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId, themeMode, merchantTheme, agentMode, agentInitialDelaySeconds } = props;
+  const { storeName, businessMode, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId, themeMode, merchantTheme, agentMode, agentInitialDelaySeconds } = props;
   const agent = agentName || "Assistente";
   const [mode, setMode] = useState<Mode>("intro");
   const [channel, setChannel] = useState<Channel | null>(null);
@@ -205,6 +205,7 @@ export function useConversationViewModel(
         buildWelcomeMessage({
           agent,
           storeName,
+          businessMode,
           agentGreeting,
           quickReplies,
           expGreetingMessage: expGreeting?.message,
@@ -212,7 +213,7 @@ export function useConversationViewModel(
         }),
       ]);
     },
-    [agent, storeName, quickReplies, agentGreeting, initConversation, experimentVM],
+    [agent, storeName, businessMode, quickReplies, agentGreeting, initConversation, experimentVM],
   );
 
   const toggleChannel = useCallback(() => {
