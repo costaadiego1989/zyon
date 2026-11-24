@@ -6,6 +6,7 @@ import { createDashboardApi, type MerchantProfile, type Product } from "../../..
 import { ApiContext } from "../../../hooks/useApi.js";
 import { useServiceAttendancePage } from "../useServiceAttendancePage.js";
 import { ProfessionalsPanel } from "./ProfessionalsPanel.js";
+import { createProfessionalDraft, professionalFormError } from "./professional-form.js";
 import type { ServiceProfessionalDTO } from "../../../api/endpoints/service-attendance.js";
 
 const me: MerchantProfile = { id: "merchant-a", user_id: "operator-a", name: "A", role: "OWNER", businessMode: "services", businessModeSelectionState: "selected" };
@@ -69,7 +70,7 @@ describe("T76 cache criterion cases, not yet executed", () => {
     const f = await fixture({ current }); expect(f.host.textContent).toContain("Sem permissão para gerenciar profissionais"); expect(f.requests).toEqual([]);
   });
   it("creates through actual form and service toggle gestures with only public fields", async () => {
-    const f = await fixture(); await click("Novo profissional"); await enter("Nome público", "Beatriz"); await enter("Fuso horário", "America/Sao_Paulo");
+    const f = await fixture(); await click("Novo profissional"); await enter("Nome público", "Beatriz");
     await act(async () => serviceToggle("Consulta")!.click());
     await click("Salvar profissional");
     expect(writes(f)).toHaveLength(1); expect(writes(f)[0]).toMatchObject({ path: "/v1/merchants/merchant-a/service-professionals", method: "POST", body: { publicName: "Beatriz", publicProfile: { description: "", specialties: [] }, timeZone: "America/Sao_Paulo", isActive: true, isPublished: false, productIds: ["service-a"] } });
@@ -92,9 +93,10 @@ describe("T76 cache criterion cases, not yet executed", () => {
     await click("Carregar mais itens do catálogo"); expect(serviceToggle("service-b")).not.toBeNull();
     expect(f.requests.filter(r => r.path.endsWith("/products")).map(r => Object.fromEntries(r.query))).toEqual([{ status: "all", limit: "25" }, { status: "all", limit: "25", cursor: "catalog-cursor" }]);
   });
-  it("validates an invalid timezone after the submit gesture without sending a mutation", async () => {
-    const f = await fixture(); await click("Novo profissional"); await enter("Nome público", "Ana"); await enter("Fuso horário", "invalid/timezone"); await click("Salvar profissional");
-    expect(document.body.textContent).toContain("Informe um fuso horário IANA válido."); expect(writes(f)).toEqual([]);
+  it("keeps generic historical IANA validation while the new editor has no timezone chooser", async () => {
+    const f = await fixture(); await click("Novo profissional"); await enter("Nome público", "Ana");
+    expect(Array.from(document.querySelectorAll("label")).some(label => label.textContent?.trim() === "Fuso horário")).toBe(false);
+    expect(professionalFormError({ ...createProfessionalDraft(), publicName: "Ana", timeZone: "invalid/timezone" })).toBe("Informe um fuso horário IANA válido."); expect(writes(f)).toEqual([]);
   });
   it("explains deactivation impact without inventing appointment counts and supports cancellation", async () => {
     const f = await fixture(); await click("Desativar Ana");

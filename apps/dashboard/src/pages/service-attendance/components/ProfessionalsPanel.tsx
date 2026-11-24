@@ -11,7 +11,8 @@ import { Modal } from "../../../components/Modal.js";
 import { ConfirmDialog } from "../../../components/ConfirmDialog.js";
 import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import type { useServiceAttendancePage } from "../useServiceAttendancePage.js";
-import { createProfessionalDraft, professionalFormError, professionalFormPayload, type ProfessionalDraft } from "./professional-form.js";
+import { professionalFormError, type ProfessionalDraft } from "./professional-form.js";
+import { professionalEditorDraft, professionalEditorPayload } from "./fixed-service-time-zone.js";
 import { useProfessionalsPanelData } from "./useProfessionalsPanelData.js";
 
 type ViewModel = ReturnType<typeof useServiceAttendancePage>;
@@ -52,7 +53,7 @@ export function ProfessionalsPanel({ me, vm }: { me: MerchantProfile | null; vm:
     if (!data.allowed || busy || professional && professional.merchantId !== me?.id) return;
     try {
       setNotice(null); setDeactivation(null);
-      setEditor({ contextKey: data.contextKey, token: {}, idempotencyKey: createIdempotencyKey(), draft: createProfessionalDraft(professional), error: null });
+      setEditor({ contextKey: data.contextKey, token: {}, idempotencyKey: createIdempotencyKey(), draft: professionalEditorDraft(professional), error: null });
       void data.loadCatalog(true);
     } catch { setNotice({ contextKey: data.contextKey, text: "Não foi possível editar o perfil público deste profissional. Atualize a lista e confira os dados.", error: true }); }
   }
@@ -78,7 +79,7 @@ export function ProfessionalsPanel({ me, vm }: { me: MerchantProfile | null; vm:
     if (invalid) { setEditor(previous => previous?.token === active.token ? { ...previous, error: invalid } : previous); return; }
     const submission = { contextKey: active.contextKey, token: active.token }; submitting.current = submission;
     try {
-      const payload = professionalFormPayload(active.draft), options = { idempotencyKey: active.idempotencyKey };
+      const payload = professionalEditorPayload(active.draft), options = { idempotencyKey: active.idempotencyKey };
       const result = active.draft.original ? await vm.actions.updateProfessional(active.draft.original.id, { ...payload, expectedVersion: active.draft.original.version }, options)
         : await vm.actions.createProfessional(payload, options);
       if (!mounted.current || currentKey.current !== active.contextKey || currentEditor.current?.token !== active.token) return;
@@ -125,7 +126,8 @@ export function ProfessionalsPanel({ me, vm }: { me: MerchantProfile | null; vm:
       {draft && <form onSubmit={event => { event.preventDefault(); void save(); }} style={{ display: "grid", gap: 16 }}>
         <fieldset disabled={busy} style={{ margin: 0, padding: 0, border: 0, minWidth: 0, display: "grid", gap: 16 }}>
           <FormField label="Nome público" value={draft.publicName} onChange={publicName => updateDraft({ publicName })} maxLength={120} inputProps={{ required: true }} />
-          <FormField label="Fuso horário" value={draft.timeZone} onChange={timeZone => updateDraft({ timeZone })} placeholder="America/Sao_Paulo" maxLength={80} hint="Informe o fuso IANA usado para os horários deste profissional." inputProps={{ required: true }} />
+          <p>Novos agendamentos usam o <strong>Horário de Brasília</strong>.</p>
+          {draft.original && <p>Fuso registrado no perfil, somente para consulta: {draft.original.timeZone}. Alterar o perfil não converte horários já cadastrados.</p>}
           <FormTextarea label="Apresentação pública" value={draft.description} onChange={description => updateDraft({ description })} maxLength={1200} />
           <FormTextarea label="Especialidades" value={draft.specialtiesText} onChange={specialtiesText => updateDraft({ specialtiesText })} hint="Uma especialidade por linha, até 20." />
           {draft.original && !draft.original.isActive && <div style={{ display: "flex", gap: 10, alignItems: "center" }}><ToggleSwitch id={reactivateId} checked={draft.isActive} disabled={busy} onChange={isActive => updateDraft({ isActive })} /><label htmlFor={reactivateId}>Reativar profissional</label></div>}

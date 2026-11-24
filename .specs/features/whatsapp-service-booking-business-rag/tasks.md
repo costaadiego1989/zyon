@@ -1958,6 +1958,8 @@ T107 → T106
 
 ### T113: Remove new service timezone choices from the UI
 
+**Status**: Complete - local task gate passed; scoped evidence in task-113-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: new professional/grade/exception/manual booking drafts use Brasilia and have no timezone field. Existing historical zones remain read-only facts. Creating a new Brasilia grade from a historical grade must be explicit rather than silently reusing wall-minute values under a new zone; use canonical preview and preserve exact historic deactivation. Buyer pickers use returned canonical slots and never calculate capacity in the browser.
 **Where**: `apps/dashboard/src/pages/service-attendance/components/AvailabilityPanel.tsx`
 **Depends on**: T112, T83
@@ -1966,9 +1968,9 @@ T107 → T106
 
 **Done when**:
 
-- [ ] The What outcome is demonstrated with fixed new zones and exact historical/in-flight preservation; authorization, version, financial and product guards stay intact.
-- [ ] Whole named tests cover the specified cases and real gestures where applicable, with no skipped/deleted cases or weakened historical/security/payment/stock assertions.
-- [ ] Gate Build passes with actual counts; mark before one focused local commit, no push/deploy.
+- [x] The What outcome is demonstrated with fixed new zones and exact historical/in-flight preservation; authorization, version, financial and product guards stay intact.
+- [x] Whole named tests cover the specified cases and real gestures where applicable, with no skipped/deleted cases or weakened historical/security/payment/stock assertions.
+- [x] Gate Build passes with actual counts; mark before one focused local commit, no push/deploy.
 
 **Tests**: fixed-service-time-zone.spec.tsx and e2e/service-fixed-time-zone.spec.ts. Evolve only new-write/control cases under the explicit new user rule. Preserve historical zone/integer-instant tests, all conflict403/409/rollback/CAS/payment/stock assertions and original budgets. New-record valid preconditions use Sao_Paulo; historical UTC/Manaus data is explicitly seeded as historic, without auth/repository overrides. Save real desktop/mobile captures and test the actual gestures.
 **Gate**: Build: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/fixed-service-time-zone.spec.tsx` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-availability-local.config.ts e2e/service-fixed-time-zone.spec.ts` and the existing Build/Gate Check Commands. Whole files, original budgets.

@@ -55,7 +55,7 @@ async function enter(label: string, value: string) { await act(async () => {
 }); }
 async function openAndFill() {
   const opener = button("Novo profissional"); await act(async () => { opener.focus(); opener.click(); });
-  await enter("Nome público", "Beatriz"); await enter("Fuso horário", "America/Sao_Paulo");
+  await enter("Nome público", "Beatriz");
   const serviceLabel = Array.from(document.querySelectorAll<HTMLLabelElement>("label")).find(row => row.textContent?.trim() === "Vincular Consulta")!;
   await act(async () => (document.getElementById(serviceLabel.htmlFor) as HTMLButtonElement).click());
   return opener;
