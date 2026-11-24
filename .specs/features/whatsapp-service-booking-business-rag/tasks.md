@@ -1938,6 +1938,8 @@ T107 → T106
 
 ### T112: Align new booking dates with fixed timezone and trusted history
 
+**Status**: Complete - local task gate passed; scoped evidence in task-112-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: canonical availability date windows, slot labels/IDs, manual dates, lease identity and new appointment snapshots agree on Brasilia. Historical recurring rows still generate their real UTC intervals in their original stored zone. Reuse existing private stored proof for accepted paid units, exact held generations and same-ID manual pending continuations; never infer authority from caller flags, eventual insert time or a guessed professional.
 **Where**: `apps/api/src/modules/catalog/application/get-professional-availability.ts`
 **Depends on**: T111
@@ -1946,9 +1948,9 @@ T107 → T106
 
 **Done when**:
 
-- [ ] The What outcome is demonstrated with fixed new zones and exact historical/in-flight preservation; authorization, version, financial and product guards stay intact.
-- [ ] Whole named tests cover the specified cases and real gestures where applicable, with no skipped/deleted cases or weakened historical/security/payment/stock assertions.
-- [ ] Gate Full passes with actual counts; mark before one focused local commit, no push/deploy.
+- [x] The What outcome is demonstrated with fixed new zones and exact historical/in-flight preservation; authorization, version, financial and product guards stay intact.
+- [x] Whole named tests cover the specified cases and real gestures where applicable, with no skipped/deleted cases or weakened historical/security/payment/stock assertions.
+- [x] Gate Full passes with actual counts; mark before one focused local commit, no push/deploy.
 
 **Tests**: service-booking-time-zone-compatibility.integration.spec.ts plus existing domain calendar tests. Three-reader parity, Brasilia midnight versus historical local dates, trusted pre-change paid/held/pending terms and replay, spoofed legacy flags, old lease ABA/expiry, no second appointment/charge, genuine historical reschedule/backfill requirements. Mixed physical/digital flows stay unchanged.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/professional-availability.fixed-time-zone.spec.ts ./tests/service-booking-time-zone-compatibility.integration.spec.ts` plus current own checked API and affected preservation from Gate Check Commands. Whole files, original budgets.
