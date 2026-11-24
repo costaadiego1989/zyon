@@ -1,0 +1,26 @@
+{
+  "evidenceMode": "template",
+  "revision": "0000000000000000000000000000000000000000",
+  "observedAt": "REPLACE_WITH_ACTUAL_UTC_OBSERVATION",
+  "services": {
+    "api": {"status": "SUCCESS", "settled": true, "deploymentId": "REPLACE", "sourceRevision": "REPLACE_WITH_FULL_REVISION", "servedRevision": "REPLACE_WITH_OBSERVED_REVISION", "origin": "https://api.example.invalid"},
+    "control": {"status": "READY", "settled": true, "deploymentId": "REPLACE", "sourceRevision": "REPLACE_WITH_FULL_REVISION", "servedRevision": "REPLACE_WITH_OBSERVED_REVISION", "origin": "https://control.example.invalid"}
+  },
+  "health": {
+    "health": {"status": 200, "url": "https://api.example.invalid/health"},
+    "ready": {"status": 200, "url": "https://api.example.invalid/ready"}
+  },
+  "controlAssets": [{"url": "https://control.example.invalid/assets/REPLACE.js", "status": 200, "sha256": "REPLACE_WITH_ACTUAL_RESPONSE_DIGEST"}],
+  "migrations": {"status": "applied", "applied": ["20261123230000_prospect_campaign_setup"]},
+  "preservedRevisions": ["668ad4b45c7a5cf4af7625f81543e3a3a26b252f"],
+  "browser": {
+    "kind": "real_admin_browser", "controlled": false, "role": "platform_admin", "origin": "https://control.example.invalid",
+    "draft": {"id": "REPLACE_WITH_REAL_RETAINED_DRAFT", "setupVersion": 2},
+    "context": {"mode": "rules", "snapshotId": "REPLACE_WITH_ACTUAL_SNAPSHOT", "companyCount": 0, "criteria": {"mainCnaes": ["4781400"], "ufs": ["SP"]}},
+    "viewports": [1440, 1280, 1024, 390, 320], "reloaded": true, "selectedCompaniesAppended": true,
+    "messagePreview": {"registryId": "REPLACE_WITH_LOCAL_DRAFT_REGISTRY", "body": "REPLACE_WITH_ACTUAL_OBSERVED_PREVIEW", "state": "draft", "submittedToMeta": false}
+  },
+  "provider": {"evidenceKind": "unobserved", "submitted": false, "approved": false, "delivered": false},
+  "dataSafety": {"cleanupScope": "run_owned_only", "retainedDraftId": "REPLACE_WITH_REAL_RETAINED_DRAFT", "removedSyntheticIds": []},
+  "arbitraryCompanySends": 0
+}

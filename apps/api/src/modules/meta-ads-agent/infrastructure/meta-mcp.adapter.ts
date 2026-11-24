@@ -328,15 +328,16 @@ export class MetaMcpAdapter implements MetaAdsProviderPort {
       const snapshot = await this.snapshotWith(session, access, campaign);
       if (snapshot.status === "PAUSED") return { status: "remote_paused", objects: execution.objects };
       if (snapshot.status !== "ACTIVE") return { status: execution.status === "publishing" ? "publishing" : "execution_unknown", objects: execution.objects };
-      const pending: ProviderExecutionResult = { status: execution.status === "publishing" ? "publishing" : "execution_unknown", objects: execution.objects };
       const expected = refs(campaign).filter(ref => ref.type !== "campaign");
+      const configuredActive=snapshot.effectiveStatus==='ACTIVE'&&expected.length>0&&expected.every(ref=>{const states=snapshot.objectStates?.filter(state=>state.type===ref.type&&state.id===ref.id)??[];return states.length===1&&states[0].status==='ACTIVE'&&['ACTIVE','IN_PROCESS','PENDING_REVIEW','PREAPPROVED'].includes(states[0].effectiveStatus);});
+      const pending: ProviderExecutionResult = { status: configuredActive?'active_unconfirmed':execution.status === "publishing" ? "publishing" : "execution_unknown", objects: execution.objects };
       if (!campaign.remoteAdSetId || !campaign.remoteAdIds.length || snapshot.effectiveStatus !== "ACTIVE" || expected.some(ref => {
         const states = snapshot.objectStates?.filter(state => state.type === ref.type && state.id === ref.id) ?? [];
         return states.length !== 1 || states[0].status !== "ACTIVE" || states[0].effectiveStatus !== "ACTIVE";
       })) return pending;
       const ads = (await this.entities(session, access, "ad", ["id", "status", "effective_status", "impressions"], campaign.remoteAdIds, { date_preset: "today" })).filter(ad => campaign.remoteAdIds.includes(String(ad.id ?? ad.ad_id ?? ad.ad_object_id)));
       if (campaign.remoteAdIds.some(id => { const matches = ads.filter(ad => String(ad.id ?? ad.ad_id ?? ad.ad_object_id) === id); return matches.length !== 1 || matches[0].status !== "ACTIVE" || matches[0].effective_status !== "ACTIVE"; })) return pending;
-      return { status: ads.some(ad => ad.effective_status === "ACTIVE" && Number(ad.impressions) > 0) ? "delivered" : "active_unconfirmed", objects: execution.objects };
+      return { status: ads.some(ad => ad.effective_status === "ACTIVE" && (count(ad.impressions)??0) > 0) ? "delivered" : "active_unconfirmed", objects: execution.objects };
     } catch { return { status: "execution_unknown", objects: execution.objects, error: "meta_reconciliation_unavailable" }; }
   }
   async metrics(access: MetaAccess, campaign: MetaAdsCampaign, since: string, until: string): Promise<ProviderMetricSnapshot> {

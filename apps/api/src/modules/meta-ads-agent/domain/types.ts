@@ -76,6 +76,7 @@ export interface MetaAdsStoreState {
   opportunityEvaluation?: { nextAt: string; policyVersion: number; lastError: string | null };
   attributionObservationSequence?: number;
   audienceSnapshots?: Record<string, MetaAdsAudienceSummary>;
+  workspaceObservations?: Record<string, import('@zyon/shared-types').MetaAdsCampaignObservation & { campaignVersion?: string }>;
 }
 
 export type MetaAdsRecordKind = "billing_event" | "billing_period" | "checkout" | "generation" | "proposal" | "execution" | "usage" | "attribution" | "attribution_touch" | "purchase" | "observation" | "audit" | "cost_benchmark";

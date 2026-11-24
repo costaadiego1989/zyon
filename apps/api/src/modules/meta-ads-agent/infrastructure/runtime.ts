@@ -104,7 +104,7 @@ export function createMetaAdsRuntime(input: { prisma: PrismaClient; catalog: Pro
   };
   const funding = new FundingService(repo, billing, connection, new MetaFundingAdapter({ graphVersion: env.META_ADS_GRAPH_API_VERSION ?? '', request, clock }), clock);
   const lifecycle=new CampaignLifecycleService({repo,commerce,connection,provider,authorizeActor,clock});
-  const workspace=new CampaignWorkspaceQueryService({repo,canManage:async()=>true,clock});
+  const workspace=new CampaignWorkspaceQueryService({repo,canManage:async()=>true,clock,live:{requireAccess:id=>billing.requireAccess(id),access:id=>connection.access(id),provider,reconcile:(id,executionId)=>executions.reconcile(id,executionId)}});
   const sales=new CampaignSalesQueryService({repo,commerce,clock,timezone:async(merchantId,campaign)=>{
     const state=await repo.read(merchantId),known=campaign?state.metrics[campaign.id]:null;
     if(known?.timezone)return known.timezone;

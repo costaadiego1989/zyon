@@ -62,7 +62,7 @@
 .chat-dock--floating .chat-dock-send{margin-top:9px}
 .chat-dock--floating .chat-dock-send small{font-size:11px}
 .chat-dock--floating .chat-dock-send>button{min-height:40px;padding:8px 12px;font-size:12px}
-.chat-dock-hint{position:absolute;right:0;bottom:80px;width:285px;max-width:calc(100vw - 32px);border:1px solid var(--color-border-strong);border-radius:12px;background:var(--color-surface-raised);animation:chat-dock-reveal 200ms ease-out}
+.chat-dock.chat-dock--floating .chat-dock-hint{position:absolute;right:0;bottom:80px;width:min(285px,calc(100vw - 32px));min-width:min(285px,calc(100vw - 32px));max-width:calc(100vw - 32px);border:1px solid var(--color-border-strong);border-radius:12px;background:var(--color-surface-raised);animation:chat-dock-reveal 200ms ease-out}
 .chat-dock-hint:after{content:'';position:absolute;width:10px;height:10px;bottom:-6px;right:23px;transform:rotate(45deg);background:var(--color-surface-raised);border-right:1px solid var(--color-border-strong);border-bottom:1px solid var(--color-border-strong)}
 .chat-dock .chat-dock-hint-open{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:6px;width:100%;padding:16px 38px 16px 16px;background:transparent;border:0;border-radius:12px;color:var(--color-text-secondary);font-size:13px;font-weight:400;line-height:1.65}
 .chat-dock .chat-dock-hint-open:hover:not(:disabled){background:var(--color-surface-raised)}

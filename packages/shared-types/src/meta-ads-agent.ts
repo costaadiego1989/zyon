@@ -356,7 +356,23 @@ export interface MetaAdsCampaignWorkspaceRow {
   pendingProposalId: string | null;
   audience: MetaAdsAudienceSummary;
   metrics: MetaAdsMetrics | null;
+  observation?: MetaAdsCampaignObservation;
   actions: { pause: boolean; deleteDraft: boolean; archive: boolean; verifyRemote: boolean };
+}
+/** Read-only Meta configuration and measurements for one campaign and period. */
+export interface MetaAdsCampaignObservation {
+  accountId: string;
+  connectionEpoch: number;
+  campaignId: string;
+  adSetId: string;
+  adIds: string[];
+  checkedAt: string;
+  since: string;
+  until: string;
+  phase: 'active' | 'delivering' | 'processing' | 'review' | 'paused' | 'rejected' | 'unavailable';
+  audience: MetaAdsAudienceSummary;
+  metrics: MetaAdsMetrics | null;
+  missing: Array<'status' | 'audience' | 'metrics'>;
 }
 export interface MetaAdsCampaignWorkspacePage {
   items: MetaAdsCampaignWorkspaceRow[];

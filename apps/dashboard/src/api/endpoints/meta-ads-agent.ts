@@ -13,6 +13,7 @@ export function metaAdsAgentEndpoints(base: string, f: typeof fetch = globalThis
   return {
     workspace:(input:Partial<MetaAdsWorkspaceQuery>={},signal?:AbortSignal)=>get<MetaAdsCampaignWorkspacePage>('/campaign-workspace'+query(input),signal),
     workspaceDetail:(campaignId:string,input:Pick<MetaAdsWorkspaceQuery,'since'|'until'>,signal?:AbortSignal)=>get<MetaAdsCampaignWorkspaceRow>(`/campaign-workspace/${id(campaignId)}`+query(input),signal),
+    refreshCampaign:(campaignId:string,input:Pick<MetaAdsWorkspaceQuery,'since'|'until'>,signal?:AbortSignal)=>dashboardJson<MetaAdsCampaignWorkspaceRow>(base,prefix+`/campaign-workspace/${id(campaignId)}/refresh`+query(input),{method:'POST',jsonBody:{},signal},f),
     deleteDraft:(campaignId:string,input:MetaAdsCampaignLifecycleInput)=>post<MetaAdsCampaign>(`/campaigns/${id(campaignId)}/delete-draft`,input),
     archiveCampaign:(campaignId:string,input:MetaAdsCampaignLifecycleInput)=>post<MetaAdsCampaign>(`/campaigns/${id(campaignId)}/archive`,input),
     preparationLimits:(signal?:AbortSignal)=>get<MetaAdsPreparationLimitsView>('/preparation-limits',signal),
