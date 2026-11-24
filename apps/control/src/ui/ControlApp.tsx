@@ -25,7 +25,8 @@ import {
   type PlatformOperatorRole,
   resolvePlatformApiBaseUrl,
 } from "../lib/api.js";
-import { clearPlatformSession, readPlatformSession, writePlatformSession } from "../lib/session.js";
+import { clearPlatformSession, PLATFORM_SESSION_CHANGED, readPlatformSession, writePlatformSession } from "../lib/session.js";
+import { maintainPlatformSession } from "../lib/session-refresh.js";
 import { AiUsageByMerchant } from "./AiUsageByMerchant.js";
 import { AuditTrail } from "./AuditTrail.js";
 import { BillingSubscriptions } from "./BillingSubscriptions.js";
@@ -85,6 +86,21 @@ export function ControlApp() {
   const [session, setSession] = useState(readPlatformSession);
   const [checkingSession, setCheckingSession] = useState(Boolean(session));
   const [sessionMessage, setSessionMessage] = useState<string | null>(null);
+  const [verificationError, setVerificationError] = useState(false);
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
+
+  useEffect(() => {
+    const sync = () => setSession(readPlatformSession());
+    window.addEventListener(PLATFORM_SESSION_CHANGED, sync);
+    return () => window.removeEventListener(PLATFORM_SESSION_CHANGED, sync);
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    return maintainPlatformSession(session.token, token => api.refreshSession(token), () => {
+      setSessionMessage("Conexão temporariamente indisponível. Sua sessão foi preservada.");
+    });
+  }, [api, session?.token]);
 
   useEffect(() => {
     if (!session) {
@@ -92,15 +108,23 @@ export function ControlApp() {
       return;
     }
     let cancelled = false;
+    setCheckingSession(true);
+    setVerificationError(false);
     void api.me(session.token)
       .then(operator => {
         if (cancelled) return;
-        const refreshed = { token: session.token, operator };
+        const current = readPlatformSession();
+        if (!current || current.operator.operator_id !== operator.operator_id) return;
+        const refreshed = { token: current.token, operator };
         writePlatformSession(refreshed);
         setSession(refreshed);
       })
-      .catch(() => {
+      .catch(error => {
         if (cancelled) return;
+        if (!(error instanceof PlatformApiError) || ![401, 403].includes(error.status)) {
+          setVerificationError(true);
+          return;
+        }
         clearPlatformSession();
         setSession(null);
         setSessionMessage("A sessão não está mais válida. Entre novamente.");
@@ -109,7 +133,7 @@ export function ControlApp() {
         if (!cancelled) setCheckingSession(false);
       });
     return () => { cancelled = true; };
-  }, [api]);
+  }, [api, verificationAttempt]);
 
   async function handleLogin(email: string, password: string) {
     const response = await api.login(email, password);
@@ -145,6 +169,11 @@ export function ControlApp() {
 
   if (checkingSession) return <SessionSkeleton />;
   if (!session) return <OperatorLogin onSubmit={handleLogin} initialMessage={sessionMessage} />;
+  if (verificationError) return <main className="operator-login"><section className="login-panel">
+    <h1>Reconectar ao painel</h1><p role="alert">Não foi possível verificar a conexão. Seu login foi preservado.</p>
+    <button className="button button--primary" onClick={() => setVerificationAttempt(value => value + 1)}>Tentar novamente</button>
+    <button className="button button--secondary" onClick={() => void handleLogout()}>Sair do painel</button>
+  </section></main>;
 
   return (
     <ControlShell

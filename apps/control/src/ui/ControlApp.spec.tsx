@@ -2,7 +2,7 @@ import { act } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { ControlApp } from "./ControlApp.js";
 import { PlatformApi, PlatformApiError } from "../lib/api.js";
-import { writePlatformSession } from "../lib/session.js";
+import { readPlatformSession, writePlatformSession } from "../lib/session.js";
 import { show } from "./prospecting/screen-test.js";
 
 const admin = {
@@ -32,6 +32,18 @@ function session(user = admin) {
     new Error("offline")
   );
 }
+it("SESSION AC2 preserves login during a bootstrap outage and retries through the real control", async () => {
+  session();
+  vi.spyOn(PlatformApi.prototype, "me").mockRejectedValueOnce(new Error("network unavailable")).mockResolvedValue(admin);
+  const ui = await show(<ControlApp />);
+  expect(ui.text()).toContain("Seu login foi preservado");
+  expect(ui.host.querySelector('input[type="password"]')).toBeNull();
+  expect(readPlatformSession()?.token).toBe("local-session");
+  await ui.click("Tentar novamente");
+  expect(ui.text()).toContain("Central operacional");
+  expect(ui.text()).not.toContain("Seu login foi preservado");
+  expect(readPlatformSession()?.operator).toEqual(admin);
+});
 it("PROS-01 AC3 abre pelo menu autorizado e monta a política real sem perder a sessão do Control", async () => {
   session();
   const configRead = vi.fn().mockResolvedValue(config);

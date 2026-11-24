@@ -1,8 +1,9 @@
 import type { PlatformAuthResponse, PlatformOperator } from "./api.js";
 
 const SESSION_KEY = "zyon.platform-control.session.v1";
+export const PLATFORM_SESSION_CHANGED = "zyon:platform-session-changed";
 
-type StoredSession = {
+export type StoredSession = {
   token: string;
   operator: PlatformOperator;
 };
@@ -31,8 +32,10 @@ export function writePlatformSession(response: PlatformAuthResponse | StoredSess
     }
     : response;
   window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  window.dispatchEvent(new Event(PLATFORM_SESSION_CHANGED));
 }
 
 export function clearPlatformSession(): void {
   window.sessionStorage.removeItem(SESSION_KEY);
+  window.dispatchEvent(new Event(PLATFORM_SESSION_CHANGED));
 }

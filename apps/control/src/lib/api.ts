@@ -1,5 +1,6 @@
 import { ProspectingApi } from "./prospecting-api.js";
 import { createPlatformSupportClient } from "@zyon/platform-support-ui/client";
+import { PlatformSessionRefresh } from "./session-refresh.js";
 
 export type PlatformOperatorRole =
   | "platform_admin"
@@ -649,7 +650,12 @@ export function resolvePlatformApiBaseUrl(env: ImportMetaEnv): string {
 }
 
 export class PlatformApi {
+  private readonly sessions = new PlatformSessionRefresh(token =>
+    this.request<PlatformAuthResponse>("/platform/auth/refresh", token, { method: "POST", signal: AbortSignal.timeout(15_000) }));
+
   constructor(private readonly baseUrl: string) {}
+
+  refreshSession(token: string): Promise<string> { return this.sessions.renew(token); }
 
   prospectingClient(token: string) {
     return new ProspectingApi(<T>(path: string, options?: RequestOptions) => this.request<T>(path, token, options),this.baseUrl,token);
@@ -673,6 +679,7 @@ export class PlatformApi {
   }
 
   async logout(token: string): Promise<void> {
+    this.sessions.cancel();
     await this.request<void>("/platform/auth/logout", token, { method: "POST" });
   }
 
@@ -877,16 +884,23 @@ export class PlatformApi {
     });
   }
 
-  private async request<T>(path: string, token?: string, options: RequestOptions = {}): Promise<T> {
+  private async request<T>(path: string, token?: string, options: RequestOptions = {}, retry = true): Promise<T> {
+    const credential = token ? this.sessions.current(token) : undefined;
     const response = await fetch(mergeUrl(this.baseUrl, path), {
       ...options,
       headers: {
         Accept: "application/json",
         ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(credential ? { Authorization: `Bearer ${credential}` } : {}),
         ...options.headers,
       },
     });
+
+    if (response.status === 401 && retry && credential && !options.signal?.aborted &&
+        !/^\/platform\/auth\/(?:login|refresh|logout)$/.test(path) && this.sessions.manages(credential)) {
+      const replacement = await this.sessions.renew(credential);
+      return this.request<T>(path, replacement, options, false);
+    }
 
     if (response.status === 204) return undefined as T;
     const body = await readBody(response);
