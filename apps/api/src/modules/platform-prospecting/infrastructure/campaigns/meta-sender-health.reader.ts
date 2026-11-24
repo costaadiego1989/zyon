@@ -45,7 +45,7 @@ export class MetaSenderHealthReader implements SenderHealthReader {
   if(phone.status!=="CONNECTED"||phone.platform_type!=="CLOUD_API")blockers.add("sender_unavailable");
   const tier=phone.whatsapp_business_manager_messaging_limit;
   // Meta documents pending display-name approval as a finite messaging limit, not a messaging block.
-  const pendingNameOnly=phone.health_status?.can_send_message==="LIMITED"&&Object.hasOwn(tiers,tier)&&observed.every(e=>{
+  const pendingNameOnly=phone.health_status?.can_send_message==="LIMITED"&&Object.hasOwn(tiers,tier)&&observed.length===Object.keys(expected).length&&observed.every(e=>expected[e.entity_type]===e.id)&&observed.every(e=>{
    if(e.entity_type==="PHONE_NUMBER")return e.can_send_message==="LIMITED"&&e.additional_info?.length===1&&e.additional_info[0]==="Your display name has not been approved yet. Your message limit will increase after the display name is approved."&&(e.errors??[]).every(err=>err.error_code===138024&&e.can_receive_call_sip==="BLOCKED");
    return e.can_send_message==="AVAILABLE"&&(e.errors??[]).every(err=>e.entity_type==="APP"&&err.error_code===138025&&e.can_receive_call_sip==="BLOCKED");
   });

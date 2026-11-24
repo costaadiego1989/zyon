@@ -56,3 +56,15 @@ test("HL-01 quota exception does not bypass identity, registration or template r
  const unknown=fixture();unknown.phone.whatsapp_business_manager_messaging_limit="FUTURE_TIER";assert.ok((await unknown.read()).blockers.includes("portfolio_limit"));
  const pending=fixture();pending.template.status="PENDING";assert.ok((await pending.read()).blockers.includes("template_unavailable"));
 });
+
+test("HL-01 contradictory extra or duplicate entities cannot qualify for the finite pending-name exception",async()=>{
+ for(const extra of [
+  {entity_type:"PHONE_NUMBER",id:"99",can_send_message:"LIMITED",additional_info:[reason]},
+  {entity_type:"PHONE_NUMBER",id:"13",can_send_message:"LIMITED",additional_info:[reason]},
+  {entity_type:"APP",id:"99",can_send_message:"AVAILABLE"},
+  {entity_type:"UNKNOWN_ENTITY",id:"99",can_send_message:"AVAILABLE"}
+ ]){
+  const f=fixture();f.phone.health_status.entities.push(extra);const result=await f.read();
+  assert.ok(result.blockers.includes("quality_restricted"),JSON.stringify(extra));assert.equal(result.portfolioLimit,250);
+ }
+});
