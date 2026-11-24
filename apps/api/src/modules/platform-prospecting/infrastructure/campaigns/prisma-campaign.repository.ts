@@ -25,7 +25,7 @@ export function storedReview(c:ProspectCampaign){
 }
 export function projectAttempt(row:OutreachAttempt):OutreachAttemptRecord {
   const iso=(d:Date|null)=>d?.toISOString()??null;
-  return {id:row.id,sequenceId:row.sequenceId,ordinal:row.ordinal as 0|1,clientRequestId:row.clientRequestId,state:row.state as OutreachAttemptRecord["state"],controlEpoch:row.controlEpoch,providerMessageId:row.providerMessageId,reservedAmount:{amountCents:Number(row.reservedAmount),currency:row.currency},submittedAt:iso(row.submittedAt),acceptedAt:iso(row.acceptedAt),deliveredAt:iso(row.deliveredAt),readAt:iso(row.readAt),errorCode:row.errorCode};
+  return {id:row.id,sequenceId:row.sequenceId,ordinal:row.ordinal as 0|1,clientRequestId:row.clientRequestId,state:row.state as OutreachAttemptRecord["state"],controlEpoch:row.controlEpoch,providerMessageId:row.providerMessageId,...(row.providerCostMicros!==null?{reportedCost:{amountMicros:row.providerCostMicros.toString(),currency:"BRL" as const}}:{}),reservedAmount:{amountCents:Number(row.reservedAmount),currency:row.currency},submittedAt:iso(row.submittedAt),acceptedAt:iso(row.acceptedAt),deliveredAt:iso(row.deliveredAt),readAt:iso(row.readAt),errorCode:row.errorCode};
 }
 export async function releasePreSubmission(tx:Tx,row:OutreachAttempt,campaignId:string,reason:string){
   if(row.state!=="reserved"||row.costState!=="reserved")return;

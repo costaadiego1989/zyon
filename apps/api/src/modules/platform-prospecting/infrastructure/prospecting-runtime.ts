@@ -1,3 +1,4 @@
+import {prospectTemplateQuote} from "../domain/campaigns/prospect-message-cost.js";
 import { ProspectConversionHistoryQuery } from "../application/billing/prospect-conversion-history.query.js";
 import { SearchCompaniesQuery } from "../application/company-directory/search-companies.query.js";
 import { CompanyImportService } from "../application/company-directory/company-import.service.js";
@@ -254,7 +255,7 @@ export function createProspectingRuntime(env: Environment = process.env) {
     return {knowledge,model,maximumCostCents:config.llmMaximumCostCents,input:amount("LLM_INPUT_MICROCENTS_PER_TOKEN"),output:amount("LLM_OUTPUT_MICROCENTS_PER_TOKEN"),templateQuote,replyQuote};
   });
   const executionCurrent=executionIdentity.current.bind(executionIdentity);
-  const reservations=new PrismaCampaignRepository(db,keys,({now})=>quote("META_TEMPLATE_COST_CENTS",now));
+  const reservations=new PrismaCampaignRepository(db,keys,({now,template})=>prospectTemplateQuote(template,now,()=>quote("META_TEMPLATE_COST_CENTS",now)));
   const dispatch=new ProspectDispatchWorker(reservations,health,offers,sender,()=>new Date(),executionCurrent);
   const campaign=new CampaignService(new PrismaCampaignCommands(db,offers,c=>health.forCampaign(c),executionCurrent));
   const audienceStore=new PrismaAudienceRepository(db,keys);

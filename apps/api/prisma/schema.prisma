@@ -6101,6 +6101,7 @@ model OutreachAttempt {
   currency String @default("BRL")
   costState String @default("reserved") @map("cost_state")
   providerMessageId String? @map("provider_message_id")
+  providerCostMicros BigInt? @map("provider_cost_micros")
   content String? @db.Text
   submittedAt DateTime? @map("submitted_at")
   acceptedAt DateTime? @map("accepted_at")

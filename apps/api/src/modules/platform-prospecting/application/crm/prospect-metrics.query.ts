@@ -35,7 +35,7 @@ function instant(value: string) {
 function cohortSql(campaign: string | undefined, from: Date, to: Date) {
   const outbound = Prisma.sql`outbound AS (
         SELECT 'a.'||a.id AS id,r.prospect_id,a.conversation_id,r.campaign_id, s.endpoint_id, a.submitted_at, a.accepted_at, a.delivered_at, a.read_at,
-          a.state, a.cost_state, a.currency, a.reserved_amount, a.created_at
+          a.state, a.cost_state, a.currency, CASE WHEN a.provider_cost_micros IS NOT NULL THEN (a.provider_cost_micros+9999)/10000 ELSE a.reserved_amount END AS reserved_amount, a.created_at
         FROM outreach_attempts a JOIN prospect_sequences s ON s.id=a.sequence_id LEFT JOIN campaign_recipients r ON r.id=a.recipient_id
         ${campaign ? Prisma.sql`WHERE r.campaign_id=${campaign}` : Prisma.empty}
         UNION ALL

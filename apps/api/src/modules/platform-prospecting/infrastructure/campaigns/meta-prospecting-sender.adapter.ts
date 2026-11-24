@@ -3,12 +3,13 @@ import type {StrictWhatsAppResult} from "../../../whatsapp-channel/domain/ports/
 import type {ProspectSendPacket,ProspectSendResult} from "../../domain/prospecting.ports.js";
 import type {SenderObservationStore} from "../../application/campaigns/sender-readiness.service.js";
 import {platformGraph} from "./platform-meta-authorization.js";
+import {prospectingMaxPriceReservation,validateProspectingMaxPrice} from "@zyon/shared-types";
 
 const rejected=(errorCode:string):ProspectSendResult=>({state:"not_accepted",errorCode});
 type OfficialResult=StrictWhatsAppResult & {contacts?:{input?:string;user_id?:string}[]};
-async function postOfficial(fetcher:typeof fetch,phoneId:string,token:string,body:unknown):Promise<OfficialResult>{
+async function postOfficial(fetcher:typeof fetch,phoneId:string,token:string,body:unknown,endpoint:"messages"|"marketing_messages"="messages"):Promise<OfficialResult>{
  try{
-  const response=await fetcher(platformGraph+phoneId+"/messages",{method:"POST",redirect:"error",signal:AbortSignal.timeout(15_000),headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const response=await fetcher(platformGraph+phoneId+"/"+endpoint,{method:"POST",redirect:"error",signal:AbortSignal.timeout(15_000),headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify(body)});
   const value=await response.json() as {messages?:{id?:unknown}[];contacts?:OfficialResult['contacts'];error?:{code?:number}};
   if(!response.ok){
    if(response.status>=400&&response.status<500&&![408,409].includes(response.status)&&Number.isSafeInteger(value?.error?.code))return {status:"failed",acceptance:"not_accepted",messageId:""};
@@ -38,9 +39,12 @@ export class MetaProspectingSenderAdapter {
   if(template&&(template.wabaId!==binding.wabaId||template.status!=="APPROVED"||!template.revision||!template.name||!template.language))return rejected("template_binding_mismatch");
   if(template && template.requiresParameters!==false)return rejected("template_unavailable");
   if(template && (!template.previewText||template.previewText!==packet.content))return rejected("template_binding_mismatch");
+  let maxPrice;try{maxPrice=validateProspectingMaxPrice(template?.maxPrice);}catch{return rejected("template_binding_mismatch");}
+  if(maxPrice&&(identity.kind!=="phone"||template?.category!=="MARKETING"))return rejected("template_binding_mismatch");
+  if(maxPrice&&(!packet.attempt.reservedAmount||packet.attempt.reservedAmount.currency!=="BRL"||!Number.isSafeInteger(packet.attempt.reservedAmount.amountCents)||packet.attempt.reservedAmount.amountCents<prospectingMaxPriceReservation(maxPrice)))return rejected("cost_unknown");
   if(!template&&(!packet.content?.trim()||Array.from(packet.content).length>4096))return rejected("invalid_message");
   const message=template?{type:"template",template:{name:template.name,language:{code:template.language}}}:{type:"text",text:{body:packet.content,preview_url:false}};
-  const result=await postOfficial(this.transport,binding.phoneNumberId,accessToken,{messaging_product:"whatsapp",recipient_type:"individual",...address,...message,biz_opaque_callback_data:packet.attempt.id});
+  const result=await postOfficial(this.transport,binding.phoneNumberId,accessToken,{messaging_product:"whatsapp",recipient_type:"individual",...address,...message,biz_opaque_callback_data:packet.attempt.id},maxPrice?"marketing_messages":"messages");
   if(result.status==="sent"){
     const contact=result.contacts?.length===1?result.contacts[0]:undefined;
     const confirmed=identity.kind==="phone"&&typeof contact?.input==="string"&&/^\+?\d{8,15}$/.test(contact.input)&&contact.input.replace(/^\+/,"")===identity.value.slice(1)&&typeof contact.user_id==="string"&&contact.user_id.length>0&&contact.user_id.length<=320&&!/\s|[\x00-\x1f]/.test(contact.user_id);

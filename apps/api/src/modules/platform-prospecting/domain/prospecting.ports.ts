@@ -71,7 +71,7 @@ export interface ProspectPrivacyPort {
   suppress(id: string, command: SuppressProspectCommand, actor: ProspectingActor): Promise<ProspectSuppressionResult>;
 }
 export interface AttemptReservation { attempt: OutreachAttemptRecord; ownerToken: string; campaignId: string | null; recipientId: string | null; senderBindingId: string; senderVersion: number; endpointId: string; normalizedEndpoint: string; identity: import("@zyon/shared-types").ProspectProviderIdentity; template: import("@zyon/shared-types").ProspectingTemplate | null; content: string; expectedEpoch: number }
-export type ProspectSendPacket = Pick<AttemptReservation,"senderBindingId"|"senderVersion"|"identity"|"normalizedEndpoint"|"template"|"content"> & {attempt:{id:string}};
+export type ProspectSendPacket = Pick<AttemptReservation,"senderBindingId"|"senderVersion"|"identity"|"normalizedEndpoint"|"template"|"content"> & {attempt:{id:string;reservedAmount?:OutreachAttemptRecord["reservedAmount"]}};
 export type ProspectSendResult = { state: "provider_accepted"; providerMessageId: string; acceptedAt: Date; confirmedBsuid?:{value:string;businessScope:string} } | { state: "not_accepted"; errorCode: string } | { state: "outcome_unknown"; errorCode: string };
 export interface CampaignRepositoryPort {
   create(command: SaveProspectCampaign, actor: ProspectingActor): Promise<ProspectCampaign>;

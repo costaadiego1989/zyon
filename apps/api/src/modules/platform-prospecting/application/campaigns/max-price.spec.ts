@@ -14,10 +14,99 @@ import {PrismaCampaignDrafts} from "../../infrastructure/campaigns/prisma-campai
 import {PrismaCampaignPreparation} from "../../infrastructure/campaigns/prisma-campaign-preparation.js";
 import {CampaignExecutionIdentity} from "./campaign-preparation.js";
 import {PrismaAudienceRepository} from "../../infrastructure/campaigns/prisma-audience.repository.js";
+import {PrismaCampaignRepository,storedReview} from "../../infrastructure/campaigns/prisma-campaign.repository.js";
+import {MetaProspectingSenderAdapter} from "../../infrastructure/campaigns/meta-prospecting-sender.adapter.js";
+import {campaignContentHash} from "../../domain/campaigns/prospecting-campaign.js";
+import {prospectProviderCost,prospectTemplateQuote} from "../../domain/campaigns/prospect-message-cost.js";
+import {PrismaProspectMetaInbox} from "../../infrastructure/conversations/prisma-prospect-meta-inbox.js";
+import {PrismaProspectConversationRepository} from "../../infrastructure/conversations/prisma-prospect-conversation.repository.js";
+import {ProspectMetricsQueryService} from "../crm/prospect-metrics.query.js";
 
 const actor={operatorId:"operator",correlationId:"max-price-proof"};
 const input={name:"zyon_varejo",language:"pt_BR",body:"Olá! Somos a Zyon. Podemos conversar sobre sua loja?",clientRequestId:"max-price-draft"};
 const price={currency:"BRL" as const,amountPerThousandMinor:15000};
+
+async function pricedCampaign(){
+ const f=await createCampaignFixture();
+ const template={...fixtureTemplate,maxPrice:price};
+ const hash=campaignContentHash({...storedReview(f.campaign),template});
+ await f.prisma.prospectCampaign.update({where:{id:f.campaign.id},data:{template,approvedHash:hash,contentHash:hash}});
+ const repo=new PrismaCampaignRepository(f.prisma,f.keys,({template,now})=>prospectTemplateQuote(template,now,f.quote));
+ return {...f,repo,template};
+}
+
+test("MAX-PRICE AC3 reserves the explicit upper bound and uses only the Marketing Messages endpoint",async()=>{
+ const f=await pricedCampaign();try{
+  const row=await f.prisma.platformProspectSenderBinding.update({where:{id:"sender"},data:{phoneNumberId:"13"}}),binding=publicSender(row);
+  const packet=await f.repo.reserveAttempt(f.recipient.id,"owner",new Date());assert.ok(packet);
+  assert.equal(packet.attempt.reservedAmount.amountCents,15);
+  const calls:{url:string;body:any}[]=[];let reject=false;
+  const adapter=new MetaProspectingSenderAdapter({credential:async()=>({binding,businessId:"own",accessToken:"controlled"})},async(url,init)=>{
+   calls.push({url:String(url),body:JSON.parse(String(init?.body))});
+   return reject?Response.json({error:{code:131061}},{status:400}):Response.json({messages:[{id:"wamid.max-price"}]});
+  });
+  const result=await adapter.send(packet,binding);assert.equal(result.state,"provider_accepted");
+  assert.deepEqual(calls,[{url:"https://graph.facebook.com/v27.0/13/marketing_messages",body:{messaging_product:"whatsapp",recipient_type:"individual",to:packet.identity.value,type:"template",template:{name:"hello",language:{code:"pt_BR"}},biz_opaque_callback_data:packet.attempt.id}}]);
+  const bsuid={kind:"bsuid" as const,value:"BR.opaque-user",businessScope:"own"};
+  assert.equal((await adapter.send({...packet,identity:bsuid,normalizedEndpoint:bsuid.value},binding)).state,"not_accepted");
+  assert.deepEqual(await adapter.send({...packet,attempt:{...packet.attempt,reservedAmount:{amountCents:14,currency:"BRL"}}},binding),{state:"not_accepted",errorCode:"cost_unknown"});
+  assert.equal(calls.length,1);
+  reject=true;assert.equal((await adapter.send(packet,binding)).state,"not_accepted");assert.equal(calls.length,2);assert.ok(calls.every(c=>c.url.endsWith("/marketing_messages")));
+  reject=false;await adapter.send({...packet,template:{...packet.template!,maxPrice:null}},binding);assert.ok(calls.at(-1)!.url.endsWith("/messages"));
+ }finally{await f.close();}
+});
+
+test("MAX-PRICE AC4 parses only explicit valid BRL dynamic costs without treating missing data as free",()=>{
+ assert.deepEqual(prospectProviderCost({category:"marketing_lite_dynamic",cost:{amount:0.035,currency:"BRL"}}),{amountMicros:"35000",currency:"BRL"});
+ assert.deepEqual(prospectProviderCost({category:"marketing_lite_dynamic",cost:{amount:0,currency:"BRL"}}),{amountMicros:"0",currency:"BRL"});
+ for(const p of [null,{}, {category:"marketing_lite_dynamic"},{category:"marketing",cost:{amount:0.1,currency:"BRL"}},{category:"marketing_lite_dynamic",cost:{amount:0.1,currency:"USD"}},{category:"marketing_lite_dynamic",cost:{amount:-1,currency:"BRL"}},{category:"marketing_lite_dynamic",cost:{amount:"0.1",currency:"BRL"}},{category:"marketing_lite_dynamic",cost:{amount:Infinity,currency:"BRL"}}])assert.equal(prospectProviderCost(p),null);
+});
+
+test("MAX-PRICE AC4 reconciles persisted receipts once, including delivery before provider acceptance",async()=>{
+ for(const receiptFirst of [false,true]){
+  const f=await pricedCampaign();try{
+   const packet=await f.repo.reserveAttempt(f.recipient.id,"owner",new Date());assert.ok(packet);assert.equal(await f.repo.markSubmitting(packet.attempt.id,"owner",new Date()),true);
+   const accepted={state:"provider_accepted" as const,providerMessageId:"wamid.cost",acceptedAt:new Date()};
+   if(!receiptFirst)await f.repo.recordResult(packet.attempt.id,"owner",accepted);
+   const inbox=new PrismaProspectMetaInbox(f.prisma,f.keys),processor=new PrismaProspectConversationRepository(f.prisma);
+   let tick=Math.floor(Date.now()/1000)-20;
+   const receipt=async(status:string,pricing?:unknown)=>{
+    const timestamp=String(tick++),raw={id:accepted.providerMessageId,status,timestamp,recipient_id:f.endpoint.normalizedValue!.slice(1),biz_opaque_callback_data:packet.attempt.id,...(pricing?{pricing}:{})};
+    const change={appId:"app",wabaId:"waba",phoneNumberId:"phone",value:{statuses:[raw]}};
+    await inbox.accept(change);await inbox.accept(change);
+    const event=await f.prisma.prospectInboxEvent.findFirstOrThrow({where:{eventId:JSON.stringify([raw.id,status,timestamp])}});
+    await processor.processStatus(event.id);await processor.processStatus(event.id);return event;
+   };
+   await receipt("delivered",{category:"marketing_lite_dynamic",cost:{amount:0.05,currency:"USD"}});
+   let campaign=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:f.campaign.id}});
+   assert.equal(campaign.spentCents,15n);assert.equal(campaign.reservedCents,0n);
+   assert.equal((await f.prisma.outreachAttempt.findUniqueOrThrow({where:{id:packet.attempt.id}})).providerCostMicros,null);
+   const event=await receipt("read",{category:"marketing_lite_dynamic",cost:{amount:0.035,currency:"BRL"}});
+   assert.deepEqual((event.payload as any).providerCost,{amountMicros:"35000",currency:"BRL"});
+   if(receiptFirst)await f.repo.recordResult(packet.attempt.id,"owner",accepted);
+   await receipt("read",{category:"marketing_lite_dynamic",cost:{amount:0.02,currency:"BRL"}});
+   const attempt=await f.prisma.outreachAttempt.findUniqueOrThrow({where:{id:packet.attempt.id}});
+   campaign=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:f.campaign.id}});
+   assert.equal(attempt.providerCostMicros,35000n);assert.equal(attempt.state,"read");assert.equal(attempt.costState,"committed");assert.equal(campaign.spentCents,4n);assert.equal(campaign.reservedCents,0n);
+   const usage=await f.prisma.prospectCampaignDailyUsage.findFirstOrThrow();assert.equal(usage.submittedRecipients,1);assert.equal(usage.reservedRecipients,0);
+   const metrics=await new ProspectMetricsQueryService(f.prisma).execute({campaignId:campaign.id,from:new Date(Date.now()-3600000).toISOString(),to:new Date(Date.now()+3600000).toISOString()});
+   assert.deepEqual(metrics.costs.commitments,[{source:"meta",currency:"BRL",state:"committed",amountCents:"4",entries:1}]);
+   assert.equal(await f.prisma.prospectInboxEvent.count(),3);
+  }finally{await f.close();}
+ }
+});
+
+test("MAX-PRICE AC4 records an unexpected cost above the bid and pauses further campaign dispatch",async()=>{
+ const f=await pricedCampaign();try{
+  const packet=await f.repo.reserveAttempt(f.recipient.id,"owner",new Date());assert.ok(packet);await f.repo.markSubmitting(packet.attempt.id,"owner",new Date());
+  await f.repo.recordResult(packet.attempt.id,"owner",{state:"provider_accepted",providerMessageId:"wamid.over-cap",acceptedAt:new Date()});
+  const inbox=new PrismaProspectMetaInbox(f.prisma,f.keys),processor=new PrismaProspectConversationRepository(f.prisma);
+  await inbox.accept({appId:"app",wabaId:"waba",phoneNumberId:"phone",value:{statuses:[{id:"wamid.over-cap",status:"delivered",timestamp:String(Math.floor(Date.now()/1000)-1),biz_opaque_callback_data:packet.attempt.id,pricing:{category:"marketing_lite_dynamic",cost:{amount:0.16,currency:"BRL"}}}]}});
+  const event=await f.prisma.prospectInboxEvent.findFirstOrThrow();await processor.processStatus(event.id);
+  const campaign=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:f.campaign.id}}),attempt=await f.prisma.outreachAttempt.findUniqueOrThrow({where:{id:packet.attempt.id}});
+  assert.equal(campaign.state,"paused");assert.equal(campaign.spentCents,16n);assert.equal(attempt.providerCostMicros,160000n);assert.equal(attempt.errorCode,"provider_cost_exceeds_cap");
+ }finally{await f.close();}
+});
 
 test("MAX-PRICE AC1 converts explicit BRL caps exactly and rejects ambiguous or invalid bids",()=>{
  assert.deepEqual(parseProspectingMaxPrice("0,15"),price);

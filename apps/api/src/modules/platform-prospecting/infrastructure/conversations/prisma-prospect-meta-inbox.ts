@@ -6,10 +6,11 @@ import {stableDirectoryJson} from "../../domain/company-directory/directory-valu
 import {receiptReference} from "./prospect-receipt-reference.js";
 import {authenticatedEndpoint,observedBsuid} from "./prospect-endpoint-alias.js";
 import {protectedContactLookups,type SuppressionKeyRing} from "../crm/prisma-prospect-privacy.repository.js";
+import {prospectProviderCost,type ProspectProviderCost} from "../../domain/campaigns/prospect-message-cost.js";
 
 const object=(value:unknown):Record<string,unknown>=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
 const str=(v:unknown,max:number)=>typeof v==="string"&&v.length>0&&v.length<=max?v:null;
-export interface InboundPayload {endpointId:string|null;providerId:string;body:string;status:string|null;opaque:string|null;contextId:string|null}
+export interface InboundPayload {endpointId:string|null;providerId:string;body:string;status:string|null;opaque:string|null;contextId:string|null;providerCost?:ProspectProviderCost|null}
 export class PrismaProspectMetaInbox implements ProspectMetaDispatchPort{
  constructor(private readonly db:PrismaClient,private readonly keys:SuppressionKeyRing){}
  async accept(change:ProspectMetaChange){
@@ -77,7 +78,7 @@ export class PrismaProspectMetaInbox implements ProspectMetaDispatchPort{
   const stamp=typeof raw.timestamp==="string"&&/^\d{10}$/.test(raw.timestamp)?new Date(Number(raw.timestamp)*1000):null;
   const providerOccurredAt=stamp&&stamp<=receivedAt?stamp:null;
   const body=str(object(raw.text).body,16000)??str(object(raw.button).text,256)??str(object(raw.image).caption,4096)??"";
-  const payload:InboundPayload={endpointId:endpoint?.id??null,providerId,body,status,opaque,contextId};
+  const payload:InboundPayload={endpointId:endpoint?.id??null,providerId,body,status,opaque,contextId,...(kind==="status"?{providerCost:prospectProviderCost(raw.pricing)}:{})};
   const erased=endpoint?.normalizedValue===null&&kind==="inbound";
   if(endpoint&&!erased&&kind==="inbound")await tx.prospectEndpoint.update({where:{id:endpoint.id},data:{lastContactActivityAt:receivedAt}});
   await tx.prospectInboxEvent.create({data:{...unique,payloadHash:hash,providerOccurredAt,receivedAt,resourceIds:ids,payload:erased?{redacted:true}:{...payload},state:erased?"processed":"pending",processedAt:erased?receivedAt:null}});

@@ -4,6 +4,7 @@ import {releasePreSubmission} from "../campaigns/prisma-campaign.repository.js";
 import {append,ensureConversation,changed,lockEndpoint,publicConversation,publicMessage,type Tx} from "./conversation-timeline.js";
 import {receiptReference} from "./prospect-receipt-reference.js";
 import type {InboundPayload} from "./prisma-prospect-meta-inbox.js";
+import {validateProspectingMaxPrice} from "@zyon/shared-types";
 
 const earliest=(old:Date|null,at:Date|null)=>old&&at?(old<at?old:at):old??at;
 const latest=(old:Date|null,at:Date|null)=>old&&at?(old>at?old:at):old??at;
@@ -85,10 +86,11 @@ export class PrismaProspectConversationRepository{
    if(["sent","read","delivered"].includes(p.status??"")){
     const isRead=p.status==="read",isDelivered=isRead||p.status==="delivered";
     const state=msg.state==="read"||isRead?"read":msg.state==="delivered"||isDelivered?"delivered":"provider_accepted";
-    const evidence={state,acceptedAt:earliest(msg.acceptedAt,p.status==="sent"?at:null),deliveredAt:earliest(msg.deliveredAt,isDelivered?at:null),readAt:earliest(msg.readAt,isRead?at:null)};
+    const evidence={state,acceptedAt:earliest(msg.acceptedAt,p.status==="sent"?at:null),deliveredAt:earliest(msg.deliveredAt,isDelivered?at:null),readAt:earliest(msg.readAt,isRead?at:null),errorCode:null as string|null};
     if(msg.attemptId){
-     const attempt=await tx.outreachAttempt.findUniqueOrThrow({where:{id:msg.attemptId},include:{recipient:true}});
+     const attempt=await tx.outreachAttempt.findUniqueOrThrow({where:{id:msg.attemptId},include:{recipient:{include:{campaign:true}}}});
      if(attempt.providerMessageId&&attempt.providerMessageId!==p.providerId)return "unmatched";
+     if(attempt.errorCode==="provider_cost_exceeds_cap")evidence.errorCode=attempt.errorCode;
      if(attempt.recipient){
       const r=attempt.recipient;
       if(attempt.costState==="reserved"){
@@ -101,8 +103,22 @@ export class PrismaProspectConversationRepository{
        const lead=await tx.platformProspect.findUniqueOrThrow({where:{id:r.prospectId}});
        await tx.platformProspect.update({where:{id:r.prospectId},data:{firstDeliveredAt:earliest(lead.firstDeliveredAt,at),lastDeliveredAt:latest(lead.lastDeliveredAt,at)}});
       }
+      if(isDelivered&&p.providerCost?.currency==="BRL"&&/^\d+$/.test(p.providerCost.amountMicros)&&["reserved","committed"].includes(attempt.costState)){
+       let cap;try{cap=validateProspectingMaxPrice((r.campaign.template as {maxPrice?:unknown}|null)?.maxPrice);}catch{/* Preserve the conservative reservation when the stored cap is invalid. */}
+       if(cap){
+        const reported=BigInt(p.providerCost.amountMicros),prior=attempt.providerCostMicros;
+        const observed=prior!==null&&prior>reported?prior:reported;
+        const rounded=(observed+9999n)/10000n,previous=prior===null?attempt.reservedAmount:(prior+9999n)/10000n;
+        const exceeded=observed>BigInt(cap.amountPerThousandMinor)*10n;
+        if(prior===null||observed!==prior){
+         await tx.prospectCampaign.update({where:{id:r.campaignId},data:{spentCents:{increment:rounded-previous},...(exceeded&&r.campaign.state==="running"?{state:"paused"}:{})}});
+         await tx.outreachAttempt.update({where:{id:attempt.id},data:{providerCostMicros:observed}});
+        }
+        if(exceeded)evidence.errorCode="provider_cost_exceeds_cap";
+       }
+      }
      }
-     await tx.outreachAttempt.update({where:{id:attempt.id},data:{...evidence,providerMessageId:p.providerId,costState:"committed",errorCode:null}});
+     await tx.outreachAttempt.update({where:{id:attempt.id},data:{...evidence,providerMessageId:p.providerId,costState:"committed",errorCode:evidence.errorCode??null}});
      if(attempt.ordinal===0&&evidence.deliveredAt)await tx.prospectSequence.update({where:{id:attempt.sequenceId},data:{deliveredAt:evidence.deliveredAt}});
      await tx.prospectOutbox.updateMany({where:{eventId:attempt.id},data:{state:"completed",leaseToken:null,leaseExpiresAt:null}});
     }else {
