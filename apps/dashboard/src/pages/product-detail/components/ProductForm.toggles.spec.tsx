@@ -55,6 +55,12 @@ async function formFixture(options: { type?: ProductFormProps["productType"]; ed
   return { host, state: () => snapshot, submitted: () => submitted };
 }
 
+async function durationInput(host: HTMLElement, value: string) {
+  const label = Array.from(host.querySelectorAll<HTMLLabelElement>("label[for]")).find(item => item.textContent?.trim() === "Duração em minutos")!;
+  const input = document.getElementById(label.htmlFor) as HTMLInputElement;
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value); input.dispatchEvent(new Event("input", { bubbles: true })); });
+}
+
 describe("CAT-03 catalog boolean toggles", () => {
   it("changes Active with its labelled switch and preserves its exact boolean state", async () => {
     const f = await formFixture(); const control = labelledSwitch(f.host, "Ativo");
@@ -70,25 +76,24 @@ describe("CAT-03 catalog boolean toggles", () => {
     expect(f.host.querySelectorAll('[role="switch"]')).toHaveLength(0); expect(f.state().active).toBe(true); expect(f.submitted()).toBe(0);
   });
 
-  it("enables the original schedule defaults and removes only serviceSchedule when turned off", async () => {
+  it("stores explicit service duration and delegates its grade without an independent schedule toggle", async () => {
     const original: ProductMetadata = { serviceType: "remoto", remoteLink: "https://example.test/meet", notes: "Preservar" };
-    const f = await formFixture({ type: "service", metadata: original }); const control = labelledSwitch(f.host, "Exigir escolha de data e horário");
-    expect(control.button.getAttribute("aria-checked")).toBe("false");
-    await act(async () => control.button.click());
+    const f = await formFixture({ type: "service", metadata: original });
+    expect(f.host.textContent).not.toContain("Exigir escolha de data e horário"); expect(f.state().metadata).toEqual(original);
+    await durationInput(f.host, "30");
     expect(f.state().metadata).toEqual({ ...original, serviceSchedule: { timeZone: "America/Sao_Paulo", durationMinutes: 30, slots: [] } });
-    expect(control.button.getAttribute("aria-checked")).toBe("true");
-    await act(async () => control.label.click());
-    expect(f.state().metadata).toEqual(original); expect(Object.hasOwn(f.state().metadata, "serviceSchedule")).toBe(false); expect(f.submitted()).toBe(0);
+    await durationInput(f.host, "45");
+    expect(f.state().metadata).toEqual({ ...original, serviceSchedule: { timeZone: "America/Sao_Paulo", durationMinutes: 45, slots: [] } });
+    expect(f.host.querySelector('a[href="#service-attendance?tab=availability"]')).not.toBeNull(); expect(f.submitted()).toBe(0);
   });
 
-  it("loads a saved schedule and retains validation and the old off/on reset semantics", async () => {
+  it("loads a saved duration and retains its validation and historical schedule without off/on reset", async () => {
     const original: ProductMetadata = { serviceType: "presencial", serviceSchedule: { timeZone: "America/Manaus", durationMinutes: 45, slots: [{ id: "slot-a", date: "2030-02-04", startTime: "10:30" }] } };
     const f = await formFixture({ type: "service", metadata: original, errors: { serviceSchedule: "Revise este horário" } });
-    const control = labelledSwitch(f.host, "Exigir escolha de data e horário");
-    expect(control.button.getAttribute("aria-checked")).toBe("true"); expect(f.state().metadata).toEqual(original);
+    expect(f.host.textContent).not.toContain("Exigir escolha de data e horário"); expect(f.state().metadata).toEqual(original);
     expect(f.host.querySelector('[role="alert"]')?.textContent).toBe("Revise este horário");
-    await act(async () => control.button.click()); await act(async () => control.button.click());
-    expect(f.state().metadata).toEqual({ serviceType: "presencial", serviceSchedule: { timeZone: "America/Sao_Paulo", durationMinutes: 30, slots: [] } });
+    await durationInput(f.host, "60");
+    expect(f.state().metadata).toEqual({ ...original, serviceSchedule: { ...original.serviceSchedule, durationMinutes: 60 } }); expect(f.submitted()).toBe(0);
   });
 
   it("retains food required/minimum rules and all unrelated group and item values", async () => {
@@ -113,8 +118,14 @@ describe("CAT-03 catalog boolean toggles", () => {
   it.each(["service", "food"] as const)("keeps %s toggles inert inside the disabled editor", async type => {
     const group = foodGroup("group", "Escolhas"); const f = await formFixture({ type, disabled: true, groups: type === "food" ? [group] : [] });
     const before = structuredClone(f.state());
-    const switches = Array.from(f.host.querySelectorAll<HTMLButtonElement>('[role="switch"]')); expect(switches).toHaveLength(2);
+    const switches = Array.from(f.host.querySelectorAll<HTMLButtonElement>('[role="switch"]')); expect(switches).toHaveLength(type === "service" ? 1 : 2);
     await act(async () => { for (const control of switches) { expect(control.matches(":disabled")).toBe(true); control.click(); } });
+    if (type === "service") {
+      const label = Array.from(f.host.querySelectorAll<HTMLLabelElement>("label[for]")).find(item => item.textContent?.trim() === "Duração em minutos");
+      expect(label).toBeDefined(); const duration = document.getElementById(label!.htmlFor) as HTMLInputElement;
+      expect(duration.matches(":disabled")).toBe(true);
+      await act(async () => { duration.click(); duration.focus(); }); expect(document.activeElement).not.toBe(duration);
+    }
     expect(f.state()).toEqual(before); expect(f.submitted()).toBe(0);
   });
 

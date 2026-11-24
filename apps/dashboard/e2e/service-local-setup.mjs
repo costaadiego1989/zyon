@@ -7,6 +7,7 @@ import {installAttendanceFixture,prepareAttendanceFixtures} from './service-atte
 import {installProfessionalFixture,prepareProfessionalFixtures} from './service-professionals-fixture.mjs';
 import {installCategoryFixture,prepareCategoryFixtures} from './service-categories-fixture.mjs';
 import {installCatalogProfessionalFixture,prepareCatalogProfessionalFixtures} from './service-catalog-professionals-fixture.mjs';
+import {installAvailabilityFixture,prepareAvailabilityFixtures} from './service-availability-fixture.mjs';
 import {dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createServiceTestRuntime} from '../../api/tests/service-test-runtime.mjs';
@@ -76,6 +77,7 @@ export default async function setup(options={}){
     const professionalFixtures=options.professionals===true?await prepareProfessionalFixtures(runtime):undefined;
     const categoryFixtures=options.categories===true?await prepareCategoryFixtures(runtime):undefined;
     const catalogProfessionalFixtures=options.catalogProfessionals===true?await prepareCatalogProfessionalFixtures(runtime):undefined;
+    const availabilityFixtures=options.availability===true?await prepareAvailabilityFixtures(runtime):undefined;
     process.env.VITE_API_BASE_URL=origin;
     process.env.SERVICE_LOCAL_ORIGIN=origin;
     process.env.SERVICE_LOCAL_RUN_ID=runtime.db.runId;
@@ -89,6 +91,7 @@ export default async function setup(options={}){
       if(professionalFixtures)installProfessionalFixture(vite,runtime,professionalFixtures);
       if(categoryFixtures)installCategoryFixture(vite,runtime,categoryFixtures);
       if(catalogProfessionalFixtures)installCatalogProfessionalFixture(vite,runtime,catalogProfessionalFixtures);
+      if(availabilityFixtures)installAvailabilityFixture(vite,runtime,availabilityFixtures);
       vite.middlewares.use((request,response,next)=>{
         if(request.url==='/__service/signup-oauth'&&request.method==='POST'){
           // Owned synthetic pending-OAuth state. No OAuth provider is contacted.

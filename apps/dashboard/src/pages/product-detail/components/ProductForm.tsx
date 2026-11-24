@@ -8,6 +8,7 @@ import type { FoodOptionGroupDraft } from "../hooks/useProductForm.js";
 import { MAX_OPTION_GROUPS, MAX_ITEMS_PER_GROUP, emptyFoodOptionGroup, emptyFoodOptionItem } from "../hooks/useProductForm.js";
 import { maximumFoodOptionPrice } from "../utils/food-options-validation.js";
 import { ServiceScheduleEditor } from "./ServiceScheduleEditor.js";
+import { ServiceDurationFields } from "./ServiceDurationFields.js";
 import { PRODUCT_TYPE_NAMES, productTypeMatchesBusinessMode, type CatalogBusinessMode } from "../utils/catalog-business-mode.js";
 
 export interface ProductFormProps {
@@ -196,13 +197,15 @@ export function ProductForm(props: ProductFormProps) {
                 <option value="remoto">Remoto</option>
               </select>
             </label>
+            {businessMode === "services" ? <ServiceDurationFields metadata={metadata} error={formErrors.serviceSchedule} onChange={onMetadataChange} /> : (
             <ServiceScheduleEditor value={metadata.serviceSchedule} error={formErrors.serviceSchedule} onChange={(serviceSchedule) => {
               const next = { ...metadata };
               if (serviceSchedule === undefined) delete next.serviceSchedule;
               else next.serviceSchedule = serviceSchedule;
               onMetadataChange(next);
             }} />
-            <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0 }}>Período da oferta (opcional). Os horários escolhidos pelo comprador são configurados acima.</p>
+            )}
+            <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0 }}>{businessMode === "services" ? "Período da oferta (opcional). A disponibilidade é gerenciada por profissional no Atendimento." : "Período da oferta (opcional). Os horários escolhidos pelo comprador são configurados acima."}</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
               <DateTimeField label="Data Inicial" type="date" value={metadata.startDate ?? ""} onChange={(val) => onMetadataChange({ ...metadata, startDate: val })} />
               <DateTimeField label="Hora Inicial" type="time" value={metadata.startTime ?? ""} onChange={(val) => onMetadataChange({ ...metadata, startTime: val })} />

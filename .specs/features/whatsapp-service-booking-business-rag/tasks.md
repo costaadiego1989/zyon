@@ -1796,20 +1796,22 @@ T107 → T106
 
 ### T78: Edit availability and blocks from one panel
 
+**Status**: Complete - local task gate passed; scoped evidence in task-78-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Grade/fuso/avulso/bloqueio com preview canônico; conflito confirmado bloqueia salvar sem cancelar; descontinuar escrita independente do ServiceScheduleEditor quando nova autoridade ativa. For canonical service businesses, align the existing catalog editor with professional-owned availability: retain modality/location/duration and direct availability to Atendimento instead of presenting legacy per-variant slots as another capacity authority. Preserve historical metadata and product flows; do not silently convert stored schedules.
 **Where**: `apps/dashboard/src/pages/service-attendance/components/AvailabilityPanel.tsx`
 **Depends on**: T77, T47
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-04, ATEND-05, ATEND-09
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] AvailabilityPanel.spec.tsx + browser recorrente/avulso/bloco/conflito/fuso e paridade de slots nos três leitores.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] AvailabilityPanel.spec.tsx + browser recorrente/avulso/bloco/conflito/fuso e paridade de slots nos três leitores.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: AvailabilityPanel.spec.tsx + browser recorrente/avulso/bloco/conflito/fuso e paridade de slots nos três leitores.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/AvailabilityPanel.spec.tsx -t "^T78$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T78$"` Teste raiz T78 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/AvailabilityPanel.spec.tsx` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-availability-local.config.ts e2e/service-availability.spec.ts`. Whole original files, no name filters/skips; original resources, workers, timeouts, cleanup, all adopted affected regressions and final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t78 edit availability and blocks from one panel`
 
 ### T79: Create a manual booking with explicit one-off time

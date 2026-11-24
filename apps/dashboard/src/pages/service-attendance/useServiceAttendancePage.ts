@@ -157,6 +157,15 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
     return true;
   }
 
+  async function reconcileAvailability(readGrade: () => Promise<boolean>): Promise<boolean> {
+    const scope = context, issue = commandIssue.current;
+    if (!await refreshContext(scope, false) || !isCurrent(scope)) return false;
+    try { if (!await readGrade()) return false; } catch { return false; }
+    if (!isCurrent(scope) || commandIssue.current !== issue) return false;
+    if (issue?.context === scope) { commandIssue.current = null; setCommand({ context: scope, status: "idle" }); }
+    return true;
+  }
+
   async function loadAvailability(resources: { productId: string; variantId: string }, date?: string): Promise<void> {
     if (!isCurrent(context) || !context) return;
     const filter = filters, key = selectors, sequence = ++availabilitySequence.current;
@@ -182,7 +191,7 @@ export function useServiceAttendancePage({ me }: { me: MerchantProfile | null })
   const availability: AvailabilityState = availabilityState.context === context && availabilityState.selectors === selectors
     ? availabilityState : { context, selectors, status: "idle", data: null };
   return {
-    allowed, filters, setFilters, loadState, command, availability, refresh: () => refreshContext(context, true), reconcileCategories,
+    allowed, filters, setFilters, loadState, command, availability, refresh: () => refreshContext(context, true), reconcileCategories, reconcileAvailability,
     loadAvailableDates: (resources: { productId: string; variantId: string }) => loadAvailability(resources),
     loadAvailableSlots: (resources: { productId: string; variantId: string }, date: string) => loadAvailability(resources, date),
     actions: {

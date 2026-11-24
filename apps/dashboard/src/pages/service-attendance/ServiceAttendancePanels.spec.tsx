@@ -8,7 +8,7 @@ import { ServiceAttendancePage } from "./ServiceAttendancePage.js";
 
 const me: MerchantProfile = { id: "merchant-a", user_id: "owner-a", name: "A", role: "OWNER", businessMode: "services", businessModeSelectionState: "selected" };
 const professional = { id: "professional-a", merchantId: me.id, publicName: "Ana", publicProfile: {}, isActive: true, isPublished: true, timeZone: "America/Sao_Paulo", version: 2, services: [] };
-const grade = { professionalId: professional.id, version: 2, timeZone: "America/Sao_Paulo", rows: [{ id: "row-a", weekday: 1, startMinute: 480, endMinute: 720, timeZone: "America/Sao_Paulo" }], exceptions: [], nextCursor: null };
+const grade = { professionalId: professional.id, version: 2, timeZone: "America/Sao_Paulo", rows: [{ id: "row-a", merchantId: me.id, professionalId: professional.id, weekday: 1, startMinute: 480, endMinute: 720, timeZone: "America/Sao_Paulo", validFrom: null, validUntil: null, isActive: true, version: 2, createdAt: "2026-11-17T00:00:00.000Z", updatedAt: "2026-11-17T00:00:00.000Z" }], exceptions: [], nextCursor: null };
 const mounts: Array<{ root: Root; host: HTMLDivElement }> = [];
 afterEach(async () => { for (const { root, host } of mounts.splice(0)) { await act(async () => root.unmount()); host.remove(); } });
 async function fixture(options: { tab?: string; current?: MerchantProfile; read?: () => Promise<Response> | Response } = {}) {

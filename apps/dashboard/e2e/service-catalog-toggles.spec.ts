@@ -115,15 +115,14 @@ test('CAT-03 product Active and food Required switches persist the existing valu
   await open(page,auth,created.product.id,'Alimentação local T105');await expect(required).toHaveAttribute('aria-checked','false');await expect(active).toHaveAttribute('aria-checked','false');
 });
 
-test('CAT-03 service schedule switch persists and removes only its existing schedule metadata',async({page,context,request})=>{
+test('CAT-03 service duration persists while its grade is delegated to Atendimento',async({page,context,request})=>{
   const auth=await enter(page,context,request,'services');await basic(page,'Serviço local T105','service-t105');await page.getByLabel(/^Modalidade \*/).selectOption('presencial');
-  const schedule=page.getByRole('switch',{name:'Exigir escolha de data e horário',exact:true});await expect(schedule).toHaveAttribute('aria-checked','false');await keyboardToggle(schedule,true);
-  await page.getByLabel('Duração em minutos',{exact:true}).fill('45');await page.getByRole('button',{name:'Adicionar horário',exact:true}).click();
-  await page.getByLabel('Data do horário 1',{exact:true}).fill('2030-02-04');await page.getByLabel('Início do horário 1',{exact:true}).fill('10:30');
-  const created=await saveNew(page,auth,'services');expect(created.body).toMatchObject({type:'service',metadata:{serviceType:'presencial',serviceSchedule:{timeZone:'America/Sao_Paulo',durationMinutes:45,slots:[{date:'2030-02-04',startTime:'10:30'}]}}});
-  await open(page,auth,created.product.id,'Serviço local T105');await expect(schedule).toHaveAttribute('aria-checked','true');await capture(page,schedule,'service');
+  await expect(page.getByRole('switch',{name:'Exigir escolha de data e horário',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'Adicionar horário',exact:true})).toHaveCount(0);
+  const duration=page.getByLabel('Duração em minutos',{exact:true});await duration.fill('45');
+  const created=await saveNew(page,auth,'services');expect(created.body).toMatchObject({type:'service',metadata:{serviceType:'presencial',serviceSchedule:{timeZone:'America/Sao_Paulo',durationMinutes:45,slots:[]}}});
+  await open(page,auth,created.product.id,'Serviço local T105');await expect(duration).toHaveValue('45');await expect(page.getByRole('link',{name:'Gerenciar horários no Atendimento',exact:true})).toHaveAttribute('href','#service-attendance?tab=availability');await capture(page,duration,'service');
   const before=await read(request,auth,created.product.id);expect(before.metadata).toEqual(created.body.metadata);
-  await keyboardToggle(schedule,false);const body=await saveExisting(page,auth,created.product.id,'services');expect(body.product.metadata).toEqual({serviceType:'presencial'});
-  const stored=await read(request,auth,created.product.id);expect(stored).toMatchObject({id:created.product.id,type:'service',isActive:true});expect(stored.metadata).toEqual({serviceType:'presencial'});
-  await open(page,auth,created.product.id,'Serviço local T105');await expect(schedule).toHaveAttribute('aria-checked','false');await expect(page.getByLabel(/^Modalidade \*/)).toHaveValue('presencial');
+  await duration.fill('60');const body=await saveExisting(page,auth,created.product.id,'services');expect(body.product.metadata).toEqual({serviceType:'presencial',serviceSchedule:{timeZone:'America/Sao_Paulo',durationMinutes:60,slots:[]}});
+  const stored=await read(request,auth,created.product.id);expect(stored).toMatchObject({id:created.product.id,type:'service',isActive:true});expect(stored.metadata).toEqual(body.product.metadata);
+  await open(page,auth,created.product.id,'Serviço local T105');await expect(duration).toHaveValue('60');await expect(page.getByLabel(/^Modalidade \*/)).toHaveValue('presencial');
 });
