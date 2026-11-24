@@ -18,7 +18,7 @@ import { lockCatalogMerchant } from "../src/shared/persistence/catalog-stock-led
 // Approval rows are synthetic local PSP evidence. Canonical SQL/Redis, HTTP
 // identity, inbox and transaction rollback are real; no payment dispatch occurs.
 test("T36 approved late payment keeps real money and truthful regularization", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture(), previousRedis = process.env.REDIS_URL;
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" }), previousRedis = process.env.REDIS_URL;
   let redis: Redis | undefined;
   try {
     process.env.REDIS_URL = f.runtime.redis.url;

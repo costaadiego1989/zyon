@@ -19,7 +19,7 @@ import { PaymentApprovedHandler } from "../src/modules/checkout/application/hand
 import { CompleteOrderUseCase } from "../src/modules/checkout/application/use-cases/complete-order.use-case.js";
 
 test("T36 real approval producer and durable payment reconciliation", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture(), tenant = new TenantContextService();
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" }), tenant = new TenantContextService();
   const command = new ReconcileServicePaymentUseCase(f.prisma, new InMemoryDomainEventBus(), tenant);
   const scopedSnapshot = async (c: any) => ({ payment: await f.prisma.paymentIntent.findUniqueOrThrow({ where: { id: c.payment.id } }),
     appointments: await f.prisma.serviceAppointment.findMany({ where: { merchantId: c.merchantId, orderId: c.order.id } }),

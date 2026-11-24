@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { modeledUnitServiceRelease } from "../../../../tests/service-release-modeled-unit.fixture.mjs";
 import test from "node:test";
 import type { Prisma } from "@prisma/client";
 import { saveAvailabilityException } from "./save-availability-exception.use-case.js";
@@ -58,8 +59,16 @@ function fixture() {
   return { tx, professional, state, snapshot, command };
 }
 
+const originalFixture = fixture;
+function modeledFixture(context: { after: (callback: () => void) => unknown }, ...args: Parameters<typeof originalFixture>) {
+  const f = originalFixture(...args), modeledLedger = modeledUnitServiceRelease(context);
+  f.tx.$queryRaw = modeledLedger.wrapQueryRaw(f.tx.$queryRaw) as typeof f.tx.$queryRaw;
+  return Object.assign(f, { modeledLedger });
+}
+
 test("T40 focused manual Brasilia interval on a legacy professional uses the coupled canonical writer", async t => {
-  await t.test("real manual command creates its BR one-off, canonical appointment and pending local balance while preserving the old professional zone", async () => {
+  await t.test("real manual command creates its BR one-off, canonical appointment and pending local balance while preserving the old professional zone", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), made = await createManualServiceAppointmentWithin(f.tx, actor, f.command, { clock: () => now });
     assert.equal(made.appointment.timeZone, "America/Sao_Paulo"); assert.equal(made.appointment.startsAt.toISOString(), interval.startsAt);
     assert.equal(made.appointment.endsAt.toISOString(), interval.endsAt); assert.equal(made.appointment.operationalStatus, "scheduled");

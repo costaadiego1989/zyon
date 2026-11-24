@@ -21,6 +21,7 @@ import { MerchantController } from "./presentation/merchant.controller.js";
 import { CryptoPaymentsController } from "./presentation/http/crypto-payments.controller.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { ServiceBusinessPolicyController } from "./presentation/http/service-business-policy.controller.js";
+import { ServiceActivationReadinessService } from "./application/service-activation-readiness.service.js";
 import { ConfigureServiceBusinessPolicyUseCase } from "./application/configure-service-business-policy.use-case.js";
 import { BusinessModeController } from "./presentation/http/business-mode.controller.js";
 import { ChangeBusinessModeUseCase } from "./application/change-business-mode.use-case.js";
@@ -35,6 +36,7 @@ import { ChangeBusinessModeUseCase } from "./application/change-business-mode.us
     GetMerchantThemeUseCase,
     UpdateMerchantThemeUseCase,
     ConfigureServiceBusinessPolicyUseCase,
+    ServiceActivationReadinessService,
     ChangeBusinessModeUseCase,
     EnableCryptoPaymentsUseCase,
     MerchantStoreService,

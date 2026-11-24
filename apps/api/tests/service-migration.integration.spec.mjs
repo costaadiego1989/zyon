@@ -16,7 +16,7 @@ test('T5',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
     const before=await baselineSnapshot(db);
     await t.test('real deploy preserves legacy commerce and leaves ambiguous services explicit',async()=>{
       await migrationCli(db,['migrate','deploy']);
-      assert.deepEqual(await baselineSnapshot(db),before);
+      assert.deepEqual(await baselineSnapshot(db,{serviceOriginColumns:true}),before);
       const modes=JSON.parse(await db.sql(`SELECT jsonb_object_agg(id,jsonb_build_array(business_mode,business_mode_needs_review,business_mode_selected_at)) FROM merchants WHERE id LIKE 'base-%';`));
       assert.deepEqual(modes,{'base-products':['products',false,null],'base-legacy-service':['products',true,null],
         'base-mixed':['products',true,null],'base-other':['products',false,null]});
@@ -30,7 +30,7 @@ test('T5',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
       assert.equal(ledger,`${sha(sql)}:1`);
       await migrationCli(db,['migrate','deploy']);
       assert.equal(await db.sql(`SELECT count(*) FROM _prisma_migrations WHERE migration_name='${migrationName}'`),'1');
-      assert.deepEqual(await baselineSnapshot(db),before);
+      assert.deepEqual(await baselineSnapshot(db,{serviceOriginColumns:true}),before);
     });
     await t.test('runtime schema parity rejects an unrelated database change',async()=>{
       await assertServiceSchema(db);
@@ -68,7 +68,7 @@ test('T5',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
         insert('professional_services',{id:'fixture-foreign-link',merchant_id:'fixture-services',professional_id:'fixture-rollback-prof',product_id:'base-other-physical',updated_at:at})+'COMMIT;'),/foreign key constraint/i);
       assert.equal(await db.sql("SELECT count(*) FROM service_professionals WHERE id='fixture-rollback-prof'"),'0');
       await assert.rejects(db.sql(insert('service_appointments',appointment('fixture-foreign-variant',{variant_id:'base-other-physical-variant'}))),/foreign key constraint/i);
-      assert.deepEqual(await baselineSnapshot(db),before);
+      assert.deepEqual(await baselineSnapshot(db,{serviceOriginColumns:true}),before);
     });
     await t.test('confirmed intervals reject overlap while adjacent intervals remain available',async()=>{
       const confirmed={operational_status:'scheduled',confirmed_at:at};

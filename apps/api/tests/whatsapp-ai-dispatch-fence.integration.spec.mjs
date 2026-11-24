@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {composeOwnedDistServiceRelease} from './service-release-dist-process.fixture.mjs';
 import test from 'node:test';
 import {createHash,randomUUID} from 'node:crypto';
 import {PrismaClient} from '@prisma/client';
@@ -10,6 +11,7 @@ const deferred=()=>{let resolve;const promise=new Promise(done=>{resolve=done;})
 test('T51 original-turn transaction and request admission',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
   const f=await createAgendaDbFixture();
   try{
+    const releaseFixtureScope=composeOwnedDistServiceRelease('matching');t.after(()=>releaseFixtureScope.close());
     const {WhatsAppAiDispatchFence}=await import('../dist/modules/whatsapp-channel/application/services/whatsapp-ai-dispatch-fence.js');
     const {PrismaWhatsAppHandoffRepository}=await import('../dist/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.js');
     const {WhatsAppTurnContext}=await import('../dist/modules/whatsapp-channel/domain/services/whatsapp-turn-context.js');

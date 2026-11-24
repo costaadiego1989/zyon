@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createProfessionalHttpFixture } from "./service-professional-http-fixture.mjs";
 
-export async function createServiceOperationsHttpFixture(options: { whatsapp?: true } = {}) {
+export async function createServiceOperationsHttpFixture(options: { whatsapp?: true; serviceReleaseFixture?: "matching" | "missing" } = {}) {
   const f = await createProfessionalHttpFixture(options), { prisma, runtime } = f;
   const request = async (path: string, body: unknown, auth: any = f.owner, method = "POST") => {
     const correlationId = randomUUID(), response = await fetch(runtime.apiOrigin + path, { method, redirect: "error", signal: AbortSignal.timeout(15_000),

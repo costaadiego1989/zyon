@@ -277,6 +277,25 @@ export class HandleMercadoPagoWebhookUseCase {
     if (statusOutput.externalReference && statusOutput.externalReference !== ref.id) {
       throw new BadRequestException("mercadopago_webhook_intent_mismatch");
     }
+    if (statusOutput.state === "approved") {
+      // The signature authenticates the notification, not its financial value.
+      // Validate observed facts before consuming an event or dispatching any
+      // financial transition. The amount/currency of this intent are immutable.
+      const intent = await this.payments.getIntentById(ref.merchantId, ref.id);
+      if (!intent) return statusOutput.state;
+      const snapshot = intent.snapshot();
+      if (statusOutput.externalReference !== snapshot.id ||
+          snapshot.creation?.input.provider !== undefined && snapshot.creation.input.provider !== "mercadopago") {
+        throw new BadRequestException("mercadopago_webhook_intent_mismatch");
+      }
+      if (!Number.isSafeInteger(statusOutput.approvedAmountCents) ||
+          statusOutput.approvedAmountCents !== snapshot.amountCents) {
+        throw new BadRequestException("mercadopago_webhook_value_mismatch");
+      }
+      if (statusOutput.currency !== snapshot.currency) {
+        throw new BadRequestException("mercadopago_webhook_currency_mismatch");
+      }
+    }
     return statusOutput.state;
   }
 }

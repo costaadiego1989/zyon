@@ -38,6 +38,7 @@ import { SupportHandoffService } from "../../../support/application/support-hand
 import { AgentCopyService } from "../copy/agent-copy.service.js";
 import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
 import { resolveSupportNavigation } from "../shortcuts/support-navigation.shortcut.js";
+import { serviceAppointmentChangeIntent } from "../../../support/domain/service-appointment-change-intent.js";
 import { executeStorefrontUiAction } from "../agents/storefront-ui-action.executor.js";
 import { SubmitCustomerTestimonialUseCase } from "../../../catalog/application/use-cases/submit-customer-testimonial.use-case.js";
 import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
@@ -234,6 +235,14 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     // Keep them independent of model availability, persona and prior sales turns.
     // These actions need no media interpretation or one-click checkout context.
     // Leave deferred IO untouched; unrelated prose still prepares below.
+    if (!input.attachmentContext && serviceAppointmentChangeIntent(input.userMessage)) {
+      const change = await this.handlerDeps.supportHandoff.requestServiceAppointmentChange({
+        merchantId: input.merchantId, sessionId: input.sessionId, buyerId: ctx.buyer?.globalUserId,
+        buyerMessage: input.userMessage, initialMessage: input.userMessage,
+      });
+      if (change) return { message: change.reply, blocks: [], cartId: input.cartId || input.sessionId,
+        suggestedNext: change.confirmed ? ["Meus Dados", "Menu principal"] : ["Meus Dados", "Falar com atendente"] };
+    }
     const navigation = await resolveSupportNavigation(input, getHandlers);
     if (navigation) return navigation;
     // Preparing owns classification exactly once, regardless of legacy routing.

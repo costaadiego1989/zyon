@@ -7,6 +7,7 @@ import { PlatformMerchantDirectoryModule } from "./modules/platform-merchant-dir
 import { PlatformInfrastructureModule } from "./modules/platform-infrastructure/platform-infrastructure.module.js";
 import { PlatformCommerceModule } from "./modules/platform-commerce/platform-commerce.module.js";
 import { BillingPromotionsModule } from "./modules/billing-promotions/billing-promotions.module.js";
+import { ServiceActivationModule } from "./shared/bookings/service-activation.module.js";
 import { ServiceSlotHoldsModule } from "./shared/bookings/service-slot-holds.module.js";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
@@ -77,6 +78,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     ObservabilityModule,
     HttpModule,
     PersistenceModule,
+    ServiceActivationModule,
     ServiceSlotHoldsModule,
     DataRetentionModule,
     MessagingModule,

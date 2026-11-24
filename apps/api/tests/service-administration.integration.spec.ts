@@ -7,7 +7,7 @@ import { ReadServiceAppointments } from "../src/modules/operations/application/r
 import { noAppointmentLease } from "../src/shared/bookings/appointment-lease-proof.js";
 
 test("T41 HTTP and SQL reads", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture();
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" });
   try {
     const c = await f.prepare("reader"), { prisma } = f;
     const source = await prisma.serviceAppointment.findUniqueOrThrow({ where: { id: c.appointment.id } });

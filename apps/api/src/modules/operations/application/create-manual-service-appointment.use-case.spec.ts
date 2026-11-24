@@ -1,5 +1,6 @@
 // T31 criterion components. Preserves all12 prepared cases; first runtime is pending.
 import assert from "node:assert/strict";
+import { modeledUnitServiceRelease } from "../../../../tests/service-release-modeled-unit.fixture.mjs";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { slotFingerprint, withOriginalSlotLeaseProof } from "../../../shared/bookings/redis-service-slots.js";
@@ -93,7 +94,10 @@ function fixture(paymentMode: "online" | "at_attendance" = "at_attendance", hold
       create: async ({ data }: any) => { const row = { ...data, id: "exception-" + (state.exceptions.length + 1), version: 1 };
         state.exceptions.push(row); return row; },
     },
-    checkoutSession: { findFirst: async ({ where }: any) => state.customers.find((row: any) => row.merchantId === where.merchantId
+    checkoutSession: {
+      findUnique: async ({ where }: any) => state.customers.find((row: any) => row.merchantId === where.merchantId_sessionId.merchantId
+        && row.sessionId === where.merchantId_sessionId.sessionId) ?? null,
+      findFirst: async ({ where }: any) => state.customers.find((row: any) => row.merchantId === where.merchantId
       && row.globalUserId === where.globalUserId) ?? null },
     serviceAppointment: {
       findUnique: async ({ where }: any) => state.appointments.find((row: any) => row.merchantId === where.merchantId_idempotencyKey.merchantId
@@ -138,8 +142,16 @@ function fixture(paymentMode: "online" | "at_attendance" = "at_attendance", hold
   };
 }
 
+const originalFixture = fixture;
+function modeledFixture(context: { after: (callback: () => void) => unknown }, ...args: Parameters<typeof originalFixture>) {
+  const f = originalFixture(...args), modeledLedger = modeledUnitServiceRelease(context);
+  f.tx.$queryRaw = modeledLedger.wrapQueryRaw(f.tx.$queryRaw) as typeof f.tx.$queryRaw;
+  return Object.assign(f, { modeledLedger });
+}
+
 test("T31", async t => {
-  await t.test("explicit one-off and local appointment share canonical time/price/version and unpaid balance", async () => {
+  await t.test("explicit one-off and local appointment share canonical time/price/version and unpaid balance", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), result = await f.run();
     assert.equal(result.professionalVersion, 4); assert.equal(f.state.exceptions.length, 1);
     assert.equal(result.appointment.availabilityExceptionId, f.state.exceptions[0].id);
@@ -152,7 +164,8 @@ test("T31", async t => {
     assert.equal(f.state.audits.length, 1); assert.equal(f.state.events.length, 1); assert.equal(f.acquired, 0);
     assert.equal(JSON.stringify(f.state.events).includes("buyer@example.test"), false);
   });
-  await t.test("all four existing hold/payment modes keep canonical local or online-pending semantics", async () => {
+  await t.test("all four existing hold/payment modes keep canonical local or online-pending semantics", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     for (const mode of ["at_attendance", "online"] as const) for (const hold of [false, true]) {
       const f = fixture(mode, hold), result = await f.run();
       assert.equal(result.appointment.operationalStatus, mode === "online" ? "pending" : "scheduled");
@@ -170,7 +183,8 @@ test("T31", async t => {
       }
     }
   });
-  await t.test("known customer belongs to the current merchant and arbitrary body identity/price is refused", async () => {
+  await t.test("known customer belongs to the current merchant and arbitrary body identity/price is refused", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), request = { ...input(), customer: { kind: "known" as const, customerId: "known-buyer" } };
     const result = await f.run(request); assert.equal(result.appointment.buyerGlobalUserId, "known-buyer");
     assert.deepEqual(result.appointment.customerSnapshot, { name: "Known buyer", phone: "+5521999990000" });
@@ -180,7 +194,8 @@ test("T31", async t => {
     for (const extra of [{ merchantId: "foreign" }, { actorId: "forged" }, { priceInCents: 1 }, { timeZone: "Pacific/Tahiti" }])
       await assert.rejects(foreign.run({ ...input(), ...extra }), /service_manual_command_invalid/);
   });
-  await t.test("operator role and tenant/canonical professional-service-variant tuple are mandatory", async () => {
+  await t.test("operator role and tenant/canonical professional-service-variant tuple are mandatory", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); await assert.rejects(f.run(input(), { ...actor, role: "staff" }), /service_operator_required/);
     for (const change of [{ professionalId: "foreign" }, { productId: "foreign" }, { variantId: "foreign" }]) {
       const other = fixture(); await assert.rejects(other.run({ ...input(), ...change }), /professional_service_not_found/);
@@ -188,7 +203,8 @@ test("T31", async t => {
     }
     f.state.merchant.businessMode = "products"; await assert.rejects(f.run(), /services_mode_required/);
   });
-  await t.test("outside the grid requires an explicit one-off and still refuses blocks or confirmed capacity", async () => {
+  await t.test("outside the grid requires an explicit one-off and still refuses blocks or confirmed capacity", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); await assert.rejects(f.run({ ...input(), explicitOneOff: undefined }), /service_slot_unavailable/);
     assert.equal(f.state.exceptions.length, 0);
     for (const occupied of ["block", "appointment"]) {
@@ -203,7 +219,8 @@ test("T31", async t => {
     await assert.rejects(confirmed.run({ ...input(), commandId: "second", expectedProfessionalVersion: 4 }), /availability_appointment_conflict/);
     assert.equal(confirmed.state.appointments.length, 1); assert.equal(confirmed.state.exceptions.length, 1);
   });
-  await t.test("regular manual and buyer commands use the same canonical confirmed capacity", async () => {
+  await t.test("regular manual and buyer commands use the same canonical confirmed capacity", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), request = { ...input(), startsAt: "2030-01-02T10:00:00Z", explicitOneOff: undefined };
     const result = await f.run(request); assert.equal(result.professionalVersion, 3); assert.equal(f.state.exceptions.length, 0);
     await assert.rejects(f.prisma.$transaction(tx => admitServiceAppointment(tx, {
@@ -215,7 +232,8 @@ test("T31", async t => {
     }, { clock: () => initialNow })), /service_slot_unavailable/);
     assert.equal(f.state.appointments.length, 1); assert.equal(f.state.payments.length, 1);
   });
-  await t.test("closed or changed policy, stale professional and insufficient identity refuse the composite command", async () => {
+  await t.test("closed or changed policy, stale professional and insufficient identity refuse the composite command", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     for (const scenario of ["closed", "policy", "professional", "contact", "email"]) {
       const f = fixture(), request = input();
       if (scenario === "closed") f.state.policy.admissionsEnabled = false;
@@ -228,7 +246,8 @@ test("T31", async t => {
       assert.equal(f.state.appointments.length, 0); assert.equal(f.state.audits.length, 0); assert.equal(f.state.events.length, 0);
     }
   });
-  await t.test("replay preserves one-off, immutable commercial snapshot and later local receipt under closed policy", async () => {
+  await t.test("replay preserves one-off, immutable commercial snapshot and later local receipt under closed policy", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); const first = await f.run();
     f.state.policy.admissionsEnabled = false; f.state.policy.version = 99; f.state.professional.isActive = false;
     f.state.price.basePriceInCents = 9900; f.state.payments[0].status = "approved"; // synthetic later operator state
@@ -237,19 +256,22 @@ test("T31", async t => {
     assert.equal(f.state.professional.version, 4); assert.equal(f.state.exceptions.length, 1);
     assert.equal(f.state.appointments.length, 1); assert.equal(f.state.audits.length, 1); assert.equal(f.state.events.length, 1);
   });
-  await t.test("a changed original command or actor cannot reuse a previous receipt", async () => {
+  await t.test("a changed original command or actor cannot reuse a previous receipt", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); await f.run(); const before = structuredClone(f.state);
     await assert.rejects(f.run({ ...input(), startsAt: "2030-01-02T15:00:00Z" }), /service_appointment_idempotency_conflict/);
     await assert.rejects(f.run(input(), { ...actor, userId: "another-operator", role: "admin" }), /service_appointment_idempotency_conflict/);
     assert.deepEqual(f.state, before);
   });
-  await t.test("balance, outbox, receipt or lease failure rolls the entire modeled SQL command back", async () => {
+  await t.test("balance, outbox, receipt or lease failure rolls the entire modeled SQL command back", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     for (const stage of ["balance", "outbox", "receipt", "lease"]) {
       const f = fixture("at_attendance", stage === "lease"), before = structuredClone(f.state); f.fail(stage);
       await assert.rejects(f.run(), /synthetic_manual_|service_hold_required/); assert.deepEqual(f.state, before);
     }
   });
-  await t.test("final fresh clock after lease preparation refuses crossing start and timestamps durable local effects once", async () => {
+  await t.test("final fresh clock after lease preparation refuses crossing start and timestamps durable local effects once", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture("at_attendance", true); f.acquireThen(() => f.advance(new Date(input().startsAt)));
     await assert.rejects(f.run(), /service_slot_unavailable/); assert.equal(f.state.exceptions.length, 0);
     assert.equal(f.state.appointments.length, 0); assert.equal(f.state.professional.version, 3);
@@ -260,14 +282,16 @@ test("T31", async t => {
     assert.equal(g.state.audits[0].occurredAt.toISOString(), fresh.toISOString());
     assert.equal(g.state.events[0].occurredAt.toISOString(), fresh.toISOString());
   });
-  await t.test("the original customer and explicit one-off request are snapshotted before any lock await", async () => {
+  await t.test("the original customer and explicit one-off request are snapshotted before any lock await", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), value = input(), pending = f.run(value);
     if (value.customer.kind !== "contact") assert.fail("contact fixture required");
     value.customer.name = "MUTATED-AFTER-CALL"; value.explicitOneOff!.reason = "MUTATED-REASON";
     const result = await pending; assert.deepEqual(result.appointment.customerSnapshot, { name: "Synthetic buyer", email: "buyer@example.test" });
     assert.equal(f.state.exceptions[0].reason, "Private operator note");
   });
-  await t.test("root Prisma input is refused before opening a nested or partial transaction", async () => {
+  await t.test("root Prisma input is refused before opening a nested or partial transaction", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), before = structuredClone(f.state);
     await assert.rejects(createManualServiceAppointmentWithin(f.prisma as unknown as Prisma.TransactionClient, actor, input()),
       /service_manual_transaction_required/); assert.deepEqual(f.state, before);
@@ -275,7 +299,8 @@ test("T31", async t => {
 });
 
 
-test("T33 pending manual retains original acquired proof without adding a confirmation assertion", async () => {
+test("T33 pending manual retains original acquired proof without adding a confirmation assertion", async t => {
+  const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
   const f = fixture("online", true), result = await f.run();
   const capture = f.state.audits[0].after.privateLease;
   assert.equal(result.appointment.operationalStatus, "pending");
@@ -288,7 +313,8 @@ test("T33 pending manual retains original acquired proof without adding a confir
   assert.equal(JSON.stringify(f.state.events).includes(capture.generation), false);
 });
 
-test("T33 owned capture SQL uniqueness maps to conflict and rolls back the pending attempt", async () => {
+test("T33 owned capture SQL uniqueness maps to conflict and rolls back the pending attempt", async t => {
+  const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
   const f = fixture("online", true), before = structuredClone(f.state); f.fail("capture_unique");
   await assert.rejects(f.run(), /service_hold_generation_consumed/); assert.deepEqual(f.state, before);
 });

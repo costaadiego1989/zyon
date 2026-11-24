@@ -7,7 +7,7 @@ import { SERVICE_LOCAL_TEST_MS } from "./service-test-startup.mjs";
 // Real authenticated HTTP/AppModule/SQL. Only pre-existing financial/appointment
 // preconditions are seeded; this file does not claim a real PSP transaction.
 test("T37 HTTP integral local receipt and immutable financial history", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture();
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" });
   try {
     const control = await f.prepare("receipt-control");
     const original = await f.prisma.serviceAppointment.findUniqueOrThrow({ where: { id: control.appointment.id } });

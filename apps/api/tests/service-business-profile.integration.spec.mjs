@@ -7,7 +7,7 @@ import {insert} from './service-migration-fixture.mjs';
 const password='SyntheticPassword123!';
 const sqlText=value=>"'"+String(value).replaceAll("'","''")+"'";
 test('T9',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
-  const runtime=await createServiceTestRuntime({local:true});
+  const runtime=await createServiceTestRuntime({local:true,serviceReleaseFixture:'matching'});
   try{
     const request=async(path,body,token,method='POST')=>{
       const response=await fetch(runtime.apiOrigin+path,{method,redirect:'error',signal:AbortSignal.timeout(15_000),headers:{'content-type':'application/json',...(token?{authorization:'Bearer '+token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});

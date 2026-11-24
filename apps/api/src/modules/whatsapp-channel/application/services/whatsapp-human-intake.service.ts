@@ -6,6 +6,7 @@ import type { IncomingMessageInput } from "../use-cases/handle-incoming-message.
 import type { RouteResult } from "../use-cases/route-to-session.use-case.js";
 import type { MetaInboundMediaResult } from "../../infrastructure/adapters/meta-inbound-media.adapter.js";
 import { WhatsAppDeliveryService } from "./whatsapp-delivery.service.js";
+import { serviceAppointmentChangeIntent } from "../../../support/domain/service-appointment-change-intent.js";
 
 export interface WhatsAppHumanNotice { confirmed: boolean; reply: string; ticketId?: string; bindingId?: string; epoch?: number }
 
@@ -29,7 +30,10 @@ export class WhatsAppHumanIntakeService {
   }
 
   async requestText(input: IncomingMessageInput): Promise<WhatsAppHumanNotice | undefined> {
-    if (input.metaMedia || input.messageType === "audio" || /^audio\//i.test(input.mimetype ?? "") || !isHumanSupportRequest(input.body)) return;
+    if (input.metaMedia || input.messageType === "audio" || /^audio\//i.test(input.mimetype ?? "")) return;
+    const change = await this.requestCurrentAppointmentChange();
+    if (change) return change;
+    if (!isHumanSupportRequest(input.body)) return;
     return this.persistCurrent();
   }
 
@@ -54,7 +58,16 @@ export class WhatsAppHumanIntakeService {
       || interpreted.scope.deviceId !== input.deviceId || interpreted.scope.inboxId !== turn.inboxId
       || interpreted.scope.conversationId !== turn.conversationId || interpreted.scope.mediaId !== input.metaMedia.id) return;
     this.context.authorizeSpeech(interpreted.text);
+    const change = await this.requestCurrentAppointmentChange();
+    if (change) return change;
     if (isHumanSupportRequest(interpreted.text)) return this.persistCurrent();
+  }
+
+  private async requestCurrentAppointmentChange(): Promise<WhatsAppHumanNotice | undefined> {
+    const turn = this.context.current();
+    if (!turn || !serviceAppointmentChangeIntent(turn.message)) return;
+    return this.handoff.requestServiceAppointmentChange({ merchantId: turn.scope.merchantId,
+      sessionId: turn.scope.whatsappSessionId, buyerMessage: turn.message, initialMessage: turn.message });
   }
 
   private async persistCurrent(): Promise<WhatsAppHumanNotice | undefined> {

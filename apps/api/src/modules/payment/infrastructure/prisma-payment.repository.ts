@@ -322,7 +322,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
       if (admissionCart && typeof admissionCart === "object" && "items" in admissionCart && Array.isArray(admissionCart.items)) {
         const cart = stripStoredCheckoutCouponBinding(admissionCart);
         if (hasProfessionalServiceSelection({ merchantId: snapshot.merchantId, cart })) {
-          const service = await readProfessionalCheckout(tx, { merchantId: snapshot.merchantId, cart });
+          const service = await readProfessionalCheckout(tx, { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId, cart }, undefined, { store: this.serviceLeaseStore });
           if (service.policy.paymentMode !== "online") throw new ConflictException("service_pay_at_attendance_required");
           if (!snapshot.amountBreakdown?.cartFingerprint || snapshot.amountBreakdown.cartFingerprint !== paymentCartFingerprint({ cart })
             || snapshot.currency !== service.selections[0]!.currency

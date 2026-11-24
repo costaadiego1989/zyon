@@ -70,6 +70,26 @@ function majorUnitsFromCents(amountCents: number): number {
   return Number((amountCents / 100).toFixed(2));
 }
 
+/** Provider-observed approval only. Preserve decimal meaning before converting
+ * to exact cents; never round a fractional cent or use a local expected value.
+ * The bounded grammar deliberately excludes Number()/parseFloat() coercions. */
+function observedMercadoPagoApprovalCents(value: unknown): number | undefined {
+  let decimal: string;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) return undefined;
+    decimal = String(value);
+  } else if (typeof value === "string") decimal = value;
+  else return undefined;
+  if (!decimal.length || decimal.length > 32) return undefined;
+  const parts = /^(\d+)(?:\.(\d+))?$/.exec(decimal);
+  if (!parts) return undefined;
+  const fraction = parts[2] ?? "";
+  if (/[1-9]/.test(fraction.slice(2))) return undefined;
+  const cents = BigInt(parts[1]!) * 100n + BigInt((fraction + "00").slice(0, 2));
+  if (cents <= 0n || cents > BigInt(Number.MAX_SAFE_INTEGER)) return undefined;
+  return Number(cents);
+}
+
 function notificationUrlFor(input: CreateProviderPaymentInput): string | undefined {
   const base = process.env.API_PUBLIC_URL?.trim().replace(/\/+$/, "");
   if (!base) return undefined;
@@ -245,24 +265,31 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     }
 
     const payment = (await res.json()) as {
+      id?: number | string;
       status?: string;
       status_detail?: string;
-      transaction_amount?: number;
+      transaction_amount?: unknown;
+      currency_id?: string;
       external_reference?: string;
     };
     const state = mercadoPagoStateFromStatus(
       typeof payment.status === "string" ? payment.status : undefined,
       typeof payment.status_detail === "string" ? payment.status_detail : undefined,
     );
-    const approvedAmountCents =
-      typeof payment.transaction_amount === "number" &&
-      !Number.isNaN(payment.transaction_amount)
-        ? Math.round(payment.transaction_amount * 100)
-        : undefined;
+    if (state === "approved" && String(payment.id ?? "") !== input.providerPaymentId) {
+      throw new Error("mercadopago_payment_identity_mismatch");
+    }
+    const cents = typeof payment.transaction_amount === "number"
+      ? Math.round(payment.transaction_amount * 100) : undefined;
+    // Non-approved/chargeback observations retain their original numeric path.
+    const approvedAmountCents = state === "approved" ? observedMercadoPagoApprovalCents(payment.transaction_amount)
+      : typeof cents === "number" && Number.isSafeInteger(cents) && cents > 0 &&
+        exactCancellationAmount(payment.transaction_amount, cents) ? cents : undefined;
 
     return {
       state,
       approvedAmountCents,
+      currency: typeof payment.currency_id === "string" ? payment.currency_id : undefined,
       externalReference: typeof payment.external_reference === "string" ? payment.external_reference : undefined,
     };
   }

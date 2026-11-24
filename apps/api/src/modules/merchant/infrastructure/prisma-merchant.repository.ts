@@ -31,6 +31,8 @@ export async function readExistingPrismaMerchantRules(prisma: Pick<Prisma.Transa
   return { ...toRules(row), policies: (merchant?.storeSettings as MerchantStoreSettings | null)?.checkoutPolicyLinks };
 }
 
+import { serviceActivationReadinessWithin } from "../../../shared/bookings/service-activation-readiness.js";
+
 export class PrismaMerchantRepository implements MerchantRepository, MerchantRulesRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -41,9 +43,15 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       await this.prisma.product.count({ where: { merchantId, type: "service" } }) > 0 ||
       await this.prisma.serviceReservation.count({ where: { merchantId } }) > 0
     );
+    const activation = row.businessMode === "services" ? await this.prisma.$transaction(tx => serviceActivationReadinessWithin(tx, merchantId), { isolationLevel: "RepeatableRead" }) : undefined;
+    const business = mapMerchantBusinessProfile({ businessMode: row.businessMode, businessModeSelectedAt: row.businessModeSelectedAt,
+      businessModeNeedsReview: row.businessModeNeedsReview, hasLegacyServiceData, policy: row.serviceBusinessPolicy });
+    const activationMatches = !activation || activation.ready && activation.policyVersion === business.policyVersion;
     return {
-      ...mapMerchantBusinessProfile({ businessMode: row.businessMode, businessModeSelectedAt: row.businessModeSelectedAt,
-        businessModeNeedsReview: row.businessModeNeedsReview, hasLegacyServiceData, policy: row.serviceBusinessPolicy }),
+      ...business,
+      ...(!activationMatches && business.capabilities.serviceBooking ? {
+        capabilities: { ...business.capabilities, serviceBooking: false }, bookingBlockReason: "service_activation_not_ready",
+      } : {}),
       id: row.id,
       budgetModeEnabled: row.budgetModeEnabled,
       name: row.name,

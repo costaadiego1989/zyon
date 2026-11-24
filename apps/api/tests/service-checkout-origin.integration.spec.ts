@@ -9,7 +9,7 @@ import { SERVICE_LOCAL_TEST_MS } from "./service-test-startup.mjs";
 // BOOK-05/BOOK-08: origin records the actual entrypoint; it is private historical
 // context, never a public buyer/payment grant. All requests use the local API.
 test("T35 service checkout provenance comes from the real server entrypoint", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture();
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" });
   try {
     const c = await f.prepare("checkout-origin"), raw = f.prisma;
     // Scope this new public checkout to a Brasilia grade; preserve the existing appointment and legacy product metadata.

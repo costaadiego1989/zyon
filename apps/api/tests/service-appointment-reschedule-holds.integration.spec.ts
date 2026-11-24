@@ -10,7 +10,7 @@ import { SERVICE_LOCAL_TEST_MS } from "./service-test-startup.mjs";
 
 const cleanupType = "service.appointment.reschedule_hold_cleanup_requested";
 test("T34 served versioned bindings and historical source cleanup", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture(); let redis: Redis | undefined;
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" }); let redis: Redis | undefined;
   try {
     redis = new Redis(f.runtime.redis.url, { lazyConnect: true, maxRetriesPerRequest: 1, commandTimeout: 3000, connectTimeout: 3000, enableOfflineQueue: false });
     await redis.connect(); assert.equal(await redis.get("aacp:synthetic:run"), f.runtime.redis.runId);

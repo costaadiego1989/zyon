@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional, UnauthorizedException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { EmbedTokenService, type EmbedScope } from "../domain/embed-token.service.js";
@@ -6,6 +6,7 @@ import { embedCheckoutSessionId } from "../domain/embed-checkout-session.js";
 import { ResolveEmbedBuyerService } from "./resolve-embed-buyer.service.js";
 import { GetCurrentMarketplacePaymentService } from "../../payment/application/get-current-marketplace-payment.service.js";
 import { MarketplacePaymentResumeService } from "../../payment/application/marketplace-payment-resume.service.js";
+import { DeriveStorefrontServiceScopes } from "./derive-storefront-service-scopes.js";
 
 /** Reissues the original signed binding after cart ownership was independently
  * verified by the issuer. Only explicit action restoration receives a frozen resume pin. */
@@ -18,10 +19,12 @@ export class RenewStorefrontEmbedSessionService {
     @Inject(ResolveEmbedBuyerService) private readonly buyers: ResolveEmbedBuyerService,
     @Inject(GetCurrentMarketplacePaymentService) private readonly current: GetCurrentMarketplacePaymentService,
     @Inject(MarketplacePaymentResumeService) private readonly resume: MarketplacePaymentResumeService,
+    @Optional() private readonly serviceScopes?: DeriveStorefrontServiceScopes,
   ) {}
 
   async execute(input: { previousToken: unknown; merchantId: string; storefrontCartRef: string;
-    origin: string; environment?: "test" | "live"; installationId?: string; scopes?: string[]; buyerToken?: unknown; resumePaymentAction?: boolean; aiUserId?: string }) {
+    origin: string; environment?: "test" | "live"; installationId?: string; scopes?: string[]; buyerToken?: unknown; conversationToken?: unknown; resumePaymentAction?: boolean; aiUserId?: string }) {
+    const serviceProof = { conversationToken: input.conversationToken, buyerToken: input.buyerToken };
     try {
       const claims = this.tokens.verifyForStorefrontContinuation(input.previousToken);
       if (claims.merchantId !== input.merchantId || claims.storefrontCartRef !== input.storefrontCartRef ||
@@ -39,11 +42,27 @@ export class RenewStorefrontEmbedSessionService {
       const observation = await this.current.execute({ merchantId: input.merchantId, sessionId });
       const requested = input.scopes ?? [];
       const scopes = claims.scopes!.filter(scope => requested.includes(scope));
+      // Explicit post-login issuance through the existing controller may derive
+      // this ONE grant again. A read-only token or an existing payment cannot
+      // gain checkout authority; original nonce/age/buyer/cart checks stand.
+      let servicePaymentPresent = false;
+      if (!observation.payment && buyer && claims.scopes!.includes("checkout:start") && requested.includes("appointments:confirm") && this.serviceScopes) {
+        const authorized = await this.serviceScopes.execute({ merchantId: claims.merchantId, cartRef: claims.storefrontCartRef!,
+          origin: claims.allowedOrigin!, conversationToken: serviceProof.conversationToken, buyerToken: serviceProof.buyerToken,
+          scopes: requested.filter(scope => scope !== "appointments:confirm") });
+        if (authorized?.includes("appointments:confirm")) {
+          // Marketplace observation intentionally ignores ordinary payments.
+          // Recheck their persisted session binding AFTER the async proof.
+          servicePaymentPresent = !!await this.prisma.paymentIntent.findFirst({ where: {
+            merchantId: claims.merchantId, sessionId }, select: { id: true } });
+          if (!servicePaymentPresent && !scopes.includes("appointments:confirm")) scopes.push("appointments:confirm");
+        }
+      }
       const explicitResume = input.resumePaymentAction === true;
       if (input.resumePaymentAction !== undefined && typeof input.resumePaymentAction !== "boolean" ||
         explicitResume && !observation.payment) throw Error("resume");
       const resumedScopes: EmbedScope[] = explicitResume ? ["payment:intents:read", "payment:intents:resume"] :
-        observation.payment ? ["payment:intents:read"] : scopes.filter(scope => scope !== "payment:intents:resume");
+        observation.payment || servicePaymentPresent ? ["payment:intents:read"] : scopes.filter(scope => scope !== "payment:intents:resume");
       if (!scopes.includes("payment:intents:read") || !resumedScopes.length) throw Error("scope");
       const paymentResume = explicitResume ? await this.resume.authorize({ merchantId: input.merchantId, sessionId, cartRef: input.storefrontCartRef }) : undefined;
       if (paymentResume && paymentResume.intentId !== observation.payment!.intent_id) throw Error("resume");

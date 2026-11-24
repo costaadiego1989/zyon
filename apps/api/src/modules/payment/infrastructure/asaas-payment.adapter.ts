@@ -218,10 +218,9 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   async readCancellationStatus(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
     assertStandardCancellationInput(input, "asaas", this.creationAccountFingerprint());
     const p = input.payment;
-    if (p.method !== "pix") return { state: "unsupported" };
     const payment = await this.readCancellationPayment({ merchantId: p.merchantId, providerPaymentId: input.providerPaymentId });
     if (payment.id !== input.providerPaymentId || payment.externalReference !== p.intentId || payment.customer !== p.asaasCustomerId ||
-        !p.asaasCustomerId || payment.billingType !== "PIX" || !exactCancellationAmount(payment.value, p.amountCents) ||
+        !p.asaasCustomerId || payment.billingType !== billingFromMethod(p.method) || !exactCancellationAmount(payment.value, p.amountCents) ||
         payment.currency !== undefined && payment.currency !== "BRL") throw new Error("payment_cancellation_identity_mismatch");
     if (payment.subscription != null || payment.installment != null) return { state: "unsupported" };
     if (["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "REFUNDED", "REFUND_REQUESTED", "REFUND_IN_PROGRESS",

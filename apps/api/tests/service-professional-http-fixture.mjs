@@ -4,8 +4,9 @@ import {createServiceTestRuntime} from './service-test-runtime.mjs';
 
 export async function createProfessionalHttpFixture(options={}){
   assert.ok(options&&typeof options==='object'&&!Array.isArray(options)
-    &&Object.keys(options).every(key=>key==='postgresProfile'||key==='whatsapp')
-    &&(options.postgresProfile===undefined||options.postgresProfile==='pgvector16'),'professional_fixture_options_invalid');
+    &&Object.keys(options).every(key=>key==='postgresProfile'||key==='whatsapp'||key==='serviceReleaseFixture')
+    &&(options.postgresProfile===undefined||options.postgresProfile==='pgvector16')
+    &&(options.serviceReleaseFixture===undefined||['matching','missing'].includes(options.serviceReleaseFixture)),'professional_fixture_options_invalid');
   const runtime=await createServiceTestRuntime({local:true,...options});
   let prisma;
   try{

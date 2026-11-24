@@ -3,7 +3,7 @@ import { Module } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
 import { AuthorizeStorefrontCartService } from "./application/authorize-storefront-cart.service.js";
 import { ResolveEmbedBuyerService } from "./application/resolve-embed-buyer.service.js";
-
+import { DeriveStorefrontServiceScopes } from "./application/derive-storefront-service-scopes.js";
 import { ServiceBookingController } from "../checkout/presentation/http/service-booking.controller.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { BuyerJwtService } from "../buyer-account/domain/services/buyer-jwt.service.js";
@@ -67,7 +67,7 @@ import { RenewStorefrontEmbedSessionService } from "./application/renew-storefro
     UpdateMarketplaceCheckoutAddressService,
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     AuthorizeStorefrontCartService,
-
+    DeriveStorefrontServiceScopes,
     ResolveEmbedBuyerService,
     OpenAIRealtimeVoiceService,
     { provide: BuyerJwtService, useFactory: () => new BuyerJwtService() },

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
@@ -11,9 +12,10 @@ import { snapshotOrderLines } from "../src/modules/operations/domain/order-fulfi
 import { canonicalizeProfessionalServiceCart } from "../src/shared/bookings/service-checkout-cart.js";
 
 test("T28", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const runtime = await createServiceTestRuntime({ local: true });
+  const runtime = await createServiceTestRuntime({ local: true, serviceReleaseFixture: "matching" });
   let raw: PrismaClient | undefined;
   try {
+  const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     raw = new PrismaClient({ datasources: { db: { url: runtime.db.prismaUrl } } });
     const prisma = raw, now = new Date(); await seedServiceBookingFixture(prisma, now);
     // NEW selections use a local BR calendar; the shared UTC history fixture stays unchanged.

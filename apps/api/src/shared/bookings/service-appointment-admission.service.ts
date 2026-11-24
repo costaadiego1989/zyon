@@ -15,6 +15,8 @@ import { admitWhatsAppEffectInTransaction } from "../whatsapp/whatsapp-automatio
 import { preserveVerifiedProfessionalAvailability, type ProfessionalAvailabilityContinuation } from "../../modules/catalog/application/professional-availability-continuation.js";
 import { FIXED_SERVICE_TIME_ZONE } from "../../modules/catalog/domain/services/fixed-service-time-zone.js";
 
+import { assertNewOrAcceptedServiceCapacityWithin } from "./service-activation-continuation.js";
+
 export interface ServiceAppointmentAdmissionInput {
   merchantId: string;
   professionalId: string;
@@ -206,6 +208,10 @@ export async function admitServiceAppointment(
   // historical civil date. Verify the existing evidence BEFORE using it as a
   // presentation context; raw admission fields never choose a timezone.
   const approvedReference = await assertApprovedOrderUnit(tx, input, manual);
+  if (!manual && !approvedReference) await assertNewOrAcceptedServiceCapacityWithin(tx, input.merchantId,
+    context.leaseOwner && context.leaseSelections && business.policy.holdEnabled ? {
+      sessionId: context.leaseOwner.ownerId, selections: context.leaseSelections, store: context.leaseOwner.store, now,
+    } : undefined);
   let continuation: ProfessionalAvailabilityContinuation | undefined;
   let continuedLease: OwnedAppointmentLease | undefined, verifiedHeldProof: ActiveSlotLeaseProof | undefined;
   if (manual) {

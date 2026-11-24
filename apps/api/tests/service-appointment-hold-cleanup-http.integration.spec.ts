@@ -11,7 +11,7 @@ import { SERVICE_LOCAL_TEST_MS } from "./service-test-startup.mjs";
 
 const cleanupType = "service.appointment.hold_cleanup_requested";
 test("T33 served cancellation original hold cleanup", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture(); let redis: Redis | undefined;
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" }); let redis: Redis | undefined;
   try {
     redis = new Redis(f.runtime.redis.url, { lazyConnect: true, maxRetriesPerRequest: 1, commandTimeout: 3000,
       connectTimeout: 3000, enableOfflineQueue: false });

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { modeledUnitServiceRelease } from "../../../../tests/service-release-modeled-unit.fixture.mjs";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -78,7 +79,7 @@ function fixture(hold = false) {
       const row = state.payments.find((p: any) => match(p, where)); if (!row) return { count: 0 };
       const { version, ...rest } = data; Object.assign(row, rest); row.version += version.increment; return { count: 1 }; } },
     attendanceReceipt: { findFirst: async () => null, create: forbidden }, supportTicketMessage: { findFirst: async () => intake },
-    serviceReservation: { updateMany: async () => ({ count: 0 }) },
+    serviceReservation: { findFirst: async () => null, updateMany: async () => ({ count: 0 }) },
     appointmentAudit: { findUnique: async ({ where }: any) => state.audits.find((a: any) => a.merchantId === where.merchantId_commandId.merchantId
       && a.commandId === where.merchantId_commandId.commandId) ?? null,
       findFirst: async () => state.audits.filter((a: any) => a.after.privateLease).sort((a: any, b: any) => b.version - a.version)[0] ?? null,
@@ -96,7 +97,7 @@ function fixture(hold = false) {
   const preview = { appointmentId: "a", expectedVersion: 1, destination: { professionalId: "p", expectedProfessionalVersion: 3, startsAt: "2030-01-02T10:20:00Z" } };
   const command = async () => { const q = await service.preview(actor, preview, context); return { ...preview, commandId: "move",
     operatorRequestId: "human-request", policyHash: q.quote.policyHash, acceptedQuoteHash: q.quoteHash }; };
-  return { service, context, preview, command, get state() { return state; }, old, source, released,
+  return { tx, service, context, preview, command, get state() { return state; }, old, source, released,
     get acquisitions() { return acquisitions; }, get checks() { return checks; },
     fail: (stage: string) => { failure = stage; }, commitUnknown: () => { unknownCommit = true; }, advance: (date: Date) => { now = date; },
     activeDestinations, cleanupEntered, intake: (value: unknown) => { intake = value; },
@@ -104,14 +105,23 @@ function fixture(hold = false) {
     run: async (value: Awaited<ReturnType<typeof command>>, principal = actor) => service.execute(principal, value, context) };
 }
 
+const originalFixture = fixture;
+function modeledFixture(context: { after: (callback: () => void) => unknown }, ...args: Parameters<typeof originalFixture>) {
+  const f = originalFixture(...args), modeledLedger = modeledUnitServiceRelease(context);
+  f.tx.$queryRaw = modeledLedger.wrapQueryRaw(f.tx.$queryRaw) as typeof f.tx.$queryRaw;
+  return Object.assign(f, { modeledLedger });
+}
+
 test("T34 canonical state command and rollback boundaries", async t => {
-  await t.test("hold-off writes explicit latest none and preserves original history and financial identity", async () => {
+  await t.test("hold-off writes explicit latest none and preserves original history and financial identity", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), before = structuredClone(f.state); await f.run(await f.command());
     assert.equal(f.state.appointment.id, "a"); assert.equal(f.state.appointment.version, 2); assert.equal(f.state.audits[1].after.privateLease.kind, "none");
     assert.equal(f.state.audits[1].before.startsAt, before.appointment.startsAt.toISOString()); assert.deepEqual(f.state.audits[0], before.audits[0]);
     assert.deepEqual(f.state.payments, before.payments); assert.equal(f.acquisitions, 0); assert.equal(f.released.length, 0);
   });
-  await t.test("new owned binding and committed source pointer are persisted without precommit origin release", async () => {
+  await t.test("new owned binding and committed source pointer are persisted without precommit origin release", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(true); await f.run(await f.command()); const after = f.state.audits[1].after;
     assert.equal(after.privateLease.kind, "owned"); assert.notEqual(after.privateLease.generation, f.old.generation);
     assert.equal(after.privateLease.target.startsAt, "2030-01-02T10:20:00.000Z"); assert.equal(after.privateLeaseCleanup.originalAuditId, "original");
@@ -119,61 +129,72 @@ test("T34 canonical state command and rollback boundaries", async t => {
     assert.deepEqual(f.state.events.find((e: any) => e.producer === "service-booking-private").payload,
       { originalAuditId: "original", appointmentId: "a", rescheduleVersion: 2 });
   });
-  await t.test("actor body or stale original version cannot grant a move", async () => {
+  await t.test("actor body or stale original version cannot grant a move", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), command = await f.command(), before = structuredClone(f.state);
     await assert.rejects(f.run(command, { ...actor, role: "staff" }), /service_operator_required/);
     await assert.rejects(f.run({ ...command, expectedVersion: 2 }), /service_appointment_version_conflict/);
     await assert.rejects(f.run({ ...command, refund: true } as any), /service_reschedule_command_invalid/); assert.deepEqual(f.state, before);
   });
-  await t.test("changed current quote requires new explicit acceptance", async () => {
+  await t.test("changed current quote requires new explicit acceptance", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), command = await f.command(); f.state.price.basePriceInCents = 6000; const before = structuredClone(f.state);
     await assert.rejects(f.run(command), /service_reschedule_quote_changed/); assert.deepEqual(f.state, before);
     await f.run(await f.command()); assert.equal(f.state.payments[0].amountCents, 6000); assert.equal(f.state.payments[0].receivedAt, null);
   });
-  await t.test("received or online money cannot be rewritten by accepted new terms", async () => {
+  await t.test("received or online money cannot be rewritten by accepted new terms", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     for (const mode of ["online", "at_attendance"]) { const f = fixture(); f.state.payments[0].mode = mode; f.state.payments[0].status = "approved";
       f.state.payments[0].receivedAt = initialNow; f.state.price.basePriceInCents = 6000; const command = await f.command(), before = structuredClone(f.state);
       await assert.rejects(f.run(command), /service_reschedule_financial_review_required/); assert.deepEqual(f.state, before); }
   });
-  await t.test("own exclusion permits changed duration but never removes another occupied appointment", async () => {
+  await t.test("own exclusion permits changed duration but never removes another occupied appointment", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); f.state.duration = 30; f.preview.destination.startsAt = "2030-01-02T10:00:00Z"; await f.run(await f.command());
     assert.equal(f.state.appointment.endsAt.toISOString(), "2030-01-02T10:30:00.000Z");
     const other = fixture(); other.state.others.push({ ...other.state.appointment, id: "b", startsAt: new Date("2030-01-02T10:20Z"), endsAt: new Date("2030-01-02T10:40Z") });
     await assert.rejects(other.command(), /service_slot_unavailable/); assert.equal(other.state.appointment.version, 1);
   });
-  await t.test("mismatched latest original binding is refused without fallback or acquired destination", async () => {
+  await t.test("mismatched latest original binding is refused without fallback or acquired destination", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(true), command = await f.command(); f.state.audits[0].after.privateLease.target.startsAt = "2030-01-03T10:00:00.000Z";
     const before = structuredClone(f.state); await assert.rejects(f.run(command), /service_appointment_lease_binding_mismatch/);
     assert.equal(f.acquisitions, 0); assert.deepEqual(f.state, before);
   });
-  await t.test("a newer active destination generation cannot replace the original acquisition proof", async () => {
+  await t.test("a newer active destination generation cannot replace the original acquisition proof", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(true), command = await f.command(); f.fail("generation"); const before = structuredClone(f.state);
     await assert.rejects(f.run(command), /service_reschedule_destination_lease_changed/); assert.deepEqual(f.state, before);
     assert.equal(f.released.length, 1); assert.equal(f.released[0].generation, "00000000-0000-4000-8000-000000000002");
   });
-  await t.test("known callback rollback exact-releases only destination and retains original SQL receipt", async () => {
+  await t.test("known callback rollback exact-releases only destination and retains original SQL receipt", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(true), command = await f.command(), before = structuredClone(f.state); f.fail("outbox");
     await assert.rejects(f.run(command), /synthetic_outbox_failure/); assert.deepEqual(f.state, before);
     assert.equal(f.released.length, 1); assert.notEqual(f.released[0].generation, f.old.generation);
     assert.equal(f.released[0].target.startsAt, "2030-01-02T10:20:00.000Z");
   });
-  await t.test("unknown commit outcome never releases a possibly committed destination and original replay stays once", async () => {
+  await t.test("unknown commit outcome never releases a possibly committed destination and original replay stays once", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(true), command = await f.command(); f.commitUnknown(); await assert.rejects(f.run(command), /synthetic_commit_unknown/);
     assert.equal(f.state.appointment.version, 2); assert.equal(f.released.length, 0);
     const replay = await f.run(command); assert.equal(replay.replayed, true); assert.equal(f.acquisitions, 1); assert.equal(f.state.audits.length, 2);
   });
-  await t.test("failed exact rollback cleanup is an explicit error and never claims original or destination freed", async () => {
+  await t.test("failed exact rollback cleanup is an explicit error and never claims original or destination freed", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(true), command = await f.command(), before = structuredClone(f.state); f.fail("cleanup");
     await assert.rejects(f.run(command), /service_reschedule_rollback_cleanup_failed/); assert.deepEqual(f.state, before);
     assert.equal(f.released.length, 1); assert.notEqual(f.released[0].generation, f.old.generation);
   });
-  await t.test("manual operator remains separate from buyer intake and malformed optional IDs cannot pass XOR", async () => {
+  await t.test("manual operator remains separate from buyer intake and malformed optional IDs cannot pass XOR", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), command = await f.command();
     await assert.rejects(f.run({ ...command, operatorRequestId: undefined, requestMessageId: "missing-intake" }), /service_reschedule_request_not_found/);
     for (const bad of [null, 0, false, "", [], {}]) await assert.rejects(f.run({ ...command, requestMessageId: bad } as any), /service_reschedule_command_invalid/);
     assert.equal(f.state.appointment.buyerGlobalUserId, null); assert.equal(f.state.appointment.version, 1);
   });
-  await t.test("delayed rollback compensation never removes a successful same-command retry generation", async () => {
+  await t.test("delayed rollback compensation never removes a successful same-command retry generation", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(true), command = await f.command(); f.fail("outbox"); f.delayCleanup();
     const rejected = assert.rejects(f.run(command), /synthetic_outbox_failure/);
     // Wait only for this controlled boundary; an earlier rejection fails here.
@@ -183,13 +204,15 @@ test("T34 canonical state command and rollback boundaries", async t => {
     assert.notEqual(committed.ownerHash, f.released[0].ownerHash); f.resumeCleanup(); await rejected;
     assert.deepEqual([...f.activeDestinations], [committed.generation]); assert.equal(f.state.appointment.version, 2);
   });
-  await t.test("held origin to policy-off writes latest none plus durable original pointer", async () => {
+  await t.test("held origin to policy-off writes latest none plus durable original pointer", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(true); f.state.policy.holdEnabled = false; f.state.policy.holdMinutes = null; f.state.policy.version++;
     await f.run(await f.command()); const after = f.state.audits[1].after;
     assert.equal(after.privateLease.kind, "none"); assert.equal(after.privateLeaseCleanup.originalAuditId, "original");
     assert.equal(f.state.audits[0].after.privateLease.generation, f.old.generation); assert.equal(f.acquisitions, 0); assert.equal(f.released.length, 0);
   });
-  await t.test("trusted schema-one buyer handoff binds exact tenant buyer appointment and booked policy", async () => {
+  await t.test("trusted schema-one buyer handoff binds exact tenant buyer appointment and booked policy", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); f.state.appointment.buyerGlobalUserId = "buyer";
     f.intake({ id: "intake", senderType: "buyer", ticket: { id: "ticket", merchantId: "m", buyerId: "buyer", source: "whatsapp" },
       metadata: { kind: "whatsapp_intake", schemaVersion: 1, appointmentId: "a", policyVersion: 2 } });
@@ -197,7 +220,8 @@ test("T34 canonical state command and rollback boundaries", async t => {
     assert.equal(f.state.audits[1].after.request.kind, "buyer_handoff_operator_acceptance"); assert.equal(f.state.audits[1].after.request.requestMessageId, "intake");
     assert.equal(f.state.appointment.buyerGlobalUserId, "buyer");
   });
-  await t.test("wrong intake schema tenant buyer appointment or booked policy cannot authorize a move", async () => {
+  await t.test("wrong intake schema tenant buyer appointment or booked policy cannot authorize a move", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     for (const change of [{ metadata: { schemaVersion: 2 } }, { ticket: { merchantId: "foreign" } }, { ticket: { buyerId: "foreign" } },
       { metadata: { appointmentId: "other" } }, { metadata: { policyVersion: 1 } }]) {
       const f = fixture(); f.state.appointment.buyerGlobalUserId = "buyer";
@@ -207,7 +231,8 @@ test("T34 canonical state command and rollback boundaries", async t => {
       await assert.rejects(f.run(command), /service_reschedule_request_not_found/); assert.deepEqual(f.state, before);
     }
   });
-  await t.test("crossing the destination start during either final IO rejects without moving the original or settling money", async () => {
+  await t.test("crossing the destination start during either final IO rejects without moving the original or settling money", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     for (const stage of ["clock-active", "clock-unused"]) {
       const f = fixture(true), command = await f.command(), before = structuredClone(f.state); f.fail(stage);
       await assert.rejects(f.run(command), /service_slot_unavailable/);

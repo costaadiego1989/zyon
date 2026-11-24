@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { createProfessionalHttpFixture } from "./service-professional-http-fixture.mjs";
@@ -7,8 +8,9 @@ import { createManualServiceAppointmentWithin, type ManualServiceAppointmentComm
 import { admitServiceAppointment } from "../src/shared/bookings/service-appointment-admission.service.js";
 
 test("T31 HTTP and SQL", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createProfessionalHttpFixture();
+  const f = await createProfessionalHttpFixture({ serviceReleaseFixture: "matching" });
   try {
+  const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     const { prisma, runtime } = f;
     const submit = async (c: any, body: unknown = c.command, auth: any = c.auth) => {
       const correlationId = randomUUID(), response = await fetch(runtime.apiOrigin + "/merchants/" + c.auth.merchant_id + "/service-appointments/manual", {

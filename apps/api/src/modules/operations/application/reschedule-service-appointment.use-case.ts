@@ -20,6 +20,8 @@ import { readCancellationPoliciesWithin } from "./cancel-service-appointment.use
 import { SERVICE_APPOINTMENT_RESCHEDULE_HOLD_CLEANUP } from "./service-appointment-hold-cleanup.consumer.js";
 
 type RescheduleLeaseStore = Pick<RedisServiceSlots, "acquire" | "acquireForAppointmentReschedule" | "assertActive" | "releaseCaptured">;
+import { assertServiceActivationWithin } from "../../../shared/bookings/service-activation-readiness.js";
+
 interface RescheduleContext { clock?: () => Date; store?: () => RescheduleLeaseStore }
 function clock(context: RescheduleContext): Date {
   const now = context.clock ? context.clock() : new Date();
@@ -85,6 +87,7 @@ async function quoteWithin(tx: Prisma.TransactionClient, actor: ServiceActor, in
   const policy = await tx.serviceBusinessPolicy.findUnique({ where: { merchantId: actor.merchantId } });
   const business = resolveServiceBusinessPolicy({ ...merchant, hasLegacyServiceData: false, policy });
   if (!business.capabilities.serviceBooking || !business.policy) throw new ConflictException("service_booking_" + business.bookingBlockReason);
+  await assertServiceActivationWithin(tx, actor.merchantId);
   const policies = await readCancellationPoliciesWithin(tx, actor.merchantId), startsAt = new Date(input.destination.startsAt);
   const endsAt = new Date(startsAt.getTime() + facts.durationMinutes * 60_000), date = professionalLocalDate(startsAt, FIXED_SERVICE_TIME_ZONE), now = clock(context);
   const available = await getProfessionalAvailability(tx, { merchantId: actor.merchantId, productId: a.productId, variantId: a.variantId,

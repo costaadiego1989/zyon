@@ -4,7 +4,7 @@ import { createServiceOperationsHttpFixture } from "./service-operations-http.fi
 import { SERVICE_LOCAL_TEST_MS } from "./service-test-startup.mjs";
 
 test("T34 HTTP and SQL", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture();
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" });
   try {
     const scopeOwner = await f.register("services", "reschedule-scope-cohort");
     const prepareScoped = async (suffix: string) => {

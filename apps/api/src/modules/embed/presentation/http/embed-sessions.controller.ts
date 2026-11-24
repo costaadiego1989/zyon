@@ -30,6 +30,7 @@ import {
 import { IssueEmbedSessionUseCase } from "../../application/issue-embed-session.use-case.js";
 import { AuthorizeStorefrontCartService } from "../../application/authorize-storefront-cart.service.js";
 import { RenewStorefrontEmbedSessionService } from "../../application/renew-storefront-embed-session.service.js";
+import { DeriveStorefrontServiceScopes } from "../../application/derive-storefront-service-scopes.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
 import { currentEmbedIssuer, EmbedSessionIssuerGuard } from "./embed-session-issuer.guard.js";
@@ -102,6 +103,7 @@ export class EmbedSessionsController {
     @Optional() private readonly listInstallations?: ListInstallationsUseCase,
     @Optional() private readonly storefrontCartAccess?: AuthorizeStorefrontCartService,
     @Optional() private readonly renewStorefrontSession?: RenewStorefrontEmbedSessionService,
+    @Optional() private readonly serviceScopes?: DeriveStorefrontServiceScopes,
   ) {}
 
   @Post()
@@ -185,6 +187,10 @@ export class EmbedSessionsController {
     const aiUserId = storefrontCartRef
       ? this.storefrontCartAccess?.userIdentity({ token: body.conversation_token, merchantId: issuer.merchantId, cartRef: storefrontCartRef, origin: body.allowed_origin! })
       : undefined;
+    const scopes = issuer.type === "internal_service" && storefrontCartRef && allowedOrigin && this.serviceScopes
+      ? await this.serviceScopes.execute({ merchantId: issuer.merchantId, cartRef: storefrontCartRef, origin: allowedOrigin,
+          conversationToken: body.conversation_token, buyerToken: body.buyer_access_token, scopes: body.scopes })
+      : body.scopes;
     const result = body.previous_embed_token !== undefined
       ? await this.continueStorefrontSession({
           issuerType: issuer.type,
@@ -194,8 +200,9 @@ export class EmbedSessionsController {
           origin: allowedOrigin,
           environment,
           installationId: resolved?.installation.id,
-          scopes: body.scopes,
+          scopes,
           buyerToken: body.buyer_access_token,
+          conversationToken: body.conversation_token,
           aiUserId,
         })
       : this.issue.execute({
@@ -205,7 +212,7 @@ export class EmbedSessionsController {
           environment,
           widgetVersion: resolved?.installation.widgetVersion,
           allowedOrigin,
-          scopes: body.scopes,
+          scopes,
           cartRef: issuer.type === "internal_service" ? undefined : body.cart_ref,
           storefrontCartRef,
           aiUserId,
@@ -259,6 +266,7 @@ export class EmbedSessionsController {
     installationId?: string;
     scopes?: string[];
     buyerToken?: string;
+    conversationToken?: string;
     aiUserId?: string;
   }) {
     if (input.issuerType !== "internal_service" || !input.storefrontCartRef || !input.origin || !input.environment || !this.renewStorefrontSession) {
@@ -273,6 +281,7 @@ export class EmbedSessionsController {
       installationId: input.installationId,
       scopes: input.scopes,
       buyerToken: input.buyerToken,
+      conversationToken: input.conversationToken,
       aiUserId: input.aiUserId,
     });
   }

@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
 import { lockStorefrontCart } from "../../../shared/persistence/storefront-cart-lock.js";
 import { canonicalizeProfessionalServiceCart, professionalStorefrontSlot } from "../../../shared/bookings/service-checkout-cart.js";
-import { professionalSlotId, type ProfessionalCheckoutSelection } from "../../../shared/bookings/service-checkout-selection.js";
+import { professionalSlotId, readProfessionalCheckoutSelections, type ProfessionalCheckoutSelection } from "../../../shared/bookings/service-checkout-selection.js";
 import { assertServiceCheckoutCreationCapability, readStoredServiceOrigin, serviceBookingParentFingerprint as parentFingerprint, type ServiceCheckoutBookingCapability } from "../../../shared/bookings/service-checkout-provenance.js";
 import { readProfessionalCheckout } from "../../../shared/bookings/read-professional-checkout.js";
 import { hasUnclassifiedServiceReservations } from "../../../shared/bookings/service-legacy-readiness.js";
@@ -26,6 +26,8 @@ import { toCheckoutSession } from "../infrastructure/prisma/checkout-session.map
 import { StartCheckoutUseCase } from "./use-cases/start-checkout.use-case.js";
 import type { TrustedCheckoutBuyer } from "./services/trusted-checkout-buyer.js";
 import { CheckoutCartAuthorityService } from "./services/checkout-cart-authority.service.js";
+
+import { assertNewOrAcceptedServiceCapacityWithin } from "../../../shared/bookings/service-activation-continuation.js";
 
 /** Only the authenticated embed transport constructs this private context. */
 export interface ServiceBookingScope {
@@ -276,6 +278,10 @@ export class ServiceBookingService {
       if (!isDeepStrictEqual(current, parent)) throw new ConflictException("service_booking_parent_changed");
       const existing = await this.ownedSession(tx, bound);
       if (existing && paymentCartFingerprint(existing) !== paymentCartFingerprint({ cart })) throw new ConflictException("service_booking_cart_changed");
+      await assertNewOrAcceptedServiceCapacityWithin(tx, bound.merchantId, existing && business.policy.holdEnabled ? {
+        sessionId: bound.sessionId, selections: readProfessionalCheckoutSelections(existing), cart: existing.cart,
+        store: () => this.store(), now: await this.authorize(tx, bound),
+      } : undefined);
       if (business.policy.paymentMode === "at_attendance") await assertNoActiveServiceCheckoutPayment(tx, bound.merchantId, bound.sessionId);
       if (!existing && target < 0 && bound.cartRef) await withStorefrontCartInTransaction(tx, bound.merchantId, bound.cartRef, async (_tx, locked) => {
         if (!isDeepStrictEqual(commercial(locked), parent)) throw new ConflictException("service_booking_parent_changed");

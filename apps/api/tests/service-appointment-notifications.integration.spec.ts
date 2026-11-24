@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import test from "node:test";
 import { PrismaClient } from "@prisma/client";
 import { createDisposablePostgres } from "./local-disposable-postgres.mjs";
@@ -27,7 +28,7 @@ import { serviceCheckoutProvenance } from "../src/shared/bookings/service-checko
 test("T38 actual service outbox ownership and captured transport preserve booking and money", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
   assertServiceArtifacts();
   await t.test("served AppModule registers the canonical handler before an admitted scheduled event is acknowledged", async () => {
-    const f = await createServiceOperationsHttpFixture({ whatsapp: true });
+    const f = await createServiceOperationsHttpFixture({ whatsapp: true, serviceReleaseFixture: "matching" });
     try {
       const c = await f.prepare("notice-registration"), deadline = Date.now() + 10000; let row;
       do { row = await f.prisma.outboxMessage.findFirst({ where: { merchantId: c.merchantId, correlationId: c.appointment.id, eventType: "service.appointment.scheduled" } });
@@ -80,7 +81,8 @@ test("T38 actual service outbox ownership and captured transport preserve bookin
   const db = await createDisposablePostgres({ transport: "loopback-exec" }); let prisma: PrismaClient | undefined;
   try {
     await db.sql(`CREATE TABLE synthetic_native_marker(run_id TEXT PRIMARY KEY); INSERT INTO synthetic_native_marker VALUES ('${db.runId}');`);
-    await bootstrapServiceSchema(db); prisma = new PrismaClient({ datasources: { db: { url: db.prismaUrl } } }); const p = prisma;
+    await bootstrapServiceSchema(db);
+  const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close()); prisma = new PrismaClient({ datasources: { db: { url: db.prismaUrl } } }); const p = prisma;
     await seedServiceBookingFixture(p, new Date());
     const config = await p.whatsAppChannelConfig.create({ data: { merchantId: "booking-services", enabled: true, status: "ACTIVE", provider: "META_CLOUD", deviceId: "META_CLOUD:service-test",
       whatsappNumber: "+5521999999999", credentials: { accessToken: "synthetic-not-a-secret", wabaId: "123456", phoneNumberId: "654321" } } });

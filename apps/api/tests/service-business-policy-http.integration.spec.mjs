@@ -5,7 +5,7 @@ import {SERVICE_LOCAL_TEST_MS} from './service-test-startup.mjs';
 import {companyHttpFixture,sqlText} from './service-company-http-fixture.mjs';
 
 test('T11',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
-  const runtime=await createServiceTestRuntime({local:true});
+  const runtime=await createServiceTestRuntime({local:true,serviceReleaseFixture:'matching'});
   try{
     const {request,register,json}=companyHttpFixture(runtime),auth=await register('policy@example.test');
     const path='/merchants/me/service-business-policy',own=sqlText(auth.merchant_id);

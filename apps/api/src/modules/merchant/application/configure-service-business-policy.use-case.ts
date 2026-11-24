@@ -3,6 +3,8 @@ import type { Prisma, PrismaClient, ServiceBusinessPolicy } from "@prisma/client
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { ServiceBusinessPolicyError, validateServicePolicyConfiguration } from "../domain/service-business-policy.js";
 
+import { assertServiceActivationWithin } from "../../../shared/bookings/service-activation-readiness.js";
+
 export function parseServicePolicyUpdate(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new BadRequestException("service_policy_required");
   const body = value as Record<string, unknown>;
@@ -59,6 +61,7 @@ export class ConfigureServiceBusinessPolicyUseCase {
       const current = await tx.serviceBusinessPolicy.findUnique({ where: { merchantId } });
       if ((current?.version ?? 0) !== expectedVersion) throw new ConflictException("service_policy_version_conflict");
       const data = { ...configuration, version: expectedVersion + 1, configuredAt: new Date() };
+      if (data.admissionsEnabled) await assertServiceActivationWithin(tx, merchantId, data);
       const saved = await tx.serviceBusinessPolicy.upsert({ where: { merchantId }, create: { merchantId, ...data }, update: data });
       await tx.merchantAuditEvent.create({ data: {
         merchantId, actorType: "human", actorId, action: "service_policy.updated", resourceType: "service_business_policy", resourceId: merchantId,

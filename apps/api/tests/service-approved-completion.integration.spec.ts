@@ -26,7 +26,7 @@ import { PrismaErpRepository } from "../src/modules/inventory/infrastructure/rep
 // Actual persisted-approval handler -> completion -> Prisma transaction ->
 // canonical appointments. Payment evidence is local synthetic SQL, no PSP call.
 test("T35 persisted approval completes every frozen professional unit", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture(), previousRedis = process.env.REDIS_URL;
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" }), previousRedis = process.env.REDIS_URL;
   let redis: Redis | undefined;
   try {
     process.env.REDIS_URL = f.runtime.redis.url;

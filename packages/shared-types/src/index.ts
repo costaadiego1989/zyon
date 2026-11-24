@@ -1633,3 +1633,4 @@ export type { ServiceAppointmentAdminState, ServiceAppointmentAdminPayment, Serv
   ServiceAppointmentAdminList, ServiceAppointmentAdminDetail, ServiceAppointmentAdminListQuery } from "./service-appointment-admin.js";
 export type { ServiceMetricsDataStatus, ServiceMetricsAppointmentState, ServiceMetricsMoney,
   ServiceMetricsSummary, ServiceMetricsResponse } from "./service-metrics.js";
+export type { ServiceAppointmentOperationSummary } from "./service-appointment-operation-summary.js";

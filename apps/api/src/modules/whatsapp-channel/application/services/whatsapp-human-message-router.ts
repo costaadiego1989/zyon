@@ -11,6 +11,10 @@ import { WHATSAPP_HANDOFF_ACK } from "../../../support/application/whatsapp-supp
 import { WhatsAppDeliveryService } from "./whatsapp-delivery.service.js";
 import type { WhatsAppHumanNotice } from "./whatsapp-human-intake.service.js";
 import type { IncomingMessageInput } from "../use-cases/handle-incoming-message.use-case.js";
+import { serviceAppointmentChangeIntent } from "../../../support/domain/service-appointment-change-intent.js";
+import { assertWhatsAppAppointmentChangeOwnerWithin, readBuyerAppointmentChangeWithin, ServiceAppointmentChangePrompt,
+  serviceAppointmentChangeMetadata, serviceAppointmentChangeOperatorText, type BuyerAppointmentChangeContext } from "../../../support/application/service-appointment-change-request.js";
+import { loadWhatsAppInboxTurnWithin, saveWhatsAppResponseWithin } from "../../infrastructure/repositories/prisma-whatsapp-webhook-inbox.repository.js";
 
 export interface HumanInputReceipt {
   inboxId: string; sessionId: string; bindingId: string | null; ticketId: string | null; epoch: number | null; messageId?: string;
@@ -64,6 +68,7 @@ export class WhatsAppHumanMessageRouter {
     // fences the generation/effects against a takeover after this read.
     const existing = await this.bindings.get(turn.scope);
     if (!existing && saved?.purpose !== "human_handoff") return;
+    let capturedC21 = false;
     const result = await this.bindings.withLocked(turn.scope, async (tx, current): Promise<HumanRoute | undefined> => {
       if (expected && (current.id !== expected.bindingId || current.ticketId !== expected.ticketId || current.epoch !== expected.epoch || current.mode === "ai")) return;
       const [clock] = await tx.$queryRaw<Array<{ now: Date }>>(Prisma.sql`SELECT clock_timestamp() AS now`);
@@ -86,13 +91,39 @@ export class WhatsAppHumanMessageRouter {
       }
       if (current.mode === "ai") return;
       if (!current.ticketId) throw new ConflictException("whatsapp_human_ticket_unavailable");
+      const media = payload.metaMedia || payload.mediaUrl || payload.messageType === "audio";
+      const origin = turn.origin === "voice" ? "voice" : media ? "media" : turn.origin;
+      const content = turn.origin === "voice" ? turn.message : typeof payload.body === "string" ? payload.body : "";
+      let serviceChange: BuyerAppointmentChangeContext | undefined;
+      const isChangeRequest = !media && serviceAppointmentChangeIntent(content) !== undefined;
+      if (isChangeRequest) {
+        const ownedCase = await tx.supportTicket.findFirst({ where: { id: current.ticketId, merchantId: turn.scope.merchantId,
+          sessionId: session.id, source: "whatsapp", status: { in: ["open", "in_progress"] }, mergedIntoId: null }, select: { buyerId: true } });
+        if (!ownedCase) throw new ConflictException("whatsapp_human_ticket_unavailable");
+        try {
+          // Acquire merchant/account before support, exactly like the initial
+          // intake. Human mode retains its actual durable channel authority;
+          // no AI generation, new transcript or replacement frame is started.
+          await assertWhatsAppAppointmentChangeOwnerWithin(tx, { merchantId: turn.scope.merchantId, buyerId: ownedCase.buyerId ?? undefined, phone: session.buyerPhone });
+          serviceChange = await readBuyerAppointmentChangeWithin(tx, { merchantId: turn.scope.merchantId,
+            buyerId: ownedCase.buyerId ?? undefined, message: content });
+        } catch (error) {
+          // Missing/ambiguous ownership leaves the genuine buyer message in
+          // the human case, without manufacturing a linked appointment.
+          if (!(error instanceof ServiceAppointmentChangePrompt) && !(error instanceof NotFoundException)) throw error;
+        }
+      }
       await lockSupportResource(tx, `support:${current.ticketId}`);
       const ticket = await tx.supportTicket.findFirst({ where: { id: current.ticketId, merchantId: turn.scope.merchantId,
         sessionId: session.id, source: "whatsapp", status: { in: ["open", "in_progress"] }, mergedIntoId: null } });
       if (!ticket) throw new ConflictException("whatsapp_human_ticket_unavailable");
-      const media = payload.metaMedia || payload.mediaUrl || payload.messageType === "audio";
-      const origin = turn.origin === "voice" ? "voice" : media ? "media" : turn.origin;
-      const content = turn.origin === "voice" ? turn.message : typeof payload.body === "string" ? payload.body : "";
+      if (isChangeRequest) {
+        const config = await tx.whatsAppChannelConfig.findFirst({ where: { id: turn.scope.configId,
+          merchantId: turn.scope.merchantId, enabled: true, status: "ACTIVE" } });
+        // Re-admit AFTER support/ticket waits using the canonical row-lock and
+        // database clock protocol. No AI frame or caller proof is invented.
+        if (!config || !await loadWhatsAppInboxTurnWithin(tx, claim)) throw new NotFoundException("whatsapp_human_inbox_not_found");
+      }
       const message = await persistSupportMessage(tx, { merchantId: turn.scope.merchantId, ticketId: ticket.id,
         senderType: "buyer", clientMessageId, content: content || "Mensagem de mídia recebida.", metadata: {
           kind: "whatsapp_incoming", schemaVersion: 1, configId: turn.scope.configId, whatsappSessionId: session.id,
@@ -100,11 +131,25 @@ export class WhatsAppHumanMessageRouter {
           // The authenticated inbox retains the media reference. MIME/body do
           // not authorize a transcript, a fetch or an external sender.
           ...(media ? { media: { inboxId: turn.inboxId } } : {}),
+          ...(serviceChange ? { appointmentId: serviceChange.appointment.id, policyVersion: serviceChange.appointment.policyVersion,
+            serviceAppointmentChange: serviceAppointmentChangeMetadata(serviceChange) } : {}),
         } });
-      return { kind: "received", receipt: { inboxId: turn.inboxId, sessionId: session.id, bindingId: current.id,
-        ticketId: ticket.id, epoch: current.epoch, messageId: message.id } };
+      if (serviceChange) await persistSupportMessage(tx, { merchantId: turn.scope.merchantId, ticketId: ticket.id,
+        senderType: "system", content: serviceAppointmentChangeOperatorText(serviceChange), metadata: {
+          kind: "service_appointment_change", schemaVersion: 1, requestMessageId: message.id, ...serviceAppointmentChangeMetadata(serviceChange) } });
+      const receipt: HumanInputReceipt = { inboxId: turn.inboxId, sessionId: session.id, bindingId: current.id,
+        ticketId: ticket.id, epoch: current.epoch, messageId: message.id };
+      if (isChangeRequest) {
+        // A later SQL await can also cross expiry. Capture the actual Meta
+        // receipt atomically; rejection rolls back messages/context/outbox.
+        if (captureReceipt && input.provider === "META_CLOUD") {
+          if (!await saveWhatsAppResponseWithin(tx, claim, { purpose: "human_received", phase: "complete", receipt: { ...receipt } })) throw new Error("whatsapp_inbox_lease_lost");
+          capturedC21 = true;
+        } else if (!await loadWhatsAppInboxTurnWithin(tx, claim)) throw new Error("whatsapp_inbox_lease_lost");
+      }
+      return { kind: "received", receipt };
     });
-    if (captureReceipt && result?.kind === "received") {
+    if (captureReceipt && result?.kind === "received" && !capturedC21) {
       if (input.provider === "META_CLOUD") {
         if (!await this.inbox.saveResponse?.(claim, { purpose: "human_received", phase: "complete", receipt: { ...result.receipt } })) throw new Error("whatsapp_inbox_lease_lost");
       } else await this.delivery.acknowledgeHumanInput(result.receipt);

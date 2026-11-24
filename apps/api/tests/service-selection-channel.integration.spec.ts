@@ -41,7 +41,7 @@ const script = [
 ];
 
 test("T42 signed native selection ambiguity", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createNativeServiceJourneyFixture({ voiceTranscripts: speech, modelScript: script, storefrontRoutingProfile: "structured" });
+  const f = await createNativeServiceJourneyFixture({ serviceReleaseFixture: "matching", voiceTranscripts: speech, modelScript: script, storefrontRoutingProfile: "structured" });
   const view = (state: any) => state.view?.serviceBooking?.model;
   const actions = (state: any) => Object.values(state.selections ?? {}) as any[];
   const selection = (state: any) => {

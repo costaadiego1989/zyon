@@ -122,6 +122,19 @@ function paymentValueAsCents(paymentSlice: NonNullable<AsaasWebhookInbound["paym
   return Math.round(paymentSlice.value * 100);
 }
 
+/** Receipt-only numeric precision. The existing wire normalizer is unchanged;
+ * no new string grammar is introduced. Use the shortest observed decimal of
+ * the decoded number, preserving 0.29/1.23/98.04 without binary rounding. */
+function exactReceivedValueCents(value: number): number | undefined {
+  if (!Number.isFinite(value)) return undefined;
+  const parts = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(String(value));
+  if (!parts) return undefined;
+  const absolute = BigInt(parts[2]!) * 100n + BigInt((parts[3] ?? "").padEnd(2, "0"));
+  const cents = parts[1] ? -absolute : absolute;
+  if (cents > BigInt(Number.MAX_SAFE_INTEGER) || cents < BigInt(Number.MIN_SAFE_INTEGER)) return undefined;
+  return Number(cents);
+}
+
 function paymentNetValueAsCents(paymentSlice: NonNullable<AsaasWebhookInbound["payment"]> | undefined): number | undefined {
   if (!paymentSlice || typeof paymentSlice.netValue !== "number" || !Number.isFinite(paymentSlice.netValue)) return undefined;
   return Math.round(paymentSlice.netValue * 100);
@@ -161,11 +174,14 @@ export class HandleAsaasWebhookUseCase {
     // scoped read: the port returns only { id, merchantId }; the authoritative
     // entity is re-fetched scoped below (ADR 0001 #3).
     let ref = extRef ? await this.payments.getIntentByExternalReference(extRef) : null;
-    if (body.event === "PAYMENT_RECEIVED" || body.event === "PAYMENT_CONFIRMED") {
+    const isPaymentReceipt = body.event === "PAYMENT_RECEIVED" || body.event === "PAYMENT_CONFIRMED";
+    let receiptProviderReference: { id: string; merchantId: string } | null = null;
+    if (isPaymentReceipt) {
       const providerPaymentId = body.payment?.id?.trim();
       const persistedReference = providerPaymentId
         ? await this.payments.getIntentReferenceByProviderPaymentId?.(providerPaymentId)
         : null;
+      receiptProviderReference = persistedReference ?? null;
       if (persistedReference && (ref?.id !== persistedReference.id || ref?.merchantId !== persistedReference.merchantId)) {
         const persisted = await this.payments.getIntentById(persistedReference.merchantId, persistedReference.id);
         // Treat externalReference only as a claim. It cannot redirect a known
@@ -178,9 +194,26 @@ export class HandleAsaasWebhookUseCase {
     const requiresPaymentIdentity = body.event === "PAYMENT_CHARGEBACK_REQUESTED" ||
       body.event === "PAYMENT_CHARGEBACK_DISPUTE" ||
       body.event === "PAYMENT_AWAITING_CHARGEBACK_REVERSAL" || body.event === "PAYMENT_REFUNDED";
+    const receiptIntent = isPaymentReceipt && ref
+      ? await this.payments.getIntentById(ref.merchantId, ref.id)
+      : null;
+    if (receiptIntent && body.payment?.id?.trim() &&
+        receiptIntent.snapshot().creation?.input.marketplaceFunding === undefined) {
+      const snapshot = receiptIntent.snapshot();
+      const provider = snapshot.creation?.input.provider;
+      // An authenticated Asaas receipt cannot use another provider's provisional-ID
+      // exception or bind a charge already owned by a different intent/tenant.
+      // An exact early receipt without any conflicting known ID remains valid.
+      if (receiptProviderReference && (receiptProviderReference.id !== snapshot.id ||
+            receiptProviderReference.merchantId !== snapshot.merchantId) ||
+          snapshot.providerPaymentId && snapshot.providerPaymentId !== body.payment.id.trim() ||
+          provider !== undefined && provider !== "asaas" || snapshot.currency !== "BRL") {
+        return this.rejectPaymentIdentity("mismatch");
+      }
+    }
     const validatedIntent = requiresPaymentIdentity
       ? await this.requireMatchingPaymentIdentity(body, ref)
-      : null;
+      : receiptIntent;
     const merchantId = ref?.merchantId ?? null;
     const eventKey: ProviderEventKey = { provider: "asaas", merchantId, eventId: body.id };
 
@@ -319,9 +352,13 @@ export class HandleAsaasWebhookUseCase {
   ): Promise<string> {
     const snap = intentEntity.snapshot();
     const payId = typeof paymentSlice?.id === "string" ? paymentSlice.id.trim() : "";
-    const centsFromWebhook = paymentValueAsCents(paymentSlice);
+    const observedValue = paymentSlice?.value;
     if (!payId) throw new BadRequestException("payment_id_missing_on_webhook");
-    if (typeof centsFromWebhook !== "number") throw new BadRequestException("payment_value_missing_on_webhook");
+    if (typeof observedValue !== "number" || !Number.isFinite(observedValue)) {
+      throw new BadRequestException("payment_value_missing_on_webhook");
+    }
+    const centsFromWebhook = exactReceivedValueCents(observedValue);
+    if (centsFromWebhook === undefined) throw new BadRequestException("payment_value_invalid_on_webhook");
 
     const marketplaceRead = marketplacePaymentStatusInput(snap);
     if (marketplaceRead) {

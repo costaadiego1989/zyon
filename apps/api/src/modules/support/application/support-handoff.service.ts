@@ -19,6 +19,9 @@ import { PrismaWhatsAppHandoffRepository } from "../../whatsapp-channel/infrastr
 import { WhatsAppTurnContext } from "../../whatsapp-channel/domain/services/whatsapp-turn-context.js";
 import { humanEscalationIntent } from "../../whatsapp-channel/domain/services/whatsapp-human-intent.js";
 import { persistWhatsAppSupportIntake, type WhatsAppSupportIntake } from "./whatsapp-support-intake.js";
+import { persistWhatsAppAppointmentChangeIntake } from "./whatsapp-support-intake.js";
+import { serviceAppointmentChangeIntent } from "../domain/service-appointment-change-intent.js";
+import { readBuyerAppointmentChangeWithin, ServiceAppointmentChangePrompt, serviceAppointmentChangeMetadata, serviceAppointmentChangeOperatorText, SERVICE_APPOINTMENT_CHANGE_ACK, type BuyerAppointmentChangeContext } from "./service-appointment-change-request.js";
 
 export interface HandoffInput {
   merchantId: string;
@@ -46,6 +49,31 @@ export class SupportHandoffService {
     @Optional() private readonly whatsappBindings?: PrismaWhatsAppHandoffRepository,
     @Optional() private readonly whatsappTurn?: WhatsAppTurnContext,
   ) {}
+
+  /** Current authenticated server conversation only; no model tool or DTO.
+   * Identity, target and policies are resolved in the intake transaction. */
+  async requestServiceAppointmentChange(input: HandoffInput): Promise<{
+    confirmed: boolean; reply: string; ticketId?: string; bindingId?: string; epoch?: number;
+  } | undefined> {
+    const turn = this.whatsappTurn?.current(), message = turn?.message ?? input.initialMessage;
+    if (!serviceAppointmentChangeIntent(message)) return;
+    try {
+      if (turn) {
+        if (turn.scope.merchantId !== input.merchantId) throw new ServiceUnavailableException("whatsapp_handoff_scope_mismatch");
+        if (!this.prisma || !this.whatsappBindings) throw new ServiceUnavailableException("whatsapp_handoff_unavailable");
+        const result = await persistWhatsAppAppointmentChangeIntake(this.whatsappBindings, { ...turn, message: turn.message });
+        if (result.created) this.publisher.publishCreated(result.ticket);
+        return { confirmed: true, reply: SERVICE_APPOINTMENT_CHANGE_ACK, ticketId: result.ticketId, bindingId: result.binding.id, epoch: result.binding.epoch };
+      }
+      if (!this.prisma) throw new ServiceUnavailableException("service_appointment_change_unavailable");
+      const result = await this.persistHandoff({ ...input, buyerMessage: message!, initialMessage: message! }, undefined, true);
+      return { confirmed: true, reply: SERVICE_APPOINTMENT_CHANGE_ACK, ticketId: result.ticketId };
+    } catch (error) {
+      if (error instanceof ServiceAppointmentChangePrompt) return error.notService ? undefined : { confirmed: false, reply: error.reply };
+      // The commit may be uncertain. Never repeat a write or invent success.
+      return { confirmed: false, reply: "🤝 *Solicitação de alteração*\n\nNão consegui confirmar o encaminhamento agora. Consulte a central de atendimento antes de tentar novamente. Nenhuma alteração automática foi solicitada ao agendamento." };
+    }
+  }
 
   /** The ordinary model tool has no authority from its reason/summary.
    * Non-WhatsApp behavior and explicit professional referral remain separate. */
@@ -95,18 +123,28 @@ export class SupportHandoffService {
     return result;
   }
 
-  private async persistHandoff(input: HandoffInput, contextReply?: string): Promise<HandoffResult> {
+  private async persistHandoff(input: HandoffInput, contextReply?: string, changeRequest = false): Promise<HandoffResult> {
     const candidate = SupportTicketEntity.create(input).snapshot();
     const question = input.productQuestion ? productQuestionIntakeSchema.parse({ ...input.productQuestion,
       buyerId: input.buyerId, sessionId: input.sessionId }) : undefined;
+    let serviceChange: BuyerAppointmentChangeContext | undefined;
     const persistInitial = async (tx: Prisma.TransactionClient, ticketId: string, content: string) => {
       const id = question ? randomUUID() : undefined;
-      return persistSupportMessage(tx, { id, merchantId: input.merchantId, ticketId, senderType: "buyer", content,
+      const message = await persistSupportMessage(tx, { id, merchantId: input.merchantId, ticketId, senderType: "buyer", content,
         ...(question && id ? { metadata: { ...question, kind: "product_question", schemaVersion: 1,
-          merchantId: input.merchantId, ticketId, questionMessageId: id } } : {}) });
+          merchantId: input.merchantId, ticketId, questionMessageId: id } } : {}),
+        ...(serviceChange ? { metadata: { kind: "service_appointment_intake", schemaVersion: 1,
+          appointmentId: serviceChange.appointment.id, policyVersion: serviceChange.appointment.policyVersion,
+          serviceAppointmentChange: serviceAppointmentChangeMetadata(serviceChange) } } : {}) });
+      if (serviceChange) await persistSupportMessage(tx, { merchantId: input.merchantId, ticketId, senderType: "system",
+        content: serviceAppointmentChangeOperatorText(serviceChange), metadata: { kind: "service_appointment_change", schemaVersion: 1,
+          requestMessageId: message.id, ...serviceAppointmentChangeMetadata(serviceChange) } });
+      return message;
     };
     const result = await this.prisma!.$transaction(async tx => {
       await admitWhatsAppEffectInTransaction(tx, candidate.merchantId);
+      if (changeRequest) serviceChange = await readBuyerAppointmentChangeWithin(tx, { merchantId: input.merchantId,
+        buyerId: input.buyerId, message: input.initialMessage ?? "" });
       const sessionId = candidate.sessionId;
       if (sessionId) await lockSupportResource(tx, `support-session:${candidate.merchantId}:${sessionId}`);
       await lockSupportResource(tx, `support-open:${candidate.merchantId}:${input.buyerId || sessionId || candidate.id}`);
@@ -131,14 +169,24 @@ export class SupportHandoffService {
             { metadata: { path: ["merchantId"], equals: candidate.merchantId } }, { metadata: { path: ["ticketId"], equals: previous.id } },
             { metadata: { path: ["productId"], equals: question.productId } }, { metadata: { path: ["buyerId"], equals: question.buyerId } },
             { metadata: { path: ["sessionId"], equals: question.sessionId } }, { metadata: { path: ["questionText"], equals: question.questionText } },
-          ] } : {}) }, select: { id: true, metadata: true } }) : null;
+          ] } : {}),
+          // Find the matching canonical context, not an arbitrary older
+          // same-text message. JSON equality has no volatile clock fields.
+          ...(serviceChange ? { metadata: { equals: { kind: "service_appointment_intake", schemaVersion: 1,
+            appointmentId: serviceChange.appointment.id, policyVersion: serviceChange.appointment.policyVersion,
+            serviceAppointmentChange: serviceAppointmentChangeMetadata(serviceChange) } } } : {}),
+        }, select: { id: true, metadata: true } }) : null;
         const metadata = question ? productQuestionMessageMetadataSchema.safeParse(found?.metadata) : undefined;
+        // An old generic message with the same text is not a linked intake.
+        const linkedChange = !serviceChange || found?.metadata && typeof found.metadata === "object" && !Array.isArray(found.metadata)
+          && found.metadata.kind === "service_appointment_intake" && found.metadata.appointmentId === serviceChange.appointment.id
+          && found.metadata.policyVersion === serviceChange.appointment.policyVersion;
         const existing = question ? metadata?.success && metadata.data.questionMessageId === found?.id
           && metadata.data.merchantId === candidate.merchantId && metadata.data.ticketId === previous.id
           && metadata.data.productId === question.productId && metadata.data.buyerId === question.buyerId
           && metadata.data.sessionId === question.sessionId && metadata.data.questionText === question.questionText ? found : null : found;
         let questionMessageId = question ? existing?.id : undefined;
-        if (initial && !existing) {
+        if (initial && (!existing || !linkedChange)) {
           const message = await persistInitial(tx, previous.id, initial);
           if (question) questionMessageId = message.id;
         }

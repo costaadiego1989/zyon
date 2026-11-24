@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import test from "node:test";
 import { createHash, randomUUID } from "node:crypto";
 import { createProfessionalHttpFixture } from "./service-professional-http-fixture.mjs";
@@ -18,9 +19,10 @@ import { professionalHoldRequests } from "../src/shared/bookings/service-checkou
 const BR = "America/Sao_Paulo", now = new Date("2029-01-01T00:00:00Z");
 
 test("T112 native fixed booking dates and immutable paid history", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createProfessionalHttpFixture();
+  const f = await createProfessionalHttpFixture({ serviceReleaseFixture: "matching" });
   let redis: Redis | undefined;
   try {
+  const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     const merchantId = f.owner.merchant_id, current = await f.prisma.serviceBusinessPolicy.findUnique({ where: { merchantId } });
     const policy = await f.request("/merchants/me/service-business-policy", { expectedVersion: current?.version ?? 0,
       paymentMode: "online", holdEnabled: false, admissionsEnabled: true }, f.owner, "PUT"); assert.equal(policy.status, 200, JSON.stringify(policy));

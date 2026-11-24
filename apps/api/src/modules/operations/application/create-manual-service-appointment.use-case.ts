@@ -23,6 +23,8 @@ import { serviceSlotStore, originalSlotLeaseProof } from "../../../shared/bookin
 import type { DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
 
 type Contact = { name: string; phone?: string; email?: string };
+import { assertServiceActivationWithin } from "../../../shared/bookings/service-activation-readiness.js";
+
 export type ManualCustomer = { kind: "known"; customerId: string } | ({ kind: "contact" } & Contact);
 export interface ManualServiceAppointmentCommand {
   commandId: string;
@@ -130,6 +132,7 @@ export async function createManualServiceAppointmentWithin(tx: Prisma.Transactio
       availabilityExceptionId: appointment.availabilityExceptionId };
   }
 
+  await assertServiceActivationWithin(tx, actor.merchantId);
   let facts = await readProfessionalServiceLink(tx, { merchantId: actor.merchantId, ...input });
   if (facts.professionalVersion !== input.expectedProfessionalVersion) throw new ConflictException("service_selection_stale");
   const merchant = await tx.merchant.findUnique({ where: { id: actor.merchantId }, select: {

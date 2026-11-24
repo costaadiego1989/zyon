@@ -2,11 +2,13 @@ import { BadRequestException, ConflictException, NotFoundException } from "@nest
 import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { PrismaWhatsAppHandoffRepository } from "../../whatsapp-channel/infrastructure/repositories/prisma-whatsapp-handoff.repository.js";
-import type { HandoffScope } from "../../whatsapp-channel/domain/services/whatsapp-handoff-state.js";
+import type { HandoffScope, HandoffState } from "../../whatsapp-channel/domain/services/whatsapp-handoff-state.js";
 import { whatsappE164 } from "../../whatsapp-channel/domain/services/whatsapp-phone.js";
 import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
 import { appendSupportEvent, lockSupportResource, persistSupportMessage } from "./support-persistence.js";
 import { enqueueStaffAlertWithin } from "./support-case-alert-state.js";
+import { admitWhatsAppEffectInTransaction } from "../../../shared/whatsapp/whatsapp-automation-context.js";
+import { readBuyerAppointmentChangeWithin, assertServiceAppointmentChangeModeWithin, assertWhatsAppAppointmentChangeOwnerWithin, serviceAppointmentChangeMetadata, serviceAppointmentChangeOperatorText } from "./service-appointment-change-request.js";
 
 export const WHATSAPP_HANDOFF_ACK = "🤝 *Atendimento humano solicitado*\n\nSeu pedido foi registrado. A equipe responderá por aqui assim que estiver disponível. Seu carrinho está preservado.";
 
@@ -22,10 +24,18 @@ export interface WhatsAppSupportIntake {
   policyVersion?: number;
 }
 
-export async function persistWhatsAppSupportIntake(bindings: PrismaWhatsAppHandoffRepository, input: WhatsAppSupportIntake) {
+export function persistWhatsAppSupportIntake(bindings: PrismaWhatsAppHandoffRepository, input: WhatsAppSupportIntake) {
+  return persistIntake(bindings, input);
+}
+/** Internal entry from the genuine current turn, never a model/HTTP option. */
+export function persistWhatsAppAppointmentChangeIntake(bindings: PrismaWhatsAppHandoffRepository, input: WhatsAppSupportIntake) {
+  return persistIntake(bindings, input, true);
+}
+async function persistIntake(bindings: PrismaWhatsAppHandoffRepository, input: WhatsAppSupportIntake, changeRequest = false) {
   if (typeof input.message !== "string" || !input.message.trim() || input.message.length > 4000
     || !input.inboxId || !input.leaseToken || !["text", "button", "voice"].includes(input.origin)) throw new BadRequestException("whatsapp_handoff_input_invalid");
-  return bindings.withLocked(input.scope, async (tx, current) => {
+  const work = async (tx: Prisma.TransactionClient, initial?: HandoffState) => {
+    if (changeRequest) await admitWhatsAppEffectInTransaction(tx, input.scope.merchantId);
     const [clock] = await tx.$queryRaw<Array<{ now: Date }>>(Prisma.sql`SELECT clock_timestamp() AS now`);
     const session = await tx.whatsAppSession.findFirst({ where: { id: input.scope.whatsappSessionId, merchantId: input.scope.merchantId } });
     const inbox = await tx.whatsAppWebhookInbox.findFirst({ where: { id: input.inboxId, merchantId: input.scope.merchantId,
@@ -47,11 +57,27 @@ export async function persistWhatsAppSupportIntake(bindings: PrismaWhatsAppHando
     const buyerId = customer && typeof customer === "object" && !Array.isArray(customer) && customer.phone_verified === true
       && typeof customer.phone === "string" && whatsappE164(customer.phone) === whatsappE164(session.buyerPhone)
       ? checkout!.globalUserId : identity.globalUserId;
+    if (changeRequest) {
+      await assertServiceAppointmentChangeModeWithin(tx, input.scope.merchantId);
+      await assertWhatsAppAppointmentChangeOwnerWithin(tx, { merchantId: input.scope.merchantId, buyerId, phone: session.buyerPhone });
+    }
+    const serviceChange = changeRequest ? await readBuyerAppointmentChangeWithin(tx, { merchantId: input.scope.merchantId, buyerId, message: input.message }) : undefined;
+    if (changeRequest) {
+      // A policy read or lock wait may outlive the first lease check.
+      await admitWhatsAppEffectInTransaction(tx, input.scope.merchantId);
+      const [freshClock] = await tx.$queryRaw<Array<{ now: Date }>>(Prisma.sql`SELECT clock_timestamp() AS now`);
+      const live = await tx.whatsAppWebhookInbox.findFirst({ where: { id: input.inboxId, merchantId: input.scope.merchantId,
+        configId: input.scope.configId, kind: "message", status: "processing", leaseToken: input.leaseToken, leaseExpiresAt: { gt: freshClock.now } } });
+      if (!live) throw new NotFoundException("whatsapp_handoff_inbox_not_found");
+    }
     if (!input.appointmentId && input.policyVersion !== undefined) throw new BadRequestException("whatsapp_handoff_appointment_required");
-    const appointment = input.appointmentId ? await tx.serviceAppointment.findFirst({ where: {
+    const appointment = serviceChange?.appointment ?? (input.appointmentId ? await tx.serviceAppointment.findFirst({ where: {
       id: input.appointmentId, merchantId: input.scope.merchantId, buyerGlobalUserId: buyerId,
-    } }) : null;
+    } }) : null);
     if (input.appointmentId && (!appointment || input.policyVersion !== appointment.policyVersion)) throw new NotFoundException("whatsapp_handoff_appointment_not_found");
+    // Creating a binding before re-admitting an originally unbound AI turn
+    // would change its authority. Keep absence intact through all reads.
+    const current = initial ?? await bindings.loadLocked(tx, input.scope);
     let ticket = current.mode !== "ai" && current.ticketId ? await tx.supportTicket.findFirst({ where: {
       id: current.ticketId, merchantId: input.scope.merchantId, sessionId: session.id, source: "whatsapp",
       status: { in: ["open", "in_progress"] }, mergedIntoId: null,
@@ -69,17 +95,25 @@ export async function persistWhatsAppSupportIntake(bindings: PrismaWhatsAppHando
     const transition = await bindings.beginWithin(tx, input.scope, current, ticket.id, current.epoch);
     const clientMessageId = "wa_" + createHash("sha256").update(input.inboxId).digest("hex");
     let message = await tx.supportTicketMessage.findFirst({ where: { ticketId: ticket.id, senderType: "buyer", clientMessageId } });
-    if (!message) message = await persistSupportMessage(tx, { merchantId: input.scope.merchantId, ticketId: ticket.id,
-      senderType: "buyer", clientMessageId, content: input.message.trim(), metadata: {
-        kind: "whatsapp_intake", schemaVersion: 1, configId: input.scope.configId, whatsappSessionId: session.id,
-        inboxId: input.inboxId, origin: input.origin, epoch: transition.state.epoch,
-        ...(appointment ? { appointmentId: appointment.id, policyVersion: appointment.policyVersion } : {}),
-      } });
+    if (!message) {
+      message = await persistSupportMessage(tx, { merchantId: input.scope.merchantId, ticketId: ticket.id,
+        senderType: "buyer", clientMessageId, content: input.message.trim(), metadata: {
+          kind: "whatsapp_intake", schemaVersion: 1, configId: input.scope.configId, whatsappSessionId: session.id,
+          inboxId: input.inboxId, origin: input.origin, epoch: transition.state.epoch,
+          ...(appointment ? { appointmentId: appointment.id, policyVersion: appointment.policyVersion } : {}),
+          ...(serviceChange ? { serviceAppointmentChange: serviceAppointmentChangeMetadata(serviceChange) } : {}),
+        } });
+      if (serviceChange) await persistSupportMessage(tx, { merchantId: input.scope.merchantId, ticketId: ticket.id,
+        senderType: "system", content: serviceAppointmentChangeOperatorText(serviceChange), metadata: {
+          kind: "service_appointment_change", schemaVersion: 1, requestMessageId: message.id, ...serviceAppointmentChangeMetadata(serviceChange) } });
+    }
     if (created) await enqueueStaffAlertWithin(tx, transition.state);
     return { created, ticketId: ticket.id, messageId: message.id, binding: transition.state,
       ticket: { id: ticket.id, merchantId: ticket.merchantId, sessionId: session.id, buyerMessage: ticket.buyerMessage,
         source: "whatsapp" as const, status: ticket.status === "in_progress" ? "in_progress" as const : "open" as const,
         createdAt: ticket.createdAt.toISOString(), updatedAt: ticket.updatedAt.toISOString() },
       reply: WHATSAPP_HANDOFF_ACK };
-  });
+  };
+  return changeRequest ? bindings.withReadLock(input.scope, (tx, locked) => work(tx, locked.binding ?? undefined))
+    : bindings.withLocked(input.scope, work);
 }

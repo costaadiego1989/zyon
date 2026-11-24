@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { modeledUnitServiceRelease } from "../../../tests/service-release-modeled-unit.fixture.mjs";
 import test from "node:test";
 import type { Prisma, ServiceAppointment } from "@prisma/client";
 import { admitServiceAppointment, type ServiceAppointmentAdmissionInput } from "./service-appointment-admission.service.js";
@@ -60,6 +61,13 @@ function paidFixture() {
   return { ...f, order, payment, schedule, input };
 }
 
+const originalFixture = fixture;
+function modeledFixture(context: { after: (callback: () => void) => unknown }, ...args: Parameters<typeof originalFixture>) {
+  const f = originalFixture(...args), modeledLedger = modeledUnitServiceRelease(context);
+  f.tx.$queryRaw = modeledLedger.wrapQueryRaw(f.tx.$queryRaw) as typeof f.tx.$queryRaw;
+  return Object.assign(f, { modeledLedger });
+}
+
 test("T26", async t => {
   await t.test("matching approved order evidence preserves the canonical financial and appointment snapshot", async () => {
     const f = paidFixture(), result = await admitServiceAppointment(f.tx, f.input, { clock: () => now, readAvailability: f.readAvailability });
@@ -78,15 +86,17 @@ test("T26", async t => {
       assert.deepEqual(f.appointments, []); assert.deepEqual(f.audits, []); assert.deepEqual(f.events, []);
     });
   }
-  await t.test("a root Prisma client is refused before any admission writes", async () => {
+  await t.test("a root Prisma client is refused before any admission writes", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), root = Object.assign(f.tx, { $transaction: async () => assert.fail("admission must not open a nested transaction") });
     await assert.rejects(admitServiceAppointment(root, selection, { clock: () => now, readAvailability: f.readAvailability }), /service_appointment_transaction_required/);
     assert.deepEqual(f.appointments, []); assert.deepEqual(f.audits, []); assert.deepEqual(f.events, []);
   });
-  await t.test("the decision clock is captured after both locks and shared by capacity and durable effects", async () => {
+  await t.test("the decision clock is captured after both locks and shared by capacity and durable effects", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(), fresh = new Date("2030-01-01T09:01:00Z");
     let locks = 0, clockCalls = 0, current = now, capacityNow: Date | undefined;
-    f.tx.$queryRaw = (async () => { if (++locks === 2) current = fresh; return [{ id: "services" }]; }) as typeof f.tx.$queryRaw;
+    f.tx.$queryRaw = f.modeledLedger.wrapQueryRaw(async () => { if (++locks === 2) current = fresh; return [{ id: "services" }]; }) as typeof f.tx.$queryRaw;
     const context = { now, clock: () => { assert.equal(locks, 2); clockCalls++; return current; },
       readAvailability: async (_tx: Prisma.TransactionClient, input: { now: Date }) => { capacityNow = input.now; return f.readAvailability(); } };
     const result = await admitServiceAppointment(f.tx, selection, context);
@@ -96,14 +106,16 @@ test("T26", async t => {
     assert.equal((f.audits[0].occurredAt as Date).toISOString(), fresh.toISOString());
     assert.equal((f.events[0].occurredAt as Date).toISOString(), fresh.toISOString());
   });
-  await t.test("crossing the selected start while acquiring locks leaves no appointment audit or event", async () => {
+  await t.test("crossing the selected start while acquiring locks leaves no appointment audit or event", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); let locks = 0, current = now;
-    f.tx.$queryRaw = (async () => { if (++locks === 2) current = new Date(selection.startsAt); return [{ id: "services" }]; }) as typeof f.tx.$queryRaw;
+    f.tx.$queryRaw = f.modeledLedger.wrapQueryRaw(async () => { if (++locks === 2) current = new Date(selection.startsAt); return [{ id: "services" }]; }) as typeof f.tx.$queryRaw;
     const context = { now, clock: () => current, readAvailability: f.readAvailability };
     await assert.rejects(admitServiceAppointment(f.tx, selection, context), /service_slot_unavailable/);
     assert.deepEqual(f.appointments, []); assert.deepEqual(f.audits, []); assert.deepEqual(f.events, []);
   });
-  await t.test("invalid customer JSON cannot create appointment, audit or event records", async () => {
+  await t.test("invalid customer JSON cannot create appointment, audit or event records", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     for (const [field, value] of [["phone", { number: "synthetic" }], ["email", ["buyer@example.test"]],
       ["name", "x".repeat(201)], ["phone", "1"], ["email", "not-an-email"]] as const) {
       const f = fixture(), customer = { ...selection.customer };
@@ -112,13 +124,15 @@ test("T26", async t => {
       assert.deepEqual(f.appointments, []); assert.deepEqual(f.audits, []); assert.deepEqual(f.events, []);
     }
   });
-  await t.test("canonical customer fields are trimmed without guessing a country code", async () => {
+  await t.test("canonical customer fields are trimmed without guessing a country code", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture();
     const result = await admitServiceAppointment(f.tx, { ...selection, customer: { name: " Synthetic buyer ", email: " Buyer@Example.test " } }, { clock: () => now, readAvailability: f.readAvailability });
     assert.deepEqual(result.appointment.customerSnapshot, { name: "Synthetic buyer", email: "buyer@example.test" });
     assert.equal(JSON.stringify(f.events).includes("buyer@example.test"), false);
   });
-  await t.test("snapshots canonical values and records one audited event without a paid claim", async () => {
+  await t.test("snapshots canonical values and records one audited event without a paid claim", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture();
     const result = await admitServiceAppointment(f.tx, selection, { clock: () => now, readAvailability: f.readAvailability });
     assert.equal(result.replayed, false);
@@ -141,7 +155,8 @@ test("T26", async t => {
     assert.deepEqual(f.events[0].payload, { appointmentId: result.appointment.id, version: 1, operationalStatus: "scheduled" });
     assert.equal(JSON.stringify(f.events).includes(selection.customer.phone!), false);
   });
-  await t.test("same command replays the original snapshot even after admission is disabled", async () => {
+  await t.test("same command replays the original snapshot even after admission is disabled", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture();
     const first = await admitServiceAppointment(f.tx, selection, { clock: () => now, readAvailability: f.readAvailability });
     f.policy.admissionsEnabled = false;
@@ -150,7 +165,8 @@ test("T26", async t => {
     assert.deepEqual(again.appointment, first.appointment);
     assert.equal(f.appointments.length, 1); assert.equal(f.audits.length, 1); assert.equal(f.events.length, 1);
   });
-  await t.test("unclassified legacy capacity blocks new admission without disabling an existing replay", async () => {
+  await t.test("unclassified legacy capacity blocks new admission without disabling an existing replay", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); f.unclassified();
     await assert.rejects(admitServiceAppointment(f.tx, selection, { clock: () => now, readAvailability: f.readAvailability }), /service_legacy_classification_required/);
     assert.deepEqual(f.appointments, []); assert.deepEqual(f.audits, []); assert.deepEqual(f.events, []);
@@ -160,7 +176,8 @@ test("T26", async t => {
     assert.equal(replay.replayed, true); assert.deepEqual(replay.appointment, first.appointment);
     assert.equal(g.appointments.length, 1); assert.equal(g.audits.length, 1); assert.equal(g.events.length, 1);
   });
-  await t.test("same key cannot select a different slot or customer", async () => {
+  await t.test("same key cannot select a different slot or customer", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture();
     await admitServiceAppointment(f.tx, selection, { clock: () => now, readAvailability: f.readAvailability });
     for (const changed of [{ ...selection, startsAt: "2030-01-02T10:15:00.000Z" },
@@ -169,7 +186,8 @@ test("T26", async t => {
     }
     assert.equal(f.appointments.length, 1); assert.equal(f.audits.length, 1); assert.equal(f.events.length, 1);
   });
-  await t.test("products, unconfigured policy, changed policy and changed price leave no side effects", async () => {
+  await t.test("products, unconfigured policy, changed policy and changed price leave no side effects", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     for (const change of ["products", "unconfigured", "policy", "price"] as const) {
       const f = fixture();
       if (change === "products") f.merchant.businessMode = "products";
@@ -180,7 +198,8 @@ test("T26", async t => {
       assert.deepEqual(f.appointments, []); assert.deepEqual(f.audits, []); assert.deepEqual(f.events, []);
     }
   });
-  await t.test("unavailable or stale professional selection never confirms a different slot", async () => {
+  await t.test("unavailable or stale professional selection never confirms a different slot", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); f.unavailable();
     await assert.rejects(admitServiceAppointment(f.tx, selection, { clock: () => now, readAvailability: f.readAvailability }), /service_slot_unavailable/);
     const g = fixture();
@@ -188,7 +207,8 @@ test("T26", async t => {
     assert.deepEqual(f.appointments, []); assert.deepEqual(g.appointments, []);
     assert.deepEqual(f.events, []); assert.deepEqual(g.events, []);
   });
-  await t.test("pending online attempt does not claim confirmed capacity or payment", async () => {
+  await t.test("pending online attempt does not claim confirmed capacity or payment", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); f.policy.paymentMode = "online";
     const result = await admitServiceAppointment(f.tx, { ...selection, confirmation: { kind: "pending" } }, { clock: () => now, readAvailability: f.readAvailability });
     assert.equal(result.appointment.operationalStatus, "pending");
@@ -197,7 +217,8 @@ test("T26", async t => {
     assert.deepEqual(f.events[0].payload, { appointmentId: result.appointment.id, version: 1, operationalStatus: "pending" });
     assert.deepEqual(f.audits[0].after, { operationalStatus: "pending", policyVersion: 2, priceInCents: 5000, currency: "BRL" });
   });
-  await t.test("online policy cannot use a local-payment confirmation", async () => {
+  await t.test("online policy cannot use a local-payment confirmation", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     const f = fixture(); f.policy.paymentMode = "online";
     await assert.rejects(admitServiceAppointment(f.tx, selection, { clock: () => now, readAvailability: f.readAvailability }), /service_payment_policy_conflict/);
     assert.deepEqual(f.appointments, []); assert.deepEqual(f.audits, []); assert.deepEqual(f.events, []);

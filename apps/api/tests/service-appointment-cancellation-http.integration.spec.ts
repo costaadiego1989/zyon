@@ -4,7 +4,7 @@ import { createServiceOperationsHttpFixture } from "./service-operations-http.fi
 import { SERVICE_LOCAL_TEST_MS } from "./service-test-startup.mjs";
 
 test("T33 HTTP and SQL", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture();
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" });
   try {
     // Two real owners share this same verified application/database. The two
     // negative-heavy cases use their own normal tenant quota; defaults stay on.

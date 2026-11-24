@@ -8,7 +8,7 @@ import { initializeOrderFulfillment, reserveService } from "../src/shared/persis
 import { readFulfillment } from "../src/modules/operations/domain/order-fulfillment.js";
 import { OrderFulfillmentUseCase } from "../src/modules/operations/application/order-fulfillment.use-case.js";
 test("T35 approved SQL authority", { timeout: 600_000 }, async t => {
-  const f = await createServiceOperationsHttpFixture();
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" });
   const admit = (c: any) => f.prisma.$transaction((tx: any) => initializeOrderFulfillment(tx, c.order.id, c.merchantId));
   const canonical = (c: any) => f.prisma.serviceAppointment.findUniqueOrThrow({ where: { merchantId_orderId_orderUnitId: { merchantId: c.merchantId, orderId: c.order.id, orderUnitId: c.unitId } } });
   try {

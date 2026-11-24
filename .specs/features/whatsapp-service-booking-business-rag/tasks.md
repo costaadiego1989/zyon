@@ -2178,17 +2178,19 @@ T107 → T106
 
 ### T94: Guard activation and safe disablement
 
+**Status**: Complete - local task gate passed; scoped evidence in task-94-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Readiness exige políticas/mapeamento/escritores/provas críticas e versão compatíveis; habilitar por tenant; desativar só nova entrada, não abandonar appointments/pagamentos/webhooks existentes.
 **Where**: `apps/api/src/modules/merchant/application/service-activation-readiness.service.ts`
 **Depends on**: T93
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: REG-04, ONB-02, QA-04
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-migration.integration.spec.mjs named REG-04 e readiness.spec.ts: requisito faltante bloqueia, produto jamais ativa, desligar com in-flight preserva processamento.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] service-migration.integration.spec.mjs named REG-04 e readiness.spec.ts: requisito faltante bloqueia, produto jamais ativa, desligar com in-flight preserva processamento.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: service-migration.integration.spec.mjs named REG-04 e readiness.spec.ts: requisito faltante bloqueia, produto jamais ativa, desligar com in-flight preserva processamento.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T94$" ./src/modules/merchant/application/service-activation-readiness.service.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T94 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import test from "node:test";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
@@ -30,6 +31,7 @@ test("T71 actual canonical composition and live service facts", { timeout: SERVI
   try {
     await db.sql(`CREATE TABLE synthetic_native_marker(run_id TEXT PRIMARY KEY); INSERT INTO synthetic_native_marker VALUES ('${db.runId}');`);
     await bootstrapServiceSchema(db);
+  const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     redisOwner = await createServiceTestRedis();
     redis = new Redis(redisOwner.url, { lazyConnect: true, maxRetriesPerRequest: 1,
       commandTimeout: 3000, connectTimeout: 3000, enableOfflineQueue: false });

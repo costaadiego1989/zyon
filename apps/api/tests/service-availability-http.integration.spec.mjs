@@ -7,13 +7,13 @@ test('T24',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
   const f=await createProfessionalHttpFixture();
   try{
     const product=await f.prisma.product.create({data:{merchantId:f.owner.merchant_id,name:'Synthetic duration-only service',type:'service',metadata:{serviceSchedule:{timeZone:'UTC',durationMinutes:30,slots:[]}},variants:{create:{sku:'http-availability',price:{create:{basePriceInCents:5000,currency:'BRL'}}}}},include:{variants:true}});
-    const created=await f.request(f.path(f.owner),{...f.profile,timeZone:'UTC',productIds:[product.id]},f.owner);assert.equal(created.status,201);const professional=created.body;
-    await f.prisma.professionalAvailability.create({data:{merchantId:f.owner.merchant_id,professionalId:professional.id,weekday:3,startMinute:600,endMinute:720,timeZone:'UTC'}});
+    const created=await f.request(f.path(f.owner),{...f.profile,timeZone:'America/Sao_Paulo',productIds:[product.id]},f.owner);assert.equal(created.status,201);const professional=created.body;
+    await f.prisma.professionalAvailability.create({data:{merchantId:f.owner.merchant_id,professionalId:professional.id,weekday:3,startMinute:420,endMinute:540,timeZone:'America/Sao_Paulo'}});
     const resource='productId='+product.id+'&variantId='+product.variants[0].id+'&professionalId='+professional.id;
     const path=auth=>'/merchants/'+auth.merchant_id+'/service-availability';
     await t.test('dates precede date-specific slots with real server clock and policy/version state',async()=>{
       const dates=await f.request(path(f.owner)+'/dates?'+resource+'&fromDate=2030-01-02&toDate=2030-01-03',undefined,f.owner,'GET');assert.equal(dates.status,200,JSON.stringify(dates));assert.equal(dates.body.status,'ready');assert.deepEqual(dates.body.dates,['2030-01-02']);assert.equal(Object.hasOwn(dates.body,'slots'),false);assert.equal(dates.body.professionalVersion,1);assert.equal(dates.body.policyVersion,null);assert.ok(Math.abs(Date.now()-Date.parse(dates.body.asOf))<15_000);
-      const slots=await f.request(path(f.owner)+'/slots?'+resource+'&date=2030-01-02',undefined,f.owner,'GET');assert.equal(slots.status,200);assert.deepEqual(slots.body.slots.map(slot=>slot.startTime),['10:00','10:30','11:00','11:30']);assert.ok(slots.body.slots.every(slot=>slot.date==='2030-01-02'&&slot.timeZone==='UTC'&&slot.durationMinutes===30));
+      const slots=await f.request(path(f.owner)+'/slots?'+resource+'&date=2030-01-02',undefined,f.owner,'GET');assert.equal(slots.status,200);assert.deepEqual(slots.body.slots.map(slot=>slot.startTime),['07:00','07:30','08:00','08:30']);assert.ok(slots.body.slots.every(slot=>slot.date==='2030-01-02'&&slot.timeZone==='America/Sao_Paulo'&&slot.durationMinutes===30));
       const empty=await f.request(path(f.owner)+'/slots?'+resource+'&date=2030-01-03',undefined,f.owner,'GET');assert.equal(empty.status,200);assert.equal(empty.body.status,'empty');assert.deepEqual(empty.body.slots,[]);
       const stale=await f.request(path(f.owner)+'/slots?'+resource+'&date=2030-01-02&expectedVersion=2',undefined,f.owner,'GET');assert.equal(stale.status,200);assert.equal(stale.body.status,'stale');assert.deepEqual(stale.body.slots,[]);
     });
@@ -24,7 +24,7 @@ test('T24',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
       const grid=await f.prisma.professionalAvailability.create({data:{merchantId:f.staff.merchant_id,professionalId:pro.id,weekday:3,startMinute:600,endMinute:660,timeZone:'UTC'}});
       const selected='productId='+offer.id+'&variantId='+offer.variants[0].id+'&professionalId='+pro.id;
       const dates=await f.request(path(f.staff)+'/dates?'+selected+'&fromDate=2030-01-02&toDate=2030-01-02',undefined,f.staff,'GET');assert.equal(dates.status,200,JSON.stringify(dates));assert.deepEqual(dates.body.dates,['2030-01-02']);assert.equal(Object.hasOwn(dates.body,'slots'),false);
-      const slots=await f.request(path(f.staff)+'/slots?'+selected+'&date=2030-01-02',undefined,f.staff,'GET');assert.equal(slots.status,200);assert.deepEqual(slots.body.slots.map(slot=>slot.startTime),['10:00','10:30']);assert.equal(slots.body.professionalVersion,1);assert.equal(slots.body.policyVersion,null);
+      const slots=await f.request(path(f.staff)+'/slots?'+selected+'&date=2030-01-02',undefined,f.staff,'GET');assert.equal(slots.status,200);assert.deepEqual(slots.body.slots.map(slot=>slot.startTime),['07:00','07:30']);assert.equal(slots.body.professionalVersion,1);assert.equal(slots.body.policyVersion,null);
       assert.deepEqual(await f.prisma.serviceProfessional.findUnique({where:{id:pro.id}}),pro);assert.deepEqual(await f.prisma.professionalAvailability.findUnique({where:{id:grid.id}}),grid);assert.equal((await f.request(path(f.owner)+'/slots?'+resource+'&date=2030-01-02',undefined,f.staff,'GET')).status,403);
     });
     await t.test('foreign mode malformed and excessive window requests are rejected',async()=>{
@@ -73,11 +73,11 @@ test('T24',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
       await f.prisma.merchantUser.update({where:{id:admin.user_id},data:{role:'admin'}});await f.prisma.merchantTeamMember.updateMany({where:{userId:admin.user_id},data:{role:'ADMIN'}});
       const login=await f.request('/auth/login',{email:admin.email,password:admin.password});assert.equal(login.status,201,JSON.stringify(login));Object.assign(admin,login.body);
       const offer=await f.prisma.product.create({data:{merchantId:admin.merchant_id,name:'Synthetic admin availability service',type:'service',metadata:{serviceSchedule:{timeZone:'UTC',durationMinutes:30,slots:[]}},variants:{create:{sku:'admin-availability',price:{create:{basePriceInCents:3000,currency:'BRL'}}}}},include:{variants:true}});
-      const created=await f.request(f.path(admin),{...f.profile,timeZone:'UTC',productIds:[offer.id]},admin);assert.equal(created.status,201,JSON.stringify(created));const pro=created.body;
-      const grid=await f.prisma.professionalAvailability.create({data:{merchantId:admin.merchant_id,professionalId:pro.id,weekday:3,startMinute:600,endMinute:660,timeZone:'UTC'}});
+      const created=await f.request(f.path(admin),{...f.profile,timeZone:'America/Sao_Paulo',productIds:[offer.id]},admin);assert.equal(created.status,201,JSON.stringify(created));const pro=created.body;
+      const grid=await f.prisma.professionalAvailability.create({data:{merchantId:admin.merchant_id,professionalId:pro.id,weekday:3,startMinute:420,endMinute:480,timeZone:'America/Sao_Paulo'}});
       const selected='productId='+offer.id+'&variantId='+offer.variants[0].id+'&professionalId='+pro.id;
       const dates=await f.request(path(admin)+'/dates?'+selected+'&fromDate=2030-01-02&toDate=2030-01-02',undefined,admin,'GET');assert.equal(dates.status,200);assert.deepEqual(dates.body.dates,['2030-01-02']);
-      const slots=await f.request(path(admin)+'/slots?'+selected+'&date=2030-01-02',undefined,admin,'GET');assert.equal(slots.status,200);assert.deepEqual(slots.body.slots.map(slot=>slot.startTime),['10:00','10:30']);assert.deepEqual(await f.prisma.professionalAvailability.findUnique({where:{id:grid.id}}),grid);
+      const slots=await f.request(path(admin)+'/slots?'+selected+'&date=2030-01-02',undefined,admin,'GET');assert.equal(slots.status,200);assert.deepEqual(slots.body.slots.map(slot=>slot.startTime),['07:00','07:30']);assert.deepEqual(await f.prisma.professionalAvailability.findUnique({where:{id:grid.id}}),grid);
       assert.equal((await f.prisma.merchant.findUnique({where:{id:admin.merchant_id}})).plan,'API');
     });
     assert.equal(f.runtime.evidence().providerCalls,0);

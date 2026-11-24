@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { modeledUnitServiceRelease } from "../../../tests/service-release-modeled-unit.fixture.mjs";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import type { Prisma, ServiceAppointment } from "@prisma/client";
@@ -52,8 +53,16 @@ function fixture(stage: "availability" | "lease" | "approved-evidence") {
   return { tx, input, context, appointments, audits, events, payment };
 }
 
+const originalFixture = fixture;
+function modeledFixture(context: { after: (callback: () => void) => unknown }, ...args: Parameters<typeof originalFixture>) {
+  const f = originalFixture(...args), modeledLedger = modeledUnitServiceRelease(context);
+  f.tx.$queryRaw = modeledLedger.wrapQueryRaw(f.tx.$queryRaw) as typeof f.tx.$queryRaw;
+  return Object.assign(f, { modeledLedger });
+}
+
 test("T35 causal final admission IO clock regression", async t => {
-  for (const stage of ["availability", "lease", "approved-evidence"] as const) await t.test("slot start reached during " + stage + " never confirms a past booking or changes approved money", async () => {
+  for (const stage of ["availability", "lease", "approved-evidence"] as const) await t.test("slot start reached during " + stage + " never confirms a past booking or changes approved money", async t => {
+    const fixture = stage === "availability" ? (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args) : originalFixture;
     const f = fixture(stage), approvedBefore = structuredClone(f.payment);
     await assert.rejects(admitServiceAppointment(f.tx, f.input, f.context), /service_slot_unavailable/);
     assert.deepEqual(f.appointments, []); assert.deepEqual(f.audits, []); assert.deepEqual(f.events, []); assert.deepEqual(f.payment, approvedBefore);

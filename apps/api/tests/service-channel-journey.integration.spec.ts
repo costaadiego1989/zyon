@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -28,7 +29,7 @@ import { HandleAsaasWebhookUseCase } from "../src/modules/payment/application/ha
 // port and synthetic approval evidence, never external delivery or a fake
 // embed/native actor. They begin with a checkout produced by actual controls.
 test("T46", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createNativeServiceJourneyFixture({ bookingAwaitTrace: true, localModelFailure: true, native18HttpFailures: true });
+  const f = await createNativeServiceJourneyFixture({ serviceReleaseFixture: "matching", bookingAwaitTrace: true, localModelFailure: true, native18HttpFailures: true });
   const step = (state: Awaited<ReturnType<typeof f.state>>) => (state.view?.serviceBooking?.model as any)?.step;
   const body = (state: Awaited<ReturnType<typeof f.state>>) => state.view?.body ?? "";
   const noFinancialWrites = async (c: NativeJourneyCase) => {
@@ -37,6 +38,7 @@ test("T46", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
   };
   const prepare = async (c: NativeJourneyCase) => { await f.review(c); return f.choose(c, "continue"); };
   try {
+  const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     await t.test("first contact creates the canonical phone-only account without asking for an existing email or creating a booking", async () => {
       const c = await f.make("first-contact", { guest: true }), wire = f.wire(c, "/servicos");
       await f.post(wire, false); assert.equal(await f.prisma.whatsAppWebhookInbox.count({ where: { eventId: wire.eventId } }), 0);

@@ -143,6 +143,8 @@ marketplacePayment?: {
 export type FetchPaymentStatusOutput = {
   state: AuthoritativePaymentState;
   approvedAmountCents?: number;
+  /** Currency observed on the provider payment, never copied from the local intent. */
+  currency?: string;
   /** Provider external reference, used to bind a signed hosted-checkout event. */
   externalReference?: string;
 };

@@ -56,7 +56,7 @@ test("Mercado Pago processes pending then approved once for the same payment", a
   const states: Array<"pending" | "approved"> = ["pending", "approved", "approved"];
   const provider = {
     async fetchPaymentStatus() {
-      return { state: states.shift() ?? "approved" };
+      return { state: states.shift() ?? "approved", approvedAmountCents: 10_000, currency: "BRL", externalReference: intent.id };
     }
   } as unknown as MercadoPagoPaymentAdapter;
   const useCase = new HandleMercadoPagoWebhookUseCase(payments, dispatch, undefined, provider);
@@ -90,7 +90,7 @@ test("Mercado Pago Checkout Pro webhook binds the later payment id to its signed
   const dispatch = new PaymentDispatchService(payments, checkout);
   const provider = {
     async fetchPaymentStatus() {
-      return { state: "approved", externalReference: intent.id };
+      return { state: "approved", approvedAmountCents: 10_000, currency: "BRL", externalReference: intent.id };
     },
   } as unknown as MercadoPagoPaymentAdapter;
   const useCase = new HandleMercadoPagoWebhookUseCase(payments, dispatch, undefined, provider);

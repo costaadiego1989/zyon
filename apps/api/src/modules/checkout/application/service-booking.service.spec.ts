@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { modeledUnitServiceRelease } from "../../../../tests/service-release-modeled-unit.fixture.mjs";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
 import { ServiceBookingService } from "./service-booking.service.js";
 import { professionalSlotId } from "../../../shared/bookings/service-checkout-selection.js";
 import { professionalHoldRequests } from "../../../shared/bookings/service-checkout-selection.js";
+import { slotFingerprint, type ActiveSlotLeaseProof, type SlotHold, type SlotRequest } from "../../../shared/bookings/redis-service-slots.js";
 import { professionalScheduleSnapshot } from "../../../shared/bookings/service-checkout-cart.js";
 import { serviceBookingParentFingerprint } from "../../../shared/bookings/service-checkout-provenance.js";
 import { ServiceSlotHoldsService } from "../../../shared/bookings/service-slot-holds.service.js";
@@ -69,6 +71,29 @@ function fixture(holdEnabled = false) {
   return { service, state, scope, input, policy, professional, product, variant, prisma, tx };
 }
 
+/** Memory-store contract only. Scope, target and expiry come from the same
+ * modeled lease used by get(); no missing/expired lease becomes acceptance. */
+function modeledActiveLease(f: ReturnType<typeof fixture>, lease: SlotHold | undefined,
+  merchantId: string, sessionId: string, requested: SlotRequest[]): ActiveSlotLeaseProof {
+  if (f.state.storeError) throw f.state.storeError;
+  if (merchantId !== f.scope.merchantId || sessionId !== f.scope.sessionId || !lease
+    || !requested.length || !Number.isFinite(Date.parse(lease.expiresAt))
+    || Date.parse(lease.expiresAt) <= f.state.now.getTime()
+    || slotFingerprint(lease.slots) !== slotFingerprint(requested))
+    throw new ConflictException("checkout_service_hold_expired");
+  const fingerprint = slotFingerprint(lease.slots);
+  return { merchantId, ownerHash: createHash("sha256").update(sessionId).digest("hex"),
+    generation: "00000000-0000-4000-8000-000000000009", fingerprint, selectionFingerprint: fingerprint,
+    expiresAt: lease.expiresAt, slots: structuredClone(lease.slots) };
+}
+
+const originalFixture = fixture;
+function modeledFixture(context: { after: (callback: () => void) => unknown }, ...args: Parameters<typeof originalFixture>) {
+  const f = originalFixture(...args), modeledLedger = modeledUnitServiceRelease(context);
+  f.tx.$queryRaw = modeledLedger.wrapQueryRaw(f.tx.$queryRaw) as typeof f.tx.$queryRaw;
+  return Object.assign(f, { modeledLedger });
+}
+
 test("T40 service selection", async t => {
   await t.test("eligible public professionals never reveal private profile fields", async () => {
     const f = fixture();
@@ -122,7 +147,8 @@ test("T40 service selection", async t => {
     await assert.rejects(() => f.service.slots(f.scope, f.input), /embed_session_token_expired/);
     assert.equal(f.state.writes, 0); assert.equal(f.state.cart, undefined); assert.equal(f.state.checkout, undefined);
   });
-  await t.test("real Start and Holds never reacquire for a read-only initial winner; only explicit review may acquire", async () => {
+  await t.test("real Start and Holds never reacquire for a read-only initial winner; only explicit review may acquire", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     // Declared memory boundary: the bootstrap double supplies the raced winner;
     // actual Start and Holds own their behavior, canonical facts and store effects.
     const f = fixture(true), selected = (await f.service.slots(f.scope, f.input)).selections[0]!;
@@ -139,6 +165,7 @@ test("T40 service selection", async t => {
     f.tx.completedOrder = { findFirst: async () => null }; f.tx.appointmentAudit = { findFirst: async () => null };
     const ledger = { writes: 0, lease: undefined as any }, slots = professionalHoldRequests([selected]);
     const holds = new ServiceSlotHoldsService(f.prisma, { get: async () => structuredClone(ledger.lease),
+      assertActive: async (merchantId: string, sessionId: string, requested: SlotRequest[]) => modeledActiveLease(f, ledger.lease, merchantId, sessionId, requested),
       acquire: async () => { ledger.writes++; ledger.lease = { expiresAt: "2035-02-01T12:04:00.000Z", slots }; return structuredClone(ledger.lease); } } as never);
     const sessions = { getSession: async () => structuredClone(session), saveSession: async () => { throw new Error("readonly_winner_must_not_save"); } };
     const start = new StartCheckoutUseCase(sessions as never, {} as never, { load: async () => ({}) } as never,
@@ -164,7 +191,8 @@ test("T40 service selection", async t => {
       { ...context, bookingCapability: { ...capability, leaseIntent: "review_checkout" } });
     assert.equal(ledger.writes, 1); assert.ok(reviewed.service_slot_hold); assert.deepEqual(f.state, before);
   });
-  await t.test("preparation re-observes only a known winner conflict; active and still-missing states remain truthful", async () => {
+  await t.test("preparation re-observes only a known winner conflict; active and still-missing states remain truthful", async t => {
+    const fixture = (...args: Parameters<typeof originalFixture>) => modeledFixture(t, ...args);
     for (const active of [false, true]) {
       const f = fixture(true), choice = (await f.service.slots(f.scope, f.input)).selections[0]!, schedule = professionalScheduleSnapshot(choice);
       const source = { items: [{ variantId: f.variant.id, productId: f.product.id, name: f.product.name, sku: f.variant.sku,
@@ -180,12 +208,14 @@ test("T40 service selection", async t => {
       f.tx.completedOrder = { findFirst: async () => null }; f.tx.appointmentAudit = { findFirst: async () => null };
       const lease = { expiresAt: "2035-02-01T12:04:00.000Z", slots: professionalHoldRequests([choice]) }, ledger = { writes: 0 };
       const holds = new ServiceSlotHoldsService(f.prisma, { get: async () => active ? structuredClone(lease) : undefined,
+        assertActive: async (merchantId: string, sessionId: string, requested: SlotRequest[]) => modeledActiveLease(f, active ? lease : undefined, merchantId, sessionId, requested),
         acquire: async () => { ledger.writes++; throw new Error("reobservation_must_not_acquire"); } } as never);
       // The Start double represents the already-persisted competing creator;
       // no HTTP/SQL-race claim is made by this memory case.
       let failure: Error = new ConflictException({ code: "service_hold_required", message: "service_hold_required", next_action: "review_checkout" });
       const service = new ServiceBookingService(f.prisma, { execute: async () => { f.state.checkout = structuredClone(winner); throw failure; } } as never,
-        holds, () => ({ active: async () => [] }) as never);
+        holds, () => ({ active: async () => [],
+          assertActive: async (merchantId: string, sessionId: string, requested: SlotRequest[]) => modeledActiveLease(f, active ? lease : undefined, merchantId, sessionId, requested) }) as never);
       const command = { selection: choice, parent_cart_fingerprint: serviceBookingParentFingerprint({ items: [], total: 0, discount: 0, couponCode: null, freeShipping: false }) };
       if (active) {
         const result = await service.prepare(f.scope, command); assert.equal(result.session_id, session.sessionId);

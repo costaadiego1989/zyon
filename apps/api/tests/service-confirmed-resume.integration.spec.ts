@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import { test } from "node:test";
 import { PrismaClient } from "@prisma/client";
 import type { CheckoutSession } from "@zyon/shared-types";
@@ -10,9 +11,10 @@ import { paymentCartFingerprint } from "../src/modules/checkout/domain/services/
 import { confirmServiceAppointment } from "../src/modules/checkout/application/confirm-service-appointment.use-case.js";
 
 test("T30 confirmed checkout resume", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const runtime = await createServiceTestRuntime({ local: true });
+  const runtime = await createServiceTestRuntime({ local: true, serviceReleaseFixture: "matching" });
   let raw: PrismaClient | undefined;
   try {
+  const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     raw = new PrismaClient({ datasources: { db: { url: runtime.db.prismaUrl } } });
     const prisma = raw, now = new Date(); await seedServiceBookingFixture(prisma, now);
     const date = new Date(now.getTime() + 2 * 86_400_000).toISOString().slice(0, 10);

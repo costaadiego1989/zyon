@@ -12,7 +12,7 @@ import { paymentCartFingerprint } from "../src/modules/checkout/domain/services/
 // A real, privately shortened capability tests expiry without changing the
 // public issuer's60s minimum, the DB clock, production guards or lock budgets.
 test("T40 HTTP/SQL/Redis", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const runtime = await createServiceTestRuntime({ local: true, buyerBooking: true });
+  const runtime = await createServiceTestRuntime({ local: true, buyerBooking: true, serviceReleaseFixture: "matching" });
   let prisma: PrismaClient | undefined, redis: Redis | undefined;
   try {
     prisma = new PrismaClient({ datasources: { db: { url: runtime.db.prismaUrl } } });

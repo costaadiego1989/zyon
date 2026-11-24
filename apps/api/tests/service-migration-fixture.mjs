@@ -42,8 +42,13 @@ export async function seedPriorFixture(db){
     resource_id:'base-service-variant',starts_at:'2026-01-01T10:00:00Z',ends_at:'2026-01-01T10:30:00Z',status:'reserved'}));
   await db.sql(rows.join('\n'));
 }
-export async function baselineSnapshot(db){
+export async function baselineSnapshot(db,{serviceOriginColumns=false}={}){
   const tables=['merchants','buyer_identities','storefront_carts','checkout_sessions','payment_intents','completed_orders','product_stock','products','product_variants','product_prices','service_reservations'];
   const pairs=tables.map(table=>`'${table}',(SELECT coalesce(jsonb_agg((to_jsonb(r)-'business_mode'-'business_mode_selected_at'-'business_mode_needs_review'-'appointment_id'-'classification_pending') ORDER BY id),'[]') FROM "${table}" r WHERE id LIKE 'base-%')`);
-  return JSON.parse(await db.sql(`SELECT jsonb_build_object(${pairs.join(',')});`));
+  const snapshot=JSON.parse(await db.sql(`SELECT jsonb_build_object(${pairs.join(',')});`));
+  if(serviceOriginColumns)for(const row of snapshot.checkout_sessions){
+    assert.equal(row.service_origin,null);assert.equal(row.service_origin_proof,null);
+    delete row.service_origin;delete row.service_origin_proof;
+  }
+  return snapshot;
 }

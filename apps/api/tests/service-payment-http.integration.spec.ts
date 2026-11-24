@@ -5,13 +5,15 @@ import { PrismaClient } from "@prisma/client";
 import type { CheckoutSession } from "@zyon/shared-types";
 import { createServiceTestRuntime } from "./service-test-runtime.mjs";
 import { SERVICE_LOCAL_TEST_MS } from "./service-test-startup.mjs";
+import { createOwnedBookingContinuation } from "./service-owned-booking-continuation-http.fixture.js";
 import { seedServiceBookingFixture } from "./service-booking-fixtures.js";
 import { PaymentIntentEntity } from "../src/modules/payment/domain/payment-intent.entity.js";
 import { PrismaPaymentRepository } from "../src/modules/payment/infrastructure/prisma-payment.repository.js";
+import { captureStorefrontCouponForPayment } from "../src/modules/coupons/infrastructure/repositories/prisma-storefront-coupon-admission.js";
 import { paymentCartFingerprint } from "../src/modules/checkout/domain/services/payment-cart-fingerprint.js";
 
 test("T29 HTTP", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const runtime = await createServiceTestRuntime({ local: true });
+  const runtime = await createServiceTestRuntime({ local: true, buyerBooking: true, serviceReleaseFixture: "matching" });
   let raw: PrismaClient | undefined;
   try {
     raw = new PrismaClient({ datasources: { db: { url: runtime.db.prismaUrl } } });
@@ -67,41 +69,67 @@ test("T29 HTTP", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
     const checkout = async (sessionId: string) => prisma.checkoutSession.create({ data: { merchantId: "booking-services",
       sessionId, globalUserId: "synthetic-buyer", conversationId: sessionId, cart: JSON.parse(JSON.stringify(cart)),
       createdAt: now, updatedAt: now, customer: { fullName: "Synthetic buyer", email: "synthetic@example.test", phone: "+5521999990000" } } });
-    const paymentRequest = async (sessionId: string, key: string) => {
+    const newBooking = await createOwnedBookingContinuation(runtime, prisma);
+    const newCheckout = async (suffix: string, paymentMode: "online" | "at_attendance") => {
+      const auth = await register("new-" + suffix), merchantId = auth.merchant_id;
+      const policy = await request("/merchants/me/service-business-policy", { expectedVersion: 0,
+        holdEnabled: false, paymentMode, admissionsEnabled: true }, auth.access_token, "PUT");
+      assert.equal(policy.status, 200, JSON.stringify(policy)); assert.equal(policy.body.version, 1);
+      const variant = await offer(auth, "NEW-" + suffix, true), path = "/merchants/" + merchantId + "/service-professionals";
+      const professional = await request(path, { publicName: "Synthetic new payment " + suffix,
+        timeZone: "America/Sao_Paulo", isPublished: true, productIds: [variant.productId] }, auth.access_token);
+      assert.equal(professional.status, 201, JSON.stringify(professional));
+      const recurring = await request(path + "/" + professional.body.id + "/availability", {
+        expectedVersion: professional.body.version, timeZone: "America/Sao_Paulo",
+        rows: Array.from({ length: 7 }, (_, weekday) => ({ weekday, startMinute: 420, endMinute: 480 })),
+      }, auth.access_token, "PUT");
+      assert.equal(recurring.status, 200, JSON.stringify(recurring));
+      const origin = "https://new-payment.example.test";
+      const booking = await newBooking({ merchantId, origin, productId: variant.productId, variantId: variant.id,
+        professionalId: professional.body.id, date, scopes: ["checkout:start", "checkout:track", "payment:intents:create", "payment:intents:read"],
+        buyer: { email: suffix + "@new-payment-buyer.example.test", displayName: "Synthetic buyer", phone: "+5521999990000" } });
+      const started = await embedRequest(booking.issued.body.embed_session_token, origin, "/embed/start", {
+        cart: booking.cart, buyer_access_token: booking.buyerToken });
+      assert.equal(started.status, 201, JSON.stringify(started));
+      const current = await prisma.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: {
+        merchantId, sessionId: started.body.session_id } } });
+      return { merchantId, sessionId: current.sessionId, cart: current.cart as CheckoutSession["cart"] };
+    };
+    const paymentRequest = async (sessionId: string, key: string, merchantId = "booking-services") => {
       const response = await fetch(runtime.apiOrigin + "/payment/intents", { method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
-        headers: { "content-type": "application/json" }, body: JSON.stringify({ merchant_id: "booking-services", session_id: sessionId,
+        headers: { "content-type": "application/json" }, body: JSON.stringify({ merchant_id: merchantId, session_id: sessionId,
           idempotency_key: key, method: "pix" }) });
       return { status: response.status, body: await response.json() };
     };
-    const intentFor = (sessionId: string, key: string) => {
-      const intent = PaymentIntentEntity.create({ merchantId: "booking-services", sessionId, idempotencyKey: key,
+    const intentFor = (sessionId: string, key: string, checkoutContext?: { merchantId: string; cart: CheckoutSession["cart"] }) => {
+      const merchantId = checkoutContext?.merchantId ?? "booking-services", intentCart = checkoutContext?.cart ?? cart;
+      const intent = PaymentIntentEntity.create({ merchantId, sessionId, idempotencyKey: key,
         amountCents: 5000, currency: "BRL", method: "pix", amountBreakdown: { version: 1, currency: "BRL",
-          cartFingerprint: paymentCartFingerprint({ cart }), itemsSubtotalCents: 5000, discountCents: 0, shippingCents: 0,
+          cartFingerprint: paymentCartFingerprint({ cart: intentCart }), itemsSubtotalCents: 5000, discountCents: 0, shippingCents: 0,
           platformFeeCents: 0, totalCents: 5000 } });
-      intent.prepareCreation({ merchantId: "booking-services", sessionId, intentId: intent.id, provider: "asaas", amountCents: 5000,
+      intent.prepareCreation({ merchantId, sessionId, intentId: intent.id, provider: "asaas", amountCents: 5000,
         currency: "BRL", method: "pix", asaasCustomerId: "synthetic-customer", providerIdempotencyKey: key });
       return intent;
     };
     await t.test("at-attendance request cannot reach provider or persist a payment journal", async () => {
-      await checkout("http-service-local");
-      const result = await paymentRequest("http-service-local", "http-service-local");
+      const context = await newCheckout("http-service-local", "at_attendance");
+      const result = await paymentRequest(context.sessionId, "http-service-local", context.merchantId);
       assert.equal(result.status, 409, JSON.stringify(result)); assert.match(JSON.stringify(result.body), /pay_at_attendance_required/);
       assert.equal(await prisma.paymentIntent.count(), 0); assert.equal(await prisma.serviceAppointment.count(), 0);
     });
     await t.test("stale policy blocks a new online attempt with no partial payment", async () => {
-      await prisma.serviceBusinessPolicy.update({ where: { merchantId: "booking-services" }, data: { paymentMode: "online", version: 2 } });
-      await checkout("http-service-stale");
-      const result = await paymentRequest("http-service-stale", "http-service-stale");
+      const context = await newCheckout("http-service-stale", "at_attendance");
+      await prisma.serviceBusinessPolicy.update({ where: { merchantId: context.merchantId }, data: { paymentMode: "online", version: 2 } });
+      const result = await paymentRequest(context.sessionId, "http-service-stale", context.merchantId);
       assert.equal(result.status, 409, JSON.stringify(result)); assert.match(JSON.stringify(result.body), /policy_changed/);
       assert.equal(await prisma.paymentIntent.count(), 0);
     });
     await t.test("ready journal resume rechecks current policy before its first dispatch", async () => {
-      await prisma.serviceBusinessPolicy.update({ where: { merchantId: "booking-services" }, data: { paymentMode: "online", version: 1 } });
-      await checkout("http-service-ready");
-      const intent = intentFor("http-service-ready", "http-service-ready");
-      await new PrismaPaymentRepository(prisma).saveIntent({ intent });
-      await prisma.serviceBusinessPolicy.update({ where: { merchantId: "booking-services" }, data: { version: 2 } });
-      const result = await paymentRequest("http-service-ready", "http-service-ready");
+      const context = await newCheckout("http-service-ready", "online");
+      const intent = intentFor(context.sessionId, "http-service-ready", context);
+      await new PrismaPaymentRepository(prisma, captureStorefrontCouponForPayment).saveIntent({ intent });
+      await prisma.serviceBusinessPolicy.update({ where: { merchantId: context.merchantId }, data: { version: 2 } });
+      const result = await paymentRequest(context.sessionId, "http-service-ready", context.merchantId);
       assert.equal(result.status, 409, JSON.stringify(result)); assert.match(JSON.stringify(result.body), /policy_changed/);
       const stored = await prisma.paymentIntent.findUniqueOrThrow({ where: { id: intent.id } });
       const creation = JSON.parse(JSON.stringify(stored.creation));
@@ -112,9 +140,15 @@ test("T29 HTTP", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
       await prisma.serviceBusinessPolicy.update({ where: { merchantId: "booking-services" }, data: { version: 1 } });
       await checkout("http-service-approved");
       const intent = intentFor("http-service-approved", "http-service-approved");
-      await new PrismaPaymentRepository(prisma).saveIntent({ intent });
-      await prisma.paymentIntent.update({ where: { id: intent.id }, data: { status: "approved", approvedAmountCents: 5000,
-        providerPaymentId: "synthetic-approved-provider", statusHistory: [{ status: "pending", occurredAt: now.toISOString() },
+      const historical = intent.snapshot();
+      // Reconstruct an already approved synthetic past record, not a new ready/first-send admission.
+      // No creation lease, private capture, provider dispatch or live payment proof is fabricated.
+      await prisma.paymentIntent.create({ data: { id: historical.id, merchantId: historical.merchantId,
+        sessionId: historical.sessionId, idempotencyKey: historical.idempotencyKey, version: 1,
+        amountCents: historical.amountCents, currency: historical.currency, method: historical.method,
+        amountBreakdown: JSON.parse(JSON.stringify(historical.amountBreakdown)),
+        status: "approved", approvedAmountCents: 5000, providerPaymentId: "synthetic-approved-provider",
+        statusHistory: [{ status: "pending", occurredAt: now.toISOString() },
           { status: "approved", occurredAt: now.toISOString() }] } });
       await prisma.serviceBusinessPolicy.update({ where: { merchantId: "booking-services" }, data: { admissionsEnabled: false, version: 2 } });
       const result = await paymentRequest("http-service-approved", "http-service-approved");
@@ -129,12 +163,12 @@ await t.test("the actual embed payment boundary preserves local policy and capab
   assert.equal(policy.status, 200, JSON.stringify(policy));
   const variant = await offer(auth, "PUBLIC-PAYMENT-BOUNDARY", true);
   const path = "/merchants/" + merchantId + "/service-professionals";
-  const professional = await request(path, { publicName: "Synthetic public-payment professional", timeZone: "UTC",
+  const professional = await request(path, { publicName: "Synthetic public-payment professional", timeZone: "America/Sao_Paulo",
     isPublished: true, productIds: [variant.productId] }, auth.access_token);
   assert.equal(professional.status, 201, JSON.stringify(professional));
   const recurring = await request(path + "/" + professional.body.id + "/availability", {
-    expectedVersion: professional.body.version, timeZone: "UTC",
-    rows: Array.from({ length: 7 }, (_, weekday) => ({ weekday, startMinute: 600, endMinute: 660 })),
+    expectedVersion: professional.body.version, timeZone: "America/Sao_Paulo",
+    rows: Array.from({ length: 7 }, (_, weekday) => ({ weekday, startMinute: 420, endMinute: 480 })),
   }, auth.access_token, "PUT");
   assert.equal(recurring.status, 200, JSON.stringify(recurring));
   const current = await prisma.serviceProfessional.findUniqueOrThrow({ where: { id: professional.body.id } });
@@ -145,11 +179,14 @@ await t.test("the actual embed payment boundary preserves local policy and capab
       professionalId: current.id, professionalVersion: current.version, policyVersion: policy.body.version,
       startsAt: date + "T10:00:00.000Z", endsAt: date + "T10:20:00.000Z", timeZone: "UTC", durationMinutes: 20 } }] };
   const origin = "https://public-payment-boundary.example.test";
-  const issued = await request("/embed-sessions", { allowed_origin: origin,
-    scopes: ["checkout:start", "checkout:track", "payment:intents:create", "payment:intents:read"] }, auth.access_token);
+  const ownedBooking = await createOwnedBookingContinuation(runtime, prisma);
+  const booking = await ownedBooking({ merchantId, origin, productId: variant.productId, variantId: variant.id,
+    professionalId: current.id, date, scopes: ["checkout:start", "checkout:track", "payment:intents:create", "payment:intents:read"],
+    buyer: { email: "synthetic@public-payment.example.test", displayName: "Synthetic public buyer" } });
+  const issued = booking.issued;
   assert.equal(issued.status, 201, JSON.stringify(issued));
   const token = issued.body.embed_session_token;
-  const started = await embedRequest(token, origin, "/embed/start", { cart });
+  const started = await embedRequest(token, origin, "/embed/start", { cart, buyer_access_token: booking.buyerToken });
   assert.equal(started.status, 201, JSON.stringify(started));
   const sessionId = started.body.session_id;
   const payment = { session_id: sessionId, idempotency_key: "public-local-refusal", method: "pix" };

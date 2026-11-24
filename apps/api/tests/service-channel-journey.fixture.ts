@@ -16,9 +16,10 @@ export interface NativeJourneyCase {
 /** Private owned-test options already admitted by createServiceTestRuntime.
  * Original callers retain their identical captured-numeric-voice defaults. */
 export async function createNativeServiceJourneyFixture(options: {
-  voiceTranscripts?: Record<string, string>; modelScript?: unknown[]; storefrontRoutingProfile?: "structured"; bookingAwaitTrace?: true; localModelFailure?: true; native18HttpFailures?: true;
+  voiceTranscripts?: Record<string, string>; modelScript?: unknown[]; storefrontRoutingProfile?: "structured"; bookingAwaitTrace?: true; localModelFailure?: true; native18HttpFailures?: true; serviceReleaseFixture?: "matching" | "missing";
 } = {}) {
-  const runtime = await createServiceTestRuntime({ local: true, metaCapabilitiesFixture: "owned-empty-v1", recoveryTemplateMonitorFixture: "manual-only-v1",
+  assert.ok(options.serviceReleaseFixture === undefined || ["matching", "missing"].includes(options.serviceReleaseFixture), "native_release_fixture_invalid");
+  const runtime = await createServiceTestRuntime({ local: true, ...(options.serviceReleaseFixture === undefined ? {} : { serviceReleaseFixture: options.serviceReleaseFixture }), metaCapabilitiesFixture: "owned-empty-v1", recoveryTemplateMonitorFixture: "manual-only-v1",
     ...(options.bookingAwaitTrace === true ? { bookingAwaitTrace: "native18-v1" } : {}),
     ...(options.localModelFailure === true ? { localModelFailureFixture: "owned-503-v1" } : {}),
     ...(options.native18HttpFailures === true ? { native18HttpFailures: "closed-failures-v1" } : {}),

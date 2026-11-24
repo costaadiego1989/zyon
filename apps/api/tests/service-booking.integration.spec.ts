@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import test from "node:test";
 import { PrismaClient } from "@prisma/client";
 import { createDisposablePostgres } from "./local-disposable-postgres.mjs";
@@ -26,6 +27,7 @@ test("T26", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
   try {
     await db.sql(`CREATE TABLE synthetic_native_marker(run_id TEXT PRIMARY KEY); INSERT INTO synthetic_native_marker VALUES ('${db.runId}');`);
     await bootstrapServiceSchema(db);
+  const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     raw = new PrismaClient({ datasources: { db: { url: db.prismaUrl } } });
     const prisma = raw;
     await prisma.merchant.create({ data: { id: "admission-services", name: "Synthetic service business", businessMode: "services", businessModeSelectedAt: now } });

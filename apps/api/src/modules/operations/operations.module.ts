@@ -15,6 +15,8 @@ import { TenantContextService } from "../../shared/tenant/tenant-context.service
 import { ServiceAppointmentHoldCleanupConsumer } from "./application/service-appointment-hold-cleanup.consumer.js";
 import { ServiceAppointmentsController, ServiceAppointmentReadsController } from "./presentation/http/service-appointments.controller.js";
 import { ReadServiceAppointments } from "./application/read-service-appointments.js";
+import { ReadServiceAppointmentOperationSummary } from "./application/read-service-appointment-operation-summary.js";
+import { ServiceAppointmentOperationSummaryController } from "./presentation/http/service-appointment-operation-summary.controller.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
@@ -48,6 +50,7 @@ import {
     ServiceMetricsController,
     ServiceAppointmentsController,
     ServiceAppointmentReadsController,
+    ServiceAppointmentOperationSummaryController,
     OrdersController,
     CustomersController,
     PaymentsController,
@@ -58,6 +61,8 @@ import {
       inject: [PRISMA_CLIENT] },
     { provide: ReadServiceAppointments, useFactory: (prisma: PrismaClient) =>
       new ReadServiceAppointments(prisma), inject: [PRISMA_CLIENT] },
+    { provide: ReadServiceAppointmentOperationSummary, useFactory: (prisma: PrismaClient) =>
+      new ReadServiceAppointmentOperationSummary(prisma), inject: [PRISMA_CLIENT] },
     { provide: RecordAttendanceReceiptUseCase, useFactory: (prisma: PrismaClient) =>
       new RecordAttendanceReceiptUseCase(prisma), inject: [PRISMA_CLIENT] },
     { provide: RescheduleServiceAppointmentUseCase, useFactory: (prisma: PrismaClient) =>

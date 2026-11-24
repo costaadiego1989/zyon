@@ -13,6 +13,8 @@ import { professionalHoldRequests } from "./service-checkout-selection.js";
 import { serviceSlotStore, type RedisServiceSlots } from "./redis-service-slots.js";
 import { stripStoredCheckoutCouponBinding } from "../../modules/checkout/domain/services/checkout-coupon-storage.js";
 
+import { assertNewOrAcceptedServiceCapacityWithin } from "./service-activation-continuation.js";
+
 /** Caller owns the transaction and supplies an authenticated persisted cart.
  * All catalog/calendar mutations share merchant -> sorted professional locks. */
 export async function readProfessionalCheckout(
@@ -40,6 +42,9 @@ export async function readProfessionalCheckout(
   const policy = business.policy;
   const now = clock();
   if (!Number.isFinite(now.getTime())) throw new ConflictException("service_checkout_invalid_clock");
+  await assertNewOrAcceptedServiceCapacityWithin(tx, session.merchantId, session.sessionId && policy.holdEnabled ? {
+    sessionId: session.sessionId, selections, cart: session.cart, store: context.store ?? serviceSlotStore, now,
+  } : undefined);
   // A saved cart alone cannot preserve an old civil-date contract. Require
   // its exact SQL session and current original Redis generation, read-only.
   const historic = selections.filter(selected => selected.timeZone !== FIXED_SERVICE_TIME_ZONE);

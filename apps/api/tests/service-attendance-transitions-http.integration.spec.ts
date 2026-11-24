@@ -4,7 +4,7 @@ import { createServiceOperationsHttpFixture } from "./service-operations-http.fi
 import { SERVICE_LOCAL_TEST_MS } from "./service-test-startup.mjs";
 
 test("T32 HTTP and SQL", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
-  const f = await createServiceOperationsHttpFixture();
+  const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" });
   try {
     const transition = (a: any, action: string, expectedVersion = 1, commandId = action + "-" + a.id, auth = f.owner) =>
       f.request(f.prefix() + "/" + a.id + "/transitions", { action, expectedVersion, commandId }, auth);

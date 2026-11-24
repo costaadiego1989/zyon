@@ -79,7 +79,7 @@ async function confirmWithin(tx: Prisma.TransactionClient, principal: Principal,
   if (session.cart.items.some(item => item.productType !== "service" || item.fulfillmentStrategy !== "scheduled_service"))
     throw new ConflictException("service_checkout_selection_required");
   let now!: Date;
-  const current = await readProfessionalCheckout(tx, session, () => { now = decisionClock(context, capability); return now; });
+  const current = await readProfessionalCheckout(tx, session, () => { now = decisionClock(context, capability); return now; }, { store: context.store });
   if (current.policy.paymentMode !== "at_attendance") throw new ConflictException("service_online_payment_required");
   // Held merchant/session locks serialize with normal payment admission. Never
   // create a second local obligation beside an already admitted online intent.
