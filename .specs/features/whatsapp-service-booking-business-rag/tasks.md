@@ -2058,17 +2058,19 @@ T107 → T106
 
 ### T88: Load service metrics without changing product requests
 
+**Status**: Complete - local task gate passed; scoped evidence in task-88-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Hook usa endpoint de serviços e filtros canônicos, preserva status/undef e previne resposta antiga sobrescrever filtro; não chama comércio para fingir métrica de serviço.
 **Where**: `apps/dashboard/src/pages/overview/useServiceOverview.ts`
 **Depends on**: T87
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: KPI-01, KPI-05, KPI-07
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] useServiceOverview.spec.ts: status/filtros/race/timezone e request por modalidade.
-- [ ] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] useServiceOverview.spec.ts: status/filtros/race/timezone e request por modalidade.
+- [x] Gate Quick UI passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: useServiceOverview.spec.ts: status/filtros/race/timezone e request por modalidade.
 **Gate**: Quick UI: `pnpm --dir apps/dashboard exec vitest run src/pages/overview/useServiceOverview.spec.ts -t "^T88$"` Teste raiz T88 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
