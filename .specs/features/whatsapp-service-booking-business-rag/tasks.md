@@ -1998,17 +1998,19 @@ T107 → T106
 
 ### T85: Read appointment and receipt facts for metrics
 
+**Status**: Complete - local task gate passed; scoped evidence in task-85-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Queries paginadas/agregadas por tenant/período/profissional/categoria, coorte startsAt e eventos financeiros separadamente; snapshots e asOf, sem CompletedOrder=presença.
 **Where**: `apps/api/src/modules/operations/infrastructure/prisma-service-metrics.repository.ts`
 **Depends on**: T84
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: KPI-02, KPI-04, KPI-05, KPI-06
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] service-metrics.integration.spec.ts: dois profissionais/categorias, completed não pago, pago não compareceu, estorno, fuso e query budget.
-- [ ] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] service-metrics.integration.spec.ts: dois profissionais/categorias, completed não pago, pago não compareceu, estorno, fuso e query budget.
+- [x] Gate Full passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: service-metrics.integration.spec.ts: dois profissionais/categorias, completed não pago, pago não compareceu, estorno, fuso e query budget.
 **Gate**: Full: `pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 --test-name-pattern "^T85$" ./src/modules/operations/infrastructure/prisma-service-metrics.repository.spec.ts` + integração HTTP/DB do arquivo nomeado em Tests. Teste raiz T85 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
