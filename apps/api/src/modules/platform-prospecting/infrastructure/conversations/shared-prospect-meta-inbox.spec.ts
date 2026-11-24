@@ -77,3 +77,12 @@ test("OWN-SENDER AC5 invalid signature app account and divergent replay cannot c
   assert.equal((await f.pg.query("SELECT * FROM merchant_routed")).rowCount,0);
  }finally{await f.close();}
 });
+
+test("OWN-SENDER AC4 deactivating the shared platform binding hands buyer messages back to the merchant",async()=>{
+ const f=await fixture();try{
+  await f.prisma.platformProspectSenderBinding.update({where:{id:"sender"},data:{active:false}});
+  assert.equal((await f.post({messages:[message("after-platform-deactivation","5511999999999")]})).status,200);
+  assert.equal(await f.prisma.prospectInboxEvent.count(),0);
+  assert.deepEqual((await f.pg.query("SELECT kind,provider_id FROM merchant_routed")).rows,[{kind:"META",provider_id:"after-platform-deactivation"}]);
+ }finally{await f.close();}
+});

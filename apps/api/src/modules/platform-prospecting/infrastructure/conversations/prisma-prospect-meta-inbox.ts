@@ -16,9 +16,10 @@ export class PrismaProspectMetaInbox implements ProspectMetaDispatchPort{
   return this.db.$transaction(async tx=>{
    const binding=await tx.platformProspectSenderBinding.findFirst({where:{phoneNumberId:change.phoneNumberId,scope:"zyon_platform"},orderBy:[{active:"desc"},{version:"desc"}]});
    if(!binding)return false;
-   if(!binding.active||binding.appId!==change.appId||binding.wabaId!==change.wabaId)throw Error("sender_identity_mismatch");
+   if(binding.appId!==change.appId||binding.wabaId!==change.wabaId)throw Error("sender_identity_mismatch");
    const receivedAt=new Date();
    const shared=object(binding.grantedAssets).routingMode==="shared";
+   if(!binding.active){if(shared)return {remainingValue:change.value};throw Error("sender_identity_mismatch");}
    const remainingMessages:unknown[]=[],remainingStatuses:unknown[]=[];
    for(const item of change.value.messages??[]){
     if(shared&&!await this.knownProspect(tx,binding,object(item),change)){remainingMessages.push(item);continue;}
