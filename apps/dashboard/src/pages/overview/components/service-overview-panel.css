@@ -1,0 +1,83 @@
+.service-overview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; min-width: 0; }
+.service-overview .panel { margin: 0; min-width: 0; }
+.service-overview-filters { padding: 20px 0; border-block: 1px solid var(--color-border); }
+.service-overview-filter-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.service-overview-filter-fields .form-field { margin: 0; min-width: 0; }
+.service-overview-filter-fields :is(input, select) { min-height: 44px; width: 100%; min-width: 0; }
+.service-overview-filter-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; margin-top: 16px; }
+.service-overview-filter-actions > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.service-overview-filter-actions > p, .service-overview-help { font-size: 13px; line-height: 1.65; color: var(--color-text-secondary); max-width: 75ch; margin: 0; }
+.service-overview-filters > .service-overview-help { margin-top: 12px; }
+.service-overview-filter-error { margin: 12px 0 0; font-size: 13px; line-height: 1.65; color: var(--color-error); }
+.service-overview-option-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; font-size: 13px; color: var(--color-text-secondary); }
+.service-overview-option-feedback p { margin: 0; }
+.service-overview-position { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.service-overview-position > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
+.service-overview-partial { padding: 14px 18px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--surface-1); color: var(--color-text-secondary); font-size: 13px; line-height: 1.65; }
+.service-overview-main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 24px; }
+.service-overview-agenda, .service-overview-capacity, .service-overview-financial { padding: 24px; }
+.service-overview .ui-section-header { margin: 0 0 24px; }
+.service-overview .ui-section-header h2 { font: 650 18px/1.4 var(--font-sans); letter-spacing: -.02em; }
+.service-overview .ui-section-header p { font-size: 13px; line-height: 1.65; }
+.service-overview-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 0; }
+.service-overview-kpis dt { color: var(--color-text-secondary); font-size: 13px; line-height: 1.5; }
+.service-overview-kpis dd { margin: 10px 0 0; font: 600 28px/1.2 var(--font-sans); letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.service-overview-secondary { display: flex; flex-wrap: wrap; gap: 16px 28px; padding-top: 24px; margin: 24px 0 0; border-top: 1px solid var(--color-border); }
+.service-overview-secondary dt { font-size: 12px; line-height: 1.6; color: var(--color-text-secondary); }
+.service-overview-secondary dd { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; margin: 6px 0 0; }
+.service-overview-capacity-value { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 16px; }
+.service-overview-capacity-value strong { font: 600 32px/1.3 var(--font-sans); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.service-overview-capacity-value span { font-size: 13px; color: var(--color-text-secondary); }
+.service-overview-capacity progress { display: block; appearance: none; width: 100%; height: 6px; overflow: hidden; border: 0; border-radius: 4px; background: var(--surface-3); }
+.service-overview-capacity progress::-webkit-progress-bar { background: var(--surface-3); }
+.service-overview-capacity progress::-webkit-progress-value { background: var(--color-brand); }
+.service-overview-capacity progress::-moz-progress-bar { background: var(--color-brand); }
+.service-overview-capacity > .service-overview-help { margin-top: 16px; }
+.service-overview-financial > section + section { border-top: 1px solid var(--color-border); margin-top: 24px; padding-top: 24px; }
+.service-overview-financial h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; line-height: 1.5; }
+.service-overview-ledger { margin: 0; }
+.service-overview-ledger > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, auto); align-items: baseline; gap: 12px 24px; padding: 16px 0; }
+.service-overview-ledger > div + div { border-top: 1px solid var(--color-border); }
+.service-overview-ledger dt > span { font-size: 14px; font-weight: 500; }
+.service-overview-ledger dt small { display: block; max-width: 70ch; margin-top: 6px; color: var(--color-text-secondary); font-size: 13px; line-height: 1.65; }
+.service-overview-ledger dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.service-overview-ledger dd strong { font: 600 21px/1.4 var(--font-sans); }
+.service-overview-ledger dd .service-overview-unconfirmed { font-size: 16px; }
+.service-overview-ledger dd small { display: block; margin-top: 6px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }
+.service-overview-explanation { margin-top: 20px; border-top: 1px solid var(--color-border); font-size: 13px; line-height: 1.8; color: var(--color-text-secondary); }
+.service-overview-explanation summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px 0; cursor: pointer; list-style: none; }
+.service-overview-explanation summary::-webkit-details-marker { display: none; }
+.service-overview-explanation summary svg { flex: none; transition: transform 150ms ease; }
+.service-overview-explanation[open] summary svg { transform: rotate(180deg); }
+.service-overview-explanation p { max-width: 78ch; margin: 8px 0 16px; }
+.service-overview-explanation summary:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 4px; border-radius: 2px; }
+.service-overview-loading { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; padding: 24px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+.service-overview-loading > span { height: 92px; border-radius: var(--radius-md); background: var(--surface-2); }
+.service-overview-loading p { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--color-text-secondary); }
+@media (max-width: 1000px) {
+  .service-overview-filter-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .service-overview-main { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .service-overview { gap: 20px; width: 100%; max-width: calc(100vw - 32px); }
+  .service-overview > .page-header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-bottom: 0; min-width: 0; }
+  .service-overview > .page-header .page-header__copy { flex-basis: 100%; }
+  .service-overview > .page-header .page-header__actions { width: 100%; }
+  .service-overview > .page-header .page-header__actions > button { min-height: 44px; }
+  .service-overview-filter-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .service-overview-filter-fields > :nth-child(n+3) { grid-column: 1 / -1; }
+  .service-overview-filter-actions, .service-overview-filter-actions > div { align-items: stretch; width: 100%; }
+  .service-overview-filter-actions > div > button { flex: 1 1 auto; }
+  .service-overview-position { display: grid; }
+  .service-overview-agenda, .service-overview-capacity, .service-overview-financial { padding: 20px 18px; }
+  .service-overview-kpis { grid-template-columns: 1fr; gap: 16px; }
+  .service-overview-kpis > div { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; }
+  .service-overview-kpis dd { margin: 0; font-size: 24px; }
+  .service-overview-ledger > div { grid-template-columns: 1fr; gap: 8px; }
+  .service-overview-ledger dd { text-align: left; }
+  .service-overview-loading { grid-template-columns: 1fr; padding: 20px 18px; gap: 12px; }
+  .service-overview-loading > span { height: 52px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .service-overview-explanation summary svg { transition: none; }
+}

@@ -2078,20 +2078,22 @@ T107 → T106
 
 ### T89: Present the service overview
 
+**Status**: Complete - local task gate passed; scoped evidence in task-89-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Cards claros de agenda/realizados/ocupação/agendado/a receber/recebido, legenda de base/coorte, loading/empty/error/parcial e sem denominador; captura artifacts/service-overview.running.png.
 **Where**: `apps/dashboard/src/pages/overview/components/ServiceOverviewPanel.tsx`
 **Depends on**: T88
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: KPI-01, KPI-02, KPI-03, KPI-04, KPI-06, KPI-07, QA-02
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] ServiceOverviewPanel.spec.tsx + browser fixtures de valores conhecidos, mobile/desktop e erros, sem receita fabricada.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] ServiceOverviewPanel.spec.tsx + browser fixtures de valores conhecidos, mobile/desktop e erros, sem receita fabricada.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: ServiceOverviewPanel.spec.tsx + browser fixtures de valores conhecidos, mobile/desktop e erros, sem receita fabricada.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/overview/components/ServiceOverviewPanel.spec.tsx -t "^T89$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T89$"` Teste raiz T89 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/overview/components/ServiceOverviewPanel.spec.tsx -t "^T89$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-overview-local.config.ts e2e/service-overview-journeys.spec.ts`. Whole original browser files, no browser name filters/skips; valid existing unit root selectors retained; original resources, workers, timeouts, cleanup, all adopted affected regressions and final criterion checks remain mandatory. Both desktop/mobile projects run all four original overview scenarios (eight cases), preserving service SQL-known finance and original product behavior.
 **Commit**: `feat(service-business): t89 present the service overview`
 
 ### T90: Select the approved overview by business mode
