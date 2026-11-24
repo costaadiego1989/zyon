@@ -1,5 +1,24 @@
 # WhatsApp Service Booking and Business RAG Specification
 
+**User-directed public service browsing refinement (2026-11-24):** user: "nao tem nada haver isso de se identificar para ver os profissionais e horarios isso e um erro torna burocratico nao quero isso". Services, published professionals, dates and slots are browsable without buyer identification, login, OTP or buyer JWT. Ask for identification or missing registration data only when the buyer proceeds to confirmation/reservation or payment that needs it. Public reads retain trusted merchant/origin/conversation scope, canonical publication/availability/version checks and private-data boundaries. They create no buyer identity, booking hold, appointment or payment. Buyer writes retain verified identity and final capacity/financial authority; product journeys are unchanged. This direct instruction authorizes corresponding behavior/test expectation changes without another approval question. Earlier auth-before-browse evidence is historical for the revised behavior; no new criterion/task or release approval is implied.
+
+**Approved test expectation (2026-11-22):** user: "Aprovar somente essa expectativa (recomendado)" (call_2aff476537a5480eb6f3aa13e73b084c). Only T43 strict provider required-field expectation appends serviceAction; patch0e13db86 applied once in Root. All existing cases and other assertions remain unchanged; P proposal stays historical. Receipt .cache/t43-approved-schema-test-20261122/receipt.json.
+
+
+**Approved T103 presentation only, 2026-11-22:** user: "Aprovar lista e Kanban" (call_4108c87ec07e416784508e1be5124ab6). Approval covers the shown refined desktop/mobile list and Kanban from visual-only synthetic preview35b3cb9a. T103 route/detail/actions, actual authenticated API/SQL/browser proof, compilation and final verification remain required. It does not authorize publication or certify task completion.
+
+**Approved test-only corrections, 2026-11-21:** user: "Aprovar os dois ajustes de testes" (call_b75f49875df344cda177e28c2c0ff07c), limited to T41 c074d924 and T1129d268fdd. Existing tenant isolation and original-lease rejection remain enforced; all cases and other assertions preserved. No API or requirement changes.
+
+**Approved T81 visual only, 2026-11-21:** user: "Aprovar o visual" (call_aacdd232c6864cf0b1ef1195e36b0ffd). Approval covers the shown desktop/mobile payment-control and slot-reservation layout, captured from real T81 components with a synthetic VM in preview receipt88577ce9. It does not approve API/SQL/authentication/payment execution, a production release or completion of remaining gates. Off remains at-attendance balance, on remains online checkout.
+
+**Approved test-only oracle corrections, 2026-11-21:** user: "Aprovar os dois patches de testes" (call_0fa5c41963424f779bdfaa4690d840ad), with overlapping T40-only grant "Corrigir somente essa asserção" (call_370e553662004bafa083495d04f0be85). Only patches1dbb0ac7 (response fields409/code/action) and dac62bc4 (T81 fixture session plus existing/me URL) were applied once. No requirement, API behavior, test count, negative case or broader approval changed. Receipt3963cf08; new Root T40 freeze662e3e3c and T81 freezea96c4040 require current affected-file verification.
+
+**Settled ONB-03 / payment UI refinement, 2026-11-21:** user: "agendar sem cobrar e registrar valor para pagar no atendimento"; new service businesses: "Sim, começar desligado" (call_3496d7a8dc2c4819bfa1ab35a5c5a4db). The explicit online-collection toggle maps off to existing `at_attendance`, on to `online`. Off confirms the appointment without buyer checkout/online charge and retains the amount payable at attendance. New drafts start off; existing configured businesses retain their policy. This is not a free service and introduces no new payment mode. The earlier pending payment questions are resolved. Hold choices, product commerce, policy version checks and trusted historical/in-flight terms remain unchanged.
+
+**Additional scope under clarification, 2026-11-21:** the user requests an explicit service-payment enable/disable control and scheduling without checkout when disabled (call_f18e1cec04a04cd4bf91bdb0b56aa2b6). Whether disabled means no financial obligation or a balance payable at attendance, and the initial setting for new businesses, are pending user answers. Existing payment behavior and product commerce remain preserved. Formal checks/tasks will incorporate the settled behavior before implementation.
+
+**Settled T101 visual revision, 2026-11-21:** user: "nao recisa do ddi se baseia no layout do cashback e anuncios com ia e o novo estilo visual padrao do projeto" (call_975fea8c0c324845ac502b037785b911). The private recipient form accepts a Brazilian DDD and local number without asking for a country code. It normalizes the number to the canonical Brazilian international representation before the existing API call. The form follows the current Cashback and AI Ads visual language. Roles, tenant isolation, FAQ edits, conversation drafts and truthful delivery status remain required. The previous screenshots were not approved; revised browser captures are required.
+
 **User-directed timezone refinement (2026-11-18):** user: "Sempre horário de Brasília, sem configuração"; "Sim, Brasília em todos os novos cadastros e agendamentos (recomendado)". AGENDA-08/ATEND-13 and T111-T113 implement fixed America/Sao_Paulo for new service records without a chooser, preserving historical zones/instants and trusted in-flight terms. Local scope84 criteria/113 tasks; original product commerce and approvals remain protected. New-write/control tests evolve under this explicit new rule; unrelated historical/security/payment/stock assertions stay intact.
 
 **Discovered authentication prerequisite (2026-11-17):** Local source and real-hasher/JWT RED8 (3pass/5fail) reproduced password-login acceptance when verify returns valid:false. AUTH-01/T110 records the required rejection contract before service buyer authentication can be claimed. This corrects an existing security defect; no new business choice, provider action or production validation. Current scope82criteria/110tasks; original approvals remain unchanged.
@@ -99,13 +118,15 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 **Acceptance Criteria:**
 
 1. WHEN a empresa publica um serviÃ§o agendÃ¡vel THEN the system SHALL vincular sua duraÃ§Ã£o e profissionais a recursos de agenda da prÃ³pria empresa. [AGENDA-01]
-2. WHEN o comprador abre um serviÃ§o THEN the system SHALL apresentar datas com disponibilidade atual para o serviÃ§o e profissional selecionados. [AGENDA-02]
-3. WHEN o comprador escolhe uma data THEN the system SHALL mostrar somente os slots disponÃ­veis dessa data, informando inÃ­cio, duraÃ§Ã£o e fuso do atendimento. [AGENDA-03]
-4. WHEN o comprador seleciona um horÃ¡rio THEN the system SHALL revalidar o slot e mostrar serviÃ§o, profissional, data, hora e valor antes da confirmaÃ§Ã£o. [AGENDA-04]
+2. WHEN a buyer opens a published service without identifying THEN the system SHALL show the published professionals and current available dates for that merchant, service and chosen professional without requesting login, OTP or buyer identity. [AGENDA-02]
+3. WHEN an unidentified buyer chooses a date THEN the system SHALL show only that date’s currently available slots, with start, duration and appointment timezone, without requesting buyer identification. [AGENDA-03]
+4. WHEN a buyer chooses a slot THEN the system SHALL revalidate and display service, professional, date, time and canonical price before confirmation without requiring identification for this read-only review; verified identity or missing registration data is requested only when starting the booking/reservation/payment write. [AGENDA-04]
 5. IF dois serviÃ§os do mesmo profissional disputam intervalos sobrepostos THEN the system SHALL permitir no mÃ¡ximo um agendamento confirmado nesse intervalo. [AGENDA-05]
 6. IF a agenda estÃ¡ vazia, desatualizada ou indisponÃ­vel THEN the system SHALL informar o estado correspondente sem criar horÃ¡rio ou declarar indisponibilidade total a partir de uma falha de leitura. [AGENDA-06]
 7. WHEN texto ou Ã¡udio descreve uma data ou profissional ambÃ­guo THEN the system SHALL pedir a escolha explÃ­cita entre as opÃ§Ãµes atuais antes de reservar ou cobrar. [AGENDA-07]
 8. WHEN a new service professional, grade, interval or appointment is created THEN the system SHALL use America/Sao_Paulo, fill an omitted zone and reject a different supplied new zone without writes, while preserving historical zones/absolute instants and proven in-flight contractual terms. [AGENDA-08]
+
+**Public read boundary:** Anonymous discovery returns only the published offer/professional projection and bounded canonical availability. Foreign tenant, unpublished/inactive offer or professional, invalid window and stale version remain rejected. Public browsing must not create a synthetic authenticated buyer or a checkout/hold/appointment/payment. Confirmation and payment retain the original verified buyer, idempotency, policy, capacity and financial guards.
 
 **Independent Test:** Dois profissionais, trÃªs serviÃ§os e duas datas; serviÃ§os diferentes com o mesmo profissional; competiÃ§Ã£o concorrente pelo mesmo intervalo; slot vencido; leitura com erro; Ã¡udio ambÃ­guo.
 
@@ -193,7 +214,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 1. WHEN a empresa abre o dashboard THEN the system SHALL selecionar os indicadores da modalidade comercial persistida, mantendo os indicadores atuais para produtos. [KPI-01]
 2. WHEN o painel contabiliza agendamentos do perÃ­odo THEN the system SHALL contar cada agendamento uma vez por estado operacional, usando o inÃ­cio agendado no fuso da empresa como coorte declarada. [KPI-02]
 3. WHEN o painel calcula ocupaÃ§Ã£o THEN the system SHALL dividir minutos ocupados confirmados pelos minutos ofertados Ãºnicos por profissional no perÃ­odo, sem duplicar capacidade de serviÃ§os que compartilham esse profissional. [KPI-03]
-4. WHEN o painel mostra valores de serviÃ§os THEN the system SHALL separar valor agendado, valor a receber e recebimento confirmado, usando evidÃªncias financeiras prÃ³prias de pagamento online ou registro local. [KPI-04]
+4. WHEN o painel mostra valores de serviços THEN the system SHALL separar valor agendado, valor a receber e valor dos serviços efetivamente pagos, excluindo taxas adicionais cobradas do comprador e usando evidência financeira online ou local deduplicada. [KPI-04]
 5. WHEN operador filtra perÃ­odo, profissional ou categoria THEN the system SHALL aplicar os mesmos limites de tenant e perÃ­odo aos totais e detalhamentos retornados pela API. [KPI-05]
 6. WHEN o painel mostra concluÃ­dos ou ausÃªncias THEN the system SHALL usar somente os estados operacionais registrados, sem inferir conclusÃ£o por pagamento ou ausÃªncia pelo decurso do horÃ¡rio. [KPI-06]
 7. IF uma leitura de mÃ©tricas falha ou o denominador de uma taxa nÃ£o existe THEN the system SHALL distinguir dados indisponÃ­veis de zero e mostrar taxa nÃ£o calculÃ¡vel sem fabricar percentuais. [KPI-07]
@@ -255,7 +276,7 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 **Acceptance Criteria:**
 
 1. WHEN a feature Ã© validada THEN the system SHALL produzir uma matriz que relacione cada critÃ©rio ao comando e Ã  evidÃªncia de seu resultado no mesmo HEAD. [QA-01]
-2. WHEN o fluxo visual Ã© demonstrado THEN the system SHALL fornecer prints das telas e conversas correspondentes, marcando separadamente prÃ©vias locais e capturas reais. [QA-02] Sources: captures/t101-approved-national-desktop.png, captures/t101-approved-national-mobile.png.
+2. WHEN o fluxo visual Ã© demonstrado THEN the system SHALL fornecer prints das telas e conversas correspondentes, marcando separadamente prÃ©vias locais e capturas reais. [QA-02] Sources: captures/t101-approved-national-desktop.png, captures/t101-approved-national-mobile.png, captures/t45-approved-desktop-review.png, captures/t45-approved-mobile-confirmed.png, captures/t79-approved-desktop-regular-summary.png, captures/t79-approved-mobile-oneoff-summary.png.
 3. WHEN os testes financeiros e de concorrÃªncia sÃ£o executados THEN the system SHALL comprovar unicidade de reserva, estado financeiro verdadeiro e isolamento de tenant, sem depender apenas da mensagem da IA. [QA-03]
 4. WHEN o RAG Ã© avaliado THEN the system SHALL medir respostas apoiadas por fonte, tratamento de ausÃªncia/contradiÃ§Ã£o e uso correto de ferramentas em trÃªs ramos, exigindo aprovaÃ§Ã£o de todos os casos crÃ­ticos antes da ativaÃ§Ã£o. [QA-04]
 
@@ -337,8 +358,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | RAG-10 | Generic onboarding | T63, T67, T71, T72 | Complete locally (T63/T67/T71/T72, three-business scored fixtures); final verification pending |
 | RAG-11 | Existing forms feed context | T13, T14, T15, T63, T64, T65 | Pending |
 | ATEND-01 | Service-only management | T41, T47, T73, T74, T75, T82, T83 | In Progress (T41 authorized HTTP/SQL reads and established writers complete; T47/T82/T83 management composition and UI pending) |
-| ATEND-02 | Professional administration | T18, T19, T76, T106 | In Progress (T18 and T19 complete) |
-| ATEND-03 | Service categories | T20, T77 | In Progress (T20 complete) |
+| ATEND-02 | Professional administration | T18, T19, T76, T106 | Complete locally at their task gates; combined T78 Browser retained one unresolved pre-editor-load failure, final verification pending |
+| ATEND-03 | Service categories | T20, T77 | Complete locally (canonical link reader, actual category gestures/persistence and capacity preservation); final verification pending |
 | ATEND-04 | Shared availability | T21, T23, T24, T25, T78 | In Progress (T21, T23, T24 and T25 complete) |
 | ATEND-05 | One-off times | T22, T25, T78 | In Progress (T22 and T25 complete) |
 | ATEND-06 | Manual appointments | T31, T41, T74, T79 | In Progress (T31/T41 canonical manual HTTP/SQL complete; T79 UI and final proof pending) |
@@ -361,8 +382,8 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 | QA-01 | Criteria proofs | T1, T108, T109, T95 | Pending; native collector and replay repairs do not close final feature proof |
 | CAT-01 | Product-mode creation options | T98 | Complete locally;55unit+2real browser, no skips; final screen review later |
 | CAT-02 | Service-mode creation and defaults | T98 | Complete locally; defaults/reset/payload/history and actual stale-mode409 proved |
-| CAT-03 | Catalog boolean toggles | T105 | Pending |
-| CAT-04 | Professional links in service editor | T106, T76 | Pending |
+| CAT-03 | Catalog boolean toggles | T105 | Complete locally at T105 (139 components, two actual Browser cases and headers); service schedule presentation deliberately evolves under T78 |
+| CAT-04 | Professional links in service editor | T106, T76 | Complete locally at T106 (188 components, eight actual Browser cases and headers); combined T78 second-page pre-editor-load failure remains unresolved |
 | CAT-05 | Advanced-rules UI follows existing plan entitlement | T107 | Complete LOCAL;70components +3actual browser/nativecleanup, types/lint/build, six Root-reviewed native captures; policy unchanged |
 | HUM-09 | Private support fallback recipient | T99, T101 | Implemented locally (T99/T101 private API and national phone UI complete; final feature verification pending) |
 | HUM-10 | Durable staff WhatsApp case alert | T100, T101 | Implemented locally (T100/T101 durable private alert and truthful UI complete; final feature verification pending) |
@@ -409,6 +430,10 @@ None - the product matches the source.
 - [WHO: limitaÃ§Ãµes e governanÃ§a de modelos generativos em saÃºde](https://www.who.int/news/item/18-01-2024-who-releases-ai-ethics-and-governance-guidance-for-large-multi-modal-models), consultado em 2026-11-14.
 - `t101-approved-national-desktop.png` ? **binding**, QA-02, T101 national DDD desktop: ![T101 national DDD desktop](captures/t101-approved-national-desktop.png)
 - `t101-approved-national-mobile.png` ? **binding**, QA-02, T101 national DDD mobile: ![T101 national DDD mobile](captures/t101-approved-national-mobile.png)
+- `t45-approved-desktop-review.png` ? **binding**, QA-02, T45 buyer appointment review desktop: ![T45 buyer appointment review desktop](captures/t45-approved-desktop-review.png)
+- `t45-approved-mobile-confirmed.png` ? **binding**, QA-02, T45 buyer confirmed mobile: ![T45 buyer confirmed mobile](captures/t45-approved-mobile-confirmed.png)
+- `t79-approved-desktop-regular-summary.png` ? **binding**, QA-02, T79 regular manual appointment desktop: ![T79 regular manual appointment desktop](captures/t79-approved-desktop-regular-summary.png)
+- `t79-approved-mobile-oneoff-summary.png` ? **binding**, QA-02, T79 explicit one-off summary mobile: ![T79 explicit one-off summary mobile](captures/t79-approved-mobile-oneoff-summary.png)
 
 
 ## Success Criteria
@@ -423,14 +448,26 @@ None - the product matches the source.
 
 **T73 client wire correction approved:** 2026-11-16 - user: "Corrigir essa expectativa (recomendado)" (reply call_8c2dbee1ab4c41bb905ff23cd0ee3de7). Preserve explicit category-parent removal with the already supported parent_id:null wire alias. This corrects one SDK expectation and conditional, not product behavior or backend policy. Current focused client proof49/49; remaining requirement UI/HTTP/final gates stay pending.
 
+
+**Settled KPI-02 company timezone (2026-11-18):** user: "Sempre horário de Brasília, sem configuração". The company timezone for scheduling and metric cohorts is fixed to America/Sao_Paulo; there is no company timezone selector. Existing historical timezone snapshots remain immutable. Professional availability scope is being clarified separately before any change to its approved controls.
+
+
+**Settled AGENDA-03/ATEND-04/ATEND-05/KPI-02 timezone scope (2026-11-18):** user: "Sim, Brasília em todos os novos cadastros e agendamentos (recomendado)". New service registrations, professional availability and appointments use America/Sao_Paulo without timezone selection. Historical snapshots/instants remain immutable. This refines the approved service scope; it does not change product commerce. Existing arbitrary-zone historical compatibility remains a distinct preservation obligation.
+
 **Approved T35 clock expectations:** 2026-11-18 - user: "Corrigir somente essas três expectativas (recomendado)" (call_9440ffd81bb840818131c0db1c8f0acf). Exact oracle patch abdce49 applied once; only positive clock counts1->2/1->2/1->3, every other assertion retained. Receipt .cache/t35-clock-review-20261118/approved-applied-receipt.json.
 **Local T35 closure:** Full463 GREEN in documented cohorts (components79 = retained68 + current11; whole natives160; normal48/widget176), own current16682447/ed205188/2585 and APItypes/lint0. Task marked before its focused local commit; task-35-evidence.json retains every RED/plumbing approval/cleanup observation. Public manual producerT41, financial36-38/84, confirmation39/40 and final sameHEAD verification remain open. No provider/push/deploy/customer action.
+
+**Settled mid-build (2026-11-19):** user: "Registrar somente a quitação integral do saldo" (call_917429d4418143408cc57e769332d11b). BOOK-07/T37/KPI-04 use integral settlement of the remaining balance; no partial settlement feature. This clarifies the existing approved criterion and does not authorize deployment.
 
 
 **Local T36 closure:** Full422 GREEN across documented cohorts; own API b2ec26bd/241178bc/2586, types/lint/build0, mandatory owned cleanup and provider0. Task marked before focused local commit. No production/push/deploy; T37 onward and final same-HEAD verification remain pending.
 
-**Local T37 closure:** Full378 across149 current+229 retained unchanged products; own API2249dc61/73f9474e/2587, types/lint/build0 and native cleanup/provider0. Task marked before focused local commit. T38/T41/T80/metrics and final proof remain pending.
 
+**Settled mid-build 2026-11-19T16:28:40.946415+00:00:** user: "quero ajuste use /impeccable para ajudar num layout mais premium e exclusivo". The current Conversations desktop preview is not visually approved. Refine that existing WhatsApp Conversations surface/Staff host/drawer with the current workspace impeccable skill, preserving role/tenant/auth/draft/send/close/URL semantics and product journeys. No new data sources, invented buyer identity/global metrics or backend feature is authorized by this visual request. Show new real desktop/mobile captures; existing headers/UI/browser evidence remains historical wherever productive markup/style changes. User previously chose continuing the current skill version; do not ask about updating again.
+
+**Settled KPI-04 received base 2026-11-19T16:28:40.946415+00:00:** user: "Valor dos serviços efetivamente pagos, sem taxas adicionais do comprador (recomendado)". Received counts the effective paid service value (including effective discounts) and excludes fees added to the buyer. Example: service100+buyerFee2 yields received100. Use deduplicated PSP/local evidence, preserve confirmed service money without a booking and flag incomplete unit/fee allocation rather than guess. This defines existing85/86 metrics, not an extra KPI.
+
+**Local T37 closure:** Full378 across149 current+229 retained unchanged products; own API2249dc61/73f9474e/2587, types/lint/build0 and native cleanup/provider0. Task marked before focused local commit. T38/T41/T80/metrics and final proof remain pending.
 
 **Desktop visual style approved 2026-11-19T17:55:35.310017+00:00:** user: "Aprovar o estilo do desktop" (call_28d46de81a384fc5991547007d8ae055). Approval concerns the two real desktop previews, queue205f1326 and drawer26935f85, with premium presentation tokens/styles preserved through the later selected-tab and quiet-read fixes. It is not approval of unfinished technical gates, mobile behavior, feature completion or publication. No question on desktop style remains pending.
 
@@ -444,10 +481,18 @@ None - the product matches the source.
 **T38 local Full closure 2026-11-19T18:59:19.729644+00:00:** Actual253 contextual executions passed across32new/188existing/source3/compiled3/native13/native14, zero skipped, all raw hashes and executable source/test bytes verified. Own Root checked API e2cf8b7f/eb4a1fb5/2588 passed original types/lint/capture/build/record/admit. Signed AppModule callbacks and actual owned SQL/outbox preserve booking/finance/stock; original order execute tail and sixT37 pins exact. Only wrong new zero-case oracle corrected after exact user approval; API price policy unchanged, fixture restored in finally. Plan corrected its superseded zero-admission wording after gates, executable inputs unchanged. See task-38-evidence.json. T39 final tone/presentation and later sameHEAD acceptance remain required; no external provider or production claim. Task38 marked before its own atomic commit.
 
 
+**Approved T100 three new-test expectations:** 2026-11-19 - user: "Corrigir somente essas expectativas (recomendado)" (call_74bc4d7bea2948fd88d4d5e23b2795ea). Exact isolated patch2d64d81c permits only two TenantContext.get undefined->canonicalnull and removal of arbitrary5511fragment from native privacyregex, preserving both fullphones/othercanaries/allotherassertions. API unchanged. Approval recorded now; application waits current own-offline-bootstrap natural handback to preserve sourcefreeze. Do not reask or broaden; exact before/after receipt required on once-only application.
+
+
+**T100 exact approved patch applied once 2026-11-20T00:20:20.339458+00:00:** Isolatedreceipt c5afe14c verified, usercall_74bc4d7bea2948fd88d4d5e23b2795ea and exact2d64d81c. All3hunkinverses exact against currentfixtures, allotherassertions/fixtureadditions preserved; execution0. Approval consumed, no questionpending/reapply. LaterF100-1/2/3 changes are independenttestsfirstsourcefixes, not additionaloraclereplacements.
+
+
 **Approved T39 local synthetic presentation**: 2026-11-19 - user: "Aprovar a apresentação" (call_62b86875b2524682acd239d3f85af177). Approval covers the shown appointment confirmation/payment-at-attendance/five-tone local synthetic previews, not actual WhatsApp/provider or final44/45 screens, technical gates, task closure or production. Six exact artifacts in .cache/t39-source-20261119/visual-preview/generated/captures; generation0bb86a59/capturefa891b71.
 
 
 **Approved widget parent watchdog exception**: 2026-11-19 - user: "Aprovar apenas o limite de 5 minutos" (call_69d9fe48fb014b1ba2cd9f4fd8a72599). Exact patch3609375592cfaed06964739babd8efcc478e3780acf7dd193c71fc90f83a8e6c authorizes ONLY test-driver parent watchdog180000->300000 on the TWO local checkouts Root/M; worker176cases/allfunctionalassertions/internalwaits/heap256/PG128/memory/network/cleanup unchanged. This explicitly revises the original gate budget, not a neutral retention or productSLA change. Original145/158partialfailures remainfailed, no whole176pass implied. Rootmayapply now; Mmustwait currentnative16/inbox9 naturalhandback before any sourcechange. No reask/reapply.
+
+**Approved T100 new private test case correction**: 2026-11-19 - user: "Corrigir somente o novo caso privado" (call_8b8b2307a0284388b16a518d8102e51e). Exact patch63401404 authorizes ONLY newly expanded support_case_alert loop case/title in send-whatsapp-message.spec.ts (3a7b759d->0ed16cb6): none/skipped/private_staff_alert_required and zeroexistingWhatsApp/email/Bubble counters; all46cases andother45bodies/assertions/titleoutputs unchanged. API/27sources unchanged. Apply ONLY after currentMnative16/inbox9 naturalhandback to preserve its d719 input fence. No reask/broaden/reapply; before/after receipt mandatory.
 
 
 **T39 local closure 2026-11-20T03:14:30.991751+00:00**: Full322 current contextual executions GREEN, no skips;188historical retained outside322. OwnRoot eaeb72bd/f9e2ff73/2589 and allheaders0, freshlint36d06a40, approved176 rawbf42744b/cleanup0/provider0/duration165319ms. Duration was beloworiginal180 too; no causalclaimthatbudgetfixresolvedslowness. Source8 7edbf80b and alloriginal7inputs exact. Approved local presentation call62b86875 and parent300 call69d9fe48 preserved. Code/queries/writer/transport/stock boundaries held; no realprovider/production/wholefeaturecomplete claim. Taskmarked beforefocusedcommit.
@@ -457,15 +502,66 @@ None - the product matches the source.
 
 **T100 local Full closure 2026-11-20T04:37:18.954805+00:00**: Exact28 V3inputs40c451f5 adopted without borrowed client/dist/stamp; currentRoot76 +native46 +products224 =346 passed, no skips. Own e34a051e/5fb2dc67/2593 and all APIheaders0. Recordrefusal and admit-launcher failure preserved, successful compiler never repeated. Linear runtime comparison2683exact, only Root39consumer changed+formatter added; qualified M201/M138 outside346. Original protected inbox9 and40deliveries/20claimants retained with source/harness pins. Approved parent300 baseline fromT39 only; widget286798ms, no SLA/causality claim. Provider0/cleanup0, no production action. Task marked before focused local commit; T101/final feature verification pending.
 
-**Approved**: 2026-11-22 - user: "Aprovar o visual" (call_c1aa9b077799400381e2bac348903236/0). T101 national DDD+number without DDI; [desktop](captures/t101-approved-national-desktop.png) and [mobile](captures/t101-approved-national-mobile.png). Actual current running siblings retain native1440x1000/390x844 and are byte-identical to these approved frames. Local task gates are recorded in task-101-evidence.json; no external sends or production acceptance.
+
+**T79 visual approved, 2026-11-22**: user: "Aprovar o visual" (call_e1b9eff39a82467097ee79da7f7b086d). Approval covers the displayed manual-booking form and service/professional/duration/registered-price summary at1440x1000 and390x844. Preview receipt917a0ec3, synthetic GET-only, no technical/API/SQL/provider acceptance inferred. Original runtime and production gates remain mandatory.
+
+
+**T45 customer visual approved, 2026-11-22**: user: "Aprovar o visual" (call_0efb468cbf1d439d8c331da62d1ddf56). Covers the displayed customer desktop review and mobile confirmed/pending-at-attendance screens. Actual component/client/styles, explicitly synthetic transport/data. Preview2cases8frames receipt1a7202f4, original budget/cleanup and23pins exact. This does not approve technical behavior, served storefront, SQL/auth/provider or production. T79 manual form was separately approved by call_e1b9.
+
+
+**Approved**: 2026-11-22 - user: "Corrigir somente essas verificações (recomendado)" (call_9aadb87e3c6f42709a3020791e861108). Bounded T94 patch8665a545 applied ONCE: five negative-test matchers now inspect actual HTTP409/getResponse code service_activation_not_ready and exact release_manifest_missing blocker; all seven contexts and other assertions retained. API unchanged by this oracle correction. Exact before/after receipt: .cache/t94-error-contract-test-review-20261122/applied.json. No wider approval or task closure inferred.
+
+
+**Approved**: 2026-11-22 - user: "Aprovar somente os dois ajustes de testes (recomendado)" (call_6a68b53b704d42abadc15d39b086cea4). Patches da87caef and5b4efa52 applied ONCE only: the duplicate-proof fixture now repeats the identical command, retaining its rejection assertion; the new native activation negative asserts409/exact code/release_manifest_missing blocker. Other cases/assertions and API preserved. Native source is newly adopted with its approved correction, not executed and not accepted until its real writer/ABI dependencies/currentbuild gates. Exact before/after receipt .cache/t94-two-tests-approved-20261122/applied.json. Prior five-match approval9aadb was already consumed separately; no broad test-change authority inferred.
+
+
+**Approved**: 2026-11-22 - user: "Aprovar somente os dois retornos do teste (recomendado)" (call_1e3b3ba81b604830854f052e9f4159a4). Patchecc80e84 applied ONCE only: the two successful old MP provider stubs now supply matching observed10000cents/BRL/intent reference. All10 cases, names, assertions, remaining fixtures and API preserved by this patch. The separate local financial correction already passed13 new source cases after original3pass10fail; no native/external/production acceptance inferred. Exact before/after .cache/reg02-mp-old-fixtures-approved-20261122/applied.json. No wider test authority inferred.
+
+**Approved**: 2026-11-22 - user: "Aprovar apenas esse perfil para a API" (call_a66b8339561247228f507676aae76c09/0). Authorizes only the concrete local API profile v2 7581ff8b:3072MiB per-Node old-generation limit,3840MiB fresh available-commit admission and workspaceConcurrency1, modes api-types/checked. All configured TypeScript/source scope, tests/assertions, package scripts, network guard and normal own artifact capture/build/record/admission stay required. Original76df/v1e337 preserved; native/browser2048, PG128, frontend boundaries and timeouts unchanged. Per-process limit is not aggregate/native/RSS isolation. Any OOM/guard/compile failure stays failed. No deploy/push/remote DB/provider/customer action authorized. Exact approval record .cache/controlled-api-profile-proposal-20261122/approval.json.
 
 
 **Approved T40 recovery test correction, 2026-11-22:** user: "Aprovar somente esse ajuste do teste (recomendado)" (call_93541acdc6574770935719fa0b1f76a6). Exact proposed patch8fdee74d(normalizedLF; diskCRLFde1e2418) applied ONCE to native40879f56 over6d5a9982. Initialfailedlease now asserts checkoutnull/startedEvents0; samecapability realprepare recovers and exactcapturedlease is removed before ALL original readonly409/review/continuation assertions. Same25cases, noAPI/backend/guard/timeout change. .cache/t40-initial-lease-recovery-test-review-20261122/approved-applied.json is authoritative. Pending question RESOLVED; never reask/reapply/broaden.
 
+
 **Approved**: 2026-11-22 - user: "Corrigir somente essa expectativa (recomendado)" (call_4ec7236307ef4655b24cd03ae896af16/0). Exact .cache/t40-manual-br-test-expectation-review-20261122/proposed.patch881e70fb applied ONCE to Root and focused manual test220b0d85->4df4d012: only new appointment expectationUTC->America/Sao_Paulo, all16cases/allotherassertions preserved, no API behavior change. approved-applied.json is authoritative. Pending test question RESOLVED; do not reask/reapply/broaden.
+
+**Approved**: 2026-11-22 - user: "Aprovar o visual" (call_c1aa9b077799400381e2bac348903236/0). T101 national DDD+phone withoutDDI visual-only approval of the two shown local1440x1000/390x844 archived frames03a5e34c and6ac2086c from .cache/t101-browser-gates/2026-11-22T00-42-04.969Z/new7-captures. This is NOT fresh current API/browser/provider acceptance; existing functional gates remain required. Visual question RESOLVED, no production action authorized.
 
 **Approved**: 2026-11-23 - user: "Corrigir somente teste e fixture (Recomendado)" (call_79852ff77f9c4b1ab0f356ab33e70c4c/0). ONLY T28 .cache/t28-br-new-selection-test-review-20261122/proposed.patch d248d9da applied ONCE to Root+Focus01d4e639->b2b71803; oneUTC->Brasiliaoutputexpectation +8localnewBRfixturehunks. All9cases/148assertions/otheroracles/guards/budgets/prices andsharedUTCseed unchanged, noAPIbehaviorchange. approved-applied.json authoritative; wholeactualrerunpending. QuestionRESOLVED, neverreask/reapply/broaden.
 
-T40 local closure: whole94native/565components andqualifiedoriginal224productsourceSQL; task-40-evidence.json. No externalPSP/Meta/productionclaim.
+**Approved**: 2026-11-22 - user: "Aprovar o visual" (call_c1aa9b077799400381e2bac348903236/0). T101 national DDD+number without DDI; [desktop](captures/t101-approved-national-desktop.png) and [mobile](captures/t101-approved-national-mobile.png). Actual current running siblings retain native1440x1000/390x844 and are byte-identical to these approved frames. Local task gates are recorded in task-101-evidence.json; no external sends or production acceptance.
 
 **Local T41 closure, 2026-11-23:** Actual23 components and split reader10/writers39/manual12 native HTTP/SQL contexts61 GREEN on the same own checked API06; task-41-evidence.json preserves source/receipt bindings. Canonical list/detail retain pagination/counts, six operational states, separate finance, scoped access and factual history. Later UI/channel/activation tasks and final verification remain pending.
+
+**Approved**: 2026-11-23 - user: "Aprovar somente essas oito linhas (recomendado)" (call_70c194b2a34140abb59de883db83ac3c/0). ONLY the exact eight expectation lines in .cache/t29-t30-owned-http-continuation-preconditions-20261123/all-eight-expectations-pending.patch, bound by eight-expectation-lines-approval.json: T24/T25 new civil-time/grade expectations in Brasilia and T30 new appointment zone plus verified buyer email snapshot. All cases, other assertions, absolute ISO instants and explicit historical UTC/Manaus remain. API unchanged. Approval received; each hunk must be applied once against its bound source during ordered composition, never broadened or reapplied.
+
+**Approved**: 2026-11-23 - user: "Corrigir somente essa expectativa (recomendado)" (call_9afd5aef66df4658a4e469095c7e4d14/0). ONLY .cache/t111-t24-staff-br-read-expectation-review-20261123/proposed.patch7decf70e: staff read civil-time vector10:00/10:30 ->07:00/07:30. Eight cases, historical UTC records, authorization/no-mutation assertions and API unchanged. Applied ONCE Rootb240227c->4d48edca; Focus deferred until current independent native25 returns. approval.json/root-approved-applied.json bind exact action. Never reask/broaden/reapply.
+
+
+**Approved**: 2026-11-23 - user: "Aprovar somente os três patches (Recomendado)" (call_cde468a7a930458a835d78c5336d8490). ONLY exact three test patches2070c610/version,107e5a69/Decimal and930e79fb/migration snapshot projection with BOTH new fields strictnull. Earlier replies710b(version) andd57(version+Decimal) cover the same hunks and are superseded; apply each ONCE, never twice. Current Native18c33 includes reviewed privateV2 and must be preserved when composing the sole Decimal expression. No API rule/other oracle/case/timeout change. Approval received while ownnative27 exec14102 runs; application deliberately waits natural handback to keep source freeze183/native supplement exact. Approval .cache/consolidated-three-test-approvals-20261123/approval.json. Never reask/broaden/reapply.
+
+
+**Approved three patches applied ONCE, 2026-11-23:** Exact usergrant cde468a consumed only after native27 natural handback99c2499a. Root+Focus four test files updated, eight writes; Native18 current privateV2 opt-in retained while composing sole Decimal expression. Version92547221, migrationfixture33155c6e/spec31b50cf2 and current combined Native18 hash are bound by .cache/consolidated-three-test-approvals-20261123/applied.json. API rules/cases/other oracles/timeouts unchanged. Earlier710b/d57 were duplicate scope, NOT applied again; no question pending, do not reask/reapply. Whole affected9/18/9 still required.
+
+
+## Metrics test corrections and overview visual approval 2026-11-23
+
+**Approved**: 2026-11-23 - user: "Aprovar somente os dois ajustes de testes (Recomendado)". Consolidated question call_4462b47008f346c28b2c82c2aba7d82f supersedes the duplicate single bridge approval call_6c3dad2337a84b598eb05ffc01228826. Apply each hunk once: canonical bridgeStatus cleanup contract, and foreign-tenant query403/tenant_mismatch_query while ordinary invalid queries remain400. All21 contexts, other assertions, data, timeouts and application behavior remain unchanged. Patch `.cache/service-metrics-two-expectations-review-20261123/combined-proposed.patch`.
+
+**Approved**: 2026-11-23 - user: "Aprovar o visual do desktop" (call_7baec54601664dfd9586f1956ebd71cf).
+
+**Approved**: 2026-11-23 - user: "Aprovar o visual do celular" (call_8caffeedf852429185b3cbc8f281d79e). Actual local service overview screenshots; current whole-project browser proof aba2454a,4desktop+4mobile,20 captures. Visual approvals do not complete pending task dependencies, builds or final feature verification. No production authorization is inferred.
+
+
+## Approved staff, worker budget and native blocker corrections (2026-11-23)
+
+**Approved**: 2026-11-23 - user: "Corrigir somente essa expectativa (Recomendado)" (call_b4da43004b434f228000b56b6f628832). Staff expectation only; superseded by overlapping consolidated grant, apply once.
+
+**Approved**: 2026-11-23 - user: "Aprovar somente esses ajustes (Recomendado)" (call_15cd1f4546014e29bac209a926f34401). Staff UTF8 expectation plus two journey worker budget lines, body60000/global600000/parent600000 unchanged.
+
+**Approved**: 2026-11-23 - user: "Corrigir somente essa checagem (Recomendado)" (call_1ef23ffc45e24e1793e454a274cbce1b). Native readiness public HTTP plus exact canonical owned-SQL blocker expectation only.
+
+Exact targets and before/after pins: .cache/staff-worker-blocker-grants-20261123/approval.json. The first Staff grant overlaps the consolidated grant and is consumed once. Only UTF8 candidate b4bf is valid; never apply old mojibake9ea. Native oracle35f8 preserves newly added manual contact; never copy old216 wholesale. Apply after the active API07 source freeze returns. No production authority or gate completion is inferred.
+
+
+**Approved**: 2026-11-24 - user: "prossiga". Direct answer to the preceding request to close exactly the ten temporary PostgreSQL/Redis containers in inventory2d43540c, with tmpfs data discard disclosed. Authorizes stopping only those exact ten IDs after fresh identity checks; no container removal, other targets, provider sends or production action. Approval receipt: .cache/authorized-ten-container-stop-20261124/approval.json.

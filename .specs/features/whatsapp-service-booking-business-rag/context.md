@@ -1,7 +1,24 @@
 # WhatsApp Service Booking and Business RAG Context
 
+**Approved test expectation (2026-11-22):** user: "Aprovar somente essa expectativa (recomendado)" (call_2aff476537a5480eb6f3aa13e73b084c). Only T43 strict provider required-field expectation appends serviceAction; patch0e13db86 applied once in Root. All existing cases and other assertions remain unchanged; P proposal stays historical. Receipt .cache/t43-approved-schema-test-20261122/receipt.json.
+
+
+**Approved T103 list/Kanban presentation, 2026-11-22:** user: "Aprovar lista e Kanban" (call_4108c87ec07e416784508e1be5124ab6). Refined desktop/mobile screenshots are preview35b3cb9a, real components and synthetic DTO only. This is visual approval; route/detail/actions, backend integration, real browser/SQL/auth, builds and task acceptance remain pending. T81 visual approval remains separate.
+
+**Approved two new native-test corrections, 2026-11-21:** user: "Aprovar os dois ajustes de testes" (call_b75f49875df344cda177e28c2c0ff07c). Apply only T41 c074d924 (foreign query403 plus tenant_mismatch_query; other invalid cases400 unchanged) and T1129d268fdd (captured original lease error code only). Preserve cases, no-write negatives, prior proposals and source freezes. No API behavior or broader test modification is authorized by these grants.
+
+**Approved T81 visual only, 2026-11-21:** user: "Aprovar o visual" (call_aacdd232c6864cf0b1ef1195e36b0ffd). The shown desktop attendance and mobile actions PNGs belong to visual-only preview88577ce9 (real component/CSS, synthetic VM). This accepts presentation only; canonical browser/API/SQL/payment and compilation gates remain separate. No remote publication authorized.
+
+**Approved test-only patches, 2026-11-21:** user: "Corrigir somente essa asserção" (call_370e553662004bafa083495d04f0be85) and "Aprovar os dois patches de testes" (call_0fa5c41963424f779bdfaa4690d840ad). Applied T40 patch1dbb0ac7 and T81 patchdac62bc4 once only, receipt3963cf08. The overlapping T40 grant was not applied twice. T40 now checks the established409/code/review action; T81's fake authenticated session and URL expectation now match the existing `/merchants/me/` route. All other assertions/cases and production/API code stayed exact. Original proposals/failures and P40 freeze remain preserved. The separate T41 native403 proposal is not covered by this approval and remains unapplied.
+
+**Settled payment control, 2026-11-21:** user: "agendar sem cobrar e registrar valor para pagar no atendimento" and "Sim, começar desligado" (call_3496d7a8dc2c4819bfa1ab35a5c5a4db). Disabled means no online charge or buyer checkout at booking, while the canonical amount remains payable at attendance. Enabled means the existing online checkout. Reuse the existing `at_attendance` / `online` policy; do not add a free-service mode or a second financial authority. New service-business drafts start with online collection off. Preserve current configured businesses, explicit hold settings and accepted in-flight payment terms. User also chose "Continuar com código e testes menores" (call_b897bb6fe72645a68a216b4b04a58625); do not repeat heavy compilation attempts or resource questions without new steering/resource evidence.
+
+**2026-11-21 / additional phone and service-payment request:** user: "o whatsapp da equipe ainda pede ddi e outra coisa habilitar e desabilitar pagamento pagamentos sao cobrados e checkout de seviço se habiilitar se nao no maximo e agendar sem pagamento nao tem problema" (call_f18e1cec04a04cd4bf91bdb0b56aa2b6). Audit all team-phone controls before assuming the user refers to the revised local T101 field. Local T101 national input passed whole UI173 and browser11; it has not been published. Add an explicit service-payment enable/disable control; disabled must allow scheduling without opening checkout. Two product details are pending in the asynchronous question: booking-only versus recording an at-attendance balance, and the initial setting for newly registered service businesses. Existing businesses retain their approved payment configuration. No dependent payment behavior is implemented before these answers.
+
+**2026-11-21 / T101 visual feedback:** user: "nao recisa do ddi se baseia no layout do cashback e anuncios com ia e o novo estilo visual padrao do projeto" (call_975fea8c0c324845ac502b037785b911). Use a national phone field with DDD, normalize Brazil internally, and reuse the current Cashback and AI Ads design. Previous captures are technical evidence only and were not visually approved. Revised local desktop/mobile prints will be shown.
+
 **Gathered:** 2026-11-14
-**Status:** Specification approved; design and tasks in preparation. Tasks are not approved.
+**Status:** Specification and tasks approved for local implementation. Remaining task gates and final verification are in progress; no feature-completion claim.
 
 ## Feature Boundary
 
@@ -155,8 +172,128 @@ As correções explícitas de animação antes do texto e dez produtos por lote 
 
 **Fixed timezone delivery placement (2026-11-18):** Explicit answers are delivered by111 new-record server policy,112 canonical booking/trusted-history compatibility and113 UI/control evolution after83/47 and before84. No global timezone rewrite or public legacy flag. Existing new-write/control tests evolve for the new user rule; unrelated historical/security/payment/stock assertions stay protected.
 
+**Resource-window reply (2026-11-19):** user: "Vou liberar memória agora" (call_a257c2f01736447c857e4e7ba8d6467e). This is an intent to free resources, not an observed memory reading or approval to terminate applications. Resume each required gate only on its unchanged fresh admission. Visual feedback remains separate.
+
+**Pending receipt policy precision (2026-11-19):** Root asked whether a local attendance receipt may record partial amounts while keeping the remaining balance pending, or must settle the full outstanding balance. This is not answered/approved yet. BOOK-07/T37 command implementation must not choose a rule from schema cardinality. Existing T36/T62 work continues independently.
+
+**Pending T36 test-oracle correction (2026-11-19):** New late-payment test expected the raw Redis checkout key to disappear after lease expiry. Actual existing Lua retains it for ttl+86400000ms; expiresAt controls validity. Proposed patch15238afd40318157b716c6c94f92f2edb6ecb2212b1d5af4544fa2b46e6e3caf checks expired timestamp by RedisTIME and exact retained payload preservation, retaining other negatives/state/money assertions. Approval requested under tlc-spec-driven implement.md; NOT received/applied. Separate synthetic competitor required-contact completion is fixture setup only, with all prior oracles preserved and stronger precondition.
+
+**Settled receipt policy (2026-11-19):** user: "Registrar somente a quitação integral do saldo" (call_917429d4418143408cc57e769332d11b). Supersedes the pending precision above. T37 accepts only the complete outstanding amount; partial amounts and overpayment are rejected. The server computes remaining balance, and recording does not mark attendance or imply PSP confirmation.
+
+**Approved T36 expiry test correction (2026-11-19):** user: "Corrigir somente essa expectativa (Recomendado)" (call_2649816d086d45c2bd6b92af3a3c2cdb). Exact patch15238afd applied once after verifying cd8947ff; only the reviewed expired-record assertions changed. All other cases, money/state/tenant negatives and production API preserved. Candidate c1d774341901e375d8d71a94ec67bae39636da995f345a69924b7af8af4e8962. Actual gate remains pending.
+
+**Approved T62 foreign ticket oracle (2026-11-19):** user: "Corrigir somente essa linha (Recomendado)" (call_deccc27c26364dd295c4ea885e841b0e). Authorizes exactly patch76e39822e7c790061ef29934aae5d33afca976210b2aeeb81add88b8eb62a3ef, one new Browser test comparison403->404. M owns the one-time application/receipt; Root has not applied it. Private profile/context403 and all four cases/data-absence checks stay intact. No API change or new permission flow.
+
+**Resource reply (2026-11-19):** user: "Vou liberar memória e aviso quando terminar" (call_a9e7c49235ce4b3e8d34a6bb54eebd10). This is intent plus a promised later confirmation, not a completed availability reading. Root/M remain source-only with no SUT/probe until an actual new window is established; no foreign app/process termination authorized.
+
+**T62 approved test patch verified applied (2026-11-19):** Root inspected M approved-applied-receipt.json and the current Browser source. Original0e9b95d6 became6faac08b by the exact approved76e39822 one-line403->404 change; all four cases remain and execution is0. This supersedes application-pending status above; never request the same approval again.
+
+**Resume request (2026-11-19):** user: "o que falta ainda para terminar? prossiga". Resume the authorized local work and make one fresh guarded attempt at the outstanding T62 UI87 gate. This does not assert that memory was freed and does not authorize closing foreign applications. All previous approvals remain effective.
+
+
+**Approved T37 admin-login test correction:** 2026-11-19 - user: "Corrigir somente essa expectativa (recomendado)" (call_7c50b1827d2648748b894122500479e0). Exact8c95357e permits only HTTP200->201 in the new admin login precondition; existing AuthController/Post contract and all other assertions/API remain unchanged. Applied once, receipt .cache/t37-admin-login-precondition-review-20261119/approved-applied-receipt.json; never ask/apply again.
+
+
+**Open KPI-04 precision, 2026-11-19:** Asked user which base Received uses when payment includes fees: effective service amount without buyer-added fee; gross buyer payment including fees; or merchant net after deducted fees. No answer/default assumed. Clarify before85; this does not block37 local receipt fact. Optional current Conversations desktop visual feedback is also pending, without technical release approval inferred.
+
+
+**Settled mid-build 2026-11-19T16:28:40.946415+00:00:** user: "quero ajuste use /impeccable para ajudar num layout mais premium e exclusivo". The current Conversations desktop preview is not visually approved. Refine that existing WhatsApp Conversations surface/Staff host/drawer with the current workspace impeccable skill, preserving role/tenant/auth/draft/send/close/URL semantics and product journeys. No new data sources, invented buyer identity/global metrics or backend feature is authorized by this visual request. Show new real desktop/mobile captures; existing headers/UI/browser evidence remains historical wherever productive markup/style changes. User previously chose continuing the current skill version; do not ask about updating again.
+
+**Settled KPI-04 received base 2026-11-19T16:28:40.946415+00:00:** user: "Valor dos serviços efetivamente pagos, sem taxas adicionais do comprador (recomendado)". Received counts the effective paid service value (including effective discounts) and excludes fees added to the buyer. Example: service100+buyerFee2 yields received100. Use deduplicated PSP/local evidence, preserve confirmed service money without a booking and flag incomplete unit/fee allocation rather than guess. This defines existing85/86 metrics, not an extra KPI.
 
 **Desktop visual style approved 2026-11-19T17:55:35.310017+00:00:** user: "Aprovar o estilo do desktop" (call_28d46de81a384fc5991547007d8ae055). Approval concerns the two real desktop previews, queue205f1326 and drawer26935f85, with premium presentation tokens/styles preserved through the later selected-tab and quiet-read fixes. It is not approval of unfinished technical gates, mobile behavior, feature completion or publication. No question on desktop style remains pending.
 
 
 **Approved T38 zero-price native test correction:** 2026-11-19 - user: "Corrigir somente esse teste (recomendado)" (call_4b91ada15f83480d99c5539622ba1540). Exact patch98dff479/originalb013ab80/candidateaaa42d02 applied once after approval: one new native case now checks the existing zero-price rejection with no business/transport changes and restores fixture price in finally.14 cases/all other13 declarations and assertions preserved; API unchanged. Never reask/reapply; receipt .cache/t38-zero-price-test-review-20261119/approved-applied.json.
+
+
+**Approved T100 three new-test expectations:** 2026-11-19 - user: "Corrigir somente essas expectativas (recomendado)" (call_74bc4d7bea2948fd88d4d5e23b2795ea). Exact isolated patch2d64d81c permits only two TenantContext.get undefined->canonicalnull and removal of arbitrary5511fragment from native privacyregex, preserving both fullphones/othercanaries/allotherassertions. API unchanged. Approval recorded now; application waits current own-offline-bootstrap natural handback to preserve sourcefreeze. Do not reask or broaden; exact before/after receipt required on once-only application.
+
+
+**T100 exact approved patch applied once 2026-11-20T00:20:20.339458+00:00:** Isolatedreceipt c5afe14c verified, usercall_74bc4d7bea2948fd88d4d5e23b2795ea and exact2d64d81c. All3hunkinverses exact against currentfixtures, allotherassertions/fixtureadditions preserved; execution0. Approval consumed, no questionpending/reapply. LaterF100-1/2/3 changes are independenttestsfirstsourcefixes, not additionaloraclereplacements.
+
+
+**Approved T39 local synthetic presentation**: 2026-11-19 - user: "Aprovar a apresentação" (call_62b86875b2524682acd239d3f85af177). Approval covers the shown appointment confirmation/payment-at-attendance/five-tone local synthetic previews, not actual WhatsApp/provider or final44/45 screens, technical gates, task closure or production. Six exact artifacts in .cache/t39-source-20261119/visual-preview/generated/captures; generation0bb86a59/capturefa891b71.
+
+
+**User memory response**: 2026-11-19 - user: "Vou liberar memória e avisar" (call_18cb98f7cdee414189664b3151f8ac9d). This is an intention, not confirmation of completion or proof of fresh admission. Continue small/independent work; original guards remain mandatory.
+
+
+**Approved widget parent watchdog exception**: 2026-11-19 - user: "Aprovar apenas o limite de 5 minutos" (call_69d9fe48fb014b1ba2cd9f4fd8a72599). Exact patch3609375592cfaed06964739babd8efcc478e3780acf7dd193c71fc90f83a8e6c authorizes ONLY test-driver parent watchdog180000->300000 on the TWO local checkouts Root/M; worker176cases/allfunctionalassertions/internalwaits/heap256/PG128/memory/network/cleanup unchanged. This explicitly revises the original gate budget, not a neutral retention or productSLA change. Original145/158partialfailures remainfailed, no whole176pass implied. Rootmayapply now; Mmustwait currentnative16/inbox9 naturalhandback before any sourcechange. No reask/reapply.
+
+**Approved T100 new private test case correction**: 2026-11-19 - user: "Corrigir somente o novo caso privado" (call_8b8b2307a0284388b16a518d8102e51e). Exact patch63401404 authorizes ONLY newly expanded support_case_alert loop case/title in send-whatsapp-message.spec.ts (3a7b759d->0ed16cb6): none/skipped/private_staff_alert_required and zeroexistingWhatsApp/email/Bubble counters; all46cases andother45bodies/assertions/titleoutputs unchanged. API/27sources unchanged. Apply ONLY after currentMnative16/inbox9 naturalhandback to preserve its d719 input fence. No reask/broaden/reapply; before/after receipt mandatory.
+
+
+**T79 visual approved, 2026-11-22**: user: "Aprovar o visual" (call_e1b9eff39a82467097ee79da7f7b086d). Approval covers the displayed manual-booking form and service/professional/duration/registered-price summary at1440x1000 and390x844. Preview receipt917a0ec3, synthetic GET-only, no technical/API/SQL/provider acceptance inferred. Original runtime and production gates remain mandatory.
+
+
+**T45 customer visual approved, 2026-11-22**: user: "Aprovar o visual" (call_0efb468cbf1d439d8c331da62d1ddf56). Covers the displayed customer desktop review and mobile confirmed/pending-at-attendance screens. Actual component/client/styles, explicitly synthetic transport/data. Preview2cases8frames receipt1a7202f4, original budget/cleanup and23pins exact. This does not approve technical behavior, served storefront, SQL/auth/provider or production. T79 manual form was separately approved by call_e1b9.
+
+
+**Approved**: 2026-11-22 - user: "Corrigir somente essas verificações (recomendado)" (call_9aadb87e3c6f42709a3020791e861108). Bounded T94 patch8665a545 applied ONCE: five negative-test matchers now inspect actual HTTP409/getResponse code service_activation_not_ready and exact release_manifest_missing blocker; all seven contexts and other assertions retained. API unchanged by this oracle correction. Exact before/after receipt: .cache/t94-error-contract-test-review-20261122/applied.json. No wider approval or task closure inferred.
+
+
+**Approved**: 2026-11-22 - user: "Aprovar somente os dois ajustes de testes (recomendado)" (call_6a68b53b704d42abadc15d39b086cea4). Patches da87caef and5b4efa52 applied ONCE only: the duplicate-proof fixture now repeats the identical command, retaining its rejection assertion; the new native activation negative asserts409/exact code/release_manifest_missing blocker. Other cases/assertions and API preserved. Native source is newly adopted with its approved correction, not executed and not accepted until its real writer/ABI dependencies/currentbuild gates. Exact before/after receipt .cache/t94-two-tests-approved-20261122/applied.json. Prior five-match approval9aadb was already consumed separately; no broad test-change authority inferred.
+
+
+**In-scope QA03 validation finding, 2026-11-22:** local component test with real MP signature/adapter/handler/dispatch and captured HTTP/in-memory persistence reproduced acceptance of mismatched/missing observed financial facts (3pass10fail;6a5de317). Three local source corrections now require actual observed amount/currency/reference/payment ID before event reservation; new13pass. Existing old10 has two mocks missing the newly required facts; bounded patch ecc80e84 is pending user approval, not applied. No AppModule/SQL/external provider or production incident proof is claimed. This follows existing financial-truth/tenant/rollback criteria, not a new product policy. Official GetPayment response examples also include decimal strings, so the local adapter needs bounded exact parsing before it can be considered compatible. Official Asaas deletion docs do not establish safe atomic card cancellation: the current implementation's card→Pix refusal is a code limitation, not a blanket claim about the provider. https://docs.asaas.com/reference/excluir-cobranca distinguishes removal from refunds. No external charge, cancellation or refund was attempted.
+
+
+**Approved**: 2026-11-22 - user: "Aprovar somente os dois retornos do teste (recomendado)" (call_1e3b3ba81b604830854f052e9f4159a4). Patchecc80e84 applied ONCE only: the two successful old MP provider stubs now supply matching observed10000cents/BRL/intent reference. All10 cases, names, assertions, remaining fixtures and API preserved by this patch. The separate local financial correction already passed13 new source cases after original3pass10fail; no native/external/production acceptance inferred. Exact before/after .cache/reg02-mp-old-fixtures-approved-20261122/applied.json. No wider test authority inferred.
+
+**Approved**: 2026-11-22 - user: "Aprovar apenas esse perfil para a API" (call_a66b8339561247228f507676aae76c09/0). Authorizes only the concrete local API profile v2 7581ff8b:3072MiB per-Node old-generation limit,3840MiB fresh available-commit admission and workspaceConcurrency1, modes api-types/checked. All configured TypeScript/source scope, tests/assertions, package scripts, network guard and normal own artifact capture/build/record/admission stay required. Original76df/v1e337 preserved; native/browser2048, PG128, frontend boundaries and timeouts unchanged. Per-process limit is not aggregate/native/RSS isolation. Any OOM/guard/compile failure stays failed. No deploy/push/remote DB/provider/customer action authorized. Exact approval record .cache/controlled-api-profile-proposal-20261122/approval.json.
+
+
+## Pending T40 recovery test correction
+
+User approval requested after actual native6911ad1c. Existing recovery testcase requires a checkout persisted after initiallease acquisition503; new approved concurrency invariant prevents publication until the lease exists, so actualcheckout isnull. Proposed patch8fdee74d updates only two failure-stage expectations (checkoutnull,startedEvents0), then recovers using the same authorized prepare and removes the exact owned capturedlease before the original readonly/review assertions. Same25contexts, no backend/timeouts change. Patch .cache/t40-initial-lease-recovery-test-review-20261122/proposed.patch is prepared but NOTAPPLIED. TLC references/implement.md requires userapproval before wrong-oracle modification; question includes exactlink/quote. No answer recorded yet; do not treat silence as approval.
+
+
+**Approved T40 recovery test correction, 2026-11-22:** user: "Aprovar somente esse ajuste do teste (recomendado)" (call_93541acdc6574770935719fa0b1f76a6). Exact proposed patch8fdee74d(normalizedLF; diskCRLFde1e2418) applied ONCE to native40879f56 over6d5a9982. Initialfailedlease now asserts checkoutnull/startedEvents0; samecapability realprepare recovers and exactcapturedlease is removed before ALL original readonly409/review/continuation assertions. Same25cases, noAPI/backend/guard/timeout change. .cache/t40-initial-lease-recovery-test-review-20261122/approved-applied.json is authoritative. Pending question RESOLVED; never reask/reapply/broaden.
+
+
+**Approved**: 2026-11-22 - user: "Corrigir somente essa expectativa (recomendado)" (call_4ec7236307ef4655b24cd03ae896af16/0). Exact .cache/t40-manual-br-test-expectation-review-20261122/proposed.patch881e70fb applied ONCE to Root and focused manual test220b0d85->4df4d012: only new appointment expectationUTC->America/Sao_Paulo, all16cases/allotherassertions preserved, no API behavior change. approved-applied.json is authoritative. Pending test question RESOLVED; do not reask/reapply/broaden.
+
+**Approved**: 2026-11-22 - user: "Aprovar o visual" (call_c1aa9b077799400381e2bac348903236/0). T101 national DDD+phone withoutDDI visual-only approval of the two shown local1440x1000/390x844 archived frames03a5e34c and6ac2086c from .cache/t101-browser-gates/2026-11-22T00-42-04.969Z/new7-captures. This is NOT fresh current API/browser/provider acceptance; existing functional gates remain required. Visual question RESOLVED, no production action authorized.
+
+**Approved**: 2026-11-23 - user: "Corrigir somente teste e fixture (Recomendado)" (call_79852ff77f9c4b1ab0f356ab33e70c4c/0). ONLY T28 .cache/t28-br-new-selection-test-review-20261122/proposed.patch d248d9da applied ONCE to Root+Focus01d4e639->b2b71803; oneUTC->Brasiliaoutputexpectation +8localnewBRfixturehunks. All9cases/148assertions/otheroracles/guards/budgets/prices andsharedUTCseed unchanged, noAPIbehaviorchange. approved-applied.json authoritative; wholeactualrerunpending. QuestionRESOLVED, neverreask/reapply/broaden.
+
+## Local Docker recovery authorization, 2026-11-23
+
+User: "Autorizar rein?cio do Docker Desktop" (call_52f6b600a4844e5f8653d74fcb6347f0). Authorizes the local Docker Desktop restart required to recover the unresponsive test engine. No volume/image/data deletion, production action or broader permission. Exact approval is retained at Root .cache/docker-desktop-recovery-20261123/approval.json.
+
+**Approved**: 2026-11-23 - user: "Corrigir somente essa linha (recomendado)" (call_25d75bd0d8fd4926878246a660547fc3/0). Apply only the T103 new service-filter spec expected catalog path `/merchants/merchant-a/products` -> `/v1/merchants/merchant-a/products`, proposed patch .cache/t103-service-filter-test-prefix-review-20261123/proposed.patch. Two cases/all other assertions/API unchanged. Applied once; whole two-case rerun pending. Other consolidated test proposals remain pending.
+
+**Approved**: 2026-11-23 - user: "Aprovar somente os três patches de testes (recomendado)" (call_7e90587fa14a4636b8853394a2d80f1a/0). Exact five test/fixture candidates from .cache/consolidated-test-integrity-review-20261123/manifest.json eecf13a8 approved: native manual single new-BR expectation b849; T78 browser/fixture b339/68f4; two S5 payment-duplex browser expectations2053/19ac. Preserve all other assertions/cases/guards and API; apply each once with before hashes. This resolves and supersedes the pending consolidated review, no broader test or production authority.
+
+**Approved**: 2026-11-23 - user: "Aprovar somente essas oito linhas (recomendado)" (call_70c194b2a34140abb59de883db83ac3c/0). ONLY the exact eight expectation lines in .cache/t29-t30-owned-http-continuation-preconditions-20261123/all-eight-expectations-pending.patch, bound by eight-expectation-lines-approval.json: T24/T25 new civil-time/grade expectations in Brasilia and T30 new appointment zone plus verified buyer email snapshot. All cases, other assertions, absolute ISO instants and explicit historical UTC/Manaus remain. API unchanged. Approval received; each hunk must be applied once against its bound source during ordered composition, never broadened or reapplied.
+
+**Approved eight applied once / next native cohorts, 2026-11-23:** Exact approved8 plus declared valid BR/public continuation preconditions adopted Root ff81f06d and Focus b3de0d6b, five files, source137 still exact; source packet22799da9. T24 whole8 actual6pass/2fail including parent99a9beda, sole failing staff civil-time vector is OUTSIDE earlier8approval. One-line review7decf70e USERPENDING; API/historical rows/assertions unchanged. Root runs remaining wholefiles T25/T29/T30 separately and sequentially under original2048/600000/ownedcleanup, stops first failure. No false Full33 claim.
+
+**Approved**: 2026-11-23 - user: "Corrigir somente essa expectativa (recomendado)" (call_9afd5aef66df4658a4e469095c7e4d14/0). ONLY .cache/t111-t24-staff-br-read-expectation-review-20261123/proposed.patch7decf70e: staff read civil-time vector10:00/10:30 ->07:00/07:30. Eight cases, historical UTC records, authorization/no-mutation assertions and API unchanged. Applied ONCE Rootb240227c->4d48edca; Focus deferred until current independent native25 returns. approval.json/root-approved-applied.json bind exact action. Never reask/broaden/reapply.
+
+
+**Approved**: 2026-11-23 - user: "Aprovar somente os três patches (Recomendado)" (call_cde468a7a930458a835d78c5336d8490). ONLY exact three test patches2070c610/version,107e5a69/Decimal and930e79fb/migration snapshot projection with BOTH new fields strictnull. Earlier replies710b(version) andd57(version+Decimal) cover the same hunks and are superseded; apply each ONCE, never twice. Current Native18c33 includes reviewed privateV2 and must be preserved when composing the sole Decimal expression. No API rule/other oracle/case/timeout change. Approval received while ownnative27 exec14102 runs; application deliberately waits natural handback to keep source freeze183/native supplement exact. Approval .cache/consolidated-three-test-approvals-20261123/approval.json. Never reask/broaden/reapply.
+
+
+**Approved three patches applied ONCE, 2026-11-23:** Exact usergrant cde468a consumed only after native27 natural handback99c2499a. Root+Focus four test files updated, eight writes; Native18 current privateV2 opt-in retained while composing sole Decimal expression. Version92547221, migrationfixture33155c6e/spec31b50cf2 and current combined Native18 hash are bound by .cache/consolidated-three-test-approvals-20261123/applied.json. API rules/cases/other oracles/timeouts unchanged. Earlier710b/d57 were duplicate scope, NOT applied again; no question pending, do not reask/reapply. Whole affected9/18/9 still required.
+
+
+## Metrics test corrections and overview visual approval 2026-11-23
+
+**Approved**: 2026-11-23 - user: "Aprovar somente os dois ajustes de testes (Recomendado)". Consolidated question call_4462b47008f346c28b2c82c2aba7d82f supersedes the duplicate single bridge approval call_6c3dad2337a84b598eb05ffc01228826. Apply each hunk once: canonical bridgeStatus cleanup contract, and foreign-tenant query403/tenant_mismatch_query while ordinary invalid queries remain400. All21 contexts, other assertions, data, timeouts and application behavior remain unchanged. Patch `.cache/service-metrics-two-expectations-review-20261123/combined-proposed.patch`.
+
+**Approved**: 2026-11-23 - user: "Aprovar o visual do desktop" (call_7baec54601664dfd9586f1956ebd71cf).
+
+**Approved**: 2026-11-23 - user: "Aprovar o visual do celular" (call_8caffeedf852429185b3cbc8f281d79e). Actual local service overview screenshots; current whole-project browser proof aba2454a,4desktop+4mobile,20 captures. Visual approvals do not complete pending task dependencies, builds or final feature verification. No production authorization is inferred.
+
+
+## Approved staff, worker budget and native blocker corrections (2026-11-23)
+
+**Approved**: 2026-11-23 - user: "Corrigir somente essa expectativa (Recomendado)" (call_b4da43004b434f228000b56b6f628832). Staff expectation only; superseded by overlapping consolidated grant, apply once.
+
+**Approved**: 2026-11-23 - user: "Aprovar somente esses ajustes (Recomendado)" (call_15cd1f4546014e29bac209a926f34401). Staff UTF8 expectation plus two journey worker budget lines, body60000/global600000/parent600000 unchanged.
+
+**Approved**: 2026-11-23 - user: "Corrigir somente essa checagem (Recomendado)" (call_1ef23ffc45e24e1793e454a274cbce1b). Native readiness public HTTP plus exact canonical owned-SQL blocker expectation only.
+
+Exact targets and before/after pins: .cache/staff-worker-blocker-grants-20261123/approval.json. The first Staff grant overlaps the consolidated grant and is consumed once. Only UTF8 candidate b4bf is valid; never apply old mojibake9ea. Native oracle35f8 preserves newly added manual contact; never copy old216 wholesale. Apply after the active API07 source freeze returns. No production authority or gate completion is inferred.

@@ -82,22 +82,25 @@ Responda EXCLUSIVAMENTE em JSON válido (sem markdown, sem comentários):
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
 
-        const res = await meteredAiFetch("product_seo")(`${provider.baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
-          body: JSON.stringify({
-            model: provider.model,
-            messages: [
-              { role: "system", content: "Você é um assistente que responde exclusivamente em JSON válido." },
-              { role: "user", content: prompt },
-            ],
-            max_tokens: 500,
-            temperature: 0.6,
-          }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeout);
+        let res: Response;
+        try {
+          res = await meteredAiFetch("product_seo")(`${provider.baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
+            body: JSON.stringify({
+              model: provider.model,
+              messages: [
+                { role: "system", content: "Você é um assistente que responde exclusivamente em JSON válido." },
+                { role: "user", content: prompt },
+              ],
+              max_tokens: 500,
+              temperature: 0.6,
+            }),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
         if (!res.ok) continue;
 
         const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };

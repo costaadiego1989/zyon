@@ -1,5 +1,7 @@
 # Service Businesses, WhatsApp Conversations and Generic Business RAG Design
 
+**User-directed public service browsing refinement (2026-11-24):** user: "nao tem nada haver isso de se identificar para ver os profissionais e horarios isso e um erro torna burocratico nao quero isso". Services, published professionals, dates and slots are browsable without buyer identification, login, OTP or buyer JWT. Ask for identification or missing registration data only when the buyer proceeds to confirmation/reservation or payment that needs it. Public reads retain trusted merchant/origin/conversation scope, canonical publication/availability/version checks and private-data boundaries. They create no buyer identity, booking hold, appointment or payment. Buyer writes retain verified identity and final capacity/financial authority; product journeys are unchanged. This direct instruction authorizes corresponding behavior/test expectation changes without another approval question. Earlier auth-before-browse evidence is historical for the revised behavior; no new criterion/task or release approval is implied.
+
 **Spec**: `.specs/features/whatsapp-service-booking-business-rag/spec.md`
 **Status**: Ready for task review, not implemented
 **Date**: 2026-11-14
@@ -102,8 +104,9 @@ Contratos novos em catalog/application e shared/bookings, adaptados por HTTP/Wha
 
 | Interface | Responsibility |
 | --- | --- |
-| getAvailableDates(ctx, offer, professional, window) | Datas com capacidade atual, janela limitada, fuso/clock do servidor. |
-| getAvailableSlots(ctx, offer, professional, date) | Somente aquela data, duração/início/fim/policyVersion; erro distinto de vazio. |
+| getPublishedProfessionals(publicContext, offer) | Anonymous published same-merchant professional projection; no private profile, login, OTP or synthetic buyer. |
+| getAvailableDates(publicContext, offer, professional, window) | Anonymous read of published same-merchant capacity; bounded window and server timezone/clock, no buyer identity requirement. |
+| getAvailableSlots(publicContext, offer, professional, date) | Anonymous read of only that date; canonical duration/start/end/policyVersion, errors distinct from empty. |
 | prepareAppointment(ctx, selection) | Revalidar modalidade/vínculo/publicação/valores; criar lease só quando habilitado. |
 | confirmAppointment(ctx, selection, key) | Admissão única transacional; lease quando configurado e capacidade final sempre. |
 | createManualAppointment(ctx, input, explicitOneOff?) | Mesma política; avulso e agendamento na mesma transação, rollback conjunto. |
@@ -113,7 +116,7 @@ Contratos novos em catalog/application e shared/bookings, adaptados por HTTP/Wha
 
 Lock transacional por tenant/profissional; ordenar recursos quando múltiplos. Comprador, manual, bloqueios, remarcação, webhook e legado usam mesma admissão. Redis acelera lease, não substitui revalidação final no banco. Remarcação adquire destino/libera origem atomicamente; falha preserva original.
 
-Leitura de datas/slots e escrita de grade/exceções têm controllers próprios. Escrita autentica modalidade/role/expectedVersion, chamando comandos canônicos de recorrência/avulso/bloqueio. Booking tem controller do comprador autenticado e controller administrativo de manual/transições/recebimento. Não deixar funcionalidade de painel sem backend correspondente.
+Public service/professional/date/slot reads use the existing trusted merchant plus origin/conversation/embed context without buyer identification. Keep their canonical publication, link, window, policy and availability checks separate from buyer writes; do not expose private agenda or buyer records. The read-only selection/review creates no hold or checkout. At the explicit booking/reservation/confirmation step, resolve real buyer identity or missing registration data and use the original authenticated prepare/confirm/payment authority, including revalidation. Administrative grade/exception/manual/transition/receipt controllers keep their existing authentication, tenant roles and expectedVersion. No fake buyer, JWT override or public writer is introduced.
 
 ### Four Policy Combinations
 
@@ -132,7 +135,7 @@ Estados operacionais: scheduled, in_service, completed, no_show, cancelled. Awai
 
 Produtos preservam catálogo, busca/comparação, avaliações, fotos, detalhes antes de Adicionar, carrinho, cross-sell curto após cada adição, identidade/endereço, frete e pagamento. Animação primeiro, contagem correta e menus hierárquicos continuam. Agenda não substitui o checkout físico.
 
-Serviços: oferta → profissional → datas → slots da data → resumo → confirmação pela política. Pergunta lateral mantém seleção. Texto/voz ambíguos pedem escolha; RAG não cobra/reserva. Pix na conversa e cartão no caminho seguro já existente. Storefront usa a mesma autoridade, sem regras reconstruídas no browser. Vazio, carregamento, erro, conflito e seleção vencida têm estados próprios. Controles nativos respeitam limites e acesso ao Menu principal.
+Services: published offer -> professional -> dates -> that date’s slots -> canonical review, all without buyer identification. Only the explicit transition into booking/reservation/confirmation/payment requests real identity or missing required registration data; then revalidate through the existing writers. Lateral questions retain selection; ambiguous text/voice asks for current public choices. RAG never reserves or charges. Existing Pix/card paths and server authority remain; empty/loading/error/conflict/stale states remain distinct and no read promises a held slot.
 
 ### Atendimento
 
@@ -183,7 +186,7 @@ DTO: modalidade, moeda/fuso, período `[start,end)`, asOf, filtros, dataStatus e
 | Ocupação | Minutos confirmados recortados ao período / união dos minutos ofertados por profissional, descontados bloqueios. Ofertas compartilhadas não duplicam capacidade; denominador 0 = não calculável. |
 | Valor agendado | Snapshot de compromissos da coorte declarada, exclui tentativas/cancelados; é previsão. |
 | A receber | Saldo auditável asOf da coorte filtrada; não somar snapshots diários como novos recebíveis. |
-| Recebido | Eventos financeiros confirmados no período de recebimento, PSP ou local, deduplicados. Base diferente da coorte da agenda identificada; devoluções separadas. |
+| Recebido | Valor dos serviços efetivamente pagos no período financeiro, com descontos efetivos e sem taxas adicionadas ao comprador, deduplicado por evidência PSP/local. Exemplo100+taxa2 resulta100. Base temporal distinta da agenda; devoluções separadas; alocação incompleta fica explícita. |
 | Realizado, se exibido | Serviço completed explícito, com base temporal indicada; não substitui recebido. |
 
 Mesmos filtros tenant/período/profissional/categoria nos totais/detalhes/séries. Superfícies antigas ficam exclusivas de produtos ou recebem read model próprio de serviço. Não herdar fuso do servidor. Erro/parcial/ausência não viram zero ou porcentagem inventada.
@@ -241,5 +244,18 @@ All new service professionals, grades, intervals and appointments use America/Sa
 
 Historical rows generate their original UTC intervals in their own stored zone. Preserve frozen paid units, exact held generations and same-ID manual pending terms through existing private stored proof; public flags or guessed timestamps are never authority. Do not shift old appointments, money, lease identities or immutable receipts to satisfy new presentation. New Brasilia grade publication is explicit, rather than silently reusing historical wall minutes. Company cohort boundaries are fixed without configuration; product commerce/analytics remain unchanged.
 
+## Integral attendance settlement
+
+User decision2026-11-19: "Registrar somente a quitação integral do saldo". T37 validates exact server-computed outstanding cents and currency under the financial lock. Partial receipts and overpayment are rejected; replay of the original integral receipt remains idempotent. Operational attendance, actual PSP evidence and local receipt remain independent.
+
+
+**Settled mid-build 2026-11-19T16:28:40.946415+00:00:** user: "quero ajuste use /impeccable para ajudar num layout mais premium e exclusivo". The current Conversations desktop preview is not visually approved. Refine that existing WhatsApp Conversations surface/Staff host/drawer with the current workspace impeccable skill, preserving role/tenant/auth/draft/send/close/URL semantics and product journeys. No new data sources, invented buyer identity/global metrics or backend feature is authorized by this visual request. Show new real desktop/mobile captures; existing headers/UI/browser evidence remains historical wherever productive markup/style changes. User previously chose continuing the current skill version; do not ask about updating again.
+
+**Settled KPI-04 received base 2026-11-19T16:28:40.946415+00:00:** user: "Valor dos serviços efetivamente pagos, sem taxas adicionais do comprador (recomendado)". Received counts the effective paid service value (including effective discounts) and excludes fees added to the buyer. Example: service100+buyerFee2 yields received100. Use deduplicated PSP/local evidence, preserve confirmed service money without a booking and flag incomplete unit/fee allocation rather than guess. This defines existing85/86 metrics, not an extra KPI.
 
 **Desktop visual style approved 2026-11-19T17:55:35.310017+00:00:** user: "Aprovar o estilo do desktop" (call_28d46de81a384fc5991547007d8ae055). Approval concerns the two real desktop previews, queue205f1326 and drawer26935f85, with premium presentation tokens/styles preserved through the later selected-tab and quiet-read fixes. It is not approval of unfinished technical gates, mobile behavior, feature completion or publication. No question on desktop style remains pending.
+
+
+## Activation evidence implementation boundary
+
+Root technical review on2026-11-22 selected the producer/consumer contract in activation-evidence-contract-20261122.md to implement the already approved T94 requirements. This is an implementation choice, not a new user approval or release proof. Read an immutable server-owned release asset, compare actual runtime revision/payload and fixed writer/check/migration inventories; missing or mismatched evidence remains not-ready. T95 derives evidence from actual same-payload outputs and seals without recompiling. Local synthetic verifier preconditions never become real release evidence. Actual Linux/served frontend/provider acceptance stays separate. Existing private accepted-checkout proof must preserve original paid/in-flight completion even before AP existence; missing readiness must not downgrade every accepted continuation to regularization. Disable/admin/history/RAG education remain available under existing guards. No harness/cache import or public readiness-proof DTO.
