@@ -28,6 +28,7 @@ import { ProspectService } from "./application/crm/prospect.service.js";
 import { ProspectMetricsQueryService } from "./application/crm/prospect-metrics.query.js";
 import { ProspectConversationService } from "./application/conversations/prospect-conversation.service.js";
 import { CampaignService } from "./application/campaigns/campaign.service.js";
+import {CampaignPreparation} from "./application/campaigns/campaign-preparation.js";
 import {CampaignDraftService} from "./application/campaigns/campaign-drafts.js";
 import {ProspectCampaignDraftController} from "./presentation/prospect-campaign-draft.controller.js";
 import {CampaignDraftAudience} from "./application/campaigns/campaign-draft-audience.js";
@@ -147,6 +148,7 @@ export class PlatformProspectingModule {
         expose(ProspectService, "prospects"),
         expose(CampaignService, "campaign"),
         expose(CampaignDraftService,"drafts"),
+        expose(CampaignPreparation,"preparation"),
         expose(CampaignDraftAudience,"draftAudience"),
         expose(CampaignPlanner,"planner"),
         expose(PlatformTemplateService,"templates"),

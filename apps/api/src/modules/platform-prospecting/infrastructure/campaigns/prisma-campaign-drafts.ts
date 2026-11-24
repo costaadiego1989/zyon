@@ -15,7 +15,7 @@ export async function lockDraft(tx:DraftTx,id:string,revision:number){
 }
 export async function projectDraft(tx:DraftTx,c:ProspectCampaign):Promise<ProspectCampaignDraft>{
  const review=storedReview(c);
- return {id:c.id,name:c.name,revision:c.revision,state:c.state as ProspectCampaignDraft["state"],setupVersion:2,businessContext:c.businessContext,offerPolicy:c.offerPolicy as unknown as ProspectCampaignDraft["offerPolicy"],message:c.message,offer:c.offerSnapshot as unknown as ProspectCampaignDraft["offer"],senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectCampaignDraft["template"],limits:review.limits,sendWindow:c.sendWindow as unknown as ProspectCampaignDraft["sendWindow"],audienceHash:c.audienceHash,contentHash:campaignContentHash(review),selectionId:c.selectionId,approvedRevision:c.approvedRevision,approvedBy:c.approvedBy,approvedAt:c.approvedAt?.toISOString()??null,blockers:c.blockers as ProspectCampaignDraft["blockers"],recipientCount:c.recipientCount,reservedCents:Number(c.reservedCents),spentCents:Number(c.spentCents),createdAt:c.createdAt.toISOString(),updatedAt:c.updatedAt.toISOString(),directorySnapshotId:c.directorySnapshotId,audienceCriteria:c.audienceCriteria as ProspectCampaignDraft["audienceCriteria"],planningMode:c.planningMode as ProspectCampaignDraft["planningMode"],manualCompanyCount:await tx.prospectCampaignCompany.count({where:{campaignId:c.id,removedAt:null}})};
+ return {id:c.id,name:c.name,revision:c.revision,state:c.state as ProspectCampaignDraft["state"],setupVersion:2,businessContext:c.businessContext,offerPolicy:c.offerPolicy as unknown as ProspectCampaignDraft["offerPolicy"],message:c.message,offer:((c.offerSnapshot as any)?.mode==="fixed"?(c.offerSnapshot as any).offers[0]:null) as ProspectCampaignDraft["offer"],senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectCampaignDraft["template"],limits:review.limits,sendWindow:c.sendWindow as unknown as ProspectCampaignDraft["sendWindow"],audienceHash:c.audienceHash,contentHash:campaignContentHash(review),selectionId:c.selectionId,approvedRevision:c.approvedRevision,approvedBy:c.approvedBy,approvedAt:c.approvedAt?.toISOString()??null,blockers:c.blockers as ProspectCampaignDraft["blockers"],recipientCount:c.recipientCount,reservedCents:Number(c.reservedCents),spentCents:Number(c.spentCents),createdAt:c.createdAt.toISOString(),updatedAt:c.updatedAt.toISOString(),directorySnapshotId:c.directorySnapshotId,audienceCriteria:c.audienceCriteria as ProspectCampaignDraft["audienceCriteria"],planningMode:c.planningMode as ProspectCampaignDraft["planningMode"],manualCompanyCount:await tx.prospectCampaignCompany.count({where:{campaignId:c.id,removedAt:null}})};
 }
 export async function sourceCompanies(tx:DraftTx,snapshotId:string,cnpjs:string[]){
  const storage=await resolveDirectoryStorage(tx,snapshotId);
@@ -37,7 +37,7 @@ export class PrismaCampaignDrafts implements CampaignDraftStore {
   if(cmd.companies){await appendDraftCompanies(tx,c,cmd.companies.snapshotId,cmd.companies.cnpjs,actor);c=await tx.prospectCampaign.update({where:{id:c.id},data:{directorySnapshotId:cmd.companies.snapshotId}});}
   await prospectAudit(tx,actor,"campaign.draft.create","campaign",c.id,c.revision);return {result:await projectDraft(tx,c),resourceIds:[c.id]};});}
  edit(id:string,cmd:EditProspectCampaignDraft,actor:ProspectingActor){return prospectCommand(this.db,"campaign.draft.edit",{...cmd,id},actor,async tx=>{
-  const c=await lockDraft(tx,id,cmd.expectedRevision);const data:Prisma.ProspectCampaignUpdateInput={...draftInvalidation,revision:{increment:1}};
+  const c=await lockDraft(tx,id,cmd.expectedRevision);const data:Prisma.ProspectCampaignUncheckedUpdateInput={...draftInvalidation,revision:{increment:1}};
   if(cmd.name!==undefined)data.name=cmd.name.trim();
   for(const field of ["businessContext","message"] as const)if(cmd[field]!==undefined)data[field]=cmd[field]?.trim()??null;
   if(cmd.offerPolicy)data.offerPolicy=cmd.offerPolicy;
@@ -46,7 +46,7 @@ export class PrismaCampaignDrafts implements CampaignDraftStore {
    const senderId=cmd.senderBindingId===undefined?c.senderBindingId:cmd.senderBindingId,version=cmd.senderVersion===undefined?c.senderVersion:cmd.senderVersion;
    if((senderId===null)!==(version===null))throw Error("invalid_command:sender");
    if(senderId&&!await tx.platformProspectSenderBinding.findFirst({where:{id:senderId,version:version!,scope:"zyon_platform",active:true}}))throw Error("sender_identity_mismatch");
-   data.sender=senderId?{connect:{id:senderId}}:{disconnect:true};data.senderVersion=version;data.template=Prisma.DbNull;
+   data.senderBindingId=senderId;data.senderVersion=version;data.template=Prisma.DbNull;
   }
   if(cmd.template===null)data.template=Prisma.DbNull;
   if(cmd.limits!==undefined){if((cmd.limits?.budget.amountCents??0)<Number(c.reservedCents+c.spentCents))throw Error("budget_conflict");data.dailyRecipientLimit=cmd.limits?.dailyRecipients??null;data.budgetCents=cmd.limits?BigInt(cmd.limits.budget.amountCents):null;}

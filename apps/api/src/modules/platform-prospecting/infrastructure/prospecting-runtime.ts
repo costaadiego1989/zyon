@@ -6,6 +6,8 @@ import { ProspectMetricsQueryService } from "../application/crm/prospect-metrics
 import { ProspectConversationService } from "../application/conversations/prospect-conversation.service.js";
 import { ProcessProspectInbound } from "../application/conversations/process-prospect-inbound.service.js";
 import { CampaignService } from "../application/campaigns/campaign.service.js";
+import {PrismaCampaignPreparation} from "./campaigns/prisma-campaign-preparation.js";
+import {CampaignPreparation,CampaignExecutionIdentity} from "../application/campaigns/campaign-preparation.js";
 import {CampaignDraftService} from "../application/campaigns/campaign-drafts.js";
 import {PrismaCampaignDrafts} from "./campaigns/prisma-campaign-drafts.js";
 import {CampaignDraftAudience} from "../application/campaigns/campaign-draft-audience.js";
@@ -238,22 +240,25 @@ export function createProspectingRuntime(env: Environment = process.env) {
       ? null
       : { amountCents, currency: "BRL" as const, validUntil };
   };
-  const reservations = new PrismaCampaignRepository(db, keys, ({ now }) =>
-    quote("META_TEMPLATE_COST_CENTS", now)
-  );
-  const dispatch = new ProspectDispatchWorker(
-    reservations,
-    health,
-    offers,
-    sender
-  );
-  const campaign = new CampaignService(
-    new PrismaCampaignCommands(db, offers, (c) => health.forCampaign(c))
-  );
-  const audience = new FreezeCampaignAudience(
-    new PrismaAudienceRepository(db, keys)
-  );
   const sources = new PrismaSalesKnowledgeRepository(db);
+  const templates=new PlatformTemplateService(new PrismaPlatformTemplateStore(db),observations,new MetaPlatformTemplateAdapter(),health);
+  const executionIdentity=new CampaignExecutionIdentity(offers,async()=>{
+    if(!enabledWorkers)throw Error("workers_disabled");
+    if(!config.metaSendEnabled)throw Error("dispatch_disabled");
+    if(!config.llmRealEnabled||!model||!modelKey||!config.llmMaximumCostCents||!amount("LLM_INPUT_MICROCENTS_PER_TOKEN")||!amount("LLM_OUTPUT_MICROCENTS_PER_TOKEN"))throw Error("model_disabled");
+    const now=new Date(),templateQuote=quote("META_TEMPLATE_COST_CENTS",now),replyQuote=quote("META_REPLY_COST_CENTS",now);
+    if(!templateQuote?.amountCents||!replyQuote?.amountCents)throw Error("cost_unknown");
+    await readDriver.verifyConnectivity();
+    const knowledge=await sources.active(now);if(!knowledge.length)throw Error("knowledge_unavailable");
+    return {knowledge,model,maximumCostCents:config.llmMaximumCostCents,input:amount("LLM_INPUT_MICROCENTS_PER_TOKEN"),output:amount("LLM_OUTPUT_MICROCENTS_PER_TOKEN"),templateQuote,replyQuote};
+  });
+  const executionCurrent=executionIdentity.current.bind(executionIdentity);
+  const reservations=new PrismaCampaignRepository(db,keys,({now})=>quote("META_TEMPLATE_COST_CENTS",now));
+  const dispatch=new ProspectDispatchWorker(reservations,health,offers,sender,()=>new Date(),executionCurrent);
+  const campaign=new CampaignService(new PrismaCampaignCommands(db,offers,c=>health.forCampaign(c),executionCurrent));
+  const audienceStore=new PrismaAudienceRepository(db,keys);
+  const audience=new FreezeCampaignAudience(audienceStore);
+  const preparation=new CampaignPreparation(new PrismaCampaignPreparation(db,templates,executionIdentity,audienceStore));
   const publications = new SalesPublicationService(
     sources,
     new Neo4jSalesKnowledgeAdapter(writeDriver)
@@ -414,7 +419,8 @@ export function createProspectingRuntime(env: Environment = process.env) {
     drafts:new CampaignDraftService(new PrismaCampaignDrafts(db)),
     draftAudience:new CampaignDraftAudience(new PrismaCampaignDraftAudience(db)),
     planner,
-    templates:new PlatformTemplateService(new PrismaPlatformTemplateStore(db),observations,new MetaPlatformTemplateAdapter(),health),
+    templates,
+    preparation,
     audience,
     sources,
     publications,

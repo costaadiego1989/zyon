@@ -11,9 +11,9 @@ type Tx=Prisma.TransactionClient;
 export type CampaignActivation=(campaign:ProspectCampaign)=>Promise<ProspectingBlocker[]>;
 const json=(v:unknown)=>JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue;
 function project(c:CampaignRow):ProspectCampaign{
- if(c.setupVersion===2)throw Error("campaign_draft_use_v2");
+
  const review=storedReview(c);
- return {id:c.id,name:c.name,revision:c.revision,state:c.state as ProspectCampaign["state"],audienceHash:c.audienceHash,contentHash:campaignContentHash(review),selectionId:c.selectionId,message:c.message!,offer:c.offerSnapshot as unknown as ProspectCampaign["offer"],senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectingTemplate|null,limits:review.limits,sendWindow:c.sendWindow as unknown as ProspectCampaign["sendWindow"],approvedRevision:c.approvedRevision,approvedBy:c.approvedBy,approvedAt:c.approvedAt?.toISOString()??null,blockers:c.blockers as ProspectingBlocker[],recipientCount:c.recipientCount,reservedCents:Number(c.reservedCents),spentCents:Number(c.spentCents),createdAt:c.createdAt.toISOString(),updatedAt:c.updatedAt.toISOString()};
+ return {setupVersion:c.setupVersion as 1|2,id:c.id,name:c.name,revision:c.revision,state:c.state as ProspectCampaign["state"],audienceHash:c.audienceHash,contentHash:campaignContentHash(review),selectionId:c.selectionId,message:c.message!,offer:(c.setupVersion===2?(c.offerSnapshot as any)?.mode==="fixed"?(c.offerSnapshot as any)?.offers?.[0]??null:null:c.offerSnapshot) as unknown as ProspectCampaign["offer"],senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectingTemplate|null,limits:review.limits,sendWindow:c.sendWindow as unknown as ProspectCampaign["sendWindow"],approvedRevision:c.approvedRevision,approvedBy:c.approvedBy,approvedAt:c.approvedAt?.toISOString()??null,blockers:c.blockers as ProspectingBlocker[],recipientCount:c.recipientCount,reservedCents:Number(c.reservedCents),spentCents:Number(c.spentCents),createdAt:c.createdAt.toISOString(),updatedAt:c.updatedAt.toISOString()};
 }
 async function locked(tx:Tx,id:string,revision:number){
  await tx.$queryRaw`SELECT id FROM prospect_campaigns WHERE id=${id} FOR UPDATE`;
@@ -21,7 +21,7 @@ async function locked(tx:Tx,id:string,revision:number){
  if(!c)throw new Error("campaign_not_found");if(c.revision!==revision)throw new Error("version_conflict");return c;
 }
 export class PrismaCampaignCommands implements CampaignCommandStore {
- constructor(private readonly prisma:PrismaClient,private readonly offers:CanonicalBillingOfferPort,private readonly activation:CampaignActivation){}
+ constructor(private readonly prisma:PrismaClient,private readonly offers:CanonicalBillingOfferPort,private readonly activation:CampaignActivation,private readonly executionCurrent?:(snapshot:unknown)=>Promise<boolean>){}
  private async input(tx:Tx,c:SaveProspectCampaign){
   const sender=await tx.platformProspectSenderBinding.findFirst({where:{id:c.senderBindingId,version:c.senderVersion,active:true,scope:"zyon_platform"}});
   if(!sender)throw new Error("sender_identity_mismatch");
@@ -29,6 +29,11 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
   return {name:c.name.trim(),message:c.message,offerSnapshot:json(offer),senderBindingId:sender.id,senderVersion:sender.version,template:c.template?json(c.template):Prisma.DbNull,dailyRecipientLimit:c.limits.dailyRecipients,budgetCents:BigInt(c.limits.budget.amountCents),currency:"BRL",sendWindow:json(validateSendWindow(c.sendWindow))};
  }
  private async current(tx:Tx,c:CampaignRow){
+  if(c.setupVersion===2){
+   const snapshot=c.offerSnapshot as any;
+   if(!snapshot||!this.executionCurrent||!await this.executionCurrent(snapshot))throw Error("approval_stale");
+   return;
+  }
   const offer=project(c).offer;
   const sender=await tx.platformProspectSenderBinding.findFirst({where:{id:c.senderBindingId??"",active:true,scope:"zyon_platform",version:c.senderVersion??0}});
   if(!sender||!offer||!this.offers.allowedUrl(offer.canonicalUrl)||stableDirectoryJson(offer)!==stableDirectoryJson(await this.offers.current(offer.planKey)))throw new Error("approval_stale");
@@ -42,7 +47,7 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
  }
  revise(id:string,cmd:SaveProspectCampaign,actor:ProspectingActor){
   return prospectCommand(this.prisma,"campaign.revise",{...cmd,id},actor,async tx=>{
-   const c=await locked(tx,id,cmd.expectedRevision!);if(["running","completed","freezing"].includes(c.state))throw new Error("campaign_state_conflict");
+   const c=await locked(tx,id,cmd.expectedRevision!);if(c.setupVersion===2)throw Error("invalid_command:use_campaign_drafts");if(["running","completed","freezing"].includes(c.state))throw new Error("campaign_state_conflict");
    const data=await this.input(tx,cmd);
    const keepAudience=!!c.audienceHash&&c.senderBindingId===data.senderBindingId;
    if(!keepAudience && await tx.outreachAttempt.count({where:{recipient:{campaignId:id}}}))throw new Error("campaign_state_conflict");
@@ -65,11 +70,13 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
    const c=await locked(tx,id,cmd.expectedRevision);
    const hash=campaignContentHash(storedReview(c));
    if(c.state!=="review_ready"||!c.audienceHash||!c.dailyRecipientLimit||!c.budgetCents||c.audienceHash!==cmd.audienceHash||cmd.contentHash!==hash)throw new Error("approval_stale");
+   if(c.setupVersion===2){if(!c.template||!c.message||!c.sendWindow)throw Error("approval_stale");validateSendWindow(c.sendWindow as any);}
    await this.current(tx,c);
    if(c.template){
     const blockers=observed;
     const mismatch=blockers.find(code=>code==="template_binding_mismatch"||code==="template_unavailable");
     if(mismatch)throw new Error(mismatch);
+    if(c.setupVersion===2&&blockers.length)throw Error(blockers[0]);
    }
    const row=await tx.prospectCampaign.update({where:{id},data:{state:"approved",approvedRevision:c.revision,approvedHash:hash,contentHash:hash,approvedBy:actor.operatorId,approvedAt:new Date()}});
    return this.result(tx,row,actor,"campaign.approve");
@@ -98,7 +105,7 @@ export class PrismaCampaignCommands implements CampaignCommandStore {
   });
  }
  async find(id:string){const c=await this.prisma.prospectCampaign.findUnique({where:{id}});return c?project(c):null;}
- async list(cursor?:string){const rows=await this.prisma.prospectCampaign.findMany({where:{setupVersion:1,...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:"asc"},take:51});return {items:rows.slice(0,50).map(project),nextCursor:rows.length>50?rows[49].id:null};}
+ async list(cursor?:string){const rows=await this.prisma.prospectCampaign.findMany({where:{...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:"asc"},take:51});return {items:rows.slice(0,50).map(project),nextCursor:rows.length>50?rows[49].id:null};}
  async recipients(id:string,cursor?:string){
   if(!await this.prisma.prospectCampaign.findUnique({where:{id},select:{id:true}}))throw new Error("campaign_not_found");
   const rows=await this.prisma.campaignRecipient.findMany({where:{campaignId:id,...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:"asc"},take:51,include:{attempts:{orderBy:{ordinal:"desc"},take:1,select:{id:true,state:true,sequence:{select:{followUpDueAt:true,state:true,followUpCount:true}}}}}});

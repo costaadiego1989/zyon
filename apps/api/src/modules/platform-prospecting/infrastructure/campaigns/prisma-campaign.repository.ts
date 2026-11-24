@@ -124,7 +124,7 @@ export class PrismaCampaignRepository {
   async dispatchReview(campaignId:string){
     const c=await this.prisma.prospectCampaign.findUniqueOrThrow({where:{id:campaignId},include:{sender:true}});
     if(!c.sender||!c.approvedHash)return null;
-    return {binding:publicSender(c.sender),hash:c.approvedHash,offer:c.offerSnapshot as unknown as ProspectOffer|null,
+    return {binding:publicSender(c.sender),hash:c.approvedHash,offer:c.setupVersion===2?null:c.offerSnapshot as unknown as ProspectOffer|null,...(c.setupVersion===2?{executionSnapshot:c.offerSnapshot}:{}),
       campaign:{senderBindingId:c.senderBindingId,senderVersion:c.senderVersion,template:c.template as unknown as ProspectingTemplate|null,message:c.message!}};
   }
   markSubmitting(attemptId:string,ownerToken:string,instant:Date|(()=>Date),verifiedHash?:string,offerStillCurrent?:()=>Promise<boolean>){

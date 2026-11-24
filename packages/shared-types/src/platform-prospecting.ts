@@ -65,6 +65,7 @@ export interface ProspectingSendWindow { timezone: string; weekdays: number[]; s
 export interface ProspectCampaignLimits { dailyRecipients: number; budget: ProspectingMoney }
 export interface ProspectOffer { planKey: string; version: string; name: string; price: ProspectingMoney; billingCycle: string; features: string[]; canonicalUrl: string }
 export interface ProspectCampaign {
+  setupVersion?: 1 | 2;
   id: string; name: string; revision: number; state: CampaignState; audienceHash: string | null;
   contentHash: string | null; selectionId: string | null; message: string; offer: ProspectOffer | null;
   senderBindingId: string | null; senderVersion: number | null; template: ProspectingTemplate | null;

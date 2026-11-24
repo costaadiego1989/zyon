@@ -94,11 +94,11 @@ export class ProspectEffectQueue {
               const offer = campaign?.recipient?.campaign.offerSnapshot as {
                 planKey?: string;
               } | null;
-              const policy=campaign?.recipient?.campaign.offerPolicy as {mode?:string}|null;
+              const policy=campaign?.recipient?.campaign.offerPolicy as {mode?:string;planKey?:string}|null;
               const catalogMode=campaign?.recipient?.campaign.setupVersion===2&&policy?.mode==="catalog";
               const words=context.text.toLowerCase().split(/[^\p{L}\p{N}_-]+/u);
               const mentioned=Object.keys(BILLING_PLANS).filter(key=>words.includes(key));
-              const planKey=catalogMode?undefined:mentioned.length===1?mentioned[0]:offer?.planKey;
+              const planKey=catalogMode?undefined:mentioned.length===1?mentioned[0]:policy?.mode==="fixed"?policy.planKey:offer?.planKey;
               if (!planKey&&!catalogMode)
                 await this.commands.handoff(input, "offer_unavailable");
               else {
