@@ -8,6 +8,17 @@ const draft={id:"draft",name:"Lojas SP",setupVersion:2,revision:1,state:"draft",
 const source={status:"current",value:{snapshotId:"published-source",state:"published"}};
 const readiness={source,knowledge:{status:"current",value:{activePublications:0}},channel:{status:"unavailable",value:null}};
 const common={draft:async()=>draft,campaignCompanies:async()=>({items:[],nextCursor:null,count:0,manualCount:0,snapshotId:null}),sender:async()=>({binding:null,status:"unknown",templates:[],blockers:["sender_unavailable"]}),config:async()=>({workersRunning:false,dispatchMode:"disabled",modelMode:"disabled"}),readiness:async()=>readiness};
+
+test("MAX-PRICE AC5 selects the priced registry entry even when its body matches the standard message",async()=>{
+ const message="Texto já selecionado";
+ const selected={...draft,message};const priced={id:"priced",name:"price_variant",body:message,state:"PENDING",maxPrice:{currency:"BRL",amountPerThousandMinor:10000},language:"pt_BR"};
+ const editDraft=vi.fn(async(_id,body)=>({...selected,revision:2,templateRegistryId:body.templateRegistryId}));
+ const ui=await show(<CampaignWorkspace {...screenProps({...common,draft:async()=>selected,templates:async()=>[priced],editDraft})} id={draft.id}/>);
+ expect(ui.button("Usar price_variant nesta campanha").disabled).toBe(false);await ui.click("Usar price_variant nesta campanha");
+ expect(editDraft.mock.calls[0][1]).toEqual({expectedRevision:1,message,template:null,templateRegistryId:"priced",clientRequestId:expect.any(String)});
+ expect(ui.text()).toContain("Max Price: até R$ 0,1 por entrega");expect(ui.text()).toContain("Em análise pela Meta");expect(ui.button("Preparar revisão da campanha").disabled).toBe(true);
+ expect(ui.control("Orçamento total (R$)").value).toBe("");
+});
 test("CAMP-07 message selection persists its exact body and draft status cannot enable reviewed execution",async()=>{
  const template={id:"local-template",name:"zyon_intro",body:"Olá, podemos conversar sobre sua loja?",language:"pt_BR",state:"draft"};
  const configured={...draft,directorySnapshotId:"published-source",senderBindingId:"sender",senderVersion:1,limits:{dailyRecipients:1,budget:{amountCents:500,currency:"BRL"}},sendWindow:{timezone:"America/Sao_Paulo",weekdays:[1],start:"09:00",end:"18:00"}};
