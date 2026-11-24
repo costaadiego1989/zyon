@@ -53,6 +53,7 @@ import { serviceAttendanceEndpoints } from "./endpoints/service-attendance.js";
 import { serviceAppointmentEndpoints } from "./endpoints/service-appointments.js";
 import { serviceAppointmentOperationEndpoints } from "./endpoints/service-appointment-operations.js";
 import { serviceManualCustomerEndpoints } from "./endpoints/service-manual-customers.js";
+import { serviceAppointmentActionEndpoints } from "./endpoints/service-appointment-actions.js";
 
 export * from "./http/index.js";
 export * from "./types.js";
@@ -64,6 +65,7 @@ export * from "./endpoints/service-attendance.js";
 export * from "./endpoints/service-appointments.js";
 export * from "./endpoints/service-appointment-operations.js";
 export * from "./endpoints/service-manual-customers.js";
+export * from "./endpoints/service-appointment-actions.js";
 export {
   mapWebhookEndpoint,
   mapWebhookDelivery,
@@ -127,6 +129,7 @@ export function createDashboardApi(options: {
     ...serviceAppointmentEndpoints(base, f),
     ...serviceAppointmentOperationEndpoints(base, f),
     ...serviceManualCustomerEndpoints(base, f),
+    ...serviceAppointmentActionEndpoints(base, f),
     ...otherEndpoints(base, f),
   };
 }

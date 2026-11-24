@@ -108,8 +108,30 @@ export async function prepareAppointmentJourneyFixtures(runtime){
     })());
     return manualCases.get(caseKey);
   };
+  // T80 operations need their named canonical appointments, not T103 pagination.
+  // Each private case gets a real tenant and all six original API admissions.
+  const operationsCases=new Map();
+  const operationsLocal=caseKey=>{
+    assert.equal(typeof caseKey,'string');assert.match(caseKey,/^[a-f0-9]{64}$/);
+    if(!operationsCases.has(caseKey))operationsCases.set(caseKey,(async()=>{
+      const began=inventory.length,auth=await register('services','operations-'+caseKey.slice(0,12),'scale');
+      Object.assign(auth,await service(auth,'operacoes locais','at_attendance'));
+      await request('/merchants/me/store-settings','PUT',{policies:{returns:savedPolicies.policies.returns}},auth);
+      auth.appointments={};
+      for(const [index,label]of ['transition','cancel','reschedule-conflict','receipt','unknown','no-show'].entries()){
+        const startsAt=day(baseDate,2)+`T${String(13+Math.floor(index/2)).padStart(2,'0')}:${index%2?'30':'00'}:00.000Z`;
+        const body={commandId:randomUUID(),productId:auth.productId,variantId:auth.variantId,professionalId:auth.professionalId,expectedProfessionalVersion:auth.professionalVersion,expectedPolicyVersion:auth.policyVersion,startsAt,customer:{kind:'contact',name:'Cliente local '+label,email:'cliente@example.test'}};
+        const result=await request(`/merchants/${auth.merchant_id}/service-appointments/manual`,'POST',body,auth);assert.equal(result.appointment.operationalStatus,'scheduled');auth.appointments[label]=result.appointment.id;
+      }
+      const value={...auth,fixtureId:randomUUID(),runId:runtime.db.runId,baseDate,toDate,operationsDate:day(baseDate,2),manualDate:day(baseDate,3)};
+      fixtures.set(value.fixtureId,value);
+      console.log('service_appointment_journey_case_precondition',JSON.stringify({purpose:'operations-local',freshMerchant:true,canonicalAppointmentAdmissions:6,canonicalLabels:Object.keys(auth.appointments),totalHttp:inventory.length-began,actualStatuses:inventory.slice(began).map(row=>row.status),noQuotaReset:true}));
+      return value;
+    })());
+    return operationsCases.get(caseKey);
+  };
   console.log('service_appointment_journey_seed_inventory',JSON.stringify({registrations:6,canonicalAppointmentAdmissions:32,totalHttp:inventory.length,actualStatuses:inventory.map(row=>row.status),noQuotaReset:true}));
-  return{scenarios,fixtures,inventory,manualLocal};
+  return{scenarios,fixtures,inventory,manualLocal,operationsLocal};
 }
 
 /** Private opt-in test-server reads; never installed in AppModule/production. */
@@ -121,8 +143,9 @@ export function installAppointmentJourneyFixture(vite,runtime,prepared){
     void(async()=>{
       let fixture=scenario?prepared.scenarios.get(scenario[1]):prepared.fixtures.get(snapshot[1]);
       if(scenario&&request.headers['x-service-local-journey-purpose']!==undefined){
-        assert.equal(request.headers['x-service-local-journey-purpose'],'manual-local');assert.equal(scenario[1],'local');
-        fixture=await prepared.manualLocal(request.headers['x-service-local-journey-case']);
+        const purpose=request.headers['x-service-local-journey-purpose'];
+        assert.ok(purpose==='manual-local'||purpose==='operations-local');assert.equal(scenario[1],'local');
+        fixture=await (purpose==='manual-local'?prepared.manualLocal:prepared.operationsLocal)(request.headers['x-service-local-journey-case']);
       }
       if(!fixture){response.statusCode=404;response.end('unknown_owned_fixture');return;}
       response.setHeader('content-type','application/json');response.setHeader('cache-control','no-store');

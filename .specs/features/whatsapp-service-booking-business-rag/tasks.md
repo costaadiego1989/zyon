@@ -1836,20 +1836,22 @@ T107 → T106
 
 ### T80: Operate an appointment and its separate finances
 
+**Status**: Complete - local task gate passed; scoped evidence in task-80-evidence.json. Final feature proofs and independent verification remain required.
+
 **What**: Detalhe e ações autorizadas início/conclusão/ausência/cancelar/remarcar/registrar recebimento, financeiro separado e trilha; conflitos/regularização claros.
 **Where**: `apps/dashboard/src/pages/service-attendance/components/AppointmentDetailDrawer.tsx`
 **Depends on**: T79
-**Reuses**: Contratos e componentes da seção Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
+**Reuses**: Contratos e componentes da seÃ§Ã£o Code Reuse Analysis do design; runtime local T2 e runner existente, sem trocar a autoridade de produtos.
 **Requirement**: ATEND-07, BOOK-07, BOOK-09
 
 **Done when**:
 
-- [ ] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
-- [ ] AppointmentDetailDrawer.spec.tsx + browser transições pendentes de pagamento, recibo local e remarcação falha preserva original.
-- [ ] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
+- [x] Resultado descrito em What demonstrado; autorização/estado e negativas aplicáveis cobertos sem alterar comportamento aprovado de produto.
+- [x] AppointmentDetailDrawer.spec.tsx + browser transições pendentes de pagamento, recibo local e remarcação falha preserva original.
+- [x] Gate Browser passa, contagem executada registrada e testes existentes preservados. Tarefa marcada e commit atômico próprio; sem push/deploy.
 
 **Tests**: AppointmentDetailDrawer.spec.tsx + browser transições pendentes de pagamento, recibo local e remarcação falha preserva original.
-**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/AppointmentDetailDrawer.spec.tsx -t "^T80$"` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-local.config.ts e2e/service-product-coexistence.spec.ts --grep "T80$"` Teste raiz T80 exercita o resultado desta tarefa e seus subcasos; pelo menos um executado, nenhum skipped. Os checks finais por ID abaixo continuam obrigatórios.
+**Gate**: Browser: `pnpm --dir apps/dashboard exec vitest run src/pages/service-attendance/components/AppointmentDetailDrawer.spec.tsx` + `pnpm --dir apps/dashboard exec playwright test --config playwright.service-appointment-journeys.config.ts e2e/service-appointment-operations.spec.ts`. Whole original files, no name filters/skips; original resources, workers, timeouts, cleanup, all adopted affected regressions and final criterion checks remain mandatory.
 **Commit**: `feat(service-business): t80 operate an appointment and its separate finances`
 
 ### T81: Configure merchant-owned hold and payment policy

@@ -10,8 +10,10 @@ const fixtureHeaders=()=>({'x-service-local-run-id':process.env.SERVICE_LOCAL_RU
 export async function fixture(request:APIRequestContext,name:string):Promise<JourneyFixture>{
   const manifest=await request.get('/__service/manifest');expect(manifest.status()).toBe(200);const owned=await manifest.json();expect(owned.kind).toBe('local-owned');expect(owned.origin).toBe(origin);expect(owned.runId).toBe(process.env.SERVICE_LOCAL_RUN_ID);
   const info=test.info(),manualLocal=name==='local'&&basename(info.file)==='service-manual-booking.spec.ts';
-  // Prepare a newly registered tenant for this manual case; API quotas stay unchanged.
-  const caseHeaders:Record<string,string>=manualLocal?{'x-service-local-journey-purpose':'manual-local','x-service-local-journey-case':createHash('sha256').update(info.testId).digest('hex')}:{};
+  const operationsLocal=name==='local'&&basename(info.file)==='service-appointment-operations.spec.ts';
+  // Each opted-in case prepares a newly registered tenant; API quotas stay unchanged.
+  const purpose=manualLocal?'manual-local':operationsLocal?'operations-local':undefined;
+  const caseHeaders:Record<string,string>=purpose?{'x-service-local-journey-purpose':purpose,'x-service-local-journey-case':createHash('sha256').update(info.testId).digest('hex')}:{};
   const reply=await request.get('/__service/appointment-journeys/'+name,{headers:{...fixtureHeaders(),...caseHeaders}});expect(reply.status()).toBe(200);const value=await reply.json();expect(value.runId).toBe(owned.runId);return value;
 }
 export async function snapshot(request:APIRequestContext,seed:JourneyFixture):Promise<JourneySnapshot>{const reply=await request.get(`/__service/appointment-journeys/${seed.fixtureId}/snapshot`,{headers:fixtureHeaders()});expect(reply.status()).toBe(200);const value=await reply.json();expect(value.runId).toBe(seed.runId);return value;}
