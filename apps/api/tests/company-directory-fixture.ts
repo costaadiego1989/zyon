@@ -28,6 +28,7 @@ export async function migrateProspectingData(pg:Awaited<ReturnType<typeof create
     await pg.query(readFileSync(new URL("../prisma/migrations/20261123010000_prospect_retention_hold/migration.sql",import.meta.url),"utf8"));
     await pg.query(readFileSync(new URL("../prisma/migrations/20261123230000_prospect_campaign_setup/migration.sql",import.meta.url),"utf8"));
     await pg.query(readFileSync(new URL("../prisma/migrations/20261124170000_prospect_max_price/migration.sql",import.meta.url),"utf8"));
+    await pg.query(readFileSync(new URL("../prisma/migrations/20261124171000_prospect_campaign_template_ref/migration.sql",import.meta.url),"utf8"));
     await pg.query(readFileSync(new URL("../prisma/company-directory-migrations/20261117190100_company_directory/migration.sql",import.meta.url),"utf8"));
     await pg.query(readFileSync(new URL("../prisma/company-directory-migrations/20261123193000_directory_progressive_read_views/migration.sql",import.meta.url),"utf8"));
 }

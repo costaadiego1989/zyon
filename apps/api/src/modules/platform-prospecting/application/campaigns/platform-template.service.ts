@@ -4,6 +4,7 @@ import type {ProspectingActor} from "../../domain/prospecting.ports.js";
 import type {PlatformSenderCredential,SenderObservationStore} from "./sender-readiness.service.js";
 import {prospectText,prospectVersion} from "../crm/prospect.service.js";
 import {validateProspectingMaxPrice} from "@zyon/shared-types";
+import {stableDirectoryJson} from "../../domain/company-directory/directory-values.js";
 export interface TemplateObservation {state:PlatformProspectTemplateDraft["state"];providerId:string|null;providerRevision:string|null;reason:string|null}
 export interface PlatformTemplateGateway {submit(d:PlatformProspectTemplateDraft,c:PlatformSenderCredential):Promise<TemplateObservation>;sync(d:PlatformProspectTemplateDraft,c:PlatformSenderCredential):Promise<TemplateObservation|null>}
 export interface PlatformTemplateStore {
@@ -43,7 +44,7 @@ export class PlatformTemplateService {
   for(const d of await this.store.list()){
    if(registryId&&d.id!==registryId||body&&d.body!==body||d.state!=="APPROVED"||d.bindingId!==bindingId||d.bindingVersion!==version||d.wabaId!==h.binding.wabaId)continue;
    const t=h.templates.find(t=>t.id===d.providerId&&t.wabaId===d.wabaId&&t.revision===d.providerRevision&&t.name===d.name&&t.language===d.language&&t.status==="APPROVED"&&t.category==="MARKETING"&&t.requiresParameters===false&&t.previewText===d.body);
-   if(t)return t;
+   if(t&&stableDirectoryJson(t.maxPrice??null)===stableDirectoryJson(d.maxPrice??null))return t;
   }return null;
  }
 }

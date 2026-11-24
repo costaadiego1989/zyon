@@ -5945,6 +5945,7 @@ model ProspectCampaign {
   senderBindingId String? @map("sender_binding_id")
   senderVersion Int? @map("sender_version")
   template Json?
+  templateRegistryId String? @map("template_registry_id")
   dailyRecipientLimit Int? @map("daily_recipient_limit")
   budgetCents BigInt? @map("budget_cents")
   currency String @default("BRL")

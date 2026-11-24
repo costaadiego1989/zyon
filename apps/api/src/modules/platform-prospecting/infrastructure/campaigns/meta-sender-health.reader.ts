@@ -3,9 +3,10 @@ import type {ProspectingBlocker,ProspectingTemplate} from "@zyon/shared-types";
 import type {HealthObservation,PlatformSenderCredential,SenderHealthReader} from "../../application/campaigns/sender-readiness.service.js";
 import {stableDirectoryJson} from "../../domain/company-directory/directory-values.js";
 import {platformGraph,PlatformMetaAuthorization} from "./platform-meta-authorization.js";
+import {observedMaxPrice,optimizationSpec,verifyMaxPriceEnrollment} from "./meta-max-price.js";
 type Entity={entity_type:string;id:string;can_send_message:string;can_receive_call_sip?:string;additional_info?:string[];errors?:{error_code:number}[]};
 type Phone={id:string;status:string;platform_type:string;quality_rating:string;whatsapp_business_manager_messaging_limit:string;health_status?:{can_send_message:string;entities:Entity[]}};
-type Template=Omit<ProspectingTemplate,"wabaId"|"revision">&{components:unknown[]};
+type Template=Omit<ProspectingTemplate,"wabaId"|"revision">&{components:unknown[];optimization_spec?:unknown};
 const tiers:Record<string,number>={TIER_250:250,TIER_2K:2000,TIER_10K:10000,TIER_100K:100000};
 function staticTemplate(components:unknown[]){
  const rows=components.filter((v):v is Record<string,unknown>=>v!==null && typeof v==="object" && !Array.isArray(v));
@@ -53,18 +54,20 @@ export class MetaSenderHealthReader implements SenderHealthReader {
   const entities=observed.filter(e=>expected[e.entity_type]===e.id).map(e=>({type:e.entity_type,id:e.id,status:["AVAILABLE","LIMITED","BLOCKED"].includes(e.can_send_message)?e.can_send_message:"UNKNOWN",errorCodes:(e.errors??[]).map(err=>err.error_code).filter(Number.isSafeInteger).slice(0,10)}));
   const known=Object.hasOwn(tiers,tier)||tier==="TIER_UNLIMITED";
   if(!known)blockers.add("portfolio_limit");
-  const templates:ProspectingTemplate[]=[];const query:Record<string,string>={fields:"id,name,status,language,category,components",limit:"100"};
+  const templates:ProspectingTemplate[]=[];const query:Record<string,string>={fields:"id,name,status,language,category,components,optimization_spec",limit:"100"};
   for(let page=0;page<20;page++){
    const result=await this.get<{data:Template[];paging?:{next:string;cursors?:{after:string}}}>(b.wabaId+"/message_templates",accessToken,query);
    if(!Array.isArray(result.data))throw new Error("template_unavailable");
    for(const t of result.data){
     if(![t.id,t.name,t.language,t.status].every(v=>typeof v==="string"&&v.length>0&&v.length<=512)||!["MARKETING","UTILITY","AUTHENTICATION"].includes(t.category)||!Array.isArray(t.components)||!t.components.length)continue;
-    const {id,name,language,category,status}=t;const revision=createHash("sha256").update(stableDirectoryJson({id,name,language,category,wabaId:b.wabaId,components:t.components})).digest("hex");
-    templates.push({id,name,language,category,status,revision,wabaId:b.wabaId,...staticTemplate(t.components)});
+    let maxPrice;try{maxPrice=observedMaxPrice(t.optimization_spec);}catch{continue;}
+    const {id,name,language,category,status}=t;const revision=createHash("sha256").update(stableDirectoryJson({id,name,language,category,wabaId:b.wabaId,components:t.components,...(maxPrice?{optimization_spec:optimizationSpec(maxPrice)}:{})})).digest("hex");
+    templates.push({id,name,language,category,status,revision,wabaId:b.wabaId,...staticTemplate(t.components),...(maxPrice?{maxPrice}:{})});
    }
    if(!result.paging?.next)break;
    const after=result.paging.cursors?.after;if(!after||after===query.after||page===19){blockers.add("template_unavailable");break;}query.after=after;
   }
+  if(templates.some(t=>t.maxPrice))try{await verifyMaxPriceEnrollment(credential,this.fetcher);}catch{for(let i=templates.length-1;i>=0;i--)if(templates[i].maxPrice)templates.splice(i,1);}
   if(!templates.some(t=>t.status==="APPROVED"&&t.category==="MARKETING"&&t.requiresParameters===false))blockers.add("template_unavailable");
   return {entities,templates,portfolioLimit:tiers[tier]??null,portfolioTier:known?tier:null,blockers:[...blockers]};
  }

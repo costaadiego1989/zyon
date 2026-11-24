@@ -21,5 +21,5 @@ export class ProspectCampaignDraftController {
  @Post(":id/prepare") @RequirePlatformPermissions("platform:prospecting:campaigns")
  prepare(@Param("id")id:string,@Body()b:unknown,@Headers("idempotency-key")k:string|undefined,@Req()req:PlatformPrincipalRequest){return draftRespond(()=>this.preparation.prepare(id,requestCommand<{expectedRevision:number;clientRequestId:string;templateRegistryId?:string}>(b,k,["expectedRevision","templateRegistryId"]),draftActor(req)));}
  @Patch(":id") @RequirePlatformPermissions("platform:prospecting:campaigns")
- edit(@Param("id")id:string,@Body()b:unknown,@Headers("idempotency-key")k:string|undefined,@Req()req:PlatformPrincipalRequest){return draftRespond(()=>this.drafts.edit(id,requestCommand<EditProspectCampaignDraft>(b,k,["expectedRevision","name","businessContext","offerPolicy","message","senderBindingId","senderVersion","template","limits","sendWindow"]),draftActor(req)));}
+ edit(@Param("id")id:string,@Body()b:unknown,@Headers("idempotency-key")k:string|undefined,@Req()req:PlatformPrincipalRequest){return draftRespond(()=>this.drafts.edit(id,requestCommand<EditProspectCampaignDraft>(b,k,["expectedRevision","name","businessContext","offerPolicy","message","templateRegistryId","senderBindingId","senderVersion","template","limits","sendWindow"]),draftActor(req)));}
 }

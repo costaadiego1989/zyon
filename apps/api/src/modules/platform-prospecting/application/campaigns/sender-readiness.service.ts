@@ -1,4 +1,5 @@
 import type { ContactPermissionStatus, ProspectCampaign, PlatformSenderBinding, PlatformSenderReadiness, ProspectingBlocker, ProspectingTemplate } from "@zyon/shared-types";
+import {stableDirectoryJson} from "../../domain/company-directory/directory-values.js";
 
 export interface PlatformSenderCredential {binding:PlatformSenderBinding;accessToken:string;businessId:string;authorizationMethod?:"system_user";systemUserId?:string}
 export interface SenderObservationStore {
@@ -19,7 +20,7 @@ export function campaignSelectionBlockers(health:PlatformSenderReadiness,senderI
   else {
    const current=health.templates?.find(t=>t.id===template.id);
    if(!current||current.status!=="APPROVED"||current.requiresParameters!==false||current.category!=="MARKETING")blockers.push("template_unavailable");
-   else if(current.wabaId!==template.wabaId||current.name!==template.name||current.language!==template.language||current.category!==template.category||current.revision!==template.revision||!current.previewText||current.previewText!==reviewedMessage||template.previewText!==current.previewText||template.requiresParameters!==false)blockers.push("template_binding_mismatch");
+   else if(current.wabaId!==template.wabaId||current.name!==template.name||current.language!==template.language||current.category!==template.category||current.revision!==template.revision||stableDirectoryJson(current.maxPrice??null)!==stableDirectoryJson(template.maxPrice??null)||!current.previewText||current.previewText!==reviewedMessage||template.previewText!==current.previewText||template.requiresParameters!==false)blockers.push("template_binding_mismatch");
   }
   return [...new Set(blockers)];
 }

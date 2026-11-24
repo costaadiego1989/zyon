@@ -26,6 +26,7 @@ export class CampaignDraftService {
   if(c.name!==undefined)prospectText(c.name,"name",120);
   if(c.businessContext!==undefined&&c.businessContext!==null)prospectText(c.businessContext,"businessContext",4000);
   if(c.message!==undefined&&c.message!==null)prospectText(c.message,"message",4000);
+  if(c.templateRegistryId!==undefined&&c.templateRegistryId!==null)prospectText(c.templateRegistryId,"templateRegistryId");
   if(c.offerPolicy){const p=c.offerPolicy;if(!["catalog","fixed"].includes(p.mode)||Object.keys(p).some(k=>!["mode",...(p.mode==="fixed"?["planKey"]:[])].includes(k)))throw Error("invalid_command:offerPolicy");if(p.mode==="fixed")prospectText(p.planKey,"planKey",80);}
   if(c.limits)validateLimits(c.limits);if(c.sendWindow)validateSendWindow(c.sendWindow);
   if(c.senderBindingId!==undefined&&c.senderBindingId!==null)prospectText(c.senderBindingId,"senderBindingId");
