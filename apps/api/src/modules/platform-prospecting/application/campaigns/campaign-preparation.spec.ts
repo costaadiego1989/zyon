@@ -73,3 +73,61 @@ test("CAMP-05 review incomplete V2 setup cannot attach arbitrary message or reus
   assert.equal(await f.prisma.outreachAttempt.count(),0);
  }finally{await f.close();}
 });
+
+test("READY AC1 commercial review can be prepared with dispatch disabled while unavailable knowledge still blocks preparation",async()=>{
+ let enabled=false,available=true;
+ const offers={current:async()=>fixtureOffer,catalog:async()=>[fixtureOffer],allowedUrl:()=>true};
+ const identity=new CampaignExecutionIdentity(offers,async()=>{if(!available)throw Error("knowledge_unavailable");return {knowledge:"published",model:"controlled-test",quote:25};},()=>{if(!enabled)throw Error("dispatch_disabled");});
+ const snapshot=await identity.snapshot({mode:"catalog"});
+ assert.deepEqual(snapshot,{mode:"catalog",offers:[fixtureOffer],execution:{knowledge:"published",model:"controlled-test",quote:25}});
+ assert.equal(await identity.current(snapshot),false);
+ enabled=true;assert.equal(await identity.current(snapshot),true);
+ available=false;await assert.rejects(identity.snapshot({mode:"catalog"}),/knowledge_unavailable/);assert.equal(await identity.current(snapshot),false);
+});
+
+test("READY AC2 a campaign prepares without dispatch but cannot approve or submit while execution is disabled",async()=>{
+ const f=await createCampaignFixture();try{
+  let enabled=false;
+  const offers={current:async()=>fixtureOffer,catalog:async()=>[fixtureOffer],allowedUrl:()=>true};
+  const identity=new CampaignExecutionIdentity(offers,async()=>({knowledge:"published",model:"controlled-test",quote:25}),()=>{if(!enabled)throw Error("dispatch_disabled");});
+  const drafts=new CampaignDraftService(new PrismaCampaignDrafts(f.prisma));
+  const c=await drafts.create({name:"Review before activation",businessContext:"lojas de roupas em SP",companies:{snapshotId:"search-old",cnpjs:[f.lead.cnpj]},clientRequestId:"offline-create"},actor);
+  const configured=await drafts.edit(c.id,{expectedRevision:c.revision,senderBindingId:"sender",senderVersion:1,limits,sendWindow:fixtureWindow,clientRequestId:"offline-config"},actor);
+  const audience=new PrismaAudienceRepository(f.prisma,f.keys),prepare=new CampaignPreparation(new PrismaCampaignPreparation(f.prisma,{compatible:async()=>fixtureTemplate},identity,audience));
+  const job=await prepare.prepare(c.id,{expectedRevision:configured.revision,clientRequestId:"offline-prepare"},actor);
+  while((await audience.poll(job.selectionId))?.state!=="complete")await audience.processNext(1);
+  const ready=await drafts.find(c.id);assert.equal(ready.state,"review_ready");assert.equal(ready.recipientCount,1);assert.equal(await f.prisma.outreachAttempt.count({where:{recipient:{campaignId:c.id}}}),0);
+  const commands=new PrismaCampaignCommands(f.prisma,offers,async()=>[],identity.current.bind(identity));
+  const approval={expectedRevision:ready.revision,audienceHash:ready.audienceHash!,contentHash:ready.contentHash!,clientRequestId:"offline-approve"};
+  await assert.rejects(commands.approve(c.id,approval,actor),/approval_stale/);assert.equal((await drafts.find(c.id)).state,"review_ready");
+  enabled=true;await commands.approve(c.id,approval,actor);await commands.changeState(c.id,{expectedRevision:ready.revision,action:"start",clientRequestId:"offline-start"},actor);
+  const repo=new PrismaCampaignRepository(f.prisma,f.keys,f.quote),recipient=await f.prisma.campaignRecipient.findFirstOrThrow({where:{campaignId:c.id}});
+  const binding=(await repo.dispatchReview(c.id))!.binding;
+  await f.prisma.platformProspectSenderBinding.update({where:{id:"sender"},data:{health:{binding,status:"ready",templates:[fixtureTemplate],blockers:[]}}});
+  let calls=0;const health={forCampaign:async()=>[]} as any;
+  const worker=new ProspectDispatchWorker(repo,health,offers,{send:async()=>{calls++;return {state:"provider_accepted",providerMessageId:"controlled-offline-test",acceptedAt:new Date()};}},()=>new Date("2026-11-23T15:00:00Z"),identity.current.bind(identity));
+  enabled=false;assert.deepEqual(await worker.processRecipient(recipient.id),{blocked:"approval_stale"});assert.equal(calls,0);
+  const held=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:c.id}});assert.equal(held.spentCents,0n);assert.equal(held.reservedCents,0n);
+  enabled=true;const result=await worker.processRecipient(recipient.id);assert.equal('state' in result&&result.state,"provider_accepted",JSON.stringify(result));assert.equal(calls,1);
+ }finally{await f.close();}
+});
+
+test("READY AC3 preparing cold or revoked contacts preserves their blockers and never creates permission or spending",async()=>{
+ for(const mode of ["no_opt_in","revoked"]){
+  const f=await createCampaignFixture(false);try{
+   if(mode==="revoked")await f.prisma.contactPermissionReceipt.create({data:{source:"zyon_platform",senderBindingId:"sender",endpointId:f.endpoint.id,purpose:"zyon_sales",status:"revoked",evidenceRef:"fixture-withdrawal",occurredAt:new Date(0)}});
+   const receipts=await f.prisma.contactPermissionReceipt.count();
+   const offers={current:async()=>fixtureOffer,catalog:async()=>[fixtureOffer],allowedUrl:()=>true};
+   const identity=new CampaignExecutionIdentity(offers,async()=>({knowledge:"published"}),()=>{throw Error("dispatch_disabled");});
+   const drafts=new CampaignDraftService(new PrismaCampaignDrafts(f.prisma));
+   const c=await drafts.create({name:"Cold audience review",companies:{snapshotId:"search-old",cnpjs:[f.lead.cnpj]},clientRequestId:"cold-create"},actor);
+   const configured=await drafts.edit(c.id,{expectedRevision:c.revision,senderBindingId:"sender",senderVersion:1,limits,sendWindow:fixtureWindow,clientRequestId:"cold-config"},actor);
+   const audience=new PrismaAudienceRepository(f.prisma,f.keys),prepare=new CampaignPreparation(new PrismaCampaignPreparation(f.prisma,{compatible:async()=>fixtureTemplate},identity,audience));
+   const job=await prepare.prepare(c.id,{expectedRevision:configured.revision,clientRequestId:"cold-prepare"},actor);
+   while((await audience.poll(job.selectionId))?.state!=="complete")await audience.processNext(1);
+   const recipients=await f.prisma.campaignRecipient.findMany({where:{campaignId:c.id}});assert.equal(recipients.length,1);assert.equal(recipients[0].eligibility,mode);assert.equal(recipients[0].state,"blocked");assert.deepEqual(recipients[0].blockers,["no_opt_in","provider_policy_blocked"]);
+   assert.equal(await f.prisma.contactPermissionReceipt.count(),receipts);assert.equal(await f.prisma.outreachAttempt.count({where:{recipient:{campaignId:c.id}}}),0);
+   const saved=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:c.id}});assert.equal(saved.state,"review_ready");assert.equal(saved.spentCents,0n);assert.equal(saved.reservedCents,0n);
+  }finally{await f.close();}
+ }
+});

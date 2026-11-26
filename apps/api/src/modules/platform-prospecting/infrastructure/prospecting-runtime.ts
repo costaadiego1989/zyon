@@ -246,14 +246,13 @@ export function createProspectingRuntime(env: Environment = process.env) {
   const templates=new PlatformTemplateService(new PrismaPlatformTemplateStore(db),observations,new MetaPlatformTemplateAdapter(),health);
   const executionIdentity=new CampaignExecutionIdentity(offers,async()=>{
     if(!enabledWorkers)throw Error("workers_disabled");
-    if(!config.metaSendEnabled)throw Error("dispatch_disabled");
     if(!config.llmRealEnabled||!model||!modelKey||!config.llmMaximumCostCents||!amount("LLM_INPUT_MICROCENTS_PER_TOKEN")||!amount("LLM_OUTPUT_MICROCENTS_PER_TOKEN"))throw Error("model_disabled");
     const now=new Date(),templateQuote=quote("META_TEMPLATE_COST_CENTS",now),replyQuote=quote("META_REPLY_COST_CENTS",now);
     if(!templateQuote?.amountCents||!replyQuote?.amountCents)throw Error("cost_unknown");
     await readDriver.verifyConnectivity();
     const knowledge=await sources.active(now);if(!knowledge.length)throw Error("knowledge_unavailable");
     return {knowledge,model,maximumCostCents:config.llmMaximumCostCents,input:amount("LLM_INPUT_MICROCENTS_PER_TOKEN"),output:amount("LLM_OUTPUT_MICROCENTS_PER_TOKEN"),templateQuote,replyQuote};
-  });
+  },()=>{if(!config.metaSendEnabled)throw Error("dispatch_disabled");});
   const executionCurrent=executionIdentity.current.bind(executionIdentity);
   const reservations=new PrismaCampaignRepository(db,keys,({now,template})=>prospectTemplateQuote(template,now,()=>quote("META_TEMPLATE_COST_CENTS",now)));
   const dispatch=new ProspectDispatchWorker(reservations,health,offers,sender,()=>new Date(),executionCurrent);

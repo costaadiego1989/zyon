@@ -4,7 +4,7 @@ import {stableDirectoryJson} from "../../domain/company-directory/directory-valu
 import {prospectText,prospectVersion} from "../crm/prospect.service.js";
 /** The envelope pins the catalog and execution prerequisites without altering legacy snapshots. */
 export class CampaignExecutionIdentity {
- constructor(private readonly offers:CanonicalBillingOfferPort,private readonly observe:()=>Promise<unknown>){}
+ constructor(private readonly offers:CanonicalBillingOfferPort,private readonly observe:()=>Promise<unknown>,private readonly assertExecutable?:()=>void){}
  async snapshot(policy:ProspectOfferPolicy){
   const offers=policy.mode==="catalog"?await this.offers.catalog?.():[await this.offers.current(policy.planKey)];
   if(!offers?.length||offers.some(o=>!this.offers.allowedUrl(o.canonicalUrl)))throw Error("offer_unavailable");
@@ -13,7 +13,7 @@ export class CampaignExecutionIdentity {
  async current(value:unknown){
   const v=value as {mode?:string;offers?:{planKey:string}[]};
   if(!v||!v.offers?.length||!['catalog','fixed'].includes(v.mode??''))return false;
-  try{return stableDirectoryJson(await this.snapshot(v.mode==="catalog"?{mode:"catalog"}:{mode:"fixed",planKey:v.offers[0].planKey}))===stableDirectoryJson(value);}catch{return false;}
+  try{this.assertExecutable?.();return stableDirectoryJson(await this.snapshot(v.mode==="catalog"?{mode:"catalog"}:{mode:"fixed",planKey:v.offers[0].planKey}))===stableDirectoryJson(value);}catch{return false;}
  }
 }
 export interface PrepareCampaignExecution {expectedRevision:number;clientRequestId:string;templateRegistryId?:string}
