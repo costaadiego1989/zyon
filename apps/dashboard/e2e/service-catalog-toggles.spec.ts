@@ -31,7 +31,7 @@ async function enter(page:Page,context:BrowserContext,request:APIRequestContext,
     const [loggedIn,initialized]=await Promise.all([login,session,page.getByRole('button',{name:'Entrar',exact:true}).last().click()]);expect(loggedIn.status()).toBe(201);expect(initialized.status()).toBe(200);
     await Promise.all([catalog.start(),categories.start()]);
     const [listed,categorized]=await Promise.all([catalog.response(),categories.response()]);expect(listed.status()).toBe(200);expect(categorized.status()).toBe(200);
-    await page.getByRole('navigation',{name:'Módulos do painel',exact:true}).getByRole('button',{name:'Produtos',exact:true}).click();
+    await page.getByRole('navigation',{name:'Módulos do painel',exact:true}).getByRole('button',{name:mode==='services'?'Serviços':'Produtos',exact:true}).click();
     await catalogReady(page,mode);
   }finally{catalog.stop();categories.stop();}
   const create=page.getByRole('button',{name:mode==='services'?'Cadastrar serviço':'Novo produto',exact:true}).first();await expect(create).toBeVisible();await expect(create).toBeEnabled();

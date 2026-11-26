@@ -565,3 +565,6 @@ Exact targets and before/after pins: .cache/staff-worker-blocker-grants-20261123
 
 
 **Approved**: 2026-11-24 - user: "prossiga". Direct answer to the preceding request to close exactly the ten temporary PostgreSQL/Redis containers in inventory2d43540c, with tmpfs data discard disclosed. Authorizes stopping only those exact ten IDs after fresh identity checks; no container removal, other targets, provider sends or production action. Approval receipt: .cache/authorized-ten-container-stop-20261124/approval.json.
+
+
+**Approved UI test corrections (2026-11-26)**: user: "Aprovar somente os dois ajustes de testes (Recomendado)" (call_4725ec91ad924d1d887455ae929b0981/0). Exact reviewed bundle4a911386 authorizes only CAT03 mode-aware menu locator (ab5d1287 ->008f8d1c) and T76 fixed-Brasilia UI correction (e6c9e371 ->d9a117c3), preserving all cases, negatives, history, isolation, versions, original timeouts/retries and all other assertions. Application/API behavior is unchanged. Authority .cache/two-ui-contract-tests-actual-approval-20261126/approval.json. Earlier unanswered proposals are superseded; apply each once, no broader approval.
