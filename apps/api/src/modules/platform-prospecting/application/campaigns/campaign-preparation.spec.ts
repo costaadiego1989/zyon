@@ -1,6 +1,9 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
+import {readFileSync} from "node:fs";
+import {createRequire} from "node:module";
+import vm from "node:vm";
 import {campaignContentHash} from "../../domain/campaigns/prospecting-campaign.js";
 import {stableDirectoryJson} from "../../domain/company-directory/directory-values.js";
 test("CAMP-05 review preserves legacy hash bytes while V2 context and offer policy change reviewed content identity",()=>{
@@ -20,6 +23,62 @@ import {PrismaCampaignRepository} from "../../infrastructure/campaigns/prisma-ca
 import {ProspectDispatchWorker} from "./prospect-dispatch.worker.js";
 const actor={operatorId:"operator",correlationId:"prepare"};
 const limits={dailyRecipients:2,budget:{amountCents:100,currency:"BRL"}};
+
+// Exercise the real composition root without starting timers or external adapters.
+// Capture the identity and the actual callbacks supplied to approval and dispatch.
+function assembledReadinessRuntime(metaSendEnabled=false){
+ const captured:any={networkCalls:0};
+ const config={enabled:true,metaSendEnabled,llmRealEnabled:true,llmMaximumCostCents:17,
+  suppressionKeyVersion:1,suppressionHmacKey:"a".repeat(64),cursorHmacKey:"b".repeat(64),senderEncryptionKey:"c".repeat(64)};
+ const env={PROSPECTING_RUN_WORKERS:"true",PROSPECTING_PROPOSAL_SECRET:"readiness-proposal-secret-32-characters",PROSPECTING_PROPOSAL_TTL_SECONDS:"120",
+  PROSPECTING_LLM_MODEL:"runtime-fixed-policy",PROSPECTING_LLM_API_KEY:"inert-test-key",PROSPECTING_LLM_INPUT_MICROCENTS_PER_TOKEN:"3",PROSPECTING_LLM_OUTPUT_MICROCENTS_PER_TOKEN:"7",
+  PROSPECTING_META_TEMPLATE_COST_CENTS:"33",PROSPECTING_META_REPLY_COST_CENTS:"4",PROSPECTING_META_QUOTE_VALID_UNTIL:"2099-01-01T00:00:00Z"};
+ const fixedOffer={...fixtureOffer,planKey:"scale",canonicalUrl:"https://zyon.test/scale"};
+ class Inert {chatLinks(){return {};}debug(){}warn(){}send(){captured.networkCalls++;throw Error("network_forbidden");}}
+ const inertDb={$disconnect:async()=>{}};const driver={verifyConnectivity:async()=>{},close:async()=>{}};
+ const adapters:Record<string,unknown>={
+  "./prospecting-config.js":{loadProspectingConfig:()=>config,assertSameProspectingDatabase:()=>{}},
+  "@prisma/client":{PrismaClient:class {constructor(){return inertDb;}}},
+  "neo4j-driver":{default:{driver:()=>driver,auth:{basic:()=>({})}}},
+  "./company-directory/directory-prisma-client.js":{createDirectoryPrismaClient:()=>inertDb},
+  "../../payment/public-platform-sales-offers.js":{PlatformSalesOffers:class {
+   async current(plan:string){assert.equal(plan,"scale");return fixedOffer;}
+   async catalog(){return [fixedOffer,fixtureOffer];}allowedUrl(){return true;}
+  }},
+  "../application/campaigns/campaign-preparation.js":{CampaignExecutionIdentity,CampaignPreparation:Inert},
+  "./campaigns/prisma-campaign-preparation.js":{PrismaCampaignPreparation:class {constructor(_db:unknown,_templates:unknown,identity:unknown){captured.identity=identity;}}},
+  "./campaigns/prisma-campaign-commands.js":{PrismaCampaignCommands:class {constructor(_db:unknown,_offers:unknown,_activation:unknown,current:unknown){captured.approvalCurrent=current;}}},
+  "../application/campaigns/prospect-dispatch.worker.js":{ProspectDispatchWorker:class {constructor(_repo:unknown,_health:unknown,_offers:unknown,_sender:unknown,_clock:unknown,current:unknown){captured.dispatchCurrent=current;}}},
+  "./knowledge/prisma-sales-knowledge.repository.js":{PrismaSalesKnowledgeRepository:class {async active(){return [{id:"publication-runtime",revision:19}];}}},
+  "./campaigns/meta-prospecting-sender.adapter.js":{MetaProspectingSenderAdapter:{official:()=>new Inert()}}
+ };
+ const ts=createRequire(import.meta.url)("typescript");
+ const runtimeUrl=new URL("../../infrastructure/prospecting-runtime.ts",import.meta.url);
+ const compiled=ts.transpileModule(readFileSync(runtimeUrl,"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ const module={exports:{} as any};
+ vm.runInNewContext(compiled,{require:(name:string)=>adapters[name]??new Proxy({},{get:()=>Inert}),module,exports:module.exports,process:{env:{}},setInterval,clearInterval,console},{filename:runtimeUrl.pathname});
+ return {runtime:module.exports.createProspectingRuntime(env),captured,env};
+}
+
+test("READY AC1 actual runtime prepares a fixed-plan review with dispatch disabled and rejects expired pricing",async()=>{
+ const f=assembledReadinessRuntime();try{
+  const snapshot=await f.captured.identity.snapshot({mode:"fixed",planKey:"scale"});
+  assert.equal(snapshot.offers.length,1);assert.equal(snapshot.offers[0].planKey,"scale");
+  assert.equal(snapshot.execution.templateQuote.amountCents,33);assert.equal(snapshot.execution.replyQuote.amountCents,4);
+  f.env.PROSPECTING_META_QUOTE_VALID_UNTIL="2001-01-01T00:00:00Z";
+  await assert.rejects(f.captured.identity.snapshot({mode:"fixed",planKey:"scale"}),/cost_unknown/);
+  assert.equal(f.captured.networkCalls,0);
+ }finally{await f.runtime.onModuleDestroy();}
+});
+
+test("READY AC2 actual runtime fences both approval and dispatch callbacks until enabled with the same reviewed identity",async()=>{
+ const disabled=assembledReadinessRuntime();const enabled=assembledReadinessRuntime(true);try{
+  const snapshot=await disabled.captured.identity.snapshot({mode:"fixed",planKey:"scale"});
+  assert.equal(await disabled.captured.approvalCurrent(snapshot),false);assert.equal(await disabled.captured.dispatchCurrent(snapshot),false);
+  assert.equal(await enabled.captured.approvalCurrent(snapshot),true);assert.equal(await enabled.captured.dispatchCurrent(snapshot),true);
+  assert.equal(disabled.captured.networkCalls,0);assert.equal(enabled.captured.networkCalls,0);
+ }finally{await disabled.runtime.onModuleDestroy();await enabled.runtime.onModuleDestroy();}
+});
 test("CAMP-06 prepare durably connects the union and registered template to catalog approval start pause resume and actual guarded dispatch",async()=>{
  const f=await createCampaignFixture();try{
   const drafts=new CampaignDraftService(new PrismaCampaignDrafts(f.prisma));
