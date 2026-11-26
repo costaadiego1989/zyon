@@ -1,0 +1,14 @@
+/* Keep the availability editor inside its bounded tab while the form scrolls. */
+.service-availability-editor { min-width: 0; }
+.service-availability-editor > .data-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(70dvh - 2px);
+  box-sizing: border-box;
+}
+.service-availability-editor > .data-panel > .data-panel__header { flex: 0 0 auto; }
+.service-availability-editor > .data-panel > .data-panel__body {
+  min-height: 0;
+  overflow-y: auto;
+  scroll-padding-block: 20px;
+}

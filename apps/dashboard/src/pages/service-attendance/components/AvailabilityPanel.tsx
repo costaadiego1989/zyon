@@ -12,6 +12,7 @@ import type { useServiceAttendancePage } from "../useServiceAttendancePage.js";
 import { useAvailabilityPanelData } from "./useAvailabilityPanelData.js";
 import { availabilityInstantWall, formatAvailabilityInstant, availabilityExceptionPayload, createRecurringAvailabilityDraft, recurringAvailabilityPayload, deactivateAvailabilityExceptionPayload, type RecurringAvailabilityDraft, type AvailabilityExceptionDraft } from "./availability-form.js";
 import { FIXED_SERVICE_UI_TIME_ZONE, requiresNewBrasiliaGrade, newBrasiliaRecurringDraft, canEditBrasiliaException } from "./fixed-service-time-zone.js";
+import "./availability-panel.css";
 
 type ViewModel = ReturnType<typeof useServiceAttendancePage>;
 interface Editor { context: object; token: object; key: string; version: number; recurring?: RecurringAvailabilityDraft; newBrasilia?: boolean; exception?: AvailabilityExceptionDraft; original?: ServiceAvailabilityExceptionDTO; error: string | null }
@@ -167,7 +168,7 @@ export function AvailabilityPanel({ me, vm }: { me: MerchantProfile | null; vm: 
         {fenced || data.grade.status === "error" ? <Button variant="outline" disabled={busy || !data.professional} onClick={() => void reconcile()}>Recarregar e revisar</Button> : null}
       </div>
     </DataPanel>
-    {editor && <DataPanel title={draft ? "Editar grade" : editor.original ? "Editar exceção" : "Nova exceção"}><form onSubmit={event => { event.preventDefault(); void save(); }} style={{ padding: 20, display: "grid", gap: 16 }}>
+    {editor && <div className="service-availability-editor"><DataPanel title={draft ? "Editar grade" : editor.original ? "Editar exceção" : "Nova exceção"}><form onSubmit={event => { event.preventDefault(); void save(); }} style={{ padding: 20, display: "grid", gap: 16 }}>
       <fieldset disabled={busy || fenced} style={{ padding: 0, margin: 0, border: 0, minWidth: 0, display: "grid", gap: 16 }}>
         {draft ? <>
           <p><strong>Horário de Brasília</strong>. {editor.newBrasilia ? "Informe novas faixas. A grade histórica permanece preservada até a confirmação pelo servidor." : "Os horários e a validade das faixas cadastradas serão conferidos pelo servidor."}</p>
@@ -191,7 +192,7 @@ export function AvailabilityPanel({ me, vm }: { me: MerchantProfile | null; vm: 
       </fieldset>
       {editor.error && <p role="alert">{editor.error}</p>}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><Button type="submit" disabled={busy || fenced} loading={busy}>{draft ? "Salvar grade" : "Salvar exceção"}</Button><Button variant="ghost" disabled={busy} onClick={() => setEditor(null)}>Fechar edição</Button></div>
-    </form></DataPanel>}
+    </form></DataPanel></div>}
     <DataPanel title="Preview da disponibilidade"><div style={{ display: "grid", gap: 14, padding: 20 }}>
       <p>Consulte as datas e os horários que o servidor oferece para um serviço vinculado. Este preview não cria uma reserva.</p>
       <Button variant="outline" disabled={!data.professional || busy} loading={data.professionals.catalogPhase === "loading"} onClick={() => void data.professionals.loadCatalog(true)}>Consultar serviços vinculados</Button>
