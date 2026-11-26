@@ -17,7 +17,9 @@ export async function draftAudienceSql(tx:DraftTx,c:ProspectCampaign){
  const contextual=criteria?directorySelectionSql(storage.storageSnapshotId,criteria,storage.maximumCnpj).where:null;
  const join=Prisma.sql(base.join.strings,...base.join.values),scope=Prisma.sql(base.where.strings,...base.where.values);
  const manual=Prisma.sql`EXISTS(SELECT 1 FROM prospect_campaign_companies m WHERE m.campaign_id=${c.id} AND m.cnpj=e.cnpj AND m.snapshot_id=${c.directorySnapshotId} AND m.removed_at IS NULL)`;
- const where=Prisma.sql`${scope} AND NOT EXISTS(SELECT 1 FROM prospect_campaign_companies excluded WHERE excluded.campaign_id=${c.id} AND excluded.cnpj=e.cnpj AND excluded.removed_at IS NOT NULL) AND (${manual} OR ${contextual?Prisma.sql(contextual.strings,...contextual.values):Prisma.sql`false`})`;
+ // Keep manual membership as a top-level EXISTS so PostgreSQL can use an indexed semijoin.
+ const included=contextual?Prisma.sql`(${manual} OR ${Prisma.sql(contextual.strings,...contextual.values)})`:manual;
+ const where=Prisma.sql`${scope} AND NOT EXISTS(SELECT 1 FROM prospect_campaign_companies excluded WHERE excluded.campaign_id=${c.id} AND excluded.cnpj=e.cnpj AND excluded.removed_at IS NOT NULL) AND ${included}`;
  return {join,where,storage,criteria};
 }
 export class PrismaCampaignDraftAudience implements CampaignDraftAudienceStore {

@@ -5,12 +5,36 @@ import {createCampaignFixture} from "../../../../../tests/prospect-campaign-fixt
 import {PrismaCampaignDrafts} from "../../infrastructure/campaigns/prisma-campaign-drafts.js";
 import {CampaignDraftService} from "./campaign-drafts.js";
 import {CampaignDraftAudience} from "./campaign-draft-audience.js";
-import {PrismaCampaignDraftAudience} from "../../infrastructure/campaigns/prisma-campaign-draft-audience.js";
+import {PrismaCampaignDraftAudience,draftAudienceSql} from "../../infrastructure/campaigns/prisma-campaign-draft-audience.js";
 import {PrismaAudienceRepository} from "../../infrastructure/campaigns/prisma-audience.repository.js";
 import {canonicalCnpj} from "../../domain/company-directory/cnpj.js";
 import {createProspectingFixture} from "../../../../../tests/prospecting-fixture.js";
 import {ProspectCampaignCompaniesController} from "../../presentation/prospect-campaign-companies.controller.js";
 const actor={operatorId:"operator",correlationId:"companies"};
+test("AUDQ AC1 manual audience reads only selected establishments even with ten thousand unrelated companies",async()=>{
+ const f=await createProspectCrmFixture();try{
+  await f.client.companyEntity.create({data:{snapshotId:"search-old",baseCnpj:"99999999",legalName:"Unrelated fixture",normalizedLegalName:"UNRELATED FIXTURE"}});
+  await f.pg.query("INSERT INTO company_directory.company_establishments(snapshot_id,cnpj,base_cnpj,uf,main_cnae) SELECT 'search-old','99999999'||lpad(i::text,6,'0'),'99999999','SP','0111301' FROM generate_series(1,10000) i");
+  await f.pg.query("ANALYZE company_directory.company_establishments");
+  const selected=["00000000000191","12ABC34501DE35"];
+  const drafts=new CampaignDraftService(new PrismaCampaignDrafts(f.prisma)),audience=new CampaignDraftAudience(new PrismaCampaignDraftAudience(f.prisma));
+  const c=await drafts.create({name:"Bounded manual audience",companies:{snapshotId:"search-old",cnpjs:selected},clientRequestId:"bounded-manual"},actor);
+  const page=await audience.list(c.id);assert.equal(page.count,2);assert.deepEqual(page.items.map(r=>r.cnpj),selected);assert.equal(page.nextCursor,null);
+  await f.prisma.$transaction(async tx=>{
+   const campaign=await tx.prospectCampaign.findUniqueOrThrow({where:{id:c.id}}),query=await draftAudienceSql(tx,campaign);
+   for(const projection of ["count","rows"]){
+    const plans=projection==="count"?await tx.$queryRaw<any[]>`EXPLAIN (ANALYZE,FORMAT JSON) SELECT count(*) ${query.join} WHERE ${query.where}`:
+     await tx.$queryRaw<any[]>`EXPLAIN (ANALYZE,FORMAT JSON) SELECT e.cnpj,c.legal_name ${query.join} WHERE ${query.where} ORDER BY e.cnpj COLLATE "C" LIMIT 21`;
+    const nodes=(node:any):any[]=>[node,...(node.Plans??[]).flatMap(nodes)];
+    const scans=nodes(plans[0]["QUERY PLAN"][0].Plan).filter(n=>n["Relation Name"]==="company_establishments");
+    assert.ok(scans.length>0);
+    const visited=scans.reduce((sum,n)=>sum+(n["Actual Rows"]+(n["Rows Removed by Filter"]??0)+(n["Rows Removed by Index Recheck"]??0))*n["Actual Loops"],0);
+    assert.ok(visited<=selected.length,`${projection} scanned ${visited} establishments for ${selected.length} selected companies`);
+   }
+  });
+  assert.equal(await f.prisma.contactPermissionReceipt.count(),0);assert.equal(await f.prisma.campaignRecipient.count(),0);
+ }finally{await f.close();}
+});
 test("CAMP-02 append unique public companies incrementally without sender, preserving provenance, replay and removal history",async()=>{
  const f=await createProspectCrmFixture();try{
   await f.prisma.platformProspectSenderBinding.deleteMany();const drafts=new CampaignDraftService(new PrismaCampaignDrafts(f.prisma)),audience=new CampaignDraftAudience(new PrismaCampaignDraftAudience(f.prisma));
