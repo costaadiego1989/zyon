@@ -10,6 +10,29 @@ const source={status:"current",value:{snapshotId:"published-source",state:"publi
 const readiness={source,knowledge:{status:"current",value:{activePublications:0}},channel:{status:"unavailable",value:null}};
 const common={draft:async()=>draft,campaignCompanies:async()=>({items:[],nextCursor:null,count:0,manualCount:0,snapshotId:null}),sender:async()=>({binding:null,status:"unknown",templates:[],blockers:["sender_unavailable"]}),config:async()=>({workersRunning:false,dispatchMode:"disabled",modelMode:"disabled"}),readiness:async()=>readiness};
 
+for(const [criterion,state] of [["AC1","draft"],["AC2","review_ready"],["AC3","approved"]]){
+ test(`REVIEW-UI ${criterion} ${state} can prepare with dispatch disabled while approval and start stay fenced`,async()=>{
+  const binding={id:"own",version:1,wabaId:"waba",displayPhoneNumber:"local"};
+  const message="Approved clothing introduction",price={currency:"BRL",amountPerThousandMinor:16085};
+  const configured={...draft,state,message,templateRegistryId:"local",directorySnapshotId:"published-source",senderBindingId:binding.id,senderVersion:binding.version,audienceHash:"audience",selectionId:"selection",
+   limits:{dailyRecipients:1000,budget:{amountCents:15000,currency:"BRL"}},sendWindow:{timezone:"America/Sao_Paulo",weekdays:[1],start:"09:00",end:"18:00"}};
+  const prepareCampaign=vi.fn(async()=>({selectionId:"selection"})),approve=vi.fn(),start=vi.fn();
+  const ui=await show(<CampaignWorkspace {...screenProps({...common,draft:async()=>configured,prepareCampaign,approve,start,
+   sender:async()=>({binding,status:"ready",blockers:[],templates:[{id:"meta",revision:"provider-r1",wabaId:binding.wabaId,previewText:message,status:"APPROVED",category:"MARKETING",requiresParameters:false,maxPrice:price}]}),
+   templates:async()=>[{id:"local",name:"intro",body:message,state:"APPROVED",providerId:"meta",providerRevision:"provider-r1",maxPrice:price}],
+   config:async()=>({workersRunning:true,dispatchMode:"disabled",modelMode:"live"}),
+   readiness:async()=>({...readiness,channel:{status:"current",value:{status:"ready"}},knowledge:{status:"current",value:{activePublications:1}}}),
+   selection:async()=>({state:"complete",companyCount:5,recipientCount:5,missingEndpointCount:0,eligibilityBlockers:[{reason:"no_opt_in",recipients:5}]})
+  })} id={draft.id}/>);
+  expect(ui.button("Preparar revisão da campanha").disabled).toBe(false);
+  if(state==="review_ready"){expect(ui.button("Aprovar revisão da campanha").disabled).toBe(true);await ui.click("Aprovar revisão da campanha");}
+  if(state==="approved"){expect(ui.button("Iniciar campanha").disabled).toBe(true);await ui.click("Iniciar campanha");}
+  await ui.click("Preparar revisão da campanha");
+  expect(prepareCampaign).toHaveBeenCalledExactlyOnceWith(draft.id,{expectedRevision:1,templateRegistryId:"local",clientRequestId:expect.any(String)});
+  expect(approve).not.toHaveBeenCalled();expect(start).not.toHaveBeenCalled();
+ });
+}
+
 test("MAX-PRICE AC5 selects the priced registry entry even when its body matches the standard message",async()=>{
  const message="Texto já selecionado";
  const selected={...draft,message};const priced={id:"priced",name:"price_variant",body:message,state:"PENDING",maxPrice:{currency:"BRL",amountPerThousandMinor:10000},language:"pt_BR"};
