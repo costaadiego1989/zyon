@@ -138,4 +138,34 @@ describe("T45 actual service booking controls and authenticated transport", () =
     expect(calls).toHaveLength(3); expect(calls.some(call => call.body !== undefined)).toBe(false);
   });
 
+  it("starts all independent auth-resume reads together and waits for every result before selecting once", async () => {
+    const login = vi.fn();
+    const view = await render(<ServiceBookingPicker data={data} access={null} readAccess={access} cartRef="cart-a" onAuthenticate={login} initialFromDate="2026-12-01" />);
+    await choosePublic(); await click("Continuar agendamento");
+    const ordinary = globalThis.fetch, releases = new Map<string, () => void>();
+    let captureReads = true;
+    globalThis.fetch = async (input, init) => {
+      const kind = /service-booking\/(professionals|dates|slots)(?:\?|$)/.exec(String(input))?.[1];
+      if (!captureReads || !kind) return ordinary(input, init);
+      expect(new Headers(init?.headers).get("x-buyer-access-token")).toBe("real-buyer");
+      return new Promise<Response>((resolve, reject) => { releases.set(kind, () => { releases.delete(kind); void ordinary(input, init).then(resolve, reject); }); });
+    };
+    try {
+      await view.rerender(<ServiceBookingPicker data={data} access={access} readAccess={access} cartRef="cart-a" onAuthenticate={login} />);
+      expect([...releases.keys()].sort()).toEqual(["dates", "professionals", "slots"]);
+      expect(calls.some(call => call.body !== undefined)).toBe(false);
+      await act(async () => releases.get("slots")!());
+      await act(async () => releases.get("professionals")!());
+      expect(calls.some(call => call.body !== undefined)).toBe(false);
+      await act(async () => releases.get("dates")!());
+      button("Revisar agendamento");
+      await view.rerender(<ServiceBookingPicker data={data} access={access} readAccess={access} cartRef="cart-a" onAuthenticate={login} />);
+      expect(calls.filter(call => call.url.endsWith("/select"))).toHaveLength(1);
+      expect(calls.some(call => /\/(prepare|confirm)$/.test(call.url))).toBe(false);
+    } finally {
+      captureReads = false; globalThis.fetch = ordinary;
+      await act(async () => { for (const release of releases.values()) release(); });
+    }
+  });
+
 });

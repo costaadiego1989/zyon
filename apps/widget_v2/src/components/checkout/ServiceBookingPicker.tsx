@@ -127,12 +127,15 @@ export function ServiceBookingPicker({ data, access, readAccess, cartRef, buyerI
     if (!browse || !context || !client) return;
     await perform(async (signal, isCurrent) => {
       const currentOrAbort = () => { if (!isCurrent()) throw new DOMException("Superseded selection", "AbortError"); };
-      const professionals = await client.professionals(context, signal); currentOrAbort();
+      const [professionals, dates, slots] = await Promise.all([
+        client.professionals(context, signal),
+        client.dates(context, selected.professionalId, selected.date, selected.date, signal),
+        client.slots(context, selected.professionalId, selected.date, signal),
+      ]);
+      currentOrAbort();
       const professional = professionals.professionals.find(p => p.id === selected.professionalId && p.version === selected.professionalVersion);
       if (!professional) throw new ServiceBookingRequestError(409, "service_professional_changed");
-      const dates = await client.dates(context, professional.id, selected.date, selected.date, signal); currentOrAbort();
       if (dates.professional_version !== selected.professionalVersion || dates.policy_version !== selected.policyVersion || !dates.dates.includes(selected.date)) throw new ServiceBookingRequestError(409, "service_slot_unavailable");
-      const slots = await client.slots(context, professional.id, selected.date, signal); currentOrAbort();
       const fresh = slots.selections.find(row => row.slotId === selected.slotId && Object.keys(row).every(key => row[key as keyof ServiceSelection] === selected[key as keyof ServiceSelection]));
       if (!fresh) throw new ServiceBookingRequestError(409, "service_slot_unavailable");
       if (consumeIntent && !consumeIntent()) throw new DOMException("Cancelled continuation", "AbortError");
