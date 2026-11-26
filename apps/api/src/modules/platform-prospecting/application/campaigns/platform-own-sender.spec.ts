@@ -18,6 +18,7 @@ function provider(){
   "15":{id:"15",owner_business_info:{id:"13"}},
   "15/phone_numbers":{data:[{id:"14",display_phone_number:"+55 21 97119-1446",status:"CONNECTED",platform_type:"CLOUD_API"}]},
   "15/subscribed_apps":{data:[{whatsapp_business_api_data:{id:"11"}}]},
+  "15/assigned_users":{data:[{id:"16",tasks:["MANAGE"]}]},
  };
  const calls:{path:string;method:string}[]=[];
  const fetcher:typeof fetch=async(input,init)=>{
@@ -34,6 +35,39 @@ test("OWN-SENDER AC1 verifies the owned system user, app, portfolio and register
  assert.deepEqual(asset,{accessToken:ownConfig.systemUserAccessToken,wabaId:"15",phoneNumberId:"14",whatsappNumber:"+5521971191446",phoneRegistered:true,tokenExpiresAt:undefined});
  assert.deepEqual(p.calls.map(x=>x.path),["debug_token","me","13/owned_apps","15","15/phone_numbers"]);
  assert.equal(p.calls.every(x=>x.method==="GET"),true);
+});
+
+test("SENDPERM AC1 exact WABA messaging tasks and valid pagination govern persisted system-user readiness",async()=>{
+ const f=await ownFixture();try{
+  const challenge=await f.service.signupState(actor);const binding=await f.service.connect({clientRequestId:"permission-health",state:challenge.state,authorizationMethod:"system_user"},actor);
+  f.bodies["14"]={id:"14",status:"CONNECTED",platform_type:"CLOUD_API",quality_rating:"GREEN",whatsapp_business_manager_messaging_limit:"TIER_250",health_status:{can_send_message:"AVAILABLE",entities:Object.entries({PHONE_NUMBER:"14",WABA:"15",BUSINESS:"13",APP:"11"}).map(([entity_type,id])=>({entity_type,id,can_send_message:"AVAILABLE"}))}};
+  f.bodies["15/message_templates"]={data:[{id:"template",name:"hello",language:"pt_BR",category:"MARKETING",status:"APPROVED",components:[{type:"BODY",text:"Synthetic approved message"}]}]};
+  const store=new PrismaSenderObservationStore(f.prisma,ownConfig.encryptionKey);
+  let pages:"normal"|"later"|"cycle"|"unreadable"="normal";
+  const fetcher:typeof fetch=async(input,init)=>{
+   const url=new URL(String(input));if(url.pathname.endsWith("/assigned_users")){
+    assert.equal(url.pathname,"/v27.0/15/assigned_users");assert.equal(url.searchParams.get("business"),"13");assert.equal(url.searchParams.get("limit"),"100");
+    if(pages==="unreadable")return Response.json({error:{code:10,message:"private provider message"}},{status:403});
+    if(pages==="cycle"||pages==="later"&&!url.searchParams.has("after"))return Response.json({data:[{id:"foreign",tasks:["MANAGE"]}],paging:{next:"https://graph.facebook.com/ignored",cursors:{after:"next-page"}}});
+    if(pages==="later")return Response.json({data:[{id:"16",tasks:["MESSAGING"]}]});
+   }
+   return f.fetcher(input,init);
+  };
+  const service=new SenderReadinessService(store,new MetaSenderHealthReader(ownConfig,fetcher));
+  const cases=[
+   {rows:[{id:"16",tasks:["MANAGE"]}],ready:true},
+   {rows:[{id:"16",tasks:["MANAGE_TEMPLATES","MESSAGING"]}],ready:true},
+   {rows:[{id:"16",tasks:["MANAGE_TEMPLATES"]}],ready:false},
+   {rows:[{id:"other",tasks:["MANAGE"]},{id:"16",tasks:["MANAGE_TEMPLATES"]}],ready:false},
+   {rows:[],ready:false},
+   {rows:[{id:"16",tasks:null}],ready:false},
+  ];
+  for(const item of cases){f.bodies["15/assigned_users"]={data:item.rows};const result=await service.readiness();assert.equal(result.status,item.ready?"ready":"blocked");assert.equal(result.blockers.includes("permission_unavailable"),!item.ready);}
+  pages="later";assert.equal((await service.readiness()).status,"ready");
+  pages="cycle";const cycle=await service.readiness();assert.equal(cycle.status,"blocked");assert.ok(cycle.blockers.includes("permission_unavailable"));
+  pages="unreadable";const unavailable=await service.readiness();assert.equal(unavailable.status,"unknown");assert.ok(unavailable.blockers.includes("sender_unavailable"));
+  const row=await f.prisma.platformProspectSenderBinding.findUniqueOrThrow({where:{id:binding.id}});assert.equal((row.health as any).status,"unknown");assert.equal(JSON.stringify(row.health).includes("private"),false);assert.equal(JSON.stringify(row.health).includes(ownConfig.systemUserAccessToken),false);
+ }finally{await f.close();}
 });
 
 test("OWN-SENDER AC1 rejects foreign revoked expired incomplete and unregistered system-user grants",async()=>{

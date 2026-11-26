@@ -34,6 +34,17 @@ export class MetaSenderHealthReader implements SenderHealthReader {
   if(b.appId!==this.app.appId||!this.app.appSecret)throw new Error("sender_identity_mismatch");
   if(credential.authorizationMethod==="system_user"){
    await new PlatformMetaAuthorization({...this.app,businessId,phoneNumberId:b.phoneNumberId,wabaId:b.wabaId,systemUserId:credential.systemUserId,systemUserAccessToken:accessToken},this.fetcher).authorizeSystemUser();
+   let messaging=false;
+   const query:Record<string,string>={business:businessId,fields:"id,tasks",limit:"100"};
+   for(let page=0;page<20;page++){
+    const users=await this.get<{data:{id:string;tasks?:string[]|null}[];paging?:{next?:string;cursors?:{after?:string}}}>(b.wabaId+"/assigned_users",accessToken,query);
+    if(!Array.isArray(users.data))throw Error("permission_unavailable");
+    const own=users.data.find(user=>user.id===credential.systemUserId);
+    if(own){messaging=Array.isArray(own.tasks)&&own.tasks.some(task=>task==="MESSAGING"||task==="MANAGE");break;}
+    if(!users.paging?.next)break;
+    const after=users.paging.cursors?.after;if(!after||after===query.after)break;query.after=after;
+   }
+   if(!messaging)blockers.add("permission_unavailable");
   }else{
    const debug=await this.get<{data:{is_valid:boolean;app_id:string;granular_scopes?:{scope:string;target_ids?:string[]}[]}}>("debug_token",this.app.appId+"|"+this.app.appSecret,{input_token:accessToken});
    if(debug.data?.app_id!==b.appId)blockers.add("sender_identity_mismatch");
