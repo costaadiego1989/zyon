@@ -5,6 +5,49 @@ import {PrismaCampaignRepository} from "../campaigns/prisma-campaign.repository.
 import {PrismaProspectMetaInbox} from "./prisma-prospect-meta-inbox.js";
 import {PrismaProspectConversationRepository} from "./prisma-prospect-conversation.repository.js";
 
+async function deliveryFixture(){
+ const f=await createCampaignFixture();try{
+  const repo=new PrismaCampaignRepository(f.prisma,f.keys,f.quote),time=new Date();
+  const packet=await repo.reserveAttempt(f.recipient.id,"worker",time);assert.ok(packet);assert.equal(await repo.markSubmitting(packet.attempt.id,"worker",time),true);
+  await repo.recordResult(packet.attempt.id,"worker",{state:"provider_accepted",providerMessageId:"wamid.diagnostic",acceptedAt:time});
+  const inbox=new PrismaProspectMetaInbox(f.prisma,f.keys),processor=new PrismaProspectConversationRepository(f.prisma);let tick=Math.floor(Date.now()/1000)-30;
+  const receipt=async(errors:unknown,status="failed")=>{
+   const raw={id:"wamid.diagnostic",status,timestamp:String(tick++),recipient_id:f.endpoint.normalizedValue!,biz_opaque_callback_data:packet.attempt.id,errors};
+   const change={appId:"app",wabaId:"waba",phoneNumberId:"phone",value:{statuses:[raw]}};await inbox.accept(change);await inbox.accept(change);
+   return f.prisma.prospectInboxEvent.findFirstOrThrow({where:{eventId:JSON.stringify([raw.id,status,raw.timestamp])}});
+  };
+  return {...f,repo,packet,inbox,processor,receipt,time};
+ }catch(error){await f.close();throw error;}
+}
+
+test("DELERR AC1 persists only safe numeric failure codes and excludes provider text and ordinary events",async()=>{
+ const f=await deliveryFixture();try{
+  const cases=[
+   {errors:[{code:131026,error_subcode:2494065,message:"PRIVATE_ERROR_TEXT",error_data:{details:"PRIVATE_ERROR_TEXT"},fbtrace_id:"PRIVATE_ERROR_TEXT"}],expected:{code:131026,subcode:2494065}},
+   {errors:[null,{code:"131026"},{code:131049,error_subcode:"bad"}],expected:{code:131049}},
+   {errors:[{code:10.5},{code:Number.MAX_SAFE_INTEGER+1}],expected:null},
+   {errors:{code:131026},expected:null},
+   {errors:[],expected:null},
+  ];
+  for(const item of cases){const event=await f.receipt(item.errors);assert.deepEqual((event.payload as any).providerError,item.expected);assert.equal(JSON.stringify(event.payload).includes("PRIVATE_ERROR_TEXT"),false);}
+  const success=await f.receipt([{code:131026}],"delivered");assert.equal((success.payload as any).providerError,undefined);
+  await f.inbox.accept({appId:"app",wabaId:"waba",phoneNumberId:"phone",value:{messages:[{id:"inbound.diagnostic",from:f.endpoint.normalizedValue!,text:{body:"hi"},errors:[{code:131026}]}]}});
+  const inbound=await f.prisma.prospectInboxEvent.findFirstOrThrow({where:{eventKind:"inbound"}});assert.equal((inbound.payload as any).providerError,undefined);
+ }finally{await f.close();}
+});
+
+test("DELERR AC2 durable numeric failures preserve acceptance, conservative cost and replay without retry",async()=>{
+ const f=await deliveryFixture();try{
+  for(const [errors,expected] of [[[{code:131026,error_subcode:123}],"provider_delivery_failed_code_131026_subcode_123"],[[{code:131049}],"provider_delivery_failed_code_131049"],[[],"provider_delivery_failed"]] as const){
+   const event=await f.receipt(errors);await f.processor.processStatus(event.id);await f.processor.processStatus(event.id);
+   const message=await f.prisma.prospectMessage.findFirstOrThrow({where:{attemptId:f.packet.attempt.id}});assert.equal(message.errorCode,expected);assert.equal(message.state,"provider_accepted");assert.equal(message.providerId,"wamid.diagnostic");assert.equal(message.deliveredAt,null);assert.equal(message.readAt,null);
+   const attempt=await f.prisma.outreachAttempt.findUniqueOrThrow({where:{id:f.packet.attempt.id}});assert.equal(attempt.state,"provider_accepted");assert.equal(attempt.providerMessageId,"wamid.diagnostic");assert.equal(attempt.acceptedAt?.toISOString(),f.time.toISOString());assert.equal(attempt.costState,"committed");assert.equal(attempt.deliveredAt,null);assert.equal(attempt.readAt,null);
+   const campaign=await f.prisma.prospectCampaign.findUniqueOrThrow({where:{id:f.campaign.id}});assert.equal(campaign.spentCents,25n);assert.equal(campaign.reservedCents,0n);
+   assert.equal(await f.repo.reserveAttempt(f.recipient.id,"retry",new Date()),null);assert.equal(await f.prisma.outreachAttempt.count(),1);assert.equal(await f.prisma.prospectMessage.count(),1);assert.equal((await f.prisma.prospectInboxEvent.findUniqueOrThrow({where:{id:event.id}})).state,"processed");
+  }
+ }finally{await f.close();}
+});
+
 test("PROS-16 AC1 read before HTTP acceptance records confirmed first delivery, one timeline message and one financial commitment",async()=>{
  const f=await createCampaignFixture();try{
   const repo=new PrismaCampaignRepository(f.prisma,f.keys,f.quote);

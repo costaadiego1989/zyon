@@ -130,7 +130,8 @@ export class PrismaProspectConversationRepository{
     await changed(tx,msg.conversationId,"delivery",msg.sequence);
    }else if(p.status==="failed"){
     // Failure to deliver does not establish that a submitted request was never accepted.
-    await tx.prospectMessage.update({where:{id:msg.id},data:{errorCode:"provider_delivery_failed"}});
+    const diagnostic=Number.isSafeInteger(p.providerError?.code)?"_code_"+p.providerError!.code+(Number.isSafeInteger(p.providerError?.subcode)?"_subcode_"+p.providerError!.subcode:""):"";
+    await tx.prospectMessage.update({where:{id:msg.id},data:{errorCode:"provider_delivery_failed"+diagnostic}});
     await changed(tx,msg.conversationId,"delivery",msg.sequence);
    }
    const ids=[...new Set([...current.resourceIds,endpointId,msg.id,msg.conversationId,...msg.attemptId?[msg.attemptId]:[]])];
