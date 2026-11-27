@@ -1,69 +1,65 @@
 import React from "react";
 import { SectionHeader } from "../../../components/SectionHeader.js";
+import { FunnelDiagram } from "../../../components/FunnelDiagram.js";
 import type { FunnelStep, FunnelTransition } from "../useFunnelPage.js";
 
-interface FunnelChartProps {
+export function FunnelChart({
+  steps,
+  transitions,
+}: {
   steps: FunnelStep[];
   transitions: FunnelTransition[];
-}
-
-export function FunnelChart({ steps, transitions }: FunnelChartProps): React.ReactElement {
-  const conversionStep = steps.find(s => s.name === "order_completed") ?? steps.find(s => s.name === "auth_registration_completed");
+}): React.ReactElement {
+  const conversionStep =
+    steps.find((step) => step.name === "order_completed") ??
+    steps.find((step) => step.name === "auth_registration_completed");
+  const stages = steps.map((step) => {
+    const transition = transitions.find((item) => item.from === step.name);
+    const next = steps.find((item) => item.name === transition?.to);
+    // Optional and non-monotonic events cannot prove abandonment.
+    const showDrop =
+      transition &&
+      step.count > 0 &&
+      next &&
+      next.count < step.count &&
+      transition.dropOff > 0;
+    return {
+      key: step.name,
+      label: step.label,
+      value: step.count,
+      share: step.percentage,
+      detail: showDrop
+        ? `${transition.dropOff.toFixed(
+            0
+          )}% saiu antes de ${next.label.toLocaleLowerCase("pt-BR")}`
+        : undefined,
+    };
+  });
+  const complementary = new Set([
+    "coupon_applied",
+    "payment_failed",
+    "login_completed",
+  ]);
   return (
-    <div className="fnl-chart-card">
+    <section className="fnl-chart-card">
       <SectionHeader
         variant="secondary"
         title="Etapas da jornada"
         trailing={
           <span className="fnl-chart-conversion">
-            {steps.length > 0 ? `${(conversionStep?.percentage ?? 0).toFixed(1)}% conversão` : "—"}
+            {steps.length
+              ? `${(conversionStep?.percentage ?? 0).toFixed(1)}% conversão`
+              : "—"}
           </span>
         }
       />
-      <div className="fnl-bars">
-        {steps.map((step, i) => {
-          const transition = transitions.find((t) => t.from === step.name);
-          const nextStep = steps.find(s => s.name === transition?.to);
-          const barWidth = Math.max(step.percentage, 20);
-          const fill = step.count === 0 ? 12 : Math.max(20, 55 - i * 5);
-
-          // Only show "% saiu" when the drop-off is a meaningful linear-funnel
-          // signal: the next step must have STRICTLY FEWER occurrences than this
-          // one (a real drop), and this step must have had traffic. Optional or
-          // out-of-order steps (coupon with 0, order_completed counted apart from
-          // payment) produce 0 or non-monotonic transitions that read as noise
-          // ("0% saiu", "-250% saiu") — suppress the label for those.
-          const showDrop =
-            !!transition &&
-            step.count > 0 &&
-            !!nextStep &&
-            nextStep.count < step.count &&
-            transition.dropOff > 0;
-
-          return (
-            <div key={step.name} className="fnl-bar-row">
-              <div
-                className="fnl-bar"
-                style={{
-                  width: `${barWidth}%`,
-                  background: `color-mix(in srgb, var(--accent) ${fill}%, var(--card))`,
-                }}
-              >
-                <span className="fnl-bar-label">{step.label}</span>
-                <span className="fnl-bar-count">{step.count.toLocaleString("pt-BR")}</span>
-              </div>
-              <div className="fnl-bar-meta">
-                <span className="fnl-bar-pct">{step.percentage.toFixed(1)}%</span>
-                {showDrop && (
-                  <span className={`fnl-bar-drop${transition.dropOff > 40 ? " high" : ""}`}>
-                    ↓ {transition.dropOff.toFixed(0)}% saiu
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+      <FunnelDiagram
+        label="Funil da jornada"
+        scale="value"
+        stages={stages.filter((stage) => !complementary.has(stage.key))}
+        outcomes={stages.filter((stage) => complementary.has(stage.key))}
+        supportingLabel="Eventos complementares"
+      />
+    </section>
   );
 }

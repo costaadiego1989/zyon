@@ -72,7 +72,10 @@ test("marketing workspace follows the ads layout and clears filters without losi
                 stage,
                 phone: `551198765432${index}`,
                 origin: index % 2 ? "site" : "whatsapp",
-                channels: [index % 2 ? "site" : "whatsapp"],
+                channels:
+                  index === 0
+                    ? ["site", "whatsapp"]
+                    : [index % 2 ? "site" : "whatsapp"],
               })
             );
           }
@@ -90,6 +93,22 @@ test("marketing workspace follows the ads layout and clears filters without losi
         fullPage: true,
       });
 
+      const origins = browser.page.getByRole("figure", {
+        name: "Origem dos contatos",
+      });
+      await origins.getByRole("button", { name: /^Site/ }).click();
+      await expect(
+        browser.page.getByRole("button", { name: "Ver contato", exact: true })
+      ).toHaveCount(3);
+      await expect(
+        browser.page.getByText("Marina Costa", { exact: true })
+      ).toHaveCount(0);
+      await browser.page
+        .getByRole("button", { name: "Limpar origem", exact: true })
+        .click();
+      await expect(
+        browser.page.getByRole("button", { name: "Ver contato", exact: true })
+      ).toHaveCount(6);
       const contrast = await browser.page.evaluate(() => {
         const canvas = document.createElement("canvas");
         canvas.width = canvas.height = 1;
@@ -115,8 +134,8 @@ test("marketing workspace follows the ads layout and clears filters without losi
               0
             );
         return [
-          ".marketing-stage__label",
-          ".marketing-stage small",
+          ".funnel-diagram__label",
+          ".funnel-diagram__description",
           ".marketing-section-heading p",
           ".marketing-contact-cell small",
           ".marketing-origin[data-channel=whatsapp]",

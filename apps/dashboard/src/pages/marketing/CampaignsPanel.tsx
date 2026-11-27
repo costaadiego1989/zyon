@@ -1,3 +1,4 @@
+import { CampaignAudienceMetrics, CampaignDeliveryMetrics } from "./CampaignMetrics.js";
 import React, { useState } from "react";
 import { Megaphone, ArrowLeft } from "lucide-react";
 import { Button } from "../../components/Button.js";
@@ -223,30 +224,7 @@ export function CampaignsPanel({
               {vm.review && (
                 <section className="marketing-section">
                   <h3>Revisão do público</h3>
-                  <dl className="marketing-facts">
-                    <div>
-                      <dt>Contatos selecionados</dt>
-                      <dd>{vm.review.selected}</dd>
-                    </div>
-                    <div>
-                      <dt>Elegíveis agora</dt>
-                      <dd>{vm.review.eligible}</dd>
-                    </div>
-                    <div>
-                      <dt>Reserva prevista</dt>
-                      <dd>
-                        {marketingMoney(vm.review.estimatedReservationCents)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Orçamento</dt>
-                      <dd>
-                        {vm.review.budgetSufficient
-                          ? "Suficiente para a reserva"
-                          : "Insuficiente"}
-                      </dd>
-                    </div>
-                  </dl>
+                  <CampaignAudienceMetrics review={vm.review} />
                   {Object.entries(vm.review.excluded).map(([reason, count]) => (
                     <p key={reason}>
                       {exclusions[reason] ?? "Outras restrições"}: {count}
@@ -308,26 +286,7 @@ export function CampaignsPanel({
               {c.approvedVersion && vm.report && (
                 <section className="marketing-section">
                   <h3>Resultados do público aprovado</h3>
-                  <dl className="marketing-facts">
-                    <div>
-                      <dt>Selecionados na aprovação</dt>
-                      <dd>{vm.report.selected}</dd>
-                    </div>
-                    <div>
-                      <dt>Elegíveis na aprovação</dt>
-                      <dd>{vm.report.eligible}</dd>
-                    </div>
-                    {Object.entries(outcomeLabels).map(([key, label]) => (
-                      <div key={key}>
-                        <dt>{label}</dt>
-                        <dd>{vm.report!.counts[key] ?? 0}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <p>
-                    Reserva estimada utilizada:{" "}
-                    {marketingMoney(vm.report.reservedCents)}
-                  </p>
+                  <CampaignDeliveryMetrics report={vm.report} labels={outcomeLabels} />
                   <p className="marketing-help">
                     Aceite do provedor, entrega e leitura são situações
                     diferentes. Os números mostram a situação atual de cada

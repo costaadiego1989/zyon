@@ -37,10 +37,15 @@ test("MKT-07/2 opening a contact shows observed interactions purchases money tim
         .click();
       const fact = (label: string) =>
         browser.page
-          .locator("dl > div")
-          .filter({ has: browser.page.locator("dt", { hasText: label }) })
-          .locator("dd");
-      await expect(fact("Tempo nesta etapa")).toHaveText("3 horas");
+          .locator("article.stat-card")
+          .filter({
+            has: browser.page.locator(".stat-card__label", { hasText: label }),
+          })
+          .locator(".stat-card__value");
+      await expect(fact("Tempo nesta etapa")).toHaveText("3");
+      await expect(
+        browser.page.getByText("horas", { exact: true })
+      ).toBeVisible();
       await expect(fact("Compras confirmadas")).toHaveText("2");
       await expect(fact("Valor comprado na loja")).toHaveText("R$\u00a0123,45");
       await expect(fact("Conversas conhecidas")).toHaveText("1");

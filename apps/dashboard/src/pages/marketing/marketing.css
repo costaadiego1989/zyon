@@ -272,69 +272,6 @@
 .marketing-funnel .marketing-section-heading {
   margin-bottom: 16px;
 }
-.marketing-stages {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 4px;
-}
-.marketing-stage {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  padding: 16px;
-  border: 0;
-  border-radius: 8px;
-  color: var(--color-text);
-  background: transparent;
-  text-align: left;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: background 150ms ease-out;
-}
-.marketing-stage:hover {
-  background: var(--surface-2);
-}
-.marketing-stage[aria-pressed="true"] {
-  background: var(--color-brand-subtle);
-}
-.marketing-stage:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: -2px;
-}
-.marketing-stage__label {
-  color: var(--color-text-secondary);
-  min-height: 36px;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.marketing-stage strong {
-  color: var(--color-text);
-  font-size: 28px;
-  line-height: 1.2;
-  font-weight: 600;
-  letter-spacing: -.025em;
-  font-variant-numeric: tabular-nums;
-}
-.marketing-stage small {
-  min-height: 16px;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--color-text-secondary);
-}
-.marketing-funnel-track {
-  height: 3px;
-  margin: 4px 0;
-  background: var(--surface-3);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.marketing-funnel-track > span {
-  display: block;
-  height: 100%;
-  background: var(--color-brand);
-}
 .marketing-list-title {
   display: flex;
   align-items: center;
@@ -656,19 +593,6 @@
   .marketing-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .marketing-stages {
-    display: flex;
-    gap: 4px;
-    overflow-x: auto;
-    scroll-snap-type: x proximity;
-    scrollbar-width: thin;
-    padding-bottom: 8px;
-  }
-  .marketing-stage {
-    flex: 0 0 140px;
-    scroll-snap-align: start;
-    padding: 12px;
-  }
   .marketing-contact-filters > .ui-search,
   .marketing-contact-filters .filter-toolbar {
     flex-basis: 100%;
@@ -689,12 +613,6 @@
   }
   .marketing-section-heading h2 {
     font-size: 18px;
-  }
-  .marketing-stage strong {
-    font-size: 24px;
-  }
-  .marketing-stage small {
-    font-size: 11px;
   }
   .marketing-funnel {
     margin-bottom: 24px;
@@ -764,7 +682,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .marketing-skeleton { animation: none; }
-  .marketing-stage { transition: none; }
 }
 
 .marketing-drawer-form { max-width: none; }
@@ -791,3 +708,17 @@
 .marketing-billing-notice__actions svg { flex: none; }
 .marketing-billing-notice .marketing-billing-notice__hint { font-size: 12px; }
 .marketing-drawer-form .marketing-billing-notice { margin-bottom: 4px; padding-top: 0; border-top: 0; }
+
+.marketing-funnel > .stat-card-group { margin-bottom: 28px; }
+.marketing-analytics { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(260px,1fr); gap: 36px; }
+.marketing-analytics > section { min-width: 0; }
+.marketing-analytics__origins { display: flex; flex-direction: column; gap: 32px; padding-left: 28px; border-left: 1px solid var(--color-border); }
+.marketing-identification-note { border-top: 1px solid var(--color-border); padding-top: 24px; }
+.marketing-identification-note h3 { margin: 0; font: 600 14px/1.5 var(--font-sans); color: var(--color-text); }
+.marketing-identification-note p, .marketing-funnel-note { margin: 8px 0 0; color: var(--color-text-secondary); font: 13px/1.6 var(--font-sans); max-width: 65ch; }
+.marketing-campaign-metrics { display: grid; gap: 32px; }
+.marketing-campaign-metrics .distribution-chart { max-width: 800px; }
+@media (max-width: 1200px) {
+  .marketing-analytics { grid-template-columns: minmax(0,1fr); gap: 28px; }
+  .marketing-analytics__origins { padding: 24px 0 0; border-left: 0; border-top: 1px solid var(--color-border); }
+}

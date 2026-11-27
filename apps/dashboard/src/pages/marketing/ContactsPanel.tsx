@@ -1,4 +1,16 @@
-import { ArrowLeft, ArrowUpRight, ChevronRight, Globe, MessageCircle, MessageSquare, MessagesSquare, Users, X } from "lucide-react";
+import { MarketingContactMetrics } from "./MarketingContactMetrics.js";
+import { MarketingFunnelOverview } from "./MarketingFunnelOverview.js";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  ChevronRight,
+  Globe,
+  MessageCircle,
+  MessageSquare,
+  MessagesSquare,
+  Users,
+  X,
+} from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 
 import {
@@ -38,6 +50,7 @@ export function ContactsPanel({
   const [query, setQuery] = useState({
     search: "",
     channel: "",
+    origin: "",
     stage: "",
     buyer: "",
     offset: 0,
@@ -62,10 +75,17 @@ export function ContactsPanel({
   const [revision, setRevision] = useState(0);
   const refresh = () => setRevision((value) => value + 1);
   const hasFilters = Boolean(
-    query.search || query.channel || query.stage || query.buyer
+    query.search || query.channel || query.origin || query.stage || query.buyer
   );
   const clearFilters = () =>
-    setQuery({ search: "", channel: "", stage: "", buyer: "", offset: 0 });
+    setQuery({
+      search: "",
+      channel: "",
+      origin: "",
+      stage: "",
+      buyer: "",
+      offset: 0,
+    });
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -113,7 +133,7 @@ export function ContactsPanel({
     };
   }, [api, selected, revision]);
   const filter = (
-    key: "search" | "channel" | "stage" | "buyer",
+    key: "search" | "channel" | "origin" | "stage" | "buyer",
     value: string
   ) => setQuery((previous) => ({ ...previous, [key]: value, offset: 0 }));
   const move = async (event: React.FormEvent) => {
@@ -189,32 +209,8 @@ export function ContactsPanel({
                 <dt>Etapa atual</dt>
                 <dd>{marketingStageLabels[detail.contact.stage]}</dd>
               </div>
-              <div>
-                <dt>Tempo nesta etapa</dt>
-                <dd>
-                  {Math.floor(detail.timeInStageMs / 3600000).toLocaleString(
-                    "pt-BR"
-                  )}{" "}
-                  horas
-                </dd>
-              </div>
-              <div>
-                <dt>Compras confirmadas</dt>
-                <dd>{detail.contact.purchaseCount}</dd>
-              </div>
-              <div>
-                <dt>Valor comprado na loja</dt>
-                <dd>{marketingMoney(detail.contact.totalSpentCents)}</dd>
-              </div>
-              <div>
-                <dt>Conversas conhecidas</dt>
-                <dd>{detail.activity.conversationCount}</dd>
-              </div>
-              <div>
-                <dt>Mensagens conhecidas</dt>
-                <dd>{detail.activity.messageCount}</dd>
-              </div>
             </dl>
+            <MarketingContactMetrics detail={detail} />
             <section className="marketing-section">
               <h3>Promoções pelo WhatsApp</h3>
               <p>
@@ -337,60 +333,17 @@ export function ContactsPanel({
           </Button>
         </p>
       )}
-      <section
-        className="marketing-section marketing-funnel"
-        aria-label="Funil de contatos identificados"
-      >
-        <header className="marketing-section-heading">
-          <div>
-            <h2>Funil de relacionamento</h2>
-            <p>Acompanhe a etapa atual dos contatos da sua loja.</p>
-          </div>
-          <span className="marketing-total">
-            {funnel?.total.toLocaleString("pt-BR") ?? "—"}{" "}
-            {funnel?.total === 1 ? "contato identificado" : "contatos identificados"}
-          </span>
-        </header>
-        <div className="marketing-stages">
-          {marketingStages.map((stage) => {
-            const total =
-              funnel?.rows
-                .filter((row) => row.stage === stage)
-                .reduce((sum, row) => sum + row.total, 0) ?? 0;
-            return (
-              <button
-                type="button"
-                key={stage}
-                className="marketing-stage"
-                aria-pressed={query.stage === stage}
-                onClick={() =>
-                  filter("stage", query.stage === stage ? "" : stage)
-                }
-              >
-                <span className="marketing-stage__label">
-                  {marketingStageLabels[stage]}
-                </span>
-                <strong>{funnel ? total.toLocaleString("pt-BR") : "—"}</strong>
-                <span className="marketing-funnel-track" aria-hidden="true">
-                  <span
-                    style={{
-                      width: `${
-                        funnel?.total ? (total / funnel.total) * 100 : 0
-                      }%`,
-                    }}
-                  />
-                </span>
-                <small>
-                  {funnel?.rows
-                    .filter((row) => row.stage === stage)
-                    .map((row) => `${originLabel(row.origin)}: ${row.total}`)
-                    .join(" · ") || "Nenhum contato"}
-                </small>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      <MarketingFunnelOverview
+        funnel={funnel}
+        selectedStage={query.stage}
+        selectedOrigin={query.origin}
+        onStageSelect={(stage) =>
+          filter("stage", query.stage === stage ? "" : stage)
+        }
+        onOriginSelect={(origin) =>
+          filter("origin", query.origin === origin ? "" : origin)
+        }
+      />
       <section className="marketing-contact-list" aria-label="Contatos da loja">
         <header className="marketing-section-heading">
           <div className="marketing-list-title">
@@ -409,8 +362,16 @@ export function ContactsPanel({
           />
           <FilterToolbar
             tabs={[
-              { key: "", label: "Todos os canais", icon: <MessagesSquare size={16} /> },
-              { key: "whatsapp", label: "WhatsApp", icon: <MessageCircle size={16} /> },
+              {
+                key: "",
+                label: "Todos os canais",
+                icon: <MessagesSquare size={16} />,
+              },
+              {
+                key: "whatsapp",
+                label: "WhatsApp",
+                icon: <MessageCircle size={16} />,
+              },
               { key: "site", label: "Site", icon: <Globe size={16} /> },
             ]}
             activeTab={query.channel}
@@ -428,6 +389,23 @@ export function ContactsPanel({
             }
           />
         </div>
+        {query.origin && (
+          <p className="marketing-active-filter">
+            <span>
+              Origem:{" "}
+              <strong>
+                {originLabel(query.origin as MarketingContact["origin"])}
+              </strong>
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => filter("origin", "")}
+            >
+              <X size={14} aria-hidden="true" /> Limpar origem
+            </Button>
+          </p>
+        )}
         {query.stage && (
           <p className="marketing-active-filter">
             <span>
