@@ -302,6 +302,75 @@ try {
     });
   }
   if (group === "help" || group === "all") {
+    await run("Omie requires its complete application contract and clears submitted secrets", async () => {
+      const { context, page, state } = await arrange();
+      try {
+        await page.getByLabel("Emissor fiscal", { exact: true }).selectOption("omie");
+        const button = page.getByRole("button", { name: "Conectar emissor", exact: true });
+        await page.getByLabel("Identificação do aplicativo Omie", { exact: true }).waitFor();
+        await page.getByLabel("CNPJ da empresa emitente", { exact: true }).fill("26.517.729/0001-23");
+        assert.equal(await button.isDisabled(), true);
+        await page.getByLabel("Identificação do aplicativo Omie", { exact: true }).fill("omie-company-a");
+        await page.getByLabel("Token fiscal do aplicativo Omie", { exact: true }).fill("synthetic-omie-access");
+        assert.equal(await button.isDisabled(), true);
+        await page.getByLabel("Token de renovação fiscal", { exact: true }).fill("synthetic-omie-refresh");
+        assert.equal(await button.isDisabled(), true);
+        await page.getByLabel("Token fiscal válido até", { exact: true }).fill("2027-05-20");
+        for (const label of ["Token fiscal do aplicativo Omie", "Token de renovação fiscal"]) assert.equal(await page.getByLabel(label, { exact: true }).getAttribute("type"), "password");
+        await button.click();
+        await page.getByText("Conexão salva. Verifique a preparação antes de ativar.", { exact: true }).waitFor();
+        const writes = state.calls.filter(c => c.method === "PUT");
+        assert.equal(writes.length, 1);
+        assert.deepEqual(writes[0].body, { provider: "omie", environment: "production", issuerTaxId: "26.517.729/0001-23",
+          stockOwner: "zyon", emailOwner: "zyon", whatsappOwner: "zyon", credential: { kind: "app_credentials", secret: JSON.stringify({
+            contract: "omie_app_v1", environment: "production", issuerTaxId: "26517729000123", token: "synthetic-omie-access",
+            refreshToken: "synthetic-omie-refresh", expiresAt: "2027-05-20T23:59:59.000Z", appHash: "omie-company-a" }) } });
+        for (const label of ["Token fiscal do aplicativo Omie", "Token de renovação fiscal", "Identificação do aplicativo Omie"]) assert.equal(await page.getByLabel(label, { exact: true }).inputValue(), "");
+        assert.equal(await page.getByText("Conta Omie conectada · Emissão ainda não ativa.", { exact: false }).count(), 1);
+        assert.equal(state.calls.filter(c => c.path.endsWith("/activate")).length, 0);
+        assert.deepEqual(state.errors, []);
+      } finally { await context.close(); }
+    });
+    await run("Tiny uses its read-only callback and private app keys without retaining them across providers", async () => {
+      const { context, page, state } = await arrange();
+      try {
+        await page.getByLabel("Emissor fiscal", { exact: true }).selectOption("tiny");
+        const redirect = page.getByLabel("URL de redirecionamento do aplicativo", { exact: true });
+        await page.waitForFunction(() => [...document.querySelectorAll('input')].some(input => input.readOnly && input.value.includes('/olist/oauth/callback')));
+        assert.equal(await redirect.getAttribute("readonly"), "");
+        assert.equal(new URL(await redirect.inputValue()).hash, "");
+        const button = page.getByRole("button", { name: "Autorizar conta no Tiny/Olist", exact: true });
+        await page.getByLabel("CNPJ da empresa emitente", { exact: true }).fill("26.517.729/0001-23");
+        assert.equal(await button.isDisabled(), true);
+        await page.getByLabel("Identificação do aplicativo Tiny/Olist", { exact: true }).fill("synthetic-client");
+        assert.equal(await button.isDisabled(), true);
+        const secret = page.getByLabel("Segredo do aplicativo Tiny/Olist", { exact: true });
+        await secret.fill("synthetic-client-secret");
+        assert.equal(await secret.getAttribute("type"), "password");
+        assert.equal(await button.isEnabled(), true);
+        assert.equal(await page.getByLabel("Token de renovação fiscal", { exact: true }).count(), 0);
+        await page.getByLabel("Emissor fiscal", { exact: true }).selectOption("omie");
+        await page.getByLabel("Identificação do aplicativo Omie", { exact: true }).waitFor();
+        await page.getByLabel("Emissor fiscal", { exact: true }).selectOption("tiny");
+        assert.equal(await page.getByLabel("Identificação do aplicativo Tiny/Olist", { exact: true }).inputValue(), "");
+        assert.equal(await page.getByLabel("Segredo do aplicativo Tiny/Olist", { exact: true }).inputValue(), "");
+        assert.equal(state.calls.filter(c => c.method === "PUT" || c.method === "POST").length, 0);
+      } finally { await context.close(); }
+    });
+    for (const status of [401, 403, 503]) await run("Tiny configuration failure preserves guidance and blocks authorization " + status, async () => {
+      const { context, page, state } = await arrange({ failures: { "/olist/oauth/configuration": status } });
+      try {
+        await page.getByLabel("Emissor fiscal", { exact: true }).selectOption("tiny");
+        await page.getByRole("alert").filter({ hasText: status === 401 ? "Sessão expirada. Faça login" : status === 403 ? "Acesso negado" : "Não conseguimos consultar a conexão Tiny/Olist" }).waitFor();
+        await page.getByLabel("CNPJ da empresa emitente", { exact: true }).fill("26.517.729/0001-23");
+        await page.getByLabel("Identificação do aplicativo Tiny/Olist", { exact: true }).fill("synthetic-client");
+        await page.getByLabel("Segredo do aplicativo Tiny/Olist", { exact: true }).fill("synthetic-client-secret");
+        assert.equal(await page.getByRole("button", { name: "Autorizar conta no Tiny/Olist", exact: true }).isDisabled(), true);
+        assert.equal(await page.getByLabel("URL de redirecionamento do aplicativo", { exact: true }).inputValue(), "");
+        assert.equal(state.calls.filter(c => (c.path.startsWith("/olist/") || c.path.startsWith("/connection")) && (c.method === "PUT" || c.method === "POST")).length, 0);
+        assert.deepEqual(state.errors, []);
+      } finally { await context.close(); }
+    });
     for (const provider of ["focus", "bling", "omie", "tiny"]) for (const width of [390, 1586]) await run(`Every ${provider} fiscal field and checkbox explains its meaning ${width}`, async () => {
       const { context, page, state } = await arrange({ width, rich: true, existing: connection({ provider, environment: "production", issuerTaxId: "26517729000123", erpConnectionId: provider === "bling" ? eligibleAccount.id : null }) });
       try {
