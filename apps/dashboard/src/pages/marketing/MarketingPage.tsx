@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { UsersRound, Megaphone, SlidersHorizontal } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { normalizeRole } from "../../lib/auth/roles.js";
 import { PageHeader } from "../../components/PageHeader.js";
@@ -26,16 +27,28 @@ export function MarketingPage({
   const approver = role === "OWNER" || role === "ADMIN";
   const active = approver ? tab : "contacts";
   const tabs = [
-    { key: "contacts", label: "Contatos e funil" },
+    {
+      key: "contacts",
+      label: "Contatos e funil",
+      icon: <UsersRound size={16} />,
+    },
     ...(approver
       ? [
-          { key: "campaigns", label: "Campanhas" },
-          { key: "settings", label: "Configurações" },
+          {
+            key: "campaigns",
+            label: "Campanhas",
+            icon: <Megaphone size={16} />,
+          },
+          {
+            key: "settings",
+            label: "Configurações",
+            icon: <SlidersHorizontal size={16} />,
+          },
         ]
       : []),
   ];
   return (
-    <div className="page-container marketing-page">
+    <div className="page-container marketing-page marketing-workspace">
       <PageHeader
         title="Marketing"
         description="Acompanhe contatos, oportunidades e comunicações da sua loja."

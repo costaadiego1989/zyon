@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Megaphone, ArrowLeft } from "lucide-react";
 import { Button } from "../../components/Button.js";
 import { PageLoader } from "../../components/PageLoader.js";
-import { EmptyState } from "../../components/EmptyState.js";
+import { MarketingEmptyState } from "./MarketingEmptyState.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import { CampaignEditor } from "./CampaignEditor.js";
 import { useMarketingCampaigns } from "./useMarketingCampaigns.js";
@@ -353,18 +353,20 @@ export function CampaignsPanel({
         </>
       ) : (
         <>
-          <header className="marketing-section">
-            <h2>Campanhas pelo WhatsApp</h2>
-            <p>
-              Crie novidades, comunicações e promoções para contatos que
-              autorizaram o recebimento.
-            </p>
+          <header className="marketing-section-heading marketing-campaign-heading">
+            <div>
+              <h2>Campanhas pelo WhatsApp</h2>
+              <p>
+                Crie novidades, comunicações e promoções para contatos que
+                autorizaram o recebimento.
+              </p>
+            </div>
             <Button onClick={vm.create}>Criar campanha</Button>
           </header>
           {vm.loading ? (
             <PageLoader variant="section" />
           ) : !vm.list.length ? (
-            <EmptyState
+            <MarketingEmptyState
               icon={Megaphone}
               title="Sua primeira campanha começa aqui"
               description="Defina a mensagem e o público. Revise a autorização e aprove antes de liberar os envios."

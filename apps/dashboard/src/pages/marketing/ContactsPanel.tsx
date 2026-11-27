@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Users, ArrowLeft } from "lucide-react";
+import {
+  Users,
+  ArrowLeft,
+  ArrowUpRight,
+  ChevronRight,
+  MessageSquare,
+  X,
+} from "lucide-react";
 import {
   marketingApi,
   marketingStages,
@@ -11,7 +18,9 @@ import {
   type MarketingStage,
 } from "../../api/marketing.js";
 import { Button } from "../../components/Button.js";
-import { DataPanel } from "../../components/DataPanel.js";
+import { Pagination } from "../../components/Pagination.js";
+import { SearchInput } from "../../components/SearchInput.js";
+import { MarketingEmptyState } from "./MarketingEmptyState.js";
 import { FilterToolbar, FilterSelect } from "../../components/FilterToolbar.js";
 import {
   contactName,
@@ -58,6 +67,11 @@ export function ContactsPanel({
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const refresh = () => setRevision((value) => value + 1);
+  const hasFilters = Boolean(
+    query.search || query.channel || query.stage || query.buyer
+  );
+  const clearFilters = () =>
+    setQuery({ search: "", channel: "", stage: "", buyer: "", offset: 0 });
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -333,157 +347,246 @@ export function ContactsPanel({
         className="marketing-section marketing-funnel"
         aria-label="Funil de contatos identificados"
       >
-        <header>
-          <h2>Funil de relacionamento</h2>
-          <p>
+        <header className="marketing-section-heading">
+          <div>
+            <h2>Funil de relacionamento</h2>
+            <p>Acompanhe a etapa atual dos contatos da sua loja.</p>
+          </div>
+          <span className="marketing-total">
             {funnel?.total.toLocaleString("pt-BR") ?? "—"} contatos
-            identificados · Etapa atual em toda a base
-          </p>
+            identificados
+          </span>
         </header>
-        {marketingStages.map((stage) => {
-          const total =
-            funnel?.rows
-              .filter((row) => row.stage === stage)
-              .reduce((sum, row) => sum + row.total, 0) ?? 0;
-          return (
-            <button
-              type="button"
-              key={stage}
-              className="marketing-funnel-row"
-              aria-pressed={query.stage === stage}
-              onClick={() =>
-                filter("stage", query.stage === stage ? "" : stage)
-              }
-            >
-              <span>
-                {marketingStageLabels[stage]}
+        <div className="marketing-stages">
+          {marketingStages.map((stage) => {
+            const total =
+              funnel?.rows
+                .filter((row) => row.stage === stage)
+                .reduce((sum, row) => sum + row.total, 0) ?? 0;
+            return (
+              <button
+                type="button"
+                key={stage}
+                className="marketing-stage"
+                aria-pressed={query.stage === stage}
+                onClick={() =>
+                  filter("stage", query.stage === stage ? "" : stage)
+                }
+              >
+                <span className="marketing-stage__label">
+                  {marketingStageLabels[stage]}
+                </span>
+                <strong>{funnel ? total.toLocaleString("pt-BR") : "—"}</strong>
+                <span className="marketing-funnel-track" aria-hidden="true">
+                  <span
+                    style={{
+                      width: `${
+                        funnel?.total ? (total / funnel.total) * 100 : 0
+                      }%`,
+                    }}
+                  />
+                </span>
                 <small>
                   {funnel?.rows
                     .filter((row) => row.stage === stage)
                     .map((row) => `${originLabel(row.origin)}: ${row.total}`)
-                    .join(" · ")}
+                    .join(" · ") || "Nenhum contato"}
                 </small>
-              </span>
-              <span className="marketing-funnel-track" aria-hidden="true">
-                <span
-                  style={{
-                    width: `${
-                      funnel?.total ? (total / funnel.total) * 100 : 0
-                    }%`,
-                  }}
-                />
-              </span>
-              <strong>{funnel ? total.toLocaleString("pt-BR") : "—"}</strong>
-            </button>
-          );
-        })}
-        <p className="marketing-help">
-          Navegação anônima não entra neste funil. Uma nova oportunidade
-          preserva as compras anteriores do contato.
-        </p>
-      </section>
-      <FilterToolbar
-        tabs={[
-          { key: "", label: "Todos os canais" },
-          { key: "whatsapp", label: "WhatsApp" },
-          { key: "site", label: "Site" },
-        ]}
-        activeTab={query.channel}
-        onTabChange={(value) => filter("channel", value)}
-        search={query.search}
-        onSearchChange={(value) => filter("search", value)}
-        searchPlaceholder="Nome, telefone ou e-mail"
-        extra={
-          <FilterSelect
-            value={query.buyer}
-            onChange={(value) => filter("buyer", value)}
-            placeholder="Leads e compradores"
-            options={[
-              { value: "lead", label: "Leads" },
-              { value: "customer", label: "Compradores" },
-            ]}
-          />
-        }
-      />
-      {query.stage && (
-        <p className="marketing-active-filter">
-          Etapa: {marketingStageLabels[query.stage as MarketingStage]}{" "}
-          <Button variant="ghost" size="sm" onClick={() => filter("stage", "")}>
-            Limpar etapa
-          </Button>
-        </p>
-      )}
-      {loading ? (
-        <div role="status" className="marketing-loading">
-          Carregando contatos…
+              </button>
+            );
+          })}
         </div>
-      ) : (
-        <DataPanel
-          title="Contatos da loja"
-          total={page.total}
-          page={query.offset / 25 + 1}
-          pageSize={25}
-          onPageChange={(value) =>
-            setQuery((previous) => ({ ...previous, offset: (value - 1) * 25 }))
-          }
-          isEmpty={!page.items.length}
-          empty={{
-            icon: Users,
-            title: "Nenhum contato neste filtro",
-            description:
-              "Contatos aparecem pelo WhatsApp ou após cadastro e login no site. Ajuste os filtros ou aguarde novos atendimentos.",
-          }}
-        >
-          <div className="marketing-table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Contato</th>
-                  <th>Origem</th>
-                  <th>Etapa</th>
-                  <th>Compras</th>
-                  <th>Último contato</th>
-                  <th>
-                    <span className="sr-only">Detalhes</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {page.items.map((contact) => (
-                  <tr key={contact.id}>
-                    <td>
-                      <strong>{contactName(contact)}</strong>
-                      <small>
-                        {contact.phone
-                          ? `Telefone terminado em ${contact.phone.slice(-4)}`
-                          : contact.email || "Telefone não identificado"}
-                      </small>
-                    </td>
-                    <td>
-                      {originLabel(contact.origin)}
-                      <small>
-                        {contact.channels.length > 1 ? "Site e WhatsApp" : ""}
-                      </small>
-                    </td>
-                    <td>{marketingStageLabels[contact.stage]}</td>
-                    <td>{contact.purchaseCount}</td>
-                    <td>{marketingDate(contact.lastSeenAt)}</td>
-                    <td>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelected(contact.id)}
-                      >
-                        Ver contato
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      </section>
+      <section className="marketing-contact-list" aria-label="Contatos da loja">
+        <header className="marketing-section-heading">
+          <div className="marketing-list-title">
+            <h2>Contatos da loja</h2>
+            <span className="marketing-count">
+              {page.total.toLocaleString("pt-BR")}
+            </span>
           </div>
-        </DataPanel>
-      )}
+        </header>
+        <div className="marketing-contact-filters">
+          <SearchInput
+            value={query.search}
+            onChange={(value) => filter("search", value)}
+            placeholder="Nome, telefone ou e-mail"
+            width="100%"
+          />
+          <FilterToolbar
+            tabs={[
+              { key: "", label: "Todos os canais" },
+              { key: "whatsapp", label: "WhatsApp" },
+              { key: "site", label: "Site" },
+            ]}
+            activeTab={query.channel}
+            onTabChange={(value) => filter("channel", value)}
+            extra={
+              <FilterSelect
+                value={query.buyer}
+                onChange={(value) => filter("buyer", value)}
+                placeholder="Leads e compradores"
+                options={[
+                  { value: "lead", label: "Leads" },
+                  { value: "customer", label: "Compradores" },
+                ]}
+              />
+            }
+          />
+        </div>
+        {query.stage && (
+          <p className="marketing-active-filter">
+            <span>
+              Etapa:{" "}
+              <strong>
+                {marketingStageLabels[query.stage as MarketingStage]}
+              </strong>
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => filter("stage", "")}
+            >
+              <X size={14} aria-hidden="true" /> Limpar etapa
+            </Button>
+          </p>
+        )}
+        {loading ? (
+          <div role="status" className="marketing-loading">
+            <span>Carregando contatos…</span>
+            {[1, 2, 3].map((row) => (
+              <div
+                key={row}
+                className="marketing-skeleton"
+                aria-hidden="true"
+              />
+            ))}
+          </div>
+        ) : !page.items.length ? (
+          <MarketingEmptyState
+            icon={Users}
+            title="Nenhum contato neste filtro"
+            description={
+              hasFilters
+                ? "Tente outra busca ou remova os filtros para ver todos os contatos."
+                : "Os contatos do WhatsApp aparecem no primeiro atendimento. No site, após cadastro ou login."
+            }
+            action={
+              hasFilters ? (
+                <Button variant="outline" onClick={clearFilters}>
+                  Limpar filtros
+                </Button>
+              ) : (
+                <a href="#conversations" className="marketing-empty-link">
+                  <MessageSquare size={16} aria-hidden="true" /> Abrir conversas{" "}
+                  <ArrowUpRight size={14} aria-hidden="true" />
+                </a>
+              )
+            }
+          />
+        ) : (
+          <>
+            <div className="marketing-table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Contato</th>
+                    <th className="marketing-column-origin">Origem</th>
+                    <th>Etapa</th>
+                    <th className="marketing-column-purchases">Compras</th>
+                    <th className="marketing-column-date">Último contato</th>
+                    <th>
+                      <span className="sr-only">Detalhes</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {page.items.map((contact) => (
+                    <tr key={contact.id}>
+                      <td className="marketing-contact-cell">
+                        <div className="marketing-contact-identity">
+                          <span className="marketing-avatar" aria-hidden="true">
+                            {contact.name ? (
+                              contact.name
+                                .trim()
+                                .split(/\s+/)
+                                .slice(0, 2)
+                                .map((part) => part[0])
+                                .join("")
+                                .toUpperCase()
+                            ) : (
+                              <Users size={17} />
+                            )}
+                          </span>
+                          <div>
+                            <strong>{contactName(contact)}</strong>
+                            <small>
+                              {contact.phone
+                                ? `Telefone terminado em ${contact.phone.slice(
+                                    -4
+                                  )}`
+                                : contact.email || "Telefone não identificado"}
+                            </small>
+                            <small className="marketing-mobile-origin">
+                              {originLabel(contact.origin)}
+                            </small>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="marketing-column-origin">
+                        <span
+                          className="marketing-origin"
+                          data-channel={contact.origin}
+                        >
+                          {originLabel(contact.origin)}
+                        </span>
+                        <small>
+                          {contact.channels.length > 1 ? "Site e WhatsApp" : ""}
+                        </small>
+                      </td>
+                      <td>
+                        <span
+                          className="marketing-stage-badge"
+                          data-stage={contact.stage}
+                        >
+                          {marketingStageLabels[contact.stage]}
+                        </span>
+                      </td>
+                      <td className="marketing-column-purchases">
+                        {contact.purchaseCount}
+                      </td>
+                      <td className="marketing-column-date">
+                        {marketingDate(contact.lastSeenAt)}
+                      </td>
+                      <td className="marketing-contact-open">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelected(contact.id)}
+                        >
+                          <span>Ver contato</span>
+                          <ChevronRight size={15} aria-hidden="true" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              total={page.total}
+              page={query.offset / 25 + 1}
+              pageSize={25}
+              onChange={(value) =>
+                setQuery((previous) => ({
+                  ...previous,
+                  offset: (value - 1) * 25,
+                }))
+              }
+            />
+          </>
+        )}
+      </section>
     </section>
   );
 }
