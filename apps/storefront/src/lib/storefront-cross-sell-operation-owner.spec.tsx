@@ -73,3 +73,18 @@ it('S3 unchanged original buyer may publish after the new canonical applied-cart
   expect(ports.post).toHaveBeenCalledTimes(1);expect(ports.post.mock.calls[0].slice(0,3)).toEqual(['cart','store','b']);
   expect(f.applied).toEqual([after()]);expect(f.published).toEqual([block()]);expect(ports.accept).toHaveBeenCalledTimes(1);
 });
+
+it('S3 five-tool v1 advertisement retains exact catalog actions without a question-write grant',async()=>{
+  const {rememberStorefrontReadUiActionCapability,storefrontReadUiActionRequest,forgetStorefrontReadUiActionCapability}=await import('./storefront-read-ui-action');
+  const conversationId='s3-v1-capability-'+Date.now()+'-'+Math.random(),merchantId='s3-capability-merchant';
+  const capability={version:1,tools:['search_products','get_product_details','get_product_questions','ask_product_question','create_question']};
+  const actions=[{tool:'get_product_details',args:{productId:'complement-product'}},{tool:'search_products',args:{query:'*',categoryId:'complement-category'}}]as const;
+  try{
+    rememberStorefrontReadUiActionCapability(conversationId,merchantId,capability);
+    for(const action of actions)expect(storefrontReadUiActionRequest(conversationId,merchantId,action)).toEqual({ui_action_version:1,ui_action:action});
+    expect(storefrontReadUiActionRequest(conversationId,'foreign-merchant',actions[0])).toBeUndefined();
+    expect(storefrontReadUiActionRequest(conversationId+'-foreign',merchantId,actions[0])).toBeUndefined();
+    expect(()=>storefrontReadUiActionRequest(conversationId,merchantId,{tool:'create_question',args:{productId:'complement-product',question:'Synthetic question'}})).toThrow('invalid_storefront_ui_action');
+  }finally{forgetStorefrontReadUiActionCapability(conversationId);}
+  expect(storefrontReadUiActionRequest(conversationId,merchantId,actions[0])).toBeUndefined();
+});

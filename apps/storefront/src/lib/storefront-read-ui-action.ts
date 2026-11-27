@@ -34,8 +34,8 @@ export function cloneStorefrontReadUiAction(value: unknown): StorefrontReadUiAct
 
 function parseCapability(value: unknown): StorefrontReadUiActionCapability | null {
   if (!record(value) || !keys(value, ["version", "tools"]) || value.version !== 1 || !Array.isArray(value.tools)) return null;
-  if (!value.tools.length || value.tools.length > 2 || new Set(value.tools).size !== value.tools.length
-    || !value.tools.every(tool => tool === "search_products" || tool === "get_product_details")) return null;
+  if (!value.tools.length || value.tools.length > 5 || new Set(value.tools).size !== value.tools.length
+    || !value.tools.every(tool => tool === "search_products" || tool === "get_product_details" || tool === "get_product_questions" || tool === "ask_product_question" || tool === "create_question")) return null;
   return { version: 1, tools: [...value.tools] };
 }
 
