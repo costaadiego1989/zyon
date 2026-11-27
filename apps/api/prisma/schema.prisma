@@ -2889,6 +2889,27 @@ model ProtocolSession {
   @@map("protocol_sessions")
 }
 
+/// Encrypted send-time content and recipients, with authenticated provider receipts.
+model RecoveryMessage {
+  id                String @id
+  merchantId        String @map("merchant_id")
+  correlationId     String @map("correlation_id")
+  channel           String
+  configId          String? @map("config_id")
+  snapshot          String
+  status            String @default("dispatching")
+  providerMessageId String? @map("provider_message_id")
+  reason            String?
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(3)
+  deliveredAt       DateTime? @map("delivered_at") @db.Timestamptz(3)
+  readAt            DateTime? @map("read_at") @db.Timestamptz(3)
+  failedAt          DateTime? @map("failed_at") @db.Timestamptz(3)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  @@index([merchantId, correlationId], map: "recovery_messages_merchant_correlation")
+  @@index([merchantId, configId, providerMessageId], map: "recovery_messages_provider")
+  @@map("recovery_messages")
+}
+
 model RecoveryAttempt {
   id                String                @id @default(cuid())
   merchantId        String                @map("merchant_id")

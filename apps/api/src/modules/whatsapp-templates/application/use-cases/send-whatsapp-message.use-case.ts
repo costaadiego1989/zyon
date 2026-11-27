@@ -15,6 +15,11 @@ import type { WhatsAppTemplateType } from "../../domain/catalog/template-types.j
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
 import { connectedMetaCloudRecoveryCredentials, isApprovedSalesTemplate, isApprovedSalesTemplateIdentity } from "../../domain/services/recovery-whatsapp-policy.js";
 import { renderRecoveryEmail } from "../../domain/recovery-email.js";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { RecoveryMessageJournal } from "../../../cart-recovery/infrastructure/recovery-message-journal.js";
+import { normalizeRecoveryRecipient } from "../../domain/services/recovery-whatsapp-policy.js";
+import { templateDispatchDigest } from "../../domain/services/template-dispatch-binding.js";
 
 export type WhatsAppProvider = "email" | "bubblewhats" | "meta";
 
@@ -73,6 +78,7 @@ export class SendWhatsAppMessageUseCase {
     @Optional()
     @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo?: WhatsAppConfigRepository,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) {}
 
   async execute(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
@@ -102,6 +108,14 @@ export class SendWhatsAppMessageUseCase {
         const approvalPolicy = input.type === "cart_recovery" ? isApprovedSalesTemplateIdentity : isApprovedSalesTemplate;
         if (approvalPolicy(template, input.merchantId, input.type, connection.wabaId)
           && (input.type !== "cart_recovery" || hasRecoveryLinkSlot(template))) {
+          const variables = this.resolveVariables(template, input.variables ?? {});
+          const journal = this.prisma && input.type === "cart_recovery" && input.correlationId ? new RecoveryMessageJournal(this.prisma) : null;
+          const recordId = journal ? await journal.prepare(input.merchantId, input.correlationId!, "whatsapp_template", {
+            name: String(input.variables?.buyerName ?? "") || null, email: input.fallbackEmail ?? null,
+            phone: input.toPhone ?? null, recipient: normalizeRecoveryRecipient(input.toPhone!) ?? input.toPhone!,
+            body: (template.metaTemplateBody ?? template.body).replace(/\{\{(\d+)\}\}/g, (_, key: string) => variables[key] ?? ""),
+            subject: null, template: template.twilioContentSid,
+          }, config!.id) : null;
           try {
             const result = await this.templateSender.sendTemplate({
               merchantId: input.merchantId,
@@ -110,9 +124,12 @@ export class SendWhatsAppMessageUseCase {
               toNumber: input.toPhone,
               contentSid: template.twilioContentSid,
               language: template.metaLanguage ?? "pt_BR",
-              contentVariables: this.resolveVariables(template, input.variables ?? {}),
+              contentVariables: variables,
+              ...(journal ? { expectedConnection: { configId: config!.id, wabaId: connection.wabaId, phoneNumberId: connection.phoneNumberId },
+                expectedTemplate: { revision: template.metaRevision ?? 0, bodyDigest: templateDispatchDigest(template) } } : {}),
               ...(input.assertDispatchAuthorized ? { assertDispatchAuthorized: () => input.assertDispatchAuthorized!("whatsapp") } : {}),
             });
+            if (journal && recordId) await journal.complete(recordId, result);
             if ((result.status === "sent" || result.status === "queued") && result.messageId?.trim()) {
               return { channel: "whatsapp_template", status: "sent", messageId: result.messageId };
             }
@@ -129,6 +146,7 @@ export class SendWhatsAppMessageUseCase {
             }
             fallbackReason = result.reason ?? "whatsapp_dispatch_skipped";
           } catch {
+            if (journal && recordId) await journal.complete(recordId, { status: "uncertain", reason: "provider_acceptance_unknown" });
             return { channel: "whatsapp_template", status: "uncertain", reason: "provider_acceptance_unknown" };
           }
         }
@@ -159,6 +177,12 @@ export class SendWhatsAppMessageUseCase {
       const html = input.freeformText.replace(/&/g, "&amp;").replace(/</g, "&lt;")
         .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/\n/g, "<br>");
       let result;
+      const journal = this.prisma && input.type === "cart_recovery" && input.correlationId ? new RecoveryMessageJournal(this.prisma) : null;
+      const recordId = journal ? await journal.prepare(input.merchantId, input.correlationId!, "email", {
+        name: String(input.variables?.buyerName ?? "") || null, email: input.fallbackEmail,
+        phone: input.toPhone ?? null, recipient: input.fallbackEmail, body: input.freeformText,
+        subject: resolveTemplateEmailSubject(input.type, input.emailSubject, input.variables), template: null,
+      }) : null;
       try {
         result = await this.email.send({
           to: input.fallbackEmail,
@@ -169,7 +193,9 @@ export class SendWhatsAppMessageUseCase {
             : `<p>${html}</p>`,
           requireDelivery: true,
         });
+        if (journal && recordId) await journal.complete(recordId, result);
       } catch (error) {
+        if (journal && recordId) await journal.complete(recordId, { status: "uncertain", reason: "provider_acceptance_unknown" });
         return { channel: "email", status: "uncertain", reason: "provider_acceptance_unknown" };
       }
       if (result.messageId?.trim() && (result.status === "sent" || result.status === "queued")) {

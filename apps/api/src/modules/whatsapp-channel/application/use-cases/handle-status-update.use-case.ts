@@ -6,6 +6,7 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { RecoveryMessageJournal } from "../../../cart-recovery/infrastructure/recovery-message-journal.js";
 
 export interface StatusUpdateInput {
   merchantId: string;
@@ -42,6 +43,11 @@ export class HandleStatusUpdateUseCase {
   constructor(@Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient) {}
 
   async receiveMetaReceipt(input: MetaReceiptInput): Promise<void> {
+    if (input.correlationId && /^(rec_|c[a-z0-9]{20,}$)/.test(input.correlationId)) {
+      if (!this.prisma) throw new Error("whatsapp_receipt_store_unavailable");
+      await new RecoveryMessageJournal(this.prisma).receipt(input);
+      return;
+    }
     if(typeof input.correlationId==='string'&&CAMPAIGN_CORRELATION.test(input.correlationId)){
       await this.receiveCampaignReadyReceipt(input);return;
     }
