@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdirSync, writeFileSync } from "node:fs";
+import net from "node:net";
 import { chromium } from "playwright";
 const requireDashboard = createRequire(new URL("../package.json", import.meta.url));
 const { createServer } = await import(pathToFileURL(requireDashboard.resolve("vite")).href);
@@ -10,11 +11,17 @@ const group = process.argv[2] ?? "all";
 assert.ok(["settings", "invoices", "all"].includes(group));
 const artifacts = fileURLToPath(new URL("../../../.specs/features/fiscal-ui-review-20261127/browser/", import.meta.url));
 mkdirSync(artifacts, { recursive: true });
+// Vite treats port: 0 as its shared default. Reserve a real ephemeral port.
+const portProbe = net.createServer();
+await new Promise((resolve, reject) => { portProbe.once("error", reject); portProbe.listen(0, "127.0.0.1", resolve); });
+const port = portProbe.address().port;
+await new Promise(resolve => portProbe.close(resolve));
 const server = await createServer({ root: fileURLToPath(new URL("../", import.meta.url)), configFile: false,
   plugins: [react()], define: { "import.meta.env.PROD": "true", "import.meta.env.DEV": "false" },
   optimizeDeps: { entries: ["tests/fiscal-ui-review.fixture.html"] }, logLevel: "error",
-  server: { host: "127.0.0.1", port: 0, strictPort: true } });
+  server: { host: "127.0.0.1", port, strictPort: true } });
 let browser;
+let activeCase = "startup";
 const results = [];
 const eligibleAccount = { id: "bling-owned-a", provider: "bling", status: "connected" };
 const connection = input => ({ id: "fiscal-owned-a", merchantId: "merchant-a", isActive: false, activatedAt: null, disconnectedAt: null,
@@ -65,6 +72,7 @@ try {
     return { context, page, state };
   }
   async function run(name, work) {
+    activeCase = name;
     const start = Date.now();
     await Promise.race([work(), new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error("case deadline exceeded: " + name)), 30000); timer.unref(); })]);
     results.push({ name, status: "pass", durationMs: Date.now() - start });
@@ -287,6 +295,10 @@ try {
   }
   writeFileSync(artifacts + group + "-results.json", JSON.stringify({ status: "pass", cases: results.length, results }, null, 2));
   console.log(JSON.stringify({ status: "pass", cases: results.length, results }));
+} catch (error) {
+  writeFileSync(artifacts + group + "-failure.json", JSON.stringify({ status: "fail", case: activeCase,
+    port, error: error.stack ?? String(error), completed: results }, null, 2));
+  throw error;
 } finally {
   await browser?.close();
   await server.close();
