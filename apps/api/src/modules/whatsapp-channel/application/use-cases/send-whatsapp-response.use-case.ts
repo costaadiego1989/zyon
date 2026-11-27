@@ -30,8 +30,8 @@ export class SendWhatsAppResponseUseCase {
     return this.sender.sendText({ ...input, uiMessage: input.uiMessage });
   }
 
-  async execute(input: SendResponseInput): Promise<void> {
-    if (await this.delivery?.capture(input)) return;
+  async execute(input: SendResponseInput): Promise<{status:"accepted"|"unknown"; messageId?:string}> {
+    if (await this.delivery?.capture(input)) return {status:"unknown"};
     try {
       const result = await this.sender.sendText({
         provider: input.provider,
@@ -49,6 +49,7 @@ export class SendWhatsAppResponseUseCase {
       this.logger.debug(
         `whatsapp_send_status status=${result.status}`,
       );
+      return { status: "accepted", messageId: result.messageId };
     } catch (error) {
       this.logger.error(
         "whatsapp_send_failed",

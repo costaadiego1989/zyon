@@ -12,11 +12,22 @@ export class WhatsAppDeliveryUncertainError extends Error {
 
 @Injectable()
 export class WhatsAppDeliveryService {
-  private readonly context = new AsyncLocalStorage<{ claim: WhatsAppInboxClaim; captured: boolean }>();
+  private readonly context = new AsyncLocalStorage<{ claim: WhatsAppInboxClaim; captured: boolean; suppressed?: boolean }>();
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(WHATSAPP_SENDER_PORT) private readonly sender: WhatsAppSenderPort,
   ) {}
+
+  /** A human owns this turn; persist that no automated response is due. */
+  async suppress(): Promise<void> {
+    const context = this.context.getStore();
+    if (!context) return;
+    if (context.captured) throw new Error("whatsapp_response_scope_mismatch");
+    const updated = await this.prisma.whatsAppDelivery.updateMany({where:{id:context.claim.id, merchantId:context.claim.merchantId,
+      state:"processing", processingToken:context.claim.leaseToken},data:{state:"suppressed"}});
+    if (updated.count !== 1) throw new WhatsAppDeliveryUncertainError();
+    context.captured=true; context.suppressed=true;
+  }
 
   async capture(input: SendResponseInput): Promise<boolean> {
     const context = this.context.getStore();
@@ -43,11 +54,12 @@ export class WhatsAppDeliveryService {
         if ((error as { code?: string }).code !== "P2002") throw error;
         throw new WhatsAppDeliveryUncertainError();
       }
-      const context = { claim, captured: false };
+      const context: {claim: WhatsAppInboxClaim; captured:boolean; suppressed?:boolean} = { claim, captured: false };
       try {
         if (!await ownsLease()) throw new WhatsAppDeliveryUncertainError();
         await this.context.run(context, run);
         if (!context.captured) throw new Error("whatsapp_response_missing");
+        if (context.suppressed) return;
         const updated = await this.prisma.whatsAppDelivery.updateMany({
           where: { id: claim.id, state: "processing", processingToken: claim.leaseToken }, data: { state: "ready" },
         });
@@ -59,7 +71,7 @@ export class WhatsAppDeliveryService {
       row = await this.prisma.whatsAppDelivery.findUniqueOrThrow({ where: { id: claim.id } });
     }
     if (row.merchantId !== claim.merchantId || row.configId !== claim.configId) throw new Error("whatsapp_delivery_scope_mismatch");
-    if (row.state === "sent") return;
+    if (row.state === "sent" || row.state === "suppressed") return;
     if (row.state !== "ready") {
       await this.prisma.whatsAppDelivery.updateMany({ where: { id: claim.id, state: { in: ["processing", "sending"] } }, data: { state: row.state === "sending" ? "submission_unknown" : "processing_unknown" } });
       throw new WhatsAppDeliveryUncertainError();

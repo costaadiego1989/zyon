@@ -55,6 +55,8 @@ export type TabKey =
   | "erp-integrations"
   | "shipments"
   | "customers"
+  | "conversations"
+  | "marketing"
   | "returns"
   | "funnel"
   | "embed"
@@ -157,6 +159,8 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "finance", label: "Financeiro", section: "daily", icon: Landmark, requiredPlan: STORE, keywords: ["financeiro", "finance", "transações", "receita", "reembolsos", "relatórios"] },
   { key: "shipments", label: "Pedidos e envios", section: "daily", icon: PackageSearch, requiredPlan: STORE, badgeKey: "orders", keywords: ["pedidos", "orders", "envios", "shipments", "entregas"] },
   { key: "customers", label: "Clientes", section: "daily", icon: UsersRound, requiredPlan: STORE, keywords: ["clientes", "customers", "compradores"] },
+  { key: "conversations", label: "Conversas", section: "daily", icon: MessageSquare, keywords: ["conversas", "whatsapp", "site", "chat", "handoff", "atendimento humano"] },
+  { key: "marketing", label: "Marketing", section: "sales", icon: UsersRound, keywords: ["marketing", "crm", "leads", "contatos", "campanhas", "promoções", "funil de relacionamento"] },
   { key: "cart-recovery", label: "Recuperação de carrinho", section: "daily", icon: ShoppingCart, requiredPlan: STORE, badgeKey: "cart-recovery", keywords: ["carrinho", "cart", "recovery", "abandonado", "recuperação"] },
   { key: "support", label: "Atendimento", section: "daily", icon: MessageSquare, badgeKey: "messages", keywords: ["suporte", "support", "atendimento", "chamados", "tickets", "mensagens"] },
 
@@ -190,7 +194,7 @@ export const NAV_ITEMS: NavItem[] = [
   // ─── INTEGRAÇÕES ─── conexões técnicas
   { key: "payment-connections", label: "Pagamentos", section: "integrations", icon: CreditCard, keywords: ["pagamentos", "payments", "asaas", "stripe", "mercado pago", "gateway"] },
   { key: "integrations", label: "API e webhooks", section: "integrations", icon: Webhook, keywords: ["api", "webhooks", "chaves", "keys", "desenvolvedor", "integração", "shopify", "woocommerce", "vtex"] },
-  { key: "crm-integrations", label: "CRM e marketing", section: "integrations", icon: Plug, keywords: ["crm", "marketing", "hubspot", "pipedrive", "rd station"] },
+  { key: "crm-integrations", label: "Integrações com CRM", section: "integrations", icon: Plug, keywords: ["crm", "marketing", "hubspot", "pipedrive", "rd station"] },
   { key: "erp-integrations", label: "ERP e marketplaces", section: "integrations", icon: Package, requiredPlan: STORE, keywords: ["erp", "estoque", "bling", "tiny", "omie", "mercado livre", "shopee", "tiktok shop"] },
 
   // ─── INTELIGÊNCIA IA ─── features avançadas/analytics

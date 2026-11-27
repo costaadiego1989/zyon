@@ -25,6 +25,7 @@ import {
 } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { MARKETING_RELATIONSHIP, MARKETING_ACCEPT, MARKETING_DECLINE, type MarketingRelationshipPort } from "../../../../shared/contracts/marketing.js";
 import type { Request, Response } from "express";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../domain/ports/whatsapp-config-repository.port.js";
 import { AcceptBubbleWhatsWebhookUseCase } from "../../application/use-cases/accept-bubblewhats-webhook.use-case.js";
@@ -78,7 +79,7 @@ interface MetaInboundMessage {
   image?: { id?: string; mime_type?: string; caption?: string };
   document?: { id?: string; mime_type?: string; filename?: string; caption?: string };
   audio?: { id?: string; mime_type?: string };
-  button?: { text?: string };
+  button?: { text?: string; payload?: string };
   interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string }; nfm_reply?: { response_json?: string; body?: string } };
 }
 
@@ -108,6 +109,7 @@ export class WhatsAppWebhookController {
     @Optional() private readonly metaStatus?: HandleStatusUpdateUseCase,
     @Optional() @Inject(FISCAL_DELIVERY_DISPATCH) private readonly fiscalDelivery?: FiscalDeliveryDispatchPort,
     @Optional() @Inject(PROSPECT_META_DISPATCH) private readonly prospecting?: ProspectMetaDispatchPort,
+    @Optional() @Inject(MARKETING_RELATIONSHIP) private readonly marketing?: MarketingRelationshipPort,
   ) {}
 
   @Get("meta")
@@ -186,6 +188,8 @@ export class WhatsAppWebhookController {
         for (const status of value?.statuses ?? []) {
           if (!this.delivery) throw new ServiceUnavailableException("whatsapp_delivery_not_configured");
           await this.delivery.reconcileMeta(config.merchantId, config.id, status);
+          if (status.id && ["sent","delivered","read","failed"].includes(status.status ?? ""))
+            await this.marketing?.delivery(config.merchantId, status.id, status.status === "sent" ? "accepted" : status.status as "delivered"|"read"|"failed");
         }
         for (const status of value?.statuses ?? []) {
           if (!status.id || !status.status) continue;
@@ -239,6 +243,8 @@ export class WhatsAppWebhookController {
   }
 
   private metaMessageBody(message: MetaInboundMessage): string {
+    const choice = message.interactive?.button_reply?.id ?? message.button?.payload;
+    if (choice === MARKETING_ACCEPT || choice === MARKETING_DECLINE) return choice;
     return message.text?.body
       ?? (message.order ? "Escolhi produtos no catálogo do WhatsApp" : undefined)
       ?? message.image?.caption ?? message.document?.caption

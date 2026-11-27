@@ -96,6 +96,18 @@ describe("Meta Cloud template submission", () => {
     assert.match(result.contentSid, /^zyon_/);
   });
 
+  test("marketing approval also requires the exact provider category", async () => {
+    for (const category of ["UTILITY", undefined]) {
+      globalThis.fetch = (async () => Response.json({ data: [{ name: "zyon_campaign", status: "APPROVED", category,
+        language: "pt_BR", components: [{ type: "BODY", text: input.metaBody }] }] })) as typeof fetch;
+      const result = await new MetaCloudTemplateAdapter(configs).syncStatus(input.merchantId, "zyon_campaign", {
+        language: "pt_BR", body: input.metaBody, category: "MARKETING",
+      });
+      assert.equal(result.status, "disabled");
+      assert.equal(result.rejectionReason, "template_category_mismatch");
+    }
+  });
+
   test("approval must match both language and body, even when the name is approved", async () => {
     const expected = { language: "pt_BR", body: input.metaBody };
     for (const item of [

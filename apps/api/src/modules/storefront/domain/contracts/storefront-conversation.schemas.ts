@@ -32,6 +32,7 @@ const policy = z.strictObject({ maxDiscountPercent: z.number().min(0).max(100).o
 
 export const sendStoreMessageInputSchema = z.strictObject({
   merchant_id: id, conversation_id: id, user_message: message, cart_id: id.optional(), global_user_id: id.optional(),
+  message_id: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/).optional(), marketing_consent: z.enum(["granted", "declined"]).optional(),
   history: history.optional(), attachment_context: attachment, device_type: z.enum(["mobile", "tablet", "desktop"]).optional(),
   one_buy_click: oneBuyClickContextSchema.optional(), ui_action: uiAction.optional(), trusted_buyer_context: buyer.optional(),
 });
@@ -56,6 +57,7 @@ export const sendStoreMessageOutputSchema = z.strictObject({
   blocks: storefrontConversationOutputSchema.shape.blocks,
   cart_id: id.optional(), conversation_id: id, suggested_next: z.array(z.string().min(1).max(500)).max(50),
   suggested_actions: storefrontSuggestedReadActionsSchema.optional(),
+  history_saved: z.boolean().optional(), handoff: z.boolean().optional(),
 });
 
 /** Pin structured response references to the server's current conversation scope. */

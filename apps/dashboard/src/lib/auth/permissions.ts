@@ -58,6 +58,8 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   funnel: ["OWNER", "ADMIN", "STAFF"],
   shipments: ["OWNER", "ADMIN", "STAFF"],
   customers: ["OWNER", "ADMIN", "STAFF"],
+  conversations: ["OWNER", "ADMIN", "STAFF"],
+  marketing: ["OWNER", "ADMIN", "STAFF"],
   marketplace: ["OWNER", "ADMIN", "STAFF"],
   "marketplace-payments": ["OWNER", "ADMIN"],
   "marketplace-shipments": ["OWNER", "ADMIN"],
@@ -69,7 +71,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
 };
 
 export function canAccessTab(role: Role | undefined, tab: TabKey): boolean {
-  if (!role) return !["fiscal-settings", "fiscal-invoices", "fiscal-detail"].includes(tab); // fiscal access requires a resolved merchant role
+  if (!role) return !["fiscal-settings", "fiscal-invoices", "fiscal-detail", "conversations", "marketing"].includes(tab); // sensitive features require a resolved merchant role
   if (role === "OWNER") return true;
   const allow = PERMISSIONS[tab];
   if (!allow) return true; // unrestricted

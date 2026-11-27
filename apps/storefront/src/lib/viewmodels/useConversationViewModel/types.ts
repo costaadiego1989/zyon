@@ -10,6 +10,23 @@ export type Message = {
   ephemeral?: boolean;
 };
 
+/** Read-only transcript. Historical commerce blocks and attachment payloads are never restored. */
+export interface ConversationHistoryMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  sequence: number;
+  client_id?:string;
+}
+
+export interface ConversationHistoryResponse {
+  conversation_id: string;
+  messages: ConversationHistoryMessage[];
+  handoff?:boolean;
+  format?:"messages-v1";
+}
+
 export type ConversationAttachment =
   | { kind: "image"; name: string; mimeType: "image/jpeg" | "image/png" | "image/webp"; dataBase64: string }
   | { kind: "shopping_list"; name: string; mimeType: "text/plain" | "text/csv"; text: string };
@@ -33,6 +50,7 @@ export interface ConversationViewModelProps {
   themeMode?: "dark" | "light" | "grey";
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
+  marketingCrmEnabled?:boolean;
 }
 
 export interface ConversationViewModelState {
@@ -42,6 +60,8 @@ export interface ConversationViewModelState {
   messages: Message[];
   input: string;
   isLoading: boolean;
+  humanHandoff: boolean;
+  marketingChoiceRequired:boolean;
   conversationId: string | null;
   supportOpen: boolean;
   buyerHubOpen: boolean;
@@ -71,6 +91,7 @@ export interface ProductCrossSellPlacement {
 }
 
 export interface ConversationViewModelActions {
+  chooseMarketing:(choice:"granted"|"declined")=>void;
   returnToCurrentConversation: () => void;
   selectChannel: (ch: Channel) => void;
   toggleChannel: () => void;

@@ -113,6 +113,13 @@ export const settingsApi = {
 
 const conversationStarts = new Map<string, Promise<any>>();
 export const checkoutApi = {
+  async getHistory(conversationId:string) {
+    return safeFetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}`,{cache:"no-store"},conversationId);
+  },
+  async identify(conversationId:string,buyerToken:string) {
+    return safeFetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/identity`,{
+      method:"POST",headers:{"X-Buyer-Authorization":`Bearer ${buyerToken}`},body:"{}"},conversationId);
+  },
   async create(data: {
     merchantId: string;
     customerId?: string;
@@ -158,6 +165,8 @@ export const checkoutApi = {
     attachment?: ConversationAttachment;
     uiAction?: StorefrontReadUiAction;
     voiceTurnToken?: string;
+    messageId?:string;
+    marketingConsent?:"granted"|"declined";
   }): Promise<any> {
     const hasUiAction = options?.uiAction !== undefined;
     // Reject malformed commands before IO. The transport prepares the body only
@@ -172,6 +181,7 @@ export const checkoutApi = {
       history: options?.history, variant_id: options?.variantId || undefined,
       attachment: options?.attachment,
       voice_turn_token: options?.voiceTurnToken,
+      message_id:options?.messageId,marketing_consent:options?.marketingConsent,
     }));
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, () => ({
       method: "POST",

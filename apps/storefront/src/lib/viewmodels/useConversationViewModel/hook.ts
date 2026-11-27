@@ -6,6 +6,7 @@ import { assertStorefrontReadUiAction } from "@/lib/storefront-read-ui-action";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
 import type { CartLineSelection } from "@/lib/cart-line-selection";
+import { getValidBuyer } from "@/lib/buyer-auth";
 import { checkoutApi } from "@/lib/api/api-client";
 import { ScopedConversationSession, ScopedConversationUnavailable } from "@/lib/scoped-conversation";
 import { prepareConversationTurn } from "@/lib/prepare-conversation-turn";
@@ -29,6 +30,7 @@ import {
   restoreThemePreference,
   saveThemePreference,
   trackFunnelEvent,
+  decodeConversationHistory,
 } from "@/lib/services/conversation.service";
 import {
   handleSendMessage,
@@ -75,6 +77,18 @@ export function useConversationViewModel(
   const dispatchedConversationIdsRef = useRef(new Set<string>());
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [humanHandoff,setHumanHandoff]=useState(false);
+  const [marketingChoice,setMarketingChoice]=useState<"granted"|"declined"|null>(null);
+  const marketingChoiceRequired=props.marketingCrmEnabled===true&&marketingChoice===null;
+  const chooseMarketing=useCallback((choice:"granted"|"declined")=>{
+    setMarketingChoice(choice);
+    try{sessionStorage.setItem(`zyon_marketing_choice_${merchantId}`,choice);}catch{}
+  },[merchantId]);
+  useEffect(()=>{
+    setMarketingChoice(null);
+    try{const saved=sessionStorage.getItem(`zyon_marketing_choice_${merchantId}`);if(saved==="granted"||saved==="declined")setMarketingChoice(saved);}catch{}
+  },[merchantId]);
+  const marketingPollRevision=useRef(0);
   const [conversationId, setConversationIdState] = useState<string | null>(null);
   const conversationIdRef = useRef<string | null>(null);
   const scopeRef = useRef({ merchantId, mounted: true });
@@ -241,7 +255,8 @@ export function useConversationViewModel(
       if (uiAction !== undefined) assertStorefrontReadUiAction(uiAction);
       const trimmed = text.trim();
       const scope = scopeRef.current;
-      if ((!trimmed && !attachment) || sendingRef.current || !scope.mounted || scope.merchantId !== merchantId) return null;
+      if (marketingChoiceRequired || (!trimmed && !attachment) || sendingRef.current || !scope.mounted || scope.merchantId !== merchantId) return null;
+      marketingPollRevision.current++;
       const startingCartId = cartRef.current.cartId;
       const token = {};
       nudgeGenerationRef.current = null;
@@ -295,6 +310,8 @@ export function useConversationViewModel(
           attachment,
           uiAction,
           voiceTurnToken,
+          marketingConsent:props.marketingCrmEnabled ? marketingChoice ?? undefined : undefined,
+          onHandoff:setHumanHandoff,
           conversationId: conversationIdRef.current,
           setConversationId: (id) => {
             if (!isCurrent()) return;
@@ -333,8 +350,44 @@ export function useConversationViewModel(
         }
       }
     },
-    [merchantId, history, experimentVM, initConversation, setConversationId, clearCart, updateFromBlocks, captureConversationCartProjection, conversationOwner],
+    [merchantId, history, experimentVM, initConversation, setConversationId, clearCart, updateFromBlocks, captureConversationCartProjection, conversationOwner, marketingChoiceRequired, marketingChoice, props.marketingCrmEnabled],
   );
+
+  useEffect(()=>{
+    if (!props.marketingCrmEnabled || !conversationId) return;
+    const scope=scopeRef.current; let active=true;
+    const identify=()=>{
+      const buyer=getValidBuyer(); if (!buyer) return;
+      void checkoutApi.identify(conversationId,buyer.token).then(result=>{
+        if (active && scopeRef.current === scope && scope.mounted && (result.marketing_choice === "granted" || result.marketing_choice === "declined")) chooseMarketing(result.marketing_choice);
+      }).catch(()=>{});
+    };
+    identify();window.addEventListener("storage",identify);
+    return()=>{active=false;window.removeEventListener("storage",identify);};
+  },[props.marketingCrmEnabled,conversationId,chooseMarketing]);
+
+  useEffect(()=>{
+    if (!props.marketingCrmEnabled || !conversationId || mode !== "chat" || marketingChoiceRequired) return;
+    const scope=scopeRef.current;let active=true,busy=false;
+    const poll=async()=>{
+      if (busy || document.hidden || sendingRef.current || isLoading || conversationIdRef.current !== conversationId) return;
+      busy=true;const revision=marketingPollRevision.current;
+      try {
+        const response=await checkoutApi.getHistory(conversationId);
+        if (!active || scopeRef.current !== scope || !scope.mounted || revision !== marketingPollRevision.current || sendingRef.current || conversationIdRef.current !== conversationId) return;
+        const incoming=decodeConversationHistory(conversationId,response);
+        setHumanHandoff(response.handoff === true);
+        setMessages(current=>{
+          if (scopeRef.current !== scope || !scope.mounted) return current;
+          const ids=new Set(current.map(m=>m.id));const additions=incoming.filter(m=>!ids.has(m.id));
+          return additions.length ? [...current,...additions] : current;
+        });
+      } catch { /* A background read preserves the visible conversation. */ }
+      finally {busy=false;}
+    };
+    void poll();const timer=setInterval(()=>void poll(),3000);
+    return()=>{active=false;clearInterval(timer);};
+  },[props.marketingCrmEnabled,conversationId,mode,marketingChoiceRequired,isLoading]);
 
   const handleQuickReplyAction = useCallback(
     (option: string, uiAction?: StorefrontReadUiAction) => {
@@ -517,6 +570,7 @@ export function useConversationViewModel(
     messages: stateMerchantId === merchantId ? messages : [],
     input: stateMerchantId === merchantId ? input : "",
     isLoading: stateMerchantId === merchantId && isLoading,
+    humanHandoff:stateMerchantId === merchantId && humanHandoff, marketingChoiceRequired, chooseMarketing,
     conversationId: stateMerchantId === merchantId ? conversationId : null,
     supportOpen,
     buyerHubOpen,

@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Inject, NotFoundException, Optional, Param, Post, Req, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
+import { MARKETING_RELATIONSHIP, type MarketingRelationshipPort, type MarketingInboundDecision } from "../../../../shared/contracts/marketing.js";
+import { ConflictException, BadRequestException, Body, Controller, ForbiddenException, Inject, NotFoundException, Optional, Param, Post, Req, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { OpenAIRealtimeVoiceService } from "../../../../shared/openai/openai-realtime-voice.service.js";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import { BILLING_PLAN_ACCESS, type BillingPlanAccessPort } from "../../../payment/domain/ports/billing-plan-access.port.js";
@@ -26,12 +27,14 @@ export class StorefrontRealtimeVoiceController {
     private readonly realtime: OpenAIRealtimeVoiceService,
     @Optional() @Inject(STOREFRONT_CONVERSATION_SCOPE) private readonly scope?: StorefrontConversationScopePort,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Optional() @Inject(MARKETING_RELATIONSHIP) private readonly marketing?: MarketingRelationshipPort,
   ) {}
 
   @Post(":conversationId/realtime/session")
   async createSession(@Req() request: VoiceRequest, @Param("conversationId") conversationId: string, @Body() body: { sdp?: unknown }) {
     const sdp = voiceSdp(body?.sdp);
     const claims = this.verifyConversation(request, conversationId);
+    if ((await this.marketing?.conversationState(claims.merchantId, "site", claims.resourceId))?.mode === "human") throw new ConflictException("conversation_human_handoff");
     const scope = this.scope;
     if (!scope) throw new ServiceUnavailableException("voice_scope_checker_required");
 
@@ -81,6 +84,7 @@ export class StorefrontRealtimeVoiceController {
     @Body() body: ProductNarrationRequest,
   ) {
     const claims = this.verifyConversation(request, conversationId);
+    if ((await this.marketing?.conversationState(claims.merchantId, "site", claims.resourceId))?.mode === "human") throw new ConflictException("conversation_human_handoff");
     const parsed = storefrontProductNarrationRequestSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException("invalid_product_narration_input");
     const aiUserId = this.userId(request, claims);

@@ -1,3 +1,5 @@
+import { conversationHistoryText } from "../../../../shared/privacy/conversation-history-text.js";
+import { redactSensitiveReference } from "../../../../shared/privacy/marketing-input-safety.js";
 import { FISCAL_BEFORE_PAYMENT, type FiscalBeforePaymentPort } from "../../../fiscal/domain/fiscal-checkout.port.js";
 import { commitCheckoutMutation } from "../services/commit-checkout-mutation.js";
 import { withAiMetering } from "../../../../shared/ai-metering.js";
@@ -81,7 +83,7 @@ export class SendChatMessageUseCase {
     @Optional() @Inject(FISCAL_BEFORE_PAYMENT) private readonly fiscalBeforePayment?: FiscalBeforePaymentPort,
   ) {}
 
-  async execute(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean; checkoutSessionBound?: boolean; messageId?: string }): Promise<ChatMessageResponse> {
+  async execute(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean; checkoutSessionBound?: boolean; messageId?: string; humanContext?: Array<{role:"user"|"assistant"; content:string}> }): Promise<ChatMessageResponse> {
     return withAiMetering({ merchantId: input.merchant_id, conversationId: input.session_id, source: "checkout" }, async () => {
     if (this.chatRequests) return this.chatRequests.run(input,
       request => this.preflight(request, authority), (request, claim) => this.processMessage(request, claim, authority));
@@ -92,7 +94,7 @@ export class SendChatMessageUseCase {
     });
   }
 
-  private async preflight(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean; checkoutSessionBound?: boolean; messageId?: string }): Promise<void> {
+  private async preflight(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean; checkoutSessionBound?: boolean; messageId?: string; humanContext?: Array<{role:"user"|"assistant"; content:string}> }): Promise<void> {
     await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
     const storedSession = !authority?.aiUserId && this.conversationRateLimit
       ? await this.sessions.getSession(input.merchant_id, input.session_id) : undefined;
@@ -105,7 +107,7 @@ export class SendChatMessageUseCase {
     });
   }
 
-  private async processMessage(input: ChatMessageRequest, chatRequest?: ChatExchangeClaim, authority?: { aiUserId?: string; voiceAdmitted?: boolean; checkoutSessionBound?: boolean; messageId?: string }): Promise<ChatMessageResponse> {
+  private async processMessage(input: ChatMessageRequest, chatRequest?: ChatExchangeClaim, authority?: { aiUserId?: string; voiceAdmitted?: boolean; checkoutSessionBound?: boolean; messageId?: string; humanContext?: Array<{role:"user"|"assistant"; content:string}> }): Promise<ChatMessageResponse> {
     let continuation = await this.strategyChat?.continueWithoutExperiment(input, chatRequest) ?? false;
     // Capture this telemetry before reading a protected snapshot. Its update
     // must not race the compare-and-save used to protect the buyer's cart.
@@ -266,7 +268,7 @@ export class SendChatMessageUseCase {
       );
       llmReply = await this.callLocalLlm(
         input.user_message, context.merchantRules ?? [], context.merchant?.name, working.cart, input.merchant_id, context.buyerIntent, experimentPromptOverride, offer,
-        this.buildLlmUiContext(working, context.rules, stage, !continuation),
+        this.buildLlmUiContext(working, context.rules, stage, !continuation), authority?.humanContext,
       );
     } else if (forceDeterministic) {
       this.logger.debug("chat.routing.forced-deterministic", { stage, missingFields });
@@ -480,6 +482,7 @@ export class SendChatMessageUseCase {
       address?: { formatted?: string; [k: string]: unknown };
       addCrossSellItem?: (sku: string, quantity: number) => Promise<{ ok: boolean; name?: string; cartBlock?: ChatUiBlock }>;
     },
+    humanContext?: Array<{ role: "user" | "assistant"; content: string }>,
   ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> }> {
     if (!this.chatLlmGateway || !this.chatToolExecutor) {
       return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
@@ -505,8 +508,9 @@ export class SendChatMessageUseCase {
       ? [experimentPromptOverride, paymentCapabilityPrompt, this.chatLlmGateway.buildBuyerIntentContext(buyerIntent)].filter(Boolean).join("\n\n")
       : [generatedSystemPrompt, paymentCapabilityPrompt].join("\n\n");
 
-    const messages: Array<{ role: "system" | "user"; content: string }> = [
+    const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system", content: systemPrompt },
+      ...(humanContext ?? []).slice(-20).map(turn => ({ role: turn.role, content: redactSensitiveReference(conversationHistoryText(turn.content,2000)) })),
       { role: "user", content: userMessage },
     ];
 

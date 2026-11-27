@@ -1,3 +1,4 @@
+import { MarketingModule } from "./modules/marketing/marketing.module.js";
 import { platformProspectingModule } from "./modules/platform-prospecting/platform-prospecting.module.js";
 import { createHttpLoggerOptions } from "./shared/logger/http-logger.config.js";
 import { AiMeteringModule } from "./modules/ai-metering/ai-metering.module.js";
@@ -96,6 +97,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     MessagingModule,
     HealthModule,
     AuthModule,
+    MarketingModule,
     MerchantModule,
     AgentRulesModule,
     CheckoutSettingsModule,

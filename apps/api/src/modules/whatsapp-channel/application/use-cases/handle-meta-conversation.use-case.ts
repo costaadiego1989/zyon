@@ -1,3 +1,6 @@
+import { MARKETING_RELATIONSHIP, MERCHANT_MARKETING_MESSAGING, MARKETING_CONSENT_TEXT,
+  type MarketingRelationshipPort, type MerchantMarketingMessaging, type MarketingInboundDecision } from "../../../../shared/contracts/marketing.js";
+import { conversationHistoryText } from "../../../../shared/privacy/conversation-history-text.js";
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -19,7 +22,7 @@ import { metaProductContext, withMetaProductNavigation } from "../../domain/ui/m
 import { recoverMetaPaymentChoice } from "../../domain/ui/meta-payment-selection.js";
 import { BuyerInboundWhatsAppLinkUseCase } from "../../../buyer-account/application/use-cases/buyer-inbound-whatsapp-link.use-case.js";
 
-interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
+interface SavedTurn { marketingConversationId?: string; marketingResponseKey?: string; dispatchAttempts?: number; phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
 /** Match the exact durable authenticated envelope before paying for media or
  * granting current-speech authority. MIME alone is never provenance. */
@@ -56,6 +59,8 @@ export class HandleMetaConversationUseCase {
     @Optional() private readonly inboundMedia?: MetaInboundMediaAdapter,
     @Optional() private readonly catalogOrders?: MetaCatalogOrderAdapter,
     @Optional() private readonly accountLinks?: BuyerInboundWhatsAppLinkUseCase,
+    @Optional() @Inject(MARKETING_RELATIONSHIP) private readonly marketing?: MarketingRelationshipPort,
+    @Optional() @Inject(MERCHANT_MARKETING_MESSAGING) private readonly marketingMessaging?: MerchantMarketingMessaging,
   ) {}
 
   async execute(input: IncomingMessageInput, route: RouteResult, responseProducer?: () => Promise<WhatsAppStructuredResponse>): Promise<void> {
@@ -66,8 +71,9 @@ export class HandleMetaConversationUseCase {
       deviceId: input.deviceId, fromNumber: input.fromNumber } : undefined;
     let saved = claim.responseState as unknown as SavedTurn | undefined;
     if (saved?.phase === "generating" || saved?.phase === "dispatching") throw new Error("whatsapp_turn_result_unknown");
+    if (saved?.phase === "complete") return;
     if (!saved?.presentation || !saved.state) {
-      await this.save(claim, { phase: "generating" });
+      await this.save(claim, {phase:"generating"});
       let state: WhatsAppConversationState = route.whatsappSession.conversationState ?? { version: 1, conversationId: randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] };
       if (this.capabilities) state = { ...state, ...await this.capabilities.get(input.merchantId, input.deviceId) };
       const mediaScopeValid = matchesMetaMediaEnvelope(input, claim);
@@ -80,10 +86,47 @@ export class HandleMetaConversationUseCase {
         && interpreted.scope.conversationId === state.conversationId && interpreted.scope.mediaId === input.metaMedia?.id
         && typeof interpreted.text === "string" && interpreted.text.trim().length > 0 && interpreted.text.length <= 4000
         ? interpreted.text : undefined;
-      const attachmentContext = interpreted?.kind === "attachment_context" && typeof interpreted.context === "string" && interpreted.context.trim()
+      let attachmentContext = interpreted?.kind === "attachment_context" && typeof interpreted.context === "string" && interpreted.context.trim()
         ? interpreted.context : undefined;
       const unreadMedia = !!input.metaMedia && !spokenMessage && !attachmentContext;
-      const message = spokenMessage ?? input.body;
+      let message = spokenMessage ?? input.body;
+      let relationship: MarketingInboundDecision | undefined;
+      if (this.marketing && await this.marketing.enabled(input.merchantId)) {
+        const conversationKey = route.whatsappSession.conversationState?.conversationId ?? route.whatsappSession.checkoutSessionId ?? state.conversationId;
+        relationship = await this.marketing.inbound({merchantId:input.merchantId, channel:"whatsapp", conversationKey,
+          messageId:input.providerMessageId ?? claim.eventId, text:conversationHistoryText(message,8000),
+          verifiedPhone:input.fromNumber, deviceId:input.deviceId,
+          receivedAt:new Date(input.providerTimestampVerified ? input.timestamp : Date.now()).toISOString()});
+        if (relationship.human) {await this.save(claim,{phase:"complete"});return;}
+        if (relationship.openingRequired) {
+          if (!this.marketingMessaging) throw new Error("whatsapp_marketing_transport_unavailable");
+          if (attachmentContext) {
+            state={...state,marketingPendingAttachment:attachmentContext.slice(0,24000)};
+            await this.sessions.update(route.whatsappSession.id,{conversationState:state});
+          }
+          await this.marketing.opening(input.merchantId,relationship.conversationId,()=>this.marketingMessaging!.sendOpening({
+            merchantId:input.merchantId, phone:input.fromNumber, deviceId:input.deviceId, text:MARKETING_CONSENT_TEXT}));
+          await this.save(claim,{phase:"complete"});
+          return;
+        }
+        if (relationship.optedOut) {
+          if (!this.marketingMessaging) throw new Error("whatsapp_marketing_transport_unavailable");
+          await this.marketing.aiReply(input.merchantId,relationship.conversationId,claim.eventId,
+            "Você não receberá mais promoções desta loja. Seu atendimento continua disponível.",
+            async()=>{const result=await this.marketingMessaging!.sendFreeform({merchantId:input.merchantId,phone:input.fromNumber,deviceId:input.deviceId,
+              text:"Você não receberá mais promoções desta loja. Seu atendimento continua disponível."});return {...result,status:result.status === "suppressed" ? "failed" as const : result.status};});
+          await this.save(claim,{phase:"complete"});
+          return;
+        }
+        if (relationship.originalQuestion !== message && state.marketingPendingAttachment) attachmentContext=state.marketingPendingAttachment;
+        state={...state,marketingPendingAttachment:undefined};
+        message=relationship.originalQuestion;
+        const transcript=await this.marketing.history(input.merchantId,"whatsapp",conversationKey);
+        if (transcript?.some(m=>m.role === "agent")) state={...state,history:transcript
+          .filter(m=>m.role !== "system" && ["recorded","accepted","delivered","read"].includes(m.status))
+          .slice(0,-1).slice(-20)
+          .map(m=>({role:m.role === "buyer" ? "user" as const : "assistant" as const,content:m.content}))};
+      }
       let action: StoreUiAction | undefined;
       let recoveredView: MetaUiView | undefined;
       const numeric = /^\d{1,2}$/.test(message.trim()) ? Number(message.trim()) : isolatedMenuChoice(message, state) ?? NaN;
@@ -98,7 +141,7 @@ export class HandleMetaConversationUseCase {
         const message = resolveMetaFieldFlow(state, input.flowResponse);
         invalidSelection = !message;
         if (message) { action = { kind: "message", message }; state = { ...state, pendingFlow: undefined }; }
-      } else if (input.interactiveId) {
+      } else if (input.interactiveId && !input.interactiveId.startsWith("marketing_")) {
         action = state.selections?.[input.interactiveId];
         if (!action) {
           const previous = await this.inbox.findPriorSelection?.(claim, route.whatsappSession.id, input.interactiveId);
@@ -210,7 +253,7 @@ export class HandleMetaConversationUseCase {
         } : responseProducer ? await responseProducer() : await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
           message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : message, state,
           attachmentContext,
-          messageId: claim.id,
+          messageId: relationship?.responseKey ?? claim.id,
           action: action?.kind === "tool" ? action : undefined });
         state = response.state;
         if (view) state = { ...state, previousViews: [...state.previousViews, view].slice(-6) };
@@ -224,7 +267,7 @@ export class HandleMetaConversationUseCase {
       view = { ...view, stage: view.stage ?? state.stage };
       const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0 && !view.blocks.some(b => b.type === "account_link_actions"), includeMedia, navigationOnly });
       state = { ...state, revision, view, page: presentation.page, selections: presentation.selections, numericSelections: presentation.numericSelections };
-      saved = { phase: "prepared", presentation, state, sessionId: route.whatsappSession.id, previousRevision: route.whatsappSession.conversationState?.revision ?? "", sent: [] };
+      saved = { marketingConversationId:relationship?.conversationId, marketingResponseKey:relationship?.responseKey, phase: "prepared", presentation, state, sessionId: route.whatsappSession.id, previousRevision: route.whatsappSession.conversationState?.revision ?? "", sent: [] };
       await this.save(claim, saved);
     }
     if (!saved.sessionApplied) {
@@ -238,9 +281,24 @@ export class HandleMetaConversationUseCase {
     const sent = saved.sent ?? [];
     for (let index = 0; index < saved.presentation!.messages.length; index++) {
       if (sent.some(item => item.index === index)) continue;
+      saved.dispatchAttempts=(saved.dispatchAttempts ?? 0)+1;
       await this.save(claim, { ...saved, phase: "dispatching", dispatchingIndex: index, sent });
-      const result = await this.sender.sendUi({ merchantId: input.merchantId, provider: input.provider, deviceId: input.deviceId, toNumber: input.fromNumber,
-        text: "", uiMessage: saved.presentation!.messages[index], correlationId: `zyon:${claim.id}:${index}` });
+      let result: Awaited<ReturnType<SendWhatsAppResponseUseCase["sendUi"]>> | undefined;
+      const deliver=async()=>{
+        result=await this.sender.sendUi({merchantId:input.merchantId,provider:input.provider,deviceId:input.deviceId,toNumber:input.fromNumber,
+          text:"",uiMessage:saved!.presentation!.messages[index],correlationId:`zyon:${claim.id}:${index}`});
+        return {status:result.status === "sent" || result.status === "queued" ? "accepted" as const : result.status === "unknown" ? "unknown" as const : "failed" as const,
+          messageId:result.messageId};
+      };
+      if (saved.marketingConversationId && this.marketing) {
+        const ui=saved.presentation!.messages[index];
+        const text=ui.type === "text" ? ui.text.body : ui.type === "interactive" ? String((ui.interactive.body as {text?:string})?.text ?? "Mensagem da loja")
+          : ui.type === "image" || ui.type === "video" || ui.type === "document" ? ui.media.caption ?? "Mídia da loja" : "Mensagem da loja";
+        const attempted=await this.marketing.aiReply(input.merchantId,saved.marketingConversationId,
+          `meta:${saved.marketingResponseKey ?? claim.id}:${index}:${saved.dispatchAttempts}`,conversationHistoryText(text,8000),deliver);
+        if (!attempted) {await this.save(claim,{...saved,phase:"complete",sent});return;}
+      } else await deliver();
+      if (!result) throw new Error("whatsapp_send_result_unknown");
       if (result.status === "unknown") throw new Error("whatsapp_send_result_unknown");
       if (!result.messageId || !["sent", "queued"].includes(result.status)) {
         const message = saved.presentation!.messages[index];
@@ -274,6 +332,7 @@ export class HandleMetaConversationUseCase {
       await this.save(claim, saved);
     }
     await this.save(claim, { ...saved, phase: "complete", sent });
+    if (saved.marketingConversationId) await this.marketing?.commerce(input.merchantId,saved.state!.conversationId);
   }
 
   private async save(claim: WhatsAppInboxClaim, state: SavedTurn): Promise<void> {

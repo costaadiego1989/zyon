@@ -1,0 +1,68 @@
+.opening {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: clamp(20px, 5vw, 40px);
+  border-radius: inherit;
+  color: var(--aacp-fg);
+  background: var(--aacp-bg, #08080c);
+}
+.content {
+  width: min(100%, 420px);
+}
+.content h2 {
+  margin: 0 0 24px;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.content p {
+  margin: 0 0 20px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.content .question {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+.actions button {
+  flex: 1 1 130px;
+  min-height: 48px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--aacp-line);
+  color: var(--aacp-fg);
+  background: var(--aacp-card);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.actions button:first-child {
+  border-color: var(--aacp-accent);
+}
+.actions button:hover {
+  background: color-mix(in srgb, var(--aacp-accent) 12%, var(--aacp-card));
+}
+.actions button:focus-visible {
+  outline: 3px solid var(--aacp-accent);
+  outline-offset: 3px;
+}
+@media (max-width: 360px) {
+  .actions {
+    flex-direction: column;
+  }
+  .actions button {
+    flex-basis: auto;
+  }
+}

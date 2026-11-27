@@ -1,4 +1,16 @@
-import { WHATSAPP_CONVERSATION_PORT, type WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
+import {
+  MARKETING_RELATIONSHIP,
+  MERCHANT_MARKETING_MESSAGING,
+  MARKETING_CONSENT_TEXT,
+  type MarketingRelationshipPort,
+  type MerchantMarketingMessaging,
+  type MarketingInboundDecision,
+} from "../../../../shared/contracts/marketing.js";
+import { WhatsAppDeliveryService } from "../services/whatsapp-delivery.service.js";
+import {
+  WHATSAPP_CONVERSATION_PORT,
+  type WhatsAppConversationPort,
+} from "../../domain/ports/whatsapp-conversation.port.js";
 import { whatsappProcessingErrorCode } from "../../domain/services/whatsapp-processing-error.js";
 import { createHash } from "node:crypto";
 import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
@@ -50,6 +62,7 @@ export interface IncomingMessageInput {
   provider?: string; // BUBBLEWHATS | TWILIO (default BUBBLEWHATS for backward compat)
   /** Set only by an authenticated ingress that checked the provider's event timestamp. */
   providerTimestampVerified?: boolean;
+  providerMessageId?: string;
 }
 
 @Injectable()
@@ -63,10 +76,14 @@ export class HandleIncomingMessageUseCase {
     private readonly sessionRepo: WhatsAppSessionRepository,
     @Inject(WHATSAPP_CONVERSATION_PORT)
     private readonly conversation: WhatsAppConversationPort,
-    @Optional() @Inject(POST_SALE_REPLY_HANDLER_PORT)
+    @Optional()
+    @Inject(POST_SALE_REPLY_HANDLER_PORT)
     private readonly postSaleReply?: PostSaleReplyHandlerPort,
     @Optional() private readonly metaConversation?: HandleMetaConversationUseCase,
     @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly events?: DomainEventBus,
+    @Optional() @Inject(MARKETING_RELATIONSHIP) private readonly marketing?: MarketingRelationshipPort,
+    @Optional() @Inject(MERCHANT_MARKETING_MESSAGING) private readonly marketingMessaging?: MerchantMarketingMessaging,
+    @Optional() private readonly delivery?: WhatsAppDeliveryService,
   ) {}
 
   async execute(input: IncomingMessageInput): Promise<void> {
@@ -81,6 +98,80 @@ export class HandleIncomingMessageUseCase {
 
       // Process inline under the durable inbox lease.
       const session = route.whatsappSession;
+      const messageId =
+        input.providerMessageId ??
+        createHash("sha256")
+          .update(
+            JSON.stringify([
+              input.merchantId,
+              input.deviceId,
+              input.fromNumber,
+              input.timestamp,
+              input.body,
+            ])
+          )
+          .digest("hex");
+      let relationship: MarketingInboundDecision | undefined;
+      if (input.provider !== "META_CLOUD" && this.marketing && (await this.marketing.enabled(input.merchantId))) {
+        if (!session.checkoutSessionId)
+          throw new Error("whatsapp_checkout_session_missing");
+        relationship = await this.marketing.inbound({
+          merchantId: input.merchantId,
+          channel: "whatsapp",
+          conversationKey: session.checkoutSessionId,
+          messageId,
+          text: input.body.slice(0, 8000),
+          verifiedPhone: input.fromNumber,
+          deviceId: input.deviceId,
+          receivedAt: new Date(
+            input.providerTimestampVerified ? input.timestamp : Date.now()
+          ).toISOString(),
+        });
+        if (relationship.human) { await this.delivery?.suppress(); return; }
+        if (relationship.openingRequired) {
+          const opened = await this.marketing.opening(
+            input.merchantId,
+            relationship.conversationId,
+            async () => {
+              if (input.provider === "META_CLOUD" && this.marketingMessaging)
+                return this.marketingMessaging.sendOpening({
+                  merchantId: input.merchantId,
+                  phone: input.fromNumber.replace(/\D/g, ""),
+                  deviceId: input.deviceId,
+                  text: MARKETING_CONSENT_TEXT,
+                });
+              return this.sendResponse.execute({
+                merchantId: input.merchantId,
+                deviceId: input.deviceId,
+                toNumber: input.fromNumber,
+                provider: input.provider,
+                text: `${MARKETING_CONSENT_TEXT}\n\nResponda “Quero receber” ou “Agora não”. Seu atendimento continua em qualquer opção.`,
+              });
+            }
+          );
+          if (!opened) await this.delivery?.suppress();
+          return;
+        }
+        if (relationship.optedOut) {
+          await this.sendServiceReply(
+            {
+              merchantId: input.merchantId,
+              deviceId: input.deviceId,
+              toNumber: input.fromNumber,
+              provider: input.provider,
+              text: "Você não receberá mais promoções desta loja. Seu atendimento continua disponível.",
+            },
+            relationship,
+            messageId
+          );
+          return;
+        }
+      }
+      const serviceInput = relationship
+        ? { ...input, body: relationship.originalQuestion }
+        : input;
+
+
       if (input.provider === "META_CLOUD" && input.adReferral && session.checkoutSessionId) {
         const eventId=input.inboxClaim?.dedupKey??createHash('sha256').update(JSON.stringify([input.merchantId,input.deviceId,input.timestamp,session.checkoutSessionId,input.adReferral.adId])).digest('hex');
         await this.events?.publish({ eventType: "whatsapp.ad_referral", merchantId: input.merchantId,eventId, payload: { adId: input.adReferral.adId, sessionId: session.checkoutSessionId } });
@@ -102,7 +193,7 @@ export class HandleIncomingMessageUseCase {
           });
           return;
         }
-        const handled = await this.handlePostSaleReply(session, input);
+        const handled = await this.handlePostSaleReply(session, serviceInput, response => this.sendServiceReply(response, relationship, messageId));
         if (handled) return; // reply captured; don't fall through to checkout
       }
       // ────────────────────────────────────────────────────────────────────
@@ -114,51 +205,114 @@ export class HandleIncomingMessageUseCase {
       }
 
       // Resolve numbered input
-      const menuState = buildMenuState(
-        session.currentOptions,
-        { currentOptions: session.previousOptions, previousOptions: [], page: session.currentPage, context: "menu" },
-      );
-      const resolved = resolveNumberedInput(input.body, menuState);
+      const menuState = buildMenuState(session.currentOptions, {
+        currentOptions: session.previousOptions,
+        previousOptions: [],
+        page: session.currentPage,
+        context: "menu",
+      });
+      const resolved = resolveNumberedInput(serviceInput.body, menuState);
 
       let textForEngine: string;
       switch (resolved.action) {
-        case "select": textForEngine = resolved.text; break;
-        case "back": textForEngine = "Voltar ao menu anterior"; break;
-        case "more": textForEngine = "Mostrar mais produtos"; break;
-        default: textForEngine = input.body; break;
+        case "select":
+          textForEngine = resolved.text;
+          break;
+        case "back":
+          textForEngine = "Voltar ao menu anterior";
+          break;
+        case "more":
+          textForEngine = "Mostrar mais produtos";
+          break;
+        default:
+          textForEngine = serviceInput.body;
+          break;
       }
 
       // Get response from engine
-      if (!session.checkoutSessionId) throw new Error("whatsapp_checkout_session_missing");
+      if (!session.checkoutSessionId)
+        throw new Error("whatsapp_checkout_session_missing");
+      const history =
+        relationship && this.marketing
+          ? await this.marketing.history(
+              input.merchantId,
+              "whatsapp",
+              session.checkoutSessionId
+            )
+          : null;
+      const humanContext = history?.some((message) => message.role === "agent")
+        ? history
+            .filter(
+              (message) =>
+                ["buyer", "agent", "ai"].includes(message.role) &&
+                ["recorded", "accepted", "delivered", "read"].includes(
+                  message.status
+                )
+            )
+            .slice(0, -1)
+            .slice(-20)
+            .map((message) => ({
+              role:
+                message.role === "buyer"
+                  ? ("user" as const)
+                  : ("assistant" as const),
+              content: message.content,
+            }))
+        : undefined;
       const engineResponse = await this.conversation.respond({
-        merchantId: input.merchantId, checkoutSessionId: session.checkoutSessionId, message: textForEngine,
-        requestId: createHash("sha256").update(JSON.stringify([input.merchantId, input.deviceId, input.fromNumber, input.timestamp, input.body])).digest("hex"),
+        merchantId: input.merchantId,
+        checkoutSessionId: session.checkoutSessionId,
+        message: textForEngine,
+        requestId: relationship?.responseKey ?? messageId,
+        ...(humanContext ? { humanContext } : {}),
       });
       const quickReplies: string[] = engineResponse.quickReplies;
       const agentText: string = engineResponse.agentMessage;
 
-      const responseText = quickReplies.length ? `${agentText}\n\n${renderNumberedMenu(quickReplies, true)}` : agentText;
+      const responseText = quickReplies.length
+        ? `${agentText}\n\n${renderNumberedMenu(quickReplies, true)}`
+        : agentText;
 
       // Save menu state
       await this.sessionRepo.updateMenuState(
         session.id,
         quickReplies,
         session.currentOptions,
-        session.currentPage,
+        session.currentPage
       );
 
       // Send response via WhatsApp
-      await this.sendResponse.execute({
-        merchantId: input.merchantId,
-        deviceId: input.deviceId,
-        toNumber: input.fromNumber,
-        text: responseText,
-        provider: input.provider,
-      });
+      const deliver = () =>
+        this.sendResponse.execute({
+          merchantId: input.merchantId,
+          deviceId: input.deviceId,
+          toNumber: input.fromNumber,
+          text: responseText,
+          provider: input.provider,
+        });
+      if (relationship && this.marketing) {
+        await this.marketing.aiReply(
+          input.merchantId,
+          relationship.conversationId,
+          relationship.responseKey ?? messageId,
+          responseText,
+          deliver
+        );
+        await this.marketing.commerce(
+          input.merchantId,
+          session.checkoutSessionId
+        );
+      } else await deliver();
 
-      this.logger.log(`whatsapp_response_sent merchant=${input.merchantId}`);
+      this.logger.log(
+        `whatsapp_response_processed merchant=${input.merchantId}`
+      );
     } catch (error) {
-      this.logger.error(`whatsapp_pipeline_failed merchant=${input.merchantId} code=${whatsappProcessingErrorCode(error)}`);
+      this.logger.error(
+        `whatsapp_pipeline_failed merchant=${
+          input.merchantId
+        } code=${whatsappProcessingErrorCode(error)}`
+      );
 
       // Let the durable inbox retry; sending a fallback here would be another side effect.
       throw error;
@@ -217,11 +371,16 @@ export class HandleIncomingMessageUseCase {
 
       await this.sessionRepo.clearPostSaleContext(session.id);
 
-      const thanks = rating >= 5
-        ? `Uhul! 🎉 5 estrelas! Que bom que você curtiu, ${session.buyerAlias ?? ""}! Muito obrigado! 💛`
-        : rating >= 4
+      const thanks =
+        rating >= 5
+          ? `Uhul! 🎉 5 estrelas! Que bom que você curtiu, ${
+              session.buyerAlias ?? ""
+            }! Muito obrigado! 💛`
+          : rating >= 4
           ? `Valeu pelas ${rating} estrelas! 🙏 Vamos trabalhar pra chegar nas 5 na próxima! ⭐`
-          : `Obrigado pela sinceridade — ${rating} estrela${rating > 1 ? "s" : ""} anotada${rating > 1 ? "s" : ""}. Vamos melhorar pra você! 💪`;
+          : `Obrigado pela sinceridade — ${rating} estrela${
+              rating > 1 ? "s" : ""
+            } anotada${rating > 1 ? "s" : ""}. Vamos melhorar pra você! 💪`;
 
       await send({
         merchantId: input.merchantId,
@@ -273,4 +432,20 @@ export class HandleIncomingMessageUseCase {
     return false;
   }
 
+  private async sendServiceReply(
+    input: Parameters<SendWhatsAppResponseUseCase["execute"]>[0],
+    relationship: MarketingInboundDecision | undefined,
+    messageId: string
+  ) {
+    const deliver = () => this.sendResponse.execute(input);
+    if (relationship && this.marketing)
+      await this.marketing.aiReply(
+        input.merchantId,
+        relationship.conversationId,
+        `post-sale:${messageId}`,
+        input.text,
+        deliver
+      );
+    else await deliver();
+  }
 }

@@ -1,3 +1,4 @@
+import { MARKETING_RELATIONSHIP, type MarketingRelationshipPort, type MarketingInboundDecision } from "../../../../shared/contracts/marketing.js";
 import { Injectable, Inject, NotFoundException, Optional } from "@nestjs/common";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort, type StorefrontConfigSnapshot } from "../../domain/ports/storefront-config-query.port.js";
@@ -45,6 +46,7 @@ export interface StoreConfigOutput {
   showBranding?: boolean;
   /** Public UI hint only; the voice route remains the enforcement point. */
   voiceCheckoutEnabled?: boolean;
+  marketingCrmEnabled?: boolean;
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
 }
@@ -55,6 +57,7 @@ export class GetStoreConfigUseCase {
     @Inject(STOREFRONT_CONFIG_QUERY_PORT) private readonly configQuery: StorefrontConfigQueryPort,
     @Inject(BILLING_PLAN_ACCESS) private readonly billing?: BillingPlanAccessPort,
     @Optional() private readonly cashback?: CashbackService,
+    @Optional() @Inject(MARKETING_RELATIONSHIP) private readonly marketing?: MarketingRelationshipPort,
   ) {}
 
   async execute(slug: string): Promise<StoreConfigOutput> {
@@ -92,12 +95,14 @@ export class GetStoreConfigUseCase {
     const [voiceCheckoutEnabled, cashbackEnabled] = await Promise.all([
       this.isVoiceCheckoutEnabled(row.id), this.isCashbackEnabled(row.id),
     ]);
+    const marketingCrmEnabled = await this.marketing?.enabled(row.id) ?? false;
     return {
       publishedPolicies: config.publishedPolicies ?? {},
       policiesAvailable: config.policiesAvailable,
       budgetModeEnabled: row.budgetModeEnabled === true,
       cashbackEnabled,
       merchantId: row.id,
+      marketingCrmEnabled,
       name: row.name,
       logo: theme?.logoUrl ?? undefined,
       favicon: (theme as any)?.faviconUrl ?? theme?.logoUrl ?? undefined,

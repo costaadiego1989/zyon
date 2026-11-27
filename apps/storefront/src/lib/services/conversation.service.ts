@@ -2,7 +2,7 @@ import { merchantThemeTokens, type MerchantThemeAppearance } from "@zyon/shared-
 import { THEME_TOKENS } from "@/components/conversation/theme-tokens";
 export { THEME_TOKENS } from "@/components/conversation/theme-tokens";
 
-import type { Message, Mode, Channel } from "@/lib/viewmodels/useConversationViewModel/types";
+import type { Message, Mode, Channel, ConversationHistoryMessage } from "@/lib/viewmodels/useConversationViewModel/types";
 import { conversationFetch } from "@/lib/conversation-access";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
@@ -170,4 +170,23 @@ export function saveThemePreference(theme: "dark" | "light") {
   try {
     localStorage.setItem("zyon-theme", theme);
   } catch {}
+}
+
+export function decodeConversationHistory(conversationId: string, value: unknown): Message[] {
+  const transcript=value as {format?:unknown;conversation_id?:unknown;messages?:ConversationHistoryMessage[]} | null;
+  if(transcript?.format==="messages-v1"){
+    if(transcript.conversation_id!==conversationId||!Array.isArray(transcript.messages)||transcript.messages.length>200)throw new Error("invalid_conversation_history");
+    const ids=new Set<string>();let previous=0;
+    return transcript.messages.map(m=>{
+      if(!m||typeof m.id!=="string"||!m.id||m.id.length>128||ids.has(m.id)||!["user","assistant"].includes(m.role)
+        ||typeof m.content!=="string"||m.content.length>(m.role==="user"?4000:8000)||!Number.isSafeInteger(m.sequence)||m.sequence<=previous
+        ||typeof m.timestamp!=="string"||!Number.isFinite(Date.parse(m.timestamp))
+        ||m.client_id!==undefined&&!/^[a-zA-Z0-9_-]{1,128}$/.test(m.client_id))throw new Error("invalid_conversation_history");
+      ids.add(m.id);previous=m.sequence;
+      return {id:m.client_id?`request:${m.client_id}:${m.role}`:m.id,role:m.role==="user"?"user" as const:"agent" as const,text:m.content};
+    });
+  }
+  const data=value as {conversation_id?:unknown;messages?:unknown} | null;
+  if (data?.conversation_id === conversationId && Array.isArray(data.messages) && data.messages.length === 0) return [];
+  throw new Error("invalid_conversation_history");
 }

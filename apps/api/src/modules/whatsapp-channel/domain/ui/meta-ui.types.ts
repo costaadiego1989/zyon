@@ -44,6 +44,8 @@ export interface MetaUiPresentation {
 }
 
 export interface WhatsAppConversationState {
+  /** Internal interpreted reference retained while the opening awaits a choice. */
+  marketingPendingAttachment?: string;
   agentTone?: import("@zyon/shared-types").AgentTone;
   version: 1;
   conversationId: string;

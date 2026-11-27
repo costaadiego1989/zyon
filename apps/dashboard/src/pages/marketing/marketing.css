@@ -1,0 +1,401 @@
+.marketing-page,
+.marketing-contacts,
+.marketing-contact-detail {
+  min-width: 0;
+}
+.marketing-fieldset {
+  margin: 0;
+  padding: 18px 0;
+  display: grid;
+  gap: 16px;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+.marketing-field {
+  display: grid;
+  gap: 8px;
+}
+.marketing-fieldset legend {
+  padding-right: 12px;
+  font-weight: 600;
+}
+.marketing-form-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.marketing-preview {
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+  max-width: 70ch;
+}
+.marketing-schedule {
+  margin-top: 24px;
+}
+.marketing-campaigns {
+  min-width: 0;
+}
+@media (max-width: 360px) {
+  .marketing-form-columns {
+    grid-template-columns: 1fr;
+  }
+}
+.marketing-inbox {
+  display: grid;
+  grid-template-columns: minmax(250px, 310px) minmax(0, 1fr);
+  min-height: 560px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  overflow: hidden;
+}
+.marketing-threads {
+  min-width: 0;
+  border-right: 1px solid var(--color-border);
+}
+.marketing-thread-count {
+  margin: 0;
+  padding: 16px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+.marketing-thread {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.marketing-thread:hover,
+.marketing-thread[aria-pressed="true"] {
+  background: var(--surface-3);
+}
+.marketing-thread:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -3px;
+}
+.marketing-thread span,
+.marketing-thread small {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+.marketing-thread-detail {
+  min-width: 0;
+  padding: 20px;
+}
+.marketing-thread-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+.marketing-thread-header h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+.marketing-thread-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.marketing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.marketing-back {
+  display: none;
+}
+.marketing-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 0;
+  margin: 0;
+  list-style: none;
+  max-height: 65vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.marketing-messages li {
+  display: flex;
+  justify-content: flex-start;
+}
+.marketing-messages li > div {
+  max-width: min(90%, 70ch);
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border-radius: 10px;
+}
+.marketing-messages li[data-role="agent"],
+.marketing-messages li[data-role="ai"] {
+  justify-content: flex-end;
+}
+.marketing-messages li[data-role="system"] {
+  justify-content: center;
+}
+.marketing-messages li[data-role="system"] > div {
+  background: transparent;
+  text-align: center;
+}
+.marketing-messages p {
+  margin: 8px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.marketing-messages small {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.marketing-reply {
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  max-width: none;
+}
+@media (max-width: 800px) {
+  .marketing-inbox {
+    grid-template-columns: 1fr;
+  }
+  .marketing-inbox[data-selected="true"] .marketing-threads {
+    display: none;
+  }
+  .marketing-inbox[data-selected="false"] .marketing-thread-detail {
+    display: none;
+  }
+  .marketing-back {
+    display: inline-flex;
+    margin-bottom: 16px;
+  }
+  .marketing-thread-detail {
+    padding: 16px;
+  }
+  .marketing-threads {
+    border: 0;
+  }
+  .marketing-thread-header {
+    flex-direction: column;
+  }
+  .marketing-threads .ui-pagination {
+    flex-wrap: wrap;
+  }
+}
+.marketing-section {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.marketing-section h2,
+.marketing-section h3 {
+  margin: 0 0 12px;
+}
+.marketing-section p {
+  max-width: 72ch;
+  line-height: 1.6;
+}
+.marketing-help {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+.marketing-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--color-text);
+}
+.marketing-funnel {
+  margin-bottom: 24px;
+  padding-top: 0;
+}
+.marketing-funnel-row {
+  display: grid;
+  grid-template-columns: minmax(145px, 190px) 1fr 60px;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  color: var(--color-text);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.marketing-funnel-row:hover,
+.marketing-funnel-row[aria-pressed="true"] {
+  background: var(--surface-3);
+}
+.marketing-funnel-row:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+.marketing-funnel-row strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.marketing-funnel-row small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.marketing-funnel-track {
+  height: 9px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.marketing-funnel-track > span {
+  display: block;
+  height: 100%;
+  background: var(--color-brand);
+}
+.marketing-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  margin: 28px 0;
+}
+.marketing-facts dt {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+.marketing-facts dd {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.marketing-form {
+  display: grid;
+  gap: 16px;
+  max-width: 650px;
+}
+.marketing-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.marketing-form :is(input, select, textarea) {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--color-text);
+  font: inherit;
+}
+.marketing-form textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.marketing-form :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+.marketing-form :is(input, textarea)::placeholder {
+  color: var(--color-text-secondary);
+}
+.marketing-form > button {
+  justify-self: start;
+}
+.marketing-timeline {
+  padding-left: 22px;
+}
+.marketing-timeline li {
+  padding: 0 0 20px 8px;
+}
+.marketing-timeline p {
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.marketing-timeline small {
+  color: var(--color-text-secondary);
+}
+.marketing-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 0;
+}
+.marketing-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.marketing-table-scroll table {
+  min-width: 720px;
+  width: 100%;
+  border-collapse: collapse;
+}
+.marketing-table-scroll td {
+  padding: 14px 16px;
+}
+.marketing-table-scroll td small {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+}
+.marketing-loading {
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  color: var(--color-text-secondary);
+}
+.marketing-active-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+@media (max-width: 760px) {
+  .marketing-page .filter-toolbar__extra {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .marketing-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .marketing-funnel-row {
+    grid-template-columns: minmax(130px, 1fr) 1fr 40px;
+    gap: 10px;
+    font-size: 13px;
+  }
+}
+@media (max-width: 360px) {
+  .marketing-facts {
+    grid-template-columns: 1fr;
+  }
+  .marketing-funnel-row {
+    grid-template-columns: 1fr 40px;
+  }
+  .marketing-funnel-track {
+    display: none;
+  }
+}

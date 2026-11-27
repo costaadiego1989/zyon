@@ -30,6 +30,8 @@ import { SubscriptionAccessGate } from "./SubscriptionAccessGate.js";
 import { MarketplaceRemediationActions } from "../pages/onboarding-wizard/MarketplaceRemediationActions.js";
 import { Button } from "../components/Button.js";
 import { fiscalHash, readFiscalNavigation } from "./fiscal-navigation.js";
+import {marketingHash,readMarketingNavigation} from "./marketing-navigation.js";
+import {MarketingAccessGate} from "../pages/marketing/MarketingAccessGate.js";
 import type { FiscalEnvironment } from "../api/fiscal.js";
 
 function ShellImportProgressProvider({ children, suspended = false }: { children: React.ReactNode; suspended?: boolean }) {
@@ -79,6 +81,8 @@ const CrmIntegrationsPage = lazy(() => import("../pages/crm-integrations/index.j
 const OrdersShipmentsPage = lazy(() => import("../pages/orders-shipments-page.js").then(m => ({ default: m.OrdersShipmentsPage })));
 const FinancePage = lazy(() => import("../pages/finance/FinancePage.js").then(m => ({ default: m.FinancePage })));
 const CustomersPage = lazy(() => import("../pages/customers-page.js").then(m => ({ default: m.CustomersPage })));
+const MarketingPage=lazy(()=>import("../pages/marketing/MarketingPage.js").then(m=>({default:m.MarketingPage})));
+const ConversationsPage=lazy(()=>import("../pages/marketing/ConversationsPage.js").then(m=>({default:m.ConversationsPage})));
 const FunnelPage = lazy(() => import("../pages/funnel/index.js").then(m => ({ default: m.FunnelPage })));
 const EmbedPage = lazy(() => import("../pages/embed-page.js").then(m => ({ default: m.EmbedPage })));
 const ThemePage = lazy(() => import("../pages/theme-page.js").then(m => ({ default: m.ThemePage })));
@@ -150,6 +154,11 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   };
   const [requestedTab, setTab] = useState<TabKey>(resolveInitialTab);
   const tab = requestedTab;
+  const[marketingNavigation,setMarketingNavigation]=useState(()=>readMarketingNavigation(window.location.hash));
+  function navigateMarketing(page:"marketing"|"conversations",input:Parameters<typeof marketingHash>[1]={}){
+    const hash=marketingHash(page,input);setMarketingNavigation(readMarketingNavigation(hash));window.location.hash=hash;setTab(page);
+  }
+
   const fiscalNavigation = readFiscalNavigation(window.location.hash);
   function navigateFiscal(target: "fiscal-settings" | "fiscal-invoices" | "fiscal-detail", environment: FiscalEnvironment, intentId?: string) {
     window.location.hash = fiscalHash(target, environment, intentId);
@@ -195,6 +204,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     const onHashChange = () => {
       const hash = window.location.hash.slice(1).split("?")[0];
       if (hash === "product-detail") setEditingProductId(new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("productId"));
+      setMarketingNavigation(readMarketingNavigation(window.location.hash));
       if (hash) setTab(hash as TabKey);
     };
     window.addEventListener("hashchange", onHashChange);
@@ -690,6 +700,12 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "shipments" ? <RouteGuard me={me} require="shipments"><OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "finance" ? <RouteGuard me={me} require="finance"><FinancePage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "customers" ? <RouteGuard me={me} require="customers"><CustomersPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab==="marketing"?<RouteGuard me={me} require="marketing"><MarketingAccessGate key={me.id} apiBaseUrl={API_BASE_URL} canUpgrade={me.role==="OWNER"}>
+              <MarketingPage key={`${me.id}:${marketingNavigation.contactId??""}:${marketingNavigation.view}`} apiBaseUrl={API_BASE_URL} me={me} initialTab={marketingNavigation.view} initialContactId={marketingNavigation.contactId} onConversation={conversationId=>navigateMarketing("conversations",{conversationId})}/>
+            </MarketingAccessGate></RouteGuard>:null}
+            {tab==="conversations"?<RouteGuard me={me} require="conversations"><MarketingAccessGate key={me.id} apiBaseUrl={API_BASE_URL} canUpgrade={me.role==="OWNER"}>
+              <ConversationsPage key={me.id} apiBaseUrl={API_BASE_URL} me={me} initialConversationId={marketingNavigation.conversationId} onContact={contactId=>navigateMarketing("marketing",{contactId})} onMarketing={me.role==="OWNER"||me.role==="ADMIN"?()=>navigateMarketing("marketing",{view:"campaigns"}):undefined}/>
+            </MarketingAccessGate></RouteGuard>:null}
             {tab === "funnel" ? <RouteGuard me={me} require="funnel"><FunnelPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "embed" ? <RouteGuard me={me} require="embed"><EmbedPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "theme" ? <RouteGuard me={me} require="theme"><ThemePage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}

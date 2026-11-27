@@ -6396,3 +6396,153 @@ model ProspectRetentionRun {
   @@map("prospect_retention_runs")
 }
 
+
+
+model MarketingHistoryJob {
+  merchantId String @id @map("merchant_id")
+  status String
+  updatedAt DateTime @map("updated_at") @db.Timestamptz
+  data Json
+  @@index([status,updatedAt],map:"marketing_history_jobs_due")
+  @@map("marketing_history_jobs")
+}
+
+model MarketingSuppression {
+  merchantId String @map("merchant_id")
+  identityHash String @map("identity_hash")
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz
+  data Json
+  @@id([merchantId,identityHash])
+  @@map("marketing_suppressions")
+}
+
+model MarketingContact {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  identityKey String @map("identity_key")
+  accountId String? @map("account_id")
+  phone String?
+  stage String
+  origin String
+  updatedAt DateTime @map("updated_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, identityKey])
+  @@unique([merchantId, accountId])
+  @@unique([merchantId, phone])
+  @@index([merchantId, stage, updatedAt, id], map: "marketing_contacts_stage")
+  @@map("marketing_contacts")
+}
+
+model MarketingConversation {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  channel String
+  externalId String @map("external_id")
+  contactId String? @map("contact_id") @db.Uuid
+  updatedAt DateTime @map("updated_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, channel, externalId])
+  @@index([merchantId, updatedAt], map: "marketing_conversations_recent")
+  @@map("marketing_conversations")
+}
+
+model MarketingMessage {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  dedupKey String @map("dedup_key")
+  providerMessageId String? @map("provider_message_id")
+  createdAt DateTime @map("created_at") @db.Timestamptz()
+  sequence BigInt @default(autoincrement())
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, dedupKey])
+  @@index([merchantId, conversationId, createdAt, sequence], map: "marketing_messages_conversation")
+  @@map("marketing_messages")
+}
+
+model MarketingConsent {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  contactId String @map("contact_id") @db.Uuid
+  channel String
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, contactId, channel])
+  @@map("marketing_consents")
+}
+
+model MarketingStageHistory {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  contactId String @map("contact_id") @db.Uuid
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@index([merchantId, contactId, occurredAt], map: "marketing_stage_history_contact")
+  @@map("marketing_stage_history")
+}
+
+model MarketingCampaign {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  status String
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz()
+  updatedAt DateTime @map("updated_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@map("marketing_campaigns")
+}
+
+model MarketingCampaignRecipient {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  campaignId String @map("campaign_id") @db.Uuid
+  contactId String @map("contact_id") @db.Uuid
+  status String
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz()
+  providerMessageId String? @map("provider_message_id")
+  updatedAt DateTime @map("updated_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, campaignId, contactId])
+  @@index([merchantId, campaignId, status, updatedAt], map: "marketing_recipients_due")
+  @@map("marketing_campaign_recipients")
+}
+
+model MarketingSettings {
+  merchantId String @id @map("merchant_id")
+  data Json
+  @@map("marketing_settings")
+}
+
+model MarketingEventReceipt {
+  merchantId String @map("merchant_id")
+  eventKey String @map("event_key")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz()
+  @@id([merchantId, eventKey])
+  @@map("marketing_event_receipts")
+}
+
+model MarketingPurchaseReceipt {
+  merchantId String @map("merchant_id")
+  orderId String @map("order_id")
+  contactId String @map("contact_id") @db.Uuid
+  amountCents BigInt @map("amount_cents")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz()
+  @@id([merchantId, orderId])
+  @@map("marketing_purchase_receipts")
+}
+
+model MarketingCommercialDispatch {
+  merchantId String @map("merchant_id")
+  contactKey String @map("contact_key")
+  dispatchKey String @map("dispatch_key")
+  reservedAt DateTime @map("reserved_at") @db.Timestamptz()
+  @@id([merchantId, dispatchKey])
+  @@index([merchantId, contactKey, reservedAt], map: "marketing_commercial_dispatches_contact")
+  @@map("marketing_commercial_dispatches")
+}

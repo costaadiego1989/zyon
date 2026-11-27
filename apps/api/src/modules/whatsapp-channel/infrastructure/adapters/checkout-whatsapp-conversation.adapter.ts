@@ -75,7 +75,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     @Optional() @Inject(STOREFRONT_TELEMETRY_PORT) private readonly telemetry?: StorefrontTelemetryPort,
   ) {}
 
-  async respond(input: { merchantId: string; checkoutSessionId: string; message: string; requestId?: string }) {
+  async respond(input: Parameters<WhatsAppConversationPort["respond"]>[0]) {
     const session = await this.sessions.getSession(input.merchantId, input.checkoutSessionId);
     if (!session || session.merchantId !== input.merchantId) throw new NotFoundException("checkout_session_not_found");
     const benefitResponse = await this.benefits?.respond(session, input.message);
@@ -89,7 +89,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       session_id: session.sessionId,
       conversation_id: session.conversationId,
       user_message: input.message,
-    }, { aiUserId: `buyer:${session.globalUserId}`, messageId: input.requestId });
+    }, { aiUserId: `buyer:${session.globalUserId}`, messageId: input.requestId, humanContext: input.humanContext });
     const parts = [response.message];
     const experience = response.experience;
     for (const product of experience?.suggestedProducts ?? []) {

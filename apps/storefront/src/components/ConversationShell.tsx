@@ -8,6 +8,7 @@ import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBord
 import { MerchantTrustBadges } from "../../../widget_v2/src/components/MerchantTrustBadges";
 import { useAgentBlockDelay } from "../../../widget_v2/src/lib/use-agent-block-delay";
 import { SafeStoreHtml } from "./SafeStoreHtml";
+import { MarketingConsentOpening } from "./MarketingConsentOpening";
 import { useCart } from "@/lib/cart-store";
 import { useStorefrontCrossSell } from "@/lib/use-storefront-cross-sell";
 import { createCrossSellDetailContext, crossSellDetailRequiresRecovery, isCrossSellDetailCurrent, type CrossSellDetailContext, type CrossSellDetailPurchase } from "@/lib/storefront-cross-sell-detail";
@@ -251,6 +252,7 @@ export default function ConversationShell({
   budgetModeEnabled: initialBudgetMode = false,
   showBranding,
   voiceCheckoutEnabled,
+  marketingCrmEnabled,
   cashbackEnabled: initialCashbackEnabled = false,
   agentMode,
   agentInitialDelaySeconds,
@@ -272,6 +274,7 @@ export default function ConversationShell({
   themeMode?: "dark" | "light" | "grey";
   showBranding?: boolean;
   voiceCheckoutEnabled?: boolean;
+  marketingCrmEnabled?: boolean;
   cashbackEnabled?: boolean;
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
@@ -298,6 +301,7 @@ export default function ConversationShell({
     budgetModeEnabled,
     agentMode,
     agentInitialDelaySeconds,
+    marketingCrmEnabled,
   });
   const {
     mode, channel, theme, messages, input, isLoading,
@@ -307,6 +311,7 @@ export default function ConversationShell({
     handleQuickReply, appendAgentMessage, handleUpdateQuantity, setInput,
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
     setCartDrawerForceOpen, dismissCrossSell, dismissProductCrossSell, clearPreparedCheckout,
+    humanHandoff,marketingChoiceRequired,chooseMarketing,
   } = vm;
   const pendingAgentBlocks = useAgentBlockDelay(messages, conversationId ?? merchantId ?? null);
   const latestAgentMessage = [...messages].reverse().find((message) => message.role === "agent");
@@ -383,7 +388,7 @@ export default function ConversationShell({
       prepare: crossSell.prepare, present: crossSell.quoted, accept: crossSell.accept } : undefined;
   const realtimeVoice = useRealtimeVoiceCheckout({
     // This session is reserved for the explicit purchase-voice composer control.
-    enabled: voiceCheckoutEnabled === true && !checkoutOpen,
+    enabled: voiceCheckoutEnabled === true && !checkoutOpen && !humanHandoff && !marketingChoiceRequired,
     createSession: async (sdp) => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
@@ -414,7 +419,7 @@ export default function ConversationShell({
     window.dispatchEvent(new CustomEvent("zyon:realtime-product-narration-progress", { detail: { requestId, ...progress } }));
   }, []);
   const narrationVoice = useRealtimeProductNarration({
-    enabled: voiceCheckoutEnabled === true && !checkoutOpen,
+    enabled: voiceCheckoutEnabled === true && !checkoutOpen && !humanHandoff && !marketingChoiceRequired,
     onProgress: publishNarrationProgress,
     createSession: async (productId, sdp) => {
       const activeConversationId = await ensureConversation();
@@ -861,6 +866,8 @@ export default function ConversationShell({
       <PerimeterBorder radius="var(--aacp-radius, 19px)" />
       {/* Content */}
       <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "max(0px, calc(var(--aacp-radius, 19px) - 1px))", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
+      {marketingChoiceRequired && effectiveMode === "chat" ? <MarketingConsentOpening storeName={storeName} onChoice={chooseMarketing}/> : null}
+      {humanHandoff ? <p role="status" style={{margin:0,padding:"10px 14px",fontSize:14}}>Você está conversando com a equipe da loja.</p> : null}
       <h1 style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
         {storeName} - Loja Online
       </h1>

@@ -1,3 +1,4 @@
+import { MARKETING_RELATIONSHIP, type MarketingRelationshipPort, type MarketingInboundDecision } from "../../../../shared/contracts/marketing.js";
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
 import { storefrontCartQuantityUpdateSchema } from "../../domain/contracts/storefront-cart-line-selector.schemas.js";
@@ -56,6 +57,8 @@ export interface StartConversationRequest {
 
 export interface SendMessageRequest {
   user_message: string;
+  message_id?: string;
+  marketing_consent?: "granted" | "declined";
   ui_action_version?: unknown;
   ui_action?: unknown;
   voice_turn_token?: string;
@@ -97,6 +100,7 @@ export class StorefrontController {
     @Optional() private readonly supportHandoff?: SupportHandoffService,
     @Optional() @Inject(STOREFRONT_CROSS_SELL_CART) private readonly crossSellCart?: StorefrontCrossSellCartPort,
     @Optional() private readonly aiMetering?: AiMeteringService,
+    @Optional() @Inject(MARKETING_RELATIONSHIP) private readonly marketing?: MarketingRelationshipPort,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -261,11 +265,24 @@ export class StorefrontController {
       attachment_context: undefined,
       global_user_id: globalUserId,
       one_buy_click: undefined,
+      message_id: body.message_id,
+      marketing_consent: body.marketing_consent,
       ...(messageSnapshot.uiAction ? { ui_action: messageSnapshot.uiAction } : {}),
     };
     const voiceContext = admittedVoice && this.aiMetering ? await this.aiMetering.voicePermitContext(body.voice_turn_token!, claims.merchantId, claims.resourceId) : undefined;
     return withAiMetering({ merchantId: claims.merchantId, conversationId: claims.resourceId, source: "storefront", costCenter: admittedVoice ? "voice" : "text", ...voiceContext },
       () => deferredContext ? this.sendStoreMessage.execute(input, deferredContext) : this.sendStoreMessage.execute(input));
+  }
+
+  @Post("conversations/:conversationId/identity")
+  async identifyConversation(@Param("conversationId")conversationId:string,
+    @Req()request:{headers?:{authorization?:string;origin?:string;"x-buyer-authorization"?:string|string[]}}){
+    const claims=this.conversationAccess(request,conversationId);
+    const accountId=this.buyerId(request,claims.merchantId);
+    if(!accountId)throw new UnauthorizedException("buyer_authentication_required");
+    await this.marketing?.identified(claims.merchantId,accountId,claims.resourceId);
+    const permission=await this.marketing?.permission(claims.merchantId,accountId,"whatsapp");
+    return {identified:true,marketing_choice:permission==null?null:permission?"granted":"declined"};
   }
 
   @Get("conversations/:conversationId/one-buy-click")
