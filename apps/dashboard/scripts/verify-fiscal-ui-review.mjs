@@ -213,7 +213,7 @@ try {
     for (const width of [390, 1586]) await run("Invoice first-use EmptyState opens configuration " + width, async () => {
       const { context, page } = await arrange({ screen: "invoices", width });
       try {
-        await page.getByRole("heading", { name: "Nenhuma nota fiscal ainda", exact: true }).waitFor();
+        await page.locator('[data-ui="empty-state"]').getByText("Nenhuma nota fiscal ainda", { exact: true }).waitFor();
         assert.equal(await page.locator('[data-ui="empty-state"]').count(), 1);
         assert.equal(await page.getByLabel("Ambiente fiscal", { exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: "Tentar novamente", exact: true }).count(), 0);
@@ -229,9 +229,9 @@ try {
       try {
         await page.getByLabel("Buscar pedido ou destinatário", { exact: true }).fill("pedido-ausente");
         await page.getByRole("button", { name: "Buscar notas", exact: true }).click();
-        await page.getByRole("heading", { name: "Nenhuma nota encontrada", exact: true }).waitFor();
+        await page.locator('[data-ui="empty-state"]').getByText("Nenhuma nota encontrada", { exact: true }).waitFor();
         await page.getByRole("button", { name: "Limpar filtros", exact: true }).click();
-        await page.getByRole("heading", { name: "Nenhuma nota fiscal ainda", exact: true }).waitFor();
+        await page.locator('[data-ui="empty-state"]').getByText("Nenhuma nota fiscal ainda", { exact: true }).waitFor();
         const last = state.calls.filter(c => c.path === "/invoices").at(-1);
         assert.equal(new URLSearchParams(last.search).get("search"), null);
         assert.equal(new URLSearchParams(last.search).get("environment"), "production");
@@ -241,12 +241,12 @@ try {
     await run("Invoice failure is distinct from empty and refresh recovers", async () => {
       const { context, page, state } = await arrange({ screen: "invoices", failures: { "/invoices": 503 } });
       try {
-        await page.getByRole("heading", { name: "Não foi possível carregar as notas", exact: true }).waitFor();
-        assert.equal(await page.getByRole("heading", { name: "Nenhuma nota fiscal ainda", exact: true }).count(), 0);
+        await page.locator('[data-ui="empty-state"]').getByText("Não foi possível carregar as notas", { exact: true }).waitFor();
+        assert.equal(await page.getByText("Nenhuma nota fiscal ainda", { exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: "Tentar novamente", exact: true }).count(), 0);
         delete state.failures["/invoices"];
         await page.getByRole("button", { name: "Atualizar notas", exact: true }).click();
-        await page.getByRole("heading", { name: "Nenhuma nota fiscal ainda", exact: true }).waitFor();
+        await page.locator('[data-ui="empty-state"]').getByText("Nenhuma nota fiscal ainda", { exact: true }).waitFor();
       } finally { await context.close(); }
     });
   }
