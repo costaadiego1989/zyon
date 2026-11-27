@@ -22,6 +22,9 @@ export class GetMerchantProfileUseCase {
     const profile = await this.repository.getProfile(merchantId);
     if (!profile) throw new NotFoundException("merchant_not_found");
     const slug = profile.storeSettings?.slug?.trim() || slugifyStoreName(profile.name);
+    if (principal.role === "staff") {
+      return { id: profile.id, name: profile.name, slug, role: principal.role, userId: principal.userId };
+    }
     return {
       ...profile,
       slug,

@@ -97,6 +97,14 @@ function App({ api }: AppProps) {
     setCheckingSession(true);
     try {
       const profile = await api.merchantProfile();
+      if (profile.role === "STAFF") {
+        setMe(profile);
+        setAuthHint(null);
+        setPlanSelectionPending(false);
+        setSubscriptionRequired(false);
+        setOnboardingCompleted(true);
+        return;
+      }
       const settings = await api.getStoreSettings();
       const choosingPlan = settings.plan_selection_pending === true;
       setPlanSelectionPending(choosingPlan);

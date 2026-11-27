@@ -38,6 +38,14 @@ export async function marketingBrowserFixture(api, options = {}) {
       ".png": "file",
     },
     logLevel: "silent",
+    plugins: [{
+      name: "dashboard-public-assets",
+      setup(builder) {
+        builder.onResolve({ filter: /^\/auth\// }, args => ({
+          path: path.resolve(directory, "../public", args.path.slice(1)),
+        }));
+      },
+    }],
   });
   const files = new Map(
     result.outputFiles.map((file) => [path.basename(file.path), file.contents])
