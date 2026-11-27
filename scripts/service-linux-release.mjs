@@ -5,6 +5,7 @@ import {existsSync,mkdirSync,readFileSync,writeFileSync,copyFileSync} from 'node
 import {resolve,relative,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {produceServiceActivationRelease,measureProofSourceInputs,parseActivationPlaywright} from '../apps/api/tests/service-activation-release-producer.mjs';
+import {validateApiResume} from './service-linux-api-phase.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url)),api=resolve(root,'apps/api');
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -13,7 +14,8 @@ const json=(path,value)=>writeFileSync(path,JSON.stringify(value,null,2)+'\n',{f
 const revision=git(['rev-parse','HEAD']);assert.match(revision,/^[a-f0-9]{40}$/);
 assert.equal(process.platform,'linux','release_linux_target_required');assert.equal(process.arch,'x64');
 assert.equal(git(['status','--porcelain','--untracked-files=no']),'','release_clean_checkout_required');
-assert.equal(process.argv.length,3,'release_public_auth_json_path_required');
+const resumeApi=process.argv[3]==='--resume-api-ci';
+assert.ok(process.argv.length===3||process.argv.length===4&&resumeApi,'release_public_auth_json_path_and_optional_real_api_resume_required');
 const publicFile=resolve(root,process.argv[2]);assert.ok(!relative(root,publicFile).startsWith('..'));
 const publicAuth=JSON.parse(readFileSync(publicFile,'utf8'));
 const publicKeys=['VITE_API_BASE_URL','VITE_GOOGLE_CLIENT_ID','VITE_OAUTH_REDIRECT_URI','VITE_TURNSTILE_SITE_KEY',
@@ -45,10 +47,17 @@ async function run(name,argv,cwd=root,extra={}){
   return actual;
 }
 
+// Resume only real early CI receipts on this exact container/Node/source/output.
+if(resumeApi)await validateApiResume({workspaceRoot:root,expectedHead:revision});
+else{
 // This is the original normal checked build, not Dockerfile's direct tsc.
 await run('api-capture',['node','tests/service-test-artifacts.mjs','--capture-inputs'],api);
-await run('api-build',['pnpm','--dir','apps/api','build'],root,{DATABASE_URL:'postgresql://prisma:prisma@127.0.0.1:5432/prisma?schema=public'});
+await run('api-build',['pnpm','--dir','apps/api','build'],root,{DATABASE_URL:'postgresql://prisma:prisma@127.0.0.1:5432/prisma?schema=public',
+  PROSPECTING_DIRECTORY_DATABASE_URL:'postgresql://prisma:prisma@127.0.0.1:5432/prisma?schema=company_directory'});
+await run('cashback-seed-build',['node','apps/api/prisma/seeds/cashback-validation-build.mjs']);
 await run('api-record',['node','tests/service-test-artifacts.mjs','--record-build-exit0'],api);
+await run('api-types',['pnpm','--filter','@zyon/api','typecheck']);
+}
 // These are the original Dockerfile's real local-model inferences. Populate
 // public model weights before the original proof network guard is loaded.
 await run('local-embedding-inference',['node','--input-type=module','-e',
@@ -67,7 +76,7 @@ assert.equal(existsSync(resolve(root,'apps/storefront/.next/standalone')),false,
 await run('release-source-contracts',['node','--import','./tests/test-network-guard.mjs','--test','--test-concurrency=1',
   './tests/native-prisma-release-platform.spec.mjs','./tests/service-served-artifact-observation.contract.spec.mjs',
   './tests/linux-owned-tcp.contract.spec.mjs','./tests/linux-owned-tcp.live.spec.mjs','./tests/service-release-stage-context.spec.mjs'],api);
-await run('release-migration-byte-contract',['node','--test','scripts/service-release-migration-bytes.spec.mjs']);
+await run('release-migration-byte-contract',['node','--test','scripts/service-release-migration-bytes.spec.mjs','scripts/service-release-support-migration-bytes.spec.mjs']);
 const protocol=await import('../apps/api/dist/shared/bookings/service-release-manifest.js');
 const artifact=await import('../apps/api/dist/shared/bookings/service-release-artifact.js');
 const current=artifact.measureServiceReleaseRuntime(api,revision);

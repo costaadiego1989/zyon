@@ -1,0 +1,17 @@
+{
+  "kind": "ACTUAL_USER_APPROVED_EXACT_HISTORICAL_LINT_DEBT",
+  "ledgerSha256": "08dbbfec581496064217426ecb51c792dc191e8a0de54f9ee125adf888196cd9",
+  "occurrences": 567,
+  "questionReference": [
+    "request_user_input_async",
+    "call_675b178505504fb7984aa44ce1989ebe",
+    0
+  ],
+  "selectedAnswer": "Autorizar a lista exata de d\u00edvida t\u00e9cnica (Recomendado)",
+  "rawApprovalSha256": "7f38ee8b2f834e242e58927aa7ef0584bc1f07ee7da6bb76b9e84dc6f467b8e9",
+  "rawApprovalPath": "C:/tmp/zyon-service-business-20261114/.cache/final-validation-two-actual-approvals-20261127/user-replies.json",
+  "receivedAtUtc": "2026-11-27 21:28:11 UTC",
+  "fullEslintCleanClaim": false,
+  "blockNewErrors": true,
+  "allRulesStillExecuted": true
+}

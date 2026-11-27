@@ -11,7 +11,7 @@
     "test:ai-governance": "node --loader ./tests/ready-prod-loader.mjs --test ./src/modules/ai-governance/__tests__/ai-governance.integration.spec.ts ./src/modules/ai-metering/usage.spec.ts ./src/modules/support/infrastructure/openai-chat.adapter.spec.ts",
     "build": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm --filter @zyon/commerce-adapters build && pnpm --filter @zyon/conversation-engine build && pnpm --filter @zyon/decision-engine build && pnpm --filter @zyon/negotiation-engine build && pnpm --filter @zyon/payments-evm build && pnpm --filter @zyon/rules-engine build && pnpm --filter @zyon/shipping-engine build && prisma generate --schema prisma/schema.prisma && prisma generate --config prisma.company-directory.config.ts && nest build",
     "start": "node dist/main.js",
-    "lint": "eslint src",
+    "lint": "node scripts/lint-exact-historical-debt.mjs",
     "typecheck": "pnpm --filter @zyon/contracts --filter @zyon/shared-types --filter @zyon/commerce-adapters --filter @zyon/conversation-engine --filter @zyon/decision-engine --filter @zyon/negotiation-engine --filter @zyon/payments-evm --filter @zyon/rules-engine --filter @zyon/shipping-engine build && tsc -p tsconfig.json --noEmit",
     "test": "pnpm build && pnpm test:compile && pnpm test:compiled",
     "test:prospecting": "node --loader ./tests/platform-support-loader.mjs ./src/prospecting-test-runner.ts",

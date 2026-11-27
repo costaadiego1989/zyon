@@ -16,6 +16,7 @@ on:
         options: [all, sandbox, production]
 permissions:
   contents: read
+  actions: read
   id-token: write
   attestations: write
 concurrency:
@@ -23,6 +24,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   tested-payload:
+    name: Service Linux release (${{ matrix.target }})
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
@@ -30,10 +32,13 @@ jobs:
       matrix:
         target: ${{ fromJSON(inputs.target == 'sandbox' && '["sandbox"]' || inputs.target == 'production' && '["production"]' || '["sandbox","production"]') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # official v7.0.1
         with:
           ref: ${{ inputs.source_revision || github.sha }}
           persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # official v7.1.0
+        with:
+          node-version: '22.23.5'
       - name: Admit exact clean source and public configuration
         env:
           EXPECTED_REVISION: ${{ inputs.source_revision || github.sha }}
@@ -41,6 +46,7 @@ jobs:
         run: |
           set -eu
           test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+          test "$EXPECTED_REVISION" = "$GITHUB_SHA" # transport provenance requires the actual run HEAD
           test -z "$(git status --porcelain --untracked-files=no)"
           test -n "$PUBLIC_AUTH_JSON"
           mkdir -p .cache
@@ -55,20 +61,51 @@ jobs:
       - name: Resolve and retain immutable Node and static-server images
         run: |
           set -eu
-          docker pull --platform linux/amd64 node:22-bookworm-slim
-          NODE_IMAGE=$(docker image inspect node:22-bookworm-slim --format '{{index .RepoDigests 0}}')
+          docker pull --platform linux/amd64 node:22.23.5-bookworm-slim
+          NODE_IMAGE=$(docker image inspect node:22.23.5-bookworm-slim --format '{{index .RepoDigests 0}}')
           printf 'SERVICE_RELEASE_NODE_BASE_IMAGE=%s\n' "$NODE_IMAGE" >> "$GITHUB_ENV"
           docker pull --platform linux/amd64 nginxinc/nginx-unprivileged:1.27-alpine
           NGINX_IMAGE=$(docker image inspect nginxinc/nginx-unprivileged:1.27-alpine --format '{{index .RepoDigests 0}}')
           printf 'SERVICE_RELEASE_NGINX_BASE_IMAGE=%s\n' "$NGINX_IMAGE" >> "$GITHUB_ENV"
           cp "$(command -v docker)" .cache/service-release-docker-client
           docker build --platform linux/amd64 --build-arg NODE_BASE_IMAGE="$NODE_IMAGE" -f ops/service-release/Dockerfile.linux-validation -t service-release-validator:owned .
-      - name: Build, execute seven canonical release checks, seal and export
+      - name: Start owned persistent validation container
         env:
           RELEASE_TARGET: ${{ matrix.target }}
         run: |
           set -eu
-          docker run --rm --network host -e SERVICE_RELEASE_NODE_BASE_IMAGE="$SERVICE_RELEASE_NODE_BASE_IMAGE" -e SERVICE_RELEASE_NGINX_BASE_IMAGE="$SERVICE_RELEASE_NGINX_BASE_IMAGE" -e SERVICE_RELEASE_TARGET="$RELEASE_TARGET" -v "$PWD:/repo" -v /var/run/docker.sock:/var/run/docker.sock service-release-validator:owned
+          CONTAINER="service-api-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$RELEASE_TARGET"
+          IMAGE_ID=$(docker image inspect service-release-validator:owned --format '{{.Id}}')
+          printf 'SERVICE_CI_CONTAINER=%s\n' "$CONTAINER" >> "$GITHUB_ENV"
+          docker run --detach --name "$CONTAINER" --network host -e SERVICE_RELEASE_NODE_BASE_IMAGE="$SERVICE_RELEASE_NODE_BASE_IMAGE" -e SERVICE_RELEASE_NGINX_BASE_IMAGE="$SERVICE_RELEASE_NGINX_BASE_IMAGE" -e SERVICE_RELEASE_VALIDATOR_IMAGE_ID="$IMAGE_ID" -e SERVICE_RELEASE_TARGET="$RELEASE_TARGET" -v "$PWD:/repo" -v /var/run/docker.sock:/var/run/docker.sock service-release-validator:owned sleep infinity
+      - name: Bootstrap owned dependencies and migration bytes only
+        run: docker exec "$SERVICE_CI_CONTAINER" sh ops/service-release/run-linux-validation.sh --bootstrap-only
+      - name: API checked build (capture, normal build, record)
+        run: docker exec "$SERVICE_CI_CONTAINER" node scripts/service-linux-api-phase.mjs checked
+      - name: API typecheck (original)
+        run: docker exec "$SERVICE_CI_CONTAINER" node scripts/service-linux-api-phase.mjs api-types
+      - name: Export API transport early
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          # Authenticated API lookup happens on the host. Only public binding JSON crosses into Docker.
+          node scripts/service-linux-api-phase.mjs github-binding "$RELEASE_TARGET"
+          docker exec "$SERVICE_CI_CONTAINER" node scripts/service-linux-api-phase.mjs export
+      - name: Upload API transport early
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-api-ci-${{ matrix.target }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .cache/service-ci-api-${{ github.sha }}/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+      - name: Resume frontends, seven original checks, seal and export
+        run: |
+          set -eu
+          docker exec "$SERVICE_CI_CONTAINER" node scripts/service-linux-release.mjs .cache/service-release-public-auth.json --resume-api-ci
+          docker exec "$SERVICE_CI_CONTAINER" node scripts/service-linux-export-prebuilt.mjs "$SERVICE_RELEASE_NODE_BASE_IMAGE" "$SERVICE_RELEASE_NGINX_BASE_IMAGE" "${{ matrix.target }}"
       - name: Verify all four opaque prebuilt contexts without recompilation
         env:
           SOURCE_REVISION: ${{ inputs.source_revision || github.sha }}
@@ -102,8 +139,13 @@ jobs:
             .cache/railway-prebuilt-${{ inputs.source_revision || github.sha }}/
             .cache/linux-service-release-${{ inputs.source_revision || github.sha }}/
             .cache/service-release-migration-materialization.json
+            .cache/service-release-support-migration-materialization.json
             .specs/features/whatsapp-service-booking-business-rag/captures/browser-artifacts/
             .specs/features/whatsapp-service-booking-business-rag/captures/standalone-widget-release/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
+      - name: Remove only this job's owned validation container
+        if: always()
+        run: |
+          if [ -n "${SERVICE_CI_CONTAINER:-}" ]; then docker rm --force "$SERVICE_CI_CONTAINER"; fi
