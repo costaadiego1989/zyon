@@ -33,6 +33,7 @@ try {
     "/tests/fiscal-ui-review.fixture.tsx",
     "/src/pages/fiscal/FiscalSettingsPage.tsx",
     "/src/pages/fiscal/FiscalInvoicesPage.tsx",
+    "/src/pages/fiscal/FiscalInvoiceDetail.tsx",
     "/src/api-client.ts",
     "/src/styles.css",
   ].map(path => server.warmupRequest(path)));
@@ -66,17 +67,21 @@ try {
       } : { profile: null, confirmedProfile: null, supportedContract: null };
       else if (path === "/templates") body = { email: { subject: "Sua nota fiscal", body: "Consulte sua nota" }, whatsapp: { body: "Sua nota", status: "DRAFT", revision: 1, approvedVersions: [] }, whatsappConnected: false };
       else if (path === "/payment-sources") body = rich ? [{ paymentIntentId: "payment-a", provider: "stripe", method: "card", status: "succeeded", createdAt: "2026-11-27T12:00:00Z" }] : [];
-      else if (path === "/olist/oauth/configuration") body = { redirectUri: base + "/v1/merchants/me/fiscal/olist/oauth/callback" };
+      else if (path === "/olist/oauth/configuration") body = { redirectUri: base + "/v1/webhooks/fiscal/olist/oauth/callback" };
       else if (path.endsWith("/notifications")) body = { configured: true, notificationUrl: base + "/v1/webhooks/fiscal/olist/synthetic-private-reference" };
       else if (path.endsWith("/setup")) body = { companyId: null, fiscalTimeZone: null, focusWebhookConfigured: false, paymentConfigurations: [], accountEvidence: null };
       else if (path === "/invoices") body = { items: state.invoices, total: state.total, counts: state.counts, page: Number(url.searchParams.get("page") ?? 1), pageSize: 20 };
+      else if (path === "/invoices/help-intent") body = { id: "help-intent", orderId: "help-order", recipientName: "Cliente de teste", provider: "focus", state: "authorized", environment: "production",
+        completedAt: "2026-11-27T12:00:00Z", totalCents: 10000, currency: "BRL", reasonCode: null, attempts: 1, nextAttemptAt: "2026-11-27T12:00:00Z",
+        document: { intentId: "help-intent", sellerMerchantId: "merchant-a", orderId: "help-order", state: "authorized", documentState: "available", number: "123", series: "1", authorizationProtocol: "synthetic-protocol", accessKey: "1".repeat(44), authorizedAt: "2026-11-27T12:00:00Z", documents: [] },
+        stock: { owner: "zyon", state: "managed_by_zyon" }, deliveries: [], reviews: [], history: [], allowedActions: [{ kind: "request_cancellation", label: "Solicitar cancelamento fiscal", reviewId: "help-review" }] };
       else if (path.endsWith("/erp-connections")) body = state.erps;
       else return route.fulfill({ status: 404, json: { code: "not_found" } });
       return route.fulfill({ json: body });
     });
     await page.goto(base + "/tests/fiscal-ui-review.fixture.html?screen=" + screen);
-    await page.getByRole("heading", { name: screen === "invoices" ? "Notas fiscais" : "Configuração fiscal", exact: true }).waitFor();
-    await page.getByText(screen === "invoices" ? "Carregando notas…" : "Carregando configuração fiscal…", { exact: true }).waitFor({ state: "hidden" });
+    await page.getByRole("heading", { name: screen === "invoices" ? "Notas fiscais" : screen === "detail" ? "Detalhe fiscal" : "Configuração fiscal", exact: true }).waitFor();
+    await page.getByText(screen === "invoices" ? "Carregando notas…" : screen === "detail" ? "Carregando detalhe fiscal…" : "Carregando configuração fiscal…", { exact: true }).waitFor({ state: "hidden" });
     return { context, page, state };
   }
   async function run(name, work) {
@@ -89,6 +94,16 @@ try {
   async function selectBling(page) {
     await page.getByLabel("Emissor fiscal", { exact: true }).selectOption("bling");
     await page.getByText("Carregando configuração fiscal…", { exact: true }).waitFor({ state: "hidden" });
+  }
+  async function assertMeaning(page, label, meaning) {
+    const result = await page.getByLabel(label, { exact: true }).evaluate(control => {
+      const help = document.getElementById(control.getAttribute('aria-describedby'));
+      const title = control.closest('.form-field').querySelector('label');
+      const a = title.getBoundingClientRect(), b = help?.getBoundingClientRect(), c = control.getBoundingClientRect();
+      return { text: help?.textContent, ordered: !!b && b.top >= a.bottom - 1 && b.bottom <= c.top + 1 };
+    });
+    assert.match(result.text ?? "", meaning, label);
+    assert.equal(result.ordered, true, label);
   }
   if (group === "settings" || group === "all") {
     for (const width of [390, 1586]) await run("Bling selected account submits production and renders saved connection " + width, async () => {
@@ -308,6 +323,9 @@ try {
         await page.getByLabel("Emissor fiscal", { exact: true }).selectOption("omie");
         const button = page.getByRole("button", { name: "Conectar emissor", exact: true });
         await page.getByLabel("Identificação do aplicativo Omie", { exact: true }).waitFor();
+        await assertMeaning(page, "Identificação do aplicativo Omie", /chamado app_hash/);
+        await assertMeaning(page, "Token fiscal do aplicativo Omie", /token da integração da sua empresa no Omie/);
+        await assertMeaning(page, "Token de renovação fiscal", /refresh_token da mesma integração Omie/);
         await page.getByLabel("CNPJ da empresa emitente", { exact: true }).fill("26.517.729/0001-23");
         assert.equal(await button.isDisabled(), true);
         await page.getByLabel("Identificação do aplicativo Omie", { exact: true }).fill("omie-company-a");
@@ -337,8 +355,13 @@ try {
         await page.getByLabel("Emissor fiscal", { exact: true }).selectOption("tiny");
         const redirect = page.getByLabel("URL de redirecionamento do aplicativo", { exact: true });
         await page.waitForFunction(() => [...document.querySelectorAll('input')].some(input => input.readOnly && input.value.includes('/olist/oauth/callback')));
+        assert.equal(await redirect.inputValue(), new URL('/v1/webhooks/fiscal/olist/oauth/callback', page.url()).href);
         assert.equal(await redirect.getAttribute("readonly"), "");
         assert.equal(new URL(await redirect.inputValue()).hash, "");
+        assert.equal(new URL(await redirect.inputValue()).search, "");
+        await assertMeaning(page, "Identificação do aplicativo Tiny/Olist", /Client ID gerado no aplicativo da sua empresa/);
+        await assertMeaning(page, "Segredo do aplicativo Tiny/Olist", /Client Secret do mesmo aplicativo/);
+        await assertMeaning(page, "URL de redirecionamento do aplicativo", /voltar à Zyon após autorizar/);
         const button = page.getByRole("button", { name: "Autorizar conta no Tiny/Olist", exact: true });
         await page.getByLabel("CNPJ da empresa emitente", { exact: true }).fill("26.517.729/0001-23");
         assert.equal(await button.isDisabled(), true);
@@ -414,6 +437,43 @@ try {
         await page.screenshot({ path: artifacts + `field-help-${provider}-${width}.png`, fullPage: true });
       } finally { await context.close(); }
     });
+    for (const width of [390, 1586]) {
+      await run("Invoice filter meanings and descriptions " + width, async () => {
+        const { context, page, state } = await arrange({ width, screen: "invoices" });
+        try {
+          await assertMeaning(page, "Estado fiscal", /situação da emissão/);
+          await assertMeaning(page, "Buscar pedido ou destinatário", /pedido ou o nome do comprador/);
+          assert.equal(state.calls.filter(c => c.method === "PUT" || c.method === "POST").length, 0);
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+        } finally { await context.close(); }
+      });
+      await run("Cancellation dialog help and original confirmation safety " + width, async () => {
+        const { context, page, state } = await arrange({ width, screen: "detail" });
+        try {
+          await page.getByRole("button", { name: "Solicitar cancelamento fiscal", exact: true }).click();
+          const dialog = page.getByRole("dialog", { name: "Solicitar cancelamento fiscal", exact: true });
+          await dialog.waitFor();
+          await assertMeaning(page, "Justificativa do cancelamento fiscal", /por que a nota deve ser cancelada/);
+          const input = page.getByRole("checkbox", { name: "Confirmo que desejo solicitar o cancelamento desta nota.", exact: true });
+          assert.equal(await input.isChecked(), false);
+          assert.match(await input.evaluate(el => document.getElementById(el.getAttribute('aria-describedby'))?.textContent ?? ""), /só será cancelada depois da confirmação fiscal/);
+          const confirm = dialog.getByRole("button", { name: "Confirmar solicitação", exact: true });
+          const reason = page.getByLabel("Justificativa do cancelamento fiscal", { exact: true });
+          assert.equal(await confirm.isDisabled(), true);
+          await reason.fill("x".repeat(14)); await input.check();
+          assert.equal(await confirm.isDisabled(), true);
+          await reason.fill("x".repeat(15));
+          assert.equal(await confirm.isEnabled(), true);
+          await input.uncheck();
+          assert.equal(await confirm.isDisabled(), true);
+          assert.equal(state.calls.filter(c => c.method === "PUT" || c.method === "POST").length, 0);
+          assert.deepEqual(state.errors, []);
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+          await page.screenshot({ path: artifacts + `cancellation-help-${width}.png`, fullPage: false });
+          await dialog.getByRole("button", { name: "Voltar sem enviar", exact: true }).click();
+        } finally { await context.close(); }
+      });
+    }
   }
   writeFileSync(artifacts + group + "-results.json", JSON.stringify({ status: "pass", cases: results.length, results }, null, 2));
   console.log(JSON.stringify({ status: "pass", cases: results.length, results }));
