@@ -1,5 +1,5 @@
 import React, { useState, type ReactNode } from "react";
-import { CalendarDays, RefreshCw } from "lucide-react";
+import { CalendarDays, Clock3, RefreshCw, Settings2, Tags, Users } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import { TabBar } from "../../components/TabBar.js";
@@ -15,11 +15,11 @@ export interface ServiceAttendancePageProps {
   renderPanel?: (tab: ServiceAttendanceFilters["tab"], viewModel: ViewModel) => ReactNode;
 }
 const tabs = [
-  { key: "agenda", label: "Agenda" },
-  { key: "professionals", label: "Profissionais" },
-  { key: "categories", label: "Categorias" },
-  { key: "availability", label: "Disponibilidade" },
-  { key: "settings", label: "Configurações" },
+  { key: "agenda", label: "Agenda", icon: <CalendarDays size={16} /> },
+  { key: "professionals", label: "Profissionais", icon: <Users size={16} /> },
+  { key: "categories", label: "Categorias", icon: <Tags size={16} /> },
+  { key: "availability", label: "Disponibilidade", icon: <Clock3 size={16} /> },
+  { key: "settings", label: "Configurações", icon: <Settings2 size={16} /> },
 ] as const;
 
 export function ServiceAttendancePage({ me, renderPanel }: ServiceAttendancePageProps) {

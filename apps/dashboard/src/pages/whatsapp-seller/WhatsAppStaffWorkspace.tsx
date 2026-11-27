@@ -19,7 +19,7 @@ function StaffWorkspace(props: Props) {
   return <main className="dashboard-ui page-container whatsapp-seller whatsapp-staff-workspace">
     <PageHeader title={<span className="whatsapp-staff-workspace__identity"><MessageCircle size={24} strokeWidth={1.6} aria-hidden="true" />WhatsApp</span>} description="Acompanhe as conversas e cuide do atendimento aos clientes."
       actions={<Button variant="outline" disabled={props.busy} onClick={props.onLogout}><LogOut size={15} aria-hidden="true" />Sair</Button>} />
-    <TabBar tabs={[{ key: "conversations", label: "Conversas", panelId: "whatsapp-conversations" }]} activeTab={route.allowed ? "conversations" : ""}
+    <TabBar tabs={[{ key: "conversations", label: "Conversas", panelId: "whatsapp-conversations", icon: <MessageCircle size={16} /> }]} activeTab={route.allowed ? "conversations" : ""}
       label="WhatsApp" onTabChange={() => route.navigate("conversations")} />
     {route.allowed && route.tab === "conversations" ? <WhatsAppConversationsTab apiBaseUrl={props.apiBaseUrl} context={props.context} navigation={props.navigation}
       ticketId={route.ticketId} onSelectTicket={id => route.navigate("conversations", id)} onCloseTicket={() => route.navigate("conversations")} />
