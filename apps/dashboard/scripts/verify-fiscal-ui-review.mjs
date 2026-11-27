@@ -105,6 +105,18 @@ try {
     assert.match(result.text ?? "", meaning, label);
     assert.equal(result.ordered, true, label);
   }
+  async function assertHelpLink(page, name, href) {
+    const link = page.getByRole("link", { name, exact: true });
+    assert.equal(await link.getAttribute("href"), href);
+    const colors = await link.evaluate(el => {
+      const expected = document.createElement('span');
+      expected.style.color = 'var(--color-brand)';
+      el.parentElement.append(expected);
+      const result = { actual: getComputedStyle(el).color, brand: getComputedStyle(expected).color };
+      expected.remove(); return result;
+    });
+    assert.equal(colors.actual, colors.brand, "Help links must use the readable dashboard brand token");
+  }
   if (group === "settings" || group === "all") {
     for (const width of [390, 1586]) await run("Bling selected account submits production and renders saved connection " + width, async () => {
       const { context, page, state } = await arrange({ width });
@@ -326,6 +338,7 @@ try {
         await assertMeaning(page, "Identificação do aplicativo Omie", /chamado app_hash/);
         await assertMeaning(page, "Token fiscal do aplicativo Omie", /token da integração da sua empresa no Omie/);
         await assertMeaning(page, "Token de renovação fiscal", /refresh_token da mesma integração Omie/);
+        await assertHelpLink(page, "Onde encontrar os dados da integração Omie", "https://api.omie.com.br/docs/apis/portal/autenticacao");
         await page.getByLabel("CNPJ da empresa emitente", { exact: true }).fill("26.517.729/0001-23");
         assert.equal(await button.isDisabled(), true);
         await page.getByLabel("Identificação do aplicativo Omie", { exact: true }).fill("omie-company-a");
@@ -362,6 +375,7 @@ try {
         await assertMeaning(page, "Identificação do aplicativo Tiny/Olist", /Client ID gerado no aplicativo da sua empresa/);
         await assertMeaning(page, "Segredo do aplicativo Tiny/Olist", /Client Secret do mesmo aplicativo/);
         await assertMeaning(page, "URL de redirecionamento do aplicativo", /voltar à Zyon após autorizar/);
+        await assertHelpLink(page, "Como criar o aplicativo no Tiny/Olist", "https://api-docs.erp.olist.com/documentacao/comecando/criando-um-aplicativo");
         const button = page.getByRole("button", { name: "Autorizar conta no Tiny/Olist", exact: true });
         await page.getByLabel("CNPJ da empresa emitente", { exact: true }).fill("26.517.729/0001-23");
         assert.equal(await button.isDisabled(), true);
