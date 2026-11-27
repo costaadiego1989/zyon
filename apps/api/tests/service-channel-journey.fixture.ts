@@ -7,6 +7,7 @@ import { RedisServiceSlots } from "../src/shared/bookings/redis-service-slots.js
 import { PasswordHasher } from "../src/modules/auth/domain/services/password-hasher.service.js";
 import type { WhatsAppConversationState, StoreUiAction } from "../src/modules/whatsapp-channel/domain/ui/meta-ui.types.js";
 import { toCheckoutSession } from "../src/modules/checkout/domain/services/checkout-session-projection.js";
+import { MARKETING_CONSENT_TEXT, MARKETING_DECLINE } from "../src/shared/contracts/marketing.js";
 
 export interface NativeJourneyCase {
   merchantId: string; configId: string; deviceId: string; phoneNumberId: string; phone: string;
@@ -23,7 +24,7 @@ export async function createNativeServiceJourneyFixture(options: {
     ...(options.bookingAwaitTrace === true ? { bookingAwaitTrace: "native18-v1" } : {}),
     ...(options.localModelFailure === true ? { localModelFailureFixture: "owned-503-v1" } : {}),
     ...(options.native18HttpFailures === true ? { native18HttpFailures: "closed-failures-v1" } : {}),
-    whatsapp: { voiceTranscripts: options.voiceTranscripts ?? { "1001": "1", "1002": "1" } },
+    whatsapp: { marketingOpening: true, voiceTranscripts: options.voiceTranscripts ?? { "1001": "1", "1002": "1" } },
     ...(options.modelScript ? { storefrontQueryModel: true, modelScript: options.modelScript } : {}),
     ...(options.storefrontRoutingProfile === undefined ? {} : { storefrontRoutingProfile: options.storefrontRoutingProfile }) });
   let prisma: PrismaClient | undefined, redis: Redis | undefined;
@@ -103,14 +104,15 @@ export async function createNativeServiceJourneyFixture(options: {
       deviceId: c.deviceId, status: "active" } });
     const state = async (c: NativeJourneyCase) => (await read(c)).conversationState as unknown as WhatsAppConversationState;
     const payloads = new Map<string, unknown>();
-    const wire = (c: NativeJourneyCase, text: string, options: { interactiveId?: string; audio?: boolean; eventId?: string } = {}) => {
+    const wire = (c: NativeJourneyCase, text: string, options: { interactiveId?: string; audio?: boolean; eventId?: string; buttonReply?: true } = {}) => {
       const eventId = options.eventId ?? "t46-inbound-" + randomUUID();
       if (payloads.has(eventId)) return { eventId, payload: structuredClone(payloads.get(eventId)) };
       const payload = { entry: [{ changes: [{ field: "messages", value: { metadata: { phone_number_id: c.phoneNumberId }, messages: [{
         id: eventId, from: c.phone, timestamp: String(Math.floor(Date.now() / 1000)),
         type: options.audio ? "audio" : options.interactiveId ? "interactive" : "text",
         ...(options.audio ? { audio: { id: text, mime_type: "audio/ogg" } } : options.interactiveId
-          ? { interactive: { list_reply: { id: options.interactiveId, title: text } } } : { text: { body: text } }),
+          ? { interactive: options.buttonReply ? { button_reply: { id: options.interactiveId, title: text } }
+          : { list_reply: { id: options.interactiveId, title: text } } } : { text: { body: text } }),
       }] } }] }] }; payloads.set(eventId, structuredClone(payload)); return { eventId, payload };
     };
     const wait = async <T>(work: () => Promise<T | undefined | null | false>, label: string): Promise<T> => {
@@ -140,7 +142,48 @@ export async function createNativeServiceJourneyFixture(options: {
     async function message(c: NativeJourneyCase, text: string, options: Parameters<typeof wire>[2] = {}) {
       const event = wire(c, text, options), inbox = await post(event); assert.ok(inbox);
       assert.equal(inbox.status, "processed", "native_current_turn_must_process_without_retry");
-      return { event, inbox, state: await state(c) };
+      // Preserve LIVE's optional opening. The synthetic buyer declines through
+      // one genuinely signed current native button; no consent is seeded in DB.
+      let appliedEvent = event, appliedInbox = inbox;
+      let originalOpening: { event: typeof event; inbox: typeof inbox } | undefined;
+      const current = await state(c), opening = await db.marketingConversation.findUnique({ where: {
+        merchantId_channel_externalId: { merchantId: c.merchantId, channel: "whatsapp", externalId: current.conversationId } } });
+      const pending = opening?.data as Record<string, any> | undefined;
+      if (pending?.openingChoice === "pending") {
+        assert.equal(pending.pendingQuestionId, event.eventId, "native_opening_must_retain_original_event");
+        const prompt = await db.marketingMessage.findUnique({ where: { merchantId_dedupKey: {
+          merchantId: c.merchantId, dedupKey: "opening:" + opening!.id } } });
+        const promptData = prompt?.data as Record<string, any> | undefined;
+        assert.equal(promptData?.role, "system"); assert.equal(promptData?.content, MARKETING_CONSENT_TEXT);
+        assert.equal(promptData?.status, "accepted", "native_optional_opening_must_be_captured_accepted");
+        const openingCaptures = runtime.whatsapp.events().filter((item: any) => item.input?.marketingOpening === true && item.input?.toNumber === c.phone);
+        assert.equal(openingCaptures.length, 1, "native_optional_opening_must_have_one_real_transport_capture");
+        console.error("native_optional_opening_observation", { originalProcessed: inbox.status === "processed",
+          serviceViewPresent: !!current.view?.serviceBooking, currentControlCount: Object.keys(current.selections ?? {}).length,
+          openingChoice: "pending", originalQuestionRetained: pending.pendingQuestionId === event.eventId,
+          openingMessageStatus: String(promptData?.status ?? "missing") });
+        const declineEvent = wire(c, "Agora n\u00e3o", { interactiveId: MARKETING_DECLINE, buttonReply: true });
+        const declined = await post(declineEvent);
+        assert.ok(declined); assert.equal(declined.status, "processed", "native_optional_decline_must_process");
+        const after = await db.marketingConversation.findUniqueOrThrow({ where: { merchantId_id: { merchantId: c.merchantId, id: opening!.id } } });
+        const resolved = after.data as Record<string, any>;
+        assert.equal(resolved.openingChoice, "declined"); assert.equal(resolved.pendingQuestion, null); assert.equal(resolved.pendingQuestionId, null);
+        const consents = await db.marketingConsent.findMany({ where: { merchantId: c.merchantId }, select: { data: true } });
+        assert.equal(consents.filter(row => (row.data as Record<string, any>).status === "granted").length, 0,
+          "native_optional_decline_never_grants_marketing");
+        const declinePayload = declined.payload as Record<string, any>;
+        assert.equal(declinePayload.interactiveId, MARKETING_DECLINE);
+        assert.equal(declinePayload.body, MARKETING_DECLINE);
+        assert.equal(declinePayload.messageType, "interactive");
+        assert.equal(declinePayload.provider, "META_CLOUD");
+        assert.equal(declined.eventId, declineEvent.eventId);
+        assert.equal(declinePayload.providerTimestampVerified, true);
+        assert.equal((await state(c)).revision, declined.id);
+        originalOpening = { event, inbox }; appliedEvent = declineEvent; appliedInbox = declined;
+      }
+      // Provenance is the turn that actually applied this current state. The
+      // opening request remains separate, never relabelled as the later reply.
+      return { event: appliedEvent, inbox: appliedInbox, state: await state(c), ...(originalOpening ? { originalOpening } : {}) };
     }
     const choices = async (c: NativeJourneyCase) => Object.entries((await state(c)).selections ?? {});
     async function control(c: NativeJourneyCase, predicate: (action: StoreUiAction) => boolean) {

@@ -5,6 +5,12 @@ const sql=value=>"'"+String(value).replaceAll("'","''")+"'";
 const day=(base,offset)=>new Date(Date.parse(base+'T12:00:00Z')+offset*86400000).toISOString().slice(0,10);
 /** Opt-in loopback fixture only. All appointments/financial changes use actual
  * API writers; SQL below declares account/customer preconditions or reads facts. */
+function assertRestrictedStaffProfile(raw,auth,merchantId){
+  const profile=raw.data??raw;
+  assert.deepEqual(Object.keys(profile).sort(),['id','name','role','slug','userId'].sort());
+  assert.equal(profile.id,merchantId);assert.equal(profile.userId,auth.user_id);assert.equal(profile.role,'staff');
+  assert.equal(typeof profile.name,'string');assert.ok(profile.name.trim());assert.equal(typeof profile.slug,'string');assert.ok(profile.slug.trim());
+}
 export async function prepareAppointmentJourneyFixtures(runtime){
   const origin=new URL(runtime.apiOrigin);assert.equal(origin.protocol,'http:');assert.equal(origin.hostname,'127.0.0.1');
   const marker=JSON.parse(await runtime.db.sql(`SELECT json_build_object('runId',run_id) FROM synthetic_native_marker;`));assert.equal(marker.runId,runtime.db.runId);
@@ -70,7 +76,7 @@ export async function prepareAppointmentJourneyFixtures(runtime){
     UPDATE merchants SET business_mode_needs_review=true WHERE id=${sql(review.merchant_id)};
     UPDATE merchant_billing_subscriptions SET status='cancelled',current_period_end=now()-interval '2 days',trial_ends_at=now()-interval '2 days',updated_at=now() WHERE merchant_id=${sql(expired.merchant_id)};`);
   Object.assign(staff,await request('/auth/login','POST',{email:staff.email,password:staff.password}),{role:'STAFF'});
-  const staffDenial=await request('/merchants/me','GET',undefined,staff,403);assert.equal(staffDenial.code,'staff_operation_not_permitted');
+  const staffProfile=await request('/merchants/me','GET',undefined,staff,200);assertRestrictedStaffProfile(staffProfile,staff,owner.merchant_id);
   const reviewRaw=await request('/merchants/me','GET',undefined,review);assert.equal((reviewRaw.data??reviewRaw).businessModeSelectionState,'review_required');
   const expiredBilling=await request('/billing/subscription','GET',undefined,expired);assert.equal(expiredBilling.trial_expired,true);
   const child=await request('/merchants/me/stores','POST',{name:'Loja de produtos local'},owner);
@@ -173,10 +179,10 @@ export async function prepareAppointmentJourneyFixtures(runtime){
       await runtime.db.sql(`UPDATE merchant_users SET merchant_id=${sql(owner.merchant_id)},role='staff' WHERE id=${sql(staff.user_id)};UPDATE merchant_team_members SET merchant_id=${sql(owner.merchant_id)},role='STAFF' WHERE user_id=${sql(staff.user_id)};`);
       Object.assign(staff,await request('/auth/login','POST',{email:staff.email,password:staff.password}),{role:'STAFF'});
       assert.equal(staff.merchant_id,owner.merchant_id);assert.equal(staff.user_id,staffUserId);
-      const denial=await request('/merchants/me','GET',undefined,staff,403);assert.equal(denial.code,'staff_operation_not_permitted');
+      const profile=await request('/merchants/me','GET',undefined,staff,200);assertRestrictedStaffProfile(profile,staff,owner.merchant_id);
       const value={...staff,appointments:{},fixtureId:randomUUID(),runId:runtime.db.runId,baseDate,toDate,operationsDate:day(baseDate,2),manualDate:day(baseDate,3)};
       fixtures.set(value.fixtureId,value);
-      console.log('service_appointment_journey_case_precondition',JSON.stringify({purpose:'routes-staff',freshMerchant:true,canonicalAppointmentAdmissions:0,realStaffLoginAndProfile403:true,totalHttp:inventory.length-began,actualStatuses:inventory.slice(began).map(row=>row.status),noQuotaReset:true}));
+      console.log('service_appointment_journey_case_precondition',JSON.stringify({purpose:'routes-staff',freshMerchant:true,canonicalAppointmentAdmissions:0,realStaffLoginAndRestrictedProfile200:true,totalHttp:inventory.length-began,actualStatuses:inventory.slice(began).map(row=>row.status),noQuotaReset:true}));
       return value;
     })());
     return routesStaffCases.get(caseKey);

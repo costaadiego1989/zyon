@@ -38,6 +38,11 @@ export async function openGuest(page:Page,journey:Journey){
   for(const name of ['Ver Produtos','Encontrar Produto','Categorias','Prazo de Entrega','Trocas e Devoluções','Rastrear Pedido','Ofertas'])
     await expect(page.getByRole('button',{name,exact:true})).toHaveCount(0);
   await expect(page.getByText(/Posso ajudar você a conhecer os serviços, escolher um profissional e consultar datas e horários\./)).toBeVisible();
+  // The existing live marketing choice is separate from the initial privacy dialog.
+  const marketingOpening=page.getByRole('region',{name:'Antes de come\u00e7ar',exact:true});
+  await expect(marketingOpening).toBeVisible();
+  await marketingOpening.getByRole('button',{name:'Agora n\u00e3o',exact:true}).click();
+  await expect(marketingOpening).toBeHidden();
   const response=page.waitForResponse(value=>matches(value,'/messages','POST'));
   await input.fill('Gostaria de agendar uma consulta de orientação. Quais profissionais atendem?');await input.press('Enter');
   const reply=await response;expect(reply.status()).toBe(201);const body=await reply.json();

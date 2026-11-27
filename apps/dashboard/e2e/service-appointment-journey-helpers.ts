@@ -13,7 +13,7 @@ export async function fixture(request:APIRequestContext,name:string):Promise<Jou
   const operationsLocal=name==='local'&&basename(info.file)==='service-appointment-operations.spec.ts';
   const routesFile=basename(info.file)==='service-appointments-routes.spec.ts';
   const routesLocal=routesFile&&name==='local'&&info.title==='T83 real Back/refresh and authorized store activation fence the previous merchant service surface';
-  const routesStaff=routesFile&&name==='staff'&&info.title==='T83 actual Staff profile403 never becomes a forged management profile or private booking read';
+  const routesStaff=routesFile&&name==='staff'&&info.title==='T83 actual Staff restricted profile never becomes a forged management profile or private booking read';
   const boardLocal=name==='local'&&basename(info.file)==='service-appointments-board.spec.ts'&&["ATEND-11 six persisted states and separate finance share exact canonical IDs/counts in Kanban and list", "ATEND-11 period/professional/service/category/status gestures use the same server selector after refresh", "ATEND-11 mobile keyboard detail and a real stale command preserve prior version/finance until explicit reload"].includes(info.title);
   const boardNavigationLocal=name==='local'&&basename(info.file)==='service-appointments-navigation.spec.ts';
   // Both pagination cases keep the original32; board/non-pagination owners are private per case.
@@ -35,7 +35,7 @@ export async function login(page:Page,seed:JourneyFixture,route=hash(seed),expec
   const logged=page.waitForResponse(value=>matches(value,'/v1/auth/login','POST')),profile=page.waitForResponse(value=>matches(value,'/v1/merchants/me'));
   await page.getByRole('button',{name:'Entrar',exact:true}).last().click();expect((await logged).status()).toBe(201);
   const reply=await profile;expect(reply.status()).toBe(expectedProfile);const raw=await reply.json();
-  if(expectedProfile===200){const value=raw.data??raw;expect(value.id).toBe(seed.merchant_id);expect(value.businessMode).toBe(seed.mode);expect(String(value.role).toUpperCase()).toBe(seed.role);}else expect(raw.code).toBe('staff_operation_not_permitted');
+  if(expectedProfile===200){const value=raw.data??raw;expect(value.id).toBe(seed.merchant_id);expect(String(value.role).toUpperCase()).toBe(seed.role);if(seed.role==='STAFF'){expect(Object.keys(value).sort()).toEqual(['id','name','role','slug','userId'].sort());expect(value.userId).toBe(seed.user_id);expect(typeof value.name).toBe('string');expect(value.name.trim()).not.toBe('');expect(typeof value.slug).toBe('string');expect(value.slug.trim()).not.toBe('');}else expect(value.businessMode).toBe(seed.mode);}else expect(raw.code).toBe('staff_operation_not_permitted');
 }
 export async function manual(page:Page,seed:JourneyFixture,known=false,oneOff=false){
   await page.getByRole('button',{name:'Novo agendamento',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Novo agendamento',exact:true});await expect(dialog).toBeVisible();

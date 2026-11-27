@@ -10,6 +10,7 @@ import {createOwnedJourneyClientTracker,journeyBounded as bounded} from './store
 import {fileURLToPath} from 'node:url';
 import {createHook} from 'node:async_hooks';
 import {createLocalWhatsAppProviderFixture,validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
+import {installOwnedMarketingOpeningFetchProvider} from './service-marketing-opening-fetch-fixture.mjs';
 import {createPublicSupportModelFixture} from './service-public-support-model-fixture.mjs';
 import {validateServedModelScript} from './service-served-model-script.mjs';
 import {createPublicStorefrontModelFixture} from './service-public-storefront-model-fixture.mjs';
@@ -153,7 +154,7 @@ try{
   assert.equal(transformersEnvironment.allowRemoteModels,false);
   stage('offline_embeddings_configured',{allowRemoteModels:transformersEnvironment.allowRemoteModels});
   const {AppModule}=await import('../dist/app.module.js');
-  let fixtureInstallation,channelToken,mediaType;
+  let fixtureInstallation,marketingFetchInstallation,channelToken,mediaType;
   if(localWhatsApp){
     const{WhatsAppChannelModule}=await import('../dist/modules/whatsapp-channel/whatsapp-channel.module.js');
     const{WHATSAPP_SENDER_PORT}=await import('../dist/modules/whatsapp-channel/domain/ports/whatsapp-sender.port.js');
@@ -166,6 +167,13 @@ try{
     fixture=createLocalWhatsAppProviderFixture(fixtureOptions,event=>process.send({type:'local_whatsapp_event',event}),
       {currentScope:currentWhatsAppSubmissionScope,start:startWhatsAppRequest});
     fixtureInstallation=fixture.install(WhatsAppChannelModule,channelToken,mediaType);fixtureOverrideNames=fixtureInstallation.overrides;
+    if(localWhatsApp.marketingOpening){
+      const{MerchantMarketingMessagingModule}=await import('../dist/modules/whatsapp-channel/merchant-marketing-messaging.module.js');
+      const{MERCHANT_MARKETING_FETCH}=await import('../dist/modules/whatsapp-channel/infrastructure/adapters/merchant-marketing-messaging.adapter.js');
+      const{MODULE_METADATA}=await import('@nestjs/common/constants.js');
+      marketingFetchInstallation=installOwnedMarketingOpeningFetchProvider(MerchantMarketingMessagingModule,MERCHANT_MARKETING_FETCH,fixture.marketingFetch,Reflect,MODULE_METADATA.PROVIDERS);
+      fixtureOverrideNames=[...fixtureOverrideNames,...marketingFetchInstallation.overrides];
+    }
   }
   let modelInstallation;
   if(localSupportQueryModel||localStorefrontQueryModel){
@@ -234,7 +242,7 @@ try{
 
   stage('constructing_app');app=await bounded(NestFactory.create(AppModule,{abortOnError:false,logger:false,rawBody:true}),45_000,'service_app_construct_timeout');
   }
-  finally{try{capturedPaymentInstallation?.restore();}finally{try{emailInstallation?.restore();}finally{try{releaseInstallation?.restore();}finally{modelInstallation?.restore();fixtureInstallation?.restore();}}}}
+  finally{try{capturedPaymentInstallation?.restore();}finally{try{emailInstallation?.restore();}finally{try{releaseInstallation?.restore();}finally{modelInstallation?.restore();marketingFetchInstallation?.restore();fixtureInstallation?.restore();}}}}
   if(ownedPostal){
     const {HttpModule}=await import('../dist/shared/http/http.module.js');
     const {HttpClientService}=await import('../dist/shared/http/http-client.service.js');
