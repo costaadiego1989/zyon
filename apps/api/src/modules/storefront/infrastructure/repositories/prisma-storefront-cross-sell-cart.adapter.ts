@@ -6,7 +6,7 @@ import { crossSellStorefrontQuoteRequestSchema, crossSellStorefrontQuoteSchema, 
 import type { StorefrontCrossSellCartPort, StorefrontCrossSellCartScope, StorefrontCrossSellCartAcknowledgement } from "../../domain/ports/storefront-cross-sell-cart.port.js";
 import type { StorefrontCart, StorefrontCartCommercialSnapshot } from "../../domain/ports/storefront-cart.port.js";
 import { StorefrontCartSnapshotConflictError } from "../../domain/errors/storefront-cart-snapshot-conflict.error.js";
-import { evaluateStorefrontCartCommercial, readStorefrontCartCommercial, resolveStorefrontCartCatalogItem } from "./prisma-storefront-local-cart-effect.dependencies.js";
+import { evaluateStorefrontCartCommercial, readStorefrontCartCommercial, resolveStorefrontCartCatalogItem, normalizePersistedStorefrontCategoryItems } from "./prisma-storefront-local-cart-effect.dependencies.js";
 import { lockStorefrontCart, withStorefrontCartInTransaction, crossSellQuoteReviewRequired, cartTotal, rethrowStorefrontCommercialFailure } from "./storefront-cart-transaction.js";
 import { assertLocalCartAdmission } from "./local-cart-admission.js";
 import { storefrontCartHasCheckoutBinding, assertStorefrontCartUnbound } from "./storefront-checkout-binding-fence.js";
@@ -14,12 +14,12 @@ import { lockCrossSellMerchantAuthority, lockCrossSellSelectedAuthority } from "
 import { readNormalCheckoutSourceProjection } from "../../../../shared/persistence/storefront-normal-checkout-read.js";
 
 const scopeSchema = z.strictObject({ merchantId: crossSellStorefrontQuoteRequestSchema.shape.variantId, cartId: crossSellStorefrontQuoteRequestSchema.shape.variantId });
-const basis = (cart: StorefrontCartCommercialSnapshot) => crossSellStorefrontCartBasisSchema.parse({ items: cart.items, total: cart.total,
+const basis = (cart: StorefrontCartCommercialSnapshot) => crossSellStorefrontCartBasisSchema.parse({ items: normalizePersistedStorefrontCategoryItems(cart.items), total: cart.total,
   discount: cart.discount, couponCode: cart.couponCode, freeShipping: cart.freeShipping });
 // Used ONLY after the actual NORMAL reader proved the coupon owner. The legacy
 // quote contract above remains couponCode:null and is not broadened.
 const normalBasis=(cart:StorefrontCartCommercialSnapshot)=>({...crossSellStorefrontCartBasisSchema.parse({
-  items:cart.items,total:cart.total,discount:cart.discount,couponCode:null,freeShipping:cart.freeShipping}),
+  items:normalizePersistedStorefrontCategoryItems(cart.items),total:cart.total,discount:cart.discount,couponCode:null,freeShipping:cart.freeShipping}),
   couponCode:scopeSchema.shape.cartId.nullable().parse(cart.couponCode)});
 /** A real connected cart adapter. Not wired as a public grant endpoint until
  * coupon/read/checkout/UI parity gates pass. No provider, retries or nested tx. */
@@ -39,7 +39,7 @@ export class PrismaStorefrontCrossSellCartAdapter implements StorefrontCrossSell
     const cart = await tx.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId: scope.merchantId, sessionId: scope.cartId } } });
     if (!cart || cart.merchantId !== scope.merchantId || cart.sessionId !== scope.cartId
       || !(cart.expiresAt instanceof Date) || cart.expiresAt.getTime() <= Date.now()) throw crossSellQuoteReviewRequired();
-    const persisted = { ...cart, items: cart.items as unknown as StorefrontCart["items"] };
+    const persisted = { ...cart, items: normalizePersistedStorefrontCategoryItems(cart.items) as StorefrontCart["items"] };
     const cartBasis = basis(persisted);
     if (cartBasis.items.some(item => item.variantId === request.variantId)) throw crossSellQuoteReviewRequired();
     await lockCrossSellSelectedAuthority(tx, scope.merchantId, cartBasis, request.variantId, request.promotionId);
@@ -101,7 +101,7 @@ export class PrismaStorefrontCrossSellCartAdapter implements StorefrontCrossSell
       const stored = await tx.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId: scope.merchantId, sessionId: scope.cartId } } });
       if (!stored || stored.merchantId !== scope.merchantId || stored.sessionId !== scope.cartId
         || !(stored.expiresAt instanceof Date) || stored.expiresAt.getTime() <= Date.now()) throw crossSellQuoteReviewRequired();
-      const cart: StorefrontCart = { ...stored, items: stored.items as unknown as StorefrontCart["items"] };
+      const cart: StorefrontCart = { ...stored, items: normalizePersistedStorefrontCategoryItems(stored.items) as StorefrontCart["items"] };
       if (expected !== undefined && !isDeepStrictEqual(basis(cart), expected)) throw new StorefrontCartSnapshotConflictError();
       try {
         const { outcome: result, costsByVariant } = await readStorefrontCartCommercial(tx, scope, cart);

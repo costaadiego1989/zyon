@@ -465,7 +465,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       description: raw.description,
       type: raw.type ?? "physical",
       metadata: raw.metadata as Record<string, unknown> | undefined,
-      categoryId: raw.categoryId,
+      categoryId: raw.categoryId ?? undefined,
       isActive: raw.isActive,
       seoTitle: raw.seoTitle,
       metaDescription: raw.metaDescription,

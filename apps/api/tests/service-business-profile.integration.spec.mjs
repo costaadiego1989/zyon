@@ -126,3 +126,86 @@ test('REG02 canonical product pagination requires a remaining row for every cont
   }finally{try{await prisma?.$disconnect();}finally{await runtime.close();}}
   assert.deepEqual(runtime.cleanupEvidence(),{appClosed:true,remainingContainers:0,remainingBridgeSockets:0});
 });
+
+// REG02: SQL NULL is absence at the existing ProductEntity boundary; quote guards remain strict.
+test('REG02 uncategorized catalog products retain the optional category contract through canonical cart and cross-sell quote',{timeout:SERVICE_LOCAL_TEST_MS},async()=>{
+  const runtime=await createServiceTestRuntime({local:true});let prisma;
+  try{
+    await import('reflect-metadata');const {PrismaClient}=await import('@prisma/client');
+    const {PrismaProductRepository}=await import('../dist/modules/catalog/infrastructure/repositories/prisma-product.repository.js');
+    const {PrismaStorefrontCartRepository}=await import('../dist/modules/storefront/infrastructure/repositories/prisma-storefront-cart.repository.js');
+    const {PrismaStorefrontCrossSellCartAdapter}=await import('../dist/modules/storefront/infrastructure/repositories/prisma-storefront-cross-sell-cart.adapter.js');
+    prisma=new PrismaClient({datasources:{db:{url:runtime.db.prismaUrl}}});
+    assert.deepEqual(await prisma.$queryRaw`SELECT run_id FROM synthetic_native_marker`,[{run_id:runtime.db.runId}]);
+    const prefix='category-'+runtime.db.runId.replaceAll('-','');
+    const register=async label=>{
+      const response=await fetch(runtime.apiOrigin+'/auth/register',{method:'POST',redirect:'error',signal:AbortSignal.timeout(15_000),
+        headers:{'content-type':'application/json'},body:JSON.stringify({merchant_name:'Synthetic category '+label,
+          email:prefix+'-'+label+'@buyer-journey.example.test',password,business_mode:'products'})});
+      assert.equal(response.status,201);return(await response.json()).merchant_id;
+    };
+    const merchantId=await register('own'),foreignMerchantId=await register('foreign');
+    const rules={maxDiscountPercent:10,minimumMarginPercent:0,allowFreeShipping:false,allowShippingDiscount:false,allowBonusItem:false,allowStackDiscountAndFreeShipping:false,
+      couponBoxEnabled:false,autonomousEngineEnabled:false,freeShippingMinCartValue:0,maxShippingSubsidy:0,maxPartialShippingDiscount:0,offerExpirationMinutes:10,blockedRegions:[],brandVoice:'consultative',originZip:'01310000'};
+    await prisma.merchantRule.upsert({where:{merchantId},create:{merchantId,...rules},update:rules});
+    const categoryId=prefix+'-category';await prisma.productCategory.create({data:{id:categoryId,merchantId,name:'Synthetic actual category',slug:prefix+'-category'}});
+    const create=async(key,price,category)=>prisma.product.create({data:{id:prefix+'-'+key,merchantId,name:'Synthetic '+key,type:'physical',isActive:true,
+      ...(category===undefined?{}:{categoryId:category}),variants:{create:{id:prefix+'-'+key+'-v',sku:prefix+'-'+key+'-sku',isActive:true,
+        price:{create:{basePriceInCents:price,costInCents:200,currency:'BRL'}},stock:{create:{quantity:20,reserved:0}}}}}});
+    const rawHost=await create('host',4000),rawTarget=await create('target',2000),rawCategorized=await create('categorized',1000,categoryId);
+    assert.equal(rawHost.categoryId,null);assert.equal(rawTarget.categoryId,null);
+    const products=new PrismaProductRepository(prisma),host=await products.findById(merchantId,rawHost.id),target=await products.findById(merchantId,rawTarget.id);
+    assert.ok(host&&target);assert.equal(host.categoryId,undefined);assert.equal(target.categoryId,undefined);
+    assert.equal((await products.findById(merchantId,rawCategorized.id)).categoryId,categoryId);
+    assert.equal(await products.findById(foreignMerchantId,rawHost.id),null);
+    const source=host.variants[0],recommended=target.variants[0],promotionId=prefix+'-promotion',cartId=prefix+'-cart';
+    await prisma.crossSellPromotion.create({data:{id:promotionId,merchantId,name:'Synthetic category complement',trigger:{sku_in_cart:[source.sku]},recommendedSkus:[recommended.sku],
+      discountPercent:10,maxDiscountPercent:10,status:'active',startsAt:new Date(Date.now()-60000),endsAt:new Date(Date.now()+3600000)}});
+    const carts=new PrismaStorefrontCartRepository(prisma),adapter=new PrismaStorefrontCrossSellCartAdapter(prisma),scope={merchantId,cartId};
+    await carts.addItem(merchantId,cartId,{variantId:source.id,productId:host.id,sku:source.sku,name:host.name,categoryId:host.categoryId,quantity:1,unitPriceCents:source.basePriceInCents});
+    const stored=await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}});
+    assert.equal(Object.hasOwn(stored.items[0],'categoryId'),false);assert.equal(stored.total,4000);
+    const request={variantId:recommended.id,promotionId,quantity:1},quote=await adapter.quote(scope,request);
+    assert.equal(quote.merchantId,merchantId);assert.equal(quote.cartId,cartId);assert.equal(quote.productId,target.id);assert.equal(quote.variantId,recommended.id);
+    assert.equal(quote.originalUnitPriceCents,2000);assert.equal(quote.maximumUnitPriceCents,1800);assert.equal(quote.quote.subtotalCents,5800);
+    assert.equal(Object.hasOwn(quote.cartBasis.items[0],'categoryId'),false);
+    assert.deepEqual(await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}}),stored);
+    const review=error=>error?.getStatus?.()===422&&error.getResponse()?.code==='cross_sell_quote_review_required';
+    // Explicit historical fixture: the previous productive mapper saved this JSON NULL.
+    const legacyItems=stored.items.map(item=>({...item,categoryId:null}));
+    await prisma.storefrontCart.update({where:{merchantId_sessionId:{merchantId,sessionId:cartId}},data:{items:legacyItems}});
+    const legacyStored=await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}});
+    assert.equal(legacyStored.items[0].categoryId,null);
+    const legacyProjection=await adapter.project(scope);assert.equal(legacyProjection.total,4000);
+    assert.equal(Object.hasOwn(legacyProjection.items[0],'categoryId'),false);
+    const legacyQuote=await adapter.quote(scope,request);assert.deepEqual(legacyQuote,quote);
+    assert.equal(Object.hasOwn(legacyQuote.cartBasis.items[0],'categoryId'),false);
+    assert.deepEqual(await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}}),legacyStored);
+    // Public expectedQuote remains strict: only the internal persisted reader accepts legacy NULL absence.
+    await assert.rejects(adapter.accept(scope,{expectedQuote:{...legacyQuote,cartBasis:{...legacyQuote.cartBasis,items:legacyQuote.cartBasis.items.map(item=>({...item,categoryId:null}))}}}));
+    assert.deepEqual(await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}}),legacyStored);
+    const malformedItems=legacyItems.map(item=>({...item,categoryId:17}));
+    await prisma.storefrontCart.update({where:{merchantId_sessionId:{merchantId,sessionId:cartId}},data:{items:malformedItems}});
+    const malformedStored=await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}});
+    await assert.rejects(adapter.project(scope),review);await assert.rejects(adapter.quote(scope,request),review);
+    assert.deepEqual(await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}}),malformedStored);
+    await prisma.storefrontCart.update({where:{merchantId_sessionId:{merchantId,sessionId:cartId}},data:{items:legacyItems}});
+    const ready=await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}});
+    await assert.rejects(adapter.quote({merchantId:foreignMerchantId,cartId},request),review);
+    await prisma.productStock.updateMany({where:{variantId:recommended.id},data:{quantity:0}});
+    await assert.rejects(adapter.quote(scope,request),review);
+    assert.deepEqual(await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}}),ready);
+    await prisma.productStock.updateMany({where:{variantId:recommended.id},data:{quantity:20}});
+    // JSON transport omits no hidden undefined key; a real accept revalidates and commits this same quote once.
+    assert.deepEqual(await adapter.accept(scope,{expectedQuote:JSON.parse(JSON.stringify(legacyQuote))}),{version:1,status:'accepted',...scope});
+    const accepted=await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}});
+    assert.equal(accepted.items.find(item=>item.variantId===recommended.id).unitPriceCents,2000);
+    const finalProjection=await adapter.project(scope);assert.equal(finalProjection.total,5800);
+    assert.equal(finalProjection.items.find(item=>item.variantId===recommended.id).unitPriceCents,1800);
+    assert.equal(Object.hasOwn(finalProjection.items.find(item=>item.variantId===source.id),'categoryId'),false);
+    assert.deepEqual(await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}}),accepted);
+    for(const model of['completedOrder','paymentIntent','inventoryMovement','serviceAppointment'])assert.equal(await prisma[model].count({where:{merchantId}}),0);
+    assert.equal(runtime.evidence().providerCalls,0);
+  }finally{try{await prisma?.$disconnect();}finally{await runtime.close();}}
+  assert.deepEqual(runtime.cleanupEvidence(),{appClosed:true,remainingContainers:0,remainingBridgeSockets:0});
+});

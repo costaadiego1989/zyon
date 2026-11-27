@@ -41,6 +41,17 @@ const catalogSelect = {
 const catalogWithAnalyticsSelect = { ...catalogSelect,
   price: { select: { ...catalogSelect.price.select, costInCents: true } },
 } as const satisfies Prisma.ProductVariantSelect;
+/** Persisted catalog SQL NULL means no category. Never coerce other values or drop unknown fields. */
+export function normalizePersistedStorefrontCategoryItems(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map(item => {
+    if (!item || typeof item !== "object" || Array.isArray(item) || !Object.hasOwn(item, "categoryId") || item.categoryId !== null) return item;
+    const normalized = { ...item };
+    delete normalized.categoryId;
+    return normalized;
+  });
+}
+
 const cartSchema = z.strictObject({
   id, merchantId: id, sessionId: id,
   items: z.array(z.strictObject({ variantId: id, productId: id, categoryId: id.optional(), name, sku,
@@ -185,7 +196,7 @@ export async function readStorefrontCartCommercial(tx: Prisma.TransactionClient,
       const suppliedClock = observedAt === undefined ? undefined : new Date(observedAt.getTime());
       if (suppliedClock && !Number.isFinite(suppliedClock.getTime())) throw new Error("storefront_effect_commercial_authority_invalid");
       const scope = z.strictObject({ merchantId: id, cartId: id }).parse({ merchantId: rawScope.merchantId, cartId: rawScope.cartId });
-      const cart: StorefrontCart = cartSchema.parse(rawCart);
+      const cart: StorefrontCart = cartSchema.parse({ ...rawCart, items: normalizePersistedStorefrontCategoryItems(rawCart.items) });
       if (cart.merchantId !== scope.merchantId || cart.sessionId !== scope.cartId) throw new Error("storefront_effect_cart_scope_invalid");
       const ids = cart.items.map(item => item.variantId);
       if (new Set(cart.items.map(storefrontOptionLineIdentity)).size !== ids.length || cart.items.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0) !== cart.total) {
