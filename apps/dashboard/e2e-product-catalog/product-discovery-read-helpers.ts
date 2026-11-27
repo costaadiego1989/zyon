@@ -2,6 +2,7 @@ import {test as base,expect,type Page,type Locator} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductDiscoveryReadJourney} from '../../api/tests/product-discovery-read.fixture.mjs';
+import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductDiscoveryReadJourney>>;
 export const test=base.extend<{}, {discoveryChannel:'storefront'|'whatsapp';discoverySurface:'categories'|'comparison'|'reviews';journey:Journey}>({
   discoveryChannel:['storefront',{option:true,scope:'worker'}],discoverySurface:['categories',{option:true,scope:'worker'}],
@@ -14,7 +15,7 @@ async function open(page:Page,journey:Journey){
   await page.addInitScript(()=>addEventListener('DOMContentLoaded',()=>{const aside=document.createElement('aside');aside.textContent='Fonte/API/banco locais · Seleção de leitura e revisão controladas · Nenhum envio externo';
     Object.assign(aside.style,{position:'fixed',bottom:'0',left:'0',right:'0',zIndex:'20000',padding:'5px',background:'#143d2b',color:'white',font:'11px system-ui',pointerEvents:'none'});document.body.append(aside);}));
   await page.goto(journey.channel==='storefront'?journey.origin+'/store/'+journey.slug:journey.origin);
-  if(journey.channel==='storefront'){const activate=page.getByRole('button',{name:'Por chat',exact:true});if(await activate.isVisible())await activate.click();}
+  if(journey.channel==='storefront'){await declineOptionalStorefrontConsent(page);await page.getByRole('button',{name:'Por chat Converse digitando',exact:true}).click();}
   await expect(page.getByRole('textbox',{name:'Mensagem',exact:true})).toBeVisible();
 }
 async function act(page:Page,journey:Journey,text:string,button?:Locator){

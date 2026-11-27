@@ -2,6 +2,7 @@ import {test as base,expect,type Page,type Locator} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductContactDeliveryJourney} from '../../api/tests/product-contact-delivery.fixture.mjs';
+import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductContactDeliveryJourney>>;
 export const test=base.extend<{}, {deliveryChannel:'storefront'|'whatsapp';deliveryScenario:'identity'|'freight';journey:Journey}>({
   deliveryChannel:['storefront',{option:true,scope:'worker'}],deliveryScenario:['identity',{option:true,scope:'worker'}],
@@ -30,13 +31,14 @@ async function send(page:Page,journey:Journey,message:string,button?:Locator){
 async function add(page:Page,journey:Journey){
   if(journey.channel==='storefront'){
     await page.goto(journey.origin+'/store/'+journey.slug+'?show=content&product='+journey.productId);
+    await declineOptionalStorefrontConsent(page);
     const detail=page.getByRole('dialog',{name:'Detalhes do produto',exact:true});await expect(detail).toContainText(journey.names.product);
     const response=page.waitForResponse(value=>new URL(value.url()).pathname.endsWith('/messages')&&value.request().method()==='POST');
     await detail.getByRole('button',{name:'Adicionar ao carrinho',exact:true}).first().click();const reply=await response;expect(reply.status()).toBe(201);
     expect((await reply.json()).blocks.some((block:any)=>block.type==='cart_add_result'&&block.data.status==='succeeded'&&block.data.variantId===journey.variantId)).toBe(true);
     await detail.getByRole('button',{name:'Fechar produto e voltar ao chat',exact:true}).click();
   }else{
-    await sendNative(page,'/produtos');await sendNative(page,'',native(page,'Ver detalhes'));await sendNative(page,'',native(page,/^Adicionar(?: ao carrinho)?$/));
+    await sendNative(page,'/produtos');await sendNative(page,'',native(page,'Ver detalhes'));await sendNative(page,'',native(page,'🛒 Adicionar'));
   }
   await expect.poll(async()=>{const row=await journey.cart();return row?.items.map((item:any)=>[item.variantId,item.quantity,item.unitPriceCents]);}).toEqual([[journey.variantId,1,4000]]);
   const cart=await journey.cart();expect(cart.total).toBe(4000);expect(cart.discount).toBe(0);return cart;
@@ -44,7 +46,7 @@ async function add(page:Page,journey:Journey){
 async function loginAndOpenCheckout(page:Page,journey:Journey){
   if(journey.channel==='whatsapp'){await sendNative(page,'/carrinho');await sendNative(page,'',native(page,/^Finalizar (?:pedido|compra)$/i));return;}
   await page.getByRole('button',{name:/^Carrinho(?::|$)/}).last().click();await page.getByRole('dialog',{name:'Carrinho',exact:true}).getByRole('button',{name:'Finalizar pedido',exact:true}).click();
-  const dialog=page.getByRole('dialog').filter({has:page.getByText('Para finalizar sua compra, confirme sua identidade',{exact:true})});await expect(dialog).toBeVisible();
+  const dialog=page.getByRole('dialog');await expect(dialog).toHaveCount(1);await expect(dialog.getByText('Para finalizar sua compra, confirme sua identidade',{exact:true})).toBeVisible();await expect(dialog).toBeVisible();
   await dialog.getByRole('button',{name:/Entrar com e-mail/}).click();await dialog.getByRole('textbox',{name:'E-mail',exact:true}).fill(journey.email);
   const sent=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/buyer/email/send')&&response.request().method()==='POST');
   await dialog.getByRole('button',{name:'Confirmar',exact:true}).click();expect((await sent).status()).toBe(201);
@@ -66,14 +68,14 @@ async function noSale(journey:Journey,before:any){
 async function capture(page:Page,label:string){const directory=resolve(process.cwd(),'../../.specs/features/whatsapp-service-booking-business-rag/captures/artifacts');await mkdir(directory,{recursive:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);await page.screenshot({path:resolve(directory,`${label}-${page.viewportSize()?.width}.running.png`),fullPage:false});}
 async function fillNewAddress(page:Page,journey:Journey,number:string){
   const log=page.getByRole('log',{name:journey.channel==='whatsapp'?'Mensagens capturadas':'Mensagens do chat',exact:true});
-  await expect(log).toContainText(/Rua (?:Casa|Trabalho) Sintética/);await send(page,journey,'Sim',journey.channel==='whatsapp'?native(page,'Sim'):log.getByRole('button',{name:'Sim',exact:true}).last());
+  await expect(log).toContainText(/Rua (?:Casa Sintética|Trabalho Sintético)/);await send(page,journey,'Sim',journey.channel==='whatsapp'?native(page,'Sim'):log.getByRole('button',{name:'Sim',exact:true}).last());
   await send(page,journey,number);await send(page,journey,'sem complemento');
 }
 async function selectOwnDelivery(page:Page,journey:Journey,neighborhood:'Centro'|'Jardins',cents:number){
   const checkout=await journey.checkout(),options=checkout.shippingOptions;expect(options).toHaveLength(1);expect(options[0].carrierKey).toBe('own_delivery_neighborhood_'+neighborhood.toLowerCase());expect(Math.round(options[0].customerPrice*100)).toBe(cents);
   expect(options[0].deliveryDays).toBe(1);expect(options[0].quoteId).toBeTruthy();expect(Date.parse(options[0].expiresAt)).toBeGreaterThan(Date.now());
   const log=page.getByRole('log',{name:journey.channel==='whatsapp'?'Mensagens capturadas':'Mensagens do chat',exact:true});await expect(log).toContainText(neighborhood);await expect(log).not.toContainText(/Correios|Sedex|PAC|retirada/i);
-  const choice=journey.channel==='whatsapp'?native(page,new RegExp('Entrega própria.*'+neighborhood)):log.getByRole('button').filter({hasText:new RegExp('Entrega própria.*'+neighborhood)}).last();const response=await send(page,journey,'',choice);
+  const choice=journey.channel==='whatsapp'?log.getByRole('article').filter({hasText:new RegExp('Entrega própria.*'+neighborhood)}).last().getByRole('button'):log.getByRole('button').filter({hasText:new RegExp('Entrega própria.*'+neighborhood)}).last();const response=await send(page,journey,'',choice);
   const shown=journey.channel==='storefront'?response.experience.totals:(await journey.view()).blocks.find((block:any)=>block.type==='checkout_summary')?.data.totals;
   expect(shown).toBeTruthy();expect(shown.currency).toBe('BRL');expect(shown.subtotal).toBe(40);expect(Math.round(shown.shipping*100)).toBe(cents);expect(shown.discount).toBe(0);
   const fee=journey.evidence().api.localContactDelivery.platformFeeBrl;expect(Number.isFinite(fee)&&fee>=0).toBe(true);expect(shown.service_fee).toBe(fee);
@@ -106,7 +108,7 @@ export async function runOwnDeliveryFreight(page:Page,journey:Journey){
     await sendNative(page,'/enderecos');await sendNative(page,'',native(page,/Trabalho/));await sendNative(page,'',native(page,'Usar como padrão'));expect((await journey.book()).find((row:any)=>row.isDefault)?.label).toBe('Trabalho');
     expect((await journey.cart()).cartId).toBe(cart.cartId);initialNeighborhood='Jardins';initialCents=1250;
   }
-  await loginAndOpenCheckout(page,journey);let current=await canonical(journey,cart.cartId);expect(current.globalUserId).toBe(journey.buyerId);expect(current.customer.address.neighborhood).toBe(initialNeighborhood);
+  await loginAndOpenCheckout(page,journey);if(journey.channel==='storefront')await send(page,journey,'',page.getByRole('log',{name:'Mensagens do chat',exact:true}).getByRole('button',{name:'Vamos prosseguir',exact:true}));let current=await canonical(journey,cart.cartId);expect(current.globalUserId).toBe(journey.buyerId);expect(current.customer.address.neighborhood).toBe(initialNeighborhood);
   const first=await selectOwnDelivery(page,journey,initialNeighborhood,initialCents),oldQuote=first.shipping.quoteId;
   const next=initialNeighborhood==='Centro'?journey.addresses.work:journey.addresses.home,nextNeighborhood=next.neighborhood as 'Centro'|'Jardins',nextCents=nextNeighborhood==='Centro'?750:1250;
   await send(page,journey,'Alterar endereço para '+next.zip);await fillNewAddress(page,journey,next.number);current=await canonical(journey,cart.cartId);

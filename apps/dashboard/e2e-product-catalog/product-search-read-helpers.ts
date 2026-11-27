@@ -2,6 +2,7 @@ import {test as base,expect,type Page,type Response} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductSearchReadJourney} from '../../api/tests/product-search-read.fixture.mjs';
+import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductSearchReadJourney>>;
 type Channel='storefront'|'whatsapp';type Scenario='positive'|'noeligible';
 export const test=base.extend<{}, {searchChannel:Channel;searchScenario:Scenario;journey:Journey}>({
@@ -16,7 +17,7 @@ export async function openSearch(page:Page,journey:Journey){
     label.textContent='API/banco locais · Perfil estruturado · Classificador e planejador controlados · Sem envio externo';
     Object.assign(label.style,{position:'fixed',bottom:'0',left:'0',right:'0',zIndex:'20000',padding:'5px',background:'#143d2b',color:'white',font:'11px system-ui',textAlign:'center',pointerEvents:'none'});document.body.append(label);}));
   await page.goto(journey.channel==='storefront'?journey.origin+'/store/'+journey.slug:journey.origin);
-  if(journey.channel==='storefront'){const activate=page.getByRole('button',{name:'Por chat',exact:true});if(await activate.isVisible())await activate.click();}
+  if(journey.channel==='storefront'){await declineOptionalStorefrontConsent(page);await page.getByRole('button',{name:'Por chat Converse digitando',exact:true}).click();}
   else await expect(page.getByText(/Transporte Meta capturado; sem envio/)).toBeVisible();
   await expect(page.getByRole('textbox',{name:'Mensagem',exact:true})).toBeVisible();
 }

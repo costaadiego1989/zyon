@@ -2,11 +2,12 @@ import {test as base,expect,type Page,type Locator} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductPaymentJourney} from '../../api/tests/product-payment-journey.fixture.mjs';
+import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductPaymentJourney>>;
 const blockedDestinations=new WeakMap<Page,string[]>();
-export const test=base.extend<{}, {paymentChannel:'storefront'|'whatsapp';paymentScenario:'pix'|'switch';journey:Journey}>({
+export const test=base.extend<{}, {paymentChannel:'storefront'|'whatsapp';paymentScenario:'pix'|'switch'|'duplex';journey:Journey}>({
   paymentChannel:['storefront',{option:true,scope:'worker'}],paymentScenario:['pix',{option:true,scope:'worker'}],
-  journey:[async({paymentChannel,paymentScenario},use)=>{const own=await createProductPaymentJourney(paymentChannel,paymentScenario);try{await use(own);}finally{await own.close();}},{scope:'worker'}],
+  journey:[async({paymentChannel,paymentScenario},use)=>{const own=await createProductPaymentJourney(paymentChannel,paymentScenario==='duplex'?'switch':paymentScenario);try{await use(own);}finally{await own.close();}},{scope:'worker'}],
 });
 const native=(page:Page,label:string|RegExp)=>page.getByRole('log',{name:'Mensagens capturadas',exact:true}).getByRole('button',{name:label,exact:typeof label==='string'}).last();
 const embedResponse=(response:any)=>new URL(response.url()).pathname.endsWith('/embed/chat')&&response.request().method()==='POST';
@@ -32,13 +33,14 @@ async function send(page:Page,journey:Journey,message:string,button?:Locator){
 async function add(page:Page,journey:Journey){
   if(journey.channel==='storefront'){
     await page.goto(journey.origin+'/store/'+journey.slug+'?show=content&product='+journey.productId);
+    await declineOptionalStorefrontConsent(page);
     const detail=page.getByRole('dialog',{name:'Detalhes do produto',exact:true});await expect(detail).toContainText(journey.names.product);
     const response=page.waitForResponse(value=>new URL(value.url()).pathname.endsWith('/messages')&&value.request().method()==='POST');
     await detail.getByRole('button',{name:'Adicionar ao carrinho',exact:true}).first().click();const reply=await response;expect(reply.status()).toBe(201);
     expect((await reply.json()).blocks.some((block:any)=>block.type==='cart_add_result'&&block.data.status==='succeeded'&&block.data.variantId===journey.variantId)).toBe(true);
     await detail.getByRole('button',{name:'Fechar produto e voltar ao chat',exact:true}).click();
   }else{
-    await sendNative(page,'/produtos');await sendNative(page,'',native(page,'Ver detalhes'));await sendNative(page,'',native(page,/^Adicionar(?: ao carrinho)?$/));
+    await sendNative(page,'/produtos');await sendNative(page,'',native(page,'Ver detalhes'));await sendNative(page,'',native(page,'🛒 Adicionar'));
   }
   await expect.poll(async()=>{const row=await journey.cart();return row?.items.map((item:any)=>[item.variantId,item.quantity,item.unitPriceCents]);}).toEqual([[journey.variantId,1,4000]]);
   const cart=await journey.cart();expect(cart.total).toBe(4000);expect(cart.discount).toBe(0);return cart;
@@ -46,7 +48,7 @@ async function add(page:Page,journey:Journey){
 async function loginAndOpenCheckout(page:Page,journey:Journey){
   if(journey.channel==='whatsapp'){await sendNative(page,'/carrinho');await sendNative(page,'',native(page,/^Finalizar (?:pedido|compra)$/i));return;}
   await page.getByRole('button',{name:/^Carrinho(?::|$)/}).last().click();await page.getByRole('dialog',{name:'Carrinho',exact:true}).getByRole('button',{name:'Finalizar pedido',exact:true}).click();
-  const dialog=page.getByRole('dialog').filter({has:page.getByText('Para finalizar sua compra, confirme sua identidade',{exact:true})});await expect(dialog).toBeVisible();
+  const dialog=page.getByRole('dialog');await expect(dialog).toHaveCount(1);await expect(dialog.getByText('Para finalizar sua compra, confirme sua identidade',{exact:true})).toBeVisible();await expect(dialog).toBeVisible();
   await dialog.getByRole('button',{name:/Entrar com e-mail/}).click();await dialog.getByRole('textbox',{name:'E-mail',exact:true}).fill(journey.email);
   const sent=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/buyer/email/send')&&response.request().method()==='POST');
   await dialog.getByRole('button',{name:'Confirmar',exact:true}).click();expect((await sent).status()).toBe(201);
@@ -70,6 +72,7 @@ export async function preparePayment(page:Page,journey:Journey){
   expect(before.stock.map((row:any)=>[row.quantity,row.reserved])).toEqual([[20,0]]);
   expect(before.inventory.map((row:any)=>[row.sku,row.quantity,row.reserved])).toEqual([[journey.variantId,20,0]]);
   await add(page,journey);await loginAndOpenCheckout(page,journey);
+  if(journey.channel==='storefront')await send(page,journey,'',page.getByRole('log',{name:'Mensagens do chat',exact:true}).getByRole('button',{name:'Vamos prosseguir',exact:true}));
   const checkout=await journey.checkout();expect(checkout.globalUserId).toBe(journey.buyerId);
   expect(checkout.customer.address).toEqual(journey.addresses.home);expect(checkout.customer.cpf).toBeTruthy();
   expect(checkout.customer.phone.replace(/\D/g,'')).toBe(journey.phone);
@@ -86,7 +89,7 @@ export async function preparePayment(page:Page,journey:Journey){
   return before;
 }
 function currentMethod(page:Page,journey:Journey,method:'pix'|'card',switching:boolean){
-  if(journey.channel==='whatsapp')return native(page,method==='pix'?'Pix':'Cartão de crédito');
+  if(journey.channel==='whatsapp')return native(page,method==='pix'?/^Pix(?:\s|$)/:/^Cartão de crédito(?:\s|$)/);
   return switching?page.getByRole('button',{name:method==='pix'?/^Trocar para Pix/:/^Trocar para (?:Cartão|Crédito)/i}).last():
     page.getByRole('button',{name:method==='pix'?/^Pix(?:\s|$)/i:/^(?:Cartão de crédito|Crédito)(?:\s|$)/i}).last();
 }
@@ -150,7 +153,7 @@ export async function approveOnce(page:Page,journey:Journey,intent:any){
   const result=await journey.notify(intent.id);expect(result.status).toBe(200);
   await expect.poll(async()=>(await journey.finance()).intents.find((row:any)=>row.id===intent.id).status).toBe('approved');
   if(journey.channel==='whatsapp')await verifyNative(page);
-  await expect(page.getByRole('log',{name:journey.channel==='whatsapp'?'Mensagens capturadas':'Mensagens do chat',exact:true}))
+  await expect(journey.channel==='whatsapp'?page.getByRole('log',{name:'Mensagens capturadas',exact:true}):page.getByRole('heading',{name:'Pagamento confirmado! 🎉',exact:true}))
     .toContainText(/pagamento (?:confirmado|aprovado)|pedido (?:registrado|confirmado)|compra concluída/i);
 }
 export async function assertPaid(page:Page,journey:Journey,before:any,intent:any){

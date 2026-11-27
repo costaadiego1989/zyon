@@ -2,7 +2,9 @@ import {test as base,expect,type Page,type Locator} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductCartJourney} from '../../api/tests/product-cart-journey.fixture.mjs';
+import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductCartJourney>>;
+const storefrontConsentHandled=new WeakSet<Page>();
 export const test=base.extend<{}, {cartChannel:'storefront'|'whatsapp';cartScenario:'mutations'|'crosssell';journey:Journey}>({
   cartChannel:['storefront',{option:true,scope:'worker'}],cartScenario:['mutations',{option:true,scope:'worker'}],
   journey:[async({cartChannel,cartScenario},use)=>{const own=await createProductCartJourney(cartChannel,cartScenario);try{await use(own);}finally{await own.close();}},{scope:'worker'}],
@@ -23,6 +25,7 @@ async function send(page:Page,text:string,button?:Locator){
 async function add(page:Page,journey:Journey,key:string){
   if(journey.channel==='storefront'){
     await page.goto(journey.origin+'/store/'+journey.slug+'?show=content&product='+journey.ids[key]);
+    if(!storefrontConsentHandled.has(page)){await declineOptionalStorefrontConsent(page);storefrontConsentHandled.add(page);}
     const dialog=page.getByRole('dialog',{name:'Detalhes do produto',exact:true});await expect(dialog).toBeVisible();await expect(dialog).toContainText(journey.names[key]);
     const response=page.waitForResponse(value=>new URL(value.url()).pathname.endsWith('/messages')&&value.request().method()==='POST');
     const cta=dialog.getByRole('button',{name:'Adicionar ao carrinho',exact:true}).first();await expect(cta).toBeEnabled();await cta.focus();await page.keyboard.press('Enter');
@@ -32,7 +35,7 @@ async function add(page:Page,journey:Journey,key:string){
     return body;
   }
   await send(page,'/produtos');const card=page.getByRole('log',{name:'Mensagens capturadas',exact:true}).locator('article').filter({hasText:journey.names[key]}).filter({has:page.getByRole('button',{name:'Ver detalhes',exact:true})}).last();
-  await send(page,'',card.getByRole('button',{name:'Ver detalhes',exact:true}));await send(page,'',native(page,/^Adicionar(?: ao carrinho)?$/));return await journey.view();
+  await send(page,'',card.getByRole('button',{name:'Ver detalhes',exact:true}));await send(page,'',native(page,'🛒 Adicionar'));return await journey.view();
 }
 async function state(journey:Journey,expected:Record<string,{quantity:number;unitPrice?:number}>){
   await expect.poll(async()=>{const current=await journey.state();return current.items.map((item:any)=>[item.variantId,item.quantity]).sort();}).toEqual(Object.entries(expected).map(([key,value])=>[journey.variants[key],value.quantity]).sort());

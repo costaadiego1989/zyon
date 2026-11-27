@@ -2,6 +2,7 @@ import {test as base,expect,type Page,type Locator,type Response} from '@playwri
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductCatalogReadJourney} from '../../api/tests/product-catalog-read.fixture.mjs';
+import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
 
 type Channel='storefront'|'whatsapp';
 type Scenario='ten'|'empty';
@@ -23,7 +24,8 @@ export async function openStorefront(page:Page,journey:Journey){
     label.textContent='Next/API/banco locais · Perfil estruturado explícito · Classificador controlado · Sem chamada externa';
     Object.assign(label.style,{position:'fixed',bottom:'0',left:'0',right:'0',zIndex:'20000',padding:'5px',background:'#143d2b',color:'white',font:'11px system-ui',textAlign:'center',pointerEvents:'none'});document.body.append(label);}));
   await page.goto(journey.origin+'/store/'+journey.slug);
-  const activate=page.getByRole('button',{name:'Por chat',exact:true});if(await activate.isVisible())await activate.click();
+  await declineOptionalStorefrontConsent(page);
+  await page.getByRole('button',{name:'Por chat Converse digitando',exact:true}).click();
   await expect(page.getByRole('textbox',{name:'Mensagem',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:/^Ver Produtos$/i}).last()).toBeVisible();
 }
