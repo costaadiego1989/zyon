@@ -30,7 +30,7 @@ test("T30", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
       const cart: CheckoutSession["cart"] = { currency: "BRL", total: 50, items: [{ sku: "booking-short", product_id: "booking-short",
         variantId: "booking-short-variant", name: "Synthetic service", productType: "service", fulfillmentStrategy: "scheduled_service", price: 50,
         quantity: 1, fulfillmentSchedule: { slotId: "display-slot", date, startsAt: date + "T10:00:00.000Z", endsAt: date + "T10:20:00.000Z",
-          timeZone: "UTC", durationMinutes: 20, professionalId: "booking-professional", professionalVersion: 1, policyVersion: 1 } }] };
+          timeZone: "America/Sao_Paulo", durationMinutes: 20, professionalId: "booking-professional", professionalVersion: 1, policyVersion: 1 } }] };
       await prisma.checkoutSession.create({ data: { merchantId: "booking-services", sessionId, globalUserId: "synthetic-buyer",
         conversationId: "conversation-" + sessionId, cart: JSON.parse(JSON.stringify(cart)),
         createdAt: now, updatedAt: now,

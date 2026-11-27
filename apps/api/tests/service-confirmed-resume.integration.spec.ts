@@ -21,7 +21,7 @@ test("T30 confirmed checkout resume", { timeout: SERVICE_LOCAL_TEST_MS }, async 
     const cart: CheckoutSession["cart"] = { currency: "BRL", total: 50, items: [{ sku: "booking-short", product_id: "booking-short",
       variantId: "booking-short-variant", name: "Synthetic service", quantity: 1, price: 50, productType: "service", fulfillmentStrategy: "scheduled_service",
       fulfillmentSchedule: { slotId: "display-slot", date, startsAt: date + "T10:00:00.000Z", endsAt: date + "T10:20:00.000Z",
-        timeZone: "UTC", durationMinutes: 20, professionalId: "booking-professional", professionalVersion: 1, policyVersion: 1 } }] };
+        timeZone: "America/Sao_Paulo", durationMinutes: 20, professionalId: "booking-professional", professionalVersion: 1, policyVersion: 1 } }] };
     const start = async () => {
       const response = await fetch(runtime.apiOrigin + "/checkout/start-checkout", { method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
         headers: { "content-type": "application/json" }, body: JSON.stringify({ merchant_id: "booking-services", session_id: "confirmed-resume", cart }) });

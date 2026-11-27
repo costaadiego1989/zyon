@@ -222,7 +222,7 @@ test('T51 original-turn transaction and request admission',{timeout:SERVICE_LOCA
       const {toCheckoutSession}=await import('../dist/modules/checkout/infrastructure/prisma/checkout-session.mapper.js');
       const date=new Date(Date.now()+8*24*60*60*1000).toISOString().slice(0,10);
       const selected={...f.selection,date,startsAt:date+'T10:00:00.000Z',endsAt:date+'T10:30:00.000Z',
-        professionalVersion:1,policyVersion:1,timeZone:'UTC',durationMinutes:30};
+        professionalVersion:1,policyVersion:1,timeZone:'America/Sao_Paulo',durationMinutes:30};
       const {merchantId,...schedule}=selected;
       const cart={currency:'BRL',total:50,items:[{sku:f.selection.productId,name:'Canonical service',product_id:f.selection.productId,
         variantId:f.selection.variantId,quantity:1,price:50,productType:'service',fulfillmentStrategy:'scheduled_service',
@@ -429,7 +429,7 @@ test('T51 original-turn transaction and request admission',{timeout:SERVICE_LOCA
       const prepare=async(day,suffix)=>{
         const sessionId='local-confirmation-'+suffix+'-'+x.claim.id,date=new Date(Date.now()+day*86400000).toISOString().slice(0,10);
         const selected={...f.selection,date,startsAt:date+'T10:00:00.000Z',endsAt:date+'T10:30:00.000Z',
-          professionalVersion:1,policyVersion:1,timeZone:'UTC',durationMinutes:30};
+          professionalVersion:1,policyVersion:1,timeZone:'America/Sao_Paulo',durationMinutes:30};
         const{merchantId:ignored,...schedule}=selected;
         const cart={currency:'BRL',total:50,items:[{sku:f.selection.productId,name:'Canonical service',product_id:f.selection.productId,
           variantId:f.selection.variantId,price:50,quantity:1,productType:'service',fulfillmentStrategy:'scheduled_service',
