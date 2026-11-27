@@ -43,7 +43,7 @@ test("T27", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
     const input = serviceBookingRequest(date, "confirmed-after-expiry");
     const base = { productId: input.productId, variantId: input.variantId, professionalId: input.professionalId,
       professionalVersion: 1, policyVersion: 1, date, startsAt: input.startsAt, endsAt: input.endsAt,
-      timeZone: "UTC", durationMinutes: 20, priceInCents: 5000, currency: "BRL" };
+      timeZone: "America/Sao_Paulo", durationMinutes: 20, priceInCents: 5000, currency: "BRL" };
     const selected: ProfessionalCheckoutSelection = { ...base, slotId: professionalSlotId(input.merchantId, base) };
     const owner = { ownerId: "owned-checkout", store: () => store };
     const policy = { holdEnabled: true, holdMinutes: 13, paymentMode: "at_attendance" as const };
@@ -188,7 +188,7 @@ test("T27", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
       let quote: ReturnType<typeof readProfessionalCheckout> | undefined, settled = false;
       try {
         await locked; assert.ok(Number.isInteger(holderPid) && holderPid > 0);
-        quote = raw.$transaction(tx => readProfessionalCheckout(tx, fixture.session, () => { reads++; return current; }));
+        quote = raw.$transaction(tx => readProfessionalCheckout(tx, fixture.session, () => { reads++; return current; }, { store: () => store }));
         void quote.then(() => { settled = true; }, () => { settled = true; });
         const deadline = Date.now() + 2000; let waiting = false;
         do { waiting = Number(await db.sql(`SELECT count(*) FROM pg_stat_activity WHERE ${holderPid}=ANY(pg_blocking_pids(pid))

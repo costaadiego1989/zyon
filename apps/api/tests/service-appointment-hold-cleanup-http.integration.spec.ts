@@ -88,7 +88,7 @@ test("T33 served cancellation original hold cleanup", { timeout: SERVICE_LOCAL_T
         product_id: seed.product.id, variantId: seed.product.variants[0].id, name: "Synthetic public service", price: 50, quantity: 1,
         productType: "service", fulfillmentStrategy: "scheduled_service", fulfillmentSchedule: { slotId: "display-only",
           professionalId: seed.professional.id, professionalVersion: seed.professional.version, policyVersion: current.version,
-          date: seed.date, startsAt: seed.date + "T10:20:00.000Z", endsAt: seed.date + "T10:40:00.000Z", timeZone: "UTC", durationMinutes: 20 } })) };
+          date: seed.date, startsAt: seed.date + "T10:20:00.000Z", endsAt: seed.date + "T10:40:00.000Z", timeZone: "America/Sao_Paulo", durationMinutes: 20 } })) };
       const start = await embed(token, origin, "/embed/start", { cart, customer: { fullName: "Synthetic buyer", email: "buyer@t33.example.test" } });
       assert.equal(start.status, 201, JSON.stringify(start)); const sessionId = start.body.session_id;
       const command = { session_id: sessionId, command_id: "confirm-" + suffix, cart_fingerprint: start.body.service_checkout.cart_fingerprint };
