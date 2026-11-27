@@ -218,6 +218,9 @@ try {
         assert.equal(await page.getByLabel("Ambiente fiscal", { exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: "Tentar novamente", exact: true }).count(), 0);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        const configureBounds = await page.getByRole("button", { name: "Configurar emissão", exact: true }).boundingBox();
+        assert.ok(configureBounds && configureBounds.x >= 0 && configureBounds.x + configureBounds.width <= width,
+          "The configuration action must be entirely inside the viewport: " + JSON.stringify({ width, configureBounds, layout: await page.locator('.page-header').evaluate(el => ({display: getComputedStyle(el).display, direction: getComputedStyle(el).flexDirection, wrap: getComputedStyle(el).flexWrap, width: getComputedStyle(el).width, grid: getComputedStyle(el).gridTemplateColumns})) }));
         await page.screenshot({ path: artifacts + `invoices-empty-${width}.png`, fullPage: true });
         await page.getByRole("button", { name: "Preparar emissão", exact: true }).click();
         await page.getByRole("heading", { name: "Configuração fiscal", exact: true }).waitFor();

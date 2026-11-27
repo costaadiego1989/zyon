@@ -112,6 +112,14 @@
   margin: 12px 0;
   line-height: 1.5;
 }
+@media (max-width: 768px) {
+  .fiscal-page .page-header {
+    flex-wrap: nowrap;
+  }
+  .fiscal-page .page-header__copy {
+    flex-basis: auto;
+  }
+}
 @media (max-width: 600px) {
   .fiscal-page .fiscal-section {
     padding: 16px;
