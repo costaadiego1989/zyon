@@ -20,7 +20,7 @@ export async function createProductPaymentJourney(channel,scenario){
     const own=await request('/auth/register',{merchant_name:'Pagamentos locais próprios',email:randomUUID()+'@buyer-journey.example.test',password:'SyntheticDeliveryOwner123!',business_mode:'products'});
     const other=await request('/auth/register',{merchant_name:'Outra loja sintética',email:randomUUID()+'@buyer-journey.example.test',password:'SyntheticDeliveryOther123!',business_mode:'products'});
     assert.equal(own.status,201);assert.equal(other.status,201);const merchantId=own.body.merchant_id,foreignMerchantId=other.body.merchant_id,slug='c60-payment-'+randomUUID(),prefix='c60p_'+runtime.db.runId.replaceAll('-','');
-    const names={product:'Kit de cuidados sintético',buyer:'Cliente Sintético',home:'Casa',work:'Trabalho'},phone='5511998000064',email=randomUUID()+'@buyer-journey.example.test';
+    const names={product:'Kit de cuidados sintético',buyer:'Cliente Sintético',home:'Casa',work:'Trabalho'},phone=channel==='storefront'?'11998000064':'5511998000064',email=randomUUID()+'@buyer-journey.example.test';
     const addresses={home:{zip:'01310100',street:'Rua Casa Sintética',number:'10',complement:'',neighborhood:'Centro',city:'São Paulo',state:'SP'},
       work:{zip:'01310200',street:'Rua Trabalho Sintético',number:'20',complement:'',neighborhood:'Jardins',city:'São Paulo',state:'SP'}};
     const rules={maxDiscountPercent:0,minimumMarginPercent:0,allowFreeShipping:false,allowShippingDiscount:false,allowBonusItem:false,allowStackDiscountAndFreeShipping:false,couponBoxEnabled:false,autonomousEngineEnabled:false,
@@ -54,7 +54,13 @@ export async function createProductPaymentJourney(channel,scenario){
     await runtime.productPayments.bind(own.body.access_token);
 
     const cart=async()=>{const rows=await db.storefrontCart.findMany({where:{merchantId}});assert.ok(rows.length<=1,'delivery_ambiguous_cart');const row=rows[0];return row?{cartId:row.sessionId,items:structuredClone(row.items),total:row.total,discount:row.discount}:null;};
-    const checkout=async()=>{const rows=await db.checkoutSession.findMany({where:{merchantId}});assert.ok(rows.length<=1,'delivery_ambiguous_checkout');return rows[0]?structuredClone(rows[0]):null;};
+    const checkout=async()=>{
+      const ownedCart=await cart();if(!ownedCart)return null;
+      const rows=await db.checkoutSession.findMany({where:{merchantId,cart:{path:['cart_ref'],equals:ownedCart.cartId}}});
+      assert.ok(rows.length<=1,'delivery_ambiguous_checkout');const row=rows[0];if(!row)return null;
+      assert.equal(row.merchantId,merchantId);assert.equal(row.cart.source,'storefront');assert.equal(row.cart.cart_ref,ownedCart.cartId);
+      return structuredClone(row);
+    };
     const book=async()=>buyerId?db.buyerAddress.findMany({where:{globalUserId:buyerId},orderBy:{id:'asc'}}):[];
     const snapshot=async()=>({stock:await db.productStock.findMany({where:{variant:{product:{merchantId}}},orderBy:{id:'asc'}}),foreignAddress:await db.buyerAddress.findUnique({where:{id:prefix+'-foreign-address'}}),
       orders:await db.completedOrder.count({where:{merchantId}}),intents:await db.paymentIntent.count({where:{merchantId}}),appointments:await db.serviceAppointment.count({where:{merchantId}}),receipts:await db.attendanceReceipt.count({where:{merchantId}}),inventory:await db.inventoryMovement.count({where:{merchantId}}),

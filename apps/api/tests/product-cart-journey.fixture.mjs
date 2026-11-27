@@ -22,7 +22,7 @@ export async function createProductCartJourney(channel,scenario){
     const ids=Object.fromEntries(['a','b','c','d','e','out','foreign'].map(key=>[key,prefix+'-'+key])),variants=Object.fromEntries(Object.entries(ids).map(([key,id])=>[key,id+'-v'])),
       names={a:'Kit Base',b:'Cabo Complementar',c:'Estojo Complementar',d:'Carregador Base',e:'Suporte Complementar',out:'Sem Estoque',foreign:'Produto Externo'};
     const rules={maxDiscountPercent:10,minimumMarginPercent:0,allowFreeShipping:false,allowShippingDiscount:false,allowBonusItem:false,allowStackDiscountAndFreeShipping:false,
-      couponBoxEnabled:false,autonomousEngineEnabled:false,freeShippingMinCartValue:0,maxShippingSubsidy:0,maxPartialShippingDiscount:0,offerExpirationMinutes:10,blockedRegions:[],brandVoice:'Cordial',originZip:'01310000'};
+      couponBoxEnabled:false,autonomousEngineEnabled:false,freeShippingMinCartValue:0,maxShippingSubsidy:0,maxPartialShippingDiscount:0,offerExpirationMinutes:10,blockedRegions:[],brandVoice:'consultative',originZip:'01310000'};
     const cs={enabled:scenario==='crosssell',touchpoints:{browsing:false,pre_cart:false,post_cart:true,pre_checkout:false,pre_payment:false,post_purchase:false},
       strategies:['complementary'],limits:{maxSuggestionsPerSession:3,cooldownSeconds:0},discount:{enabled:true,mode:'percent',percent:10},display:{mode:'interstitial'}};
     for(const[id,storeSlug]of[[merchantId,slug],[foreignMerchantId,slug+'-foreign']]){
@@ -34,6 +34,12 @@ export async function createProductCartJourney(channel,scenario){
     for(const key of Object.keys(ids))await db.product.create({data:{id:ids[key],merchantId:key==='foreign'?foreignMerchantId:merchantId,name:names[key],type:'physical',isActive:true,
       description:'Produto sintético publicado: '+names[key]+'.',variants:{create:{id:variants[key],sku:variants[key],isActive:true,
         price:{create:{basePriceInCents:prices[key],costInCents:200,currency:'BRL'}},stock:{create:{quantity:key==='out'?0:20,reserved:0}}}}}});
+    for(const id of[merchantId,foreignMerchantId]){
+      const location=await db.inventoryLocation.create({data:{merchantId:id,name:'Estoque principal',kind:'warehouse',isDefault:true}});
+      for(const key of Object.keys(ids).filter(key=>(key==='foreign'?foreignMerchantId:merchantId)===id))
+        await db.inventoryItem.create({data:{merchantId:id,sku:variants[key],productName:names[key],locationId:location.id,
+          quantity:key==='out'?0:20,reserved:0,avgCostCents:200,salePriceCents:prices[key]}});
+    }
     const promotionIds={ab:prefix+'-ab',bc:prefix+'-bc',de:prefix+'-de'};
     if(scenario==='crosssell')for(const[key,source,recommended,discount]of[['ab','a',[variants.out,variants.foreign,variants.b],10],['bc','b',[variants.c],10],['de','d',[variants.e],0]]){
       await db.crossSellPromotion.create({data:{id:promotionIds[key],merchantId,name:'Regra sintética '+key,trigger:{sku_in_cart:[variants[source]]},recommendedSkus:recommended,
@@ -43,6 +49,12 @@ export async function createProductCartJourney(channel,scenario){
     const state=async()=>{
       const rows=await db.storefrontCart.findMany({where:{merchantId},orderBy:{sessionId:'asc'}});assert.ok(rows.length<=1,'cart_journey_ambiguous_canonical_cart');
       const row=rows[0];if(!row)return{cartId:null,items:[],total:0,discount:0};assert.ok(Array.isArray(row.items));
+      if(row.items.some(item=>item?.crossSellIntent!==undefined)){
+        await import('reflect-metadata');
+        const {PrismaStorefrontCrossSellCartAdapter}=await import('../dist/modules/storefront/infrastructure/repositories/prisma-storefront-cross-sell-cart.adapter.js');
+        const projected=await new PrismaStorefrontCrossSellCartAdapter(db).project({merchantId,cartId:row.sessionId});
+        return{cartId:projected.sessionId,items:structuredClone(projected.items),total:projected.total,discount:projected.discount};
+      }
       return{cartId:row.sessionId,items:structuredClone(row.items),total:row.total,discount:row.discount};
     };
     const snapshot=async()=>({products:await db.product.findMany({where:scope,select:{id:true,merchantId:true,name:true,type:true,isActive:true,variants:{select:{id:true,sku:true,isActive:true,price:{select:{basePriceInCents:true,costInCents:true,currency:true}}},orderBy:{id:'asc'}}},orderBy:{id:'asc'}}),
