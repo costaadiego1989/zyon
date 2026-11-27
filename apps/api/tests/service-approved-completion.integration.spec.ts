@@ -47,6 +47,8 @@ test("T35 persisted approval completes every frozen professional unit", { timeou
       new HandleSaleCompletedUseCase(new OnSaleCompletedHandler(new PrismaInventorySaleRepository(f.prisma)), push), repository);
     const prepare = async (suffix: string, held = true) => {
       const sources = [await f.prepare("complete-a-" + suffix, "online"), await f.prepare("complete-b-" + suffix, "online")];
+      // Explicit historical UTC professional facts precede every frozen paid selector and original lease.
+      for (const source of sources) source.professional = await f.prisma.serviceProfessional.update({ where: { id: source.professional.id }, data: { timeZone: "UTC" } });
       const merchantId = f.owner.merchant_id, policy = await f.prisma.serviceBusinessPolicy.findUniqueOrThrow({ where: { merchantId } });
       const configured = await f.request("/merchants/me/service-business-policy", { expectedVersion: policy.version, paymentMode: "online",
         holdEnabled: true, holdMinutes: 7, admissionsEnabled: true }, f.owner, "PUT"); assert.equal(configured.status, 200);

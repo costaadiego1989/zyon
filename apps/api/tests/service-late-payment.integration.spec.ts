@@ -174,7 +174,7 @@ test("T36 approved late payment keeps real money and truthful regularization", {
       await run(c); await assertReview(c); assert.deepEqual(await paid(c), money);
     });
     await t.test("a trusted manual pending correlation retains the SAME original identity when late approval cannot promote it", async () => {
-      const c = await seedApprovedProfessionalCase(f, "late-manual"), a = await f.prisma.serviceAppointment.findUniqueOrThrow({ where: { id: c.appointment.id } });
+      const c = await seedApprovedProfessionalCase(f, "late-manual", { manualAppointment: true }), a = await f.prisma.serviceAppointment.findUniqueOrThrow({ where: { id: c.appointment.id } });
       await f.prisma.completedOrder.delete({ where: { id: c.order.id } });
       const selected = { ...c.selected, slotId: c.schedule.slotId };
       await f.prisma.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: c.merchantId, sessionId: c.sessionId } }, data: {
