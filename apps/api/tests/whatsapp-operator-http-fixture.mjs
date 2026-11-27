@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {setTimeout as pause} from 'node:timers/promises';
 import {createHandoffFixture} from './whatsapp-handoff-fixture.mjs';
+import {selectOwnedOperatorRecoveryTemplateMonitorFixture} from './service-recovery-template-monitor-fixture.mjs';
 
 /** Own AppModule/PG/Redis, real bearer authentication and tenant middleware.
  * Fixtures establish canonical waiting tickets; no auth/repository/provider override. */
@@ -11,7 +12,9 @@ export async function createWhatsAppOperatorHttpFixture(options={}){
   assert.ok(options.operatorDelivery===undefined||typeof options.operatorDelivery==='boolean','operator_http_fixture_options_invalid');
   assert.ok(!options.operatorDelivery||options.whatsapp,'operator_http_explicit_transport_required');
   const provider=options.provider??'TWILIO';
-  const f=await createHandoffFixture({provider,...(options.whatsapp?{whatsapp:options.whatsapp}:{})});
+  const recoveryTemplateMonitorFixture=selectOwnedOperatorRecoveryTemplateMonitorFixture({...options,provider});
+  const f=await createHandoffFixture({provider,...(options.whatsapp?{whatsapp:options.whatsapp}:{}),
+    ...(recoveryTemplateMonitorFixture?{recoveryTemplateMonitorFixture}:{})});
   try{
     if(!options.operatorDelivery){
       assert.deepEqual(await f.raw.$queryRaw`SELECT run_id FROM synthetic_native_marker`,[{run_id:f.runtime.db.runId}]);

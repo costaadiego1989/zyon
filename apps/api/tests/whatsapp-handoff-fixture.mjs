@@ -3,9 +3,10 @@ import {PrismaClient} from '@prisma/client';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
 
 export async function createHandoffFixture(options={}){
-  assert.ok(Object.keys(options).every(key=>['whatsapp','provider'].includes(key)));
+  assert.ok(Object.keys(options).every(key=>['whatsapp','provider','recoveryTemplateMonitorFixture'].includes(key)));
   const provider=options.provider??'TWILIO';assert.ok(['TWILIO','META_CLOUD'].includes(provider));
-  const runtime=await createServiceTestRuntime({local:true,...(options.whatsapp?{whatsapp:options.whatsapp}:{})});
+  const runtime=await createServiceTestRuntime({local:true,...(options.whatsapp?{whatsapp:options.whatsapp}:{}),
+    ...(options.recoveryTemplateMonitorFixture===undefined?{}:{recoveryTemplateMonitorFixture:options.recoveryTemplateMonitorFixture})});
   let raw;
   try{
     raw=new PrismaClient({datasources:{db:{url:runtime.db.prismaUrl}}});
