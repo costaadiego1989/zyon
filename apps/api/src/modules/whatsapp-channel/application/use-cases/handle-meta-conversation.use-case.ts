@@ -104,8 +104,11 @@ export class HandleMetaConversationUseCase {
             state={...state,marketingPendingAttachment:attachmentContext.slice(0,24000)};
             await this.sessions.update(route.whatsappSession.id,{conversationState:state});
           }
-          await this.marketing.opening(input.merchantId,relationship.conversationId,()=>this.marketingMessaging!.sendOpening({
-            merchantId:input.merchantId, phone:input.fromNumber, deviceId:input.deviceId, text:MARKETING_CONSENT_TEXT}));
+          await this.marketing.opening(input.merchantId,relationship.conversationId,async()=>{
+            await this.save(claim,{phase:"dispatching"});
+            return this.marketingMessaging!.sendOpening({
+              merchantId:input.merchantId, phone:input.fromNumber, deviceId:input.deviceId, text:MARKETING_CONSENT_TEXT});
+          });
           await this.save(claim,{phase:"complete"});
           return;
         }
@@ -113,7 +116,9 @@ export class HandleMetaConversationUseCase {
           if (!this.marketingMessaging) throw new Error("whatsapp_marketing_transport_unavailable");
           await this.marketing.aiReply(input.merchantId,relationship.conversationId,claim.eventId,
             "Você não receberá mais promoções desta loja. Seu atendimento continua disponível.",
-            async()=>{const result=await this.marketingMessaging!.sendFreeform({merchantId:input.merchantId,phone:input.fromNumber,deviceId:input.deviceId,
+            async()=>{
+              await this.save(claim,{phase:"dispatching"});
+              const result=await this.marketingMessaging!.sendFreeform({merchantId:input.merchantId,phone:input.fromNumber,deviceId:input.deviceId,
               text:"Você não receberá mais promoções desta loja. Seu atendimento continua disponível."});return {...result,status:result.status === "suppressed" ? "failed" as const : result.status};});
           await this.save(claim,{phase:"complete"});
           return;
@@ -285,6 +290,9 @@ export class HandleMetaConversationUseCase {
       await this.save(claim, { ...saved, phase: "dispatching", dispatchingIndex: index, sent });
       let result: Awaited<ReturnType<SendWhatsAppResponseUseCase["sendUi"]>> | undefined;
       const deliver=async()=>{
+        // CRM admission may await database locks after the first marker.
+        // Revalidate this exact leased inbox immediately before provider IO.
+        await this.save(claim,{...saved!,phase:"dispatching",dispatchingIndex:index,sent});
         result=await this.sender.sendUi({merchantId:input.merchantId,provider:input.provider,deviceId:input.deviceId,toNumber:input.fromNumber,
           text:"",uiMessage:saved!.presentation!.messages[index],correlationId:`zyon:${claim.id}:${index}`});
         return {status:result.status === "sent" || result.status === "queued" ? "accepted" as const : result.status === "unknown" ? "unknown" as const : "failed" as const,
