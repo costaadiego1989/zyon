@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createDashboardApi } from "../../api-client.js";
+import { fiscalDashboardEnvironment } from "../../lib/fiscal-environment.js";
 import type {
   FiscalEnvironment,
   FiscalInvoiceRow,
@@ -132,7 +133,7 @@ export function FiscalInvoicesPage({
     () => createDashboardApi({ baseUrl: apiBaseUrl }),
     [apiBaseUrl]
   );
-  const [environment, setEnvironment] =
+  const [selectedEnvironment, setEnvironment] =
       useState<FiscalEnvironment>(initialEnvironment),
     [search, setSearch] = useState(""),
     [applied, setApplied] = useState(""),
@@ -142,6 +143,7 @@ export function FiscalInvoicesPage({
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [revision, setRevision] = useState(0);
+  const environment = fiscalDashboardEnvironment(selectedEnvironment);
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -190,7 +192,7 @@ export function FiscalInvoicesPage({
           {
             title: "Encontre o pedido",
             description:
-              "Busque pelo pedido ou pelo comprador. Confira o ambiente: homologação reúne os testes; produção acompanha a emissão das notas das vendas.",
+              "Busque pelo pedido ou pelo comprador para acompanhar as notas das suas vendas.",
           },
           {
             title: "Confira a nota e o envio separadamente",
@@ -217,7 +219,7 @@ export function FiscalInvoicesPage({
             }}
           >
             <div className="configuration-form__grid">
-              <FormSelect
+              {!import.meta.env.PROD && <FormSelect
                 label="Ambiente fiscal"
                 value={environment}
                 onChange={(v) => {
@@ -231,7 +233,7 @@ export function FiscalInvoicesPage({
                   },
                   { value: "production", label: "Produção" },
                 ]}
-              />
+              />}
               <FormSelect
                 label="Estado fiscal"
                 value={state}

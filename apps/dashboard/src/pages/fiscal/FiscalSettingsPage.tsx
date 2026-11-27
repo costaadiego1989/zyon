@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createDashboardApi } from "../../api-client.js";
+import { fiscalDashboardEnvironment } from "../../lib/fiscal-environment.js";
 import type {
   FiscalConnection,
   FiscalEnvironment,
@@ -54,9 +55,10 @@ export function FiscalSettingsPage({
     () => createDashboardApi({ baseUrl: apiBaseUrl }),
     [apiBaseUrl]
   );
-  const [environment, setEnvironment] =
+  const [selectedEnvironment, setEnvironment] =
       useState<FiscalEnvironment>(initialEnvironment),
     [provider, setProvider] = useState<FiscalProvider>(() => isOlistFiscalCallback() ? "tiny" : "focus");
+  const environment = fiscalDashboardEnvironment(selectedEnvironment);
   const [providers, setProviders] = useState<FiscalProviderSummary[]>([]),
     [connection, setConnection] = useState<FiscalConnection | null>(null),
     [profiles, setProfiles] = useState<FiscalProfiles | null>(null),
@@ -296,7 +298,7 @@ export function FiscalSettingsPage({
         description="Prepare sua empresa para emitir notas nas novas vendas pagas."
       />
       <SetupGuide title="Como preparar a emissão de notas" steps={[
-        {title:"Conecte o emissor da sua empresa",description:"Escolha seu ERP ou a Focus NF-e. Confira o CNPJ e confirme o ambiente de testes no seu ERP ou emissor antes de usar homologação. Os testes não têm validade fiscal."},
+        {title:"Conecte o emissor da sua empresa",description:"Escolha seu ERP ou a Focus NF-e. Informe o CNPJ da empresa e conecte a conta que você usa para emitir notas."},
         {title:"Revise os dados com seu contador",description:"Confira os produtos, impostos e formas de pagamento. As pendências mostram o que falta antes de ativar."},
         {title:"Ative quando tudo estiver pronto",description:"Verifique a preparação e ative a emissão automática. Ela vale para novas vendas pagas; vendas antigas não recebem nota por esta ativação."},
       ]}/>
@@ -306,7 +308,7 @@ export function FiscalSettingsPage({
         <>
           <div className="configuration-form">
             <div className="configuration-form__grid">
-              <FormSelect
+              {!import.meta.env.PROD && <FormSelect
                 label="Ambiente fiscal"
                 value={environment}
                 onChange={(v) => setEnvironment(v as FiscalEnvironment)}
@@ -318,7 +320,7 @@ export function FiscalSettingsPage({
                   { value: "production", label: "Produção" },
                 ]}
                 disabled={busy}
-              />
+              />}
               <FormSelect
                 label="Emissor fiscal"
                 value={provider}
