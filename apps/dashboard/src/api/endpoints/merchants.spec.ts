@@ -1,6 +1,22 @@
 import { expect, test } from "vitest";
 import { merchantEndpoints } from "./merchants.js";
 
+test.each([false, true])("maps the authenticated profile actor from the current API (wrapped=%s)", async (wrapped) => {
+  const profile = { id: "merchant-1", name: "Loja", role: "owner", userId: "actor-1" };
+  const api = merchantEndpoints("https://api.example.test", (async () =>
+    new Response(JSON.stringify(wrapped ? { data: profile } : profile))) as typeof fetch);
+
+  await expect(api.merchantProfile()).resolves.toEqual({ ...profile, role: "OWNER", user_id: "actor-1" });
+});
+
+test("retains the legacy authenticated actor without substituting the merchant identity", async () => {
+  const profile = { id: "merchant-1", name: "Loja", role: "staff", user_id: "actor-2" };
+  const api = merchantEndpoints("https://api.example.test", (async () =>
+    new Response(JSON.stringify(profile))) as typeof fetch);
+
+  await expect(api.merchantProfile()).resolves.toEqual({ ...profile, role: "STAFF" });
+});
+
 test("maps team member API identities and joined_at for the dashboard", async () => {
   const api = merchantEndpoints("https://api.example.test", (async () => new Response(JSON.stringify({ members: [
     { member_id: "membership-1", user_id: "user-1", email: "owner@example.test", role: "OWNER", joined_at: "2026-11-16T12:00:00Z" },

@@ -62,7 +62,11 @@ export interface SubmitPlatformFeedbackOutput {
 export function merchantEndpoints(base: string, f: typeof fetch) {
   return {
     merchantProfile(): Promise<MerchantProfile> {
-      return dashboardJson<MerchantProfile | { data: MerchantProfile }>(
+      type ProfileResponse = Omit<MerchantProfile, "user_id"> & {
+        userId?: string;
+        user_id?: string;
+      };
+      return dashboardJson<ProfileResponse | { data: ProfileResponse }>(
         base,
         "/merchants/me",
         { method: "GET" },
@@ -75,6 +79,7 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
         // (this only happens for admin-bypassed principals / future roles).
         return {
           ...raw,
+          user_id: raw.userId ?? raw.user_id ?? "",
           role: normalizedRole as MerchantProfile["role"],
         };
       });
