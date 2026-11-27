@@ -16,7 +16,7 @@ test('T22',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
       assert.equal(waiting,true,'PostgreSQL must observe the canonical '+table+' row lock wait behind the exact holder');
     };
     const events=[],command=new SaveAvailabilityExceptionUseCase(f.scoped,{publish:async event=>events.push(event)});
-    const input=(kind,start,end)=>({kind,startsAt:'2030-01-02T'+start+':00Z',endsAt:'2030-01-02T'+end+':00Z',timeZone:'UTC',reason:'Private synthetic reason'});
+    const input=(kind,start,end)=>({kind,startsAt:'2030-01-02T'+start+':00Z',endsAt:'2030-01-02T'+end+':00Z',timeZone:'America/Sao_Paulo',reason:'Private synthetic reason'});
     const foreignException=await f.raw.availabilityException.create({data:{id:'foreign-exception',merchantId:f.foreign.merchantId,professionalId:f.foreignProfessional.id,kind:'block',startsAt:new Date('2030-01-02T13:00:00Z'),endsAt:new Date('2030-01-02T14:00:00Z'),timeZone:'UTC',actorId:f.foreign.userId,reason:'Private foreign canary'}});
     let version=1;
     await t.test('one-off block and adjacent times use the same resource without rewriting history',async()=>{
@@ -42,7 +42,8 @@ test('T22',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
     await t.test('withdrawal after an actual profile timezone edit retains every historical interval field and appointment snapshot',async()=>{
       const {PrismaServiceProfessionalRepository}=await import('../dist/modules/catalog/infrastructure/repositories/prisma-service-professional.repository.js');
       const repository=new PrismaServiceProfessionalRepository(f.scoped);
-      const professional=await f.as(f.owner,()=>repository.create(f.owner,{publicName:'Historical zone professional',timeZone:'UTC',productIds:[f.selection.productId]}));
+      const professional=await f.raw.serviceProfessional.create({data:{merchantId:f.owner.merchantId,publicName:'Historical zone professional',timeZone:'UTC'}});
+      await f.raw.professionalService.create({data:{merchantId:f.owner.merchantId,professionalId:professional.id,productId:f.selection.productId}});
       const historical=await f.raw.availabilityException.create({data:{merchantId:f.owner.merchantId,professionalId:professional.id,kind:'block',startsAt:new Date('2030-01-02T17:00:30.123Z'),endsAt:new Date('2030-01-02T17:30:30.123Z'),timeZone:'UTC',actorId:f.owner.userId,reason:'Historical private timezone canary'}});
       const appointment=await f.raw.serviceAppointment.create({data:f.appointmentData(professional.id,'2030-01-02T18:00:30.123Z','2030-01-02T18:30:30.123Z')});
       const edited=await f.as(f.owner,()=>repository.update(f.owner,professional.id,professional.version,{timeZone:'America/Sao_Paulo',isActive:false}));assert.equal(edited.timeZone,'America/Sao_Paulo');
@@ -52,7 +53,7 @@ test('T22',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
       assert.deepEqual(await f.raw.serviceAppointment.findUnique({where:{id:appointment.id}}),appointment);
       assert.deepEqual(await f.raw.availabilityException.findUnique({where:{id:historical.id}}),withdrawn.exception);
       const reactivated=await f.as(f.owner,()=>repository.update(f.owner,professional.id,withdrawn.version,{isActive:true}));
-      await assert.rejects(f.as(f.owner,()=>command.execute(f.owner,professional.id,reactivated.version,{id:historical.id,kind:'block',startsAt:'2030-01-02T17:00:00Z',endsAt:'2030-01-02T17:30:00Z',timeZone:'UTC',isActive:true})),/timezone_mismatch/);
+      await assert.rejects(f.as(f.owner,()=>command.execute(f.owner,professional.id,reactivated.version,{id:historical.id,kind:'block',startsAt:'2030-01-02T17:00:00Z',endsAt:'2030-01-02T17:30:00Z',timeZone:'UTC',isActive:true})),/new_service_timezone_must_be_brasilia/);
       assert.equal((await f.raw.serviceProfessional.findUnique({where:{id:professional.id}})).version,reactivated.version);
       assert.deepEqual(await f.raw.availabilityException.findUnique({where:{id:historical.id}}),withdrawn.exception);
     });
@@ -60,7 +61,7 @@ test('T22',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
       const before=await f.raw.availabilityException.findMany({where:{professionalId:f.professional.id}});
       await assert.rejects(f.as(f.foreign,()=>command.execute(f.foreign,f.professional.id,version,input('block','13:00','14:00'))),/not_found/);
       await assert.rejects(f.as(f.owner,()=>command.execute(f.owner,f.professional.id,1,input('block','13:00','14:00'))),/stale/);
-      await assert.rejects(f.as(f.owner,()=>command.execute(f.owner,f.professional.id,version,{...input('block','13:00','14:00'),timeZone:'America/Sao_Paulo'})),/timezone_mismatch/);
+      await assert.rejects(f.as(f.owner,()=>command.execute(f.owner,f.professional.id,version,{...input('block','13:00','14:00'),timeZone:'UTC'})),/new_service_timezone_must_be_brasilia/);
       await assert.rejects(f.as(f.owner,()=>command.execute(f.owner,f.professional.id,version,{...input('block','13:00','14:00'),id:'foreign-exception'})),/not_found/);
       assert.deepEqual(await f.raw.availabilityException.findMany({where:{professionalId:f.professional.id}}),before);assert.equal((await f.raw.serviceProfessional.findUnique({where:{id:f.professional.id}})).version,version);
       assert.deepEqual(await f.raw.availabilityException.findUnique({where:{id:foreignException.id}}),foreignException);
