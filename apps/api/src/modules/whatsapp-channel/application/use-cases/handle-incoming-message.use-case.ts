@@ -182,9 +182,9 @@ export class HandleIncomingMessageUseCase {
       // before routing to the checkout engine.
       if (session.postSaleContext && this.postSaleReply) {
         if (input.provider === "META_CLOUD" && this.metaConversation) {
-          await this.metaConversation.execute(input, route, async () => {
+          await this.metaConversation.execute(input, route, async (message) => {
             let text = "";
-            const handled = await this.handlePostSaleReply(session, input, async response => { text = response.text; });
+            const handled = await this.handlePostSaleReply(session, { ...input, body: message }, async response => { text = response.text; });
             if (!handled) throw new Error("whatsapp_post_sale_context_invalid");
             return { agentMessage: text, blocks: [], quickReplies: [], state: {
               ...(session.conversationState ?? { version: 1, conversationId: crypto.randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] }),

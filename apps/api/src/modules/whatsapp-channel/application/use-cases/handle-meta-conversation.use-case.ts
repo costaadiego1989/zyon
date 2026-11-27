@@ -63,7 +63,7 @@ export class HandleMetaConversationUseCase {
     @Optional() @Inject(MERCHANT_MARKETING_MESSAGING) private readonly marketingMessaging?: MerchantMarketingMessaging,
   ) {}
 
-  async execute(input: IncomingMessageInput, route: RouteResult, responseProducer?: () => Promise<WhatsAppStructuredResponse>): Promise<void> {
+  async execute(input: IncomingMessageInput, route: RouteResult, responseProducer?: (message: string) => Promise<WhatsAppStructuredResponse>): Promise<void> {
     if (Date.now() - input.timestamp > 24 * 60 * 60 * 1000) throw new Error("whatsapp_service_window_expired");
     const claim = input.inboxClaim;
     if (!claim || !this.inbox.saveResponse || !this.conversation.respondStore) throw new Error("whatsapp_durable_ui_unavailable");
@@ -255,7 +255,7 @@ export class HandleMetaConversationUseCase {
             ? "🎙️ *Não consegui transcrever esse áudio agora.*\n\nPode escrever o que procura? Assim consigo continuar ajudando você.\n\n_As notas de voz devem estar em Ogg/Opus e ter até 3 MB._"
             : "📎 *Não consegui analisar esse anexo agora.*\n\nEscreva o nome do produto ou descreva o que procura para eu continuar ajudando.\n\n_Aceito fotos JPG, PNG ou WebP de até 3 MB e listas TXT/CSV._",
           blocks: [], quickReplies: [], state,
-        } : responseProducer ? await responseProducer() : await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
+        } : responseProducer ? await responseProducer(message) : await this.conversation.respondStore({ verifiedSender, merchantId: input.merchantId, buyer: route.buyerData,
           message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : message, state,
           attachmentContext,
           messageId: relationship?.responseKey ?? claim.id,
