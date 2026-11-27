@@ -77,12 +77,12 @@ test('T72 owned three-business composition evaluation blocks any critical failur
         if(item.scenario==='professional_service')fragments=[profile.service,profile.professional];
         if(item.scenario==='price_and_availability'){
           assert.equal(truth.live.facts.priceInCents,7900);
-          assert.deepEqual(truth.live.availability.slots.map(slot=>slot.startTime),['10:30','11:00','11:30']);
+          assert.deepEqual(truth.live.availability.slots.map(slot=>slot.startTime),['07:30','08:00','08:30']);
           assert.equal(reads.length,1);assert.equal(reads[0].merchantId,f.own.merchant_id);
           assert.deepEqual(reads[0].choice,{...liveRequest,merchantId:f.own.merchant_id});
           tools=[{name:'get_current_service_facts',result:truth.live}];
-          fragments=[profile.service,profile.professional,'79,00','10:30','11:00','11:30'];
-          assert.doesNotMatch(result.body.reply,/73,00|às 10:00/);
+          fragments=[profile.service,profile.professional,'79,00','07:30','08:00','08:30'];
+          assert.doesNotMatch(result.body.reply,/73,00|às 07:00/);
           assert.equal(actualEvents.filter(event=>event.kind==='chatCompletion').length,1);
         }else assert.deepEqual(reads,[]);
         if(isMissing){

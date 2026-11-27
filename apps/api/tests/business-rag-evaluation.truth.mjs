@@ -63,14 +63,14 @@ export async function canonicalEvaluationTruth(f,{serviceId,variantId,profession
         sourceVersion:source.sourceVersion,sourceHash:source.sourceHash,publicWorkVersion:null,publicationState:'published',
         embeddingModel:null,embeddingDimensions:null,chunkId:hash(JSON.stringify([sourceType,sourceId,0])),contentHash:hash(chunks[0])});
     }
-    const starts=['10:00','10:30','11:00','11:30'].slice(appointments.length?1:0),
-      slots=starts.map(startTime=>({date,startTime,startsAt:date+'T'+startTime+':00.000Z',
-        endsAt:new Date(Date.parse(date+'T'+startTime+':00Z')+30*60000).toISOString(),timeZone:'UTC',durationMinutes:30}));
+    const starts=[['10:00','07:00'],['10:30','07:30'],['11:00','08:00'],['11:30','08:30']].slice(appointments.length?1:0),
+      slots=starts.map(([utcTime,startTime])=>({date,startTime,startsAt:date+'T'+utcTime+':00.000Z',
+        endsAt:new Date(Date.parse(date+'T'+utcTime+':00Z')+30*60000).toISOString(),timeZone:'America/Sao_Paulo',durationMinutes:30}));
     return{references,live:{facts:{merchantId,professionalId,professionalVersion:link.professional.version,
       professionalServiceId:link.id,productId:serviceId,variantId,categoryId:link.product.categoryId,durationMinutes:30,
-      timeZone:'UTC',priceInCents:variant.price.basePriceInCents,currency:variant.price.currency},
+      timeZone:'America/Sao_Paulo',priceInCents:variant.price.basePriceInCents,currency:variant.price.currency},
       publicLabels:{serviceName:link.product.name,professionalName:link.professional.publicName},
-      availability:{professionalVersion:link.professional.version,policyVersion:policy.version,timeZone:'UTC',durationMinutes:30,
+      availability:{professionalVersion:link.professional.version,policyVersion:policy.version,timeZone:'America/Sao_Paulo',durationMinutes:30,
         status:'ready',dates:[date],slots}}};
   });
 }

@@ -76,7 +76,9 @@ export class PrismaCurrentServiceFactsReader {
         tx.serviceProfessional.findFirst({ where: { id: input.professionalId, merchantId: bound.merchantId }, select: { publicName: true } }),
       ]);
       if (!productLabel || !professionalLabel) throw new ConflictException("service_live_selection_changed");
-      return { facts, publicLabels: { serviceName: productLabel.name, professionalName: professionalLabel.publicName },
+      // Public live facts describe this new selection in the canonical availability zone.
+      // Historical professional and recurring-rule zones stay unchanged in storage.
+      return { facts: { ...facts, timeZone: availability.timeZone }, publicLabels: { serviceName: productLabel.name, professionalName: professionalLabel.publicName },
         availability: { ...availability, status: slots.length ? "ready" as const : "empty" as const,
         slots, dates: [...new Set(slots.map(slot => slot.date))] } };
     });

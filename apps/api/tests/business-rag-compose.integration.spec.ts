@@ -147,6 +147,30 @@ test("T71 actual canonical composition and live service facts", { timeout: SERVI
         { status: "unavailable", reason: "knowledge_base_denied" }); }
       finally { await raw.merchantBillingSubscription.update({ where: { merchantId }, data: { planKey: "growth" } }); }
     });
+    await t.test("historical UTC rows produce current Brasilia live facts without changing storage or absolute slots", async () => {
+      const professional = await raw.serviceProfessional.findUniqueOrThrow({ where: { id: "booking-professional" },
+        select: { id: true, timeZone: true, version: true } });
+      const recurring = await raw.professionalAvailability.findMany({ where: { merchantId, professionalId: "booking-professional" },
+        select: { id: true, weekday: true, startMinute: true, endMinute: true, timeZone: true }, orderBy: { weekday: "asc" } });
+      assert.equal(professional.timeZone, "UTC"); assert.equal(recurring.length, 7);
+      assert.ok(recurring.every(row => row.timeZone === "UTC" && row.startMinute === 600 && row.endMinute === 720));
+      const current = await as(() => live.read(choice(2), { merchantId }));
+      assert.equal(current.facts.timeZone, "America/Sao_Paulo");
+      assert.equal(current.availability.timeZone, "America/Sao_Paulo");
+      assert.equal(current.facts.professionalVersion, professional.version);
+      assert.equal(current.availability.professionalVersion, professional.version);
+      assert.ok(current.availability.slots.some(slot => slot.startsAt === dateAt(2) + "T10:00:00.000Z"));
+      const session = await liveSession(2);
+      const answer = await as(() => session.answer(async () => ({ message: "GENERATED_OLD_ZONE_AND_SLOT" }),
+        { kind: "live_facts", safeReply: safe, renderLive }));
+      assert.equal(answer.status, "ready");
+      assert.equal(answer.reply.message.includes("GENERATED_OLD_ZONE"), false);
+      assert.ok(JSON.parse(answer.reply.message)[0].slots.includes(dateAt(2) + "T10:00:00.000Z"));
+      assert.deepEqual(await raw.serviceProfessional.findUniqueOrThrow({ where: { id: professional.id },
+        select: { id: true, timeZone: true, version: true } }), professional);
+      assert.deepEqual(await raw.professionalAvailability.findMany({ where: { merchantId, professionalId: professional.id },
+        select: { id: true, weekday: true, startMinute: true, endMinute: true, timeZone: true }, orderBy: { weekday: "asc" } }), recurring);
+    });
     await t.test("current price replaces all generated live text after the last producer await", async () => {
       const session = await liveSession(2);
       const result = await as(() => session.answer(async () => {

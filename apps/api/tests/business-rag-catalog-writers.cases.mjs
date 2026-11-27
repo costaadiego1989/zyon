@@ -70,16 +70,22 @@ export async function exerciseCatalogWriterCases(t,f){
   });
 
   await t.test('RAG-11 actual recurring editor rolls back timezone grade and version and later publishes only timezone',async()=>{
-    const path=base+'/service-professionals/'+professional.id+'/availability';
-    const body={expectedVersion:await version(),timeZone:'UTC',rows:[{weekday:1,startMinute:540,endMinute:600}]};
+    // Explicit stored historical row; every new HTTP grade still passes the Brasilia guard.
+    const historical=await prisma.serviceProfessional.create({data:{merchantId,...f.profile,publicName:'Historical UTC recurring source',timeZone:'UTC'}});
+    await as(()=>jobs.normalizeCurrent(merchantId,'professional',historical.id));
+    const before=await read('professional',historical.id);assert.equal(before.publicData.timeZone,'UTC');
+    const path=base+'/service-professionals/'+historical.id+'/availability';
+    const historicalVersion=async()=>(await prisma.serviceProfessional.findUnique({where:{id:historical.id}})).version;
+    const body={expectedVersion:await historicalVersion(),timeZone:'America/Sao_Paulo',rows:[{weekday:1,startMinute:540,endMinute:600}]};
     await failWithin('professional',()=>request(path,body,'PUT',500));
-    const saved=await request(path,body);assert.equal(saved.timeZone,'UTC');
-    const source=await read('professional',professional.id),work=await latest('professional',professional.id);
-    assert.equal(source.publicData.timeZone,'UTC');assert.equal(work.sourceHash,source.sourceHash);
+    const saved=await request(path,body);assert.equal(saved.timeZone,'America/Sao_Paulo');
+    const source=await read('professional',historical.id),work=await latest('professional',historical.id);
+    assert.equal(source.publicData.timeZone,'America/Sao_Paulo');assert.equal(work.sourceHash,source.sourceHash);
+    assert.deepEqual(source.publicData,{...before.publicData,timeZone:'America/Sao_Paulo'});assert.notEqual(source.sourceHash,before.sourceHash);
     assert.equal(Object.hasOwn(source.publicData,'rows'),false);assert.equal(Object.hasOwn(source.publicData,'startMinute'),false);
     const stable=work;
-    await request(path,{expectedVersion:await version(),timeZone:'UTC',rows:[{weekday:2,startMinute:600,endMinute:720}]});
-    assert.deepEqual(await latest('professional',professional.id),stable,'A private grade-only change preserves the public revision');
+    await request(path,{expectedVersion:await historicalVersion(),timeZone:'America/Sao_Paulo',rows:[{weekday:2,startMinute:600,endMinute:720}]});
+    assert.deepEqual(await latest('professional',historical.id),stable,'A private grade-only change preserves the public revision');
   });
 
   await t.test('RAG-11 actual service create update and delete roll back public work stock and source state',async()=>{

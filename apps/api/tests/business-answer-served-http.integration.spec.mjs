@@ -52,8 +52,8 @@ test('T71 served public support planning, final fences and persisted handoff',{t
     await t.test('live planning last-await uses current SQL price and occupancy with no second narration or reservation',async()=>{
       const before=await f.snapshot(),eventsBefore=f.events().length;
       const result=await f.whileHeld(post('t71-live',`Qual valor e horários desse serviço com esse profissional em ${liveRequest.fromDate}?`),8,f.occupyAndReprice);
-      assert.equal(result.status,201);assert.match(result.body.reply,/79,00/);assert.doesNotMatch(result.body.reply,/73,00|às 10:00|PRIVATE_APPOINTMENT_CANARY/);
-      assert.match(result.body.reply,/às 10:30/);assert.equal(result.body.handoff,undefined);
+      assert.equal(result.status,201);assert.match(result.body.reply,/79,00/);assert.doesNotMatch(result.body.reply,/73,00|às 07:00|PRIVATE_APPOINTMENT_CANARY/);
+      assert.match(result.body.reply,/às 07:30/);assert.equal(result.body.handoff,undefined);
       assert.equal(f.events().slice(eventsBefore).filter(event=>event.kind==='chatCompletion').length,1);
       const row=await f.audit(result);await f.assertCanonicalReferences(row);
       assert.deepEqual(await f.snapshot(),{...before,appointments:before.appointments+1});
@@ -107,8 +107,8 @@ test('T71 served storefront capability, fixed read tool and final review fence',
     });
     await t.test('announced fixed tool reaches canonical live reads after last model await and excludes newly occupied slot',async()=>{
       const before=await f.snapshot(),result=await f.whileHeld(post(`Qual valor e horários desse serviço com esse profissional em ${liveRequest.fromDate}?`),5,f.occupyAndReprice);
-      assert.equal(result.status,201);assert.match(result.body.message,/79,00/);assert.match(result.body.message,/às 10:30/);
-      assert.doesNotMatch(result.body.message,/73,00|às 10:00|PRIVATE_APPOINTMENT_CANARY/);
+      assert.equal(result.status,201);assert.match(result.body.message,/79,00/);assert.match(result.body.message,/às 07:30/);
+      assert.doesNotMatch(result.body.message,/73,00|às 07:00|PRIVATE_APPOINTMENT_CANARY/);
       const step=f.events().find(event=>event.result?.scriptStep===5);assert.deepEqual(step.input.toolNames,['get_current_service_facts']);
       const row=await f.audit(result);await f.assertCanonicalReferences(row);assert.deepEqual(await f.snapshot(),{...before,appointments:before.appointments+1});
     });
