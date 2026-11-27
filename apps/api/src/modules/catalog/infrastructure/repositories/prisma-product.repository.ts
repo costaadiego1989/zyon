@@ -194,7 +194,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     const limit = input.limit ?? 20;
     const findArgs: Prisma.ProductFindManyArgs = {
       where,
-      take: limit,
+      take: limit + 1,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: {
         variants: { include: { price: true, stock: true, media: { orderBy: { order: "asc" } } } },
@@ -207,11 +207,12 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       findArgs.skip = 1;
     }
 
-    const [products, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.product.findMany(findArgs),
       this.prisma.product.count({ where }),
     ]);
 
+    const products = rows.slice(0, limit);
     let entities = products.map((p) => this.toEntity(p));
 
     // Accent-insensitive fallback: Postgres `contains` mode:"insensitive" only
@@ -257,7 +258,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       }
     }
 
-    const nextCursor = products.length === limit && (input.offset === undefined || input.offset + products.length < total) ? products[products.length - 1].id : undefined;
+    const nextCursor = rows.length > limit ? products[products.length - 1].id : undefined;
     const totals = input.status === undefined ? undefined : {
       total,
       inStock: await this.prisma.product.count({ where: { ...where, variants: { some: { isActive: true, stock: { some: { quantity: { gt: this.prisma.productStock.fields.reserved } } } } } } }),

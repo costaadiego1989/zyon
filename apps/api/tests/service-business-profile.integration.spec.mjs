@@ -79,3 +79,50 @@ test('T9',{timeout:SERVICE_LOCAL_TEST_MS},async t=>{
   }finally{await runtime.close();}
   assert.deepEqual(runtime.cleanupEvidence(),{appClosed:true,remainingContainers:0,remainingBridgeSockets:0});
 });
+
+// REG02: real canonical repository and owned SQL; no rendered cursor/result fixture.
+test('REG02 canonical product pagination requires a remaining row for every continuation',{timeout:SERVICE_LOCAL_TEST_MS},async()=>{
+  const runtime=await createServiceTestRuntime({local:true});let prisma;
+  try{
+    await import('reflect-metadata');const {PrismaClient}=await import('@prisma/client');
+    const {PrismaProductRepository}=await import('../dist/modules/catalog/infrastructure/repositories/prisma-product.repository.js');
+    prisma=new PrismaClient({datasources:{db:{url:runtime.db.prismaUrl}}});
+    assert.deepEqual(await prisma.$queryRaw`SELECT run_id FROM synthetic_native_marker`,[{run_id:runtime.db.runId}]);
+    const register=async label=>{
+      const response=await fetch(runtime.apiOrigin+'/auth/register',{method:'POST',redirect:'error',signal:AbortSignal.timeout(15_000),
+        headers:{'content-type':'application/json'},body:JSON.stringify({merchant_name:'Synthetic pagination '+label,
+          email:'pagination-'+label+'@buyer-journey.example.test',password,business_mode:'products'})});
+      assert.equal(response.status,201);return(await response.json()).merchant_id;
+    };
+    const merchantId=await register('own'),foreignMerchantId=await register('foreign'),repo=new PrismaProductRepository(prisma);
+    const prefix='pagination-'+runtime.db.runId.replaceAll('-',''),id=index=>prefix+'-own-'+String(index).padStart(2,'0');
+    const row=index=>({id:id(index),merchantId,name:'Synthetic catalog '+index,type:'physical',isActive:true,
+      createdAt:new Date(Date.UTC(2030,0,1,0,0,index))});
+    assert.equal(await prisma.product.count({where:{merchantId}}),0);
+    await prisma.product.createMany({data:[
+      {...row(21),id:prefix+'-foreign',merchantId:foreignMerchantId},
+      {...row(22),id:prefix+'-inactive',isActive:false},
+      {...row(23),id:prefix+'-deleted',deletedAt:new Date('2030-01-02T00:00:00Z')},
+    ]});
+    const request={merchantId,query:'*',isActiveOnly:true,limit:10};let seeded=0;
+    const assertPage=(result,expected,total,next)=>{
+      assert.deepEqual(result.products.map(product=>product.id),expected);assert.equal(result.total,total);assert.equal(result.nextCursor,next);
+      for(const product of result.products){assert.equal(product.merchantId,merchantId);assert.equal(product.isActive,true);}
+    };
+    for(const total of [10,11,20]){
+      await prisma.product.createMany({data:Array.from({length:total-seeded},(_,index)=>row(seeded+index+1))});seeded=total;
+      const expected=Array.from({length:total},(_,index)=>id(total-index)),first=await repo.search(request);
+      assertPage(first,expected.slice(0,10),total,total>10?expected[9]:undefined);
+      if(total>10){
+        const last=await repo.search({...request,cursor:first.nextCursor});assertPage(last,expected.slice(10),total,undefined);
+      }
+      if(total===20){
+        assertPage(await repo.search({...request,offset:0}),expected.slice(0,10),total,expected[9]);
+        assertPage(await repo.search({...request,offset:10}),expected.slice(10),total,undefined);
+        assertPage(await repo.search({...request,offset:20}),[],total,undefined);
+      }
+    }
+    assert.equal(runtime.evidence().providerCalls,0);
+  }finally{try{await prisma?.$disconnect();}finally{await runtime.close();}}
+  assert.deepEqual(runtime.cleanupEvidence(),{appClosed:true,remainingContainers:0,remainingBridgeSockets:0});
+});
