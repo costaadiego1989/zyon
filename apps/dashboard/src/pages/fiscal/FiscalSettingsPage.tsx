@@ -22,7 +22,8 @@ import {
   FormField,
   FormSelect,
   FormTextarea,
-} from "../../components/FormField.js";
+} from "./FiscalFormFields.js";
+import { FiscalCheckbox, fiscalEffectLabels, fiscalEffectHints } from "./FiscalFormFields.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import {
   buildFiscalProfile,
@@ -440,11 +441,15 @@ export function FiscalSettingsPage({
                         </p>
                       )}
                       <div className="configuration-form__grid">
+                        {provider === "omie" && <p style={{ gridColumn: "1 / -1" }}>
+                          No Omie, crie uma integração para a empresa e copie o identificador, o token e o token de renovação.
+                          {" "}<a href="https://api.omie.com.br/docs/apis/portal/autenticacao" target="_blank" rel="noreferrer">Onde encontrar os dados da integração Omie</a>
+                        </p>}
                         <FormField
                           label="CNPJ da empresa emitente"
                           value={issuerTaxId}
                           onChange={setIssuerTaxId}
-                          hint="Aceita CNPJ alfanumérico. Use a identidade cadastrada no provedor."
+                          hint="Aceita CNPJ numérico ou alfanumérico."
                           disabled={busy}
                         />
                         {provider === "tiny" ? (
@@ -511,7 +516,7 @@ export function FiscalSettingsPage({
                               hint={
                                 provider === "focus"
                                   ? "Token da empresa neste ambiente. Não use token master."
-                                  : "Use a autorização fiscal suportada. Credenciais antigas de estoque não comprovam a permissão fiscal."
+                                  : undefined
                               }
                               inputProps={{ autoComplete: "new-password" }}
                             />
@@ -798,7 +803,6 @@ export function FiscalSettingsPage({
                               label="Revisão da configuração fiscal ERP"
                               value={policyName}
                               onChange={setPolicyName}
-                              hint="Nome definido pelo responsável. Ao mudar, salve e confirme uma nova versão antes de confirmar os efeitos do ERP."
                             />
                           )}
                           {provider !== "focus" &&
@@ -1194,17 +1198,7 @@ export function FiscalSettingsPage({
                           {profiles.profile &&
                             !profiles.profile.confirmedAt && (
                               <>
-                                <label className="fiscal-check">
-                                  <input
-                                    type="checkbox"
-                                    checked={confirmProfile}
-                                    onChange={(e) =>
-                                      setConfirmProfile(e.target.checked)
-                                    }
-                                  />
-                                  Revisei esta configuração como responsável
-                                  pela empresa ou contabilidade.
-                                </label>
+                                <FiscalCheckbox checked={confirmProfile} onChange={setConfirmProfile} label="Revisei esta configuração como responsável pela empresa ou contabilidade." hint="Confirma que os produtos e impostos foram conferidos por quem responde pela empresa ou pela contabilidade." />
                                 <Button
                                   disabled={busy || !confirmProfile}
                                   onClick={() =>
@@ -1266,54 +1260,9 @@ export function FiscalSettingsPage({
                               />
                             </div>
                             {Object.keys(effects).map((key) => (
-                              <label key={key} className="fiscal-check">
-                                <input
-                                  type="checkbox"
-                                  checked={effects[key]}
-                                  onChange={(e) =>
-                                    setEffects((v) => ({
-                                      ...v,
-                                      [key]: e.target.checked,
-                                    }))
-                                  }
-                                />
-                                {
-                                  (
-                                    {
-                                      stockOnSave:
-                                        "Baixa estoque ao salvar pedido",
-                                      stockOnAuthorize:
-                                        "Baixa estoque ao autorizar nota",
-                                      stockOnCancel:
-                                        "Estorna estoque ao cancelar nota",
-                                      accountsOnSave:
-                                        "Gera financeiro ao salvar pedido",
-                                      accountsOnAuthorize:
-                                        "Gera financeiro ao autorizar nota",
-                                      accountsOnCancel:
-                                        "Estorna financeiro ao cancelar nota",
-                                      automaticEmail:
-                                        "ERP envia e-mail automaticamente",
-                                      automaticInvoiceGeneration:
-                                        "ERP gera nota automaticamente",
-                                      automaticInvoiceAuthorization:
-                                        "ERP autoriza nota automaticamente",
-                                    } as Record<string, string>
-                                  )[key]
-                                }
-                              </label>
+                              <FiscalCheckbox key={key} checked={effects[key]} onChange={value => setEffects(v => ({ ...v, [key]: value }))} label={fiscalEffectLabels[key]} hint={fiscalEffectHints[key]} />
                             ))}
-                            <label className="fiscal-check">
-                              <input
-                                type="checkbox"
-                                checked={accountConfirmed}
-                                onChange={(e) =>
-                                  setAccountConfirmed(e.target.checked)
-                                }
-                              />
-                              Conferi estes efeitos no painel do ERP com o
-                              responsável fiscal.
-                            </label>
+                            <FiscalCheckbox checked={accountConfirmed} onChange={setAccountConfirmed} label="Conferi estes efeitos no painel do ERP com o responsável fiscal." hint="Registra como seu ERP está configurado hoje. Esta confirmação não muda as regras dentro do ERP." />
                             <Button
                               disabled={
                                 busy ||
@@ -1427,16 +1376,7 @@ export function FiscalSettingsPage({
                                   onChange={setCryptoDescription}
                                 />
                               </div>
-                              <label className="fiscal-check">
-                                <input
-                                  type="checkbox"
-                                  checked={confirmPayment}
-                                  onChange={(e) =>
-                                    setConfirmPayment(e.target.checked)
-                                  }
-                                />
-                                Conferi a classificação da conta de pagamento.
-                              </label>
+                              <FiscalCheckbox checked={confirmPayment} onChange={setConfirmPayment} label="Conferi a classificação da conta de pagamento." hint="Confirma que a classificação escolhida corresponde à conta que recebeu o pagamento original." />
                               <Button
                                 disabled={
                                   busy || !confirmPayment || sourceIndex === ""

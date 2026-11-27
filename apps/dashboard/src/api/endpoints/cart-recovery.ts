@@ -25,10 +25,42 @@ export interface CartRecoveryAttempt {
   status: "pending" | "sent" | "recovered" | "failed" | "expired" | "unknown";
   channel?: "in_session" | "none" | "whatsapp_template" | "email";
   created_at: string;
+  sent_at?: string | null;
+  customer?: { name: string | null; email: string | null; phone: string | null };
+  contact_source?: "send_snapshot" | "current_profile";
+  recipient?: string | null;
+  delivery_status?: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
+}
+
+export interface RecoveryMessage {
+  id: string; correlation_id: string; channel: string; status: string;
+  name: string | null; email: string | null; phone: string | null;
+  recipient: string; body: string; subject: string | null; template: string | null;
+  provider_message_id: string | null; reason: string | null;
+  created_at: string; sent_at: string | null; delivered_at: string | null; read_at: string | null; failed_at: string | null;
+}
+export interface RecoveryAttemptDetail {
+  id: string; session_id: string; status: string; channel: string; strategy: string;
+  created_at: string; sent_at: string | null; recovered_at: string | null; recovered_order_id: string | null;
+  abandonment_reason: string; last_activity_at: string | null;
+  reason: string | null; fallback_reason: string | null; provider_message_id: string | null;
+  messages: RecoveryMessage[];
+  follow_ups: Array<{ id: string; step: number; due_at: string; sent_at: string | null; status: string; channel: string | null; reason: string | null; fallback_reason: string | null; provider_message_id: string | null }>;
 }
 
 export function cartRecoveryEndpoints(base: string, f: typeof fetch) {
   return {
+    async getCartRecoveryAttemptPage(limit: number, offset: number, status = "", channel = ""): Promise<{ data: CartRecoveryAttempt[]; total: number }> {
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+      if (status) params.set("status", status);
+      if (channel) params.set("channel", channel);
+      return dashboardJson(base, `${PREFIX}/attempts?${params}`, { method: "GET" }, f);
+    },
+    async getCartRecoveryAttempt(id: string): Promise<RecoveryAttemptDetail> {
+      return dashboardJson(base, `${PREFIX}/attempts/${encodeURIComponent(id)}`, { method: "GET" }, f);
+    },
     async getCartRecoveryMetrics(): Promise<CartRecoveryMetrics> {
       return dashboardJson<CartRecoveryMetrics>(base, `${PREFIX}/metrics`, { method: "GET" }, f);
     },

@@ -30,6 +30,43 @@
 .recovery-config-error { color:var(--color-error); font:400 13px/1.6 var(--font-sans); margin:16px 0; }
 .recovery-attempts-scroll { overflow-x:auto; }
 .recovery-attempts-scroll table { min-width:580px; }
+.recovery-attempt-filters { display:flex; flex-wrap:wrap; gap:16px; padding:0 20px 20px; }
+.recovery-attempt-filters label { display:grid; gap:6px; color:var(--color-text-muted); font:500 12px var(--font-sans); }
+.recovery-attempt-filters select { min-height:40px; max-width:100%; padding:8px 30px 8px 12px; border:1px solid var(--color-border); border-radius:var(--radius-sm); color:var(--color-text); background:var(--surface-1); font:13px var(--font-sans); }
+.recovery-attempt-table { width:100%; border-collapse:collapse; font:13px/1.5 var(--font-sans); color:var(--color-text); }
+.recovery-attempt-table th { text-align:left; padding:10px 20px; color:var(--color-text-muted); font-weight:500; font-size:12px; border-bottom:1px solid var(--color-border); }
+.recovery-attempt-table td { padding:16px 20px; border-bottom:1px solid var(--color-border); max-width:300px; overflow-wrap:anywhere; vertical-align:middle; }
+.recovery-attempt-table tbody tr { cursor:pointer; }
+.recovery-attempt-table tbody tr:hover, .recovery-attempt-table tbody tr:focus-within { background:var(--accent-soft); }
+.recovery-attempt-table small { display:block; margin-top:4px; color:var(--color-text-muted); font:12px/1.5 var(--font-sans); }
+.recovery-customer-link { border:0; background:none; padding:0; text-align:left; color:var(--color-text); font:600 13px/1.5 var(--font-sans); cursor:pointer; }
+.recovery-customer-link:hover { text-decoration:underline; }
+.recovery-customer-link:focus-visible, .recovery-attempt-filters select:focus-visible { outline:2px solid var(--color-brand); outline-offset:4px; }
+.recovery-contact { display:flex; gap:7px; align-items:center; min-width:0; margin:3px 0; }
+.recovery-contact svg { flex-shrink:0; color:var(--color-text-muted); }
+.recovery-delivery { display:flex; align-items:center; gap:5px; margin-top:4px; font-size:12px; color:var(--color-text-muted); }
+.recovery-delivery[data-status="read"], .recovery-delivery[data-status="delivered"], .recovery-delivery[data-status="recovered"] { color:var(--color-success); }
+.recovery-delivery[data-status="failed"] { color:var(--color-error); }
+.recovery-attempt-date { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.recovery-attempt-feedback { padding:20px; color:var(--color-text-muted); font:13px/1.6 var(--font-sans); }
+.recovery-attempt-detail { color:var(--color-text); font:13px/1.6 var(--font-sans); min-width:0; }
+.recovery-detail-fields { margin:0; display:grid; gap:16px; padding:0 0 24px; }
+.recovery-detail-fields div { min-width:0; }
+.recovery-detail-fields dt { color:var(--color-text-muted); font-size:12px; }
+.recovery-detail-fields dd { margin:3px 0 0; overflow-wrap:anywhere; }
+.recovery-detail-title { margin:24px 0 12px; font-size:15px; }
+.recovery-message-detail, .recovery-follow-up { padding:20px 0; border-top:1px solid var(--color-border); }
+.recovery-message-heading { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin:0 0 18px; flex-wrap:wrap; }
+.recovery-message-heading h3, .recovery-message-heading h4 { margin:0; font-size:14px; }
+.recovery-message-body { white-space:pre-wrap; overflow-wrap:anywhere; background:var(--surface-1); border:1px solid var(--color-border); border-radius:var(--radius-sm); padding:16px; line-height:1.7; margin:0 0 20px; }
+.recovery-timeline { list-style:none; padding:0; margin:0 0 20px; display:grid; gap:12px; }
+.recovery-timeline li { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.recovery-timeline time { color:var(--color-text-muted); font-size:12px; font-variant-numeric:tabular-nums; }
+.recovery-detail-note { color:var(--color-text-muted); overflow-wrap:anywhere; margin:12px 0; }
+.recovery-detail-note code { display:inline; font-size:11px; overflow-wrap:anywhere; }
+.recovery-identifiers { margin:24px 0 0; border-top:1px solid var(--color-border); padding-top:16px; }
+.recovery-identifiers summary { cursor:pointer; margin-bottom:16px; }
+@media (max-width:640px) { .recovery-attempt-filters { gap:12px; padding-inline:16px; } .recovery-attempt-filters label { flex:1 1 140px; } .recovery-attempt-table td { padding:12px 16px; } .recovery-attempt-table { min-width:760px !important; } }
 .recovery-variables { margin-top: 24px; font: 13px/1.6 var(--font-sans); color: var(--color-text); }
 .recovery-variables summary, .recovery-feedback summary { cursor: pointer; width: fit-content; }
 .recovery-variables code { color: var(--color-text); }

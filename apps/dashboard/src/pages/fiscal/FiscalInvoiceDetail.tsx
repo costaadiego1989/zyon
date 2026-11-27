@@ -10,7 +10,8 @@ import { PageHeader } from "../../components/PageHeader.js";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { Button } from "../../components/Button.js";
 import { Modal } from "../../components/Modal.js";
-import { FormTextarea } from "../../components/FormField.js";
+import { FormTextarea } from "./FiscalFormFields.js";
+import { FiscalCheckbox } from "./FiscalFormFields.js";
 import {
   fiscalErrorText,
   fiscalReasonText,
@@ -505,14 +506,7 @@ export function FiscalInvoiceDetail({
                   maxLength={255}
                   hint="Informe entre 15 e 255 caracteres."
                 />
-                <label className="fiscal-check">
-                  <input
-                    type="checkbox"
-                    checked={confirmed}
-                    onChange={(e) => setConfirmed(e.target.checked)}
-                  />
-                  Confirmo que desejo solicitar o cancelamento desta nota.
-                </label>
+                <FiscalCheckbox checked={confirmed} onChange={setConfirmed} label="Confirmo que desejo solicitar o cancelamento desta nota." hint="Envia o pedido de cancelamento ao emissor. A nota só será cancelada depois da confirmação fiscal." />
               </div>
             )}
             {dialog === "reprocess" &&

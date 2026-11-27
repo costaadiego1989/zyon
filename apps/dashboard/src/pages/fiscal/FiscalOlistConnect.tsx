@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createDashboardApi } from "../../api-client.js";
 import type { FiscalEnvironment, FiscalOwner } from "../../api/fiscal.js";
+import { FiscalApiError } from "../../api/fiscal.js";
+import { fiscalErrorText } from "./fiscal-ui.js";
 import { Button } from "../../components/Button.js";
-import { FormField } from "../../components/FormField.js";
+import { FormField } from "./FiscalFormFields.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 
 const pendingKey = "zyon:fiscal:olist:authorization";
@@ -10,6 +12,8 @@ export function isOlistFiscalCallback() {
   return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("olist_fiscal") === "1";
 }
 function message(error: unknown) {
+  if (error instanceof FiscalApiError && ["unauthenticated", "forbidden"].includes(error.kind)) return fiscalErrorText(error);
+  if (error instanceof FiscalApiError && error.kind === "unavailable") return "Não conseguimos consultar a conexão Tiny/Olist. Atualize os dados e confira a disponibilidade do ERP.";
   const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
   if (code === "fiscal_olist_issuer_mismatch") return "O CNPJ autorizado no ERP é diferente do emitente informado. Confira a conta e conecte novamente.";
   if (code === "fiscal_olist_authorization_expired_or_used") return "A autorização venceu ou já foi usada. Conecte sua conta novamente.";

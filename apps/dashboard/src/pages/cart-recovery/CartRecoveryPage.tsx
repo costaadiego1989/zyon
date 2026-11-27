@@ -10,9 +10,9 @@ import { Button } from "../../components/Button.js";
 import { FormSelect } from "../../components/FormField.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
-import { DataPanel } from "../../components/DataPanel.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { TabBar } from "../../components/TabBar.js";
+import { RecoveryAttemptsPanel } from "./RecoveryAttemptsPanel.js";
 import { useCartRecoveryPage } from "./useCartRecoveryPage.js";
 import type { CartRecoveryStrategyKey } from "../../api/endpoints/cart-recovery.js";
 import { RecoveryTemplatesPanel } from "./RecoveryTemplatesPanel.js";
@@ -38,12 +38,10 @@ const STRATEGY_OPTIONS: StrategyOption[] = [
   { key: "advanced_rule", label: "Regra avançada", description: "Aplicar uma regra de negociação já configurada para a loja", needsConfig: true, configLabel: "Selecionar regra" },
 ];
 
-const PAGE_SIZE = 10;
 
 export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const {
     metrics,
-    attempts,
     config,
     savingKey,
     loading,
@@ -56,7 +54,6 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
     rules,
   } = useCartRecoveryPage();
 
-  const [page, setPage] = useState(1);
   const [tab, setTab] = useState("overview");
   const [panelOpen, setPanelOpen] = useState<"coupon" | "rule" | null>(null);
   const [couponCode, setCouponCode] = useState("");
@@ -77,45 +74,6 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       action={<Button onClick={retry}>Tentar novamente</Button>} />;
   }
 
-  const statusIcon = (status: string) => {
-    switch (status) {
-      case "recovered": return <CheckCircle size={14} color="var(--color-success)" />;
-      case "failed": return <XCircle size={14} color="var(--color-error)" />;
-      case "sent": return <RefreshCw size={14} color="var(--color-brand)" />;
-      default: return <Clock size={14} color="var(--color-text-faint)" />;
-    }
-  };
-
-  const statusLabel = (status: string) => {
-    switch (status) {
-      case "recovered": return "Recuperado";
-      case "failed": return "Falhou";
-      case "unknown": return "Aguardando confirmação";
-      case "expired": return "Expirado";
-      case "sent": return "Enviado";
-      default: return "Pendente";
-    }
-  };
-
-  const strategyLabel = (strategy: string) => {
-    switch (strategy) {
-      case "free_shipping":
-      case "offer_free_shipping": return "Frete grátis";
-      case "coupon":
-      case "offer_coupon":
-      case "escalate_discount": return "Cupom";
-      case "cross_sell":
-      case "personalized_cross_sell": return "Produtos complementares";
-      case "address_objection":
-      case "advanced_rule": return "Regra avançada";
-      case "wait_and_retry": return "Aguardar e tentar";
-      default: return strategy;
-    }
-  };
-
-  const totalAttempts = attempts.length;
-  const startIdx = (page - 1) * PAGE_SIZE;
-  const paginatedAttempts = attempts.slice(startIdx, startIdx + PAGE_SIZE);
   const activeKey = config.active_strategy;
   const openLinkPanel = (kind: "coupon" | "rule") => {
     if (kind === "coupon") setCouponCode(config.coupon_code ?? "");
@@ -232,46 +190,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       </div>
 
       {saveError && !panelOpen && <p role="alert" className="recovery-config-error">{saveError}</p>}
-      {/* Attempts table */}
-      <DataPanel
-        title="Tentativas recentes"
-        page={page}
-        pageSize={PAGE_SIZE}
-        total={totalAttempts}
-        onPageChange={setPage}
-        isEmpty={attempts.length === 0}
-        empty={{ icon: ShoppingCart, title: "Nenhuma tentativa registrada", description: "As tentativas aparecerão aqui conforme o sistema tenta recuperar carrinhos abandonados." }}
-      >
-        <div className="recovery-attempts-scroll">
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>Sessão</th>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>Estratégia</th>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>Status</th>
-                <th style={{ textAlign: "right", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>Data</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedAttempts.map((a, i) => (
-                <tr key={a.id} style={{ borderBottom: i < paginatedAttempts.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
-                  <td style={{ padding: "12px 20px", color: "var(--color-text-muted)", font: "12px var(--font-mono)" }}>{a.session_id.slice(0, 12)}...</td>
-                  <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text)" }}>{strategyLabel(a.strategy)}</td>
-                  <td style={{ padding: "12px 20px" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      {statusIcon(a.status)}
-                      <span style={{ color: "var(--color-text-muted)", font: "12px var(--font-sans)" }}>{statusLabel(a.status)}</span>
-                    </span>
-                  </td>
-                  <td style={{ padding: "12px 20px", textAlign: "right", color: "var(--color-text-faint)", font: "12px var(--font-mono)" }}>
-                    {new Date(a.created_at).toLocaleString("pt-BR")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </DataPanel>
+      <RecoveryAttemptsPanel />
       </div>
 
       {/* Side Panel — Coupon Selection */}
