@@ -504,17 +504,15 @@
 /* Use the same compact date toolbar as Orders and Shipments. */
 .funnel-query { display: grid; gap: 12px; min-width: 0; }
 .funnel-query .period-filter { padding: 0; gap: 12px; }
-.funnel-query .period-filter__presets { flex-wrap: nowrap; gap: 6px; }
+.funnel-query .period-filter__presets { flex-wrap: wrap; gap: 6px; }
 .funnel-query .period-filter__range > input { width: 124px; flex: 0 0 124px; }
-.funnel-query-options { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.funnel-query .period-filter__range { flex-wrap: wrap; max-width: 100%; }
+.funnel-query-options { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; }
 .funnel-query-options .ui-filter-select { padding: 8px 28px 8px 12px; font-size: 12px; }
 .funnel-query-compare { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin: 0; color: var(--color-text-muted); font: 12px/1.5 var(--font-sans); white-space: nowrap; cursor: pointer; }
 .funnel-query .funnel-query-compare input { appearance: auto; width: 16px; height: 16px; min-width: 16px; min-height: 16px; flex: 0 0 16px; margin: 0; padding: 0; accent-color: var(--color-brand); }
 .funnel-query > button { justify-self: start; }
 .funnel-results { display: grid; gap: var(--space-5); min-width: 0; }
-@media (max-width: 1279px) {
-  .funnel-query .period-filter__range { flex-wrap: wrap; }
-}
 @media (max-width: 600px) {
   .funnel-query .period-filter__range > input { width: 0; min-width: 112px; flex: 1; }
   .funnel-query-options { width: 100%; flex-wrap: wrap; }
