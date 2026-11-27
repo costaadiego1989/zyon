@@ -1,7 +1,8 @@
+import { CircleCheck, CircleOff, ListFilter, Package, Pause, Pencil, Play, Plus, ShoppingBag, Sparkles, Trash2, Upload } from "lucide-react";
 import { RowActionMenu } from "../components/RowActionMenu.js";
 import { PageHeader } from "../components/PageHeader.js";
 import React from "react";
-import { Plus, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package, Sparkles } from "lucide-react";
+
 import type { MerchantProfile, Product } from "../api-client.js";
 import { DataPanel } from "../components/DataPanel.js";
 import { Button } from "../components/Button.js";
@@ -98,9 +99,9 @@ export function CatalogPage(props: CatalogPageProps) {
       <div className="ui-table-container">
         <FilterToolbar
           tabs={[
-            { key: "all", label: "Todos" },
-            { key: "active", label: "Ativos" },
-            { key: "inactive", label: "Inativos" },
+            { key: "all", label: "Todos", icon: <ListFilter size={16} /> },
+            { key: "active", label: "Ativos", icon: <CircleCheck size={16} /> },
+            { key: "inactive", label: "Inativos", icon: <CircleOff size={16} /> },
           ]}
           activeTab={vm.statusFilter}
           onTabChange={(k) => vm.setStatusFilter(k as "all" | "active" | "inactive")}

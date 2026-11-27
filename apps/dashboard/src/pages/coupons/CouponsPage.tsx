@@ -1,6 +1,7 @@
+import { CircleCheck, Clock, Copy, ListFilter, Pause, Percent, Play, Plus, Tag, Trash2, TrendingUp } from "lucide-react";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { PageHeader } from "../../components/PageHeader.js";
-import { Plus, Trash2, Copy, Tag, Pause, Play, TrendingUp, Percent } from "lucide-react";
+
 import { useState, useMemo, useEffect } from "react";
 import { Button } from "../../components/Button.js";
 import { DataPanel } from "../../components/DataPanel.js";
@@ -70,7 +71,7 @@ export function CouponsPage(_props: CouponsPageProps) {
       )}
 
     <DataPanel title="Lista de cupons" page={currentPage} pageSize={PAGE_SIZE} total={vm.loading || vm.loadError ? 0 : filteredCoupons.length} onPageChange={setPage}>
-      <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "active", label: "Ativos" }, { key: "paused", label: "Pausados" }, { key: "expired", label: "Expirados" }]} activeTab={statusFilter} onTabChange={key => { setStatusFilter(key as typeof statusFilter); setPage(1); }} search={searchQuery} onSearchChange={value => { setSearchQuery(value); setPage(1); }} searchPlaceholder="Buscar código do cupom" />
+      <FilterToolbar tabs={[{ key: "all", label: "Todos", icon: <ListFilter size={16} /> }, { key: "active", label: "Ativos", icon: <CircleCheck size={16} /> }, { key: "paused", label: "Pausados", icon: <Pause size={16} /> }, { key: "expired", label: "Expirados", icon: <Clock size={16} /> }]} activeTab={statusFilter} onTabChange={key => { setStatusFilter(key as typeof statusFilter); setPage(1); }} search={searchQuery} onSearchChange={value => { setSearchQuery(value); setPage(1); }} searchPlaceholder="Buscar código do cupom" />
       {vm.loading ? <p className="coupons-state" role="status">Carregando cupons…</p> : vm.loadError ? <EmptyState icon={Tag} title="Não foi possível carregar os cupons" description={vm.loadError} action={<Button variant="outline" onClick={() => void vm.reload()}>Tentar novamente</Button>} /> : filteredCoupons.length === 0 ? <EmptyState icon={Tag} title={hasFilters ? "Nenhum cupom encontrado" : "Crie seu primeiro cupom"} description={hasFilters ? "Tente outro código ou limpe os filtros para ver os cupons da loja." : "Ofereça um benefício aos clientes e compartilhe o código nas suas campanhas."} action={<Button variant={hasFilters ? "outline" : "primary"} onClick={hasFilters ? clearFilters : vm.openForm}>{hasFilters ? "Limpar filtros" : "Criar cupom"}</Button>} /> : <div className="coupons-list">
         {paginatedCoupons.map(coupon => <article key={coupon.id} className="coupon-row" aria-label={"Cupom " + coupon.code}>
           <div className="coupon-row__heading"><div className="coupon-row__identity"><h2>{coupon.code}</h2><span className="coupon-row__status" data-active={coupon.isActive}>{coupon.isActive ? "Ativo" : "Pausado"}</span></div>

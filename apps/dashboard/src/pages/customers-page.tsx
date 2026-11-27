@@ -1,6 +1,7 @@
+import { ArrowDown, ArrowUp, CalendarDays, Download, ListFilter, Repeat, ShoppingBag, UserPlus, UsersRound } from "lucide-react";
 import { PageHeader } from "../components/PageHeader.js";
 import React, { useEffect, useMemo } from "react";
-import { UsersRound, UserPlus, Repeat, Download, ArrowDown, ArrowUp, ShoppingBag } from "lucide-react";
+
 import { DataPanel } from "../components/DataPanel.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { type MerchantProfile } from "../api-client.js";
@@ -140,7 +141,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
 
 
     <SectionErrorBoundary sectionName="Clientes">
-      <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "7d", label: "Últimos 7 dias" }, { key: "30d", label: "Últimos 30 dias" }]} activeTab={vm.dateFilter} onTabChange={key => { vm.setDateFilter(key as typeof vm.dateFilter); vm.setPage(1); }} search={vm.searchTerm} onSearchChange={value => { vm.setSearchTerm(value); vm.setPage(1); }} searchPlaceholder="Buscar nome, e-mail ou telefone" />
+      <FilterToolbar tabs={[{ key: "all", label: "Todos", icon: <ListFilter size={16} /> }, { key: "7d", label: "Últimos 7 dias", icon: <CalendarDays size={16} /> }, { key: "30d", label: "Últimos 30 dias", icon: <CalendarDays size={16} /> }]} activeTab={vm.dateFilter} onTabChange={key => { vm.setDateFilter(key as typeof vm.dateFilter); vm.setPage(1); }} search={vm.searchTerm} onSearchChange={value => { vm.setSearchTerm(value); vm.setPage(1); }} searchPlaceholder="Buscar nome, e-mail ou telefone" />
       {vm.message && <div className="panel-error operations-feedback" role="alert"><span>{vm.message}</span><Button variant="outline" size="sm" disabled={vm.busy} onClick={() => void (vm.rows.length ? vm.loadMore() : vm.reload())}>Tentar novamente</Button></div>}
       {!vm.message || vm.rows.length ? <DataPanel title="Lista de clientes" page={vm.page} pageSize={vm.pageSize} total={vm.loading ? 0 : filteredRows.length} onPageChange={vm.setPage} isEmpty={!vm.loading && filteredRows.length === 0} empty={{ icon: UsersRound, title: hasFilters ? "Nenhum cliente com estes filtros" : "Sua lista de clientes começa aqui", description: hasFilters ? "Altere a busca ou o período da última atividade para encontrar o cliente." : "Os clientes aparecem após interagirem com o checkout da sua loja.", action: hasFilters ? <Button variant="outline" onClick={clearFilters}>Limpar filtros</Button> : undefined }}>
         {vm.loading ? <PageLoader /> : <div className="table-wrap"><table className="data-table"><caption className="sr-only">Clientes e última atividade na loja</caption><thead><tr>

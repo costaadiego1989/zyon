@@ -1,6 +1,7 @@
+import { CheckCircle, CircleCheck, FolderTree, Layers, ListFilter, PauseCircle, Plus } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, FolderTree, Layers, CheckCircle, PauseCircle } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import { useCategoriesPage } from "./useCategoriesPage.js";
 import { CategoryTree } from "./components/CategoryTree.js";
@@ -116,8 +117,8 @@ export function CategoriesPage(props: CategoriesPageProps) {
         {/* Filters bar */}
         <FilterToolbar
           tabs={[
-            { key: "all", label: "Todas" },
-            { key: "active", label: "Ativas" },
+            { key: "all", label: "Todas", icon: <ListFilter size={16} /> },
+            { key: "active", label: "Ativas", icon: <CircleCheck size={16} /> },
           ]}
           activeTab={activeOnly ? "active" : "all"}
           onTabChange={(k) => setActiveOnly(k === "active")}

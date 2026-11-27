@@ -1,4 +1,5 @@
 import React from "react";
+import { CalendarDays } from "lucide-react";
 import { TabBar } from "../../../components/TabBar.js";
 import type { FunnelPeriod, FunnelBreakdownDimension } from "../useFunnelPage.js";
 
@@ -38,7 +39,7 @@ export function FunnelFilters({
       <TabBar
         role="group"
         label="Período do funil"
-        tabs={PERIODS.map(({ value, label }) => ({ key: value, label }))}
+        tabs={PERIODS.map(({ value, label }) => ({ key: value, label, icon: <CalendarDays size={16} /> }))}
         activeTab={period}
         onTabChange={(next) => onPeriodChange(next as FunnelPeriod)}
       />

@@ -1,7 +1,8 @@
+import { CheckCircle2, LayoutDashboard, MessageCircle, Settings, Settings2, Smile, Star, ThumbsDown, ThumbsUp } from "lucide-react";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useId, useState } from "react";
-import { Star, ThumbsUp, ThumbsDown, MessageCircle, CheckCircle2, Settings } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { TabBar } from "../../components/TabBar.js";
@@ -70,10 +71,10 @@ export function PostSalePage(props: PostSalePageProps) {
       {/* Tabs */}
       <TabBar
         tabs={[
-          { key: "overview", label: "Visão geral" },
-          { key: "reviews", label: `Avaliações (${vm.reviewsTotal})` },
-          { key: "nps", label: `Satisfação (${vm.npsTotal})` },
-          { key: "config", label: "Configurações" },
+          { key: "overview", label: "Visão geral", icon: <LayoutDashboard size={16} /> },
+          { key: "reviews", label: `Avaliações (${vm.reviewsTotal})`, icon: <Star size={16} /> },
+          { key: "nps", label: `Satisfação (${vm.npsTotal})`, icon: <Smile size={16} /> },
+          { key: "config", label: "Configurações", icon: <Settings2 size={16} /> },
         ]}
         activeTab={tab}
         onTabChange={(k) => setTab(k as "overview" | "reviews" | "nps" | "config")}

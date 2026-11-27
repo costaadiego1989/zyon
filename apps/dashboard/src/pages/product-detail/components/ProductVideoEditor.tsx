@@ -1,5 +1,6 @@
+import { CircleCheck, Clock, Image as ImageIcon, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import React, { useCallback, useState } from "react";
-import { Plus, Trash2, Clock, Image as ImageIcon } from "lucide-react";
+
 import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import { Button } from "../../../components/Button.js";
 import { TabBar } from "../../../components/TabBar.js";
@@ -48,8 +49,8 @@ function segmentedStyle(active: boolean): React.CSSProperties {
 }
 
 const TABS = [
-  { key: "approved", label: "Publicados" },
-  { key: "pending", label: "Moderar" },
+  { key: "approved", label: "Publicados", icon: <CircleCheck size={16} /> },
+  { key: "pending", label: "Moderar", icon: <ShieldCheck size={16} /> },
 ];
 
 const newVideo = (order: number): ProductVideo => ({

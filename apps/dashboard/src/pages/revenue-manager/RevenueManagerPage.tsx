@@ -22,9 +22,9 @@ export interface RevenueManagerPageProps {
 type Tab = "hypotheses" | "observations" | "lessons";
 
 const TABS = [
-  { key: "hypotheses" as const, label: "Sugestões" },
-  { key: "observations" as const, label: "Observações" },
-  { key: "lessons" as const, label: "Aprendizados" },
+  { key: "hypotheses" as const, label: "Sugestões", icon: <Lightbulb size={16} /> },
+  { key: "observations" as const, label: "Observações", icon: <Eye size={16} /> },
+  { key: "lessons" as const, label: "Aprendizados", icon: <BookOpen size={16} /> },
 ];
 
 const PAGE_SIZE = 5;

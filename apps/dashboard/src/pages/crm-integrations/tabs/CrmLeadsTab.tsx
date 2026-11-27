@@ -1,5 +1,6 @@
+import { ListFilter, ShoppingBag, UserPlus, UserRound, Users } from "lucide-react";
 import React, { useMemo, useState } from "react";
-import { Users, UserPlus, ShoppingBag } from "lucide-react";
+
 import type { CrmSyncLogDTO } from "../useIntegrationsPage.js";
 import { StatCard, StatCardGroup } from "../../overview/components/StatCard.js";
 import { FilterToolbar, FilterSelect } from "../../../components/FilterToolbar.js";
@@ -54,7 +55,7 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
       </StatCardGroup>
 
       <p className="crm-history__note">Até 50 tentativas recentes. O resultado de cada envio aparece abaixo; uma falha não significa que o contato foi recebido pelo provedor.</p>
-      <FilterToolbar tabs={[{ key: "all", label: "Todos os contatos" }, { key: "lead", label: "Leads" }, { key: "customer", label: "Clientes" }]} activeTab={stage} onTabChange={v => setStage(v as StageFilter)} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar contato por e-mail" extra={<FilterSelect ariaLabel="Resultado da sincronização" value={status} onChange={v => setStatus(v as StatusFilter)} options={[{ value: "all", label: "Todos os resultados" }, { value: "success", label: "Recebido pelo provedor" }, { value: "failed", label: "Com falha" }, { value: "skipped", label: "Sem consentimento" }]} />} />
+      <FilterToolbar tabs={[{ key: "all", label: "Todos os contatos", icon: <ListFilter size={16} /> }, { key: "lead", label: "Leads", icon: <UserRound size={16} /> }, { key: "customer", label: "Clientes", icon: <ShoppingBag size={16} /> }]} activeTab={stage} onTabChange={v => setStage(v as StageFilter)} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar contato por e-mail" extra={<FilterSelect ariaLabel="Resultado da sincronização" value={status} onChange={v => setStatus(v as StatusFilter)} options={[{ value: "all", label: "Todos os resultados" }, { value: "success", label: "Recebido pelo provedor" }, { value: "failed", label: "Com falha" }, { value: "skipped", label: "Sem consentimento" }]} />} />
       <DataPanel title="Histórico de sincronização" page={safePage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} isEmpty={filtered.length === 0} empty={{ icon: Users, title: syncLog.length ? "Nenhum contato com estes filtros" : "Nenhuma sincronização registrada", description: syncLog.length ? "Ajuste a busca ou limpe os filtros para ver os contatos." : "Conecte um provedor para acompanhar as tentativas de envio dos contatos da loja.", action: syncLog.length ? <Button variant="outline" onClick={() => { setSearch(""); setStage("all"); setStatus("all"); }}>Limpar filtros</Button> : undefined }}>
           <div className="table-wrap">
             <table className="data-table">

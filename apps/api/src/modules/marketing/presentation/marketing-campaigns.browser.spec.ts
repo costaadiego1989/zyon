@@ -62,8 +62,12 @@ test("MKT-05/3 merchant gestures configure, draft, approve, edit, schedule, paus
         `${browser.url}&view=marketing&user=${api.users.owner.id}`
       );
       await browser.page
-        .getByRole("tab", { name: "Configurações", exact: true })
+        .getByRole("button", { name: "Configurações", exact: true })
         .click();
+      const settings = browser.page.getByRole("dialog", {
+        name: "Configurações de marketing",
+      });
+      await expect(settings).toBeVisible();
       await browser.page
         .getByLabel("Fuso horário", { exact: true })
         .fill("UTC");
@@ -88,11 +92,43 @@ test("MKT-05/3 merchant gestures configure, draft, approve, edit, schedule, paus
       await expect(browser.page.getByRole("status")).toHaveText(
         "Configurações salvas."
       );
+      await browser.page.keyboard.press("Escape");
+      await expect(settings).toHaveCount(0);
+      await expect(
+        browser.page.getByRole("button", { name: "Configurações", exact: true })
+      ).toBeFocused();
       await browser.page
         .getByRole("tab", { name: "Campanhas", exact: true })
         .click();
       await browser.page
         .getByRole("button", { name: "Criar campanha", exact: true })
+        .click();
+      const editor = browser.page.getByRole("dialog", {
+        name: "Nova campanha",
+      });
+      await expect(editor).toBeVisible();
+      await expect(
+        browser.page.getByRole("heading", { name: "Campanhas pelo WhatsApp" })
+      ).toBeVisible();
+      await expect(
+        editor.getByRole("button", { name: "Fechar", exact: true })
+      ).toBeFocused();
+      await browser.page.keyboard.press("Shift+Tab");
+      await expect(
+        editor.getByRole("button", { name: "Salvar rascunho" })
+      ).toBeFocused();
+      await editor.getByRole("button", { name: "Cancelar" }).click();
+      await expect(editor).toHaveCount(0);
+      await expect(
+        browser.page.getByRole("button", { name: "Criar campanha" })
+      ).toBeFocused();
+      assert.equal(
+        (await api.app.get(MarketingCampaignsService).list(api.merchantId))
+          .length,
+        0
+      );
+      await browser.page
+        .getByRole("button", { name: "Criar campanha" })
         .click();
       await browser.page
         .getByLabel("Nome da campanha", { exact: true })
@@ -101,10 +137,25 @@ test("MKT-05/3 merchant gestures configure, draft, approve, edit, schedule, paus
         .getByLabel("Mensagem", { exact: true })
         .fill("Novidades da loja. Para não receber promoções, responda PARAR.");
       await browser.page
-        .getByLabel("Orçamento da campanha (R$)", { exact: true })
+        .getByLabel("Limite estimado da campanha (R$)", { exact: true })
         .fill("10,00");
       await browser.page
-        .getByLabel("Reserva estimada por mensagem (R$)", { exact: true })
+        .getByLabel("Custo estimado por mensagem (R$)", { exact: true })
+        .fill("20,00");
+      await browser.page
+        .getByRole("button", { name: "Salvar rascunho", exact: true })
+        .click();
+      await expect(editor.getByRole("alert")).toBeVisible();
+      await expect(editor.getByLabel("Mensagem", { exact: true })).toHaveValue(
+        "Novidades da loja. Para não receber promoções, responda PARAR."
+      );
+      assert.equal(
+        (await api.app.get(MarketingCampaignsService).list(api.merchantId))
+          .length,
+        0
+      );
+      await editor
+        .getByLabel("Custo estimado por mensagem (R$)", { exact: true })
         .fill("0,50");
       await browser.page
         .getByRole("button", { name: "Salvar rascunho", exact: true })
@@ -159,6 +210,25 @@ test("MKT-05/3 merchant gestures configure, draft, approve, edit, schedule, paus
         eligible: 1,
         excluded: { no_phone: 1, no_consent: 1 },
       });
+      await browser.page
+        .getByRole("button", { name: "Editar rascunho", exact: true })
+        .click();
+      await expect(
+        browser.page.getByRole("dialog", { name: "Editar campanha" })
+      ).toBeVisible();
+      await browser.page.keyboard.press("Escape");
+      await expect(
+        browser.page.getByRole("heading", {
+          name: "Novidades locais",
+          exact: true,
+        })
+      ).toBeVisible();
+      await expect(
+        browser.page.getByRole("button", {
+          name: "Editar rascunho",
+          exact: true,
+        })
+      ).toBeFocused();
       await browser.page
         .getByRole("button", { name: "Editar rascunho", exact: true })
         .click();

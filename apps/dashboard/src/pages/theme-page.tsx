@@ -1,9 +1,11 @@
+import { TabBar } from "../components/TabBar.js";
+import { Contrast, Image, Layout, Moon, Palette, RotateCcw, Save, Shield, Sun, Type, X } from "lucide-react";
 import "./theme-page/theme-page.css";
 import { EmptyState } from "../components/EmptyState.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { PageHeader } from "../components/PageHeader.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { RotateCcw, Save, X, Type, Shield, Palette, Image, Layout } from "lucide-react";
+
 import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import { createDashboardApi, DashboardHttpError, type MerchantProfile } from "../api-client.js";
 import { ThemePreviewCard } from "./theme-page/components/ThemePreviewCard.js";
@@ -462,42 +464,13 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 Layout do widget
                 <br /><span className="field-hint" style={{ marginTop: 4, display: "inline-block" }}>Largura do checkout na página</span>
               </label>
-              <div className="filter-tabs">
-                {DENSITY_OPTIONS.map((opt) => (
-                  <button
-                    type="button"
-                    key={opt.value}
-                    aria-pressed={theme.density === opt.value}
-                    className={`filter-tab${theme.density === opt.value ? " active" : ""}`}
-                    onClick={() => patch({ density: opt.value })}
-                    title={opt.desc}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <TabBar role="group" label="Layout do widget" tabs={DENSITY_OPTIONS.map(opt => ({key: opt.value, label: opt.label, title: opt.desc, icon: <Layout size={16} />}))} activeTab={theme.density ?? "comfortable"} onTabChange={key => patch({ density: key as MerchantTheme["density"] })} />
 
               <label>
                 Modo de cor
                 <br /><span className="field-hint" style={{ marginTop: 4, display: "inline-block" }}>Aparência geral do checkout</span>
               </label>
-              <div className="filter-tabs">
-                {([
-                  { value: "dark", label: "Escuro" },
-                  { value: "grey", label: "Cinza" },
-                  { value: "light", label: "Claro" },
-                ] as const).map((opt) => (
-                  <button
-                    type="button"
-                    key={opt.value}
-                    aria-pressed={(theme.mode ?? "dark") === opt.value}
-                    className={`filter-tab${(theme.mode ?? "dark") === opt.value ? " active" : ""}`}
-                    onClick={() => patch({ mode: opt.value })}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <TabBar role="group" label="Modo de cor" tabs={[{key:"dark",label:"Escuro",icon:<Moon size={16}/>},{key:"grey",label:"Cinza",icon:<Contrast size={16}/>},{key:"light",label:"Claro",icon:<Sun size={16}/>}]} activeTab={theme.mode ?? "dark"} onTabChange={key => patch({mode:key as MerchantTheme["mode"]})} />
             </div>
 
           </fieldset>

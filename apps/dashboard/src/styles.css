@@ -4506,34 +4506,37 @@ textarea:disabled {
   background: var(--surface-1);
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  padding: 3px;
-  gap: 2px;
+  padding: 4px;
+  gap: 4px;
 }
 .tab-bar__tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   flex: 0 0 auto;
-  min-height: 36px;
-  padding: 7px 16px;
-  border: 1px solid transparent;
-  border-radius: 7px;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 6px;
   background: transparent;
-  color: var(--color-text-muted);
-  font: 600 12.5px var(--font-sans);
+  color: var(--color-text-secondary);
+  font: 500 13px/1.5 var(--font-sans);
   white-space: nowrap;
   cursor: pointer;
-  transition: background 150ms, color 150ms, border-color 150ms;
+  transition: background 150ms ease-out, color 150ms ease-out;
 }
 .tab-bar__tab:hover { background: var(--surface-2); color: var(--color-text); }
 .tab-bar__tab[aria-selected="true"], .tab-bar__tab[aria-pressed="true"] {
-  background: var(--surface-2);
-  border-color: var(--color-border);
+  background: var(--surface-3);
   color: var(--color-text);
 }
+.tab-bar__icon { display: inline-flex; flex: none; }
+.tab-bar__icon svg { width: 16px; height: 16px; }
+.tab-bar__tab[aria-selected="true"] .tab-bar__icon,
+.tab-bar__tab[aria-pressed="true"] .tab-bar__icon { color: var(--color-brand); }
 .tab-bar__tab:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
-@media (max-width: 640px) { .tab-bar__tab { min-height: 44px; padding-inline: 12px; } }
+@media (max-width: 640px) { .tab-bar__tab { min-height: 44px; max-width: 100%; padding-inline: 12px; white-space: normal; } }
 @media (prefers-reduced-motion: reduce) { .tab-bar__tab { transition: none; } }
 
 .surface-default {

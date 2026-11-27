@@ -1,7 +1,8 @@
+import { Bot, ChevronDown, ChevronRight, Info, MessageSquareText, Plus, Save, X } from "lucide-react";
 import { SetupGuide } from "../components/SetupGuide.js";
 import { PageHeader } from "../components/PageHeader.js";
 import React, { useState } from "react";
-import { Save, ChevronDown, ChevronRight, X, Plus, Info } from "lucide-react";
+
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
 import { SectionHeader } from "../components/SectionHeader.js";
@@ -50,8 +51,8 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
         <div className="page-container">
           <TabBar
             tabs={[
-              { key: "identity", label: "Identidade" },
-              { key: "quick-replies", label: "Respostas rápidas" },
+              { key: "identity", label: "Identidade", icon: <Bot size={16} /> },
+              { key: "quick-replies", label: "Respostas rápidas", icon: <MessageSquareText size={16} /> },
             ]}
             activeTab={vm.activeTab}
             onTabChange={(k) => vm.setActiveTab(k as typeof vm.activeTab)}

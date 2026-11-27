@@ -1,12 +1,6 @@
+import { ArrowLeft, ArrowUpRight, ChevronRight, Globe, MessageCircle, MessageSquare, MessagesSquare, Users, X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  Users,
-  ArrowLeft,
-  ArrowUpRight,
-  ChevronRight,
-  MessageSquare,
-  X,
-} from "lucide-react";
+
 import {
   marketingApi,
   marketingStages,
@@ -415,9 +409,9 @@ export function ContactsPanel({
           />
           <FilterToolbar
             tabs={[
-              { key: "", label: "Todos os canais" },
-              { key: "whatsapp", label: "WhatsApp" },
-              { key: "site", label: "Site" },
+              { key: "", label: "Todos os canais", icon: <MessagesSquare size={16} /> },
+              { key: "whatsapp", label: "WhatsApp", icon: <MessageCircle size={16} /> },
+              { key: "site", label: "Site", icon: <Globe size={16} /> },
             ]}
             activeTab={query.channel}
             onTabChange={(value) => filter("channel", value)}

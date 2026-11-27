@@ -1,20 +1,8 @@
+import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, BarChart3, ChartNoAxesCombined, CheckCircle2, Download, FileSpreadsheet, Landmark, LayoutDashboard, ListFilter, LoaderCircle, ReceiptText, RefreshCw, RotateCcw, ShoppingBag, Undo2, WalletCards } from "lucide-react";
 import { paymentMethodLabel } from "./payment-method-label.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  BarChart3,
-  CheckCircle2,
-  Download,
-  FileSpreadsheet,
-  Landmark,
-  LoaderCircle,
-  ReceiptText,
-  RefreshCw,
-  RotateCcw,
-  WalletCards,
-} from "lucide-react";
+
 import {
   createDashboardApi,
   type FinanceSummary,
@@ -45,9 +33,9 @@ type TransactionFilter = "all" | FinanceTransactionKind;
 
 const PAGE_SIZE = 25;
 const MAIN_TABS = [
-  { key: "overview", label: "Visão geral" },
-  { key: "transactions", label: "Transações" },
-  { key: "reports", label: "Relatórios" },
+  { key: "overview", label: "Visão geral", icon: <LayoutDashboard size={16} /> },
+  { key: "transactions", label: "Transações", icon: <ArrowLeftRight size={16} /> },
+  { key: "reports", label: "Relatórios", icon: <ChartNoAxesCombined size={16} /> },
 ];
 const PERIOD_TABS = [
   { key: "today", label: "Hoje" },
@@ -287,7 +275,7 @@ function PayoutStatus({ status }: { status: string }) {
 
 function Transactions(props: { summary: FinanceSummary | null; loading: boolean; error: string | null; result: FinanceTransactionsPage | null; type: TransactionFilter; onType: (value: TransactionFilter) => void; method: string; onMethod: (value: string) => void; methods: Array<{ value: string; label: string }>; search: string; onSearch: (value: string) => void; onPage: (page: number) => void; onRetry: () => Promise<void>; onSelect: (transaction: FinanceTransaction) => void; onClear: () => void }) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    <section className="panel" style={{ padding: 0, overflow: "hidden" }}><FilterToolbar tabs={[{ key: "all", label: "Todas" }, { key: "sale", label: "Pedidos" }, { key: "refund", label: "Reembolsos" }]} activeTab={props.type} onTabChange={(next) => props.onType(next as TransactionFilter)} search={props.search} onSearchChange={props.onSearch} searchPlaceholder="Buscar pedido ou método..." extra={<FilterSelect value={props.method} onChange={props.onMethod} placeholder="Todos os métodos" width={190} options={props.methods} />} /></section>
+    <section className="panel" style={{ padding: 0, overflow: "hidden" }}><FilterToolbar tabs={[{ key: "all", label: "Todas", icon: <ListFilter size={16} /> }, { key: "sale", label: "Pedidos", icon: <ShoppingBag size={16} /> }, { key: "refund", label: "Reembolsos", icon: <Undo2 size={16} /> }]} activeTab={props.type} onTabChange={(next) => props.onType(next as TransactionFilter)} search={props.search} onSearchChange={props.onSearch} searchPlaceholder="Buscar pedido ou método..." extra={<FilterSelect value={props.method} onChange={props.onMethod} placeholder="Todos os métodos" width={190} options={props.methods} />} /></section>
     {props.error ? <ErrorPanel message={props.error} onRetry={props.onRetry} /> : null}
     <DataPanel title="Movimentações financeiras" trailing={props.result ? <span style={{ color: "var(--color-text-faint)", font: "12px var(--font-sans)" }}>{props.result.total} registro{props.result.total === 1 ? "" : "s"}</span> : undefined} page={props.result?.page ?? 1} pageSize={props.result?.limit ?? PAGE_SIZE} total={props.error || props.loading ? 0 : props.result?.total ?? 0} onPageChange={props.onPage} isEmpty={!props.loading && !props.error && Boolean(props.result) && props.result?.items.length === 0} empty={{ icon: ReceiptText, title: "Nenhuma movimentação neste período", description: props.search || props.method || props.type !== "all" ? "Altere a busca, o tipo ou o método para encontrar a movimentação." : "Quando houver pedidos concluídos ou reembolsos confirmados, eles aparecerão aqui.", action: props.search || props.method || props.type !== "all" ? <Button variant="outline" onClick={props.onClear}>Limpar filtros</Button> : undefined }}>
       {props.loading ? <PageLoader /> : props.error ? null : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse" }}><caption className="sr-only">Movimentações financeiras da loja</caption><thead><tr>{["Data", "Tipo", "Pedido", "Método", "Situação", "Valor"].map((label) => <th key={label} style={tableHeaderStyle}>{label}</th>)}</tr></thead><tbody>{props.result?.items.map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} onClick={() => props.onSelect(transaction)} />)}</tbody></table></div>}

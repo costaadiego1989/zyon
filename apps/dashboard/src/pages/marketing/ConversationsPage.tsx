@@ -1,5 +1,6 @@
+import { ArrowLeft, Globe, MessageCircle, MessageSquare, MessagesSquare } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import {
   marketingApi,
@@ -276,9 +277,9 @@ export function ConversationsPage({
       />
       <FilterToolbar
         tabs={[
-          { key: "", label: "Todos os canais" },
-          { key: "whatsapp", label: "WhatsApp" },
-          { key: "site", label: "Site" },
+          { key: "", label: "Todos os canais", icon: <MessagesSquare size={16} /> },
+          { key: "whatsapp", label: "WhatsApp", icon: <MessageCircle size={16} /> },
+          { key: "site", label: "Site", icon: <Globe size={16} /> },
         ]}
         activeTab={filters.channel}
         onTabChange={(value) => filter("channel", value)}

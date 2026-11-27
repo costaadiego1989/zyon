@@ -1,7 +1,8 @@
+import { CheckCircle, CircleCheck, CreditCard, ExternalLink, Files, Loader2, PackageCheck, Plug, Receipt, RefreshCw, ShieldCheck, ShoppingBag, X } from "lucide-react";
 import { formatWhatsAppPhone } from "../../utils/masks.js";
 ﻿import { PageHeader } from "../../components/PageHeader.js";
 import React, { useState } from "react";
-import { CheckCircle, CircleCheck, CreditCard, ExternalLink, Loader2, PackageCheck, RefreshCw, ShieldCheck, ShoppingBag, X } from "lucide-react";
+
 import { Button } from "../../components/Button.js";
 import { TabBar } from "../../components/TabBar.js";
 import type { MerchantProfile } from "../../api-client.js";
@@ -40,7 +41,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
       {!props.me ? <p>Entre na sua conta para configurar o WhatsApp.</p> : <>
         <TabBar
-          tabs={[{ key: "connection", label: "Conexão", panelId: "whatsapp-connection" }, { key: "templates", label: "Modelos de mensagem", panelId: "whatsapp-templates" }, { key: "orders", label: "Pedidos no WhatsApp", panelId: "whatsapp-orders" }, { key: "usage", label: "Consumo e cobrança", panelId: "whatsapp-usage" }]}
+          tabs={[{ key: "connection", label: "Conexão", panelId: "whatsapp-connection", icon: <Plug size={16} /> }, { key: "templates", label: "Modelos de mensagem", panelId: "whatsapp-templates", icon: <Files size={16} /> }, { key: "orders", label: "Pedidos no WhatsApp", panelId: "whatsapp-orders", icon: <ShoppingBag size={16} /> }, { key: "usage", label: "Consumo e cobrança", panelId: "whatsapp-usage", icon: <Receipt size={16} /> }]}
           activeTab={tab}
           onTabChange={key => setTab(key as "connection" | "templates" | "orders" | "usage")}
           label="Configurações do WhatsApp"

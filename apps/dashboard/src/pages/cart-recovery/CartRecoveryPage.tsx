@@ -1,7 +1,8 @@
+import { Activity, AlertTriangle, CheckCircle, Clock, DollarSign, Edit, LayoutDashboard, MessagesSquare, RefreshCw, ShoppingCart, SlidersHorizontal, Ticket, XCircle } from "lucide-react";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useState } from "react";
-import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit, Ticket, SlidersHorizontal, AlertTriangle } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
 import { EmptyState } from "../../components/EmptyState.js";
@@ -137,7 +138,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       <div className="recovery-page-tabs">
         <TabBar
           label="Recuperação de carrinho"
-          tabs={[{ key: "overview", label: "Visão geral", panelId: "recovery-overview" }, { key: "messages", label: "Mensagens", panelId: "recovery-messages" }]}
+          tabs={[{ key: "overview", label: "Visão geral", panelId: "recovery-overview", icon: <LayoutDashboard size={16} /> }, { key: "messages", label: "Mensagens", panelId: "recovery-messages", icon: <MessagesSquare size={16} /> }]}
           activeTab={tab}
           onTabChange={setTab}
         />

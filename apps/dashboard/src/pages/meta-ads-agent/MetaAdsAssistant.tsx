@@ -1,3 +1,4 @@
+import { Bell, ChartNoAxesCombined, Image, Link, Megaphone, RefreshCw, Settings2, SlidersHorizontal, Wallet } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AssistantArtifact, AssistantThread, AssistantTurn, AssistantTurnInput, MetaAdsAutomationReview, MetaAdsDailyReport, MetaAdsFundingDiagnosis, MetaAdsOverview } from '@zyon/shared-types';
 import { merchantAssistantEndpoints, type AssistantSourceView, type AutomationView, type MerchantAssistantApi } from '../../api/endpoints/merchant-assistant.js';
@@ -10,7 +11,7 @@ import { FundingPanel } from './FundingPanel.js';
 import { MetricsDashboard } from './MetricsDashboard.js';
 import { ProposalReview } from './ProposalReview.js';
 import { DashboardHttpError } from '../../api/http/error.js';
-import { Bell,Image,Link,RefreshCw,SlidersHorizontal,Wallet } from 'lucide-react';
+
 import {TabBar} from '../../components/TabBar.js';
 import {campaignApprovalEndpoints,type CampaignApprovalApi} from './api.js';
 import {CampaignNoticePreferences} from './CampaignNoticePreferences.js';
@@ -172,7 +173,7 @@ function MetaAdsAssistantView({merchantId,apiBaseUrl,overview,api,client:supplie
   const launchId=(reviewTarget&&reviewTarget.campaignId===activeCampaignId?reviewTarget.proposalId:undefined)||(proposal?.kind==='launch'&&proposal.campaignId===activeCampaignId?proposal.id:undefined);
   return <div className="mga-agentic-shell" ref={workspace}><div className="mga-agentic-content">
     <div className="mga-account-context"><span className="mga-account-name" title={account?`Conta ${account.id}`:undefined}>{account?.name??'Selecione sua conta Meta'}</span><MetaConnectionBadge status={overview.connection.status}/></div>
-    <div className="mga-workspace-toolbar"><div className="mga-workspace-tabs"><TabBar tabs={[{key:'campaigns',label:'Campanhas',panelId:`${panelId}-campaigns`},{key:'metrics',label:'Métricas',panelId:`${panelId}-metrics`},{key:'settings',label:'Configurações',panelId:`${panelId}-settings`}]} activeTab={view} onTabChange={key=>setView(key as typeof view)} label="Seções de anúncios"/></div>{view==='campaigns'&&workspaceActions?<div className="mga-workspace-toolbar-actions">{workspaceActions}</div>:null}</div>
+    <div className="mga-workspace-toolbar"><div className="mga-workspace-tabs"><TabBar tabs={[{key:'campaigns',label:'Campanhas',panelId:`${panelId}-campaigns`, icon: <Megaphone size={16} />},{key:'metrics',label:'Métricas',panelId:`${panelId}-metrics`, icon: <ChartNoAxesCombined size={16} />},{key:'settings',label:'Configurações',panelId:`${panelId}-settings`, icon: <Settings2 size={16} />}]} activeTab={view} onTabChange={key=>setView(key as typeof view)} label="Seções de anúncios"/></div>{view==='campaigns'&&workspaceActions?<div className="mga-workspace-toolbar-actions">{workspaceActions}</div>:null}</div>
     {funding?.status==='blocked'&&view!=='settings'&&<div className="mga-notice" role="alert">Publicação bloqueada por uma pendência financeira. <button type="button" className="mga-secondary" onClick={()=>navigateOutside(fundingHeading.current)}>Ver pagamentos atuais</button></div>}
     <div role="tabpanel" id={`${panelId}-campaigns`} aria-labelledby={`${panelId}-campaigns-tab`} data-assistant-panel="campaigns" hidden={view!=='campaigns'}>{children}
       {foreignTarget?<p role="alert">Esta revisão pertence a outra loja. Selecione a loja correta.</p>:!onOpenCampaign&&activeCampaignId&&(!initialCampaign?.remoteCampaignId||launchId||latestLaunch)?<div ref={reviewAnchor} tabIndex={-1} data-campaign-review><CampaignPreparationPanel merchantId={merchantId} campaignId={activeCampaignId} proposalId={launchId} hasLaunch={!!latestLaunch} refreshRevision={preparationRevision} onReviewPendingChange={setReviewPending} api={approval} entitled={overview.entitled} selectedImageCount={initialCampaign?.draft.mediaIds.length??0} pollMs={pollMs} timezone={reports.find(r=>r.accountId===account?.id)?.timezone} onUpdated={refresh} onReconcile={id=>api.reconcile(id)} campaign={initialCampaign} media={overview.media} connection={overview.connection} onSetup={openConnection} onCorrectBudget={()=>{setExpanded(true);void send(`Quero corrigir o orçamento da campanha ${initialCampaign?.draft.name??'selecionada'}. Me ajude a ajustar o valor ou os dias, sem aumentar nada por conta própria.`).catch(()=>{});}}/></div>:null}

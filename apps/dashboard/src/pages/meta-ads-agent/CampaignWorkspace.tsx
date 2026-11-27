@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react';
-import {ChevronRight,Search} from 'lucide-react';
+import {ChevronRight,Search,ListFilter,ClipboardCheck,Radio,Pause,FileText,TriangleAlert,Archive} from 'lucide-react';
 import type {MetaAdsAudienceSummary,MetaAdsCampaignFilter,MetaAdsCampaignWorkspacePage,MetaAdsCampaignWorkspaceRow,MetaAdsWorkspaceQuery} from '@zyon/shared-types';
 import {TabBar} from '../../components/TabBar.js';
 import {PeriodFilter} from '../../components/PeriodFilter.js';
@@ -8,6 +8,7 @@ import {money} from './presentation.js';
 import './campaign-workspace.css';
 export interface CampaignWorkspaceProps {page:MetaAdsCampaignWorkspacePage|null;query:MetaAdsWorkspaceQuery;loading?:boolean;error?:string;selectedId?:string|null;onQuery(query:MetaAdsWorkspaceQuery):void;onOpen(row:MetaAdsCampaignWorkspaceRow):void;onRetry():void;onCreate():void;actions?:(row:MetaAdsCampaignWorkspaceRow)=>ReactNode;observedPeriod?:Pick<MetaAdsWorkspaceQuery,'since'|'until'>|null}
 const filters:Array<[MetaAdsCampaignFilter,string]>=[['all','Todas'],['approval','Aguardando aprovação'],['running','Em veiculação'],['paused','Pausadas'],['drafts','Rascunhos'],['attention','Precisam de atenção'],['archived','Arquivadas']];
+const filterIcons = {all:ListFilter,approval:ClipboardCheck,running:Radio,paused:Pause,drafts:FileText,attention:TriangleAlert,archived:Archive};
 const displayDate=(day:string)=>day.slice(0,10).split('-').reverse().join('/');
 export function campaignAudience(a:MetaAdsAudienceSummary):string{
  if(a.source==='unavailable'||!a.countries.length)return 'Público não informado';
@@ -29,7 +30,7 @@ export function CampaignWorkspace({page,query,loading=false,error='',selectedId,
  const preset=(key:string)=>{if(key==='collected'&&observedPeriod){change({since:observedPeriod.since,until:observedPeriod.until,page:1});return;}const end=new Date(),start=new Date(end);start.setDate(start.getDate()-Number(key)+1);const day=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;change({since:day(start),until:day(end),page:1});};
  return <section className="ads-workspace dashboard-ui" aria-label="Campanhas da loja" aria-busy={loading}>
   <div className="ads-workspace__heading"><div><h2>Campanhas da loja</h2><p>Acompanhe os resultados e revise o que precisa da sua aprovação.</p></div><button type="button" className="zyn-btn zyn-btn--primary" onClick={onCreate}>Criar campanha</button></div>
-  <TabBar role="group" label="Situação das campanhas" activeTab={query.filter} tabs={filters.map(([key,label])=>({key,label:`${label} (${page?.counts[key]??0})`}))} onTabChange={filter=>change({filter:filter as MetaAdsCampaignFilter,page:1})}/>
+  <TabBar role="group" label="Situação das campanhas" activeTab={query.filter} tabs={filters.map(([key,label])=>{const Icon=filterIcons[key];return {key,label:`${label} (${page?.counts[key]??0})`,icon:<Icon size={16}/>};})} onTabChange={filter=>change({filter:filter as MetaAdsCampaignFilter,page:1})}/>
   <label className="ads-workspace__mobile-filter">Situação<select aria-label="Filtrar situação das campanhas" value={query.filter} onChange={event=>change({filter:event.target.value as MetaAdsCampaignFilter,page:1})}>{filters.map(([key,label])=><option key={key} value={key}>{label} ({page?.counts[key]??0})</option>)}</select></label>
   <div className="ads-workspace__filters"><label className="ads-workspace__search"><Search size={16} aria-hidden="true"/><input aria-label="Buscar campanhas" placeholder="Buscar por campanha ou produto" value={query.search} onChange={event=>change({search:event.target.value,page:1})}/></label><PeriodFilter presets={[...(observedPeriod?[{key:'collected',label:'Última coleta'}]:[]),{key:'7',label:'7 dias'},{key:'14',label:'14 dias'},{key:'30',label:'30 dias'}]} active="" onPreset={preset} from={query.since} to={query.until} onDate={(field,value)=>change({[field==='from'?'since':'until']:value,page:1})}/></div>
   {error?<div className="ads-workspace__error" role="alert"><span>{error}</span><button type="button" className="zyn-btn zyn-btn--sm" onClick={onRetry} disabled={loading}>Tentar novamente</button></div>:null}

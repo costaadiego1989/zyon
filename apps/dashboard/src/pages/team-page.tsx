@@ -1,5 +1,6 @@
+import { Crown, Headset, ListFilter, Mail, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
-import { Users, UserPlus, Trash2, Mail, Crown } from "lucide-react";
+
 import type { MerchantProfile } from "../api-client.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { Button } from "../components/Button.js";
@@ -62,7 +63,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
 
 
     {vm.loading ? <section className="panel admin-skeleton" aria-label="Carregando equipe" aria-busy="true">{[1,2,3].map(n => <div className="skeleton-cell" key={n} />)}</section> : vm.error ? <section className="panel"><EmptyState icon={Users} title="Equipe indisponível" description="Não foi possível consultar os membros e convites. Tente novamente para ver os acessos atuais." action={<Button variant="outline" onClick={() => void vm.load()}>Tentar novamente</Button>} /></section> : <>
-      <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "OWNER", label: "Proprietários" }, { key: "ADMIN", label: "Administradores" }, { key: "STAFF", label: "Agentes" }]} activeTab={role} onTabChange={setRole} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por e-mail" />
+      <FilterToolbar tabs={[{ key: "all", label: "Todos", icon: <ListFilter size={16} /> }, { key: "OWNER", label: "Proprietários", icon: <Crown size={16} /> }, { key: "ADMIN", label: "Administradores", icon: <ShieldCheck size={16} /> }, { key: "STAFF", label: "Agentes", icon: <Headset size={16} /> }]} activeTab={role} onTabChange={setRole} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por e-mail" />
       <DataPanel title="Membros ativos" page={currentPage} pageSize={10} total={filtered.length} onPageChange={setPage} isEmpty={!filtered.length} empty={{ icon: Users, title: vm.members.length ? "Nenhum membro com estes filtros" : "Sua equipe começa aqui", description: vm.members.length ? "Busque outro e-mail ou remova o filtro de função." : "Convide as pessoas que vão atender clientes e administrar sua loja.", action: vm.members.length ? <Button variant="outline" onClick={() => { setSearch(""); setRole("all"); }}>Limpar filtros</Button> : <Button onClick={openInvite}>Convidar membro</Button> }}>
         <div className="table-wrap"><table className="data-table"><thead><tr><th>E-mail</th><th>Função</th><th>Na equipe desde</th><th><span className="sr-only">Ações</span></th></tr></thead><tbody>
           {filtered.slice((currentPage - 1) * 10, currentPage * 10).map(m => <tr key={m.id}>

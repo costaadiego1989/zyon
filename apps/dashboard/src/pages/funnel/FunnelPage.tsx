@@ -1,5 +1,6 @@
+import { AlertTriangle, BarChart3, Download, ShoppingCart, Store } from "lucide-react";
 ﻿import React from "react";
-import { Download, AlertTriangle, BarChart3 } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import { TabBar } from "../../components/TabBar.js";
@@ -60,8 +61,8 @@ export function FunnelPage({
       {vm.showSourceTabs && (
         <TabBar
           tabs={[
-            { key: "storefront", label: "Jornada da loja" },
-            { key: "checkout", label: "Jornada do checkout" },
+            { key: "storefront", label: "Jornada da loja", icon: <Store size={16} /> },
+            { key: "checkout", label: "Jornada do checkout", icon: <ShoppingCart size={16} /> },
           ]}
           activeTab={vm.funnelSource}
           onTabChange={(value) =>

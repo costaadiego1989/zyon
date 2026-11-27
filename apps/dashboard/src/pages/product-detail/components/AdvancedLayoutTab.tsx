@@ -1,3 +1,4 @@
+import { CircleHelp, MessageSquareQuote, PanelsTopLeft, Video } from "lucide-react";
 import React, { useState } from "react";
 import { TabBar } from "../../../components/TabBar.js";
 import { EmptyState } from "../../../components/EmptyState.js";
@@ -16,10 +17,10 @@ export interface AdvancedLayoutTabProps {
 }
 
 const TABS = [
-  { key: "blocks", label: "Blocos" },
-  { key: "faqs", label: "FAQ" },
-  { key: "testimonials", label: "Depoimentos" },
-  { key: "videos", label: "Vídeos" },
+  { key: "blocks", label: "Blocos", icon: <PanelsTopLeft size={16} /> },
+  { key: "faqs", label: "FAQ", icon: <CircleHelp size={16} /> },
+  { key: "testimonials", label: "Depoimentos", icon: <MessageSquareQuote size={16} /> },
+  { key: "videos", label: "Vídeos", icon: <Video size={16} /> },
 ];
 
 /**

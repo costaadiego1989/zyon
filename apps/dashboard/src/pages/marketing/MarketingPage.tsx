@@ -4,6 +4,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { normalizeRole } from "../../lib/auth/roles.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import { TabBar } from "../../components/TabBar.js";
+import { Button } from "../../components/Button.js";
 import { ContactsPanel } from "./ContactsPanel.js";
 import { CampaignsPanel } from "./CampaignsPanel.js";
 import { MarketingSettingsPanel } from "./MarketingSettingsPanel.js";
@@ -22,7 +23,10 @@ export function MarketingPage({
   initialTab?: "contacts" | "campaigns" | "settings";
   initialContactId?: string;
 }) {
-  const [tab, setTab] = useState(initialTab ?? "contacts");
+  const [tab, setTab] = useState(
+    initialTab === "campaigns" ? "campaigns" : "contacts"
+  );
+  const [settingsOpen, setSettingsOpen] = useState(initialTab === "settings");
   const role = normalizeRole(me?.role);
   const approver = role === "OWNER" || role === "ADMIN";
   const active = approver ? tab : "contacts";
@@ -39,11 +43,6 @@ export function MarketingPage({
             label: "Campanhas",
             icon: <Megaphone size={16} />,
           },
-          {
-            key: "settings",
-            label: "Configurações",
-            icon: <SlidersHorizontal size={16} />,
-          },
         ]
       : []),
   ];
@@ -52,13 +51,19 @@ export function MarketingPage({
       <PageHeader
         title="Marketing"
         description="Acompanhe contatos, oportunidades e comunicações da sua loja."
+        actions={
+          approver ? (
+            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+              <SlidersHorizontal size={16} aria-hidden="true" /> Configurações
+            </Button>
+          ) : undefined
+        }
       />
       <TabBar
         tabs={tabs}
         activeTab={active}
         onTabChange={(key) => {
-          if (key === "contacts" || key === "campaigns" || key === "settings")
-            setTab(key);
+          if (key === "contacts" || key === "campaigns") setTab(key);
         }}
         label="Áreas de marketing"
       />
@@ -68,13 +73,17 @@ export function MarketingPage({
           onConversation={onConversation}
           initialContactId={initialContactId}
         />
-      ) : active === "campaigns" ? (
+      ) : (
         <CampaignsPanel
           apiBaseUrl={apiBaseUrl}
-          onSettings={() => setTab("settings")}
+          onSettings={() => setSettingsOpen(true)}
         />
-      ) : (
-        <MarketingSettingsPanel apiBaseUrl={apiBaseUrl} />
+      )}
+      {approver && settingsOpen && (
+        <MarketingSettingsPanel
+          apiBaseUrl={apiBaseUrl}
+          onClose={() => setSettingsOpen(false)}
+        />
       )}
     </div>
   );

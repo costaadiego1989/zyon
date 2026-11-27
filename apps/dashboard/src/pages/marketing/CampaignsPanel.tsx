@@ -97,7 +97,7 @@ export function CampaignsPanel({
   };
   return (
     <section className="marketing-campaigns">
-      {vm.error && (
+      {vm.error && !vm.editing && (
         <div role="alert" className="marketing-notice">
           {vm.error}
           <Button variant="outline" onClick={vm.refresh}>
@@ -110,15 +110,17 @@ export function CampaignsPanel({
           {vm.notice}
         </p>
       )}
-      {vm.editing ? (
+      {vm.editing && (
         <CampaignEditor
           key={c ? `${c.id}:${c.version}` : "new"}
           campaign={c ?? undefined}
           busy={vm.busy}
+          saveError={vm.error}
           onSave={vm.save}
-          onCancel={vm.back}
+          onCancel={() => vm.setEditing(false)}
         />
-      ) : vm.selected ? (
+      )}
+      {vm.selected ? (
         <>
           <Button variant="ghost" disabled={vm.busy} onClick={vm.back}>
             <ArrowLeft size={16} aria-hidden="true" /> Voltar às campanhas

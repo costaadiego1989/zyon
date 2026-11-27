@@ -12,38 +12,6 @@
 .marketing-workspace > .page-header {
   margin-bottom: 0;
 }
-.marketing-workspace > .tab-bar {
-  display: flex;
-  gap: 4px;
-  width: fit-content;
-  max-width: 100%;
-  margin-bottom: 0;
-  padding: 4px;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--surface-1);
-  overflow-x: auto;
-}
-.marketing-workspace > .tab-bar .tab-bar__tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 8px 16px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--color-text-secondary);
-  font: 500 13px/1.5 var(--font-sans);
-  white-space: nowrap;
-}
-.marketing-workspace > .tab-bar .tab-bar__tab[aria-selected="true"] {
-  color: var(--color-text);
-  background: var(--surface-3);
-}
-.marketing-workspace > .tab-bar .tab-bar__tab[aria-selected="true"] svg {
-  color: var(--color-brand);
-}
 .marketing-page :is(h2, h3),
 .marketing-contact-detail > header h2 {
   font-family: var(--font-sans);
@@ -411,19 +379,6 @@
   border: 0;
   gap: 4px;
 }
-.marketing-contact-filters .tab-bar__tab {
-  min-height: 40px;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--color-text-secondary);
-  background: transparent;
-  font: 500 12px/1.5 var(--font-sans);
-}
-.marketing-contact-filters .tab-bar__tab[aria-pressed="true"] {
-  color: var(--color-text);
-  background: var(--surface-3);
-}
 .marketing-contact-filters .ui-filter-select {
   width: 180px !important;
   min-height: 40px;
@@ -728,19 +683,6 @@
   }
 }
 @media (max-width: 600px) {
-  .marketing-workspace > .tab-bar {
-    width: 100%;
-    margin-bottom: 0;
-  }
-  .marketing-workspace > .tab-bar .tab-bar__tab {
-    flex: 1 0 auto;
-    min-height: 44px;
-    padding-inline: 10px;
-    font-size: 12px;
-  }
-  .marketing-workspace > .tab-bar .tab-bar__tab > span {
-    display: none;
-  }
   .marketing-section-heading {
     gap: 12px;
     flex-wrap: wrap;
@@ -819,12 +761,14 @@
   .marketing-facts {
     grid-template-columns: 1fr;
   }
-  .marketing-workspace > .tab-bar .tab-bar__tab {
-    padding-inline: 8px;
-    font-size: 11px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .marketing-skeleton { animation: none; }
   .marketing-stage { transition: none; }
 }
+
+.marketing-drawer-form { max-width: none; }
+.marketing-drawer-form > :is(h3, p) { margin: 0; }
+.marketing-drawer-form > h3 { font: 600 16px/1.5 var(--font-sans); }
+.marketing-drawer-form > p { line-height: 1.6; }
+.marketing-drawer-form .marketing-help a { color: var(--color-brand); text-underline-offset: 3px; }
