@@ -7,6 +7,80 @@ import type {
   MarketingBuyer,
   MarketingContext,
 } from "../domain/marketing-context.port.js";
+import { marketingSuppressionHashes } from "./marketing-identity.js";
+
+test("MKT-01/1 international verified identity survives inbound, history and opt-out without a Brazilian prefix", async () => {
+  const f = setup();
+  const phone = "12025550143";
+  try {
+    f.buyers.set("international-buyer", {
+      id: "international-buyer",
+      name: "International buyer",
+      email: null,
+      verifiedPhone: phone,
+    });
+    const first = await f.service.inbound(
+      f.incoming({ verifiedPhone: phone, text: "quero receber" })
+    );
+    const detail = await f.service.detail(f.merchantId, first.contactId!);
+    assert.equal(detail.contact.phone, phone);
+    assert.equal(detail.contact.accountId, "international-buyer");
+    assert.equal(
+      await f.service.permission(
+        f.merchantId,
+        "international-buyer",
+        "whatsapp"
+      ),
+      true
+    );
+    const history = {
+      merchantId: f.merchantId,
+      channel: "whatsapp" as const,
+      conversationKey: "international-history",
+      accountId: "international-buyer",
+      verifiedPhone: "+1 202-555-0143",
+      occurredAt: f.now,
+      lastSeenAt: f.now,
+      messages: [
+        { role: "buyer" as const, content: "History", occurredAt: f.now },
+      ],
+    };
+    const imported = await f.service.importRelationship(history);
+    assert.equal(imported?.contact.id, first.contactId);
+    assert.equal(imported?.messages, 1);
+    assert.equal((await f.service.importRelationship(history))?.messages, 0);
+    const revoked = await f.service.inbound(
+      f.incoming({
+        verifiedPhone: "+1 202-555-0143",
+        messageId: "international-opt-out",
+        text: "PARAR",
+      })
+    );
+    assert.equal(revoked.contactId, first.contactId);
+    assert.equal(
+      await f.service.permission(
+        f.merchantId,
+        "international-buyer",
+        "whatsapp"
+      ),
+      false
+    );
+    assert.equal(
+      (await f.service.detail(f.merchantId, first.contactId!)).consent?.status,
+      "revoked"
+    );
+    assert.equal(
+      (await f.service.list(f.merchantId, { limit: 10, offset: 0 })).total,
+      1
+    );
+    assert.deepEqual(
+      marketingSuppressionHashes(f.merchantId, phone, null),
+      marketingSuppressionHashes(f.merchantId, "+1 202-555-0143", null)
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
 
 test("MKT-04/4 confirmed integer purchase above the 32-bit boundary is persisted exactly once", async () => {
   const f = setup();

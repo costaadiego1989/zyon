@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { PrismaClient } from "@prisma/client";
 import type { WhatsAppSessionEntity, WhatsAppSessionRepository } from "../../domain/ports/whatsapp-session-repository.port.js";
 import { RouteToSessionUseCase } from "./route-to-session.use-case.js";
+import type { BuyerChannelIdentityService } from "../../../buyer-account/application/services/buyer-channel-identity.service.js";
 
 type Fields = Record<string, unknown>;
 const MERCHANT = "merchant-whatsapp-anchor-synthetic";
@@ -21,7 +22,7 @@ function existingSession(overrides: Partial<WhatsAppSessionEntity> = {}): WhatsA
 }
 
 function harness(options: { active?: WhatsAppSessionEntity; buyerExists?: boolean;
-  fail?: "anchor" | "create" | "commit"; meta?: boolean; merchantId?: string } = {}) {
+  fail?: "anchor" | "create" | "commit"; meta?: boolean; merchantId?: string; phone?: string; fromNumber?: string } = {}) {
   const calls: string[] = [];
   const statements: Array<{ text: string; values: unknown[] }> = [];
   const checkoutCreates: Fields[] = [];
@@ -91,7 +92,7 @@ function harness(options: { active?: WhatsAppSessionEntity; buyerExists?: boolea
     async findActiveByPhone(merchantId, phone, deviceId) {
       calls.push("wa:read");
       assert.equal(merchantId, options.merchantId ?? MERCHANT);
-      assert.equal(phone, PHONE);
+      assert.equal(phone, options.phone ?? PHONE);
       assert.equal(deviceId, options.meta ? "META_CLOUD:synthetic" : "device-synthetic");
       return options.active ?? null;
     },
@@ -107,11 +108,29 @@ function harness(options: { active?: WhatsAppSessionEntity; buyerExists?: boolea
     async setPostSaleContext() {},
     async clearPostSaleContext() {},
   };
-  const useCase = new RouteToSessionUseCase(sessions, prisma as unknown as PrismaClient);
-  return { calls, statements, checkoutCreates, checkoutCommitted, waCreates,
+  const accountLookups: string[] = [];
+  const identities = { verifiedAccount: async (phone: string) => { accountLookups.push(phone); return null; } } as unknown as BuyerChannelIdentityService;
+  const useCase = new RouteToSessionUseCase(sessions, prisma as unknown as PrismaClient, identities);
+  return { calls, statements, checkoutCreates, checkoutCommitted, waCreates, accountLookups,
     run: () => useCase.execute({ merchantId: options.merchantId ?? MERCHANT,
-      deviceId: options.meta ? "META_CLOUD:synthetic" : "device-synthetic", fromNumber: "+55 (11) 99999-0000", fromAlias: "Synthetic Alias" }) };
+      deviceId: options.meta ? "META_CLOUD:synthetic" : "device-synthetic", fromNumber: options.fromNumber ?? "+55 (11) 99999-0000", fromAlias: "Synthetic Alias" }) };
 }
+
+test("MKT-01/1 Meta session routing preserves international identity while legacy Brazilian input stays supported", async () => {
+  for (const input of [
+    { fromNumber: "+1 202-555-0143", phone: "12025550143", meta: true },
+    { fromNumber: "12025550143", phone: "12025550143", meta: true },
+    { fromNumber: "+44 20 7946 0958", phone: "442079460958", meta: true },
+    { fromNumber: "(11) 99999-0000", phone: PHONE, meta: false },
+  ]) {
+    const subject = harness(input);
+    const result = await subject.run();
+    assert.equal(result.buyerData.phone, input.phone);
+    assert.equal(result.whatsappSession.buyerPhone, input.phone);
+    assert.equal(subject.waCreates[0].buyerPhone, input.phone);
+    assert.deepEqual(subject.accountLookups, input.phone.startsWith("55") ? [input.phone] : []);
+  }
+});
 
 function assertAnchoredCreation(subject: ReturnType<typeof harness>, merchantId = MERCHANT) {
   assert.equal(subject.calls.includes("root:create"), false);

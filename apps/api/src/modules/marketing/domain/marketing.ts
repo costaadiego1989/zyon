@@ -249,8 +249,13 @@ export interface MarketingContactQuery {
 
 export function marketingPhone(value: string): string {
   const digits = value.replace(/\D/g, "");
+  // Verified numbers already include their country code, even without '+'.
+  // Only the explicit legacy Brazilian DDD notation needs a country prefix.
+  const domestic = /^\s*\(\d{2}\)/.test(value);
   const phone =
-    digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
+    domestic && (digits.length === 10 || digits.length === 11)
+      ? `55${digits}`
+      : digits;
   if (!/^[1-9]\d{7,14}$/.test(phone))
     throw new MarketingError("marketing_phone_invalid");
   return phone;

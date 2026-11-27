@@ -17,6 +17,10 @@ import { connectedMetaCloudCredentials } from "../../domain/services/connected-m
 import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
 
 export const MERCHANT_MARKETING_FETCH = Symbol("MERCHANT_MARKETING_FETCH");
+// Marketing receives verified numbers that already include a country code.
+function marketingRecipient(phone: string): string | null {
+  return whatsappE164(phone.trim().startsWith("+") ? phone : `+${phone}`);
+}
 /** Channel-owned transport. No caller supplies a token, WABA or Graph endpoint. */
 @Injectable()
 export class MerchantMarketingMessagingAdapter
@@ -41,7 +45,7 @@ export class MerchantMarketingMessagingAdapter
     input: Parameters<MerchantMarketingMessaging["sendFreeform"]>[0]
   ) {
     const connection = await this.connection(input.merchantId);
-    const phone = whatsappE164(input.phone);
+    const phone = marketingRecipient(input.phone);
     if (
       !connection ||
       !phone ||
@@ -62,7 +66,7 @@ export class MerchantMarketingMessagingAdapter
     input: Parameters<MerchantMarketingMessaging["sendOpening"]>[0]
   ) {
     const connection = await this.connection(input.merchantId);
-    const phone = whatsappE164(input.phone);
+    const phone = marketingRecipient(input.phone);
     if (
       !connection ||
       !phone ||
@@ -176,7 +180,7 @@ export class MerchantMarketingMessagingAdapter
   async sendCampaign(
     input: Parameters<MerchantMarketingMessaging["sendCampaign"]>[0]
   ) {
-    const phone = whatsappE164(input.phone);
+    const phone = marketingRecipient(input.phone);
     if (!phone)
       return { status: "suppressed" as const, reason: "invalid_recipient" };
     const before = await this.connection(input.merchantId);

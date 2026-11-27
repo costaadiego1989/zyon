@@ -163,5 +163,9 @@ test("MKT-05/1 drafts need concrete content and explicit integer spending limits
 test("MKT-01/1 incoming phone normalization preserves international routing", () => {
   assert.equal(marketingPhone("(11) 99999-1234"), "5511999991234");
   assert.equal(marketingPhone("+55 11 99999-1234"), "5511999991234");
+  assert.equal(marketingPhone("+1 202-555-0143"), "12025550143");
+  assert.equal(marketingPhone("12025550143"), "12025550143");
+  assert.equal(marketingPhone("+44 20 7946 0958"), "442079460958");
+  assert.equal(marketingPhone("5511999991234"), "5511999991234");
   assert.throws(() => marketingPhone("123"), /marketing_phone_invalid/);
 });

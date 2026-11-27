@@ -56,8 +56,11 @@ export class RouteToSessionUseCase {
     fromNumber: string;
     fromAlias?: string;
   }): Promise<RouteResult> {
-    const phone = this.normalizePhone(input.fromNumber);
-    const canonicalAccount = await this.channelIdentities?.verifiedAccount(phone);
+    const phone = this.normalizePhone(input.fromNumber, input.deviceId.startsWith("META_CLOUD:"));
+    // Account phone verification supports Brazil; foreign numbers must not be
+    // reinterpreted as local numbers by that legacy account lookup.
+    const canonicalAccount = /^55[1-9]\d{9,10}$/.test(phone)
+      ? await this.channelIdentities?.verifiedAccount(phone) : null;
     const globalUserId = canonicalAccount ?? this.phoneToGlobalUserId(phone);
 
     // 1. Auto-register buyer if not exists
@@ -218,9 +221,10 @@ export class RouteToSessionUseCase {
     return sessionId;
   }
 
-  private normalizePhone(phone: string): string {
+  private normalizePhone(phone: string, verifiedInternational = false): string {
     // Remove non-digits, ensure country code
     const digits = phone.replace(/\D/g, "");
+    if (verifiedInternational || phone.trim().startsWith("+")) return digits;
     if (digits.startsWith("55") && digits.length >= 12) return digits;
     if (digits.length === 10 || digits.length === 11) return `55${digits}`;
     return digits;

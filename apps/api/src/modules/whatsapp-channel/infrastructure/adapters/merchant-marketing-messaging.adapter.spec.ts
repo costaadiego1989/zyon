@@ -76,6 +76,41 @@ function setup() {
     },
   };
 }
+
+test("MKT-01/1 verified international recipients keep their country code in every marketing transport", async () => {
+  for (const [phone, recipient] of [
+    ["12025550143", "12025550143"],
+    ["+1 202-555-0143", "12025550143"],
+    ["5511999991234", "5511999991234"],
+    ["+44 20 7946 0958", "442079460958"],
+  ]) {
+    const f = setup();
+    const input = {
+      merchantId: "store",
+      phone,
+      deviceId: "META_CLOUD:config",
+      text: "Internal test",
+    };
+    assert.equal((await f.adapter.sendOpening(input)).status, "accepted");
+    assert.equal((await f.adapter.sendFreeform(input)).status, "accepted");
+    assert.equal(
+      (
+        await f.adapter.sendCampaign({
+          ...input,
+          templateName: "campaign_template",
+          body: "Internal test",
+          language: "pt_BR",
+          wabaId: "123456",
+        })
+      ).status,
+      "accepted"
+    );
+    assert.deepEqual(
+      f.requests.map((request) => request.body.to),
+      [recipient, recipient, recipient]
+    );
+  }
+});
 test("MKT-02/1 opening sends the two explicit native WhatsApp reply buttons", async () => {
   const f = setup();
   const result = await f.adapter.sendOpening({
