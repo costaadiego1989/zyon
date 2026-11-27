@@ -14,7 +14,6 @@ export interface RuleOption { id: string; name: string; }
 export function useCartRecoveryPage() {
   const api = useApi();
   const [metrics, setMetrics] = useState<CartRecoveryMetrics | null>(null);
-  const [attempts, setAttempts] = useState<CartRecoveryAttempt[]>([]);
   const [config, setConfig] = useState<CartRecoveryStrategyConfig>({ active_strategy: "offer_coupon" });
   const [savingKey, setSavingKey] = useState<CartRecoveryStrategyKey | null>(null);
   const saving = useRef(false);
@@ -30,12 +29,11 @@ export function useCartRecoveryPage() {
     setLoading(true);
     setError(null);
     Promise.all([
-      api.getCartRecoveryMetrics(), api.getCartRecoveryAttempts(),
+      api.getCartRecoveryMetrics(),
       api.getCartRecoveryConfig(), api.listCoupons(), api.getCheckoutSettings(),
-    ]).then(([rawMetrics, attemptData, savedConfig, couponData, settings]) => {
+    ]).then(([rawMetrics, savedConfig, couponData, settings]) => {
       if (cancelled) return;
       setMetrics(normalizeCartRecoveryMetrics(rawMetrics));
-      setAttempts(attemptData);
       setConfig(savedConfig);
       const now = Date.now();
       setCoupons((couponData as unknown as CouponOption[]).filter(c => c.isActive
@@ -81,6 +79,6 @@ export function useCartRecoveryPage() {
     return saveConfig({ active_strategy: key });
   }, [config.active_strategy, saveConfig]);
 
-  return { metrics, attempts, config, savingKey, loading, error, saveError,
+  return { metrics, config, savingKey, loading, error, saveError,
     retry: () => setLoadVersion(value => value + 1), selectStrategy, saveConfig, coupons, rules };
 }
