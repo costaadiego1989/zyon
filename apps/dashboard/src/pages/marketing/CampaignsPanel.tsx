@@ -5,6 +5,7 @@ import { PageLoader } from "../../components/PageLoader.js";
 import { MarketingEmptyState } from "./MarketingEmptyState.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import { CampaignEditor } from "./CampaignEditor.js";
+import { MarketingBillingNotice } from "./MarketingBillingNotice.js";
 import { useMarketingCampaigns } from "./useMarketingCampaigns.js";
 import { marketingMoney, marketingDate } from "./marketing-format.js";
 import type { MarketingCampaign } from "../../api/marketing.js";
@@ -166,6 +167,7 @@ export function CampaignsPanel({
                   )}
                 </div>
               </header>
+              <MarketingBillingNotice />
               <section className="marketing-section">
                 <h3>Mensagem da campanha</h3>
                 <blockquote className="marketing-preview">{c.body}</blockquote>
@@ -365,6 +367,7 @@ export function CampaignsPanel({
             </div>
             <Button onClick={vm.create}>Criar campanha</Button>
           </header>
+          <MarketingBillingNotice />
           {vm.loading ? (
             <PageLoader variant="section" />
           ) : !vm.list.length ? (

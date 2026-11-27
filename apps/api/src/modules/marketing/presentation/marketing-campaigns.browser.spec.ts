@@ -100,6 +100,14 @@ test("MKT-05/3 merchant gestures configure, draft, approve, edit, schedule, paus
       await browser.page
         .getByRole("tab", { name: "Campanhas", exact: true })
         .click();
+      await expect(
+        browser.page.getByRole("link", {
+          name: "Vincular ou gerenciar cartão na Meta",
+        })
+      ).toBeVisible();
+      await expect(
+        browser.page.getByText(/Esse valor é separado da assinatura Zyon/)
+      ).toBeVisible();
       await browser.page
         .getByRole("button", { name: "Criar campanha", exact: true })
         .click();
@@ -107,6 +115,32 @@ test("MKT-05/3 merchant gestures configure, draft, approve, edit, schedule, paus
         name: "Nova campanha",
       });
       await expect(editor).toBeVisible();
+      await expect(
+        editor.getByRole("button", { name: "Fechar", exact: true })
+      ).toBeFocused();
+      const billing = editor.getByRole("link", {
+        name: "Vincular ou gerenciar cartão na Meta",
+      });
+      await expect(billing).toHaveAttribute("target", "_blank");
+      await expect(billing).toHaveAttribute("rel", "noopener noreferrer");
+      await browser.page
+        .context()
+        .route("https://business.facebook.com/billing_hub/", (route) =>
+          route.fulfill({
+            contentType: "text/html",
+            body: "<title>Destino de faturamento externo</title>",
+          })
+        );
+      const [billingPage] = await Promise.all([
+        browser.page.waitForEvent("popup"),
+        billing.click(),
+      ]);
+      await expect(billingPage).toHaveURL(
+        "https://business.facebook.com/billing_hub/"
+      );
+      await billingPage.close();
+      await expect(editor).toBeVisible();
+      await editor.getByRole("button", { name: "Fechar", exact: true }).focus();
       await expect(
         browser.page.getByRole("heading", { name: "Campanhas pelo WhatsApp" })
       ).toBeVisible();

@@ -772,3 +772,22 @@
 .marketing-drawer-form > h3 { font: 600 16px/1.5 var(--font-sans); }
 .marketing-drawer-form > p { line-height: 1.6; }
 .marketing-drawer-form .marketing-help a { color: var(--color-brand); text-underline-offset: 3px; }
+.marketing-billing-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 20px 0;
+  border-block: 1px solid var(--color-border);
+}
+.marketing-billing-notice > svg { flex: none; margin-top: 2px; color: var(--color-text-secondary); }
+.marketing-billing-notice > div { min-width: 0; }
+.marketing-billing-notice h3 { margin: 0; color: var(--color-text); font: 600 14px/1.5 var(--font-sans); }
+.marketing-billing-notice p { max-width: 72ch; margin: 8px 0 0; color: var(--color-text-secondary); font: 13px/1.6 var(--font-sans); }
+.marketing-billing-notice__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.marketing-billing-notice__actions a { color: var(--color-brand); font-size: 13px; text-underline-offset: 3px; }
+.marketing-billing-notice__actions .zyn-btn { max-width: 100%; color: var(--color-text); white-space: normal; text-align: left; }
+.marketing-billing-notice__actions .zyn-btn__label { display: inline-flex; align-items: center; gap: 8px; }
+.marketing-billing-notice__actions svg { flex: none; }
+.marketing-billing-notice .marketing-billing-notice__hint { font-size: 12px; }
+.marketing-drawer-form .marketing-billing-notice { margin-bottom: 4px; padding-top: 0; border-top: 0; }

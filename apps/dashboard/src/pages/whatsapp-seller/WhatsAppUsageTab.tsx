@@ -2,6 +2,7 @@ import React from "react";
 import "./whatsapp-usage.css";
 import { AlertCircle, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "../../components/Button.js";
+import { WHATSAPP_META_BILLING_URL } from "../../lib/whatsapp-billing.js";
 import type { WhatsAppUsage, WhatsAppUsagePeriod } from "../../api/endpoints/whatsapp-usage.js";
 import type { useWhatsAppUsage } from "./useWhatsAppUsage.js";
 const categories: Record<string, string> = { SERVICE: "Atendimento", UTILITY: "Utilidade", MARKETING: "Marketing", MARKETING_LITE: "Marketing", AUTHENTICATION: "Autenticação", AUTHENTICATION_INTERNATIONAL: "Autenticação internacional" };
@@ -43,7 +44,7 @@ export function WhatsAppUsageTab({ vm }: { vm: ReturnType<typeof useWhatsAppUsag
       </>}
     </section>
     <section className="panel whatsapp-seller__panel"><h2>Cartão e faturamento da empresa</h2><p>Na cobrança direta, cada empresa cadastra o próprio cartão ou método de pagamento na sua conta WhatsApp Business, dentro da Meta. A assinatura da Zyon é cobrada separadamente.</p><p>Se a conta utiliza uma linha de crédito de parceiro, as condições de pagamento são as acordadas com esse parceiro. Confira a configuração da sua empresa no faturamento da Meta.</p>
-      <div className="whatsapp-seller__actions"><a className="whatsapp-usage__link" href={data?.billingUrl ?? "https://business.facebook.com/billing_hub/"} target="_blank" rel="noopener noreferrer">Abrir faturamento da Meta <ExternalLink size={15} aria-hidden="true" /></a>{data && <a className="whatsapp-usage__link" href={data.managerUrl} target="_blank" rel="noopener noreferrer">Gerenciar WhatsApp Business <ExternalLink size={15} aria-hidden="true" /></a>}</div>
+      <div className="whatsapp-seller__actions"><a className="whatsapp-usage__link" href={data?.billingUrl ?? WHATSAPP_META_BILLING_URL} target="_blank" rel="noopener noreferrer">Abrir faturamento da Meta <ExternalLink size={15} aria-hidden="true" /></a>{data && <a className="whatsapp-usage__link" href={data.managerUrl} target="_blank" rel="noopener noreferrer">Gerenciar WhatsApp Business <ExternalLink size={15} aria-hidden="true" /></a>}</div>
     </section>
   </section>;
 }

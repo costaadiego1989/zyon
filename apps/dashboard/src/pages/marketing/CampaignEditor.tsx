@@ -9,6 +9,7 @@ import {
 } from "../../api/marketing.js";
 import { Button } from "../../components/Button.js";
 import { SidePanel } from "../../components/SidePanel.js";
+import { MarketingBillingNotice } from "./MarketingBillingNotice.js";
 import { marketingCents } from "./marketing-format.js";
 
 export function CampaignEditor({
@@ -97,6 +98,7 @@ export function CampaignEditor({
         onSubmit={submit}
         aria-busy={busy}
       >
+        <MarketingBillingNotice />
         {campaign?.approvedVersion && (
           <p className="marketing-help">
             Salvar alterações remove a aprovação anterior. Você precisará
@@ -208,19 +210,10 @@ export function CampaignEditor({
           </label>
         </fieldset>
         <p className="marketing-help">
-          Templates promocionais podem ter cobrança da Meta por mensagem
-          entregue, além de eventuais tarifas do provedor. Informe uma
-          estimativa conforme as tarifas da sua conta. O sistema limita os
-          envios usando esses valores; não consulta a cobrança real nem define
-          um teto na conta Meta. Salvar o rascunho não envia mensagens.{" "}
-          <a
-            href="https://business.whatsapp.com/products/platform-pricing"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Consultar tarifas do WhatsApp
-          </a>
-          .
+          Informe uma estimativa conforme as tarifas da sua conta, incluindo
+          eventuais tarifas do provedor. O sistema limita os envios usando esses
+          valores; não consulta a cobrança real nem define um teto na conta
+          Meta. Salvar o rascunho não envia mensagens.
         </p>
       </form>
     </SidePanel>
