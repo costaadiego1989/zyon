@@ -43,6 +43,8 @@ function isAllowedPath(path: string[], method: string): boolean {
   if (path[0] === "nudge") return path.length === 1;
   if (path[0] === "conversations") {
     if (!isIdentifier(path[1])) return false;
+    if (path.length === 2) return method === "GET" || method === "HEAD";
+    if (path.length === 3 && path[2] === "identity") return method === "POST";
     if (path.length === 4 && path[2] === "meta-ads") return method === "POST" && ["attribution", "bind", "revoke", "purchase"].includes(path[3]!);
     if (path.length === 3) return ["messages", "one-buy-click", "access", "history", "events"].includes(path[2]!);
     return path.length === 4 && (
